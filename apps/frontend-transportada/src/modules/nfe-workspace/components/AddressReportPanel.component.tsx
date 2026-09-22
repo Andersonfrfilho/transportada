@@ -1,14 +1,44 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
 
-import type { AddressReport, AddressFinding } from '../shared/addressReport.validation'
+import { AddressCorrectionForm } from './AddressCorrectionForm.component'
+import { AddressCorrectionMailDialog } from './AddressCorrectionMailDialog.component'
+import { formatNfeImportMoment } from '../shared/nfeImportMoment.service'
+import {
+  findDraftRequest,
+  initialAddressCorrectionFields,
+  resolveAddressCorrectionStatus,
+  type AddressCorrectionStatus,
+} from '../shared/addressCorrectionStatus.service'
+import {
+  useAddressCorrectionMailDialog,
+  type AddressCorrectionMailTarget,
+} from '../hooks/useAddressCorrectionMailDialog.hook'
+import type { AddressCorrectionRequestRecord } from '../shared/addressCorrection.validation'
+import type {
+  AddressReport,
+  AddressFinding,
+  AddressFindingGroup,
+} from '../shared/addressReport.validation'
 import styles from '../styles/addressReport.module.css'
 
+/** "Como veio → correto", a mesma forma que `resolveAddressCorrectionStatus` já resume. */
+function summarizeAsIs(finding: AddressFinding): string {
+  const base = `${finding.noteStreet}, ${finding.noteNumber} — ${finding.city}/${finding.state}`
+  return finding.notePostalCode.length === 0 ? base : `${base} · ${finding.notePostalCode}`
+}
+
 type AddressReportPanelProps = Readonly<{
+  correctionRequests: readonly AddressCorrectionRequestRecord[] | undefined
+  correctionRequestsFailed: boolean
+  correctionRequestsLoading: boolean
   denied: boolean
   failed: boolean
   loading: boolean
@@ -35,8 +65,17 @@ function AddressReportSkeleton() {
  * uma base podre; "24 de 148 medidos" diz que o cadastro está majoritariamente bom. O relatório é
  * feito para ser mandado a um cliente, e a diferença entre um pedido e uma acusação está aí.
  */
-export function AddressReportPanel({ denied, failed, loading, report }: AddressReportPanelProps) {
+export function AddressReportPanel({
+  correctionRequests,
+  correctionRequestsFailed,
+  correctionRequestsLoading,
+  denied,
+  failed,
+  loading,
+  report,
+}: AddressReportPanelProps) {
   const { t } = useTranslation('nfeWorkspace')
+  const mailDialog = useAddressCorrectionMailDialog()
 
   if (denied) return <p className={styles.notice}>{t('addressReport.denied')}</p>
   if (failed) return <p className={styles.notice}>{t('addressReport.failed')}</p>
@@ -54,6 +93,34 @@ export function AddressReportPanel({ denied, failed, loading, report }: AddressR
     )
   }
 
+  function draftsInGroup(group: AddressFindingGroup): readonly AddressCorrectionRequestRecord[] {
+    const addressKeys = new Set(group.findings.map((finding) => finding.addressKey))
+    return (correctionRequests ?? []).filter(
+      (request) => request.status === 'draft' && addressKeys.has(request.addressKey),
+    )
+  }
+
+  function openCompleteMail(group: AddressFindingGroup): void {
+    const drafts = draftsInGroup(group)
+    const previewItems = group.findings.flatMap((finding) => {
+      const draft = drafts.find((request) => request.addressKey === finding.addressKey)
+      if (draft === undefined) return []
+      const status = resolveAddressCorrectionStatus([draft])
+      return [
+        {
+          addressKey: finding.addressKey,
+          asIs: summarizeAsIs(finding),
+          proposed: status.proposedSummary ?? '',
+        },
+      ]
+    })
+    mailDialog.open({
+      contractorName: group.contractorName || t('addressReport.contractorWithout'),
+      contractorTaxId: group.contractorTaxId,
+      previewItems,
+    })
+  }
+
   return (
     <section className={styles.panel}>
       <h2 className={styles.title}>{t('addressReport.title')}</h2>
@@ -64,28 +131,78 @@ export function AddressReportPanel({ denied, failed, loading, report }: AddressR
         })}
       </p>
 
-      {report.groups.map((group) => (
-        <article className={styles.group} key={group.contractorTaxId || group.contractorName}>
-          <header className={styles.groupHeader}>
-            <h3 className={styles.groupName}>
-              {group.contractorName || t('addressReport.contractorWithout')}
-            </h3>
-            <span className={styles.groupCount}>{group.findings.length}</span>
-          </header>
+      {report.groups.map((group) => {
+        const groupDraftCount = draftsInGroup(group).length
+        return (
+          <article className={styles.group} key={group.contractorTaxId || group.contractorName}>
+            <header className={styles.groupHeader}>
+              <h3 className={styles.groupName}>
+                {group.contractorName || t('addressReport.contractorWithout')}
+              </h3>
+              <div className={styles.groupActions}>
+                {groupDraftCount === 0 ? null : (
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                    onClick={() => openCompleteMail(group)}
+                  >
+                    <Icon name="send" />
+                    {t('addressReport.correction.mail.sendAll', { count: groupDraftCount })}
+                  </Button>
+                )}
+                <span className={styles.groupCount}>{group.findings.length}</span>
+              </div>
+            </header>
 
-          <ul className={styles.findings}>
-            {group.findings.map((finding) => (
-              <FindingRow finding={finding} key={finding.addressKey} />
-            ))}
-          </ul>
-        </article>
-      ))}
+            <ul className={styles.findings}>
+              {group.findings.map((finding) => (
+                <FindingRow
+                  contractorName={group.contractorName || t('addressReport.contractorWithout')}
+                  contractorTaxId={group.contractorTaxId}
+                  correctionRequests={correctionRequests}
+                  correctionRequestsFailed={correctionRequestsFailed}
+                  correctionRequestsLoading={correctionRequestsLoading}
+                  finding={finding}
+                  key={finding.addressKey}
+                  onSendMail={mailDialog.open}
+                />
+              ))}
+            </ul>
+          </article>
+        )
+      })}
+
+      <AddressCorrectionMailDialog dialog={mailDialog} />
     </section>
   )
 }
 
-function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
+type FindingRowProps = Readonly<{
+  contractorName: string
+  contractorTaxId: string
+  correctionRequests: readonly AddressCorrectionRequestRecord[] | undefined
+  correctionRequestsFailed: boolean
+  correctionRequestsLoading: boolean
+  finding: AddressFinding
+  onSendMail: (target: AddressCorrectionMailTarget) => void
+}>
+
+function FindingRow({
+  contractorName,
+  contractorTaxId,
+  correctionRequests,
+  correctionRequestsFailed,
+  correctionRequestsLoading,
+  finding,
+  onSendMail,
+}: FindingRowProps) {
   const { t } = useTranslation('nfeWorkspace')
+  const [isCorrectionOpen, setCorrectionOpen] = useState(false)
+  const requestsForAddress =
+    correctionRequests?.filter((request) => request.addressKey === finding.addressKey) ?? []
+  const status = resolveAddressCorrectionStatus(requestsForAddress)
+  const draft = findDraftRequest(finding.addressKey, requestsForAddress)
 
   return (
     <li className={styles.finding}>
@@ -96,12 +213,24 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
         </span>
       </Tooltip>
 
+      <AddressCorrectionStatusBadge
+        failed={correctionRequestsFailed}
+        loading={correctionRequestsLoading}
+        status={status}
+      />
+
       <div className={styles.sides}>
         <p className={styles.side}>
           <span className={styles.sideLabel}>{t('addressReport.noteLabel')}</span>
           {`${finding.noteStreet}, ${finding.noteNumber} — ${finding.city}/${finding.state}`}
           {finding.notePostalCode.length === 0 ? '' : ` · ${finding.notePostalCode}`}
         </p>
+        {status.proposedSummary === null ? null : (
+          <p className={styles.side}>
+            <span className={styles.sideLabel}>{t('addressReport.correction.proposedLabel')}</span>
+            {status.proposedSummary}
+          </p>
+        )}
         {/**
          * ⚠️ **O não localizado não tem lado do provedor** (ADR-0062). A rotina paga guarda o
          * carimbo, nunca o que o provedor respondeu — então imprimir "o provedor conhece: não
@@ -132,6 +261,110 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
           {t('addressReport.distance', { metres: Math.round(finding.distanceMetres) })}
         </p>
       )}
+
+      {isCorrectionOpen ? (
+        <AddressCorrectionForm
+          addressKey={finding.addressKey}
+          initial={initialAddressCorrectionFields({ draft, finding })}
+          onCancel={() => setCorrectionOpen(false)}
+          onSaved={() => setCorrectionOpen(false)}
+        />
+      ) : (
+        <Button
+          className={styles.correctionTrigger}
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={() => setCorrectionOpen(true)}
+        >
+          <Icon name="edit" />
+          {t(
+            draft === undefined
+              ? 'addressReport.correction.trigger'
+              : 'addressReport.correction.editTrigger',
+          )}
+        </Button>
+      )}
+
+      {draft === undefined ? null : (
+        <Button
+          className={styles.mailTrigger}
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={() =>
+            onSendMail({
+              contractorName,
+              contractorTaxId,
+              previewItems: [
+                {
+                  addressKey: finding.addressKey,
+                  asIs: summarizeAsIs(finding),
+                  proposed: status.proposedSummary ?? '',
+                },
+              ],
+              requestIds: [draft.id],
+            })
+          }
+        >
+          <Icon name="send" />
+          {t('addressReport.correction.mail.sendOne')}
+        </Button>
+      )}
     </li>
   )
+}
+
+/**
+ * O selo de estado do pedido (spec 150, T202) — reaproveita `Badge`, o mesmo selo usado em
+ * `BillingDefaultsFields` e nas tabelas de NFS-e/MDF-e, em vez de um visual próprio da aba.
+ * Enquanto a lista carrega, o esqueleto tem a forma do selo; se ela falhar, um aviso discreto
+ * substitui o selo sem esconder a falha nem travar o resto da linha.
+ */
+function AddressCorrectionStatusBadge({
+  failed,
+  loading,
+  status,
+}: Readonly<{ failed: boolean; loading: boolean; status: AddressCorrectionStatus }>) {
+  const { t } = useTranslation('nfeWorkspace')
+
+  if (loading) return <Skeleton height="1.2rem" variant="text" width="7rem" />
+  if (failed) {
+    return (
+      <small className={styles.correctionStatusNotice}>
+        {t('addressReport.correction.statusUnavailable')}
+      </small>
+    )
+  }
+
+  if (status.state === 'sent') {
+    const date = status.sentAt === null ? '' : formatNfeImportMoment(status.sentAt)
+    return (
+      <Badge variant="success">
+        {status.recipientCount === null
+          ? t('addressReport.correction.stateSent', { date })
+          : t('addressReport.correction.stateSentWithCount', {
+              count: status.recipientCount,
+              date,
+            })}
+      </Badge>
+    )
+  }
+
+  if (status.state === 'draft') {
+    return (
+      <span className={styles.correctionStatusGroup}>
+        <Badge variant="default">{t('addressReport.correction.stateDraft')}</Badge>
+        {status.lastSentAt === null ? null : (
+          <small className={styles.correctionStatusHint}>
+            {t('addressReport.correction.lastSentAt', {
+              date: formatNfeImportMoment(status.lastSentAt),
+            })}
+          </small>
+        )}
+      </span>
+    )
+  }
+
+  return <Badge variant="secondary">{t('addressReport.correction.stateNone')}</Badge>
 }

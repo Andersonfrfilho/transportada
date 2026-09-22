@@ -42,6 +42,8 @@ describe('fleet driver schema', () => {
       'fixed_amount',
       'payment_period',
       'payment_closing_day',
+      /** Spec 143 D3: a diária combinada só deste motorista — vazia, vale o valor geral da empresa. */
+      'daily_allowance_amount',
       'license_number',
       'license_category',
       'license_expires_at',
@@ -111,6 +113,8 @@ describe('fleet driver schema', () => {
       'fixed_amount',
       'payment_period',
       'payment_closing_day',
+      // Spec 143 D3: sem valor próprio o motorista cai no valor geral — a ausência é a regra, não a exceção
+      'daily_allowance_amount',
       // Nulo é ausência de aceite — e enquanto for nulo, o portal não mostra posição nenhuma
       'location_sharing_consent_at',
       // Ficha sem coordenada é o normal: o par só nasce de endereço escolhido na busca, e a marca

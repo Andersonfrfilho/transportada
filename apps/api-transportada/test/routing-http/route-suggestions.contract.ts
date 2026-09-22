@@ -79,6 +79,39 @@ describe('route suggestion routes (ADR-0044 §7)', () => {
     expect(fixture.readCalls[0]).toMatchObject({ suggestionId: SUGGESTION_ID, tripId: TRIP_ID })
   })
 
+  /** Spec 153 RF3: sem corpo, o aceite continua funcionando — `cheapest` é o default do congelamento. */
+  test('accepts a routeChoice in the body and passes it through to the use case', async () => {
+    const fixture = await createRouteSuggestionHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { routeChoice: { criterion: 'fastest', signature: 'abc123' } },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.acceptCalls[0]).toMatchObject({
+      routeChoice: { criterion: 'fastest', signature: 'abc123' },
+    })
+  })
+
+  test('rejects an unknown route choice criterion with 400', async () => {
+    const fixture = await createRouteSuggestionHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { routeChoice: { criterion: 'shortest', signature: null } },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.acceptCalls).toHaveLength(0)
+  })
+
   test('records both the acceptance and the rejection, which is what measures the feature', async () => {
     const fixture = await createRouteSuggestionHttpFixture()
 

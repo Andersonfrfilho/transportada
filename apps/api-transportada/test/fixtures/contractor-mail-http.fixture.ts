@@ -35,6 +35,7 @@ export const SETTINGS_SUMMARY: ContractorMailSettingsSummary = {
   replyDomain: 'resposta.fernandes-transportadora.com.br',
   senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
   senderName: 'Fernandes Transportadora',
+  sendingVerifiedAt: null,
   status: 'pending',
   version: '1',
   webhookId: '00000000-0000-4000-8000-0000000000b2',
@@ -68,6 +69,7 @@ export const READ_ONLY_CONTEXT: CompanyContext = {
 }
 
 type RouteDependencies = {
+  readonly mailRateLimit: { readonly maxRequests: number; readonly windowSeconds: number }
   readonly read: {
     execute(input: ExecuteCall): Promise<ContractorMailSettingsSummary | null>
   }
@@ -104,6 +106,7 @@ export async function createContractorMailHttpFixture(params: CreateFixtureParam
   const sendTestEmailCalls: ExecuteCall[] = []
 
   const routes = await loadRoutes({
+    mailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },
     read: {
       async execute(input) {
         readCalls.push(structuredClone(input))
@@ -162,7 +165,7 @@ async function loadRoutes(input: RouteDependencies): Promise<readonly Registered
   return module.createContractorMailSettingsRoutes(input)
 }
 
-function createTestRouter(input: {
+export function createTestRouter(input: {
   readonly context: AuthenticatedContext<CompanyContext>
   readonly routes: readonly RegisteredRoute[]
 }) {
@@ -194,6 +197,7 @@ function createTestRouter(input: {
       },
       migrationStatus: appliedMigrations(),
     }),
+    rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: input.routes,
     tenantContext: {
       async resolveCompany() {
@@ -203,7 +207,7 @@ function createTestRouter(input: {
   })
 }
 
-function authenticatedContext(
+export function authenticatedContext(
   permissions: CompanyContext['permissions'],
 ): AuthenticatedContext<CompanyContext> {
   return {

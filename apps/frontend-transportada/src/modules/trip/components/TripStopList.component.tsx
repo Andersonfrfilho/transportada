@@ -11,27 +11,44 @@ import { Icon } from '@/components/ui/icon'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
+import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import { hasTripDocumentFiscalWarning, tripDocumentLabel } from '../shared/tripDocument.service'
 import type { TripDocumentDetail, TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 /**
  * Três portões distintos, não um: o domínio separa trabalho de barracão (separar/carregar, só
- * antes da saída e com roteiro planejado) de trabalho de rua (devolver, só depois da saída) — e
+ * antes da saída e com roteiro planejado) de trabalho de rua (entregar/devolver, com autoria) — e
  * vincular/desvincular/desviar endereço segue um terceiro, o de `checkTripAcceptsLinkage`.
- * Colapsar os três num `isEditable` só mostrava "Devolver" exatamente quando ele falharia.
+ *
+ * Spec 156 T8b, ADR-0067: entregar/devolver deixam de ser `canManage && canDeliver/canReturn` (a
+ * máquina de estados copiada no cliente) e passam a ser só `allowedActions` — a mesma fonte que
+ * `TripFieldActions` já usa (D10). O botão nunca decide sozinho: se `capabilities` não trouxer a
+ * ação, ela não aparece.
  */
 export type TripStopDocumentActions = Readonly<{
-  /** Spec 079: entregar é o mesmo trabalho de rua que devolver, e desde 02/09 o backend o exige. */
-  canDeliver: boolean
+  /**
+   * Spec 156 T9: a ocorrência de campo é por nota (`allowed-actions`, capacidade `fieldOccurrence`)
+   * — nunca um booleano só, porque a capacidade varia nota a nota dentro da mesma parada.
+   */
+  canFieldOccurrence: (documentId: string) => boolean
+  /** Spec 156 T11: mesma ideia da ocorrência de campo — a capacidade varia nota a nota. */
+  canFieldDelivery: (documentId: string) => boolean
   canManage: boolean
-  canReturn: boolean
   canSeparateOrLoad: boolean
+  /** `allowedActions.documents[id]` — a mesma capacidade que `TripFieldActions` consome. */
+  capabilities: FieldActionCapabilities
   isDeliverPending: boolean
   isEditable: boolean
   isReleasePending: boolean
+  isReturnPending: boolean
   isTransitionPending: boolean
-  onDeliver: (documentId: string) => void
+  onFieldDeliver: (documentId: string) => void
+  onFieldReturn: (documentId: string) => void
+  /** Spec 156 T9: abre `FieldOccurrenceDialog` para esta nota (ação da linha, não em massa). */
+  onOpenFieldOccurrence: (documentId: string) => void
+  /** Spec 156 T11: abre `FieldDeliveryWizard` para esta nota (ação da linha, não em massa). */
+  onOpenFieldDelivery: (documentId: string) => void
   /** Spec 079 T006/T025: abre e fecha o comprovante da nota. */
   onToggleProof: (documentId: string) => void
   openProofDocumentId: null | string
@@ -39,7 +56,6 @@ export type TripStopDocumentActions = Readonly<{
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
   onRelease: (documentId: string) => void
-  onReturn: (documentId: string) => void
   onSeparate: (documentId: string) => void
 }>
 
@@ -133,12 +149,18 @@ function TripStopCard({ actions, canReorder, selection, stop }: TripStopCardProp
             <Icon name="grip" />
           </button>
         ) : null}
-        <Checkbox
-          ariaLabel={t('stops.selectAll', { label: stop.label })}
-          checked={allSelected}
-          indeterminate={someSelected && !allSelected}
-          onChange={(checked) => selection.toggleMany(documentIds, checked)}
-        />
+        {/*
+          ⚠️ Parada de uma nota só não ganha a caixa da parada: ela marcaria exatamente a mesma coisa
+          que a caixa da linha logo abaixo, e duas seleções coladas para o mesmo item confundiam.
+        */}
+        {documentIds.length > 1 ? (
+          <Checkbox
+            ariaLabel={t('stops.selectAll', { label: stop.label })}
+            checked={allSelected}
+            indeterminate={someSelected && !allSelected}
+            onChange={(checked) => selection.toggleMany(documentIds, checked)}
+          />
+        ) : null}
         <span className={styles.stopSequence}>{stop.sequence}</span>
         <span className={styles.stopLabel}>{stop.label}</span>
         <span className={styles.stopCounter}>
@@ -314,10 +336,10 @@ function TripStopDocumentRow({
             {t('actions.load')}
           </Button>
         ) : null}
-        {actions.canManage && actions.canReturn && document.separationStatus === 'loaded' ? (
+        {actions.capabilities.canDocument(document.id, 'fieldReturn') ? (
           <Button
-            disabled={actions.isTransitionPending}
-            onClick={() => actions.onReturn(document.id)}
+            disabled={actions.isReturnPending}
+            onClick={() => actions.onFieldReturn(document.id)}
             size="sm"
             type="button"
             variant="ghost"
@@ -326,10 +348,10 @@ function TripStopDocumentRow({
             {t('actions.return')}
           </Button>
         ) : null}
-        {actions.canManage && actions.canDeliver && document.deliveredAt === null ? (
+        {actions.capabilities.canDocument(document.id, 'fieldDelivery') ? (
           <Button
             disabled={actions.isDeliverPending}
-            onClick={() => actions.onDeliver(document.id)}
+            onClick={() => actions.onFieldDeliver(document.id)}
             size="sm"
             type="button"
           >
@@ -358,6 +380,28 @@ function TripStopDocumentRow({
           >
             <Icon name="edit" />
             {t('deliveryOverride.menuAction')}
+          </Button>
+        ) : null}
+        {actions.canFieldOccurrence(document.id) ? (
+          <Button
+            onClick={() => actions.onOpenFieldOccurrence(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="alert" />
+            {t('actions.fieldOccurrence')}
+          </Button>
+        ) : null}
+        {actions.canFieldDelivery(document.id) ? (
+          <Button
+            onClick={() => actions.onOpenFieldDelivery(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="camera" />
+            {t('actions.fieldDelivery')}
           </Button>
         ) : null}
       </div>

@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "90ed8741-d167-4a5d-af17-15f1b402681e",
+  "id": "30356fad-d5a9-432b-87f1-87941e7c83de",
   "prevIds": [
-    "876c251b-5cb1-48e9-accf-3261ecf4e177"
+    "b4b904cc-9543-497f-9ec6-7989fce5ff95"
   ],
   "ddl": [
     {
@@ -800,6 +800,12 @@
     },
     {
       "isRlsEnabled": false,
+      "name": "address_correction_requests",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
       "name": "company_route_optimization_settings",
       "entityType": "tables",
       "schema": "public"
@@ -873,6 +879,12 @@
     {
       "isRlsEnabled": false,
       "name": "contractor_mail_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "contractor_mail_templates",
       "entityType": "tables",
       "schema": "public"
     },
@@ -1053,6 +1065,12 @@
     {
       "isRlsEnabled": false,
       "name": "trip_document_reviews",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "rate_limit_windows",
       "entityType": "tables",
       "schema": "public"
     },
@@ -22160,6 +22178,383 @@
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "address_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_street",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(20)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_number",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_complement",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_district",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(7)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_city_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_city",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(8)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_postal_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "proposed_street",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(20)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "proposed_number",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "proposed_complement",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "proposed_district",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(7)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "proposed_city_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "proposed_city",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "proposed_state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(8)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "proposed_postal_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reason_match_level",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "numeric(12,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reason_distance_metres",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recipient_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'draft'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "thread_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sent_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
@@ -23716,6 +24111,32 @@
       "table": "contractor_mail_messages"
     },
     {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "body_html",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_messages"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "template_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_messages"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": false,
@@ -24158,6 +24579,19 @@
       "table": "contractor_mail_settings"
     },
     {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sending_verified_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_settings"
+    },
+    {
       "type": "bigint",
       "typeSchema": null,
       "notNull": true,
@@ -24195,6 +24629,188 @@
       "entityType": "columns",
       "schema": "public",
       "table": "contractor_mail_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "mail_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "subject",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "intro",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "item_text",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "closing",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "is_default",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'active'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "1",
+      "generated": null,
+      "identity": null,
+      "name": "version",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_mail_templates"
     },
     {
       "type": "uuid",
@@ -28516,6 +29132,58 @@
       "table": "trip_document_reviews"
     },
     {
+      "type": "varchar(60)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scope",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "rate_limit_windows"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "subject_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "rate_limit_windows"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "window_start",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "rate_limit_windows"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "hits",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "rate_limit_windows"
+    },
+    {
       "nameExplicit": true,
       "columns": [
         {
@@ -32278,6 +32946,69 @@
           "opclass": null
         },
         {
+          "value": "address_key",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"status\" = 'draft'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "address_correction_requests_company_address_draft_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "contractor_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "address_correction_requests_company_contractor_status_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
           "value": "suggestion_id",
           "isExpression": false,
           "asc": true,
@@ -32602,6 +33333,69 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "contractor_mail_outbox"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "mail_type",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "lower(\"name\")",
+          "isExpression": true,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"status\" = 'active'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "contractor_mail_templates_company_type_name_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "mail_type",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"is_default\" and \"status\" = 'active'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "contractor_mail_templates_company_type_default_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "contractor_mail_templates"
     },
     {
       "nameExplicit": true,
@@ -33428,6 +34222,27 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "trip_document_reviews"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "window_start",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "rate_limit_windows_window_start_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "rate_limit_windows"
     },
     {
       "nameExplicit": true,
@@ -38271,6 +39086,61 @@
         "id"
       ],
       "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "address_correction_requests_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractors",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "address_correction_requests_contractor_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "thread_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractor_mail_threads",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "address_correction_requests_thread_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
       "onDelete": "CASCADE",
       "name": "company_route_optimization_settings_company_id_companies_id_fk",
       "entityType": "fks",
@@ -38705,6 +39575,25 @@
     {
       "nameExplicit": true,
       "columns": [
+        "company_id",
+        "template_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractor_mail_templates",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "contractor_mail_messages_template_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_mail_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
         "company_id"
       ],
       "schemaTo": "public",
@@ -38754,6 +39643,23 @@
       "entityType": "fks",
       "schema": "public",
       "table": "contractor_mail_settings"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "contractor_mail_templates_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
     },
     {
       "nameExplicit": true,
@@ -40192,6 +41098,18 @@
     },
     {
       "columns": [
+        "scope",
+        "subject_key",
+        "window_start"
+      ],
+      "nameExplicit": true,
+      "name": "rate_limit_windows_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "rate_limit_windows"
+    },
+    {
+      "columns": [
         "id"
       ],
       "nameExplicit": false,
@@ -41402,6 +42320,16 @@
     },
     {
       "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "address_correction_requests_pkey",
+      "schema": "public",
+      "table": "address_correction_requests",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
         "company_id"
       ],
       "nameExplicit": false,
@@ -41528,6 +42456,16 @@
       "name": "contractor_mail_settings_pkey",
       "schema": "public",
       "table": "contractor_mail_settings",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "contractor_mail_templates_pkey",
+      "schema": "public",
+      "table": "contractor_mail_templates",
       "entityType": "pks"
     },
     {
@@ -44188,6 +45126,18 @@
         "id"
       ],
       "nullsNotDistinct": false,
+      "name": "contractor_mail_templates_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
       "name": "contractor_mail_threads_company_id_id_unique",
       "entityType": "uniques",
       "schema": "public",
@@ -45651,7 +46601,7 @@
       "table": "password_reset_requests"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge')",
       "name": "job_executions_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -45693,7 +46643,7 @@
       "table": "job_executions"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge')",
       "name": "job_schedules_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -48689,6 +49639,20 @@
       "table": "address_comparisons"
     },
     {
+      "value": "\"status\" in ('draft', 'sent')",
+      "name": "address_correction_requests_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
+      "value": "\"reason_distance_metres\" is null or \"reason_distance_metres\" >= 0",
+      "name": "address_correction_requests_distance_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "address_correction_requests"
+    },
+    {
       "value": "\"end_policy\" in ('depot', 'last_stop', 'address')",
       "name": "company_route_optimization_settings_end_policy_check",
       "entityType": "checks",
@@ -48857,6 +49821,13 @@
       "table": "contractor_contacts"
     },
     {
+      "value": "length(\"email\") <= 254",
+      "name": "contractor_contacts_email_length_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_contacts"
+    },
+    {
       "value": "\"event_type\" in ('email.received')",
       "name": "contractor_inbound_email_outbox_event_type_check",
       "entityType": "checks",
@@ -48969,6 +49940,20 @@
       "table": "contractor_mail_messages"
     },
     {
+      "value": "\"body_html\" is null or \"direction\" = 'outbound'",
+      "name": "contractor_mail_messages_body_html_direction_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_messages"
+    },
+    {
+      "value": "octet_length(\"body_html\") <= 524288",
+      "name": "contractor_mail_messages_body_html_size_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_messages"
+    },
+    {
       "value": "\"event_type\" in ('message.send.requested')",
       "name": "contractor_mail_outbox_event_type_check",
       "entityType": "checks",
@@ -49011,7 +49996,70 @@
       "table": "contractor_mail_settings"
     },
     {
-      "value": "\"subject_type\" in ('stop_occurrence', 'document_occurrence', 'delivery_charge', 'setup_test')",
+      "value": "\"mail_type\" in ('address_correction')",
+      "name": "contractor_mail_templates_mail_type_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "\"status\" in ('active', 'archived')",
+      "name": "contractor_mail_templates_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "length(btrim(\"name\")) > 0 and length(\"name\") <= 120",
+      "name": "contractor_mail_templates_name_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "length(btrim(\"subject\")) > 0 and length(\"subject\") <= 200 and \"subject\" !~ '[\\r\\n]'",
+      "name": "contractor_mail_templates_subject_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "length(btrim(\"intro\")) > 0 and length(\"intro\") <= 4000",
+      "name": "contractor_mail_templates_intro_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "length(\"item_text\") <= 4000",
+      "name": "contractor_mail_templates_item_text_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "length(btrim(\"closing\")) > 0 and length(\"closing\") <= 4000",
+      "name": "contractor_mail_templates_closing_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "not \"is_default\" or \"status\" = 'active'",
+      "name": "contractor_mail_templates_default_active_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "\"version\" > 0",
+      "name": "contractor_mail_templates_version_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_mail_templates"
+    },
+    {
+      "value": "\"subject_type\" in ('stop_occurrence', 'document_occurrence', 'delivery_charge', 'setup_test', 'address_correction')",
       "name": "contractor_mail_threads_subject_type_check",
       "entityType": "checks",
       "schema": "public",

@@ -1,10 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { ProofCrop } from './ProofCrop.component'
 import { SignaturePad } from './SignaturePad.component'
@@ -12,10 +13,9 @@ import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
   DRIVER_OCCURRENCE_KINDS,
   DRIVER_RETURN_REASONS,
-  driverSelectableOccurrenceTypes,
   type DriverDeliveryProofSettings,
   type DriverOccurrenceKind,
-  type DriverOccurrenceType,
+  type DriverOccurrenceTypesState,
   type DriverReportedLocation,
   type DriverReturnReason,
   type DriverTripDocument,
@@ -26,6 +26,7 @@ import {
   countPendingDocuments,
   findOccurrencePhotoDocument,
   isDocumentSettled,
+  isProofPendingWarningDue,
 } from '../shared/driverTripView.service'
 import { renderOccurrenceNoticePreview } from '../shared/occurrenceNoticePreview.service'
 import {
@@ -74,7 +75,7 @@ type DriverStopCardProps = Readonly<{
     occurrenceTypeId: string
     productCode: string
   }) => void
-  occurrenceTypes: readonly DriverOccurrenceType[]
+  occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => void
   onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
   /**
@@ -83,6 +84,8 @@ type DriverStopCardProps = Readonly<{
    */
   onOccurrencePhoto: (input: { documentId: string; file: File }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
+  /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
+  onRetryOccurrenceTypes: () => void
   stop: DriverTripStop
 }>
 
@@ -98,6 +101,7 @@ export function DriverStopCard({
   onOccurrencePhoto,
   onProof,
   onReturn,
+  onRetryOccurrenceTypes,
   stop,
 }: DriverStopCardProps) {
   const { t } = useTranslation('driverTrip')
@@ -194,6 +198,7 @@ export function DriverStopCard({
             onDocumentOccurrence={onDocumentOccurrence}
             onProof={onProof}
             onReturn={onReturn}
+            onRetryOccurrenceTypes={onRetryOccurrenceTypes}
             stopProofSettings={stop.deliveryProof}
           />
         ))}
@@ -212,9 +217,10 @@ type DocumentRowProps = Readonly<{
     occurrenceTypeId: string
     productCode: string
   }) => void
-  occurrenceTypes: readonly DriverOccurrenceType[]
+  occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
+  onRetryOccurrenceTypes: () => void
   stopProofSettings: DriverDeliveryProofSettings | null
 }>
 
@@ -226,11 +232,19 @@ function DocumentRow({
   onDocumentOccurrence,
   onProof,
   onReturn,
+  onRetryOccurrenceTypes,
   stopProofSettings,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
   const [openOccurrence, setOpenDocumentOccurrence] = useState(false)
+  /** O botão "Tentar de novo" some ao ser tocado; o foco fica no painel, não cai no `body`. */
+  const occurrencePanelRef = useRef<HTMLFieldSetElement>(null)
+
+  function handleRetryOccurrenceTypes(): void {
+    onRetryOccurrenceTypes()
+    occurrencePanelRef.current?.focus()
+  }
   /** Spec 082 (revisão): a configuração é do **documento** — a da parada é só o shape antigo. */
   const proofSettings = document.deliveryProof ?? stopProofSettings
 
@@ -266,6 +280,21 @@ function DocumentRow({
   return (
     <li className={styles.document}>
       <span>{document.recipientName}</span>
+      {/* Spec 159 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
+      {/* Aviso, não erro: cobre em vez de vermelho, e o detalhe da regra fica a um toque. */}
+      {isProofPendingWarningDue({ document, stopProofSettings }) ? (
+        <div className={styles.proofPendingWarning} role="note">
+          <p className={styles.proofPendingWarningTitle}>
+            <Icon name="camera" />
+            {t('proofPendingWarningTitle')}
+          </p>
+          <p className={styles.proofPendingWarningLead}>{t('proofPendingWarningLead')}</p>
+          <details className={styles.proofPendingWarningDetails}>
+            <summary>{t('proofPendingWarningDetails')}</summary>
+            <p>{t('proofPendingWarning')}</p>
+          </details>
+        </div>
+      ) : null}
       <div className={styles.actions}>
         <Button onClick={() => onDeliver(document.id)} type="button">
           <Icon name="check" />
@@ -290,28 +319,50 @@ function DocumentRow({
         </Button>
       </div>
       {openOccurrence ? (
-        <fieldset className={styles.occurrenceForm}>
+        <fieldset className={styles.occurrenceForm} ref={occurrencePanelRef} tabIndex={-1}>
           <legend>{t('documentOccurrence')}</legend>
           <p>{t('documentOccurrenceHint')}</p>
-          {driverSelectableOccurrenceTypes(occurrenceTypes).map((occurrenceType) => (
-            <Button
-              key={occurrenceType.id}
-              onClick={() => {
-                onDocumentOccurrence({
-                  documentId: document.id,
-                  occurrenceTypeId: occurrenceType.id,
-                  /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber listá-lo — a
-                     nota do motorista ainda não carrega os produtos. */
-                  productCode: '',
-                })
-                setOpenDocumentOccurrence(false)
-              }}
-              type="button"
-              variant="ghost"
+          {occurrenceTypes.status === 'failed' ? (
+            <div>
+              <p className={styles.proofFieldError} role="alert">
+                {t('documentOccurrenceTypesFailed')}
+              </p>
+              <Button onClick={handleRetryOccurrenceTypes} type="button" variant="ghost">
+                <Icon name="refresh" />
+                {t('documentOccurrenceTypesRetry')}
+              </Button>
+            </div>
+          ) : occurrenceTypes.status === 'loading' ? (
+            <SkeletonGroup
+              className={styles.occurrenceChips}
+              label={t('documentOccurrenceTypesLoading')}
             >
-              {occurrenceType.name}
-            </Button>
-          ))}
+              <Skeleton height="var(--control-height)" width="40%" />
+              <Skeleton height="var(--control-height)" width="55%" />
+            </SkeletonGroup>
+          ) : occurrenceTypes.types.length === 0 ? (
+            <p className={styles.stopMeta}>{t('documentOccurrenceTypesEmpty')}</p>
+          ) : (
+            occurrenceTypes.types.map((occurrenceType) => (
+              <Button
+                key={occurrenceType.id}
+                onClick={() => {
+                  onDocumentOccurrence({
+                    documentId: document.id,
+                    occurrenceTypeId: occurrenceType.id,
+                    /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber listá-lo — a
+                       nota do motorista ainda não carrega os produtos. */
+                    productCode: '',
+                  })
+                  setOpenDocumentOccurrence(false)
+                }}
+                type="button"
+                variant="ghost"
+              >
+                {occurrenceType.name}
+              </Button>
+            ))
+          )}
         </fieldset>
       ) : null}
       {openReturn ? (
@@ -336,7 +387,7 @@ function DocumentRow({
   )
 }
 
-type DeliveryProofSectionProps = Readonly<{
+export type DeliveryProofSectionProps = Readonly<{
   documentId: string
   onProof: (input: DriverProofAttachment) => void
   proofSettings: DriverDeliveryProofSettings | null
@@ -346,8 +397,15 @@ type DeliveryProofSectionProps = Readonly<{
  * Spec 082 T053: o formulário do comprovante é o que a configuração manda — `off` não renderiza,
  * `required` bloqueia o anexo com mensagem **no campo** (todos de uma vez), e o documento do
  * recebedor entra mascarado e sobe canônico. Sem canvas/pointer, a assinatura cai para a foto.
+ *
+ * Spec 159 (T9): exportado para ser reaproveitado pela tela "Fotos pendentes" — o mesmo formulário,
+ * a mesma validação, sem uma segunda implementação divergindo calada.
  */
-function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryProofSectionProps) {
+export function DeliveryProofSection({
+  documentId,
+  onProof,
+  proofSettings,
+}: DeliveryProofSectionProps) {
   const { t } = useTranslation('driverTrip')
   const plan = resolveProofFormPlan(proofSettings)
   const [receiverName, setReceiverName] = useState('')

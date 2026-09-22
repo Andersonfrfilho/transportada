@@ -18,6 +18,19 @@ export const tripStopEvents = pgTable('trip_stop_events', {
 })
 
 /**
+ * Spec 159 T11 (item 8): a posição da foto do comprovante (ADR-0070 §4) — só as colunas que o
+ * expurgo lê e apaga. `captured_at` fica: é o horário declarado da foto, que a auditoria da
+ * pontualidade ainda lê, e sem a posição ele já não localiza ninguém.
+ */
+export const tripDeliveryProofs = pgTable('trip_delivery_proofs', {
+  id: uuid().primaryKey(),
+  latitude: numeric({ precision: 10, scale: 7 }),
+  longitude: numeric({ precision: 10, scale: 7 }),
+  accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+})
+
+/**
  * ADR-0056 §2: o rastro ao vivo do portal do contratante. Ele já morria com a viagem
  * (`purgeByTrip`, no fechamento e no cancelamento), e isso bastava enquanto o rastro só existia com
  * a tela na mão. Com o segundo plano do aplicativo, a viagem que ninguém fechou na sexta acompanha

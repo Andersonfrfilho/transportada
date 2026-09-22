@@ -16,6 +16,7 @@ const VALID_SUMMARY = {
   replyDomain: 'reply.example.com',
   senderAddress: 'occurrences@example.com',
   senderName: 'Example',
+  sendingVerifiedAt: null,
   status: 'pending',
   version: '1',
   webhookId: 'webhook-1',

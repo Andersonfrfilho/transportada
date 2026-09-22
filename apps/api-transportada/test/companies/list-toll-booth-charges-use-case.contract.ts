@@ -1,21 +1,32 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * ⚠️ Spec 154 T203: o `catalog` deste use case passou a ser `TollBoothCatalogPort.listCatalog` com
+ * `seenFilter: 'only'` (o mesmo contrato de `GET /v1/toll-booths`), no lugar de
+ * `TollBoothCatalogLookupPort.readByNodeIds`. `createFakeCatalog` reproduz só o recorte que este use
+ * case exercita: filtra os `booths` pelos `seenOsmNodeIds` recebidos e já embute o ajuste da empresa
+ * na linha, como o `LEFT JOIN` real faria.
  */
 import { describe, expect, test } from 'bun:test'
 
 import { createListTollBoothChargesUseCase } from '../../src/companies/application/list-toll-booth-charges.use-case.js'
-import type { TollBoothChargeAdjustmentRow } from '../../src/companies/domain/toll-booth-charge.policy.js'
-import type { TollBoothRouteRecord } from '../../src/toll-booths/application/toll-booth.port.js'
+import type {
+  TollBoothCatalogEntry,
+  TollBoothChargeAdjustmentRow,
+} from '../../src/companies/domain/toll-booth-charge.policy.js'
+import type {
+  ListTollBoothCatalogParams,
+  TollBoothCatalogPage,
+  TollBoothCatalogPort,
+} from '../../src/toll-booths/application/toll-booth-catalog.port.js'
 
 const COMPANY_ID = 'company-1'
 
-function booth(overrides: Partial<TollBoothRouteRecord> = {}): TollBoothRouteRecord {
+function booth(overrides: Partial<TollBoothCatalogEntry> = {}): TollBoothCatalogEntry {
   return {
     chargeCar: '10.5000',
     chargePerAxle: '10.5000',
     chargePerAxleAutomatic: null,
-    latitude: '-21.1000000',
-    longitude: '-47.8000000',
     name: 'Praça SP-330',
     observedOn: '2026-06-01',
     operator: 'CCR',
@@ -24,10 +35,38 @@ function booth(overrides: Partial<TollBoothRouteRecord> = {}): TollBoothRouteRec
   }
 }
 
+/** Só o recorte que `list-toll-booth-charges.use-case.ts` exercita: sempre `seenFilter: 'only'`. */
+function createFakeCatalog(input: {
+  readonly adjustments?: ReadonlyMap<number, TollBoothChargeAdjustmentRow>
+  readonly booths: readonly TollBoothCatalogEntry[]
+}): TollBoothCatalogPort {
+  return {
+    async listCatalog(params: ListTollBoothCatalogParams): Promise<TollBoothCatalogPage> {
+      const seenSet = new Set(params.seenOsmNodeIds)
+      const rows = input.booths.filter((candidate) => seenSet.has(candidate.osmNodeId))
+
+      return {
+        page: 1,
+        perPage: rows.length,
+        rows: rows.map((candidate) => ({
+          adjustment: input.adjustments?.get(candidate.osmNodeId) ?? null,
+          catalog: candidate,
+          osmNodeId: candidate.osmNodeId,
+          seen: true,
+        })),
+        total: rows.length,
+      }
+    },
+    async readCatalogAxleCharges() {
+      return []
+    },
+  }
+}
+
 describe('list toll booth charges use case (spec 095 item 4)', () => {
   test('answers empty when the company has never seen a toll booth in any planned route', async () => {
     const useCase = createListTollBoothChargesUseCase({
-      catalog: { readByNodeIds: async () => [booth()] },
+      catalog: createFakeCatalog({ booths: [booth()] }),
       charges: {
         clearAdjustment: async () => {},
         loadAdjustments: async () => [],
@@ -43,7 +82,7 @@ describe('list toll booth charges use case (spec 095 item 4)', () => {
   // Corrigir praça por onde ninguém passa é trabalho jogado fora (spec 095) — vista, mas sem ajuste
   test('answers a seen booth even without any adjustment', async () => {
     const useCase = createListTollBoothChargesUseCase({
-      catalog: { readByNodeIds: async () => [booth()] },
+      catalog: createFakeCatalog({ booths: [booth()] }),
       charges: {
         clearAdjustment: async () => {},
         loadAdjustments: async () => [],
@@ -72,7 +111,10 @@ describe('list toll booth charges use case (spec 095 item 4)', () => {
       updatedAt: new Date('2026-09-07T12:00:00.000Z'),
     }
     const useCase = createListTollBoothChargesUseCase({
-      catalog: { readByNodeIds: async () => [booth()] },
+      catalog: createFakeCatalog({
+        adjustments: new Map([[111, adjustment]]),
+        booths: [booth()],
+      }),
       charges: {
         clearAdjustment: async () => {},
         loadAdjustments: async () => [],
@@ -91,12 +133,12 @@ describe('list toll booth charges use case (spec 095 item 4)', () => {
   // As sem tarifa conhecida sobem primeiro — são o motivo da página existir
   test('orders the unknown ones first', async () => {
     const useCase = createListTollBoothChargesUseCase({
-      catalog: {
-        readByNodeIds: async () => [
+      catalog: createFakeCatalog({
+        booths: [
           booth({ chargePerAxle: '10.5000', name: 'Praça conhecida', osmNodeId: 111 }),
           booth({ chargePerAxle: null, name: 'Praça sem tarifa', osmNodeId: 222 }),
         ],
-      },
+      }),
       charges: {
         clearAdjustment: async () => {},
         loadAdjustments: async () => [],
@@ -114,7 +156,7 @@ describe('list toll booth charges use case (spec 095 item 4)', () => {
   // A FK garante a praça no catálogo; ausência aqui só existiria com dado inconsistente
   test('skips a seen node id absent from the catalog', async () => {
     const useCase = createListTollBoothChargesUseCase({
-      catalog: { readByNodeIds: async () => [] },
+      catalog: createFakeCatalog({ booths: [] }),
       charges: {
         clearAdjustment: async () => {},
         loadAdjustments: async () => [],
@@ -139,7 +181,7 @@ describe('praça que saiu do catálogo (revisão de 2026-09-08)', () => {
    */
   test('mantém na lista a praça ajustada que o catálogo não conhece mais', async () => {
     const useCase = createListTollBoothChargesUseCase({
-      catalog: { readByNodeIds: async () => [] },
+      catalog: createFakeCatalog({ booths: [] }),
       charges: {
         clearAdjustment: async () => {},
         loadAdjustments: async () => [],

@@ -31,6 +31,27 @@ import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 
 /**
+ * ADR-0067 §2: quem registrou o evento de campo — motorista pelo PWA, escritório em nome dele, ou
+ * motorista pelo WhatsApp. `varchar`, nunca ENUM nativo (code-standart §8).
+ *
+ * Definida aqui (e não só em `trips/domain/`) porque o schema já a usa nos seis `check`s abaixo;
+ * `trips/domain/trip-field-channel.constant.ts` reexporta para o resto do módulo, no mesmo molde de
+ * `TripStatus`/`TripStopEventKind` — importar `trips/domain` daqui puxaria a árvore de `trips/` para
+ * dentro do fechamento de imports do pre-deploy (`test/database-migration/pre-deploy.contract.ts`).
+ */
+export const TRIP_FIELD_CHANNELS = {
+  driverApp: 'driver_app',
+  office: 'office',
+  whatsapp: 'whatsapp',
+  /**
+   * ADR-0068 §3: ação da tela do escritório que **não** é em nome do motorista (fechar, planejar
+   * rota, despachar pela web, cancelar). Não exige `on_behalf_of_driver_id`.
+   */
+  backoffice: 'backoffice',
+} as const
+export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[keyof typeof TRIP_FIELD_CHANNELS]
+
+/**
  * ADR-0043 §1: a viagem não fala com a SEFAZ, mas tem fases de barracão que `open|closed` não
  * representava. O estado é derivado do das notas em toda transição, exceto as quatro manuais
  * (draft, route_planned, dispatched, cancelled).
@@ -120,6 +141,17 @@ export const trips = pgTable(
     plannedToll: jsonb('planned_toll'),
     plannedTollFrozenAt: timestamp('planned_toll_frozen_at', { withTimezone: true }),
     /**
+     * Spec 153 D4: **a rota nasce inteira numa escrita.** Traçado simplificado, pernas, assinatura e
+     * critério da escolha — o pedágio congelado continua em `planned_toll`, gravado na mesma escrita
+     * pelo caso de uso, não nesta coluna. `null` é "roteiro nunca planejado", nunca rota parcial.
+     */
+    plannedRoute: jsonb('planned_route'),
+    plannedDistanceMeters: bigint('planned_distance_meters', { mode: 'number' }),
+    /** Spec 153 D9 / "Casos extremos": `end_policy = 'last_stop'` grava `0`, nunca nulo. */
+    plannedReturnDistanceMeters: bigint('planned_return_distance_meters', { mode: 'number' }),
+    plannedDurationSeconds: bigint('planned_duration_seconds', { mode: 'number' }),
+    plannedRouteFrozenAt: timestamp('planned_route_frozen_at', { withTimezone: true }),
+    /**
      * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ **A hora envelhece, e esta coluna
      * existe para dizer isso** — o ETA congela no planejamento, e às 14h ainda diz o que achava às
      * 7h. Sem o carimbo, a tela mostraria uma hora que parece previsão de agora.
@@ -131,6 +163,12 @@ export const trips = pgTable(
      * idempotente, porque despachar de novo passa a ter diferença zero.
      */
     etaDepartureAt: timestamp('eta_departure_at', { withTimezone: true }),
+    /**
+     * Spec 143 D4: quantas diárias esta viagem paga. Nasce da duração estimada e quem cria a viagem
+     * corrige o número. Nula é viagem anterior à feature: a leitura usa a sugestão e marca a parcela
+     * como estimada, em vez de fingir que alguém informou.
+     */
+    dailyAllowanceDays: integer('daily_allowance_days'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -167,6 +205,29 @@ export const trips = pgTable(
       'trips_planned_toll_check',
       sql`(${table.plannedToll} is null) = (${table.plannedTollFrozenAt} is null)`,
     ),
+    /**
+     * Spec 153 D4: as quatro colunas da rota escolhida nascem e morrem com `planned_route_frozen_at`
+     * — a mesma forma de `trips_planned_toll_check`, sem misturar as duas guardas.
+     */
+    check(
+      'trips_planned_route_check',
+      sql`(${table.plannedRoute} is null) = (${table.plannedRouteFrozenAt} is null)
+        and (${table.plannedDistanceMeters} is null) = (${table.plannedRouteFrozenAt} is null)
+        and (${table.plannedReturnDistanceMeters} is null) = (${table.plannedRouteFrozenAt} is null)
+        and (${table.plannedDurationSeconds} is null) = (${table.plannedRouteFrozenAt} is null)`,
+    ),
+    /** RF1: distância e duração gravadas nunca são negativas — desconhecido é `null`, nunca zero. */
+    check(
+      'trips_planned_route_metrics_check',
+      sql`(${table.plannedDistanceMeters} is null or ${table.plannedDistanceMeters} >= 0)
+        and (${table.plannedReturnDistanceMeters} is null or ${table.plannedReturnDistanceMeters} >= 0)
+        and (${table.plannedDurationSeconds} is null or ${table.plannedDurationSeconds} >= 0)`,
+    ),
+    /** Meia diária está fora do escopo (D4), e viagem de zero dia não existe: o piso é uma. */
+    check(
+      'trips_daily_allowance_days_check',
+      sql`${table.dailyAllowanceDays} is null or ${table.dailyAllowanceDays} >= 1`,
+    ),
     foreignKey({
       columns: [table.requiresMdfeActorUserId, table.companyId],
       foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
@@ -188,6 +249,99 @@ export const trips = pgTable(
       'trips_requires_mdfe_trail_check',
       sql`(${table.requiresMdfe} is null) = (${table.requiresMdfeActorUserId} is null)
         and (${table.requiresMdfe} is null) = (${table.requiresMdfeSetAt} is null)`,
+    ),
+  ],
+)
+
+/**
+ * ADR-0068 §1: histórico de `trips.status`. `recordTripStatusChange` (`trip-status-event.persistence.ts`,
+ * spec 158 T3) é o **único** escritor.
+ *
+ * ⚠️ `actor_user_id` **não** tem FK para `user_company_memberships` (mesma assimetria deliberada de
+ * `nfe_package_box_measurements` — `nfe.schema.ts`): `removeMembership`
+ * (`drizzle-company-user.repository.ts`) faz DELETE físico da linha de membership, e aqui RESTRICT
+ * quebraria a remoção de quem já planejou, cancelou ou fechou uma viagem — e falharia depois de já
+ * ter desvinculado o WhatsApp e desabilitado a conta no Keycloak. O isolamento por empresa continua
+ * garantido pela FK composta `(company_id, trip_id)` abaixo; o ator é só um dado guardado, não um
+ * vínculo referencial. A leitura resolve o nome por membership escopado pela empresa; ator removido
+ * aparece sem nome.
+ *
+ * `from_status`/`actor_user_id` são `not null`: não há escrita de sistema hoje (inventário da
+ * ADR-0068), e nada grava a criação da viagem — ela já está em `trips.created_at`.
+ */
+export const tripStatusEvents = pgTable(
+  'trip_status_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    fromStatus: text('from_status').notNull().$type<TripStatus>(),
+    toStatus: text('to_status').notNull().$type<TripStatus>(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    channel: varchar('channel', { length: 16 })
+      .$type<TripFieldChannel>()
+      .notNull()
+      .default(TRIP_FIELD_CHANNELS.driverApp),
+    /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
+    onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /** A hora em que a transição aconteceu — não necessariamente a hora em que foi gravada. */
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+    /** ADR-0067 §3 / ADR-0068 "Consequências": igual a `trip_stop_events.recorded_at`. */
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_status_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_status_events_company_trip_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.onBehalfOfDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_status_events_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_status_events_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
+    unique('trip_status_events_company_id_id_unique').on(table.companyId, table.id),
+    /** A linha do tempo lê por viagem, ordenada — sem este índice ela varre a tabela inteira. */
+    index('trip_status_events_company_trip_occurred_at_idx').on(
+      table.companyId,
+      table.tripId,
+      table.occurredAt,
+      table.id,
+    ),
+    check(
+      'trip_status_events_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_status_events_office_driver_check',
+      sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
+    ),
+    check('trip_status_events_transition_check', sql`${table.fromStatus} <> ${table.toStatus}`),
+    check(
+      'trip_status_events_from_status_check',
+      sql`${table.fromStatus} in (${raw(inList(TRIP_STATUSES))})`,
+    ),
+    check(
+      'trip_status_events_to_status_check',
+      sql`${table.toStatus} in (${raw(inList(TRIP_STATUSES))})`,
     ),
   ],
 )
@@ -468,6 +622,18 @@ export const tripDocumentEvents = pgTable(
     actorUserId: uuid('actor_user_id').notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
     note: text(),
+    /** ADR-0067 §2: quem gravou — motorista, escritório ou WhatsApp. Sem backfill: o default descreve o histórico. */
+    channel: varchar('channel', { length: 16 })
+      .$type<TripFieldChannel>()
+      .notNull()
+      .default(TRIP_FIELD_CHANNELS.driverApp),
+    /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem o escritório registrou. */
+    onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /**
+     * ADR-0067 §3: `occurred_at` responde quando a transição aconteceu (pode ser retroativo); esta
+     * responde quando alguém contou isso ao sistema. As duas coincidem para o motorista.
+     */
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     foreignKey({
@@ -493,6 +659,21 @@ export const tripDocumentEvents = pgTable(
     })
       .onDelete('cascade')
       .onUpdate('cascade'),
+    // ADR-0067 §2: FK composta — o motorista em nome de quem se registra nunca é de outra empresa.
+    foreignKey({
+      columns: [table.companyId, table.onBehalfOfDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_document_events_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_document_events_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     index('trip_document_events_company_document_occurred_idx').on(
       table.companyId,
       table.tripDocumentId,
@@ -509,6 +690,14 @@ export const tripDocumentEvents = pgTable(
     check(
       'trip_document_events_actual_transition_check',
       sql`${table.fromStatus} is distinct from ${table.toStatus}`,
+    ),
+    check(
+      'trip_document_events_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_document_events_office_driver_check',
+      sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
   ],
 )
@@ -675,6 +864,26 @@ export const tripStopEvents = pgTable(
     capturedAt: timestamp('captured_at', { withTimezone: true }),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico. */
+    channel: varchar('channel', { length: 16 })
+      .$type<TripFieldChannel>()
+      .notNull()
+      .default(TRIP_FIELD_CHANNELS.driverApp),
+    /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
+    onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /**
+     * Spec 159 T11: o cadastro de motorista que reportou pelo app ou pelo WhatsApp, gravado no
+     * evento. A nota do motorista deixa de depender do vínculo atual (`actor_user_id` →
+     * membership → `fleet_drivers.membership_id`): desligar o acesso ao app não apaga o histórico
+     * dele. Evento anterior a esta coluna segue resolvido pelo vínculo.
+     */
+    reportedByDriverId: uuid('reported_by_driver_id'),
+    /**
+     * ADR-0067 §3: hoje `created_at` faz os dois papéis (quando aconteceu e quando foi gravado). A
+     * baixa retroativa do escritório muda `created_at` para a hora da entrega e grava aqui a hora
+     * real do registro.
+     */
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     foreignKey({
@@ -705,12 +914,41 @@ export const tripStopEvents = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.onBehalfOfDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_stop_events_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_stop_events_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
+    foreignKey({
+      columns: [table.companyId, table.reportedByDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_stop_events_company_reported_by_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     unique('trip_stop_events_company_id_id_unique').on(table.companyId, table.id),
     index('trip_stop_events_company_stop_created_at_idx').on(
       table.companyId,
       table.stopId,
       table.createdAt,
     ),
+    /**
+     * Spec 159 T7: a nota do motorista lê as entregas dos últimos 90 dias pela hora da entrega
+     * (`captured_at ?? recorded_at`). Sem ele, o `EXPLAIN` varria todo evento da empresa, de todo
+     * tipo e de todo o histórico, para descartar 88% no filtro.
+     */
+    index('trip_stop_events_company_delivered_at_idx')
+      .on(table.companyId, sql`coalesce(${table.capturedAt}, ${table.recordedAt})`)
+      .where(sql`${table.kind} = 'delivered'`),
     /** O expurgo dos 90 dias varre por data e apaga só a coordenada; sem este índice ele varre tudo. */
     index('trip_stop_events_located_created_at_idx')
       .on(table.createdAt)
@@ -735,6 +973,14 @@ export const tripStopEvents = pgTable(
     check(
       'trip_stop_events_accuracy_check',
       sql`${table.accuracyMeters} is null or ${table.latitude} is not null`,
+    ),
+    check(
+      'trip_stop_events_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_stop_events_office_driver_check',
+      sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
   ],
 )
@@ -792,6 +1038,19 @@ export const tripStopOccurrences = pgTable(
     attachmentObjectId: uuid('attachment_object_id'),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico.
+     *
+     * ⚠️ Sem `recorded_at` própria: a ocorrência não tem uma hora "de acontecimento" separada da
+     * hora de registro (D4 só trata a hora da entrega) — `created_at` já é exatamente quando foi
+     * contada ao sistema, para os três canais.
+     */
+    channel: varchar('channel', { length: 16 })
+      .$type<TripFieldChannel>()
+      .notNull()
+      .default(TRIP_FIELD_CHANNELS.driverApp),
+    /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
+    onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
   },
   (table) => [
     foreignKey({
@@ -829,6 +1088,20 @@ export const tripStopOccurrences = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.onBehalfOfDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_stop_occurrences_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_stop_occurrences_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     unique('trip_stop_occurrences_company_id_id_unique').on(table.companyId, table.id),
     index('trip_stop_occurrences_company_stop_created_at_idx').on(
       table.companyId,
@@ -843,6 +1116,14 @@ export const tripStopOccurrences = pgTable(
     check(
       'trip_stop_occurrences_kind_check',
       sql`${table.kind} in (${raw(inList(TRIP_STOP_OCCURRENCE_KINDS))})`,
+    ),
+    check(
+      'trip_stop_occurrences_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_stop_occurrences_office_driver_check',
+      sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
   ],
 )
@@ -868,6 +1149,18 @@ export const tripFieldReports = pgTable(
     resultId: uuid('result_id'),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico.
+     *
+     * ⚠️ Sem `recorded_at` própria: esta linha só existe para a chave de idempotência, e
+     * `created_at` já é exatamente quando a chave foi reservada — não há "hora do fato" distinta.
+     */
+    channel: varchar('channel', { length: 16 })
+      .$type<TripFieldChannel>()
+      .notNull()
+      .default(TRIP_FIELD_CHANNELS.driverApp),
+    /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
+    onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
   },
   (table) => [
     foreignKey({
@@ -884,9 +1177,31 @@ export const tripFieldReports = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.onBehalfOfDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_field_reports_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_field_reports_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     unique('trip_field_reports_company_key_unique').on(table.companyId, table.idempotencyKey),
     check('trip_field_reports_key_check', sql`length(${table.idempotencyKey}) > 0`),
     check('trip_field_reports_operation_check', sql`length(${table.operation}) > 0`),
+    check(
+      'trip_field_reports_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_field_reports_office_driver_check',
+      sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
+    ),
   ],
 )
 
@@ -902,6 +1217,21 @@ export const tripFieldReports = pgTable(
 export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature'] as const
 export type TripDeliveryProofKind = (typeof TRIP_DELIVERY_PROOF_KINDS)[number]
 
+/**
+ * ADR-0070 §2: os vereditos que uma foto de entrega pode receber. Duplicado do
+ * `PROOF_PUNCTUALITY` de `trips/domain/delivery-proof-punctuality.policy.ts`, pelo mesmo motivo do
+ * `TRIP_FIELD_CHANNELS` acima — importar `trips/domain` daqui puxaria a árvore do módulo para dentro
+ * do fechamento de imports do pre-deploy (`test/database-migration/pre-deploy.contract.ts`).
+ */
+export const TRIP_DELIVERY_PROOF_PUNCTUALITIES = [
+  'not_required',
+  'on_time',
+  'late',
+  'away',
+  'late_and_away',
+] as const
+export type TripDeliveryProofPunctuality = (typeof TRIP_DELIVERY_PROOF_PUNCTUALITIES)[number]
+
 export const tripDeliveryProofs = pgTable(
   'trip_delivery_proofs',
   {
@@ -910,7 +1240,11 @@ export const tripDeliveryProofs = pgTable(
     stopEventId: uuid('stop_event_id').notNull(),
     kind: text().notNull().$type<TripDeliveryProofKind>(),
     objectId: uuid('object_id').notNull(),
-    /** Nome de quem recebeu, quando ele assina. */
+    /**
+     * Nome de quem recebeu. Normalmente só na assinatura — mas o canal `office` também o carrega em
+     * `kind: 'photo'` (ADR-0067 §5, emenda 2026-09-18, spec 156 T6): o escritório não colhe
+     * assinatura, e cumpre "assinatura obrigatória" com a foto do canhoto assinado + este nome.
+     */
     receiverName: text('receiver_name').notNull().default(''),
     /**
      * ADR-0057 §3 (revisa ADR-0045 §7): o documento do recebedor entra **só quando a configuração
@@ -928,6 +1262,35 @@ export const tripDeliveryProofs = pgTable(
     attachmentKey: text('attachment_key').notNull().default(''),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico.
+     *
+     * ⚠️ Sem `recorded_at` própria: o comprovante não tem uma hora "de acontecimento" à parte —
+     * `created_at` já é quando o anexo chegou ao servidor, para os três canais.
+     */
+    channel: varchar('channel', { length: 16 })
+      .$type<TripFieldChannel>()
+      .notNull()
+      .default(TRIP_FIELD_CHANNELS.driverApp),
+    /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
+    onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /**
+     * ADR-0070 §2-4, spec 159 RF3-RF6: onde e quando a foto foi tirada, lido no aparelho do
+     * motorista. Anuláveis pelo mesmo motivo da posição do evento de entrega (ADR-0045 §3): a
+     * recusa não bloqueia, e sem posição a foto conta como longe (`classifyProofPunctuality`).
+     */
+    latitude: numeric({ precision: 10, scale: 7 }),
+    longitude: numeric({ precision: 10, scale: 7 }),
+    accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
+    capturedAt: timestamp('captured_at', { withTimezone: true }),
+    /**
+     * ADR-0070 §2: o veredito da foto (`PROOF_PUNCTUALITY`). `not_required` é o padrão de fábrica —
+     * cobre toda linha existente e toda foto de nota sem `photo = 'required'` resolvido.
+     */
+    punctuality: varchar('punctuality', { length: 16 })
+      .notNull()
+      .default('not_required')
+      .$type<TripDeliveryProofPunctuality>(),
   },
   (table) => [
     foreignKey({
@@ -951,7 +1314,29 @@ export const tripDeliveryProofs = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.onBehalfOfDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_delivery_proofs_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_delivery_proofs_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
     unique('trip_delivery_proofs_company_id_id_unique').on(table.companyId, table.id),
+    /**
+     * Spec 159 T11 (item 8): a posição da foto é dado de localização como a do evento de entrega, e
+     * o expurgo dos 90 dias do worker (`trip.location.purge`) a apaga pelo mesmo corte — sem este
+     * índice ele varreria todo comprovante do histórico.
+     */
+    index('trip_delivery_proofs_located_created_at_idx')
+      .on(table.createdAt)
+      .where(sql`${table.latitude} is not null`),
     /** Um comprovante de cada tipo por entrega: o segundo é correção, e correção substitui. */
     unique('trip_delivery_proofs_company_event_kind_unique').on(
       table.companyId,
@@ -962,15 +1347,48 @@ export const tripDeliveryProofs = pgTable(
       'trip_delivery_proofs_kind_check',
       sql`${table.kind} in (${raw(inList(TRIP_DELIVERY_PROOF_KINDS))})`,
     ),
-    /** Nome só faz sentido em assinatura: foto de canhoto não tem quem assine. */
+    /**
+     * Nome só faz sentido em assinatura, ou no canhoto do escritório (ADR-0067 §5, emenda
+     * 2026-09-18): ele nunca colhe assinatura, e o nome do recebedor é como cumpre a exigência.
+     * Relaxado por migration aditiva da spec 156 T6 — o motorista continua sem essa saída.
+     */
     check(
       'trip_delivery_proofs_receiver_check',
-      sql`${table.kind} = 'signature' or length(${table.receiverName}) = 0`,
+      sql`${table.kind} = 'signature' or ${table.channel} = 'office' or length(${table.receiverName}) = 0`,
     ),
-    /** O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita. */
+    /**
+     * O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita.
+     * Spec 156 T15 A2 (ADR-0067 §5): o canhoto do escritório cumpre a assinatura e carrega o
+     * documento digitado, selado — relaxado por migration aditiva, o motorista continua sem essa saída.
+     */
     check(
       'trip_delivery_proofs_receiver_document_check',
-      sql`(${table.kind} = 'signature' or ${table.receiverDocumentEnvelope} is null) and ((${table.receiverDocumentEnvelope} is null) = (length(${table.receiverDocumentMasked}) = 0))`,
+      sql`(${table.kind} = 'signature' or ${table.channel} = 'office' or ${table.receiverDocumentEnvelope} is null) and ((${table.receiverDocumentEnvelope} is null) = (length(${table.receiverDocumentMasked}) = 0))`,
+    ),
+    check(
+      'trip_delivery_proofs_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_delivery_proofs_office_driver_check',
+      sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
+    ),
+    // Coordenada é par, mesmo molde de `trip_stops_coordinates_check` — meia coordenada não localiza.
+    check(
+      'trip_delivery_proofs_coordinates_check',
+      sql`(${table.latitude} is null) = (${table.longitude} is null)`,
+    ),
+    check(
+      'trip_delivery_proofs_latitude_range_check',
+      sql`${table.latitude} is null or ${table.latitude} between -90 and 90`,
+    ),
+    check(
+      'trip_delivery_proofs_longitude_range_check',
+      sql`${table.longitude} is null or ${table.longitude} between -180 and 180`,
+    ),
+    check(
+      'trip_delivery_proofs_punctuality_check',
+      sql`${table.punctuality} in (${raw(inList(TRIP_DELIVERY_PROOF_PUNCTUALITIES))})`,
     ),
   ],
 )
@@ -999,6 +1417,23 @@ export const tripDocumentOccurrences = pgTable(
     note: text().notNull().default(''),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico.
+     *
+     * ⚠️ Sem `recorded_at` própria: a ocorrência é append-only e não tem hora "de acontecimento"
+     * separada — `created_at` já é quando foi contada ao sistema, para os três canais.
+     */
+    channel: varchar('channel', { length: 16 })
+      .$type<TripFieldChannel>()
+      .notNull()
+      .default(TRIP_FIELD_CHANNELS.driverApp),
+    /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
+    onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
+    /**
+     * Spec 156 T7b (D7 §3.5): a foto opcional do lote — um objeto só, referenciado pelas N linhas
+     * que o mesmo lote gravou. No molde de `trip_stop_occurrences.attachment_object_id`.
+     */
+    attachmentObjectId: uuid('attachment_object_id'),
   },
   (table) => [
     foreignKey({
@@ -1015,9 +1450,38 @@ export const tripDocumentOccurrences = pgTable(
     })
       .onDelete('cascade')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.onBehalfOfDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_document_occurrences_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15: o índice da chave estrangeira em nome de quem — sem ele, apagar ou renumerar um
+     * motorista varre a tabela inteira. Parcial: só o canal `office` preenche a coluna.
+     */
+    index('trip_document_occurrences_company_on_behalf_driver_idx')
+      .on(table.companyId, table.onBehalfOfDriverId)
+      .where(sql`${table.onBehalfOfDriverId} is not null`),
+    foreignKey({
+      columns: [table.companyId, table.attachmentObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_document_occurrences_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     check(
       'trip_document_occurrences_stage_check',
       sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
+    ),
+    check(
+      'trip_document_occurrences_channel_check',
+      sql`${table.channel} in (${raw(inList(Object.values(TRIP_FIELD_CHANNELS)))})`,
+    ),
+    check(
+      'trip_document_occurrences_office_driver_check',
+      sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
     index('trip_document_occurrences_company_document_idx').on(
       table.companyId,

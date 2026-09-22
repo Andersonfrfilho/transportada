@@ -65,6 +65,26 @@
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
+  "pendingProofs": {
+    "attach": "Anexar comprovante",
+    "back": "Voltar",
+    "documentLabel": "Nota {{number}}/{{series}}",
+    "empty": "Nenhuma foto pendente. Está tudo em dia.",
+    "open": "Fotos pendentes",
+    "outcome": {
+      "away": "Registrada longe do local — pode ter tirado pontos da sua nota.",
+      "late": "Registrada fora do prazo — pode ter tirado pontos da sua nota.",
+      "late_and_away": "Registrada fora do prazo e longe do local — pode ter tirado pontos da sua nota.",
+      "not_required": "Registrada.",
+      "on_time": "Registrada em dia e no local."
+    },
+    "outcomeDismiss": "Dispensar aviso",
+    "queued": "Foto guardada no celular. Ela sobe sozinha quando o sinal voltar.",
+    "title": "Fotos pendentes",
+    "hint": "Estas entregas ainda precisam da foto do canhoto. Envie assim que puder: foto que não chega tira mais pontos da sua nota.",
+    "outcomeFor": "{{recipient}} · Nota {{number}}/{{series}}"
+  },
+  "proofPendingWarning": "Tirar de novo não melhora: vale a pior foto. Foto enviada muito depois conta como atrasada, mesmo que o relógio do aparelho mostre outra hora.",
   "occurrence": "Deu problema",
   "occurrenceDescription": "O que aconteceu (opcional)",
   "occurrenceKind": {
@@ -96,9 +116,13 @@
       "driver": "Motorista",
       "unknown": "Sem papel de campo"
     },
+    "score": "{{score}} de 100",
+    "scoreNone": "Sem nota ainda — nenhuma entrega com foto obrigatória nos últimos 90 dias.",
+    "scoreTitle": "Sua nota",
     "signOut": "Sair",
     "vehicleTitle": "Veículo da viagem",
-    "whatsappTitle": "WhatsApp"
+    "whatsappTitle": "WhatsApp",
+    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega ou não chega. Cada perda some depois de 90 dias."
   },
   "progress": {
     "label": "{{resolved}} de {{total}} paradas resolvidas"
@@ -156,5 +180,12 @@
   "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",
   "documentOccurrenceFailed": "Não deu para registrar a ocorrência. A nota continua como estava — toque de novo.",
   "documentOccurrenceProduct": "Item",
-  "documentOccurrenceWholeDocument": "A nota inteira"
+  "documentOccurrenceTypesEmpty": "Nenhum tipo de ocorrência de rua cadastrado. Fale com o escritório.",
+  "documentOccurrenceTypesFailed": "Não foi possível carregar os tipos de ocorrência agora. Entregar e devolver continuam funcionando normalmente.",
+  "documentOccurrenceTypesLoading": "Carregando os tipos de ocorrência…",
+  "documentOccurrenceTypesRetry": "Tentar de novo",
+  "documentOccurrenceWholeDocument": "A nota inteira",
+  "proofPendingWarningTitle": "Foto do canhoto obrigatória",
+  "proofPendingWarningLead": "Tire aqui, na hora da entrega. Foto enviada depois ou longe daqui tira pontos da sua nota.",
+  "proofPendingWarningDetails": "Como a foto conta na nota"
 }

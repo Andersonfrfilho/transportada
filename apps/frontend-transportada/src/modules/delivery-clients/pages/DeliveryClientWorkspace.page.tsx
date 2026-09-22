@@ -11,26 +11,46 @@ import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnviro
 import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { ContractorContactsPanel } from '../components/ContractorContactsPanel.component'
+import { ContractorMailSettingsRequestError } from '../shared/contractorMailSettingsClient.service'
 import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
+import { ContractorMailTemplatesPanel } from '../components/ContractorMailTemplatesPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
 import { DeliveryWindowEditor } from '../components/DeliveryWindowEditor.component'
+import { MailSendReadinessSummary } from '../components/MailSendReadinessSummary.component'
 import { useContractorMailSettings } from '../hooks/useContractorMailSettings.hook'
 import { useDeliveryClients } from '../hooks/useDeliveryClients.hook'
 import styles from '../styles/deliveryClients.module.css'
 
 const CONTRACTOR_MAIL_SETTINGS_MANAGE_PERMISSION = 'settings.manage'
 
-type DeliveryClientTabId = 'clients' | 'mail'
+export type DeliveryClientTabId = 'clients' | 'mail'
 
 const DELIVERY_CLIENT_TAB_IDS: readonly DeliveryClientTabId[] = ['clients', 'mail']
 
-function resolveDeliveryClientTab(id: string): DeliveryClientTabId {
+export function resolveDeliveryClientTab(id: string): DeliveryClientTabId {
   return DELIVERY_CLIENT_TAB_IDS.find((tab) => tab === id) ?? 'clients'
+}
+
+/**
+ * Rodada de correção da Fase 4, item 12: mesmo mecanismo de `NfeWorkspace.page.tsx`
+ * (`readTabFromLocation`) — os atalhos de `navigateToDeliveryClients` (T305/T405) escrevem
+ * `?tab=mail` na URL antes de despachar o `popstate`, e é esta leitura, na montagem, que faz a
+ * aba abrir direto em "E-mail" em vez de sempre cair em "Clientes". Valor desconhecido ou ausente
+ * cai em `clients` — URL inventada não pode quebrar a tela.
+ */
+export function readDeliveryClientTabFromLocation(): DeliveryClientTabId {
+  return resolveDeliveryClientTab(new URLSearchParams(window.location.search).get('tab') ?? '')
 }
 
 /** O cliente joga o código da API como mensagem do erro: é ele que a tela mostra ao operador. */
 function toErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
+}
+
+/** Spec 150, correção Fase 4, item 11: `Retry-After` do `429` no envio de e-mail de teste. */
+function toRetryAfterSeconds(error: unknown): number | undefined {
+  return error instanceof ContractorMailSettingsRequestError ? error.retryAfterSeconds : undefined
 }
 
 /**
@@ -45,7 +65,7 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
-  const [activeTab, setActiveTab] = useState<DeliveryClientTabId>('clients')
+  const [activeTab, setActiveTab] = useState<DeliveryClientTabId>(readDeliveryClientTabFromLocation)
   const controller = useDeliveryClients({ permissions })
   const isReadOnly = !controller.canManageClients
 
@@ -66,25 +86,36 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
     id: 'mail',
     label: t('tabs.mail'),
     panel: (
-      <ContractorMailSettingsPanel
-        // Sem a chave que muda quando a consulta responde, o painel monta vazio e o operador
-        // regrava por cima do que já estava salvo.
-        key={`${contractorMail.settingsQuery.data?.id ?? 'none'}`}
-        apiUrl={getIdentityEnvironment().apiBaseUrl}
-        checks={contractorMail.checksQuery.data}
-        checksLoading={contractorMail.checksQuery.isLoading}
-        disabled={contractorMail.saveMutation.isPending}
-        errorCode={toErrorCode(contractorMail.saveMutation.error)}
-        loading={contractorMail.settingsQuery.isLoading}
-        onRefreshChecks={contractorMail.refreshChecks}
-        onSave={(body) => contractorMail.saveMutation.mutate(body)}
-        onSendTestEmail={() => contractorMail.sendTestEmailMutation.mutate()}
-        saved={contractorMail.saveMutation.isSuccess}
-        summary={contractorMail.settingsQuery.data}
-        testEmailErrorCode={toErrorCode(contractorMail.sendTestEmailMutation.error)}
-        testEmailPending={contractorMail.sendTestEmailMutation.isPending}
-        testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
-      />
+      <>
+        <MailSendReadinessSummary
+          companyId={companyId}
+          enabled={canManageContractorMail && settingsScope.contractorMailSettings}
+        />
+        <ContractorMailSettingsPanel
+          // Sem a chave que muda quando a consulta responde, o painel monta vazio e o operador
+          // regrava por cima do que já estava salvo.
+          key={`${contractorMail.settingsQuery.data?.id ?? 'none'}`}
+          apiUrl={getIdentityEnvironment().apiBaseUrl}
+          checks={contractorMail.checksQuery.data}
+          checksLoading={contractorMail.checksQuery.isLoading}
+          disabled={contractorMail.saveMutation.isPending}
+          errorCode={toErrorCode(contractorMail.saveMutation.error)}
+          loading={contractorMail.settingsQuery.isLoading}
+          onRefreshChecks={contractorMail.refreshChecks}
+          onSave={(body) => contractorMail.saveMutation.mutate(body)}
+          onSendTestEmail={() => contractorMail.sendTestEmailMutation.mutate()}
+          saved={contractorMail.saveMutation.isSuccess}
+          summary={contractorMail.settingsQuery.data}
+          testEmailErrorCode={toErrorCode(contractorMail.sendTestEmailMutation.error)}
+          testEmailErrorRetryAfterSeconds={toRetryAfterSeconds(
+            contractorMail.sendTestEmailMutation.error,
+          )}
+          testEmailPending={contractorMail.sendTestEmailMutation.isPending}
+          testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
+        />
+        <ContractorMailTemplatesPanel isDisabled={!canManageContractorMail} />
+        <ContractorContactsPanel isDisabled={!canManageContractorMail} />
+      </>
     ),
   }
 

@@ -7,11 +7,20 @@ export const FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const FLEET_DRIVER_VEHICLE_LINKS_PATH = '/fleet/driver-vehicles'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
+/** Spec 159 RF10: a nota e as penalidades vigentes de um motorista. */
+export function driverScorePath(driverId: string): string {
+  return `${FLEET_DRIVERS_PATH}/${driverId}/score`
+}
 /** Spec 093: o catálogo de referência de baú por tipo, que a ficha consulta para sugerir. */
 export const FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 export const FREIGHT_REGIONS_PATH = '/freight-regions'
+/** Spec 154 RF1: o catálogo inteiro de praças, não só as que a operação já cruzou. */
+export const TOLL_BOOTH_CATALOG_PATH = '/toll-booths'
+/** Spec 154 RF3/RF4: extratos registrados e o botão que recarrega o catálogo a partir de um deles. */
+export const TOLL_BOOTH_EXTRACTS_PATH = '/toll-booths/extracts'
+export const TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
 export const FLEET_READ_PERMISSION = 'fleet.read'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 
@@ -46,6 +55,18 @@ export const FLEET_DRIVER_LOAD_LIMIT = 2000
 export const FREIGHT_REGION_LOAD_LIMIT = 2000
 
 export const DRIVER_AVAILABILITY_KEYS = ['emailTaken', 'licenseNumberTaken', 'taxIdTaken'] as const
+
+/** Spec 159 RF10, ADR-0070 §7: a ficha do motorista — nota e o porquê dela. Sem coordenada nenhuma. */
+export const DRIVER_PENALTY_KEYS = [
+  'deliveredAt',
+  'documentNumber',
+  'expiresAt',
+  'points',
+  'reason',
+  'tripDocumentId',
+] as const
+
+export const DRIVER_SCORE_RESULT_KEYS = ['penalties', 'score'] as const
 
 export const FREIGHT_REGION_CITY_KEYS = ['city', 'state'] as const
 
@@ -144,6 +165,9 @@ export const DRIVER_COVERAGE_KEYS = [
 /** A caixa de vínculos lista a frota inteira de uma vez; não há paginação dentro do formulário. */
 export const FLEET_VEHICLE_OPTIONS_PAGE_SIZE = 100
 export const FLEET_DRIVER_OPTIONS_PAGE_SIZE = 100
+
+/** Spec 154 D2: lista pequena e voltada a gente — não precisa do teto de 100 que a API aceita. */
+export const TOLL_BOOTH_CATALOG_PAGE_SIZE = 20
 
 export const VEHICLE_COST_KEYS = [
   'acquisitionAmount',
@@ -273,6 +297,7 @@ export const DRIVER_BODY_KEYS = [
   'birthCity',
   'birthDate',
   'birthState',
+  'dailyAllowanceAmount',
   'email',
   'fatherName',
   'firstLicenseAt',
@@ -310,6 +335,7 @@ export const DRIVER_CREATE_BODY_KEYS = [
   'birthCity',
   'birthDate',
   'birthState',
+  'dailyAllowanceAmount',
   'email',
   'fatherName',
   'firstLicenseAt',
@@ -348,6 +374,7 @@ export const DRIVER_FORM_KEYS = [
   'birthCity',
   'birthDate',
   'birthState',
+  'dailyAllowanceAmount',
   'email',
   'fatherName',
   'firstLicenseAt',

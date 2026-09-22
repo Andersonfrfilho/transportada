@@ -3,6 +3,10 @@
  */
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
+import {
+  toTollBoothSeedRecords,
+  type TollBoothExtractSeedInput,
+} from '../domain/toll-booth-extract.policy.js'
 import { createDrizzleTollBoothRepository } from '../infrastructure/drizzle-toll-booth.repository.js'
 
 import { createSeedTollBoothsUseCase } from './seed-toll-booths.use-case.js'
@@ -26,9 +30,7 @@ export async function runTollBoothSeed({
   observedOn,
 }: {
   readonly connectionString: string
-  readonly extract: readonly (Omit<TollBoothSeedRecord, 'observedOn' | 'osmNodeId'> & {
-    readonly osmNodeId: bigint | string
-  })[]
+  readonly extract: readonly TollBoothExtractSeedInput[]
   readonly observedOn: string
 }): Promise<{ readonly saved: number }> {
   if (connectionString.length === 0) {
@@ -36,11 +38,7 @@ export async function runTollBoothSeed({
   }
   if (extract.length === 0) throw new Error('Toll booth extract is empty')
 
-  const booths: readonly TollBoothSeedRecord[] = extract.map((booth) => ({
-    ...booth,
-    observedOn,
-    osmNodeId: BigInt(booth.osmNodeId),
-  }))
+  const booths = toTollBoothSeedRecords({ booths: extract, observedOn })
 
   const provider = createDrizzleProvider({
     connection: { adapter: 'postgres', max: 1, url: connectionString },

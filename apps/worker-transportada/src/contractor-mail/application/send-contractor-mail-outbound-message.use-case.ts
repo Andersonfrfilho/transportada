@@ -2,7 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { buildReplyAddress, deriveReplyToken } from '../domain/reply-token.policy.js'
-import { ResendProviderUnauthorizedError } from '../domain/resend-provider.error.js'
+import {
+  ResendInvalidRecipientsError,
+  ResendProviderUnauthorizedError,
+} from '../domain/resend-provider.error.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
 import type { ContractorMailOutboundWorkerRepository } from '../infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 import type { ResendMailGateway } from '../infrastructure/resend-mail.gateway.js'
@@ -25,14 +28,14 @@ export type SendContractorMailOutboundMessageResult = {
  * `Reply-To` **não viajam mais** por ela nem pelo `payload` do outbox (§6 do baseline de segurança:
  * job carrega referência, não dado). Tudo o que este caso de uso precisa vem de duas leituras:
  *
- * - a mensagem (`bodyText`, `subject`, `toAddresses`, `threadId`) — gravados quando ela nasceu;
+ * - a mensagem (`bodyText`, `bodyHtml`, `subject`, `toAddresses`, `threadId`) — gravados quando ela
+ *   nasceu;
  * - a configuração (`senderName`, `senderAddress`, `replyDomain`, o envelope selado) — de onde sai
  *   `replyTokenSecret`, para **derivar** o mesmo `Reply-To` que a conversa sempre teve
  *   (`deriveReplyToken`, determinístico por `companyId` + `threadId`; RF7).
  *
- * `to_addresses` é array (RF1 admite mais de um contato), mas o envio de hoje (`setup_test`, T009)
- * sempre grava um único endereço — o gateway (T007) ainda recebe um `to` singular, então usa-se o
- * primeiro. Enviar para vários de uma vez é escopo do P1 (T015), que aí sim estende o gateway.
+ * Spec 150 T302: um e-mail só, com todos os contatos no `to` — a resposta de qualquer um cai na
+ * conversa pelo `Reply-To`, e a `Idempotency-Key` segue uma por mensagem.
  */
 export async function sendContractorMailOutboundMessage(
   envelope: ContractorMailOutboundEnvelopeV1,
@@ -44,11 +47,6 @@ export async function sendContractorMailOutboundMessage(
   const message = await dependencies.repository.findMessageById({ companyId, messageId })
   if (message === undefined) {
     throw new Error(`contractor mail message ${messageId} was not found for company ${companyId}`)
-  }
-
-  const recipient = message.toAddresses[0]
-  if (recipient === undefined) {
-    throw new Error(`contractor mail message ${messageId} has no recipient address`)
   }
 
   const settings = await dependencies.repository.findSettingsByCompanyId({ companyId })
@@ -83,11 +81,12 @@ export async function sendContractorMailOutboundMessage(
       apiKey: secret.apiKey,
       from: `${settings.senderName} <${settings.senderAddress}>`,
       headers,
+      ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
       idempotencyKey: messageId,
       replyTo: replyToAddress,
       subject: message.subject,
       text: message.bodyText,
-      to: recipient,
+      to: deduplicateRecipients(message.toAddresses),
     })
 
     await dependencies.repository.markMessageSent({
@@ -101,6 +100,14 @@ export async function sendContractorMailOutboundMessage(
       await dependencies.repository.markMessageFailed({ companyId, messageId })
       return { outcome: 'failed', reason: 'provider_unauthorized', threadId: message.threadId }
     }
+    if (error instanceof ResendInvalidRecipientsError) {
+      await dependencies.repository.markMessageFailed({ companyId, messageId })
+      return { outcome: 'failed', reason: 'invalid_recipients', threadId: message.threadId }
+    }
     throw error
   }
+}
+
+function deduplicateRecipients(addresses: readonly string[]): string[] {
+  return [...new Set(addresses.map((address) => address.toLowerCase()))]
 }

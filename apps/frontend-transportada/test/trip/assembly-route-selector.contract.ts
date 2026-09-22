@@ -24,8 +24,8 @@ describe('seletor de rota alternativa (spec 096 T3)', () => {
   })
 
   it('está montado abaixo do bloco de pedágio', () => {
-    const tollIndex = source.indexOf('assemblyToll')
-    const optionsIndex = source.indexOf('routeOptions')
+    const tollIndex = source.indexOf('<RouteTollSummary')
+    const optionsIndex = source.indexOf("t('assemblyMap.routeOptions.title')")
 
     expect(tollIndex).toBeGreaterThan(-1)
     expect(optionsIndex).toBeGreaterThan(tollIndex)

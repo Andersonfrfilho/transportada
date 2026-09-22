@@ -3,11 +3,13 @@
  */
 import { z } from 'zod'
 
+import { CONTRACTOR_MAIL_MAX_RECIPIENTS } from '../domain/contractor-mail.constant.js'
 import { isAllowedResendDownloadUrl } from '../domain/resend-download-allowlist.constant.js'
 import {
   ResendDownloadHostNotAllowedError,
   ResendDownloadRedirectBlockedError,
   ResendDownloadTooLargeError,
+  ResendInvalidRecipientsError,
   ResendProviderUnauthorizedError,
   ResendProviderUnexpectedResponseError,
   ResendProviderUnreachableError,
@@ -59,12 +61,17 @@ export type SendResendEmailInput = {
   readonly apiKey: string
   readonly from: string
   readonly headers: Readonly<Record<string, string>>
+  /** Spec 150 T302: sem HTML, o e-mail sai só em texto — a chave nem vai no corpo do POST. */
+  readonly html?: string
   readonly idempotencyKey: string
   readonly replyTo: string
   readonly subject: string
   readonly text: string
-  readonly to: string
+  readonly to: readonly string[]
 }
+
+/** Quebra de linha injeta cabeçalho; vírgula e `<>` fariam um item virar lista ou nome+endereço. */
+const FORBIDDEN_RECIPIENT_CHARACTERS = /[\r\n,<>]/
 
 export type ResendMailGateway = {
   downloadRawEmail(input: { readonly downloadUrl: string }): Promise<Buffer>
@@ -89,14 +96,17 @@ export function createResendMailGateway(input: CreateResendMailGatewayInput): Re
 
   return {
     async sendEmail(request) {
+      if (!isValidRecipientList(request.to)) throw new ResendInvalidRecipientsError()
+
       const body = await requestJson({
         body: {
           from: request.from,
           headers: request.headers,
+          ...(request.html === undefined ? {} : { html: request.html }),
           reply_to: request.replyTo,
           subject: request.subject,
           text: request.text,
-          to: [request.to],
+          to: [...request.to],
         },
         fetch,
         headers: {
@@ -200,6 +210,12 @@ async function requestJson(params: {
   } catch (error) {
     throw new ResendProviderUnexpectedResponseError(error)
   }
+}
+
+function isValidRecipientList(recipients: readonly string[]): boolean {
+  if (recipients.length === 0) return false
+  if (recipients.length > CONTRACTOR_MAIL_MAX_RECIPIENTS) return false
+  return recipients.every((address) => !FORBIDDEN_RECIPIENT_CHARACTERS.test(address))
 }
 
 function safeParseUrl(value: string): URL | undefined {

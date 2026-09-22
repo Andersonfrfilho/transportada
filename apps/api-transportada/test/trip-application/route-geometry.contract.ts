@@ -47,6 +47,15 @@ describe('read route geometry (spec 079, geometria do OSRM)', () => {
     expect(view.source).toBe('road')
     expect(view.points.length).toBeGreaterThanOrEqual(2)
     expect(view.points[0]).toEqual({ latitude: '-22.01750', longitude: '-47.89080' })
+    /**
+     * ⚠️ Esta porta nunca anota nós (`nodeIds: null`, de propósito — esta suíte é da geometria, não
+     * do pedágio), então a assinatura sai nula nos dois lados e nunca deduplica contra si mesma
+     * (spec 153): a segunda chamada vira uma candidata "diferente" sem custo conhecido, e sem custo
+     * comparável o critério `cheapest` não acha candidata — a seleção cai na principal, sem
+     * reproduzir escolha nenhuma porque nenhuma foi pedida em cima de dado que falta.
+     */
+    expect(view.selectedIndex).toBe(0)
+    expect(view.choiceReproduced).toBe(false)
   })
 
   /**
@@ -61,6 +70,7 @@ describe('read route geometry (spec 079, geometria do OSRM)', () => {
 
     expect(view).toEqual({
       cheapestIndex: null,
+      choiceReproduced: true,
       costGap: null,
       depot: null,
       fastestIndex: null,
@@ -68,6 +78,7 @@ describe('read route geometry (spec 079, geometria do OSRM)', () => {
       legs: [],
       options: [],
       points: [],
+      selectedIndex: null,
       source: 'unavailable',
       toll: null,
     })

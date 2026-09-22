@@ -18,6 +18,8 @@ export const MUTATION_EFFECT = {
   billingInvoiceItem: 'billingInvoiceItem',
   /** O vínculo de uma NF-e mudou: ela entrou num lote ou numa NFS-e, ou voltou a ficar livre. */
   nfeDocumentLink: 'nfeDocumentLink',
+  /** Uma caixa foi medida (ou a medida replicada): a planta e a conta de quem monta viagem mudam. */
+  packageBoxMeasurement: 'packageBoxMeasurement',
 } as const
 
 export type MutationEffect = (typeof MUTATION_EFFECT)[keyof typeof MUTATION_EFFECT]
@@ -32,6 +34,13 @@ export const MUTATION_EFFECT_QUERY_KEYS: Readonly<Record<MutationEffect, readonl
     'company-cte-items',
   ],
   nfeDocumentLink: ['cte-emission-preview', 'nfe-documents', 'nfse-emission-preview'],
+  packageBoxMeasurement: [
+    'nfe-package-boxes',
+    'routing',
+    'trip-cargo-layout',
+    'trip-cargo-preview',
+    'trip-valuation-preview',
+  ],
 }
 
 /** O cliente de consulta visto pelo que este módulo usa dele — é o que torna o efeito testável. */

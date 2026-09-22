@@ -127,6 +127,19 @@ export const ROUTE_COST_GAPS = ['NO_FUEL_BASELINE', 'TOLL_UNKNOWN'] as const
 export type RouteCostGap = (typeof ROUTE_COST_GAPS)[number]
 
 /**
+ * Spec 153 D2/D3: por qual regra reencontrar a rota escolhida quando a assinatura não bate. Cópia
+ * por valor de `ROUTE_CHOICE_CRITERIA` (`api-transportada/src/trips/domain/route-choice.policy.ts`).
+ */
+export const ROUTE_CHOICE_CRITERIA = ['cheapest', 'fastest', 'no_toll', 'alternative'] as const
+export type RouteChoiceCriterion = (typeof ROUTE_CHOICE_CRITERIA)[number]
+
+/** A rota que o operador viu: a assinatura a identifica, o critério é o plano B (spec 153 D3). */
+export type RouteChoice = Readonly<{
+  criterion: RouteChoiceCriterion
+  signature: null | string
+}>
+
+/**
  * Uma alternativa de rota (spec 096 T1) — a mesma forma que os campos de sempre de `RouteGeometry`
  * (`legs`, `points`, `toll`), mais o que só faz sentido comparando opções entre si.
  */
@@ -135,8 +148,15 @@ export type RouteGeometryOption = Readonly<{
   durationSeconds: number
   /** `null` quando o veículo não declara consumo/preço, ou quando o pedágio é desconhecido. */
   fuelTotal: null | string
+  /** Se a opção veio da chamada sem pedágio (`exclude=toll`, spec 153) — o critério `no_toll`. */
+  isNoToll: boolean
   legs: readonly RouteGeometryLeg[]
   points: readonly Readonly<{ latitude: string; longitude: string }>[]
+  /**
+   * A identidade da rota — a sequência de nós percorridos (spec 153 D2). ⚠️ É ela, e não o índice,
+   * que reencontra a rota escolhida quando a API pede as rotas de novo. `null` sem anotação de nó.
+   */
+  signature: null | string
   toll: null | RouteGeometryToll
   totalCost: null | string
 }>
@@ -215,6 +235,17 @@ export type RouteGeometry = Readonly<{
   fastestIndex?: null | number
   /** `false` quando o roteirizador só ofereceu um caminho — a tela não desenha seletor. */
   hasChoice?: boolean
+  /**
+   * Spec 153: índice em `options` da rota que a viagem usa — a congelada, ou a do critério padrão.
+   * `null` quando não aponta para opção nenhuma; a tela cai na principal.
+   */
+  selectedIndex?: null | number
+  /** Se a rota pedida foi a reproduzida, ou se a escolha caiu no critério/na principal (D3). */
+  choiceReproduced?: boolean
+  /** Se a rota é a congelada no planejamento, e não uma leitura ao vivo. */
+  frozen?: boolean
+  /** O critério gravado com a rota congelada; `null` na leitura ao vivo. */
+  criterion?: null | RouteChoiceCriterion
 }>
 
 export type ProjectedPoint = Readonly<{ x: number; y: number }>

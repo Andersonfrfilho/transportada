@@ -19,11 +19,17 @@ const LEADING_ZERO_PATTERN = /^0+/
 const TRAILING_SEPARATOR_PATTERN = /\.$/
 const GROUP_POSITION_PATTERN = /\B(?=(?:\d{3})+(?!\d))/g
 /** Teto de dígitos da digitação: acima disso o campo deixa de ser dinheiro e vira erro de colagem. */
-const TYPED_AMOUNT_MAX_DIGITS = 15
+export const TYPED_AMOUNT_MAX_DIGITS = 15
 /** Parte inteira de `numeric(12, 2)`: peso e volume de veículo não passam de dez dígitos. */
 const TYPED_MEASURE_MAX_INTEGER_DIGITS = 10
 const MEASURE_DECIMAL_SEPARATOR = ','
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { currency: 'BRL', style: 'currency' })
+const rateFormatter = new Intl.NumberFormat('pt-BR', {
+  currency: 'BRL',
+  maximumFractionDigits: AMOUNT_MAX_SCALE,
+  minimumFractionDigits: AMOUNT_DISPLAY_SCALE,
+  style: 'currency',
+})
 const weightFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 3,
   minimumFractionDigits: 3,
@@ -195,6 +201,19 @@ export function formatAmount(value: string): string {
   const amount = parseScaledAmount(value)
 
   return currencyFormatter.format(toNumericLiteral(toDecimalString(amount.units, amount.scale)))
+}
+
+/**
+ * Fator de conta — a diária que o leitor multiplica pelos dias — com as casas que ele **tem**.
+ *
+ * ⚠️ Não é `formatAmount`: arredondar o fator para as duas casas da exibição faz a frase desmentir
+ * o total que ela explica — "R$ 200,34 × 3 dias" para uma parcela de R$ 601,0050. O total arredonda;
+ * o fator, não. A API congela o mesmo texto em `freeze-trip-financial-result.use-case.ts`.
+ */
+export function formatRateAmount(value: string): string {
+  const amount = parseScaledAmount(value)
+
+  return rateFormatter.format(toNumericLiteral(toDecimalString(amount.units, amount.scale)))
 }
 
 /**

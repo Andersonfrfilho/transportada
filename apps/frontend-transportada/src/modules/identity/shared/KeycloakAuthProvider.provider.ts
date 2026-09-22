@@ -5,6 +5,10 @@ import { readBrowserColorTheme } from '@/modules/shared/browserColorTheme.servic
 import type { ColorTheme } from '@/modules/shared/colorTheme.constant'
 import { appendColorThemeToLoginUrl } from '@/modules/shared/colorTheme.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
+import {
+  clearAllTripAssemblyDrafts,
+  resolveTripAssemblyDraftStorage,
+} from '@/modules/trip/shared/tripAssemblyDraftStorage.service'
 
 import { getIdentityEnvironment, isIdentifierFirstLoginEnabled } from './identityEnvironment.config'
 import { isSmokeAuthBypassEnabled } from './smokeAuthBypass.service'
@@ -145,6 +149,7 @@ function createSmokeAuthProvider(): KeycloakAuthProvider {
       return Promise.resolve()
     },
     logout(): Promise<void> {
+      clearAllTripAssemblyDrafts(resolveTripAssemblyDraftStorage())
       window.location.assign('/')
       return Promise.resolve()
     },
@@ -321,7 +326,9 @@ export function createKeycloakAuthProvider(
       }
     },
     /** O token vive até o redirect: sem ele não há `id_token_hint` e a sessão SSO sobrevive. */
+    /** A aba sobrevive ao logout: o próximo usuário não herda a montagem de viagem de ninguém. */
     async logout(): Promise<void> {
+      clearAllTripAssemblyDrafts(resolveTripAssemblyDraftStorage())
       await keycloak.logout({ redirectUri: new URL(redirectUri).origin })
     },
     onSessionExpired(listener: () => void): () => void {

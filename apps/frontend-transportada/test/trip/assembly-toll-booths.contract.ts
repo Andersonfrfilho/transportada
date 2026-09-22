@@ -12,7 +12,7 @@ import { describe, expect, it } from 'bun:test'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 
 const COMPONENT = new URL(
-  '../../src/modules/trip/components/TripAssemblyMap.component.tsx',
+  '../../src/modules/trip/components/RouteTollSummary.component.tsx',
   import.meta.url,
 )
 

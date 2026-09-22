@@ -14,6 +14,11 @@ import { formatTariffMonth } from '../../src/modules/trip/shared/assemblyToll.se
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 
 const COMPONENT = new URL(
+  '../../src/modules/trip/components/RouteTollSummary.component.tsx',
+  import.meta.url,
+)
+
+const ASSEMBLY = new URL(
   '../../src/modules/trip/components/TripAssemblyMap.component.tsx',
   import.meta.url,
 )
@@ -39,9 +44,10 @@ describe('pedágio na montagem (spec 090 T7)', () => {
 
   /** Sem pedágio calculado (sem veículo, ou nós não anotados) o bloco inteiro fica de fora. */
   it('não imprime o bloco quando o pedágio não foi calculado', () => {
-    const semToll = source.slice(source.indexOf('const toll ='), source.indexOf('toll === null'))
+    const guarda = source.indexOf('toll === null ? null')
 
-    expect(semToll).not.toInclude('assemblyToll')
+    expect(guarda).toBeGreaterThan(-1)
+    expect(source.slice(0, guarda)).not.toInclude('styles.assemblyToll')
   })
 
   /** A contagem de praças sem tarifa é obrigatória — o total sozinho seria número crível e falso. */
@@ -51,8 +57,11 @@ describe('pedágio na montagem (spec 090 T7)', () => {
   })
 
   it('está montado logo abaixo do tempo do roteiro', () => {
-    const totalTimeIndex = source.indexOf('assemblyMap.totalTime')
-    const tollIndex = source.indexOf('toll === null ? null : (')
+    const assembly = readFileSync(ASSEMBLY, 'utf8')
+    const totalTimeIndex = assembly.indexOf('assemblyMap.totalTime')
+    const tollIndex = assembly.indexOf(
+      '<RouteTollSummary canAdjustTollBooth={canAdjustTollBooth} toll={toll} />',
+    )
 
     expect(totalTimeIndex).toBeGreaterThan(-1)
     expect(tollIndex).toBeGreaterThan(totalTimeIndex)

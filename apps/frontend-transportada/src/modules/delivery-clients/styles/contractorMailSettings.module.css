@@ -193,3 +193,217 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Spec 150 T403: seção "Modelos". */
+
+.templateTypeField {
+  display: grid;
+  gap: var(--space-1);
+  max-width: 24rem;
+  color: var(--color-slate);
+}
+
+.templateList {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.templateItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+}
+
+.templateItem:last-child {
+  border-bottom: none;
+}
+
+.templateName {
+  font-weight: 700;
+  color: var(--color-fog);
+}
+
+.badge {
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  color: var(--color-slate);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badgeDefault {
+  border-color: var(--color-ready);
+  color: var(--color-ready);
+}
+
+.badgeArchived {
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+}
+
+.templateActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.editorGrid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.editorGrid label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  color: var(--color-slate);
+}
+
+.editorGrid input {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.editorGrid input:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.editorGrid textarea {
+  min-width: 0;
+  min-height: 5rem;
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+  resize: vertical;
+}
+
+.editorGrid textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.editorLayout {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.variablesPanel {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.variablesGroup {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.variableRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.variableName {
+  font-family: monospace;
+  color: var(--color-fog);
+}
+
+.previewTabs {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.previewFrame {
+  width: 100%;
+  min-height: 24rem;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: var(--color-fog);
+}
+
+.previewText {
+  padding: var(--space-3);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--color-fog);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.invalidField {
+  padding: 0;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  background: none;
+  cursor: pointer;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
+  z-index: 50;
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  background: var(--color-graphite);
+}
+
+/* Tela cheia no celular (`web.md` §10); do tablet para cima volta a ser caixa com margem. */
+@media (min-width: 40rem) {
+  .overlay {
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(28rem, 100%);
+    height: auto;
+    max-height: 92vh;
+  }
+}
+
+.dialogFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (min-width: 64rem) {
+  .editorLayout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}

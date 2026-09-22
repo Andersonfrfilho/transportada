@@ -19,6 +19,7 @@
  * **O que isto não é:** substituto da DANFE impressa. A DANFE que acompanha a mercadoria é a que o
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
+import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
 
 export type DriverTripDocument = {
@@ -34,6 +35,11 @@ export type DriverTripDocument = {
   readonly grossWeight: string
   readonly id: string
   readonly number: string
+  /**
+   * ADR-0070 §1, spec 159 RF1/RF2: entregue, foto obrigatória (`deliveryProof.photo = 'required'`)
+   * e nenhuma foto anexada ao evento de entrega. A entrega nunca é recusada por isso — só avisa.
+   */
+  readonly proofPending: boolean
   /** Nome de quem recebe. É o mínimo para entregar — e nada além disso vem junto. */
   readonly recipientName: string
   readonly returnReason: string | null
@@ -89,6 +95,25 @@ export type DriverTrip = {
   readonly vehiclePlate: string
 }
 
+/**
+ * Spec 159 T11 (ALTO 1): a nota entregue pelo próprio motorista nos 90 dias, com foto obrigatória
+ * e sem foto. Vem na raiz do snapshot, fora das viagens: a última entrega conclui a viagem e ela
+ * sai de `trips`, mas a foto ainda pode chegar pelo `/proof` (que aceita viagem `completed`).
+ */
+export type DriverPendingProof = {
+  /** `trip_stop_events.captured_at ?? recorded_at` da entrega — a mesma hora que a nota usa. */
+  readonly deliveredAt: string
+  /** A configuração resolvida da nota, a mesma de `DriverTripDocument.deliveryProof`. */
+  readonly deliveryProof: DeliveryProofFieldSettings
+  /** O id que o `/proof` recebe (`trip_documents.id`). */
+  readonly documentId: string
+  readonly documentNumber: string
+  readonly documentSeries: string
+  readonly recipientName: string
+  readonly tripId: string
+  readonly tripStatus: string
+}
+
 export type CurrentDriverTripPort = {
   /** `null` quando a conta autenticada não está ligada a nenhum cadastro de motorista. */
   findDriverIdByMembership(input: {
@@ -99,12 +124,20 @@ export type CurrentDriverTripPort = {
     readonly companyId: string
     readonly driverId: string
   }): Promise<readonly DriverTrip[]>
+  listPendingProofs(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly now: Date
+  }): Promise<readonly DriverPendingProof[]>
 }
 
 export type FindCurrentDriverTripInput = {
   readonly companyId: string
   readonly membershipId: string
+  /** O relógio da nota (RF9: penalidade vigente 90 dias) — injetado, nunca lido aqui. */
+  readonly now: Date
   readonly repository: CurrentDriverTripPort
+  readonly scores: Pick<DriverScorePort, 'readScores'>
 }
 
 export type FindCurrentDriverTripResult = {
@@ -114,6 +147,10 @@ export type FindCurrentDriverTripResult = {
    * cadastro" não é "nada para hoje". Sem esta distinção o segundo caso esconde o primeiro.
    */
   readonly isRegisteredDriver: boolean
+  /** Spec 159 T11 (ALTO 1): as fotos obrigatórias que ainda faltam, de qualquer viagem dele. */
+  readonly pendingProofs: readonly DriverPendingProof[]
+  /** ADR-0070 §6, spec 159 RF2: a nota do próprio motorista — `null` sem histórico ou sem cadastro. */
+  readonly score: number | null
   readonly trips: readonly DriverTrip[]
 }
 
@@ -131,9 +168,15 @@ export async function findCurrentDriverTrip(
     companyId: input.companyId,
     membershipId: input.membershipId,
   })
-  if (driverId === null) return { isRegisteredDriver: false, trips: [] }
+  if (driverId === null) {
+    return { isRegisteredDriver: false, pendingProofs: [], score: null, trips: [] }
+  }
 
-  const trips = await input.repository.listActiveTrips({ companyId: input.companyId, driverId })
+  const [trips, pendingProofs, scores] = await Promise.all([
+    input.repository.listActiveTrips({ companyId: input.companyId, driverId }),
+    input.repository.listPendingProofs({ companyId: input.companyId, driverId, now: input.now }),
+    input.scores.readScores({ companyId: input.companyId, driverIds: [driverId], now: input.now }),
+  ])
 
-  return { isRegisteredDriver: true, trips }
+  return { isRegisteredDriver: true, pendingProofs, score: scores.get(driverId) ?? null, trips }
 }

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import type { SelectOption } from '@/components/ui/select'
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import {
@@ -28,6 +29,7 @@ import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/prop
 import { TRIP_MANAGE_PERMISSION } from '../shared/trip.constant'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
+import type { RouteChoice } from '../shared/routeGeometry.service'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripValuationPreview } from './TripValuationPreview.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
@@ -53,10 +55,14 @@ type TripProposalDetailProps = Readonly<{
   onDraftOrderChange: (order: readonly string[]) => void
   onMoveStop: (nfeDocumentIds: readonly string[], vehicleId: string) => void
   onRemoveStop: (nfeDocumentIds: readonly string[]) => void
+  /** Spec 153: a rota que o mapa mostra, para o aceite congelar esta e não outra. */
+  onRouteChoiceChange: (choice: RouteChoice | undefined) => void
   onSaveEdits: () => void
   onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
   pendingRemovals: ReadonlySet<string>
   permissions: readonly string[]
+  /** A rota escolhida antes de sair da tela — o mapa a reaplica se a estrada for a mesma. */
+  preferredRouteChoice: RouteChoice | undefined
   /** Spec 148 T7 (D10): marcar as notas que não couberam para o aceite soltá-las. */
   releaseUnplaced: Readonly<{
     isMarked: (layoutId: string) => boolean
@@ -85,10 +91,12 @@ export function TripProposalDetail({
   onDraftOrderChange,
   onMoveStop,
   onRemoveStop,
+  onRouteChoiceChange,
   onSaveEdits,
   onUndoRemoveStop,
   pendingRemovals,
   permissions,
+  preferredRouteChoice,
   releaseUnplaced,
   valuation,
   vehicle,
@@ -297,14 +305,17 @@ export function TripProposalDetail({
       )}
       {mapNotes.length === 0 ? null : (
         <TripAssemblyMap
+          canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
           isMeasurementPaused={isMeasurementPaused}
           measuredOrder={stopOrder}
           nearby={[]}
           onOrderChange={handleOrderChange}
+          onRouteChoiceChange={onRouteChoiceChange}
           onStopMove={onMoveStop}
           onStopRemove={onRemoveStop}
           onStopUndoRemove={onUndoRemoveStop}
           order={displayOrder}
+          preferredRouteChoice={preferredRouteChoice}
           proposalTimeText={proposalTimeText}
           /** Spec 110 D6: a parada marcada fica **riscada com "Desfazer"**, nunca some. */
           removedNoteIds={pendingRemovals}

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
   TRIP_DOCUMENT_ACTION,
   checkTripDocumentTransition,
@@ -24,9 +25,11 @@ export type AppliedTripDocumentTransition = {
 
 export type TripDocumentBatchWriteInput = {
   readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
   readonly items: readonly AppliedTripDocumentTransition[]
   readonly note: string | null
+  readonly onBehalfOfDriverId: string | null
   readonly returnReason: string | null
   readonly tripId: string
 }
@@ -57,9 +60,11 @@ export type TripDocumentBatchTransitionPort = {
 export type TransitionTripDocumentsBatchInput = {
   readonly action: TripDocumentAction
   readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
   readonly documentIds: readonly string[]
   readonly note?: string | null
+  readonly onBehalfOfDriverId?: string | null
   readonly repository: TripDocumentBatchTransitionPort
   readonly returnReason?: string | null
   readonly tripId: string
@@ -153,9 +158,11 @@ export async function transitionTripDocumentsBatch(
 
   const written = await input.repository.writeBatch({
     actorUserId: input.actorUserId,
+    channel: input.channel,
     companyId: input.companyId,
     items: toApply,
     note: input.note ?? null,
+    onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     returnReason:
       input.action === TRIP_DOCUMENT_ACTION.return ? (input.returnReason ?? null) : null,
     tripId: input.tripId,

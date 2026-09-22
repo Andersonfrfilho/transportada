@@ -15,6 +15,7 @@ import {
 } from '../../src/database/database.schema.js'
 import { foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
 import {
+  buildContractorContactFilters,
   buildContractorMailSetupTestMessageFilters,
   buildContractorMailSetupTestThreadFilters,
   buildContractorMailThreadByReplyTokenFilters,
@@ -54,6 +55,24 @@ describe('contractor mail tenant safety (spec 143, T005)', () => {
       onDelete: 'cascade',
       onUpdate: 'cascade',
     })
+  })
+
+  /**
+   * Spec 150 T301 (spec 143 T013): `company_id` e `contractor_id` na mesma condição — nunca uma
+   * conferência à parte — para o contato de outra empresa (ou de outra contratante) nunca aparecer
+   * nas consultas de `contractor_contacts` (BOLA).
+   */
+  test('the contact lookup filters by company id and contractor id together', () => {
+    const companyId = '00000000-0000-4000-8000-000000000904'
+    const contractorId = '00000000-0000-4000-8000-000000000905'
+
+    const query = dialect.sqlToQuery(
+      and(...buildContractorContactFilters({ companyId, contractorId }))!,
+    )
+
+    expect(query.sql).toContain('"contractor_contacts"."company_id" = $')
+    expect(query.sql).toContain('"contractor_contacts"."contractor_id" = $')
+    expect(query.params).toEqual([companyId, contractorId])
   })
 
   test('reaches the conversation and its contractor through the tenant, never by id alone', () => {

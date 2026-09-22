@@ -91,6 +91,12 @@ export async function readSuggestionValuation(
       context: {
         ...context,
         distanceMeters: road.distanceMeters,
+        /**
+         * Spec 143 D4: os dias da diária precisam da duração **desta** rota proposta pelo solver —
+         * nunca da duração que o motorista informou numa viagem já criada, que ainda não conhece
+         * o roteiro que está sendo comparado agora.
+         */
+        estimatedDurationSeconds: road.durationSeconds,
         toll: null,
         tollUnavailableReason: 'suggestion',
       },

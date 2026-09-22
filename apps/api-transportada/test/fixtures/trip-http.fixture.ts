@@ -36,21 +36,23 @@ type RouteDependencies = {
   readonly createTripMdfeManifest: {
     execute(input: ExecuteCall): Promise<typeof MDFE_MANIFEST_DETAIL>
   }
-  readonly deliverTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly dispatchTrip: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly getTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly linkTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
   readonly listDeliveryAddressHistory: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listStops: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly readTripActionSnapshot: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly listTripCosts: { execute(input: ExecuteCall): Promise<unknown> }
   readonly listTrips: { execute(input: ExecuteCall): Promise<typeof TRIP_PAGE> }
   readonly loadTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly overrideDeliveryAddress: { execute(input: ExecuteCall): Promise<unknown> }
   readonly planTripRoute: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly releaseTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
   readonly reorderStops: { execute(input: ExecuteCall): Promise<TripStatusResult> }
-  readonly returnTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly readValuation: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly readRouteGeometry: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly readTripRouteGeometry: { execute(input: ExecuteCall): Promise<unknown> }
   readonly requestCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
   readonly previewCargo: { execute(input: ExecuteCall): Promise<unknown> }
   readonly readCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
@@ -64,6 +66,8 @@ type RouteDependencies = {
 }
 
 type CreateFixtureParams = {
+  /** Spec 156 D10: o recorte que `GET /trips/:id/allowed-actions` avalia. */
+  readonly tripActionSnapshot?: unknown
   readonly batchStatusError?: Error
   readonly setMdfeRequirementError?: Error
   readonly batchStatusResult?: unknown
@@ -71,7 +75,6 @@ type CreateFixtureParams = {
   readonly closeTripError?: Error
   readonly createTripError?: Error
   readonly createTripMdfeManifestError?: Error
-  readonly deliverTripDocumentError?: Error
   readonly dispatchTripError?: Error
   readonly getTripError?: Error
   readonly getTripResult?: object
@@ -86,14 +89,24 @@ type CreateFixtureParams = {
   readonly listDeliveryAddressHistoryError?: Error
   readonly listDeliveryAddressHistoryResult?: unknown
   readonly listStopsResult?: unknown
+  readonly listTripCostsError?: Error
+  readonly listTripCostsResult?: unknown
   readonly listTripsError?: Error
+  readonly listTripsResult?: typeof TRIP_PAGE
   readonly loadTripDocumentError?: Error
   readonly permissions?: CompanyContext['permissions']
+  /**
+   * Sobrepõe o `execute` inteiro em vez de um resultado enlatado — a T203 exercita o use case real
+   * contra portas falsas, para o teste de contrato HTTP não ficar cego a uma regressão na lógica de
+   * congelamento (a fixture não conhece a rota congelada; o teste, sim).
+   */
+  readonly readTripRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>
+  /** Espelha `readTripRouteGeometryExecute` para a rota solta (`POST /route-geometry`, T301). */
+  readonly readRouteGeometryExecute?: (input: ExecuteCall) => Promise<unknown>
   readonly overrideDeliveryAddressError?: Error
   readonly planTripRouteError?: Error
   readonly releaseTripDocumentError?: Error
   readonly reorderStopsError?: Error
-  readonly returnTripDocumentError?: Error
   readonly separateTripDocumentError?: Error
 }
 
@@ -113,28 +126,55 @@ export const FLEET_ONLY_PERMISSIONS: CompanyContext['permissions'] = new Set([
 
 export const READ_ONLY_PERMISSIONS: CompanyContext['permissions'] = new Set(['fleet.read'])
 
+/** Spec 153 D10/T301: única permissão que devolve dinheiro na resposta HTTP. */
+export const FINANCIALS_PERMISSIONS: CompanyContext['permissions'] = new Set([
+  'fleet.read',
+  'trip.financials',
+])
+
+/**
+ * Mesma forma de `UNAVAILABLE_VIEW` do use case ao vivo (`read-route-geometry.use-case.ts`) —
+ * `options`/`toll` presentes e vazios, para T301 (redação monetária) não quebrar ao mapear uma
+ * rota que nenhum teste pediu de propósito.
+ */
+const UNAVAILABLE_ROUTE_GEOMETRY_VIEW = {
+  cheapestIndex: null,
+  choiceReproduced: false,
+  costGap: null,
+  depot: null,
+  fastestIndex: null,
+  hasChoice: false,
+  legs: [],
+  options: [],
+  points: [],
+  selectedIndex: null,
+  source: 'unavailable',
+  toll: null,
+}
+
 export async function createTripHttpFixture(params: CreateFixtureParams = {}): Promise<{
   readonly batchStatusCalls: ExecuteCall[]
   readonly cancelTripCalls: ExecuteCall[]
   readonly closeTripCalls: ExecuteCall[]
   readonly createTripCalls: ExecuteCall[]
   readonly createTripMdfeManifestCalls: ExecuteCall[]
-  readonly deliverTripDocumentCalls: ExecuteCall[]
   readonly dispatchTripCalls: ExecuteCall[]
   readonly getTripCalls: ExecuteCall[]
   readonly handle: (request: Request) => Promise<Response>
   readonly linkTripDocumentCalls: ExecuteCall[]
   readonly listDeliveryAddressHistoryCalls: ExecuteCall[]
   readonly listStopsCalls: ExecuteCall[]
+  readonly listTripCostsCalls: ExecuteCall[]
   readonly listTripsCalls: ExecuteCall[]
   readonly loadTripDocumentCalls: ExecuteCall[]
   readonly overrideDeliveryAddressCalls: ExecuteCall[]
   readonly planTripRouteCalls: ExecuteCall[]
   readonly releaseTripDocumentCalls: ExecuteCall[]
   readonly reorderStopsCalls: ExecuteCall[]
-  readonly returnTripDocumentCalls: ExecuteCall[]
   readonly separateTripDocumentCalls: ExecuteCall[]
   readonly readValuationCalls: ExecuteCall[]
+  readonly readRouteGeometryCalls: ExecuteCall[]
+  readonly readTripRouteGeometryCalls: ExecuteCall[]
   readonly requestCargoLayoutCalls: ExecuteCall[]
   readonly previewCargoCalls: ExecuteCall[]
   readonly readCargoLayoutCalls: ExecuteCall[]
@@ -147,17 +187,19 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const closeTripCalls: ExecuteCall[] = []
   const createTripCalls: ExecuteCall[] = []
   const createTripMdfeManifestCalls: ExecuteCall[] = []
-  const deliverTripDocumentCalls: ExecuteCall[] = []
   const dispatchTripCalls: ExecuteCall[] = []
   const getTripCalls: ExecuteCall[] = []
   const linkTripDocumentCalls: ExecuteCall[] = []
   const listDeliveryAddressHistoryCalls: ExecuteCall[] = []
   const listStopsCalls: ExecuteCall[] = []
+  const listTripCostsCalls: ExecuteCall[] = []
   const listTripsCalls: ExecuteCall[] = []
   const loadTripDocumentCalls: ExecuteCall[] = []
   const overrideDeliveryAddressCalls: ExecuteCall[] = []
   const planTripRouteCalls: ExecuteCall[] = []
   const readValuationCalls: ExecuteCall[] = []
+  const readRouteGeometryCalls: ExecuteCall[] = []
+  const readTripRouteGeometryCalls: ExecuteCall[] = []
   const requestCargoLayoutCalls: ExecuteCall[] = []
   const previewCargoCalls: ExecuteCall[] = []
   const readCargoLayoutCalls: ExecuteCall[] = []
@@ -166,7 +208,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const setMdfeRequirementCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
   const reorderStopsCalls: ExecuteCall[] = []
-  const returnTripDocumentCalls: ExecuteCall[] = []
   const separateTripDocumentCalls: ExecuteCall[] = []
 
   const transitionResult = (): TransitionResult => ({
@@ -220,13 +261,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         return MDFE_MANIFEST_DETAIL
       },
     },
-    deliverTripDocument: {
-      async execute(input) {
-        deliverTripDocumentCalls.push(structuredClone(input))
-        if (params.deliverTripDocumentError) throw params.deliverTripDocumentError
-        return transitionResult()
-      },
-    },
     dispatchTrip: {
       async execute(input) {
         dispatchTripCalls.push(structuredClone(input))
@@ -261,11 +295,34 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         return params.listStopsResult ?? { stops: [] }
       },
     },
+    readTripActionSnapshot: {
+      async execute() {
+        return params.tripActionSnapshot
+      },
+    },
+    listTripCosts: {
+      async execute(input) {
+        listTripCostsCalls.push(structuredClone(input))
+        if (params.listTripCostsError) throw params.listTripCostsError
+        return (
+          params.listTripCostsResult ?? [
+            {
+              actor: { name: 'Ana Souza', userId: COMPANY_CONTEXT.userId },
+              amount: '44.6000',
+              createdAt: '2026-08-05T09:00:00.000Z',
+              description: 'Pedágio da BR-101',
+              id: '00000000-0000-4000-8000-000000000e01',
+              kind: 'toll',
+            },
+          ]
+        )
+      },
+    },
     listTrips: {
       async execute(input) {
         listTripsCalls.push(structuredClone(input))
         if (params.listTripsError) throw params.listTripsError
-        return TRIP_PAGE
+        return params.listTripsResult ?? TRIP_PAGE
       },
     },
     loadTripDocument: {
@@ -312,6 +369,20 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
           totalMargin: '200.0000',
           totalRevenue: '1000.0000',
         }
+      },
+    },
+    readRouteGeometry: {
+      async execute(input) {
+        readRouteGeometryCalls.push(structuredClone(input))
+        if (params.readRouteGeometryExecute) return params.readRouteGeometryExecute(input)
+        return UNAVAILABLE_ROUTE_GEOMETRY_VIEW
+      },
+    },
+    readTripRouteGeometry: {
+      async execute(input) {
+        readTripRouteGeometryCalls.push(structuredClone(input))
+        if (params.readTripRouteGeometryExecute) return params.readTripRouteGeometryExecute(input)
+        return { ...UNAVAILABLE_ROUTE_GEOMETRY_VIEW, frozen: false }
       },
     },
     logger: {
@@ -393,13 +464,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         return { tripStatus: 'route_planned' }
       },
     },
-    returnTripDocument: {
-      async execute(input) {
-        returnTripDocumentCalls.push(structuredClone(input))
-        if (params.returnTripDocumentError) throw params.returnTripDocumentError
-        return transitionResult()
-      },
-    },
     separateTripDocument: {
       async execute(input) {
         separateTripDocumentCalls.push(structuredClone(input))
@@ -427,14 +491,16 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     closeTripCalls,
     createTripCalls,
     createTripMdfeManifestCalls,
-    deliverTripDocumentCalls,
     dispatchTripCalls,
     getTripCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     linkTripDocumentCalls,
     readValuationCalls,
+    readRouteGeometryCalls,
+    readTripRouteGeometryCalls,
     listDeliveryAddressHistoryCalls,
     listStopsCalls,
+    listTripCostsCalls,
     listTripsCalls,
     loadTripDocumentCalls,
     overrideDeliveryAddressCalls,
@@ -447,7 +513,6 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     reopenCargoLayoutCalls,
     warnings,
     setMdfeRequirementCalls,
-    returnTripDocumentCalls,
     separateTripDocumentCalls,
   }
 }

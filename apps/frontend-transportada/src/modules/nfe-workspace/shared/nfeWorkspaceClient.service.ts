@@ -3,6 +3,29 @@ import {
   isScheduledDistributionStatus,
   type ScheduledDistributionStatus,
 } from '@/modules/company-settings/shared/scheduledDistribution.validation'
+import { readRetryAfterSecondsHeader } from '@/modules/shared/retryAfter.service'
+import {
+  mapAddressCorrectionRequest,
+  mapAddressCorrectionRequestList,
+  type AddressCorrectionFields,
+  type AddressCorrectionRequestRecord,
+} from './addressCorrection.validation'
+import { buildAddressCorrectionMailRequestBody } from './addressCorrectionMail.service'
+import {
+  mapAddressCorrectionMailSendResult,
+  mapAddressCorrectionMailTemplateList,
+  mapAddressCorrectionMailTemplatePreview,
+  mapAddressCorrectionRecipients,
+  type AddressCorrectionMailSendResult,
+  type AddressCorrectionMailTemplate,
+  type AddressCorrectionMailTemplatePreview,
+  type AddressCorrectionRecipients,
+} from './addressCorrectionMail.validation'
+import {
+  AddressCorrectionRequestError,
+  readErrorCode,
+  readErrorDetails,
+} from './addressCorrectionRequestError.service'
 import { mapAddressReport, type AddressReport } from './addressReport.validation'
 import {
   JOB_EXECUTION_ORIGINS,
@@ -236,20 +259,44 @@ type ClientDependencies = Readonly<{
 
 export type NfeWorkspaceClient = Readonly<{
   downloadDocumentXml: (input: Readonly<{ id: string }>) => Promise<Blob>
+  /** `POST /address-correction-requests/recipients` (revisão final, item de segurança B3): o
+   * CNPJ vai no corpo, nunca na URL. */
+  findAddressCorrectionRecipients: (
+    input: Readonly<{ contractorTaxId: string }>,
+  ) => Promise<AddressCorrectionRecipients>
   getAddressReport: () => Promise<AddressReport>
   getDistributionStatus: () => Promise<NfeDistributionStatus>
   getImportDetail: (input: Readonly<{ id: string }>) => Promise<NfeImportSummary>
+  /** `GET /contractor-mail-templates?mailType=address_correction` (spec 150, T405). */
+  listAddressCorrectionMailTemplates: () => Promise<readonly AddressCorrectionMailTemplate[]>
+  listAddressCorrectionRequests: () => Promise<readonly AddressCorrectionRequestRecord[]>
   listDocuments: (
     input: Readonly<{ cursor: null | string; limit: number }>,
   ) => Promise<NfeDocumentListPage>
   listImports: (
     input: Readonly<{ cursor: null | string; filters?: NfeImportFilters; limit: number }>,
   ) => Promise<NfeImportListPage>
+  /** `POST /contractor-mail-templates/preview` com `{templateId}` — sempre dados de exemplo. */
+  previewAddressCorrectionMailTemplate: (
+    input: Readonly<{ templateId: string }>,
+  ) => Promise<AddressCorrectionMailTemplatePreview>
   reprocessImport: (
     input: Readonly<{ id: string; idempotencyKey: string }>,
   ) => Promise<NfeImportSummary>
   requestDistribution: (input: Readonly<{ idempotencyKey: string }>) => Promise<NfeImportSummary>
   requestUpload: (input: RequestUploadInput) => Promise<NfeImportSummary>
+  saveAddressCorrection: (
+    input: Readonly<{ addressKey: string; proposed: AddressCorrectionFields }>,
+  ) => Promise<AddressCorrectionRequestRecord>
+  sendAddressCorrectionMail: (
+    input: Readonly<{
+      contactIds: readonly string[]
+      contractorTaxId: string
+      idempotencyKey: string
+      requestIds?: readonly string[]
+      templateId?: string
+    }>,
+  ) => Promise<AddressCorrectionMailSendResult>
 }>
 
 export type NfeWorkspaceClientFactory = (input: ClientDependencies) => NfeWorkspaceClient
@@ -573,6 +620,42 @@ async function requestJson(
   }
 }
 
+/**
+ * O corpo do `400`/`404` carrega `error.details[]` por campo (RF3, `web.md` §11): a rota de
+ * correção precisa dele para ancorar o erro no campo, e `requestJson` acima descarta o corpo em
+ * qualquer resposta que não seja `ok`.
+ */
+async function requestJsonWithDetails(
+  input: Readonly<{
+    dependencies: ClientDependencies
+    init?: RequestInit
+    path: string
+  }>,
+): Promise<unknown> {
+  const request = await getAccessTokenRequest(input)
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(request)
+  } catch {
+    throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_REQUEST_FAILED' })
+  }
+  const rawBody = await response.text()
+  let payload: unknown
+  try {
+    payload = rawBody.length === 0 ? undefined : (JSON.parse(rawBody) as unknown)
+  } catch {
+    throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
+  }
+  if (!response.ok) {
+    throw new AddressCorrectionRequestError({
+      code: readErrorCode(payload) ?? 'NFE_WORKSPACE_REQUEST_FAILED',
+      details: readErrorDetails(payload),
+      retryAfterSeconds: readRetryAfterSecondsHeader(response.headers),
+    })
+  }
+  return payload
+}
+
 function searchPath(
   input: Readonly<{ cursor: null | string; limit: number; path: string }>,
 ): string {
@@ -702,6 +785,99 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       path: '/address-report',
     })
     return mapAddressReport(response)
+  },
+  async listAddressCorrectionRequests() {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: { method: 'GET' },
+      path: '/address-correction-requests',
+    })
+    return mapAddressCorrectionRequestList(response)
+  },
+  async saveAddressCorrection(input) {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: {
+        body: JSON.stringify({ proposed: input.proposed }),
+        headers: { 'content-type': 'application/json' },
+        method: 'PUT',
+      },
+      path: `/address-correction-requests/${encodeURIComponent(input.addressKey)}`,
+    })
+    const saved = mapAddressCorrectionRequest(envelopeData(response))
+    if (saved === null)
+      throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
+    return saved
+  },
+  /**
+   * `POST /address-correction-requests/recipients` (revisão final, item de segurança B3):
+   * substitui `GET /contractors/by-tax-id/:taxId` + `GET /contractors/:id/contacts` — o CNPJ do
+   * emitente vai no corpo, nunca no caminho da URL, e a permissão é `settings.manage`, a mesma do
+   * resto do fluxo (nunca `fleet.read`).
+   */
+  async findAddressCorrectionRecipients(input) {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: {
+        body: JSON.stringify({ contractorTaxId: input.contractorTaxId }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      path: '/address-correction-requests/recipients',
+    })
+    const recipients = mapAddressCorrectionRecipients(response)
+    if (recipients === null) {
+      throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
+    }
+    return recipients
+  },
+  async sendAddressCorrectionMail(input) {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: {
+        body: JSON.stringify(
+          buildAddressCorrectionMailRequestBody({
+            contactIds: input.contactIds,
+            contractorTaxId: input.contractorTaxId,
+            ...(input.requestIds === undefined ? {} : { requestIds: input.requestIds }),
+            ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
+          }),
+        ),
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': input.idempotencyKey,
+        },
+        method: 'POST',
+      },
+      path: '/address-correction-requests/mail',
+    })
+    const result = mapAddressCorrectionMailSendResult(response)
+    if (result === null)
+      throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
+    return result
+  },
+  async listAddressCorrectionMailTemplates() {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: { method: 'GET' },
+      path: '/contractor-mail-templates?mailType=address_correction',
+    })
+    return mapAddressCorrectionMailTemplateList(response)
+  },
+  async previewAddressCorrectionMailTemplate(input) {
+    const response = await requestJsonWithDetails({
+      dependencies,
+      init: {
+        body: JSON.stringify({ templateId: input.templateId }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      path: '/contractor-mail-templates/preview',
+    })
+    const preview = mapAddressCorrectionMailTemplatePreview(response)
+    if (preview === null)
+      throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
+    return preview
   },
   async downloadDocumentXml(input) {
     const request = await getAccessTokenRequest({

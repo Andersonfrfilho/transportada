@@ -18,6 +18,21 @@
 export const ROUTE_ASSEMBLY_TIMEOUT_CODE = 'ROUTE_SUGGESTION_TIMEOUT'
 
 /**
+ * A sugestão chegou a um fim: `failed` ou `stale`. A mensagem continua sendo o código, para
+ * `resolveRouteAssemblyFailure` ler do mesmo jeito.
+ */
+export class RouteSuggestionSettledError extends Error {}
+
+/**
+ * ⚠️ Só o fim de verdade esquece a sugestão pedida — falhou, envelheceu ou o teto de espera
+ * estourou. Queda de rede na espera não diz nada sobre ela, e esquecê-la a deixaria órfã.
+ */
+export function isSettledSuggestionFailure(error: unknown): boolean {
+  if (error instanceof RouteSuggestionSettledError) return true
+  return error instanceof Error && error.message === ROUTE_ASSEMBLY_TIMEOUT_CODE
+}
+
+/**
  * De onde sai o texto. O vocabulário de recusa do roteirizador é do módulo dele — copiar as frases
  * para cá daria duas grafias para a mesma falha, como já vale para o estado da viagem e a cor do
  * veículo.

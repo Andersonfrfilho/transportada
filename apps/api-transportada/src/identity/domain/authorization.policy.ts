@@ -60,6 +60,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'trip.manage',
   'trip.report',
   /**
+   * ADR-0067: o escritório dá baixa **em nome do motorista**, com permissão própria. `trip.manage`
+   * não serve porque o separador a tem e não reporta entrega; `trip.report` não serve porque abre as
+   * rotas `/me` do motorista a quem não dirige.
+   */
+  'trip.report-on-behalf',
+  /**
    * Spec 061 D4: dinheiro tem permissão própria. Quem monta a viagem não precisa saber a margem, e
    * o valor pago ao motorista é dado sensível para o próprio motorista — que tem `trip.read`.
    */
@@ -121,11 +127,14 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.cancel',
     'nfse.read',
     'trip.manage',
+    'trip.report-on-behalf',
     'trip.financials',
     'cargo.measure',
   ]),
   finance: Object.freeze([
     'cte.read',
+    // ADR-0067: o canhoto às vezes chega junto da cobrança, e quem cobra dá a baixa
+    'trip.report-on-behalf',
     'trip.financials',
     'billing.create',
     'billing.cancel',
@@ -177,6 +186,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.manage',
     'nfse.read',
     'trip.manage',
+    'trip.report-on-behalf',
     /**
      * ADR-0049 §6, **emendada**: `trip.financials` voltou para o `operator`.
      *
@@ -207,7 +217,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   aggregate: Object.freeze(['trip.read', 'trip.report']),
   // O separador monta a viagem do celular: lê a nota que bipa, lê a frota para escolher veículo e
   // motorista, e escreve a viagem. Ele não cadastra frota, não fatura e não emite documento fiscal
-  // — e não reporta entrega, que é do campo.
+  // — e não reporta entrega, que é do campo, nem em nome do motorista (ADR-0067).
   separator: Object.freeze([
     'invoices.read',
     'fleet.read',
@@ -252,10 +262,31 @@ export type MembershipAuthorizationPolicy = {
   readonly scope: 'company'
 }
 
+/**
+ * Spec 156 D11 (ADR-0067): "qualquer uma de". Só em leitura — o roteador recusa no boot em outro
+ * método — e só onde a decisão está escrita. Pelo menos duas: com uma, é `CompanyAuthorizationPolicy`.
+ */
+export type CompanyAnyPermissionPolicy = {
+  readonly anyPermission: readonly [CompanyPermission, CompanyPermission, ...CompanyPermission[]]
+  /** Sem permissão única: quem lê `policy.permission` numa lista de rotas recebe `undefined`. */
+  readonly permission?: never
+  readonly scope: 'company'
+}
+
 export type RouteAuthorizationPolicy =
   | CompanyAuthorizationPolicy
+  | CompanyAnyPermissionPolicy
   | MembershipAuthorizationPolicy
   | PlatformAuthorizationPolicy
+
+export type GrantsAnyPermissionParams = {
+  readonly granted: ReadonlySet<CompanyPermission>
+  readonly required: readonly CompanyPermission[]
+}
+
+export function grantsAnyPermission({ granted, required }: GrantsAnyPermissionParams): boolean {
+  return required.some((permission) => granted.has(permission))
+}
 
 export type CompanyPermissionSources = {
   /** Concedidas por grupo da empresa ou direto à pessoa. Nome fora do catálogo é ignorado. */

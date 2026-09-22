@@ -81,8 +81,8 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
   const { t } = useTranslation('tripFinancials')
   const basis = line.basis
   /**
-   * Spec 129: `basis.tie` (empate de rota) é dado cru — a frase e a moeda são compostas aqui, no
-   * mesmo serviço que a proposta usa, para as duas telas nunca discordarem.
+   * Spec 143: a diária do motorista (`basis.of === 'driver'`) é dado cru — a frase é composta
+   * aqui, no mesmo serviço que a proposta usa, para as duas telas nunca discordarem.
    */
   const detail = composeCostParcelDetail({ basis, detail: line.detail, t: t as Translate })
 
@@ -125,12 +125,7 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
                   rate: formatMargin(fractionToPercentage(basis.rate)),
                   reduction: formatMargin(fractionToPercentage(basis.baseReductionRate)),
                 })
-              : t(`ledger.driverBasis.${basis.paymentModel}`, {
-                  city: basis.regionCity ?? '',
-                  defaultValue: '',
-                  vehicleClass: basis.vehicleClass,
-                  zone: basis.regionCode ?? '',
-                })}
+              : detail}
         </p>
       )}
       {/* Spec 124: o aviso vem abaixo do número — ele diz o que cadastrar, não que falta valor. */}

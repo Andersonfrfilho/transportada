@@ -1,6 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { formatPostalCode } from '@/modules/shared/postalCode.service'
 import { DEFAULT_FUEL_PRODUCT } from '@/modules/shared/fuel.constant'
+import {
+  AMOUNT_DISPLAY_SCALE,
+  AMOUNT_MAX_SCALE,
+  parseTypedAmount,
+  toTypedAmount,
+} from '@/modules/shared/decimalAmount.service'
 import { normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import { joinDriverName, splitDriverName } from './driverName.service'
@@ -101,6 +107,7 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   birthCity: '',
   birthDate: '',
   birthState: '',
+  dailyAllowanceAmount: '',
   email: '',
   fatherName: '',
   firstLicenseAt: '',
@@ -224,6 +231,10 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
     birthCity: driver.birthCity,
     birthDate: driver.birthDate ?? '',
     birthState: driver.birthState,
+    dailyAllowanceAmount:
+      driver.dailyAllowanceAmount === null
+        ? ''
+        : toTypedAmount({ scale: AMOUNT_DISPLAY_SCALE, value: driver.dailyAllowanceAmount }),
     email: driver.email,
     fatherName: driver.fatherName,
     firstLicenseAt: driver.firstLicenseAt ?? '',
@@ -408,6 +419,10 @@ export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody,
     birthCity: state.birthCity,
     birthDate: state.birthDate === '' ? null : state.birthDate,
     birthState: state.birthState.toUpperCase(),
+    dailyAllowanceAmount:
+      state.dailyAllowanceAmount.trim() === ''
+        ? null
+        : parseTypedAmount({ scale: AMOUNT_MAX_SCALE, value: state.dailyAllowanceAmount }),
     email: state.email.trim(),
     fatherName: state.fatherName,
     firstLicenseAt: state.firstLicenseAt === '' ? null : state.firstLicenseAt,

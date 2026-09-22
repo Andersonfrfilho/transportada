@@ -29,6 +29,15 @@
   font-weight: 700;
 }
 
+/* Verde entra, vermelho sai — a mesma leitura do razão da criação da viagem. */
+.amountIn {
+  color: var(--color-ready);
+}
+
+.amountOut {
+  color: var(--color-alert);
+}
+
 .panel {
   border: 1px solid var(--color-slate);
   border-radius: var(--space-2);
@@ -72,6 +81,37 @@
 .field {
   display: grid;
   gap: var(--space-1);
+}
+
+/*
+ * ⚠️ O campo de texto usa o mesmo desenho das outras telas (`userAdministration`): sem isto o input
+ * nativo saía menor, claro e com borda arredondada ao lado do `Select` do design system.
+ */
+.field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.field input::placeholder {
+  color: var(--color-slate);
+}
+
+.field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.field input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
 }
 
 .table {
@@ -218,4 +258,50 @@
   color: var(--color-copper);
   font-size: 0.78rem;
   line-height: 1.45;
+}
+
+.costEntries {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  padding-top: 1rem;
+}
+
+.costEntryList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.costEntryList li {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+}
+
+/** A descrição chega com até 200 caracteres: sem quebra ela empurra a lista para fora da tela. */
+.costEntryDescription {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.costEntryForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.costEntryForm > .field {
+  flex: 1 1 10rem;
+}
+
+/* A descrição é o campo de texto livre: fica com a largura que sobrar na fileira. */
+.costEntryForm > .costEntryDescriptionField {
+  flex: 3 1 16rem;
 }

@@ -31,6 +31,8 @@ export type AddressReportRow = Readonly<{
   providerNumber: string
   providerPostalCode: string
   providerStreet: string
+  /** O `legal_name` do participante `recipient` da mesma nota (RF11). `null` sem essa linha. */
+  recipientName: string | null
   state: string
 }>
 

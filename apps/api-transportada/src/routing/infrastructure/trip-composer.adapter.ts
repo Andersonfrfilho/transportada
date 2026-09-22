@@ -3,6 +3,7 @@
  */
 import { TripDocumentAlreadyLinkedError } from '../../trips/domain/trip.error.js'
 import type { TripStopSummary } from '../../trips/application/list-trip-stops.use-case.js'
+import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
 import type { MultiVehicleScope } from '../application/multi-vehicle-suggestion.port.js'
 import type { TripComposer } from '../application/multi-vehicle-suggestion.use-case.js'
 
@@ -41,6 +42,7 @@ export type TripComposerDependencies = Readonly<{
   }) => Promise<void>
   planRoute: (input: {
     readonly context: MultiVehicleScope
+    readonly routeChoice?: RouteChoice
     readonly tripId: string
   }) => Promise<unknown>
   reorder: (input: {
@@ -96,8 +98,12 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       }
     },
 
-    async planRoute({ context, tripId }) {
-      await dependencies.planRoute({ context, tripId })
+    async planRoute({ context, routeChoice, tripId }) {
+      await dependencies.planRoute({
+        context,
+        ...(routeChoice === undefined ? {} : { routeChoice }),
+        tripId,
+      })
     },
 
     /**

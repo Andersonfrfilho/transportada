@@ -18,6 +18,7 @@ import type {
   FleetDriverBody,
   FleetDriverCreateBody,
   FleetDriverDetail,
+  FleetDriverListItem,
   FleetDriverFilters,
   FleetDriverPage,
   FleetDriverRegionsInput,
@@ -117,7 +118,7 @@ type FleetQueryKey = readonly [string, string | undefined, string]
 async function loadEveryDriver(
   input: Readonly<{ controller: FleetController; filters: FleetDriverFilters }>,
 ): Promise<FleetDriverPage> {
-  const items: FleetDriverDetail[] = []
+  const items: FleetDriverListItem[] = []
   let cursor: null | string = null
 
   do {

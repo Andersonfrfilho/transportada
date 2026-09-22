@@ -24,6 +24,10 @@ const BOX = {
   cumulativeShare: 0.6,
   description: 'ENERG RED BULL 250ML',
   emitterTaxId: '05868574001090',
+  /** Spec 155 (D2, D9): ausente por padrão — a maioria dos casos de teste não tem família. */
+  familyKey: undefined,
+  familyMeasuredCount: 0,
+  familyPendingCount: 0,
   grossWeightGrams: 10867,
   heightMm: null,
   id: '11111111-1111-4111-8111-111111111111',
@@ -31,10 +35,13 @@ const BOX = {
   measuredAt: null,
   measurementMarginMm: null,
   measurementSource: null,
+  packagingSiblingCount: 0,
+  packagingUnitCount: undefined,
   productCode: '18245',
   share: 0.6,
   transportedVolumes: 60,
   unitsPerBox: 1,
+  variantLabel: '',
   widthMm: null,
   withinCoverage: true,
 }
@@ -129,6 +136,141 @@ describe('a fila de medição vista pelo conferente (spec 085 G005)', () => {
 
     expect(captured.url).toBe(`https://api.test/nfe-package-boxes/${BOX.id}`)
     expect(captured.init?.method).toBe('PUT')
+  })
+})
+
+/**
+ * Spec 155 (T3.1, G003, G004, G009): o cliente ganha as duas rotas novas — `listSiblings` (D1, D9,
+ * D11) e `replicate` (D4, D6). `measurementSource` ganha `replicated` (D6), senão a primeira réplica
+ * gravada quebra a leitura da fila inteira (o guard recusava o valor e `packageBoxQueueFromApi`
+ * lançava para toda a resposta, não só para a caixa replicada).
+ */
+describe('família de variação e réplica de medida (spec 155)', () => {
+  it('lê as irmãs de família e de embalagem da caixa', async () => {
+    const captured: { init?: RequestInit; url?: string } = {}
+    const sibling = {
+      commercialUnit: 'CX36',
+      description: 'SAB FARNESE 180G AVEIA ESFOLIANT',
+      grossWeightGrams: null,
+      heightMm: null,
+      id: '22222222-2222-4222-8222-222222222222',
+      lengthMm: null,
+      measuredAt: null,
+      measurementSource: null,
+      packagingUnitCount: 36,
+      productCode: '6959',
+      unitsPerBox: 1,
+      variantLabel: 'AVEIA ESFOLIANT',
+      widthMm: null,
+    }
+    const siblings = await buildClient(
+      {
+        data: {
+          family: [sibling],
+          isLowConfidenceFamily: false,
+          originVariantLabel: 'PURO E HIDRATAN',
+          packaging: [],
+        },
+      },
+      captured,
+    ).listSiblings({ boxId: BOX.id })
+
+    expect(captured.url).toBe(`https://api.test/nfe-package-boxes/${BOX.id}/siblings`)
+    expect(captured.init?.method ?? 'GET').toBe('GET')
+    expect(siblings.family).toEqual([sibling])
+    expect(siblings.isLowConfidenceFamily).toBe(false)
+    expect(siblings.originVariantLabel).toBe('PURO E HIDRATAN')
+  })
+
+  it('recusa resposta de irmãs que não é a esperada', () => {
+    expect(
+      buildClient({ data: { family: [{ id: 1 }], packaging: [] } }).listSiblings({
+        boxId: BOX.id,
+      }),
+    ).rejects.toThrow()
+  })
+
+  /** D4/D6/G004: replicar é POST com os alvos, e devolve quantos gravou. */
+  it('replica a medida por POST com os alvos escolhidos', async () => {
+    const captured: { init?: RequestInit; url?: string } = {}
+    const result = await buildClient({ data: { replicatedCount: 2 } }, captured).replicate({
+      boxId: BOX.id,
+      targetIds: ['a', 'b'],
+    })
+
+    expect(captured.url).toBe(`https://api.test/nfe-package-boxes/${BOX.id}/replicate`)
+    expect(captured.init?.method).toBe('POST')
+    expect(JSON.parse(captured.init?.body as string)).toEqual({ targetIds: ['a', 'b'] })
+    expect(result).toEqual({ replicatedCount: 2 })
+  })
+
+  /** D6: caixa replicada precisa ser identificável na fila — a leitura não pode recusar o valor. */
+  it('aceita measurementSource replicated na leitura da fila', () => {
+    const queue = packageBoxQueueFromApi({
+      data: {
+        coveredCount: 1,
+        items: [{ ...BOX, measurementMarginMm: null, measurementSource: 'replicated' }],
+        totalVolumes: 100,
+      },
+    })
+
+    expect(queue.items[0]?.measurementSource).toBe('replicated')
+  })
+
+  /** D2/D9: os contadores e o rótulo da família chegam junto de cada item da fila. */
+  it('lê os contadores de família e embalagem de cada item da fila', () => {
+    const queue = packageBoxQueueFromApi({
+      data: {
+        coveredCount: 1,
+        items: [
+          {
+            ...BOX,
+            familyKey: '05868574001090|SAB FARNESE 180G|CX36',
+            familyMeasuredCount: 1,
+            familyPendingCount: 4,
+            packagingSiblingCount: 1,
+            packagingUnitCount: 36,
+            variantLabel: 'PURO E HIDRATAN',
+          },
+        ],
+        totalVolumes: 100,
+      },
+    })
+
+    const [item] = queue.items
+    expect(item?.familyKey).toBe('05868574001090|SAB FARNESE 180G|CX36')
+    expect(item?.familyPendingCount).toBe(4)
+    expect(item?.familyMeasuredCount).toBe(1)
+    expect(item?.packagingSiblingCount).toBe(1)
+    expect(item?.packagingUnitCount).toBe(36)
+    expect(item?.variantLabel).toBe('PURO E HIDRATAN')
+  })
+
+  /** Item sem família (D2): `familyKey` ausente e `packagingUnitCount` ausente continuam válidos. */
+  it('aceita item sem família nem sufixo numérico de unidade', () => {
+    const queue = packageBoxQueueFromApi({
+      data: { coveredCount: 0, items: [BOX], totalVolumes: 0 },
+    })
+
+    expect(queue.items[0]?.familyKey).toBeUndefined()
+    expect(queue.items[0]?.packagingUnitCount).toBeUndefined()
+  })
+})
+
+describe('o hook expõe a réplica e as irmãs sob demanda (T3.1)', () => {
+  it('a mutação de replicar invalida a fila e as irmãs carregam por hook próprio', async () => {
+    const source = await Bun.file(
+      new URL('../../src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts', import.meta.url),
+    ).text()
+
+    expect(source).toContain('replicate')
+    /** A fila entra pelo registro de efeitos — `mutation-invalidation.contract.ts` cobra a chave. */
+    expect(source).toContain('MUTATION_EFFECT.packageBoxMeasurement')
+    /** D9: as irmãs nunca vêm junto da fila de 50 linhas — hook próprio, não campo do retorno principal. */
+    expect(source).toContain('export function usePackageBoxSiblings')
+    expect(source).toContain("queryKey: [PACKAGE_BOX_QUERY_KEY, 'siblings', boxId]")
+    /** M1/M2 (re-revisão): a mesma chave/função serve a busca sob demanda do "aplicar a todos". */
+    expect(source).toContain('export function usePackageBoxSiblingsFetcher')
   })
 })
 

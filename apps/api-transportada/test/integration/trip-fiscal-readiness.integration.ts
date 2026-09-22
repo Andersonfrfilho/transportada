@@ -42,6 +42,9 @@ import { setTripMdfeRequirement } from '../../src/trips/application/set-trip-mdf
 import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
 import { DrizzleTripFiscalReadinessQuery } from '../../src/trips/infrastructure/trip-fiscal-readiness.query.js'
 
+/** A valoração avisa por log quando um id de motorista não responde; aqui o aviso não interessa. */
+const SILENT_LOGGER = { error: () => undefined, info: () => undefined, warn: () => undefined }
+
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
   process.env.API_TEST_DATABASE_URL ??
@@ -284,7 +287,7 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
   testWithPostgres('a avaliação separa o que já foi emitido do que é previsão', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedTrip(database)
-      const query = new DrizzleTripValuationQuery(database.db)
+      const query = new DrizzleTripValuationQuery(database.db, SILENT_LOGGER)
 
       const valuation = await readTripValuation({
         companyId: world.companyId,

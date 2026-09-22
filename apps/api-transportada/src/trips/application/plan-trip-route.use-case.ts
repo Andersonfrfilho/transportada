@@ -2,8 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
+import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 export type TripRouteState = {
   /**
@@ -17,7 +19,10 @@ export type TripRouteState = {
 
 export type PlanTripRoutePort = {
   markRoutePlanned(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
     readonly companyId: string
+    readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripStatus>
   readRouteState(input: {
@@ -32,12 +37,21 @@ export type PlanTripRoutePort = {
  * idêntico ao de antes desta task.
  */
 export type PlanTripRouteTollFreezer = {
-  freeze(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  freeze(input: {
+    readonly companyId: string
+    readonly routeChoice?: RouteChoice
+    readonly tripId: string
+  }): Promise<void>
 }
 
 export type PlanTripRouteInput = {
+  readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
+  readonly onBehalfOfDriverId?: string | null
   readonly repository: PlanTripRoutePort
+  /** RF3 (spec 153 T201): qual rota reproduzir. Ausente segue o default do congelador. */
+  readonly routeChoice?: RouteChoice
   readonly tollFreezer?: PlanTripRouteTollFreezer
   readonly tripId: string
 }
@@ -72,7 +86,13 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
   const tripStatus =
     transition.outcome === 'unchanged'
       ? state.tripStatus
-      : await input.repository.markRoutePlanned(input)
+      : await input.repository.markRoutePlanned({
+          actorUserId: input.actorUserId,
+          channel: input.channel,
+          companyId: input.companyId,
+          onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
+          tripId: input.tripId,
+        })
 
   /**
    * ⚠️ **O congelamento não pode derrubar o planejamento.** Ele roda depois de `markRoutePlanned`,
@@ -86,7 +106,11 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
    */
   if (input.tollFreezer !== undefined) {
     try {
-      await input.tollFreezer.freeze({ companyId: input.companyId, tripId: input.tripId })
+      await input.tollFreezer.freeze({
+        companyId: input.companyId,
+        ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
+        tripId: input.tripId,
+      })
     } catch {
       /* o roteiro está planejado; o pedágio congela no próximo replanejamento */
     }

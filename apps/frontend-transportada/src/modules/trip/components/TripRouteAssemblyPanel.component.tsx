@@ -6,9 +6,10 @@ import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import { sortDriversByScore } from '@/modules/fleet/shared/driverRecommendation.service'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
-import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
 import type { TripRouteAssemblyController } from '../hooks/useTripRouteAssembly.hook'
 import {
@@ -24,7 +25,7 @@ import styles from '../styles/trip.module.css'
 
 type TripRouteAssemblyPanelProps = Readonly<{
   assembly: TripRouteAssemblyController
-  drivers: readonly FleetDriverDetail[]
+  drivers: readonly FleetDriverListItem[]
   vehicles: readonly FleetVehicleDetail[]
 }>
 
@@ -44,7 +45,8 @@ export function TripRouteAssemblyPanel({
    * da matriz de estrada já têm texto lá, e copiá-los daria duas grafias para a mesma falha.
    */
   const { t: tRouting } = useTranslation('routing')
-  const activeDrivers = drivers.filter((driver) => driver.status === 'active')
+  /** Spec 159 RF11, ADR-0070 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
+  const activeDrivers = sortDriversByScore(drivers.filter((driver) => driver.status === 'active'))
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
   )
@@ -89,7 +91,11 @@ export function TripRouteAssemblyPanel({
   }
 
   const { alreadyOnTrip, eligible } = assembly.selection
-  const isBlocked = assembly.issues.length > 0 || assembly.proposeMutation.isPending
+  /** Enquanto a proposta guardada é relida, pedir outra brigaria com a resposta que vem. */
+  const isBlocked =
+    assembly.issues.length > 0 ||
+    assembly.proposeMutation.isPending ||
+    assembly.assemblyDraft.isRetrying
   const failure = assembly.proposeMutation.isError
     ? resolveRouteAssemblyFailure(assembly.proposeMutation.error)
     : null
@@ -122,6 +128,7 @@ export function TripRouteAssemblyPanel({
       <TripDocumentSearch
         documents={assembly.availableDocuments}
         onSelectionChange={assembly.setPool}
+        selectedIds={assembly.pool.map((document) => document.id)}
       />
 
       <p className={styles.hint}>
@@ -154,13 +161,25 @@ export function TripRouteAssemblyPanel({
             clearAllLabel={t('creation.driversClearAll')}
             emptyLabel={t('creation.driversNoMatch')}
             onChange={assembly.setDriverIds}
-            options={activeDrivers.map((driver) =>
-              buildDriverSelectOption({
+            options={activeDrivers.map((driver) => {
+              const option = buildDriverSelectOption({
                 binding: bindingByDriverId.get(driver.id),
                 driver,
                 vehicleById,
-              }),
-            )}
+              })
+              /** RF11: a nota ao lado do nome — primeira linha da descrição da opção. */
+              const scoreLabel =
+                driver.score === null
+                  ? tFleet('driverScore.optionNone')
+                  : tFleet('driverScore.option', { score: driver.score })
+              return {
+                ...option,
+                description:
+                  option.description === undefined
+                    ? scoreLabel
+                    : `${scoreLabel} · ${option.description}`,
+              }
+            })}
             placeholder={t('creation.driversPlaceholder')}
             removeLabel={t('creation.driversRemove')}
             searchPlaceholder={t('creation.driversSearch')}
@@ -238,6 +257,15 @@ export function TripRouteAssemblyPanel({
           {describeFailure(failure)}
         </p>
       )}
+      {/* A espera caiu por rede e a sugestão segue viva: retomar, não pedir outra. */}
+      {assembly.canResumeSuggestion ? (
+        <div className={styles.actionActions}>
+          <Button onClick={assembly.resumeSuggestion} size="sm" type="button" variant="secondary">
+            <Icon name="refresh" />
+            {t('assemblyDraft.retry')}
+          </Button>
+        </div>
+      ) : null}
     </section>
   )
 }

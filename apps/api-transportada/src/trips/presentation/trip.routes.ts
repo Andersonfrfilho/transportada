@@ -4,8 +4,9 @@
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
+import type { TripRouteGeometryView } from '../application/read-trip-route-geometry.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
-import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
+import type { TripOccurrenceWithAttachment } from '../application/register-trip-occurrence.use-case.js'
 import { parseOccurrenceTypeRequest, parseRegisterOccurrenceRequest } from './occurrence.schema.js'
 import { parseTripOccurrenceFeedList } from './trip-occurrence-feed.schema.js'
 import type {
@@ -19,7 +20,13 @@ import type {
   RegisteredOccurrence,
 } from '../application/register-trip-occurrence.use-case.js'
 
+import type { CompanyAnyPermissionPolicy } from '../../identity/domain/authorization.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
+import {
+  resolveTripAllowedActions,
+  type AllowedActionsTripSnapshot,
+} from '../domain/trip-allowed-actions.policy.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
 import type { AutomaticManifestResult } from '../../mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
@@ -31,14 +38,25 @@ import type {
 } from '../../delivery-clients/application/trip-stop-schedule.use-case.js'
 import { parseTripStopScheduleRequest } from '../../delivery-clients/presentation/trip-stop-schedule.schema.js'
 import type { TripFinancialResult } from '../application/trip-financial-result.port.js'
+import type { TripCostEntryView } from '../application/list-trip-costs.use-case.js'
 import type {
   RequestCargoLayoutParams,
   RequestCargoLayoutUseCase,
 } from '../application/request-cargo-layout.types.js'
 import type { ApiLogger } from '../../shared/api.types.js'
+import {
+  redactRouteGeometryMoney,
+  redactTripAmounts,
+  redactTripDocumentMoney,
+} from '../../shared/monetary-redaction.service.js'
 
 const CARGO_LAYOUT_REQUEST_FAILED_MESSAGE = 'trip.cargo_layout.request_failed'
 import { parseTripCostRequest, parseTripFinancialReason } from './trip-financial.schema.js'
+import { parseTripTimelineQuery } from './trip-timeline.schema.js'
+import type {
+  ReadTripTimelineResult,
+  TripTimelineCursor,
+} from '../application/trip-timeline.types.js'
 import type {
   CloseTripInput,
   CreateTripInput,
@@ -83,7 +101,6 @@ import type {
   TransitionTripDocumentsBatchResult,
   TripDocumentBatchItemOutcome,
 } from '../application/transition-trip-documents-batch.use-case.js'
-import type { TripDocumentAction } from '../domain/trip-state.policy.js'
 import { parseIdempotencyKey as parseCteBatchIdempotencyKey } from '../../cte-batches/presentation/cte-batch.schema.js'
 import {
   parseBatchTransitionTripDocumentsRequest,
@@ -92,6 +109,7 @@ import {
   parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
   parseLinkTripDocumentsBatchRequest,
+  parsePlanTripRouteRequest,
   parsePreviewTripCargoRequest,
   parsePreviewTripValuationRequest,
   parseRouteGeometryRequest,
@@ -103,9 +121,11 @@ import {
   parseUuidPathIdentifier,
   type RouteGeometryBody,
 } from './trip.schema.js'
+import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 const TRIP_CLOSE_PATH = `${API_TRIPS_PATH}/:id/close`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
+const TRIP_ALLOWED_ACTIONS_PATH = `${TRIP_DETAIL_PATH}/allowed-actions`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
 const TRIP_ROUTE_GEOMETRY_PATH = `${API_TRIPS_PATH}/:id/route-geometry`
 /**
@@ -114,7 +134,6 @@ const TRIP_ROUTE_GEOMETRY_PATH = `${API_TRIPS_PATH}/:id/route-geometry`
  */
 const ROUTE_GEOMETRY_PATH = '/route-geometry'
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
-const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
 const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
 const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
@@ -152,14 +171,14 @@ type ReadDeliveryProofsRouteInput = {
   readonly tripId: string
 }
 /**
- * ADR-0043 §1: `deliver` não ganha rota individual aqui — RF-6 da spec 056 só lista
- * separate/load/return para o escritório. Entregar é ação de rua (spec 057, `/me/trips/*`, papel
- * `trip.report`) e já teria colidido com `TRIP_DOCUMENT_DELIVER_PATH` acima, que é o fluxo antigo
- * (spec 027) — `deliver` continua acessível pelo lote (`batch-status`) enquanto a 057 não nasce.
+ * ADR-0067 (spec 156 T8b): `deliver` e `return` deixaram de ter rota individual aqui — elas não
+ * gravavam autoria (`channel`/`on_behalf_of_driver_id`), e a permissão era `trip.manage`, que o
+ * `separator` tem sem nunca dever reportar entrega (ADR-0067 §1). O caminho do escritório com
+ * autoria é `POST .../field-delivery` e `POST .../field-return` (`trip-field-office.routes.ts`,
+ * `trip.report-on-behalf`). `separate`/`load` continuam aqui — são do galpão, não do campo.
  */
 const TRIP_DOCUMENT_SEPARATE_PATH = `${TRIP_DOCUMENT_PATH}/separate`
 const TRIP_DOCUMENT_LOAD_PATH = `${TRIP_DOCUMENT_PATH}/load`
-const TRIP_DOCUMENT_RETURN_PATH = `${TRIP_DOCUMENT_PATH}/return`
 const TRIP_DOCUMENTS_BATCH_STATUS_PATH = `${TRIP_DOCUMENTS_PATH}/batch-status`
 /** Vincular o maço de uma vez: uma transação para o lote inteiro, e não uma por nota. */
 const TRIP_DOCUMENTS_BATCH_PATH = `${TRIP_DOCUMENTS_PATH}/batch`
@@ -194,6 +213,8 @@ const TRIP_FINANCIAL_RESULT_PATH = `${API_TRIPS_PATH}/:id/financial-result`
 const TRIP_FINANCIAL_RECALCULATE_PATH = `${TRIP_FINANCIAL_RESULT_PATH}/recalculate`
 /** Pedágio e avulso são lançamento de operação: quem monta a viagem lança. */
 const TRIP_COSTS_PATH = `${API_TRIPS_PATH}/:id/costs`
+/** Spec 158 T6: a linha do tempo unificada da viagem, com a mesma leitura de `TRIP_FIELD_READ_POLICY`. */
+const TRIP_TIMELINE_PATH = `${API_TRIPS_PATH}/:id/timeline`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
  * uma viagem. */
 const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
@@ -230,6 +251,15 @@ const TRIP_CTE_BATCHES_PATH = `${API_TRIPS_PATH}/:id/cte-batches`
  */
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
+/**
+ * Spec 156 D11 (ADR-0067): o `finance` dá baixa (`trip.report-on-behalf`) e precisa abrir a viagem
+ * sem ganhar `fleet.read`, que é a ficha de todos os motoristas (CPF, CNH, PIX, endereço). Só nestas
+ * leituras; feed, geometria, produtos, agendamento e prontidão fiscal continuam `fleet.read`.
+ */
+const TRIP_FIELD_READ_POLICY = {
+  anyPermission: [TRIP_READ_POLICY.permission, TRIP_REPORT_ON_BEHALF_PERMISSION],
+  scope: 'company',
+} as const satisfies CompanyAnyPermissionPolicy
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
 /** Spec 079: ligar o aviso é configuração da empresa, e configuração é `settings.manage`. */
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
@@ -249,15 +279,18 @@ type TenantInput<TInput> = Omit<TInput, 'context'> & { readonly context: Company
 type TripDocumentActionInput = {
   readonly documentId: string
   readonly note: string | null
-  readonly returnReason: string | null
   readonly tripId: string
 }
 
+/**
+ * Spec 156 T8b (revisão): `deliver`/`return` saíram do lote — o schema (`TRIP_DOCUMENT_ACTIONS`)
+ * já recusa os dois na fronteira, e este tipo estreita a mesma decisão até quem consome o lote
+ * (`trip-lifecycle.use-case.ts`), em vez de deixar `deliver`/`return` compilarem por engano.
+ */
 type BatchStatusInput = {
-  readonly action: TripDocumentAction
+  readonly action: 'load' | 'separate'
   readonly documentIds: readonly string[]
   readonly note: string | null
-  readonly returnReason: string | null
   readonly tripId: string
 }
 
@@ -267,6 +300,8 @@ type DispatchInput = {
   readonly tripId: string
 }
 type TripIdInput = { readonly tripId: string }
+/** RF3 (spec 153 T201): `routeChoice` é opcional — sem corpo, o congelamento usa o default dele. */
+type PlanTripRouteRequestInput = TripIdInput & { readonly routeChoice?: RouteChoice }
 type SaveScheduleInput = TripIdInput & {
   readonly stopId: string
   readonly values: TripStopScheduleWrite
@@ -317,7 +352,7 @@ type Dependencies = {
     ): Promise<RouteGeometryView>
   }
   readonly readTripRouteGeometry: {
-    execute(input: TenantInput<{ readonly tripId: string }>): Promise<RouteGeometryView>
+    execute(input: TenantInput<{ readonly tripId: string }>): Promise<TripRouteGeometryView>
   }
   readonly readDeliveryProofs: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>
@@ -329,7 +364,9 @@ type Dependencies = {
     execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
   }
   readonly listTripOccurrences: {
-    execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly TripOccurrence[]>
+    execute(
+      input: TenantInput<ReadDeliveryProofsRouteInput>,
+    ): Promise<readonly TripOccurrenceWithAttachment[]>
   }
   readonly listTripOccurrenceFeed: {
     execute(input: TenantInput<ListTripOccurrenceFeedInput>): Promise<TripOccurrenceFeedPage>
@@ -346,10 +383,6 @@ type Dependencies = {
     execute(
       input: TenantInput<ReadDeliveryProofsRouteInput>,
     ): Promise<readonly TripDocumentProduct[]>
-  }
-  /** Mesma forma das outras três transições: entregar passou a usar a máquina de estados. */
-  readonly deliverTripDocument: {
-    execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
   }
   readonly dispatchTrip: { execute(input: TenantInput<DispatchInput>): Promise<DispatchTripResult> }
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
@@ -403,18 +436,26 @@ type Dependencies = {
   readonly previewValuation: {
     execute(input: {
       readonly companyId: string
+      readonly dailyAllowanceDays?: number | undefined
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly routeChoice?: RouteChoice
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
     }): Promise<TripValuation>
   }
   readonly listStops: { execute(input: TenantInput<TripIdInput>): Promise<ListTripStopsResult> }
+  /** Spec 156 D10: o recorte leve que decide as ações permitidas (`GET /trips/:id/allowed-actions`). */
+  readonly readTripActionSnapshot: {
+    execute(input: TenantInput<TripIdInput>): Promise<AllowedActionsTripSnapshot>
+  }
   readonly listTrips: { execute(input: TenantInput<ListTripsInput>): Promise<TripPage> }
   readonly loadTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
   }
-  readonly planTripRoute: { execute(input: TenantInput<TripIdInput>): Promise<PlanTripRouteResult> }
+  readonly planTripRoute: {
+    execute(input: TenantInput<PlanTripRouteRequestInput>): Promise<PlanTripRouteResult>
+  }
   readonly releaseTripDocument: {
     execute(input: TenantInput<ReleaseTripDocumentInput>): Promise<TripDocument>
   }
@@ -433,9 +474,6 @@ type Dependencies = {
   }
   readonly reorderStops: {
     execute(input: TenantInput<ReorderStopsInput>): Promise<ReorderTripStopsResult>
-  }
-  readonly returnTripDocument: {
-    execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
   }
   readonly separateTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
@@ -463,6 +501,21 @@ type Dependencies = {
       },
     ): Promise<{ readonly id: string }>
   }
+  readonly listTripCosts: {
+    execute(input: {
+      readonly companyId: string
+      readonly tripId: string
+    }): Promise<readonly TripCostEntryView[]>
+  }
+  /** Spec 158 T6: a linha do tempo unificada — o caso de uso resolve o 404 antes de ler qualquer fonte. */
+  readonly readTripTimeline: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly cursor: TripTimelineCursor | null
+      readonly limit: number
+      readonly tripId: string
+    }): Promise<ReadTripTimelineResult>
+  }
 }
 
 export function createTripRoutes(
@@ -472,15 +525,20 @@ export function createTripRoutes(
     defineRoute<Omit<ListTripsInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const page = await dependencies.listTrips.execute({ context: context.scope, ...input })
+        /** Spec 156 L6: receita e soma das notas são `trip.financials`, como no detalhe. */
+        const canReadFinancials = context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission)
+        const data = page.items.map((trip) =>
+          redactTripAmounts({ canReadFinancials, trip: serializeTrip(trip) }),
+        )
         return jsonResponse({
-          body: { data: page.items.map(serializeTrip), page: { nextCursor: page.nextCursor } },
+          body: { data, page: { nextCursor: page.nextCursor } },
           status: 200,
         })
       },
       method: 'GET',
       parse: ({ request }) => parseTripList(new URL(request.url)),
       pathname: API_TRIPS_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     defineRoute<{
       readonly correlationId: string
@@ -597,6 +655,58 @@ export function createTripRoutes(
       pathname: TRIP_COSTS_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
+    /**
+     * Spec 143 aceite 7: mesma rota, permissão diferente por método — quem monta a viagem
+     * (`trip.manage`) lança o custo, mas ver dinheiro é `trip.financials` (spec 061 D4). Quem só
+     * administra a viagem não enxerga o que a própria operação lançou.
+     */
+    defineRoute<TripIdInput>({
+      async handle({ context, input }): Promise<Response> {
+        const entries = await dependencies.listTripCosts.execute({
+          companyId: context.scope.companyId,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: entries }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_COSTS_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
+    }),
+    /**
+     * Spec 158 T6 (D4, aceites 5, 6): a linha do tempo unificada da viagem. Mesma
+     * `TRIP_FIELD_READ_POLICY` das outras leituras de campo — `fleet.read` ou
+     * `trip.report-on-behalf` — porque é a mesma informação que já aparece espalhada nelas.
+     */
+    defineRoute<{
+      readonly cursor: TripTimelineCursor | null
+      readonly limit: number
+      readonly tripId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const timeline = await dependencies.readTripTimeline.execute({
+          context: context.scope,
+          cursor: input.cursor,
+          limit: input.limit,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({
+          body: { data: { items: timeline.items, nextCursor: timeline.nextCursor } },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters, request }) => ({
+        ...parseTripTimelineQuery(new URL(request.url)),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_TIMELINE_PATH,
+      policy: TRIP_FIELD_READ_POLICY,
+    }),
     defineRoute<TripIdInput>({
       async handle({ context, input }): Promise<Response> {
         const schedules = await dependencies.listSchedules.execute({
@@ -697,8 +807,10 @@ export function createTripRoutes(
       policy: TRIP_FINANCIALS_POLICY,
     }),
     defineRoute<{
+      readonly dailyAllowanceDays?: number | undefined
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly routeChoice?: RouteChoice
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
     }>({
@@ -711,7 +823,16 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: valuation }, status: 200 })
       },
       method: 'POST',
-      parse: ({ request }) => parsePreviewTripValuationRequest(request),
+      async parse({ request }) {
+        const body = await parsePreviewTripValuationRequest(request)
+        return {
+          driverIds: body.driverIds,
+          nfeDocumentIds: body.nfeDocumentIds,
+          stopOrder: body.stopOrder,
+          vehicleId: body.vehicleId,
+          ...(body.routeChoice === undefined ? {} : { routeChoice: body.routeChoice }),
+        }
+      },
       pathname: TRIP_VALUATION_PREVIEW_PATH,
       policy: TRIP_FINANCIALS_POLICY,
     }),
@@ -807,7 +928,16 @@ export function createTripRoutes(
         const served = enqueued
           ? { ...trip, cargoLayoutState: markCargoLayoutRequested(trip.cargoLayoutState) }
           : trip
-        return jsonResponse({ body: { data: serializeTripDetail(served) }, status: 200 })
+        return jsonResponse({
+          body: {
+            data: serializeTripDetail({
+              canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              trip: served,
+            }),
+          },
+          status: 200,
+        })
       },
       method: 'GET',
       parse: ({ correlationId, pathParameters }) => ({
@@ -815,12 +945,21 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DETAIL_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     defineRoute<Omit<CreateTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const trip = await dependencies.createTrip.execute({ context: context.scope, ...input })
-        return jsonResponse({ body: { data: serializeTripDetail(trip) }, status: 201 })
+        return jsonResponse({
+          body: {
+            data: serializeTripDetail({
+              canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              trip,
+            }),
+          },
+          status: 201,
+        })
       },
       method: 'POST',
       parse: ({ request }) => parseCreateTripRequest(request),
@@ -895,7 +1034,16 @@ export function createTripRoutes(
     defineRoute<Omit<CloseTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const trip = await dependencies.closeTrip.execute({ context: context.scope, ...input })
-        return jsonResponse({ body: { data: serializeTripDetail(trip) }, status: 200 })
+        return jsonResponse({
+          body: {
+            data: serializeTripDetail({
+              canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              trip,
+            }),
+          },
+          status: 200,
+        })
       },
       method: 'POST',
       parse: ({ pathParameters }) => ({
@@ -931,25 +1079,6 @@ export function createTripRoutes(
       dependency: dependencies.loadTripDocument,
       pathname: TRIP_DOCUMENT_LOAD_PATH,
     }),
-    tripDocumentActionRoute({
-      dependency: dependencies.returnTripDocument,
-      pathname: TRIP_DOCUMENT_RETURN_PATH,
-    }),
-    /**
-     * ⚠️ `deliver` tinha rota própria, fora da máquina de estados — resíduo do fluxo antigo da
-     * spec 027, anterior à 056. Ela gravava `deliveredAt` e **não tocava em `separationStatus`**:
-     * a nota ficava com hora de entrega e status `pending` para sempre, a barra de progresso não
-     * saía do lugar, e a viagem — cujo estado é derivado do das notas — nunca alcançava
-     * `completed`. Medido em staging com doze notas: `Carregada 100%`, `Entregue 0%`, e o
-     * `POST /deliver` respondendo `200`.
-     *
-     * Ela passa a usar o mesmo caminho das outras três, então também herda os portões: entregar
-     * exige viagem despachada, e antes disso responde `409` em vez de carimbar carga que não saiu.
-     */
-    tripDocumentActionRoute({
-      dependency: dependencies.deliverTripDocument,
-      pathname: TRIP_DOCUMENT_DELIVER_PATH,
-    }),
     /**
      * Spec 079 T004. Ler é `fleet.read`, como o resto do detalhe da viagem: quem acompanha a
      * operação precisa do canhoto, e exigir `trip.manage` esconderia o comprovante de quem só olha.
@@ -968,7 +1097,7 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DOCUMENT_PROOF_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     /**
      * Spec 079: a linha da estrada, para o mapa deixar de ligar as paradas em reta.
@@ -983,7 +1112,11 @@ export function createTripRoutes(
           context: context.scope,
           ...input,
         })
-        return jsonResponse({ body: { data: geometry }, status: 200 })
+        const redacted = redactRouteGeometryMoney({
+          canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+          view: geometry,
+        })
+        return jsonResponse({ body: { data: redacted }, status: 200 })
       },
       method: 'GET',
       parse: ({ pathParameters }) => ({ tripId: parseUuidPathIdentifier(pathParameters.id ?? '') }),
@@ -1005,7 +1138,11 @@ export function createTripRoutes(
           points: input.points,
           vehicleId: input.vehicleId,
         })
-        return jsonResponse({ body: { data: geometry }, status: 200 })
+        const redacted = redactRouteGeometryMoney({
+          canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+          view: geometry,
+        })
+        return jsonResponse({ body: { data: redacted }, status: 200 })
       },
       method: 'POST',
       parse: ({ request }) => parseRouteGeometryRequest(request),
@@ -1044,7 +1181,7 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     /** A listagem da empresa inteira: mesma permissão da leitura de viagem (TRIP_READ_POLICY). */
     defineRoute<Omit<ListTripOccurrenceFeedInput, 'context'>>({
@@ -1098,8 +1235,8 @@ export function createTripRoutes(
     /**
      * ⚠️ **Uma rota só, agora que o tipo é cadastrado.** Antes havia duas — uma por grupo — porque
      * o grupo vinha do corpo e a autorização precisava ser estática. Com o tipo no banco, o grupo
-     * vem do **cadastro**, e o caso de uso o confere: quem manda um tipo de rua por esta rota não
-     * ganha nada, porque a permissão dela é `trip.manage` e o registro é o mesmo.
+     * vem do **cadastro**, e o caso de uso o confere: tipo de rua por esta rota responde 422
+     * `OCCURRENCE_TYPE_NOT_SEPARATION` (spec 157), porque `trip.manage` é também do `separator`.
      *
      * O motorista continua tendo a rota dele em `/me`, com o escopo da viagem ativa.
      */
@@ -1162,14 +1299,13 @@ export function createTripRoutes(
           action: body.action,
           documentIds: body.documentIds,
           note: body.note,
-          returnReason: body.returnReason,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },
       pathname: TRIP_DOCUMENTS_BATCH_STATUS_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
-    defineRoute<Omit<TripIdInput, 'context'>>({
+    defineRoute<Omit<PlanTripRouteRequestInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.planTripRoute.execute({
           context: context.scope,
@@ -1178,9 +1314,13 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: result }, status: 200 })
       },
       method: 'POST',
-      parse: ({ pathParameters }) => ({
-        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
-      }),
+      async parse({ pathParameters, request }) {
+        const body = await parsePlanTripRouteRequest(request)
+        return {
+          ...(body.routeChoice === undefined ? {} : { routeChoice: body.routeChoice }),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
       pathname: TRIP_PLAN_ROUTE_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
@@ -1226,7 +1366,34 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_STOPS_PATH,
-      policy: TRIP_READ_POLICY,
+      policy: TRIP_FIELD_READ_POLICY,
+    }),
+    /**
+     * Spec 156 D10 (ressalva M1): rota própria, e não chave do detalhe — o validador do detalhe no
+     * frontend recusa chave desconhecida, e uma aba com bundle antigo cairia inteira. A lista é
+     * calculada aqui, pela máquina de estados e pelas permissões de quem pergunta.
+     */
+    defineRoute<TripIdInput>({
+      async handle({ context, input }): Promise<Response> {
+        const snapshot = await dependencies.readTripActionSnapshot.execute({
+          context: context.scope,
+          ...input,
+        })
+        const allowedActions = resolveTripAllowedActions({
+          capabilities: {
+            canManage: context.scope.permissions.has(TRIP_MANAGE_POLICY.permission),
+            canReportOnBehalf: context.scope.permissions.has(TRIP_REPORT_ON_BEHALF_PERMISSION),
+          },
+          trip: snapshot,
+        })
+        return jsonResponse({ body: { data: allowedActions }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_ALLOWED_ACTIONS_PATH,
+      policy: TRIP_FIELD_READ_POLICY,
     }),
     defineRoute<Omit<ReorderStopsInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
@@ -1324,7 +1491,6 @@ export function createTripRoutes(
         return {
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           note: body.note,
-          returnReason: body.returnReason,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },
@@ -1389,7 +1555,9 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
   })
 }
 
-function serializeTrip(trip: Trip): object {
+function serializeTrip(
+  trip: Trip,
+): Readonly<Record<string, unknown> & { amounts: Trip['amounts'] }> {
   return {
     /**
      * `null` fora da listagem: o detalhe da viagem tem painel de valoração próprio, com custo e
@@ -1411,26 +1579,36 @@ function serializeTrip(trip: Trip): object {
   }
 }
 
-function serializeTripDetail(trip: TripDetail): object {
+function serializeTripDetail(input: {
+  /** Spec 156 D11: CPF, e-mail e telefone do motorista são ficha de frota — só com `fleet.read`. */
+  readonly canReadDriverContact: boolean
+  readonly canReadFinancials: boolean
+  readonly trip: TripDetail
+}): object {
+  const trip = input.trip
   return {
     ...serializeTrip(trip),
     /** Spec 076: `null` quando a capacidade não é conhecida — escala honesta ou nada. */
     cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout },
     /** Spec 145 D10/D17: chaves exatas — o validador do frontend recusa a resposta com uma a mais. */
     cargoLayoutState: { ...trip.cargoLayoutState },
-    documents: trip.documents.map(serializeTripDocumentDetail),
+    documents: trip.documents.map((document) =>
+      serializeTripDocumentDetail({ canReadFinancials: input.canReadFinancials, document }),
+    ),
     drivers: trip.drivers.map((driver) => ({
-      driverEmail: driver.driverEmail,
+      driverEmail: input.canReadDriverContact ? driver.driverEmail : null,
       driverId: driver.driverId,
       driverName: driver.driverName,
-      driverPhone: driver.driverPhone,
-      driverTaxId: driver.driverTaxId,
+      driverPhone: input.canReadDriverContact ? driver.driverPhone : null,
+      driverTaxId: input.canReadDriverContact ? driver.driverTaxId : null,
       position: driver.position,
     })),
     /** Spec 075: `null` quando a capacidade não é conhecida — a tela não inventa 100%. */
     cargoWeight: trip.cargoWeight === null ? null : { ...trip.cargoWeight },
     occupancy: trip.occupancy === null ? null : { ...trip.occupancy },
-    stops: trip.stops.map(serializeTripStopDetail),
+    stops: trip.stops.map((stop) =>
+      serializeTripStopDetail({ canReadFinancials: input.canReadFinancials, stop }),
+    ),
   }
 }
 
@@ -1454,8 +1632,12 @@ function serializeTripDocument(document: TripDocument): object {
   }
 }
 
-function serializeTripDocumentDetail(document: TripDocumentDetail): object {
-  return {
+function serializeTripDocumentDetail(input: {
+  readonly canReadFinancials: boolean
+  readonly document: TripDocumentDetail
+}): object {
+  const document = input.document
+  const serialized = {
     ...serializeTripDocument(document),
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
@@ -1465,10 +1647,22 @@ function serializeTripDocumentDetail(document: TripDocumentDetail): object {
     nfeSeries: document.nfeSeries,
     nfeTotalValue: document.nfeTotalValue,
   }
+  return redactTripDocumentMoney({
+    canReadFinancials: input.canReadFinancials,
+    document: serialized,
+  })
 }
 
-function serializeTripStopDetail(stop: TripStopDetail): object {
-  return { ...stop, documents: stop.documents.map(serializeTripDocumentDetail) }
+function serializeTripStopDetail(input: {
+  readonly canReadFinancials: boolean
+  readonly stop: TripStopDetail
+}): object {
+  return {
+    ...input.stop,
+    documents: input.stop.documents.map((document) =>
+      serializeTripDocumentDetail({ canReadFinancials: input.canReadFinancials, document }),
+    ),
+  }
 }
 
 function serializeDeliveryAddressOverride(record: DeliveryAddressOverrideRecord): object {

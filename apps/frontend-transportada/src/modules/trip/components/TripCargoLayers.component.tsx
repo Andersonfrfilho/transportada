@@ -49,7 +49,7 @@ import {
   type CargoLayoutTransitionFrame,
   listCargoBoxMatchKeys,
 } from '../shared/cargoLayoutTransition.service'
-import type { TripCargoLayout, TripOccupancy } from '../shared/trip.types'
+import type { TripCargoLayout, TripCargoPlacement, TripOccupancy } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 import { TripCargoLayoutWait } from './TripCargoLayoutWait.component'
 import { TripCargoOverEarlierList } from './TripCargoOverEarlierList.component'
@@ -62,6 +62,8 @@ const FLEET_HREF = '/fleet'
 
 /** Abaixo disto o ponteiro tremeu, não arrastou — o clique na caixa continua valendo. */
 const BOX_CLICK_DRAG_THRESHOLD_PX = 4
+
+const NO_LAYERS: TripCargoPlacement['layers'] = []
 
 type TripCargoLayersProps = Readonly<{
   /** Spec 145 T13: a medida do baú para o esqueleto quando ainda não há planta nenhuma. */
@@ -145,26 +147,19 @@ function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCar
   const [focus, setFocus] = useState(EMPTY_CARGO_FOCUS)
 
   const placement = layout?.placement ?? null
-  if (layout === null) return null
+  /** Referência estável: sem planta, as memórias abaixo não podem ser invalidadas a cada render. */
+  const layers = placement?.layers ?? NO_LAYERS
+  /**
+   * ⚠️ Ausente é `depth`, o comportamento de sempre: uma API que ainda não publica o arranjo não pode
+   * fazer a folha de carregamento inverter a ordem sozinha.
+   */
+  const arrangement = layout?.stopArrangement ?? 'depth'
 
   /**
-   * ⚠️ **Sem as três medidas do baú não há desenho, e dizer isso é o mínimo.** Nomear o campo não
-   * basta: quem lê está montando uma viagem, e voltar à ficha do veículo é um caminho que ele teria
-   * de descobrir sozinho — o atalho é o que separa um aviso de uma instrução. Era a única coisa que
-   * a planta em escala dizia e este painel não dizia, e ela saiu com a 095.
+   * ⚠️ **Todos os hooks acima dos retornos antecipados.** Hook depois de um `return` condicional muda
+   * a contagem entre renderizações — o React derruba a tela com "Rendered more hooks than during the
+   * previous render" quando a planta chega ou some. Sem planta, eles rodam sobre a lista vazia.
    */
-  if (layout.bedLengthM === null || layout.bedWidthM === null) {
-    return (
-      <p className={styles.hint}>
-        {t('cargoLayers.missingBed')} <a href={FLEET_HREF}>{t('cargoLayers.missingBedLink')}</a>
-      </p>
-    )
-  }
-  if (placement === null || placement.layers.length === 0) return null
-
-  const current = placement.layers[Math.min(index, placement.layers.length - 1)]
-  if (current === undefined) return null
-
   /**
    * ⚠️ **Todas as camadas no desenho**, com a escolhida em foco e as outras esmaecidas. Desenhar só a
    * camada aberta tiraria justamente o que o 3D tem de melhor — ver a pilha inteira — e deixaria a
@@ -180,31 +175,22 @@ function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCar
    * girar a vista nem ao acender uma parada, então ficam fora da memória que o foco invalida.
    */
   const { notesSharingColor, stopNotes, noteColors } = useMemo(() => {
-    const placed = placement.layers.flatMap((layer) => layer.boxes)
+    const placed = layers.flatMap((layer) => layer.boxes)
     const resolved = resolveNoteColors(placed)
-    const splitPieces = resolveSplitPieces(placement.splitNotes)
+    const splitPieces = resolveSplitPieces(placement?.splitNotes)
     return {
       noteColors: resolved,
       notesSharingColor: countNotesSharingColor(resolved),
       stopNotes: buildStopNotes(placed, resolved, splitPieces),
     }
-  }, [placement.layers, placement.splitNotes])
-
-  /**
-   * Spec 120: quantas caixas vieram do mapa recomendado e quantas do complemento, mais o que a
-   * viagem pediu ao todo — a mesma conta usada no resumo do topo e na coluna nova da folha impressa.
-   */
-  const complementSummary = buildCargoComplementSummary(
-    placement.layers.flatMap((layer) => layer.boxes),
-    placement.unplaced,
-  )
+  }, [layers, placement?.splitNotes])
 
   const { boxRecordsById, boxes } = useMemo(() => {
     const records = new Map<
       string,
       Readonly<{ documentId?: string | null | undefined; id: string; stopSequence: number }>
     >()
-    const isometricBoxes = placement.layers.flatMap((layer) =>
+    const isometricBoxes = layers.flatMap((layer) =>
       layer.boxes.map((rawBox, position) => {
         const id = `${String(layer.index)}-${String(position)}`
         const box = { ...rawBox, id }
@@ -242,15 +228,15 @@ function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCar
     )
 
     return { boxRecordsById: records, boxes: isometricBoxes }
-  }, [focus, noteColors, placement.layers, t])
+  }, [focus, noteColors, layers, t])
 
   /**
    * Spec 145 T13 (D4): só o **desenho** anima. Lista, fatias, fichas e folha impressa leem `boxes`,
    * a planta nova de verdade — a caixa que está saindo nunca entra numa contagem.
    */
   const matchKeys = useMemo(
-    () => listCargoBoxMatchKeys(placement.layers.flatMap((layer) => layer.boxes)),
-    [placement.layers],
+    () => listCargoBoxMatchKeys(layers.flatMap((layer) => layer.boxes)),
+    [layers],
   )
   const drawnBoxes = useMemo(
     () =>
@@ -279,16 +265,37 @@ function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCar
     [boxes, matchKeys, transition],
   )
 
+  const sliceCutsM = useMemo(() => resolveSliceCuts(boxes, arrangement), [arrangement, boxes])
+
+  if (layout === null) return null
+
   /**
-   * ⚠️ O contorno é o **baú**, e a altura dele não pode ser a da carga: somar as camadas desenhava o
-   * baú sempre cheio até o teto, e a folga de altura — a informação que decide se cabe mais uma
-   * camada — nunca aparecia. Sem a medida da ficha, o desenho usa a carga e não promete folga.
+   * ⚠️ **Sem as três medidas do baú não há desenho, e dizer isso é o mínimo.** Nomear o campo não
+   * basta: quem lê está montando uma viagem, e voltar à ficha do veículo é um caminho que ele teria
+   * de descobrir sozinho — o atalho é o que separa um aviso de uma instrução. Era a única coisa que
+   * a planta em escala dizia e este painel não dizia, e ela saiu com a 095.
    */
+  if (layout.bedLengthM === null || layout.bedWidthM === null) {
+    return (
+      <p className={styles.hint}>
+        {t('cargoLayers.missingBed')} <a href={FLEET_HREF}>{t('cargoLayers.missingBedLink')}</a>
+      </p>
+    )
+  }
+  if (placement === null || placement.layers.length === 0) return null
+
+  const current = placement.layers[Math.min(index, placement.layers.length - 1)]
+  if (current === undefined) return null
+
   /**
-   * ⚠️ Ausente é `depth`, o comportamento de sempre: uma API que ainda não publica o arranjo não pode
-   * fazer a folha de carregamento inverter a ordem sozinha.
+   * Spec 120: quantas caixas vieram do mapa recomendado e quantas do complemento, mais o que a
+   * viagem pediu ao todo — a mesma conta usada no resumo do topo e na coluna nova da folha impressa.
    */
-  const arrangement = layout.stopArrangement ?? 'depth'
+  const complementSummary = buildCargoComplementSummary(
+    placement.layers.flatMap((layer) => layer.boxes),
+    placement.unplaced,
+  )
+
   /**
    * Spec 100 D4. ⚠️ **Quem diz que foi o peso é a API, não uma dedução daqui.** Concluir isso de
    * `depth` mais carga pesada afirmava o mesmo na viagem de uma parada só, na carroceria aberta e
@@ -298,7 +305,11 @@ function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCar
   /** Na grade o peso não venceu o acesso: ela equilibra dentro de cada faixa (spec 113). */
   const weightWonAccess = layout.stopArrangementReason === 'weight' && arrangement === 'depth'
 
-  const sliceCutsM = useMemo(() => resolveSliceCuts(boxes, arrangement), [arrangement, boxes])
+  /**
+   * ⚠️ O contorno é o **baú**, e a altura dele não pode ser a da carga: somar as camadas desenhava o
+   * baú sempre cheio até o teto, e a folga de altura — a informação que decide se cabe mais uma
+   * camada — nunca aparecia. Sem a medida da ficha, o desenho usa a carga e não promete folga.
+   */
   const bedHeightM = Number.parseFloat(layout.bedHeightM ?? '0')
   const cargoTopM = Math.max(...boxes.map((box) => box.zM + box.heightM), 0)
   const drawnHeightM = bedHeightM > 0 ? bedHeightM : cargoTopM

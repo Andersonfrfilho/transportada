@@ -70,11 +70,16 @@ A ordem importa, e sair dela derruba serviço em silêncio:
    incompleto**; pare e complete antes de aplicar.
 4. `railway config apply`, e só então remova o `railway.json`.
 
-> ✅ **Staging migrou em 15/09/2026.** Os sete serviços (`api`, `worker`, `transportada-frontend`,
-> `landing`, `keycloak`, `cron`, `staging-refresh`) estão sem ponteiro de config em staging e são
-> geridos pelo `.railway/railway.ts`; o `apply` não apagou nada. **Produção continua nos
-> `railway.json`** — por isso os arquivos seguem no repositório, e o passo 4 só vale depois que
-> produção migrar também.
+> ✅ **Os dois ambientes migraram em 15/09/2026.** Staging: `api`, `worker`,
+> `transportada-frontend`, `landing`, `keycloak`, `cron`, `staging-refresh`. Produção: os mesmos,
+> trocando `staging-refresh` por `backup`. Nenhum serviço tem mais ponteiro de config, e os dois
+> `apply` não apagaram nada. Os `deploy/*/railway.json` já não são lidos por ninguém — removê-los
+> (passo 4) é o que falta.
+>
+> ⚠️ **A janela entre limpar o ponteiro e o `apply` custou um deploy em produção.** O merge de um PR
+> caiu nela: a API subiu sem `preDeployCommand`, a conferência do CI pegou ("api subiu com
+> migrations pendentes") e barrou o resto do deploy. O `apply` logo depois republicou a API com as
+> migrations. Numa próxima migração, limpe os ponteiros e aplique em sequência, sem merge no meio.
 >
 > ⚠️ Antes do `apply`, a prévia mostrou três coisas que o arquivo mudaria sem ninguém ter
 > decidido, e todas foram corrigidas no arquivo: variáveis que só existiam no painel
@@ -87,10 +92,10 @@ A ordem importa, e sair dela derruba serviço em silêncio:
 > nesses nove. Medido aplicando duas vezes seguidas. Qualquer outra linha na prévia é mudança de
 > verdade.
 >
-> ⚠️ **Até o próximo `make map-refresh`, o `plan` também mostra `OSRM_PBF_URL` e `MAP_PBF_URL`
-> mudando** em `osrm` e `map-tiles`: o arquivo fixa `sudeste-260914`, e os serviços no ar ainda
+> ⚠️ **Em staging, até o próximo `make map-refresh`, o `plan` também mostra `OSRM_PBF_URL` e
+> `MAP_PBF_URL` mudando** em `osrm` e `map-tiles`: o arquivo fixa `sudeste-260914`, e os dois ainda
 > rodam do `-latest` baixado em 14/09. Essas duas linhas são mudança de verdade — aplicar
-> reconstrói os dois serviços com a data do arquivo.
+> reconstrói os dois com a data do arquivo. Produção já foi para `260914` no `apply` de 15/09.
 
 ### O que o `railway config pull` não traz
 

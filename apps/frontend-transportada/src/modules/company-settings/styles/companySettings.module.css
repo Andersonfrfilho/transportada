@@ -779,25 +779,25 @@
   margin-inline-start: auto;
 }
 
-/* Spec 126: o painel do regime federal — campos em coluna, a origem ao lado do número. */
-.federalTaxFields {
+/* Painel de configuração: campos em coluna, a origem ao lado do número. Dois painéis vestem. */
+.settingsFormFields {
   display: grid;
   gap: var(--space-3);
 }
 
-.federalTaxOrigin {
+.settingsFormOrigin {
   color: var(--color-slate);
   font-size: 0.74rem;
 }
 
-.federalTaxNote {
+.settingsFormNote {
   margin: 0;
   color: var(--color-fog);
   font-size: 0.8rem;
   line-height: 1.45;
 }
 
-.federalTaxActions {
+.settingsFormActions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);

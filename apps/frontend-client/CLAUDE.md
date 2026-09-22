@@ -44,10 +44,19 @@ enfeite.
 ⚠️ Esta app **não tem design system nem Playwright**: CSS próprio curto com os tokens copiados por
 valor, campos nativos (inclusive `datetime-local`, que o painel proíbe), e nenhum teste de tela — o
 que se prova é serviço puro e texto de fonte. Crescer a app é decidir isso de novo, por escrito.
-Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_CLIENT_APP_URL`, `VITE_KEYCLOAK_*`. `VITE_APP_ENV`
-(`local`·`staging`·`production`, ausente/desconhecido cai em `production`) liga a faixa de ambiente
-no topo e o ícone 🚧 na aba — cópia por valor do painel, e `environment-banner.contract.ts` compara
-o texto da faixa com o dele.
+Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_CLIENT_APP_URL`, `VITE_IDENTIFIER_FIRST_LOGIN`,
+`VITE_KEYCLOAK_*`. `VITE_APP_ENV` (`local`·`staging`·`production`, ausente/desconhecido cai em
+`production`) liga a faixa de ambiente no topo e o ícone 🚧 na aba — cópia por valor do painel, e
+`environment-banner.contract.ts` compara o texto da faixa com o dele.
+
+**Tela de identificação antes do login** (`VITE_IDENTIFIER_FIRST_LOGIN`, ligada em staging e
+produção): cópia por valor da do painel — `KeycloakAuthProvider.provider.ts` inicializa com
+`check-sso` em vez de `login-required` quando a flag está ligada, `initialize()` devolve `boolean`
+(`false` sem sessão), e `main.tsx` renderiza `LoginIdentifierPage` nesse caso. `loginHintClient.
+service.ts` resolve o contato digitado (e-mail, CPF, CNPJ, telefone) em `login_hint` chamando
+`POST /login-hints`, anônimo, sem token. `restartAuthentication` recarrega a página em vez de ir
+direto ao provedor — o contato pode não ser o `username` que o Keycloak entende. Contrato:
+`test/keycloak-auth-provider.test.ts` e `test/login-hint-client.test.ts`.
 
 ## Documento fiscal: o CNPJ tem letra
 

@@ -32,6 +32,8 @@ export function resolveOccurrencePermission(type: string): null | 'trip.manage' 
  * A rota do galpão não grava ocorrência de rua, e vice-versa. Sem esta guarda, `POST
  * .../occurrences/separation` — autorizada por `trip.manage` — aceitaria `recusa_total` no corpo e
  * daria a quem separa a capacidade que `trip.report` existe para reservar.
+ *
+ * Com o tipo cadastrado, a guarda ligada à rota é a de `registerTripOccurrence` (spec 157).
  */
 export function acceptsOccurrenceType(input: {
   readonly stage: TripOccurrenceStage

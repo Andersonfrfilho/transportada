@@ -12,12 +12,22 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `addresses`, `billing`, `companies`, `contractor-portal`, `cte-batches`, `cte-issuance`,
-`cte-profiles`, `fleet`, `freight`, `freight-calculations`, `freight-regions`, `freight-rules`,
-`identity`, `mdfe-manifests`, `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`,
-`nfse-profiles`, `notification`, `operations`, `routing`, `storage`, `trips`, `view-preferences`,
-`whatsapp-commands`, `health`. Transversais: `config`, `database`, `http`, `logging`,
-`observability`, `server`, `shared`.
+Módulos: `addresses`, `address-correction`, `billing`, `companies`, `contractor-mail`,
+`contractor-portal`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
+`freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
+`nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
+`operations`, `routing`, `storage`, `trips`, `view-preferences`, `whatsapp-commands`, `health`.
+Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
+
+⚠️ **O pedido de correção de endereço (`address-correction/`) nunca edita `nfe_addresses` nem o XML**
+— é um registro à parte (`address_correction_requests`), e a contratante é sempre resolvida pelo CNPJ
+do emitente dentro da `companyId` do token, nunca do payload (spec 150).
+
+⚠️ **O envio de e-mail à contratante não depende de `contractor_mail_settings.status`** — depende de
+`sending_verified_at` (lista de verificação) e de existir um `contractor_mail_templates` ativo do
+tipo (spec 150 T401/T402, `resolveMailSendReadiness`). ⚠️ **Rota que dispara e-mail declara
+`rateLimit: { store: 'postgres', scope, maxRequests, windowSeconds }`** e aparece em
+`test/rate-limited-routes.contract.test.ts` — hoje só as duas de `contractor-mail` (spec 150 T406).
 
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
 2 MiB) → `http/request-handler.service.ts` (correlation-id, 1 MiB → 413, CORS) →
@@ -56,6 +66,36 @@ PATCH gravaria (ambiente do perfil, série 1, número 1, versão 1). Falha de pe
 configurações é `CompanySettingsPersistenceError` (`DiagnosableError`), então a mensagem sai no
 `http_request_failed`. ⚠️ `new Error` cru no caminho de uma rota perde o motivo no log.
 
+## Pedágio — o catálogo e o extrato (specs 090, 154)
+
+**Catálogo de praças (spec 090, spec 154 RF1/RF2):** `GET /v1/toll-booths` devolve o catálogo
+paginado (padrão 20, teto 100 por página) com busca por nome e operador da praça, mostrando para a
+empresa do contexto o valor efetivo e a origem de cada campo (`catalog | manual`) — precedência é
+ajuste manual do operador vence catálogo público. Permissão: `fleet.read`. Resumo: total de praças,
+data do catálogo (`observed_on`), estado (`empty | stale | current`), e contagem de praças sem tarifa
+por eixo conhecida para a empresa (inclui o efeito do ajuste manual). **Nenhuma praça do catálogo é
+apagada por operação do produto** — a recarga (D7) nunca remove linha nenhuma de `toll_booths`: uma
+praça que sumiu do extrato novo continua com `catalogKnown: true` e a data antiga
+(`toll-booth-reload.integration.ts`). `catalogKnown: false` vem de outro lugar:
+`list-toll-booth-catalog-seen-rows.service.ts` marca assim o ajuste "órfão" — a praça vista que a
+empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `toll_booths`.
+
+**Extrato registrado e recarga (spec 154 RF3/RF3b/RF4):**
+
+- `GET /v1/toll-booths/extracts` lista os extratos (dataset, data, contagens, quem subiu e quando foi
+  recarregado). Do mais novo para o mais antigo. Permissão: `settings.manage`.
+- `POST /v1/toll-booths/extracts?dataset=<dataset>&observedOn=<AAAA-MM-DD>` recebe o JSON do
+  extrator (array puro de praças), grava no bucket em modo `create-only` (resubida de bytes idênticos
+  responde 409 na linha, não do objeto), registra a linha em `toll_booth_extracts`, sha256 e
+  contagens. Responde `409` se o par `(dataset, observedOn)` já existe. Permissão: `settings.manage`.
+- `POST /v1/toll-booths/reload?dataset=<dataset>&observedOn=<...>` recarrega a partir de um extrato
+  registrado — lê o objeto do bucket, valida sha256, executa o seed existente em transação global
+  (uma recarga por vez, responde `409` se outra está em andamento), grava ator e data da recarga na
+  linha, registra ação em `audit_logs`. Responde `404` se o extrato não existe, `409` se o objeto
+  sumiu do bucket (marca `missing_object_observed_at`), `409` se sha256 diverge, `409` se há nó
+  repetido. Permissão: `settings.manage`. **Idempotente**: rodar de novo com o mesmo extrato deixa
+  `toll_booths` inalterada (nem `updated_at` muda).
+
 ## Identidade e permissões
 
 - **Recuperação de senha** (`POST /password-resets`, `.../confirm`) são as únicas rotas anônimas;
@@ -91,9 +131,13 @@ configurações é `CompanySettingsPersistenceError` (`DiagnosableError`), entã
   `toCompanyUserView` é o único ponto de conversão.
 - **O separador é papel próprio** (`trip.manage`, não `fleet.manage` de carona): quatro permissões —
   `invoices.read`, `fleet.read`, `trip.read`, `trip.manage`. Não cadastra frota, não fatura, não emite
-  fiscal, não reporta entrega (`trip.report` é do campo). ⚠️ `trip.read` está no catálogo mas nenhuma
-  rota o pede hoje — leitura de viagem segue em `fleet.read`; migrar isso migra `driver`, `aggregate`
-  e `separator` juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
+  fiscal, não reporta entrega (`trip.report` é do campo). ⚠️ `trip.read` **é** pedido por rotas: as
+  leituras `/me` do motorista (`me-trip.routes.ts`, recortadas pelo vínculo), o fluxo de leitura do
+  motorista no WhatsApp e `GET /delivery-charges` + `GET /delivery-clients/:id/charge-rules` — estas
+  duas **não** recortam pelo vínculo, então motorista e agregado leem as cobranças da empresa inteira
+  (achado da spec 156 T15, `docs/SECURITY.md`). A leitura de viagem da empresa segue em `fleet.read`
+  (ou `anyPermission`, abaixo); migrá-la para `trip.read` migra `driver`, `aggregate` e `separator`
+  juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
   extenso — rota nova de frota/faturamento/CT-e reprova ali até decisão por escrito.
 
 ## Viagem (trips) — máquina de estados
@@ -110,6 +154,55 @@ destinatário, nunca pelo CNPJ.
 ⚠️ `return`/`deliver` só depois de `dispatched`; `separate`/`load` exigem roteiro planejado —
 tratar os três como um `isEditable` só oferece o botão exatamente quando ele dá `409`. Guarda:
 `test/trip/state-gates.contract.ts` (frontend).
+
+**O escritório dá baixa em nome do motorista** (spec 156, ADR-0067): permissão própria
+`trip.report-on-behalf` (`company-admin`, `operator`, `finance`; nunca `trip.manage`, que o separador
+tem, nem `trip.report`, que é a chave das rotas `/me`). Rotas com o `tripId` no caminho, alvo
+resolvido pela empresa do contexto (outra empresa → 404; sem motorista → 422 `TRIP_WITHOUT_DRIVER`;
+`driverId` fora da tripulação → 422 `DRIVER_NOT_ON_TRIP`) e os mesmos casos de uso do motorista com
+`{ target }`: `POST /trips/:id/confirm-load`, `…/start-route`, `…/stops/:stopId/arrive` (`arrivedAt`
+opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-delivery` (multipart,
+`deliveredAt` obrigatório), `…/field-return` (JSON, `returnedAt` opcional), `…/field-proof`
+(multipart) e `…/documents/field-occurrences` (lote multipart); leituras `GET /trips/:id/allowed-actions`
+(`anyPermission`), `GET /trips/:id/field-delivery-documents` e `GET /trips/field-delivery-settings`.
+
+- Todo registro grava `channel` (`driver_app | office | whatsapp`, e `backoffice` em
+  `trip_status_events`) e, no `office`, `on_behalf_of_driver_id` (CHECK + FK composta com índice
+  parcial); `actor_user_id` é sempre quem clicou. `operation` em `trip_field_reports` com prefixo
+  `office.`; mesma chave de outro ator ou operação → 409 `TRIP_FIELD_REPORT_KEY_REUSED`.
+- Nota já `delivered`/`returned` no canal `office` → 409 `DOCUMENT_ALREADY_SETTLED` **antes** da
+  janela e da transição (o motorista segue idempotente). A hora informada tem janela: nem futuro, nem
+  antes do despacho congelado (sem ele, `trips.created_at`) — `DELIVERED_AT_*`, `RETURNED_AT_*`,
+  `ARRIVED_AT_*`. A baixa deriva `on_delivery_route` (ADR-0058 §3); a parada sem chegada ganha
+  `arrived_at` da primeira baixa; parada e viagem fecham com a maior hora das notas.
+- `field-proof` substitui só o canhoto do próprio escritório; o do motorista → 409
+  `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`. Assinatura `required` exige foto **e** nome do recebedor
+  (422); documento do recebedor entra selado e mascarado.
+- Upload dentro da transação, com limpeza do objeto se ela desfizer (`runWithStoredObjectCleanup`);
+  arquivo até `OFFICE_PROOF_MAX_BYTES` (960 KiB, abaixo do corpo de 1 MiB), bytes conferidos contra o
+  tipo, lista fechada de campos e um `file` só. `audit_logs` na transação da ação (nunca no reenvio
+  nem em `changed: false`). Rate limit no Postgres: lote 30/300 s, notas 300/300 s, viagem/parada
+  120/300 s (`test/rate-limited-routes.contract.test.ts`).
+- `anyPermission` (`['fleet.read', 'trip.report-on-behalf']`) só em cinco `GET` de viagem e no
+  `allowed-actions`; o roteador derruba o boot se ela aparecer fora de `GET`. Sem `fleet.read`,
+  `driverTaxId`/`driverEmail`/`driverPhone` saem nulos.
+
+**A leitura do canhoto é interruptor da empresa, não do destinatário** (spec 156 T13, ADR-0069):
+`company_delivery_proof_settings.canhoto_ocr_enabled` (padrão `false`, sem coluna na tabela de
+exceções) sai no `GET`/`PUT /company-settings/delivery-proof` (`settings.manage`; no `PUT` o campo é
+opcional e ausente não mexe). O escritório lê **só** o interruptor em `GET
+/trips/field-delivery-settings` (`trip.report-on-behalf`, rota exata antes de `/trips/:id`).
+
+**Toda troca de `trips.status` grava `trip_status_events`** (spec 158, ADR-0068): um só escritor,
+`recordTripStatusChange`, na mesma transação e só quando mudou; `SELECT … FOR NO KEY UPDATE`
+**imediatamente antes** do `UPDATE trips` (nunca `FOR UPDATE`: deadlock com o `FOR KEY SHARE` das
+inserções com FK para `trips`). Canal decidido na composição: web `backoffice`, WhatsApp do operador
+`whatsapp`, motorista `driver_app`, escritório em nome do motorista `office`. Contrato estático
+`test/trip-schema/trip-status-writers.contract.ts` reprova `update(trips)` com `status` sem o evento.
+⚠️ Em `trip_document_events`, `channel = 'driver_app'` é **canal não registrado** (histórico anterior,
+ADR-0068 §4). `GET /trips/:id/timeline` (`TRIP_FIELD_READ_POLICY`) junta seis fontes com cursor
+`(occurred_at com µs em texto, prioridade do kind, id)`, **tudo decrescente** — o cursor por `Date`
+perdia itens gravados no mesmo `now()`.
 
 **Cancelar devolve a carga** (spec 102): `markCancelled` marca `released_at` nas notas ainda
 vinculadas na mesma transação do status — mas **libera é marcar, nunca apagar** a linha de
@@ -183,6 +276,17 @@ sempre serve o cru, máscara/cópia é do frontend (`formatStoredPhone`). Detalh
 aconteceu**; quem for escrever leitor para um desses campos precisa abrir o envelope primeiro —
 confira a ADR antes. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
 lista fechada `IDENTITY_DOCUMENT_ISSUERS`, cópia por valor API/frontend.
+
+**A nota do motorista é derivada na leitura, nunca gravada** (ADR-0070, spec 159):
+`DrizzleDriverScoreRepository` lê numa consulta só o último `delivered` de cada nota nos 90 dias (só
+`channel = 'driver_app'`, nota não devolvida, desde `score_effective_since` — sem retroatividade) das
+notas dos motoristas pedidos, e `computeDriverScore` decide os pontos. O motorista do evento é
+`on_behalf_of_driver_id` → `reported_by_driver_id` → vínculo da conta (evento antigo). Sai em
+`GET /me/trips/current` (`score` e `pendingProofs`, que lista a foto pendente até de viagem
+`completed`), em `GET /fleet/drivers` (`score` por item, uma leitura por página) e em
+`GET /fleet/drivers/:id/score` (nota + penalidades, `fleet.read`, 404 para motorista alheio). Foto
+substituta fica com a pior pontualidade; a do escritório não classifica (spec 159 T11). ⚠️ Posição da
+foto nunca sai nessas respostas — só motivo, pontos e datas — e cai aos 90 dias pelo expurgo do worker.
 
 **O endereço se mede uma vez** (ADR-0061, spec 084) — geocodificação em lote, por decisão explícita,
 nunca recalculada a cada leitura. Separação grafia × lugar (`street-comparison.policy.ts`) é o que
@@ -272,6 +376,22 @@ state)`, nunca `(company_id, city)` — a mesma cidade pode estar em duas rotas.
   substituiu o antigo par `wheel_type`+`freight_class`.
 - **Tabela de frete entra por `POST /freight-regions/import`, nunca por seed** (produto genérico,
   ADR-0021). Reimportar o mesmo arquivo é no-op; rota ausente vira `inactive`, nunca é apagada.
+- **`GET/PUT/DELETE /company-settings/driver-allowance`** (spec 143) segue o molde de
+  `federal-tax-settings`: sem linha é `200` com `rateOrigin: 'default'` e `R$200,00`, nunca `404`;
+  `PUT` faz upsert por `companyId` (nunca insert-then-update) e audita em `auditLogs`; `DELETE` é
+  idempotente. Mesma permissão `settings.manage`, nunca uma nova.
+- **O custo do motorista é `diária × dias`, não mais zona/rota/tabela** (spec 143, ADR-0066): a
+  diária resolve em cascata `motorista → empresa → padrão`
+  (`resolveDailyAllowance`, `DEFAULT_DAILY_ALLOWANCE_AMOUNT = '200.0000'`); `days` vem de
+  `trips.daily_allowance_days` quando informado, senão de `suggestAllowanceDays` (duração estimada
+  do roteiro, arredondada para cima) — **o mínimo é sempre 1**, nunca zero. `buildTripDriverCost`
+  não compõe frase: `detail` da parcela do motorista é sempre `null`, a frase de exibição é do
+  frontend (`composeCostParcelDetail`); a única exceção é a `note` do congelamento, que é
+  persistência histórica, não exibição. `GET /trips/:id/costs` é `trip.financials` — **assimétrico**
+  em relação ao `POST` da mesma rota, que é `trip.manage` (quem lança não necessariamente vê
+  dinheiro). ⚠️ `trip-driver-zone.policy.ts`/`trip-driver-tie.policy.ts` e as suítes que os
+  exercitam continuam no repositório sem consumidor de produção — ler a ADR-0066 antes de supor
+  código morto e apagar.
 - **Pedágio é calculado a partir da rota, não lançado à mão** (spec 090) — praça casa por identidade
   de nó do OSM (`annotations=nodes`), nunca por proximidade; pedágio viaja **na mesma resposta** de
   rota que a distância (nunca chamada própria); manual sempre vence calculado. Viagem congela o

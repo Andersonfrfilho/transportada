@@ -3,11 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getTripFinancialsClient } from '../shared/tripFinancialsClient.service'
 import type { TripFinancialResult } from '../shared/tripFinancials.types'
+import {
+  FINANCIALS_PERMISSION,
+  TRIP_FINANCIALS_QUERY_KEY,
+  TRIP_VALUATION_QUERY_KEY,
+} from '../shared/tripFinancialsQueryKey.constant'
 import type { TripValuation } from '../shared/tripValuation.service'
-
-const TRIP_FINANCIALS_QUERY_KEY = 'trip-financials'
-const TRIP_VALUATION_QUERY_KEY = 'trip-valuation'
-const FINANCIALS_PERMISSION = 'trip.financials'
 
 export type TripFinancialsController = Readonly<{
   canReadFinancials: boolean

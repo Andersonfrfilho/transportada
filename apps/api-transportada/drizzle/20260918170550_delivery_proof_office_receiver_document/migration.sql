@@ -1,0 +1,1 @@
+ALTER TABLE "trip_delivery_proofs" DROP CONSTRAINT "trip_delivery_proofs_receiver_document_check", ADD CONSTRAINT "trip_delivery_proofs_receiver_document_check" CHECK (("kind" = 'signature' or "channel" = 'office' or "receiver_document_envelope" is null) and (("receiver_document_envelope" is null) = (length("receiver_document_masked") = 0)));

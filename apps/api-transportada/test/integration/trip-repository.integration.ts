@@ -25,6 +25,7 @@ import {
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 
 const databaseUrl =
@@ -375,7 +376,12 @@ describe('trip repository integration', () => {
         })
         expect(deliveredCancelledNfe?.deliveredAt).not.toBeNull()
 
-        const closed = await repository.close({ companyId, tripId: created.id })
+        const closeInput = {
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          onBehalfOfDriverId: null,
+        } as const
+        const closed = await repository.close({ ...closeInput, companyId, tripId: created.id })
         expect(closed?.status).toBe('completed')
         // Viagem completed: a escrita condicionada não acha linha nenhuma, e é o que fecha a
         // corrida entre a checagem do caso de uso e o update.
@@ -386,8 +392,12 @@ describe('trip repository integration', () => {
             tripId: created.id,
           }),
         ).toBeNull()
-        expect(await repository.close({ companyId: otherCompanyId, tripId: created.id })).toBeNull()
-        expect(await repository.close({ companyId, tripId: crypto.randomUUID() })).toBeNull()
+        expect(
+          await repository.close({ ...closeInput, companyId: otherCompanyId, tripId: created.id }),
+        ).toBeNull()
+        expect(
+          await repository.close({ ...closeInput, companyId, tripId: crypto.randomUUID() }),
+        ).toBeNull()
 
         // `created` está completed; `secondTrip` segue draft — cobre statusEq, vehicleIdEq, driverIdEq.
         const openPage = await repository.list({

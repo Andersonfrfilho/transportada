@@ -4,15 +4,19 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { TripFinancialPanel } from '@/modules/trip-financials/components/TripFinancialPanel.component'
+import { useTripCostEntries } from '@/modules/trip-financials/hooks/useTripCostEntries.hook'
 import { useTripFinancials } from '@/modules/trip-financials/hooks/useTripFinancials.hook'
 
 import { TripDetail, TripDetailSkeleton } from '../components/TripDetail.component'
+import { TripTimeline } from '../components/TripTimeline.component'
 import { useTripDocumentLinkForm } from '../hooks/useTripDocumentLinkForm.hook'
+import { useTripTimeline } from '../hooks/useTripTimeline.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
 import { navigateToTrips } from '../shared/tripRoute.service'
 import styles from '../styles/trip.module.css'
@@ -24,6 +28,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
+  const canAdjustTollBooth = permissions.includes(SETTINGS_MANAGE_PERMISSION)
   const workspace = useTripWorkspace({
     ...(companyId === undefined ? {} : { companyId }),
     permissions,
@@ -46,6 +51,20 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
   })
 
   const financials = useTripFinancials({ permissions, tripId })
+  /**
+   * ⚠️ A lista de lançamentos entra **dentro** do painel, junto com a permissão que o abre. Quem tem
+   * `trip.manage` e não tem `trip.financials` não vê nem o que ele mesmo lançou — é a assimetria
+   * proposital da rota, e expor a lista ao lado do painel vazaria o valor que ela protege.
+   */
+  const costEntries = useTripCostEntries({ permissions, tripId })
+
+  /**
+   * Spec 158 T8 (RF6): a linha do tempo fica entre o detalhe (paradas/notas) e o razão financeiro —
+   * o mesmo lugar de `TripFinancialPanel`, montado ao lado dele pela mesma razão: a permissão que
+   * cada painel exige é assimétrica (D4 aqui, `trip.financials` lá), e cada um decide sozinho se
+   * aparece.
+   */
+  const timeline = useTripTimeline({ permissions, tripId })
 
   function handleBackToTrips(): void {
     navigateToTrips(createBrowserWorkspaceNavigator())
@@ -81,16 +100,22 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
       {authQuery.isSuccess ? (
         <div className={styles.deck}>
           <TripDetail
+            canAdjustTollBooth={canAdjustTollBooth}
             linkForm={linkForm}
             vehicles={fleet.viewModel.vehicles ?? []}
             workspace={workspace}
           />
+          {/* Spec 158 T8 (RF6): entre o detalhe (paradas/notas) e o razão financeiro. */}
+          {workspace.controller.canReadTrips ? (
+            <TripTimeline openDocumentId={workspace.openProofDocumentId} query={timeline} />
+          ) : null}
           {/*
             Spec 061 D4: o painel da conta só existe para quem tem `trip.financials`. Quem monta a
             viagem decide pela avaliação prevista, que não mostra o que se paga ao agregado.
           */}
           {financials.canReadFinancials ? (
             <TripFinancialPanel
+              costEntries={costEntries}
               isError={financials.isError}
               isLoading={financials.isLoading}
               onRecalculate={financials.recalculate}

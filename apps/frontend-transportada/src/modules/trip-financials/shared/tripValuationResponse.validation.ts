@@ -1,5 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
+  DailyAllowanceDaysOrigin,
+  DailyAllowanceRateOrigin,
+  TripDriverCostCrewLine,
   TripValuation,
   TripValuationCostParcelBasis,
   ValuationSource,
@@ -13,6 +16,22 @@ const SOURCES: readonly ValuationSource[] = ['estimated', 'measured', 'missing',
 
 function isSource(value: unknown): value is ValuationSource {
   return SOURCES.some((source) => source === value)
+}
+
+const DAILY_ALLOWANCE_RATE_ORIGINS: readonly DailyAllowanceRateOrigin[] = [
+  'company',
+  'default',
+  'driver',
+]
+
+function isRateOrigin(value: unknown): value is DailyAllowanceRateOrigin {
+  return DAILY_ALLOWANCE_RATE_ORIGINS.some((origin) => origin === value)
+}
+
+const DAILY_ALLOWANCE_DAYS_ORIGINS: readonly DailyAllowanceDaysOrigin[] = ['estimated', 'informed']
+
+function isDaysOrigin(value: unknown): value is DailyAllowanceDaysOrigin {
+  return DAILY_ALLOWANCE_DAYS_ORIGINS.some((origin) => origin === value)
 }
 
 function readText(value: unknown): string {
@@ -92,12 +111,10 @@ function readBasis(value: unknown): null | TripValuationCostParcelBasis {
   }
   if (value.of === 'driver') {
     return {
+      crew: readCrew(value.crew),
+      days: typeof value.days === 'number' ? value.days : 0,
+      daysOrigin: isDaysOrigin(value.daysOrigin) ? value.daysOrigin : 'estimated',
       of: 'driver',
-      paymentModel: readText(value.paymentModel),
-      regionCity: typeof value.regionCity === 'string' ? value.regionCity : null,
-      regionCode: typeof value.regionCode === 'string' ? value.regionCode : null,
-      tie: readTie(value.tie),
-      vehicleClass: readText(value.vehicleClass),
     }
   }
   if (value.of === 'icms') {
@@ -113,29 +130,25 @@ function readBasis(value: unknown): null | TripValuationCostParcelBasis {
 }
 
 /**
- * Spec 129: `basis.tie` é opcional e cru — API anterior a esta spec não o manda, e vira ausência,
- * não quebra. Faixa malformada é descartada em vez de invalidar as outras: uma célula ruim não
- * pode apagar a lista inteira.
+ * Spec 143: uma linha crua por condutor — condutor malformado é descartado, nunca invalida a
+ * parcela inteira.
  */
-function readTie(
-  value: unknown,
-): NonNullable<Extract<TripValuationCostParcelBasis, { readonly of: 'driver' }>['tie']> | null {
-  if (!isRecord(value)) return null
-  if (typeof value.cityCount !== 'number') return null
-  if (!Array.isArray(value.zones)) return null
+function readCrew(value: unknown): readonly TripDriverCostCrewLine[] {
+  if (!Array.isArray(value)) return []
 
-  const zones = value.zones.flatMap((zone) => {
-    if (!isRecord(zone)) return []
-    if (typeof zone.city !== 'string' || typeof zone.code !== 'string') return []
+  return value.flatMap((member) => {
+    if (!isRecord(member)) return []
+    if (!isRateOrigin(member.rateOrigin)) return []
 
     return [
       {
-        amount: typeof zone.amount === 'string' ? zone.amount : null,
-        city: zone.city,
-        code: zone.code,
+        dailyAmount: readText(member.dailyAmount),
+        driverId: readText(member.driverId),
+        driverName: typeof member.driverName === 'string' ? member.driverName : null,
+        paymentModel: readText(member.paymentModel),
+        rateOrigin: member.rateOrigin,
+        subtotal: readText(member.subtotal),
       },
     ]
   })
-
-  return { cityCount: value.cityCount, zones }
 }

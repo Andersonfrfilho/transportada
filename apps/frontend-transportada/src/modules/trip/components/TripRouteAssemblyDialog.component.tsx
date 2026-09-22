@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 import { useSuggestionValuation } from '@/modules/routing/queries/useSuggestionValuation.query'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
@@ -19,7 +19,7 @@ import styles from '../styles/trip.module.css'
 
 type TripRouteAssemblyDialogProps = Readonly<{
   assembly: TripRouteAssemblyController
-  drivers: readonly FleetDriverDetail[]
+  drivers: readonly FleetDriverListItem[]
   permissions: readonly string[]
   vehicles: readonly FleetVehicleDetail[]
 }>
@@ -120,6 +120,48 @@ export function TripRouteAssemblyDialog({
           </Button>
         </header>
 
+        {assembly.assemblyDraft.notice.droppedDocumentCount === 0 ? null : (
+          <p className={styles.alert} role="status">
+            {t('assemblyDraft.droppedDocuments', {
+              count: assembly.assemblyDraft.notice.droppedDocumentCount,
+            })}
+          </p>
+        )}
+        {assembly.assemblyDraft.notice.isProposalDropped ? (
+          <p className={styles.alert} role="status">
+            {t('assemblyDraft.proposalDropped')}
+          </p>
+        ) : null}
+        {assembly.assemblyDraft.notice.droppedVehicleCount === 0 ? null : (
+          <p className={styles.alert} role="status">
+            {t('assemblyDraft.droppedVehicles', {
+              count: assembly.assemblyDraft.notice.droppedVehicleCount,
+            })}
+          </p>
+        )}
+        {assembly.assemblyDraft.isUnreachable ? (
+          <div className={styles.draftBanner}>
+            <p className={styles.alert} role="status">
+              {t('assemblyDraft.proposalUnreachable')}
+            </p>
+            <Button
+              disabled={assembly.assemblyDraft.isRetrying}
+              onClick={assembly.assemblyDraft.retry}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="refresh" />
+              {t('assemblyDraft.retry')}
+            </Button>
+          </div>
+        ) : null}
+        {assembly.assemblyDraft.isUnsaved ? (
+          <p className={styles.alert} role="status">
+            {t('assemblyDraft.unsaved')}
+          </p>
+        ) : null}
+
         {/*
           ⚠️ Com a proposta na tela o formulário **recolhe numa faixa**: sem isso a lista nasce duas
           telas abaixo do topo, e quem acabou de pedir o roteiro rola para encontrá-lo.
@@ -174,10 +216,14 @@ export function TripRouteAssemblyDialog({
                   }
                   onMoveStop={assembly.moveStopDraft}
                   onRemoveStop={assembly.markStopRemoved}
+                  onRouteChoiceChange={(choice) =>
+                    assembly.setVehicleRouteChoice(view.vehicleId, choice)
+                  }
                   onSaveEdits={assembly.saveEdits}
                   onUndoRemoveStop={assembly.undoStopRemoval}
                   pendingRemovals={assembly.pendingRemovals}
                   permissions={permissions}
+                  preferredRouteChoice={assembly.routeChoiceByVehicle.get(view.vehicleId)}
                   releaseUnplaced={{
                     isMarked: (layoutId) => assembly.isReleaseMarked(view.vehicleId, layoutId),
                     onToggle: (layoutId) => assembly.toggleRelease(view.vehicleId, layoutId),
@@ -195,14 +241,23 @@ export function TripRouteAssemblyDialog({
           </>
         )}
 
-        {proposal === null ? (
-          <div className={styles.dialogFooter}>
-            <Button onClick={assembly.close} size="sm" type="button" variant="ghost">
-              <Icon name="close" />
-              {t('quickCreate.cancel')}
-            </Button>
-          </div>
-        ) : null}
+        {/* Cancelar guarda o rascunho — e a proposta — para depois de medir; só "Limpar" o apaga. */}
+        <div className={styles.dialogFooter}>
+          <Button
+            disabled={!assembly.assemblyDraft.hasDraft}
+            onClick={assembly.discardDraft}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="trash" />
+            {t('actions.resetCreation')}
+          </Button>
+          <Button onClick={assembly.close} size="sm" type="button" variant="ghost">
+            <Icon name="close" />
+            {t('quickCreate.cancel')}
+          </Button>
+        </div>
       </div>
     </div>,
     document.body,

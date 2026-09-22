@@ -69,6 +69,16 @@ function buildRepository(current: TripFinancialResult | null = null) {
   return { repository, written }
 }
 
+/** A linha como o repositório a recebe — o teste lê `note` e `amount` da mesma parcela. */
+type TripFinancialParcelRow = {
+  readonly amount: string
+  readonly kind: string
+  readonly note: string
+}
+
+/** O mesmo `\u00A0` que o `Intl` do navegador escreve: o `R$` nunca se separa do número. */
+const NON_BREAKING_SPACE = '\u00A0'
+
 describe('o congelamento do resultado (spec 061 T005)', () => {
   /** Imposto desce da receita; custo sai do bolso. A separação é o que a tela mostra. */
   test('separa imposto de custo, e o líquido é receita menos os dois', async () => {
@@ -141,6 +151,194 @@ describe('o congelamento do resultado (spec 061 T005)', () => {
       note: 'NO_FUEL_BASELINE',
       source: 'missing',
     })
+  })
+
+  /**
+   * Spec 143 D5/T6: sem lacuna, `note` grava a frase de origem — a mesma que o painel aberto
+   * compõe a partir do `basis` cru (T11) — para a viagem fechada continuar legível sem o cadastro.
+   */
+  test('parcela do motorista sem lacuna grava a frase de origem, não o código', async () => {
+    const { repository, written } = buildRepository()
+
+    await freezeTripFinancialResult({
+      actorUserId: USER_ID,
+      assumptions: {},
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+      valuation: valuation({
+        costParcels: [
+          {
+            amount: '600.0000',
+            basis: {
+              crew: [
+                {
+                  dailyAmount: '200.0000',
+                  driverId: '00000000-0000-4000-8000-000000000010',
+                  driverName: 'Motorista Um',
+                  paymentModel: 'route_table',
+                  rateOrigin: 'company',
+                  subtotal: '600.0000',
+                },
+              ],
+              days: 3,
+              daysOrigin: 'estimated',
+              of: 'driver',
+            },
+            detail: null,
+            gap: null,
+            kind: 'driver',
+            source: 'estimated',
+          },
+        ],
+      }),
+    })
+
+    const parcels = (written[0] as { parcels: readonly TripFinancialParcelRow[] }).parcels
+    expect(parcels).toContainEqual(
+      expect.objectContaining({
+        kind: 'driver',
+        note: `R$${NON_BREAKING_SPACE}200,00 × 3 dias · valor geral`,
+      }),
+    )
+  })
+
+  /**
+   * ⚠️ O fator não arredonda. Cortar a diária de `numeric(19,4)` para as duas casas da exibição
+   * **antes** da multiplicação faz a frase desmentir o próprio total: "R$ 200,34 × 3 dias" para uma
+   * parcela de R$ 601,0050. Quem confere a margem multiplica o que lê — 200,335 × 3 = 601,005.
+   */
+  test('a diária de quatro casas é escrita inteira, e os fatores da frase fecham o total', async () => {
+    const { repository, written } = buildRepository()
+
+    await freezeTripFinancialResult({
+      actorUserId: USER_ID,
+      assumptions: {},
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+      valuation: valuation({
+        costParcels: [
+          {
+            amount: '601.0050',
+            basis: {
+              crew: [
+                {
+                  dailyAmount: '200.3350',
+                  driverId: '00000000-0000-4000-8000-000000000010',
+                  driverName: 'Motorista Um',
+                  paymentModel: 'route_table',
+                  rateOrigin: 'company',
+                  subtotal: '601.0050',
+                },
+              ],
+              days: 3,
+              daysOrigin: 'informed',
+              of: 'driver',
+            },
+            detail: null,
+            gap: null,
+            kind: 'driver',
+            source: 'measured',
+          },
+        ],
+      }),
+    })
+
+    const parcels = (written[0] as { parcels: readonly TripFinancialParcelRow[] }).parcels
+    const driver = parcels.find((parcel) => parcel.kind === 'driver')
+
+    expect(driver?.note).toBe(`R$${NON_BREAKING_SPACE}200,335 × 3 dias · valor geral`)
+    expect(driver?.amount).toBe('601.0050')
+  })
+
+  /**
+   * A lacuna vence sempre: sem `basis` (viagem sem condutor), `note` não pode inventar frase —
+   * o código é o único texto que sobra sem cadastro nenhum para descrever.
+   */
+  test('parcela do motorista com lacuna mantém o código, nunca a frase', async () => {
+    const { repository, written } = buildRepository()
+
+    await freezeTripFinancialResult({
+      actorUserId: USER_ID,
+      assumptions: {},
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+      valuation: valuation({
+        costParcels: [
+          {
+            amount: '0.0000',
+            basis: null,
+            detail: null,
+            gap: 'NO_TRIP_DRIVER',
+            kind: 'driver',
+            source: 'missing',
+          },
+        ],
+        hasGaps: true,
+      }),
+    })
+
+    const parcels = (written[0] as { parcels: readonly TripFinancialParcelRow[] }).parcels
+    expect(parcels).toContainEqual(
+      expect.objectContaining({ kind: 'driver', note: 'NO_TRIP_DRIVER' }),
+    )
+  })
+
+  /** D2: mais de um condutor soma a viagem — a frase soma junto, uma linha por condutor. */
+  test('mais de um condutor: a frase soma uma linha por condutor', async () => {
+    const { repository, written } = buildRepository()
+
+    await freezeTripFinancialResult({
+      actorUserId: USER_ID,
+      assumptions: {},
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+      valuation: valuation({
+        costParcels: [
+          {
+            amount: '900.0000',
+            basis: {
+              crew: [
+                {
+                  dailyAmount: '250.0000',
+                  driverId: '00000000-0000-4000-8000-000000000011',
+                  driverName: 'Agregado',
+                  paymentModel: 'route_table',
+                  rateOrigin: 'driver',
+                  subtotal: '500.0000',
+                },
+                {
+                  dailyAmount: '200.0000',
+                  driverId: '00000000-0000-4000-8000-000000000012',
+                  driverName: 'Da casa',
+                  paymentModel: 'fixed',
+                  rateOrigin: 'default',
+                  subtotal: '400.0000',
+                },
+              ],
+              days: 2,
+              daysOrigin: 'informed',
+              of: 'driver',
+            },
+            detail: null,
+            gap: null,
+            kind: 'driver',
+            source: 'measured',
+          },
+        ],
+      }),
+    })
+
+    const parcels = (written[0] as { parcels: readonly TripFinancialParcelRow[] }).parcels
+    expect(parcels).toContainEqual(
+      expect.objectContaining({
+        kind: 'driver',
+        note: `R$${NON_BREAKING_SPACE}250,00 × 2 dias · valor do motorista; R$${NON_BREAKING_SPACE}200,00 × 2 dias · valor padrão`,
+      }),
+    )
   })
 
   /** O número existe e é mostrado; o que não pode é ele parecer final. */

@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
 import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
 
 /**
@@ -27,6 +28,10 @@ export type QueuedAttachment = Readonly<{
   documentId: string
   fileName: string
   kind: 'photo' | 'signature'
+  /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — dado pessoal, nunca em log. */
+  accuracyMeters?: number
+  latitude?: number
+  longitude?: number
   /** ⚠️ Canônico e nunca em log: é o dado da ADR da spec 082 D4 — a API o criptografa. */
   receiverDocument?: string
   receiverName?: string
@@ -54,11 +59,18 @@ export type AttachmentStore = Readonly<{
 
 export type EnqueueAttachmentResult =
   | Readonly<{ accepted: true; eventKey: string }>
-  | Readonly<{ accepted: false; reason: 'count-limit' | 'event-not-queued' | 'size-limit' }>
+  | Readonly<{ accepted: false; reason: 'count-limit' | 'size-limit' }>
+
+/** Spec 159 (revisão D6): a chave sintética de um documento sem evento de entrega na fila. */
+export function documentAttachmentKey(documentId: string): string {
+  return `document:${documentId}`
+}
 
 /**
- * O anexo procura o evento de entrega **ainda na fila** daquela nota. Sem evento na fila a entrega
- * já subiu — e aí o caminho é a rota multipart direta, não esta função.
+ * O anexo procura primeiro o evento de entrega **ainda na fila** daquela nota — "evento primeiro",
+ * como antes. Spec 159: quando a entrega já saiu da fila (já foi aceita, ou é anexo em lote de uma
+ * nota entregue em sessão anterior), o anexo entra do mesmo jeito, referenciado por uma chave própria
+ * do documento — a foto nunca fica de fora da fila offline só porque a entrega já subiu.
  */
 export async function enqueueAttachment(input: {
   readonly attachment: QueuedAttachment
@@ -71,7 +83,8 @@ export async function enqueueAttachment(input: {
     (item) =>
       item.report.kind === 'deliver' && item.report.documentId === input.attachment.documentId,
   )
-  if (target === undefined) return { accepted: false, reason: 'event-not-queued' }
+  const eventKey =
+    target?.report.idempotencyKey ?? documentAttachmentKey(input.attachment.documentId)
 
   /** A recusa vem **antes** de qualquer escrita: teto atingido não descarta o que já está lá. */
   const limits = input.limits ?? ATTACHMENT_QUEUE_LIMIT
@@ -81,7 +94,6 @@ export async function enqueueAttachment(input: {
     return { accepted: false, reason: 'size-limit' }
   }
 
-  const eventKey = target.report.idempotencyKey
   await input.attachmentStore.update({
     eventKey,
     mutate: (existing) => [...existing, input.attachment],
@@ -90,14 +102,82 @@ export async function enqueueAttachment(input: {
   return { accepted: true, eventKey }
 }
 
+/**
+ * Spec 159 (T11, item 6): a foto entra no IndexedDB **antes** de esperar o GPS — só assim ela
+ * nunca se perde se o motorista fechar o app durante a leitura de posição (até 8 s). A posição
+ * chega depois, por esta função, atualizando o mesmo item pela `attachmentKey`.
+ */
+export function applyAttachmentLocation(input: {
+  readonly attachmentKey: string
+  readonly items: readonly QueuedAttachment[]
+  readonly location: DriverReportedLocation
+}): readonly QueuedAttachment[] {
+  return input.items.map((item) =>
+    item.attachmentKey === input.attachmentKey
+      ? {
+          ...item,
+          latitude: input.location.latitude,
+          longitude: input.location.longitude,
+          ...(input.location.accuracyMeters === undefined
+            ? {}
+            : { accuracyMeters: input.location.accuracyMeters }),
+        }
+      : item,
+  )
+}
+
+/**
+ * Spec 159 (T11, item 4): anexo recusado ou simplesmente parado — nunca enviado — expira aos 7
+ * dias. Risco aceito registrado em `docs/SECURITY.md`: a fila offline guarda posição, e ela não
+ * pode ficar indefinidamente no aparelho.
+ */
+export const ATTACHMENT_DISCARD_AFTER_MS = 7 * 24 * 60 * 60 * 1000
+
+export function isAttachmentDiscardable(input: {
+  readonly attachment: QueuedAttachment
+  readonly now: Date
+}): boolean {
+  const capturedAt = new Date(input.attachment.capturedAt).getTime()
+  if (!Number.isFinite(capturedAt)) return false
+  return input.now.getTime() - capturedAt > ATTACHMENT_DISCARD_AFTER_MS
+}
+
+/** Descarta o anexo **e o dado**: o blob e a posição somem da store, não só o item da lista. */
+export async function discardStaleAttachments(input: {
+  readonly attachmentStore: AttachmentStore
+  readonly now: Date
+}): Promise<number> {
+  const groups = await input.attachmentStore.readAll()
+  let discardedCount = 0
+
+  for (const [eventKey, attachments] of groups) {
+    const hasStale = attachments.some((attachment) =>
+      isAttachmentDiscardable({ attachment, now: input.now }),
+    )
+    if (!hasStale) continue
+
+    const remaining = await input.attachmentStore.update({
+      eventKey,
+      mutate: (current) =>
+        current.filter((attachment) => !isAttachmentDiscardable({ attachment, now: input.now })),
+    })
+    discardedCount += attachments.length - remaining.length
+  }
+
+  return discardedCount
+}
+
 export type AttachmentSendOutcome =
   | Readonly<{ kind: 'failed-network' }>
   | Readonly<{ cause: string; kind: 'rejected' }>
-  | Readonly<{ kind: 'sent' }>
+  /** Spec 159 RF4: a pontualidade que a API grava junto da foto — `undefined` para assinatura. */
+  | Readonly<{ kind: 'sent'; punctuality?: ProofPunctuality }>
 
 export type AttachmentDrainResult = Readonly<{
   /** Anexos que o servidor recusou: causa própria, sem contaminar o evento já aceito. */
   attachmentsRejected: number
+  /** Spec 159 (P6): a pontualidade de cada foto que subiu nesta drenagem — a tela traduz em linguagem simples. */
+  attachmentsSent: readonly Readonly<{ documentId: string; punctuality?: ProofPunctuality }>[]
   rejected: number
   remaining: number
   sent: number
@@ -172,6 +252,7 @@ export async function drainQueueWithAttachments(input: {
   )
 
   let attachmentsRejected = 0
+  const attachmentsSent: { documentId: string; punctuality?: ProofPunctuality }[] = []
   if (!networkDown) {
     const queuedEventKeys = new Set(remainingQueue.map((item) => item.report.idempotencyKey))
     const groups = await input.attachmentStore.readAll()
@@ -204,9 +285,15 @@ export async function drainQueueWithAttachments(input: {
                 ),
         })
         if (outcome.kind === 'rejected') attachmentsRejected += 1
+        if (outcome.kind === 'sent') {
+          attachmentsSent.push({
+            documentId: attachment.documentId,
+            ...(outcome.punctuality === undefined ? {} : { punctuality: outcome.punctuality }),
+          })
+        }
       }
     }
   }
 
-  return { attachmentsRejected, rejected, remaining: remainingQueue.length, sent }
+  return { attachmentsRejected, attachmentsSent, rejected, remaining: remainingQueue.length, sent }
 }

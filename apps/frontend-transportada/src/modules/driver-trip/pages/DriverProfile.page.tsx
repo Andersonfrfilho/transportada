@@ -9,9 +9,12 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
 import type { DriverTripSnapshot } from '../shared/driverTrip.types'
+import { listProofPendingDocuments } from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverProfilePageProps = Readonly<{
+  /** Spec 159 (T12): quem vê a nota cair acha dali o caminho para as fotos que faltam. */
+  onOpenPendingProofs: () => void
   onOpenQueue: () => void
   queuedCount: number
   snapshot: DriverTripSnapshot | undefined
@@ -27,8 +30,14 @@ const FIELD_ROLE_LABEL_KEYS: Readonly<Record<string, string>> = {
  * Spec 082 D1: nome, papel, veículo da viagem corrente e o estado da fila offline — o que o
  * motorista precisa conferir sem sair da viagem. Sair reutiliza o mesmo logout do shell do app.
  */
-export function DriverProfilePage({ onOpenQueue, queuedCount, snapshot }: DriverProfilePageProps) {
+export function DriverProfilePage({
+  onOpenPendingProofs,
+  onOpenQueue,
+  queuedCount,
+  snapshot,
+}: DriverProfilePageProps) {
   const { t } = useTranslation('driverTrip')
+  const pendingProofCount = listProofPendingDocuments(snapshot).length
   const authMeQuery = useAuthMeQuery()
   const profile = getKeycloakAuthProvider().getProfile()
   const trip = snapshot?.trips[0]
@@ -62,6 +71,27 @@ export function DriverProfilePage({ onOpenQueue, queuedCount, snapshot }: Driver
           <p className={styles.profileMeta}>{t('profile.noTrip')}</p>
         ) : (
           <p className={styles.profileMeta}>{t('vehicle', { plate: trip.vehiclePlate })}</p>
+        )}
+      </section>
+
+      <section className={styles.profileCard}>
+        <h2 className={styles.profileSectionTitle}>{t('profile.scoreTitle')}</h2>
+        {snapshot?.score === undefined || snapshot.score === null ? (
+          <p className={styles.profileMeta}>{t('profile.scoreNone')}</p>
+        ) : (
+          <p className={styles.profileScore}>{t('profile.score', { score: snapshot.score })}</p>
+        )}
+        <p className={styles.profileMeta}>{t('profile.scoreHint')}</p>
+        {pendingProofCount === 0 ? null : (
+          <Button
+            className={styles.eventQueueOpenButton}
+            type="button"
+            variant="secondary"
+            onClick={onOpenPendingProofs}
+          >
+            <Icon name="camera" />
+            {t('pendingProofs.open')} ({pendingProofCount})
+          </Button>
         )}
       </section>
 

@@ -115,7 +115,7 @@ manutenção nossa.
 `osrm-contract` (que é do algoritmo CH) e servir com `mld` faz o container subir e recusar toda
 consulta.
 
-## Carregar as praças de pedágio do mesmo `.pbf` (spec 090)
+## Carregar as praças de pedágio do mesmo `.pbf` (spec 090, com subida pelo produto desde 154)
 
 O catálogo de praças sai do **mesmo arquivo** que alimenta o roteirizador — nunca de uma consulta em
 tempo de execução. Reconstruiu o extract? recarregue as praças, ou o mapa e a tarifa passam a
@@ -146,8 +146,9 @@ quando foi rodado, e reajuste de pedágio é anual.
 
 ### O extract fica versionado no bucket do ambiente
 
-O JSON do extrator é guardado no bucket de objetos do próprio ambiente (`OBJECT_STORAGE_BUCKET`),
-com a data do `.pbf` na chave — nunca no git, e nunca sobrescrito (`put` em modo `create-only`):
+O JSON do extrator é subido pelo **produto** (rota `POST /v1/toll-booths/extracts`, permissão
+`settings.manage`), guardado no bucket de objetos do próprio ambiente (`OBJECT_STORAGE_BUCKET`) com
+a data do `.pbf` na chave — nunca no git, e nunca sobrescrito (`put` em modo `create-only`):
 
 ```
 toll-booths/osm/<dataset>/<AAAA-MM-DD>/toll-booths.json   # entrada do seed
@@ -159,10 +160,34 @@ A data é o `Last-Modified` do arquivo do Geofabrik, e é ela que vai no `--obse
 nó, e um recorte menor (o `ribeirao.osm.pbf` local tem 166 praças) deixa de fora as praças que o
 roteirizador cruza fora dele.
 
+O fluxo é:
+
+1. Rodar `bun run --cwd apps/api-transportada scripts/toll-booth-extract.ts --pbf <arquivo> --out /tmp/pracas.json`
+2. Preparar o JSON como corpo de `POST /v1/toll-booths/extracts?dataset=<dataset>&observedOn=<AAAA-MM-DD>`
+   (usuário com `settings.manage`); o objeto sobe para o bucket em modo `create-only` e **só depois** a
+   linha é gravada em `toll_booth_extracts` — sequencial, não a mesma transação (bucket não entra em
+   transação de banco); o objeto vem primeiro de propósito, para nunca deixar uma linha apontando para
+   um objeto que não existe. A subida é idempotente por `(dataset, observedOn)`: tentar de novo com os
+   mesmos bytes responde `409` e o objeto do bucket não é sobrescrito.
+3. Na tela (Frota → Pedágio), o operador abre o **seletor de extratos** — lista do mais novo para o mais antigo
+   — e toca em **recarregar** (`POST /v1/toll-booths/reload?dataset=<dataset>&observedOn=<...>`).
+   A recarga **não apaga praça nenhuma** — só faz upsert pela chave `osm_node_id` — e é **idempotente**: rodar
+   de novo com o mesmo extrato deixa `toll_booths` exatamente igual (não muda nem `updated_at`). Só uma
+   recarga roda por vez (segunda responde `409 TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS`).
+
+**Caso especial: extrato velho, catálogo novo.** Nenhuma linha de `toll_booth_extracts` some — a
+recarga (D7) nunca apaga nada, e `GET /v1/toll-booths/extracts` lista **todo** extrato já registrado,
+do mais novo ao mais antigo, sem filtrar por idade. Um extrato desatualizado continua aparecendo no
+seletor da tela, disponível para recarregar de novo se for o caso. O que muda é o resultado da
+recarga em si: se o `.pbf` novo não trouxer mais uma praça que o catálogo já conhecia, essa praça não
+é apagada (D7) — ela fica com `catalogKnown: true` e a data antiga, e o operador vê quantas praças
+"ficaram de fora" do extrato escolhido no resultado da recarga. Quem quiser corrigir a tarifa dessas
+praças à mão, a aba continua listando o catálogo inteiro — só muda a fonte, de catálogo para manual.
+
 Registro (15/09/2026): staging usa `sudeste-latest.osm.pbf` (Last-Modified 14/09/2026) — 592 praças,
 579 com tarifa, 571 com tarifa por eixo, em `toll-booths/osm/sudeste/2026-09-14/` do bucket de
-staging. Seed rodado em staging no mesmo dia, a partir desse objeto e com `--observed-on 2026-09-14`:
-`toll_booths` ficou com 592 linhas, 571 com tarifa por eixo. Produção ainda não foi carregada.
+staging. Extrato subido pela API (`POST /extracts`) e recarregado via tela em 17/09/2026:
+`toll_booths` ficou com 592 linhas, 571 com tarifa por eixo (idêntico). Produção ainda não foi carregada.
 
 ⚠️ **A tarifa carregada é a do OSM, não a oficial.** O mapa serve de cobertura (onde a praça está),
 nunca de preço (spec 095, "Como o mercado faz"); importar ANTT/ARTESP segue fora de escopo, e até lá

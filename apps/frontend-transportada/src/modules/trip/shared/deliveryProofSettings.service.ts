@@ -4,6 +4,13 @@ import { isRecord, isString } from './tripGuards.validation'
 /** Spec 082 (ADR-0057): a configuração é da empresa — o app do campo lê o resolvido no snapshot. */
 export const DELIVERY_PROOF_SETTINGS_PATH = '/company-settings/delivery-proof'
 export const DELIVERY_PROOF_OVERRIDES_PATH = '/company-settings/delivery-proof/overrides'
+/**
+ * Spec 156 T13, ADR-0069 §6: o escritório (`trip.report-on-behalf`) lê só o interruptor da leitura
+ * do canhoto — a configuração inteira do comprovante é `settings.manage`.
+ */
+export const FIELD_DELIVERY_SETTINGS_PATH = '/trips/field-delivery-settings'
+
+export type FieldDeliverySettings = Readonly<{ canhotoOcrEnabled: boolean }>
 
 /** Cópia por valor do catálogo da API — o bundle não importa código dela. */
 export const DELIVERY_PROOF_FIELD_MODES = ['required', 'optional', 'off'] as const
@@ -59,4 +66,101 @@ export function isDeliveryProofSettingsOverride(
   value: unknown,
 ): value is DeliveryProofSettingsOverride {
   return isRecord(value) && isString(value['taxId']) && isDeliveryProofFieldSettings(value)
+}
+
+export function isFieldDeliverySettings(value: unknown): value is FieldDeliverySettings {
+  return isRecord(value) && typeof value['canhotoOcrEnabled'] === 'boolean'
+}
+
+/** Spec 159 RF7, ADR-0070 §7: os cinco parâmetros da nota do motorista, junto do comprovante. */
+export const DELIVERY_PROOF_PUNCTUALITY_FIELDS = [
+  'proofWindowMinutes',
+  'proofRadiusMeters',
+  'latePenaltyPoints',
+  'missingPenaltyPoints',
+  'missingAfterHours',
+] as const
+export type DeliveryProofPunctualityField = (typeof DELIVERY_PROOF_PUNCTUALITY_FIELDS)[number]
+
+export type DeliveryProofPunctualitySettings = Readonly<
+  Record<DeliveryProofPunctualityField, number>
+>
+
+/** Faixas do RF7 — fora delas a API recusa com `400 invalidRequest`; o painel valida o mesmo antes. */
+export const DELIVERY_PROOF_PUNCTUALITY_RANGES: Readonly<
+  Record<DeliveryProofPunctualityField, Readonly<{ max: number; min: number }>>
+> = {
+  latePenaltyPoints: { max: 100, min: 0 },
+  missingAfterHours: { max: 168, min: 1 },
+  missingPenaltyPoints: { max: 100, min: 0 },
+  proofRadiusMeters: { max: 5000, min: 50 },
+  proofWindowMinutes: { max: 1440, min: 5 },
+}
+
+/** ADR-0070 §7: os padrões de fábrica — 60 min, 300 m, 5 e 10 pontos, 24 h. */
+export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctualitySettings = {
+  latePenaltyPoints: 5,
+  missingAfterHours: 24,
+  missingPenaltyPoints: 10,
+  proofRadiusMeters: 300,
+  proofWindowMinutes: 60,
+}
+
+/**
+ * O corpo do `PUT/GET` geral: os quatro modos + os cinco parâmetros + o interruptor da leitura do
+ * canhoto (spec 156 T14, ADR-0069 §6) — a exceção por CNPJ não carrega nenhum dos dois.
+ */
+export type CompanyDeliveryProofSettings = DeliveryProofFieldSettings &
+  DeliveryProofPunctualitySettings &
+  Readonly<{ canhotoOcrEnabled: boolean }>
+
+export function isDeliveryProofPunctualityValue(
+  field: DeliveryProofPunctualityField,
+  value: number,
+): boolean {
+  const range = DELIVERY_PROOF_PUNCTUALITY_RANGES[field]
+  return Number.isInteger(value) && value >= range.min && value <= range.max
+}
+
+/**
+ * Spec 159 (T11, item 7): o campo em branco **nunca** vira `0` silencioso — `Number('')` é `0`, e
+ * `latePenaltyPoints`/`missingPenaltyPoints` aceitam `0` como valor válido, então o campo vazio
+ * passaria como "zero pontos" sem o motorista ter digitado nada. Vazio vira `NaN`: reprova
+ * `Number.isInteger` em `isDeliveryProofPunctualityValue` e aparece com a mensagem de erro do campo.
+ */
+export function resolvePunctualityFieldValue(input: {
+  readonly draftValue: string | undefined
+  readonly fallback: number
+}): number {
+  if (input.draftValue === undefined) return input.fallback
+  if (input.draftValue.trim() === '') return Number.NaN
+  const parsed = Number(input.draftValue)
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
+export function isDeliveryProofPunctualitySettings(
+  value: unknown,
+): value is DeliveryProofPunctualitySettings {
+  return (
+    isRecord(value) &&
+    DELIVERY_PROOF_PUNCTUALITY_FIELDS.every(
+      (field) =>
+        typeof value[field] === 'number' && isDeliveryProofPunctualityValue(field, value[field]),
+    )
+  )
+}
+
+/**
+ * Spec 156 T14, ADR-0069 §6: o interruptor da leitura do canhoto entra na mesma verificação — a
+ * API sempre o devolve junto dos quatro modos e dos cinco parâmetros de pontualidade.
+ */
+export function isCompanyDeliveryProofSettings(
+  value: unknown,
+): value is CompanyDeliveryProofSettings {
+  return (
+    isRecord(value) &&
+    typeof value['canhotoOcrEnabled'] === 'boolean' &&
+    isDeliveryProofFieldSettings(value) &&
+    isDeliveryProofPunctualitySettings(value)
+  )
 }

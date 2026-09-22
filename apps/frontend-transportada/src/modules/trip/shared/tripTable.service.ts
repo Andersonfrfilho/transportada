@@ -45,6 +45,17 @@ export function nextTripSortState(current: TripSortState, column: TripColumnKey)
  */
 const MONEY_COLUMNS = new Set<TripColumnKey>(['cargoValue', 'revenue'])
 
+/**
+ * Spec 156 L6: sem `trip.financials` a API tira `amounts` da linha, e a coluna sai junto — "sem
+ * valor" ali afirmaria que a carga não tem preço, quando o que falta é a permissão.
+ */
+export function visibleTripColumns(input: {
+  readonly canReadFinancials: boolean
+}): readonly TripColumnKey[] {
+  if (input.canReadFinancials) return TRIP_COLUMN_KEYS
+  return TRIP_COLUMN_KEYS.filter((column) => !MONEY_COLUMNS.has(column))
+}
+
 function moneyValue(row: Trip, column: TripColumnKey): null | number {
   const amount =
     column === 'cargoValue'

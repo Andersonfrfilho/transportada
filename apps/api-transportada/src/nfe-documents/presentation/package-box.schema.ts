@@ -7,7 +7,7 @@ import { invalidRequest } from '../../http/request-parsing.service.js'
 import {
   MARGIN_RELIABLE_MM,
   MARGIN_UNRELIABLE_MM,
-  PACKAGE_BOX_MEASUREMENT_SOURCES,
+  PACKAGE_BOX_MEASURED_SOURCES,
   PACKAGE_BOX_MEASUREMENT_WARNINGS,
 } from '../domain/package-box-measurement.constant.js'
 import { resolveMeasurementMargin } from '../domain/package-box-measurement.policy.js'
@@ -46,7 +46,7 @@ const measurementSchema = z
     heightMm: z.number().int().positive().max(3000),
     lengthMm: z.number().int().positive().max(6000),
     /** D8 revista: `typed` é o padrão retrocompatível — o corpo antigo, sem `source`, grava `typed`. */
-    source: z.enum(PACKAGE_BOX_MEASUREMENT_SOURCES).default('typed'),
+    source: z.enum(PACKAGE_BOX_MEASURED_SOURCES).default('typed'),
     unitsPerBox: z.number().int().positive().max(10_000).default(1),
     widthMm: z.number().int().positive().max(3000),
   })
@@ -112,6 +112,27 @@ const measurementSchema = z
 
 export function parsePackageBoxMeasurement(body: unknown): PackageBoxMeasurement {
   const parsed = measurementSchema.safeParse(body)
+  if (!parsed.success) throw invalidRequest()
+  return parsed.data
+}
+
+const MAX_REPLICATE_TARGETS = 200
+
+/** Spec 155 (G004): 1..200 UUIDs únicos — duplicata no corpo não é erro do domínio, é do cliente. */
+const replicateSchema = z
+  .object({
+    targetIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(MAX_REPLICATE_TARGETS)
+      .refine((ids) => new Set(ids).size === ids.length, { message: 'target ids must be unique' }),
+  })
+  .strict()
+
+export function parsePackageBoxReplication(body: unknown): {
+  readonly targetIds: readonly string[]
+} {
+  const parsed = replicateSchema.safeParse(body)
   if (!parsed.success) throw invalidRequest()
   return parsed.data
 }

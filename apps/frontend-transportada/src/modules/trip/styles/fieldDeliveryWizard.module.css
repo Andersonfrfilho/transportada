@@ -1,0 +1,273 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+/* O assistente abre em portal, fora de `.tripShell`: o alvo de toque do celular vem declarado aqui. */
+.overlay {
+  --control-height-compact: var(--touch-target);
+
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+/* Mesma moldura dos diálogos vizinhos da viagem (`mdfeGateDialog`): grafite, borda cobre suave. */
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-4);
+  overflow-y: auto;
+  border: none;
+  color: var(--color-fog);
+  background: var(--color-graphite);
+}
+
+.dialog label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+/* O campo cru saía com 21px e o fundo branco do navegador — os tokens de campo, iguais ao `Select`. */
+.dialog input:not([type='file'], [type='checkbox'], [type='radio']) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.35rem;
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-ink, #000);
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Sobre o papel branco do canhoto a faixa precisa ser quase opaca — a 65% o texto caía abaixo de 4.5:1. */
+.banner {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  left: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-fog);
+  background: color-mix(in srgb, var(--color-asphalt) 92%, transparent);
+  border-radius: var(--radius-md, 0);
+}
+
+/* A mesma faixa, no fluxo do diálogo, quando não há vídeo embaixo dela. */
+.bannerStatic {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-fog);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.bannerProgress {
+  font-size: 0.8rem;
+}
+
+.bannerDocument {
+  font-size: 1.1rem;
+}
+
+.bannerRecipient,
+.bannerCity {
+  font-size: 0.9rem;
+}
+
+.captureStep {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.captureActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A ação principal do passo fica à mão no celular: presa ao pé do diálogo, sem rolar até ela. */
+.stepActions {
+  position: sticky;
+  bottom: calc(-1 * var(--space-4));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-inline: calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  background: var(--color-graphite);
+}
+
+.notice {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.9rem;
+}
+
+.noticeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.9rem;
+}
+
+.reviewStep {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* A foto não empurra a conferência para fora da tela: altura limitada, proporção preservada. */
+.reviewPreview {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 34vh;
+  object-fit: contain;
+  background: var(--color-ink, #000);
+  border-radius: var(--radius-md, 0);
+}
+
+.reviewFields {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+.finishedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.finishedListItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+}
+
+.finishedDocument {
+  display: grid;
+  gap: 0;
+}
+
+.finishedRecipient {
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+/* Spec 156 T12: o resultado por nota depois do envio — mesma linha do `finishedListItem`. */
+.sendStatusDelivered,
+.sendStatusFailed,
+.sendStatusNeutral {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+}
+
+.sendStatusDelivered {
+  color: var(--color-ready);
+}
+
+.sendStatusFailed {
+  color: var(--color-alert);
+}
+
+.sendStatusNeutral {
+  color: var(--color-slate);
+}
+
+.summaryFailed {
+  color: var(--color-alert);
+}
+
+@media (min-width: 40rem) {
+  .overlay {
+    --control-height-compact: var(--field-height-compact);
+
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(40rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    padding: var(--space-5);
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+    box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  }
+
+  .stepActions {
+    bottom: calc(-1 * var(--space-5));
+    margin-inline: calc(-1 * var(--space-5));
+    padding-inline: var(--space-5);
+  }
+
+  .viewport {
+    flex: none;
+    aspect-ratio: 4 / 3;
+  }
+
+  .reviewFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

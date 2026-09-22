@@ -394,6 +394,14 @@ export const fleetDrivers = pgTable(
     paymentPeriod: text('payment_period').$type<DriverPaymentPeriod>(),
     /** Dia do fechamento. Na quinzena, o segundo fechamento é este dia + 15 (ou o fim do mês). */
     paymentClosingDay: bigint('payment_closing_day', { mode: 'number' }),
+    /**
+     * Spec 143 D3: a diária combinada só deste motorista. Nula é o normal — sem ela vale o valor
+     * geral da empresa, e sem configuração nenhuma vale o padrão do sistema.
+     *
+     * ⚠️ É ortogonal ao `payment_model`: o motorista da casa também recebe diária, **além** do
+     * salário (D2), porque ela paga o dia fora, não a hora trabalhada.
+     */
+    dailyAllowanceAmount: numeric('daily_allowance_amount', { precision: 19, scale: 4 }),
     licenseNumber: text('license_number').notNull().default(''),
     licenseCategory: text('license_category').$type<LicenseCategory | ''>().notNull().default(''),
     licenseExpiresAt: date('license_expires_at'),
@@ -546,6 +554,11 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_payment_shape_check',
       sql`(${table.paymentModel} = 'fixed' and ${table.fixedAmount} is not null and ${table.fixedAmount} > 0 and ${table.paymentPeriod} is not null and ${table.paymentClosingDay} between 1 and 28) or (${table.paymentModel} = 'route_table' and ${table.fixedAmount} is null and ${table.paymentPeriod} is null and ${table.paymentClosingDay} is null)`,
+    ),
+    /** Diária zero ou negativa é motorista pagando para dirigir. Ausente continua sendo ausência. */
+    check(
+      'fleet_drivers_daily_allowance_check',
+      sql`${table.dailyAllowanceAmount} is null or ${table.dailyAllowanceAmount} > 0`,
     ),
     check(
       'fleet_drivers_payment_period_check',

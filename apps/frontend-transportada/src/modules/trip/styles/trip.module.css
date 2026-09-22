@@ -142,6 +142,13 @@
   font-size: 0.82rem;
 }
 
+/** Spec 156 T14: o interruptor ligado — mesmo verde de sucesso do resto do módulo. */
+.settingsStatusOn {
+  margin: 0;
+  color: var(--color-ready);
+  font-size: 0.8rem;
+}
+
 .tableScroll {
   position: relative;
   overflow-x: auto;
@@ -163,6 +170,12 @@
 
 .dataTable tbody tr:nth-child(even) {
   background: color-mix(in srgb, var(--color-asphalt) 32%, transparent);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .sortButton {
@@ -281,12 +294,26 @@
   font-size: 0.78rem;
 }
 
+/**
+ * Design (T15, achado da T14): a borda cobre destoava do painel cinza (`.panel`, `--color-slate`)
+ * que a envolve — "Ações de campo" e "Ações da viagem" moram dentro do detalhe da viagem, e um
+ * bloco interno com borda mais saturada que o próprio contêiner lia como destaque não intencional.
+ * Mesma régua de borda do `.panel`, um tom mais escuro de fundo para diferenciar o bloco.
+ */
 .actionForm {
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 92%, transparent);
+}
+
+/* O seletor "Em nome do motorista" saía com a fonte do corpo — mesmo rótulo de `.fieldGrid label`. */
+.actionForm label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
 }
 
 .actionActions {
@@ -296,6 +323,9 @@
 }
 
 .mdfeGateOverlay {
+  /* Portal fora de `.tripShell`: sem isto o botão compacto do diálogo ficava com 38px no celular. */
+  --control-height-compact: var(--touch-target);
+
   position: fixed;
   z-index: 40;
   inset: 0;
@@ -308,6 +338,8 @@
 
 .mdfeGateDialog {
   display: grid;
+  /* Tela cheia no celular: sem isto as linhas do grid se esticavam e abriam vãos entre os campos. */
+  align-content: start;
   gap: var(--space-4);
   width: 100%;
   height: 100%;
@@ -325,6 +357,45 @@
   gap: var(--space-3);
   align-items: flex-start;
   justify-content: space-between;
+}
+
+/**
+ * Design (T15): o campo "Observação" (textarea cru do `FieldOccurrenceDialog`) saía com o fundo
+ * default do navegador, branco, ao lado do `Select` do design system — mesmos tokens do campo em
+ * `.occurrenceForm textarea`, para os dois lerem como o mesmo tipo de controle.
+ */
+.mdfeGateDialog textarea {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+  width: 100%;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  color: var(--color-fog);
+  font-family: inherit;
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+/* "Chegou em" e a distância da ocorrência de parada saíam crus: 21px e o fundo do navegador. */
+.mdfeGateDialog label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.mdfeGateDialog input:not([type='file'], [type='checkbox'], [type='radio']) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
 .mdfeGateHeader h2 {
@@ -403,6 +474,8 @@
   }
 
   .mdfeGateOverlay {
+    --control-height-compact: var(--field-height-compact);
+
     padding: var(--space-4);
   }
 
@@ -703,6 +776,12 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* A lista de cargas fica numa coluna própria, fora da fileira de botões do vínculo. */
+.stopSection {
+  display: grid;
+  gap: var(--space-2);
 }
 
 .stopCard {
@@ -1141,6 +1220,33 @@
   color: var(--color-copper);
 }
 
+/* O custo da rota lido de relance: combustível, pedágio e total saem do caixa, e por isso em alerta. */
+.routeCost {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.routeCost div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.routeCost dt {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.routeCost dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.routeCostExpense {
+  color: var(--color-alert);
+}
+
 /* Cada grupo de tipos numa coluna: a lista é curta e quebra sozinha no celular (web.md §10). */
 .occurrenceStage {
   display: grid;
@@ -1335,6 +1441,11 @@
   color: var(--color-copper);
 }
 
+/* A montagem abre em portal, fora de `.tripShell`: o atalho ao ajuste não herda o alvo de toque. */
+.tollStatementAction {
+  min-height: var(--touch-target);
+}
+
 /* O seletor de rota alternativa (spec 096 T3), logo abaixo do bloco de pedágio. */
 .routeOptions {
   display: flex;
@@ -1358,16 +1469,58 @@
   align-items: flex-start;
   gap: var(--space-1);
   height: auto;
-  padding: var(--space-2) var(--space-3);
+  min-width: 15rem;
+  padding: var(--space-3);
   text-align: left;
   white-space: normal;
 }
 
-/* "mais rápida"/"mais barata": discreta, como a marca de estimativa ao lado do peso. */
+/*
+ * ⚠️ A escolhida é borda e fundo **translúcido** de cobre, nunca cobre sólido: sobre o sólido o
+ * texto e o selo sumiam. Mesmo desenho dos chips da planta de carga (`.cargoStopChip`).
+ */
+.routeOption[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-color: var(--color-copper);
+  box-shadow: inset 0 0 0 1px var(--color-copper);
+}
+
+.routeOption[aria-pressed='true'] .routeOptionHeader > svg {
+  color: var(--color-copper);
+}
+
+.routeOptionHeader {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-height: var(--control-height-compact);
+}
+
+/* O total é o que decide a escolha — é a linha que o olho acha primeiro. */
+.routeOptionTotal {
+  color: var(--color-fog);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.routeOptionFacts {
+  color: color-mix(in srgb, var(--color-fog) 78%, var(--color-slate) 22%);
+  font-size: 0.85rem;
+}
+
+/* "mais rápida"/"mais barata": selo com contraste próprio, legível em qualquer fundo do cartão. */
 .routeOptionBadge {
-  color: var(--color-slate);
-  font-size: 0.72rem;
-  font-style: italic;
+  background: color-mix(in srgb, var(--color-fog) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-fog) 30%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  color: var(--color-fog);
+  font-size: 0.75rem;
+  align-items: center;
+  display: inline-flex;
+  font-weight: 600;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
 }
 
 /*
@@ -1883,7 +2036,7 @@
   align-items: center;
   background: color-mix(in srgb, var(--color-asphalt) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-sm, 0.25rem);
   color: var(--color-copper);
   display: flex;
   font-size: 0.8rem;
@@ -2320,148 +2473,6 @@
 }
 
 /**
- * Spec 110 D4: a linha do tempo do dia. O trilho corre por trás de tudo; a marca de cada evento o
- * atravessa. Parada é número, praça é quadrado, base é losango vazado, pagamento é `R$`.
- */
-.timeline {
-  display: grid;
-  margin: var(--space-1) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.timelineRow {
-  display: grid;
-  gap: var(--space-2);
-  align-items: stretch;
-  grid-template-columns: var(--space-6) 1fr;
-}
-
-.timelineRail {
-  position: relative;
-  display: flex;
-  min-height: var(--space-5);
-  align-items: center;
-  justify-content: center;
-}
-
-.timelineRail::before {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: color-mix(in srgb, var(--color-slate) 28%, transparent);
-  content: '';
-}
-
-.timelineBody {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 3px 0;
-  font-size: 0.8rem;
-}
-
-.timelineMeta {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
-  font-size: 0.74rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.timelineDot {
-  position: relative;
-  display: grid;
-  width: var(--space-5);
-  height: var(--space-5);
-  place-items: center;
-  color: var(--color-ink-on-accent);
-  font-family: var(--font-utility);
-  font-size: 0.62rem;
-  font-weight: 700;
-  background: var(--color-copper);
-}
-
-.timelineBase {
-  position: relative;
-  width: var(--space-3);
-  height: var(--space-3);
-  border: 2px solid var(--color-copper);
-  background: var(--color-asphalt);
-}
-
-.timelineOpenEnd {
-  position: relative;
-  width: var(--space-3);
-  height: var(--space-3);
-  border: 2px dashed color-mix(in srgb, var(--color-slate) 60%, transparent);
-  border-radius: 50%;
-  background: var(--color-graphite);
-}
-
-.timelineToll,
-.timelineTollUnknown {
-  position: relative;
-  display: grid;
-  width: var(--space-4);
-  height: var(--space-4);
-  place-items: center;
-  font-family: var(--font-utility);
-  font-size: 0.6rem;
-  font-weight: 700;
-}
-
-.timelineToll {
-  color: var(--color-ink-on-accent);
-  background: var(--color-copper);
-}
-
-/* Tarifa não conhecida é vazada: ela ocupa o lugar sem afirmar um valor que ninguém tem. */
-.timelineTollUnknown {
-  border: 1px solid var(--color-copper);
-  color: var(--color-copper);
-  background: var(--color-graphite);
-}
-
-.timelineBooth {
-  font-size: 0.76rem;
-}
-
-.timelineGap {
-  color: var(--color-copper);
-}
-
-.timelineApproximate {
-  margin-left: var(--space-2);
-  padding: 1px 6px;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 50%, transparent);
-  color: var(--color-copper);
-  font-family: var(--font-utility);
-  font-size: 0.6rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.timelinePayment {
-  margin-top: var(--space-1);
-}
-
-.timelinePaymentMark {
-  position: relative;
-  display: grid;
-  width: var(--space-5);
-  height: var(--space-5);
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 60%, transparent);
-  color: var(--color-copper);
-  font-family: var(--font-utility);
-  font-size: 0.52rem;
-  font-weight: 700;
-  background: var(--color-graphite);
-}
-
-/**
  * Spec 110 D2: a linha da proposta. Caixa fora do gatilho, identidade à esquerda, seis números à
  * direita e as ações no fim — com o espaço dos três botões sempre reservado.
  */
@@ -2817,19 +2828,13 @@
   flex: 1 1 20rem;
 }
 
-/* A parada tirada continua desenhada: nada é destruído antes do recálculo. */
-.timelineRemoved {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
-  text-decoration: line-through;
-}
-
 /** Spec 145 T13 (D4): o selo de "reorganizando a carga", com texto — nunca só a cor. */
 .cargoWaitBadge {
   align-items: center;
   align-self: flex-start;
   background: color-mix(in srgb, var(--color-copper) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-sm, 0.25rem);
   color: var(--color-copper);
   display: inline-flex;
   font-size: 0.8rem;
@@ -2878,4 +2883,29 @@
   .cargoWireframe {
     animation: none;
   }
+}
+
+/* O rascunho da montagem guardado com o diálogo fechado: faixa discreta, ações à direita. */
+.draftBanner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
+}
+
+.draftBanner > p {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+/* Quando o aviso é longo e quebra, os botões descem mas continuam à direita, como nas faixas curtas. */
+.draftBannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
 }

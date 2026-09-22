@@ -60,7 +60,9 @@ function RateField(props: RateFieldProps) {
         onChange={(event) => props.onChange(props.field, event.target.value)}
       />
       {props.origin === null ? null : (
-        <span className={styles.federalTaxOrigin}>{t(`federalTaxes.origin.${props.origin}`)}</span>
+        <span className={styles.settingsFormOrigin}>
+          {t(`federalTaxes.origin.${props.origin}`)}
+        </span>
       )}
     </label>
   )
@@ -71,7 +73,7 @@ function FederalTaxForm(props: FederalTaxPanelProps) {
   const form = useFederalTaxForm({ stored: props.stored, taxRegime: props.taxRegime })
   const submission = form.submission
   return (
-    <div className={styles.federalTaxFields}>
+    <div className={styles.settingsFormFields}>
       {/* O `Select` do DS recebe o nome acessível por `ariaLabel`; aqui é só o texto visível. */}
       <p className={styles.sectionKicker}>{t('federalTaxes.regimeLabel')}</p>
       <Select
@@ -86,10 +88,10 @@ function FederalTaxForm(props: FederalTaxPanelProps) {
         onChange={form.handleRegimeChange}
       />
       {form.draft.regime === 'simple' ? (
-        <p className={styles.federalTaxNote}>{t('federalTaxes.simpleNote')}</p>
+        <p className={styles.settingsFormNote}>{t('federalTaxes.simpleNote')}</p>
       ) : null}
       {form.draft.regime === 'real' ? (
-        <p className={styles.federalTaxNote}>{t('federalTaxes.realNote')}</p>
+        <p className={styles.settingsFormNote}>{t('federalTaxes.realNote')}</p>
       ) : null}
       <RateField
         disabled={props.disabled}
@@ -105,7 +107,7 @@ function FederalTaxForm(props: FederalTaxPanelProps) {
         value={form.draft.cofins}
         onChange={form.handleRateChange}
       />
-      <div className={styles.federalTaxActions}>
+      <div className={styles.settingsFormActions}>
         <button
           disabled={props.disabled || submission === null}
           type="button"
@@ -137,7 +139,7 @@ export function FederalTaxPanel(props: FederalTaxPanelProps) {
         <p className={styles.sectionKicker}>{t('federalTaxes.kicker')}</p>
         <h2 id="federal-taxes-title">{t('federalTaxes.title')}</h2>
       </div>
-      <p className={styles.federalTaxNote}>{t('federalTaxes.hint')}</p>
+      <p className={styles.settingsFormNote}>{t('federalTaxes.hint')}</p>
       {props.loading ? (
         <FederalTaxSkeleton />
       ) : (

@@ -71,6 +71,30 @@ describe('relatório de endereços a corrigir (spec 084, G10)', () => {
     expect(report.groups[0]?.findings[0]?.providerStreet).toBe('')
   })
 
+  /** RF11: campo novo, opcional — ausente ou nulo não quebra a leitura do relatório. */
+  test('recipientName ausente vira null, sem quebrar o achado', () => {
+    const report = mapAddressReport(corpo('street_unknown'))
+    expect(report.groups[0]?.findings[0]?.recipientName).toBeNull()
+  })
+
+  test('recipientName presente chega ao achado', () => {
+    const base = corpo('street_unknown')
+    const comNome: unknown = {
+      data: {
+        ...base.data,
+        groups: [
+          {
+            ...base.data.groups[0],
+            findings: [{ ...base.data.groups[0]?.findings[0], recipientName: 'JOAO DA SILVA' }],
+          },
+        ],
+      },
+    }
+
+    const report = mapAddressReport(comNome)
+    expect(report.groups[0]?.findings[0]?.recipientName).toBe('JOAO DA SILVA')
+  })
+
   /**
    * ⚠️ **Tipo desconhecido derruba a linha, não a tela.** A API pode ganhar um tipo antes de esta
    * app subir; uma tela em branco esconderia os vinte e três pedidos que a versão antiga entende,

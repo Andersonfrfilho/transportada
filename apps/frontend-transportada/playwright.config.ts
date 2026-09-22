@@ -25,7 +25,12 @@ const REUSE_EXISTING_FRONTEND_SERVER = shouldReuseExistingServer(
 
 export default defineConfig({
   testDir: './test',
-  testMatch: 'responsive.smoke.spec.ts',
+  /** Os prints de revisão de design (spec 159 T12) rodam por fora: não entram no smoke da CI. */
+  testMatch: process.env.PLAYWRIGHT_TEST_MATCH ?? [
+    'responsive.smoke.spec.ts',
+    'field-delivery.smoke.spec.ts',
+    'trip-timeline.smoke.spec.ts',
+  ],
   workers: 1,
   use: {
     baseURL: `http://localhost:${FRONTEND_PORT}`,

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
@@ -10,6 +10,7 @@ import type {
   TripDocumentProduct,
   TripOccurrence,
 } from '../shared/trip.types'
+import { reduceImageFileToJpeg } from '../shared/fieldDeliveryImage.service'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 import {
   type CargoLayoutPendingEpisode,
@@ -25,29 +26,44 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import {
+  canReadTrip,
   CTE_SUBMIT_PERMISSION,
   MDFE_MANAGE_PERMISSION,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
   TRIP_QUERY_KEY,
   TRIP_READ_PERMISSION,
+  TRIP_REPORT_ON_BEHALF_PERMISSION,
 } from '../shared/trip.constant'
 import type {
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
+  ConfirmLoadTripInput,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
   DispatchTripInput,
   DispatchTripResult,
+  FieldDeliverDocumentInput,
+  FieldOccurrenceType,
+  FieldReportIdResult,
+  FieldReturnDocumentInput,
+  FieldSettlementResult,
+  FieldTripStepResult,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
+  RegisterFieldOccurrencesInput,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
+  ReportFieldDeliveryInput,
+  ReportFieldDeliveryResult,
+  ReportStopArrivalInput,
+  ReportStopOccurrenceInput,
   ScannedNfeDocument,
+  StartFieldTripInput,
   TripFiscalReadiness,
   TransitionTripDocumentInput,
   TransitionTripDocumentResult,
@@ -58,22 +74,51 @@ import type {
   TripDocumentActionInput,
   TripMdfeRequirement,
 } from '../shared/trip.types'
+import { useTripAllowedActions } from './useTripAllowedActions.hook'
 import { createTripClient, type TripClient } from '../shared/tripClient.service'
+import { runFieldActionQueue } from '../shared/tripFieldActionQueue.service'
 
 export type TripController = Readonly<{
   batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   canManageTrips: boolean
   canReadTrips: boolean
+  /**
+   * Spec 156 D11: `fleet.read` propriamente dito — geometria, agendamento, prontidão fiscal e
+   * produtos continuam só nele (`TRIP_READ_POLICY` no backend, nunca a variante `anyPermission`).
+   * `canReadTrips` (a variante larga) abre as cinco leituras do D11; este é o recorte estrito que
+   * decide se esses painéis aparecem, para o `finance` não bater 403 contra eles.
+   */
+  canReadTripFleetDetails: boolean
+  /** Spec 156 D1: `trip.report-on-behalf` — a baixa do escritório em nome do motorista. */
+  canReportOnBehalf: boolean
   canManageMdfe: boolean
   canSubmitCte: boolean
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
     input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
   ) => Promise<TripCteBatchResult>
-  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
+  /** Spec 156 T8b, ADR-0067: entrega com autoria, `trip.report-on-behalf`. */
+  fieldDeliverDocument: (input: FieldDeliverDocumentInput) => Promise<FieldSettlementResult>
+  /** Spec 156 T8b, ADR-0067: devolução com autoria, `trip.report-on-behalf`. */
+  fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readTripAllowedActions: (
+    input: Readonly<{ documentIds: readonly string[]; stopIds: readonly string[]; tripId: string }>,
+  ) => ReturnType<TripClient['readTripAllowedActions']>
+  reportStopArrival: (input: ReportStopArrivalInput) => Promise<FieldReportIdResult>
+  reportStopOccurrence: (input: ReportStopOccurrenceInput) => Promise<FieldReportIdResult>
+  startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
+  /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
+  readFieldOccurrenceTypes: () => Promise<readonly FieldOccurrenceType[]>
+  /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences`, uma nota ou o lote da seleção. */
+  registerFieldOccurrences: (
+    input: RegisterFieldOccurrencesInput,
+  ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
+  /** Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery`, uma chamada por nota. */
+  reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   correctGeocodedAddress: (
@@ -127,8 +172,10 @@ function forbidden(): Promise<never> {
 export function createTripController(
   input: Readonly<{ client: TripClient; permissions: readonly string[] }>,
 ): TripController {
-  const canReadTrips = input.permissions.includes(TRIP_READ_PERMISSION)
+  const canReadTrips = canReadTrip(input.permissions)
+  const canReadTripFleetDetails = input.permissions.includes(TRIP_READ_PERMISSION)
   const canManageTrips = input.permissions.includes(TRIP_MANAGE_PERMISSION)
+  const canReportOnBehalf = input.permissions.includes(TRIP_REPORT_ON_BEHALF_PERMISSION)
   /** Cadastrar tipo é configuração da empresa, e configuração é `settings.manage`. */
   const canManageSettings = input.permissions.includes('settings.manage')
   const canSubmitCte = input.permissions.includes(CTE_SUBMIT_PERMISSION)
@@ -139,18 +186,37 @@ export function createTripController(
     cancelTrip: (body) => (canManageTrips ? input.client.cancelTrip(body) : forbidden()),
     canManageMdfe,
     canManageTrips,
+    canReadTripFleetDetails,
     canReadTrips,
+    canReportOnBehalf,
     canSubmitCte,
     closeTrip: (body) => (canManageTrips ? input.client.closeTrip(body) : forbidden()),
+    confirmLoadTrip: (body) =>
+      canReportOnBehalf ? input.client.confirmLoadTrip(body) : forbidden(),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     createTripCteBatch: (body) =>
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
-    deliverTripDocument: (body) =>
-      canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
+    fieldDeliverDocument: (body) =>
+      canReportOnBehalf ? input.client.fieldDeliverDocument(body) : forbidden(),
+    fieldReturnDocument: (body) =>
+      canReportOnBehalf ? input.client.fieldReturnDocument(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
+    readTripAllowedActions: (body) =>
+      canReadTrips ? input.client.readTripAllowedActions(body) : forbidden(),
+    reportStopArrival: (body) =>
+      canReportOnBehalf ? input.client.reportStopArrival(body) : forbidden(),
+    reportStopOccurrence: (body) =>
+      canReportOnBehalf ? input.client.reportStopOccurrence(body) : forbidden(),
+    startFieldTrip: (body) => (canReportOnBehalf ? input.client.startFieldTrip(body) : forbidden()),
+    readFieldOccurrenceTypes: () =>
+      canReportOnBehalf ? input.client.readFieldOccurrenceTypes() : forbidden(),
+    registerFieldOccurrences: (body) =>
+      canReportOnBehalf ? input.client.registerFieldOccurrences(body) : forbidden(),
+    reportFieldDelivery: (body) =>
+      canReportOnBehalf ? input.client.reportFieldDelivery(body) : forbidden(),
     readRouteGeometry: (body) =>
-      canReadTrips ? input.client.readRouteGeometry(body) : forbidden(),
+      canReadTripFleetDetails ? input.client.readRouteGeometry(body) : forbidden(),
     readTripOccurrences: (body) =>
       canReadTrips ? input.client.readTripOccurrences(body) : forbidden(),
     correctGeocodedAddress: (body) =>
@@ -161,13 +227,13 @@ export function createTripController(
     registerTripOccurrence: (body) =>
       canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
     readTripDocumentProducts: (body) =>
-      canReadTrips ? input.client.readTripDocumentProducts(body) : forbidden(),
+      canReadTripFleetDetails ? input.client.readTripDocumentProducts(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
     findNfeDocumentByAccessKey: (query) =>
       canManageTrips ? input.client.findNfeDocumentByAccessKey(query) : forbidden(),
     getTrip: (query) => (canReadTrips ? input.client.getTrip(query) : forbidden()),
     readFiscalReadiness: (query) =>
-      canReadTrips ? input.client.readFiscalReadiness(query) : forbidden(),
+      canReadTripFleetDetails ? input.client.readFiscalReadiness(query) : forbidden(),
     setTripMdfeRequirement: (body) =>
       canManageMdfe ? input.client.setTripMdfeRequirement(body) : forbidden(),
     linkTripDocument: (body) =>
@@ -213,7 +279,8 @@ export function useTripWorkspace(
   input: Readonly<{ companyId?: string; permissions: readonly string[]; tripId?: string }>,
 ) {
   const permissions = input.companyId === undefined ? [] : input.permissions
-  const controller = createTripController({ client: getTripClient(), permissions })
+  const client = getTripClient()
+  const controller = createTripController({ client, permissions })
   const queryClient = useQueryClient()
   const tripKey = [TRIP_QUERY_KEY, input.companyId, input.tripId] as const
   /** Prefixo compartilhado: invalidar `['trips']` alcança o detalhe e a tabela paginada. */
@@ -289,7 +356,8 @@ export function useTripWorkspace(
    * paradas primeiro e engrossa a linha depois; falha aqui deixa a reta tracejada, nunca a tela.
    */
   const routeGeometryQuery = useQuery({
-    enabled: controller.canReadTrips && input.tripId !== undefined && input.tripId !== '',
+    enabled:
+      controller.canReadTripFleetDetails && input.tripId !== undefined && input.tripId !== '',
     queryFn: () => controller.readRouteGeometry({ tripId: input.tripId ?? '' }),
     queryKey: [...tripKey, 'route-geometry'] as const,
   })
@@ -306,7 +374,11 @@ export function useTripWorkspace(
 
   /** Os itens seguem o mesmo painel do comprovante: uma abertura, duas consultas, nenhuma antes. */
   const documentProductsQuery = useQuery({
-    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    enabled:
+      controller.canReadTripFleetDetails &&
+      openProofDocumentId !== null &&
+      input.tripId !== undefined &&
+      input.tripId !== '',
     queryFn: () =>
       controller.readTripDocumentProducts({
         documentId: openProofDocumentId ?? '',
@@ -334,7 +406,7 @@ export function useTripWorkspace(
 
   const fiscalReadinessQuery = useQuery({
     enabled:
-      controller.canReadTrips &&
+      controller.canReadTripFleetDetails &&
       input.tripId !== undefined &&
       input.tripId !== '' &&
       (tripQuery.data?.documents.length ?? 0) > 0,
@@ -342,6 +414,31 @@ export function useTripWorkspace(
     queryKey: [...tripKey, 'fiscal-readiness'] as const,
     refetchInterval: (query) =>
       query.state.data?.state === 'incomplete' ? TRIP_ON_THE_ROAD_REFETCH_MS : false,
+  })
+
+  /**
+   * Spec 156 T8: `GET /trips/:id/allowed-actions`, em rota própria (t7-design §2.6, ressalva M1).
+   *
+   * ⚠️ **Spec 156 T12, achado no smoke da entrega em massa.** A chave desta consulta
+   * (`useTripAllowedActions.hook.ts`) não leva `documentIds`/`stopIds`, e `parseTripAllowedActions`
+   * recusa (`RESPONSE_INVALID`, fail-closed) qualquer id que não esteja na lista que ela recebeu.
+   * Sem o `tripQuery.data !== undefined` aqui, as duas consultas disparam **juntas** assim que a
+   * permissão chega: `documentIds`/`stopIds` ainda são `[]` (a viagem não carregou), a função que a
+   * consulta chama já fica presa a esse `[]` para sempre (o padrão do app é `retry: false`, e a
+   * chave não muda quando a viagem chega), e a resposta real do servidor — com os ids de verdade —
+   * é sempre recusada. Reproduzido: com `allowed-actions` liberando `fieldDelivery` para 5 notas
+   * reais, nenhum botão de baixa do escritório aparecia, nem por nota nem em lote, sem erro visível
+   * na tela (é exatamente o "falha fechada" que o comentário do hook já previa — só que disparando
+   * sempre, não só na resposta malformada). Esperar a viagem carregar antes de perguntar torna as
+   * duas consultas sequenciais só nesta tela (custo aceitável: é uma consulta rápida, e closed by
+   * design já tolerava não ter capacidade nenhuma até a viagem chegar).
+   */
+  const fieldActionCapabilities = useTripAllowedActions({
+    canRead: controller.canReadTrips && tripQuery.data !== undefined,
+    client,
+    documentIds: tripQuery.data?.documents.map((document) => document.id) ?? [],
+    stopIds: tripQuery.data?.stops.map((stop) => stop.id) ?? [],
+    tripId: input.tripId,
   })
 
   function invalidate(): Promise<void> {
@@ -355,6 +452,19 @@ export function useTripWorkspace(
   async function invalidateDocumentLink(): Promise<void> {
     await invalidate()
     await invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
+  }
+
+  /**
+   * Spec 156 T12: a baixa em massa muda o estado das notas/paradas (viagem), o que pode entregar
+   * (allowed-actions) e, no caso da nota já ter ocorrência registrada, a lista de ocorrências —
+   * `useFieldDelivery` chama isto ao fim do lote inteiro, não a cada nota.
+   */
+  function invalidateFieldDeliveryEffects(): Promise<void> {
+    return Promise.all([
+      invalidate(),
+      queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
+      queryClient.invalidateQueries({ queryKey: [...tripKey, 'occurrences'] }),
+    ]).then(() => undefined)
   }
 
   const createMutation = useMutation({ mutationFn: controller.createTrip, onSuccess: invalidate })
@@ -387,8 +497,145 @@ export function useTripWorkspace(
     },
   })
 
-  const deliverDocumentMutation = useMutation({
-    mutationFn: controller.deliverTripDocument,
+  /**
+   * Spec 156 T8: `Idempotency-Key` gerada por ação e reusada no retry da **mesma** ação — a chave
+   * só se apaga quando a chamada termina (sucesso ou erro que não deve repetir a mesma tentativa),
+   * nunca a cada clique. `mutationFn: false` na app inteira (CLAUDE.md), então "retry" aqui é o
+   * usuário clicando de novo, não o TanStack tentando sozinho.
+   */
+  const fieldReportKeysRef = useRef<Record<string, string>>({})
+  function resolveFieldReportKey(scope: string): string {
+    const existing = fieldReportKeysRef.current[scope]
+    if (existing !== undefined) return existing
+    const key = crypto.randomUUID()
+    fieldReportKeysRef.current[scope] = key
+    return key
+  }
+  function clearFieldReportKey(scope: string): void {
+    delete fieldReportKeysRef.current[scope]
+  }
+  /**
+   * M13h (spec 156 T15): a chave só se apaga em sucesso — fechar o diálogo depois de um erro (ou
+   * sem enviar) e reabri-lo para o mesmo maço de notas reusaria a mesma `Idempotency-Key` com um
+   * corpo talvez diferente (outro tipo, outra observação). Fechar o diálogo é o sinal de que aquele
+   * envio acabou; a próxima abertura é sempre um lote novo.
+   */
+  function resetFieldOccurrenceIdempotency(documentIds: readonly string[]): void {
+    clearFieldReportKey(`field-occurrence:${[...documentIds].toSorted().join(',')}`)
+  }
+
+  const confirmLoadTripMutation = useMutation({
+    mutationFn: controller.confirmLoadTrip,
+    onSuccess: invalidate,
+  })
+  const startFieldTripMutation = useMutation({
+    mutationFn: controller.startFieldTrip,
+    onSuccess: invalidate,
+  })
+  const reportStopArrivalMutation = useMutation({
+    mutationFn: (body: Omit<ReportStopArrivalInput, 'idempotencyKey'>) =>
+      controller.reportStopArrival({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(`arrive:${body.stopId}`),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`arrive:${variables.stopId}`)
+      return invalidate()
+    },
+  })
+  const reportStopOccurrenceMutation = useMutation({
+    mutationFn: (body: Omit<ReportStopOccurrenceInput, 'idempotencyKey'>) =>
+      controller.reportStopOccurrence({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(`occurrence:${body.stopId}`),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`occurrence:${variables.stopId}`)
+    },
+  })
+
+  /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
+  const fieldOccurrenceTypesQuery = useQuery({
+    enabled: controller.canReportOnBehalf,
+    queryFn: () => controller.readFieldOccurrenceTypes(),
+    queryKey: [TRIP_QUERY_KEY, 'field-occurrence-types'] as const,
+  })
+
+  /**
+   * Spec 156 T9: a chave por escopo é o mesmo lote (a lista de notas ordenada) — reusada enquanto o
+   * diálogo não fecha com sucesso, do jeito que `arrive`/`occurrence` já fazem por parada.
+   */
+  const registerFieldOccurrencesMutation = useMutation({
+    mutationFn: async (body: Omit<RegisterFieldOccurrencesInput, 'idempotencyKey'>) =>
+      controller.registerFieldOccurrences({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(
+          `field-occurrence:${[...body.documentIds].toSorted().join(',')}`,
+        ),
+        /**
+         * M7 (spec 156 T15): a foto da ocorrência ia crua para a API, sem teto de tamanho nem
+         * remoção de EXIF — mesma redução da foto do canhoto (`reduceImageFileToJpeg`).
+         */
+        ...(body.file === undefined ? {} : { file: await reduceImageFileToJpeg(body.file) }),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`field-occurrence:${[...variables.documentIds].toSorted().join(',')}`)
+      void queryClient.invalidateQueries({ queryKey: [...tripKey, 'occurrences'] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, 'occurrence-feed'] })
+    },
+  })
+
+  const fieldDeliverDocumentMutation = useMutation({
+    mutationFn: (body: Omit<FieldDeliverDocumentInput, 'idempotencyKey'>) =>
+      controller.fieldDeliverDocument({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(`fieldDeliver:${body.documentId}`),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`fieldDeliver:${variables.documentId}`)
+      return invalidate()
+    },
+  })
+  const fieldReturnDocumentMutation = useMutation({
+    mutationFn: (body: Omit<FieldReturnDocumentInput, 'idempotencyKey'>) =>
+      controller.fieldReturnDocument({
+        ...body,
+        idempotencyKey: resolveFieldReportKey(`fieldReturn:${body.documentId}`),
+      }),
+    onSuccess: (_result, variables) => {
+      clearFieldReportKey(`fieldReturn:${variables.documentId}`)
+      return invalidate()
+    },
+  })
+  /**
+   * Spec 156 T8b: "Devolver" em massa dispara uma `field-return` por nota — a rota do escritório é
+   * individual, não há lote com autoria. Concorrência 3, cada nota gera a própria chave (a mesma
+   * função de escopo do resto do painel), e uma falha isolada não impede as outras.
+   */
+  const batchFieldReturnMutation = useMutation({
+    mutationFn: async (body: {
+      readonly documentIds: readonly string[]
+      readonly driverId?: string
+      readonly reason: FieldReturnDocumentInput['reason']
+      readonly tripId: string
+    }) =>
+      runFieldActionQueue({
+        concurrency: 3,
+        items: body.documentIds,
+        run: (documentId) =>
+          controller
+            .fieldReturnDocument({
+              documentId,
+              ...(body.driverId === undefined ? {} : { driverId: body.driverId }),
+              idempotencyKey: resolveFieldReportKey(`fieldReturn:${documentId}`),
+              reason: body.reason,
+              tripId: body.tripId,
+            })
+            .then((result) => {
+              clearFieldReportKey(`fieldReturn:${documentId}`)
+              return result
+            }),
+      }),
     onSuccess: invalidate,
   })
   const releaseDocumentMutation = useMutation({
@@ -438,17 +685,28 @@ export function useTripWorkspace(
   })
 
   return {
+    batchFieldReturnMutation,
     batchStatusMutation,
     cancelMutation,
     cargoLayoutView,
     closeMutation,
+    confirmLoadTripMutation,
     controller,
     createCteBatchMutation,
     createMutation,
     correctAddressMutation,
-    deliverDocumentMutation,
     deliveryProofsQuery,
+    fieldActionCapabilities,
+    fieldDeliverDocumentMutation,
+    fieldOccurrenceTypesQuery,
+    fieldReturnDocumentMutation,
+    registerFieldOccurrencesMutation,
+    resetFieldOccurrenceIdempotency,
+    invalidateFieldDeliveryEffects,
+    reportStopArrivalMutation,
+    reportStopOccurrenceMutation,
     routeGeometryQuery,
+    startFieldTripMutation,
     refetchTrip: () => void tripQuery.refetch(),
     documentProductsQuery,
     occurrenceTypesQuery,

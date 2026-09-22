@@ -72,13 +72,16 @@ describe('opções de rota (spec 096 T1)', () => {
 
     expect(view.options).toHaveLength(1)
     expect(view.hasChoice).toBe(false)
+    expect(view.selectedIndex).toBe(0)
   })
 
   /**
-   * ⚠️ Compatibilidade: quem lê `.legs`/`.points`/`.toll`/`.source` hoje continua recebendo os
-   * dados da rota **principal** — a primeira que o OSRM devolveu, nunca a mais barata.
+   * ⚠️ Spec 153 D1: `.legs`/`.points`/`.toll` passam a ser os da rota **selecionada**, não mais
+   * sempre a principal. Nesta fixação a principal continua sendo a mais barata (a alternativa roda
+   * 18,1 km a mais e economiza uma praça só), então a seleção por padrão coincide com o índice 0 —
+   * é o mesmo resultado de antes, por coincidência do custo, não por regra de índice.
    */
-  test('os campos de sempre continuam sendo os da rota principal', async () => {
+  test('os campos de sempre continuam sendo os da rota selecionada, e a principal é a mais barata aqui', async () => {
     const geometry = {
       readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
         alternatives: [
@@ -109,6 +112,9 @@ describe('opções de rota (spec 096 T1)', () => {
     expect(view.legs).toEqual(TRECHO_PRINCIPAL)
     expect(view.toll?.total).toBe('21.7200')
     expect(view.source).toBe('road')
+    expect(view.selectedIndex).toBe(0)
+    expect(view.choiceReproduced).toBe(true)
+    expect(view.options[0]?.signature).not.toBeNull()
   })
 
   /**
@@ -199,6 +205,13 @@ describe('opções de rota (spec 096 T1)', () => {
 
     expect(view.cheapestIndex).toBeNull()
     expect(view.costGap).toBe('NO_FUEL_BASELINE')
+    /**
+     * ⚠️ Sem baseline, o critério `cheapest` não acha candidata nenhuma (nenhum custo é conhecido) —
+     * a seleção cai na principal, e avisa que não é reproduzida (spec 153 D3), distinto do caso em
+     * que uma assinatura pedida não bate.
+     */
+    expect(view.selectedIndex).toBe(0)
+    expect(view.choiceReproduced).toBe(false)
   })
 
   test('provedor mudo continua sem opção nenhuma e sem escolha', async () => {
@@ -208,6 +221,7 @@ describe('opções de rota (spec 096 T1)', () => {
 
     expect(view).toEqual({
       cheapestIndex: null,
+      choiceReproduced: true,
       costGap: null,
       depot: null,
       fastestIndex: null,
@@ -215,8 +229,227 @@ describe('opções de rota (spec 096 T1)', () => {
       legs: [],
       options: [],
       points: [],
+      selectedIndex: null,
       source: 'unavailable',
       toll: null,
     })
+  })
+
+  /** Spec 153 RF2: a rota sem pedágio entra como candidata própria, com a marca e a assinatura. */
+  test('cada opção carrega assinatura e marca de sem pedágio (spec 153 RF2)', async () => {
+    const geometry = {
+      readRouteGeometry: async (
+        _points: readonly RouteGeometryPoint[],
+        options?: Readonly<{ excludeToll?: boolean }>,
+      ): Promise<RouteGeometryRoad> =>
+        options?.excludeToll === true
+          ? {
+              legs: TRECHO_ALTERNATIVA,
+              nodeIds: [50, 60],
+              nodeIdsByLeg: [[50, 60]],
+              points: ESTRADA_ALTERNATIVA,
+            }
+          : {
+              legs: TRECHO_PRINCIPAL,
+              nodeIds: [10, 20],
+              nodeIdsByLeg: [[10, 20]],
+              points: ESTRADA_PRINCIPAL,
+            },
+    }
+
+    const view = await readRouteGeometry({ geometry, stops: PARADAS })
+
+    expect(view.options).toHaveLength(2)
+    expect(view.options[0]?.signature).not.toBeNull()
+    expect(view.options[0]?.isNoToll).toBe(false)
+    expect(view.options[1]?.signature).not.toBeNull()
+    expect(view.options[1]?.isNoToll).toBe(true)
+  })
+
+  test('critério no_toll escolhe a opção marcada, mesmo sem ser a mais barata (spec 153 RF2/D2)', async () => {
+    const geometry = {
+      readRouteGeometry: async (
+        _points: readonly RouteGeometryPoint[],
+        options?: Readonly<{ excludeToll?: boolean }>,
+      ): Promise<RouteGeometryRoad> =>
+        options?.excludeToll === true
+          ? {
+              legs: TRECHO_ALTERNATIVA,
+              nodeIds: [50, 60],
+              nodeIdsByLeg: [[50, 60]],
+              points: ESTRADA_ALTERNATIVA,
+            }
+          : {
+              legs: TRECHO_PRINCIPAL,
+              nodeIds: [10, 20],
+              nodeIdsByLeg: [[10, 20]],
+              points: ESTRADA_PRINCIPAL,
+            },
+    }
+
+    const view = await readRouteGeometry({
+      choice: { criterion: 'no_toll', signature: null },
+      geometry,
+      stops: PARADAS,
+    })
+
+    expect(view.options[1]?.isNoToll).toBe(true)
+    expect(view.selectedIndex).toBe(1)
+    expect(view.legs).toEqual(TRECHO_ALTERNATIVA)
+    expect(view.choiceReproduced).toBe(true)
+  })
+
+  /** O ponto central da spec 153: a viagem para de congelar sempre a principal. */
+  test('quando a alternativa é mais barata, os campos de topo passam a ser os dela (spec 153 D1)', async () => {
+    const geometry = {
+      readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
+        alternatives: [
+          {
+            legs: TRECHO_ALTERNATIVA,
+            nodeIds: [30, 40],
+            nodeIdsByLeg: [[30, 40]],
+            points: ESTRADA_ALTERNATIVA,
+          },
+        ],
+        legs: TRECHO_PRINCIPAL,
+        nodeIds: [10, 20],
+        nodeIdsByLeg: [[10, 20]],
+        points: ESTRADA_PRINCIPAL,
+      }),
+    }
+
+    const view = await readRouteGeometry({
+      axles: { count: 2, source: 'declared' },
+      multiplier: { denominator: 1, numerator: 2 },
+      fuelBaseline: TOCO,
+      geometry,
+      stops: PARADAS,
+      /** Pedágio enorme na principal garante a alternativa mais barata mesmo rodando mais km. */
+      tollBooths: tollBooths([praca(10, '250.0000', '2026-07-01')]),
+    })
+
+    const alternativeOption = view.options[1]
+    if (alternativeOption === undefined) throw new Error('esperava rota alternativa')
+
+    expect(view.selectedIndex).toBe(1)
+    expect(view.cheapestIndex).toBe(1)
+    expect(view.legs).toEqual(TRECHO_ALTERNATIVA)
+    expect(view.points).toEqual(alternativeOption.points)
+    expect(view.toll?.total).toBe(alternativeOption.toll?.total)
+    expect(view.choiceReproduced).toBe(true)
+  })
+
+  test('escolha por assinatura reproduz a rota pedida, mesmo que o critério não bata (spec 153 D2)', async () => {
+    const geometry = {
+      readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
+        alternatives: [
+          {
+            legs: TRECHO_ALTERNATIVA,
+            nodeIds: [30, 40],
+            nodeIdsByLeg: [[30, 40]],
+            points: ESTRADA_ALTERNATIVA,
+          },
+        ],
+        legs: TRECHO_PRINCIPAL,
+        nodeIds: [10, 20],
+        nodeIdsByLeg: [[10, 20]],
+        points: ESTRADA_PRINCIPAL,
+      }),
+    }
+
+    const preview = await readRouteGeometry({ geometry, stops: PARADAS })
+    const alternativeSignature = preview.options[1]?.signature ?? null
+    if (alternativeSignature === null) throw new Error('esperava assinatura da alternativa')
+
+    const view = await readRouteGeometry({
+      /** 'fastest' sozinho escolheria a principal (179 min < 198 min) — só a assinatura força a alternativa. */
+      choice: { criterion: 'fastest', signature: alternativeSignature },
+      geometry,
+      stops: PARADAS,
+    })
+
+    expect(view.selectedIndex).toBe(1)
+    expect(view.choiceReproduced).toBe(true)
+    expect(view.legs).toEqual(TRECHO_ALTERNATIVA)
+  })
+
+  test('assinatura que não bate cai no critério e avisa (spec 153 D3)', async () => {
+    const geometry = {
+      readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
+        alternatives: [
+          {
+            legs: TRECHO_ALTERNATIVA,
+            nodeIds: [30, 40],
+            nodeIdsByLeg: [[30, 40]],
+            points: ESTRADA_ALTERNATIVA,
+          },
+        ],
+        legs: TRECHO_PRINCIPAL,
+        nodeIds: [10, 20],
+        nodeIdsByLeg: [[10, 20]],
+        points: ESTRADA_PRINCIPAL,
+      }),
+    }
+
+    const view = await readRouteGeometry({
+      choice: { criterion: 'cheapest', signature: 'assinatura-que-nao-existe' },
+      axles: { count: 2, source: 'declared' },
+      multiplier: { denominator: 1, numerator: 2 },
+      fuelBaseline: TOCO,
+      geometry,
+      stops: PARADAS,
+      /** Pedágio enorme na principal garante a alternativa mais barata — prova que a queda vai para o critério, não para a principal. */
+      tollBooths: tollBooths([praca(10, '250.0000', '2026-07-01')]),
+    })
+
+    expect(view.choiceReproduced).toBe(false)
+    expect(view.selectedIndex).toBe(1)
+    expect(view.legs).toEqual(TRECHO_ALTERNATIVA)
+  })
+
+  /**
+   * ⚠️ A divergência que a spec 153 pede pinada: pedágio desconhecido barra o rótulo de "mais
+   * barata" por inteiro (`cheapestIndex` sai `null`), mas a seleção continua achando a rota de
+   * custo conhecido — as duas contas respondem perguntas diferentes e não devem ser unificadas.
+   */
+  test('cheapestIndex e selectedIndex podem discordar: pedágio desconhecido barra o rótulo, mas a seleção acha a rota com custo conhecido (spec 153)', async () => {
+    const geometry = {
+      readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
+        alternatives: [
+          {
+            legs: TRECHO_ALTERNATIVA,
+            nodeIds: [99],
+            nodeIdsByLeg: [[99]],
+            points: ESTRADA_ALTERNATIVA,
+          },
+        ],
+        legs: TRECHO_PRINCIPAL,
+        /** A: pedágio desconhecido de propósito — sem anotação de nó nenhuma. */
+        nodeIds: null,
+        nodeIdsByLeg: null,
+        points: ESTRADA_PRINCIPAL,
+      }),
+    }
+
+    const view = await readRouteGeometry({
+      axles: { count: 1, source: 'declared' },
+      multiplier: { denominator: 1, numerator: 1 },
+      fuelBaseline: TOCO,
+      geometry,
+      stops: PARADAS,
+      /** B: R$ 110 exatos de pedágio, custo conhecido. */
+      tollBooths: tollBooths([praca(99, '110.0000', '2026-07-01')]),
+    })
+
+    expect(view.options[0]?.toll).toBeNull()
+    expect(view.options[0]?.totalCost).toBeNull()
+    expect(view.options[1]?.toll?.total).toBe('110.0000')
+    expect(view.options[1]?.totalCost).not.toBeNull()
+
+    expect(view.cheapestIndex).toBeNull()
+    expect(view.costGap).toBe('TOLL_UNKNOWN')
+    expect(view.selectedIndex).toBe(1)
+    expect(view.choiceReproduced).toBe(true)
+    expect(view.legs).toEqual(TRECHO_ALTERNATIVA)
   })
 })

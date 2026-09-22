@@ -10,9 +10,13 @@ import { describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq, sql } from 'drizzle-orm'
 
+import { sendContractorMailOutboundMessage } from '../src/contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import { DrizzleContractorMailOutboundOutboxRepository } from '../src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-outbox.repository.js'
+import { createDrizzleContractorMailOutboundWorkerRepository } from '../src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
+import type { SendResendEmailInput } from '../src/contractor-mail/infrastructure/resend-mail.gateway.js'
 import { contractorMailOutbox } from '../src/database/contractor-mail.schema.js'
 import { companies } from '../src/database/identity.schema.js'
+import { CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE } from '../src/messaging/contractor-mail-outbound-envelope.schema.js'
 
 const databaseUrl = process.env.DATABASE_URL
 const describeDatabase = databaseUrl ? describe : describe.skip
@@ -22,11 +26,21 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
   const database = provider.db
   const repository = new DrizzleContractorMailOutboundOutboxRepository(database)
 
-  async function seedOutboxRow(): Promise<{
+  async function seedOutboxRow(
+    options: {
+      readonly bodyHtml?: string
+      readonly toAddresses?: readonly string[]
+      /** Sem outbox, a linha não fica devida no banco compartilhado e não disputa as reivindicações. */
+      readonly withOutbox?: boolean
+    } = {},
+  ): Promise<{
     readonly companyId: string
     readonly eventId: string
     readonly messageId: string
+    readonly threadId: string
   }> {
+    const bodyHtml = options.bodyHtml ?? null
+    const toAddresses = options.toAddresses ?? ['admin@example.com.br']
     const companyId = crypto.randomUUID()
     const threadId = crypto.randomUUID()
     const messageId = crypto.randomUUID()
@@ -42,11 +56,16 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
     await database.execute(
       sql`insert into contractor_mail_messages
             (id, company_id, thread_id, direction, from_address, subject, to_addresses, body_text,
-             delivery_status)
+             body_html, delivery_status)
           values (${messageId}, ${companyId}, ${threadId}, 'outbound', 'ocorrencias@example.com.br',
-                  'Teste de configuração de e-mail com contratantes', array['admin@example.com.br'],
-                  'Este é um e-mail de teste.', 'queued')`,
+                  'Teste de configuração de e-mail com contratantes',
+                  array[${sql.join(
+                    toAddresses.map((address) => sql`${address}`),
+                    sql`, `,
+                  )}]::text[],
+                  'Este é um e-mail de teste.', ${bodyHtml}, 'queued')`,
     )
+    if (options.withOutbox === false) return { companyId, eventId, messageId, threadId }
     await database.insert(contractorMailOutbox).values({
       companyId,
       eventId,
@@ -56,8 +75,67 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
       payload: {},
     })
 
-    return { companyId, eventId, messageId }
+    return { companyId, eventId, messageId, threadId }
   }
+
+  /** Spec 150 T302: o `body_html` que a API gravou é o que chega ao gateway, com todos os contatos. */
+  it('sends the recorded body_html and every recipient to the mail gateway', async () => {
+    const recipients = ['um@example.com.br', 'dois@example.com.br', 'tres@example.com.br']
+    const seeded = await seedOutboxRow({
+      bodyHtml: '<p>Este é um e-mail de teste.</p>',
+      toAddresses: recipients,
+      withOutbox: false,
+    })
+    const workerRepository = createDrizzleContractorMailOutboundWorkerRepository(database)
+    const requests: SendResendEmailInput[] = []
+
+    const result = await sendContractorMailOutboundMessage(
+      {
+        companyId: seeded.companyId,
+        correlationId: 'contractor-mail-outbound-outbox-integration',
+        eventId: seeded.eventId,
+        occurredAt: new Date().toISOString(),
+        payload: { messageId: seeded.messageId },
+        type: CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE.MESSAGE_SEND_REQUESTED,
+        version: 1,
+      },
+      {
+        mailGateway: {
+          downloadRawEmail: async () => Buffer.alloc(0),
+          fetchReceivedEmail: async () => {
+            throw new Error('not used by this integration')
+          },
+          sendEmail: async (request) => {
+            requests.push(request)
+            return { id: `resend-${seeded.messageId}` }
+          },
+        },
+        repository: {
+          ...workerRepository,
+          findSettingsByCompanyId: async () => ({
+            id: crypto.randomUUID(),
+            replyDomain: 'resposta.example.com.br',
+            secretEnvelope: {},
+            senderAddress: 'ocorrencias@example.com.br',
+            senderName: 'Transportadora',
+          }),
+        },
+        secretService: {
+          decrypt: async () => ({
+            apiKey: 're_integration',
+            replyTokenSecret: 'b'.repeat(64),
+            webhookSigningSecret: 'whsec_integration',
+          }),
+        },
+      },
+    )
+
+    expect(result).toEqual({ outcome: 'sent', threadId: seeded.threadId })
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.html).toBe('<p>Este é um e-mail de teste.</p>')
+    expect(requests[0]?.text).toBe('Este é um e-mail de teste.')
+    expect(requests[0]?.to).toEqual(recipients)
+  })
 
   it('claims a due unpublished row, then marks it published so it is not claimed again', async () => {
     const seeded = await seedOutboxRow()

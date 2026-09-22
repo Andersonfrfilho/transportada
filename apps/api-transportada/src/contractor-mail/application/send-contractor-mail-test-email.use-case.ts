@@ -4,9 +4,10 @@
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import {
-  ContractorMailNotConfiguredError,
   ContractorMailTestRecipientUnavailableError,
+  createMailSendReadinessError,
 } from '../domain/contractor-mail.error.js'
+import { resolveMailSendReadiness } from '../domain/mail-send-readiness.policy.js'
 import { deriveReplyToken, hashReplyToken } from '../domain/reply-token.policy.js'
 import type { ActorEmailResolver } from '../infrastructure/actor-email.repository.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
@@ -54,8 +55,11 @@ export function createSendContractorMailTestEmailUseCase(dependencies: {
 }): SendContractorMailTestEmailUseCase {
   return {
     async execute({ context, correlationId }) {
-      const settings = await dependencies.repository.findSettings({ companyId: context.companyId })
-      if (settings === undefined) throw new ContractorMailNotConfiguredError()
+      const readiness = resolveMailSendReadiness({
+        settings: await dependencies.repository.findSettings({ companyId: context.companyId }),
+      })
+      if (!readiness.ready) throw createMailSendReadinessError(readiness.reason)
+      const { settings } = readiness
 
       const recipientEmail = await dependencies.actorEmailResolver.resolve({
         companyId: context.companyId,

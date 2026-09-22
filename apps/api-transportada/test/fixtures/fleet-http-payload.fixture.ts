@@ -10,6 +10,7 @@ import type {
   FleetVehicle,
   FleetVehiclePage,
 } from '../../src/fleet/application/fleet.port'
+import type { DriverScoreResult } from '../../src/fleet/domain/driver-score.policy'
 
 export const FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const FLEET_DRIVERS_PATH = '/fleet/drivers'
@@ -90,6 +91,9 @@ export const EMPTY_DRIVER_ADDRESS = {
   street: '',
 } as const
 
+/** Spec 143 D5/D6: a diária combinada só deste motorista — `null` é o normal, vale o valor da empresa. */
+export const DAILY_ALLOWANCE_AMOUNT = '180.0000'
+
 export const DRIVER_FIELDS = {
   address: EMPTY_DRIVER_ADDRESS,
   linkedAddress: EMPTY_DRIVER_ADDRESS,
@@ -98,6 +102,7 @@ export const DRIVER_FIELDS = {
   birthCity: 'Ribeirao Preto',
   birthDate: null,
   birthState: 'SP',
+  dailyAllowanceAmount: null,
   email: 'jose.silva@example.com',
   fatherName: 'Antonio da Silva',
   licenseCategory: 'E',
@@ -247,6 +252,21 @@ export const DRIVER_VEHICLE_PAIRS: readonly FleetDriverVehiclePair[] = [
 export const VEHICLE_PAGE: FleetVehiclePage = { items: [VEHICLE], nextCursor: null }
 
 export const DRIVER_PAGE: FleetDriverPage = { items: [DRIVER], nextCursor: null }
+
+/** Spec 159 T8: a ficha da nota — uma penalidade de foto ausente, sem nenhuma coordenada. */
+export const DRIVER_SCORE: DriverScoreResult = {
+  penalties: [
+    {
+      deliveredAt: new Date('2026-09-17T11:00:00.000Z'),
+      documentNumber: '1234',
+      expiresAt: new Date('2026-12-16T11:00:00.000Z'),
+      points: 10,
+      reason: 'missing_proof',
+      tripDocumentId: '00000000-0000-4000-8000-0000000000e1',
+    },
+  ],
+  score: 90,
+}
 
 export function jsonRequest(input: {
   readonly body?: unknown

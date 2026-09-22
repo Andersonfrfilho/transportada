@@ -14,6 +14,8 @@ const TRIP = '00000000-0000-4000-8000-000000000011'
 const TIPO = '00000000-0000-4000-8000-0000000000e1'
 
 const PARAMS = {
+  /** Spec 156 T7.3 (M4): a nota por id entra na chave de deduplicação do aviso. */
+  documentId: DOCUMENT,
   documentLabel: '883658/1',
   occurrenceType: '',
   stopLabel: 'RUA MIGUEL PETRONI, 1166, SAO CARLOS, SP',
@@ -31,7 +33,7 @@ function repository(notifies: boolean) {
         id: TIPO,
         name: 'Recusa total',
         notifies,
-        stage: 'delivery' as const,
+        stage: 'separation' as const,
       }
     },
     async listDocumentProducts() {
@@ -62,7 +64,7 @@ function repository(notifies: boolean) {
         note: '',
         occurrenceTypeId: TIPO,
         productCode: '',
-        stage: 'delivery' as const,
+        stage: 'separation' as const,
         typeName: saved.typeName,
       }
     },

@@ -108,3 +108,58 @@ Nacional sai de biblioteca. **Municipal é onde dói** — a cidade fecha e o ro
 26. **Prioridade:** confirma que a 063 vem depois da 062? Ela é a única que não parte de código
     existente, tem a maior superfície de segurança, e o WhatsApp resolve boa parte do mesmo problema
     por muito menos.
+
+### 158 — a linha do tempo da viagem
+
+27. Entrega repetida do motorista sobre nota já baixada (2026-09-18, ADR-0068)
+
+    Quando o motorista reenvia a entrega de uma nota que já foi baixada, a API grava um novo
+    `trip_stop_events` com `kind = 'delivered'` — a nota continua em `delivered`, mas a linha do tempo
+    mostra dois eventos de entrega para o mesmo documento.
+
+    **Local:** `apps/api-transportada/src/trips/application/report-document-delivery.use-case.ts:313-318`.
+    O check `DOCUMENT_ALREADY_SETTLED` só passa se a nota está em um dos 4 estados de conclusão finais,
+    não em `delivered`. A inserção em `trip_stop_events` não é guardada.
+
+    > **Pergunta:** recusar com 409 `DOCUMENT_ALREADY_SETTLED` igual ao escritório faz, ou deduplicar
+    > na leitura da linha do tempo?
+
+28. Transição proibida `cancelled → completed` no `close` (2026-09-18, ADR-0068)
+
+        O caso de uso `close` não passa por `checkTripTransition` antes de escrever. A viagem pode passar de
+        `cancelled` direto para `completed`, transição que a política de transitions proíbe.
+
+        **Local:** `apps/api-transportada/src/trips/application/trip.use-case.ts:106`. A linha só protege
+        contra `close` duplo no estado `closed`; falta a guarda de `checkTripTransition(trip.status,
+
+    'completed')`.
+
+        > **Pergunta:** bloquear com 409 `TRIP_STATUS_NOT_ALLOWED` (ou equivalente), ou permitir essa
+        > transição especial do ciclo de cancelamento?
+
+29. Escrita sem guarda de origem em quatro writers (2026-09-18, ADR-0068)
+
+        Os métodos `dispatch`, `markRoutePlanned`, `markCancelled` e `close` leem a `from_status` da viagem
+        **fora da transação**, e escrevem o `UPDATE trips` **sem validar que o status lido é ainda vigente**.
+        Isso permite que uma race condition registre em `trip_status_events` uma transição que a concorrência
+        já mudou.
+
+        **Locais:** `apps/api-transportada/src/trips/infrastructure/drizzle-trip-route.repository.ts`
+        (`dispatch`, `markRoutePlanned`, `markCancelled`) e `drizzle-trip.repository.ts` (`close`). A
+        precondição é lida fora da transação; o `UPDATE trips` deveria ter `WHERE status = :fromStatus`
+        (molde: `markTripInTransit` e `completeTripIfSettled` fazem compare-and-set com `WHERE status =
+
+    expected`).
+
+        > **Pergunta:** acrescentar a guarda de origem (`WHERE status = :fromStatus`)? Isso muda o
+        > comportamento: a race condition que hoje silenciosamente ignora o update passaria a devolver 409
+        > (ou similar).
+
+### 155 — a variação do mesmo produto mede uma vez e replica
+
+30. **O GTIN da caixa e o GTIN da unidade de consumo** (155 D10, 2026-09-17): `carton_gtin` carrega 650
+    de 655 caixas, mas **não é o GTIN da caixa impressa** — é o `cEAN` da linha, o GTIN da unidade de
+    consumo que o emitente repete em toda linha. Duas embalagens distintas (`CX36` + `FR12` do mesmo
+    produto) compartilham o mesmo GTIN porque o código traz a unidade, não a caixa. Ler o DUN-14 da
+    caixa nunca casa com `carton_gtin`. Precisa de spec própria: `carton_gtin` guardando `cUnitGtin`,
+    caixa nova coluna `box_gtin` (DUN-14), e adaptar a validação do bipe de duas para três colunas.

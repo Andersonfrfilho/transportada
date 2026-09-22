@@ -28,7 +28,6 @@ import {
   fleetVehicles,
   freightCalculations,
   freightRegionCities,
-  freightRegionDriverRates,
   freightRegions,
   freightRuleVersions,
   freightRules,
@@ -50,6 +49,9 @@ import { DrizzleFinancialSummaryQuery } from '../../src/trips/infrastructure/fin
 import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
 import { DrizzleApplicableFreightRuleQuery } from '../../src/freight/infrastructure/drizzle-freight.repository.js'
 
+/** A valoração avisa por log quando um id de motorista não responde; aqui o aviso não interessa. */
+const SILENT_LOGGER = { error: () => undefined, info: () => undefined, warn: () => undefined }
+
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
   process.env.API_TEST_DATABASE_URL ??
@@ -69,7 +71,7 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
             query: Parameters<DrizzleApplicableFreightRuleQuery['findApplicableRule']>[0],
           ) => new DrizzleApplicableFreightRuleQuery(database.db).findApplicableRule(query),
           readContext: (query: { readonly companyId: string; readonly tripId: string }) =>
-            new DrizzleTripValuationQuery(database.db).readContext(query),
+            new DrizzleTripValuationQuery(database.db, SILENT_LOGGER).readContext(query),
         }
 
         const valuation = await readTripValuation({
@@ -83,8 +85,27 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
         expect(valuation.revenueSource).toBe('measured')
 
         const byKind = new Map(valuation.costParcels.map((parcel) => [parcel.kind, parcel]))
-        /** O agregado sai da tabela de região cruzada com a classe do veículo (spec 038). */
-        expect(byKind.get('driver')).toMatchObject({ amount: '812.4500', source: 'measured' })
+        /**
+         * Spec 143: a diária paga o motorista — não mais a tabela de região. Dias informados na
+         * viagem (D4) vencem a duração estimada, e o valor próprio do condutor (D3) vence o da
+         * empresa e o padrão do sistema.
+         */
+        const driverParcel = byKind.get('driver')
+        if (driverParcel === undefined || driverParcel.basis?.of !== 'driver') {
+          throw new Error('expected the driver parcel to carry crew basis')
+        }
+        expect(driverParcel).toMatchObject({ amount: '700.0000', source: 'measured' })
+        const driverBasis = driverParcel.basis
+        expect(driverBasis.daysOrigin).toBe('informed')
+        expect(driverBasis.days).toBe(2)
+        expect(driverBasis.crew).toHaveLength(1)
+        expect(driverBasis.crew[0]).toMatchObject({ rateOrigin: 'driver', subtotal: '700.0000' })
+        /** T3: `Σ basis.crew[].subtotal === amount`, exato — nunca a soma dos textos formatados. */
+        const crewSubtotalTotal = driverBasis.crew.reduce(
+          (accumulated, line) => add(accumulated, line.subtotal),
+          '0.0000',
+        )
+        expect(crewSubtotalTotal).toBe(driverParcel.amount)
         /** ICMS medido do documento; PIS/COFINS pela alíquota do regime: 2.000 × 3,65% = 73,00. */
         expect(byKind.get('icms')).toMatchObject({ amount: '240.0000', source: 'measured' })
         expect(byKind.get('pis_cofins')).toMatchObject({ amount: '73.0000', source: 'measured' })
@@ -162,6 +183,44 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
     },
     60_000,
   )
+
+  /**
+   * Spec 153 D5/T202: rota nunca planejada é `noPlannedDistance` — nunca zero. A coluna que a
+   * consulta agora lê direto (`trips.planned_distance_meters`) fica `null` por falta de
+   * planejamento, não por ninguém ter zerado uma soma.
+   */
+  testWithPostgres(
+    'sem roteiro planejado, combustível e outros-por-quilômetro são lacuna, nunca zero',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedTripWithoutPlannedRoute(database)
+        const valuation = await readTripValuation({
+          companyId: world.companyId,
+          repository: {
+            findApplicableRule: (
+              query: Parameters<DrizzleApplicableFreightRuleQuery['findApplicableRule']>[0],
+            ) => new DrizzleApplicableFreightRuleQuery(database.db).findApplicableRule(query),
+            readContext: (query: { readonly companyId: string; readonly tripId: string }) =>
+              new DrizzleTripValuationQuery(database.db, SILENT_LOGGER).readContext(query),
+          },
+          tripId: world.tripId,
+        })
+
+        const byKind = new Map(valuation.costParcels.map((parcel) => [parcel.kind, parcel]))
+        expect(byKind.get('fuel')).toMatchObject({
+          amount: '0.0000',
+          gap: 'NO_PLANNED_DISTANCE',
+          source: 'missing',
+        })
+        expect(byKind.get('other_per_kilometer')).toMatchObject({
+          amount: '0.0000',
+          gap: 'NO_PLANNED_DISTANCE',
+          source: 'missing',
+        })
+      })
+    },
+    60_000,
+  )
 })
 
 type World = {
@@ -213,8 +272,10 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     state: 'SP',
     vehicleType: 'toco',
   })
+  /** Spec 143 D3: diária própria do condutor — vence a da empresa e o padrão do sistema. */
   await database.db.insert(fleetDrivers).values({
     companyId,
+    dailyAllowanceAmount: '350.0000',
     id: driverId,
     name: 'Agregado',
     paymentModel: 'route_table',
@@ -223,12 +284,6 @@ async function seedTrip(database: TestDatabase): Promise<World> {
   await database.db
     .insert(freightRegions)
     .values({ code: '1.000', companyId, id: regionId, name: 'Barretos', zone: 1 })
-  await database.db.insert(freightRegionDriverRates).values({
-    companyId,
-    driverAmount: '812.4500',
-    freightClass: 'toco',
-    regionId,
-  })
   /*
     ⚠️ **A cidade da zona é o que decide o pagamento desde a spec 086.** Antes a consulta juntava a
     cobertura do motorista sem filtro de destino e ficava com a primeira linha que trouxesse valor —
@@ -446,7 +501,23 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     providerConfig: {},
   })
 
-  await database.db.insert(trips).values({ companyId, id: tripId, status: 'completed', vehicleId })
+  /**
+   * Spec 153 T202: a valoração da viagem lê a distância e o pedágio **gravados no planejamento**,
+   * não mais a soma de `trip_stops` — as quatro colunas nascem juntas (`trips_planned_route_check`).
+   * Spec 143 D4: os dias informados pela operação vencem a duração estimada do roteiro.
+   */
+  await database.db.insert(trips).values({
+    companyId,
+    dailyAllowanceDays: 2,
+    id: tripId,
+    plannedDistanceMeters: 200_000,
+    plannedDurationSeconds: 10_000,
+    plannedReturnDistanceMeters: 0,
+    plannedRoute: {},
+    plannedRouteFrozenAt: new Date('2026-08-26T05:00:00.000Z'),
+    status: 'completed',
+    vehicleId,
+  })
   await database.db.insert(tripDrivers).values({
     companyId,
     driverId,
@@ -459,13 +530,12 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     .insert(tripDocuments)
     .values({ companyId, id: crypto.randomUUID(), nfeDocumentId, tripId })
   /**
-   * A parada carrega a distância do roteiro aceito: sem ela o combustível seria ausência, e a
-   * mudança de preço não teria como mexer no recálculo — que é justamente o que este teste mede.
+   * A parada em si — a distância que alimenta o combustível vem de `trips.planned_distance_meters`
+   * acima (spec 153 T202), não mais desta linha; `distance_from_previous_meters` ficou morta.
    */
   await database.db.insert(tripStops).values({
     addressKey: '14780000|100|3505708',
     companyId,
-    distanceFromPreviousMeters: 200_000,
     label: 'Barretos',
     sequence: 1n,
     tripId,
@@ -479,6 +549,37 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     kind: 'toll',
     tripId,
   })
+
+  return { companyId, tripId, userId }
+}
+
+/**
+ * O mínimo para a valoração ler o veículo (spec 153 D5): sem nenhum planejamento de rota, as quatro
+ * colunas nascem `null` juntas — não precisa de nota, motorista nem pedágio lançado para o contrato.
+ */
+async function seedTripWithoutPlannedRoute(database: TestDatabase): Promise<World> {
+  const companyId = crypto.randomUUID()
+  const userId = crypto.randomUUID()
+  const vehicleId = crypto.randomUUID()
+  const tripId = crypto.randomUUID()
+
+  await database.db.insert(companies).values({ id: companyId, status: 'active' })
+  await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db
+    .insert(userCompanyMemberships)
+    .values({ companyId, id: crypto.randomUUID(), status: 'active', userId })
+  await database.db.insert(fleetVehicles).values({
+    averageConsumption: '2.5000',
+    companyId,
+    fuelType: 'diesel-s10',
+    id: vehicleId,
+    otherCostsPerKilometer: '0.3000',
+    plate: 'NPD1A23',
+    role: 'traction',
+    state: 'SP',
+    vehicleType: 'toco',
+  })
+  await database.db.insert(trips).values({ companyId, id: tripId, status: 'draft', vehicleId })
 
   return { companyId, tripId, userId }
 }

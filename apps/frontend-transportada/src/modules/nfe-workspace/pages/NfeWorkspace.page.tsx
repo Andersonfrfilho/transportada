@@ -15,6 +15,7 @@ import { NfeDistributionControl } from '../components/NfeDistributionControl.com
 import { NfeScheduledDistribution } from '../components/NfeScheduledDistribution.component'
 import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
 import { AddressReportPanel } from '../components/AddressReportPanel.component'
+import { useAddressCorrectionRequests } from '../hooks/useAddressCorrectionRequests.hook'
 import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
 import { CameraMeasurementSettingsPanel } from '../components/CameraMeasurementSettingsPanel.component'
@@ -31,6 +32,7 @@ import {
 import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 import { useCargoVolumeFactor } from '../hooks/useCargoVolumeFactor.hook'
 import { usePackageBoxQueue } from '../hooks/usePackageBoxQueue.hook'
+import { usePackageBoxPendingExport } from '../hooks/usePackageBoxPendingExport.hook'
 import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.component'
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
@@ -270,10 +272,17 @@ export function NfeWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && activeTab === 'addresses',
   })
+  /** O estado do pedido por endereço (spec 150, T202) — mesma condição de habilitação do relatório. */
+  const addressCorrectionRequests = useAddressCorrectionRequests({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && activeTab === 'addresses',
+  })
   const packageBoxes = usePackageBoxQueue({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canMeasureCargo && activeTab === 'boxes',
   })
+  /** Export do que falta medir — a fila inteira, buscada só no clique de baixar. */
+  const packageBoxPendingExport = usePackageBoxPendingExport()
   /**
    * Spec 152 D14: leitura própria de `cargo.measure` — quem mede não tem `settings.manage`, então
    * não reaproveita `cargoSettings` (aquela é a leitura do painel de configuração).
@@ -656,6 +665,9 @@ export function NfeWorkspacePage() {
                 label: t('tabs.addresses'),
                 panel: (
                   <AddressReportPanel
+                    correctionRequests={addressCorrectionRequests.data}
+                    correctionRequestsFailed={addressCorrectionRequests.isError}
+                    correctionRequestsLoading={addressCorrectionRequests.isLoading}
                     denied={!canManageSettings}
                     failed={addressReport.isError}
                     loading={addressReport.isLoading}
@@ -708,13 +720,22 @@ export function NfeWorkspacePage() {
                       failed={packageBoxes.failed}
                       loading={packageBoxes.isLoading}
                       matching={packageBoxes.isMatching}
-                      onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
+                      onMeasure={(measurement, onSuccess) =>
+                        packageBoxes.measure.mutate(measurement, { onSuccess })
+                      }
+                      onReplicate={(input, onSuccess) =>
+                        packageBoxes.replicate.mutate(input, { onSuccess })
+                      }
+                      onResetReplicate={packageBoxes.resetReplicate}
                       onResetSaveError={packageBoxes.resetMeasure}
                       onRetryLookup={packageBoxes.retryLookup}
                       onScan={packageBoxes.setScanned}
                       onSearchChange={packageBoxes.setSearch}
                       onStatusChange={packageBoxes.setStatus}
+                      pendingExport={packageBoxPendingExport}
                       queue={packageBoxes.queue}
+                      replicateErrorCode={packageBoxes.replicateErrorCode}
+                      replicateSaving={packageBoxes.replicate.isPending}
                       saveErrorCode={packageBoxes.measureErrorCode}
                       saveStatus={packageBoxes.measure.status}
                       saving={packageBoxes.measure.isPending}

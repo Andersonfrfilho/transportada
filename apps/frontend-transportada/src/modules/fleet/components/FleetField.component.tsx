@@ -140,7 +140,7 @@ export function FleetDateField({
 }: FleetDateFieldProps) {
   const { t } = useTranslation('fleet')
   return (
-    <label>
+    <label className={styles.dateField}>
       <span>
         {label}
         {optional ? <em className={styles.optionalMark}>{t('optionalMark')}</em> : null}

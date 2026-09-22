@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
 import type {
   CoverableSuggestionStop,
   LeftoverStop,
@@ -45,12 +46,13 @@ export type TripDriverLine = Readonly<{
    * Contato **corrente** do motorista, da ficha da frota — vazio quando ela não tem. Nome e CPF
    * continuam sendo o retrato de quando a viagem foi montada.
    */
-  driverEmail?: string
+  driverEmail?: string | null
   driverId: string
   driverName: string
-  driverTaxId: string
+  /** Spec 156 D11: `null` para quem lê a viagem sem `fleet.read` (e-mail e telefone também). */
+  driverTaxId: string | null
   position: number
-  driverPhone?: string
+  driverPhone?: string | null
 }>
 
 /** A origem do número de receita: realizado, previsto pela parametrização, ou sem regra cadastrada. */
@@ -120,18 +122,33 @@ export type TripDocument = Readonly<{
   updatedAt: string
 }>
 
+/**
+ * ⚠️ Cópia por valor de `TRIP_FIELD_CHANNELS` da API (ADR-0067 §2, ADR-0068 §3) — o bundle não
+ * carrega código de lá. `backoffice` (spec 158 D2): ação da tela do escritório que **não** é em
+ * nome do motorista — não exige `onBehalfOfDriverName`.
+ */
+export const TRIP_FIELD_CHANNELS = ['driver_app', 'office', 'whatsapp', 'backoffice'] as const
+export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[number]
+
 /** Spec 079 T020: o que houve com um item da carga. Só anota — não muda o estado da nota. */
 export type TripOccurrence = Readonly<{
+  /** Spec 156 T9 (D3, M1): nasce opcional — API na frente do bundle não pode servir sem ele. */
+  actorName?: null | string
+  channel?: TripFieldChannel
   createdAt: string
   id: string
   note: string
   occurrenceTypeId: string
+  onBehalfOfDriverName?: null | string
   /** Vazio é a nota inteira: recusa total não tem item a apontar. */
   productCode: string
   stage: 'delivery' | 'separation'
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
 }>
+
+/** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo de ocorrência de nota do escritório. */
+export type FieldOccurrenceType = Readonly<{ id: string; name: string }>
 
 /**
  * O que o registro devolve: a ocorrência mais o e-mail pronto.
@@ -141,6 +158,60 @@ export type TripOccurrence = Readonly<{
  */
 export type RegisteredOccurrence = TripOccurrence &
   Readonly<{ email: null | Readonly<{ body: string; subject: string }> }>
+
+/**
+ * Spec 158 D5: ⚠️ Cópia por valor de `TRIP_TIMELINE_KINDS` da API
+ * (`trip-timeline.types.ts`) — o bundle não carrega código de lá. `TRIP_STOP_EVENT_KINDS.occurrence`
+ * nunca aparece aqui — não é escrito hoje.
+ */
+export const TRIP_TIMELINE_KINDS = [
+  'trip.dispatched',
+  'trip.status_changed',
+  'stop.arrived',
+  'document.delivered',
+  'document.returned',
+  'stop.occurrence',
+  'document.occurrence',
+  'document.status_changed',
+] as const
+export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
+
+export type TripTimelineStopReference = Readonly<{ id: string; sequence: number }>
+
+/** `number`/`series` anuláveis, no molde de `TripOccurrenceFeedItem.invoiceNumber/invoiceSeries`. */
+export type TripTimelineDocumentReference = Readonly<{
+  id: string
+  number: null | string
+  series: null | string
+}>
+
+export type TripTimelineOccurrenceReference = Readonly<{ note: string; typeName: string }>
+
+/** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário, imagem ou coordenada. */
+export type TripTimelineItem = Readonly<{
+  actorName: null | string
+  /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
+  channel: null | TripFieldChannel
+  document: null | TripTimelineDocumentReference
+  /** Só em `*.status_changed`. */
+  fromStatus: null | string
+  id: string
+  kind: TripTimelineKind
+  occurrence: null | TripTimelineOccurrenceReference
+  occurredAt: string
+  onBehalfOfDriverName: null | string
+  /** D6: só quando `channel = 'office'` e a diferença para `occurredAt` passa de 60 s. */
+  recordedAt: null | string
+  /** Só em `document.returned`. */
+  returnReason: null | string
+  stop: null | TripTimelineStopReference
+  toStatus: null | string
+}>
+
+export type TripTimelinePage = Readonly<{
+  items: readonly TripTimelineItem[]
+  nextCursor: null | string
+}>
 
 /** Spec 079 T019: o que vai dentro da nota. Sem NCM e CFOP — ver o caso de uso na API. */
 export type TripDocumentProduct = Readonly<{
@@ -608,6 +679,8 @@ export type TripListInput = Readonly<{
 }>
 
 export type CreateTripBody = Readonly<{
+  /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
+  dailyAllowanceDays?: number
   driverIds: readonly string[]
   vehicleId: string
 }>
@@ -621,23 +694,114 @@ export type LinkTripDocumentInput = LinkTripDocumentBody & Readonly<{ tripId: st
 
 export type TripDocumentActionInput = Readonly<{ documentId: string; tripId: string }>
 
+/**
+ * Spec 156 T5/T8: as rotas do escritório espelham as do motorista, com o `tripId` no caminho. O
+ * `driverId` é o motorista escolhido entre os da tripulação — ausente cai no de `position = 1`
+ * (`resolveDefaultOnBehalfDriverId`).
+ */
+export type TripFieldActionTarget = Readonly<{ driverId?: string; tripId: string }>
+
+export type ConfirmLoadTripInput = TripFieldActionTarget
+export type StartFieldTripInput = TripFieldActionTarget
+
+/** O que `POST .../confirm-load` e `POST .../start-route` devolvem — nenhum recurso nasce ali. */
+export type FieldTripStepResult = Readonly<{ changed: boolean; status: TripStatus }>
+
+export type ReportStopArrivalInput = TripFieldActionTarget &
+  Readonly<{
+    /** Spec 156 T15 A1: opcional, mesma janela de "Entregue em" (não futuro, não antes do despacho). */
+    arrivedAt?: string
+    idempotencyKey: string
+    stopId: string
+  }>
+
+/** ⚠️ Cópia por valor de `TRIP_STOP_OCCURRENCE_KINDS` da API — o bundle não carrega código de lá. */
+export const STOP_OCCURRENCE_KINDS = [
+  'unexpected_charge',
+  'long_wait',
+  'dock_closed',
+  'appointment_required',
+  'other',
+] as const
+export type StopOccurrenceKind = (typeof STOP_OCCURRENCE_KINDS)[number]
+
+export type ReportStopOccurrenceInput = TripFieldActionTarget &
+  Readonly<{
+    description: string
+    distanceMeters: number | null
+    documentId: string | null
+    idempotencyKey: string
+    kind: StopOccurrenceKind
+    stopId: string
+  }>
+
+/**
+ * Spec 156 T7.3/T7b/T9: `POST /trips/:id/documents/field-occurrences` — uma nota (linha) ou várias
+ * (lote da seleção, até 50). A foto é única para o lote inteiro, não por nota (D7 §3.5).
+ */
+export type RegisterFieldOccurrencesInput = TripFieldActionTarget &
+  Readonly<{
+    documentIds: readonly string[]
+    file?: File
+    idempotencyKey: string
+    note: string
+    occurrenceTypeId: string
+  }>
+
+/** O que `POST .../arrive` e `POST .../occurrences` devolvem — o id do recurso criado. */
+export type FieldReportIdResult = Readonly<{ id: string }>
+
+/**
+ * Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery` — uma chamada por nota, com
+ * a própria `Idempotency-Key` (T6/T11 evidence: multipart, mesmo `delivery-proof.schema.ts`).
+ */
+export type ReportFieldDeliveryInput = TripFieldActionTarget &
+  Readonly<{
+    deliveredAt: string
+    documentId: string
+    idempotencyKey: string
+    imageBlob: Blob
+    receiverDocument?: string
+    receiverName?: string
+    /** A4a (spec 156 T15): fechar o assistente durante o envio cancela o lote em andamento. */
+    signal?: AbortSignal
+  }>
+
+/** O envelope de `field-delivery`: `alreadySettled` é 409 tratado como sucesso informativo (D3). */
+export type ReportFieldDeliveryResult = Readonly<{
+  alreadySettled: boolean
+  id: string
+  proofId: string
+  stopCompleted: boolean
+  tripCompleted: boolean
+}>
+
+export type ReadTripAllowedActionsInput = Readonly<{
+  documentIds: readonly string[]
+  stopIds: readonly string[]
+  tripId: string
+}>
+
 export type ReorderTripStopsResult = Readonly<{ tripStatus: TripStatus }>
 
 export type ReorderTripStopsInput = Readonly<{ stopIds: readonly string[]; tripId: string }>
 
-/** As três transições que o escritório aciona por nota ou em lote — `deliver` é ação de rua
- * (spec 057) e só existe hoje pelo lote antigo, sem rota própria de item único (T012). */
-export const TRIP_DOCUMENT_TRANSITION_ACTIONS = ['load', 'return', 'separate'] as const
+/**
+ * Spec 156 T8b: só as duas transições de galpão — `separate`/`load`. `deliver`/`return` saíram
+ * (ADR-0067): elas não gravavam autoria e o `separator` (`trip.manage`) as alcançava sem nunca
+ * dever reportar entrega. O caminho com autoria é `fieldDeliverDocument`/`fieldReturnDocument`,
+ * atrás de `trip.report-on-behalf`.
+ */
+export const TRIP_DOCUMENT_TRANSITION_ACTIONS = ['load', 'separate'] as const
 export type TripDocumentTransitionAction = (typeof TRIP_DOCUMENT_TRANSITION_ACTIONS)[number]
 
-export const TRIP_BATCH_ACTIONS = ['deliver', 'load', 'return', 'separate'] as const
+export const TRIP_BATCH_ACTIONS = ['load', 'separate'] as const
 export type TripBatchAction = (typeof TRIP_BATCH_ACTIONS)[number]
 
 export type TransitionTripDocumentInput = Readonly<{
   action: TripDocumentTransitionAction
   documentId: string
   note?: null | string
-  returnReason?: null | string
   tripId: string
 }>
 
@@ -665,13 +829,38 @@ export type BatchStatusInput = Readonly<{
   action: TripBatchAction
   documentIds: readonly string[]
   note?: null | string
-  returnReason?: null | string
   tripId: string
 }>
 
 export type BatchStatusResult = Readonly<{
   items: readonly TripDocumentBatchItemResult[]
   tripStatus: TripStatus
+}>
+
+/** Spec 156 T8b: `POST .../field-delivery`, multipart — a foto entra na T11 (`FieldDeliveryWizard`). */
+export type FieldDeliverDocumentInput = Readonly<{
+  deliveredAt: string
+  documentId: string
+  driverId?: string
+  idempotencyKey: string
+  tripId: string
+}>
+
+/** Spec 156 T8b: `POST .../field-return`, JSON. `returnedAt` ausente é "agora" no servidor. */
+export type FieldReturnDocumentInput = Readonly<{
+  documentId: string
+  driverId?: string
+  idempotencyKey: string
+  reason: DriverReturnReason
+  returnedAt?: string
+  tripId: string
+}>
+
+export type FieldSettlementResult = Readonly<{
+  alreadySettled: boolean
+  id: string
+  stopCompleted: boolean
+  tripCompleted: boolean
 }>
 
 export type DispatchTripInput = Readonly<{

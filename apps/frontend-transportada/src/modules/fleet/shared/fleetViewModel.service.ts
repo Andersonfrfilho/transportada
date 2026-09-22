@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { FLEET_MANAGE_PERMISSION, FLEET_READ_PERMISSION } from './fleet.constant'
 import type {
-  FleetDriverDetail,
+  FleetDriverListItem,
   FleetDriverPage,
   FleetVehicleDetail,
   FleetVehiclePage,
@@ -14,8 +14,9 @@ export type FleetViewStatus = 'empty' | 'error' | 'forbidden' | 'loading' | 'rea
 export type FleetViewModel = Readonly<{
   canManageFleet: boolean
   canReadFleet: boolean
-  driverDirectory?: readonly FleetDriverDetail[]
-  drivers?: readonly FleetDriverDetail[]
+  /** Spec 159 RF11: `score` vem junto — o seletor de motoristas da viagem ordena por ele. */
+  driverDirectory?: readonly FleetDriverListItem[]
+  drivers?: readonly FleetDriverListItem[]
   nextDriverCursor?: null | string
   nextVehicleCursor?: null | string
   status: FleetViewStatus

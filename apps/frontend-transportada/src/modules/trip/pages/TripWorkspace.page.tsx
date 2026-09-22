@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { TripAssemblyDraftBanner } from '../components/TripAssemblyDraftBanner.component'
 import { TripQuickCreateDialog } from '../components/TripQuickCreateDialog.component'
 import { TripFilters } from '../components/TripFilters.component'
 import { Tabs } from '@/components/ui/tabs'
@@ -25,6 +26,7 @@ import {
   useDeliveryProofOverridesQuery,
   useDeliveryProofSettingsQuery,
   useReplaceDeliveryProofOverridesMutation,
+  useSaveCanhotoOcrEnabledMutation,
   useSaveDeliveryProofSettingsMutation,
 } from '../queries/useDeliveryProofSettings.query'
 import { TripTable } from '../components/TripTable.component'
@@ -35,12 +37,22 @@ import { useTripTable } from '../hooks/useTripTable.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import { navigateToTrip } from '../shared/tripRoute.service'
-import { TRIP_COLUMN_KEYS } from '../shared/tripTable.service'
+import { type TripColumnKey, visibleTripColumns } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
 // Mesma grade da TripTable real (colunas + ação) — reaproveitado pelo gate de página e pelo gate
-// da própria tabela para não trocar de forma entre os dois esqueletos.
-function TripsTableSkeleton() {
+// da própria tabela para não trocar de forma entre os dois esqueletos. As colunas vêm de fora: sem
+// `trip.financials` a tabela não tem as de dinheiro, e o esqueleto não pode anunciá-las (spec 156 L6).
+type TripsTableSkeletonProps = Readonly<{ columns: readonly TripColumnKey[] }>
+
+function renderSkeletonCell(column: TripColumnKey) {
+  if (column === 'vehicleId') return <Skeleton variant="text" width="65%" />
+  if (column === 'status') return <Skeleton height="1.4rem" width="5rem" />
+
+  return <Skeleton variant="text" width="75%" />
+}
+
+function TripsTableSkeleton({ columns }: TripsTableSkeletonProps) {
   const { t } = useTranslation('trip')
 
   return (
@@ -48,7 +60,7 @@ function TripsTableSkeleton() {
       <table className={styles.dataTable}>
         <thead>
           <tr>
-            {TRIP_COLUMN_KEYS.map((column) => (
+            {columns.map((column) => (
               <th key={column} scope="col">
                 {t(`columns.${column}`)}
               </th>
@@ -59,18 +71,9 @@ function TripsTableSkeleton() {
         <tbody>
           {Array.from({ length: 4 }, (_, index) => (
             <tr key={index}>
-              <td>
-                <Skeleton variant="text" width="65%" />
-              </td>
-              <td>
-                <Skeleton height="1.4rem" width="5rem" />
-              </td>
-              <td>
-                <Skeleton variant="text" width="75%" />
-              </td>
-              <td>
-                <Skeleton variant="text" width="75%" />
-              </td>
+              {columns.map((column) => (
+                <td key={column}>{renderSkeletonCell(column)}</td>
+              ))}
               <td>
                 <Skeleton height="var(--field-height-compact)" width="4rem" />
               </td>
@@ -116,7 +119,8 @@ function TripWorkspacePageSkeleton() {
           <Skeleton variant="text" width="6rem" />
           <Skeleton variant="text" width="8rem" />
         </div>
-        <TripsTableSkeleton />
+        {/* Antes de saber a permissão, as colunas sem dinheiro — nunca anunciar o que pode faltar. */}
+        <TripsTableSkeleton columns={visibleTripColumns({ canReadFinancials: false })} />
       </div>
     </SkeletonGroup>
   )
@@ -177,6 +181,7 @@ export function TripWorkspacePage() {
   })
   const saveDeliveryProofSettingsMutation = useSaveDeliveryProofSettingsMutation()
   const replaceDeliveryProofOverridesMutation = useReplaceDeliveryProofOverridesMutation()
+  const saveCanhotoOcrEnabledMutation = useSaveCanhotoOcrEnabledMutation()
 
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
   const fleet = useFleet(tenant)
@@ -185,6 +190,40 @@ export function TripWorkspacePage() {
    * consultada aqui para os seletores da montagem — uma segunda consulta só para a placa seria
    * varrer a mesma lista duas vezes.
    */
+  const userId = authQuery.data?.data.identity.userId
+  /**
+   * O rascunho da montagem só é lido com sessão **e** frota carregadas: a volta filtra motorista e
+   * veículo pelos selecionáveis, e uma frota ainda vazia apagaria a escolha que está voltando.
+   */
+  const isFleetLoaded =
+    fleet.viewModel.drivers !== undefined && fleet.viewModel.vehicles !== undefined
+  const draftScope =
+    companyId === undefined ||
+    userId === undefined ||
+    !isFleetLoaded ||
+    !workspace.controller.canManageTrips
+      ? undefined
+      : { companyId, userId }
+  /**
+   * Estáveis entre renders: a montagem as consulta ao restaurar o rascunho, e uma lista nova a cada
+   * render não diria nada de novo.
+   */
+  const fleetDrivers = fleet.viewModel.drivers
+  const fleetVehicles = fleet.viewModel.vehicles
+  const selectableDriverIds = useMemo(
+    () =>
+      (fleetDrivers ?? [])
+        .filter((driver) => driver.status === 'active')
+        .map((driver) => driver.id),
+    [fleetDrivers],
+  )
+  const selectableVehicleIds = useMemo(
+    () =>
+      (fleetVehicles ?? [])
+        .filter((vehicle) => vehicle.status === 'active' && vehicle.role === 'traction')
+        .map((vehicle) => vehicle.id),
+    [fleetVehicles],
+  )
   const plateByVehicleId = new Map(
     (fleet.viewModel.vehicles ?? []).map((vehicle) => [vehicle.id, vehicle.plate]),
   )
@@ -194,15 +233,12 @@ export function TripWorkspacePage() {
    */
   const quickCreate = useTripQuickCreate({
     ...(companyId === undefined ? {} : { companyId }),
+    draftScope,
     onCreated: (trip) =>
       navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId: trip.id }),
     permissions,
-    selectableDriverIds: (fleet.viewModel.drivers ?? [])
-      .filter((driver) => driver.status === 'active')
-      .map((driver) => driver.id),
-    selectableVehicleIds: (fleet.viewModel.vehicles ?? [])
-      .filter((vehicle) => vehicle.status === 'active' && vehicle.role === 'traction')
-      .map((vehicle) => vehicle.id),
+    selectableDriverIds,
+    selectableVehicleIds,
   })
   /**
    * Spec 102: cancelar as marcadas, **uma por uma e em sequência**. `Promise.all` mandaria N
@@ -223,6 +259,7 @@ export function TripWorkspacePage() {
 
   const assembly = useTripRouteAssembly({
     canManageTrips: workspace.controller.canManageTrips,
+    draftScope,
     /**
      * Uma viagem abre nela — quem montou quer conferir o roteiro. Várias ficam na lista, que é onde
      * elas cabem: abrir a primeira esconderia as outras que o mesmo clique acabou de criar.
@@ -233,12 +270,8 @@ export function TripWorkspacePage() {
         navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId: only.tripId })
       }
     },
-    selectableDriverIds: (fleet.viewModel.drivers ?? [])
-      .filter((driver) => driver.status === 'active')
-      .map((driver) => driver.id),
-    selectableVehicleIds: (fleet.viewModel.vehicles ?? [])
-      .filter((vehicle) => vehicle.status === 'active' && vehicle.role === 'traction')
-      .map((vehicle) => vehicle.id),
+    selectableDriverIds,
+    selectableVehicleIds,
   })
 
   const isForbidden = companyId === undefined || !workspace.controller.canReadTrips
@@ -287,15 +320,23 @@ export function TripWorkspacePage() {
                 ) : tab === 'proof' ? (
                   <TripDeliveryProofSettingsPanel
                     canManage={canManageSettings}
+                    canhotoOcrEnabled={deliveryProofSettingsQuery.data?.canhotoOcrEnabled}
                     isSaving={
                       saveDeliveryProofSettingsMutation.isPending ||
                       replaceDeliveryProofOverridesMutation.isPending
                     }
+                    isTogglingCanhotoOcr={saveCanhotoOcrEnabledMutation.isPending}
                     onReplaceOverrides={(overrides) =>
                       replaceDeliveryProofOverridesMutation.mutate(overrides)
                     }
                     onSaveSettings={(settings) =>
                       saveDeliveryProofSettingsMutation.mutate(settings)
+                    }
+                    onToggleCanhotoOcr={(fieldSettings, enabled) =>
+                      saveCanhotoOcrEnabledMutation.mutate({
+                        ...fieldSettings,
+                        canhotoOcrEnabled: enabled,
+                      })
                     }
                     overrides={deliveryProofOverridesQuery.data ?? []}
                     settings={deliveryProofSettingsQuery.data}
@@ -303,7 +344,8 @@ export function TripWorkspacePage() {
                       deliveryProofSettingsQuery.isError ||
                       deliveryProofOverridesQuery.isError ||
                       saveDeliveryProofSettingsMutation.isError ||
-                      replaceDeliveryProofOverridesMutation.isError
+                      replaceDeliveryProofOverridesMutation.isError ||
+                      saveCanhotoOcrEnabledMutation.isError
                     }
                   />
                 ) : null,
@@ -322,15 +364,31 @@ export function TripWorkspacePage() {
 
               {workspace.controller.canManageTrips ? (
                 <div className={styles.actionActions}>
-                  <Button onClick={quickCreate.open} size="sm" type="button">
+                  {/* Enquanto o rascunho volta, abrir o diálogo seria montar por cima dele. */}
+                  <Button
+                    disabled={quickCreate.draftStore.isRestoring}
+                    onClick={quickCreate.open}
+                    size="sm"
+                    type="button"
+                  >
                     <Icon name="add" />
                     {t('quickCreate.title')}
                   </Button>
-                  <Button onClick={assembly.open} size="sm" type="button" variant="secondary">
+                  <Button
+                    disabled={assembly.assemblyDraft.isRestoring}
+                    onClick={assembly.open}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
                     <Icon name="workspace-trip" />
                     {t('routeAssembly.title')}
                   </Button>
                 </div>
+              ) : null}
+
+              {workspace.controller.canManageTrips ? (
+                <TripAssemblyDraftBanner assembly={assembly} quickCreate={quickCreate} />
               ) : null}
 
               {assembly.outcome === null ? null : (
@@ -370,7 +428,7 @@ export function TripWorkspacePage() {
                     <Skeleton variant="text" width="6rem" />
                     <Skeleton variant="text" width="8rem" />
                   </div>
-                  <TripsTableSkeleton />
+                  <TripsTableSkeleton columns={table.columns} />
                 </SkeletonGroup>
               ) : null}
               {table.tripsQuery.isError ? (

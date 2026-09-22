@@ -107,10 +107,14 @@ export class MultiVehicleSuggestionDocumentUnavailableError extends ApiError {
  * que esta distribuição nunca propôs, e repetir o mesmo pedido nunca vai funcionar.
  */
 export class MultiVehicleSuggestionVehicleNotInProposalError extends ApiError {
-  public constructor(vehicleIds: readonly string[]) {
+  /**
+   * Spec 153 T204: `field` nomeia de qual lista o veículo veio — `routeChoiceByVehicle` erra tanto
+   * quanto `vehicleIds`, e o detalhe genérico faria o cliente procurar no corpo errado.
+   */
+  public constructor(vehicleIds: readonly string[], field: string = 'vehicleIds') {
     super({
       code: 'ROUTE_SUGGESTION_VEHICLE_NOT_IN_PROPOSAL',
-      details: vehicleIds.map((vehicleId) => ({ field: 'vehicleIds', message: vehicleId })),
+      details: vehicleIds.map((vehicleId) => ({ field, message: vehicleId })),
       message: 'One or more vehicles are not part of this proposal',
       status: 400,
     })

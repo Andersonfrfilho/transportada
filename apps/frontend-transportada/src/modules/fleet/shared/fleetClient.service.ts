@@ -3,6 +3,7 @@ import {
   DRIVER_BODY_KEYS,
   DRIVER_CREATE_BODY_KEYS,
   DRIVER_AVAILABILITY_PATH,
+  driverScorePath,
   FLEET_CAPABILITIES_PATH,
   FLEET_DRIVER_VEHICLE_LINKS_PATH,
   FLEET_DRIVERS_PATH,
@@ -25,6 +26,7 @@ import type {
   FleetDriverFilters,
   FleetDriverPage,
   FleetDriverRegionsInput,
+  FleetDriverScoreResult,
   FleetDriverVehicleLink,
   FleetDriverVehiclePair,
   FleetDriverVehiclesInput,
@@ -77,6 +79,8 @@ export type FleetClient = Readonly<{
   /** Spec 081: o vínculo da empresa inteiro, em pares. Sem argumento: o recorte é o tenant. */
   listDriverVehiclePairs: () => Promise<readonly FleetDriverVehiclePair[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
+  /** Spec 159 RF10: a nota e as penalidades vigentes de um motorista — ficha da frota. */
+  readDriverScore: (input: { driverId: string }) => Promise<FleetDriverScoreResult>
   listFreightRegions: (input: FleetListInput<FreightRegionFilters>) => Promise<FreightRegionPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
   replaceDriverRegions: (
@@ -308,6 +312,14 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         path: `${FLEET_DRIVERS_PATH}?${search}`,
       })
       return adapters.driverListFromApi(response)
+    },
+    async readDriverScore(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: driverScorePath(input.driverId),
+      })
+      return adapters.driverScoreFromApi(readEnvelopeData(response))
     },
     async listFreightRegions(input) {
       const search = buildSearch(input, {

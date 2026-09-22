@@ -5,6 +5,7 @@
  * a tarifa do catálogo ao lado do valor digitado, no molde de `adjust-fuel-price.use-case.ts`.
  */
 import { invalidRequest } from '../../http/request-parsing.service.js'
+import type { TollBoothAxleChargeGapCachePort } from '../../toll-booths/application/toll-booth-axle-charge-gap-cache.port.js'
 import {
   resolveEffectiveTollBoothCharge,
   type EffectiveTollBoothCharge,
@@ -16,6 +17,7 @@ import type {
 } from './toll-booth-charge.port.js'
 
 export function createAdjustTollBoothChargeUseCase(input: {
+  readonly axleChargeGapCache: TollBoothAxleChargeGapCachePort
   readonly catalog: TollBoothCatalogLookupPort
   readonly charges: TollBoothChargePort
 }): {
@@ -24,6 +26,10 @@ export function createAdjustTollBoothChargeUseCase(input: {
   return {
     execute: async (request) => {
       await input.charges.saveAdjustment(request)
+      // Spec 154 T503, defeito 2: o ajuste pode mudar se a praça conta como "sem tarifa por eixo
+      // conhecida" (RF2) para esta empresa — invalida a cópia em memória em vez de deixá-la mentir
+      // até a próxima recarga do catálogo.
+      input.axleChargeGapCache.invalidate(request.companyId)
 
       const [catalog] = await input.catalog.readByNodeIds([request.osmNodeId])
       /** A FK de `company_toll_booth_charges.osm_node_id` só deixa gravar nó que existe no catálogo. */

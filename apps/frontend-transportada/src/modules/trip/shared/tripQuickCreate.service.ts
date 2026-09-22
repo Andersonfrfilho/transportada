@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { extractNfeAccessKey } from '@/modules/shared/nfeAccessKey.service'
 
+import type { DailyAllowanceDaysReading } from './dailyAllowanceDaysField.service'
 import type { ScannedNfeDocument } from './trip.types'
 
 /**
@@ -26,7 +27,11 @@ export type TripQuickCreateQueue = readonly TripQuickCreateEntry[]
 
 export const EMPTY_QUICK_CREATE_QUEUE: TripQuickCreateQueue = []
 
-export type TripQuickCreateIssue = 'driverRequired' | 'noDocument' | 'vehicleRequired'
+export type TripQuickCreateIssue =
+  | 'dailyAllowanceDaysInvalid'
+  | 'driverRequired'
+  | 'noDocument'
+  | 'vehicleRequired'
 
 /**
  * A leitura da câmera dispara a cada quadro e a mesma etiqueta passa duas vezes o tempo todo: texto
@@ -151,6 +156,7 @@ export function isQuickCreateEntryPending(entry: TripQuickCreateEntry): boolean 
 }
 
 export function validateQuickCreate(input: {
+  readonly dailyAllowanceDays: DailyAllowanceDaysReading
   readonly driverIds: readonly string[]
   readonly queue: TripQuickCreateQueue
   readonly vehicleId: string
@@ -159,6 +165,8 @@ export function validateQuickCreate(input: {
   if (stagedDocumentIds(input.queue).length === 0) issues.push('noDocument')
   if (input.driverIds.length === 0) issues.push('driverRequired')
   if (input.vehicleId === '') issues.push('vehicleRequired')
+  /** Campo vazio é escolha; `2,5` é engano — e engano que passa vira viagem com outro número. */
+  if (input.dailyAllowanceDays.of === 'invalid') issues.push('dailyAllowanceDaysInvalid')
   return issues
 }
 

@@ -10,14 +10,10 @@ const source = readFileSync(
 )
 
 /**
- * Spec 086 T5. Estas afirmações são por **texto de fonte** de propósito: a consulta fala com o
- * Postgres, e o defeito que ela tinha — ficar com a primeira linha que trouxesse valor — compilava,
- * passava em todo teste de caminho feliz e só aparecia em produção, num número plausível.
- */
-/**
- * Recorta o corpo de um método até o começo do próximo. Parar no primeiro `\n  }` é o que não
- * funciona: um `for` ou um `if` no meio fecha antes, e o contrato passaria a afirmar sobre meia
- * consulta — verde por recortar cedo demais, que é a pior forma de verde.
+ * Spec 143 T4. Estas afirmações são por **texto de fonte** de propósito: a consulta fala com o
+ * Postgres, e o defeito que ela tinha antes da T4 — resolver zona por motorista e devolver
+ * `driverAmount: null` para todo mundo — compilava, passava em todo teste de caminho feliz e só
+ * apareceria em produção como diária errada para todo motorista.
  */
 function methodBody(name: string): string {
   const from = source.indexOf(name)
@@ -27,74 +23,94 @@ function methodBody(name: string): string {
   return next === -1 ? rest : rest.slice(0, next)
 }
 
-describe('crew zone wiring (spec 086 T5)', () => {
-  /**
-   * ⚠️ O bloco que decidia. Ele ficava com a primeira linha de cobertura que tivesse preço, então o
-   * valor do agregado saía da ordem que o Postgres devolveu — 1.086,12 ou 1.508,51 na mesma viagem.
-   */
-  test('the query no longer keeps the first row that carries a value', () => {
-    expect(source).not.toInclude('current.routeAmount === null && row.routeAmount !== null')
-  })
-
-  /** A decisão mora na política pura, que é onde o teste consegue afirmar a ordem das paradas. */
-  test('both crew paths ask the policy which zone pays', () => {
-    expect(source).toInclude('resolveTripDriverZone')
-    expect(source).toInclude('private async resolveCrew')
+describe('crew wiring is one join, not a policy call per driver (spec 143 T4)', () => {
+  /** A zona saiu da conta: quem paga é o valor do motorista, o da empresa ou o padrão (T3). */
+  test('the query no longer resolves a zone to price the crew', () => {
+    expect(source).not.toInclude('resolveTripDriverZone')
+    expect(source).not.toInclude('private async resolveCrew')
   })
 
   /**
-   * A prévia e a viagem **não podem** decidir por caminhos diferentes: divergir faria a tela
-   * prometer um preço na montagem e a viagem cobrar outro depois de criada.
+   * A prévia e a viagem **não podem** ler o valor do motorista por caminhos diferentes: divergir
+   * faria a tela prometer uma diária na montagem e a viagem cobrar outra depois de criada.
    */
-  test('the preview and the trip share one resolution, never two', () => {
+  test('both crew paths read the driver own amount from fleet_drivers, raw', () => {
     for (const method of ['private async readCrew(', 'private async readPreviewCrew(']) {
-      expect(methodBody(method), `${method} does not delegate`).toInclude('this.resolveCrew(')
+      const body = methodBody(method)
+
+      expect(body, `${method} does not select the raw amount`).toInclude(
+        'fleetDrivers.dailyAllowanceAmount',
+      )
+      expect(body, `${method} still calls the deleted resolver`).not.toInclude('this.resolveCrew(')
     }
   })
 
-  /** Sem `sequence` não há "mais distante": é a ordem da parada que decide, nunca a da linha. */
-  test('the trip path carries the stop sequence into the decision', () => {
-    expect(source).toInclude('tripStops.sequence')
-    expect(source).toInclude('sequenceByDocument')
+  /** §15 do code-standart: nada de uma ida ao banco por motorista. */
+  test('no query per driver in either crew path', () => {
+    for (const method of ['private async readCrew(', 'private async readPreviewCrew(']) {
+      expect(methodBody(method)).not.toInclude('for (const driver')
+    }
   })
 
   /**
-   * O endereço é o **físico** (spec 073), não o do destinatário cru: a linha divisória diz que quem
-   * decide *lugar* segue o desvio manual, depois `<entrega>`, depois o cadastro — e zona é lugar.
+   * Spec 143 D2: dois valores gerais na mesma empresa é estado impossível — a consulta só pode ler
+   * a configuração da empresa **uma vez por contexto**, nunca uma vez por motorista. Duas leituras
+   * no arquivo inteiro (uma por `readContext`, uma por `readPreviewContext`) prova isso; nenhuma
+   * delas pode estar dentro do corpo de `readCrew`/`readPreviewCrew`.
    */
-  test('the zone reads the physical destination, not the raw recipient', () => {
-    expect(source).toInclude('listStopAddresses')
-  })
+  test('the company amount is read once per context, never per crew member', () => {
+    const callSites = source.match(/this\.readCompanyDailyAllowanceAmount\(/g) ?? []
+    expect(callSites.length).toBe(2)
 
-  /** §15 do code-standart: nada de uma ida ao banco por motorista ou por parada. */
-  test('no query per driver and no query per stop', () => {
-    const method = methodBody('private async resolveCrew')
-
-    expect(method).not.toInclude('for (const driver')
-    expect(method).toInclude('Promise.all')
+    for (const method of ['private async readCrew(', 'private async readPreviewCrew(']) {
+      expect(methodBody(method)).not.toInclude('readCompanyDailyAllowanceAmount')
+    }
   })
 })
 
-describe('crew zone tenant safety (spec 086 T5)', () => {
-  /**
-   * O catálogo de zonas e a cobertura do motorista são tabelas novas neste caminho. Um degrau sem
-   * tenant é como a tabela de preços de uma transportadora precifica a viagem de outra.
-   */
-  test('every join added by the zone lookup carries the company', () => {
-    const joins = source.split('.innerJoin(').slice(1)
+/**
+ * Spec 143 — revisão final, achados 8 e 20. Por texto de fonte pela mesma razão do bloco acima: a
+ * ordem que o Postgres devolve sem `ORDER BY` é estável o bastante para passar em todo teste e
+ * mudar em produção quando o plano muda.
+ */
+describe('a ordem da tripulação é declarada, nunca herdada do plano de consulta (spec 143)', () => {
+  test('the trip crew is ordered by the position the trip recorded', () => {
+    expect(methodBody('private async readCrew(')).toInclude('orderBy(asc(tripDrivers.position))')
+  })
 
-    expect(joins.length).toBeGreaterThan(0)
-    for (const join of joins) {
-      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+  test('the preview crew is ordered by the request, and says what it dropped', () => {
+    const body = methodBody('private async readPreviewCrew(')
+
+    expect(body).toInclude('orderCrewByRequest(')
+    expect(body).toInclude('this.logger.warn(')
+  })
+
+  /** §1 da segurança: id opaco rastreia, nome de motorista é PII e não entra em log. */
+  test('the dropped driver warning carries ids, never names', () => {
+    const body = methodBody('private async readPreviewCrew(')
+    const warning = body.slice(body.indexOf('this.logger.warn('))
+
+    expect(warning.slice(0, warning.indexOf('})'))).not.toInclude('driverName')
+  })
+})
+
+describe('crew wiring tenant safety (spec 143 T4)', () => {
+  test('every join in the crew paths carries the company', () => {
+    for (const method of ['private async readCrew(', 'private async readPreviewCrew(']) {
+      const joins = methodBody(method).split('.innerJoin(').slice(1)
+
+      for (const join of joins) {
+        expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+      }
     }
   })
 
-  test('each zone query filters by the company in its own where', () => {
+  test('each new method filters by the company in its own where', () => {
     for (const method of [
-      'private async readZoneCatalog',
-      'private async readDriverCoverage',
-      'private async readRatesByRegion',
-      'private async readTripStopSequences',
+      'private async readCompanyDailyAllowanceAmount',
+      'private async readAllowanceDays',
+      'private async readCrew(',
+      'private async readPreviewCrew(',
     ]) {
       const body = methodBody(method)
 

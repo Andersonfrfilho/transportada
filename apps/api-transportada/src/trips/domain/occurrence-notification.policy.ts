@@ -18,6 +18,11 @@ export type OccurrenceNotificationSetting = {
  * terceiro; o detalhe fica na tela, atrás de autenticação.
  */
 export type OccurrenceNotificationParameters = {
+  /**
+   * Spec 156 T7.3 (M4): a nota, por id opaco. Não é marcador de template — entra na chave de
+   * deduplicação, para duas notas sem rótulo (sem número de NF-e) não colapsarem num aviso só.
+   */
+  readonly documentId: string
   readonly documentLabel: string
   readonly occurrenceType: string
   readonly stopLabel: string

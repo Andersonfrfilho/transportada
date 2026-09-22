@@ -249,12 +249,13 @@ corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fa
 - [ ] **T19** — Apontar no mapa a partir do relatório. Conserta **onde**, com efeito imediato no
       roteiro e sem depender de ninguém responder.
 
-- [ ] **T20** — Pedir correção ao contratante a partir do relatório. Conserta **como se chama** — é o
+- [x] **T20** — Pedir correção ao contratante a partir do relatório. Conserta **como se chama** — é o
       caminho quando o defeito é de **nomenclatura ou CEP**, que o motorista não sabe e o pino não
       resolve.
       ⚠️ **As duas ações se somam, não se substituem.** Um pino conserta uma nota; a correção do
       texto conserta todas as seguintes, porque é ela que faz a próxima nota casar. O relatório tem
       de deixar pedir as duas no mesmo endereço.
+      Realizada pela spec 150 (pedido de correção à contratante a partir do relatório).
       _Aceite:_ o pedido carrega o texto e o CEP **como vieram**, mais a razão da suspeita. Pedir
       "confira este endereço" sem dizer o que está errado devolve o mesmo endereço de volta.
 

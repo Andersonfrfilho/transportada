@@ -11,6 +11,7 @@ import type {
   TripDocumentSnapshotById,
 } from '../../src/trips/application/transition-trip-documents-batch.use-case.js'
 import type { TripDocument } from '../../src/trips/application/trip.port.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { TRIP_DOCUMENT_ACTION } from '../../src/trips/domain/trip-state.policy.js'
 import {
   TripDocumentReturnReasonRequiredError,
@@ -107,6 +108,7 @@ describe('transition trip documents batch (spec 056 T009)', () => {
     const result = await transitionTripDocumentsBatch({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentIds: [PENDING_ID, ALREADY_SEPARATED_ID, DELIVERED_ID, MISSING_ID],
       repository,
@@ -132,6 +134,7 @@ describe('transition trip documents batch (spec 056 T009)', () => {
     await transitionTripDocumentsBatch({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentIds: manyIds,
       repository,
@@ -149,6 +152,7 @@ describe('transition trip documents batch (spec 056 T009)', () => {
     const result = await transitionTripDocumentsBatch({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentIds: [ALREADY_SEPARATED_ID, DELIVERED_ID],
       repository,
@@ -168,6 +172,7 @@ describe('transition trip documents batch (spec 056 T009)', () => {
     const result = await transitionTripDocumentsBatch({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentIds: [PENDING_ID, RACED_ID],
       repository,
@@ -186,6 +191,7 @@ describe('transition trip documents batch (spec 056 T009)', () => {
     const error = await transitionTripDocumentsBatch({
       action: TRIP_DOCUMENT_ACTION.return,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentIds: [PENDING_ID],
       repository,
@@ -203,6 +209,7 @@ describe('transition trip documents batch (spec 056 T009)', () => {
     await transitionTripDocumentsBatch({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentIds: [PENDING_ID],
       note: 'conferido no portão',
@@ -222,6 +229,7 @@ describe('transition trip documents batch (spec 056 T009)', () => {
     const error = await transitionTripDocumentsBatch({
       action: TRIP_DOCUMENT_ACTION.separate,
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       documentIds: [PENDING_ID],
       repository,

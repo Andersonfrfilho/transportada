@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { buildFleetTollBoothRoute } from '@/modules/fleet/shared/fleetRoute.service'
 import {
   buildMdfeManifestRoute,
   MDFE_MANIFEST_WORKSPACE,
@@ -13,6 +14,8 @@ export const MDFE_MANIFEST_ROUTE = MDFE_MANIFESTS_ROUTE
 export { MDFE_MANIFEST_WORKSPACE }
 export const NFE_WORKSPACE_ROUTE = '/'
 export const NFE_WORKSPACE = 'nfe'
+/** Mesma chave que `@/modules/identity/shared/fleetNavigation.service.ts` já usa para a frota. */
+export const FLEET_WORKSPACE = 'fleet'
 
 export { createBrowserWorkspaceNavigator }
 export type { WorkspaceNavigator }
@@ -42,4 +45,24 @@ export function navigateToPackageBoxQueue(navigator: WorkspaceNavigator): void {
   navigator.pushPath(`${NFE_WORKSPACE_ROUTE}?tab=boxes`)
   navigator.rememberWorkspace(NFE_WORKSPACE)
   navigator.dispatchPopState()
+}
+
+/**
+ * RF7 (spec 154): o termo que abre a praça certa na busca da aba de pedágio — o nome quando existe,
+ * o operador no resto, e vazio só quando o extrato não conhece nenhum dos dois (a aba ainda abre,
+ * sem praça pré-selecionada).
+ */
+export function resolveTollBoothAdjustmentSearch(
+  booth: Readonly<{ name: null | string; operator: null | string }>,
+): string {
+  return booth.name ?? booth.operator ?? ''
+}
+
+/** RF7 (spec 154): leva a praça sem tarifa conhecida do extrato da rota até o ajuste dela em Frota. */
+export function navigateToFleetTollBoothAdjustment(
+  input: Readonly<{ navigator: WorkspaceNavigator; search: string }>,
+): void {
+  input.navigator.pushPath(buildFleetTollBoothRoute(input.search))
+  input.navigator.rememberWorkspace(FLEET_WORKSPACE)
+  input.navigator.dispatchPopState()
 }

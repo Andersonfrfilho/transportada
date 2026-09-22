@@ -16,6 +16,11 @@ import {
 import { CTE_EMISSION_PREVIEW_QUERY_KEY } from '@/modules/nfe-workspace/shared/cteEmission.service'
 import { NFE_DOCUMENTS_QUERY_KEY } from '@/modules/nfe-workspace/shared/nfeWorkspace.constant'
 import { NFSE_EMISSION_PREVIEW_QUERY_KEY } from '@/modules/nfse-invoice/shared/nfseEmission.service'
+import { PACKAGE_BOX_QUERY_KEY } from '@/modules/nfe-workspace/hooks/usePackageBoxQueue.hook'
+import { SUGGESTION_VALUATION_QUERY_ROOT } from '@/modules/routing/queries/useSuggestionValuation.query'
+import { TRIP_VALUATION_PREVIEW_QUERY_KEY } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
+import { TRIP_CARGO_PREVIEW_QUERY_KEY } from '@/modules/trip/hooks/useTripCargoPreview.hook'
+import { TRIP_CARGO_LAYOUT_QUERY_KEY } from '@/modules/trip/queries/useTripCargoLayout.query'
 import {
   invalidateMutationEffect,
   MUTATION_EFFECT,
@@ -57,6 +62,17 @@ const EFFECT_PRODUCERS: Readonly<Record<string, readonly string[]>> = {
     'src/modules/nfse-invoice/hooks/useNfseInvoiceBulkDiscard.hook.ts',
     'src/modules/nfse-invoice/hooks/useNfseInvoiceRowActions.hook.ts',
     'src/modules/trip/hooks/useTripWorkspace.hook.ts',
+  ],
+  /**
+   * A medida nova da caixa muda a planta e a conta de quem está montando a viagem. A fila de medição
+   * invalidava só a si mesma, e o operador voltava para a montagem com a planta da caixa sem medida.
+   * A montagem invalida o mesmo alcance ao restaurar o rascunho: o recarregamento zera o cache, mas
+   * a volta pelo menu não.
+   */
+  [MUTATION_EFFECT.packageBoxMeasurement]: [
+    'src/modules/nfe-workspace/hooks/usePackageBoxQueue.hook.ts',
+    'src/modules/trip/hooks/useQuickCreateDraft.hook.ts',
+    'src/modules/trip/hooks/useRouteAssemblyDraft.hook.ts',
   ],
 }
 
@@ -104,6 +120,20 @@ describe('contrato de invalidação entre módulos', () => {
       BILLING_INVOICE_LIST_QUERY_KEY,
       COMPANY_CTE_ITEM_SUMMARY_QUERY_KEY,
       COMPANY_CTE_ITEMS_QUERY_KEY,
+    ])
+  })
+
+  /**
+   * Medir ou replicar a medida alcança a fila de medição e tudo que a montagem de viagem desenha a
+   * partir da caixa: planta da prévia, planta da viagem, conta da prévia e conta da proposta.
+   */
+  test('a medida da caixa alcança a fila, as plantas e as contas da montagem', () => {
+    expect(MUTATION_EFFECT_QUERY_KEYS[MUTATION_EFFECT.packageBoxMeasurement]).toEqual([
+      PACKAGE_BOX_QUERY_KEY,
+      SUGGESTION_VALUATION_QUERY_ROOT,
+      TRIP_CARGO_LAYOUT_QUERY_KEY,
+      TRIP_CARGO_PREVIEW_QUERY_KEY,
+      TRIP_VALUATION_PREVIEW_QUERY_KEY,
     ])
   })
 

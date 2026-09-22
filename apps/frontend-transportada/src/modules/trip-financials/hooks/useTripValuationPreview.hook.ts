@@ -2,14 +2,14 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { getTripFinancialsClient } from '../shared/tripFinancialsClient.service'
+import { FINANCIALS_PERMISSION } from '../shared/tripFinancialsQueryKey.constant'
 import {
   summarizeTripValuation,
   type TripValuation,
   type TripValuationSummary,
 } from '../shared/tripValuation.service'
 
-const TRIP_VALUATION_PREVIEW_QUERY_KEY = 'trip-valuation-preview'
-const FINANCIALS_PERMISSION = 'trip.financials'
+export const TRIP_VALUATION_PREVIEW_QUERY_KEY = 'trip-valuation-preview'
 
 export type TripValuationPreviewController = Readonly<{
   canRead: boolean
@@ -35,6 +35,8 @@ export type TripValuationPreviewController = Readonly<{
  */
 export function useTripValuationPreview(
   input: Readonly<{
+    /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
+    dailyAllowanceDays?: number
     driverIds: readonly string[]
     /**
      * ⚠️ Pausa a consulta e segura o **último número medido** enquanto há rascunho aberto na tela
@@ -53,6 +55,7 @@ export function useTripValuationPreview(
   const driverKey = [...input.driverIds].sort().join(',')
   /** ⚠️ **Sem `sort`**: aqui a ordem *é* o dado — ordenar a chave esconderia a reordenação. */
   const orderKey = input.stopOrder.join('>')
+  const dailyAllowanceDaysKey = input.dailyAllowanceDays ?? ''
 
   const query = useQuery({
     /** Sem nota ou sem veículo a API recusaria: a pergunta só existe com os dois. */
@@ -63,13 +66,24 @@ export function useTripValuationPreview(
       input.vehicleId !== '',
     queryFn: () =>
       getTripFinancialsClient().previewValuation({
+        /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
+        ...(input.dailyAllowanceDays === undefined
+          ? {}
+          : { dailyAllowanceDays: input.dailyAllowanceDays }),
         driverIds: input.driverIds,
         nfeDocumentIds: input.nfeDocumentIds,
         stopOrder: input.stopOrder,
         vehicleId: input.vehicleId,
       }),
     placeholderData: (previous) => (input.isPaused === true ? previous : undefined),
-    queryKey: [TRIP_VALUATION_PREVIEW_QUERY_KEY, documentKey, driverKey, orderKey, input.vehicleId],
+    queryKey: [
+      TRIP_VALUATION_PREVIEW_QUERY_KEY,
+      dailyAllowanceDaysKey,
+      documentKey,
+      driverKey,
+      orderKey,
+      input.vehicleId,
+    ],
   })
 
   const valuation = query.data ?? null

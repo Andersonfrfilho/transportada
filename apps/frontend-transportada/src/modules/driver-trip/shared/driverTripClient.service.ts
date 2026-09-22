@@ -2,14 +2,32 @@
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
-import type {
-  DriverFieldReport,
-  DriverOccurrenceType,
-  DriverTripSnapshot,
+import {
+  PROOF_PUNCTUALITY_VALUES,
+  type DriverFieldReport,
+  type DriverOccurrenceType,
+  type DriverOccurrenceTypesResult,
+  type DriverTripSnapshot,
+  type ProofPunctuality,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
+/** Rede presa (sinal fraco, portal cativo) não pode deixar o painel carregando para sempre. */
+const OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS = 10_000
+
+/**
+ * Spec 159 (T11): a API recusa `accuracyMeters` acima de 10 km com `400` (item 4 da revisão). O
+ * cliente nunca manda um valor que a API já sabe que vai recusar — precisão fora disso vira
+ * ausência, exatamente como GPS desligado (ADR-0045 §3). Vale para a captura nova **e** para o que
+ * já estava parado na fila offline com o valor antigo, sem teto: os dois passam por aqui.
+ */
+export const MAX_PROOF_ACCURACY_METERS = 10_000
+
+export function clampProofAccuracyMeters(accuracyMeters: number | undefined): number | undefined {
+  if (accuracyMeters === undefined) return undefined
+  return accuracyMeters > MAX_PROOF_ACCURACY_METERS ? undefined : accuracyMeters
+}
 
 export const DRIVER_TRIP_ERROR = {
   /** A rede não respondeu. É o caso do subsolo, e ele **não** tira o item da fila. */
@@ -54,14 +72,20 @@ export type DriverTripClient = Readonly<{
    * e está declarado como pendência em vez de resolvido pela metade.
    */
   attachProof: (input: {
+    /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — opcional, e nunca bloqueia o anexo. */
+    accuracyMeters?: number
     /** Idempotência POR ANEXO: gerada na captura e reenviada igual — o servidor não duplica o blob. */
     attachmentKey?: string
+    /** ISO — referência de horário da RF5; sem ele, a API usa o recebimento no servidor. */
+    capturedAt?: string
     documentId: string
     file: File
     kind: 'photo' | 'signature'
+    latitude?: number
+    longitude?: number
     receiverDocument?: string
     receiverName?: string
-  }) => Promise<void>
+  }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
   /**
    * Spec 082 (revisão): o snapshot inclui viagem `route_planned`, e é o motorista quem inicia o
    * trajeto. Fora de `dispatched`/`in_transit` a API recusa as escritas de campo — este é o botão
@@ -78,8 +102,13 @@ export type DriverTripClient = Readonly<{
     occurrenceTypeId: string
     productCode: string
   }) => Promise<void>
-  /** Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles. */
-  listOccurrenceTypes: () => Promise<readonly DriverOccurrenceType[]>
+  /**
+   * Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles.
+   *
+   * ⚠️ **Nunca lança.** Falha de rede, recusa do servidor ou corpo inválido viram `{ status:
+   * 'failed' }` — quem chama decide o aviso, e entregar/devolver não dependem disto (spec 157 RF5).
+   */
+  listOccurrenceTypes: () => Promise<DriverOccurrenceTypesResult>
   /**
    * O DAMDFE vem como **bytes**, não como URL: numa barreira o motorista abre o papel, e uma URL
    * assinada de cinco minutos que expirou no bolso não abre nada.
@@ -129,13 +158,19 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
+      if (input.latitude !== undefined) form.set('latitude', String(input.latitude))
+      if (input.longitude !== undefined) form.set('longitude', String(input.longitude))
+      const accuracyMeters = clampProofAccuracyMeters(input.accuracyMeters)
+      if (accuracyMeters !== undefined) form.set('accuracyMeters', String(accuracyMeters))
+      if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
 
-      await request({
+      const payload = await request({
         dependencies,
         form,
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
       })
+      return toProofAttachResult(payload)
     },
     async dispatchTrip(input) {
       await request({
@@ -158,19 +193,25 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
     },
     async listOccurrenceTypes() {
-      const body = await request({
-        dependencies,
-        method: 'GET',
-        path: '/company-settings/occurrence-types',
-      })
-
       /**
-       * ⚠️ Corpo estranho vira **lista vazia**, nunca exceção: sem tipo o botão fica sem opção, e o
-       * motorista segue entregando e devolvendo — que é o que não pode parar por causa de um
-       * cadastro que não carregou.
+       * ⚠️ Falha vira **estado**, nunca exceção: rede fora do ar, recusa do servidor e corpo
+       * inválido contam a mesma história para quem chama — "não sabemos os tipos agora" —, e é a
+       * tela que decide como avisar. Lista vazia de verdade (empresa sem tipo de rua ativo) é um
+       * fato diferente e chega como `{ status: 'loaded', types: [] }`.
        */
-      const data = (body as { readonly data?: unknown }).data
-      return Array.isArray(data) ? (data as readonly DriverOccurrenceType[]) : []
+      try {
+        const body = await request({
+          dependencies,
+          method: 'GET',
+          path: `${CURRENT_TRIP_PATH}/occurrence-types`,
+          signal: AbortSignal.timeout(OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS),
+        })
+        const data = (body as { readonly data?: unknown }).data
+        if (!Array.isArray(data) || !data.every(isDriverOccurrenceType)) return { status: 'failed' }
+        return { status: 'loaded', types: data }
+      } catch {
+        return { status: 'failed' }
+      }
     },
     async readManifestDamdfe(manifestId) {
       return requestFile({
@@ -250,6 +291,27 @@ async function requestFile(
   }
 }
 
+function toProofAttachResult(
+  payload: unknown,
+): Readonly<{ id: string; punctuality: ProofPunctuality }> {
+  const data =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { readonly data?: unknown }).data
+      : undefined
+  if (typeof data !== 'object' || data === null) throw new DriverTripResponseError()
+
+  const record = data as Record<string, unknown>
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.punctuality !== 'string' ||
+    !(PROOF_PUNCTUALITY_VALUES as readonly string[]).includes(record.punctuality)
+  ) {
+    throw new DriverTripResponseError()
+  }
+
+  return { id: record.id, punctuality: record.punctuality as ProofPunctuality }
+}
+
 function readFileName(disposition: string | null, fallback: string): string {
   const match = disposition?.match(/filename="([^"]+)"/u)
   return match?.[1] ?? fallback
@@ -286,6 +348,7 @@ async function request(
     idempotencyKey?: string
     method: 'GET' | 'POST'
     path: string
+    signal?: AbortSignal
   }>,
 ): Promise<unknown> {
   const accessToken = await input.dependencies.getAccessToken()
@@ -297,6 +360,7 @@ async function request(
   if (input.body !== undefined) requestInit.body = input.body
   // O `content-type` do multipart carrega a fronteira, e só o próprio `fetch` sabe qual ela é.
   if (input.form !== undefined) requestInit.body = input.form
+  if (input.signal !== undefined) requestInit.signal = input.signal
 
   let response: Response
   try {
@@ -338,4 +402,10 @@ function readErrorCode(payload: unknown): string {
   if (typeof payload !== 'object' || payload === null) return 'REQUEST_FAILED'
   const error = (payload as { readonly error?: { readonly code?: unknown } }).error
   return typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED'
+}
+
+function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as { readonly id?: unknown; readonly name?: unknown }
+  return typeof candidate.id === 'string' && typeof candidate.name === 'string'
 }

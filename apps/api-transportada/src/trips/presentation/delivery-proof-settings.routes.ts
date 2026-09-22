@@ -11,11 +11,16 @@ import {
   API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
-import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import type {
+  CompanyDeliveryProofSettings,
+  DeliveryProofFieldSettings,
+  DeliveryProofPunctualitySettings,
+  DeliveryProofSettingsInput,
+} from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofSettingsOverride } from '../infrastructure/drizzle-delivery-proof-settings.repository.js'
 import {
+  companyDeliveryProofSettingsSchema,
   deliveryProofOverridesSchema,
-  deliveryProofSettingsSchema,
 } from './delivery-proof-settings.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
@@ -26,15 +31,50 @@ export type DeliveryProofSettingsDependencies = {
   }) => Promise<readonly DeliveryProofSettingsOverride[]>
   readonly readSettings: (input: {
     readonly companyId: string
-  }) => Promise<DeliveryProofFieldSettings>
+  }) => Promise<CompanyDeliveryProofSettings>
   readonly replaceOverrides: (input: {
     readonly companyId: string
     readonly overrides: readonly DeliveryProofSettingsOverride[]
   }) => Promise<void>
   readonly saveSettings: (input: {
     readonly companyId: string
-    readonly settings: DeliveryProofFieldSettings
-  }) => Promise<DeliveryProofFieldSettings>
+    readonly settings: DeliveryProofSettingsInput
+  }) => Promise<CompanyDeliveryProofSettings>
+}
+
+/**
+ * Spec 159 T11 (item 6): os modos sempre vêm; os parâmetros da nota, só os que mudam. O interruptor
+ * da leitura do canhoto (ADR-0069 §6) é opcional do mesmo jeito.
+ */
+type CompanyDeliveryProofSettingsInput = DeliveryProofFieldSettings & {
+  readonly [TKey in keyof DeliveryProofPunctualitySettings]?:
+    | DeliveryProofPunctualitySettings[TKey]
+    | undefined
+} & {
+  readonly canhotoOcrEnabled?: boolean | undefined
+}
+
+/**
+ * O que não veio fica como está gravado — `undefined` nunca sobrescreve um número. O interruptor do
+ * canhoto não é completado com o gravado: ausente segue ausente até o repositório, que não o toca.
+ */
+function mergeSettings(
+  stored: DeliveryProofPunctualitySettings,
+  input: CompanyDeliveryProofSettingsInput,
+): DeliveryProofSettingsInput {
+  const provided = Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined),
+  ) as DeliveryProofFieldSettings &
+    Partial<DeliveryProofPunctualitySettings> & { readonly canhotoOcrEnabled?: boolean }
+
+  return {
+    latePenaltyPoints: stored.latePenaltyPoints,
+    missingAfterHours: stored.missingAfterHours,
+    missingPenaltyPoints: stored.missingPenaltyPoints,
+    proofRadiusMeters: stored.proofRadiusMeters,
+    proofWindowMinutes: stored.proofWindowMinutes,
+    ...provided,
+  }
 }
 
 function jsonResponse(body: object): Response {
@@ -60,16 +100,18 @@ export function createDeliveryProofSettingsRoutes(
       pathname: API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
-    defineRoute<DeliveryProofFieldSettings>({
+    defineRoute<CompanyDeliveryProofSettingsInput>({
       async handle({ context, input }): Promise<Response> {
+        const companyId = context.scope.companyId
+        const stored = await dependencies.readSettings({ companyId })
         const settings = await dependencies.saveSettings({
-          companyId: context.scope.companyId,
-          settings: input,
+          companyId,
+          settings: mergeSettings(stored, input),
         })
         return jsonResponse(settings)
       },
       method: 'PUT',
-      parse: ({ request }) => parseBody(deliveryProofSettingsSchema, request),
+      parse: ({ request }) => parseBody(companyDeliveryProofSettingsSchema, request),
       pathname: API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),

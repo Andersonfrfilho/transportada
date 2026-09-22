@@ -46,10 +46,16 @@ describe('export do histórico de medida (spec 152, T5, R8)', () => {
           to: undefined,
         })
 
+        /**
+         * T14 (revisão final, ALTO-1): a caixa nunca foi medida — a dimensão veio de uma irmã da
+         * família (D6) — e por isso não é leitura de câmera nenhuma para validar. Mesmo mais
+         * recente que as outras duas, `replicated` não pode aparecer aqui.
+         */
         expect(page.items.map((item) => item.id)).toEqual([
           scenario.secondMeasurementId,
           scenario.firstMeasurementId,
         ])
+        expect(page.items.map((item) => item.id)).not.toContain(scenario.replicatedMeasurementId)
         expect(page.nextCursor).toBeNull()
 
         const latest = page.items[0]!
@@ -131,6 +137,7 @@ type Scenario = {
   readonly companyId: string
   readonly firstMeasurementId: string
   readonly otherCompanyId: string
+  readonly replicatedMeasurementId: string
   readonly secondMeasurementId: string
 }
 
@@ -147,6 +154,7 @@ async function seedScenario(database: TestDatabase): Promise<Scenario> {
   const boxId = crypto.randomUUID()
   const firstMeasurementId = crypto.randomUUID()
   const secondMeasurementId = crypto.randomUUID()
+  const replicatedMeasurementId = crypto.randomUUID()
 
   await database.db.insert(identityUsers).values([
     { id: activeUserId, status: 'active' },
@@ -216,8 +224,32 @@ async function seedScenario(database: TestDatabase): Promise<Scenario> {
     widthMarginMm: 4,
     widthMm: 99,
   })
+  /**
+   * Spec 155 (D6, ALTO-1 da revisão final): a caixa nunca foi medida de verdade — a dimensão veio
+   * de uma irmã da família. Mais recente que as outras duas de propósito: sem o filtro do lado da
+   * API, ela apareceria primeiro nesta mesma lista.
+   */
+  await database.db.insert(nfePackageBoxMeasurements).values({
+    companyId,
+    createdAt: new Date('2026-09-13T09:30:00.000Z'),
+    heightMm: 198,
+    id: replicatedMeasurementId,
+    lengthMm: 301,
+    measuredByUserId: activeUserId,
+    packageBoxId: boxId,
+    replicatedFromBoxId: boxId,
+    source: 'replicated',
+    widthMm: 99,
+  })
 
-  return { activeUserId, companyId, firstMeasurementId, otherCompanyId, secondMeasurementId }
+  return {
+    activeUserId,
+    companyId,
+    firstMeasurementId,
+    otherCompanyId,
+    replicatedMeasurementId,
+    secondMeasurementId,
+  }
 }
 
 function buildUseCase(database: TestDatabase) {

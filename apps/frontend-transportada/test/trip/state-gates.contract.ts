@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
 import { loadFutureModule, type TripStatusContract } from './trip.fixture'
@@ -14,27 +15,29 @@ import { loadFutureModule, type TripStatusContract } from './trip.fixture'
  *
  * - **barracão** (`separate`/`load`): recusa `cancelled`, `completed`, todo estado despachado, e
  *   também `draft` — sem roteiro planejado sai `TRIP_ROUTE_NOT_PLANNED`;
- * - **rua** (`return`/`deliver`): exige `isTripDispatched`, e `completed` já saiu antes por ser
- *   terminal. Ou seja, devolver é o **inverso** de separar, não uma variação dele.
+ * - **rua** (`return`/`deliver`): exige `isTripDispatched`. Spec 156 T8b, ADR-0067: o gate de rua
+ *   deixou de viver no cliente — `field-delivery`/`field-return` (`trip.report-on-behalf`) só
+ *   aparecem por `allowedActions`, resolvidos pelo servidor. Este arquivo não os afirma mais; o
+ *   contrato de `allowedActions` mora em `test/trip/field-action-capabilities.contract.ts`.
  *
  * Mais o portão de vínculo (`checkTripAcceptsLinkage`, T013), que é um terceiro: vale até
  * `dispatched`, exclusive.
  */
 const GATES_BY_STATUS: Readonly<
-  Record<TripStatusContract, { editable: boolean; return: boolean; separateOrLoad: boolean }>
+  Record<TripStatusContract, { editable: boolean; separateOrLoad: boolean }>
 > = {
-  cancelled: { editable: false, return: false, separateOrLoad: false },
-  completed: { editable: false, return: false, separateOrLoad: false },
-  dispatched: { editable: false, return: true, separateOrLoad: false },
-  draft: { editable: true, return: false, separateOrLoad: false },
-  in_transit: { editable: false, return: true, separateOrLoad: false },
-  loading: { editable: true, return: false, separateOrLoad: true },
-  route_planned: { editable: true, return: false, separateOrLoad: true },
-  separating: { editable: true, return: false, separateOrLoad: true },
+  cancelled: { editable: false, separateOrLoad: false },
+  completed: { editable: false, separateOrLoad: false },
+  dispatched: { editable: false, separateOrLoad: false },
+  draft: { editable: true, separateOrLoad: false },
+  in_transit: { editable: false, separateOrLoad: false },
+  loading: { editable: true, separateOrLoad: true },
+  on_delivery_route: { editable: false, separateOrLoad: false },
+  route_planned: { editable: true, separateOrLoad: true },
+  separating: { editable: true, separateOrLoad: true },
 }
 
 type TripStatusModule = {
-  readonly canReturnDocuments: (status: TripStatusContract) => boolean
   readonly canSeparateOrLoadDocuments: (status: TripStatusContract) => boolean
   readonly isTripDispatched: (status: TripStatusContract) => boolean
   readonly isTripEditable: (status: TripStatusContract) => boolean
@@ -42,15 +45,15 @@ type TripStatusModule = {
 
 describe('trip state gates mirror the backend transition policy', () => {
   test('every trip status opens exactly the gates the domain opens', async () => {
-    const { canReturnDocuments, canSeparateOrLoadDocuments, isTripEditable } =
-      await loadFutureModule<TripStatusModule>('../../src/modules/trip/shared/tripStatus.service')
+    const { canSeparateOrLoadDocuments, isTripEditable } = await loadFutureModule<TripStatusModule>(
+      '../../src/modules/trip/shared/tripStatus.service',
+    )
 
     const actual = Object.fromEntries(
       Object.keys(GATES_BY_STATUS).map((status) => [
         status,
         {
           editable: isTripEditable(status as TripStatusContract),
-          return: canReturnDocuments(status as TripStatusContract),
           separateOrLoad: canSeparateOrLoadDocuments(status as TripStatusContract),
         },
       ]),
@@ -60,50 +63,16 @@ describe('trip state gates mirror the backend transition policy', () => {
   })
 
   /**
-   * ⚠️ **A mesma regressão, agora em "Marcar entregue"** (spec 079). Entregar teve rota própria fora
-   * da máquina de estados até 02/09/2026: ela aceitava qualquer estado, e por isso o botão podia
-   * usar `isTripEditable` sem ninguém notar. Com a rota passando pela política, entregar herdou o
-   * portão de devolver — `checkTripAcceptsDocumentWork` exige viagem despachada para os dois —, e
-   * `isTripEditable` passou a oferecer o botão exatamente onde o backend responde 409.
-   *
-   * O gate de entregar **é** o de devolver. Se algum dia deixarem de ser o mesmo, é aqui que a
-   * separação se declara — não numa condição solta no JSX.
+   * Spec 156 T8b: `canDeliverDocuments`/`canReturnDocuments` saíram do módulo — nenhuma das duas
+   * funções deve reaparecer aqui. Reintroduzi-las seria a mesma regressão que este arquivo já
+   * impediu uma vez (spec 079): uma cópia da máquina de estados vivendo fora do servidor.
    */
-  test('delivering opens exactly where returning opens', async () => {
-    const { canDeliverDocuments, canReturnDocuments } = await loadFutureModule<
-      TripStatusModule & { readonly canDeliverDocuments: (status: TripStatusContract) => boolean }
-    >('../../src/modules/trip/shared/tripStatus.service')
-
-    for (const status of Object.keys(GATES_BY_STATUS)) {
-      expect(canDeliverDocuments(status as TripStatusContract)).toBe(
-        canReturnDocuments(status as TripStatusContract),
-      )
-    }
-  })
-
-  /**
-   * A regressão concreta que este arquivo nasceu para impedir: devolver estava preso a
-   * `isTripEditable`, ou seja, oferecido só **antes** do despacho — exatamente quando o backend o
-   * recusa, e escondido exatamente quando ele funciona.
-   */
-  test('returning and separating never open at the same time', async () => {
-    const { canReturnDocuments, canSeparateOrLoadDocuments } =
-      await loadFutureModule<TripStatusModule>('../../src/modules/trip/shared/tripStatus.service')
-
-    for (const status of Object.keys(GATES_BY_STATUS) as TripStatusContract[]) {
-      expect(canReturnDocuments(status) && canSeparateOrLoadDocuments(status)).toBe(false)
-    }
-  })
-
-  test('the linkage gate closes from dispatched onward, and returning opens there', async () => {
-    const { canReturnDocuments, isTripEditable } = await loadFutureModule<TripStatusModule>(
+  test('canDeliverDocuments and canReturnDocuments no longer exist', async () => {
+    const module = await loadFutureModule<Record<string, unknown>>(
       '../../src/modules/trip/shared/tripStatus.service',
     )
 
-    // As duas metades da D2: a carga saiu, o vínculo sela e o trabalho passa a ser de rua.
-    expect(isTripEditable('dispatched')).toBe(false)
-    expect(canReturnDocuments('dispatched')).toBe(true)
-    expect(isTripEditable('route_planned')).toBe(true)
-    expect(canReturnDocuments('route_planned')).toBe(false)
+    expect(module.canDeliverDocuments).toBeUndefined()
+    expect(module.canReturnDocuments).toBeUndefined()
   })
 })

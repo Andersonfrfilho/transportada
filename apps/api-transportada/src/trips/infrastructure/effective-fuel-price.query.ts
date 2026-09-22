@@ -15,6 +15,10 @@ import { DrizzleFuelPriceRepository } from '../../companies/infrastructure/drizz
 import { resolveEffectiveFuelPrice } from '../../companies/domain/fuel-price.policy.js'
 import type { CompanySettingsDatabase } from '../../companies/infrastructure/drizzle-company-settings.types.js'
 import { FUEL_PRODUCTS, type FuelProduct } from '../../shared/fuel.constant.js'
+import {
+  NO_FUEL_BASELINE,
+  type RouteOptionVehicle,
+} from '../../toll-booths/domain/route-option.policy.js'
 
 export async function readEffectiveFuelPrice(
   database: CompanySettingsDatabase,
@@ -32,4 +36,31 @@ export async function readEffectiveFuelPrice(
 /** O cadastro guarda o combustível como texto livre do catálogo; fora dele não há preço a buscar. */
 export function toFuelProduct(value: null | string): FuelProduct | null {
   return FUEL_PRODUCTS.includes(value as FuelProduct) ? (value as FuelProduct) : null
+}
+
+export type ResolveVehicleFuelBaselineParams = {
+  readonly companyId: string
+  readonly database: CompanySettingsDatabase
+  /** `fleet_vehicles.average_consumption` — km por litro, ou `null` quando a ficha não declara. */
+  readonly kilometersPerLiter: null | string
+  readonly fuelType: null | string
+}
+
+/**
+ * Consumo e preço efetivo do combustível do veículo — o que `rankRouteOptions` compara. Um lugar só
+ * para a leitura ao vivo da rota e para o congelamento: duas cópias desta conta deixariam o mesmo
+ * veículo com "mais barata" diferente em cada tela.
+ */
+export async function resolveVehicleFuelBaseline(
+  input: ResolveVehicleFuelBaselineParams,
+): Promise<RouteOptionVehicle> {
+  if (input.kilometersPerLiter === null) return NO_FUEL_BASELINE
+
+  const pricePerLiter = await readEffectiveFuelPrice(input.database, {
+    companyId: input.companyId,
+    product: toFuelProduct(input.fuelType),
+  })
+  if (pricePerLiter === null) return NO_FUEL_BASELINE
+
+  return { kilometersPerLiter: input.kilometersPerLiter, pricePerLiter }
 }

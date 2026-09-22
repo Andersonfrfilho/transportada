@@ -5,7 +5,13 @@ import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import { TripDocumentNotReachableError, TripStopNotReachableError } from '../domain/trip.error.js'
 import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
 import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
-import { withFieldReport } from './trip-field-report.port.js'
+import {
+  deriveFieldAuthorship,
+  toFieldTripTarget,
+  type FieldTripLocator,
+} from './field-trip-target.types.js'
+import { buildOfficeAuditEntry, type OfficeAuditRequest } from './trip-field-office-audit.port.js'
+import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
 const OCCURRENCE_OPERATION = 'stop.occurrence'
 /** O único tipo de ocorrência que fala de dinheiro. Os demais viram pendência operacional. */
@@ -33,7 +39,7 @@ export type StopOccurrenceNotifierPort = {
   }): Promise<void>
 }
 
-export type ReportStopOccurrenceInput = {
+export type ReportStopOccurrenceInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly attachmentObjectId: string | null
   readonly companyId: string
@@ -41,9 +47,10 @@ export type ReportStopOccurrenceInput = {
   /** ADR-0057 §3: `null` é não aferida, e ela é aceita — distância nunca é porteiro. */
   readonly distanceMeters: number | null
   readonly documentId: string | null
-  readonly driverId: string
   readonly idempotencyKey: string
   readonly kind: TripStopOccurrenceKind
+  /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da ocorrência. */
+  readonly officeAudit?: OfficeAuditRequest
   readonly stopId: string
   /**
    * Spec 060 D4c: a ocorrência de **cobrança** vira sugestão na fila do escritório. Ausente, a
@@ -69,20 +76,23 @@ export type ReportStopOccurrenceResult = { readonly id: string }
 export async function reportStopOccurrence(
   input: ReportStopOccurrenceInput,
 ): Promise<ReportStopOccurrenceResult> {
+  const authorship = deriveFieldAuthorship(input)
+
   const recorded = await input.unitOfWork.execute(async (transaction) =>
-    withFieldReport(
-      {
+    withFieldReport({
+      guard: {
         actorUserId: input.actorUserId,
+        authorship,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
-        operation: OCCURRENCE_OPERATION,
+        operation: resolveFieldReportOperation({ locator: input, operation: OCCURRENCE_OPERATION }),
         transaction,
       },
-      async () => {
+      perform: async () => {
         const stop = await transaction.findStopForDriver({
           companyId: input.companyId,
-          driverId: input.driverId,
           stopId: input.stopId,
+          target: toFieldTripTarget(input),
         })
         if (stop === null) throw new TripStopNotReachableError()
 
@@ -90,14 +100,27 @@ export async function reportStopOccurrence(
           const document = await transaction.findDocumentForDriver({
             companyId: input.companyId,
             documentId: input.documentId,
-            driverId: input.driverId,
+            target: toFieldTripTarget(input),
           })
           if (document === null) throw new TripDocumentNotReachableError()
         }
 
+        const audit = buildOfficeAuditEntry({
+          actorUserId: input.actorUserId,
+          audit: input.officeAudit,
+          companyId: input.companyId,
+          details: {
+            ...(input.documentId === null ? {} : { documentId: input.documentId }),
+            stopId: input.stopId,
+          },
+          locator: input,
+        })
+        if (audit !== undefined) await transaction.recordOfficeAudit(audit)
+
         return transaction.recordOccurrence({
           actorUserId: input.actorUserId,
           attachmentObjectId: input.attachmentObjectId,
+          authorship,
           companyId: input.companyId,
           description: input.description,
           distanceMeters: input.distanceMeters,
@@ -106,9 +129,9 @@ export async function reportStopOccurrence(
           stopId: input.stopId,
         })
       },
-      (occurrenceId) =>
+      recall: (occurrenceId) =>
         transaction.findOccurrenceById({ companyId: input.companyId, occurrenceId }),
-    ),
+    }),
   )
 
   /**

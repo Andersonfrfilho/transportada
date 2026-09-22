@@ -4,14 +4,20 @@ import { useEffect, useState } from 'react'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import {
+  invalidateMutationEffect,
+  MUTATION_EFFECT,
+} from '@/modules/shared/mutationInvalidation.service'
+import {
   createPackageBoxClient,
   packageBoxErrorCode,
   type PackageBoxMeasurementInput,
+  type PackageBoxSiblings,
   type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
+import { PACKAGE_BOX_REPLICATE_FAILED_CODE } from '../shared/nfeWorkspace.constant'
 import { isRepeatedScan } from '../shared/packageBoxScan.js'
 
-const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
+export const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
 const SEARCH_DEBOUNCE_MS = 400
 /** Último recurso: a falha não veio da API (rede caiu) e mesmo assim precisa de rótulo na tela. */
 const PACKAGE_BOX_MEASURE_FAILED_CODE = 'PACKAGE_BOX_MEASURE_FAILED'
@@ -115,7 +121,28 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
      */
     onSuccess: () => {
       setMeasureErrorCode(undefined)
-      void queryClient.invalidateQueries({ queryKey: [PACKAGE_BOX_QUERY_KEY] })
+      void invalidateMutationEffect({ effect: MUTATION_EFFECT.packageBoxMeasurement, queryClient })
+    },
+  })
+
+  /** ⚠️ Mesmo padrão de `measureErrorCode` (A1): recusa de replicar precisa aparecer no diálogo. */
+  const [replicateErrorCode, setReplicateErrorCode] = useState<string | undefined>(undefined)
+
+  /**
+   * Spec 155 (G004, D5): replicar é sempre confirmado pelo conferente — a mutação só existe, quem
+   * decide chamar é o diálogo. Invalida a mesma chave da medida: a família inteira precisa reler os
+   * contadores e o `measuredAt` dos alvos gravados.
+   */
+  const replicate = useMutation({
+    mutationFn: (input: Readonly<{ boxId: string; targetIds: readonly string[] }>) =>
+      client.replicate(input),
+    onError: (error: unknown) => {
+      setReplicateErrorCode(packageBoxErrorCode(error) ?? PACKAGE_BOX_REPLICATE_FAILED_CODE)
+    },
+    onMutate: () => setReplicateErrorCode(undefined),
+    onSuccess: () => {
+      setReplicateErrorCode(undefined)
+      void invalidateMutationEffect({ effect: MUTATION_EFFECT.packageBoxMeasurement, queryClient })
     },
   })
 
@@ -131,10 +158,21 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     /** O código da recusa da última gravação — `undefined` enquanto nada falhou (A1). */
     measureErrorCode,
     queue: query.data ?? null,
+    replicate,
+    /** O código da recusa da última réplica — `undefined` enquanto nada falhou. */
+    replicateErrorCode,
     /** Zera o desfecho da gravação anterior — quem abre o fluxo chama antes de começar do zero. */
     resetMeasure: () => {
       measure.reset()
       setMeasureErrorCode(undefined)
+    },
+    /**
+     * T14 (revisão final, ALTO-2): o painel chama isto ao abrir e ao fechar o diálogo de replicar —
+     * sem isso, a recusa (ou o `isPending`) da réplica anterior sobrevivia para o próximo diálogo.
+     */
+    resetReplicate: () => {
+      replicate.reset()
+      setReplicateErrorCode(undefined)
     },
     /** Refaz a consulta da etiqueta atual — a saída para a falha que não muda a chave. */
     retryLookup,
@@ -158,4 +196,47 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     },
     status,
   }
+}
+
+/**
+ * Chave e função da consulta de irmãs, num só lugar — `usePackageBoxSiblings` (a fila de 50 nunca
+ * usa isto) e `usePackageBoxSiblingsFetcher` (o botão da D12/G012, que busca só no clique) precisam
+ * da MESMA definição: duas versões da mesma consulta abririam espaço para uma delas ficar com
+ * `staleTime` diferente do que a outra espera, ou responder de uma chave que a outra não invalida.
+ */
+function packageBoxSiblingsQuery(boxId: string) {
+  const client = createClient()
+  return {
+    queryFn: () => client.listSiblings({ boxId }),
+    queryKey: [PACKAGE_BOX_QUERY_KEY, 'siblings', boxId] as const,
+  }
+}
+
+/**
+ * Spec 155 (D9, G003): as irmãs de família/embalagem de UMA caixa, sob demanda — nunca junto da
+ * fila de 50 linhas. `boxId: null` desliga a consulta (o botão rápido e o diálogo de replicar
+ * pedem exatamente a caixa que estão mostrando, nunca a fila inteira).
+ */
+export function usePackageBoxSiblings(input: Readonly<{ boxId: null | string }>) {
+  const query = useQuery<PackageBoxSiblings>({
+    enabled: input.boxId !== null,
+    ...packageBoxSiblingsQuery(input.boxId ?? ''),
+  })
+
+  return {
+    failed: query.isError,
+    loading: query.isLoading,
+    siblings: query.data ?? null,
+  }
+}
+
+/**
+ * Spec 155 (D12, G012), re-revisão M1/M2: busca as irmãs de uma caixa **sob demanda**, sempre com
+ * dado fresco (`staleTime: 0`) — o clique de "aplicar a todos" precisa da medida que está no banco
+ * agora, nunca de um `isLoading=false` com dado obsoleto que o React Query ainda não trocou.
+ */
+export function usePackageBoxSiblingsFetcher(): (boxId: string) => Promise<PackageBoxSiblings> {
+  const queryClient = useQueryClient()
+  return (boxId: string) =>
+    queryClient.fetchQuery({ ...packageBoxSiblingsQuery(boxId), staleTime: 0 })
 }

@@ -95,6 +95,12 @@ const CATALOG = [
     job: 'trip.cargo-layout.purge',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /** Spec 150 T406: a janela vencida do limitador só toca o próprio banco. */
+    failureOutcomes: [],
+    job: 'rate-limit.window.purge',
+    minimumIntervalSeconds: 3600,
+  },
 ] as const
 
 describe('worker job catalog', () => {

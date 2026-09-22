@@ -44,6 +44,8 @@ export const API_COMPANY_SETTINGS_TOLL_BOOTH_CHARGES_PATH = '/company-settings/t
 export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
 /** Spec 126: regime federal e alíquotas de PIS/COFINS da empresa (`company_tax_settings`). */
 export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federal-taxes'
+/** Spec 143 D3: o valor geral de diária que a empresa paga sem valor combinado com o motorista. */
+export const API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH = '/company-settings/driver-allowance'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
@@ -51,10 +53,16 @@ export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 /** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
 export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
 export const API_CONTRACTORS_PATH = '/contractors'
+/** Spec 150 T301 (spec 143 T013): a lista de contatos de e-mail da contratante. */
+export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
+export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
 /** Spec 143 (ADR-0063): a chave do Resend, o segredo do webhook e o remetente, por empresa. */
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
 export const API_CONTRACTOR_MAIL_TEST_EMAIL_PATH = '/contractor-mail-settings/test-email'
+export const API_CONTRACTOR_MAIL_TEMPLATES_PATH = '/contractor-mail-templates'
+export const API_CONTRACTOR_MAIL_TEMPLATES_CATALOG_PATH = '/contractor-mail-templates/catalog'
+export const API_CONTRACTOR_MAIL_TEMPLATES_PREVIEW_PATH = '/contractor-mail-templates/preview'
 /**
  * Spec 143 T010 (RF11): a terceira superfície anônima, e a primeira assinada — o `webhookId` opaco
  * acha a configuração da empresa, e a assinatura Svix é conferida contra o segredo dela.
@@ -71,8 +79,15 @@ export const API_FINANCIAL_RESULTS_PATH = '/financial-results'
  * autenticado.
  */
 export const API_PUBLIC_EXTRA_CHARGE_BATCHES_PATH = '/public/extra-charge-batches/:token'
+/** Spec 154 RF1: o catálogo de praças inteiro, com busca e paginação — nunca só as vistas. */
+export const API_TOLL_BOOTHS_PATH = '/toll-booths'
+/** Spec 154 RF3/RF3b: registro do extrato versionado no bucket (D10), `settings.manage`. */
+export const API_TOLL_BOOTH_EXTRACTS_PATH = '/toll-booths/extracts'
+export const API_TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
+/** Spec 159 RF10: a nota do motorista e as penalidades vigentes, `fleet.read` como a listagem. */
+export const API_FLEET_DRIVER_SCORE_PATH = `${API_FLEET_DRIVERS_PATH}/:id/score`
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
@@ -85,6 +100,21 @@ export const API_FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
 export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_ADDRESS_REPORT_PATH = '/address-report'
+/** Spec 150: o pedido de correção de endereço à contratante. */
+export const API_ADDRESS_CORRECTION_REQUESTS_PATH = '/address-correction-requests'
+/** Spec 150 T304: o envio do e-mail de correção, completo ou unitário. */
+export const API_ADDRESS_CORRECTION_REQUESTS_MAIL_PATH = '/address-correction-requests/mail'
+/**
+ * Spec 150 T406: o balde único de toda rota que dispara e-mail à contratante — o envio de correção
+ * e o e-mail de teste gastam o mesmo teto.
+ */
+export const CONTRACTOR_MAIL_RATE_LIMIT_SCOPE = 'contractor-mail'
+/**
+ * Revisão final (item de segurança B3): resolve a contratante e os contatos ativos dela a partir
+ * do CNPJ do corpo — nunca do caminho da URL, e nunca mais via `GET /contractors/by-tax-id/:taxId`.
+ */
+export const API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH =
+  '/address-correction-requests/recipients'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'
@@ -216,6 +246,12 @@ export const HTTP_ERROR = {
   databaseUnavailable: {
     code: 'DATABASE_UNAVAILABLE',
     message: 'Database unavailable',
+    status: 503,
+  },
+  /** Spec 154 T402: o `ObjectStorageError(unavailable)` do provider vale para toda rota de storage. */
+  storageUnavailable: {
+    code: 'STORAGE_UNAVAILABLE',
+    message: 'Object storage unavailable',
     status: 503,
   },
 } as const

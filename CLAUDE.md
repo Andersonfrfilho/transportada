@@ -54,13 +54,22 @@ bun run --cwd apps/<app> test   # testes de uma app só
 
 Não há target isolado de lint/typecheck — use `bun run lint` / `bun run typecheck` na raiz.
 
-⚠️ **A integração da API só roda com `.env.test` explícito, e sem ele pula em silêncio.** O `.env` é
-link simbólico na raiz (`make worktree`), e o Bun não o lê a partir de `apps/api-transportada` — sem
-a flag, os testes de `test/integration/*.integration.ts` **pulam** em vez de falhar, então rodar
-`bun run --cwd apps/api-transportada test` sozinho parece verde sem ter exercitado banco nenhum. O
-comando certo é `bun --env-file=../../.env.test test --timeout 120000`, de dentro de
-`apps/api-transportada`. Mesmo defeito de forma que a spec 092 registrou para outro alvo ("pular não
-é passar").
+⚠️ **O teste da API são dois comandos, e nenhum cobre o outro.** `bun test` usa a descoberta padrão
+do Bun, que casa `*.test.*`: isso pega os 177 `test/*.contract.test.ts` e **exclui por completo** os
+84 `test/integration/*.integration.ts`, que não casam com o padrão. Contrato e integração são duas
+listas e dois comandos, de dentro de `apps/api-transportada`:
+
+```bash
+bun --env-file=../../.env.test test --timeout 120000   # contrato — 177 arquivos, sem banco
+bun --env-file=../../.env.test run test:integration    # integração — 72 arquivos, exercita o banco
+```
+
+O `--env-file` é obrigatório no segundo: o `.env` é link simbólico na raiz (`make worktree`) e o Bun
+não o lê a partir de `apps/api-transportada`, então sem a flag a integração **pula** em vez de
+falhar. Mesmo defeito de forma que a spec 092 registrou ("pular não é passar") — e a redação
+anterior deste aviso caía nele por outro caminho: mandava rodar só o primeiro comando e chamava o
+verde dele de "exercitou o banco". Uma task que mexe em `test/integration/**` só fecha com o
+segundo comando, ou seus testes novos não rodaram.
 
 Portas (bind em 127.0.0.1): postgres 55432 · rabbitmq 55672/55673 · minio 59000/59001 ·
 mailpit 51025/58025 · keycloak 58080 · frontend 53000 · api 53001 · worker 53002.

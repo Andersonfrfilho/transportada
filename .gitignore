@@ -38,3 +38,7 @@ deploy/osrm/data/
 # `bun run assets:background-removal` (roda sozinho antes de `build` e de `dev`).
 # Binário grande no Git é peso que entra e nunca sai — todo clone pagaria por sempre.
 apps/frontend-transportada/public/background-removal/
+
+# Motor de OCR do canhoto (worker, core WASM, modelo de língua): ~24 MB de artefato de terceiro,
+# postos por `bun run assets:canhoto-ocr` (spec 156 T14, ADR-0069). Mesma razão do recorte acima.
+apps/frontend-transportada/public/canhoto-ocr/

@@ -2,6 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import type { RouteChoice } from '../domain/route-choice.policy.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripDocumentAction } from '../domain/trip-state.policy.js'
 import { cancelTrip, type CancelTripPort } from './cancel-trip.use-case.js'
 import { dispatchTrip, type DispatchTripPort } from './dispatch-trip.use-case.js'
@@ -62,17 +64,22 @@ export type TripLifecycleDependencies = {
  * e o `routes.contract.ts` já cobrem juntos.
  */
 export function createTripLifecycleUseCase(dependencies: TripLifecycleDependencies) {
+  /**
+   * Spec 156 T8b (revisão): `returnReason` saiu — só `separate`/`load` chamam este helper hoje
+   * (`document('return')` saiu de `createTripLifecycleUseCase` na mesma task), e nenhum dos dois
+   * usa motivo de devolução.
+   */
   const document = (action: TripDocumentAction) =>
     async function execute(input: {
       readonly context: CompanyContext
       readonly documentId: string
       readonly note?: string | null
-      readonly returnReason?: string | null
       readonly tripId: string
     }) {
       return transitionTripDocument({
         action,
         actorUserId: input.context.userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
         ...(dependencies.suggestCharges === undefined
           ? {}
           : { suggestCharges: dependencies.suggestCharges }),
@@ -81,35 +88,40 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         repository: dependencies.documentRepository,
         tripId: input.tripId,
         ...(input.note === undefined ? {} : { note: input.note }),
-        ...(input.returnReason === undefined ? {} : { returnReason: input.returnReason }),
       })
     }
 
   return {
+    /**
+     * Spec 156 T8b (revisão): `deliver`/`return` saíram do lote (ADR-0067) — a ação aqui é só
+     * galpão. `returnReason` saiu junto: nenhuma das duas ações restantes o usa, e mantê-lo como
+     * campo aceito e nunca lido era o tipo de sobra que engana quem lê o código.
+     */
     batchStatus: {
       async execute(input: {
-        readonly action: TripDocumentAction
+        readonly action: 'load' | 'separate'
         readonly context: CompanyContext
         readonly documentIds: readonly string[]
         readonly note?: string | null
-        readonly returnReason?: string | null
         readonly tripId: string
       }) {
         return transitionTripDocumentsBatch({
           action: input.action,
           actorUserId: input.context.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           documentIds: input.documentIds,
           repository: dependencies.batchRepository,
           tripId: input.tripId,
           ...(input.note === undefined ? {} : { note: input.note }),
-          ...(input.returnReason === undefined ? {} : { returnReason: input.returnReason }),
         })
       },
     },
     cancel: {
       async execute(input: { readonly context: CompanyContext; readonly tripId: string }) {
         const result = await cancelTrip({
+          actorUserId: input.context.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
           tripId: input.tripId,
@@ -132,7 +144,6 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         return result
       },
     },
-    deliver: { execute: document('deliver') },
     dispatch: {
       async execute(input: {
         readonly context: CompanyContext
@@ -142,6 +153,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       }) {
         return dispatchTrip({
           actorUserId: input.context.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
           tripId: input.tripId,
@@ -209,10 +221,17 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       },
     },
     planRoute: {
-      async execute(input: { readonly context: CompanyContext; readonly tripId: string }) {
+      async execute(input: {
+        readonly context: CompanyContext
+        readonly routeChoice?: RouteChoice
+        readonly tripId: string
+      }) {
         return planTripRoute({
+          actorUserId: input.context.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           repository: dependencies.routeRepository,
+          ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
           tripId: input.tripId,
           ...(dependencies.tollFreezer === undefined
             ? {}
@@ -230,11 +249,13 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           companyId: input.context.companyId,
           orderedStopIds: input.stopIds,
           repository: dependencies.routeRepository,
+          ...(dependencies.tollFreezer === undefined
+            ? {}
+            : { routeFreezer: dependencies.tollFreezer }),
           tripId: input.tripId,
         })
       },
     },
-    return: { execute: document('return') },
     separate: { execute: document('separate') },
   }
 }

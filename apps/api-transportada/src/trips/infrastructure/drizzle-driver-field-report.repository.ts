@@ -2,18 +2,22 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 
+import { storedObjects } from '../../database/storage.schema.js'
 import {
+  tripDeliveryProofs,
+  tripDispatchSnapshots,
   tripDocuments,
-  tripDrivers,
   tripFieldReports,
   tripStopEvents,
   tripStopOccurrences,
   tripStops,
   trips,
+  type TripDeliveryProofKind,
   type TripDocumentSeparationStatus,
   type TripStatus,
+  type TripStopEventKind,
 } from '../../database/trip.schema.js'
 import type {
   DriverDocumentReference,
@@ -22,17 +26,36 @@ import type {
   DriverStopReference,
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
-import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
+import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
+import {
+  DELIVERED_DOCUMENT_STATUS,
+  DELIVERED_EVENT_KIND,
+  RETURNED_DOCUMENT_STATUS,
+} from '../domain/delivery-event.constant.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import {
+  deriveTripStatus,
+  tallyTripDocuments,
+  TRIP_DISPATCHED_STATUSES,
+  TRIP_ON_ROAD_STATUSES,
+} from '../domain/trip-state.policy.js'
+import { buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
+import { fieldTripTargetCondition } from './field-trip-target.query.js'
+import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
+import { recordTripStatusChange } from './trip-status-event.persistence.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
-/** As duas fases em que a viagem está na rua. Fora delas o motorista não tem o que reportar. */
 /** Reportar acontece na rua, e a rua inclui o trajeto iniciado (ADR-0058). */
-const ACTIVE_TRIP_STATUSES = TRIP_ON_ROAD_STATUSES
+const FIELD_REPORTABLE_TRIP_STATUSES = TRIP_ON_ROAD_STATUSES
+
+/** ADR-0058 §3: o único passo que a baixa de uma nota deriva — concluir é pelas paradas. */
+const TRIP_ON_DELIVERY_ROUTE_STATUS = 'on_delivery_route' satisfies TripStatus
 
 /** Nota entregue ou devolvida saiu do eixo do campo — é o que faz a parada poder fechar. */
-const SETTLED_DOCUMENT_STATUSES = ['delivered', 'returned'] as const
+const SETTLED_DOCUMENT_STATUSES = [DELIVERED_DOCUMENT_STATUS, RETURNED_DOCUMENT_STATUS] as const
 
 export class DrizzleDriverFieldReportUnitOfWork implements DriverFieldReportUnitOfWork {
   public constructor(private readonly database: Database) {}
@@ -46,7 +69,7 @@ export class DrizzleDriverFieldReportUnitOfWork implements DriverFieldReportUnit
   }
 }
 
-class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactionPort {
+export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactionPort {
   public constructor(private readonly transaction: Transaction) {}
 
   /**
@@ -56,6 +79,7 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
    */
   public async claim(input: {
     readonly actorUserId: string
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly idempotencyKey: string
     readonly operation: string
@@ -64,8 +88,10 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       .insert(tripFieldReports)
       .values({
         actorUserId: input.actorUserId,
+        channel: input.authorship.channel,
         companyId: input.companyId,
         idempotencyKey: input.idempotencyKey,
+        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         operation: input.operation,
       })
       .onConflictDoNothing({
@@ -74,11 +100,20 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       .returning({ id: tripFieldReports.id })
 
     if (inserted.length > 0) {
-      return { claimed: true, operation: input.operation, resultId: null }
+      return {
+        actorUserId: input.actorUserId,
+        claimed: true,
+        operation: input.operation,
+        resultId: null,
+      }
     }
 
     const [existing] = await this.transaction
-      .select({ operation: tripFieldReports.operation, resultId: tripFieldReports.resultId })
+      .select({
+        actorUserId: tripFieldReports.actorUserId,
+        operation: tripFieldReports.operation,
+        resultId: tripFieldReports.resultId,
+      })
       .from(tripFieldReports)
       .where(
         and(
@@ -89,6 +124,7 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       .limit(1)
 
     return {
+      actorUserId: existing?.actorUserId ?? input.actorUserId,
       claimed: false,
       operation: existing?.operation ?? input.operation,
       resultId: existing?.resultId ?? null,
@@ -113,8 +149,8 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
 
   public async findStopForDriver(input: {
     readonly companyId: string
-    readonly driverId: string
     readonly stopId: string
+    readonly target: FieldTripTarget
   }): Promise<DriverStopReference | null> {
     const [record] = await this.transaction
       .select({
@@ -129,16 +165,12 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         trips,
         and(eq(trips.companyId, tripStops.companyId), eq(trips.id, tripStops.tripId)),
       )
-      .innerJoin(
-        tripDrivers,
-        and(eq(tripDrivers.companyId, trips.companyId), eq(tripDrivers.tripId, trips.id)),
-      )
       .where(
         and(
           eq(tripStops.companyId, input.companyId),
           eq(tripStops.id, input.stopId),
-          eq(tripDrivers.driverId, input.driverId),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          fieldTripTargetCondition(input.target),
+          inArray(trips.status, [...FIELD_REPORTABLE_TRIP_STATUSES]),
         ),
       )
       .limit(1)
@@ -153,7 +185,7 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
   public async findDocumentForDriver(input: {
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly target: FieldTripTarget
   }): Promise<DriverDocumentReference | null> {
     const [record] = await this.transaction
       .select({
@@ -167,15 +199,11 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         trips,
         and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
       )
-      .innerJoin(
-        tripDrivers,
-        and(eq(tripDrivers.companyId, trips.companyId), eq(tripDrivers.tripId, trips.id)),
-      )
       .where(
         and(
           eq(tripDocuments.companyId, input.companyId),
           eq(tripDocuments.id, input.documentId),
-          eq(tripDrivers.driverId, input.driverId),
+          fieldTripTargetCondition(input.target),
           isNull(tripDocuments.releasedAt),
         ),
       )
@@ -189,6 +217,28 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       tripId: record.tripId,
       tripStatus: record.tripStatus as TripStatus,
     }
+  }
+
+  /** ADR-0067 §3, spec 156 T15 M9: o despacho congelado, ou a criação da viagem sem ele. */
+  public async findInformedTimeWindowStart(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<Date | null> {
+    const [record] = await this.transaction
+      .select({ createdAt: trips.createdAt, dispatchedAt: tripDispatchSnapshots.dispatchedAt })
+      .from(trips)
+      .leftJoin(
+        tripDispatchSnapshots,
+        and(
+          eq(tripDispatchSnapshots.companyId, trips.companyId),
+          eq(tripDispatchSnapshots.tripId, trips.id),
+        ),
+      )
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .limit(1)
+
+    if (record === undefined) return null
+    return record.dispatchedAt ?? record.createdAt
   }
 
   public async markStopArrived(input: {
@@ -245,10 +295,13 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
   }
 
   public async markTripInTransit(input: {
+    readonly actorUserId: string
+    readonly at: Date
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string
-  }): Promise<void> {
-    await this.transaction
+  }): Promise<boolean> {
+    const updated = await this.transaction
       .update(trips)
       .set({ status: 'in_transit', updatedAt: new Date() })
       .where(
@@ -258,6 +311,22 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
           eq(trips.status, 'dispatched'),
         ),
       )
+      .returning({ id: trips.id })
+
+    if (updated.length === 0) return false
+
+    await recordTripStatusChange(this.transaction, {
+      actorUserId: input.actorUserId,
+      channel: input.authorship.channel,
+      companyId: input.companyId,
+      fromStatus: 'dispatched',
+      occurredAt: input.at,
+      onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+      toStatus: 'in_transit',
+      tripId: input.tripId,
+    })
+
+    return true
   }
 
   public async markDocumentDelivered(input: {
@@ -296,27 +365,51 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
    * A parada fecha quando nenhuma nota dela está mais pendente — entregue ou devolvida dá no mesmo
    * para a parada. `completed_at is null` no filtro é o que torna a operação repetível: a segunda
    * chamada não devolve `true` de novo, e a tela não anuncia duas vezes que a parada fechou.
+   *
+   * Spec 156 T15 M3: a hora é a da última nota que **aconteceu**, não a da última digitada — a baixa
+   * retroativa do escritório chega fora de ordem. C1: sem chegada registrada, o canal `office`
+   * preenche `arrived_at` com a primeira hora da parada (o CHECK exige chegada antes de fechar).
    */
   public async completeStopIfSettled(input: {
     readonly at: Date
     readonly companyId: string
+    readonly fillMissingArrival: boolean
     readonly stopId: string
   }): Promise<boolean> {
+    const stopDocuments = and(
+      eq(tripDocuments.companyId, input.companyId),
+      eq(tripDocuments.stopId, input.stopId),
+      isNull(tripDocuments.releasedAt),
+    )
     const pending = this.transaction
       .select({ id: tripDocuments.id })
       .from(tripDocuments)
       .where(
         and(
-          eq(tripDocuments.companyId, input.companyId),
-          eq(tripDocuments.stopId, input.stopId),
-          isNull(tripDocuments.releasedAt),
+          stopDocuments,
           notInArray(tripDocuments.separationStatus, [...SETTLED_DOCUMENT_STATUSES]),
         ),
       )
+    const lastSettledAt = this.transaction
+      .select({
+        at: sql`max(greatest(${tripDocuments.deliveredAt}, ${tripDocuments.returnedAt}))`,
+      })
+      .from(tripDocuments)
+      .where(stopDocuments)
+    const firstSettledAt = this.transaction
+      .select({ at: sql`min(least(${tripDocuments.deliveredAt}, ${tripDocuments.returnedAt}))` })
+      .from(tripDocuments)
+      .where(stopDocuments)
 
     const completed = await this.transaction
       .update(tripStops)
-      .set({ completedAt: input.at, updatedAt: input.at })
+      .set({
+        ...(input.fillMissingArrival
+          ? { arrivedAt: sql`coalesce(${tripStops.arrivedAt}, (${firstSettledAt}), ${input.at})` }
+          : {}),
+        completedAt: sql`coalesce((${lastSettledAt}), ${input.at})`,
+        updatedAt: input.at,
+      })
       .where(
         and(
           eq(tripStops.companyId, input.companyId),
@@ -330,8 +423,16 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
     return completed.length > 0
   }
 
-  /** Spec 056 D1: a última parada fecha a viagem sozinha. Ninguém no escritório aperta nada. */
+  /**
+   * Spec 056 D1: a última parada fecha a viagem sozinha. Ninguém no escritório aperta nada.
+   *
+   * ADR-0068 §2: a trava (`FOR NO KEY UPDATE`) vem imediatamente antes do `UPDATE trips`, depois de
+   * `completeStopIfSettled` já ter fechado a parada nesta mesma transação — nunca no início dela.
+   */
   public async completeTripIfSettled(input: {
+    readonly actorUserId: string
+    readonly at: Date
+    readonly authorship: FieldAuthorship
     readonly companyId: string
     readonly tripId: string
   }): Promise<boolean> {
@@ -346,6 +447,16 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         ),
       )
 
+    const [tripRow] = await this.transaction
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .for('no key update')
+      .limit(1)
+    if (tripRow === undefined) return false
+    if (!(FIELD_REPORTABLE_TRIP_STATUSES as readonly TripStatus[]).includes(tripRow.status))
+      return false
+
     const completed = await this.transaction
       .update(trips)
       .set({ status: 'completed', updatedAt: new Date() })
@@ -353,13 +464,92 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         and(
           eq(trips.companyId, input.companyId),
           eq(trips.id, input.tripId),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          eq(trips.status, tripRow.status),
           sql`not exists ${openStops}`,
         ),
       )
       .returning({ id: trips.id })
 
-    return completed.length > 0
+    if (completed.length === 0) return false
+
+    /** Spec 156 T15 M3: a viagem fecha na hora em que a última parada fechou, não na digitação. */
+    const [lastStop] = await this.transaction
+      .select({
+        completedAt: sql<Date | null>`max(${tripStops.completedAt})`.mapWith(tripStops.completedAt),
+      })
+      .from(tripStops)
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+
+    await recordTripStatusChange(this.transaction, {
+      actorUserId: input.actorUserId,
+      channel: input.authorship.channel,
+      companyId: input.companyId,
+      fromStatus: tripRow.status,
+      occurredAt: lastStop?.completedAt ?? input.at,
+      onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+      toStatus: 'completed',
+      tripId: input.tripId,
+    })
+
+    return true
+  }
+
+  /**
+   * A trava (`FOR NO KEY UPDATE`) vem antes da leitura das notas, como em `recalculateTripStatus`
+   * (`drizzle-trip-document.repository.ts`): a decisão depende do tally que ainda vai ser lido. A
+   * ordem "notas → viagem" continua: a nota já foi gravada nesta transação.
+   */
+  public async advanceTripFromSettledDocuments(input: {
+    readonly actorUserId: string
+    readonly at: Date
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<boolean> {
+    const [tripRow] = await this.transaction
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .for('no key update')
+      .limit(1)
+    if (tripRow === undefined) return false
+
+    const documentRows = await this.transaction
+      .select({ status: tripDocuments.separationStatus })
+      .from(tripDocuments)
+      .where(
+        and(
+          eq(tripDocuments.companyId, input.companyId),
+          eq(tripDocuments.tripId, input.tripId),
+          isNull(tripDocuments.releasedAt),
+        ),
+      )
+    const nextStatus = deriveTripStatus({
+      tally: tallyTripDocuments(documentRows.map((row) => row.status)),
+      tripStatus: tripRow.status,
+    })
+    if (nextStatus !== TRIP_ON_DELIVERY_ROUTE_STATUS) return false
+
+    await this.transaction
+      .update(trips)
+      .set({ status: nextStatus, updatedAt: new Date() })
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    await recordTripStatusChange(this.transaction, {
+      actorUserId: input.actorUserId,
+      channel: input.authorship.channel,
+      companyId: input.companyId,
+      fromStatus: tripRow.status,
+      occurredAt: input.at,
+      onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+      toStatus: nextStatus,
+      tripId: input.tripId,
+    })
+
+    return true
+  }
+
+  public async recordOfficeAudit(input: TripFieldOfficeAuditInput): Promise<void> {
+    await insertTripFieldOfficeAudit(this.transaction, input)
   }
 
   public async recordEvent(input: Parameters<DriverFieldReportTransactionPort['recordEvent']>[0]) {
@@ -369,10 +559,15 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         accuracyMeters: input.location?.accuracyMeters ?? null,
         actorUserId: input.actorUserId,
         capturedAt: input.location === null ? null : new Date(input.location.capturedAt),
+        channel: input.authorship.channel,
         companyId: input.companyId,
+        ...(input.occurredAt === undefined ? {} : { createdAt: input.occurredAt }),
         kind: input.kind,
         latitude: input.location?.latitude ?? null,
         longitude: input.location?.longitude ?? null,
+        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+        ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),
+        reportedByDriverId: input.reportedByDriverId ?? null,
         stopId: input.stopId,
         tripDocumentId: input.documentId,
       })
@@ -383,6 +578,160 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
     return event
   }
 
+  /**
+   * Spec 156 T6: mesma escrita de `DrizzleDeliveryProofRepository.saveProof`, mas sem abrir
+   * transação própria — o chamador já está dentro da transação da entrega, e é isso que faz
+   * "entrega + comprovante" serem atômicos para o escritório.
+   */
+  public async saveDeliveryProofWithinTransaction(
+    input: Parameters<DriverFieldReportTransactionPort['saveDeliveryProofWithinTransaction']>[0],
+  ): Promise<{ readonly id: string }> {
+    await this.transaction.insert(storedObjects).values({
+      bucket: 'fiscal',
+      companyId: input.companyId,
+      id: input.objectId,
+      mimeType: input.mimeType,
+      objectKey: input.objectKey,
+      provider: 's3',
+      purpose: 'delivery_proof',
+      sha256: input.sha256,
+      sizeBytes: BigInt(input.sizeBytes),
+      status: 'final',
+    })
+
+    const [proof] = await this.transaction
+      .insert(tripDeliveryProofs)
+      .values({
+        accuracyMeters: input.accuracyMeters,
+        actorUserId: input.actorUserId,
+        attachmentKey: input.attachmentKey,
+        capturedAt: input.capturedAt,
+        channel: input.authorship.channel,
+        companyId: input.companyId,
+        id: input.id,
+        kind: input.kind,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        objectId: input.objectId,
+        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+        punctuality: input.punctuality,
+        receiverDocumentEnvelope: input.receiverDocumentEnvelope,
+        receiverDocumentMasked: input.receiverDocumentMasked,
+        receiverName: input.receiverName,
+        stopEventId: input.eventId,
+      })
+      .onConflictDoUpdate({
+        set: buildProofUpsertSet(input),
+        target: [
+          tripDeliveryProofs.companyId,
+          tripDeliveryProofs.stopEventId,
+          tripDeliveryProofs.kind,
+        ],
+      })
+      .returning({ id: tripDeliveryProofs.id })
+
+    if (proof === undefined) throw new Error('TRIP_DELIVERY_PROOF_NOT_SAVED')
+
+    return proof
+  }
+
+  public async findProofIdByAttachmentKeyWithinTransaction(input: {
+    readonly attachmentKey: string
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<string | null> {
+    const [record] = await this.transaction
+      .select({ id: tripDeliveryProofs.id })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+          eq(tripDeliveryProofs.attachmentKey, input.attachmentKey),
+        ),
+      )
+      .limit(1)
+
+    return record?.id ?? null
+  }
+
+  public async findProofExistsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<boolean> {
+    const [record] = await this.transaction
+      .select({ id: tripDeliveryProofs.id })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+        ),
+      )
+      .limit(1)
+
+    return record !== undefined
+  }
+
+  public async findDeliveryEventForProof(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly target: FieldTripTarget
+  }): Promise<{ readonly id: string } | null> {
+    const [record] = await this.transaction
+      .select({ id: tripStopEvents.id })
+      .from(tripStopEvents)
+      .innerJoin(
+        tripDocuments,
+        and(
+          eq(tripDocuments.companyId, tripStopEvents.companyId),
+          eq(tripDocuments.id, tripStopEvents.tripDocumentId),
+        ),
+      )
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.tripDocumentId, input.documentId),
+          eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
+          fieldTripTargetCondition(input.target),
+          isNull(tripDocuments.releasedAt),
+          inArray(trips.status, [...TRIP_DISPATCHED_STATUSES]),
+        ),
+      )
+      .orderBy(desc(tripStopEvents.createdAt), desc(tripStopEvents.id))
+      .limit(1)
+
+    return record ?? null
+  }
+
+  public async findProofForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<{ readonly channel: TripFieldChannel; readonly objectId: string } | null> {
+    const [record] = await this.transaction
+      .select({ channel: tripDeliveryProofs.channel, objectId: tripDeliveryProofs.objectId })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+        ),
+      )
+      .limit(1)
+
+    return record ?? null
+  }
+
   public async recordOccurrence(
     input: Parameters<DriverFieldReportTransactionPort['recordOccurrence']>[0],
   ) {
@@ -391,9 +740,11 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       .values({
         actorUserId: input.actorUserId,
         attachmentObjectId: input.attachmentObjectId,
+        channel: input.authorship.channel,
         companyId: input.companyId,
         description: input.description,
         kind: input.kind,
+        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         reportedDistanceMeters: input.distanceMeters,
         stopId: input.stopId,
         tripDocumentId: input.documentId,
@@ -412,6 +763,28 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
       .where(
         and(eq(tripStopEvents.companyId, input.companyId), eq(tripStopEvents.id, input.eventId)),
       )
+      .limit(1)
+
+    return event ?? null
+  }
+
+  /** Mesmo desempate da nota do motorista e do snapshot: `created_at` e depois `id`. */
+  public async findLatestEventForDocument(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly kind: TripStopEventKind
+  }) {
+    const [event] = await this.transaction
+      .select({ id: tripStopEvents.id })
+      .from(tripStopEvents)
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.tripDocumentId, input.documentId),
+          eq(tripStopEvents.kind, input.kind),
+        ),
+      )
+      .orderBy(desc(tripStopEvents.createdAt), desc(tripStopEvents.id))
       .limit(1)
 
     return event ?? null

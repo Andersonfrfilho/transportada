@@ -3,6 +3,8 @@
  */
 import { z } from 'zod'
 
+import { ROUTE_CHOICE_CRITERIA } from '../domain/route-choice.policy.js'
+
 /**
  * spec.md linha 66 exige "mínimo 1" condutor na criação — T006 não impôs a regra no domínio/
  * aplicação (aceitava `driverIds: []`). Fechado aqui, na fronteira HTTP, espelhando o mesmo teto
@@ -11,8 +13,24 @@ import { z } from 'zod'
  */
 const MAX_TRIP_DRIVERS = 10
 
+/**
+ * spec 153 D2/D3: qual rota o operador escolheu, na prévia e no congelamento. Um critério fora de
+ * `ROUTE_CHOICE_CRITERIA` é 400 — nunca um fallback silencioso para `cheapest`.
+ */
+export const routeChoiceRequestSchema = z
+  .object({
+    criterion: z.enum(ROUTE_CHOICE_CRITERIA),
+    signature: z.string().nullable(),
+  })
+  .strict()
+
 export const createTripSchema = z
   .object({
+    /**
+     * Spec 143 D4: ausente é "sugere pela duração estimada" — quem decide isso é a política
+     * (`suggestAllowanceDays`), nunca este schema. Por isso nada de `.default()` aqui.
+     */
+    dailyAllowanceDays: z.number().int().min(1).optional(),
     driverIds: z.array(z.uuid()).min(1).max(MAX_TRIP_DRIVERS),
     vehicleId: z.uuid(),
   })
@@ -33,7 +51,7 @@ export type LinkTripDocumentBody = z.infer<typeof linkTripDocumentSchema>
  * O maço real do armazém, não uma lista arbitrária — mesmo teto que o T009 testou
  * (`transition-trip-documents-batch.use-case.ts`).
  */
-const MAX_BATCH_DOCUMENTS = 50
+export const MAX_BATCH_DOCUMENTS = 50
 /**
  * O vínculo em lote tem teto próprio, dez vezes o do lote de status. São operações diferentes: o
  * maço que o separador marca de uma vez é de dezenas, e a viagem que se monta a partir de um filtro
@@ -43,18 +61,16 @@ const MAX_BATCH_DOCUMENTS = 50
  */
 const MAX_LINK_BATCH_DOCUMENTS = 500
 
-const TRIP_DOCUMENT_ACTIONS = ['deliver', 'load', 'return', 'separate'] as const
-
 /**
- * `returnReason` é opcional aqui de propósito: exigi-lo só quando `action = 'return'` é regra de
- * domínio, e o use case (T008/T009) já lança `TripDocumentReturnReasonRequiredError` — validar
- * duas vezes duplicaria a mensagem sem duplicar a segurança.
+ * Spec 156 T8b: `deliver`/`return` saíram — elas não gravavam autoria e o `separator`, que tem
+ * `trip.manage`, as alcançava sem nunca dever reportar entrega (ADR-0067 §1). O caminho com
+ * autoria é `field-delivery`/`field-return` (`trip-field-office.routes.ts`,
+ * `trip.report-on-behalf`). Uma ou outra no corpo aqui responde `400` na validação.
  */
+const TRIP_DOCUMENT_ACTIONS = ['load', 'separate'] as const
+
 export const transitionTripDocumentSchema = z
-  .object({
-    note: z.string().trim().min(1).nullable().default(null),
-    returnReason: z.string().trim().min(1).nullable().default(null),
-  })
+  .object({ note: z.string().trim().min(1).nullable().default(null) })
   .strict()
 
 export type TransitionTripDocumentBody = z.infer<typeof transitionTripDocumentSchema>
@@ -64,7 +80,6 @@ export const batchTransitionTripDocumentsSchema = z
     action: z.enum(TRIP_DOCUMENT_ACTIONS),
     documentIds: z.array(z.uuid()).min(1).max(MAX_BATCH_DOCUMENTS),
     note: z.string().trim().min(1).nullable().default(null),
-    returnReason: z.string().trim().min(1).nullable().default(null),
   })
   .strict()
 
@@ -86,8 +101,12 @@ export type LinkTripDocumentsBatchBody = z.infer<typeof linkTripDocumentsBatchSc
  */
 export const previewTripValuationSchema = z
   .object({
+    /** Mesma regra da criação (spec 143 D4) — a prévia vale o mesmo tanto que a viagem criada. */
+    dailyAllowanceDays: z.number().int().min(1).optional(),
     driverIds: z.array(z.uuid()).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS),
+    /** RF4 (spec 153): sem corpo, a prévia precifica a mais barata conhecida, igual ao congelamento. */
+    routeChoice: routeChoiceRequestSchema.optional(),
     stopOrder: z.array(z.string().min(1)).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     vehicleId: z.uuid(),
   })
@@ -157,6 +176,18 @@ export const dispatchTripSchema = z
   .strict()
 
 export type DispatchTripBody = z.infer<typeof dispatchTripSchema>
+
+/**
+ * RF3 (spec 153 T201): sem corpo, o congelamento reproduz a mais barata conhecida. Um critério
+ * fora de `ROUTE_CHOICE_CRITERIA` é 400 — nunca um fallback silencioso para `cheapest`.
+ */
+export const planTripRouteSchema = z
+  .object({
+    routeChoice: routeChoiceRequestSchema.optional(),
+  })
+  .strict()
+
+export type PlanTripRouteBody = z.infer<typeof planTripRouteSchema>
 
 /**
  * O recorte da seleção da tela. Lista **vazia é a viagem inteira**, igual a corpo ausente: o painel

@@ -9,23 +9,31 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
+import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice.component'
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
+import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
-  DriverOccurrenceType,
   DriverOccurrenceKind,
+  DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
 } from '../shared/driverTrip.types'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
-import { findCurrentStop, isAwaitingDispatch } from '../shared/driverTripView.service'
+import {
+  findCurrentStop,
+  findProofDocumentLabel,
+  isAwaitingDispatch,
+  listProofPendingDocuments,
+  type ProofDocumentLabel,
+} from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
 
 /**
@@ -40,6 +48,8 @@ export function DriverTripWorkspacePage() {
   const [section, setSection] = useState<DriverSection>('trip')
   /** Spec 082 D7: a tela de pendentes abre por cima da seção corrente — banner e Perfil chegam nela. */
   const [isQueueOpen, setIsQueueOpen] = useState(false)
+  /** Spec 159 T9: a tela de fotos pendentes, mesmo padrão da fila de eventos. */
+  const [isPendingProofsOpen, setIsPendingProofsOpen] = useState(false)
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
   /** Spec 082 D6: teto da fila de anexos atingido — anunciado antes de qualquer descarte. */
@@ -57,12 +67,27 @@ export function DriverTripWorkspacePage() {
   const [isDispatching, setIsDispatching] = useState(false)
   const [dispatchFailed, setDispatchFailed] = useState(false)
   /**
-   * Os tipos cadastrados pela empresa. Falhar aqui deixa a lista vazia e o botão sem opção — o
-   * motorista segue entregando e devolvendo, que é o que não pode parar.
+   * Os tipos cadastrados pela empresa. Spec 157 RF5: falha e lista vazia de verdade são estados
+   * diferentes — o painel avisa a falha e oferece tentar de novo; entregar e devolver nunca
+   * dependem disto.
    */
-  const [occurrenceTypes, setOccurrenceTypes] = useState<readonly DriverOccurrenceType[]>([])
+  const [occurrenceTypes, setOccurrenceTypes] = useState<DriverOccurrenceTypesState>({
+    status: 'loading',
+  })
   /** Spec 082 D2: uma leitura ao abrir — recusa vira `null`, e a distância só não aparece. */
   const [lastKnownLocation, setLastKnownLocation] = useState<DriverReportedLocation | null>(null)
+  /**
+   * Spec 159 (T11): o resultado da pontualidade fica visível fora da tela de pendentes — um aviso
+   * persistente até o motorista dispensar. Derivado direto do estado do hook a cada render, sem
+   * `useEffect`: dispensar é só marcar o documento como lido.
+   */
+  const [dismissedProofOutcomeIds, setDismissedProofOutcomeIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  )
+  /** Spec 159 (T12): de qual nota é cada aviso de pontualidade. */
+  const [proofLabelByDocumentId, setProofLabelByDocumentId] = useState<
+    ReadonlyMap<string, ProofDocumentLabel>
+  >(new Map())
 
   useEffect(() => {
     let ativo = true
@@ -78,14 +103,19 @@ export function DriverTripWorkspacePage() {
     let ativo = true
     void getDriverTripClient()
       .listOccurrenceTypes()
-      .then((types) => {
-        if (ativo) setOccurrenceTypes(types)
+      .then((result) => {
+        if (ativo) setOccurrenceTypes(result)
       })
-      .catch(() => undefined)
     return () => {
       ativo = false
     }
   }, [])
+
+  /** O card chama isto quando o motorista toca "Tentar de novo" — o cliente nunca lança. */
+  function handleRetryOccurrenceTypes(): void {
+    setOccurrenceTypes({ status: 'loading' })
+    void getDriverTripClient().listOccurrenceTypes().then(setOccurrenceTypes)
+  }
 
   const snapshot = driverTrip.snapshot
   const trip = snapshot?.trips[0]
@@ -135,6 +165,37 @@ export function DriverTripWorkspacePage() {
     )
   }
 
+  function handleProof(input: DriverProofAttachment): void {
+    setAttachmentLimit(undefined)
+    /* Guardado no toque: depois do envio a nota sai de `pendingProofs` e o nome some junto. */
+    const label = findProofDocumentLabel({ documentId: input.documentId, snapshot })
+    if (label !== undefined) {
+      setProofLabelByDocumentId((current) => new Map(current).set(input.documentId, label))
+    }
+    void driverTrip
+      .attachProof(input)
+      .then((outcome) => {
+        if (outcome === 'count-limit' || outcome === 'size-limit') setAttachmentLimit(outcome)
+      })
+      .catch(() => setProofFailed(true))
+  }
+
+  if (isPendingProofsOpen) {
+    return (
+      <div className={styles.moduleShell}>
+        <DriverShellHeader />
+        <DriverPendingProofsPage
+          onBack={() => setIsPendingProofsOpen(false)}
+          onProof={handleProof}
+          proofOutcomeByDocumentId={driverTrip.proofOutcomeByDocumentId}
+          queueView={driverTrip.queueView}
+          snapshot={snapshot}
+        />
+        <DriverBottomBar section={section} onSelect={setSection} />
+      </div>
+    )
+  }
+
   if (section === 'profile') {
     return (
       <div className={styles.moduleShell}>
@@ -142,6 +203,7 @@ export function DriverTripWorkspacePage() {
         <DriverProfilePage
           queuedCount={driverTrip.queuedCount}
           snapshot={snapshot}
+          onOpenPendingProofs={() => setIsPendingProofsOpen(true)}
           onOpenQueue={() => setIsQueueOpen(true)}
         />
         <DriverBottomBar section={section} onSelect={setSection} />
@@ -183,6 +245,11 @@ export function DriverTripWorkspacePage() {
   }
 
   const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
+  const proofPendingCount = listProofPendingDocuments(snapshot).length
+  /** Spec 159 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
+  const visibleProofOutcomes = [...driverTrip.proofOutcomeByDocumentId].filter(
+    ([documentId]) => !dismissedProofOutcomeIds.has(documentId),
+  )
 
   return (
     <div className={styles.moduleShell}>
@@ -223,6 +290,17 @@ export function DriverTripWorkspacePage() {
           </p>
         ) : null}
 
+        {/* Spec 159 T9: atalho visível com a contagem — leva à tela de anexo em lote. */}
+        {proofPendingCount > 0 ? (
+          <button
+            className={styles.queueBannerButton}
+            type="button"
+            onClick={() => setIsPendingProofsOpen(true)}
+          >
+            {t('pendingProofs.open')} ({proofPendingCount})
+          </button>
+        ) : null}
+
         {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
         {driverTrip.queuedCount > 0 ? (
           <button
@@ -234,6 +312,18 @@ export function DriverTripWorkspacePage() {
             <span className={styles.queueBannerAction}>{t('eventQueue.open')}</span>
           </button>
         ) : null}
+
+        {/* Spec 159 (T11): a pontualidade da foto, fora da lista de pendentes, até ser dispensada */}
+        {visibleProofOutcomes.map(([documentId, outcome]) => (
+          <DriverProofOutcomeNotice
+            key={documentId}
+            label={proofLabelByDocumentId.get(documentId)}
+            onDismiss={() =>
+              setDismissedProofOutcomeIds((current) => new Set(current).add(documentId))
+            }
+            outcome={outcome}
+          />
+        ))}
 
         {attachmentLimit !== undefined ? (
           <p className={styles.alert} role="alert">
@@ -305,18 +395,9 @@ export function DriverTripWorkspacePage() {
                     location,
                   }))
                 }
-                onProof={(input: DriverProofAttachment) => {
-                  setAttachmentLimit(undefined)
-                  void driverTrip
-                    .attachProof(input)
-                    .then((outcome) => {
-                      if (outcome === 'count-limit' || outcome === 'size-limit') {
-                        setAttachmentLimit(outcome)
-                      }
-                    })
-                    .catch(() => setProofFailed(true))
-                }}
+                onProof={handleProof}
                 occurrenceTypes={occurrenceTypes}
+                onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                 onDocumentOccurrence={(input: {
                   documentId: string
                   occurrenceTypeId: string

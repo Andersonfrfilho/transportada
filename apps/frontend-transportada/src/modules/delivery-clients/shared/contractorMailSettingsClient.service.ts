@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import { readRetryAfterSecondsHeader } from '@/modules/shared/retryAfter.service'
 
 import {
   checksFromApi,
@@ -22,6 +23,20 @@ export const CONTRACTOR_MAIL_SETTINGS_ERROR = {
   REQUEST_FAILED: 'REQUEST_FAILED',
   RESPONSE_INVALID: 'RESPONSE_INVALID',
 } as const
+
+/** Spec 150, correção Fase 4, item 11: `Retry-After` do `429`, em segundos — `undefined` fora dele. */
+export class ContractorMailSettingsRequestError extends Error {
+  public readonly retryAfterSeconds: number | undefined
+
+  public constructor(input: {
+    readonly code: string
+    readonly retryAfterSeconds?: number | undefined
+  }) {
+    super(input.code)
+    this.name = 'ContractorMailSettingsRequestError'
+    this.retryAfterSeconds = input.retryAfterSeconds
+  }
+}
 
 export type ContractorMailSettingsSaveBody = Readonly<{
   apiKey?: string
@@ -81,7 +96,9 @@ async function request(
       }),
     )
   } catch {
-    throw new Error(CONTRACTOR_MAIL_SETTINGS_ERROR.REQUEST_FAILED)
+    throw new ContractorMailSettingsRequestError({
+      code: CONTRACTOR_MAIL_SETTINGS_ERROR.REQUEST_FAILED,
+    })
   }
 
   const rawBody = await response.text()
@@ -89,9 +106,16 @@ async function request(
   try {
     payload = rawBody.length === 0 ? {} : (JSON.parse(rawBody) as unknown)
   } catch {
-    throw new Error(CONTRACTOR_MAIL_SETTINGS_ERROR.RESPONSE_INVALID)
+    throw new ContractorMailSettingsRequestError({
+      code: CONTRACTOR_MAIL_SETTINGS_ERROR.RESPONSE_INVALID,
+    })
   }
-  if (!response.ok) throw new Error(readErrorCode(payload))
+  if (!response.ok) {
+    throw new ContractorMailSettingsRequestError({
+      code: readErrorCode(payload),
+      retryAfterSeconds: readRetryAfterSecondsHeader(response.headers),
+    })
+  }
 
   return payload
 }

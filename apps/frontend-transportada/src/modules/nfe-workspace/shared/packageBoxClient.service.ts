@@ -1,8 +1,28 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  PACKAGE_BOX_REPLICATE_FAILED_CODE,
+  PACKAGE_BOX_SIBLINGS_MALFORMED_CODE,
+} from './nfeWorkspace.constant'
 
-/** D8: cópia por valor de `PACKAGE_BOX_MEASUREMENT_SOURCES` (API) — origem gravada com a medida. */
-export const PACKAGE_BOX_MEASUREMENT_SOURCES = ['typed', 'camera', 'camera_adjusted'] as const
+/**
+ * D8: cópia por valor de `PACKAGE_BOX_MEASUREMENT_SOURCES` (API) — origem gravada com a medida.
+ * Spec 155 (D6): `replicated` — a caixa nunca foi medida, a dimensão veio de uma irmã da família.
+ */
+export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
+  'typed',
+  'camera',
+  'camera_adjusted',
+  'replicated',
+] as const
 export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
+
+/**
+ * D6, T14 (revisão final, BAIXO): cópia por valor de `PACKAGE_BOX_MEASURED_SOURCES` (API,
+ * `nfe-documents/domain/package-box-measurement.constant.ts`) — `replicated` só a rota de
+ * replicar grava; o corpo que o formulário digitado/câmera monta nunca o aceita.
+ */
+export const PACKAGE_BOX_MEASURED_SOURCES = ['typed', 'camera', 'camera_adjusted'] as const
+export type PackageBoxMeasuredSource = (typeof PACKAGE_BOX_MEASURED_SOURCES)[number]
 
 export type PackageBox = Readonly<{
   cartonGtin: null | string
@@ -10,6 +30,10 @@ export type PackageBox = Readonly<{
   cumulativeShare: number
   description: string
   emitterTaxId: string
+  /** Spec 155 (D2, D9): `undefined` quando a caixa não tem família — sem rótulo ou prefixo curto. */
+  familyKey: string | undefined
+  familyMeasuredCount: number
+  familyPendingCount: number
   grossWeightGrams: null | number
   heightMm: null | number
   id: string
@@ -18,13 +42,49 @@ export type PackageBox = Readonly<{
   /** Spec 152 (D8, experimental): `null` em toda caixa medida antes desta spec. */
   measurementMarginMm: null | number
   measurementSource: null | PackageBoxMeasurementSource
+  /** Spec 155 (D3, D8): quantas outras embalagens o mesmo `cProd` tem — nunca conta como família. */
+  packagingSiblingCount: number
+  /** O sufixo numérico da unidade (`CX36` → 36); `undefined` quando ela não termina em número. */
+  packagingUnitCount: number | undefined
   productCode: string
   share: number
   transportedVolumes: number
   unitsPerBox: number
+  /** Spec 155 (D2): o que resta da descrição depois do prefixo — string vazia sem família. */
+  variantLabel: string
   widthMm: null | number
   /** Até onde medir compensa: a linha fora da cobertura custa o mesmo e move quase nada. */
   withinCoverage: boolean
+}>
+
+/**
+ * Spec 155 (G003): uma irmã da família ou do grupo de embalagem — nunca a caixa de origem. D11
+ * corolário: quem confirma escrita mostra `description` + `productCode`, nunca só o `variantLabel`.
+ */
+export type PackageBoxSibling = Readonly<{
+  commercialUnit: string
+  description: string
+  grossWeightGrams: null | number
+  heightMm: null | number
+  id: string
+  lengthMm: null | number
+  measuredAt: null | string
+  /** Spec 155 (D12, G012): a origem preferida de "aplicar a todos" não é `replicated`. */
+  measurementSource: null | PackageBoxMeasurementSource
+  packagingUnitCount: number | undefined
+  productCode: string
+  unitsPerBox: number
+  variantLabel: string
+  widthMm: null | number
+}>
+
+export type PackageBoxSiblings = Readonly<{
+  family: readonly PackageBoxSibling[]
+  /** D11/G011: a tela abre o diálogo com os alvos desmarcados e diz por quê. */
+  isLowConfidenceFamily: boolean
+  /** O rótulo da própria caixa: entra no cabeçalho do diálogo de replicar. */
+  originVariantLabel: string
+  packaging: readonly PackageBoxSibling[]
 }>
 
 /** As três situações da fila. `pending` é o padrão: ela existe para dizer o que medir agora. */
@@ -63,10 +123,16 @@ export type PackageBoxMeasurementInput = Readonly<{
   id: string
   lengthMm: number
   /** D8: ausente grava `typed` (retrocompatível) — o corpo antigo continua válido. */
-  source?: PackageBoxMeasurementSource
+  source?: PackageBoxMeasuredSource
   /** Quantas unidades comerciais a caixa leva; `1` quando `uCom` já é a embalagem. */
   unitsPerBox: number
   widthMm: number
+}>
+
+/** Tudo o que falta medir, na ordem da fila; `truncated` diz que a API cortou no teto dela. */
+export type PackageBoxPendingExport = Readonly<{
+  items: readonly PackageBox[]
+  truncated: boolean
 }>
 
 type ClientDependencies = Readonly<{
@@ -77,12 +143,24 @@ type ClientDependencies = Readonly<{
 
 export type PackageBoxClient = Readonly<{
   listBoxes: (
-    input?: Readonly<{ scanned?: string; search?: string; status?: PackageBoxStatusFilter }>,
+    input?: Readonly<{
+      scanned?: string
+      search?: string
+      status?: PackageBoxStatusFilter
+    }>,
   ) => Promise<PackageBoxQueue>
+  /** O arquivo da aba Caixas: nunca a busca/etiqueta da fila, e sem a janela de 50 da tela. */
+  listPendingExport: () => Promise<PackageBoxPendingExport>
   /** Spec 152 D14: leitura própria de `cargo.measure`, sem exigir `settings.manage`. */
   getMeasurementSettings: () => Promise<Readonly<{ cameraMeasurementEnabled: boolean }>>
+  /** Spec 155 (G003, D9): sob demanda — nunca acompanha a fila de 50 linhas. */
+  listSiblings: (input: Readonly<{ boxId: string }>) => Promise<PackageBoxSiblings>
   /** Grava e não devolve nada: a linha gravada não é a linha da fila, e quem recarrega é a query. */
   measureBox: (input: PackageBoxMeasurementInput) => Promise<void>
+  /** Spec 155 (G004, G005, G006, D4, D6): copia a medida da origem para os alvos escolhidos. */
+  replicate: (
+    input: Readonly<{ boxId: string; targetIds: readonly string[] }>,
+  ) => Promise<Readonly<{ replicatedCount: number }>>
 }>
 
 const PACKAGE_BOXES_PATH = '/nfe-package-boxes'
@@ -143,6 +221,14 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_LIST_FAILED')
       return packageBoxQueueFromApi(await response.json())
     },
+    async listPendingExport(): Promise<PackageBoxPendingExport> {
+      const response = await dependencies.fetch(
+        `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/pending-export`,
+        { headers: { authorization: await authorization() } },
+      )
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_PENDING_EXPORT_FAILED')
+      return packageBoxPendingExportFromApi(await response.json())
+    },
     async getMeasurementSettings(): Promise<Readonly<{ cameraMeasurementEnabled: boolean }>> {
       const response = await dependencies.fetch(
         `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/measurement-settings`,
@@ -167,6 +253,30 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       )
       if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_MEASURE_FAILED')
     },
+    async listSiblings(input): Promise<PackageBoxSiblings> {
+      const response = await dependencies.fetch(
+        `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/${input.boxId}/siblings`,
+        { headers: { authorization: await authorization() } },
+      )
+      if (!response.ok) await rejectionOf(response, 'PACKAGE_BOX_SIBLINGS_FAILED')
+      return packageBoxSiblingsFromApi(await response.json())
+    },
+    async replicate(input): Promise<Readonly<{ replicatedCount: number }>> {
+      const response = await dependencies.fetch(
+        `${dependencies.apiUrl}${PACKAGE_BOXES_PATH}/${input.boxId}/replicate`,
+        {
+          body: JSON.stringify({ targetIds: input.targetIds }),
+          headers: { authorization: await authorization(), 'content-type': 'application/json' },
+          method: 'POST',
+        },
+      )
+      if (!response.ok) await rejectionOf(response, PACKAGE_BOX_REPLICATE_FAILED_CODE)
+      const body: unknown = await response.json()
+      if (!isRecord(body) || !isRecord(body.data) || !isNumber(body.data.replicatedCount)) {
+        throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_REPLICATE_MALFORMED' })
+      }
+      return { replicatedCount: body.data.replicatedCount }
+    },
   }
 }
 
@@ -185,6 +295,23 @@ export function packageBoxQueueFromApi(body: unknown): PackageBoxQueue {
     items,
     totalVolumes: isNumber(totalVolumes) ? totalVolumes : 0,
   }
+}
+
+/**
+ * ⚠️ Sem `truncated` booleano o corpo é recusado, nunca lido como "não cortou": arquivo cortado
+ * sem o aviso parece a fila inteira, e é exatamente o que a rota existe para não fazer.
+ */
+function packageBoxPendingExportFromApi(body: unknown): PackageBoxPendingExport {
+  if (
+    !isRecord(body) ||
+    !isRecord(body.data) ||
+    !Array.isArray(body.data.items) ||
+    !body.data.items.every(isPackageBox) ||
+    typeof body.data.truncated !== 'boolean'
+  ) {
+    throw new PackageBoxRequestError({ code: 'PACKAGE_BOX_PENDING_EXPORT_MALFORMED' })
+  }
+  return { items: body.data.items, truncated: body.data.truncated }
 }
 
 function isPackageBox(value: unknown): value is PackageBox {
@@ -207,8 +334,62 @@ function isPackageBox(value: unknown): value is PackageBox {
     isNumber(value.cumulativeShare) &&
     typeof value.withinCoverage === 'boolean' &&
     isNullableMeasurementSource(value.measurementSource) &&
-    isNullableNumber(value.measurementMarginMm)
+    isNullableNumber(value.measurementMarginMm) &&
+    isOptionalString(value.familyKey) &&
+    isNumber(value.familyPendingCount) &&
+    isNumber(value.familyMeasuredCount) &&
+    isNumber(value.packagingSiblingCount) &&
+    isOptionalNumber(value.packagingUnitCount) &&
+    typeof value.variantLabel === 'string'
   )
+}
+
+/**
+ * ⚠️ Corpo que não são as irmãs **lança**, nunca vira lista vazia — mesma razão de
+ * `packageBoxQueueFromApi`: silêncio aqui abriria o diálogo de replicar sem alvo nenhum.
+ */
+function packageBoxSiblingsFromApi(body: unknown): PackageBoxSiblings {
+  if (!isRecord(body) || !isRecord(body.data))
+    throw new PackageBoxRequestError({ code: PACKAGE_BOX_SIBLINGS_MALFORMED_CODE })
+  const { family, isLowConfidenceFamily, originVariantLabel, packaging } = body.data
+  if (
+    !Array.isArray(family) ||
+    !family.every(isPackageBoxSibling) ||
+    !Array.isArray(packaging) ||
+    !packaging.every(isPackageBoxSibling) ||
+    typeof originVariantLabel !== 'string' ||
+    typeof isLowConfidenceFamily !== 'boolean'
+  ) {
+    throw new PackageBoxRequestError({ code: PACKAGE_BOX_SIBLINGS_MALFORMED_CODE })
+  }
+  return { family, isLowConfidenceFamily, originVariantLabel, packaging }
+}
+
+function isPackageBoxSibling(value: unknown): value is PackageBoxSibling {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.commercialUnit === 'string' &&
+    typeof value.description === 'string' &&
+    typeof value.productCode === 'string' &&
+    typeof value.variantLabel === 'string' &&
+    isNullableString(value.measuredAt) &&
+    isNullableNumber(value.lengthMm) &&
+    isNullableNumber(value.widthMm) &&
+    isNullableNumber(value.heightMm) &&
+    isNullableNumber(value.grossWeightGrams) &&
+    isNumber(value.unitsPerBox) &&
+    isOptionalNumber(value.packagingUnitCount) &&
+    isNullableMeasurementSource(value.measurementSource)
+  )
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string'
+}
+
+function isOptionalNumber(value: unknown): value is number | undefined {
+  return value === undefined || isNumber(value)
 }
 
 function isNullableMeasurementSource(value: unknown): value is null | PackageBoxMeasurementSource {

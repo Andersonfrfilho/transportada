@@ -122,4 +122,74 @@ describe('leitura das opções de rota (spec 096 T1)', () => {
     expect(view.cheapestIndex).toBeNull()
     expect(view.costGap).toBeNull()
   })
+
+  /**
+   * Spec 153: a rota que a viagem usa é `options[selectedIndex]`, não sempre a principal. O parser
+   * descartava o índice e a assinatura, e o detalhe mostrava a principal (213,5 km) no lugar da
+   * mais barata escolhida na montagem (224,9 km).
+   */
+  it('lê a rota escolhida, a assinatura por opção e o congelamento (spec 153)', () => {
+    const view = routeGeometryFromApi({
+      cheapestIndex: 1,
+      choiceReproduced: true,
+      costGap: null,
+      criterion: 'cheapest',
+      fastestIndex: 0,
+      frozen: true,
+      hasChoice: true,
+      legs: [{ distanceMetres: 224_900, durationSeconds: 10_740 }],
+      options: [
+        { ...opcaoBruta({ distanceMeters: 213_500, totalCost: '517.6340' }), signature: 'sig-a' },
+        {
+          ...opcaoBruta({ distanceMeters: 224_900, totalCost: '500.9713' }),
+          signature: 'sig-b',
+          isNoToll: true,
+        },
+      ],
+      points: [PONTO, PONTO],
+      selectedIndex: 1,
+      source: 'road',
+      toll: null,
+    })
+
+    expect(view.selectedIndex).toBe(1)
+    expect(view.options?.[1]?.signature).toBe('sig-b')
+    expect(view.options?.[1]?.isNoToll).toBe(true)
+    expect(view.options?.[0]?.isNoToll).toBe(false)
+    expect(view.choiceReproduced).toBe(true)
+    expect(view.frozen).toBe(true)
+    expect(view.criterion).toBe('cheapest')
+  })
+
+  /** Índice que não aponta para opção nenhuma é ausência — nunca um `undefined` vazando para a tela. */
+  it('selectedIndex fora da lista de opções vira null', () => {
+    const view = routeGeometryFromApi({
+      hasChoice: false,
+      legs: [],
+      options: [opcaoBruta({ distanceMeters: 100_000, totalCost: null })],
+      points: [PONTO, PONTO],
+      selectedIndex: 3,
+      source: 'road',
+      toll: null,
+    })
+
+    expect(view.selectedIndex).toBeNull()
+  })
+
+  /** Resposta anterior à 153 continua lida: sem índice, sem assinatura, sem congelamento. */
+  it('resposta sem os campos da 153 vira principal, assinatura nula e rota não congelada', () => {
+    const view = routeGeometryFromApi({
+      hasChoice: false,
+      legs: [],
+      options: [opcaoBruta({ distanceMeters: 100_000, totalCost: null })],
+      points: [PONTO, PONTO],
+      source: 'road',
+      toll: null,
+    })
+
+    expect(view.selectedIndex).toBeNull()
+    expect(view.options?.[0]?.signature).toBeNull()
+    expect(view.frozen).toBe(false)
+    expect(view.criterion).toBeNull()
+  })
 })

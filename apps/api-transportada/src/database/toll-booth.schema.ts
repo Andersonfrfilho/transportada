@@ -17,9 +17,10 @@ import {
 /**
  * Spec 090: a praça de pedágio mapeada no OSM, com a tarifa que ela cobra.
  *
- * ⚠️ **Sem `company_id`, de propósito** — é a **terceira** tabela do produto nessa condição, ao lado
- * de `fuel_price_references` e `vehicle_volume_references`: tarifa pública, idêntica para toda
- * instalação, sem PII e sem efeito fiscal. A exceção é assertada por extenso em
+ * ⚠️ **Sem `company_id`, de propósito** — uma de cinco tabelas do produto nessa condição, ao lado
+ * de `fuel_price_references`, `energy_tariff_references`, `vehicle_volume_references` e
+ * `toll_booth_extracts`: tarifa pública, idêntica para toda instalação, sem PII e sem efeito
+ * fiscal. A exceção é assertada por extenso em
  * `test/fleet-schema/tenant-safety.contract.ts`, porque tabela sem tenant nasce por decisão ou por
  * esquecimento e as duas se parecem no diff.
  *

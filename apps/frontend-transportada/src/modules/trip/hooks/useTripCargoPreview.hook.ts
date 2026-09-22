@@ -17,7 +17,7 @@ import {
 import type { TripCargoLayout, TripCargoPreview } from '../shared/trip.types'
 import { getTripClient } from './useTripWorkspace.hook'
 
-const TRIP_CARGO_PREVIEW_QUERY_KEY = 'trip-cargo-preview'
+export const TRIP_CARGO_PREVIEW_QUERY_KEY = 'trip-cargo-preview'
 const TRIP_MANAGE_PERMISSION = 'trip.manage'
 
 export type TripCargoPreviewController = Readonly<{

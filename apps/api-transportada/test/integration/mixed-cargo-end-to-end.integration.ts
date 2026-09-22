@@ -60,6 +60,8 @@ import { findCurrentDriverTrip } from '../../src/trips/application/find-current-
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { readTripFiscalReadiness } from '../../src/trips/application/read-trip-fiscal-readiness.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { DrizzleTripDocumentRepository } from '../../src/trips/infrastructure/drizzle-trip-document.repository.js'
 import { DrizzleTripFiscalReadinessQuery } from '../../src/trips/infrastructure/trip-fiscal-readiness.query.js'
@@ -114,12 +116,19 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
         // Duas cidades: a urbana e as duas de fora, que dividem endereço — três notas, duas paradas.
         expect(new Set(linked.map((document) => document.stopId)).size).toBe(2)
 
-        await planTripRoute({ companyId, repository: routeRepository, tripId: trip.id })
+        await planTripRoute({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          repository: routeRepository,
+          tripId: trip.id,
+        })
         for (const action of ['separate', 'load'] as const) {
           for (const document of linked) {
             await transitionTripDocument({
               action,
               actorUserId: userId,
+              channel: TRIP_FIELD_CHANNELS.backoffice,
               companyId,
               documentId: document.id,
               repository: documentRepository,
@@ -129,6 +138,7 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
         }
         const dispatched = await dispatchTrip({
           actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           repository: routeRepository,
           tripId: trip.id,
@@ -231,7 +241,9 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
         const driverTrips = await findCurrentDriverTrip({
           companyId,
           membershipId,
+          now: new Date(),
           repository: new DrizzleCurrentDriverTripRepository(database.db),
+          scores: new DrizzleDriverScoreRepository(database.db),
         })
         const driverTrip = driverTrips.trips.find((candidate) => candidate.id === trip.id)
         expect(driverTrip?.manifest?.accessKey).toBe(accessKey)

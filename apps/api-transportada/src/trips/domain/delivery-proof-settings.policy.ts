@@ -25,6 +25,57 @@ export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
   signature: 'optional',
 }
 
+/**
+ * ADR-0069 §6: a leitura do canhoto pela foto é experimental, desligada por padrão — sem linha
+ * gravada vale isto. O interruptor é da empresa, não entra na exceção por destinatário nem no
+ * snapshot do motorista.
+ */
+export const DEFAULT_CANHOTO_OCR_ENABLED = false
+
+/**
+ * ADR-0070 §3-5, spec 159 RF7: os parâmetros da nota do motorista. Só existem na configuração
+ * **geral** da empresa — a exceção por CNPJ (`deliveryProofSettingOverrides`) continua só com os
+ * quatro campos de `DeliveryProofFieldSettings`, porque a regra da nota é da empresa, não do
+ * destinatário.
+ */
+export type DeliveryProofPunctualitySettings = {
+  readonly proofWindowMinutes: number
+  readonly proofRadiusMeters: number
+  readonly latePenaltyPoints: number
+  readonly missingPenaltyPoints: number
+  readonly missingAfterHours: number
+}
+
+/** ADR-0070 §5: os números escolhidos na conversa da spec — configuráveis por empresa. */
+export const DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS: DeliveryProofPunctualitySettings = {
+  latePenaltyPoints: 5,
+  missingAfterHours: 24,
+  missingPenaltyPoints: 10,
+  proofRadiusMeters: 300,
+  proofWindowMinutes: 60,
+}
+
+/**
+ * A configuração geral do comprovante: os quatro modos, os parâmetros de pontualidade e o
+ * interruptor da leitura do canhoto (ADR-0069 §6).
+ */
+export type CompanyDeliveryProofSettings = DeliveryProofFieldSettings &
+  DeliveryProofPunctualitySettings & {
+    readonly canhotoOcrEnabled: boolean
+  }
+
+/** No `PUT`, o interruptor ausente é "não mexe": o painel de antes da T13 manda só os campos. */
+export type DeliveryProofSettingsInput = DeliveryProofFieldSettings &
+  DeliveryProofPunctualitySettings & {
+    readonly canhotoOcrEnabled?: boolean
+  }
+
+export const DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS: CompanyDeliveryProofSettings = {
+  ...DEFAULT_DELIVERY_PROOF_SETTINGS,
+  ...DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  canhotoOcrEnabled: DEFAULT_CANHOTO_OCR_ENABLED,
+}
+
 export type ResolveDeliveryProofSettingsParams = {
   readonly general: DeliveryProofFieldSettings | null
   readonly override: DeliveryProofFieldSettings | null

@@ -15,6 +15,7 @@ import {
 } from '../../src/contractor-mail/application/send-contractor-mail-test-email.use-case'
 import {
   ContractorMailNotConfiguredError,
+  ContractorMailSendingNotVerifiedError,
   ContractorMailTestRecipientUnavailableError,
 } from '../../src/contractor-mail/domain/contractor-mail.error'
 import type { ContractorMailCredentialSecretService } from '../../src/contractor-mail/application/contractor-mail-credential-secret.service'
@@ -30,6 +31,7 @@ const SETTINGS: ContractorMailSettingsRecord = {
   secretEnvelope: { algorithm: 'A256GCM', ciphertext: 'x', keyId: 'k', nonce: 'n', version: 1 },
   senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
   senderName: 'Fernandes Transportadora',
+  sendingVerifiedAt: new Date('2026-09-15T12:00:00.000Z'),
   status: 'pending',
   version: 1n,
   webhookId: '00000000-0000-4000-8000-0000000000e3',
@@ -108,6 +110,32 @@ describe('send contractor mail test email use case (spec 143, T009 — correçã
     await expect(
       harness.useCase.execute({ context: CONTEXT, correlationId: 'contract-c1' }),
     ).rejects.toBeInstanceOf(ContractorMailNotConfiguredError)
+    expect(harness.reserveCalls).toHaveLength(0)
+    expect(harness.recordCalls).toHaveLength(0)
+  })
+
+  /**
+   * Spec 150 T401: o teste é justamente o que prova a ida e volta — ele sai com `status` ainda
+   * `pending`, desde que a chave e o domínio do remetente estejam verificados.
+   */
+  test('sends while the round-trip status is still pending once the sender is verified', async () => {
+    const harness = createHarness({ settings: SETTINGS, recipientEmail: 'admin@example.com' })
+
+    await harness.useCase.execute({ context: CONTEXT, correlationId: 'contract-c0' })
+
+    expect(SETTINGS.status).toBe('pending')
+    expect(harness.recordCalls).toHaveLength(1)
+  })
+
+  test('refuses with SENDING_NOT_VERIFIED while the sender is not verified', async () => {
+    const harness = createHarness({
+      recipientEmail: 'admin@example.com',
+      settings: { ...SETTINGS, sendingVerifiedAt: undefined },
+    })
+
+    await expect(
+      harness.useCase.execute({ context: CONTEXT, correlationId: 'contract-c01' }),
+    ).rejects.toBeInstanceOf(ContractorMailSendingNotVerifiedError)
     expect(harness.reserveCalls).toHaveLength(0)
     expect(harness.recordCalls).toHaveLength(0)
   })

@@ -75,4 +75,46 @@ com dados fictícios.
   mais recente de cada endereço.
 - **RF12** — Todo valor interpolado no HTML é escapado. Nome e endereço vêm de XML de terceiro.
 
+## Modelos de e-mail e liberação do envio
+
+Decidido pelo usuário em 2026-09-15, depois da revisão final: a revisão mostrou que o envio exigia
+`contractor_mail_settings.status = 'active'`, e nada no sistema grava esse valor, então todo envio
+era recusado.
+
+- **RF13** — **Vários modelos por tipo de e-mail.** A página "E-mail com contratantes" ganha uma
+  seção "Modelos", onde se cadastram modelos por tipo. O catálogo de tipos é uma constante que hoje
+  tem só `address_correction`; ocorrência (spec 143) entra depois, pelo mesmo cadastro. Cada modelo
+  tem nome, assunto, abertura e assinatura. O layout visual (`email-template.html`) e os blocos de
+  endereço são fixos, porque o modelo edita texto, não estrutura.
+- **RF14** — **Variáveis por tipo**, de uma lista fechada. A página lista as variáveis do tipo, cada
+  uma com descrição e botão de inserir. Há dois níveis:
+  - **Do e-mail**, usadas em assunto, abertura e assinatura. Para `address_correction`:
+    `{contratante}`, `{quantidade}`, `{clientes}` (o mesmo número, já com a palavra no singular ou
+    plural — "1 cliente"/"3 clientes", para o assunto aprovado, que precisa da concordância),
+    `{transportadora}` e `{operador}`.
+  - **De cada item enviado**, usadas no campo "Texto de cada endereço", que se repete uma vez por
+    endereço. Para `address_correction`: `{cliente}`, `{endereco_como_veio}`, `{endereco_correto}`,
+    `{motivo}`, `{cep_como_veio}`, `{cep_correto}`, `{municipio}` e `{uf}`.
+
+  Usar variável de item fora do texto do item, ou uma variável desconhecida, é recusado ao salvar
+  (`400`, `details[]` no campo). Os valores são escapados na renderização (RF12). O modelo padrão
+  oferecido reproduz o texto aprovado usando essas variáveis.
+
+- **RF15** — **Um modelo padrão por tipo**, escolhido na página. Na confirmação de envio, o operador
+  usa o padrão ou escolhe outro modelo ativo do mesmo tipo, e a prévia acompanha a escolha. Modelo é
+  arquivado, nunca apagado, porque a mensagem enviada aponta para ele.
+- **RF16** — **O envio é liberado** quando a chave do Resend foi aceita, o domínio do remetente está
+  verificado (a lista de verificação que a página já faz) e existe um modelo ativo do tipo. Receber
+  respostas (MX, webhook, 143 T012) **não** é exigido para enviar. O `status = 'active'` da 143
+  continua significando "ida e volta completas" e deixa de bloquear o envio.
+- **RF17** — Sem liberação, a recusa tem código estável por motivo (sem chave aceita, domínio não
+  verificado, sem modelo do tipo). A tela diz qual é o motivo e leva à página de configuração.
+- **RF18** — **Limitador de taxa** (M1 da revisão de segurança, decidido pelo usuário: completo
+  agora). Janela fixa com estado no Postgres, compartilhado entre instâncias, por empresa e por
+  usuário, aplicado a toda rota que dispara e-mail (`POST /address-correction-requests/mail` e
+  `POST /contractor-mail-settings/test-email`). Estourado, responde `429` com `Retry-After` e código
+  estável. Os tetos vêm de variáveis de ambiente validadas no boot.
+- **RF19** — A trilha de auditoria do envio e dos contatos (M2) fica registrada em `docs/SECURITY.md`
+  como pendente antes de produção. O usuário não a incluiu nesta rodada.
+
 Nenhum `[NEEDS CLARIFICATION]` aberto.

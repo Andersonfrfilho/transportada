@@ -23,6 +23,7 @@ import {
   dispatchTripSchema,
   linkTripDocumentSchema,
   linkTripDocumentsBatchSchema,
+  planTripRouteSchema,
   previewTripCargoSchema,
   previewTripValuationSchema,
   routeGeometrySchema,
@@ -36,6 +37,7 @@ import {
   type DispatchTripBody,
   type LinkTripDocumentBody,
   type LinkTripDocumentsBatchBody,
+  type PlanTripRouteBody,
   type PreviewTripCargoBody,
   type PreviewTripValuationBody,
   type RouteGeometryBody,
@@ -122,6 +124,10 @@ export async function parseCreateTripCteBatchRequest(
 
 export async function parseDispatchTripRequest(request: Request): Promise<DispatchTripBody> {
   return parseOptionalBody(dispatchTripSchema, request)
+}
+
+export async function parsePlanTripRouteRequest(request: Request): Promise<PlanTripRouteBody> {
+  return parseOptionalBody(planTripRouteSchema, request)
 }
 
 export async function parseReorderTripStopsRequest(

@@ -8,8 +8,8 @@ import { ApiError } from '../../shared/api.error.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 import { parseFreightJsonBody } from './freight.schema.js'
+import { MONEY_DECIMAL } from '../../shared/money.constant.js'
 
-const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
 const PERCENTAGE_DECIMAL = /^(?:0|0\.[0-9]{6}|1|1\.000000)$/
 const RULE_VERSION = /^(?:0|[1-9][0-9]{0,18})$/
 const STATE_CODE = /^[A-Za-z]{2}$/

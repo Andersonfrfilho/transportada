@@ -7,7 +7,13 @@ import {
   TRIPS_PATH,
   TRIP_CARGO_LAYOUTS_PATH,
   TRIP_DOCUMENT_REVIEWS_PATH,
+  TRIP_FIELD_OCCURRENCE_TYPES_PATH,
 } from './trip.constant'
+import {
+  isFieldDeliveryOcrDocumentsResponse,
+  TRIP_FIELD_DELIVERY_DOCUMENTS_PATH,
+  type FieldDeliveryOcrDocument,
+} from './fieldDeliveryOcrDocuments.service'
 import { createTripReviewAdapters } from './tripReview.validation'
 import type {
   TripDocumentReview,
@@ -31,20 +37,34 @@ import type {
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
+  ConfirmLoadTripInput,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
   DispatchTripInput,
   DispatchTripResult,
+  FieldDeliverDocumentInput,
+  FieldOccurrenceType,
+  FieldReportIdResult,
+  FieldReturnDocumentInput,
+  FieldSettlementResult,
+  FieldTripStepResult,
   FindNfeDocumentByAccessKeyInput,
+  RegisterFieldOccurrencesInput,
   LinkTripDocumentInput,
   LinkTripDocumentsBatchInput,
   LinkTripDocumentsBatchResult,
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
+  ReadTripAllowedActionsInput,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
+  ReportFieldDeliveryInput,
+  ReportFieldDeliveryResult,
+  ReportStopArrivalInput,
+  ReportStopOccurrenceInput,
   ScannedNfeDocument,
+  StartFieldTripInput,
   TransitionTripDocumentInput,
   TransitionTripDocumentResult,
   TripCteBatchResult,
@@ -61,17 +81,23 @@ import type {
   TripPage,
   TripCargoPreview,
   TripCargoLayoutPoll,
+  TripTimelinePage,
 } from './trip.types'
+import { parseTripAllowedActions, type TripAllowedActions } from './tripAllowedActions.validation'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
   DELIVERY_PROOF_OVERRIDES_PATH,
   DELIVERY_PROOF_SETTINGS_PATH,
-  isDeliveryProofFieldSettings,
+  FIELD_DELIVERY_SETTINGS_PATH,
+  isCompanyDeliveryProofSettings,
   isDeliveryProofSettingsOverride,
+  isFieldDeliverySettings,
+  type CompanyDeliveryProofSettings,
   type DeliveryProofFieldSettings,
   type DeliveryProofSettingsOverride,
+  type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
-import type { RouteGeometry } from './routeGeometry.service'
+import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
 import type { OccurrenceType } from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
 
@@ -89,6 +115,8 @@ export type TripClient = Readonly<{
   batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  /** Spec 156 T5: `POST /trips/:id/confirm-load` — o mesmo caso de uso do motorista, com o alvo. */
+  confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   /**
    * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
@@ -105,6 +133,8 @@ export type TripClient = Readonly<{
       vehicleIds?: readonly string[]
       /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam. */
       releaseUnplacedFromLayoutIds?: readonly string[]
+      /** Spec 153: a rota vista por caminhão. Ausente é o critério padrão do servidor. */
+      routeChoiceByVehicle?: readonly Readonly<{ routeChoice: RouteChoice; vehicleId: string }>[]
     }>,
   ) => Promise<AcceptedMultiVehicleSuggestion>
   createMultiVehicleSuggestion: (
@@ -123,8 +153,13 @@ export type TripClient = Readonly<{
   listNfeDocuments: (
     input: Readonly<{ cursor: null | string; limit: number; signal?: AbortSignal }>,
   ) => Promise<TripCandidateDocumentPage>
-  /** Entregar passou pela máquina de estados na API, então devolve o estado da viagem junto. */
-  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
+  /**
+   * Spec 156 T8b, ADR-0067: entrega com autoria pelo escritório, `trip.report-on-behalf`.
+   * Multipart — a foto entra só na T11 (`FieldDeliveryWizard`).
+   */
+  fieldDeliverDocument: (input: FieldDeliverDocumentInput) => Promise<FieldSettlementResult>
+  /** Spec 156 T8b, ADR-0067: devolução com autoria pelo escritório, `trip.report-on-behalf`. */
+  fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
@@ -166,11 +201,29 @@ export type TripClient = Readonly<{
     }>,
   ) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
+  /** Spec 158 D4: `GET /trips/:id/timeline`, paginada por cursor `(occurredAt, id)`. */
+  readTripTimeline: (
+    input: Readonly<{ cursor: null | string; limit: number; tripId: string }>,
+  ) => Promise<TripTimelinePage>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
-  readDeliveryProofSettings: () => Promise<DeliveryProofFieldSettings>
+  readDeliveryProofSettings: () => Promise<CompanyDeliveryProofSettings>
+  /** Spec 156 T13: o assistente de baixa do escritório lê só o interruptor da leitura do canhoto. */
+  readFieldDeliverySettings: () => Promise<FieldDeliverySettings>
+  /** Spec 156 T14: a chave de acesso de cada nota, para o OCR do canhoto casar pela chave inteira. */
+  readFieldDeliveryDocuments: (
+    input: Readonly<{ tripId: string }>,
+  ) => Promise<readonly FieldDeliveryOcrDocument[]>
   saveDeliveryProofSettings: (
-    input: DeliveryProofFieldSettings,
-  ) => Promise<DeliveryProofFieldSettings>
+    input: CompanyDeliveryProofSettings,
+  ) => Promise<CompanyDeliveryProofSettings>
+  /**
+   * Spec 156 T14, ADR-0069 §6: liga/desliga o interruptor. O `PUT` exige os quatro modos sempre —
+   * só os cinco parâmetros de pontualidade e o interruptor são opcionais (ausente não mexe) — por
+   * isso o corpo carrega os quatro modos correntes junto do `canhotoOcrEnabled` novo.
+   */
+  saveCanhotoOcrEnabled: (
+    input: DeliveryProofFieldSettings & Readonly<{ canhotoOcrEnabled: boolean }>,
+  ) => Promise<CompanyDeliveryProofSettings>
   listDeliveryProofOverrides: () => Promise<readonly DeliveryProofSettingsOverride[]>
   replaceDeliveryProofOverrides: (
     input: Readonly<{ overrides: readonly DeliveryProofSettingsOverride[] }>,
@@ -216,16 +269,55 @@ export type TripClient = Readonly<{
   ) => Promise<readonly DeliveryAddressOverride[]>
   listTrips: (input: TripListInput) => Promise<TripPage>
   overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
-  planTripRoute: (input: Readonly<{ tripId: string }>) => Promise<PlanTripRouteResult>
+  /** Spec 153: `routeChoice` ausente é o critério padrão do servidor — e aí o corpo não vai. */
+  planTripRoute: (
+    input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
+  ) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
+  /** Spec 156 T7.2: rota própria, fora do detalhe (t7-design §2.4, ressalva M1). */
+  readTripAllowedActions: (input: ReadTripAllowedActionsInput) => Promise<TripAllowedActions>
+  /** Spec 156 T5: `POST /trips/:id/stops/:stopId/arrive`. */
+  reportStopArrival: (input: ReportStopArrivalInput) => Promise<FieldReportIdResult>
+  /** Spec 156 T5: `POST /trips/:id/stops/:stopId/occurrences`. */
+  reportStopOccurrence: (input: ReportStopOccurrenceInput) => Promise<FieldReportIdResult>
+  /** Spec 156 T5: `POST /trips/:id/start-route` — leva a viagem a `on_delivery_route`. */
+  startFieldTrip: (input: StartFieldTripInput) => Promise<FieldTripStepResult>
+  /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência de nota. */
+  readFieldOccurrenceTypes: () => Promise<readonly FieldOccurrenceType[]>
+  /**
+   * Spec 156 T7.3/T7b/T9: `POST /trips/:id/documents/field-occurrences` — ocorrência de campo para
+   * uma ou várias notas (até 50), multipart, com foto opcional para o lote inteiro.
+   */
+  registerFieldOccurrences: (
+    input: RegisterFieldOccurrencesInput,
+  ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
+  /**
+   * Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery` — uma chamada por nota,
+   * multipart, com a própria `Idempotency-Key` (T6 evidence: `deliveredAt`, `receiverName`,
+   * `receiverDocument`, `driverId` opcionais, `file` sempre presente nesta tela).
+   */
+  reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
   transitionTripDocument: (
     input: TransitionTripDocumentInput,
   ) => Promise<TransitionTripDocumentResult>
 }>
 
-function requestError(code: string): Error {
-  return new Error(code)
+/** M13a (spec 156 T15): carrega o status HTTP junto com o código de negócio — sem ele, quem recebe
+ * o erro não distingue uma falha transitória (rede/5xx/429, reenviável) de uma terminal (400/422). */
+export type TripRequestError = Error & { readonly status?: number }
+
+function requestError(code: string, status?: number): TripRequestError {
+  const error = new Error(code) as TripRequestError
+  return status === undefined ? error : Object.assign(error, { status })
+}
+
+/** Lê o status HTTP de um erro lançado por este cliente — `undefined` cobre falha de rede (nunca
+ * chegou a ter resposta) e qualquer erro que não veio daqui. */
+export function readTripRequestErrorStatus(error: unknown): number | undefined {
+  if (!(error instanceof Error) || !('status' in error)) return undefined
+  const status = (error as TripRequestError).status
+  return typeof status === 'number' ? status : undefined
 }
 
 function readErrorCode(payload: unknown): string {
@@ -253,7 +345,7 @@ async function requestJson(
   } catch {
     throw requestError(response.ok ? TRIP_ERROR.RESPONSE_INVALID : TRIP_ERROR.REQUEST_FAILED)
   }
-  if (!response.ok) throw requestError(readErrorCode(payload))
+  if (!response.ok) throw requestError(readErrorCode(payload), response.status)
   return payload
 }
 
@@ -261,6 +353,8 @@ async function authorizedRequest(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
+    /** Multipart — nunca junto com `body`. O `content-type` (com a fronteira) é o próprio `fetch`. */
+    form?: FormData
     idempotencyKey?: string
     method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
@@ -273,6 +367,7 @@ async function authorizedRequest(
   if (input.idempotencyKey !== undefined) headers['idempotency-key'] = input.idempotencyKey
   const requestInit: RequestInit = { cache: 'no-store', headers, method: input.method }
   if (input.body !== undefined) requestInit.body = input.body
+  if (input.form !== undefined) requestInit.body = input.form
   if (input.signal !== undefined) requestInit.signal = input.signal
 
   return requestJson({
@@ -294,6 +389,35 @@ function readDeliveryProofOverrides(input: unknown): readonly DeliveryProofSetti
 function readEnvelopeData(input: unknown): unknown {
   if (!isRecord(input) || !('data' in input)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   return input.data
+}
+
+/** Spec 156 T8b: a resposta comum de `field-delivery`/`field-return` (T6). */
+function readFieldSettlementResult(response: unknown): FieldSettlementResult {
+  const data = readEnvelopeData(response)
+  if (
+    !isRecord(data) ||
+    typeof data.alreadySettled !== 'boolean' ||
+    !isString(data.id) ||
+    typeof data.stopCompleted !== 'boolean' ||
+    typeof data.tripCompleted !== 'boolean'
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return {
+    alreadySettled: data.alreadySettled,
+    id: data.id,
+    stopCompleted: data.stopCompleted,
+    tripCompleted: data.tripCompleted,
+  }
+}
+
+/**
+ * Spec 156 T5: `confirm-load`, `start-route` e `arrive` levam corpo vazio ou só `driverId` — o
+ * espalhamento condicional evita `body: undefined` explícito, que `exactOptionalPropertyTypes`
+ * recusa mesmo quando o valor é o mesmo de "propriedade ausente".
+ */
+function officeDriverSelectionBody(driverId: string | undefined): Readonly<{ body?: string }> {
+  return driverId === undefined ? {} : { body: JSON.stringify({ driverId }) }
 }
 
 function buildSearch(
@@ -325,7 +449,6 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           action: input.action,
           documentIds: input.documentIds,
           note: input.note ?? null,
-          returnReason: input.returnReason ?? null,
         }),
         dependencies,
         method: 'POST',
@@ -349,9 +472,114 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
     },
+    async confirmLoadTrip(input) {
+      const response = await authorizedRequest({
+        ...officeDriverSelectionBody(input.driverId),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/confirm-load`,
+      })
+      return adapters.fieldTripStepResultFromApi(readEnvelopeData(response))
+    },
+    async startFieldTrip(input) {
+      const response = await authorizedRequest({
+        ...officeDriverSelectionBody(input.driverId),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/start-route`,
+      })
+      return adapters.fieldTripStepResultFromApi(readEnvelopeData(response))
+    },
+    async reportStopArrival(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ arrivedAt: input.arrivedAt, driverId: input.driverId }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/stops/${input.stopId}/arrive`,
+      })
+      return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
+    },
+    async reportStopOccurrence(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          description: input.description,
+          distanceMeters: input.distanceMeters,
+          documentId: input.documentId,
+          driverId: input.driverId,
+          kind: input.kind,
+        }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/stops/${input.stopId}/occurrences`,
+      })
+      return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
+    },
+    async readFieldOccurrenceTypes() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: TRIP_FIELD_OCCURRENCE_TYPES_PATH,
+      })
+      return adapters.fieldOccurrenceTypesFromApi(readEnvelopeData(response))
+    },
+    async registerFieldOccurrences(input) {
+      const form = new FormData()
+      for (const documentId of input.documentIds) form.append('documentIds', documentId)
+      form.set('occurrenceTypeId', input.occurrenceTypeId)
+      form.set('note', input.note)
+      if (input.driverId !== undefined) form.set('driverId', input.driverId)
+      if (input.file !== undefined) form.set('file', input.file)
+
+      const response = await authorizedRequest({
+        dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/documents/field-occurrences`,
+      })
+      return adapters.fieldOccurrenceBatchResultFromApi(readEnvelopeData(response))
+    },
+    async reportFieldDelivery(input) {
+      const form = new FormData()
+      form.set('deliveredAt', input.deliveredAt)
+      form.set('file', input.imageBlob)
+      if (input.driverId !== undefined) form.set('driverId', input.driverId)
+      if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
+      if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
+
+      const response = await authorizedRequest({
+        dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/field-delivery`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.reportFieldDeliveryResultFromApi(readEnvelopeData(response))
+    },
+    async readTripAllowedActions(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}/allowed-actions`,
+      })
+      return parseTripAllowedActions({
+        trip: { documentIds: input.documentIds, stopIds: input.stopIds },
+        value: readEnvelopeData(response),
+      })
+    },
     async createTrip(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ driverIds: input.driverIds, vehicleId: input.vehicleId }),
+        body: JSON.stringify({
+          /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
+          ...(input.dailyAllowanceDays === undefined
+            ? {}
+            : { dailyAllowanceDays: input.dailyAllowanceDays }),
+          driverIds: input.driverIds,
+          vehicleId: input.vehicleId,
+        }),
         dependencies,
         method: 'POST',
         path: TRIPS_PATH,
@@ -367,13 +595,17 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
          */
         ...(input.vehicleIds === undefined &&
         input.stopOrderByVehicle === undefined &&
-        input.releaseUnplacedFromLayoutIds === undefined
+        input.releaseUnplacedFromLayoutIds === undefined &&
+        input.routeChoiceByVehicle === undefined
           ? {}
           : {
               body: JSON.stringify({
                 ...(input.releaseUnplacedFromLayoutIds === undefined
                   ? {}
                   : { releaseUnplacedFromLayoutIds: input.releaseUnplacedFromLayoutIds }),
+                ...(input.routeChoiceByVehicle === undefined
+                  ? {}
+                  : { routeChoiceByVehicle: input.routeChoiceByVehicle }),
                 ...(input.stopOrderByVehicle === undefined
                   ? {}
                   : { stopOrderByVehicle: input.stopOrderByVehicle }),
@@ -414,13 +646,33 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return multiVehicleSuggestionFromApi(readEnvelopeData(response))
     },
-    async deliverTripDocument(input) {
+    async fieldDeliverDocument(input) {
+      const form = new FormData()
+      form.set('deliveredAt', input.deliveredAt)
+      if (input.driverId !== undefined) form.set('driverId', input.driverId)
+
       const response = await authorizedRequest({
         dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
         method: 'POST',
-        path: `${documentPath(input)}/deliver`,
+        path: `${documentPath(input)}/field-delivery`,
       })
-      return adapters.transitionTripDocumentResultFromApi(readEnvelopeData(response))
+      return readFieldSettlementResult(response)
+    },
+    async fieldReturnDocument(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          driverId: input.driverId,
+          reason: input.reason,
+          returnedAt: input.returnedAt,
+        }),
+        dependencies,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/field-return`,
+      })
+      return readFieldSettlementResult(response)
     },
     async readTripDocumentProducts(input) {
       const response = await authorizedRequest({
@@ -473,12 +725,55 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: DELIVERY_PROOF_SETTINGS_PATH,
       })
       const data = readEnvelopeData(response)
-      if (!isDeliveryProofFieldSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       return data
+    },
+    async readFieldDeliverySettings() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: FIELD_DELIVERY_SETTINGS_PATH,
+      })
+      const data = readEnvelopeData(response)
+      if (!isFieldDeliverySettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data
+    },
+    async readFieldDeliveryDocuments(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: TRIP_FIELD_DELIVERY_DOCUMENTS_PATH(input.tripId),
+      })
+      const data = readEnvelopeData(response)
+      if (!isFieldDeliveryOcrDocumentsResponse(data))
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data.documents
     },
     async saveDeliveryProofSettings(input) {
       const response = await authorizedRequest({
         body: JSON.stringify({
+          latePenaltyPoints: input.latePenaltyPoints,
+          missingAfterHours: input.missingAfterHours,
+          missingPenaltyPoints: input.missingPenaltyPoints,
+          photo: input.photo,
+          proofRadiusMeters: input.proofRadiusMeters,
+          proofWindowMinutes: input.proofWindowMinutes,
+          receiverDocument: input.receiverDocument,
+          receiverName: input.receiverName,
+          signature: input.signature,
+        }),
+        dependencies,
+        method: 'PUT',
+        path: DELIVERY_PROOF_SETTINGS_PATH,
+      })
+      const data = readEnvelopeData(response)
+      if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data
+    },
+    async saveCanhotoOcrEnabled(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          canhotoOcrEnabled: input.canhotoOcrEnabled,
           photo: input.photo,
           receiverDocument: input.receiverDocument,
           receiverName: input.receiverName,
@@ -489,7 +784,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: DELIVERY_PROOF_SETTINGS_PATH,
       })
       const data = readEnvelopeData(response)
-      if (!isDeliveryProofFieldSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      if (!isCompanyDeliveryProofSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       return data
     },
     async listDeliveryProofOverrides() {
@@ -525,6 +820,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/occurrences`,
       })
       return adapters.occurrencesFromApi(readEnvelopeData(response))
+    },
+    async readTripTimeline(input) {
+      const search = buildSearch({ cursor: input.cursor, limit: input.limit }, {})
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${encodeURIComponent(input.tripId)}/timeline?${search}`,
+      })
+      return adapters.tripTimelineFromApi(readEnvelopeData(response))
     },
     async registerTripOccurrence(input) {
       const response = await authorizedRequest({
@@ -815,6 +1119,9 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async planTripRoute(input) {
       const response = await authorizedRequest({
+        ...(input.routeChoice === undefined
+          ? {}
+          : { body: JSON.stringify({ routeChoice: input.routeChoice }) }),
         dependencies,
         method: 'POST',
         path: `${TRIPS_PATH}/${input.tripId}/plan-route`,
@@ -840,10 +1147,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async transitionTripDocument(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({
-          note: input.note ?? null,
-          returnReason: input.returnReason ?? null,
-        }),
+        body: JSON.stringify({ note: input.note ?? null }),
         dependencies,
         method: 'POST',
         path: `${documentPath(input)}/${input.action}`,

@@ -62,6 +62,21 @@ describe('login theme password only contract', () => {
     expect(identified).not.toMatch(/https?:\/\/[a-z]/i)
   })
 
+  /**
+   * O `redirect_uri` diz de onde a pessoa veio — painel ou portal. `applicationOrigin` é variável
+   * fixa do deploy: se ela decidisse o destino, um realm com as duas apps mandaria todo mundo de
+   * volta para um único lugar, errando para quem entrou pelo outro. Por isso o link nasce **sempre**
+   * escondido, sem `href` vindo da variável — só o script decide o destino, com o `redirect_uri` na
+   * frente e a variável como reserva.
+   */
+  test('the restart link never gets its href from the deployment variable directly', async () => {
+    const { identified } = await readUsernameBranches()
+
+    expect(identified).toContain('data-identity-restart hidden href="#"')
+    expect(identified).toContain('data-fallback-origin="${applicationOrigin}"')
+    expect(identified).not.toContain('href="${applicationOrigin}')
+  })
+
   test('without a user, the screen keeps the username and password fields', async () => {
     const { typed } = await readUsernameBranches()
 
@@ -81,6 +96,22 @@ describe('login theme password only contract', () => {
 
     expect(script).toContain('[data-identity-restart]')
     expect(script).toContain("get('redirect_uri')")
+  })
+
+  /**
+   * `redirect_uri` tem precedência sobre a variável fixa do deploy: só quando ele falta (ou não é
+   * uma URL válida) é que o script lê o `data-fallback-origin` de cada link. A variável nunca vira o
+   * `href` direto no `.ftl` (contrato anterior) — o script é o único que decide.
+   */
+  test('reads redirect_uri before falling back to the deployment variable', async () => {
+    const script = await repositoryFile(THEME_APPLICATION_LINKS).text()
+
+    const redirectUriIndex = script.indexOf("get('redirect_uri')")
+    const fallbackOriginIndex = script.indexOf('fallbackOrigin')
+
+    expect(redirectUriIndex).toBeGreaterThan(-1)
+    expect(fallbackOriginIndex).toBeGreaterThan(-1)
+    expect(redirectUriIndex).toBeLessThan(fallbackOriginIndex)
   })
 
   test('says it in both message bundles', async () => {

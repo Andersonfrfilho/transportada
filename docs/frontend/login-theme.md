@@ -240,12 +240,16 @@ CPF nem o telefone que acabou de ser digitado.
   `<#assign identifiedUsername = (login.username)!''>` e, com conteúdo, troca o campo de usuário por
   texto (`Entrando como` + o username, nenhum outro dado), um `<input type="hidden" name="username">` e
   o link **"Não é você?"**. A senha ganha o `autofocus`.
-- **O link volta para a identificação do app**, que é a raiz do app sem sessão. A origem vem de
-  `applicationOrigin=${env.KEYCLOAK_FRONTEND_ORIGIN}` no `theme.properties`, a mesma variável que o realm
-  usa nas `redirectUris`. Nenhuma URL fica cravada por ambiente. Sem a variável o Keycloak deixa o
-  literal `${env.…}`, e por isso o template só usa valor que comece com `http`; fora disso o link
-  nasce `hidden` e o `password-reset-link.js` o resolve pelo `redirect_uri`, como faz com o link de
-  recuperação. O `compose.yaml` local não declara a variável, então no local quem resolve é o script.
+- **O link volta para a identificação do app**, que é a raiz do app sem sessão — painel ou portal,
+  o que valer para quem entrou. ⚠️ **Quem manda é o `redirect_uri` da própria requisição de login,
+  não `applicationOrigin`.** Um só realm serve os dois apps, cada um com o próprio client e o próprio
+  `redirect_uri`; se a variável fixa decidisse o destino, o portal mandaria todo mundo de volta para o
+  painel. Por isso o `login.ftl` nasce **sempre** com o link `hidden href="#"`, sem `href` vindo da
+  variável — o `applicationOrigin=${env.KEYCLOAK_FRONTEND_ORIGIN}` do `theme.properties` só entra como
+  `data-fallback-origin`, lido pelo `password-reset-link.js` quando não há `redirect_uri` legível.
+  Sem a variável no deploy o Keycloak deixa o literal `${env.…}`, e por isso o template só grava o
+  atributo quando o valor comece com `http`. O `compose.yaml` local não declara a variável, então no
+  local quem resolve é sempre o `redirect_uri`.
 - **Sem `login_hint`** (acesso direto, console de conta), `login.username` vem vazio e a tela continua
   com usuário e senha.
 - **Senha errada** volta para a mesma tela só de senha, com a mensagem do Keycloak: o form reenviado

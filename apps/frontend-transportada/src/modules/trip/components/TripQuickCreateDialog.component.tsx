@@ -9,10 +9,12 @@ import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
+import { sortDriversByScore } from '@/modules/fleet/shared/driverRecommendation.service'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
-import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
@@ -21,6 +23,10 @@ import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTrip
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
+import {
+  displayDailyAllowanceDays,
+  readSuggestedDailyAllowanceDays,
+} from '../shared/dailyAllowanceDaysField.service'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
@@ -43,7 +49,7 @@ type TripQuickCreateDialogProps = Readonly<{
   permissions: readonly string[]
   /** Só as notas livres: nota já em viagem não é oferecida no lote, e não vira recusa em massa. */
   availableDocuments: readonly NfeDocumentListItem[]
-  drivers: readonly FleetDriverDetail[]
+  drivers: readonly FleetDriverListItem[]
   quickCreate: TripQuickCreateController
   vehicles: readonly FleetVehicleDetail[]
 }>
@@ -113,7 +119,8 @@ export function TripQuickCreateDialog({
     isOpen: quickCreate.isOpen,
     onClose: quickCreate.close,
   })
-  const activeDrivers = drivers.filter((driver) => driver.status === 'active')
+  /** Spec 159 RF11, ADR-0070 §7: ordenado por nota — o seletor recomenda quem entregou em dia. */
+  const activeDrivers = sortDriversByScore(drivers.filter((driver) => driver.status === 'active'))
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
   )
@@ -163,6 +170,10 @@ export function TripQuickCreateDialog({
   })
 
   const valuationPreview = useTripValuationPreview({
+    /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
+    ...(quickCreate.dailyAllowanceDays === undefined
+      ? {}
+      : { dailyAllowanceDays: quickCreate.dailyAllowanceDays }),
     driverIds: quickCreate.driverIds,
     nfeDocumentIds: stagedDocumentIds(quickCreate.queue),
     permissions,
@@ -207,6 +218,19 @@ export function TripQuickCreateDialog({
             <Icon name="close" />
           </Button>
         </header>
+
+        {quickCreate.draftStore.droppedDocumentCount === 0 ? null : (
+          <p className={styles.alert} role="status">
+            {t('assemblyDraft.droppedDocuments', {
+              count: quickCreate.draftStore.droppedDocumentCount,
+            })}
+          </p>
+        )}
+        {quickCreate.draftStore.isUnsaved ? (
+          <p className={styles.alert} role="status">
+            {t('assemblyDraft.unsaved')}
+          </p>
+        ) : null}
 
         <div className={styles.scanRow}>
           <label className={styles.scanField}>
@@ -278,8 +302,8 @@ export function TripQuickCreateDialog({
                 clearAllLabel={t('creation.driversClearAll')}
                 emptyLabel={t('creation.driversNoMatch')}
                 onChange={quickCreate.setDriverIds}
-                options={activeDrivers.map((driver) =>
-                  buildDriverSelectOption({
+                options={activeDrivers.map((driver) => {
+                  const option = buildDriverSelectOption({
                     binding: bindingByDriverId.get(driver.id),
                     driver,
                     /**
@@ -291,8 +315,20 @@ export function TripQuickCreateDialog({
                       ? { tripVehicleId: quickCreate.vehicleId }
                       : {}),
                     vehicleById,
-                  }),
-                )}
+                  })
+                  /** RF11: a nota ao lado do nome — primeira linha da descrição da opção. */
+                  const scoreLabel =
+                    driver.score === null
+                      ? tFleet('driverScore.optionNone')
+                      : tFleet('driverScore.option', { score: driver.score })
+                  return {
+                    ...option,
+                    description:
+                      option.description === undefined
+                        ? scoreLabel
+                        : `${scoreLabel} · ${option.description}`,
+                  }
+                })}
                 placeholder={t('creation.driversPlaceholder')}
                 removeLabel={t('creation.driversRemove')}
                 searchPlaceholder={t('creation.driversSearch')}
@@ -312,6 +348,20 @@ export function TripQuickCreateDialog({
               placeholder={t('creation.vehiclePlaceholder')}
               searchPlaceholder={t('creation.vehicleSearch')}
               value={quickCreate.vehicleId}
+            />
+          </label>
+
+          <label>
+            {t('creation.dailyAllowanceDays')}
+            <input
+              inputMode="numeric"
+              onChange={(event) => quickCreate.setDailyAllowanceDaysInput(event.target.value)}
+              placeholder={t('creation.dailyAllowanceDaysPlaceholder')}
+              type="text"
+              value={displayDailyAllowanceDays({
+                suggestedDays: readSuggestedDailyAllowanceDays(valuationPreview.valuation),
+                typed: quickCreate.dailyAllowanceDaysInput,
+              })}
             />
           </label>
         </div>
@@ -339,8 +389,11 @@ export function TripQuickCreateDialog({
         )}
 
         <TripAssemblyMap
+          canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
+          onRouteChoiceChange={quickCreate.setRouteChoice}
+          preferredRouteChoice={quickCreate.routeChoice}
           /**
            * ⚠️ A parada é um endereço, e a fila é de **chaves de acesso**: a tradução de id de nota
            * para chave acontece aqui, uma vez, sobre a mesma lista que alimentou o mapa. Nota que
@@ -387,6 +440,17 @@ export function TripQuickCreateDialog({
         ) : null}
 
         <div className={styles.dialogFooter}>
+          {/* Cancelar guarda o rascunho para depois de medir; só este botão o apaga. */}
+          <Button
+            disabled={!quickCreate.hasDraft}
+            onClick={quickCreate.discardDraft}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="trash" />
+            {t('actions.resetCreation')}
+          </Button>
           <Button onClick={quickCreate.close} size="sm" type="button" variant="ghost">
             <Icon name="close" />
             {t('quickCreate.cancel')}

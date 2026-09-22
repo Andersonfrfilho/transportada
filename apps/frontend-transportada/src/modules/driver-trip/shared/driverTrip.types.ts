@@ -13,6 +13,8 @@ export type DriverTripDocument = Readonly<{
   grossWeight: string
   id: string
   number: string
+  /** Spec 159 RF1/RF2: foto obrigatória (`deliveryProof.photo === 'required'`) que ainda não chegou. */
+  proofPending: boolean
   recipientName: string
   returnReason: string | null
   separationStatus: string
@@ -74,10 +76,44 @@ export type DriverTrip = Readonly<{
   vehiclePlate: string
 }>
 
+/**
+ * Spec 159 (T11, revisão): a foto pendente **na raiz** do snapshot — sai daqui mesmo sem viagem
+ * ativa, porque a nota entregue pode ser de uma viagem já `completed`. É esta lista, não mais o
+ * percurso por `trips`, que alimenta a tela "Fotos pendentes" e o contador do workspace.
+ */
+export type PendingProofDocument = Readonly<{
+  deliveredAt: string | null
+  deliveryProof: DriverDeliveryProofSettings | null
+  documentId: string
+  documentNumber: string
+  documentSeries: string
+  recipientName: string
+  tripId: string
+  tripStatus: string
+}>
+
 export type DriverTripSnapshot = Readonly<{
   isRegisteredDriver: boolean
+  /** Spec 159 (T11): toda nota entregue com foto obrigatória ainda sem foto, de qualquer viagem. */
+  pendingProofs: readonly PendingProofDocument[]
+  /** Spec 159 RF2/RF9, ADR-0070 §5: a nota do próprio motorista — `null` sem histórico em 90 dias. */
+  score: number | null
   trips: readonly DriverTrip[]
 }>
+
+/**
+ * ⚠️ Cópia por valor de `ProofPunctuality` (`delivery-proof-punctuality.policy.ts`, ADR-0070 §3-4).
+ * `not_required` nunca aparece na resposta de `/proof` para foto obrigatória; ela existe do lado da
+ * API para nota sem exigência — o app não recebe esse valor nesta rota.
+ */
+export const PROOF_PUNCTUALITY_VALUES = [
+  'not_required',
+  'on_time',
+  'late',
+  'away',
+  'late_and_away',
+] as const
+export type ProofPunctuality = (typeof PROOF_PUNCTUALITY_VALUES)[number]
 
 /** ⚠️ Cópia por valor de `driver-return-reason.policy.ts`; a paridade é assertada por contrato. */
 export const DRIVER_RETURN_REASONS = [
@@ -149,18 +185,23 @@ export type DriverFieldReport =
  * Spec 079: o tipo de ocorrência que a empresa cadastrou, como o motorista o vê.
  *
  * ⚠️ A lista **vem do servidor**: ela deixou de ser cópia por valor quando os tipos viraram
- * cadastro. O motorista só enxerga os de `delivery` ativos — o galpão não é dele.
+ * cadastro. O motorista só enxerga os de `delivery` ativos — o galpão não é dele —, e o filtro é
+ * do servidor (spec 157): a rota `/me/trips/current/occurrence-types` devolve só `id` e `name`.
  */
 export type DriverOccurrenceType = Readonly<{
-  active: boolean
   id: string
   name: string
-  stage: 'delivery' | 'separation'
 }>
 
-/** O que a tela dele oferece: rua, ativo, e nada mais. */
-export function driverSelectableOccurrenceTypes(
-  types: readonly DriverOccurrenceType[],
-): readonly DriverOccurrenceType[] {
-  return types.filter((type) => type.active && type.stage === 'delivery')
-}
+/**
+ * Spec 157 (RF5): falha de rede/servidor e lista vazia de verdade são fatos diferentes — a
+ * primeira é "não sabemos", a segunda é "a empresa não cadastrou". `loading` só existe do lado da
+ * tela, antes da primeira resposta; o cliente HTTP nunca a devolve.
+ */
+export type DriverOccurrenceTypesResult =
+  | Readonly<{ status: 'failed' }>
+  | Readonly<{ status: 'loaded'; types: readonly DriverOccurrenceType[] }>
+
+export type DriverOccurrenceTypesState =
+  | Readonly<{ status: 'loading' }>
+  | DriverOccurrenceTypesResult

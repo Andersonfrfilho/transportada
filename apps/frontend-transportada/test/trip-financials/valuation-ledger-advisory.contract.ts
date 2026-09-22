@@ -37,14 +37,13 @@ function valuation(): TripValuation {
   return {
     costParcels: [
       {
+        /**
+         * Spec 143: `DRIVER_ZONE_PRICED_FROM_TABLE` só nasce hoje num resultado congelado antes
+         * desta spec — `basis` vem `null`, e a frase (composta antes, pela API antiga) sobe crua
+         * de `detail`, sem tradução.
+         */
         amount: '621.0000',
-        basis: {
-          of: 'driver',
-          paymentModel: 'route_table',
-          regionCity: 'CAJURU',
-          regionCode: '3.000',
-          vehicleClass: 'vuc',
-        },
+        basis: null,
         detail: '3.000 (CAJURU) · vuc',
         gap: 'DRIVER_ZONE_PRICED_FROM_TABLE',
         kind: 'driver',

@@ -18,7 +18,7 @@ const adapters = createTripResponseAdapters()
 const routeGeometryFromApi = (input: unknown) => adapters.routeGeometryFromApi(input)
 
 const COMPONENT = new URL(
-  '../../src/modules/trip/components/TripAssemblyMap.component.tsx',
+  '../../src/modules/trip/components/RouteTollSummary.component.tsx',
   import.meta.url,
 )
 

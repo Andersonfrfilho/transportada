@@ -309,6 +309,8 @@ export type FleetDriverBody = Readonly<{
   birthCity: string
   birthDate: null | string
   birthState: string
+  /** Diária que só este motorista recebe; ausente é null e a diária cai para a geral da empresa (spec 143 D7). */
+  dailyAllowanceAmount: null | string
   email: string
   /** Filiação, como a CNH imprime. Opcional: nem toda carteira traz as duas linhas. */
   fatherName: string
@@ -445,8 +447,33 @@ export type FleetDriverFilters = Readonly<{
   statusEq?: FleetDriverStatus
 }>
 
+/** Spec 159 RF10: a listagem traz a nota ao lado de cada motorista — `null` sem histórico. */
+export type FleetDriverListItem = FleetDriverDetail & Readonly<{ score: number | null }>
+
+/** ADR-0070 §5: as duas razões de penalidade — cópia por valor de `DRIVER_PENALTY_REASON` da API. */
+export const DRIVER_PENALTY_REASONS = ['late_proof', 'missing_proof'] as const
+export type DriverPenaltyReason = (typeof DRIVER_PENALTY_REASONS)[number]
+
+/**
+ * Spec 159 RF10, ADR-0070 §7: a ficha do motorista mostra o porquê da nota — nota fiscal, data da
+ * entrega, motivo, pontos e quando expira. Nunca a coordenada da foto (dado pessoal de localização).
+ */
+export type FleetDriverPenalty = Readonly<{
+  deliveredAt: string
+  documentNumber: string
+  expiresAt: string
+  points: number
+  reason: DriverPenaltyReason
+  tripDocumentId: string
+}>
+
+export type FleetDriverScoreResult = Readonly<{
+  penalties: readonly FleetDriverPenalty[]
+  score: number | null
+}>
+
 export type FleetDriverPage = Readonly<{
-  items: readonly FleetDriverDetail[]
+  items: readonly FleetDriverListItem[]
   nextCursor: null | string
 }>
 
@@ -505,6 +532,7 @@ export type FleetDriverFormState = Readonly<{
   birthCity: string
   birthDate: string
   birthState: string
+  dailyAllowanceAmount: string
   email: string
   fatherName: string
   firstLicenseAt: string

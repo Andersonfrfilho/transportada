@@ -1,0 +1,2 @@
+ALTER TABLE "trip_document_occurrences" ADD COLUMN "attachment_object_id" uuid;--> statement-breakpoint
+ALTER TABLE "trip_document_occurrences" ADD CONSTRAINT "trip_document_occurrences_company_object_fk" FOREIGN KEY ("company_id","attachment_object_id") REFERENCES "stored_objects"("company_id","id") ON DELETE RESTRICT ON UPDATE CASCADE;

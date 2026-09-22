@@ -28,6 +28,11 @@ const CONTENT_SECURITY_POLICY_HEADER = 'Content-Security-Policy'
 const OPENCV_CHUNK_PREFIX = 'assets/opencv-'
 const OPENCV_CHUNK_GLOB = `${OPENCV_CHUNK_PREFIX}*.js`
 const OPENCV_CACHE_NAME = 'transportada-opencv'
+/**
+ * Spec 156 T14, ADR-0069 §2: o motor de OCR do canhoto — nome de cache próprio, `CacheFirst`, fora
+ * do precache. Só quem liga o interruptor (`canhotoOcrEnabled`) chega a baixar os ~4,5 MB.
+ */
+const CANHOTO_OCR_CACHE_NAME = 'transportada-canhoto-ocr'
 const PWA_ICON_PATH = '/icons/icon-192.png'
 const PWA_LARGE_ICON_PATH = '/icons/icon-512.png'
 const PWA_THEME_COLOR = '#0B1F2A'
@@ -188,7 +193,7 @@ export default defineConfig({
          * D14). Diferente do recorte, ele é servido do próprio domínio (`vendor/opencv/`), então
          * ganha `CacheFirst` próprio — o worker o busca uma vez e o Service Worker guarda.
          */
-        globIgnores: ['**/background-removal/**', OPENCV_CHUNK_GLOB],
+        globIgnores: ['**/background-removal/**', '**/canhoto-ocr/**', OPENCV_CHUNK_GLOB],
         navigateFallback: '/index.html',
         runtimeCaching: [
           {
@@ -206,6 +211,16 @@ export default defineConfig({
             options: {
               cacheName: OPENCV_CACHE_NAME,
               expiration: { maxEntries: 2 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            /** Worker, 6 variantes de core e o modelo — a biblioteca escolhe uma variante por aparelho. */
+            urlPattern: /\/canhoto-ocr\/.*$/u,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: CANHOTO_OCR_CACHE_NAME,
+              expiration: { maxEntries: 12 },
               cacheableResponse: { statuses: [200] },
             },
           },
@@ -229,6 +244,16 @@ export default defineConfig({
           chunkInfo.moduleIds.some((id) => id.includes('vendor/opencv/opencv.js'))
             ? `${OPENCV_CHUNK_PREFIX}[hash].js`
             : 'assets/[name]-[hash].js',
+        /**
+         * Spec 156 T14, ADR-0069 §2: `tesseract.js` é CommonJS (`"type": "commonjs"`), e o Rollup
+         * funde módulo CJS só alcançado por `import()` dinâmico no chunk de quem chama, em vez de
+         * separar (medido: sem isto, `createWorker` inteiro ia parar em `TripDetail.page`, e todo
+         * mundo que abre uma viagem baixava o Tesseract). `manualChunks` força o pacote inteiro
+         * para um chunk próprio, que só é buscado quando `canhotoOcrEngine.service.ts` chama
+         * `import('tesseract.js')` — nunca no bundle inicial nem no de `TripDetail`.
+         */
+        manualChunks: (id) =>
+          id.includes('/node_modules/tesseract.js/') ? 'tesseract-ocr' : undefined,
       },
     },
   },

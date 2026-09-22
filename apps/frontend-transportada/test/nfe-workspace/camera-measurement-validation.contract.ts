@@ -216,6 +216,22 @@ describe('CSV do histórico da câmera (spec 152 R8)', () => {
     expect(lines).toHaveLength(1)
   })
 
+  /**
+   * T14 (revisão final, ALTO-1): `replicated` nunca deveria chegar aqui — o cliente já recusa a
+   * página inteira antes disso (`EXPORT_SOURCES`, `cameraMeasurementExportClient.service.ts`) — mas
+   * o filtro precisa ser positivo (`camera`/`camera_adjusted`), não `!== 'typed'`: a checagem
+   * negativa deixaria passar qualquer origem nova que não seja `typed`, `replicated` incluída. O
+   * `as` só existe para simular um dado que a validação de fronteira já barra hoje.
+   */
+  test('origem replicada nunca gera linha, mesmo se escapasse da validação de fronteira', () => {
+    const csv = buildCameraMeasurementCsv([
+      entry({ source: 'replicated' as unknown as CameraMeasurementExportEntry['source'] }),
+    ])
+    const lines = csv.replace('﻿', '').split('\r\n')
+
+    expect(lines).toHaveLength(1)
+  })
+
   test('uma linha por dimensão, com fita/câmera/erro/margem e sem descrição do produto', () => {
     const csv = buildCameraMeasurementCsv([
       entry({
@@ -253,5 +269,38 @@ describe('CSV do histórico da câmera (spec 152 R8)', () => {
     expect(lengthRow).toBeDefined()
     // largura sem proposta (widthMm null) e comprimento sem margem conhecida na proposta
     expect(lengthRow).toContain('""') // margem em branco
+  })
+})
+
+/**
+ * Re-revisão (B5, §16 code-standards): o filtro de participação da câmera não pode redeclarar
+ * `'camera'`/`'camera_adjusted'` como literais soltos — a mesma dupla já existe em
+ * `PACKAGE_BOX_MEASURED_SOURCES` (`packageBoxClient.service.ts`).
+ */
+describe('CAMERA_PARTICIPATION_SOURCES deriva da constante existente (B5)', () => {
+  test('vem de packageBoxMeasurement.constant.ts, sem Set literal solto no serviço', async () => {
+    const source = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/shared/cameraMeasurementExport.service.ts',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(source).toContain(
+      "import { CAMERA_PARTICIPATION_SOURCES } from './packageBoxMeasurement.constant'",
+    )
+    expect(source).not.toContain("new Set(['camera', 'camera_adjusted'])")
+  })
+
+  test('a constante deriva de PACKAGE_BOX_MEASURED_SOURCES, sem repetir os literais', async () => {
+    const source = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/shared/packageBoxMeasurement.constant.ts',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(source).toContain('ReadonlySet<PackageBoxMeasurementSource>')
+    expect(source).toContain('PACKAGE_BOX_MEASURED_SOURCES')
   })
 })

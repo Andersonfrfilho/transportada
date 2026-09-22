@@ -132,7 +132,7 @@ erDiagram
 | CT-e        | DRAFT, PENDING, QUEUED, PROCESSING, AUTHORIZED, REJECTED, DENIED, CANCEL_PENDING, CANCELLED, FAILED                       |
 | Invoice     | DRAFT, OPEN, ISSUED, PARTIALLY_PAID, PAID, OVERDUE, CANCELLED                                                             |
 | Job         | PENDING, PROCESSING, SUCCEEDED, RETRY_SCHEDULED, FAILED, DEAD_LETTER, CANCELLED                                           |
-| Trip        | DRAFT, ROUTE_PLANNED, SEPARATING, LOADING, DISPATCHED, IN_TRANSIT, COMPLETED, CANCELLED                                   |
+| Trip        | DRAFT, ROUTE_PLANNED, SEPARATING, LOADING, DISPATCHED, IN_TRANSIT, ON_DELIVERY_ROUTE, COMPLETED, CANCELLED                |
 | Trip doc    | PENDING, SEPARATED, LOADED, DELIVERED, RETURNED                                                                           |
 
 O estado da viagem é **derivado** do das notas, exceto em quatro transições manuais
@@ -141,3 +141,9 @@ irreversível e sela o vínculo de documentos (§2).
 
 Transições inválidas retornam `409 STATE_TRANSITION_NOT_ALLOWED` e são
 auditadas.
+
+Toda troca de `trips.status` grava uma linha em `trip_status_events` (de/para, ator, canal, motorista
+em nome de quem, `occurred_at`) na mesma transação — ADR-0068. O canal é `driver_app`, `office` (o
+escritório em nome do motorista), `whatsapp` ou `backoffice` (o escritório agindo por conta própria).
+Não há evento anterior ao deploy da spec 158, e a criação em `draft` não gera evento.
+`ON_DELIVERY_ROUTE` (spec 156) fica entre `IN_TRANSIT` e `COMPLETED`.

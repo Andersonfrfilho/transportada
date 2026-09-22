@@ -4,6 +4,8 @@ import {
   DRIVER_AVAILABILITY_KEYS,
   DRIVER_COVERAGE_KEYS,
   DRIVER_DETAIL_KEYS,
+  DRIVER_PENALTY_KEYS,
+  DRIVER_SCORE_RESULT_KEYS,
   DRIVER_VEHICLE_LINK_KEYS,
   DRIVER_VEHICLE_PAIR_KEYS,
   FLEET_CAPABILITY_KEYS,
@@ -29,14 +31,17 @@ import type {
   FleetCapabilities,
   FleetDriverAvailability,
   FleetDriverDetail,
+  FleetDriverListItem,
   FleetDriverPage,
+  FleetDriverPenalty,
+  FleetDriverScoreResult,
   FleetDriverVehicleLink,
   FleetDriverVehiclePair,
   FleetVehicleCatalogResult,
   FleetVehicleDetail,
   FleetVehiclePage,
 } from './fleet.types'
-import { FLEET_VEHICLE_CATALOG_SOURCE } from './fleet.types'
+import { DRIVER_PENALTY_REASONS, FLEET_VEHICLE_CATALOG_SOURCE } from './fleet.types'
 import { VEHICLE_TYPES } from '@/modules/shared/vehicleType.constant'
 import type { VehicleReference } from './vehicleSuggestion.service'
 import {
@@ -204,6 +209,12 @@ function isDriverAddress(value: unknown): boolean {
   )
 }
 
+/** ADR-0070 §5: a nota é inteira de 0 a 100, ou `null` sem histórico. */
+function isDriverScore(value: unknown): value is number | null {
+  if (value === null) return true
+  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 100
+}
+
 function isDriver(value: unknown): value is FleetDriverDetail {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, DRIVER_DETAIL_KEYS) || !hasEveryKey(value, DRIVER_DETAIL_KEYS)) {
@@ -235,6 +246,37 @@ function isDriver(value: unknown): value is FleetDriverDetail {
     isString(value.taxId) &&
     isString(value.updatedAt) &&
     isUnsignedIntegerString(value.version)
+  )
+}
+
+/** ADR-0070 §7: nunca uma coordenada aqui — só o motivo, os pontos e as datas. */
+function isDriverPenalty(value: unknown): value is FleetDriverPenalty {
+  if (!isRecord(value)) return false
+  if (!hasOnlyKeys(value, DRIVER_PENALTY_KEYS) || !hasEveryKey(value, DRIVER_PENALTY_KEYS)) {
+    return false
+  }
+  return (
+    isString(value.deliveredAt) &&
+    isString(value.documentNumber) &&
+    isString(value.expiresAt) &&
+    Number.isInteger(value.points) &&
+    isOneOf(value.reason, DRIVER_PENALTY_REASONS) &&
+    isString(value.tripDocumentId)
+  )
+}
+
+function isDriverScoreResult(value: unknown): value is FleetDriverScoreResult {
+  if (!isRecord(value)) return false
+  if (
+    !hasOnlyKeys(value, DRIVER_SCORE_RESULT_KEYS) ||
+    !hasEveryKey(value, DRIVER_SCORE_RESULT_KEYS)
+  ) {
+    return false
+  }
+  return (
+    isDriverScore(value.score) &&
+    Array.isArray(value.penalties) &&
+    value.penalties.every(isDriverPenalty)
   )
 }
 
@@ -357,6 +399,14 @@ export function createFleetResponseAdapters() {
     return input
   }
 
+  /** Spec 159 RF10: só a listagem carrega `score`; a ficha criada/editada continua sem ele. */
+  function scoredDriverFromApi(input: unknown): FleetDriverListItem {
+    if (!isRecord(input)) throw invalid()
+    const { score, ...driver } = input
+    if (!isDriverScore(score)) throw invalid()
+    return { ...driverFromApi(driver), score }
+  }
+
   return {
     capabilitiesFromApi(input: unknown): FleetCapabilities {
       if (!isCapabilities(input)) throw invalid()
@@ -376,7 +426,11 @@ export function createFleetResponseAdapters() {
     },
     driverFromApi,
     driverListFromApi(input: unknown): FleetDriverPage {
-      return readPage(input, driverFromApi)
+      return readPage(input, scoredDriverFromApi)
+    },
+    driverScoreFromApi(input: unknown): FleetDriverScoreResult {
+      if (!isDriverScoreResult(input)) throw invalid()
+      return input
     },
     driverCoverageListFromApi(input: unknown): readonly FleetDriverCoverage[] {
       if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import {
   TripDispatchForceReasonRequiredError,
@@ -25,10 +26,12 @@ export type DispatchTripPreconditions = {
 
 export type DispatchTripWriteInput = {
   readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
   /** `true` só quando havia pendência real — despachar sem pendência nunca é "forçado". */
   readonly forced: boolean
   readonly forceReason: string | null
+  readonly onBehalfOfDriverId: string | null
   readonly tripId: string
   readonly unloadedDocumentIds: readonly string[]
 }
@@ -47,9 +50,11 @@ export type DispatchTripPort = {
 
 export type DispatchTripInput = {
   readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
   readonly force?: boolean
   readonly forceReason?: string | null
+  readonly onBehalfOfDriverId?: string | null
   readonly repository: DispatchTripPort
   readonly tripId: string
 }
@@ -99,9 +104,11 @@ export async function dispatchTrip(input: DispatchTripInput): Promise<DispatchTr
 
   const written = await input.repository.dispatch({
     actorUserId: input.actorUserId,
+    channel: input.channel,
     companyId: input.companyId,
     forced,
     forceReason: forced ? (input.forceReason ?? null) : null,
+    onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     tripId: input.tripId,
     unloadedDocumentIds: state.unloadedDocumentIds,
   })

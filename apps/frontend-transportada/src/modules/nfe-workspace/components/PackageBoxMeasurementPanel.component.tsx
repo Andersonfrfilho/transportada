@@ -4,15 +4,19 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { BarcodeScanner, type BarcodeScannerFeedback } from '@/components/ui/barcode-scanner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { MeasurementCardPrint } from './MeasurementCardPrint.component'
 import { PackageBoxCameraFlow } from './PackageBoxCameraFlow.component'
+import { PackageBoxFamilyApplyButton } from './PackageBoxFamilyApplyButton.component'
 import { PackageBoxMeasurementForm } from './PackageBoxMeasurementForm.component'
+import { PackageBoxReplicateDialog } from './PackageBoxReplicateDialog.component'
 import {
   PACKAGE_BOX_STATUS_FILTERS,
   type PackageBox,
@@ -25,6 +29,21 @@ import {
   type Translate,
 } from '../shared/packageBoxMeasurementLabel.service'
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
+import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
+import {
+  buildPackageBoxPendingExportCsv,
+  buildPackageBoxPendingExportSheetData,
+  PACKAGE_BOX_PENDING_EXPORT_CSV_MEDIA_TYPE,
+  packageBoxPendingExportFileName,
+  type PackageBoxPendingExportFeedback,
+  type PackageBoxPendingExportFormat,
+  type PackageBoxPendingExportLabels,
+} from '../shared/packageBoxPendingExport.service'
+import {
+  resolveReplicateOffer,
+  shouldOpenReplicateDialog,
+  type ReplicateOffer,
+} from '../shared/packageBoxReplicateOffer.service'
 import styles from '../styles/packageBoxes.module.css'
 
 type PackageBoxMeasurementPanelProps = Readonly<{
@@ -35,14 +54,38 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   loading: boolean
   /** `true` enquanto a fila reconsulta a API por causa de um bipe — não o carregamento inicial. */
   matching: boolean
-  onMeasure: (input: PackageBoxMeasurementInput) => void
+  /**
+   * T14 (revisão final, ALTO-2): `onSuccess` é por chamada, nunca um efeito que reage ao estado
+   * global da mutação — sem isso, uma gravação que falha ou uma segunda caixa gravada no meio do
+   * caminho não tinham como saber a diferença entre "esta chamada" e "a última chamada".
+   */
+  onMeasure: (input: PackageBoxMeasurementInput, onSuccess: () => void) => void
   /** M-a: zera o desfecho da gravação anterior — o fluxo abre sem a recusa da caixa passada. */
   onResetSaveError: () => void
+  /** T14 (revisão final, ALTO-2): zera a recusa e o estado da réplica anterior ao abrir/fechar. */
+  onResetReplicate: () => void
   /** T14 item A1 (4ª revisão): refaz a consulta que falhou, sem fechar o fluxo nem perder a captura. */
   onRetryLookup: () => void
   onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
+  /**
+   * Export de "tudo o que falta medir" — sempre a fila inteira, independente da busca da tela, e
+   * buscada só no clique (`usePackageBoxPendingExport`).
+   */
+  pendingExport: Readonly<{
+    feedback: PackageBoxPendingExportFeedback
+    prepare: (format: PackageBoxPendingExportFormat) => Promise<readonly PackageBox[] | undefined>
+    preparingFormat: PackageBoxPendingExportFormat | undefined
+  }>
+  /**
+   * Spec 155 (G004, D5): quem grava a réplica confirmada pelo diálogo. `onSuccess` fecha o diálogo
+   * desta chamada — nunca um efeito que reage ao `replicateSaving` global (T14 ALTO-2/MÉDIO-4).
+   */
+  onReplicate: (
+    input: Readonly<{ boxId: string; targetIds: readonly string[] }>,
+    onSuccess: () => void,
+  ) => void
   queue: PackageBoxQueue | null
   /** A1: o código da recusa do último `PUT` de medida — `undefined` enquanto nada falhou. */
   saveErrorCode: string | undefined
@@ -51,6 +94,9 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   saving: boolean
   search: string
   status: PackageBoxStatusFilter
+  /** O código da recusa da última réplica — `undefined` enquanto nada falhou. */
+  replicateErrorCode: string | undefined
+  replicateSaving: boolean
 }>
 
 const FOUND_FEEDBACK_DELAY_MS = 900
@@ -105,12 +151,17 @@ export function PackageBoxMeasurementPanel({
   loading,
   matching,
   onMeasure,
+  onReplicate,
+  onResetReplicate,
   onResetSaveError,
   onRetryLookup,
   onScan,
   onSearchChange,
   onStatusChange,
+  pendingExport,
   queue,
+  replicateErrorCode,
+  replicateSaving,
   saveErrorCode,
   saveStatus,
   saving,
@@ -162,6 +213,54 @@ export function PackageBoxMeasurementPanel({
   /** A caixa escolhida na fila por "Medir pela câmera" — `undefined` quando o fluxo abre pela etiqueta. */
   const [cameraFlowBox, setCameraFlowBox] = useState<PackageBox | undefined>(undefined)
   const [isPrintCardOpen, setIsPrintCardOpen] = useState(false)
+
+  /**
+   * Spec 155 (D5, G010), T14 (revisão final, ALTO-2/MÉDIO-4): a oferta de replicar abre no
+   * `onSuccess` **desta** gravação (amarrada à caixa/dimensões da própria chamada), nunca num
+   * efeito que reage a `saveStatus`/`replicateSaving` globais — um `PUT` que falha para outra caixa
+   * não tinha como sujar a oferta anterior, mas o efeito reagia ao estado da mutação inteira, não
+   * a "esta chamada terminou".
+   */
+  const [replicateDialog, setReplicateDialog] = useState<ReplicateOffer | undefined>(undefined)
+
+  function openReplicateDialogIfEligible(
+    box: PackageBox,
+    dimensions: ReplicateOffer['dimensions'],
+  ): void {
+    const offer = resolveReplicateOffer({ box, dimensions })
+    if (offer === undefined) return
+    if (
+      !shouldOpenReplicateDialog({
+        replicateDialogOpen: replicateDialog !== undefined,
+        replicateSaving,
+      })
+    )
+      return
+    onResetReplicate()
+    setReplicateDialog(offer)
+  }
+
+  function closeReplicateDialog(): void {
+    setReplicateDialog(undefined)
+    onResetReplicate()
+  }
+
+  /**
+   * Spec 155 (D12, G012): "aplicar medida de um sabor a todos" abre o MESMO diálogo de replicar —
+   * a origem já vem resolvida pelo botão (a irmã medida preferida, ou a própria caixa), nunca a
+   * caixa da linha clicada.
+   */
+  function openReplicateDialogFromFamilyApply(offer: ReplicateOffer): void {
+    if (
+      !shouldOpenReplicateDialog({
+        replicateDialogOpen: replicateDialog !== undefined,
+        replicateSaving,
+      })
+    )
+      return
+    onResetReplicate()
+    setReplicateDialog(offer)
+  }
 
   useEffect(() => {
     return () => window.clearTimeout(closeScanTimer.current)
@@ -238,6 +337,50 @@ export function PackageBoxMeasurementPanel({
     setCameraFlowBox(undefined)
   }
 
+  function pendingExportLabels(): PackageBoxPendingExportLabels {
+    return {
+      emptyValue: '—',
+      header: {
+        cartonGtin: t('packageBoxes.pendingExport.columns.cartonGtin'),
+        commercialUnit: t('packageBoxes.pendingExport.columns.commercialUnit'),
+        description: t('packageBoxes.pendingExport.columns.description'),
+        emitterTaxId: t('packageBoxes.pendingExport.columns.emitterTaxId'),
+        familyKey: t('packageBoxes.pendingExport.columns.familyKey'),
+        productCode: t('packageBoxes.pendingExport.columns.productCode'),
+        transportedVolumes: t('packageBoxes.pendingExport.columns.transportedVolumes'),
+      },
+    }
+  }
+
+  function todayIsoDate(): string {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  async function handleExportPendingCsv(): Promise<void> {
+    const boxes = await pendingExport.prepare('csv')
+    if (boxes === undefined) return
+    const csv = buildPackageBoxPendingExportCsv({ boxes, labels: pendingExportLabels() })
+    saveArchiveFile({
+      blob: new Blob([csv], { type: PACKAGE_BOX_PENDING_EXPORT_CSV_MEDIA_TYPE }),
+      fileName: packageBoxPendingExportFileName({ extension: 'csv', today: todayIsoDate() }),
+    })
+  }
+
+  async function handleExportPendingXlsx(): Promise<void> {
+    const boxes = await pendingExport.prepare('xlsx')
+    if (boxes === undefined) return
+    const sheetData = buildPackageBoxPendingExportSheetData({
+      boxes,
+      labels: pendingExportLabels(),
+    })
+    const { default: writeExcelFile } = await import('write-excel-file/browser')
+    const blob = await writeExcelFile(sheetData.map((row) => [...row])).toBlob()
+    saveArchiveFile({
+      blob,
+      fileName: packageBoxPendingExportFileName({ extension: 'xlsx', today: todayIsoDate() }),
+    })
+  }
+
   const scanner = (
     <BarcodeScanner
       closeLabel={t('packageBoxes.scanner.close')}
@@ -275,6 +418,39 @@ export function PackageBoxMeasurementPanel({
           <Icon name="download" />
           {t('packageBoxes.printCard.open')}
         </Button>
+        <div className={styles.actions}>
+          <Button
+            aria-busy={pendingExport.preparingFormat === 'xlsx'}
+            disabled={pendingExport.preparingFormat !== undefined}
+            onClick={() => {
+              void handleExportPendingXlsx()
+            }}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name={pendingExport.preparingFormat === 'xlsx' ? 'spinner' : 'download'} />
+            {pendingExport.preparingFormat === 'xlsx'
+              ? t('packageBoxes.pendingExport.preparing')
+              : t('packageBoxes.pendingExport.xlsx')}
+          </Button>
+          <Button
+            aria-busy={pendingExport.preparingFormat === 'csv'}
+            disabled={pendingExport.preparingFormat !== undefined}
+            onClick={() => {
+              void handleExportPendingCsv()
+            }}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name={pendingExport.preparingFormat === 'csv' ? 'spinner' : 'download'} />
+            {pendingExport.preparingFormat === 'csv'
+              ? t('packageBoxes.pendingExport.preparing')
+              : t('packageBoxes.pendingExport.csv')}
+          </Button>
+        </div>
+        <PendingExportNotice feedback={pendingExport.feedback} t={t as Translate} />
       </header>
 
       {/*
@@ -356,27 +532,49 @@ export function PackageBoxMeasurementPanel({
             <p className={styles.notice}>{t('packageBoxes.empty')}</p>
           ) : (
             <ul className={styles.list}>
-              {items.map((box) => (
-                <PackageBoxRow
-                  box={box}
-                  isEditing={editingId === box.id}
-                  key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
-                  onCancel={() => setEditingId(null)}
-                  onMeasure={(measurement) => {
-                    onMeasure({ ...measurement, id: box.id })
-                    setEditingId(null)
-                    if (cameFromScan) setIsScannerOpen(true)
-                    if (cameFromKeyboardScan) {
-                      setCameFromKeyboardScan(false)
-                      searchInputRef.current?.focus()
-                    }
-                  }}
-                  onMeasureWithCamera={
-                    cameraMeasurementEnabled ? () => openCameraFlow(box) : undefined
-                  }
-                  onOpen={() => setEditingId(box.id)}
-                  saving={saving}
-                />
+              {groupPackageBoxesByPackaging(items).map((group) => (
+                <li className={styles.packagingGroup} key={group.key}>
+                  {/*
+                    ⚠️ D3/G008: o cabeçalho só aparece quando há mais de uma embalagem NESTA página —
+                    é o que resolve a queixa de "produto duplicado" sem apagar nenhuma linha.
+                  */}
+                  {group.items.length < 2 ? null : (
+                    <p className={styles.packagingGroupTitle}>
+                      {t('packageBoxes.packagingGroup.title', {
+                        description:
+                          group.items[0]?.description ?? group.items[0]?.productCode ?? '',
+                        productCode: group.items[0]?.productCode ?? '',
+                      })}
+                    </p>
+                  )}
+                  <ul className={styles.list}>
+                    {group.items.map((box) => (
+                      <PackageBoxRow
+                        box={box}
+                        isEditing={editingId === box.id}
+                        key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
+                        onApplyFamilyMeasure={openReplicateDialogFromFamilyApply}
+                        onCancel={() => setEditingId(null)}
+                        onMeasure={(measurement) => {
+                          onMeasure({ ...measurement, id: box.id }, () =>
+                            openReplicateDialogIfEligible(box, measurement),
+                          )
+                          setEditingId(null)
+                          if (cameFromScan) setIsScannerOpen(true)
+                          if (cameFromKeyboardScan) {
+                            setCameFromKeyboardScan(false)
+                            searchInputRef.current?.focus()
+                          }
+                        }}
+                        onMeasureWithCamera={
+                          cameraMeasurementEnabled ? () => openCameraFlow(box) : undefined
+                        }
+                        onOpen={() => setEditingId(box.id)}
+                        saving={saving}
+                      />
+                    ))}
+                  </ul>
+                </li>
               ))}
             </ul>
           )}
@@ -404,13 +602,31 @@ export function PackageBoxMeasurementPanel({
         matching={matching}
         onClose={closeCameraFlow}
         onLookup={(text) => onScan(text)}
-        onSave={(id, submission) => onMeasure({ ...submission, id })}
+        onSave={(id, submission) => {
+          const box = items.find((item) => item.id === id)
+          onMeasure({ ...submission, id }, () => {
+            if (box !== undefined) openReplicateDialogIfEligible(box, submission)
+          })
+        }}
         preselectedBox={cameraFlowBox}
         saveErrorCode={saveErrorCode}
         saveStatus={saveStatus}
       />
 
       <MeasurementCardPrint isOpen={isPrintCardOpen} onClose={() => setIsPrintCardOpen(false)} />
+
+      {replicateDialog === undefined ? null : (
+        <PackageBoxReplicateDialog
+          boxId={replicateDialog.boxId}
+          dimensions={replicateDialog.dimensions}
+          errorCode={replicateErrorCode}
+          onClose={closeReplicateDialog}
+          onConfirm={(targetIds) =>
+            onReplicate({ boxId: replicateDialog.boxId, targetIds }, closeReplicateDialog)
+          }
+          saving={replicateSaving}
+        />
+      )}
     </section>
   )
 }
@@ -510,6 +726,8 @@ function PackageBoxCandidatePicker({
 type PackageBoxRowProps = Readonly<{
   box: PackageBox
   isEditing: boolean
+  /** Spec 155 (D12, G012): o botão já devolve a origem resolvida — o painel só abre o diálogo. */
+  onApplyFamilyMeasure: (offer: ReplicateOffer) => void
   onCancel: () => void
   onMeasure: (input: PackageBoxMeasurementInput) => void
   /** `undefined` com a medida pela câmera desligada na empresa — o botão nem aparece. */
@@ -521,6 +739,7 @@ type PackageBoxRowProps = Readonly<{
 function PackageBoxRow({
   box,
   isEditing,
+  onApplyFamilyMeasure,
   onCancel,
   onMeasure,
   onMeasureWithCamera,
@@ -529,12 +748,45 @@ function PackageBoxRow({
 }: PackageBoxRowProps) {
   const { t } = useTranslation('nfeWorkspace')
 
+  /**
+   * ⚠️ D8/G008: a unidade sai do texto discreto e vira selo em destaque, com a contagem por extenso
+   * quando a API resolveu o sufixo numérico (`CX36` → 36) — é a correção direta do que foi
+   * reportado como produto duplicado: `CX36` e `FR12` do mesmo sabão eram indistinguíveis na tela.
+   */
+  const unitBadgeLabel =
+    box.packagingUnitCount === undefined
+      ? box.commercialUnit
+      : t('packageBoxes.packagingUnitBadge', {
+          count: box.packagingUnitCount,
+          unit: box.commercialUnit,
+        })
+
+  /** D9: os contadores já chegam prontos da API — a tela nunca soma de novo por conta própria. */
+  const familySize = box.familyPendingCount + box.familyMeasuredCount
+  const showFamilyCounter = box.familyKey !== undefined && familySize > 1
+  /**
+   * D12/G012: medido e pendente na família — para a caixa medida, `familyPendingCount` já exclui
+   * ela mesma; para a pendente, `familyPendingCount` já conta a própria (>= 1 sempre).
+   */
+  const canApplyFamilyMeasure =
+    box.familyKey !== undefined && box.familyMeasuredCount >= 1 && box.familyPendingCount >= 1
+
   return (
     <li className={styles.item} data-within-coverage={box.withinCoverage}>
       <div className={styles.itemHeader}>
         <strong>{box.description || box.productCode}</strong>
-        <span className={styles.unit}>{box.commercialUnit}</span>
+        <Badge className={styles.unitBadge} variant="secondary">
+          {unitBadgeLabel}
+        </Badge>
       </div>
+      {showFamilyCounter ? (
+        <p className={styles.hint}>
+          {t('packageBoxes.family.counter', {
+            measured: box.familyMeasuredCount,
+            total: familySize,
+          })}
+        </p>
+      ) : null}
       {/*
         ⚠️ O acumulado e a marca de cobertura só valem para o que **falta** medir: eles respondem
         "até onde vale descer a fila". Na caixa já medida eles anunciariam uma decisão que não
@@ -574,6 +826,8 @@ function PackageBoxRow({
       {isEditing ? (
         <PackageBoxMeasurementForm
           boxId={box.id}
+          /** D7/G009: só pendente e com irmã já medida ganha o botão — os contadores vêm da API (D9). */
+          canQuickFillFromFamily={box.measuredAt === null && box.familyMeasuredCount > 0}
           grossWeightGrams={box.grossWeightGrams}
           heightMm={box.heightMm}
           lengthMm={box.lengthMm}
@@ -596,8 +850,39 @@ function PackageBoxRow({
               {t('packageBoxes.measureWithCamera')}
             </Button>
           )}
+          {!canApplyFamilyMeasure ? null : (
+            <PackageBoxFamilyApplyButton box={box} onResolved={onApplyFamilyMeasure} />
+          )}
         </div>
       )}
     </li>
+  )
+}
+
+/**
+ * ⚠️ O arquivo cortado não pode parecer completo: sem o aviso, a empresa com mais caixas pendentes
+ * que o teto da API baixaria uma lista cortada achando que é a fila inteira. Falha e 429 são
+ * `alert`; o resto é `status`.
+ */
+function PendingExportNotice({
+  feedback,
+  t,
+}: Readonly<{ feedback: PackageBoxPendingExportFeedback; t: Translate }>) {
+  if (feedback.kind === 'idle' || feedback.kind === 'preparing') return null
+  if (feedback.kind === 'failed' || feedback.kind === 'rateLimited') {
+    return (
+      /* Falha é erro, não informação: mesmo desenho dos erros de campo deste painel. */
+      <p className={styles.fieldError} role="alert">
+        <Icon name="alert" size="sm" />
+        {t(`packageBoxes.pendingExport.${feedback.kind}`)}
+      </p>
+    )
+  }
+  return (
+    <p className={styles.hint} role="status">
+      {feedback.kind === 'truncated'
+        ? t('packageBoxes.pendingExport.truncated', { total: feedback.total })
+        : t('packageBoxes.pendingExport.empty')}
+    </p>
   )
 }

@@ -113,6 +113,28 @@ validação com caixas reais (spec 152 T15). Sem câmera, permissão negada, fal
 acima de 15 s ou análise lenta — tudo cai no formulário digitado da caixa lida. Regra completa em
 `docs/frontend/box-dimension-scanner.md`, contrato em `test/design-system/box-dimension-scanner.contract.ts`.
 
+**Replicar medida entre variações da mesma caixa (spec 155):** linha com medida ganha badge visível
+de unidade comercial (resolução da reclamação de "duplicação aparente" — `CX36` e `FR12` do mesmo
+produto agora mostram a contagem explícita, `CX36 · 36 un`). Linhas do mesmo produto são agrupadas no
+cabeçalho com descrição completa + código de produto (grupo de embalagem, **não** replicável). Quando
+a família tem irmã medida, botão rápido **preenche** (não grava) os campos do formulário — atalho de
+digitação — porque o conferente confere contra a caixa na mão. Depois de gravar, se a família tiver
+pendentes, diálogo oferece replicar. Pré-marcado quando a família é confiável (mesma unidade ou
+formato consistente), **desmarcado** quando `isLowConfidenceFamily` (ex.: vácuo e sachê misturados —
+D11) — descrição completa + cProd de cada alvo evita confusão em 16 rótulos de 3 caracteres ou menos.
+Replicar copia comprimento, largura, altura e contagem de unidades; não toca peso (fora de escopo).
+Cancelar no diálogo nunca grava (D5). Mensagem de erro específica por falha: 422 origem sem medida ou
+alvo fora da família, 409 alvo já medido — operador sabe por que o replicar recusou. Contrato de
+cliente em `test/nfe-workspace/package-box-measurement.contract.ts`, diálogo em
+`test/nfe-workspace/package-box-replicate-dialog.contract.ts`, agrupamento em
+`test/nfe-workspace/package-box-family.contract.ts`.
+
+**"Aplicar a todos" (spec 155 D12/G012):** linha com sabor medido e sabor pendente na família ganha
+"Aplicar medida do sabor a todos os sabores" (`PackageBoxFamilyApplyButton`) — busca as irmãs só no
+clique (nunca junto da fila de 50), `resolveFamilyReplicationSource` escolhe a origem preferindo
+medida conferida a `replicated`, e abre o mesmo `PackageBoxReplicateDialog` da D5/D6. Contrato em
+`test/nfe-workspace/package-box-family-apply.contract.ts`.
+
 Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
 Props, variante com/sem rótulo e estado indeterminado em `docs/frontend/checkboxes.md`.
@@ -329,6 +351,34 @@ bundle nomeia mas nunca busca, hoje só o link do rodapé).
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
 
+**A montagem sobrevive a sair da tela** (rascunho da montagem, manual e automática). Medir uma caixa
+("Ir para a fila de medição"), o `<a href="/fleet">` e o menu desmontam `TripWorkspacePage`, e tudo
+vivia em `useState`. O ciclo é um só para os dois modos (`hooks/useTripAssemblyDraftLifecycle.hook.ts`,
+usado por `useQuickCreateDraft` e `useRouteAssemblyDraft`): grava a cada mudança em `sessionStorage`
+(`tripAssemblyDraftStorage.service.ts`, chave
+`transportada.trip.assembly-draft:<manual|automatic>:<companyId>:<userId>`, envelope `{ v: 1,
+savedAt, companyId, userId, draft }`, 8 h), restaura uma vez por escopo e recomeça se empresa ou
+usuário mudarem; gravação que falha (armazenamento cheio ou bloqueado) é avisada na tela. ⚠️ **Só
+entradas e ids** — nunca a nota nem a chave de parada (`cidade|CEP|número` é endereço): a ordem é
+guardada pelo **id de uma nota de cada parada** (`tripAssemblyStopOrder.service.ts`) e a chave é
+recalculada na volta. A volta relê as notas pela busca de disponíveis (a que virou viagem sai e é
+**contada**), filtra motorista/veículo — e os caminhões marcados da proposta — pelos selecionáveis
+(por isso o escopo só chega com sessão **e** frota carregadas), **relê** a proposta `ready` e
+**retoma a espera** da sugestão ainda calculando (`pendingSuggestionId` é gravado logo depois do
+`POST`); status terminal descarta só a proposta, com aviso, e falha de rede a **mantém guardada** com
+"Tentar novamente". Busca de notas que falha na volta também não é veredito: nada é aplicado, nada é
+gravado, e a faixa oferece reler (fase `unreachable`). A espera que cai por rede mantém o
+`pendingSuggestionId` e o painel oferece retomá-la; só `failed`/`stale`/teto o esquecem
+(`isSettledSuggestionFailure`). "Limpar rascunho" durante o cálculo invalida a espera
+(`proposalGenerationRef`) e recusa também a sugestão pendente. Enquanto restaura, "Nova viagem"/"Montar roteiro" ficam desabilitados, e se o
+operador mexer antes a restauração não aplica por cima. A busca da montagem automática nasce com a
+seleção do lote (`selectedIds`) — sem isso ela anunciava seleção vazia ao remontar e apagava o lote.
+A rota escolhida volta pela **assinatura** (`preferredRouteChoice` do `TripAssemblyMap`, que só
+publica com resposta da estrada). Cancelar/fechar guarda; "Limpar rascunho" apaga (e recusa a
+proposta); criação e aceite limpam; sair da conta apaga todos (`clearAllTripAssemblyDrafts` no `logout` do
+`KeycloakAuthProvider`, que cobre o menu e o perfil do motorista). A medida da caixa invalida planta e conta pelo efeito `packageBoxMeasurement`, e a
+restauração invalida o mesmo alcance. Contratos: `test/trip/assembly-draft*.contract.ts`.
+
 **A proposta se revisa dentro do diálogo que a pediu, viagem por viagem** (spec 110). Ela era
 renderizada em `TripWorkspace.page.tsx`, entre os botões e a tabela, e o diálogo fechava **antes** de
 ela aparecer — quem escolheu 132 notas, 5 motoristas e 5 veículos perdia de vista o pedido que gerou
@@ -531,3 +581,125 @@ uma troca de versão. ⚠️ O `server.ts` responde **404** a arquivo inexistent
 fallback do SPA com 200 foi o que escondeu o asset faltando. Contrato:
 `test/shared/maplibre-worker-assets.contract.ts`, que lê o worker real do pacote e exige que todo
 import relativo dele seja um arquivo gravado ao lado.
+
+## "Clientes a atualizar" — pedido de correção de endereço (spec 150, realiza a 084 T20)
+
+Na aba de endereços não geocodificados do Workspace NF-e (`AddressReportPanel.component.tsx`), cada
+achado ganhou "Informar endereço correto" — formulário preenchido com o endereço **como veio**
+(máscara de CEP, `Select` de UF, município pelo código IBGE, erro ancorado no campo — `web.md` §11),
+mais o estado do pedido por endereço (sem pedido · rascunho · enviado, `useAddressCorrectionForm.hook.ts`)
+e dois botões de envio: "Enviar este endereço" por item (unitário) e "Enviar todos (N)" no cabeçalho
+da contratante (completo), os dois abrindo a mesma confirmação
+(`AddressCorrectionMailDialog.component.tsx`, `useAddressCorrectionMailDialog.hook.ts`).
+
+- **`requestId` estava faltando**: `GET /address-correction-requests` já serializava `id`, mas
+  `mapAddressCorrectionRequest` (T201) não o lia — sem ele o envio unitário não tinha o que mandar em
+  `requestIds`. Corrigido na T305: `id: string` obrigatório em `AddressCorrectionRequestRecord`,
+  registro sem `id` some da lista (mesmo padrão de `status`/`kind` desconhecidos).
+- **`contractorId` resolvido por `GET /contractors/by-tax-id/:taxId`** (`fleet.read`) — o relatório só
+  traz `contractorTaxId`. Permissão diferente da do resto do fluxo (`settings.manage`), mas sem risco:
+  `settings.manage` só existe em `company-admin`, que também tem `fleet.read`.
+- **Seleção inicial dos contatos marcáveis**: os contatos **ativos** com `receivesOccurrences: true`
+  abrem marcados (é o mesmo público que a rotina de ocorrência já avisa), o resto desmarcado — nem
+  tudo nem nada por padrão, RF5a não pede "todos". Contato inativo nunca aparece na lista.
+  `canConfirmAddressCorrectionMail` desabilita o botão em 0 ou acima de
+  `ADDRESS_CORRECTION_MAIL_MAX_CONTACTS = 50` (cópia por valor de `CONTRACTOR_MAIL_MAX_RECIPIENTS`).
+- **Sem contato ativo**, o diálogo aponta para "Clientes → E-mail com contratantes" via
+  `deliveryClientsNavigation.service.ts` (novo, mesmo padrão de `cteProfilesNavigation.service.ts`) —
+  não há deep-link de aba nesta app (`DeliveryClientWorkspace.page.tsx` sempre abre em "Clientes"),
+  então o texto ao lado do botão nomeia a aba.
+- **`invalidateMutationEffect` não entrou** (mesma decisão da T201): `address-report` e
+  `address-correction-requests` são chaves do **mesmo módulo** (`nfe-workspace`) da mutação —
+  `mutationInvalidation.service.ts` documenta esse mecanismo para o alcance **entre** módulos. O hook
+  invalida as duas chaves direto por `queryClient.invalidateQueries`.
+- **CRUD de contatos da contratante** (spec 143 T013/T017, fechadas por esta spec):
+  `ContractorContactsPanel.component.tsx` mora em `delivery-clients`, na aba "E-mail com
+  contratantes" — seletor de contratante (`GET /contractors`), lista de contatos com dois `Checkbox`
+  (`receivesOccurrences`, `canDecide`) e desativar/reativar (nunca excluir, porque
+  `contractor_mail_messages` referencia o contato). Sem `zod` nesta app: validação de e-mail por
+  regex e guarda manual (`hasExactKeys`), espelhando `contractorMailSettings*`.
+
+Detalhe completo (regra de habilitação do botão, mapa de código de erro, contrato do serviço):
+`specs/150-pedido-de-correcao-de-endereco/evidence.md` (T201–T305).
+
+### Fase 4 — modelos, "Pronto para enviar" e prévia em `iframe` (spec 150 T403–T405, RF13–RF17)
+
+**Seção "Modelos"** (`ContractorMailTemplatesPanel`/`ContractorMailTemplateEditor.component.tsx`) na
+página "E-mail com contratantes" (módulo `delivery-clients`, aba "mail", ao lado da configuração da
+143 e dos contatos da T301): lista por tipo com selo "Padrão"/"Arquivado", "Criar a partir do
+padrão"/"Novo em branco", editor com as variáveis do catálogo (`{contratante}`, `{quantidade}`,
+`{clientes}`… — cópia por valor de `mail-template-catalog.constant.ts` da API, nunca importado) e
+inserção na posição do cursor (`mailTemplateVariableInsertion.service.ts`, `requestAnimationFrame`
+para o `setSelectionRange` caber no próximo paint). Validação client-side espelha
+`mail-template-render.policy.ts#validateMailTemplate` da API (mesmo tokenizador de `{variavel}`,
+mesmos tetos) — o servidor continua sendo a verdade, isto só adianta o aviso.
+
+**Prévia**: "Ver prévia" chama `POST /contractor-mail-templates/preview` com o conteúdo não salvo e
+mostra `<iframe sandbox="" srcDoc={html}>` (nunca `dangerouslySetInnerHTML`, sem `allow-scripts`) ao
+lado do texto puro, sempre os dois visíveis. Isso exigiu abrir a CSP: `frame-src` era `'none'`
+(ADR-0037) e passou a `'self'` — `about:srcdoc` de um iframe sandbox resolve contra a origem do
+documento que o criou, então `'self'` basta e terceiro continua fora. Detalhe e limite:
+`docs/SECURITY.md` § "CSP: `frame-src` deixa de ser `'none'`".
+
+**"Pronto para enviar"** (`shared/mailSendReadiness.service.ts`, `MailSendReadinessSummary.component.tsx`,
+T404): espelha `resolveMailSendReadiness` da API sem importar código de lá —
+`resolveMailSendReadinessView({ checks, mailType, settings, templates })`. `settings === null` →
+`not_configured`; `settings.sendingVerifiedAt === null` → `sending_not_verified`, com
+`failingChecklistKeys` apontando qual item da lista (`api_key`/`sender_domain`) falta; sem modelo
+**ativo e marcado como padrão** do tipo → `template_missing`. O `status` da 143 (ida e volta) nunca
+entra na função — é uma checagem à parte, só informativa. Atalho por motivo
+(`resolveMailSendReadinessShortcutTarget`) rola e foca a seção certa (`useRevealedPanel`,
+`contractor-mail-checklist-section`/`contractor-mail-templates-section`).
+
+**Confirmação de envio** (T305, revisitada na T405): seletor de modelo (padrão ou outro ativo do
+mesmo tipo) e prévia acompanhando a escolha; a recusa por liberação (`CONTRACTOR_MAIL_TEMPLATE_MISSING`,
+`CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE`, `CONTRACTOR_MAIL_SENDING_NOT_VERIFIED`) leva à página de
+configuração pelo mesmo atalho do T404.
+
+Detalhe completo (contratos, arquivos tocados, decisões de layout):
+`specs/150-pedido-de-correcao-de-endereco/evidence.md` (T401–T406).
+
+## Fleet — pedágio: catálogo inteiro e recarga (spec 154, T204/T303/T401)
+
+Spec 154 T503 (revisão final) apontou que `CLAUDE.md` mandava este histórico para cá, mas nada tinha
+sido escrito ainda — corrigido.
+
+**T204 — a aba de pedágio (Fleet Workspace) deixou de listar só as praças vistas** (spec 095) e passou
+a ler o catálogo inteiro, paginado, de `GET /v1/toll-booths` (T202). `TollBoothChargePanel.component.tsx`
+(218 → 100 linhas) virou orquestrador fino; o resto saiu para arquivos novos, todos abaixo do teto de
+200 linhas: `tollBoothCatalog.validation.ts` (guarda de forma via `hasExactKeys` de
+`objectKeys.service.ts` — nunca uma cópia local, `object-keys-single-source.contract.ts` cobra isso),
+`tollBoothCatalogClient.service.ts`, `useTollBoothCatalog.hook.ts` (debounce de 400ms, `keepPreviousData`,
+reinício de página a cada busca nova), `TollBoothChargeRow.component.tsx` (a linha de sempre, com
+`Badge` `unknownCatalog` para `catalogKnown: false`) e `TollBoothCatalogSummary.component.tsx`
+(cabeçalho com total/data/estado/pendência de eixo, e a paginação). `useTollBoothCharges` (spec 095)
+perdeu a leitura — só grava; as duas mutações passam a invalidar `TOLL_BOOTH_CATALOG_QUERY_KEY` além
+da própria chave, porque a praça ajustada mora nas duas listas.
+
+**T303 — bloco de recarga do catálogo** (RF3/RF4/RF6), abaixo do painel da T204, só renderiza e só
+consulta `GET /v1/toll-booths/extracts` com `settings.manage` (D6, aceite 4) — hoje extraído para
+`TollBoothCatalogReloadGate.component.tsx` (T402 item 6, ver abaixo). Arquivos: `tollBoothExtract.validation.ts`,
+`tollBoothExtractClient.service.ts` (repete os helpers de request dos outros clientes do módulo —
+divergência conhecida, corrigi-la é fora de escopo), `useTollBoothCatalogReload.hook.ts` (invalida
+catálogo **e** lista de extratos ao terminar), `TollBoothCatalogReloadDialog.component.tsx`
+(confirmação D6: "afeta todas as empresas da instalação", molde `CompanyUserRemoveDialog`) e
+`TollBoothCatalogReloadPanel.component.tsx` (seletor de extrato, botão, resultado, dois casos
+extremos de "nenhum extrato" decididos por `catalogStatus`). Erro tem frase própria por código
+(`tollBoothCharges.reload.errors.*`, molde `users.errors.${errorCode}` com `defaultValue`).
+
+_(Revisão T503 mexeu de novo aqui: a interpolação `{{code}}` do `defaultValue` estava quebrada — a
+frase e a lógica de abrir/fechar o diálogo saíram para `TollBoothCatalogReloadError.component.tsx` e
+para a função pura `resolveReloadDialogState`, ver `evidence.md` da 154, seção T503, defeitos 1 e 9.)_
+
+**T401 — a praça sem tarifa conhecida no extrato de pedágio da rota (Trip) ganhou ação de ajuste**
+(RF7), só com `settings.manage`: botão em `RouteTollSummary.component.tsx` que abre
+`/fleet?tollBoothSearch=<nome ou operador da praça>` — a mesma constante `FLEET_TOLL_BOOTH_PARAMETER`
+que a navegação de driver/vehicle já usa (`fleetRoute.service.ts`). `TripDetail`/`TripAssemblyMap`
+ganharam a prop `canAdjustTollBooth`, computada de `permissions.includes(SETTINGS_MANAGE_PERMISSION)`
+— independente de `canManage` (`trip.manage`), que é outra permissão. Contrato próprio
+(`route-toll-adjustment.contract.tsx`) renderiza de verdade (`renderToStaticMarkup`, i18n real) em vez
+de ler texto-fonte, porque o pedido explicitamente cobrava isso para os três casos de
+permissão/tarifa — molde reaproveitado depois pela T402 item 6 e pela T503.
+
+Detalhe completo (contratos, vermelhos, arquivos por caminho, gates):
+`specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md` (T204, T303, T401, T402, T503).

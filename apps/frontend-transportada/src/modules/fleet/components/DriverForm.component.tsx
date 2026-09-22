@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { AMOUNT_DISPLAY_SCALE } from '@/modules/shared/decimalAmount.service'
 import { PHONE_MASK_LENGTH, formatPhone, stripPhone } from '@/modules/shared/phone.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { formatPixKey, pixKeyMaskLength } from '@/modules/shared/pixKey.service'
@@ -41,10 +42,16 @@ import { DriverAddressFields } from './DriverAddressFields.component'
 import { DriverCoverageFields } from './DriverCoverageFields.component'
 import { DriverLinkedAddressFields } from './DriverLinkedAddressFields.component'
 import { DriverPersonalFields } from './DriverPersonalFields.component'
+import { DriverScoreSection } from './DriverScoreSection.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
 import { InvalidFieldsHint } from './InvalidFieldsHint.component'
-import { FleetDateField, FleetField, FleetSelectField } from './FleetField.component'
+import {
+  FleetDateField,
+  FleetField,
+  FleetMoneyField,
+  FleetSelectField,
+} from './FleetField.component'
 
 type DriverVehiclesInput = Readonly<{
   isReady: boolean
@@ -112,6 +119,9 @@ export function DriverForm({
   return (
     <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{driver === undefined ? t('newDriver') : t('editDriver')}</h2>
+
+      {driver === undefined ? null : <DriverScoreSection driverId={driver.id} />}
+
       <fieldset className={styles.fieldGroup}>
         <legend>{t('driverIdentityLegend')}</legend>
         <div className={styles.fieldGrid}>
@@ -267,6 +277,13 @@ export function DriverForm({
             value={form.state.licenseExpiresAt}
             onChange={(licenseExpiresAt) => form.patch({ licenseExpiresAt })}
           />
+          <FleetMoneyField
+            optional
+            label={t('driverDailyAllowanceAmount')}
+            scale={AMOUNT_DISPLAY_SCALE}
+            value={form.state.dailyAllowanceAmount}
+            onChange={(dailyAllowanceAmount) => form.patch({ dailyAllowanceAmount })}
+          />
         </div>
         <p className={styles.hint}>{t('driverLinkedTaxIdHint')}</p>
         {companyLookup.statusKey === null ? null : (
@@ -274,6 +291,7 @@ export function DriverForm({
         )}
         <p className={styles.hint}>{t('driverEmailHint')}</p>
         <p className={styles.hint}>{t('driverAnttHint')}</p>
+        <p className={styles.hint}>{t('driverDailyAllowanceAmountHint')}</p>
         {driver === undefined ? <p className={styles.hint}>{t('driverProfileHint')}</p> : null}
       </fieldset>
       <DriverLinkedAddressFields lookup={linkedAddress} state={form.state} onChange={form.patch} />

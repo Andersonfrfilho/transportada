@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { formatRateAmount } from '@/modules/shared/decimalAmount.service'
 
-import type { TripValuationCostParcelBasis } from './tripValuation.service'
+import type {
+  DailyAllowanceRateOrigin,
+  TripValuationCostParcelBasis,
+} from './tripValuation.service'
 
 /**
  * ⚠️ `TFunction` do react-i18next é sobrecarregado demais para caber num tipo simples sob
@@ -11,18 +14,18 @@ import type { TripValuationCostParcelBasis } from './tripValuation.service'
 export type Translate = (key: string, options?: Record<string, unknown>) => string
 
 /**
- * Spec 129 — **a API manda o empate cru, e a frase é composta aqui.** `basis.tie` traz quantas
- * cidades empataram e cada faixa com o código, a cidade e o preço em decimal (ou ausência); a
- * palavra "cidade(s)", "sem preço" e a moeda formatada são desta função, no mesmo molde de
- * `ledger.driverBasis` ao lado.
+ * Spec 143 — **a API manda a diária crua, uma linha por condutor, e a frase nasce aqui.** Mais de
+ * um condutor soma a viagem (D2), e a frase soma junto: uma linha por condutor, na ordem de
+ * `basis.crew`, separadas por `; `. O molde — valor × dias · origem — é o mesmo que
+ * `freeze-trip-financial-result.use-case.ts` congela na viagem fechada; é ele quem fixa o contrato,
+ * porque as duas nunca compartilham código (apps não importam fonte uma da outra).
  *
  * ⚠️ **Serviço puro, compartilhado entre o razão da viagem** (`ValuationLedger`) **e o da
  * proposta** (`SuggestionVehicleValuation`) — duas implementações da mesma frase divergiriam
  * caladas, como já aconteceu com o preço do combustível (spec 100).
  *
- * ⚠️ **Sem `basis.tie` cai no texto cru de `detail`.** É o caminho de uma API anterior a esta spec
- * (ainda mandando a frase composta em português) ou de uma parcela sem empate — nos dois casos o
- * texto aparece como veio, sem tradução, em vez de a tela quebrar ou esconder o aviso.
+ * ⚠️ **Sem base do motorista cai no texto cru de `detail`.** É o caminho de um resultado congelado
+ * antes desta spec, que guarda a frase (ou o código da lacuna) pronta, sem `basis` nenhum.
  */
 export function composeCostParcelDetail(input: {
   readonly basis: null | TripValuationCostParcelBasis
@@ -30,32 +33,40 @@ export function composeCostParcelDetail(input: {
   readonly t: Translate
 }): null | string {
   const { basis, detail, t } = input
-  const tie = basis !== null && basis.of === 'driver' ? (basis.tie ?? null) : null
-  if (tie === null || tie === undefined) return detail
+  if (basis === null || basis.of !== 'driver') return detail
 
-  const cityCount = t('ledger.tieCityCount', { count: tie.cityCount })
-  const zones = tie.zones.map((zone) => formatTiedZone({ t, zone })).join(TIE_ZONES_SEPARATOR)
-  const vehicleClass = basis?.of === 'driver' ? basis.vehicleClass.trim() : ''
-  const base =
-    vehicleClass === ''
-      ? `${cityCount}${TIE_SEPARATOR}${zones}`
-      : `${cityCount}${TIE_SEPARATOR}${zones}${TIE_SEPARATOR}${vehicleClass}`
-
-  /** Com mais de um condutor, o nome de quem carrega a lacuna é o único pedaço que sobrou nela. */
-  return detail === null ? base : `${base}${TIE_SEPARATOR}${detail}`
+  return basis.crew
+    .map((member) =>
+      composeDriverAllowanceLine({
+        dailyAmount: member.dailyAmount,
+        days: basis.days,
+        rateOrigin: member.rateOrigin,
+        t,
+      }),
+    )
+    .join(DRIVER_ALLOWANCE_SEPARATOR)
 }
 
-function formatTiedZone(input: {
-  readonly t: Translate
-  readonly zone: Readonly<{ amount: null | string; city: string; code: string }>
-}): string {
-  const { t, zone } = input
-  const price = zone.amount === null ? t('ledger.tieNoPrice') : formatAmount(zone.amount)
+type ComposeDriverAllowanceLineInput = Readonly<{
+  dailyAmount: string
+  days: number
+  rateOrigin: DailyAllowanceRateOrigin
+  t: Translate
+}>
 
-  return `${zone.code} (${zone.city}) ${price}`
+function composeDriverAllowanceLine({
+  dailyAmount,
+  days,
+  rateOrigin,
+  t,
+}: ComposeDriverAllowanceLineInput): string {
+  return t('ledger.driverBasis', {
+    amount: formatRateAmount(dailyAmount),
+    count: days,
+    days,
+    origin: t(`ledger.driverRateOrigin.${rateOrigin}`),
+  })
 }
 
-/** O mesmo separador do `ledger.driverBasis`: a tela já lê zona · classe assim na parcela medida. */
-const TIE_SEPARATOR = ' · '
-/** Entre zonas empatadas: o `·` já separa zona de classe, e reusá-lo tornaria a leitura ambígua. */
-const TIE_ZONES_SEPARATOR = ' | '
+/** Entre condutores, nunca entre valor e origem: `·` já separa os dois dentro da linha. */
+const DRIVER_ALLOWANCE_SEPARATOR = '; '

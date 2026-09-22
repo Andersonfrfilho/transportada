@@ -1,12 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { RateLimitCeiling } from '../../http/rate-limiter.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH,
   API_CONTRACTOR_MAIL_SETTINGS_PATH,
   API_CONTRACTOR_MAIL_TEST_EMAIL_PATH,
+  CONTRACTOR_MAIL_RATE_LIMIT_SCOPE,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import type {
@@ -34,6 +36,8 @@ type SendTestEmailInput = {
 }
 
 type Dependencies = {
+  /** Spec 150 RF18: o e-mail de teste gasta o mesmo teto do envio de correção. */
+  readonly mailRateLimit: RateLimitCeiling
   readonly read: {
     execute(input: {
       readonly context: CompanyContext
@@ -115,6 +119,11 @@ export function createContractorMailSettingsRoutes(
       parse: ({ correlationId }) => ({ correlationId }),
       pathname: API_CONTRACTOR_MAIL_TEST_EMAIL_PATH,
       policy: SETTINGS_MANAGE_POLICY,
+      rateLimit: {
+        ...dependencies.mailRateLimit,
+        scope: CONTRACTOR_MAIL_RATE_LIMIT_SCOPE,
+        store: 'postgres',
+      },
     }),
   ]
 }
@@ -131,6 +140,7 @@ function serializeSettings(settings: ContractorMailSettingsSummary): Record<stri
     replyDomain: settings.replyDomain,
     senderAddress: settings.senderAddress,
     senderName: settings.senderName,
+    sendingVerifiedAt: settings.sendingVerifiedAt,
     status: settings.status,
     version: settings.version,
     webhookId: settings.webhookId,

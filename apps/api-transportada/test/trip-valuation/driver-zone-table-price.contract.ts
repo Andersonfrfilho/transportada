@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
+import { DAILY_ALLOWANCE_DAYS_ORIGIN } from '../../src/trips/domain/daily-allowance.policy.js'
 import {
   buildTripDriverCost,
   type TripCrewMember,
@@ -16,39 +17,38 @@ import {
 } from '../../src/trips/domain/trip-valuation.policy.js'
 
 /**
- * Spec 124 — **motorista sem a zona: a conta usa o preço da tabela, e avisa.**
+ * Spec 143 — **a zona não precifica mais nada.**
  *
- * ⚠️ Reescrito pela spec 127. A 124 contava o preço como `estimated` quando a ficha do motorista
- * não cobria a zona. Decisão do usuário na 127: "as regiões dos motoristas são só para ajudar a
- * montar o roteiro" — a cobertura não decide preço **nem origem**. O preço é o da tabela para
- * `(zona, classe)`, `measured`; o aviso de acrescentar a zona na ficha continua, só como lembrete.
+ * A 124 fazia o preço da tabela valer para quem não tinha a zona na ficha, com um lembrete ao lado;
+ * a 127 tirou da cobertura o poder de mudar a origem do número. Agora a diária tirou o poder de
+ * mudar o número: quem paga é o valor do motorista, o da empresa ou o padrão, e a ficha de regiões
+ * serve só para montar o roteiro — que é exatamente o que o usuário disse na 127.
+ *
+ * ⚠️ `ADVISORY_GAPS` fica como está. Ele é lido por valor no frontend, e resultado congelado antes
+ * da 143 ainda carrega o aviso — tirar o código de lá transformaria conta completa em incompleta no
+ * histórico.
  */
 function member(overrides: Partial<TripCrewMember>): TripCrewMember {
   return {
-    cityToRegister: null,
+    driverAmount: null,
     driverId: 'd-1',
     driverName: null,
     paymentModel: 'route_table',
-    regionCity: null,
-    regionCode: null,
-    routeAmount: null,
-    routeGap: null,
-    vehicleClass: '',
     ...overrides,
   }
 }
 
-const PRICED_FROM_TABLE = {
-  regionCity: 'CAJURU',
-  regionCode: '3.000',
-  routeAmount: '450.0000',
-  routeGap: VALUATION_GAPS.driverZonePricedFromTable,
-  vehicleClass: 'vuc',
-} as const
+function buildParcel(crew: readonly TripCrewMember[]) {
+  return buildTripDriverCost({
+    companyDailyAmount: '450.0000',
+    crew,
+    days: { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: 1 },
+  })
+}
 
-describe('uncovered zone priced from the table (spec 124, semantics of 127)', () => {
-  /** A zona fora da ficha continua decidida e com id: é dela que a consulta pede o preço. */
-  test('the uncovered zone travels with its id', () => {
+describe('the driver zone no longer prices the trip (spec 143 D1)', () => {
+  /** A zona continua decidida e com id — a política fica no repositório (ADR-0066), sem consumidor. */
+  test('the uncovered zone still travels with its id', () => {
     expect(
       resolveTripDriverZone({
         catalog: [{ city: 'CAJURU', code: '3.000', regionId: 'r-3000', state: 'SP' }],
@@ -63,81 +63,39 @@ describe('uncovered zone priced from the table (spec 124, semantics of 127)', ()
     })
   })
 
-  /** Era "marcado como estimado": a 127 tirou da ficha o poder de mudar a origem do número. */
-  test('the table price counts as measured, with the reminder naming the cell', () => {
-    const parcel = buildTripDriverCost([member(PRICED_FROM_TABLE)])
+  /** Coberto ou não, o condutor recebe a mesma diária — e a parcela não tem aviso nenhum. */
+  test('coverage changes neither the amount nor the gap', () => {
+    const parcel = buildParcel([member({})])
 
     expect(parcel.amount).toBe('450.0000')
     expect(parcel.source).toBe('measured')
-    expect(parcel.gap).toBe(VALUATION_GAPS.driverZonePricedFromTable)
-    expect(parcel.detail).toBe('3.000 (CAJURU) · vuc')
+    expect(parcel.gap).toBeNull()
+    expect(parcel.detail).toBeNull()
   })
 
-  /** D3: a soma conta os dois, e o lembrete é de quem não cobre — não do primeiro da lista. */
-  test('with two drivers the sum counts both and the reminder names the uncovered one', () => {
-    const parcel = buildTripDriverCost([
-      member({
-        driverId: 'd-1',
-        driverName: 'joana lima',
-        regionCity: 'CAJURU',
-        regionCode: '3.000',
-        routeAmount: '450.0000',
-        vehicleClass: 'vuc',
-      }),
-      member({ ...PRICED_FROM_TABLE, driverId: 'd-2', driverName: 'adalberto rocha' }),
+  /** Dois condutores, duas diárias: a soma é das linhas, não de uma célula de planilha. */
+  test('with two drivers the sum counts both', () => {
+    const parcel = buildParcel([
+      member({ driverName: 'joana lima' }),
+      member({ driverId: 'd-2', driverName: 'adalberto rocha' }),
     ])
 
     expect(parcel.amount).toBe('900.0000')
-    expect(parcel.source).toBe('measured')
-    expect(parcel.detail).toBe('3.000 (CAJURU) · vuc · adalberto rocha')
-  })
-
-  /**
-   * Regra 2: sem preço na tabela, nada é inventado. Na 127 a lacuna é a da célula
-   * (`DRIVER_RATE_MISSING_FOR_CLASS`, spec 123) — coberta ou não, é a planilha que falta.
-   */
-  test('without a price in the table the parcel stays missing', () => {
-    const parcel = buildTripDriverCost([
-      member(PRICED_FROM_TABLE),
-      member({
-        driverId: 'd-2',
-        regionCity: 'CAJURU',
-        regionCode: '3.000',
-        routeGap: VALUATION_GAPS.driverRateMissingForClass,
-        vehicleClass: 'vuc',
-      }),
-    ])
-
-    expect(parcel.source).toBe('missing')
-    expect(parcel.amount).toBe('0.0000')
-    expect(parcel.gap).toBe(VALUATION_GAPS.driverRateMissingForClass)
-  })
-
-  /** Regra 5: coberto, o mesmo preço sai sem lembrete — e com a mesma origem. */
-  test('a covered zone keeps the same parcel without the reminder', () => {
-    const parcel = buildTripDriverCost([
-      member({ regionCode: '3.000', routeAmount: '450.0000', vehicleClass: 'vuc' }),
-    ])
-
-    expect(parcel.source).toBe('measured')
     expect(parcel.gap).toBeNull()
   })
 
-  /** D4: com assalariado junto, o lembrete acionável vence a marca de período. */
-  test('the reminder wins over the salaried mark', () => {
-    const parcel = buildTripDriverCost([
-      member(PRICED_FROM_TABLE),
-      member({ driverId: 'd-2', paymentModel: 'fixed' }),
-    ])
+  /** O valor próprio do motorista substitui o da empresa, e continua sem aviso. */
+  test('the driver own amount replaces the company one with no reminder', () => {
+    const parcel = buildParcel([member({ driverAmount: '500.0000' })])
 
-    expect(parcel.gap).toBe(VALUATION_GAPS.driverZonePricedFromTable)
-    expect(parcel.amount).toBe('450.0000')
+    expect(parcel.amount).toBe('500.0000')
+    expect(parcel.gap).toBeNull()
   })
 
-  /** D2: o aviso não torna a conta incompleta — o total conta o valor. */
-  test('an advisory gap does not mark the valuation as incomplete', () => {
+  /** A conta fecha completa: sem lacuna, o total conta o valor inteiro. */
+  test('the valuation is complete, with no advisory left to ignore', () => {
     const valuation = buildTripValuation({
-      costParcels: [buildTripDriverCost([member(PRICED_FROM_TABLE)])],
+      costParcels: [buildParcel([member({})])],
       revenueLines: [
         {
           amount: '1000.0000',
@@ -157,26 +115,29 @@ describe('uncovered zone priced from the table (spec 124, semantics of 127)', ()
   })
 
   /**
-   * `TOLL_PARTIAL` subestima de verdade — ele não é aviso, e continua marcando a conta. Reescrito
-   * pela 128: o empate de rotas com o maior valor também é aviso (o número é o da tabela, completo).
+   * ⚠️ Os dois avisos **permanecem** na lista, mesmo sem ninguém os produzir: o frontend copia
+   * `ADVISORY_GAPS` por valor, e uma parcela congelada com o aviso precisa continuar sendo lida como
+   * conta completa.
    */
-  test('only the table-priced zone and the priced route tie are advisory', () => {
+  test('the advisory gaps stay exactly as they were', () => {
     expect(ADVISORY_GAPS).toEqual([
       VALUATION_GAPS.driverZonePricedFromTable,
       VALUATION_GAPS.driverRouteTieHighestRate,
     ])
   })
 
-  /** A consulta acende o lembrete pela cobertura, e só por ela — sem trocar a origem do valor. */
-  test('the crew query raises the reminder from coverage alone', () => {
+  /**
+   * A consulta não acende mais o lembrete: a T4 apagou `resolveCrew` inteiro (a zona não mora mais
+   * ali), então a afirmação vale para o arquivo todo, não mais para um método que não existe.
+   */
+  test('the crew query no longer raises the reminder', () => {
     const source = readFileSync(
       new URL('../../src/trips/infrastructure/trip-valuation.query.ts', import.meta.url),
       'utf8',
     )
-    const resolveCrew = source.slice(source.indexOf('private async resolveCrew'))
 
-    expect(resolveCrew).toContain('VALUATION_GAPS.driverZonePricedFromTable')
-    expect(resolveCrew).toContain('zone.isCoveredByDriver')
-    expect(resolveCrew).not.toContain("routeSource: 'estimated'")
+    expect(source).not.toContain('private async resolveCrew')
+    expect(source).not.toContain('VALUATION_GAPS.driverZonePricedFromTable')
+    expect(source).not.toContain('zone.isCoveredByDriver')
   })
 })

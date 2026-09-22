@@ -1,4 +1,24 @@
 {
+  "costEntries": {
+    "amount": "Amount",
+    "amountPlaceholder": "0.00",
+    "by": "{{actor}} · {{moment}}",
+    "description": "Description",
+    "descriptionPlaceholder": "BR-101 toll, locksmith, washing…",
+    "empty": "No expense recorded on this trip yet.",
+    "error": "The expenses of this trip could not be loaded.",
+    "kind": "Kind",
+    "kinds": {
+      "other": "Other",
+      "toll": "Toll"
+    },
+    "loading": "Loading the expenses…",
+    "record": "Record",
+    "recording": "Recording…",
+    "retry": "Try again",
+    "title": "Recorded expenses",
+    "unknownActor": "removed user"
+  },
   "gap": {
     "CITY_WITHOUT_REGION": "destination without a registered freight zone",
     "DRIVER_RATE_MISSING_FOR_CLASS": "the zone has no price for this vehicle class — check the Regions tab",
@@ -17,14 +37,19 @@
     "NO_FUEL_CONSUMPTION": "vehicle has no average consumption on file",
     "NO_FUEL_PRICE": "no price for this vehicle's fuel",
     "NO_PLANNED_DISTANCE": "route not planned yet",
+    "NO_PLANNED_DURATION": "route duration unknown — inform how many daily allowances the trip pays",
+    "NO_TRIP_DRIVER": "trip with no driver — nobody to pay the daily allowance to",
     "SALARIED_CREW_MEMBER": "a salaried driver is on this trip — cost of the period",
     "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
     "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
   },
   "ledger": {
-    "driverBasis": {
-      "fixed": "In-house driver: the cost belongs to the period, not to the trip",
-      "route_table": "Zone {{zone}} ({{city}}) · {{vehicleClass}} · paid once for the trip, by the farthest destination zone"
+    "driverBasis_one": "{{amount}} × {{days}} day · {{origin}}",
+    "driverBasis_other": "{{amount}} × {{days}} days · {{origin}}",
+    "driverRateOrigin": {
+      "company": "general rate",
+      "default": "default rate",
+      "driver": "driver's rate"
     },
     "expenses": "Expenses",
     "icmsBasis": "Projected from the emission profile: CST {{cst}} · rate {{rate}} · base reduction {{reduction}} — the authorized CT-e replaces this figure",
@@ -34,10 +59,7 @@
     "operating": "What the operation costs",
     "revenue": "Freight revenue",
     "taxNote": "Tax comes off revenue — it is not a cost of driving, so it does not mix with the operation above.",
-    "taxes": "What tax takes",
-    "tieCityCount_one": "{{count}} city",
-    "tieCityCount_other": "{{count}} cities",
-    "tieNoPrice": "no price"
+    "taxes": "What tax takes"
   },
   "panel": {
     "amount": "Amount",

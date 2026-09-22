@@ -21,3 +21,9 @@ export type RedactTripLocations = (input: RedactTripLocationsInput) => Promise<n
  * rastro em histórico de deslocamento de uma pessoa.
  */
 export type PurgeStalePings = (input: RedactTripLocationsInput) => Promise<number>
+
+/**
+ * Spec 159 T11 (item 8): a posição da foto do comprovante cai no mesmo prazo da coordenada do evento
+ * — latitude, longitude e precisão. O comprovante e o veredito de pontualidade ficam.
+ */
+export type RedactDeliveryProofLocations = (input: RedactTripLocationsInput) => Promise<number>

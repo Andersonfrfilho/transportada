@@ -25,6 +25,7 @@ import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { CNPJ_PATTERN, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import { VEHICLE_TYPES } from '../../shared/vehicle-type.constant.js'
+import { MONEY_DECIMAL } from '../../shared/money.constant.js'
 
 const AXLE_COUNT_MAX = 9
 const AXLE_COUNT_MIN = 2
@@ -46,7 +47,6 @@ const POSTAL_CODE = /^[0-9]{8}$/
 const MEASURE_DECIMAL = /^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{2})$/
 const MODEL_YEAR_MAX = 2100
 const MODEL_YEAR_MIN = 1900
-const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
 const NAME_MAX_LENGTH = 60
 const NOT_INFORMED = 0
 const OWN_OWNERSHIP = 'own'
@@ -201,6 +201,16 @@ const driverFieldsSchema = z.object({
   birthCity: z.string().trim().max(DRIVER_CITY_MAX_LENGTH),
   birthDate: optionalPastDate(),
   birthState: z.literal('').or(z.string().regex(STATE)),
+  /**
+   * Spec 143 D3/D7: a diária combinada só deste motorista. `null` apaga e devolve ao valor geral da
+   * empresa; ausente (`exactOptionalPropertyTypes`) é silêncio — a ficha não mexe no que já existe.
+   */
+  dailyAllowanceAmount: z
+    .string()
+    .regex(MONEY_DECIMAL)
+    .refine((value) => Number.parseFloat(value) > 0, { message: 'must be positive' })
+    .nullable()
+    .optional(),
   email: z.literal('').or(z.string().trim().max(EMAIL_MAX_LENGTH).regex(EMAIL)),
   // A primeira habilitação já aconteceu: data futura ali é digitação errada, não cadastro
   fatherName: z.string().trim().max(NAME_MAX_LENGTH),

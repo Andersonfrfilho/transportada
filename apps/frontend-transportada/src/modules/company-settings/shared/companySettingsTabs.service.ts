@@ -18,6 +18,7 @@ export const SETTINGS_PANELS = [
   'occurrenceNotifications',
   'deliveryProof',
   'federalTaxes',
+  'driverAllowance',
   'contractorMail',
   'cameraMeasurement',
 ] as const
@@ -44,6 +45,7 @@ export type SettingsDataSource =
   | 'contractorMailSettings'
   | 'deliveryProofSettings'
   | 'distributionCursor'
+  | 'driverAllowanceSettings'
   | 'federalTaxes'
   | 'freightRegions'
   | 'fuelPrices'
@@ -98,6 +100,15 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    */
   deliveryProof: { module: 'trip', source: 'deliveryProofSettings', tab: 'proof' },
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
+  /**
+   * Spec 143 D7 — mesmo molde de `federalTaxes`: aba própria em Configurações da empresa, ao lado
+   * do regime federal, porque é outro valor da empresa inteira, não do módulo de frota.
+   */
+  driverAllowance: {
+    module: 'company-settings',
+    source: 'driverAllowanceSettings',
+    tab: 'driverAllowance',
+  },
   freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
   /** Spec 095 item 4 — o painel gêmeo de combustível: aba própria, ao lado dela. */
@@ -177,6 +188,7 @@ export function resolveSettingsDataScope(
     contractorMailSettings: sources.has('contractorMailSettings'),
     deliveryProofSettings: sources.has('deliveryProofSettings'),
     distributionCursor: sources.has('distributionCursor'),
+    driverAllowanceSettings: sources.has('driverAllowanceSettings'),
     federalTaxes: sources.has('federalTaxes'),
     freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),
@@ -188,7 +200,13 @@ export function resolveSettingsDataScope(
   }
 }
 
-export const COMPANY_SETTINGS_TAB_IDS = ['company', 'site', 'certificates', 'taxes'] as const
+export const COMPANY_SETTINGS_TAB_IDS = [
+  'company',
+  'site',
+  'certificates',
+  'taxes',
+  'driverAllowance',
+] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
 

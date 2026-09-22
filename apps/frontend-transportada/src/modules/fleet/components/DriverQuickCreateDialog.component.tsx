@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { AMOUNT_DISPLAY_SCALE } from '@/modules/shared/decimalAmount.service'
 import { PHONE_MASK_LENGTH, formatPhone, stripPhone } from '@/modules/shared/phone.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { formatPixKey, pixKeyMaskLength } from '@/modules/shared/pixKey.service'
@@ -41,7 +42,12 @@ import { DriverPersonalFields } from './DriverPersonalFields.component'
 import { DriverVehicleLinkField } from './DriverVehicleLinkField.component'
 import { FleetFeedback } from './FleetFeedback.component'
 import { InvalidFieldsHint } from './InvalidFieldsHint.component'
-import { FleetDateField, FleetField, FleetSelectField } from './FleetField.component'
+import {
+  FleetDateField,
+  FleetField,
+  FleetMoneyField,
+  FleetSelectField,
+} from './FleetField.component'
 
 /** A ficha aberta pelo veículo tem rascunho próprio: ela nasce de outra tela e some com ela. */
 const QUICK_DRAFT_STORAGE_KEY = 'transportada.fleet.driver-quick-draft'
@@ -289,6 +295,13 @@ export function DriverQuickCreateDialog({
                 value={form.state.licenseExpiresAt}
                 onChange={(licenseExpiresAt) => form.patch({ licenseExpiresAt })}
               />
+              <FleetMoneyField
+                optional
+                label={t('driverDailyAllowanceAmount')}
+                scale={AMOUNT_DISPLAY_SCALE}
+                value={form.state.dailyAllowanceAmount}
+                onChange={(dailyAllowanceAmount) => form.patch({ dailyAllowanceAmount })}
+              />
             </div>
             <p className={styles.hint}>{t('driverLinkedTaxIdHint')}</p>
             {companyLookup.statusKey === null ? null : (
@@ -296,6 +309,7 @@ export function DriverQuickCreateDialog({
             )}
             <p className={styles.hint}>{t('driverEmailHint')}</p>
             <p className={styles.hint}>{t('driverAnttHint')}</p>
+            <p className={styles.hint}>{t('driverDailyAllowanceAmountHint')}</p>
             {driver === undefined ? <p className={styles.hint}>{t('driverProfileHint')}</p> : null}
           </fieldset>
           <DriverPersonalFields state={form.state} onChange={form.patch} />

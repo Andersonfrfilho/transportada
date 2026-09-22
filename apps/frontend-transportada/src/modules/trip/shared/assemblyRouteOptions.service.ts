@@ -7,7 +7,7 @@
  * ⚠️ **Rota única não é escolha** (spec 096 D2). O chamador só monta esta lista quando
  * `hasChoice` é `true` — aqui apenas o formato de cada linha é resolvido.
  */
-import type { RouteGeometryOption } from './routeGeometry.service'
+import type { RouteChoice, RouteGeometryOption } from './routeGeometry.service'
 
 export type RouteOptionSummary = Readonly<{
   /**
@@ -53,4 +53,65 @@ export function resolveRouteOptionSummaries(input: {
       totalCost: option.totalCost,
     }
   })
+}
+
+/**
+ * A rota escolhida na montagem, no formato que o planejamento aceita (spec 153 D2/D3). A
+ * **assinatura** é o que reencontra a rota — o índice de agora é outra estrada quando a API pede as
+ * rotas de novo —, e o critério só decide quando ela não é reencontrada.
+ *
+ * ⚠️ Rota única não é escolha (spec 096 D2): `undefined`, e o planejamento segue o critério padrão.
+ */
+export function resolveAssemblyRouteChoice(input: {
+  readonly cheapestIndex: null | number
+  readonly fastestIndex: null | number
+  readonly hasChoice: boolean
+  readonly options: readonly RouteGeometryOption[]
+  readonly selectedIndex: number
+}): RouteChoice | undefined {
+  const option = input.options[input.selectedIndex]
+  if (!input.hasChoice || option === undefined) return undefined
+
+  return { criterion: resolveChoiceCriterion({ ...input, option }), signature: option.signature }
+}
+
+/** Nenhum rótulo é `alternative`: o operador trocou de rota sem regra declarada. */
+function resolveChoiceCriterion(input: {
+  readonly cheapestIndex: null | number
+  readonly fastestIndex: null | number
+  readonly option: RouteGeometryOption
+  readonly selectedIndex: number
+}): RouteChoice['criterion'] {
+  if (input.selectedIndex === input.cheapestIndex) return 'cheapest'
+  if (input.selectedIndex === input.fastestIndex) return 'fastest'
+  if (input.option.isNoToll) return 'no_toll'
+  return 'alternative'
+}
+
+/**
+ * A rota que o operador tinha escolhido antes de sair da tela, reencontrada **pela assinatura**. Sem
+ * assinatura igual a estrada é outra (a ordem ou o veículo mudou), e a escolha antiga não se aplica:
+ * `undefined` deixa o mapa na principal, como em qualquer rota nova.
+ */
+export function resolvePreferredRouteOptionIndex(input: {
+  readonly options: readonly Readonly<{ signature: null | string }>[]
+  readonly preferred: RouteChoice | undefined
+}): number | undefined {
+  const signature = input.preferred?.signature ?? null
+  if (signature === null) return undefined
+  const index = input.options.findIndex((option) => option.signature === signature)
+  return index === -1 ? undefined : index
+}
+
+/**
+ * A escolha só é publicada com uma resposta da estrada na mão. Sem resposta — rascunho, consulta a
+ * caminho ou ainda desligada enquanto o mapa monta —, publicar "sem escolha" apagaria a rota que o
+ * operador tinha escolhido e que acabou de voltar do rascunho.
+ */
+export function isRouteChoiceSettled(input: {
+  readonly hasResponse: boolean
+  readonly isDraft: boolean
+  readonly isFetching: boolean
+}): boolean {
+  return input.hasResponse && !input.isDraft && !input.isFetching
 }

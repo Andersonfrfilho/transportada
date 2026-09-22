@@ -5,11 +5,18 @@ import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_FLEET_CAPABILITIES_PATH,
+  API_FLEET_DRIVER_SCORE_PATH,
   API_FLEET_DRIVER_VEHICLES_PATH,
   API_FLEET_DRIVERS_PATH,
   API_FLEET_VEHICLES_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import type { DriverScoreResult } from '../domain/driver-score.policy.js'
+import type {
+  ReadFleetDriverScoreInput,
+  ScoredFleetDriver,
+  ScoredFleetDriverPage,
+} from '../application/fleet-driver-scores.use-case.js'
 import type {
   ListFleetDriverVehiclePairsInput,
   ListFleetDriverVehiclesInput,
@@ -29,7 +36,6 @@ import type {
 } from '../application/fleet-vehicles.use-case.js'
 import type {
   FleetDriver,
-  FleetDriverPage,
   FleetDriverVehicleAssignment,
   FleetDriverVehiclePair,
   FleetVehicle,
@@ -78,8 +84,11 @@ type Dependencies = {
       input: TenantInput<ReplaceFleetDriverVehiclesInput>,
     ): Promise<readonly FleetDriverVehicleAssignment[]>
   }
+  readonly driverScore: {
+    execute(input: TenantInput<ReadFleetDriverScoreInput>): Promise<DriverScoreResult>
+  }
   readonly listDrivers: {
-    execute(input: TenantInput<ListFleetDriversInput>): Promise<FleetDriverPage>
+    execute(input: TenantInput<ListFleetDriversInput>): Promise<ScoredFleetDriverPage>
   }
   readonly listVehicles: {
     execute(input: TenantInput<ListFleetVehiclesInput>): Promise<FleetVehiclePage>
@@ -159,7 +168,7 @@ export function createFleetRoutes(
     defineRoute<Omit<ListFleetDriversInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const page = await dependencies.listDrivers.execute({ context: context.scope, ...input })
-        return pageResponse(page.items.map(serializeDriver), page.nextCursor)
+        return pageResponse(page.items.map(serializeScoredDriver), page.nextCursor)
       },
       method: 'GET',
       parse: ({ request }) => parseDriverList(new URL(request.url)),
@@ -214,6 +223,22 @@ export function createFleetRoutes(
       },
       pathname: DRIVER_PATH,
       policy: FLEET_MANAGE_POLICY,
+    }),
+    /**
+     * Spec 159 RF10, ADR-0070 §7: a nota e o porquê dela na ficha. `fleet.read`, como a listagem que
+     * já mostra a nota — quem escolhe o motorista da viagem precisa ver por que ele caiu.
+     */
+    defineRoute<Omit<ReadFleetDriverScoreInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.driverScore.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: serializeDriverScore(result) }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        driverId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: API_FLEET_DRIVER_SCORE_PATH,
+      policy: FLEET_READ_POLICY,
     }),
     /**
      * Spec 081 (RF-7): o vínculo da empresa em pares. Ela é lida por `fleet.read` porque quem monta
@@ -285,6 +310,7 @@ function serializeDriver(driver: FleetDriver): object {
     birthDate: driver.birthDate,
     birthState: driver.birthState,
     createdAt: driver.createdAt,
+    dailyAllowanceAmount: driver.dailyAllowanceAmount,
     email: driver.email,
     fatherName: driver.fatherName,
     firstLicenseAt: driver.firstLicenseAt,
@@ -318,6 +344,25 @@ function serializeDriver(driver: FleetDriver): object {
     taxId: driver.taxId,
     updatedAt: driver.updatedAt,
     version: driver.version,
+  }
+}
+
+function serializeScoredDriver(driver: ScoredFleetDriver): object {
+  return { ...serializeDriver(driver), score: driver.score }
+}
+
+/** Posição da foto nunca sai daqui (ADR-0070, consequências): só o motivo, os pontos e as datas. */
+function serializeDriverScore(result: DriverScoreResult): object {
+  return {
+    penalties: result.penalties.map((penalty) => ({
+      deliveredAt: penalty.deliveredAt.toISOString(),
+      documentNumber: penalty.documentNumber,
+      expiresAt: penalty.expiresAt.toISOString(),
+      points: penalty.points,
+      reason: penalty.reason,
+      tripDocumentId: penalty.tripDocumentId,
+    })),
+    score: result.score,
   }
 }
 

@@ -2,13 +2,14 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, gte, lt, lte, or, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, lte, or, type SQL } from 'drizzle-orm'
 
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfePackageBoxes, nfePackageBoxMeasurements } from '../../database/nfe.schema.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../domain/active-membership-status.constant.js'
+import { PACKAGE_BOX_MEASURED_SOURCES } from '../domain/package-box-measurement.constant.js'
 import type {
   PackageBoxMeasurementActor,
   PackageBoxMeasurementExportEntry,
@@ -59,7 +60,15 @@ export class DrizzlePackageBoxMeasurementExportRepository
     readonly to: string | undefined
   }): Promise<PackageBoxMeasurementExportPage> {
     const cursor = decodeKeysetCursor(input.cursor)
-    const conditions: SQL[] = [eq(nfePackageBoxMeasurements.companyId, input.companyId)]
+    const conditions: SQL[] = [
+      eq(nfePackageBoxMeasurements.companyId, input.companyId),
+      /**
+       * Spec 155 (D6), T14 (revisão final, ALTO-1): `replicated` nunca é leitura da câmera — a
+       * caixa não foi medida, a dimensão veio de uma irmã da família. Exportá-la inflava as duas
+       * taxas do resumo sem uma fita métrica ter encostado nela.
+       */
+      inArray(nfePackageBoxMeasurements.source, [...PACKAGE_BOX_MEASURED_SOURCES]),
+    ]
     if (cursor !== null) conditions.push(buildCursorCondition(cursor))
     if (input.from !== undefined) {
       conditions.push(gte(nfePackageBoxMeasurements.createdAt, new Date(input.from)))

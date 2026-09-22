@@ -5,7 +5,22 @@
     "company": "Company",
     "site": "Site",
     "certificates": "Certificates",
-    "taxes": "Taxes"
+    "taxes": "Taxes",
+    "driverAllowance": "Driver allowance"
+  },
+  "driverAllowance": {
+    "kicker": "Trip cost",
+    "title": "Driver allowance",
+    "hint": "Amount paid per trip day when the driver has no allowance of their own on file. Reverting to the default restores R$ 200.00.",
+    "amountLabel": "Allowance (R$/day)",
+    "origin": {
+      "company": "set by the company",
+      "default": "system default"
+    },
+    "save": "Save allowance",
+    "clear": "Revert to default",
+    "saved": "Company allowance saved.",
+    "error": "Could not save the allowance ({{code}})."
   },
   "federalTaxes": {
     "kicker": "PIS and COFINS",

@@ -196,6 +196,7 @@ export function mapDriver(record: DriverRecord): FleetDriver {
     birthDate: record.birthDate,
     birthState: record.birthState,
     createdAt: record.createdAt.toISOString(),
+    dailyAllowanceAmount: record.dailyAllowanceAmount,
     email: record.email,
     fatherName: toDisplayPersonName(record.fatherName),
     firstLicenseAt: record.firstLicenseAt,
@@ -246,6 +247,14 @@ export function toDriverColumns(
     birthState: driver.birthState,
     city: driver.address.city,
     complement: driver.address.complement,
+    /**
+     * ⚠️ Ausente é silêncio, não ordem de apagar: a chave só entra no `UPDATE`/`INSERT` quando o
+     * chamador de fato a mandou — `null` explícito grava `NULL` (apaga), e a ausência preserva o
+     * que já estava gravado.
+     */
+    ...(driver.dailyAllowanceAmount === undefined
+      ? {}
+      : { dailyAllowanceAmount: driver.dailyAllowanceAmount }),
     district: driver.address.district,
     email: driver.email,
     fatherName: toStoredPersonName(driver.fatherName),

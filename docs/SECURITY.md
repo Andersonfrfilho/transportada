@@ -5,6 +5,57 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)
+
+**Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart
+`latitude`, `longitude`, `accuracyMeters`, `capturedAt`) e a nota do motorista que deriva deles
+(ADR-0070); `frontend-transportada`, fila offline de anexos do PWA (IndexedDB).
+
+**O que é (risco aceito):** a pontualidade da foto (`on_time`/`late`/`away`) sai de dados que o
+**cliente declara**. Um aparelho adulterado pode mandar a coordenada da parada e um `capturedAt`
+plausível sem estar lá. O servidor limita o que dá: `capturedAt` só vale dentro de
+`[max(entrega − 2 min, recebimento − missingAfterHours), recebimento + 2 min]`, a precisão soma ao
+raio no máximo um raio e acima de 10 km é recusada, a foto substituta nunca melhora a pontualidade, e
+a foto sem posição conta como longe. Não há atestado do aparelho (Play Integrity/App Attest) nem
+checagem de EXIF — a nota é sinal de gestão, não prova. A decisão foi do usuário na spec 159.
+
+**Dado pessoal guardado:** a posição da foto é dado de localização (LGPD). Ela não entra em log nem
+em resposta (a ficha mostra só motivo, pontos e datas) e cai aos 90 dias pelo expurgo
+`trip.location.purge` do worker (latitude, longitude e precisão; `captured_at` fica). O `params:` do
+`DrizzleQueryError` é apagado antes de sair para o Sentry. **Resta:** a fila offline do PWA guarda a
+foto **com a posição** no IndexedDB do aparelho até conseguir subir — sem prazo de descarte no
+aparelho e legível por quem tiver o celular desbloqueado.
+
+**O que falta:** prazo de descarte da fila offline no PWA (apagar anexo parado há mais de
+`missingAfterHours`, ou ao sair da conta); avaliar atestado do aparelho se a nota passar a pesar em
+dinheiro. Limitação conhecida da atribuição: o evento de entrega anterior à T11, sem
+`reported_by_driver_id`, ainda acha o motorista pelo vínculo atual da conta — se o acesso ao app for
+desligado, essa parte do histórico some da ficha (as entregas novas não dependem mais do vínculo).
+
+**Origem:** spec 159, revisão T11 (achados de segurança sobre posição e tenant). Registrado em
+2026-09-18.
+
+### 2026-09-18 — a linha do tempo junta nomes, motivo de devolução e nota de ocorrência numa leitura só
+
+**Onde:** `GET /trips/:id/timeline` (spec 158), política `TRIP_FIELD_READ_POLICY` (`fleet.read` ou
+`trip.report-on-behalf`).
+
+**Achado (B1 da revisão da T9):** o `finance` e o separador passam a ver, numa lista só, o nome de
+quem registrou cada evento, o do motorista em nome de quem o escritório agiu, o motivo de devolução
+e o texto livre da ocorrência — que pode trazer dado pessoal de destinatário digitado no campo. Cada
+campo já saía para a mesma política em `GET /trips/:id` e em `…/documents/:documentId/occurrences`;
+a diferença é de agregação, não de alcance. Do motorista só sai o nome (spec 156 D11).
+
+**Decisão:** aceito. A resposta nunca traz id de usuário, recebedor, coordenada, chave de storage
+nem XML (aceite 8, validador estrito no front), e a nota não vai ao portal do contratante.
+
+**Achado relacionado (B2):** `trip_status_events.actor_user_id` não tem FK de membership (ADR-0068
+§1, para não travar a remoção de usuário). O ator vem sempre do contexto autenticado e o canal é
+decidido na composição, nunca pelo cliente; a leitura só resolve nome por membership escopado pela
+empresa. Aceito, com o risco residual de um escritor futuro gravar id errado sem erro do banco.
+
+**Dono:** time da API. **Origem:** revisão de segurança da T9 da spec 158.
+
 ### 2026-09-16 — chave de envio do Resend e senha do SMTP expostas em conversa
 
 **Onde:** worker de produção no Railway — `RESEND_API_KEY` (referenciada da chave que o operador
@@ -44,7 +95,111 @@ o padrão de `contractor-mail`. Fica pendente, fora do escopo da revisão de seg
 CSP × `data:`, injeção de fórmula em CSV, a validação de margem de `camera_adjusted`, a lista de
 rotas do separador e a negociação de `Accept-Encoding`).
 
+**Atualização 2026-09-18:** a rota nova `GET /nfe-package-boxes/pending-export` (a exportação do que
+falta medir, até 10 000 caixas numa resposta) já nasceu com teto por usuário em memória
+(`package-box-pending-export.rate-limit.ts`, 10 a cada 5 min). As quatro acima continuam pendentes.
+⚠️ O balde é em memória: vale **por réplica** (com N réplicas o teto real é N × 10) e **zera a cada
+deploy/restart** — é contenção de abuso casual, não garantia; garantia exige o balde no Postgres.
+
 **Origem:** spec 152, revisão de segurança T14, achado item 6. Registrado em 2026-09-16.
+
+### 2026-09-18 — `GET /delivery-charges` e as regras de cobrança não recortam pelo vínculo do motorista (pré-existente)
+
+**Onde:** `api-transportada`, `delivery-clients/presentation/delivery-charge.routes.ts`
+(`CHARGE_READ_POLICY = trip.read`) → `delivery-charges.use-case.ts` (`list` filtra só por
+`companyId`). Mesmo caso de `GET /delivery-clients/:id/charge-rules`.
+
+**O que é:** `trip.read` é das contas de campo (`driver`, `aggregate`) e do `separator`. As duas
+leituras pedem `trip.read` e devolvem as cobranças e as regras da **empresa inteira** — um motorista
+ou agregado lê cobrança de viagem que não é dele (BOLA, API1:2023). As rotas `/me` que também pedem
+`trip.read` recortam pelo vínculo; estas não.
+
+**O que limita o estrago:** só usuários da própria empresa; cobrança não carrega CPF nem endereço do
+cliente final. Não foi alterado na T15 (fora do escopo das rotas do escritório).
+
+**O que falta:** decidir se estas leituras são do escritório (trocar para `fleet.read`/`trip.manage`)
+ou do campo (recortar pelo vínculo de motorista/agregado), com contrato negativo.
+
+**Origem:** revisão de segurança da spec 156 (T15), ao corrigir a frase sobre `trip.read` no
+`CLAUDE.md` da API. Registrado em 2026-09-18.
+
+### 2026-09-18 — o IP da auditoria vem de `x-forwarded-for`, que o cliente pode forjar (pré-existente)
+
+**Onde:** `api-transportada`, `http/client-ip.service.ts` (`resolveClientIp`), usado pela trilha
+das rotas do escritório em nome do motorista (`audit_logs.metadata.ipAddress`, spec 156) e pelos
+limitadores em memória por IP.
+
+**O que é:** `resolveClientIp` confia no **primeiro** endereço de `x-forwarded-for` (e depois em
+`x-real-ip`). Atrás do proxy do Railway/Cloudflare, o primeiro endereço da cadeia é o que o próprio
+cliente mandou, se ele mandou o cabeçalho — o proxy acrescenta o dele no fim. Então quem chama pode
+escolher o IP que a trilha grava (`security.md` §10 pede "ator, alvo, IP e timestamp") e o balde do
+limitador por IP em que cai. Anterior à spec 156; a T15 só o expôs de novo, ao mover a auditoria do
+escritório para dentro da transação.
+
+**O que limita o estrago:** o ator da trilha é o usuário autenticado pelo token (não forjável), e os
+tetos das escritas do escritório contam por empresa e usuário no Postgres, não por IP. O IP é dado
+de apoio da investigação, não a identidade.
+
+**O que falta:** confiar só no endereço que o proxy conhecido acrescentou (o último de
+`x-forwarded-for`, ou o cabeçalho próprio do provedor, como `cf-connecting-ip`), configurável por
+ambiente, e um contrato que prenda o comportamento com uma cadeia forjada.
+
+**Origem:** revisão de segurança da spec 156 (T15). Registrado em 2026-09-18.
+
+### 2026-09-18 — objeto órfão no bucket do comprovante: limpeza por requisição, sem varredura periódica (spec 156 T15)
+
+**Onde:** `api-transportada`, `trips/application/stored-object-cleanup.service.ts`, usado por
+`report-document-delivery.use-case.ts` (`field-delivery`), `report-field-proof.use-case.ts`
+(`field-proof`) e `register-office-document-occurrences.use-case.ts` (`field-occurrences`).
+
+**O que é:** as três rotas do escritório sobem o arquivo **dentro** da transação da baixa, para que
+o anexo recusado desfaça a entrega inteira. Quando a transação desfaz depois do upload, o objeto já
+está no bucket sem nenhuma linha em `stored_objects` apontando para ele. A T15 acrescentou a limpeza
+por requisição (`runWithStoredObjectCleanup`: apaga o objeto e relança o erro original), mas ela não
+cobre três casos: o processo morrer entre o upload e o `catch`; a própria remoção falhar (ela é
+engolida para não trocar o erro que o cliente recebe); e o canhoto do escritório **substituído**
+pelo unique `(company, stop_event, kind)`, cuja linha antiga de `stored_objects` e cujo objeto ficam
+sem referência (o mesmo vale para a foto substituta do motorista, desde a spec 082).
+
+**O que limita o estrago:** o bucket é privado (`security.md` §7), a chave do objeto só tem
+identificadores opacos (`tenants/<empresa>/delivery-proofs/<evento>/<objeto>`) e ninguém serve um
+objeto sem linha que o referencie. O custo é armazenamento e retenção de imagem de canhoto (dado
+pessoal: assinatura e, às vezes, nome) além do necessário.
+
+**O que falta:** uma varredura periódica (cron) que liste os objetos de `delivery-proofs/` e de
+`trip-occurrence-attachments/` sem linha viva que os referencie há mais de N horas e os apague, com
+contagem no log. Até lá, a remoção depende da limpeza por requisição.
+
+**Origem:** revisão de código da spec 156 (T15). Registrado em 2026-09-18.
+
+### 2026-09-18 — `GET /trips/field-delivery-settings` sem rate limit (spec 156 T13)
+
+**Onde:** `api-transportada`, `trips/presentation/trip-field-delivery-settings.routes.ts`.
+
+**O que é:** a leitura estreita do interruptor da leitura do canhoto (ADR-0069 §6) não declara
+`rateLimit`. É autenticada, exige `trip.report-on-behalf` na empresa do contexto, só lê um booleano
+por chave primária e não grava nada nem dispara custo externo — o risco é o mesmo das leituras de
+configuração da spec 152 acima (abuso por usuário autenticado), menor por não gravar.
+
+**O que falta:** entrar no mesmo lote de decisão de `scope`/`maxRequests`/`windowSeconds` das rotas da
+spec 152. O cliente (T14) pede uma vez por abertura do assistente, com o cache do TanStack Query.
+
+**Origem:** validação do architect sobre a T13 da spec 156 (R8). Registrado em 2026-09-18.
+
+### 2026-09-18 — `GET /trips/:id/field-delivery-documents` sem rate limit (spec 156 T14)
+
+**Onde:** `api-transportada`, `trips/presentation/trip-field-delivery-documents.routes.ts`.
+
+**O que é:** a leitura da chave de acesso das notas da viagem, para o OCR do canhoto casar pela
+chave inteira (ADR-0069 §3), não declara `rateLimit`. Mesmo perfil da rota de configuração acima:
+autenticada, `trip.report-on-behalf` na empresa do contexto, só leitura (nunca grava), sem custo
+externo — o risco é abuso por usuário autenticado, e a resposta é limitada às notas de uma viagem.
+
+**O que falta:** entrar no mesmo lote de decisão de `scope`/`maxRequests`/`windowSeconds` das rotas
+da spec 152 e da rota de configuração acima. O cliente (T14) pede uma vez por abertura do
+assistente do escritório, com o cache do TanStack Query.
+
+**Origem:** spec 156 T14 (ADR-0069 §2/§3, R8). Registrado em 2026-09-18.
 
 ### 2026-09-16 — foto congelada da medida pela câmera quebrava sob a CSP real (T14 item 1, fechado)
 
@@ -86,6 +241,130 @@ implementação do mesmo escape não diverge mais em silêncio. Prova:
 `test/nfe-workspace/camera-measurement-validation.contract.ts` com `productCode` malicioso.
 
 **Origem:** spec 152, revisão de segurança T14, achado item 2. Fechado em 2026-09-16.
+
+### 2026-09-15 — texto livre do modelo de e-mail pode carregar URL (M1, revisão final da Fase 4)
+
+**Onde:** `api-transportada`/`frontend-transportada`, `contractor-mail-templates` (spec 150, RF13/RF14).
+
+**O que é:** `intro`, `closing`, `itemText` e `subject` são texto livre — quem tem `settings.manage`
+pode cadastrar um modelo com uma URL dentro (legítima ou não). O e-mail sai como transacional da
+transportadora, então um link malicioso ali tem a credibilidade do remetente de verdade; nada na
+rota `POST`/`PATCH /contractor-mail-templates` detecta ou avisa sobre URL no texto, e não há trilha
+de quem editou o quê (o mesmo buraco do M2, agora aplicado à edição de modelo, não só ao envio).
+
+**O que falta:** duas frentes, as duas **pendentes antes de produção**: (1) a auditoria de edição de
+modelo — quem mudou o texto e quando — que o M2 já cobre para o resto do fluxo; (2) um aviso na tela
+(e, opcionalmente, na fronteira HTTP) quando o texto salvo contém uma URL, para quem revisa o modelo
+decidir se ela é esperada. RF12 (escapar toda variável interpolada) já protege contra injeção de
+HTML/script — este achado é sobre **conteúdo intencionalmente digitado**, que RF12 não cobre.
+
+**Origem:** spec 150, revisão de segurança final da Fase 4. Decidido pelo usuário em 2026-09-15.
+
+### 2026-09-15 — teto do limitador de e-mail é por usuário, não por empresa (L1)
+
+**Onde:** `api-transportada`, `POST /address-correction-requests/mail` e
+`POST /contractor-mail-settings/test-email` (mesmo par do M1 fechado abaixo).
+
+**O que é:** a janela do Postgres (`rate_limit_windows`) tem chave `scope:companyId:userId` — o teto
+é por usuário dentro da empresa, não agregado por `companyId`. N operadores da mesma transportadora
+multiplicam o volume total em N × teto/h.
+
+**Por que fica assim:** decisão consciente, não lacuna esquecida — a distribuição é **instalação
+dedicada por transportadora** (ADR-0021): não existe o cenário de uma empresa hostil compartilhando
+banco com outra para inflar custo alheio, e o teto por usuário já limita o dano de uma única
+credencial comprometida ou de um operador em loop. Um teto agregado por empresa é reavaliado se o
+produto deixar de ser instalação dedicada.
+
+**Origem:** spec 150, RF18, revisão de segurança final da Fase 4. Decidido pelo usuário em 2026-09-15.
+
+### 2026-09-15 — rotas anônimas seguem só com limitador em memória, por processo (L4)
+
+**Onde:** `api-transportada`, todas as rotas sem autenticação: `POST`/`.../confirm
+/password-resets`, `POST /public/aggregate-application-attachments`, o webhook do WhatsApp, o
+inbound do Resend (`contractor-mail`), o CEP/geocodificação públicos.
+
+**O que é:** o limitador com estado compartilhado (`rate_limit_windows`, Postgres) só cobre as duas
+rotas de e-mail autenticadas da spec 150 (M1, fechado); toda rota anônima continua só com o
+limitador em memória do processo — sob múltiplas réplicas, o teto real é `N réplicas × teto/janela`,
+não o teto declarado. `POST /password-resets` já tem uma marcação própria (`api-transportada/CLAUDE.md`,
+"⚠️ Sem rate limit") por ser a rota que mais se presta a enumeração/abuso sem credencial nenhuma — é
+a **candidata natural** a migrar para o limitador com estado compartilhado primeiro, pelo mesmo
+desenho de `DrizzleRateLimiterRepository`/`rate_limit_windows` que a spec 150 já construiu.
+
+**O que falta:** decidir se/quando estender o limitador com estado compartilhado às rotas anônimas,
+começando por `password-resets`. Fora do escopo desta spec.
+
+**Origem:** spec 150, RF18, revisão de segurança final da Fase 4 (achado geral já citado no M1
+fechado, registrado aqui com identidade própria). Decidido pelo usuário em 2026-09-15.
+
+### 2026-09-15 — trilha de auditoria do envio de e-mail e do CRUD de contatos da contratante (M2)
+
+**Onde:** `api-transportada`, módulos `contractor-mail` e `address-correction` (spec 150, Fase 4).
+
+**O que é:** nenhuma ação deste fluxo grava linha em `audit_logs`: nem o envio do pedido de correção
+(`POST /address-correction-requests/mail`), nem criar/editar/(des)ativar um contato de e-mail da
+contratante (`POST`/`PATCH /contractors/:id/contacts`, T301), nem o CRUD de modelos de e-mail
+(`POST`/`PATCH /contractor-mail-templates`, T402/T403). O §10 do baseline pede trilha para "ação
+sensível" — envio dispara e-mail em nome da transportadora para um terceiro, e o contato decide quem
+recebe esse e-mail; os dois qualificam. É o M2 da revisão de segurança da Fase 4 desta spec.
+
+**O que já existe, e não é trilha de auditoria:** `contractor_mail_messages` grava o que foi enviado
+(`thread_id`, destinatários, `template_id`); `contractor_contacts` e `contractor_mail_templates` têm
+`created_at`/`updated_at` (`actor_user_id` só existe nos modelos e na configuração, não no contato);
+o log estrutural de cada requisição carrega `correlationId`, sem PII. Responder "quem cadastrou este
+contato" ou "quem mandou este e-mail" hoje exige cruzar a tabela de negócio com o log de requisição —
+o mesmo problema já registrado no achado de `audit_logs` sem IP, logo abaixo.
+
+**O que falta:** decidir e implementar a trilha (RF19). Decisão do usuário nesta rodada: fica fora da
+Fase 4, pendente **antes de produção**.
+
+**Origem:** spec 150, RF19, revisão de segurança da Fase 4. Decidido pelo usuário em 2026-09-15.
+
+### 2026-09-15 — CPF/CNPJ ainda viaja na URL de `GET /contractors/by-tax-id/:taxId` (B3, fechado só no fluxo novo)
+
+**Onde:** `api-transportada`, `delivery-clients/presentation/contractor.routes.ts`.
+
+**O que é:** a revisão de segurança da Fase 4 achou o CPF/CNPJ do emitente viajando no **caminho** da
+URL do fluxo de correção de endereço — o mesmo problema do §8 do baseline (CEP/coordenada em query
+string), agora com documento de pessoa/empresa, que fica gravado em log de proxy e de CDN.
+
+**Fechado para o fluxo novo:** `POST /address-correction-requests/recipients`, body
+`{ contractorTaxId }`, substitui as duas chamadas antigas (`GET /contractors/by-tax-id/:taxId` +
+`GET /contractors/:id/contacts`) por uma só, com o documento no **corpo**
+(`find-address-correction-recipients.use-case.ts`; frontend em `findAddressCorrectionRecipients`,
+`nfeWorkspaceClient.service.ts`). Prova: o teste do client confere que `request.url` nunca contém o
+CNPJ.
+
+**Continua aberto:** `GET /contractors/by-tax-id/:taxId` (`fleet.read`) não foi removida — outros
+consumidores do produto ainda a chamam, por exemplo a resolução de `contractorId` a partir do
+relatório de endereços no `nfe-workspace` (`docs/ai-context/frontend-transportada.md` § "Clientes a
+atualizar"). Migrar esses consumidores para mandar o documento no corpo, em vez do caminho, é
+trabalho fora do escopo desta spec e fica pendente.
+
+**Origem:** spec 150, revisão de segurança da Fase 4, correção pós-revisão final (item 10 do
+`evidence.md`). B3.
+
+### 2026-09-15 — CSP: `frame-src` deixa de ser `'none'` para a prévia do modelo de e-mail (spec 150 T403)
+
+**Onde:** `frontend-transportada`, `shared/contentSecurityPolicy.service.ts`.
+
+**O que é:** `frame-src` era `'none'` desde a ADR-0037 — nenhum `iframe` existia no bundle. A prévia
+de modelo de e-mail (T402/T403) precisa renderizar HTML de terceiro (o texto que o operador digitou,
+já escapado no servidor) sem `dangerouslySetInnerHTML`; a escolha foi um
+`<iframe sandbox="" srcDoc={html}>`, sem `allow-scripts`, e isso exige abrir `frame-src` para pelo
+menos a própria origem.
+
+**O limite:** `frame-src 'self'`, nunca liberado (`'none'` solto) nem `*`. `about:srcdoc` de um
+`iframe` `sandbox` é resolvido contra a origem do documento que o criou, então `'self'` já basta —
+nenhum `iframe` de terceiro passa a ser aceito, e sem `allow-scripts` o conteúdo do sandbox não
+executa script. `frame-ancestors` e `object-src` continuam `'none'`: a própria app segue impossível
+de embutir em terceiro.
+
+**O que falta:** nada em aberto. `test/shared/content-security-policy.contract.ts` cobra os dois
+sentidos — falha se `frame-src` voltar a `'none'` (quebraria a prévia) e falha se deixar de ser
+`'self'` ou virar algo mais permissivo.
+
+**Origem:** spec 150, T403.
 
 ### 2026-09-13 — `audit_logs` não guarda IP
 
@@ -174,6 +453,10 @@ cliente aprovou". O mesmo raciocínio do rascunho da spec 070.
 
 **O que limita o estrago:** o corpo nunca entra em log (há contrato por texto de fonte), o bucket é
 privado, e as mensagens são filtradas por `company_id`.
+
+`contractor_mail_messages.body_html` (spec 150 T302, só em mensagens de saída, teto de 512 KiB) tem
+o mesmo tratamento de `body_text`: fora de log, filtrado por `company_id`, e com a mesma retenção
+ainda por decidir.
 
 **O que falta:** decidir a retenção. Uma saída possível é descartar o corpo das mensagens que **não**
 decidiram nada depois de um prazo e manter só as que decidiram.
@@ -912,5 +1195,39 @@ toda a base de teste; os seis do seed local são inválidos de propósito.
 
 Trocado por dado sintético. `test/fleet/synthetic-tax-id.contract.ts` passa a reprovar CPF válido em
 qualquer fixture, com lista fechada de exceções para os canônicos de documentação.
+
+### 2026-09-15 — envio de e-mail à contratante sem teto de requisição (M1)
+
+**Onde:** `api-transportada`, `POST /address-correction-requests/mail` e
+`POST /contractor-mail-settings/test-email` (spec 150, revisão de segurança da Fase 4, fechado pela
+T406).
+
+**O que era:** as duas rotas disparam e-mail pelo Resend e não tinham limitador nenhum — um operador
+(ou uma credencial comprometida) podia reenviar em rajada, sem teto, gerando custo direto no
+provedor. É o M1 da revisão de segurança da Fase 4 desta spec.
+
+**Corrigido:** as duas rotas declaram `rateLimit: { store: 'postgres', scope: 'contractor-mail',
+maxRequests, windowSeconds }` — o `rateLimit` de rota virou união discriminada entre o limitador em
+memória que a API já tinha (`store: 'memory'`) e este novo, com estado no Postgres
+(`http/rate-limit-window.port.ts`, `DrizzleRateLimiterRepository`, tabela `rate_limit_windows`).
+Janela fixa **compartilhada entre instâncias** (ao contrário do limitador em memória, que é por
+processo), chave `scope:companyId:userId` — só UUIDs, nunca PII —, aplicada no mesmo ponto de hoje:
+depois de `authorize`, antes de `parse`/idempotência (corpo inválido e replay idempotente contam
+contra o teto). **Fail-closed**: erro do limitador propaga sem `try/catch` e vira 500 pelo Router —
+sem saber quantos envios já saíram, o envio não sai. Estourado, `429 TOO_MANY_REQUESTS` com
+`Retry-After`. Tetos vêm de env (`RATE_LIMIT_CONTRACTOR_MAIL_MAX`/
+`RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS`), padrão 20 por hora. As janelas vencidas são apagadas
+pela rotina `rate-limit.window.purge` do worker (corte de 48 h). Prova:
+`test/integration/rate-limiter.integration.ts` — 30 chamadas concorrentes, exatamente 20 passam.
+
+**O que continua aberto:** o teto é **por usuário**, não por empresa — não há um segundo teto
+agregado só por `companyId`, então N operadores da mesma empresa multiplicam o volume total em
+N × 20/h. E este achado fecha só o par de rotas de e-mail: as demais rotas autenticadas e todas as
+rotas públicas/anônimas do produto (recuperação de senha, CEP, portal do contratante, candidatura de
+agregado, webhook do WhatsApp — cada uma já registrada acima) continuam só com o limitador em
+memória por processo, sem estado compartilhado entre instâncias. O achado geral "sem limitador com
+estado compartilhado" segue aberto para o resto da API.
+
+**Origem:** spec 150, RF18, revisão de segurança da Fase 4. T406, 2026-09-15.
 
 _Nenhum ainda._

@@ -15,6 +15,20 @@ export const SCAN_LOOKUP_LIMIT = 1
 export const TRIP_READ_PERMISSION = 'fleet.read'
 export const TRIP_MANAGE_PERMISSION = 'trip.manage'
 /**
+ * Spec 156 D11/T8: o escritório dá baixa (`trip.report-on-behalf`) e precisa abrir a viagem sem
+ * ganhar `fleet.read` — a ficha de todos os motoristas. `canReadTrip` substitui a leitura direta de
+ * `TRIP_READ_PERMISSION` (`useTripWorkspace.hook.ts`): a tela de `/ocorrencias` continua só em
+ * `fleet.read`, por constante própria (`TripOccurrencesWorkspace.page.tsx`).
+ */
+export const TRIP_REPORT_ON_BEHALF_PERMISSION = 'trip.report-on-behalf'
+
+export function canReadTrip(permissions: readonly string[]): boolean {
+  return (
+    permissions.includes(TRIP_READ_PERMISSION) ||
+    permissions.includes(TRIP_REPORT_ON_BEHALF_PERMISSION)
+  )
+}
+/**
  * Spec 065 D4bis: disparar o lote urgente é submeter emissão fiscal, e por isso é a permissão de
  * quem submete o lote normal — **não** a de quem monta a viagem. Quem separa carga não emite CT-e.
  */
@@ -49,25 +63,70 @@ export const TRIP_QUERY_KEY = 'trips'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 
 export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
+  DRIVER_NOT_ON_TRIP: 'driverNotOnTrip',
+  /** Spec 156 T7.3/T9 (L4): tipo de separação, aposentado ou inexistente no lote de ocorrência. */
+  OCCURRENCE_TYPE_NOT_FIELD: 'occurrenceTypeNotField',
   STATE_TRANSITION_NOT_ALLOWED: 'stateTransitionNotAllowed',
   TRIP_CLOSED: 'closed',
   TRIP_DOCUMENT_ALREADY_DELIVERED: 'documentAlreadyDelivered',
   TRIP_DOCUMENT_ALREADY_LINKED: 'documentAlreadyLinked',
   TRIP_DOCUMENT_NOT_FOUND: 'documentNotFound',
+  /** Spec 156 T7.3/T9: alguma nota do lote não pertence à viagem — `details.unreachableDocumentIds`. */
+  TRIP_DOCUMENT_NOT_REACHABLE: 'documentNotReachable',
   TRIP_DOCUMENT_REFERENCE_INVALID: 'documentReferenceInvalid',
   TRIP_DOCUMENT_RETURN_REASON_REQUIRED: 'documentReturnReasonRequired',
   TRIP_DRIVER_DUPLICATED: 'driverDuplicated',
   TRIP_DRIVER_NOT_AVAILABLE: 'driverNotAvailable',
   TRIP_DRIVER_NOT_FOUND: 'driverNotFound',
+  /** Spec 156 D3: a mesma chave enviada por outro ator ou com outro conteúdo. */
+  TRIP_FIELD_REPORT_KEY_REUSED: 'idempotencyKeyReused',
   TRIP_FORBIDDEN: 'readOnly',
   TRIP_HAS_UNLOADED_DOCUMENTS: 'hasUnloadedDocuments',
   TRIP_NOT_FOUND: 'notFound',
   TRIP_REQUEST_FAILED: 'requestFailed',
   TRIP_RESPONSE_INVALID: 'responseInvalid',
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
+  /** Spec 158 T6: `GET /trips/:id/timeline` com `cursor` malformado. */
+  TRIP_TIMELINE_CURSOR_INVALID: 'timelineCursorInvalid',
   TRIP_VEHICLE_NOT_AVAILABLE: 'vehicleNotAvailable',
   TRIP_VEHICLE_NOT_FOUND: 'vehicleNotFound',
+  /** Spec 156 D3: viagem sem motorista não aceita baixa pelo escritório. */
+  TRIP_WITHOUT_DRIVER: 'withoutDriver',
+  /** Spec 156 T6/T12 (aceite 12): baixa repetida do escritório — informativo, não erro vermelho. */
+  DOCUMENT_ALREADY_SETTLED: 'documentAlreadySettled',
+  /** Spec 156 T6/T12 (aceite 8): "Entregue em" fora da janela aceita pelo servidor. */
+  DELIVERED_AT_IN_FUTURE: 'deliveredAtInFuture',
+  DELIVERED_AT_BEFORE_DISPATCH: 'deliveredAtBeforeDispatch',
+  /** Spec 156 T6/T12 (aceite 9): a empresa exige foto e o escritório não anexou nenhuma. */
+  TRIP_DELIVERY_PROOF_PHOTO_REQUIRED: 'deliveryProofPhotoRequired',
+  /** Spec 156 T15 A1: "Chegou em"/"Devolvido em" fora da janela aceita pelo servidor — mesma régua
+   * de `DELIVERED_AT_*`. */
+  ARRIVED_AT_IN_FUTURE: 'arrivedAtInFuture',
+  ARRIVED_AT_BEFORE_DISPATCH: 'arrivedAtBeforeDispatch',
+  RETURNED_AT_IN_FUTURE: 'returnedAtInFuture',
+  RETURNED_AT_BEFORE_DISPATCH: 'returnedAtBeforeDispatch',
+  /** Spec 156 T15: assinatura `required` exige o nome de quem recebeu, não só a foto. */
+  TRIP_DELIVERY_PROOF_RECEIVER_NAME_REQUIRED: 'deliveryProofReceiverNameRequired',
+  /** Spec 156 T15 M1: o motorista já enviou o comprovante dele — o escritório não o substitui. */
+  TRIP_DELIVERY_PROOF_ALREADY_CAPTURED: 'deliveryProofAlreadyCaptured',
+  /** Spec 156 T15: outra escrita ganhou a corrida (start-route/confirm-load) — tentar de novo. */
+  TRIP_STATUS_WRITE_CONFLICT: 'statusWriteConflict',
+  /** Spec 156 T15: canhoto do escritório maior que o teto, ou bytes que não batem com uma imagem. */
+  TRIP_DELIVERY_PROOF_TOO_LARGE: 'deliveryProofTooLarge',
+  TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE: 'deliveryProofUnsupportedType',
 }
+
+/** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
+export const FIELD_TRIP_STEP_RESULT_KEYS = ['changed', 'status'] as const
+export const FIELD_REPORT_ID_RESULT_KEYS = ['id'] as const
+/** Spec 156 T12: o envelope de `POST .../field-delivery` — ver `evidence.md` T6. */
+export const REPORT_FIELD_DELIVERY_RESULT_KEYS = [
+  'alreadySettled',
+  'id',
+  'proofId',
+  'stopCompleted',
+  'tripCompleted',
+] as const
 
 export const TRIP_KEYS = [
   /** Quem dirige: a listagem nomeia o motorista, e o UUID do veículo não dizia nem isso. */
@@ -225,6 +284,44 @@ export const TRIP_OCCURRENCE_KEYS = [
   'typeName',
 ] as const
 
+/**
+ * Spec 156 T9 (D3, M1): quem registrou e em nome de quem — API na frente do bundle não pode apagar
+ * a ocorrência inteira, então os três nascem opcionais aqui até a promoção decidida por escrito.
+ */
+export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
+  'actorName',
+  'channel',
+  'onBehalfOfDriverName',
+] as const
+
+/** Spec 156 T9: `POST /trips/:id/documents/field-occurrences` lista os tipos de rua do escritório. */
+export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
+
+export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/field`
+
+/** Spec 158 D6: `GET /trips/:id/timeline` — todo campo nasce sempre presente (nulo, quando falta). */
+export const TRIP_TIMELINE_ITEM_KEYS = [
+  'actorName',
+  'channel',
+  'document',
+  'fromStatus',
+  'id',
+  'kind',
+  'occurrence',
+  'occurredAt',
+  'onBehalfOfDriverName',
+  'recordedAt',
+  'returnReason',
+  'stop',
+  'toStatus',
+] as const
+
+export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
+export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
+export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const
+
+export const TRIP_TIMELINE_DEFAULT_LIMIT = 100
+
 export const TRIP_DOCUMENT_PRODUCT_KEYS = [
   'code',
   'commercialUnit',
@@ -305,9 +402,19 @@ export const CARGO_LAYOUT_POLL_CEILING_MS = 1_080_000
 /** Passada essa espera, o selo avisa que viagem grande leva minutos — antes disso seria alarme à toa. */
 export const CARGO_LAYOUT_SLOW_NOTICE_MS = 120_000
 
-/** As duas fases em que o motorista está reportando. Fora delas não há o que atualizar sozinho. */
+/**
+ * As fases em que o motorista está reportando — as mesmas de `TRIP_ON_ROAD_STATUSES` da API. Fora
+ * delas não há o que atualizar sozinho. `on_delivery_route` entra desde a spec 156: a primeira nota
+ * fechada leva a viagem para lá (ADR-0058 §3), e o resto das entregas acontece nessa fase.
+ */
+const TRIP_ON_THE_ROAD_STATUSES: ReadonlySet<string> = new Set([
+  'dispatched',
+  'in_transit',
+  'on_delivery_route',
+])
+
 export function isTripOnTheRoad(status: string | undefined): boolean {
-  return status === 'dispatched' || status === 'in_transit'
+  return status !== undefined && TRIP_ON_THE_ROAD_STATUSES.has(status)
 }
 
 /** Spec 145 T13 (D4): quanto dura o deslize da planta anterior para a nova — o CSS usa o mesmo. */

@@ -76,10 +76,12 @@ import {
   fleetVehicles,
 } from './fleet.schema.js'
 import { fuelPriceReferences } from './fuel-reference.schema.js'
+import { tollBoothExtracts } from './toll-booth-extract.schema.js'
 import { tollBooths } from './toll-booth.schema.js'
 import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
+import { companyDriverAllowanceSettings } from './company-driver-allowance-settings.schema.js'
 import { companyEnergySettings } from './company-energy-settings.schema.js'
 import {
   mdfeFiscalDocuments,
@@ -136,6 +138,7 @@ import { geocodingRefinementRequests } from './geocoding-refinement.schema.js'
 import { geocodedAddressCorrections } from './geocoded-address-correction.schema.js'
 import { clientDeliveryAddresses } from './client-delivery-address.schema.js'
 import { addressComparisons } from './address-comparison.schema.js'
+import { addressCorrectionRequests } from './address-correction.schema.js'
 import {
   companyRouteOptimizationSettings,
   routeSuggestionDocuments,
@@ -151,6 +154,7 @@ import {
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
+  contractorMailTemplates,
   contractorMailThreads,
 } from './contractor-mail.schema.js'
 import { whatsappChannels } from './whatsapp-channel.schema.js'
@@ -173,10 +177,12 @@ import {
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
+  tripStatusEvents,
   tripStops,
   trips,
 } from './trip.schema.js'
 
+export * from './company-driver-allowance-settings.schema.js'
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
 export * from './company-toll-booth-charge.schema.js'
@@ -185,6 +191,7 @@ export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
 export * from './fleet-vehicle-axle.schema.js'
 export * from './fuel-reference.schema.js'
+export * from './toll-booth-extract.schema.js'
 export * from './toll-booth.schema.js'
 export * from './vehicle-volume-reference.schema.js'
 export * from './freight-region.schema.js'
@@ -218,6 +225,7 @@ export * from './geocoding-refinement.schema.js'
 export * from './geocoded-address-correction.schema.js'
 export * from './client-delivery-address.schema.js'
 export * from './address-comparison.schema.js'
+export * from './address-correction.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
@@ -244,6 +252,7 @@ export const databaseSchema = {
   companyContacts,
   companyDeliveryProofSettings,
   companyDistributionSettings,
+  companyDriverAllowanceSettings,
   deliveryProofSettingOverrides,
   companyEnergySettings,
   companyFiscalProfiles,
@@ -267,6 +276,7 @@ export const databaseSchema = {
   freightRules,
   freightRuleVersions,
   fuelPriceReferences,
+  tollBoothExtracts,
   tollBooths,
   vehicleVolumeReferences,
   identityUserProfiles,
@@ -342,6 +352,7 @@ export const databaseSchema = {
   geocodedAddressCorrections,
   clientDeliveryAddresses,
   addressComparisons,
+  addressCorrectionRequests,
   landingSettings,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
@@ -355,6 +366,7 @@ export const databaseSchema = {
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
+  contractorMailTemplates,
   contractorMailThreads,
   contractorPortalBindings,
   tripCostEntries,
@@ -373,6 +385,7 @@ export const databaseSchema = {
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
+  tripStatusEvents,
   tripStops,
   trips,
   userCompanyMemberships,
@@ -394,3 +407,4 @@ export type { LoginIdentifierKind } from './login-identifier.schema.js'
 export * from './trip-cargo-layout.schema.js'
 export * from './trip-cargo-layout-outbox.schema.js'
 export * from './trip-document-review.schema.js'
+export * from './rate-limit-window.schema.js'

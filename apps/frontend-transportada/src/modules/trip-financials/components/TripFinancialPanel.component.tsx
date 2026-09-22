@@ -6,20 +6,17 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
-import {
-  countUnknownParcels,
-  describeRevenueCoverage,
-  formatMargin,
-  isNegative,
-  splitParcels,
-} from '../shared/financialView.service'
-import { formatAmount } from '@/modules/shared/decimalAmount.service'
-
+import type { TripCostEntriesController } from '../hooks/useTripCostEntries.hook'
 import type { TripFinancialResult } from '../shared/tripFinancials.types'
 import { summarizeTripValuation, type TripValuation } from '../shared/tripValuation.service'
+import { FrozenResultTable } from './FrozenResultTable.component'
+import { TripCostEntries } from './TripCostEntries.component'
+import { ValuationLedger } from './ValuationLedger.component'
 import styles from '../styles/tripFinancials.module.css'
 
 type TripFinancialPanelProps = Readonly<{
+  /** Os lançamentos avulsos da viagem — a lista vive dentro do painel, e só dentro dele. */
+  costEntries: TripCostEntriesController
   isError: boolean
   isLoading: boolean
   onRecalculate: (reason: string) => Promise<void>
@@ -35,6 +32,7 @@ type TripFinancialPanelProps = Readonly<{
  * avaliação prevista, que não mostra o que se paga ao agregado (ADR-0049 §6).
  */
 export function TripFinancialPanel({
+  costEntries,
   isError,
   isLoading,
   onRecalculate,
@@ -75,51 +73,42 @@ export function TripFinancialPanel({
    * previsão e não a mostrar é o que estava lá.
    */
   if (result === null) {
-    const previsto = summarizeTripValuation(valuation)
+    const expected = summarizeTripValuation(valuation)
 
     return (
       <section className={styles.panel}>
         <h2>{t('panel.title')}</h2>
         <p className={styles.hint}>{t('panel.notFrozen')}</p>
-        {previsto === null ? null : (
+        {expected === null ? null : (
           <>
-            <dl className={styles.totals}>
-              <div>
-                <dt>{t('panel.expectedRevenue')}</dt>
-                <dd>{formatAmount(previsto.revenue)}</dd>
-              </div>
-              <div>
-                <dt>{t('panel.expectedCost')}</dt>
-                <dd>{formatAmount(previsto.cost)}</dd>
-              </div>
-              <div>
-                <dt>{t('panel.expectedMargin')}</dt>
-                <dd className={isNegative(previsto.margin) ? styles.negative : undefined}>
-                  {formatAmount(previsto.margin)}
-                  {previsto.marginPercentage === null
-                    ? null
-                    : ` (${formatMargin(previsto.marginPercentage)})`}
-                </dd>
-              </div>
-            </dl>
+            {/*
+              A viagem aberta mostra **a mesma conta da criação**: receita em verde, cada custo com
+              a derivação — combustível em km/l × preço, pedágio praça a praça — e despesas em
+              vermelho. Três totais sem cor e sem parcela não diziam de onde o custo vinha.
+            */}
+            <ValuationLedger valuation={valuation} />
             {/* A lacuna vai junto do número: total sem parcela sai menor do que a viagem custa. */}
-            {previsto.hasGaps ? (
+            {expected.hasGaps ? (
               <p className={styles.hint}>
                 {t('panel.expectedGaps', {
-                  reasons: previsto.gaps.map((gap) => t(`gap.${gap}`, gap)).join(', '),
+                  reasons: expected.gaps.map((gap) => t(`gap.${gap}`, gap)).join(', '),
                 })}
               </p>
             ) : null}
           </>
         )}
+        <TripCostEntries
+          canRecord={costEntries.canRecord}
+          entries={costEntries.entries}
+          isError={costEntries.isError}
+          isLoading={costEntries.isLoading}
+          isRecording={costEntries.isRecording}
+          onRecord={costEntries.record}
+          onRetry={costEntries.retry}
+        />
       </section>
     )
   }
-
-  const { costs, taxes } = splitParcels(result)
-  const coverage = describeRevenueCoverage(result)
-  const unknown = countUnknownParcels(result)
-  const margin = formatMargin(result.marginRate)
 
   async function handleRecalculate(): Promise<void> {
     setIsRecalculating(true)
@@ -142,62 +131,7 @@ export function TripFinancialPanel({
         <p className={styles.hint}>{t('panel.operationalNote')}</p>
       </header>
 
-      <dl className={styles.totals}>
-        <div>
-          <dt>{t('panel.revenue')}</dt>
-          <dd>{result.revenueAmount}</dd>
-        </div>
-        <div>
-          <dt>{t('panel.tax')}</dt>
-          <dd>{result.taxTotal}</dd>
-        </div>
-        <div>
-          <dt>{t('panel.cost')}</dt>
-          <dd>{result.costTotal}</dd>
-        </div>
-        <div>
-          <dt>{t('panel.net')}</dt>
-          <dd className={isNegative(result.netAmount) ? styles.negative : undefined}>
-            {result.netAmount}
-            {margin === null ? '' : ` · ${margin}`}
-          </dd>
-        </div>
-      </dl>
-
-      {coverage === null ? null : (
-        <p className={styles.warning} role="status">
-          {t('panel.partialRevenue', coverage)}
-        </p>
-      )}
-      {unknown === 0 ? null : (
-        <p className={styles.warning} role="status">
-          {t('panel.unknownParcels', { count: unknown })}
-        </p>
-      )}
-
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th scope="col">{t('panel.parcel')}</th>
-            <th scope="col">{t('panel.amount')}</th>
-            <th scope="col">{t('panel.source')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...taxes, ...costs].map((parcel) => (
-            <tr key={parcel.kind}>
-              <td>{t(`parcel.${parcel.kind}`)}</td>
-              <td>{parcel.amount}</td>
-              <td>
-                {t(`source.${parcel.source}`)}
-                {parcel.note === ''
-                  ? ''
-                  : ` · ${t(`gap.${parcel.note}`, { defaultValue: parcel.note })}`}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <FrozenResultTable result={result} />
 
       <div className={styles.recalculate}>
         <label className={styles.field}>
@@ -219,6 +153,16 @@ export function TripFinancialPanel({
           {isRecalculating ? t('panel.recalculating') : t('panel.recalculate')}
         </Button>
       </div>
+
+      <TripCostEntries
+        canRecord={costEntries.canRecord}
+        entries={costEntries.entries}
+        isError={costEntries.isError}
+        isLoading={costEntries.isLoading}
+        isRecording={costEntries.isRecording}
+        onRecord={costEntries.record}
+        onRetry={costEntries.retry}
+      />
     </section>
   )
 }

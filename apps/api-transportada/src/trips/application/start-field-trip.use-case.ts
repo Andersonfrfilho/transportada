@@ -2,10 +2,21 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
+import { TripStatusWriteConflictError } from '../domain/trip-field-office.error.js'
+import { deriveFieldAuthorship, type FieldTripLocator } from './field-trip-target.types.js'
+import {
+  buildOfficeAuditEntry,
+  type OfficeAuditRequest,
+  type TripFieldOfficeAuditInput,
+} from './trip-field-office-audit.port.js'
 
-/** Os dois toques do campo (ADR-0058). O escritório não os alcança: `dispatch` continua dele. */
+/**
+ * Os dois toques do campo (ADR-0058). O escritório os alcança pela permissão própria, em nome do
+ * motorista (ADR-0067 §1); `dispatch` continua só dele.
+ */
 export const FIELD_TRIP_STEP = {
   confirmLoad: 'confirmLoad',
   startRoute: 'startRoute',
@@ -13,24 +24,45 @@ export const FIELD_TRIP_STEP = {
 
 export type FieldTripStep = (typeof FIELD_TRIP_STEP)[keyof typeof FIELD_TRIP_STEP]
 
+/**
+ * Uma gravação que perdeu a corrida relê e decide de novo. O status só anda para a frente, então
+ * três voltas cobrem `dispatched → in_transit → on_delivery_route` com folga.
+ */
+const MAX_STATUS_WRITE_ATTEMPTS = 3
+
 export type StartFieldTripPort = {
   /** `null` quando o motorista não tem viagem na rua — a mesma ausência de `/me/trips/current`. */
   readCurrent(input: {
     readonly companyId: string
     readonly driverId: string
   }): Promise<{ readonly tripId: string; readonly tripStatus: TripStatus } | null>
-  updateStatus(input: {
-    readonly actorUserId: string
+  /** O status de agora, para decidir de novo depois de perder a corrida. `null`: a viagem sumiu. */
+  readStatus(input: {
     readonly companyId: string
     readonly tripId: string
+  }): Promise<TripStatus | null>
+  /**
+   * Compare-and-set: grava só se o status ainda é `expectedStatus`. `false` quando outra escrita
+   * chegou antes — e aí nada foi gravado.
+   */
+  updateStatus(input: {
+    readonly actorUserId: string
+    /** Spec 156 T15 M11: a trilha do escritório, gravada só se o status mudou, na mesma transação. */
+    readonly audit?: TripFieldOfficeAuditInput
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly expectedStatus: TripStatus
+    readonly onBehalfOfDriverId: string | null
+    readonly tripId: string
     readonly tripStatus: TripStatus
-  }): Promise<void>
+  }): Promise<boolean>
 }
 
-export type StartFieldTripInput = {
+export type StartFieldTripInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
-  readonly driverId: string
+  /** Spec 156 T15 M11: só o escritório manda — o toque repetido (`changed: false`) não audita. */
+  readonly officeAudit?: OfficeAuditRequest
   readonly repository: StartFieldTripPort
   readonly step: FieldTripStep
 }
@@ -45,39 +77,88 @@ export type StartFieldTripResult = {
 /**
  * ADR-0058: o começo da viagem é toque do motorista, e o fim continua derivado.
  *
- * **Não recebe id de viagem** (ADR-0045 §2): o servidor resolve pelo vínculo do motorista, como toda
- * rota sob `/me/trips/current`. Quem não escolhe id não enumera.
+ * **O motorista não manda id de viagem** (ADR-0045 §2): o servidor resolve pelo vínculo, como toda
+ * rota sob `/me/trips/current`. O escritório manda, e chega aqui com o alvo já resolvido na empresa
+ * do contexto (ADR-0067 §1).
  *
  * Repetir converge em `changed: false`, nunca em erro: a fila offline drena muito depois do toque, e
  * um toque que **funcionou** voltando como conflito puniria quem fez tudo certo.
  */
 export async function startFieldTrip(input: StartFieldTripInput): Promise<StartFieldTripResult> {
-  const current = await input.repository.readCurrent({
-    companyId: input.companyId,
-    driverId: input.driverId,
-  })
+  const current =
+    input.target === undefined
+      ? await input.repository.readCurrent({
+          companyId: input.companyId,
+          driverId: input.driverId,
+        })
+      : { tripId: input.target.tripId, tripStatus: input.target.tripStatus }
   if (current === null) throw new TripNotFoundError()
 
+  return applyFieldStep({
+    attemptsLeft: MAX_STATUS_WRITE_ATTEMPTS,
+    input,
+    tripId: current.tripId,
+    tripStatus: current.tripStatus,
+  })
+}
+
+type ApplyFieldStepParams = {
+  readonly attemptsLeft: number
+  readonly input: StartFieldTripInput
+  readonly tripId: string
+  readonly tripStatus: TripStatus
+}
+
+/**
+ * A decisão é da política; a gravação só vale sobre o status que a decisão leu. Perder a corrida —
+ * a viagem concluiu, ou outro toque já andou — relê e decide de novo, e nunca regride o status.
+ */
+async function applyFieldStep(params: ApplyFieldStepParams): Promise<StartFieldTripResult> {
+  const { input, tripId, tripStatus } = params
   const transition = checkTripTransition({
     action: TRIP_ACTION[input.step],
     /* A viagem já saiu do barracão: o roteiro congelou no despacho, e não há o que replanejar. */
     hasRoute: true,
-    tripStatus: current.tripStatus,
+    tripStatus,
   })
 
   if (transition.outcome === 'blocked') {
     throw new TripStateTransitionNotAllowedError(transition.reason)
   }
-  if (transition.outcome === 'unchanged') {
-    return { changed: false, tripId: current.tripId, tripStatus: current.tripStatus }
-  }
+  if (transition.outcome === 'unchanged') return { changed: false, tripId, tripStatus }
+  /**
+   * Spec 156 T15: esgotar as voltas sem gravar não é "nada mudou" — o toque não aconteceu, e
+   * `changed: false` diria a quem clicou que estava tudo certo.
+   */
+  if (params.attemptsLeft === 0) throw new TripStatusWriteConflictError()
 
-  await input.repository.updateStatus({
+  const authorship = deriveFieldAuthorship(input)
+  const audit = buildOfficeAuditEntry({
     actorUserId: input.actorUserId,
+    audit: input.officeAudit,
     companyId: input.companyId,
-    tripId: current.tripId,
+    details: {},
+    locator: input,
+  })
+  const isWritten = await input.repository.updateStatus({
+    actorUserId: input.actorUserId,
+    ...(audit === undefined ? {} : { audit }),
+    channel: authorship.channel,
+    companyId: input.companyId,
+    expectedStatus: tripStatus,
+    onBehalfOfDriverId: authorship.onBehalfOfDriverId,
+    tripId,
     tripStatus: transition.nextStatus,
   })
+  if (isWritten) return { changed: true, tripId, tripStatus: transition.nextStatus }
 
-  return { changed: true, tripId: current.tripId, tripStatus: transition.nextStatus }
+  const currentStatus = await input.repository.readStatus({ companyId: input.companyId, tripId })
+  if (currentStatus === null) throw new TripNotFoundError()
+
+  return applyFieldStep({
+    attemptsLeft: params.attemptsLeft - 1,
+    input,
+    tripId,
+    tripStatus: currentStatus,
+  })
 }

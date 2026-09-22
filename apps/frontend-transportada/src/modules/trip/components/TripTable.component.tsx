@@ -20,7 +20,7 @@ import type { TripTableController } from '../hooks/useTripTable.hook'
 import type { Trip, TripStatus } from '../shared/trip.types'
 import { isCancellable } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
-import { TRIP_COLUMN_KEYS, type TripColumnKey } from '../shared/tripTable.service'
+import type { TripColumnKey } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
 type TripTableProps = Readonly<{
@@ -233,7 +233,7 @@ export function TripTable({
                   />
                 </th>
               ) : null}
-              {TRIP_COLUMN_KEYS.map((column) => (
+              {table.columns.map((column) => (
                 <th key={column} scope="col">
                   <button
                     className={styles.sortButton}
@@ -266,7 +266,7 @@ export function TripTable({
                     ) : null}
                   </td>
                 ) : null}
-                {TRIP_COLUMN_KEYS.map((column) => (
+                {table.columns.map((column) => (
                   <td key={column}>{renderCell(trip, column)}</td>
                 ))}
                 <td>

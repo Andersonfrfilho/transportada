@@ -10,6 +10,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { formatMargin, isNegative } from '../shared/financialView.service'
 import { getTripFinancialsClient } from '../shared/tripFinancialsClient.service'
+import { FINANCIALS_PERMISSION } from '../shared/tripFinancialsQueryKey.constant'
 import {
   FINANCIAL_SUMMARY_GROUPS,
   type FinancialSummaryGroup,
@@ -23,7 +24,7 @@ import styles from '../styles/tripFinancials.module.css'
 export function FinancialResultsWorkspacePage() {
   const { t } = useTranslation('tripFinancials')
   const authQuery = useAuthMeQuery()
-  const canRead = (authQuery.data?.data.permissions ?? []).includes('trip.financials')
+  const canRead = (authQuery.data?.data.permissions ?? []).includes(FINANCIALS_PERMISSION)
   const [groupBy, setGroupBy] = useState<FinancialSummaryGroup>('period')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')

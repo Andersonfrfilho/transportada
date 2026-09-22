@@ -42,6 +42,7 @@ export type PackageBoxMeasurementExportEntry = {
   readonly proposedHeightMm: number | null
   readonly proposedLengthMm: number | null
   readonly proposedWidthMm: number | null
+  /** T14 (revisão final, ALTO-1): o repositório nunca deixa `replicated` sair daqui (D6). */
   readonly source: PackageBoxMeasurementSource
   readonly warnings: readonly PackageBoxMeasurementWarning[]
   readonly widthMarginMm: number | null

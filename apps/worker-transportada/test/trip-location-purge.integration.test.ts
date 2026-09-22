@@ -11,7 +11,10 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
 import { createTripLocationPurgeRoutine } from '../src/trip-location-purge/application/trip-location-purge.routine.js'
-import { createDrizzleRedactTripLocations } from '../src/trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
+import {
+  createDrizzleRedactDeliveryProofLocations,
+  createDrizzleRedactTripLocations,
+} from '../src/trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
 import type { JobRoutineContext } from '../src/job-run/application/job-routine.port.js'
 
 const databaseUrl = process.env.DATABASE_URL
@@ -45,6 +48,8 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
   const expiredEventId = crypto.randomUUID()
   const freshEventId = crypto.randomUUID()
   const withoutLocationEventId = crypto.randomUUID()
+  const expiredProofId = crypto.randomUUID()
+  const freshProofId = crypto.randomUUID()
 
   const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
   const db = provider.db
@@ -63,6 +68,34 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
         ${input.located ? '-23.5505199' : null}, ${input.located ? '-46.6333094' : null},
         ${input.located ? '12.50' : null}, ${input.located ? input.createdAt : null},
         ${userId}, ${input.createdAt}
+      )
+    `)
+  }
+
+  /** Spec 159 T11: a foto do comprovante presa ao evento, com a posição que o aparelho leu. */
+  async function insertProof(input: {
+    readonly createdAt: string
+    readonly eventId: string
+    readonly id: string
+  }): Promise<void> {
+    const objectId = crypto.randomUUID()
+    await db.execute(sql`
+      insert into stored_objects
+        (id, company_id, bucket, object_key, provider, purpose, mime_type, sha256, size_bytes,
+         status)
+      values (
+        ${objectId}, ${companyId}, 'integration', ${`proof/${objectId}.jpg`}, 's3',
+        'delivery_proof', 'image/jpeg', ${objectId.replaceAll('-', '').padEnd(64, '0')}, 100,
+        'final'
+      )
+    `)
+    await db.execute(sql`
+      insert into trip_delivery_proofs
+        (id, company_id, stop_event_id, kind, object_id, actor_user_id, latitude, longitude,
+         accuracy_meters, captured_at, punctuality, created_at)
+      values (
+        ${input.id}, ${companyId}, ${input.eventId}, 'photo', ${objectId}, ${userId},
+        '-23.5505199', '-46.6333094', '8.00', ${input.createdAt}, 'on_time', ${input.createdAt}
       )
     `)
   }
@@ -97,9 +130,21 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
       id: withoutLocationEventId,
       located: false,
     })
+    await insertProof({
+      createdAt: '2026-05-27T09:00:00.000Z',
+      eventId: expiredEventId,
+      id: expiredProofId,
+    })
+    await insertProof({
+      createdAt: '2026-08-25T09:00:00.000Z',
+      eventId: freshEventId,
+      id: freshProofId,
+    })
   })
 
   afterAll(async () => {
+    await db.execute(sql`delete from trip_delivery_proofs where company_id = ${companyId}`)
+    await db.execute(sql`delete from stored_objects where company_id = ${companyId}`)
     await db.execute(sql`delete from trip_stop_events where company_id = ${companyId}`)
     await db.execute(sql`delete from trip_stops where company_id = ${companyId}`)
     await db.execute(sql`delete from trips where company_id = ${companyId}`)
@@ -116,6 +161,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
       purgeStalePings: async () => 0,
       now: () => NOW,
       redact: createDrizzleRedactTripLocations(db),
+      redactProofLocations: createDrizzleRedactDeliveryProofLocations(db),
     })
 
     const result = await routine.run(CONTEXT)
@@ -140,6 +186,22 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
     })
     expect(byId.get(freshEventId)?.latitude).not.toBeNull()
     expect(byId.get(withoutLocationEventId)?.latitude).toBeNull()
+
+    // Spec 159 T11: a foto vencida perde a posição e guarda o resto; a recente fica inteira
+    expect(result.counters.redactedProofs).toBe(1)
+    const proofs = await db.execute(sql`
+      select "id", "latitude", "longitude", "accuracy_meters", "captured_at", "punctuality"
+      from trip_delivery_proofs where company_id = ${companyId}
+    `)
+    const proofById = new Map(proofs.map((row) => [String(row.id), row]))
+    expect(proofById.get(expiredProofId)).toMatchObject({
+      accuracy_meters: null,
+      latitude: null,
+      longitude: null,
+      punctuality: 'on_time',
+    })
+    expect(proofById.get(expiredProofId)?.captured_at).not.toBeNull()
+    expect(proofById.get(freshProofId)?.latitude).not.toBeNull()
   })
 
   /** Correr de novo não tem o que apagar — e é assim que a batida diária se comporta todo dia. */
@@ -149,6 +211,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
       purgeStalePings: async () => 0,
       now: () => NOW,
       redact: createDrizzleRedactTripLocations(db),
+      redactProofLocations: createDrizzleRedactDeliveryProofLocations(db),
     })
 
     /**
@@ -160,6 +223,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
       batches: 0,
       purgedPings: 0,
       redacted: 0,
+      redactedProofs: 0,
     })
   })
 })

@@ -12,10 +12,13 @@ import type {
   PlanTripRoutePort,
   TripRouteState,
 } from '../../src/trips/application/plan-trip-route.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { TripStateTransitionNotAllowedError } from '../../src/trips/domain/trip.error.js'
+import type { RouteChoice } from '../../src/trips/domain/route-choice.policy.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const TRIP_ID = '22222222-2222-4222-8222-222222222222'
+const ACTOR_USER_ID = '33333333-3333-4333-8333-333333333333'
 
 function createPort(overrides: {
   readonly hasRoute?: boolean
@@ -32,14 +35,22 @@ function createPort(overrides: {
 }
 
 function createFreezer(): {
-  readonly calls: readonly { readonly tripId: string }[]
-  freeze: (input: { readonly companyId: string; readonly tripId: string }) => Promise<void>
+  readonly calls: readonly { readonly routeChoice?: RouteChoice; readonly tripId: string }[]
+  freeze: (input: {
+    readonly companyId: string
+    readonly routeChoice?: RouteChoice
+    readonly tripId: string
+  }) => Promise<void>
 } {
-  const calls: { readonly tripId: string }[] = []
+  const calls: { readonly routeChoice?: RouteChoice; readonly tripId: string }[] = []
   return {
     calls,
     async freeze(input) {
-      calls.push({ tripId: input.tripId })
+      calls.push(
+        input.routeChoice === undefined
+          ? { tripId: input.tripId }
+          : { routeChoice: input.routeChoice, tripId: input.tripId },
+      )
     },
   }
 }
@@ -49,7 +60,14 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
     const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
     const tollFreezer = createFreezer()
 
-    await planTripRoute({ companyId: COMPANY_ID, repository, tollFreezer, tripId: TRIP_ID })
+    await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tollFreezer,
+      tripId: TRIP_ID,
+    })
 
     expect(tollFreezer.calls).toEqual([{ tripId: TRIP_ID }])
   })
@@ -59,6 +77,8 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
     const tollFreezer = createFreezer()
 
     const result = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tollFreezer,
@@ -74,6 +94,8 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
     const tollFreezer = createFreezer()
 
     const error = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tollFreezer,
@@ -89,6 +111,8 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
     const tollFreezer = createFreezer()
 
     await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tollFreezer,
@@ -101,9 +125,50 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
   test('sem congelador injetado, o comportamento é idêntico ao de antes da task', async () => {
     const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
 
-    const result = await planTripRoute({ companyId: COMPANY_ID, repository, tripId: TRIP_ID })
+    const result = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    })
 
     expect(result.tripStatus).toBe('route_planned')
+  })
+
+  /** RF3 (spec 153 T201): a rota pedida no corpo do HTTP chega ao congelamento sem se perder. */
+  test('a escolha de rota do pedido chega ao congelador (spec 153 RF3)', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
+    const tollFreezer = createFreezer()
+    const routeChoice: RouteChoice = { criterion: 'fastest', signature: null }
+
+    await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      routeChoice,
+      tollFreezer,
+      tripId: TRIP_ID,
+    })
+
+    expect(tollFreezer.calls).toEqual([{ routeChoice, tripId: TRIP_ID }])
+  })
+
+  test('sem escolha declarada no pedido, o congelador não recebe `routeChoice`', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
+    const tollFreezer = createFreezer()
+
+    await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tollFreezer,
+      tripId: TRIP_ID,
+    })
+
+    expect(tollFreezer.calls).toEqual([{ tripId: TRIP_ID }])
   })
 })
 
@@ -121,6 +186,8 @@ describe('o congelamento não derruba o planejamento (revisão de 2026-09-08)', 
     const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
 
     const result = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tollFreezer: {

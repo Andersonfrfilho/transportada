@@ -3,10 +3,12 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { registerTripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import {
   acceptsOccurrenceType,
   resolveOccurrencePermission,
 } from '../../src/trips/domain/occurrence.policy.js'
+import { OccurrenceTypeNotSeparationError } from '../../src/trips/domain/trip.error.js'
 
 /**
  * Spec 079 T020. ⚠️ **A permissão sai do tipo, não da rota.** Uma rota só, com a autorização
@@ -51,16 +53,102 @@ describe('quem registra a ocorrência (spec 079 T020)', () => {
   })
 
   /**
-   * ⚠️ **O escritório registra ocorrência de entrega, e isso não é o furo de antes.** O furo era
-   * dar `trip.report` a uma rota da árvore `/trips/:id`: o motorista tem essa permissão, e ele
-   * alcançaria **qualquer** viagem da empresa. Com `trip.manage` — que o motorista não tem — a rota
-   * é do escritório, e é ele quem atende a ligação do motorista dizendo que a carga foi recusada.
-   *
-   * O motorista registrar do próprio celular continua sendo outra rota, na árvore `/me`, com o
-   * escopo da viagem ativa dele. Uma coisa não substitui a outra.
+   * Spec 157: a regra da spec 079 que dava ao escritório os dois grupos pela rota do galpão foi
+   * superada. `company-admin` e `operator` registram a de rua em nome do motorista
+   * (`POST /trips/:id/documents/field-occurrences`, `trip.report-on-behalf`, spec 156); pela rota
+   * do galpão, com `trip.manage`, só o `separator` ganharia algo — a ocorrência de rua que ele
+   * nunca viu. Os casos de `registerTripOccurrence` abaixo prendem isso.
    */
-  test('o escritório registra os dois grupos, e a permissão dele é trip.manage', () => {
+  test('cada grupo recusa o tipo do outro', () => {
     expect(acceptsOccurrenceType({ stage: 'delivery', type: 'recusa_total' })).toBe(true)
-    expect(acceptsOccurrenceType({ stage: 'delivery', type: 'avaria_transporte' })).toBe(true)
+    expect(acceptsOccurrenceType({ stage: 'separation', type: 'avaria_transporte' })).toBe(false)
+  })
+})
+
+/**
+ * Spec 157 RF4: a rota do galpão (`POST /trips/:id/documents/:documentId/occurrences`, `trip.manage`)
+ * e o fluxo WhatsApp do operador gravam **só** tipo de separação. A etapa sai do cadastro do tipo,
+ * nunca do corpo, e a recusa vem antes de gravar e de avisar.
+ */
+describe('a rota do galpão só grava tipo de galpão (spec 157)', () => {
+  const TIPO = '00000000-0000-4000-8000-0000000000e1'
+
+  function registrar(stage: 'delivery' | 'separation') {
+    const calls = { notified: 0, saved: 0 }
+    const promise = registerTripOccurrence({
+      actorUserId: '00000000-0000-4000-8000-00000000000f',
+      companyId: '00000000-0000-4000-8000-000000000001',
+      documentId: '00000000-0000-4000-8000-000000000017',
+      note: '',
+      notificationParameters: {
+        documentId: '00000000-0000-4000-8000-000000000017',
+        documentLabel: '883658/1',
+        occurrenceType: '',
+        stopLabel: '',
+        tripId: '00000000-0000-4000-8000-000000000011',
+      },
+      notifier: {
+        async notify() {
+          calls.notified += 1
+        },
+      },
+      occurredOn: '18/09/2026',
+      occurrenceTypeId: TIPO,
+      productCode: '',
+      repository: {
+        async findOccurrenceType() {
+          return {
+            active: true,
+            emailBody: '',
+            emailSubject: '',
+            emailTemplateKey: null,
+            id: TIPO,
+            name: stage === 'delivery' ? 'Recusa total' : 'Item faltante',
+            notifies: true,
+            stage,
+          }
+        },
+        async listDocumentProducts() {
+          return []
+        },
+        async listOccurrences() {
+          return []
+        },
+        async readTemplateValues() {
+          throw new Error('TEMPLATE_NOT_EXPECTED')
+        },
+        async saveOccurrence(saved) {
+          calls.saved += 1
+          return {
+            createdAt: '2026-09-18T12:00:00.000Z',
+            id: '00000000-0000-4000-8000-0000000000c1',
+            note: '',
+            occurrenceTypeId: TIPO,
+            productCode: '',
+            stage: saved.stage,
+            typeName: saved.typeName,
+          }
+        },
+      },
+      tripId: '00000000-0000-4000-8000-000000000011',
+    })
+    return { calls, promise }
+  }
+
+  test('tipo de rua responde 422 OCCURRENCE_TYPE_NOT_SEPARATION e não grava nem avisa', async () => {
+    const { calls, promise } = registrar('delivery')
+
+    const error = await promise.catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(OccurrenceTypeNotSeparationError)
+    expect(error).toMatchObject({ code: 'OCCURRENCE_TYPE_NOT_SEPARATION', status: 422 })
+    expect(calls).toEqual({ notified: 0, saved: 0 })
+  })
+
+  test('tipo de galpão grava e avisa', async () => {
+    const { calls, promise } = registrar('separation')
+
+    expect((await promise).stage).toBe('separation')
+    expect(calls).toEqual({ notified: 1, saved: 1 })
   })
 })

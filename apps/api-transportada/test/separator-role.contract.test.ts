@@ -13,6 +13,11 @@ import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-d
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
 import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
 import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
+import {
+  createTripFieldOfficeRoutes,
+  OFFICE_REPORT_POLICY,
+} from '../src/trips/presentation/trip-field-office.routes'
+import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripRoutes } from '../src/trips/presentation/trip.routes'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -66,6 +71,12 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createPackageBoxRoutes(dependencies),
     ...createPackageBoxMeasurementExportRoutes(dependencies),
     ...createTripDocumentReviewRoutes(dependencies),
+    // Spec 156 T8b (revisão do code-reviewer): as rotas do escritório com autoria precisam entrar
+    // aqui para a lista exaustiva **provar** a ausência delas — sem elas no array, o separador
+    // "não alcançar" field-delivery/field-return era verdade por elas nunca terem sido testadas,
+    // não porque a permissão as barrasse.
+    ...createTripFieldOfficeRoutes(dependencies),
+    ...createTripFieldOfficeOccurrenceRoutes(dependencies),
   ]
 
   return routes
@@ -96,6 +107,12 @@ describe('separator role contract', () => {
       // nada além dos dois ids, então não abre ficha de pessoa a quem só monta carga.
       'GET /fleet/driver-vehicles',
       'GET /fleet/drivers',
+      /**
+       * Spec 159 T8 (RF10/RF11): a nota já chega na listagem que o separador lê para montar a
+       * viagem, e é ela que ordena o seletor; a ficha da nota só explica o número (NF-e, data,
+       * motivo, pontos) — sem posição da foto nem dado pessoal do motorista.
+       */
+      'GET /fleet/drivers/:id/score',
       'GET /fleet/drivers/:id/vehicles',
       'GET /fleet/vehicles',
       'GET /nfe-documents',
@@ -109,14 +126,20 @@ describe('separator role contract', () => {
       'GET /nfe-documents/:id/xml',
       'GET /nfe-documents/by-access-key/:accessKey/trip-location',
       /**
-       * T14 item 4 (revisão de segurança): as três rotas de `cargo.measure` (spec 085 G005,
-       * spec 152) entram nesta lista pela primeira vez. Decisão registrada aqui: o separador já
-       * tinha a permissão `cargo.measure` (contrato "cargo.measure — a permissão de quem mede a
-       * caixa" acima), e medir caixa **é** o trabalho de quem separa — as três rotas só tornam essa
-       * permissão exercível por HTTP, sem abrir nada novo em fleet, billing ou fiscal.
+       * T14 item 4 (revisão de segurança): as rotas de `cargo.measure` (spec 085 G005, spec 152)
+       * entram nesta lista pela primeira vez. Decisão registrada aqui: o separador já tinha a
+       * permissão `cargo.measure` (contrato "cargo.measure — a permissão de quem mede a caixa"
+       * acima), e medir caixa **é** o trabalho de quem separa — as rotas só tornam essa permissão
+       * exercível por HTTP, sem abrir nada novo em fleet, billing ou fiscal.
+       *
+       * Spec 155 (G003, G004): as irmãs e a réplica são a mesma permissão, sobre a mesma caixa —
+       * replicar a medida de uma variação para outra continua sendo o trabalho de quem mede.
        */
       'GET /nfe-package-boxes',
+      'GET /nfe-package-boxes/:id/siblings',
       'GET /nfe-package-boxes/measurement-settings',
+      // A exportação do que falta medir é a mesma fila, inteira — a mesma cargo.measure.
+      'GET /nfe-package-boxes/pending-export',
       /**
        * Spec 148 T7: a fila das notas que não couberam é lida sob `fleet.read`, como a viagem. O
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela
@@ -146,6 +169,12 @@ describe('separator role contract', () => {
       'GET /trip-occurrences/:id/attachments',
       'GET /trips',
       'GET /trips/:id',
+      /**
+       * Spec 156 D10: as ações permitidas da viagem, e o separador as lê — decisão registrada aqui.
+       * A lista é recortada pelas permissões dele: recebe as do barracão (separar, carregar, roteiro,
+       * despacho) e **nenhuma** de rua (`deliver`, `return`, `field*`), pela ressalva A1.
+       */
+      'GET /trips/:id/allowed-actions',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
       /**
        * Spec 079 T020: o que houve com a carga, e o separador **lê e escreve** — decisão registrada
@@ -197,6 +226,12 @@ describe('separator role contract', () => {
       'GET /trips/:id/schedules',
       'GET /trips/:id/stops',
       /**
+       * Spec 158 T6: a linha do tempo unificada da viagem, sob a mesma `TRIP_FIELD_READ_POLICY`
+       * (`fleet.read` ou `trip.report-on-behalf`) das outras leituras de campo listadas acima — o
+       * separador já enxerga cada uma delas espalhada; aqui é a mesma informação, só unida.
+       */
+      'GET /trips/:id/timeline',
+      /**
        * Spec 145 T11: a pergunta de novo pela planta que a prévia de carga pediu. Espelha a
        * permissão da prévia (`trip.manage`), e o separador a alcança pela mesma razão que alcança a
        * prévia (spec 085, abaixo): sem ela, a planta que ele pediu nunca chegaria à tela dele. Ela
@@ -204,6 +239,8 @@ describe('separator role contract', () => {
        */
       'GET /trips/cargo-layouts/:layoutId',
       'PATCH /trips/:id/stops/order',
+      // Spec 155 (G004): a mesma cargo.measure de GET .../:id/siblings, acima.
+      'POST /nfe-package-boxes/:id/replicate',
       /**
        * A mesma linha da estrada da rota irmã, para pontos que **ainda não são viagem**: é o mapa
        * do formulário, onde o separador confere a ordem antes de criar a viagem. Alcança pelo mesmo
@@ -231,7 +268,6 @@ describe('separator role contract', () => {
       'POST /trips/:id/costs',
       'POST /trips/:id/dispatch',
       'POST /trips/:id/documents',
-      'POST /trips/:id/documents/:documentId/deliver',
       'POST /trips/:id/documents/:documentId/delivery-address',
       'POST /trips/:id/documents/:documentId/load',
       /**
@@ -249,7 +285,6 @@ describe('separator role contract', () => {
        * que muda é que o motorista tem a rota dele em `/me`, com o escopo da viagem ativa.
        */
       'POST /trips/:id/documents/:documentId/occurrences',
-      'POST /trips/:id/documents/:documentId/return',
       'POST /trips/:id/documents/:documentId/separate',
       /**
        * Decisão escrita (spec 075): **o separador alcança o vínculo em lote.** Ele já alcançava o
@@ -299,6 +334,19 @@ describe('separator role contract', () => {
   // O separador monta a viagem; o MDF-e é documento fiscal e continua com quem responde por ele.
   test('does not reach the fiscal manifest of the trip it assembles', () => {
     expect(reachableRoutes(['separator'])).not.toContain('POST /trips/:id/mdfe-manifests')
+  })
+
+  /**
+   * ADR-0067 §1, spec 156 T8b (revisão do code-reviewer): não basta a rota estar ausente da lista
+   * exaustiva — o teste exercita `AuthorizationService.authorize` de verdade, com o contexto real
+   * do `separator` e a `OFFICE_REPORT_POLICY` exportada da própria rota, para provar que é a
+   * política (`trip.report-on-behalf`) que barra, não um acidente de composição do array de rotas.
+   */
+  test('a política real de field-delivery/field-return recusa o separador', () => {
+    const service = new AuthorizationService()
+    const context = companyContext(['separator'])
+
+    expect(() => service.authorize(context, OFFICE_REPORT_POLICY)).toThrow()
   })
 })
 

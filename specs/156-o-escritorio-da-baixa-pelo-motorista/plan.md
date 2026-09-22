@@ -1,0 +1,135 @@
+# Spec 156 — Plano
+
+## Onde o código está hoje
+
+| Peça                        | Arquivo                                                                                                                                                                                                      | O que faz                                                                                                                                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Estados e ações             | `apps/api-transportada/src/trips/domain/trip-state.policy.ts`                                                                                                                                                | Ações da nota (:11) e da viagem (:20), `checkTripAcceptsDocumentWork` (:176), `checkFieldStart` (:245), `deriveTripStatus` (:356).                                                                      |
+| Rotas do motorista          | `trips/presentation/me-trip.routes.ts`                                                                                                                                                                       | `/me/trips/current/...`: `confirm-load`, `start-route`, `stops/:stopId/arrive`, `stops/:stopId/occurrences`, `documents/:id/{deliver,return,proof,occurrences}`. Acha a viagem pelo motorista (:48-55). |
+| Rotas do escritório         | `trips/presentation/trip.routes.ts`                                                                                                                                                                          | `/trips/:id/...`, `batch-status` (:1158) já aceita `deliver`. Ocorrência da nota (:1114), com `trip.manage`.                                                                                            |
+| Casos de uso de campo       | `trips/application/start-field-trip`, `report-document-delivery`, `attach-delivery-proof`, `register-driver-occurrence`, `report-stop-occurrence`                                                            | Todos recebem `driverId` e acham a viagem atual por uma porta (`StartFieldTripPort`, `DeliveryProofPort`, `DriverOccurrencePort`...).                                                                   |
+| Idempotência                | `trip_field_reports` (`database/trip.schema.ts:860`)                                                                                                                                                         | Chave do relato de campo.                                                                                                                                                                               |
+| Comprovante                 | `trip_delivery_proofs` (:905), `delivery-proof.schema.ts:34-61`, `delivery-proof-storage.gateway.ts`, `delivery-proof-settings.policy.ts`                                                                    | Uma foto e uma assinatura por entrega, e a segunda substitui a primeira. As regras vêm da empresa.                                                                                                      |
+| Autoria                     | `actor_user_id` em `trip_document_events` (:468), `trip_stop_events` (:676), `trip_stop_occurrences` (:793), `trip_field_reports` (:869), `trip_delivery_proofs` (:929), `trip_document_occurrences` (:1000) | Não existem canal nem "em nome de".                                                                                                                                                                     |
+| Permissões                  | `identity/domain/authorization.policy.ts`                                                                                                                                                                    | `trip.report` é só de `driver` e `aggregate` (:204-207). `separator` tem `trip.manage` (:211).                                                                                                          |
+| Tela da viagem              | `frontend-transportada/src/modules/trip/components/TripDetail.component.tsx`, `TripStateActions.component.tsx`, `hooks/useTripDocumentSelection.hook.ts`                                                     | Ações por nota (:220-253), ações em massa (:97-143) e seleção.                                                                                                                                          |
+| Regra no cliente            | `modules/trip/shared/tripStatus.service.ts`                                                                                                                                                                  | `canReturnDocuments`/`canDeliverDocuments` divergem da API em `on_delivery_route`.                                                                                                                      |
+| Câmera e leitor             | `components/ui/barcodeDecoder.service.ts`, `barcodeScanner.service.ts`, `useBarcodeScanner.hook.ts`, `barcode-scanner.tsx`                                                                                   | ZXing com Code128, que é o código da chave do DANFE.                                                                                                                                                    |
+| Recorte e fila do motorista | `modules/driver-trip/components/ProofCrop.component.tsx`, `shared/offlineAttachments.service.ts`                                                                                                             | Recorte do comprovante. A fila offline **não** é reaproveitada: o escritório trabalha online.                                                                                                           |
+
+## Desenho
+
+### API
+
+1. **Localizar a viagem por dois caminhos** 🧠. As portas dos casos de uso de campo deixam de receber
+   `driverId` e passam a receber um alvo:
+
+   ```ts
+   type FieldTripTarget =
+     | { readonly kind: 'driver'; readonly driverId: string }
+     | {
+         readonly kind: 'trip'
+         readonly tripId: string
+         readonly companyId: string
+         readonly driverId?: string
+       }
+   ```
+
+   O repositório resolve `trip` filtrando por `companyId` e, quando não encontra, devolve `null`, que
+   vira 404 (nunca 403). O motorista da viagem sai de `trip_drivers` e vira `onBehalfOfDriverId`: sem
+   `driverId`, o de `position = 1`; com `driverId`, ele precisa estar em `trip_drivers` da viagem, ou
+   responde 422 `DRIVER_NOT_ON_TRIP`. Viagem sem motorista vinculado responde 422
+   `TRIP_WITHOUT_DRIVER`.
+
+2. **Autoria**. Migration aditiva nas seis tabelas de campo: `channel varchar(16) not null default
+'driver_app'` e `on_behalf_of_driver_id uuid null` (FK para `fleet_drivers`, composta com
+   `company_id`: `(company_id, on_behalf_of_driver_id)`) e `recorded_at timestamptz not null default
+now()`. CHECK: `channel = 'office'` exige `on_behalf_of_driver_id`. O fluxo do WhatsApp
+   passa a gravar `whatsapp`. Não tem backfill: o default já descreve o histórico.
+3. **Rotas do escritório** (`trip-field-office.routes.ts`, arquivo novo, para o `trip.routes.ts` não
+   crescer mais), todas com `trip.report-on-behalf`:
+
+   | Método e path                                          | Caso de uso                                                                                                                                                                  |
+   | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | POST `/trips/:id/confirm-load`                         | `start-field-trip` (passo `confirmLoad`)                                                                                                                                     |
+   | POST `/trips/:id/start-route`                          | `start-field-trip` (passo `startRoute`)                                                                                                                                      |
+   | POST `/trips/:id/stops/:stopId/arrive`                 | chegada                                                                                                                                                                      |
+   | POST `/trips/:id/stops/:stopId/occurrences`            | `report-stop-occurrence`                                                                                                                                                     |
+   | POST `/trips/:id/documents/:documentId/field-delivery` | `report-document-delivery` + `attach-delivery-proof` na mesma transação (multipart: foto, recebedor, `deliveredAt`)                                                          |
+   | POST `/trips/:id/documents/:documentId/field-return`   | `report-document-delivery` (devolução)                                                                                                                                       |
+   | POST `/trips/:id/documents/:documentId/field-proof`    | `attach-delivery-proof` sobre o evento `delivered` que já existe: substitui pelo unique `(company, stop_event, kind)` (ADR-0057), sem evento novo e sem mudar `delivered_at` |
+   | POST `/trips/:id/documents/field-occurrences`          | ocorrência em massa: `{ documentIds[], typeCode, note, attachment? }`                                                                                                        |
+
+   A entrega em massa **não tem rota própria**: o cliente chama `field-delivery` uma vez por nota,
+   cada chamada com o seu `Idempotency-Key`. Cada nota tem sua foto, e mandar tudo num multipart só
+   tornaria impossível repetir apenas a nota que falhou.
+
+   **Baixa repetida** (ADR-0067 §2): no canal `office`, nota já `delivered`/`returned` responde 409
+   `DOCUMENT_ALREADY_SETTLED`, sem `recordEvent`. Hoje `report-document-delivery.use-case.ts`
+   (:147-157) grava o evento mesmo quando pula o `settle`; o canal do motorista mantém isso.
+
+   **Idempotência**: `trip_field_reports` com `operation` prefixada `office.`
+   (`office.document.deliver`, `office.document.return`, `office.document.proof`,
+   `office.stop.arrive`, `office.stop.occurrence`); a mesma chave de outro ator ou de outra operação
+   responde 409 `TRIP_FIELD_REPORT_KEY_REUSED` (emenda da ADR-0067 §2; o prefixo chegou às quatro
+   primeiras na T15, M8).
+
+4. **`deliveredAt`** (D4). Zod na borda. O caso de uso valida contra `trip_dispatch_snapshots.dispatched_at` e o relógio, e
+   os erros `DELIVERED_AT_IN_FUTURE` e `DELIVERED_AT_BEFORE_DISPATCH` são classes de `ApiError`
+   com código estável em `trips/domain/trip.error.ts` (o produto não tem `shared/errors/codes.ts`);
+   a T15 acrescentou `RETURNED_AT_*` e `ARRIVED_AT_*` em `trip-field-office.error.ts`. Sem
+   `trip_dispatch_snapshots` (viagem legada), o piso é `trips.created_at` (T15 M9). O motorista
+   continua sem mandar o campo (vale "agora").
+5. **`allowedActions` em `GET /trips/:id`** (D10). A lista é calculada pela `trip-state.policy.ts`
+   **e** pelas permissões do usuário, e o frontend para de reescrever essa regra.
+6. **Auditoria**. Cada registro do escritório grava em `audit_logs`, com ator, alvo, IP e horário.
+7. **Leitura da viagem pelo `finance`** (D11) 🧠. Variante de política `anyPermission`, com
+   `['fleet.read', 'trip.report-on-behalf']`, aplicada **só** a `GET /trips`, `GET /trips/:id`,
+   `GET /trips/:id/stops`, `GET …/documents/:documentId/proof` e
+   `GET …/documents/:documentId/occurrences`. Sem `fleet.read`, `driverTaxId`, `driverEmail` e
+   `driverPhone` saem nulos (`driverName` fica). `/fleet/drivers`, feed e geometria continuam só
+   com `fleet.read`.
+8. **Comprovante com assinatura exigida** (D8, exceção à ADR-0057 §1): foto do canhoto assinado +
+   nome do recebedor, gravado como comprovante do canal `office`. Documento do recebedor, se digitado,
+   passa pelo envelope e pela máscara da ADR-0057 §3.
+
+### Frontend
+
+- `modules/trip/components/TripFieldActions.component.tsx`: iniciar rota e registrar chegada, na
+  parada. Aparece só com `allowedActions`. Seletor de motorista só quando a viagem tem mais de um.
+- `canReadTrip(permissions)` substitui `TRIP_READ_PERMISSION` (`trip.constant.ts:15`,
+  `useTripWorkspace.hook.ts:130`), e o detalhe da viagem funciona sem `useFleet` (placa pelo dado da
+  viagem, ou omitida).
+- `modules/trip/components/FieldDeliveryWizard.component.tsx` (D5): um passo por nota, com preview
+  de câmera (`getUserMedia`) e, por cima dele, a faixa da nota (`FieldDeliveryNoteBanner`). Tem
+  captura, conferência e pular. Também aceita **enviar arquivo** em vez da câmera, porque no desktop
+  o canhoto costuma chegar escaneado.
+- `modules/trip/shared/canhotoIdentification.service.ts` (D6): recebe o quadro, tenta
+  `decodeBarcodeFrame`, extrai a chave de 44 dígitos e compara com as notas da seleção e da viagem.
+  É uma função pura com fixture de imagem.
+- `modules/trip/hooks/useFieldDelivery.hook.ts`: envia as notas com concorrência limitada (3), guarda
+  o resultado de cada uma e permite repetir só as que falharam.
+- `FieldOccurrenceDialog.component.tsx`: ocorrência de uma nota ou de várias (D7).
+- Linha do tempo: "registrado por X (escritório) pelo motorista Y".
+- Textos em `*.locale.json`. Componentes do `shadcn/ui`.
+
+### Fase experimental — OCR do número (D6.2)
+
+`tesseract.js` lendo o **texto inteiro** e extraindo só o número depois de `Nº` e a série depois de
+`SÉRIE` — a whitelist só de dígitos piorou a leitura na sonda (ADR-0069 §3, que manda sobre este
+parágrafo) —, carregado sob demanda, com o worker e o
+wasm servidos pelo próprio app (a CSP já permite `wasm-unsafe-eval` desde a spec 152). O interruptor
+fica em `company_delivery_proof_settings.canhoto_ocr_enabled`, desligado por padrão, e a tela mostra o
+selo "Experimental". O candidato só é aceito se o número lido bater com **exatamente uma** nota da
+viagem. Dependência nova: justificar em ADR (code-standart §13).
+
+## Riscos
+
+- **Canhoto destacado não tem código de barras.** O caso mais comum no escritório é o maço de
+  canhotos soltos. Aí a identificação automática só vem com o OCR (Fase 5); até lá, a escolha é
+  manual, mas com a nota esperada já sugerida pelo passo do assistente.
+- **Mexer nas portas dos casos de uso do motorista** pode quebrar o PWA e o app nativo. Mitigação: os
+  contratos atuais de `/me` rodam **sem alteração** antes e depois da T3.
+- **"Entregue em" retroativo muda o SLA e o relatório de pontualidade.** O relatório passa a usar
+  `delivered_at`, e não `recorded_at`, que é o comportamento certo, mas o número muda. Registrar essa
+  mudança no `evidence.md`.

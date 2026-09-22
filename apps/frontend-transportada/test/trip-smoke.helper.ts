@@ -453,6 +453,19 @@ async function registerTripMocks(
     await fulfillJson(route, { data: { points: [], source: 'unavailable' } })
   })
   /**
+   * Spec 156 D10: o detalhe pergunta à API quais ações a viagem aceita. Mockado **antes** do detalhe,
+   * como a estrada, senão o padrão `/trips/{id}` o engoliria; sem ele o pedido escapa para a API
+   * real, que não sobe no smoke, e o `requestfailed` reprova seis telas de viagem de uma vez.
+   * Listas vazias: o smoke mede layout, e nenhum botão de ação da viagem entra nas asserções.
+   */
+  await input.page.route(/\/trips\/[^/]+\/allowed-actions$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: { documents: {}, stops: {}, trip: [] } })
+  })
+  /**
    * O catálogo de tipos de ocorrência é consultado pelo detalhe da viagem. Sem este dublê o pedido
    * escapa para a API real, que não sobe no smoke, e o `requestfailed` derruba três testes que nada
    * têm a ver com ocorrência — foi o que aconteceu quando a tela passou a consultá-lo.
@@ -463,6 +476,29 @@ async function registerTripMocks(
       return
     }
     await fulfillJson(route, { data: [] })
+  })
+  // Spec 158: o detalhe da viagem sempre lê a linha do tempo; smoke que precisa de itens registra
+  // `mockTripTimelineApi` por cima (o mais recente vence no Playwright).
+  await input.page.route(/\/trips\/[^/]+\/timeline(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: { items: [], nextCursor: null } })
+  })
+  await input.page.route(/\/trips\/occurrence-types\/field$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
+  await input.page.route(/\/view-preferences(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: null })
   })
   await input.page.route(/\/trips\/[^/]+\/fiscal-readiness$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {

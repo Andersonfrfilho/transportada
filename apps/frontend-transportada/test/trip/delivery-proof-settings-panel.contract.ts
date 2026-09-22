@@ -129,4 +129,40 @@ describe('painel de configuração do comprovante (spec 082)', () => {
     expect(query).toInclude('invalidateQueries({ queryKey: DELIVERY_PROOF_SETTINGS_QUERY_KEY })')
     expect(query).toInclude('invalidateQueries({ queryKey: DELIVERY_PROOF_OVERRIDES_QUERY_KEY })')
   })
+
+  /**
+   * Spec 156 T14, ADR-0069 §6: o painel do interruptor mora aqui — perto do efeito, que é o
+   * assistente do escritório na própria tela de viagens (SETTINGS_PANEL_PLACEMENT).
+   */
+  describe('o interruptor da leitura do canhoto (T14)', () => {
+    it('mostra o selo "Experimental" ao lado do efeito', () => {
+      expect(panel).toInclude('deliveryProofSettings.canhotoOcr.experimental')
+      expect(trip.deliveryProofSettings.canhotoOcr.experimental).toBe('Experimental')
+    })
+
+    it('liga/desliga só o interruptor, sem oferecer escrita sem permissão', () => {
+      expect(panel).toInclude('onToggleCanhotoOcr(effective, canhotoOcrEnabled !== true)')
+      expect(query).toInclude('getTripClient().saveCanhotoOcrEnabled(input)')
+    })
+
+    it('gravar o interruptor invalida a mesma consulta da configuração', () => {
+      expect(query).toInclude('useSaveCanhotoOcrEnabledMutation')
+      const mutationBody = query.split('useSaveCanhotoOcrEnabledMutation')[1] ?? ''
+      expect(mutationBody).toInclude(
+        'invalidateQueries({ queryKey: DELIVERY_PROOF_SETTINGS_QUERY_KEY })',
+      )
+    })
+
+    it('a página passa o dado e o estado de gravação ao painel', () => {
+      expect(page).toInclude(
+        'canhotoOcrEnabled={deliveryProofSettingsQuery.data?.canhotoOcrEnabled}',
+      )
+      expect(page).toInclude('isTogglingCanhotoOcr={saveCanhotoOcrEnabledMutation.isPending}')
+    })
+
+    it('desligado por padrão vale texto de estimativa, não silêncio', () => {
+      expect(trip.deliveryProofSettings.canhotoOcr.hint).toBeString()
+      expect(trip.deliveryProofSettings.canhotoOcr.hint.length).toBeGreaterThan(0)
+    })
+  })
 })

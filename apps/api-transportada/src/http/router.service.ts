@@ -23,7 +23,14 @@ import {
 import { ApiError } from '../shared/api.error'
 import type { AuthMeResponse, HealthResponse } from '../shared/api.types'
 import { resolveClientIp } from './client-ip.service'
-import { createRateLimiter, type RateLimitPolicy } from './rate-limiter.service'
+import type { RateLimitWindowStorePort } from './rate-limit-window.port'
+import {
+  createRateLimiter,
+  type RateLimiter,
+  type RateLimitOutcome,
+  type RateLimitPolicy,
+  type RouteRateLimitPolicy,
+} from './rate-limiter.service'
 import { resolveLogPathname } from './request-path.service'
 
 type RouteAuthorizationPort = {
@@ -54,8 +61,12 @@ type RouterRoute<TInput> = {
   readonly pathname: string
   readonly policy?: RouteAuthorizationPolicy
   readonly pathParameterFormat?: PathParameterFormat
-  /** Teto por usuário autenticado, conferido depois da autorização. Ausente, a rota não tem teto. */
-  readonly rateLimit?: RateLimitPolicy
+  /**
+   * Teto por usuário autenticado, conferido depois da autorização e antes do `parse`: corpo
+   * inválido e replay idempotente também gastam. `memory` conta no processo; `postgres` conta entre
+   * réplicas, por empresa e usuário. Ausente, a rota não tem teto.
+   */
+  readonly rateLimit?: RouteRateLimitPolicy
 }
 
 /**
@@ -74,7 +85,7 @@ export type RegisteredRouterRoute = {
   readonly pathname: string
   readonly pathParameterFormat?: PathParameterFormat
   readonly policy?: RouteAuthorizationPolicy
-  readonly rateLimit?: RateLimitPolicy
+  readonly rateLimit?: RouteRateLimitPolicy
 }
 
 export type AnonymousRouteParserParams = {
@@ -160,6 +171,11 @@ type CreateRouterParams = {
     readonly basePath: string
     readonly router: ModuleFetchRouter
   }[]
+  /**
+   * Spec 150 T406: o balde compartilhado das rotas com teto `postgres`. Ausente, o boot recusa
+   * qualquer rota que o declare — teto que não conta é porta aberta calada.
+   */
+  readonly rateLimitWindows?: RateLimitWindowStorePort
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
   readonly userPictureExistence: UserPictureExistencePort
@@ -172,11 +188,14 @@ export function createRouter({
   companyFiscalEnvironment,
   healthService,
   moduleRouters = [],
+  rateLimitWindows,
   routes,
   tenantContext,
   userPictureExistence,
 }: CreateRouterParams): HttpRouter {
   assertMembershipRoutesUnderMe(routes)
+  assertAnyPermissionRoutesAreReads(routes)
+  assertPostgresRateLimitHasStore({ rateLimitWindows, routes })
   const moduleCandidates = toModuleCandidates(moduleRouters)
   const logTemplates = collectLogTemplates({ anonymousRoutes, moduleCandidates, routes })
   const rateLimiter = createRateLimiter()
@@ -237,10 +256,11 @@ export function createRouter({
         request.headers.get(SERVICE_COMPANY_HEADER),
       )
       authorization.authorize(context, matchedRoute.route.policy)
-      assertWithinRateLimit({
-        key: `${matchedRoute.route.method} ${matchedRoute.route.pathname} user:${context.scope.userId}`,
-        policy: matchedRoute.route.rateLimit,
+      await assertWithinRouteRateLimit({
+        context,
         rateLimiter,
+        rateLimitWindows,
+        route: matchedRoute.route,
       })
       return matchedRoute.route.execute({
         context,
@@ -299,6 +319,23 @@ function assertMembershipRoutesUnderMe(routes: readonly RegisteredRouterRoute[])
   throw new Error(`membership policy outside ${OWN_DATA_PATH_PREFIX}: ${signatures}`)
 }
 
+const READ_METHOD = 'GET'
+
+/**
+ * Spec 156 D11: "qualquer uma de" foi decidida para leitura. Numa escrita ela seria o jeito mais
+ * silencioso de alargar quem escreve — então rota assim fora de `GET` derruba o boot.
+ */
+function assertAnyPermissionRoutesAreReads(routes: readonly RegisteredRouterRoute[]): void {
+  const misplaced = routes.filter(
+    (route) =>
+      route.policy !== undefined && 'anyPermission' in route.policy && route.method !== READ_METHOD,
+  )
+  if (misplaced.length === 0) return
+
+  const signatures = misplaced.map((route) => `${route.method} ${route.pathname}`).join(', ')
+  throw new Error(`anyPermission policy outside ${READ_METHOD}: ${signatures}`)
+}
+
 export function defineAnonymousRoute<TInput>(
   route: AnonymousRouterRoute<TInput>,
 ): RegisteredAnonymousRoute {
@@ -328,17 +365,72 @@ export function defineAnonymousRoute<TInput>(
 function assertWithinRateLimit(input: {
   readonly key: string
   readonly policy: RateLimitPolicy | undefined
-  readonly rateLimiter: ReturnType<typeof createRateLimiter>
+  readonly rateLimiter: RateLimiter
 }): void {
   if (input.policy === undefined) return
 
-  const outcome = input.rateLimiter.consume({ key: input.key, policy: input.policy })
-  if (!outcome.allowed) {
-    throw new ApiError({
-      ...HTTP_ERROR.tooManyRequests,
-      headers: { 'retry-after': String(outcome.retryAfterSeconds) },
+  throwWhenRateLimited(input.rateLimiter.consume({ key: input.key, policy: input.policy }))
+}
+
+type AssertWithinRouteRateLimitParams = {
+  readonly context: AuthenticatedContext<CompanyContext>
+  readonly rateLimiter: RateLimiter
+  readonly rateLimitWindows: RateLimitWindowStorePort | undefined
+  readonly route: RegisteredRouterRoute
+}
+
+/**
+ * Spec 150 T406: sem try/catch de propósito. O balde do Postgres fora do ar derruba o pedido em 500
+ * — sem saber quantos envios já saíram, o envio não sai (fail-closed).
+ */
+async function assertWithinRouteRateLimit({
+  context,
+  rateLimiter,
+  rateLimitWindows,
+  route,
+}: AssertWithinRouteRateLimitParams): Promise<void> {
+  const policy = route.rateLimit
+  if (policy === undefined) return
+  if (policy.store === 'memory') {
+    assertWithinRateLimit({
+      key: `${route.method} ${route.pathname} user:${context.scope.userId}`,
+      policy,
+      rateLimiter,
     })
+    return
   }
+  // Rodada de correção da Fase 4: o `if`+`throw` daqui só existia para estreitar o tipo — o boot
+  // (`assertPostgresRateLimitHasStore`) já recusa subir com uma rota `postgres` sem `rateLimitWindows`
+  // configurado, então este ponto é inalcançável em runtime. A asserção documenta a prova em vez de
+  // fingir um caminho de erro que nunca dispara.
+  throwWhenRateLimited(
+    await rateLimitWindows!.consume({
+      maxRequests: policy.maxRequests,
+      scope: policy.scope,
+      subjectKey: `${context.scope.companyId}:${context.scope.userId}`,
+      windowSeconds: policy.windowSeconds,
+    }),
+  )
+}
+
+function throwWhenRateLimited(outcome: RateLimitOutcome): void {
+  if (outcome.allowed) return
+  throw new ApiError({
+    ...HTTP_ERROR.tooManyRequests,
+    headers: { 'retry-after': String(outcome.retryAfterSeconds) },
+  })
+}
+
+function assertPostgresRateLimitHasStore(input: {
+  readonly rateLimitWindows: RateLimitWindowStorePort | undefined
+  readonly routes: readonly RegisteredRouterRoute[]
+}): void {
+  if (input.rateLimitWindows !== undefined) return
+  const orphans = input.routes.filter((route) => route.rateLimit?.store === 'postgres')
+  if (orphans.length === 0) return
+
+  const signatures = orphans.map((route) => `${route.method} ${route.pathname}`).join(', ')
+  throw new Error(`postgres rate limit without a store: ${signatures}`)
 }
 
 /**

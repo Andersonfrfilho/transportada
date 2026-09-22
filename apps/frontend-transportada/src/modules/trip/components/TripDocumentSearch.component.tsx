@@ -28,6 +28,11 @@ type TripDocumentSearchProps = Readonly<{
    */
   onFilteredChange?: (documents: readonly ScannedNfeDocument[]) => void
   onSelectionChange?: (documents: readonly ScannedNfeDocument[]) => void
+  /**
+   * A escolha que já existia fora da busca. ⚠️ Sem ela, a busca remontada (diálogo reaberto,
+   * rascunho que voltou) anunciava seleção vazia no primeiro efeito e apagava o lote de quem a ouve.
+   */
+  selectedIds?: readonly string[]
   onStage?: (documents: readonly ScannedNfeDocument[]) => void
 }>
 
@@ -43,6 +48,7 @@ export function TripDocumentSearch({
   onFilteredChange,
   onSelectionChange,
   onStage,
+  selectedIds,
 }: TripDocumentSearchProps) {
   const { t } = useTranslation('trip')
   const [isOpen, setIsOpen] = useState(false)
@@ -55,6 +61,7 @@ export function TripDocumentSearch({
     /** A viagem é operação não fiscal: nota sem CT-e possível continua sendo carga que sai. */
     allowBlocked: true,
     documents,
+    ...(selectedIds === undefined ? {} : { initialSelectedIds: selectedIds }),
     statusLabels: {
       authorized: tNotas('documentStatus.authorized'),
       cancelled: tNotas('documentStatus.cancelled'),

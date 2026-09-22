@@ -13,18 +13,20 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
 import { fleetVehicles } from '../../database/fleet.schema.js'
-import { readEffectiveFuelPrice, toFuelProduct } from './effective-fuel-price.query.js'
+import { resolveVehicleFuelBaseline } from './effective-fuel-price.query.js'
 import {
   resolveDeclaredTollMultiplier,
   type TollMultiplier,
 } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
 import type { AxleCount } from '../../toll-booths/domain/toll-route-cost.policy.js'
-import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.policy.js'
+import {
+  NO_FUEL_BASELINE,
+  type RouteOptionVehicle,
+} from '../../toll-booths/domain/route-option.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-const NO_FUEL_BASELINE: RouteOptionVehicle = { kilometersPerLiter: null, pricePerLiter: null }
 const NO_AUTOMATIC_TOLL_PAYMENT = false
 
 export type RouteGeometryVehicleContext = Readonly<{
@@ -75,18 +77,15 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
         }
       }
 
-      const pricePerLiter = await readEffectiveFuelPrice(database, {
-        companyId: input.companyId,
-        product: toFuelProduct(vehicle.fuelType),
-      })
-
       return {
         axles: resolveDeclaredVehicleAxles(vehicle),
         multiplier: resolveDeclaredTollMultiplier(vehicle),
-        fuelBaseline:
-          vehicle.kilometersPerLiter === null || pricePerLiter === null
-            ? NO_FUEL_BASELINE
-            : { kilometersPerLiter: vehicle.kilometersPerLiter, pricePerLiter },
+        fuelBaseline: await resolveVehicleFuelBaseline({
+          companyId: input.companyId,
+          database,
+          fuelType: vehicle.fuelType,
+          kilometersPerLiter: vehicle.kilometersPerLiter,
+        }),
         hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
       }
     },

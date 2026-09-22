@@ -6,8 +6,12 @@
  * uma junção sem `company_id` em qualquer degrau é o caminho pelo qual o canhoto de uma empresa
  * aparece na tela de outra.
  */
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
+import { fleetDrivers } from '../../database/fleet.schema.js'
+import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
 import {
   nfeAddresses,
   nfeDocuments,
@@ -25,11 +29,13 @@ import {
   tripStops,
   trips,
 } from '../../database/trip.schema.js'
+import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type {
   OccurrenceTypeRecord,
   TripOccurrence,
+  TripOccurrenceAuthorship,
 } from '../application/register-trip-occurrence.use-case.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
@@ -37,8 +43,20 @@ import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
-import { ACTIVE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
+import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
+import { fieldTripTargetCondition } from './field-trip-target.query.js'
+import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+
+/**
+ * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
+ * (nfe-documents/D16, H13) — `null` só quando ninguém foi gravado; `{ removed: true }` não se
+ * aplica aqui porque a leitura publica direto `string | null`, sem marcar remoção (não há tela que
+ * distinga "sem ator" de "ator sem vínculo ativo" nesta rota).
+ */
+const occurrenceActorMembership = alias(userCompanyMemberships, 'trip_occurrence_actor_membership')
+const occurrenceActorProfile = alias(identityUserProfiles, 'trip_occurrence_actor_profile')
+const occurrenceOnBehalfDriver = alias(fleetDrivers, 'trip_occurrence_on_behalf_driver')
 
 export async function listDeliveryProofs(
   queryable: TripQueryable,
@@ -147,6 +165,13 @@ export async function listDocumentProducts(
   return rows.map((row) => ({ ...row, ordinal: Number(row.ordinal) }))
 }
 
+/** Spec 156 T7b: a localização crua do anexo — quem assina a URL é o chamador. */
+export type TripOccurrenceAttachmentLocation = {
+  readonly bucket: string
+  readonly mimeType: string
+  readonly objectKey: string
+}
+
 export async function listTripOccurrences(
   queryable: TripQueryable,
   input: {
@@ -154,12 +179,21 @@ export async function listTripOccurrences(
     readonly documentId: string
     readonly tripId: string
   },
-): Promise<readonly TripOccurrence[]> {
+): Promise<
+  readonly (TripOccurrence &
+    TripOccurrenceAuthorship & { readonly attachment: TripOccurrenceAttachmentLocation | null })[]
+> {
   const rows = await queryable
     .select({
+      actorName: occurrenceActorProfile.name,
+      attachmentBucket: storedObjects.bucket,
+      attachmentMimeType: storedObjects.mimeType,
+      attachmentObjectKey: storedObjects.objectKey,
+      channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       id: tripDocumentOccurrences.id,
       note: tripDocumentOccurrences.note,
+      onBehalfOfDriverName: occurrenceOnBehalfDriver.name,
       productCode: tripDocumentOccurrences.productCode,
       occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       stage: tripDocumentOccurrences.stage,
@@ -181,6 +215,32 @@ export async function listTripOccurrences(
         eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
       ),
     )
+    .leftJoin(
+      storedObjects,
+      and(
+        eq(storedObjects.companyId, tripDocumentOccurrences.companyId),
+        eq(storedObjects.id, tripDocumentOccurrences.attachmentObjectId),
+      ),
+    )
+    .leftJoin(
+      occurrenceActorMembership,
+      and(
+        eq(occurrenceActorMembership.companyId, tripDocumentOccurrences.companyId),
+        eq(occurrenceActorMembership.userId, tripDocumentOccurrences.actorUserId),
+        eq(occurrenceActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .leftJoin(
+      occurrenceActorProfile,
+      eq(occurrenceActorProfile.userId, occurrenceActorMembership.userId),
+    )
+    .leftJoin(
+      occurrenceOnBehalfDriver,
+      and(
+        eq(occurrenceOnBehalfDriver.companyId, tripDocumentOccurrences.companyId),
+        eq(occurrenceOnBehalfDriver.id, tripDocumentOccurrences.onBehalfOfDriverId),
+      ),
+    )
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, input.companyId),
@@ -190,7 +250,26 @@ export async function listTripOccurrences(
     )
     .orderBy(asc(tripDocumentOccurrences.createdAt))
 
-  return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }))
+  return rows.map((row) => ({
+    actorName: row.actorName ?? null,
+    attachment:
+      row.attachmentBucket === null || row.attachmentObjectKey === null
+        ? null
+        : {
+            bucket: row.attachmentBucket,
+            mimeType: row.attachmentMimeType ?? '',
+            objectKey: row.attachmentObjectKey,
+          },
+    channel: row.channel,
+    createdAt: row.createdAt.toISOString(),
+    id: row.id,
+    note: row.note,
+    onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
+    occurrenceTypeId: row.occurrenceTypeId,
+    productCode: row.productCode,
+    stage: row.stage,
+    typeName: row.typeName,
+  }))
 }
 
 /**
@@ -202,6 +281,13 @@ export async function saveTripOccurrence(
   queryable: TripQueryable,
   input: {
     readonly actorUserId: string
+    /**
+     * ADR-0067 §2: ausente para o fluxo do galpão (`registerTripOccurrence`, separação), que não
+     * tem `FieldTripTarget` — o `channel` grava o padrão da coluna (`driver_app`).
+     */
+    readonly authorship?: FieldAuthorship
+    /** Spec 156 T7b: o objeto único da foto do lote, referenciado por cada nota. */
+    readonly attachmentObjectId?: string | null
     readonly companyId: string
     readonly documentId: string
     readonly note: string
@@ -229,12 +315,19 @@ export async function saveTripOccurrence(
     .insert(tripDocumentOccurrences)
     .values({
       actorUserId: input.actorUserId,
+      attachmentObjectId: input.attachmentObjectId ?? null,
       companyId: input.companyId,
       note: input.note,
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
       stage: input.stage,
       tripDocumentId: input.documentId,
+      ...(input.authorship === undefined
+        ? {}
+        : {
+            channel: input.authorship.channel,
+            onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+          }),
     })
     .returning()
   if (saved === undefined) return null
@@ -321,6 +414,68 @@ export async function listDeliveryContacts(
 }
 
 /**
+ * Spec 156 T15 M10: os rótulos das N notas de um lote do escritório, numa consulta só — o lote
+ * chamava `readOccurrenceLabels` uma vez por nota. Mesma regra de rótulo ausente (string vazia).
+ */
+export async function readOccurrenceLabelsForDocuments(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentIds: readonly string[]
+    readonly tripId: string
+  },
+): Promise<ReadonlyMap<string, { readonly documentLabel: string; readonly stopLabel: string }>> {
+  if (input.documentIds.length === 0) return new Map()
+
+  const rows = await queryable
+    .select({
+      documentId: tripDocuments.id,
+      nfeNumber: nfeDocuments.number,
+      nfeSeries: nfeDocuments.series,
+      stopLabel: tripStops.label,
+    })
+    .from(tripDocuments)
+    .leftJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
+    .leftJoin(
+      tripStops,
+      and(eq(tripStops.companyId, tripDocuments.companyId), eq(tripStops.id, tripDocuments.stopId)),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.id, [...input.documentIds]),
+        eq(tripDocuments.tripId, input.tripId),
+      ),
+    )
+
+  return new Map(
+    rows.map((row) => [
+      row.documentId,
+      {
+        documentLabel: formatDocumentLabel({ number: row.nfeNumber, series: row.nfeSeries }),
+        stopLabel: row.stopLabel ?? '',
+      },
+    ]),
+  )
+}
+
+function formatDocumentLabel(input: {
+  readonly number: string | null
+  readonly series: string | null
+}): string {
+  const number = input.number ?? ''
+  const series = input.series ?? ''
+  if (number === '') return ''
+  return series === '' ? number : `${number}/${series}`
+}
+
+/**
  * Os rótulos que o aviso da ocorrência imprime. **Uma consulta**, e só quando alguém registra uma
  * ocorrência — ação manual, nunca em laço.
  *
@@ -372,19 +527,27 @@ export async function readOccurrenceLabels(
 }
 
 /**
- * Spec 079: a nota que **este motorista** está levando agora.
+ * Spec 079: a nota que **este motorista** está levando agora — ou, pelo escritório (spec 156), a
+ * nota da viagem que ele resolveu.
  *
- * ⚠️ O recorte é o mesmo de `findDeliveryEventId`: junção com `trip_drivers` e viagem em estado
- * ativo. Nota de outra viagem — ou de viagem que já fechou — responde `null`, e o caso de uso a
- * trata como inalcançável. É a consulta que estreita o `trip.report` da empresa inteira para a
- * carga que ele tem nas mãos; a permissão sozinha não estreita nada.
+ * ⚠️ O recorte é o mesmo de `findReachableDocumentIds`: o alvo (`fieldTripTargetCondition`), viagem
+ * em estado ativo e **só as vivas** — nota liberada (`released_at`) não está mais na viagem, mesmo
+ * que a viagem continue ativa (spec 156 T8b.1). Nota de outra viagem, de viagem que já fechou, ou já
+ * liberada desta mesma viagem, responde `null`, e o caso de uso a trata como inalcançável. É a
+ * consulta que estreita o `trip.report` da empresa inteira para a carga que ele tem nas mãos; a
+ * permissão sozinha não estreita nada.
+ *
+ * ⚠️ `findDeliveryEventId` (`drizzle-delivery-proof.repository.ts`) **não** filtra `released_at` —
+ * ela busca o evento de uma entrega que já aconteceu, e o comprovante continua válido mesmo que a
+ * nota seja liberada depois. Os dois têm o mesmo alvo e o mesmo recorte de viagem ativa, mas não o
+ * mesmo recorte de `released_at`; o comentário anterior os igualava por engano.
  */
 export async function findDriverReachableDocument(
   queryable: TripQueryable,
   input: {
     readonly companyId: string
     readonly documentId: string
-    readonly driverId: string
+    readonly target: FieldTripTarget
   },
 ): Promise<null | { readonly tripId: string }> {
   const [row] = await queryable
@@ -394,16 +557,13 @@ export async function findDriverReachableDocument(
       trips,
       and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
     )
-    .innerJoin(
-      tripDrivers,
-      and(eq(tripDrivers.companyId, trips.companyId), eq(tripDrivers.tripId, trips.id)),
-    )
     .where(
       and(
         eq(tripDocuments.companyId, input.companyId),
         eq(tripDocuments.id, input.documentId),
-        eq(tripDrivers.driverId, input.driverId),
-        inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+        isNull(tripDocuments.releasedAt),
+        fieldTripTargetCondition(input.target),
+        inArray(trips.status, [...PROOF_REACHABLE_TRIP_STATUSES]),
       ),
     )
     .limit(1)

@@ -528,7 +528,75 @@
       "postal_code_stale": "O CEP do cadastro é o genérico da cidade. O específico da rua deixa a busca do endereço sair de graça.",
       "street_incomplete": "A mesma rua com o nome mais curto no cadastro. A entrega chega; o cadastro é que está abreviado."
     },
-    "unresolvedAim": "Hoje a entrega aponta para o centro do município"
+    "unresolvedAim": "Hoje a entrega aponta para o centro do município",
+    "correction": {
+      "trigger": "Informar endereço correto",
+      "editTrigger": "Editar correção",
+      "title": "Informar endereço correto",
+      "street": "Logradouro",
+      "number": "Número",
+      "complement": "Complemento",
+      "district": "Bairro",
+      "city": "Município",
+      "state": "UF",
+      "cityCode": "Código IBGE do município",
+      "postalCode": "CEP",
+      "genericPostalCodeHint": "Este CEP pode ser o CEP único da cidade — confira antes de trocar.",
+      "unlabelledErrorsLead": "O servidor recusou campos que esta tela não reconhece:",
+      "cancel": "Cancelar",
+      "save": "Salvar correção",
+      "proposedLabel": "Proposto",
+      "stateNone": "Sem pedido",
+      "stateDraft": "Rascunho salvo",
+      "stateSent": "Enviado em {{date}}",
+      "stateSentWithCount": "Enviado a {{count}} contato em {{date}}",
+      "stateSentWithCount_other": "Enviado a {{count}} contatos em {{date}}",
+      "lastSentAt": "Último envio em {{date}}",
+      "statusUnavailable": "Não foi possível carregar o estado dos pedidos.",
+      "mail": {
+        "sendOne": "Enviar este endereço",
+        "sendAll": "Enviar todos ({{count}})",
+        "titleUnit": "Enviar pedido de correção deste endereço",
+        "titleComplete": "Enviar todos os pedidos de correção",
+        "close": "Fechar",
+        "previewTitle": "{{count}} endereço será enviado",
+        "previewTitle_other": "{{count}} endereços serão enviados",
+        "previewAsIs": "Como veio",
+        "previewProposed": "Correto",
+        "contactsTitle": "Contatos que vão receber",
+        "contactsUnavailable": "Não foi possível carregar os contatos da contratante.",
+        "noActiveContact": "Esta contratante não tem contato de e-mail ativo cadastrado.",
+        "noActiveContactLink": "Cadastrar contato em Clientes → E-mail com contratantes",
+        "openMailSettingsLink": "Abrir configuração de e-mail",
+        "templateTitle": "Modelo de e-mail",
+        "templateUnavailable": "Não foi possível carregar os modelos de e-mail.",
+        "templateDefaultOption": "{{name}} (padrão)",
+        "previewExample": "A prévia usa dados de exemplo — o envio real leva os endereços marcados acima.",
+        "previewLoading": "Carregando prévia do modelo…",
+        "previewUnavailable": "Não foi possível carregar a prévia deste modelo.",
+        "previewSubjectLabel": "Assunto",
+        "previewFrameTitle": "Prévia do e-mail",
+        "cancel": "Cancelar",
+        "confirm": "Enviar pedido de correção",
+        "sending": "Enviando…",
+        "done": "Concluído",
+        "sent": "Pedido enviado a {{count}} contato.",
+        "sent_other": "Pedido enviado a {{count}} contatos.",
+        "error": {
+          "contractorNotFound": "Não encontramos o cadastro desta contratante.",
+          "nothingToSend": "Não há rascunho pendente para enviar.",
+          "noActiveContact": "Nenhum dos contatos marcados está ativo. Atualize a lista e tente de novo.",
+          "requestNotSendable": "Algum dos pedidos selecionados já foi enviado ou não pertence a esta contratante.",
+          "mailNotConfigured": "O e-mail da contratante ainda não está configurado ou verificado.",
+          "sendingNotVerified": "O domínio do remetente de e-mail ainda não foi verificado.",
+          "templateMissing": "Não há modelo padrão de e-mail de correção de endereço. Cadastre um em E-mail com contratantes.",
+          "templateNotUsable": "O modelo escolhido foi arquivado ou não está mais disponível. Escolha outro modelo.",
+          "idempotencyReused": "Este envio já foi processado. Atualize a página antes de tentar de novo.",
+          "tooManyRequests": "Muitas tentativas de envio. Tente de novo em {{minutes}} min.",
+          "generic": "Não foi possível enviar o pedido de correção."
+        }
+      }
+    }
   },
   "packageBoxes": {
     "title": "Caixas por medir",
@@ -571,6 +639,32 @@
     },
     "outOfRange": "Valor fora da faixa: no máximo {{max}} cm.",
     "unitsPerBox": "Unidades por caixa",
+    "packagingUnitBadge": "{{unit}} · {{count}} un",
+    "packagingGroup": {
+      "title": "{{description}} · cProd {{productCode}}"
+    },
+    "family": {
+      "counter": "{{measured}} de {{total}} medidas nesta família",
+      "applyToAll": "Aplicar medida do sabor a todos os sabores",
+      "applyToAllAriaLabel": "Aplicar medida do sabor a todos os sabores — {{description}}",
+      "applyUnresolved": "Nenhuma medida conferida disponível para aplicar nesta família.",
+      "applyFailed": "Não foi possível buscar as irmãs desta família ({{code}}). Tente de novo."
+    },
+    "quickFill": {
+      "useMeasurementOf": "Usar a medida de {{label}}"
+    },
+    "replicateDialog": {
+      "title": "Replicar esta medida para as outras variações?",
+      "titleWithOrigin": "Replicar a medida de {{originVariantLabel}} para as outras variações?",
+      "dimensions": "Vai gravar {{length}} × {{width}} × {{height}} cm, {{units}} un. por caixa",
+      "lowConfidence": "Esta família mistura formatos diferentes (ex.: vácuo e sachê) — confira cada alvo antes de marcar.",
+      "noTargets": "Não há outra variação pendente nesta família agora.",
+      "targetAriaLabel": "{{description}} · cProd {{productCode}}",
+      "targetCode": "cProd {{productCode}}",
+      "failed": "Não foi possível replicar ({{code}}). Confira e tente de novo.",
+      "confirm": "Replicar ({{count}})",
+      "cancel": "Não replicar"
+    },
     "statusLabel": "Situação",
     "status": {
       "pending": "Faltam medir",
@@ -633,6 +727,7 @@
     "source": {
       "camera": "Pela câmera, ±{{margin}} cm",
       "cameraNoMargin": "Pela câmera, sem margem registrada",
+      "replicated": "Replicada — não conferida",
       "typed": "Digitada",
       "unknown": "Origem não registrada"
     },
@@ -665,6 +760,44 @@
         "3": "Pilha ou outra caixa escondendo a base.",
         "4": "Reflexo de luz ou sombra em cima do cartão."
       }
+    },
+    "pendingExport": {
+      "csv": "Baixar CSV",
+      "xlsx": "Baixar Excel",
+      "columns": {
+        "productCode": "Código do produto",
+        "description": "Descrição",
+        "cartonGtin": "GTIN da caixa",
+        "emitterTaxId": "CNPJ emitente",
+        "familyKey": "Família",
+        "commercialUnit": "Embalagem",
+        "transportedVolumes": "Quantidade pendente"
+      },
+      "truncated": "O arquivo traz as {{total, number}} primeiras caixas pendentes da fila — há mais caixas por medir além delas.",
+      "preparing": "Preparando…",
+      "empty": "Não há caixas pendentes para exportar.",
+      "failed": "Não foi possível preparar o arquivo. Tente de novo.",
+      "rateLimited": "Muitas exportações seguidas. Tente de novo em alguns minutos."
+    }
+  },
+  "addressCorrection": {
+    "field": {
+      "street": "Logradouro",
+      "number": "Número",
+      "complement": "Complemento",
+      "district": "Bairro",
+      "city": "Município",
+      "state": "UF",
+      "cityCode": "Código IBGE do município",
+      "postalCode": "CEP"
+    },
+    "error": {
+      "streetRequired": "Informe o logradouro.",
+      "numberRequired": "Informe o número.",
+      "cityRequired": "Informe o município.",
+      "stateInvalid": "Escolha uma UF válida.",
+      "postalCodeInvalid": "CEP precisa ter 8 dígitos.",
+      "cityCodeInvalid": "Código IBGE precisa ter 7 dígitos e começar pelo prefixo da UF escolhida."
     }
   }
 }

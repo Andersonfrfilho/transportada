@@ -13,7 +13,37 @@
     "separate": "Separate",
     "title": "Actions",
     "view": "View",
-    "viewTrip": "Open the trip for {{vehicle}}"
+    "viewTrip": "Open the trip for {{vehicle}}",
+    "fieldOccurrence": "Occurrence",
+    "fieldDelivery": "Deliver"
+  },
+  "authorship": {
+    "backoffice": "by {{actor}}",
+    "driverApp": "by driver {{actor}} (app)",
+    "driverAppWithoutActor": "by the driver (app)",
+    "notRegistered": "by {{actor}}",
+    "office": "by {{actor}} (office) on behalf of driver {{driver}}",
+    "officeWithoutActor": "by the office on behalf of driver {{driver}}",
+    "removedActor": "removed user",
+    "unknownDriver": "unidentified",
+    "whatsapp": "(WhatsApp)",
+    "whatsappWithActor": "by {{actor}} via WhatsApp"
+  },
+  "assemblyDraft": {
+    "automaticPending": "An automatic route is being assembled and is kept in this tab.",
+    "automaticUnreachable": "The invoices of the automatic route being assembled could not be reloaded right now. The draft is still kept in this tab.",
+    "droppedDocuments_one": "{{count}} invoice from the draft did not come back: it is already on a trip or no longer available.",
+    "droppedDocuments_other": "{{count}} invoices from the draft did not come back: they are already on a trip or no longer available.",
+    "droppedVehicles_one": "{{count}} truck from the proposal is no longer available and was unselected.",
+    "droppedVehicles_other": "{{count}} trucks from the proposal are no longer available and were unselected.",
+    "manualPending": "A new trip is being assembled and is kept in this tab.",
+    "manualUnreachable": "The invoices of the new trip being assembled could not be reloaded right now. The draft is still kept in this tab.",
+    "proposalDropped": "The proposal under review is no longer valid — the invoices or the fleet changed. Your request was kept: ask for the route again.",
+    "proposalUnreachable": "The proposal under review could not be reloaded right now. It is still kept in this tab.",
+    "restoring": "Resuming the assembly…",
+    "resume": "Resume",
+    "retry": "Try again",
+    "unsaved": "The draft could not be kept in this tab (storage full or blocked). If you leave the screen, the assembly is lost."
   },
   "assemblyMap": {
     "approximate": "⚠️ Approximate position — only the municipality is known; the point is its centre.",
@@ -64,6 +94,7 @@
     },
     "title": "Assembly map",
     "toll": {
+      "adjustBooth": "Adjust this booth's tariff",
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "unnamed booth",
       "catalogEmpty": "Toll not calculated: the toll booth catalog has not been loaded in this environment.",
@@ -76,9 +107,12 @@
         "automatic": "Base: tag (automatic charge)",
         "manual": "Base: manual tariff"
       },
-      "summary": "Toll: {{total}} — {{boothCount}} booths, {{chargePerAxle}} per axle × {{axleCount}} axles",
+      "summary": "Toll: {{total}} — {{count}} booths, {{chargePerAxle}} base rate × {{multiplier}}",
+      "summary_one": "Toll: {{total}} — {{count}} booth, {{chargePerAxle}} base rate × {{multiplier}}",
       "tariff": " · tariff from {{month}}",
-      "withoutCharge": "{{count}} booths without a known tariff"
+      "withoutCharge": "{{count}} booths without a known tariff",
+      "withoutCharge_one": "{{count}} booth without a known tariff",
+      "withoutCharge_zero": "{{count}} booths without a known tariff"
     },
     "totalAmount": "Invoice value: {{amount}}",
     "totalFreight": "Forecast freight: {{amount}}",
@@ -237,6 +271,8 @@
     "vehicleId": "Vehicle"
   },
   "creation": {
+    "dailyAllowanceDays": "Daily allowance days",
+    "dailyAllowanceDaysPlaceholder": "Suggested from the trip duration",
     "drivers": "Drivers",
     "driversClearAll": "Remove all",
     "driversEmpty": "Register an active driver in the fleet before creating the trip.",
@@ -277,6 +313,15 @@
     "title": "Redirect delivery"
   },
   "deliveryProofSettings": {
+    "canhotoOcr": {
+      "disable": "Turn off proof-of-delivery number reading",
+      "enable": "Turn on proof-of-delivery number reading",
+      "experimental": "Experimental",
+      "hint": "When the proof's barcode can't be read, suggests the document from the printed number (No./Series). First read on the device downloads about 4.5 MB, once; the person always confirms before saving.",
+      "off": "Off",
+      "on": "On",
+      "title": "Delivery slip number reading"
+    },
     "error": "Could not load or save the delivery proof configuration.",
     "fields": {
       "photo": "Photo",
@@ -299,7 +344,17 @@
       "title": "Exceptions by recipient"
     },
     "save": "Save configuration",
-    "title": "Delivery proof"
+    "title": "Delivery proof",
+    "punctuality": {
+      "hint": "How the driver's required photo weighs on their score: time window, location radius and the points deducted.",
+      "latePenaltyPoints": "Points for a late or far photo",
+      "missingAfterHours": "Hours before a photo counts as missing",
+      "missingPenaltyPoints": "Points for a missing required photo",
+      "proofRadiusMeters": "Accepted radius from the stop (meters)",
+      "proofWindowMinutes": "Accepted time window (minutes)",
+      "rangeError": "Value between {{min}} and {{max}}.",
+      "title": "Driver score"
+    }
   },
   "destinationOrigin": {
     "delivery": "Delivery",
@@ -338,6 +393,51 @@
   },
   "empty": "No trip found",
   "error": "Could not load trips",
+  "eventTimeline": {
+    "empty": "Nothing recorded on this trip yet",
+    "error": "Could not load the timeline",
+    "itemTitle": {
+      "dispatched": "Trip dispatched",
+      "documentDelivered": "{{document}} delivered",
+      "documentLabel": "Invoice {{invoice}}",
+      "documentOccurrence": "Occurrence on {{document}}: {{type}}",
+      "documentReturned": "{{document}} returned",
+      "documentStatus": {
+        "delivered": "{{document}} delivered",
+        "loaded": "{{document}} loaded",
+        "pending": "{{document}} back to pending",
+        "returned": "{{document}} returned",
+        "separated": "{{document}} picked"
+      },
+      "documentStatusChanged": "{{document}} — {{status}}",
+      "statusChanged": "Trip status changed ({{status}})",
+      "stopArrived": "Arrival at stop {{sequence}}",
+      "stopArrivedUnknown": "Arrival at stop",
+      "stopOccurrence": "Occurrence: {{type}}",
+      "tripStatus": {
+        "cancelled": "Trip cancelled",
+        "completed": "Trip completed",
+        "dispatched": "Trip dispatched",
+        "draft": "Trip back to draft",
+        "in_transit": "Cargo checked — in transit",
+        "loading": "Loading started",
+        "on_delivery_route": "Route started",
+        "route_planned": "Route planned",
+        "separating": "Picking started"
+      },
+      "unknownDocument": "Invoice",
+      "unknownOccurrenceType": "unspecified",
+      "unknownStatus": "unspecified"
+    },
+    "loading": "Loading the timeline",
+    "loadingMore": "Loading more",
+    "loadMore": "Load more",
+    "onlyOpenDocument": "Only this invoice",
+    "recordedAt": "recorded at {{moment}}",
+    "retry": "Try again",
+    "returnReason": "Return reason: {{reason}}",
+    "title": "Timeline"
+  },
   "feedback": {
     "closed": "This trip is already closed.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",
@@ -348,16 +448,35 @@
     "driverDuplicated": "This driver is already on the trip.",
     "driverNotAvailable": "Driver not available for the trip.",
     "driverNotFound": "Driver not found.",
+    "driverNotOnTrip": "This driver is not part of this trip's crew.",
     "hasUnloadedDocuments": "This trip has documents that were never loaded.",
+    "idempotencyKeyReused": "This action was already sent with different content — reload and try again.",
     "notFound": "Trip not found.",
     "readOnly": "Your current access does not allow this action.",
-    "requestFailed": "Could not reach the API.",
+    "requestFailed": "Could not reach the server. Check the connection and try again.",
     "responseInvalid": "The API responded in an unexpected format.",
     "scannedDocumentNotFound": "No note with this access key in this company.",
     "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
     "vehicleNotAvailable": "Vehicle not available for the trip.",
-    "vehicleNotFound": "Vehicle not found."
+    "vehicleNotFound": "Vehicle not found.",
+    "withoutDriver": "This trip has no driver — assign one before reporting on their behalf.",
+    "occurrenceTypeNotField": "This occurrence type belongs to the warehouse, not the road — pick a road type.",
+    "documentNotReachable": "Some selected document does not belong to this trip.",
+    "documentAlreadySettled": "This document was already delivered or returned.",
+    "deliveredAtInFuture": "\"Delivered at\" cannot be in the future.",
+    "deliveredAtBeforeDispatch": "\"Delivered at\" cannot be before the trip's dispatch.",
+    "deliveryProofPhotoRequired": "This company requires a proof photo — attach one before sending.",
+    "arrivedAtInFuture": "\"Arrived at\" cannot be in the future.",
+    "arrivedAtBeforeDispatch": "\"Arrived at\" cannot be before the trip's dispatch.",
+    "returnedAtInFuture": "\"Returned at\" cannot be in the future.",
+    "returnedAtBeforeDispatch": "\"Returned at\" cannot be before the trip's dispatch.",
+    "deliveryProofReceiverNameRequired": "This company requires the receiver's name — fill it in before sending.",
+    "deliveryProofAlreadyCaptured": "The driver already sent the proof for this delivery — the office cannot replace it.",
+    "statusWriteConflict": "The trip changed while you were acting. Reload and try again.",
+    "deliveryProofTooLarge": "The file is larger than the office accepts.",
+    "deliveryProofUnsupportedType": "The file must be an image.",
+    "timelineCursorInvalid": "The timeline cursor is invalid."
   },
   "filters": {
     "active": "{{count}} active filter(s)",
@@ -473,7 +592,11 @@
     },
     "goToQueue": "Go to measurement queue",
     "title": "What's left to measure",
-    "unknownProduct": "Unidentified product"
+    "unknownProduct": "Unidentified product",
+    "export": {
+      "csv": "Download CSV",
+      "xlsx": "Download Excel"
+    }
   },
   "pagination": {
     "next": "Next page",
@@ -555,6 +678,7 @@
     "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included.",
     "intro": "Scan or type the access key of the invoices leaving together. Only invoices not already on a trip come in.",
     "issue": {
+      "dailyAllowanceDaysInvalid": "Daily allowance: enter a whole number of days, starting at 1.",
       "driverRequired": "Select at least one driver.",
       "noDocument": "Scan at least one available invoice.",
       "vehicleRequired": "Select the trip vehicle."
@@ -711,23 +835,131 @@
     "desc": "sorted descending",
     "none": "not sorted"
   },
+  "fieldActions": {
+    "arrive": "Report arrival",
+    "arriveTitle": "Report arrival",
+    "arrivedAtLabel": "Arrived at",
+    "confirmLoad": "Confirm load",
+    "driverLabel": "On behalf of driver",
+    "occurrence": "Report occurrence",
+    "occurrenceDescriptionLabel": "Description",
+    "occurrenceDistanceLabel": "Distance travelled (meters)",
+    "occurrenceDocumentLabel": "Related document (optional)",
+    "occurrenceDocumentPlaceholder": "No specific document",
+    "occurrenceKind": {
+      "appointment_required": "Appointment required",
+      "dock_closed": "Dock closed",
+      "long_wait": "Long wait",
+      "other": "Other",
+      "unexpected_charge": "Unexpected charge"
+    },
+    "occurrenceKindLabel": "Occurrence type",
+    "occurrenceKindPlaceholder": "Select the type",
+    "occurrencePhotoHint": "Need a photo? Register the occurrence on the document (the row's \"Occurrence\" button) — it accepts a photo.",
+    "occurrenceSubmit": "Report occurrence",
+    "occurrenceTitle": "Stop occurrence",
+    "returnReason": {
+      "address_not_found": "Address not found",
+      "damaged_goods": "Damaged",
+      "establishment_closed": "Establishment closed",
+      "recipient_absent": "Recipient absent",
+      "recipient_refused": "Refused"
+    },
+    "startRoute": "Start route",
+    "startRouteConfirm": "Start route anyway",
+    "startRouteMessage": "The trip moves to \"on delivery route\" and this cannot be undone. Confirm the start?",
+    "startRouteTitle": "Start route",
+    "title": "Field actions (on behalf of the driver)"
+  },
+  "fieldDelivery": {
+    "blockedNotOnTrip": "This proof is from document {{document}}, which is not on this trip.",
+    "blockedOnTripNotSelected": "This proof is from a trip document that is not in the marked batch.",
+    "cameraDenied": "The browser did not allow the camera. Choose the proof file below — or allow the camera in the site permissions and open the delivery again.",
+    "cameraLabel": "Camera for the delivery proof",
+    "cameraUnavailable": "This device has no camera available. Choose the proof file below (photo or scan).",
+    "captureFailed": "Could not process the photo. Try capturing again.",
+    "capture": "Capture",
+    "capturing": "Reading the proof…",
+    "close": "Close",
+    "closeConfirm": "Leave without sending",
+    "closeMessage": "Photos already taken in this session will be lost.",
+    "closeSendingMessage": "Sending is still in progress — leaving now does not cancel documents already sent.",
+    "closeTitle": "Leave the assistant?",
+    "confirm": "Confirm",
+    "deliveredAtError": {
+      "DELIVERED_AT_BEFORE_DISPATCH": "\"Delivered at\" cannot be before the trip's dispatch.",
+      "DELIVERED_AT_IN_FUTURE": "\"Delivered at\" cannot be in the future."
+    },
+    "deliveredAtLabel": "Delivered at",
+    "experimentalBadge": "Experimental",
+    "finishedCaptured": "Photographed",
+    "finishedNothing": "No document was photographed. Use \"Back\" to resume a skipped document, or close the assistant.",
+    "finishedSkipped": "Skipped",
+    "finishedSubmit": "Send {{count}} document",
+    "finishedSubmit_other": "Send {{count}} documents",
+    "identification": {
+      "matched": "Barcode read: it is the expected document.",
+      "ocrSuggested": "The barcode was not read. The document below was suggested from the printed number — check it before confirming.",
+      "otherSelected": "This proof is from another document in the batch. The photo goes to the document below — check it before confirming.",
+      "unreadable": "Could not read the barcode. Choose below which document this proof belongs to."
+    },
+    "ocrSuggestion": "Number read in the photo: {{number}} → {{document}}",
+    "previousStep": "Back",
+    "receiverDocumentLabel": "Receiver's document (optional)",
+    "receiverNameLabel": "Receiver's name",
+    "recipientUnknown": "Recipient not informed",
+    "retake": "Retake photo",
+    "reviewImageAlt": "Captured proof photo",
+    "sendAlreadySettled": "Was already delivered",
+    "sendDelivered": "Delivered",
+    "sendPending": "Waiting to send",
+    "sendRetry": "Try again ({{count}})",
+    "sendSending": "Sending…",
+    "sendSummaryAlreadySettled": "{{count}} document was already delivered",
+    "sendSummaryAlreadySettled_other": "{{count}} documents were already delivered",
+    "sendSummaryDelivered": "{{count}} document delivered",
+    "sendSummaryDelivered_other": "{{count}} documents delivered",
+    "sendSummaryFailed": "{{count}} document failed",
+    "sendSummaryFailed_other": "{{count}} documents failed",
+    "skip": "Skip document",
+    "stepProgress": "Document {{current}} of {{total}}",
+    "targetLabel": "This photo is for document",
+    "title": "Delivery with proof",
+    "uploadChoose": "Choose file",
+    "uploadEmpty": "No file chosen",
+    "uploadInstead": "Upload file",
+    "uploadLabel": "Scanned proof"
+  },
   "stateActions": {
-    "batchLoad": "Load {{count}} document(s)",
-    "batchReturn": "Return {{count}} document(s)",
-    "batchSeparate": "Separate {{count}} document(s)",
+    "batchLoad": "Load {{count}} document",
+    "batchLoad_other": "Load {{count}} documents",
+    "batchReturn": "Return {{count}} document",
+    "batchReturn_other": "Return {{count}} documents",
+    "batchReturnPartialFailure": "{{failed}} of {{total}} document(s) were not returned: {{reason}}",
+    "batchSeparate": "Separate {{count}} document",
+    "batchSeparate_other": "Separate {{count}} documents",
     "cancel": "Cancel trip",
     "dispatch": "Dispatch",
     "forceReasonLabel": "Reason",
     "forceSubmit": "Dispatch anyway",
     "forceSubtitle": "These documents were never loaded. Dispatching anyway returns them to the pool.",
     "forceTitle": "Dispatch with pending documents",
-    "generateCteSelection": "Issue CT-e for {{count}} selected invoice(s)",
+    "generateCteSelection": "Issue CT-e for {{count}} selected invoice",
+    "generateCteSelection_other": "Issue CT-e for {{count}} selected invoices",
     "planRoute": "Plan route",
     "returnReasonLabel": "Return reason",
     "returnSubmit": "Confirm return",
     "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
     "returnTitle": "Return document",
-    "title": "Trip actions"
+    "title": "Trip actions",
+    "batchFieldOccurrence": "Occurrence on {{count}} document",
+    "batchFieldOccurrence_other": "Occurrence on {{count}} documents",
+    "batchFieldOccurrenceExcluded": "{{count}} document without that action was left out. ",
+    "batchFieldOccurrenceExcluded_other": "{{count}} documents without that action were left out. ",
+    "batchFieldDelivery": "Deliver {{count}} document",
+    "batchFieldDelivery_other": "Deliver {{count}} documents",
+    "batchFieldDeliveryExcluded": "{{count}} document without that action was left out.",
+    "batchFieldDeliveryExcluded_other": "{{count}} documents without that action were left out."
   },
   "status": {
     "cancelled": "Cancelled",
@@ -747,7 +979,8 @@
     "documentCount_other": "{{count}} documents",
     "empty": "No stop on this trip yet",
     "processCount": "{{reached}} of {{total}}",
-    "processReturned": "{{count}} invoice(s) returned — outside the flow",
+    "processReturned": "{{count}} invoice returned — outside the flow",
+    "processReturned_other": "{{count}} invoices returned — outside the flow",
     "progressLabel": "Trip separation progress",
     "reorderHandle": "Drag to reorder stop {{label}}",
     "selectAll": "Select every document at stop {{label}}",
@@ -755,6 +988,7 @@
     "selectionClear": "Clear selection",
     "selectionCount": "{{count}} document selected",
     "selectionCount_other": "{{count}} documents selected",
+    "title": "Trip cargo",
     "unassigned": "No stop"
   },
   "table": {
@@ -802,6 +1036,8 @@
       "NO_FUEL_CONSUMPTION": "vehicle has no average consumption on file",
       "NO_FUEL_PRICE": "no price for this vehicle's fuel",
       "NO_PLANNED_DISTANCE": "route not calculated yet — fuel comes after",
+      "NO_PLANNED_DURATION": "route duration unknown — inform how many daily allowances the trip pays",
+      "NO_TRIP_DRIVER": "trip with no driver — nobody to pay the daily allowance to",
       "SALARIED_CREW_MEMBER": "salaried driver on board — a period cost, not a trip cost",
       "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
       "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
@@ -863,5 +1099,26 @@
       "STATE_TRANSITION_NOT_ALLOWED": "The trip was already dispatched: the invoice no longer changes trucks.",
       "generic": "It could not be completed. Try again."
     }
+  },
+  "fieldOccurrence": {
+    "batchSubmit": "Register on {{count}} document",
+    "batchSubmit_other": "Register on {{count}} documents",
+    "batchTitle": "Occurrence on {{count}} document",
+    "batchTitle_other": "Occurrence on {{count}} documents",
+    "documentsLabel": "Selected documents",
+    "driverLabel": "On behalf of driver",
+    "empty": "No occurrence type registered for the office yet.",
+    "limitExceeded": "Select at most 50 documents per batch.",
+    "noteLabel": "Note",
+    "photoHint": "One photo covers every document in the batch.",
+    "photoLabel": "Photo (optional)",
+    "photoRemove": "Remove photo",
+    "submit": "Register occurrence",
+    "title": "Field occurrence",
+    "typeLabel": "Occurrence type",
+    "typePlaceholder": "Select the type",
+    "unreachableDocuments": "Documents outside this trip's reach: {{documents}}.",
+    "photoChoose": "Choose photo",
+    "photoEmpty": "No photo chosen"
   }
 }

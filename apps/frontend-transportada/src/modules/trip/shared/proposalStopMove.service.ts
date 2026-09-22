@@ -49,6 +49,32 @@ export function resolveMovedVehicleIds(
   return touched
 }
 
+export type ForgetMovedVehicleRouteChoicesParams<TChoice> = Readonly<{
+  choices: ReadonlyMap<string, TChoice>
+  /** Os movimentos já salvos: dizem onde cada parada está **agora**. */
+  committedMoves: StopMoves
+  /** Os movimentos que estão sendo salvos. */
+  draftMoves: StopMoves
+  stops: readonly ProposalStop[]
+}>
+
+/**
+ * Spec 153: a rota escolhida vale para um **conjunto** de paradas. Um movimento muda o conjunto dos
+ * dois caminhões, e a assinatura guardada deixa de existir — no aceite o servidor cairia no critério
+ * e poderia congelar uma rota que ninguém viu. Devolve o mesmo mapa quando nenhum caminhão é tocado.
+ */
+export function forgetMovedVehicleRouteChoices<TChoice>(
+  input: ForgetMovedVehicleRouteChoicesParams<TChoice>,
+): ReadonlyMap<string, TChoice> {
+  const touched = resolveMovedVehicleIds(
+    applyStopMoves(input.stops, input.committedMoves),
+    input.draftMoves,
+  )
+  if (![...touched].some((vehicleId) => input.choices.has(vehicleId))) return input.choices
+
+  return new Map([...input.choices].filter(([vehicleId]) => !touched.has(vehicleId)))
+}
+
 /**
  * Para onde a parada pode ir: só caminhão com teto de peso na ficha e sobra para ela.
  *

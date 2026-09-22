@@ -58,6 +58,8 @@ export type NfeStorageGateway = {
   ) => ReturnType<ObjectStorageProvider['put']>
   readonly getObjectStream: (input: ObjectLocation) => Promise<ReadableStream<Uint8Array>>
   readonly headObject: (input: ObjectLocation) => Promise<StoredObject | undefined>
+  /** Spec 156 T15: a limpeza do objeto que subiu numa transação desfeita (sem órfão no bucket). */
+  readonly deleteObject: (input: ObjectLocation) => Promise<void>
   readonly createSignedDownload: (input: SignedDownloadInput) => Promise<URL>
   readonly health: () => Promise<{ readonly status: 'up' | 'down' }>
   readonly close: () => Promise<void>
@@ -153,6 +155,9 @@ export function createNfeStorageGateway(input: {
     },
     async headObject(location) {
       return provider.head(location)
+    },
+    async deleteObject(location) {
+      await provider.delete(location)
     },
     async createSignedDownload(location) {
       return provider.createSignedDownload(location)

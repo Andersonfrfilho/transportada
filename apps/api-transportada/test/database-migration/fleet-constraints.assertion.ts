@@ -264,6 +264,20 @@ export async function assertFleetConstraints(
     'fleet_drivers_dates_check',
   )
 
+  // Spec 143 D3: a diária combinada é opcional, mas zero ou negativa é motorista pagando para dirigir
+  await database`
+    insert into fleet_drivers (company_id, name, tax_id, daily_allowance_amount)
+    values (${companyId}, 'Motorista Com Diaria Propria', '55566677711', 250.0000)
+  `
+  await expectQueryToFail(
+    database`
+      insert into fleet_drivers (company_id, name, tax_id, daily_allowance_amount)
+      values (${companyId}, 'Motorista Com Diaria Zerada', '55566677722', 0)
+    `,
+    '23514',
+    'fleet_drivers_daily_allowance_check',
+  )
+
   // A razão social pende do CNPJ; a metade contrária fica solta, e é o que a ficha antiga tem
   await database`
     insert into fleet_drivers (company_id, name, tax_id, linked_tax_id, linked_legal_name)

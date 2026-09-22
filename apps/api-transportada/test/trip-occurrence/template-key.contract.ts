@@ -36,7 +36,7 @@ function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeReco
     id: TIPO,
     name: 'Recusa total',
     notifies: true,
-    stage: 'delivery',
+    stage: 'separation',
     ...overrides,
   }
 }
@@ -74,7 +74,7 @@ function buildRepository(type: OccurrenceTypeRecord) {
         note: '',
         occurrenceTypeId: TIPO,
         productCode: '',
-        stage: 'delivery' as const,
+        stage: 'separation' as const,
         typeName: saved.typeName,
       }
     },
@@ -88,6 +88,7 @@ async function registrar(type: OccurrenceTypeRecord, notify: (call: object) => v
     documentId: '00000000-0000-4000-8000-000000000017',
     note: '',
     notificationParameters: {
+      documentId: '00000000-0000-4000-8000-000000000017',
       documentLabel: '883658/1',
       occurrenceType: '',
       stopLabel: 'RUA MIGUEL PETRONI, 1166',

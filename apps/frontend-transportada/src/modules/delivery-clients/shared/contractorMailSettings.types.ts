@@ -14,6 +14,8 @@ export type ContractorMailSettingsSummary = Readonly<{
   replyDomain: string
   senderAddress: string
   senderName: string
+  /** Spec 150 T401: não-nulo é "pronto para enviar" — chave aceita e domínio do remetente verificado. */
+  sendingVerifiedAt: string | null
   status: ContractorMailSettingsStatus
   version: string
   webhookId: string
@@ -27,6 +29,7 @@ export const CONTRACTOR_MAIL_SETTINGS_SUMMARY_KEYS = [
   'replyDomain',
   'senderAddress',
   'senderName',
+  'sendingVerifiedAt',
   'status',
   'version',
   'webhookId',

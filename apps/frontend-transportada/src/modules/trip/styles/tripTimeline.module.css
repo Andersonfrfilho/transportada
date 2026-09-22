@@ -1,0 +1,160 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/**
+ * Spec 158 T8/T10: a linha do tempo de eventos da viagem — trilho vertical com marcador por evento,
+ * no parentesco de `cteIssuance.module.css` (`.timeline*`, borda à esquerda) sem o fundo por item:
+ * numa lista de 50+ eventos o cartão com borda cheia pesava. Não é o desenho da linha do tempo de
+ * rota (spec 110, trilho + marcas por km). Texto secundário usa `--color-slate` puro — a mistura com
+ * branco que havia aqui clareava o cinza no tema claro e derrubava o contraste abaixo do AA.
+ */
+.section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.head h3 {
+  margin: 0;
+}
+
+.list {
+  --timeline-marker-size: 0.625rem;
+  --timeline-rail-inset: calc(var(--timeline-marker-size) / 2);
+
+  position: relative;
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list::before {
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  left: calc(var(--timeline-rail-inset) - 1px);
+  width: 2px;
+  background: color-mix(in srgb, var(--color-slate) 30%, transparent);
+  content: '';
+}
+
+.item {
+  --timeline-marker-color: var(--color-copper);
+
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) 0 var(--space-3) calc(var(--timeline-marker-size) + var(--space-3));
+  overflow-wrap: anywhere;
+}
+
+.item::before {
+  position: absolute;
+  top: calc(var(--space-2) + 0.3rem);
+  left: 0;
+  width: var(--timeline-marker-size);
+  height: var(--timeline-marker-size);
+  border: 2px solid var(--color-graphite);
+  border-radius: 50%;
+  background: var(--timeline-marker-color);
+  box-sizing: content-box;
+  transform: translateX(-2px);
+  content: '';
+}
+
+.itemDone {
+  --timeline-marker-color: var(--color-ready);
+}
+
+.itemProblem {
+  --timeline-marker-color: var(--color-alert);
+}
+
+.itemTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* No celular horário e autoria empilham: com o separador "·" a quebra de linha o deixava órfão. */
+.itemMeta {
+  display: grid;
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+@media (min-width: 40rem) {
+  .itemMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2);
+  }
+
+  .itemMeta > * + *::before {
+    margin-right: var(--space-2);
+    content: '·';
+  }
+}
+
+.itemTime,
+.itemRecorded {
+  font-variant-numeric: tabular-nums;
+}
+
+/**
+ * Design (T15): sem regra própria, a autoria herdava só o `--color-slate` puro de `.itemMeta` —
+ * contraste pior que o mesmo texto em `TripOccurrences` (`.hint`, que clareia 10% com branco).
+ * Mesmo tom aqui, para as duas leituras da frase de autoria (spec 158) baterem.
+ */
+.itemAuthorship {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+}
+
+.itemDetail {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.skeletonRow {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.action {
+  justify-self: start;
+  min-height: var(--touch-target);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-slate);
+}
+
+.error {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  color: var(--color-copper);
+}
+
+.error p {
+  margin: 0;
+}

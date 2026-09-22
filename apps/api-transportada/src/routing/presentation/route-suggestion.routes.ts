@@ -12,6 +12,7 @@ import {
   parseJson,
   readBoundedRequestBody,
 } from '../../shared/request-body.service.js'
+import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
 import type {
   CorrectedGeocodedAddress,
   GeocodedAddressCorrectionUseCase,
@@ -19,6 +20,7 @@ import type {
   RouteSuggestionUseCase,
 } from '../application/route-suggestion.port.js'
 import {
+  acceptRouteSuggestionSchema,
   correctGeocodedAddressSchema,
   createRouteSuggestionSchema,
   rejectRouteSuggestionSchema,
@@ -119,7 +121,11 @@ export function createRouteSuggestionRoutes(dependencies: Dependencies) {
       pathname: ROUTE_SUGGESTION_PATH,
       policy: TRIP_READ_POLICY,
     }),
-    defineRoute<{ readonly suggestionId: string; readonly tripId: string }>({
+    defineRoute<{
+      readonly routeChoice?: RouteChoice
+      readonly suggestionId: string
+      readonly tripId: string
+    }>({
       async handle({ context, input }): Promise<Response> {
         const suggestion = await dependencies.routeSuggestions.accept({
           context: context.scope,
@@ -128,10 +134,14 @@ export function createRouteSuggestionRoutes(dependencies: Dependencies) {
         return jsonResponse({ body: { data: serializeSuggestion(suggestion) }, status: 200 })
       },
       method: 'POST',
-      parse: ({ pathParameters }) => ({
-        suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
-        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
-      }),
+      async parse({ pathParameters, request }) {
+        const body = await parseOptionalBody(request, acceptRouteSuggestionSchema)
+        return {
+          suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          ...(body.routeChoice === undefined ? {} : { routeChoice: body.routeChoice }),
+        }
+      },
       pathname: ROUTE_SUGGESTION_ACCEPT_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),

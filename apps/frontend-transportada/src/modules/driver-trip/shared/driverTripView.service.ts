@@ -1,5 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverTrip, DriverTripDocument, DriverTripStop } from './driverTrip.types'
+import type {
+  DriverDeliveryProofSettings,
+  DriverTrip,
+  DriverTripDocument,
+  DriverTripSnapshot,
+  DriverTripStop,
+  PendingProofDocument,
+} from './driverTrip.types'
 
 /** Entregue e devolvida saíram do eixo do campo: não há mais o que tocar nelas. */
 const SETTLED_STATUSES = ['delivered', 'returned']
@@ -40,6 +47,56 @@ export function findOccurrencePhotoDocument(stop: DriverTripStop): DriverTripDoc
 
 export function countPendingDocuments(stop: DriverTripStop): number {
   return stop.documents.filter((document) => !isDocumentSettled(document)).length
+}
+
+/** Spec 159 RF12: a nota que o card avisa — foto obrigatória e ainda não entregue. */
+export function isProofPendingWarningDue(input: {
+  readonly document: DriverTripDocument
+  readonly stopProofSettings: DriverDeliveryProofSettings | null
+}): boolean {
+  const proofSettings = input.document.deliveryProof ?? input.stopProofSettings
+  return proofSettings?.photo === 'required' && !isDocumentSettled(input.document)
+}
+
+/**
+ * Spec 159 (T11, revisão): a lista da tela "fotos pendentes" **lê a raiz do snapshot**, não mais
+ * percorre `trips` — é o único jeito de enxergar a pendente de uma viagem já `completed`, que sai
+ * de `trips` mas continua em `pendingProofs`. A ordem é a que a API mandou.
+ */
+export function listProofPendingDocuments(
+  snapshot: DriverTripSnapshot | undefined,
+): readonly PendingProofDocument[] {
+  return snapshot?.pendingProofs ?? []
+}
+
+export type ProofDocumentLabel = Readonly<{
+  number: string
+  recipientName: string
+  series: string
+}>
+
+/**
+ * Spec 159 (T12): o aviso de pontualidade diz **de qual nota** é — três avisos iguais sem nome não
+ * dizem ao motorista qual foto saiu atrasada. Procura na lista de pendentes e, depois, na viagem.
+ */
+export function findProofDocumentLabel(input: {
+  readonly documentId: string
+  readonly snapshot: DriverTripSnapshot | undefined
+}): ProofDocumentLabel | undefined {
+  const pending = input.snapshot?.pendingProofs.find((item) => item.documentId === input.documentId)
+  if (pending !== undefined) {
+    return {
+      number: pending.documentNumber,
+      recipientName: pending.recipientName,
+      series: pending.documentSeries,
+    }
+  }
+  const document = input.snapshot?.trips
+    .flatMap((trip) => trip.stops)
+    .flatMap((stop) => stop.documents)
+    .find((candidate) => candidate.id === input.documentId)
+  if (document === undefined) return undefined
+  return { number: document.number, recipientName: document.recipientName, series: document.series }
 }
 
 /**

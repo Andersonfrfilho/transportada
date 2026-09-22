@@ -204,6 +204,31 @@ describe('contrato do rastreio de erro da API — redação ponta a ponta', () =
     expect(scrubbed).toContain('f0e1d2c3b4a5968778695a4b3c2d1e0f')
   })
 
+  /**
+   * Spec 159 T11 (item 9): o `DrizzleQueryError` põe os parâmetros da consulta na mensagem
+   * (`Failed query: …\nparams: …`) — e ali vão a coordenada da foto, o texto do recebedor, o que a
+   * consulta levar. O SQL fica (agrupa o erro); os parâmetros nunca saem.
+   */
+  test('os parâmetros de uma consulta que falhou nunca saem', () => {
+    const { options } = initializeWithDsn()
+    const failedQuery =
+      'Failed query: insert into "trip_delivery_proofs" ("latitude", "longitude") values ($1, $2)\n' +
+      'params: -23.5505199,-46.6333094,Maria de Sousa'
+
+    const scrubbed = JSON.stringify(
+      options.beforeSend({
+        exception: { values: [{ type: 'DrizzleQueryError', value: failedQuery }] },
+        extra: { params: ['-23.5505199', '-46.6333094'] },
+        message: failedQuery,
+      }),
+    )
+
+    expect(scrubbed).not.toContain('-23.5505199')
+    expect(scrubbed).not.toContain('Maria de Sousa')
+    expect(scrubbed).toContain('insert into')
+    expect(scrubbed).toContain('DrizzleQueryError')
+  })
+
   test('beforeSend devolve evento, nunca descarta em silêncio', () => {
     const { options } = initializeWithDsn()
 

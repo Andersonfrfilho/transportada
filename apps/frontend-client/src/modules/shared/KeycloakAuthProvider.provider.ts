@@ -9,7 +9,7 @@
  */
 import Keycloak from 'keycloak-js'
 
-import { getClientEnvironment } from './environment.config'
+import { getClientEnvironment, isIdentifierFirstLoginEnabled } from './environment.config'
 
 const TOKEN_MINIMUM_VALIDITY_SECONDS = 30
 const AUTHENTICATION_CALLBACK_PATH = '/auth/callback'
@@ -27,7 +27,10 @@ export const IDENTITY_SESSION_EXPIRED = 'IDENTITY_SESSION_EXPIRED'
 export type KeycloakAuthProvider = {
   getAccessToken(): Promise<string>
   getProfile(): IdentityProfile
-  initialize(): Promise<void>
+  /** `false` quando a etapa de identificação está ligada e ninguém entrou ainda. */
+  initialize(): Promise<boolean>
+  /** Só com a etapa ligada: leva ao provedor já com o login resolvido. */
+  loginWith(loginHint: string): Promise<void>
   logout(): Promise<void>
   onSessionExpired(listener: () => void): () => void
   restartAuthentication(): Promise<void>
@@ -157,9 +160,19 @@ async function restartAuthentication(
   throw new Error('IDENTITY_REFRESH_FAILED')
 }
 
+export type AuthenticationNavigation = {
+  /** Recarregar devolve o boot ao `check-sso`, e sem sessão ele termina na tela de identificação. */
+  readonly reloadApplication: () => void
+}
+
+const BROWSER_NAVIGATION: AuthenticationNavigation = {
+  reloadApplication: () => window.location.reload(),
+}
+
 export function createKeycloakAuthProvider(
   keycloak: KeycloakClient,
   redirectUri: string,
+  navigation: AuthenticationNavigation = BROWSER_NAVIGATION,
 ): KeycloakAuthProvider {
   const sessionExpiryListeners = new Set<() => void>()
 
@@ -187,24 +200,40 @@ export function createKeycloakAuthProvider(
     getProfile(): IdentityProfile {
       return deriveIdentityProfile(decodeTokenClaims(keycloak.token))
     },
-    async initialize(): Promise<void> {
+    async loginWith(loginHint: string): Promise<void> {
       persistPostAuthenticationPath()
+      await keycloak.login({ loginHint, redirectUri })
+    },
+    async initialize(): Promise<boolean> {
+      persistPostAuthenticationPath()
+      const identifierFirst = isIdentifierFirstLoginEnabled()
 
       try {
+        /**
+         * `check-sso` só olha se já existe sessão e volta; `login-required` redireciona sozinho,
+         * antes de a aplicação renderizar qualquer coisa. Com a etapa ligada é preciso voltar sem
+         * sessão para a tela de identificação poder existir.
+         */
         const isAuthenticated = await keycloak.init({
           checkLoginIframe: false,
-          onLoad: 'login-required',
+          onLoad: identifierFirst ? 'check-sso' : 'login-required',
           pkceMethod: 'S256',
           redirectUri,
         })
+
+        /** Sem sessão e com a etapa ligada: quem decide o próximo passo é a tela, não o provedor. */
+        if (!isAuthenticated && identifierFirst) return false
 
         if (!isAuthenticated) {
           await restartAuthentication(keycloak, redirectUri)
         }
 
         restoreApplicationPathAfterAuthentication()
+        return true
       } catch (error: unknown) {
         if (error instanceof Error && error.message.includes('3rd party check iframe')) {
+          /** Recarregar repetiria o mesmo erro: a tela de identificação é o destino, não o provedor. */
+          if (identifierFirst) return false
           await restartAuthentication(keycloak, redirectUri)
         }
 
@@ -221,8 +250,19 @@ export function createKeycloakAuthProvider(
         sessionExpiryListeners.delete(listener)
       }
     },
+    /**
+     * ⚠️ Com a etapa ligada, reautenticar **nunca** vai direto ao provedor: a pessoa pode ter
+     * entrado por CPF ou telefone, e o Keycloak só entende o username. A página recarrega no mesmo
+     * endereço, o `initialize` guarda o caminho de volta e, sem sessão, a tela de identificação
+     * aparece — o contato não viaja por URL nem por armazenamento.
+     */
     async restartAuthentication(): Promise<void> {
       persistPostAuthenticationPath()
+      if (isIdentifierFirstLoginEnabled()) {
+        keycloak.clearToken()
+        navigation.reloadApplication()
+        return
+      }
       keycloak.clearToken()
       await keycloak.login({ redirectUri })
     },
@@ -241,6 +281,6 @@ export function getKeycloakAuthProvider(): KeycloakAuthProvider {
   return authProvider
 }
 
-export async function initializeKeycloakAuth(): Promise<void> {
-  await getKeycloakAuthProvider().initialize()
+export async function initializeKeycloakAuth(): Promise<boolean> {
+  return getKeycloakAuthProvider().initialize()
 }

@@ -645,16 +645,18 @@ a {
   padding-left: 3.25rem;
 }
 
+/* Alvo de toque de 44px do `web.md` §10 — abaixo do breakpoint de desktop é o único jeito de abrir
+   a navegação no celular, então ele não pode ficar menor que o mínimo. */
 .application-shell-sidebar-collapsed .ui-button.mobile-sidebar-trigger {
   position: absolute;
   z-index: 2;
   top: var(--space-5);
   left: var(--space-4);
   display: inline-flex;
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 2.25rem;
-  min-height: 2.25rem;
+  width: var(--touch-target);
+  min-width: var(--touch-target);
+  height: var(--touch-target);
+  min-height: var(--touch-target);
   padding: 0;
   border-color: color-mix(in srgb, var(--color-copper) 42%, transparent);
   color: var(--color-fog);
@@ -750,14 +752,16 @@ a {
   color: var(--color-ready);
 }
 
+/* Seis alvos de toque não cabem em 360px com o respiro do desktop; sem `wrap`, o Sair vazava. */
 .application-user-area {
   display: inline-flex;
+  flex-wrap: wrap;
   width: 100%;
   min-width: 0;
   align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-1);
   border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 60%, transparent);
 }
@@ -784,8 +788,9 @@ a {
   object-fit: cover;
 }
 
+/* No celular a fileira não tem sobra para o nome: encolhido a zero, ele só custava um espaçamento. */
 .application-user-identity {
-  display: inline-flex;
+  display: none;
   flex: 1;
   flex-direction: column;
   gap: var(--space-1);
@@ -793,6 +798,18 @@ a {
   max-width: none;
   text-transform: none;
   letter-spacing: 0;
+}
+
+@media (min-width: 40rem) {
+  .application-user-identity {
+    display: inline-flex;
+  }
+
+  .application-user-area {
+    justify-content: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+  }
 }
 
 .application-user-name {
@@ -829,13 +846,15 @@ a {
   padding: 0;
 }
 
+/* Base é o celular (mobile-first, `web.md` §10): alvo de toque de 44px. Acima de `min-width:64rem`
+   o desktop tem mouse e sobra de fileira, e o bloco daquele breakpoint encolhe para 2rem. */
 .application-logout-button,
 .application-theme-toggle {
   flex-shrink: 0;
-  width: 2rem;
-  min-width: 2rem;
-  min-height: 2rem;
-  height: 2rem;
+  width: var(--touch-target);
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  height: var(--touch-target);
   padding: 0;
 }
 
@@ -1355,11 +1374,24 @@ h2 {
 
   .application-user-area {
     width: auto;
+    flex-wrap: nowrap;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
   }
 
   .application-user-identity {
+    display: inline-flex;
     flex: 0 1 auto;
     max-width: 12rem;
+  }
+
+  /* Desktop tem mouse: volta ao tamanho compacto original, sem o respiro de alvo de toque. */
+  .application-logout-button,
+  .application-theme-toggle {
+    width: 2rem;
+    min-width: 2rem;
+    min-height: 2rem;
+    height: 2rem;
   }
 
   .application-nav {

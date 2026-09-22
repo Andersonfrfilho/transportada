@@ -15,6 +15,7 @@ import type {
   PlanTripRoutePort,
   TripRouteState,
 } from '../../src/trips/application/plan-trip-route.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import {
   TripDispatchForceReasonRequiredError,
   TripHasUnloadedDocumentsError,
@@ -90,7 +91,13 @@ describe('plan trip route (spec 056 T010)', () => {
   test('plans the route once, from draft', async () => {
     const repository = createPlanFakePort({ hasRoute: true, tripStatus: 'draft' })
 
-    const result = await planTripRoute({ companyId: COMPANY_ID, repository, tripId: TRIP_ID })
+    const result = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    })
 
     expect(result.tripStatus).toBe('route_planned')
     expect(repository.markRoutePlannedCalls).toBe(1)
@@ -99,9 +106,13 @@ describe('plan trip route (spec 056 T010)', () => {
   test('refuses to plan without a route, with the reason the T006 already names', async () => {
     const repository = createPlanFakePort({ hasRoute: false, tripStatus: 'draft' })
 
-    const error = await planTripRoute({ companyId: COMPANY_ID, repository, tripId: TRIP_ID }).catch(
-      (caught: unknown) => caught,
-    )
+    const error = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(TripStateTransitionNotAllowedError)
     expect((error as TripStateTransitionNotAllowedError).reason).toBe('TRIP_HAS_NO_ROUTE')
@@ -111,7 +122,13 @@ describe('plan trip route (spec 056 T010)', () => {
   test('is idempotent: planning an already-planned trip writes nothing', async () => {
     const repository = createPlanFakePort({ hasRoute: true, tripStatus: 'separating' })
 
-    const result = await planTripRoute({ companyId: COMPANY_ID, repository, tripId: TRIP_ID })
+    const result = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    })
 
     expect(result.tripStatus).toBe('separating')
     expect(repository.markRoutePlannedCalls).toBe(0)
@@ -120,9 +137,13 @@ describe('plan trip route (spec 056 T010)', () => {
   test('never re-opens a dispatched trip for planning', async () => {
     const repository = createPlanFakePort({ hasRoute: true, tripStatus: 'dispatched' })
 
-    const error = await planTripRoute({ companyId: COMPANY_ID, repository, tripId: TRIP_ID }).catch(
-      (caught: unknown) => caught,
-    )
+    const error = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(TripStateTransitionNotAllowedError)
     expect(repository.markRoutePlannedCalls).toBe(0)
@@ -131,9 +152,13 @@ describe('plan trip route (spec 056 T010)', () => {
   test('throws not found for a trip outside this company', async () => {
     const repository = createPlanFakePort({ exists: false })
 
-    const error = await planTripRoute({ companyId: COMPANY_ID, repository, tripId: TRIP_ID }).catch(
-      (caught: unknown) => caught,
-    )
+    const error = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(TripNotFoundError)
   })
@@ -145,6 +170,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     const result = await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tripId: TRIP_ID,
@@ -154,9 +180,11 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
     expect(repository.dispatchCalls).toEqual([
       {
         actorUserId: ACTOR_USER_ID,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId: COMPANY_ID,
         forceReason: null,
         forced: false,
+        onBehalfOfDriverId: null,
         tripId: TRIP_ID,
         unloadedDocumentIds: [],
       },
@@ -168,6 +196,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     const error = await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tripId: TRIP_ID,
@@ -182,6 +211,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     const error = await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tripId: TRIP_ID,
@@ -197,6 +227,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     const error = await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       force: true,
       repository,
@@ -212,6 +243,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       force: true,
       forceReason: 'Cliente pediu para não esperar a última nota',
@@ -222,9 +254,11 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
     expect(repository.dispatchCalls).toEqual([
       {
         actorUserId: ACTOR_USER_ID,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId: COMPANY_ID,
         forceReason: 'Cliente pediu para não esperar a última nota',
         forced: true,
+        onBehalfOfDriverId: null,
         tripId: TRIP_ID,
         unloadedDocumentIds: [UNLOADED_ID],
       },
@@ -236,6 +270,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       force: true,
       forceReason: 'não deveria nem ser lido',
@@ -251,6 +286,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     const result = await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tripId: TRIP_ID,
@@ -265,6 +301,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     const error = await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tripId: TRIP_ID,
@@ -282,6 +319,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     const error = await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tripId: TRIP_ID,
@@ -298,6 +336,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
     await expect(
       dispatchTrip({
         actorUserId: ACTOR_USER_ID,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId: COMPANY_ID,
         force: true,
         repository: forced,
@@ -308,6 +347,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
     const accepted = createDispatchFakePort({ unscheduledStopIds: [UNSCHEDULED_STOP_ID] })
     await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       force: true,
       forceReason: 'cliente autorizou por telefone',
@@ -330,6 +370,7 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
 
     const error = await dispatchTrip({
       actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       repository,
       tripId: TRIP_ID,

@@ -218,11 +218,15 @@ import { createWhatsAppCommandSettlementApiGateway } from './whatsapp-command-se
 import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
 import {
   createDrizzlePurgeStalePings,
+  createDrizzleRedactDeliveryProofLocations,
   createDrizzleRedactTripLocations,
 } from './trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
 import { createTripCargoLayoutPurgeRoutine } from './trip-cargo-layout-purge/application/trip-cargo-layout-purge.routine.js'
 import { TRIP_CARGO_LAYOUT_PURGE_JOB } from './trip-cargo-layout-purge/domain/trip-cargo-layout-purge.constant.js'
 import { createDrizzlePurgeStaleCargoLayoutPreviews } from './trip-cargo-layout-purge/infrastructure/drizzle-trip-cargo-layout-purge.repository.js'
+import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/application/rate-limit-window-purge.routine.js'
+import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
+import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
 import { createNfeImportConsumer } from './nfe-imports/application/nfe-import-consumer.service.js'
 import type {
@@ -1189,12 +1193,23 @@ export async function startWorkerRuntime(
             redact: createDrizzleRedactTripLocations(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
+            redactProofLocations: createDrizzleRedactDeliveryProofLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
           }),
           /** Spec 145 D19: sempre registrada, como a retenção da coordenada — prazo não é opcional. */
           [TRIP_CARGO_LAYOUT_PURGE_JOB]: createTripCargoLayoutPurgeRoutine({
             logger,
             now: () => new Date(),
             purge: createDrizzlePurgeStaleCargoLayoutPreviews(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+          }),
+          /** Spec 150 T406: sempre registrada — sem ela a tabela do limitador cresce a cada e-mail. */
+          [RATE_LIMIT_WINDOW_PURGE_JOB]: createRateLimitWindowPurgeRoutine({
+            logger,
+            now: () => new Date(),
+            purge: createDrizzlePurgeExpiredRateLimitWindows(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
           }),

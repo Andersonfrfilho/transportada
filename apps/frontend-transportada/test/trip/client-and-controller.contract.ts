@@ -1,6 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
+import { runQuickCreateTrip } from '../../src/modules/trip/shared/quickCreateTrip.service'
+import type { RouteChoice } from '../../src/modules/trip/shared/routeGeometry.service'
+import { createTripClient } from '../../src/modules/trip/shared/tripClient.service'
+
 import {
   CREATE_TRIP_BODY,
   DELIVERY_ADDRESS_OVERRIDE,
@@ -17,6 +21,7 @@ import {
   TRIP_ID,
   TRIP_MANAGE,
   TRIP_PAGE,
+  TRIP_REPORT_ON_BEHALF,
 } from './trip.fixture'
 
 const API_URL = 'https://api.example.test'
@@ -43,13 +48,26 @@ describe('trip client contract', () => {
         tripId: TRIP_ID,
       }),
     ).toEqual(TRIP_DOCUMENT)
-    // Entregar deixou de ter caminho próprio na API: ela passa pela mesma máquina de separar,
-    // carregar e devolver, e por isso devolve o estado da viagem junto com a nota. Sem isso a barra
-    // de progresso não se movia — a nota ficava `pending` com hora de entrega gravada.
-    expect(await client.deliverTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual({
-      document: TRIP_DOCUMENT,
-      tripStatus: 'separating',
-    })
+    // Spec 156 T8b, ADR-0067: entregar sem autoria (`/deliver`, `trip.manage`) saiu — o caminho é
+    // `field-delivery`, multipart, com autoria (`trip.report-on-behalf`).
+    expect(
+      await client.fieldDeliverDocument({
+        deliveredAt: '2026-09-18T12:00:00.000Z',
+        documentId: DOCUMENT_ID,
+        idempotencyKey: 'idem-deliver',
+        tripId: TRIP_ID,
+      }),
+    ).toEqual({ alreadySettled: false, id: DOCUMENT_ID, stopCompleted: true, tripCompleted: false })
+    // Spec 156 T8b, ADR-0067 (revisão): devolver sem autoria (`/return`) saiu — o caminho é
+    // `field-return`, JSON, com autoria (`trip.report-on-behalf`).
+    expect(
+      await client.fieldReturnDocument({
+        documentId: DOCUMENT_ID,
+        idempotencyKey: 'idem-return',
+        reason: 'recipient_absent',
+        tripId: TRIP_ID,
+      }),
+    ).toEqual({ alreadySettled: false, id: DOCUMENT_ID, stopCompleted: true, tripCompleted: true })
     expect(await client.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual(
       TRIP_DOCUMENT,
     )
@@ -61,6 +79,7 @@ describe('trip client contract', () => {
       getRequest,
       linkRequest,
       deliverRequest,
+      returnRequest,
       releaseRequest,
       closeRequest,
     ] = requests
@@ -70,6 +89,7 @@ describe('trip client contract', () => {
       getRequest === undefined ||
       linkRequest === undefined ||
       deliverRequest === undefined ||
+      returnRequest === undefined ||
       releaseRequest === undefined ||
       closeRequest === undefined
     ) {
@@ -98,8 +118,20 @@ describe('trip client contract', () => {
       nfeDocumentId: NFE_DOCUMENT_ID,
     })
 
-    expect(deliverRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/deliver`)
+    expect(deliverRequest.url).toBe(
+      `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/field-delivery`,
+    )
     expect(deliverRequest.method).toBe('POST')
+    expect(deliverRequest.headers.get('idempotency-key')).toBe('idem-deliver')
+    const deliverForm = await deliverRequest.formData()
+    expect(deliverForm.get('deliveredAt')).toBe('2026-09-18T12:00:00.000Z')
+    expect(deliverForm.get('driverId')).toBeNull()
+
+    expect(returnRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/field-return`)
+    expect(returnRequest.method).toBe('POST')
+    expect(returnRequest.headers.get('idempotency-key')).toBe('idem-return')
+    expect(returnRequest.headers.get('content-type')).toBe('application/json')
+    expect(await returnRequest.json()).toEqual({ reason: 'recipient_absent' })
 
     expect(releaseRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}`)
     expect(releaseRequest.method).toBe('DELETE')
@@ -148,6 +180,23 @@ describe('trip client contract', () => {
     expect(historyRequest.method).toBe('GET')
   })
 
+  /** Spec 153: a rota vista na montagem vai pela assinatura; sem escolha, o corpo não vai. */
+  test('plans the route with the chosen route, and without a body when nothing was chosen', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+    const routeChoice: RouteChoice = { criterion: 'cheapest', signature: 'sig-barata' }
+
+    await client.planTripRoute({ routeChoice, tripId: TRIP_ID })
+    await client.planTripRoute({ tripId: TRIP_ID })
+
+    const [withChoice, withoutChoice] = requests
+    if (withChoice === undefined || withoutChoice === undefined) {
+      throw new Error('TRIP_CONTRACT_REQUEST_MISSING')
+    }
+    expect(await withChoice.json()).toEqual({ routeChoice })
+    expect(await withoutChoice.text()).toBe('')
+  })
+
   test('transitions a document, runs a batch, plans the route, dispatches and cancels the trip', async () => {
     const requests: Request[] = []
     const client = await createRecordingClient(requests)
@@ -183,14 +232,13 @@ describe('trip client contract', () => {
     }
 
     expect(separateRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/separate`)
-    expect(await separateRequest.json()).toEqual({ note: null, returnReason: null })
+    expect(await separateRequest.json()).toEqual({ note: null })
 
     expect(batchRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/batch-status`)
     expect(await batchRequest.json()).toEqual({
       action: 'load',
       documentIds: [DOCUMENT_ID],
       note: null,
-      returnReason: null,
     })
 
     expect(planRouteRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/plan-route`)
@@ -295,9 +343,212 @@ describe('trip controller contract', () => {
       nfeDocumentId: NFE_DOCUMENT_ID,
       tripId: TRIP_ID,
     })
-    await controller.deliverTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })
     await controller.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })
+    expect(client.mutationCount).toBe(4)
+
+    // Spec 156 T8b, ADR-0067: `fieldDeliverDocument` é `trip.report-on-behalf`, não `trip.manage` —
+    // o `separator`, que tem `trip.manage`, não deve alcançá-la (ele não reporta entrega).
+    expect(
+      await controller
+        .fieldDeliverDocument({
+          deliveredAt: '2026-09-18T12:00:00.000Z',
+          documentId: DOCUMENT_ID,
+          idempotencyKey: 'idem-deliver',
+          tripId: TRIP_ID,
+        })
+        .catch((caught: unknown) => caught),
+    ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
+    expect(client.mutationCount).toBe(4)
+
+    const officeController = createTripController({
+      client,
+      permissions: [FLEET_READ, TRIP_REPORT_ON_BEHALF],
+    })
+    expect(officeController.canManageTrips).toBe(false)
+    await officeController.fieldDeliverDocument({
+      deliveredAt: '2026-09-18T12:00:00.000Z',
+      documentId: DOCUMENT_ID,
+      idempotencyKey: 'idem-deliver',
+      tripId: TRIP_ID,
+    })
     expect(client.mutationCount).toBe(5)
+  })
+})
+
+/**
+ * Spec 153: a criação rápida é criar → vincular → reordenar → planejar. Reordenar recongela a rota
+ * com o critério padrão, então planejar (com a rota escolhida) vem por último. Depois que a viagem
+ * existe, nenhuma falha pode fazer o botão criar outra: o operador é levado à viagem criada.
+ */
+describe('criação rápida pela montagem', () => {
+  const RECIFE_KEY = '2611606|50000000|10'
+  const OLINDA_KEY = '2609600|53000000|20'
+  const ROUTE_CHOICE: RouteChoice = { criterion: 'alternative', signature: 'sig-vista' }
+  const QUICK_CREATE = {
+    cityOrder: [OLINDA_KEY, RECIFE_KEY],
+    createBody: CREATE_TRIP_BODY,
+    nfeDocumentIds: [NFE_DOCUMENT_ID],
+    routeChoice: ROUTE_CHOICE,
+  }
+
+  function stop(input: {
+    readonly addressKey: string
+    readonly id: string
+    readonly sequence: number
+  }) {
+    return {
+      addressKey: input.addressKey,
+      arrivedAt: null,
+      completedAt: null,
+      deliveryWindowEnd: null,
+      deliveryWindowStart: null,
+      documents: [],
+      id: input.id,
+      label: input.id,
+      sequence: input.sequence,
+    }
+  }
+
+  function createQuickCreateClient(input: {
+    readonly failingPath?: string
+    readonly requests: Request[]
+  }) {
+    return createTripClient({
+      apiUrl: API_URL,
+      fetch: async (resource, init) => {
+        const request = new Request(resource, init)
+        input.requests.push(request)
+        if (request.url === input.failingPath) {
+          return Response.json({ error: { code: 'INTERNAL', message: 'falhou' } }, { status: 500 })
+        }
+        return resolveQuickCreateResponse(request)
+      },
+      getAccessToken: () => Promise.resolve(SYNTHETIC_ACCESS_TOKEN),
+    })
+  }
+
+  function resolveQuickCreateResponse(request: Request): Promise<Response> {
+    if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/batch`) {
+      return Promise.resolve(
+        Response.json({ data: { linked: [], skipped: [], tripStatus: 'draft' } }),
+      )
+    }
+    if (request.url === `${TRIPS_PATH}/${TRIP_ID}` && request.method === 'GET') {
+      const stops = [
+        stop({ addressKey: RECIFE_KEY, id: 'stop-recife', sequence: 1 }),
+        stop({ addressKey: OLINDA_KEY, id: 'stop-olinda', sequence: 2 }),
+      ]
+      return Promise.resolve(Response.json({ data: { ...TRIP_DETAIL, stops } }))
+    }
+    if (request.url === `${TRIPS_PATH}/${TRIP_ID}/stops/order`) {
+      return Promise.resolve(Response.json({ data: { tripStatus: 'draft' } }))
+    }
+    return resolveSyntheticResponse(request)
+  }
+
+  function describeRequests(requests: readonly Request[]): readonly string[] {
+    return requests.map((request) => `${request.method} ${request.url.replace(API_URL, '')}`)
+  }
+
+  test('reordena antes de planejar, e planeja com a rota escolhida', async () => {
+    const requests: Request[] = []
+
+    const trip = await runQuickCreateTrip({
+      ...QUICK_CREATE,
+      client: createQuickCreateClient({ requests }),
+    })
+
+    expect(trip.id).toBe(TRIP_ID)
+    expect(describeRequests(requests)).toEqual([
+      'POST /trips',
+      `POST /trips/${TRIP_ID}/documents/batch`,
+      `GET /trips/${TRIP_ID}`,
+      `PATCH /trips/${TRIP_ID}/stops/order`,
+      `POST /trips/${TRIP_ID}/plan-route`,
+    ])
+    expect(await requests[3]?.json()).toEqual({ stopIds: ['stop-olinda', 'stop-recife'] })
+    expect(await requests[4]?.json()).toEqual({ routeChoice: ROUTE_CHOICE })
+  })
+
+  /** A ordem é conveniência: sem ela a viagem ainda precisa da rota planejada. */
+  test('falha ao reordenar não impede planejar', async () => {
+    const requests: Request[] = []
+
+    const trip = await runQuickCreateTrip({
+      ...QUICK_CREATE,
+      client: createQuickCreateClient({
+        failingPath: `${TRIPS_PATH}/${TRIP_ID}/stops/order`,
+        requests,
+      }),
+    })
+
+    expect(trip.id).toBe(TRIP_ID)
+    expect(describeRequests(requests).at(-1)).toBe(`POST /trips/${TRIP_ID}/plan-route`)
+  })
+
+  /** Recusar aqui deixaria o botão ativo, e o segundo clique criaria outra viagem para a mesma carga. */
+  test('falha ao planejar devolve a viagem criada em vez de falhar', async () => {
+    const requests: Request[] = []
+
+    const trip = await runQuickCreateTrip({
+      ...QUICK_CREATE,
+      client: createQuickCreateClient({
+        failingPath: `${TRIPS_PATH}/${TRIP_ID}/plan-route`,
+        requests,
+      }),
+    })
+
+    expect(trip.id).toBe(TRIP_ID)
+    expect(describeRequests(requests).filter((line) => line === 'POST /trips')).toHaveLength(1)
+  })
+
+  test('falha ao vincular também devolve a viagem criada, sem planejar', async () => {
+    const requests: Request[] = []
+
+    const trip = await runQuickCreateTrip({
+      ...QUICK_CREATE,
+      client: createQuickCreateClient({
+        failingPath: `${TRIPS_PATH}/${TRIP_ID}/documents/batch`,
+        requests,
+      }),
+    })
+
+    expect(trip.id).toBe(TRIP_ID)
+    expect(describeRequests(requests)).toEqual([
+      'POST /trips',
+      `POST /trips/${TRIP_ID}/documents/batch`,
+    ])
+  })
+
+  /** Sem viagem criada não há para onde levar o operador: aí o erro sobe, e o botão tenta de novo. */
+  test('falha ao criar a viagem sobe o erro', async () => {
+    const requests: Request[] = []
+
+    let hasFailed = false
+    try {
+      await runQuickCreateTrip({
+        ...QUICK_CREATE,
+        client: createQuickCreateClient({ failingPath: TRIPS_PATH, requests }),
+      })
+    } catch {
+      hasFailed = true
+    }
+
+    expect(hasFailed).toBe(true)
+    expect(requests).toHaveLength(1)
+  })
+
+  test('sem rota escolhida o planejamento vai sem corpo', async () => {
+    const requests: Request[] = []
+
+    await runQuickCreateTrip({
+      cityOrder: QUICK_CREATE.cityOrder,
+      client: createQuickCreateClient({ requests }),
+      createBody: CREATE_TRIP_BODY,
+      nfeDocumentIds: [NFE_DOCUMENT_ID],
+    })
+
+    expect(await requests.at(-1)?.text()).toBe('')
   })
 })
 
@@ -331,9 +582,34 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents`) {
     return Promise.resolve(Response.json({ data: TRIP_DOCUMENT }, { status: 201 }))
   }
-  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/deliver`) {
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/field-delivery`) {
     return Promise.resolve(
-      Response.json({ data: { document: TRIP_DOCUMENT, tripStatus: 'separating' } }),
+      Response.json(
+        {
+          data: {
+            alreadySettled: false,
+            id: DOCUMENT_ID,
+            stopCompleted: true,
+            tripCompleted: false,
+          },
+        },
+        { status: 201 },
+      ),
+    )
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/field-return`) {
+    return Promise.resolve(
+      Response.json(
+        {
+          data: {
+            alreadySettled: false,
+            id: DOCUMENT_ID,
+            stopCompleted: true,
+            tripCompleted: true,
+          },
+        },
+        { status: 201 },
+      ),
     )
   }
   if (
@@ -402,7 +678,8 @@ function createMutationRecordingClient(): TripClient & { readonly mutationCount:
     cancelTrip: recordStatusMutation,
     closeTrip: recordDetailMutation,
     createTrip: recordDetailMutation,
-    deliverTripDocument: recordDocumentMutation,
+    fieldDeliverDocument: recordDocumentMutation,
+    fieldReturnDocument: recordDocumentMutation,
     dispatchTrip: recordStatusMutation,
     getTrip: () => Promise.resolve(TRIP_DETAIL),
     linkTripDocument: recordDocumentMutation,
@@ -441,18 +718,33 @@ type OverrideDeliveryAddressInput = Readonly<{
 }>
 
 type BatchStatusInput = Readonly<{
-  action: 'deliver' | 'load' | 'return' | 'separate'
+  action: 'load' | 'separate'
   documentIds: readonly string[]
   note?: null | string
-  returnReason?: null | string
   tripId: string
 }>
 
 type TransitionInput = Readonly<{
-  action: 'load' | 'return' | 'separate'
+  action: 'load' | 'separate'
   documentId: string
   note?: null | string
-  returnReason?: null | string
+  tripId: string
+}>
+
+type FieldDeliverInput = Readonly<{
+  deliveredAt: string
+  documentId: string
+  driverId?: string
+  idempotencyKey: string
+  tripId: string
+}>
+
+type FieldReturnInput = Readonly<{
+  documentId: string
+  driverId?: string
+  idempotencyKey: string
+  reason: string
+  returnedAt?: string
   tripId: string
 }>
 
@@ -463,14 +755,15 @@ type TripClient = {
   cancelTrip(input: TripIdInput): Promise<unknown>
   closeTrip(input: TripIdInput): Promise<unknown>
   createTrip(input: typeof CREATE_TRIP_BODY): Promise<unknown>
-  deliverTripDocument(input: DocumentActionInput): Promise<unknown>
+  fieldDeliverDocument(input: FieldDeliverInput): Promise<unknown>
+  fieldReturnDocument(input: FieldReturnInput): Promise<unknown>
   dispatchTrip(input: DispatchInput): Promise<unknown>
   getTrip(input: TripIdInput): Promise<unknown>
   linkTripDocument(input: LinkDocumentInput): Promise<unknown>
   listDeliveryAddressHistory(input: DocumentActionInput): Promise<unknown>
   listTrips(input: ListInput): Promise<unknown>
   overrideDeliveryAddress(input: OverrideDeliveryAddressInput): Promise<unknown>
-  planTripRoute(input: TripIdInput): Promise<unknown>
+  planTripRoute(input: TripIdInput & Readonly<{ routeChoice?: RouteChoice }>): Promise<unknown>
   releaseTripDocument(input: DocumentActionInput): Promise<unknown>
   transitionTripDocument(input: TransitionInput): Promise<unknown>
 }
@@ -497,7 +790,7 @@ type TripController = {
   readonly canReadTrips: boolean
   readonly closeTrip: (input: TripIdInput) => Promise<unknown>
   readonly createTrip: (input: typeof CREATE_TRIP_BODY) => Promise<unknown>
-  readonly deliverTripDocument: (input: DocumentActionInput) => Promise<unknown>
+  readonly fieldDeliverDocument: (input: FieldDeliverInput) => Promise<unknown>
   readonly getTrip: (input: TripIdInput) => Promise<unknown>
   readonly linkTripDocument: (input: LinkDocumentInput) => Promise<unknown>
   readonly releaseTripDocument: (input: DocumentActionInput) => Promise<unknown>

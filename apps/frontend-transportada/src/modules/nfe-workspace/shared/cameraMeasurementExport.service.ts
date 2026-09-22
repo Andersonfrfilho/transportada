@@ -7,6 +7,7 @@ import {
 } from '@/modules/shared/csv.service'
 
 import type { CameraMeasurementExportEntry } from './cameraMeasurementValidation.service'
+import { CAMERA_PARTICIPATION_SOURCES } from './packageBoxMeasurement.constant'
 
 type ExportDimension = 'height' | 'length' | 'width'
 
@@ -88,13 +89,15 @@ function toRow(entry: CameraMeasurementExportEntry, dimension: ExportDimension):
 
 /**
  * Spec 152 R8: uma linha por dimensão de cada medida com participação da câmera (`camera`/
- * `camera_adjusted`) — `typed` fica fora, não há proposta para comparar. Mesmo formato de
- * `buildFreightRegionCsv`: sem lib externa, testável sem DOM.
+ * `camera_adjusted`). ⚠️ T14 (revisão final, ALTO-1): o filtro é positivo, não `!== 'typed'` — a
+ * caixa replicada (spec 155 D6) nunca foi medida, não tem proposta nenhuma para comparar, e uma
+ * checagem negativa deixaria ela entrar junto de qualquer origem futura que não seja `typed`. Mesmo
+ * formato de `buildFreightRegionCsv`: sem lib externa, testável sem DOM.
  */
 export function buildCameraMeasurementCsv(
   entries: readonly CameraMeasurementExportEntry[],
 ): string {
-  const relevant = entries.filter((entry) => entry.source !== 'typed')
+  const relevant = entries.filter((entry) => CAMERA_PARTICIPATION_SOURCES.has(entry.source))
   const header = CAMERA_MEASUREMENT_EXPORT_COLUMNS.map(escapeCsvField).join(CSV_FIELD_SEPARATOR)
   const rows = relevant.flatMap((entry) =>
     EXPORT_DIMENSIONS.map((dimension) =>

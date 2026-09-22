@@ -373,6 +373,10 @@
         "label": "Reportar entrega",
         "where": "Do campo: marcar entrega, devolução e posição da parada."
       },
+      "trip.report-on-behalf": {
+        "label": "Dar baixa pelo motorista",
+        "where": "Do escritório, na tela da viagem: registrar entrega, devolução, chegada e ocorrência em nome do motorista."
+      },
       "trip.financials": {
         "label": "Ver dinheiro da viagem",
         "where": "Custo, margem e o valor pago ao motorista."

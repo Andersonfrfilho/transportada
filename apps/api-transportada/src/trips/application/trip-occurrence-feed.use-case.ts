@@ -6,6 +6,7 @@
  * não existe "tratar" ocorrência nesta versão, e a lista não muda estado nenhum.
  */
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 import type { DeliveryProofDownloadPort } from './read-delivery-proof.use-case.js'
 
@@ -18,6 +19,9 @@ export const TRIP_OCCURRENCE_FEED_STAGES = ['separation', 'delivery', 'stop'] as
 export type TripOccurrenceFeedStage = (typeof TRIP_OCCURRENCE_FEED_STAGES)[number]
 
 export type TripOccurrenceFeedItem = {
+  /** Spec 156 T9 (D3): nome de quem clicou, `null` sem vínculo ativo na empresa. */
+  readonly actorName: string | null
+  readonly channel: TripFieldChannel
   readonly createdAt: string
   readonly description: string
   /** Primeiro condutor da viagem. Vazio quando a viagem nasceu sem motorista pareado. */
@@ -29,6 +33,8 @@ export type TripOccurrenceFeedItem = {
   readonly invoiceSeries: null | string
   /** O tipo cadastrado avisa o embarcador quando a empresa ligou isso. Falso para parada. */
   readonly notifies: boolean
+  /** Spec 156 T9 (D3): só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
+  readonly onBehalfOfDriverName: string | null
   readonly source: 'document' | 'stop'
   readonly stage: null | TripOccurrenceStage
   readonly stopLabel: null | string

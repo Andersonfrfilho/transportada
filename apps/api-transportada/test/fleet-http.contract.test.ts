@@ -4,6 +4,7 @@
 import './fleet-http/vehicles.contract.js'
 import './fleet-http/vehicle-cost.contract.js'
 import './fleet-http/drivers.contract.js'
+import './fleet-http/driver-scores.contract.js'
 import './fleet-http/driver-vehicles.contract.js'
 import './fleet-http/driver-vehicle-links.contract.js'
 import './fleet-http/vehicle-catalog-routes.contract.js'

@@ -558,6 +558,41 @@ controla se a câmera está ligada na aba **Caixas** — com a função desligad
 interruptor. Export do histórico por período: `GET /nfe-package-box-measurements?from=&to=&cursor=`
 (`settings.manage`, `perPage ≤ 100`) para validação com caixas reais (spec 152 T15).
 
+**Exportar o que falta medir:** `GET /nfe-package-boxes/pending-export` (`cargo.measure`, sem
+parâmetro nenhum) devolve `{ data: { items, truncated } }` — **todas** as caixas pendentes da empresa
+do token, com os mesmos campos de `GET /nfe-package-boxes`. É a mesma fila: o use case
+`export-pending-package-boxes` chama `createListPackageBoxes` com `status: pending`, então a ordem
+(o que mais roda, desempate pelo id — também no `ORDER BY` do SQL, para o corte do `LIMIT` ser o
+começo da fila) não tem segunda implementação. Teto de segurança do servidor
+`PACKAGE_BOX_PENDING_EXPORT_MAX_ITEMS` (10 000, `domain/package-box-measurement.constant.ts`), sem
+parâmetro do cliente para afrouxá-lo: busca teto + 1 e `truncated` só é `true` quando havia mais que
+o teto. Consultas fixas (a fila e as caixas da empresa para o contador de família), sem N+1. Teto de
+requisição por usuário em memória (`package-box-pending-export.rate-limit.ts`, 10 a cada 5 min). No
+frontend é o "Baixar Excel/CSV" da aba **Caixas**, e ⚠️ a busca acontece **só no clique**
+(`useMutation` em `usePackageBoxPendingExport`) — consulta automática ao abrir a aba gastava o teto
+de requisições e baixava a empresa inteira sem ninguém pedir. O botão clicado mostra "Preparando…";
+o aviso de arquivo cortado vem de `truncated` (nunca da contagem de itens), e o 429 tem mensagem
+própria ("muitas exportações seguidas"). O limitador em memória (`rate-limiter.service.ts`) varre
+cada balde pela janela **dele** (`Bucket.windowMs`): antes, a varredura disparada por uma rota de
+janela curta apagava os baldes das rotas de janela longa e zerava o teto delas.
+
+**Replicar medida entre variações da mesma caixa (spec 155):** `GET /nfe-package-boxes/:id/siblings`
+(`cargo.measure`) lista irmãs por família — `(emitente, prefixo da descrição até o último dígito, uCom)`
+é replicável (sabores diferentes da mesma caixa física). Mesmo emitente + cProd são agrupadas só na tela
+como grupo de embalagem e **nunca** replicam (unidades diferentes = caixas de tamanho diferente, D3).
+Irmãs já medidas são filtradas na tela (D4). `POST /nfe-package-boxes/:id/replicate` com `{ targetIds }`
+grava comprimento, largura, altura, peso, contagem de unidades e `measurement_source = 'replicated'`
+(nunca conferida, apenas informativa) no histórico com `replicated_from_box_id`. Status 422 se origem
+sem medida, alvo fora da família ou família assimétrica marcada (`isLowConfidenceFamily`, quando sabor
+e formato se misturam — ex.: vácuo e sachê). Status 409 se alvo já medido — **invariante que não se
+negocia**: replicar nunca sobrescreve medida existente, nem por concorrência. Respostas com código
+específico permitem a tela oferecer diálogo pré-marcado só em família confiável (D5).
+
+**"Aplicar a todos" (spec 155 D12/G012):** `PackageBoxSiblingView` traz `measurementSource` de cada
+irmã — a tela usa isso para preferir uma origem conferida (`typed`/`camera*`) a uma `replicated` na
+hora de copiar de novo; réplica conta como medida e pode ser origem de outra réplica quando é a
+única da família (decisão do usuário 2026-09-17).
+
 ⚠️ **Etiqueta que não vira código nenhum é busca vazia, nunca busca sem filtro** — tratá-la como
 ausência de filtro mostrava as cinquenta primeiras caixas como se a leitura tivesse achado algo, e o
 conferente media a primeira da lista. E a fila ordena por `coalesce(volumes, 0) desc`: em Postgres
@@ -1555,3 +1590,228 @@ fiscal. A política de fim sem linha é `DEFAULT_ROUTE_END_POLICY` (padrão da c
 cópia por valor no worker com contrato de paridade — mudou aqui, mude lá. A resposta de geometria
 publica `depot.originSource`; a coordenada vem do `geocoding.backfill` do worker, então até ele
 rodar a tela mostra `not_geocoded` com o texto próprio do endereço da empresa.
+
+## Pedido de correção de endereço à contratante (spec 150, realiza a 084 T20)
+
+**A correção é um pedido, nunca uma edição da nota.** Módulo novo `address-correction/`: tabela
+`address_correction_requests` (aditiva, `company_id` + `contractor_id` FK composta, `address_key`,
+`reported_*` copiado do relatório — nunca do cliente —, `proposed_*` do operador,
+`reason_match_level`/`reason_distance_metres`, `status` `draft`·`sent` sem ENUM nativo, `thread_id`
+opcional), com unique parcial `(company_id, address_key) where status = 'draft'`: um rascunho por
+endereço, e salvar de novo faz `upsertDraft` (`on conflict … where status = 'draft'`) atualizar a
+mesma linha — um pedido `sent` fica fora do alvo do conflito e o próximo `PUT` cria linha nova.
+`nfe_addresses` e o XML fiscal permanecem intactos.
+
+- **`PUT /address-correction-requests/:addressKey`** (`address-correction.routes.ts`, `settings.manage`,
+  corpo `.strict()` — mandar `reported`/`reason*` é `400`, a fronteira só aceita `proposed`): o "como
+  veio" e o motivo são sempre lidos do `AddressReportRepository.read({companyId})` já existente
+  (reaproveitado, sem SQL nova), nunca do body. A contratante é resolvida pelo CNPJ do emitente
+  daquela linha do relatório, dentro da `companyId` do token — sem cadastro, `404
+ADDRESS_CORRECTION_CONTRACTOR_NOT_FOUND` (não `409`: é "procurei o cadastro pelo documento e ele não
+  existe", o mesmo caso de `ContractorNotFoundError`, `409` fica para pré-condição de um recurso que o
+  cliente já sabe que existe).
+- **`GET /address-correction-requests`** devolve o estado por `addressKey` da empresa
+  (`listByCompany`, novo método do port — nenhum método existente listava todo status sem filtrar por
+  contratante).
+- **`POST /address-correction-requests/mail`** (`202 { data: { threadId, messageId, sentRequestIds,
+recipientCount } }`, `Idempotency-Key` obrigatório): body `{ contractorTaxId, contactIds[] (1..50),
+requestIds? }` — sem `requestIds` é o envio **completo** (todos os rascunhos da contratante), com
+  ids é o **unitário**; id de outra contratante ou já `sent` responde `409
+ADDRESS_CORRECTION_REQUEST_NOT_SENDABLE`. `executeSend` roda inteira dentro de
+  `unitOfWork.execute` — uma única transação Postgres, igual a `nfe-imports`, ao contrário do
+  `test-email` que abre duas. Idempotência reaproveita a tabela genérica `idempotency_records`
+  (mesma usada por `nfe-imports`/`freight-rules`/`cte-batches`/`company-settings`), com
+  `pg_advisory_xact_lock` sobre `['address-correction-mail', companyId, idempotencyKey]`. Cada envio
+  cria uma `contractor_mail_threads` **nova**, com `subject_id = threadId` (não há um segundo objeto
+  de negócio natural para apontar, ao contrário do `setup_test`, que usa `subject_id = companyId`) —
+  o CHECK de `subject_type` ganhou `address_correction`. `carrierName` vem de
+  `company_fiscal_profiles.tradeName` (fallback `legalName`); sem perfil fiscal cadastrado sai `''`,
+  leitura válida (mesma decisão do "perfil fiscal sem sequência de CT-e" acima). `operatorName` vem de
+  `identityUserProfiles.name` join `userCompanyMemberships` ativo — sem perfil ativo, `''`.
+- **Contatos ativos**: `ADDRESS_CORRECTION_NO_ACTIVE_CONTACT` (422) cobre `contactId` inexistente,
+  inativo **ou de outra contratante** com a mesma resposta — por desenho, para não vazar a qual
+  contratante um id pertence.
+- **`recipientName` no relatório** (RF11): `drizzle-address-report.repository.ts` ganhou uma terceira
+  junção (`recipientParticipant`, `left join` por `role = 'recipient'`, nunca `delivery` — o endereço
+  físico pode vir do participante `delivery`, que não é quem a nota chama de destinatário), ainda numa
+  consulta só. `null` quando a nota não tem linha `recipient`.
+- **`buildAddressCorrectionMail`** (`address-correction/domain/address-correction-mail.template.ts`),
+  função pura sem I/O: devolve `{ subject, html, text }` a partir dos mesmos dados, com `escapeHtml`
+  próprio (nome/endereço vêm de XML de terceiro). Regra do motivo: `distanceMetres === null` →
+  "endereço não localizado"; `< 1000` m → metros inteiros; `>= 1000` m → km com 1 casa.
+- **CRUD de `contractor_contacts`** (`contractor-mail/…/contractor-contacts.routes.ts`, `GET`/`POST`
+  `/contractors/:id/contacts`, `PATCH /contractors/:id/contacts/:contactId`, `settings.manage`,
+  sem `DELETE` físico — desativar é `PATCH { status: 'inactive' }`, porque
+  `contractor_mail_messages` referencia o contato): as três rotas resolvem a contratante primeiro por
+  `getContractor.execute` — contratante de outra empresa é `404` antes de tocar em
+  `contractor_contacts`. Fecha a spec 143 T013/T017.
+- **`contractor_mail_messages.body_html`** (coluna nova, `text NULL`, CHECK `direction = 'outbound'`
+  e teto 512 KiB) — decisão da T302 (parecer do architect, `plan.md` § E-mail): **um e-mail só**, com
+  todos os contatos marcados no `to` (nunca um envio por contato), `Reply-To` da conversa. O HTML é
+  **gravado pela API**, nunca montado no worker. `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`
+  (`contractor-mail/domain/contractor-mail.constant.ts`) cobrado no Zod da rota (`contactIds.max(50)`)
+  — o worker tem cópia por valor da mesma constante, com contrato de paridade (ver
+  `docs/ai-context/worker-transportada.md`). A fila continua levando só `{ messageId }` —
+  retrocompatível, mensagem antiga sem `body_html` sai só em texto.
+- Nenhuma rota deste módulo aparece em documentação de OpenAPI/Scalar: não existe geração desse tipo
+  neste repo (confirmado por busca) — nenhuma ação pendente aqui.
+- Sem endereço, CEP ou e-mail em log, em nenhum dos módulos acima.
+
+Detalhe completo (idempotência, `subject_id`, formato do endereço no e-mail, decisão de seleção
+inicial de contatos): `specs/150-pedido-de-correcao-de-endereco/evidence.md` (T101–T305).
+
+### Fase 4 — modelos de e-mail, liberação do envio e limitador (spec 150 T401–T406, RF13–RF19)
+
+**A liberação do envio deixou de olhar `contractor_mail_settings.status`.** A revisão final achou que
+o envio exigia `status = 'active'` e nada no sistema grava esse valor — todo envio era recusado. A
+coluna nova `sending_verified_at timestamptz NULL` é gravada pela lista de verificação
+(`runChecks`) quando `api_key` **e** `sender_domain` saem `ok`, e zerada quando a chave ou o
+remetente mudam (`saveSettings`, comparando a chave selada anterior). A política pura
+`resolveMailSendReadiness({ settings, template? })` (`contractor-mail/domain/mail-send-readiness.policy.ts`)
+devolve `ready` ou o motivo (`not_configured` · `sending_not_verified` · `template_missing`,
+`template` omitido = envio ainda não exige modelo). `status` da 143 continua existindo com o mesmo
+significado de "ida e volta completa" e **não bloqueia mais** o envio.
+
+**Modelos de e-mail** (`contractor_mail_templates`, aditiva): nome, assunto, abertura (`intro`), texto
+de cada item (`item_text`, o único que aceita variável de item, repetido por endereço) e assinatura
+(`closing`), único `(company_id, mail_type, lower(name))` entre os ativos, único parcial
+`(company_id, mail_type) where is_default and status = 'active'` — a troca de padrão é atômica, sob
+advisory lock de `(empresa, tipo)`. Arquivado nunca volta a ativo e nunca é padrão; nunca é apagado,
+porque `contractor_mail_messages.template_id` aponta para ele. Catálogo de tipos e variáveis em
+`contractor-mail/domain/mail-template-catalog.constant.ts` — hoje só `address_correction`, variáveis
+do e-mail (`{contratante}`, `{quantidade}`, `{clientes}`, `{transportadora}`, `{operador}`) e de item
+(`{cliente}`, `{endereco_como_veio}`, `{endereco_correto}`, `{motivo}`, `{cep_como_veio}`,
+`{cep_correto}`, `{municipio}`, `{uf}`). `mail-template-render.policy.ts` valida (lista fechada,
+variável de item fora de `item_text` é recusada) e renderiza com escape sempre aplicado depois da
+substituição. Nenhum modelo nasce por migration ou seed (ADR-0021) — só quando o operador salva.
+`POST /contractor-mail-templates/preview` renderiza sem gravar nem enviar. O envio usa o modelo
+padrão ou `templateId?` do body; sem modelo ativo do tipo, `409 CONTRACTOR_MAIL_TEMPLATE_MISSING`;
+`templateId` arquivado/de outro tipo/de outra empresa/inexistente, `409
+CONTRACTOR_MAIL_TEMPLATE_NOT_USABLE` (resposta única, não revela qual dos quatro casos foi).
+
+**Limitador de taxa** (RF18, M1 do `docs/SECURITY.md`, fechado pela T406): a API já tinha limitador em
+memória por processo (`http/rate-limiter.service.ts`); a T406 estendeu esse caminho, sem criar um
+paralelo. `rateLimit` de rota virou união discriminada — `{ store: 'memory', … }` (o de antes) ou
+`{ store: 'postgres', scope, maxRequests, windowSeconds }`. Aplicado a
+`POST /address-correction-requests/mail` e `POST /contractor-mail-settings/test-email`
+(`CONTRACTOR_MAIL_RATE_LIMIT_SCOPE`, mesmo balde para as duas), no mesmo ponto de hoje — depois de
+`authorize`, antes de `parse`/idempotência. `DrizzleRateLimiterRepository`
+(`http/drizzle-rate-limiter.repository.ts`): um upsert em autocommit sobre `rate_limit_windows
+(scope, subject_key, window_start, hits)`, `window_start` e "agora" pelo relógio do **banco**,
+`Retry-After` arredondado para cima com piso 1. Fail-closed, sem `try/catch` — erro do limitador
+propaga e vira 500. Chave `scope:companyId:userId`, nunca PII. Tetos por env
+(`RATE_LIMIT_CONTRACTOR_MAIL_MAX`/`RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS`, padrão 20/h). Limpeza
+pela rotina `rate-limit.window.purge` do **worker** (não o cron, que só publica a batida), corte em
+janelas com mais de 48 h. Detalhe: `docs/SECURITY.md` § "envio de e-mail à contratante sem teto de
+requisição (M1)".
+
+Detalhe completo (contratos vermelho→verde, arquivos tocados, decisões de encaixe do `item_text` e
+singular/plural de `{clientes}`): `specs/150-pedido-de-correcao-de-endereco/evidence.md` (T401–T406).
+
+## Catálogo de praças e recarregamento (spec 154)
+
+A aba de pedágio em Frota deixou de listar só as praças que a operação já cruzou (spec 095) e passou
+a ler o **catálogo inteiro** com busca e paginação do servidor. O catálogo nasce da extração de um
+`.pbf` (mesmo arquivo do OSRM, spec 090) e é recarregado pelo operador (permissão `settings.manage`)
+quando um novo `.pbf` é processado — a recarga é idempotente e não apaga praça nenhuma.
+
+**T101–T102: dados.** Migration aditiva `toll_booth_extracts` (chave natural `(dataset, observed_on)`):
+quem subiu, quando, contagens, sha256, URI do objeto no bucket. As colunas `source_url`/`extracted_at`
+(procedência do `.pbf`: URL e data do Geofabrik) existem no schema, mas **nenhum caminho de produção
+as grava** ainda (T503, defeito 7) — `POST /v1/toll-booths/extracts` não as aceita, e nem a aplicação
+nem a serialização da resposta as conhecem; reserva de esquema para o dia em que a rota passar a
+aceitá-las. `toll_booths` continua sem `company_id` — catálogo é da instalação, uma transportadora por
+deploy (ADR-0021). Duas colunas de ator (`uploaded_by_user_id` para a subida original,
+`reloaded_by_user_id` para cada recarga) **sem FK** — `removeMembership` (spec 149) apaga o usuário
+e uma FK `RESTRICT` travaria a remoção, `SET NULL`/`CASCADE` apagaria o ator histórico. Coluna
+`missing_object_observed_at` observa quando um `head()` falha (objeto sumiu do bucket após a linha ser
+gravada) — é **timestamp, de propósito nunca um booleano** (comentário do schema): um sinalizador
+`true`/`false` mentiria para sempre, porque o `put` é `create-only` e a ressubida dos mesmos bytes
+responde `replayed`, então o objeto pode voltar sem que ninguém intervenha para "desligar a flag". A
+coluna registra a data da última observação, não um estado estável, e zera no primeiro `get()` que
+funciona.
+
+**T201–T204: catálogo em leitura.** `TollBoothCatalogPort.listCatalog` (novo repositório
+`drizzle-toll-booth-catalog.repository.ts`) entrega o catálogo paginado com busca (`ilike` por nome
+e operador), mostrando para a empresa do contexto o ajuste manual de cada praça (especialmente o
+ajuste "órfão" — praça sem catálogo porque sumiu de um `.pbf` novo, marcada `catalogKnown: false`).
+O valor efetivo (ajuste manual vence catálogo) sai da política `resolveEffectiveTollBoothCharge`
+(spec 086), nunca do SQL. `GET /v1/toll-booths` (RF1, `fleet.read`) devolve o catálogo com resumo
+(RF2): contagem total, data `observed_on`, estado `empty | stale | current` (da política
+`resolveTollCatalogStatus`, reutilizada do mapa da viagem spec 090), e contagem de praças que
+resolverão `null` em `chargePerAxle` após aplicar ajuste da empresa — essa contagem exigiu leitura
+separada do catálogo inteiro (~600 linhas em staging), mapeada em memória contra os ajustes reais
+(`countBoothsWithoutKnownAxleCharge` na policy), para respeitar RNF2 (nunca ler a tabela inteira no
+`SELECT` paginado, só em agregados pontuais). T203 reaproveitou `listCatalog` com filtro
+`seenFilter: 'only'` para alimentar a rota existente `GET /company-settings/toll-booth-charges` (spec
+095), deixando-a intacta enquanto a fonte de dados mudou — as duas concordam praça a praça (contrato
+novo de paridade). **Divergência registrada na T402 item 5:** `list-toll-booth-catalog.use-case.ts`
+(226 linhas) passou de 200 — a ordenação pura (vistas sem tarifa primeiro, depois com tarifa) saiu
+para `domain/toll-booth-catalog-entry.policy.ts` e a resolução de vistas (que chama portas) para
+`application/list-toll-booth-catalog-seen-rows.service.ts`, deixando o use case com só orquestração.
+
+**T301–T302: extrato e recarga.** `POST /v1/toll-booths/extracts?dataset=<dataset>&observedOn=<AAAA-MM-DD>`
+(RF3b, `settings.manage`) recebe o JSON do extrator como corpo (array puro, sem envelope), valida
+forma com Zod (todas as colunas obrigatórias, `osmNodeId` único, coordenadas na faixa de latitude/longitude,
+dinheiro em padrão de quatro casas), calcula sha256 dos **bytes crus** (não do JSON reserializado, que
+diverge por espaço/ordem), e sobe para o bucket em modo `create-only` — resubida de bytes idênticos
+responde `replayed` (não é conflito), objeto diferente responde `objectConflict` (409 mapeado
+`TollBoothExtractObjectConflictError`). Linha duplicada `(dataset, observedOn)` responde `409` da
+chave natural. O objeto é gravado **antes** da linha, evitando estado órfão. `GET /v1/toll-booths/extracts`
+(RF3, `settings.manage`) lista do mais novo para o mais antigo, com contagens de praças por tarifa e
+quem/quando recarregou. `POST /v1/toll-booths/reload` (RF4, `settings.manage`) — _forma idempotente
+de transação global mais interessante desta feature_ — roda com advisory lock sobre id constante
+`TOLL_BOOTH_CATALOG_RELOAD_LOCK_ID = 14_154`, false responde `409 TOLL_BOOTH_CATALOG_RELOAD_IN_PROGRESS`;
+lê a linha por `(dataset, observedOn)` ou 404, `head()` o objeto (ausente: marca
+`missing_object_observed_at` fora da transação, responde 409) ou baixa cuidado com teto
+(`contentLength` > `APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES` = 1 MiB é 409 sem `get()`), valida
+sha256 (divergente: 409 com log de dataset, data e dois hashes em texto — **sem revelar os bytes**),
+reprocessa o JSON pelo mesmo Zod (nó repetido: 409 `TOLL_BOOTH_EXTRACT_INTEGRITY_MISMATCH`), executa
+o seed existente (`createSeedTollBoothsUseCase`) **dentro da transação** (seed que antes recebia
+repositório sem transação ganhou a transação no `TollBoothCatalogReloadPort.runExclusive`), grava
+ator/data/contagens em `reloaded_*`, zera `missing_object_observed_at`, registra ação em `audit_logs`
+com `action: 'toll_booth_catalog.reloaded'`. **Idempotência:** o upsert do seed ganhou `setWhere`
+(nenhuma das sete colunas observáveis mudou desde a anterior) — rodar de novo com o mesmo extrato
+deixa `toll_booths` idêntico, nem `updated_at` muda. Resposta `200 { data: { dataset, observedOn,
+savedBoothCount, catalogBoothCount, boothsMissingFromExtract, reloadedAt, reloadedByUserId } }` —
+`boothsMissingFromExtract` é o catálogo que ficou de fora deste extrato (praça que o banco conhece
+mas o extrato novo não trouxe), a reação esperada é "escolher extrato maior ou trazer de arquivo
+antigo se você quiser preenchê-la com tarifa manual".
+
+**T303: interface no frontend.** A aba de pedágio (Frota) ganhou um segundo bloco abaixo da lista de
+praças — seletor de extratos (lista do mais novo), botão "Recarregar catálogo", diálogo de
+confirmação (informa "a recarga afeta o catálogo de todas as empresas desta instalação", mesmo deploy
+= uma transportadora) e resultado (praças salvas, data do extrato recarregado, praças do catálogo que
+ficaram de fora). Dois casos extremos:
+
+- Catálogo vazio (nunca carregado): frase "nenhum extrato registrado ainda — não há o que recarregar".
+- Catálogo populado mas sem extrato registrado (staging 15/09): frase com link ao runbook (caso de
+  "manual para este ambiente, quero começar a usar pelo botão daqui para frente").
+
+**T401: navegação de rota para ajuste.** Praça sem tarifa conhecida no extrato da viagem (RouteTollSummary)
+ganhou botão `>` (ícone `edit`) que abre `/fleet?tollBoothSearch=<nome ou operador da praça>` — a aba
+de pedágio (T204) já lê `initialSearch` e filtra o catálogo de primeira, deixando a praça pronta para
+o operador ajustar valor e data. O botão só aparece com `settings.manage`. Sem nome nem operador (caso
+raro), abre a aba mesmo assim só sem termo.
+
+**T402: pendências e testes fracos corrigidos.** Seis itens:
+
+1. Upload de extrato com `osmNodeId` repetido é rejeitado (antes passava no upload e só falhava na
+   recarga com 500). `hasRepeatedOsmNodeId` virou `.refine()` do schema.
+2. Coordenada fora da faixa (`±90` latitude, `±180` longitude) era rejeitada só no seed com 500.
+   `coordinateSchema(bound)` virou `.refine()` do schema — upload e recarga agora recusam com 409
+   (integridade, mesmo código do sha256 divergente).
+3. Storage indisponível (`ObjectStorageError('OBJECT_STORAGE_UNAVAILABLE')`) respondia 500 genérico.
+   Mapeado em `http/response.service.ts` para 503 `STORAGE_UNAVAILABLE` (nova constante em
+   `HTTP_ERROR`), operando para todos os consumidores de storage (`nfe-imports`, billing, etc.).
+4. Comentário desatualizado em `toll-booth-extract.schema.ts` sobre "API não ter auditoria" — corrigido
+   (auditoria existe em `audit_logs`, consumida por `contractor-mail`).
+5. Arquivos acima de 200 linhas: `list-toll-booth-catalog.use-case.ts` (ordenação pura extraída),
+   `drizzle-toll-booth-catalog.repository.ts` (mapeamento extraído).
+6. Contrato fraco em `toll-booth-charge-tab.contract.ts` (T303) verificava só "string existe no
+   arquivo" — extraído `TollBoothCatalogReloadGate` componente próprio, novo contrato usa
+   `renderToStaticMarkup` com i18n real (padrão de `route-toll-adjustment.contract.tsx` da T401).
+
+Detalhe completo (vermelho→verde, contratos de repositório/use-case/HTTP, integração MinIO/Postgres,
+decisão da contagem de praças sem tarifa estar vinculada à empresa): `specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md`
+(T001, T101–T102, T201–T204, T301–T303, T401, T402).

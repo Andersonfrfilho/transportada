@@ -2,11 +2,18 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
 import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
 
 export type CancelTripPort = {
-  markCancelled(input: { readonly companyId: string; readonly tripId: string }): Promise<TripStatus>
+  markCancelled(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly onBehalfOfDriverId: string | null
+    readonly tripId: string
+  }): Promise<TripStatus>
   readTripStatus(input: {
     readonly companyId: string
     readonly tripId: string
@@ -14,7 +21,10 @@ export type CancelTripPort = {
 }
 
 export type CancelTripInput = {
+  readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
+  readonly onBehalfOfDriverId?: string | null
   readonly repository: CancelTripPort
   readonly tripId: string
 }
@@ -47,7 +57,10 @@ export async function cancelTrip(input: CancelTripInput): Promise<CancelTripResu
    * dentro da persistência — inócuo hoje, e exatamente o tipo de objeto que acaba num log.
    */
   const nextStatus = await input.repository.markCancelled({
+    actorUserId: input.actorUserId,
+    channel: input.channel,
     companyId: input.companyId,
+    onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     tripId: input.tripId,
   })
   return { tripStatus: nextStatus }

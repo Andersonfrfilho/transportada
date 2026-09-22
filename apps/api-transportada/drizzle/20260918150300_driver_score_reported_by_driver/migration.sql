@@ -1,0 +1,2 @@
+ALTER TABLE "trip_stop_events" ADD COLUMN "reported_by_driver_id" uuid;--> statement-breakpoint
+ALTER TABLE "trip_stop_events" ADD CONSTRAINT "trip_stop_events_company_reported_by_driver_fk" FOREIGN KEY ("company_id","reported_by_driver_id") REFERENCES "fleet_drivers"("company_id","id") ON DELETE RESTRICT ON UPDATE CASCADE;

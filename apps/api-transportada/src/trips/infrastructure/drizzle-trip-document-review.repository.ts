@@ -13,6 +13,7 @@ import {
 } from '../../database/trip-document-review.schema.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
 import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
+import type { PlanTripRouteTollFreezer } from '../application/plan-trip-route.use-case.js'
 import type {
   ListTripDocumentReviewsParams,
   MoveReviewParams,
@@ -90,9 +91,28 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
   public constructor(
     private readonly database: TripDatabase,
     options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
+    private readonly routeFreezer?: PlanTripRouteTollFreezer,
   ) {
     this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
     this.leaseMs = options.cargoLayoutLeaseMs
+  }
+
+  /** RF12/D6: origem e destino recalculam com `cheapest` sempre — nunca reafirmam a escolha antiga. */
+  private async freezeRoutesGracefully(
+    companyId: string,
+    tripIds: readonly string[],
+  ): Promise<void> {
+    if (this.routeFreezer === undefined) return
+    const freezer = this.routeFreezer
+    await Promise.all(
+      [...new Set(tripIds)].map(async (tripId) => {
+        try {
+          await freezer.freeze({ companyId, tripId })
+        } catch {
+          /* a mudança já está gravada; a rota recalcula no próximo replanejamento (D5) */
+        }
+      }),
+    )
   }
 
   public async releaseUnplaced(params: ReleaseUnplacedParams): Promise<ReleaseUnplacedResult> {
@@ -221,7 +241,8 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
   }
 
   public async move(params: MoveReviewParams): Promise<TripDocumentReviewView> {
-    return this.database.transaction(async (transaction) => {
+    const changedTripIds: string[] = []
+    const view = await this.database.transaction(async (transaction) => {
       const review = await requireReviewRecord(transaction, { ...params, forUpdate: true })
       const transition = checkTripDocumentReviewTransition({ from: review.status, to: 'moved' })
       if (transition === 'unchanged') {
@@ -271,12 +292,16 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
         correlationId: params.correlationId,
         tripId: applied.tripId,
       })
+      changedTripIds.push(review.sourceTripId, applied.tripId)
       return toReviewView(await requireReviewRecord(transaction, params))
     })
+    await this.freezeRoutesGracefully(params.companyId, changedTripIds)
+    return view
   }
 
   public async swap(params: SwapReviewParams): Promise<SwapReviewResult> {
-    return this.database.transaction(async (transaction) => {
+    const changedTripIds: string[] = []
+    const result = await this.database.transaction(async (transaction) => {
       const review = await requireReviewRecord(transaction, { ...params, forUpdate: true })
       const transition = checkTripDocumentReviewTransition({
         from: review.status,
@@ -340,8 +365,11 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
         correlationId: params.correlationId,
         tripId: applied.tripId,
       })
+      changedTripIds.push(applied.tripId)
       return this.readSwap(transaction, { companyId: params.companyId, reviewId: review.id })
     })
+    await this.freezeRoutesGracefully(params.companyId, changedTripIds)
+    return result
   }
 
   /**

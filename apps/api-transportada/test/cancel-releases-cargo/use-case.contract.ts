@@ -7,9 +7,11 @@ import {
   cancelTrip,
   type CancelTripPort,
 } from '../../src/trips/application/cancel-trip.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const TRIP_ID = '00000000-0000-4000-8000-000000000a11'
+const ACTOR_USER_ID = '00000000-0000-4000-8000-000000000a22'
 
 function port(input: { readonly status: null | Parameters<typeof build>[0] }) {
   return build(input.status)
@@ -18,7 +20,7 @@ function port(input: { readonly status: null | Parameters<typeof build>[0] }) {
 function build(
   status: null | 'draft' | 'route_planned' | 'dispatched' | 'completed' | 'cancelled',
 ) {
-  const calls: { readonly companyId: string; readonly tripId: string }[] = []
+  const calls: Parameters<CancelTripPort['markCancelled']>[0][] = []
   const repository: CancelTripPort = {
     markCancelled: async (received) => {
       calls.push(received)
@@ -39,10 +41,24 @@ describe('cancelar devolve a carga (spec 102)', () => {
   it('cancelar chama a persistência que libera as notas', async () => {
     const { calls, repository } = build('route_planned')
 
-    const result = await cancelTrip({ companyId: COMPANY_ID, repository, tripId: TRIP_ID })
+    const result = await cancelTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    })
 
     expect(result.tripStatus).toBe('cancelled')
-    expect(calls).toEqual([{ companyId: COMPANY_ID, tripId: TRIP_ID }])
+    expect(calls).toEqual([
+      {
+        actorUserId: ACTOR_USER_ID,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId: COMPANY_ID,
+        onBehalfOfDriverId: null,
+        tripId: TRIP_ID,
+      },
+    ])
   })
 
   /**
@@ -53,7 +69,13 @@ describe('cancelar devolve a carga (spec 102)', () => {
   it('viagem já cancelada não escreve de novo', async () => {
     const { calls, repository } = build('cancelled')
 
-    const result = await cancelTrip({ companyId: COMPANY_ID, repository, tripId: TRIP_ID })
+    const result = await cancelTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    })
 
     expect(result.tripStatus).toBe('cancelled')
     expect(calls).toEqual([])
@@ -63,7 +85,13 @@ describe('cancelar devolve a carga (spec 102)', () => {
     const { repository } = build('completed')
 
     await expect(
-      cancelTrip({ companyId: COMPANY_ID, repository, tripId: TRIP_ID }),
+      cancelTrip({
+        actorUserId: ACTOR_USER_ID,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId: COMPANY_ID,
+        repository,
+        tripId: TRIP_ID,
+      }),
     ).rejects.toThrow()
   })
 
@@ -71,7 +99,13 @@ describe('cancelar devolve a carga (spec 102)', () => {
     const { repository } = port({ status: null })
 
     await expect(
-      cancelTrip({ companyId: COMPANY_ID, repository, tripId: TRIP_ID }),
+      cancelTrip({
+        actorUserId: ACTOR_USER_ID,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId: COMPANY_ID,
+        repository,
+        tripId: TRIP_ID,
+      }),
     ).rejects.toThrow()
   })
 
@@ -79,7 +113,13 @@ describe('cancelar devolve a carga (spec 102)', () => {
   it('cancela viagem já despachada', async () => {
     const { calls, repository } = build('dispatched')
 
-    await cancelTrip({ companyId: COMPANY_ID, repository, tripId: TRIP_ID })
+    await cancelTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    })
 
     expect(calls).toHaveLength(1)
   })

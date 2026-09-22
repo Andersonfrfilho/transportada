@@ -37,11 +37,12 @@ export function createOsrmRouteGeometryGateway(input: {
   const timeout = input.timeoutMilliseconds ?? DEFAULT_TIMEOUT_MILLISECONDS
 
   return {
-    async readRouteGeometry(points) {
+    async readRouteGeometry(points, options) {
       if (points.length < 2) return null
 
       const path = points.map((point) => `${point.longitude},${point.latitude}`).join(';')
-      const url = `${input.baseUrl.replace(/\/$/u, '')}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=nodes&alternatives=true`
+      const excludeQuery = options?.excludeToll === true ? '&exclude=toll' : ''
+      const url = `${input.baseUrl.replace(/\/$/u, '')}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=nodes&alternatives=true${excludeQuery}`
 
       try {
         const response = await fetchImplementation(url, {

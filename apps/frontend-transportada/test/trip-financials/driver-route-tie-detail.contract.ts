@@ -4,20 +4,23 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
-import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { formatAmount, formatRateAmount } from '@/modules/shared/decimalAmount.service'
 import { composeCostParcelDetail } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
+import type {
+  TripDriverCostCrewLine,
+  TripValuationCostParcelBasis,
+} from '@/modules/trip-financials/shared/tripValuation.service'
 
 import financialsEn from '../../src/modules/trip-financials/locales/tripFinancials.en.locale.json'
 import financialsPt from '../../src/modules/trip-financials/locales/tripFinancials.locale.json'
 
 /**
- * Spec 129 — **a API manda o empate cru, e a tela compõe a frase nos dois idiomas.**
+ * Spec 143 — **a API manda a diária crua, uma linha por condutor, e a tela compõe a frase.**
  *
- * A spec 128 media o detalhe em texto pronto, sempre em português —
- * `'3 cidades · 1.003 (FRANCA) R$ 570,00 | 2.001 (SÃO CARLOS) R$ 480,00 · toco'` — mesmo com a tela
- * em inglês. `basis.tie` sobe cru (código, cidade, decimal em string ou ausência), e
- * `composeCostParcelDetail` é quem traduz "cidade(s)" e "sem preço" e formata a moeda, no molde de
- * `ledger.driverBasis` ao lado.
+ * `R$ {valor} × {dias} {dia|dias} · {origem}` é o molde que
+ * `freeze-trip-financial-result.use-case.ts` congela em português puro na viagem fechada; a viagem
+ * aberta compõe a mesma frase aqui — as duas nunca compartilham código (apps não importam fonte uma
+ * da outra), e o texto idêntico é o contrato entre elas.
  */
 
 type Dictionary = Record<string, unknown>
@@ -52,77 +55,121 @@ function translate(dictionary: Dictionary) {
   }
 }
 
-const TIE_BASIS = {
-  of: 'driver' as const,
-  paymentModel: 'route_table',
-  regionCity: 'FRANCA',
-  regionCode: '1.003',
-  tie: {
-    cityCount: 3,
-    zones: [
-      { amount: '570.0000', city: 'FRANCA', code: '1.003' },
-      { amount: null, city: 'SÃO CARLOS', code: '2.001' },
-    ],
-  },
-  vehicleClass: 'toco',
+function crewMember(overrides: Partial<TripDriverCostCrewLine> = {}): TripDriverCostCrewLine {
+  return {
+    dailyAmount: '250.0000',
+    driverId: 'driver-1',
+    driverName: 'eurides dias fontes',
+    paymentModel: 'aggregate',
+    rateOrigin: 'driver',
+    subtotal: '750.0000',
+    ...overrides,
+  }
 }
 
-describe('the tie detail is composed on the screen, in either language (spec 129)', () => {
-  test('pt-BR: cities, currency and "no price" are translated', () => {
+function driverBasis(
+  crew: readonly TripDriverCostCrewLine[],
+  overrides: Partial<{ days: number; daysOrigin: 'estimated' | 'informed' }> = {},
+): TripValuationCostParcelBasis {
+  return { crew, days: 3, daysOrigin: 'estimated', of: 'driver', ...overrides }
+}
+
+describe('the driver allowance sentence is composed on the screen (spec 143)', () => {
+  test('one driver, rate taken from the driver record', () => {
     const detail = composeCostParcelDetail({
-      basis: TIE_BASIS,
+      basis: driverBasis([crewMember()]),
+      detail: null,
+      t: translate(financialsPt),
+    })
+
+    expect(detail).toBe(`${formatAmount('250.0000')} × 3 dias · valor do motorista`)
+  })
+
+  test('a single day uses the singular form', () => {
+    const detail = composeCostParcelDetail({
+      basis: driverBasis([crewMember()], { days: 1 }),
+      detail: null,
+      t: translate(financialsPt),
+    })
+
+    expect(detail).toBe(`${formatAmount('250.0000')} × 1 dia · valor do motorista`)
+  })
+
+  test('each rate origin names itself', () => {
+    const company = composeCostParcelDetail({
+      basis: driverBasis([crewMember({ rateOrigin: 'company' })]),
+      detail: null,
+      t: translate(financialsPt),
+    })
+    const defaultRate = composeCostParcelDetail({
+      basis: driverBasis([crewMember({ rateOrigin: 'default' })]),
+      detail: null,
+      t: translate(financialsPt),
+    })
+    const driver = composeCostParcelDetail({
+      basis: driverBasis([crewMember({ rateOrigin: 'driver' })]),
+      detail: null,
+      t: translate(financialsPt),
+    })
+
+    expect(company).toBe(`${formatAmount('250.0000')} × 3 dias · valor geral`)
+    expect(defaultRate).toBe(`${formatAmount('250.0000')} × 3 dias · valor padrão`)
+    expect(driver).toBe(`${formatAmount('250.0000')} × 3 dias · valor do motorista`)
+  })
+
+  test('the thousands separator groups before the decimal comma', () => {
+    const detail = composeCostParcelDetail({
+      basis: driverBasis([crewMember({ dailyAmount: '1234.5600' })]),
+      detail: null,
+      t: translate(financialsPt),
+    })
+
+    expect(detail).toBe(`${formatAmount('1234.5600')} × 3 dias · valor do motorista`)
+    expect(detail).toContain('1.234,56')
+  })
+
+  /**
+   * ⚠️ O fator não arredonda. `formatAmount` corta para as duas casas da exibição, e "R$ 200,34 ×
+   * 3 dias" não chega aos R$ 601,0050 que a parcela soma. O total arredonda; a diária que o leitor
+   * multiplica, não.
+   */
+  test('a four-decimal rate is printed whole, not rounded to the display scale', () => {
+    const detail = composeCostParcelDetail({
+      basis: driverBasis([crewMember({ dailyAmount: '200.3350', subtotal: '601.0050' })]),
+      detail: null,
+      t: translate(financialsPt),
+    })
+
+    expect(detail).toBe(`${formatRateAmount('200.3350')} × 3 dias · valor do motorista`)
+    expect(detail).toContain('200,335')
+  })
+
+  /** O `R$` nunca se separa do número: é o `\u00A0` do `Intl`, e a API congela o mesmo caractere. */
+  test('the currency symbol is glued to the number by a non-breaking space', () => {
+    expect(formatRateAmount('250.0000')).toContain('R$\u00A0250,00')
+  })
+
+  test('two drivers become two sentences, separated by "; ", in crew order', () => {
+    const detail = composeCostParcelDetail({
+      basis: driverBasis([
+        crewMember({ dailyAmount: '250.0000', driverId: 'a', rateOrigin: 'driver' }),
+        crewMember({ dailyAmount: '180.0000', driverId: 'b', rateOrigin: 'company' }),
+      ]),
       detail: null,
       t: translate(financialsPt),
     })
 
     expect(detail).toBe(
-      `3 cidades · 1.003 (FRANCA) ${formatAmount('570.0000')} | 2.001 (SÃO CARLOS) sem preço · toco`,
-    )
-  })
-
-  /** ⚠️ A moeda é sempre real brasileiro — `formatAmount` não segue o idioma da tela. */
-  test('en: the words translate, the currency stays BRL', () => {
-    const detail = composeCostParcelDetail({
-      basis: TIE_BASIS,
-      detail: null,
-      t: translate(financialsEn),
-    })
-
-    expect(detail).toBe(
-      `3 cities · 1.003 (FRANCA) ${formatAmount('570.0000')} | 2.001 (SÃO CARLOS) no price · toco`,
-    )
-  })
-
-  test('a single tied city, in Portuguese, uses the singular form', () => {
-    const detail = composeCostParcelDetail({
-      basis: { ...TIE_BASIS, tie: { ...TIE_BASIS.tie, cityCount: 1 } },
-      detail: null,
-      t: translate(financialsPt),
-    })
-
-    expect(detail).toStartWith('1 cidade ·')
-  })
-
-  /** Com mais de um condutor, o nome de quem carrega a lacuna vem depois da classe. */
-  test('the driver name, when present, comes after the vehicle class', () => {
-    const detail = composeCostParcelDetail({
-      basis: TIE_BASIS,
-      detail: 'eurides dias fontes',
-      t: translate(financialsPt),
-    })
-
-    expect(detail).toBe(
-      `3 cidades · 1.003 (FRANCA) ${formatAmount('570.0000')} | 2.001 (SÃO CARLOS) sem preço · toco · eurides dias fontes`,
+      `${formatAmount('250.0000')} × 3 dias · valor do motorista; ${formatAmount('180.0000')} × 3 dias · valor geral`,
     )
   })
 
   /**
-   * ⚠️ Compatibilidade: parcela sem `basis.tie` (API anterior à 129, ainda mandando a frase
-   * composta em `detail`) cai no texto **cru**, sem tradução — a tela não quebra, e não inventa
-   * estrutura que a resposta não tem.
+   * ⚠️ Compatibilidade: resultado congelado antes desta spec guarda o código da lacuna, ou a frase
+   * já composta, direto em `detail` — sem `basis`, o texto sobe cru, sem tradução.
    */
-  test('without a structured tie the raw detail text is shown as-is', () => {
-    const legacyText = '3 cidades · 1.003 (FRANCA) R$ 570,00 | 2.001 (SÃO CARLOS) sem preço · toco'
+  test('without a structured basis the raw detail text is shown as-is (frozen result)', () => {
+    const legacyText = '3.000 (CAJURU) · vuc'
     const detail = composeCostParcelDetail({
       basis: null,
       detail: legacyText,
@@ -132,33 +179,57 @@ describe('the tie detail is composed on the screen, in either language (spec 129
     expect(detail).toBe(legacyText)
   })
 
-  test('a basis without a tie (no dispute) is untouched too', () => {
-    const detail = composeCostParcelDetail({
-      basis: { ...TIE_BASIS, tie: null },
+  /**
+   * ⚠️ A base existe e **não** é a do motorista: combustível e ICMS têm a própria estrutura, e o
+   * composto da diária passa reto. Sem este caso, trocar o guarda por `basis === null` deixaria a
+   * suíte verde e a linha do combustível tentaria se explicar com `crew` que ela não tem.
+   */
+  test('a basis that is not the driver one keeps its own detail, whatever it says', () => {
+    const fuelText = 'R$ 6,12/L · 2,5 km/L'
+    const fuel = composeCostParcelDetail({
+      basis: {
+        kilometersPerLiter: '2.5000',
+        litres: '120.0000',
+        of: 'fuel',
+        pricePerLiter: '6.1200',
+      },
+      detail: fuelText,
+      t: translate(financialsPt),
+    })
+    const icms = composeCostParcelDetail({
+      basis: { baseReductionRate: '0.0000', cst: '00', of: 'icms', rate: '0.1200' },
       detail: null,
       t: translate(financialsPt),
     })
 
-    expect(detail).toBeNull()
+    expect(fuel).toBe(fuelText)
+    expect(icms).toBeNull()
   })
-})
 
-/** Por texto de fonte: a API não formata moeda nem pluraliza — isso é da tela, sempre. */
-describe('the domain stays raw for the frontend to translate (spec 129)', () => {
-  test('the shared service is the only place composing the tie sentence', () => {
-    const service = readFileSync(
+  test('the sentence matches the one the API freezes, word for word', () => {
+    const source = readFileSync(
       new URL(
-        '../../src/modules/trip-financials/shared/tripCostParcelDetail.service.ts',
+        '../../../api-transportada/src/trips/application/freeze-trip-financial-result.use-case.ts',
         import.meta.url,
       ),
       'utf8',
     )
 
-    expect(service).toContain('formatAmount')
-    expect(service).toContain("t('ledger.tieCityCount'")
-    expect(service).toContain("t('ledger.tieNoPrice')")
+    expect(source).toContain("const dayLabel = days === 1 ? 'dia' : 'dias'")
+    expect(source).toContain(
+      '`R$${CURRENCY_SPACE}${formatRateText(dailyAmount)} × ${days} ${dayLabel} · ${DAILY_ALLOWANCE_RATE_ORIGIN_LABEL[rateOrigin]}`',
+    )
+    /** O mesmo espaço e o mesmo fator inteiro dos dois lados — é isso que faz o texto ser igual. */
+    expect(source).toContain("const CURRENCY_SPACE = '\\u00A0'")
+    expect(source).not.toContain('formatFiscalMoney')
+    expect(source).toContain("company: 'valor geral'")
+    expect(source).toContain("default: 'valor padrão'")
+    expect(source).toContain("driver: 'valor do motorista'")
   })
+})
 
+/** Por texto de fonte: a API não formata moeda nem pluraliza — isso é da tela, sempre. */
+describe('the domain stays raw for the frontend to translate (spec 143)', () => {
   test('both screens that print a cost parcel gap use the shared composer', () => {
     const ledger = readFileSync(
       new URL(
@@ -167,9 +238,10 @@ describe('the domain stays raw for the frontend to translate (spec 129)', () => 
       ),
       'utf8',
     )
+    /** Spec 143: a proposta compõe pela lista que o serviço de rotas monta — mesmo compositor. */
     const suggestion = readFileSync(
       new URL(
-        '../../src/modules/routing/components/SuggestionVehicleValuation.component.tsx',
+        '../../src/modules/routing/shared/suggestionCostParcelLine.service.ts',
         import.meta.url,
       ),
       'utf8',

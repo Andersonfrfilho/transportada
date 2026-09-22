@@ -10,8 +10,8 @@ import {
   LINK_NFE_DOCUMENT_BODY,
   responseApiError,
   tripClosePath,
-  tripDocumentDeliverPath,
   tripDocumentPath,
+  tripDocumentSeparatePath,
   tripMdfeManifestsPath,
   TRIPS_PATH,
   TRIP_ID,
@@ -40,8 +40,8 @@ describe('trip http security contract', () => {
     const linkResponse = await fixture.handle(
       jsonRequest({ body: LINK_NFE_DOCUMENT_BODY, method: 'POST', path: TRIP_DOCUMENTS_PATH }),
     )
-    const deliverResponse = await fixture.handle(
-      jsonRequest({ method: 'POST', path: tripDocumentDeliverPath() }),
+    const separateResponse = await fixture.handle(
+      jsonRequest({ method: 'POST', path: tripDocumentSeparatePath() }),
     )
     const releaseResponse = await fixture.handle(
       jsonRequest({ method: 'DELETE', path: tripDocumentPath() }),
@@ -59,14 +59,14 @@ describe('trip http security contract', () => {
 
     expect(createResponse.status).toBe(403)
     expect(linkResponse.status).toBe(403)
-    expect(deliverResponse.status).toBe(403)
+    expect(separateResponse.status).toBe(403)
     expect(releaseResponse.status).toBe(403)
     expect(closeResponse.status).toBe(403)
     expect(mdfeManifestResponse.status).toBe(403)
     expect((await responseApiError(createResponse)).code).toBe('FORBIDDEN')
     expect(fixture.createTripCalls).toEqual([])
     expect(fixture.linkTripDocumentCalls).toEqual([])
-    expect(fixture.deliverTripDocumentCalls).toEqual([])
+    expect(fixture.separateTripDocumentCalls).toEqual([])
     expect(fixture.releaseTripDocumentCalls).toEqual([])
     expect(fixture.closeTripCalls).toEqual([])
     expect(fixture.createTripMdfeManifestCalls).toEqual([])
@@ -83,8 +83,8 @@ describe('trip http security contract', () => {
     const linkResponse = await fixture.handle(
       jsonRequest({ body: LINK_NFE_DOCUMENT_BODY, method: 'POST', path: TRIP_DOCUMENTS_PATH }),
     )
-    const deliverResponse = await fixture.handle(
-      jsonRequest({ method: 'POST', path: tripDocumentDeliverPath() }),
+    const separateResponse = await fixture.handle(
+      jsonRequest({ method: 'POST', path: tripDocumentSeparatePath() }),
     )
     const releaseResponse = await fixture.handle(
       jsonRequest({ method: 'DELETE', path: tripDocumentPath() }),
@@ -102,12 +102,12 @@ describe('trip http security contract', () => {
 
     expect(createResponse.status).toBe(403)
     expect(linkResponse.status).toBe(403)
-    expect(deliverResponse.status).toBe(403)
+    expect(separateResponse.status).toBe(403)
     expect(releaseResponse.status).toBe(403)
     expect(closeResponse.status).toBe(403)
     expect(fixture.createTripCalls).toEqual([])
     expect(fixture.linkTripDocumentCalls).toEqual([])
-    expect(fixture.deliverTripDocumentCalls).toEqual([])
+    expect(fixture.separateTripDocumentCalls).toEqual([])
     expect(fixture.releaseTripDocumentCalls).toEqual([])
     expect(fixture.closeTripCalls).toEqual([])
     // O manifesto não migrou: quem tem `mdfe.manage` continua emitindo a partir da viagem

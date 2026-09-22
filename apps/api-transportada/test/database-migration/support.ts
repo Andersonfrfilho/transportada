@@ -145,6 +145,8 @@ export const TRIP_TABLES = [
   'trip_stops',
   'trip_document_events',
   'trip_dispatch_snapshots',
+  /** Spec 158 / ADR-0068: histórico de `trips.status`, um evento por transição gravada. */
+  'trip_status_events',
   /** Spec 057: a execução de campo — o que aconteceu na rua, e a chave que impede o reenvio duplicar. */
   'trip_stop_events',
   'trip_stop_occurrences',
@@ -176,12 +178,17 @@ export const DELIVERY_CLIENT_TABLES = [
   'extra_charge_batches',
 ] as const
 
-/** Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa. */
+/**
+ * Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa.
+ * Spec 143 D3: o valor geral da diária do motorista mora aqui pelo mesmo motivo do regime federal —
+ * é configuração de dinheiro da empresa que a conta da viagem lê.
+ */
 export const TRIP_FINANCIAL_TABLES = [
   'trip_financial_results',
   'trip_financial_parcels',
   'trip_cost_entries',
   'company_tax_settings',
+  'company_driver_allowance_settings',
 ] as const
 
 /** Spec 058 P2: a frota, o pool de notas e a ligação parada↔nota da sugestão multi-veículo. */
@@ -233,9 +240,11 @@ export async function listMigrationDirectories(): Promise<readonly string[]> {
     .toSorted()
 }
 
+type PostgresSqlState = '23001' | '23503' | '23505' | '23514' | '55000'
+
 export async function expectQueryToFail(
   query: PromiseLike<unknown>,
-  expectedSqlState: '23503' | '23505' | '23514' | '55000',
+  expectedSqlState: PostgresSqlState | readonly PostgresSqlState[],
   expectedConstraint?: string,
 ): Promise<void> {
   try {
@@ -246,7 +255,9 @@ export async function expectQueryToFail(
       readonly constraint?: unknown
       readonly errno?: unknown
     }
-    expect(postgresError.errno).toBe(expectedSqlState)
+    const acceptedSqlStates: readonly unknown[] =
+      typeof expectedSqlState === 'string' ? [expectedSqlState] : expectedSqlState
+    expect(acceptedSqlStates).toContain(postgresError.errno)
     if (expectedConstraint !== undefined) {
       expect(postgresError.constraint).toBe(expectedConstraint)
     }

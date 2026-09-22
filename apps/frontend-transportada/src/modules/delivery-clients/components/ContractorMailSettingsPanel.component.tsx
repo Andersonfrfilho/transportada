@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { resolveRetryAfterMinutes } from '@/modules/shared/retryAfter.service'
 
 import {
   contractorMailCheckKeyLocaleKey,
@@ -54,6 +55,7 @@ type ContractorMailSettingsPanelProps = Readonly<{
   saved: boolean
   summary: ContractorMailSettingsSummary | null | undefined
   testEmailErrorCode: string | undefined
+  testEmailErrorRetryAfterSeconds: number | undefined
   testEmailPending: boolean
   testEmailSent: boolean
 }>
@@ -232,7 +234,11 @@ export function ContractorMailSettingsPanel(props: ContractorMailSettingsPanelPr
         <p className={styles.fieldHint}>{t('contractorMail.webhookInstructions')}</p>
       </section>
 
-      <section aria-labelledby="contractor-mail-checklist-title" className={styles.settingsPanel}>
+      <section
+        aria-labelledby="contractor-mail-checklist-title"
+        className={styles.settingsPanel}
+        id="contractor-mail-checklist-section"
+      >
         <h2 id="contractor-mail-checklist-title">{t('contractorMail.checklistTitle')}</h2>
         {props.checksLoading ? (
           <ChecklistSkeleton />
@@ -272,7 +278,14 @@ export function ContractorMailSettingsPanel(props: ContractorMailSettingsPanelPr
         )}
         {props.testEmailErrorCode !== undefined && (
           <p className={styles.formStatusError} role="alert">
-            {t('contractorMail.testEmailError', { code: props.testEmailErrorCode })}
+            {props.testEmailErrorCode === 'TOO_MANY_REQUESTS'
+              ? t('contractorMail.testEmailTooManyRequests', {
+                  minutes:
+                    props.testEmailErrorRetryAfterSeconds === undefined
+                      ? undefined
+                      : resolveRetryAfterMinutes(props.testEmailErrorRetryAfterSeconds),
+                })
+              : t('contractorMail.testEmailError', { code: props.testEmailErrorCode })}
           </p>
         )}
       </section>

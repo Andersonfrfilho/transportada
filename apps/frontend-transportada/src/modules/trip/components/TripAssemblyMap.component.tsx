@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
@@ -35,14 +35,20 @@ import {
 } from '../shared/assemblyNoteFigures.service'
 
 import { stopColorOf } from '../shared/stopColor.service'
+import type { RouteChoice } from '../shared/routeGeometry.service'
+import { RouteTollSummary } from './RouteTollSummary.component'
 import {
   buildAssemblyDepotLegs,
   buildAssemblyLegs,
   formatDuration,
   totalAssemblyMinutes,
 } from '../shared/assemblyLeg.service'
-import { formatTariffMonth } from '../shared/assemblyToll.service'
-import { resolveRouteOptionSummaries } from '../shared/assemblyRouteOptions.service'
+import {
+  isRouteChoiceSettled,
+  resolveAssemblyRouteChoice,
+  resolvePreferredRouteOptionIndex,
+  resolveRouteOptionSummaries,
+} from '../shared/assemblyRouteOptions.service'
 import {} from '../shared/tileMap.service'
 import {
   resolveStopKey,
@@ -67,6 +73,8 @@ const AssemblyVectorMap = lazy(async () => ({
 const MAP_HEIGHT = '18rem'
 
 type TripAssemblyMapProps = Readonly<{
+  /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
+  canAdjustTollBooth: boolean
   /** As notas que o filtro alcança e a seleção deixou de fora — o que faltou, em cinza claro. */
   nearby: readonly AssemblyMapNote[]
   /**
@@ -75,6 +83,16 @@ type TripAssemblyMapProps = Readonly<{
    * sem recalcular seria oferecer um controle que produz um roteiro que a conta ao lado não descreve.
    */
   onOrderChange?: ((order: AssemblyCityOrder) => void) | undefined
+  /**
+   * Spec 153: a rota que o operador está vendo, para o planejamento congelar **esta** e não outra.
+   * `undefined` é "não há escolha" — rota única, rascunho ou estrada que ainda não veio.
+   */
+  onRouteChoiceChange?: ((choice: RouteChoice | undefined) => void) | undefined
+  /**
+   * A rota escolhida antes de o operador sair da tela (rascunho da montagem). Ela é reaplicada só
+   * quando a estrada que chega tem a mesma assinatura — outra estrada começa na principal.
+   */
+  preferredRouteChoice?: RouteChoice | undefined
   /**
    * Tirar a parada inteira da viagem — todas as notas que param naquele endereço, pelos ids delas.
    *
@@ -157,14 +175,17 @@ function formatFinishTime(iso: string): string {
  * ao lado dela diz isso.
  */
 export function TripAssemblyMap({
+  canAdjustTollBooth,
   isMeasurementPaused,
   measuredOrder,
   nearby,
   onOrderChange,
+  onRouteChoiceChange,
   onStopMove,
   onStopRemove,
   onStopUndoRemove,
   order,
+  preferredRouteChoice,
   proposalTimeText,
   removedNoteIds,
   resolveMoveTargets,
@@ -304,6 +325,85 @@ export function TripAssemblyMap({
     setSelectedOptionIndex(0)
   }, [routeKey, tollVehicleId])
 
+  /**
+   * ⚠️ Depois do efeito acima, e só quando a resposta muda: a escolha publicada volta como
+   * `preferredRouteChoice`, e reagir a ela a cada render brigaria com o clique do operador.
+   */
+  const preferredRouteChoiceRef = useRef(preferredRouteChoice)
+  useEffect(() => {
+    preferredRouteChoiceRef.current = preferredRouteChoice
+  }, [preferredRouteChoice])
+  useEffect(() => {
+    const preferredIndex = resolvePreferredRouteOptionIndex({
+      options: geometryQuery.data?.options ?? [],
+      preferred: preferredRouteChoiceRef.current,
+    })
+    if (preferredIndex !== undefined) setSelectedOptionIndex(preferredIndex)
+  }, [geometryQuery.data])
+
+  /**
+   * As opções que o roteirizador ofereceu (spec 096 T1) — a principal em `[0]`. `hasChoice` vem
+   * pronto da API (`rankRouteOptions`, T2): rota única nunca desenha seletor (D2).
+   */
+  /** As alternativas são da ordem medida: durante o rascunho elas escolheriam entre caminhos antigos. */
+  const routeOptions = isDraft ? [] : (geometryQuery.data?.options ?? [])
+  const hasRouteChoice = isDraft ? false : (geometryQuery.data?.hasChoice ?? false)
+  const cheapestIndex = geometryQuery.data?.cheapestIndex ?? null
+  const fastestIndex = geometryQuery.data?.fastestIndex ?? null
+  const costGap = geometryQuery.data?.costGap ?? null
+  const routeOptionSummaries = resolveRouteOptionSummaries({
+    cheapestIndex,
+    fastestIndex,
+    options: routeOptions,
+  })
+  /**
+   * ⚠️ O índice guardado pode sobrar de uma resposta anterior com mais opções — limitar ao que
+   * existe hoje evita `options[selectedOptionIndex]` vazando `undefined` para o resto da tela.
+   */
+  const boundedOptionIndex = Math.min(selectedOptionIndex, Math.max(routeOptions.length - 1, 0))
+
+  /**
+   * ⚠️ Memorizada pelos dois textos, não pelo objeto: um objeto novo a cada render dispararia o
+   * efeito abaixo a cada render, e o dono do estado renderizaria de novo sem fim.
+   */
+  const routeChoice = resolveAssemblyRouteChoice({
+    cheapestIndex,
+    fastestIndex,
+    hasChoice: hasRouteChoice,
+    options: routeOptions,
+    selectedIndex: boundedOptionIndex,
+  })
+  const routeChoiceCriterion = routeChoice?.criterion
+  const routeChoiceSignature = routeChoice?.signature ?? null
+  const stableRouteChoice = useMemo(
+    () =>
+      routeChoiceCriterion === undefined
+        ? undefined
+        : { criterion: routeChoiceCriterion, signature: routeChoiceSignature },
+    [routeChoiceCriterion, routeChoiceSignature],
+  )
+  /**
+   * ⚠️ O callback fica numa referência, fora das dependências: quem hospeda o mapa costuma passar
+   * uma função nova a cada render, e com ela o efeito publicaria a cada render.
+   */
+  const onRouteChoiceChangeRef = useRef(onRouteChoiceChange)
+  useEffect(() => {
+    onRouteChoiceChangeRef.current = onRouteChoiceChange
+  }, [onRouteChoiceChange])
+  /**
+   * ⚠️ Enquanto a estrada é medida (rascunho ou resposta a caminho) nada é publicado: `undefined`
+   * ali diria "não há escolha" antes de a resposta dizer isso.
+   */
+  const isChoiceSettled = isRouteChoiceSettled({
+    hasResponse: geometryQuery.data !== undefined,
+    isDraft,
+    isFetching: geometryQuery.isFetching,
+  })
+  useEffect(() => {
+    if (!isChoiceSettled) return
+    onRouteChoiceChangeRef.current?.(stableRouteChoice)
+  }, [isChoiceSettled, stableRouteChoice])
+
   /** Enquanto a sonda não responde, as telhas tentam — trocar de desenho depois pisca menos que antes. */
 
   /**
@@ -366,26 +466,6 @@ export function TripAssemblyMap({
    * ⚠️ Os trechos saem da **geometria**, não das coordenadas. Sem roteirizador a lista é vazia e a
    * tela não imprime tempo nenhum — ADR-0044 §5: não se estima o que o OSRM não respondeu.
    */
-  /**
-   * As opções que o roteirizador ofereceu (spec 096 T1) — a principal em `[0]`. `hasChoice` vem
-   * pronto da API (`rankRouteOptions`, T2): rota única nunca desenha seletor (D2).
-   */
-  /** As alternativas são da ordem medida: durante o rascunho elas escolheriam entre caminhos antigos. */
-  const routeOptions = isDraft ? [] : (geometryQuery.data?.options ?? [])
-  const hasRouteChoice = isDraft ? false : (geometryQuery.data?.hasChoice ?? false)
-  const cheapestIndex = geometryQuery.data?.cheapestIndex ?? null
-  const fastestIndex = geometryQuery.data?.fastestIndex ?? null
-  const costGap = geometryQuery.data?.costGap ?? null
-  const routeOptionSummaries = resolveRouteOptionSummaries({
-    cheapestIndex,
-    fastestIndex,
-    options: routeOptions,
-  })
-  /**
-   * ⚠️ O índice guardado pode sobrar de uma resposta anterior com mais opções — limitar ao que
-   * existe hoje evita `options[selectedOptionIndex]` vazando `undefined` para o resto da tela.
-   */
-  const boundedOptionIndex = Math.min(selectedOptionIndex, Math.max(routeOptions.length - 1, 0))
   const activeOption = routeOptions[boundedOptionIndex] ?? null
   /**
    * ⚠️ A opção escolhida redesenha o traço **e** alimenta o tempo/pedágio impressos acima do
@@ -570,115 +650,8 @@ export function TripAssemblyMap({
           <span>{t(`assemblyMap.depot.absence.${depotAbsenceKey}`)}</span>
         </p>
       )}
-      {/*
-        Spec 090 T7/T8: o pedágio vem na mesma resposta que desenhou o traço (D4), imediatamente
-        abaixo do tempo do roteiro. `toll === null` é "não calculei" — sem veículo escolhido, ou o
-        roteirizador não anotou os nós — e o bloco inteiro fica de fora, nunca um zero inventado.
-      */}
-      {toll === null ? null : (
-        <div className={styles.assemblyToll}>
-          <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
-            <Icon name="invoice" />
-            <span>
-              {t('assemblyMap.toll.summary', {
-                boothCount: toll.booths.length,
-                chargePerAxle: formatAmount(toll.chargePerAxle),
-                multiplier: toll.multiplierLabel,
-                total: formatAmount(toll.total),
-              })}
-              {toll.tariffObservedOn === null
-                ? null
-                : t('assemblyMap.toll.tariff', { month: formatTariffMonth(toll.tariffObservedOn) })}
-              {/*
-                ⚠️ A marca de estimativa não pode ficar atrás de segunda condição — é a mesma
-                trava de `test/trip/occupancy.contract.ts`: um `&&` a mais é o caminho pelo qual
-                ela some sem ninguém notar.
-              */}
-              {toll.axles.source === 'estimated' ? ` ${t('assemblyMap.toll.estimated')}` : null}
-            </span>
-          </p>
-          {/*
-            Spec 095 D3: a base (tag ou manual) e, quando com tag, quantas praças caíram para a
-            manual por falta de tarifa automática — um total menor sem esse aviso seria a mentira
-            que a 090 inteira combate (mesma trava do `boothsWithoutCharge` abaixo).
-          */}
-          <p className={styles.hint}>{t(`assemblyMap.toll.paymentMode.${toll.paymentMode}`)}</p>
-          {/*
-            O catálogo de praças reajusta uma vez por ano — sem esta marca a tela imprime uma
-            tarifa velha com cara de hoje. `empty` já vira o aviso do bloco abaixo; aqui é só `stale`.
-          */}
-          {toll.catalog.status !== 'stale' || toll.catalog.observedOn === null ? null : (
-            <p className={styles.warning}>
-              {t('assemblyMap.toll.catalogStale', {
-                month: formatTariffMonth(toll.catalog.observedOn),
-              })}
-            </p>
-          )}
-          {toll.paymentMode !== 'automatic' || toll.boothsFallenBackToManual === 0 ? null : (
-            <p className={styles.hint}>
-              {t('assemblyMap.toll.fallenBackToManual', { count: toll.boothsFallenBackToManual })}
-            </p>
-          )}
-          {toll.boothsWithoutCharge === 0 ? null : (
-            <p className={styles.hint}>
-              {t('assemblyMap.toll.withoutCharge', { count: toll.boothsWithoutCharge })}
-            </p>
-          )}
-          {/*
-            Spec 090 T8: praça a praça, na ordem em que o caminhão passa — quem confere sabe por
-            onde o custo entrou. Rota sem praça nunca é lista vazia: ela diz que não há pedágio,
-            porque sumir é indistinguível de "ninguém calculou".
-          */}
-          {toll.booths.length === 0 ? (
-            <p className={styles.hint}>
-              {toll.catalog.status === 'empty'
-                ? t('assemblyMap.toll.catalogEmpty')
-                : t('assemblyMap.toll.none')}
-            </p>
-          ) : (
-            <>
-              {/*
-                ⚠️ O título carrega a **contagem de eixos e de onde ela veio**, e não é enfeite: o
-                mesmo trajeto custa metade num toco e o dobro numa carreta, e sem dizer com quantos
-                eixos a conta foi feita o total não é conferível contra o comprovante da cancela.
-              */}
-              <p className={styles.hint}>
-                {t('assemblyMap.toll.statementTitle', {
-                  axleCount: toll.axles.count,
-                  axleSource: t(`assemblyMap.toll.axleSource.${toll.axles.source}`),
-                  multiplier: toll.multiplierLabel,
-                })}
-              </p>
-              <ul className={styles.tollStatement}>
-                {toll.booths.map((booth) => (
-                  <li key={booth.osmNodeId}>
-                    <span className={styles.tollStatementBooth}>
-                      {t('assemblyMap.toll.booth', {
-                        name: booth.name ?? t('assemblyMap.toll.boothUnnamed'),
-                        operator: booth.operator ?? t('assemblyMap.toll.operatorUnknown'),
-                      })}
-                    </span>
-                    <span className={styles.tollStatementCharge}>
-                      {booth.effectiveChargePerAxle === null || booth.total === null
-                        ? t('assemblyMap.toll.statementWithoutCharge')
-                        : t('assemblyMap.toll.statementLine', {
-                            charge: formatAmount(booth.effectiveChargePerAxle),
-                            multiplier: toll.multiplierLabel,
-                            total: formatAmount(booth.total),
-                          })}
-                    </span>
-                    {booth.fellBackToManual ? (
-                      <span className={styles.tollStatementNote}>
-                        {t('assemblyMap.toll.statementFellBack')}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
-      )}
+      {/* Spec 090 T7/T8: o pedágio vem na mesma resposta que desenhou o traço (D4). */}
+      <RouteTollSummary canAdjustTollBooth={canAdjustTollBooth} toll={toll} />
       {/*
         Spec 096 T1/T2/T3: a rota mais rápida e a mais barata, com o custo total de cada uma —
         logo abaixo do bloco de pedágio da T7. `hasChoice` vem pronto da API: rota única (três de
@@ -696,11 +669,51 @@ export function TripAssemblyMap({
                   className={styles.routeOption}
                   onClick={() => setSelectedOptionIndex(index)}
                   type="button"
-                  variant={index === boundedOptionIndex ? 'default' : 'secondary'}
+                  /*
+                   * ⚠️ Sempre `secondary`: o cobre sólido do `default` apagava o texto e o selo. A
+                   * escolha é marcada pelo `aria-pressed` no CSS, como os chips da planta de carga.
+                   */
+                  variant="secondary"
                 >
-                  {/* A escolhida leva o visto; as demais são oferta, ainda não escolha feita. */}
-                  {index === boundedOptionIndex ? <Icon name="check" /> : <Icon name="target" />}
-                  <span>
+                  <span className={styles.routeOptionHeader}>
+                    {/* A escolhida leva o visto; as demais são oferta, ainda não escolha feita. */}
+                    {index === boundedOptionIndex ? <Icon name="check" /> : <Icon name="target" />}
+                    {/*
+                      ⚠️ Quando a mesma rota vence as duas contas isso é informação, não bug (caso
+                      medido de Campinas) — uma marca só, nunca as duas empilhadas dizendo a mesma
+                      coisa duas vezes.
+                    */}
+                    {summary.isBestOfBoth ? (
+                      <span className={styles.routeOptionBadge}>
+                        <Icon name="speed" size="sm" />
+                        <Icon name="cost-down" size="sm" />
+                        {t('assemblyMap.routeOptions.fastestAndCheapest')}
+                      </span>
+                    ) : (
+                      <>
+                        {summary.isFastest ? (
+                          <span className={styles.routeOptionBadge}>
+                            <Icon name="speed" size="sm" />
+                            {t('assemblyMap.routeOptions.fastest')}
+                          </span>
+                        ) : null}
+                        {summary.isCheapest ? (
+                          <span className={styles.routeOptionBadge}>
+                            <Icon name="cost-down" size="sm" />
+                            {t('assemblyMap.routeOptions.cheapest')}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </span>
+                  {summary.totalCost === null ? null : (
+                    <span className={styles.routeOptionTotal}>
+                      {t('assemblyMap.routeOptions.total', {
+                        amount: formatAmount(summary.totalCost),
+                      })}
+                    </span>
+                  )}
+                  <span className={styles.routeOptionFacts}>
                     {/*
                       ⚠️ Sem pedágio calculado a linha diz que **não sabe**, nunca "0 praças" —
                       zero ali seria uma afirmação, na linha em que a rota é escolhida.
@@ -710,42 +723,12 @@ export function TripAssemblyMap({
                         ? 'assemblyMap.routeOptions.optionWithoutToll'
                         : 'assemblyMap.routeOptions.option',
                       {
-                        boothCount: summary.boothCount ?? 0,
+                        count: summary.boothCount ?? 0,
                         distance: summary.distanceKilometres.toFixed(1),
                         duration: formatDuration(summary.minutes),
                       },
                     )}
                   </span>
-                  {summary.totalCost === null ? null : (
-                    <span>
-                      {t('assemblyMap.routeOptions.total', {
-                        amount: formatAmount(summary.totalCost),
-                      })}
-                    </span>
-                  )}
-                  {/*
-                    ⚠️ Quando a mesma rota vence as duas contas isso é informação, não bug (caso
-                    medido de Campinas) — uma marca só, nunca as duas empilhadas dizendo a mesma
-                    coisa duas vezes.
-                  */}
-                  {summary.isBestOfBoth ? (
-                    <span className={styles.routeOptionBadge}>
-                      {t('assemblyMap.routeOptions.fastestAndCheapest')}
-                    </span>
-                  ) : (
-                    <>
-                      {summary.isFastest ? (
-                        <span className={styles.routeOptionBadge}>
-                          {t('assemblyMap.routeOptions.fastest')}
-                        </span>
-                      ) : null}
-                      {summary.isCheapest ? (
-                        <span className={styles.routeOptionBadge}>
-                          {t('assemblyMap.routeOptions.cheapest')}
-                        </span>
-                      ) : null}
-                    </>
-                  )}
                 </Button>
               </li>
             ))}

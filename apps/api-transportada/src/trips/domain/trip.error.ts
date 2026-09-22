@@ -64,6 +64,39 @@ export class TripNotFoundError extends ApiError {
   }
 }
 
+/** Spec 158 T6: `cursor` da querystring que não decodifica no formato de `parseTripTimelineCursor`. */
+export class TripTimelineCursorInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TIMELINE_CURSOR_INVALID',
+      message: 'The timeline cursor is malformed.',
+      status: 400,
+    })
+  }
+}
+
+/** ADR-0067 §2: o escritório registra em nome de um motorista, e a viagem não tem nenhum. */
+export class TripWithoutDriverError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_WITHOUT_DRIVER',
+      message: 'The trip has no driver to report on behalf of.',
+      status: 422,
+    })
+  }
+}
+
+/** ADR-0067 §2: o motorista escolhido precisa estar na tripulação desta viagem. */
+export class DriverNotOnTripError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DRIVER_NOT_ON_TRIP',
+      message: 'The chosen driver is not part of this trip crew.',
+      status: 422,
+    })
+  }
+}
+
 /** Spec 145 T11: planta de outra empresa responde igual à inexistente — nunca confirma que existe. */
 export class TripCargoLayoutNotFoundError extends ApiError {
   public constructor() {
@@ -283,16 +316,59 @@ export class TripStopNotReachableError extends ApiError {
   }
 }
 
+const UNREACHABLE_DOCUMENTS_FIELD = 'documentIds'
+
 /**
  * Confirmação enfileirada de uma nota que o escritório desvinculou. O código é estável porque a tela
  * mostra o conflito — sumir com o toque do motorista é pior do que recusá-lo com o motivo.
  */
 export class TripDocumentNotReachableError extends ApiError {
-  public constructor() {
+  /**
+   * Spec 156 T7.3: o lote do escritório diz **todas** as notas inalcançáveis de uma vez — ids
+   * opacos, sem dado de negócio. Sem lista, é o erro de uma nota só, como sempre foi.
+   */
+  public constructor(params: { readonly unreachableDocumentIds?: readonly string[] } = {}) {
     super({
       code: 'TRIP_DOCUMENT_NOT_REACHABLE',
+      ...(params.unreachableDocumentIds === undefined
+        ? {}
+        : {
+            details: params.unreachableDocumentIds.map((documentId) => ({
+              field: UNREACHABLE_DOCUMENTS_FIELD,
+              message: documentId,
+            })),
+          }),
       message: 'The document is no longer part of an active trip of this driver.',
       status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 156 T7.3 (L4): o escritório registra ocorrência **em nome do motorista**, e o motorista só
+ * registra ocorrência de rua. Tipo de galpão, aposentado ou de outra empresa respondem igual — quem
+ * pergunta é a própria empresa, e a tela precisa dizer o motivo.
+ */
+export class OccurrenceTypeNotFieldError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NOT_FIELD',
+      message: 'The occurrence type is not an active delivery occurrence type.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 157 RF4: a rota do galpão (`trip.manage`) grava só tipo de separação. Com tipo de rua, o
+ * `separator` — que tem `trip.manage` e não tem `trip.report` — registraria o que nunca viu.
+ */
+export class OccurrenceTypeNotSeparationError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NOT_SEPARATION',
+      message: 'The occurrence type is not a separation occurrence type.',
+      status: 422,
     })
   }
 }
@@ -428,6 +504,58 @@ export class OccurrenceEmailTemplateNotFoundError extends ApiError {
     super({
       code: 'OCCURRENCE_EMAIL_TEMPLATE_NOT_FOUND',
       message: 'There is no active email template with this key for the company.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * ADR-0067 §2 (emenda): no canal `office`, nota já `delivered`/`returned` não gera evento novo — o
+ * caso real ("a entrega já aconteceu e falta o canhoto") é `field-proof`, que anexa ao evento
+ * existente. O canal do motorista não passa por aqui: continua com o no-op idempotente de hoje.
+ */
+export class TripDocumentAlreadySettledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DOCUMENT_ALREADY_SETTLED',
+      message: 'This document was already settled by another field report.',
+      status: 409,
+    })
+  }
+}
+
+/** ADR-0067 §3: "Entregue em"/"Devolvido em" não aceita hora no futuro (tolerância de relógio de 2min). */
+export class DeliveredAtInFutureError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERED_AT_IN_FUTURE',
+      message: 'The informed time is in the future.',
+      status: 400,
+    })
+  }
+}
+
+/** ADR-0067 §3: a hora informada não pode ser anterior ao despacho congelado da viagem. */
+export class DeliveredAtBeforeDispatchError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERED_AT_BEFORE_DISPATCH',
+      message: 'The informed time is before the trip was dispatched.',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * ADR-0067 §5 (emenda 2026-09-18): a configuração da empresa exige foto e o escritório não a
+ * mandou. Aplicado só ao canal `office` nesta T6 — o motorista ainda não tem esta verificação no
+ * backend (pendência registrada fora da spec 156).
+ */
+export class TripDeliveryProofPhotoRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED',
+      message: 'This company requires a photo of the delivery receipt.',
       status: 422,
     })
   }

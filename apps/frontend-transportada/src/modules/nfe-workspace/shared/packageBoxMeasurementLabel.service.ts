@@ -31,6 +31,8 @@ export type MeasurementSourceLabelInput = Readonly<{
 export function measurementSourceLabel(t: Translate, input: MeasurementSourceLabelInput): string {
   if (input.measurementSource === null) return t('packageBoxes.source.unknown')
   if (input.measurementSource === 'typed') return t('packageBoxes.source.typed')
+  /** Spec 155 (D6): replicada não é conferida — a tela precisa dizer a diferença, não só "digitada". */
+  if (input.measurementSource === 'replicated') return t('packageBoxes.source.replicated')
   if (input.measurementMarginMm === null) return t('packageBoxes.source.cameraNoMargin')
   return t('packageBoxes.source.camera', {
     margin: input.measurementMarginMm / MILLIMETRES_PER_CENTIMETRE,

@@ -14,6 +14,7 @@ import {
   type DeliveryProofStoragePort,
 } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import {
+  DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
   DEFAULT_DELIVERY_PROOF_SETTINGS,
   maskTaxId,
   resolveDeliveryProofSettings,
@@ -50,10 +51,19 @@ function buildWorld(settings: Partial<DeliveryProofFieldSettings> = {}) {
   }> = []
 
   const repository: DeliveryProofPort = {
+    findDeliveryContext: () =>
+      Promise.resolve({
+        deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
+        deliveryEventPosition: undefined,
+        stopPosition: undefined,
+      }),
     findDeliveryEventId: () => Promise.resolve(EVENT_ID),
     findProofIdByAttachmentKey: () => Promise.resolve(null),
+    findProofPunctuality: () => Promise.resolve(null),
     resolveProofFieldSettings: () =>
       Promise.resolve({ ...DEFAULT_DELIVERY_PROOF_SETTINGS, ...settings }),
+    resolveProofPunctualitySettings: () =>
+      Promise.resolve(DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS),
     saveProof: (proof) => {
       saved.push(proof)
       return Promise.resolve({ id: proof.id })
@@ -77,6 +87,7 @@ function buildInput(
     driverId: DRIVER_ID,
     newObjectId: () => OBJECT_ID,
     newProofId: () => PROOF_ID,
+    now: new Date('2026-09-18T12:00:00.000Z'),
     repository: world.repository,
     sealDocument: (input: {
       readonly companyId: string
@@ -90,8 +101,10 @@ function buildInput(
     upload: {
       attachmentKey: '',
       bytes: new Uint8Array(1024),
+      capturedAt: undefined,
       kind: 'signature' as const,
       mimeType: 'image/png',
+      position: undefined,
       receiverDocument: '',
       receiverName: 'Maria de Sousa',
       ...upload,
@@ -248,15 +261,21 @@ describe('a resolução por documento (spec 082 — revisão)', () => {
 
 describe('o upsert do comprovante (spec 082 — revisão, item 4)', () => {
   const BASE = {
+    accuracyMeters: null,
     actorUserId: ACTOR_USER_ID,
     attachmentKey: '',
+    authorship: { channel: 'driver_app' as const, onBehalfOfDriverId: null },
+    capturedAt: null,
     companyId: COMPANY_ID,
     eventId: EVENT_ID,
     id: PROOF_ID,
     kind: 'signature' as const,
+    latitude: null,
+    longitude: null,
     mimeType: 'image/png',
     objectId: OBJECT_ID,
     objectKey: 'object-key',
+    punctuality: 'not_required' as const,
     receiverDocumentMasked: '',
     receiverName: 'Maria de Sousa',
     sha256: 'a'.repeat(64),

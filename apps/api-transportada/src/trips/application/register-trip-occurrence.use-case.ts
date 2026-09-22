@@ -3,11 +3,16 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
+import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
-import { TripDocumentNotFoundError } from '../domain/trip.error.js'
+import {
+  OccurrenceTypeNotSeparationError,
+  TripDocumentNotFoundError,
+} from '../domain/trip.error.js'
 import { resolveOccurrenceNotification } from '../domain/occurrence-notification.policy.js'
 import type {
   OccurrenceNotificationParameters,
@@ -25,6 +30,32 @@ export type TripOccurrence = {
   /** O nome que a empresa deu ao tipo: é ele que a tela imprime, não um id. */
   readonly typeName: string
 }
+
+/**
+ * Spec 156 T7b: o que a leitura de ocorrências publica para o anexo — URL assinada de vida curta,
+ * pela mesma `anyPermission` da rota (D11), nunca bucket nem chave.
+ */
+export type TripOccurrenceAttachmentSummary = {
+  readonly downloadUrl: string
+  readonly expiresAt: string
+  readonly mimeType: string
+}
+
+/**
+ * Spec 156 T9 (D3): quem registrou e em nome de quem — só nomes, nunca CPF/e-mail/telefone
+ * (D11). `actorName`/`onBehalfOfDriverName` são `null` quando o usuário ou o motorista não têm
+ * mais vínculo ativo na empresa (nome não resolvido, id nunca vaza).
+ */
+export type TripOccurrenceAuthorship = {
+  readonly channel: TripFieldChannel
+  readonly actorName: string | null
+  readonly onBehalfOfDriverName: string | null
+}
+
+export type TripOccurrenceWithAttachment = TripOccurrence &
+  TripOccurrenceAuthorship & {
+    readonly attachment: TripOccurrenceAttachmentSummary | null
+  }
 
 /**
  * O que o **registro** devolve: a ocorrência mais o e-mail pronto.
@@ -148,6 +179,11 @@ export async function registerTripOccurrence(
   })
   if (occurrenceType === null || !occurrenceType.active) throw new TripDocumentNotFoundError()
 
+  /** Spec 157: a ocorrência de rua tem rota própria — a do motorista e a do escritório em nome dele. */
+  if (occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.separation) {
+    throw new OccurrenceTypeNotSeparationError()
+  }
+
   /**
    * ⚠️ Produto fora da nota é **recusado**, nunca convertido em "nota inteira": apontar para item
    * que a nota não tem é engano de quem registrou, e silenciá-lo gravaria ocorrência sobre carga
@@ -172,7 +208,12 @@ export async function registerTripOccurrence(
   })
   if (saved === null) throw new TripDocumentNotFoundError()
 
-  await notifyOccurrence(input, occurrenceType)
+  await notifyOccurrence({
+    companyId,
+    notificationParameters: input.notificationParameters,
+    notifier: input.notifier,
+    occurrenceType,
+  })
 
   return { ...saved, email: await renderEmail({ input, occurrenceType, scope }) }
 }
@@ -216,10 +257,16 @@ async function renderEmail(params: {
  * O padrão continua sendo **não avisar**: sem notificador, sem parâmetros ou sem a flag ligada para
  * aquele tipo, nada sai.
  */
-async function notifyOccurrence(
-  input: RegisterTripOccurrenceInput,
-  occurrenceType: OccurrenceTypeRecord,
-): Promise<void> {
+export type NotifyOccurrenceParams = {
+  readonly companyId: string
+  readonly notificationParameters: OccurrenceNotificationParameters | undefined
+  readonly notifier: OccurrenceNotifierPort | undefined
+  readonly occurrenceType: OccurrenceTypeRecord
+}
+
+/** Spec 156 T7.3: exportada para o lote do escritório avisar por nota com a mesma regra. */
+export async function notifyOccurrence(input: NotifyOccurrenceParams): Promise<void> {
+  const { occurrenceType } = input
   if (input.notifier === undefined || input.notificationParameters === undefined) return
 
   /**

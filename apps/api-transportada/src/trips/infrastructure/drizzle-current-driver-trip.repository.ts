@@ -1,19 +1,31 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 
 import {
   companyDeliveryProofSettings,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
-import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
+import {
+  tripDeliveryProofs,
+  tripDocuments,
+  tripDrivers,
+  tripStopEvents,
+  tripStops,
+  trips,
+} from '../../database/trip.schema.js'
 import { tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
+import { DRIVER_SCORE_WINDOW_DAYS } from '../../fleet/domain/driver-score.policy.js'
+import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
+import { FIELD_TRIP_TARGET_KIND } from '../application/field-trip-target.types.js'
 import type {
   CurrentDriverTripPort,
+  DriverPendingProof,
   DriverStopSchedule,
   DriverTrip,
   DriverTripManifest,
@@ -24,9 +36,22 @@ import {
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
+import {
+  DELIVERED_DOCUMENT_STATUS,
+  DELIVERED_EVENT_KIND,
+  PHOTO_PROOF_KIND,
+  RECIPIENT_PARTICIPANT_ROLE,
+  REQUIRED_PROOF_FIELD_MODE,
+} from '../domain/delivery-event.constant.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripDatabase } from './trip-queryable.type.js'
-import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
+import { TRIP_DISPATCHED_STATUSES, TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
+import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
+import { recordTripStatusChange } from './trip-status-event.persistence.js'
 
 /**
  * As fases em que a viagem aparece na tela do motorista.
@@ -39,10 +64,10 @@ import type { TripStatus } from '../../database/trip.schema.js'
  *
  * O resto vem importado, nunca redigitado: é a lição das cinco cópias que divergiram.
  */
-const ACTIVE_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
+const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
 
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
-const RECIPIENT_ROLE = 'recipient'
+const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
 
 /** Encerrado ainda se apresenta; cancelado, não. Mesma regra da consulta do documento. */
 const PRINTABLE_DOCUMENT_STATUSES = ['authorized', 'closed'] as const
@@ -109,7 +134,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         and(
           eq(tripDrivers.companyId, input.companyId),
           eq(tripDrivers.driverId, input.driverId),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          inArray(trips.status, [...CURRENT_DRIVER_TRIP_STATUSES]),
         ),
       )
       .orderBy(asc(trips.createdAt))
@@ -118,17 +143,62 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     return record === undefined ? null : { tripId: record.tripId, tripStatus: record.status }
   }
 
-  /** O `where` leva `company_id` junto do id: viagem de outra empresa é ausência, nunca escrita. */
-  public async updateStatus(input: {
-    readonly actorUserId: string
+  public async readStatus(input: {
     readonly companyId: string
     readonly tripId: string
-    readonly tripStatus: TripStatus
-  }): Promise<void> {
-    await this.database
-      .update(trips)
-      .set({ status: input.tripStatus })
+  }): Promise<TripStatus | null> {
+    const [record] = await this.database
+      .select({ status: trips.status })
+      .from(trips)
       .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .limit(1)
+
+    return record?.status ?? null
+  }
+
+  /**
+   * O `where` leva `company_id` junto do id: viagem de outra empresa é ausência, nunca escrita. E
+   * leva o status que a decisão leu (compare-and-set): a viagem que concluiu entre a leitura e a
+   * gravação não regride para `in_transit`.
+   */
+  public async updateStatus(input: {
+    readonly actorUserId: string
+    readonly audit?: TripFieldOfficeAuditInput
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly expectedStatus: TripStatus
+    readonly onBehalfOfDriverId: string | null
+    readonly tripId: string
+    readonly tripStatus: TripStatus
+  }): Promise<boolean> {
+    return this.database.transaction(async (transaction) => {
+      const updated = await transaction
+        .update(trips)
+        .set({ status: input.tripStatus, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(trips.companyId, input.companyId),
+            eq(trips.id, input.tripId),
+            eq(trips.status, input.expectedStatus),
+          ),
+        )
+        .returning({ id: trips.id })
+
+      if (updated.length === 0) return false
+
+      await recordTripStatusChange(transaction, {
+        actorUserId: input.actorUserId,
+        channel: input.channel,
+        companyId: input.companyId,
+        fromStatus: input.expectedStatus,
+        onBehalfOfDriverId: input.onBehalfOfDriverId,
+        toStatus: input.tripStatus,
+        tripId: input.tripId,
+      })
+      if (input.audit !== undefined) await insertTripFieldOfficeAudit(transaction, input.audit)
+
+      return true
+    })
   }
 
   public async listActiveTrips(input: {
@@ -150,7 +220,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         and(
           eq(tripDrivers.companyId, input.companyId),
           eq(tripDrivers.driverId, input.driverId),
-          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+          inArray(trips.status, [...CURRENT_DRIVER_TRIP_STATUSES]),
         ),
       )
       .orderBy(asc(trips.createdAt))
@@ -172,15 +242,22 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
      * três. Nota sem volume importado é caso normal — a NF-e é dado de terceiro, e nós não a
      * preenchemos.
      */
-    const volumesByDocument = await this.sumVolumes({
-      companyId: input.companyId,
-      nfeDocumentIds: documentRows
-        .map((row) => row.nfeDocumentId)
-        .filter((documentId): documentId is string => documentId !== null),
-    })
+    const [volumesByDocument, photoPresenceByDocument] = await Promise.all([
+      this.sumVolumes({
+        companyId: input.companyId,
+        nfeDocumentIds: documentRows
+          .map((row) => row.nfeDocumentId)
+          .filter((documentId): documentId is string => documentId !== null),
+      }),
+      this.listDeliveryPhotoPresence({
+        companyId: input.companyId,
+        documentIds: documentRows.map((row) => row.id),
+      }),
+    ])
     const documentsByStop = groupBy(
       documentRows.map((row) => ({
         ...row,
+        hasDeliveryPhoto: photoPresenceByDocument.get(row.id) ?? false,
         volumes: volumesByDocument.get(row.nfeDocumentId ?? '') ?? null,
       })),
       (row) => row.stopId,
@@ -196,6 +273,178 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       ),
       vehiclePlate: trip.plate,
     }))
+  }
+
+  /**
+   * Spec 159 T11 (ALTO 1): as notas que **este** motorista entregou nos 90 dias, com foto
+   * obrigatória resolvida e sem foto no último `delivered`, em qualquer viagem que o `/proof` ainda
+   * alcança (`TRIP_DISPATCHED_STATUSES`, inclusive `completed`, e o mesmo recorte de tripulação de
+   * `findDeliveryEventId`). O último evento é o da nota, de qualquer autor; quem ele é se decide
+   * depois — se o escritório deu a baixa, a pendência não é do motorista.
+   */
+  public async listPendingProofs(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly now: Date
+  }): Promise<readonly DriverPendingProof[]> {
+    const windowStart = new Date(
+      input.now.getTime() - DRIVER_SCORE_WINDOW_DAYS * MILLISECONDS_PER_DAY,
+    )
+    const [rows, accountUserId, proofSettings, effectiveSince] = await Promise.all([
+      this.listLastDeliveries({ ...input, windowStart }),
+      this.findDriverAccountUserId(input),
+      this.readProofSettings({ companyId: input.companyId }),
+      this.readScoreEffectiveSince({ companyId: input.companyId }),
+    ])
+
+    return rows.flatMap((row) => {
+      const deliveredAt = row.capturedAt ?? row.recordedAt
+      // Spec 159 T11 (D1): o mesmo corte da nota — a pendência de antes da regra não pesa nem aparece.
+      if (effectiveSince !== undefined && deliveredAt < effectiveSince) return []
+      const isOwnDelivery =
+        row.channel !== TRIP_FIELD_CHANNELS.office &&
+        (row.reportedByDriverId === input.driverId ||
+          (row.reportedByDriverId === null && row.actorUserId === accountUserId))
+      if (!isOwnDelivery || row.hasPhoto || row.separationStatus !== DELIVERED_DOCUMENT_STATUS)
+        return []
+
+      const deliveryProof = resolveProofSettingsForRecipient({
+        lookup: proofSettings,
+        recipientTaxId: row.recipientTaxId ?? '',
+      })
+      if (deliveryProof.photo !== REQUIRED_PROOF_FIELD_MODE) return []
+
+      return [
+        {
+          deliveredAt: deliveredAt.toISOString(),
+          deliveryProof,
+          documentId: row.tripDocumentId,
+          documentNumber: row.documentNumber ?? '',
+          documentSeries: row.documentSeries ?? '',
+          recipientName: row.recipientName ?? '',
+          tripId: row.tripId,
+          tripStatus: row.tripStatus,
+        },
+      ]
+    })
+  }
+
+  /** Spec 159 T11 (D1): o corte de ativação da nota — `undefined` sem linha de configuração. */
+  private async readScoreEffectiveSince(input: {
+    readonly companyId: string
+  }): Promise<Date | undefined> {
+    const [record] = await this.database
+      .select({ scoreEffectiveSince: companyDeliveryProofSettings.scoreEffectiveSince })
+      .from(companyDeliveryProofSettings)
+      .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
+      .limit(1)
+
+    return record?.scoreEffectiveSince
+  }
+
+  /** A conta ligada hoje ao cadastro — só para o evento antigo, sem `reported_by_driver_id`. */
+  private async findDriverAccountUserId(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<string | null> {
+    const [record] = await this.database
+      .select({ userId: userCompanyMemberships.userId })
+      .from(fleetDrivers)
+      .innerJoin(
+        userCompanyMemberships,
+        and(
+          eq(userCompanyMemberships.companyId, fleetDrivers.companyId),
+          eq(userCompanyMemberships.id, fleetDrivers.membershipId),
+        ),
+      )
+      .where(and(eq(fleetDrivers.companyId, input.companyId), eq(fleetDrivers.id, input.driverId)))
+      .limit(1)
+
+    return record?.userId ?? null
+  }
+
+  /**
+   * O último `delivered` de cada nota da janela nas viagens da tripulação deste motorista, com o
+   * autor, a nota fiscal e se a foto chegou. O desempate é o mesmo da nota do motorista
+   * (`created_at`, depois `id`). Toda tabela com o `company_id` do contexto.
+   */
+  private async listLastDeliveries(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly windowStart: Date
+  }) {
+    return this.database
+      .selectDistinctOn([tripStopEvents.tripDocumentId], {
+        actorUserId: tripStopEvents.actorUserId,
+        capturedAt: tripStopEvents.capturedAt,
+        channel: tripStopEvents.channel,
+        documentNumber: nfeDocuments.number,
+        documentSeries: nfeDocuments.series,
+        hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
+        recipientName: nfeParticipants.legalName,
+        recipientTaxId: nfeParticipants.taxId,
+        recordedAt: tripStopEvents.recordedAt,
+        reportedByDriverId: tripStopEvents.reportedByDriverId,
+        separationStatus: tripDocuments.separationStatus,
+        tripDocumentId: tripDocuments.id,
+        tripId: trips.id,
+        tripStatus: trips.status,
+      })
+      .from(tripStopEvents)
+      .innerJoin(
+        tripDocuments,
+        and(
+          eq(tripDocuments.companyId, tripStopEvents.companyId),
+          eq(tripDocuments.id, tripStopEvents.tripDocumentId),
+        ),
+      )
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+      )
+      .leftJoin(
+        nfeDocuments,
+        and(
+          eq(nfeDocuments.companyId, tripDocuments.companyId),
+          eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+        ),
+      )
+      .leftJoin(
+        nfeParticipants,
+        and(
+          eq(nfeParticipants.companyId, tripDocuments.companyId),
+          eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+          eq(nfeParticipants.role, RECIPIENT_ROLE),
+        ),
+      )
+      .leftJoin(
+        tripDeliveryProofs,
+        and(
+          eq(tripDeliveryProofs.companyId, tripStopEvents.companyId),
+          eq(tripDeliveryProofs.stopEventId, tripStopEvents.id),
+          eq(tripDeliveryProofs.kind, PHOTO_PROOF_KIND),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
+          gte(
+            sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`,
+            input.windowStart,
+          ),
+          inArray(trips.status, [...TRIP_DISPATCHED_STATUSES]),
+          fieldTripTargetCondition({
+            driverId: input.driverId,
+            kind: FIELD_TRIP_TARGET_KIND.driver,
+          }),
+        ),
+      )
+      .orderBy(
+        tripStopEvents.tripDocumentId,
+        desc(tripStopEvents.createdAt),
+        desc(tripStopEvents.id),
+      )
   }
 
   /**
@@ -361,6 +610,53 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     }
   }
 
+  /**
+   * ADR-0070 §1, spec 159 RF1/RF2: se o **último** evento `delivered` da nota tem foto (`kind =
+   * 'photo'`). `selectDistinctOn` pega só o mais recente por nota — uma nota pode, em tese, ser
+   * entregue mais de uma vez ao longo do tempo (correção), e é sempre a última que conta.
+   */
+  private async listDeliveryPhotoPresence(input: {
+    readonly companyId: string
+    readonly documentIds: readonly string[]
+  }): Promise<Map<string, boolean>> {
+    if (input.documentIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .selectDistinctOn([tripStopEvents.tripDocumentId], {
+        hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
+        tripDocumentId: tripStopEvents.tripDocumentId,
+      })
+      .from(tripStopEvents)
+      .leftJoin(
+        tripDeliveryProofs,
+        and(
+          eq(tripDeliveryProofs.companyId, tripStopEvents.companyId),
+          eq(tripDeliveryProofs.stopEventId, tripStopEvents.id),
+          eq(tripDeliveryProofs.kind, PHOTO_PROOF_KIND),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
+          inArray(tripStopEvents.tripDocumentId, [...input.documentIds]),
+        ),
+      )
+      // Spec 159 T11: o mesmo desempate da nota do motorista — sem o `id`, empate de `created_at`
+      // deixava o snapshot e a nota lerem eventos diferentes da mesma nota.
+      .orderBy(
+        tripStopEvents.tripDocumentId,
+        desc(tripStopEvents.createdAt),
+        desc(tripStopEvents.id),
+      )
+
+    return new Map(
+      rows.flatMap((row) =>
+        row.tripDocumentId === null ? [] : [[row.tripDocumentId, row.hasPhoto] as const],
+      ),
+    )
+  }
+
   private async listStops(input: { readonly companyId: string; readonly tripIds: string[] }) {
     return this.database
       .select({
@@ -455,6 +751,7 @@ type VolumeTotals = { readonly grossWeight: string; readonly quantity: string }
 type DocumentRow = {
   readonly accessKey: string | null
   readonly deliveredAt: Date | null
+  readonly hasDeliveryPhoto: boolean
   readonly id: string
   readonly number: string | null
   readonly recipientName: string | null
@@ -498,18 +795,28 @@ function toDriverDocument(
   row: DocumentRow,
   proofSettings: ProofSettingsLookup,
 ): DriverTripDocument {
+  // Spec 082 (revisão): resolvido pelo CNPJ do destinatário DESTE documento — a mesma regra da
+  // escrita do comprovante, via `resolveProofSettingsForRecipient`.
+  const deliveryProof = resolveProofSettingsForRecipient({
+    lookup: proofSettings,
+    recipientTaxId: row.recipientTaxId ?? '',
+  })
+
   return {
     accessKey: row.accessKey ?? '',
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
-    // Spec 082 (revisão): resolvido pelo CNPJ do destinatário DESTE documento — a mesma regra da
-    // escrita do comprovante, via `resolveProofSettingsForRecipient`.
-    deliveryProof: resolveProofSettingsForRecipient({
-      lookup: proofSettings,
-      recipientTaxId: row.recipientTaxId ?? '',
-    }),
+    deliveryProof,
     grossWeight: row.volumes?.grossWeight ?? '0',
     id: row.id,
     number: row.number ?? '',
+    /**
+     * ADR-0070 §1, spec 159 RF1/RF2: entregue, foto obrigatória resolvida, e sem foto no último
+     * evento `delivered`. Nunca bloqueia — só avisa que a foto ainda não chegou.
+     */
+    proofPending:
+      row.deliveredAt !== null &&
+      deliveryProof.photo === REQUIRED_PROOF_FIELD_MODE &&
+      !row.hasDeliveryPhoto,
     recipientName: row.recipientName ?? '',
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,

@@ -31,6 +31,37 @@
   padding: var(--space-3);
 }
 
+/* Spec 159 (T11): resultado da pontualidade — persiste até o motorista dispensar. */
+.proofOutcomeToast {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-left: var(--space-1) solid var(--color-copper);
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  margin: 0;
+  padding: var(--space-3);
+}
+
+/* Em dia é notícia boa: verde, com o mesmo formato — a cor nunca é a única pista (ícone e texto). */
+.proofOutcomeToastGood {
+  background: color-mix(in srgb, var(--color-ready) 18%, transparent);
+  border-left-color: var(--color-ready);
+}
+
+.proofOutcomeText {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.proofOutcomeTitle {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+}
+
 .stopList {
   display: grid;
   gap: var(--space-4);
@@ -434,6 +465,12 @@
   font-weight: 700;
 }
 
+.profileScore {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  margin: 0;
+}
+
 .profileCard {
   background: var(--color-graphite);
   border: 1px solid var(--color-slate);
@@ -586,6 +623,78 @@
   display: grid;
   gap: var(--space-2);
   width: 100%;
+}
+
+/*
+ * Spec 159 RF12: aviso antes de entregar — cobre suave, nunca o vermelho da recusa. O texto fica na
+ * cor do corpo e em 1rem: cobre sobre cobre some no sol, e o motorista lê isso de pé, com uma mão.
+ */
+.proofPendingWarning {
+  background: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  border-left: var(--space-1) solid var(--color-copper);
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.proofPendingWarningTitle {
+  align-items: center;
+  color: var(--color-copper);
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.proofPendingWarningLead {
+  margin: 0;
+}
+
+.proofPendingWarningDetails summary {
+  align-items: center;
+  color: var(--color-slate);
+  cursor: pointer;
+  display: flex;
+  min-height: var(--control-height);
+  text-decoration: underline;
+}
+
+.proofPendingWarningDetails p {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* O campo do recebedor segue os tokens de campo — cru, ele media 21px de altura no celular. */
+.proofField input[type='text'] {
+  background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  width: 100%;
+}
+
+/* Spec 159 T12: cada nota pendente é um cartão, como a parada — sem ele os itens se emendavam. */
+.pendingProofItem {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.pendingProofRecipient {
+  font-weight: 700;
+}
+
+.pendingProofQueued {
+  align-items: center;
+  color: var(--color-slate);
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
 }
 
 .proofFieldError {

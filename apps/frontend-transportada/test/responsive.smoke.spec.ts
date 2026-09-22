@@ -1009,8 +1009,12 @@ test('a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem 
   /** ⚠️ A marca de estimativa nunca fica atrás de segunda condição — mesma trava da ocupação. */
   await expect(dialog.getByText('eixo estimado')).toBeVisible()
   await expect(dialog.getByText('Base: tarifa manual')).toBeVisible()
-  /** ⚠️ Praça sem tarifa é travessão no mapa (unitário) — aqui a contagem agregada é o que se lê. */
-  await expect(dialog.getByText('1 praças sem tarifa conhecida')).toBeVisible()
+  /**
+   * ⚠️ Praça sem tarifa é travessão no mapa (unitário) — aqui a contagem agregada é o que se lê,
+   * no singular quando é uma só (spec 154 T507: "1 praças" era o texto da spec 090).
+   */
+  await expect(dialog.getByText('1 praça sem tarifa conhecida', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('1 praças sem tarifa conhecida')).toHaveCount(0)
 
   /** Rota única: D2 proíbe o seletor — ofertar escolha onde não há uma ensina o operador errado. */
   await expect(dialog.getByText('Rotas alternativas')).toHaveCount(0)
@@ -1210,6 +1214,74 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
   await expect.poll(() => api.reports().length).toBe(1)
   expect(api.reports()[0]?.path).toBe(`/me/trips/current/stops/${DRIVER_STOP_ID}/arrive`)
   expect(api.reports()[0]?.idempotencyKey).not.toBe('')
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/**
+ * Spec 157: a lista vinha de `/company-settings/occurrence-types` (`settings.manage`), o motorista
+ * levava 403 e o seletor abria vazio. Agora ela vem da árvore `/me`, e o tipo de rua aparece.
+ */
+test('o motorista vê os tipos de ocorrência de rua da empresa', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ page })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+
+  await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+})
+
+/**
+ * Spec 157 T4 (RF5/CA5): a falha na lista de tipos não podia mais virar `[]` silencioso — o painel
+ * avisa, "Tentar de novo" repete o pedido, e entregar/devolver nunca dependem disto.
+ */
+test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ occurrenceTypesFailures: 1, page })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+
+  await expect(
+    page.getByText('Não foi possível carregar os tipos de ocorrência agora.'),
+  ).toBeVisible()
+  // A falha na lista de tipos não trava o resto da parada.
+  for (const name of ['Entreguei', 'Não entreguei', 'Deu problema']) {
+    const action = page.getByRole('button', { exact: true, name })
+    await expect(action.first()).toBeVisible()
+    await expect(action.first()).toBeEnabled()
+  }
+
+  await page.getByRole('button', { name: 'Tentar de novo' }).click()
+  await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/** Lista vazia de verdade (empresa sem tipo de rua ativo) tem texto próprio, não o de falha. */
+test('sem tipo de rua cadastrado, o motorista vê o aviso de lista vazia', async ({ page }) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ page })
+  await page.route(/\/me\/trips\/current\/occurrence-types$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 })
+      return
+    }
+    await route.fulfill({
+      body: JSON.stringify({ data: [] }),
+      contentType: 'application/json',
+      status: 200,
+    })
+  })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+
+  await expect(
+    page.getByText('Nenhum tipo de ocorrência de rua cadastrado. Fale com o escritório.'),
+  ).toBeVisible()
 
   await assertNoHorizontalOverflow(page)
 })
@@ -1560,8 +1632,15 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
   await trigger.click()
   await expect(assemblyMap).toBeVisible()
   await expect(dialog.getByText('Conta prevista')).toBeVisible()
-  /** A derivação agora é a do painel da criação manual, que abre a frase com maiúscula. */
-  await expect(dialog.getByText(/Zona 1\.002 \(JABOTICABAL\) · toco/u)).toBeVisible()
+  /**
+   * Spec 143: a derivação do motorista virou a diária composta na tela (valor × dias · origem),
+   * uma linha por condutor — não mais "zona · classe". A frase é a do `VEHICLE_VALUATION` acima.
+   *
+   * ⚠️ O espaço depois de `R$` é `\s` de propósito: o `Intl.NumberFormat` pt-BR separa símbolo e
+   * número com espaço **inflexível** (U+00A0), e um espaço comum aqui não casa com nada. O `bun run
+   * test` não roda este arquivo — quem cobra é o `make smoke` da CI.
+   */
+  await expect(dialog.getByText(/R\$\s370,00 × 4 dias · valor geral/u)).toBeVisible()
   await expect(dialog.getByText(/2,8000 km\/l|2\.8000 km\/l/u)).toBeVisible()
 
   /**

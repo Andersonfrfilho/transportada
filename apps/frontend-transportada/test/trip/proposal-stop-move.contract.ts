@@ -5,6 +5,7 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   applyStopMoves,
+  forgetMovedVehicleRouteChoices,
   resolveAcceptedStopOrders,
   resolveMovedVehicleIds,
   resolveMoveTargets,
@@ -66,6 +67,60 @@ describe('mover parada entre caminhões da proposta', () => {
     ])
     /** Mover para o próprio caminhão não é movimento. */
     expect(resolveMovedVehicleIds(stops, new Map([['nota-1', 'truck-a']])).size).toBe(0)
+  })
+
+  /**
+   * Spec 153: a rota escolhida é de um **conjunto** de paradas. Mover uma parada muda o conjunto dos
+   * dois caminhões, e a assinatura guardada deixa de existir — no aceite o servidor cairia no
+   * critério e poderia congelar uma rota que ninguém viu. As escolhas dos dois lados são esquecidas.
+   */
+  it('mover parada esquece a rota escolhida da origem e do destino, e só delas', () => {
+    const choices = new Map([
+      ['truck-a', { criterion: 'cheapest', signature: 'sig-a' }],
+      ['truck-b', { criterion: 'fastest', signature: 'sig-b' }],
+      ['truck-c', { criterion: 'alternative', signature: 'sig-c' }],
+    ] as const)
+
+    const next = forgetMovedVehicleRouteChoices({
+      choices,
+      committedMoves: new Map(),
+      draftMoves: new Map([['nota-1', 'truck-b']]),
+      stops,
+    })
+
+    expect([...next.keys()]).toEqual(['truck-c'])
+  })
+
+  /** A origem é onde a parada está **agora** — depois dos movimentos já salvos, não na proposta. */
+  it('a origem é o caminhão do movimento já salvo, não o da proposta', () => {
+    const choices = new Map([
+      ['truck-a', { criterion: 'cheapest', signature: 'sig-a' }],
+      ['truck-b', { criterion: 'fastest', signature: 'sig-b' }],
+      ['truck-c', { criterion: 'alternative', signature: 'sig-c' }],
+    ] as const)
+
+    const next = forgetMovedVehicleRouteChoices({
+      choices,
+      committedMoves: new Map([['nota-1', 'truck-b']]),
+      draftMoves: new Map([['nota-1', 'truck-c']]),
+      stops,
+    })
+
+    expect([...next.keys()]).toEqual(['truck-a'])
+  })
+
+  /** Sem mudança devolve o mesmo mapa: o estado não muda, e a tela não renderiza de novo. */
+  it('sem caminhão tocado devolve o mesmo mapa', () => {
+    const choices = new Map([['truck-c', { criterion: 'cheapest', signature: 'sig-c' }]] as const)
+
+    const next = forgetMovedVehicleRouteChoices({
+      choices,
+      committedMoves: new Map(),
+      draftMoves: new Map([['nota-1', 'truck-b']]),
+      stops,
+    })
+
+    expect(next).toBe(choices)
   })
 
   /**

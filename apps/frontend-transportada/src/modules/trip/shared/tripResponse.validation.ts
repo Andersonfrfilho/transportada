@@ -1,7 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
 import type { OccurrenceType } from './occurrence.constant'
+import { TRIP_FIELD_CHANNELS, TRIP_TIMELINE_KINDS } from './trip.types'
 import type {
+  FieldOccurrenceType,
   RegisteredOccurrence,
   TripDocumentProduct,
   TripOccurrence,
@@ -12,10 +14,16 @@ import type {
   TripCargoWeight,
   TripOccupancy,
   TripPendingMeasurement,
+  TripTimelineDocumentReference,
+  TripTimelineItem,
+  TripTimelineOccurrenceReference,
+  TripTimelinePage,
+  TripTimelineStopReference,
   TripWeightConcentration,
 } from './trip.types'
 import {
   AXLE_COUNT_SOURCES,
+  ROUTE_CHOICE_CRITERIA,
   ROUTE_COST_GAPS,
   DEPOT_ORIGIN_SOURCES,
   ROUTE_DEPOT_ABSENCES,
@@ -49,6 +57,8 @@ import {
   TRIP_DRIVER_KEYS,
   TRIP_DRIVER_OPTIONAL_KEYS,
   TRIP_ERROR,
+  FIELD_REPORT_ID_RESULT_KEYS,
+  FIELD_TRIP_STEP_RESULT_KEYS,
   TRIP_AMOUNTS_KEYS,
   TRIP_KEYS,
   TRIP_OPTIONAL_KEYS,
@@ -58,6 +68,13 @@ import {
   TRIP_STOP_OPTIONAL_KEYS,
   TRIP_CARGO_LAYOUT_STATE_KEYS,
   TRIP_CARGO_LAYOUT_POLL_KEYS,
+  TRIP_OCCURRENCE_OPTIONAL_KEYS,
+  FIELD_OCCURRENCE_TYPE_KEYS,
+  REPORT_FIELD_DELIVERY_RESULT_KEYS,
+  TRIP_TIMELINE_ITEM_KEYS,
+  TRIP_TIMELINE_STOP_REFERENCE_KEYS,
+  TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
+  TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -74,7 +91,10 @@ import type {
   CancelTripResult,
   DeliveryAddressOverride,
   DispatchTripResult,
+  FieldReportIdResult,
+  FieldTripStepResult,
   PlanTripRouteResult,
+  ReportFieldDeliveryResult,
   ReorderTripStopsResult,
   ScannedNfeDocument,
   LinkTripDocumentsBatchResult,
@@ -130,13 +150,17 @@ function invalid(): Error {
 /** `unavailable` com lista vazia é o único jeito de dizer "não sei o caminho" (spec 079/093). */
 const UNAVAILABLE_ROUTE_GEOMETRY: RouteGeometry = {
   cheapestIndex: null,
+  choiceReproduced: true,
   costGap: null,
+  criterion: null,
   depot: null,
   fastestIndex: null,
   hasChoice: false,
   legs: [],
+  frozen: false,
   options: [],
   points: [],
+  selectedIndex: null,
   source: 'unavailable',
   toll: null,
 }
@@ -251,7 +275,8 @@ function isDriverLine(value: unknown): value is TripDriverLine {
     isAbsentOrNullableString(value.driverPhone) &&
     isString(value.driverId) &&
     isString(value.driverName) &&
-    isString(value.driverTaxId) &&
+    /** Spec 156 D11: `null` para quem lê a viagem sem `fleet.read` — o nome continua. */
+    isNullableString(value.driverTaxId) &&
     isUnsignedInteger(value.position)
   )
 }
@@ -381,6 +406,32 @@ function isDeliveryAddressOverride(value: unknown): value is DeliveryAddressOver
 
 function isTripStatusResult(value: unknown): value is Readonly<{ tripStatus: TripStatus }> {
   return hasExactKeys(value, TRIP_STATUS_RESULT_KEYS) && isOneOf(value.tripStatus, TRIP_STATUS)
+}
+
+/** Spec 156 T5: `POST .../confirm-load` e `POST .../start-route` — nenhum recurso nasce ali. */
+function isFieldTripStepResult(value: unknown): value is FieldTripStepResult {
+  return (
+    hasExactKeys(value, FIELD_TRIP_STEP_RESULT_KEYS) &&
+    isBoolean(value.changed) &&
+    isOneOf(value.status, TRIP_STATUS)
+  )
+}
+
+/** Spec 156 T5: `POST .../arrive` e `POST .../occurrences` — o id do recurso criado. */
+function isFieldReportIdResult(value: unknown): value is FieldReportIdResult {
+  return hasExactKeys(value, FIELD_REPORT_ID_RESULT_KEYS) && isString(value.id)
+}
+
+/** Spec 156 T6/T12: `POST .../field-delivery` — comprovante gravado na mesma transação. */
+function isReportFieldDeliveryResult(value: unknown): value is ReportFieldDeliveryResult {
+  return (
+    hasExactKeys(value, REPORT_FIELD_DELIVERY_RESULT_KEYS) &&
+    isBoolean(value.alreadySettled) &&
+    isString(value.id) &&
+    isString(value.proofId) &&
+    isBoolean(value.stopCompleted) &&
+    isBoolean(value.tripCompleted)
+  )
 }
 
 function isTransitionResult(value: unknown): value is TransitionTripDocumentResult {
@@ -642,6 +693,24 @@ export function createTripResponseAdapters() {
       if (!isTripStatusResult(input)) throw invalid()
       return { tripStatus: input.tripStatus }
     },
+    fieldReportIdResultFromApi(input: unknown): FieldReportIdResult {
+      if (!isFieldReportIdResult(input)) throw invalid()
+      return { id: input.id }
+    },
+    reportFieldDeliveryResultFromApi(input: unknown): ReportFieldDeliveryResult {
+      if (!isReportFieldDeliveryResult(input)) throw invalid()
+      return {
+        alreadySettled: input.alreadySettled,
+        id: input.id,
+        proofId: input.proofId,
+        stopCompleted: input.stopCompleted,
+        tripCompleted: input.tripCompleted,
+      }
+    },
+    fieldTripStepResultFromApi(input: unknown): FieldTripStepResult {
+      if (!isFieldTripStepResult(input)) throw invalid()
+      return { changed: input.changed, status: input.status }
+    },
     planTripRouteResultFromApi(input: unknown): PlanTripRouteResult {
       if (!isTripStatusResult(input)) throw invalid()
       return { tripStatus: input.tripStatus }
@@ -723,16 +792,21 @@ export function createTripResponseAdapters() {
        * zera **só as opções** — a linha, o tempo e o pedágio da principal continuam valendo, e a
        * tela simplesmente deixa de oferecer seletor (o mesmo comportamento de rota única, D2).
        */
-      const options = Array.isArray(input.options) ? input.options : []
+      const rawOptions: readonly unknown[] = Array.isArray(input.options) ? input.options : []
+      const options = rawOptions.every(isGeometryOption) ? rawOptions.map(toGeometryOption) : []
       return {
         cheapestIndex: isNullableNumber(input.cheapestIndex) ? input.cheapestIndex : null,
+        choiceReproduced: input.choiceReproduced !== false,
+        criterion: isOneOf(input.criterion, ROUTE_CHOICE_CRITERIA) ? input.criterion : null,
         depot: isGeometryDepot(input.depot) ? input.depot : null,
         costGap: isOneOf(input.costGap, ROUTE_COST_GAPS) ? input.costGap : null,
         fastestIndex: isNullableNumber(input.fastestIndex) ? input.fastestIndex : null,
+        frozen: input.frozen === true,
         hasChoice: input.hasChoice === true,
         legs: legs.every(isGeometryLeg) ? legs : [],
-        options: options.every(isGeometryOption) ? options : [],
+        options,
         points,
+        selectedIndex: readOptionIndex({ index: input.selectedIndex, optionCount: options.length }),
         source: input.source,
         toll: isGeometryToll(input.toll) ? input.toll : null,
       }
@@ -748,6 +822,40 @@ export function createTripResponseAdapters() {
     occurrencesFromApi(input: unknown): readonly TripOccurrence[] {
       if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
       return input
+    },
+    /** Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`. */
+    tripTimelineFromApi(input: unknown): TripTimelinePage {
+      if (
+        !isRecord(input) ||
+        !Array.isArray(input.items) ||
+        !input.items.every(isTimelineItem) ||
+        !isNullableString(input.nextCursor)
+      ) {
+        throw invalid()
+      }
+      return { items: input.items, nextCursor: input.nextCursor }
+    },
+    /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência. */
+    fieldOccurrenceTypesFromApi(input: unknown): readonly FieldOccurrenceType[] {
+      if (!Array.isArray(input) || !input.every(isFieldOccurrenceType)) throw invalid()
+      return input
+    },
+    /** Spec 156 T7.3/T9: `POST .../field-occurrences` — na ordem do pedido, nunca `null`. */
+    fieldOccurrenceBatchResultFromApi(
+      input: unknown,
+    ): readonly Readonly<{ documentId: string; id: string }>[] {
+      if (!isRecord(input) || !Array.isArray(input.items)) throw invalid()
+      if (
+        !input.items.every(
+          (item): item is Readonly<{ documentId: string; id: string }> =>
+            hasExactKeys(item, ['documentId', 'id']) &&
+            isString(item.documentId) &&
+            isString(item.id),
+        )
+      ) {
+        throw invalid()
+      }
+      return input.items
     },
     /**
      * ⚠️ O registro devolve **mais** que a listagem: o e-mail pronto vem junto. O guard aceita a
@@ -941,15 +1049,80 @@ function isDocumentProduct(value: unknown): value is TripDocumentProduct {
 }
 
 function isOccurrence(value: unknown): value is TripOccurrence {
-  if (!hasExactKeys(value, TRIP_OCCURRENCE_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_OCCURRENCE_KEYS, ...TRIP_OCCURRENCE_OPTIONAL_KEYS],
+      required: TRIP_OCCURRENCE_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
+    (value.actorName === undefined || isNullableString(value.actorName)) &&
+    (value.channel === undefined || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isString(value.createdAt) &&
     isString(value.id) &&
     isString(value.note) &&
+    (value.onBehalfOfDriverName === undefined || isNullableString(value.onBehalfOfDriverName)) &&
     isString(value.occurrenceTypeId) &&
     isString(value.productCode) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
     isString(value.typeName)
+  )
+}
+
+function isFieldOccurrenceType(value: unknown): value is FieldOccurrenceType {
+  return (
+    hasExactKeys(value, FIELD_OCCURRENCE_TYPE_KEYS) && isString(value.id) && isString(value.name)
+  )
+}
+
+function isTimelineStopReference(value: unknown): value is TripTimelineStopReference {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_STOP_REFERENCE_KEYS) &&
+    isString(value.id) &&
+    isUnsignedInteger(value.sequence)
+  )
+}
+
+function isTimelineDocumentReference(value: unknown): value is TripTimelineDocumentReference {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS) &&
+    isString(value.id) &&
+    isNullableString(value.number) &&
+    isNullableString(value.series)
+  )
+}
+
+function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOccurrenceReference {
+  return (
+    hasExactKeys(value, TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS) &&
+    isString(value.note) &&
+    isString(value.typeName)
+  )
+}
+
+/**
+ * Spec 158 D6/aceite 8: chave desconhecida, `channel`/`kind` fora do vocabulário são recusados —
+ * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `latitude`, `longitude`, `objectKey`
+ * nunca fazem parte de `TRIP_TIMELINE_ITEM_KEYS`, então uma chave a mais já reprova por si.
+ */
+function isTimelineItem(value: unknown): value is TripTimelineItem {
+  if (!hasExactKeys(value, TRIP_TIMELINE_ITEM_KEYS)) return false
+  return (
+    isNullableString(value.actorName) &&
+    (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
+    (value.document === null || isTimelineDocumentReference(value.document)) &&
+    isNullableString(value.fromStatus) &&
+    isString(value.id) &&
+    isOneOf(value.kind, TRIP_TIMELINE_KINDS) &&
+    (value.occurrence === null || isTimelineOccurrenceReference(value.occurrence)) &&
+    isString(value.occurredAt) &&
+    isNullableString(value.onBehalfOfDriverName) &&
+    isNullableString(value.recordedAt) &&
+    isNullableString(value.returnReason) &&
+    (value.stop === null || isTimelineStopReference(value.stop)) &&
+    isNullableString(value.toStatus)
   )
 }
 
@@ -1042,7 +1215,29 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
 }
 
 /** Spec 096 T1: a alternativa de rota, com a mesma forma que a geometria — mais o custo total. */
-function isGeometryOption(value: unknown): value is RouteGeometryOption {
+/** ⚠️ Índice fora da lista é ausência: a tela cai na principal em vez de ler `undefined`. */
+function readOptionIndex(input: {
+  readonly index: unknown
+  readonly optionCount: number
+}): null | number {
+  const { index, optionCount } = input
+  if (typeof index !== 'number' || !Number.isInteger(index)) return null
+  return index >= 0 && index < optionCount ? index : null
+}
+
+type RawGeometryOption = Omit<RouteGeometryOption, 'isNoToll' | 'signature'> &
+  Readonly<{ isNoToll?: unknown; signature?: unknown }>
+
+/**
+ * A assinatura e a marca de sem pedágio são lidas à parte: resposta anterior à spec 153 não as
+ * traz, e isso não invalida a opção — só deixa a rota sem identidade para reproduzir (`null`).
+ */
+function toGeometryOption(option: RawGeometryOption): RouteGeometryOption {
+  const { isNoToll, signature, ...rest } = option
+  return { ...rest, isNoToll: isNoToll === true, signature: isString(signature) ? signature : null }
+}
+
+function isGeometryOption(value: unknown): value is RawGeometryOption {
   if (!isRecord(value)) return false
   const { distanceMeters, durationSeconds, fuelTotal, legs, points, toll, totalCost } = value
   return (

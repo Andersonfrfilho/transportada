@@ -18,8 +18,11 @@ export function canReadSuggestionValuation(permissions: readonly string[]): bool
   return permissions.includes(TRIP_FINANCIALS_PERMISSION)
 }
 
+/** A raiz da conta da proposta — é por ela que a medida nova de uma caixa a invalida. */
+export const SUGGESTION_VALUATION_QUERY_ROOT = 'routing'
+
 export function suggestionValuationQueryKey(suggestionId: null | string) {
-  return ['routing', 'suggestion-valuation', suggestionId] as const
+  return [SUGGESTION_VALUATION_QUERY_ROOT, 'suggestion-valuation', suggestionId] as const
 }
 
 export function useSuggestionValuation(input: {

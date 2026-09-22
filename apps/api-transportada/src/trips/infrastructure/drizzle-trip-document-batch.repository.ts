@@ -17,8 +17,10 @@ import type {
   TripDocumentSnapshotById,
 } from '../application/transition-trip-documents-batch.use-case.js'
 import { deriveTripStatus, tallyTripDocuments } from '../domain/trip-state.policy.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TripActorNotAMemberError } from '../domain/trip.error.js'
 import { mapTripDocument } from './trip.mapper.js'
+import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripTransaction } from './trip-queryable.type.js'
 
 export class DrizzleTripDocumentBatchRepository implements TripDocumentBatchTransitionPort {
@@ -126,7 +128,13 @@ async function writeBatch(
 
   // 3/4 e 4/4: uma leitura da contagem + um UPDATE condicional em trips, independente do tamanho
   // do lote.
-  const tripStatus = await recalculateTripStatus(transaction, input)
+  const tripStatus = await recalculateTripStatus(transaction, {
+    actorUserId: input.actorUserId,
+    channel: input.channel,
+    companyId: input.companyId,
+    onBehalfOfDriverId: input.onBehalfOfDriverId,
+    tripId: input.tripId,
+  })
 
   return {
     racedDocumentIds,
@@ -150,9 +158,11 @@ async function insertEvents(
     await transaction.insert(tripDocumentEvents).values(
       writtenDocumentIds.map((documentId) => ({
         actorUserId: input.actorUserId,
+        channel: input.channel,
         companyId: input.companyId,
         fromStatus: fromStatusByDocumentId.get(documentId) ?? null,
         note: input.note,
+        onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus,
         tripDocumentId: documentId,
       })),
@@ -174,10 +184,29 @@ function timestampPatchFor(toStatus: TripDocumentBatchWriteInput['items'][number
   return { returnedAt: sql`now()` }
 }
 
+/**
+ * ADR-0068 §2: a trava (`FOR NO KEY UPDATE`) vem antes da leitura do tally de notas, de
+ * propósito — mesmo `recalculateTripStatus` de `drizzle-trip-document.repository.ts`; a ordem
+ * "notas → viagem" das demais escritas continua preservada.
+ */
 async function recalculateTripStatus(
   transaction: TripTransaction,
-  input: { readonly companyId: string; readonly tripId: string },
+  input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly onBehalfOfDriverId: string | null
+    readonly tripId: string
+  },
 ): Promise<TripStatus> {
+  const [tripRecord] = await transaction
+    .select({ status: trips.status })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .for('no key update')
+    .limit(1)
+  if (tripRecord === undefined) throw new Error('TRIP_DOCUMENT_BATCH_TRIP_MISSING')
+
   const documentRows = await transaction
     .select({ status: tripDocuments.separationStatus })
     .from(tripDocuments)
@@ -186,13 +215,6 @@ async function recalculateTripStatus(
     )
   const tally = tallyTripDocuments(documentRows.map((row) => row.status))
 
-  const [tripRecord] = await transaction
-    .select({ status: trips.status })
-    .from(trips)
-    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
-    .limit(1)
-  if (tripRecord === undefined) throw new Error('TRIP_DOCUMENT_BATCH_TRIP_MISSING')
-
   const nextStatus = deriveTripStatus({ tally, tripStatus: tripRecord.status })
   if (nextStatus === tripRecord.status) return tripRecord.status
 
@@ -200,6 +222,16 @@ async function recalculateTripStatus(
     .update(trips)
     .set({ status: nextStatus, updatedAt: sql`now()` })
     .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+
+  await recordTripStatusChange(transaction, {
+    actorUserId: input.actorUserId,
+    channel: input.channel,
+    companyId: input.companyId,
+    fromStatus: tripRecord.status,
+    onBehalfOfDriverId: input.onBehalfOfDriverId,
+    toStatus: nextStatus,
+    tripId: input.tripId,
+  })
 
   return nextStatus
 }

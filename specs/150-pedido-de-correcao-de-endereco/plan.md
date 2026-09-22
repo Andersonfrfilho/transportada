@@ -71,9 +71,96 @@ salvar de novo atualiza esse rascunho. O CHECK de `contractor_mail_threads.subje
   `email-template.html`.
 - A mensagem guarda `html` ao lado do `text`. O gateway do Resend no worker passa a enviar os dois,
   e hoje ele só manda `text:`.
+- **Decisão da T302** (parecer do architect em 2026-09-15, aprovado com ajustes):
+  - **Um e-mail só**, com todos os contatos marcados no `to`, e não um envio por contato. O
+    `Reply-To` sai da conversa, então a resposta de qualquer contato cai nela; `provider_email_id` e
+    `Idempotency-Key` continuam um por mensagem. Os contatos se veem, o que é aceitável: são da
+    mesma contratante. Serve também à 143 T015.
+  - **Limite:** 50 destinatários por e-mail, conferido na documentação do Resend (`POST /emails`,
+    `to` com no máximo 50). Vira a constante `CONTRACTOR_MAIL_MAX_RECIPIENTS = 50`, cobrada no Zod
+    da API (`contactIds.max(50)`) e de novo no gateway, que recusa sem chamar a rede.
+  - **HTML gravado pela API**, na coluna nova `contractor_mail_messages.body_html text NULL`
+    (migration aditiva), com CHECK de `direction = 'outbound'` e teto de 512 KiB. Nunca montado no
+    worker: o registro append-only guarda o que foi de fato enviado, e o modelo não se duplica
+    entre apps. A cópia do schema no worker ganha a coluna.
+  - **Retrocompatível:** a fila continua levando só `{ messageId }`. Uma mensagem antiga, sem
+    `body_html`, sai só em texto, e o `setup_test` não muda.
+  - **Endereços:** só os `email` de contatos ativos, buscados por id **e** `companyId`, sem
+    repetição, recusando `\r`, `\n`, `,`, `<` e `>`.
 - O relatório (`drizzle-address-report.repository.ts`) passa a trazer `recipientName`, o
   `legal_name` do participante destinatário da nota mais recente da chave, pela mesma escolha que
   já faz para o emitente.
+
+## Fase 4 — modelos, liberação e limitador
+
+**Modelos.** Tabela nova `contractor_mail_templates`, aditiva:
+
+| coluna                                                 | tipo    | nota                                                                                            |
+| ------------------------------------------------------ | ------- | ----------------------------------------------------------------------------------------------- |
+| `id`                                                   | uuid    | PK                                                                                              |
+| `company_id`                                           | uuid    | tenant                                                                                          |
+| `mail_type`                                            | varchar | CHECK contra o catálogo (`address_correction`)                                                  |
+| `name`                                                 | varchar | único por `(company_id, mail_type, lower(name))` entre os ativos                                |
+| `subject`, `intro`, `item_text`, `closing`             | text    | com teto de tamanho; `item_text` se repete por endereço e é o único que aceita variável de item |
+| `is_default`                                           | boolean | unique parcial `(company_id, mail_type) where is_default and status = 'active'`                 |
+| `status`                                               | varchar | `active` · `archived`                                                                           |
+| `version`, `created_at`, `updated_at`, `actor_user_id` |         | concorrência otimista, como em `contractor_mail_settings`                                       |
+
+`contractor_mail_messages` ganha `template_id uuid null`, com FK composta com `company_id`, para
+registrar qual modelo foi usado. Rotas, todas com `settings.manage`:
+
+- `GET /contractor-mail-templates?mailType=`
+- `POST /contractor-mail-templates`
+- `PATCH /contractor-mail-templates/:id`, com `If-Match`/`version`
+- `POST /contractor-mail-templates/:id/default`
+- `POST /contractor-mail-templates/preview`, que renderiza com dados de exemplo
+
+`buildAddressCorrectionMail` passa a receber `{ subject, intro, closing }` do modelo, com as
+variáveis substituídas por uma função pura de renderização: lista fechada por tipo, escape
+aplicado. O texto aprovado vira o modelo que a página oferece como ponto de partida ("Criar a partir
+do padrão"). Ninguém cria modelo em migration ou seed (ADR-0021).
+
+**Liberação.** A função pura `resolveMailSendReadiness({ settings, checks, template })` devolve
+`ready` ou um motivo. A lista de verificação da página já confere a chave e o domínio, e passa a
+gravar o resultado em `contractor_mail_settings.sending_verified_at` (coluna nova, aditiva), que é
+zerado quando a chave ou o remetente mudam. O envio consulta essa coluna e o modelo, e não consulta
+mais `status`. Códigos:
+
+- `CONTRACTOR_MAIL_SENDING_NOT_VERIFIED`
+- `CONTRACTOR_MAIL_TEMPLATE_MISSING`
+- `CONTRACTOR_MAIL_NOT_CONFIGURED`, que já existe, para quando não há configuração nenhuma
+
+A confirmação de envio (T305) ganha o seletor de modelo e a prévia com o modelo escolhido. O body do
+`POST /mail` ganha `templateId?`; sem ele, vale o padrão.
+
+**Limitador.**
+
+- **A API já tinha limitador em memória por processo** (`http/rate-limiter.service.ts`, aplicado pelo
+  `router.service.ts` depois de `authorize`). A T406 estende esse caminho, não cria outro: o
+  `rateLimit` da rota autenticada vira união discriminada — `{ store: 'memory', maxRequests,
+windowMs }` (o que já existia) ou `{ store: 'postgres', scope, maxRequests, windowSeconds }`. A rota
+  anônima segue só em memória, por IP.
+- A porta `RateLimitWindowStorePort` (`http/rate-limit-window.port.ts`, `consume` assíncrono) é
+  injetada em `createRouter` como `rateLimitWindows`; rota `postgres` sem ela derruba o boot.
+  Implementação `DrizzleRateLimiterRepository` (`http/drizzle-rate-limiter.repository.ts`) sobre a
+  tabela `rate_limit_windows (scope, subject_key, window_start, hits)`, PK composta + índice em
+  `window_start`: **um** upsert em autocommit, fora da transação do caso de uso, com `window_start`
+  calculado pelo relógio do banco (`floor(epoch(now()) / w) * w`) e `Retry-After =
+ceil(window_start + w − now())`, mínimo 1.
+- Aplicado no mesmo ponto de hoje: depois de `authorize`, antes de `parse`/idempotência — corpo
+  inválido (400) e replay idempotente também contam.
+- **Fail-closed**: erro do limitador propaga sem `try/catch` e vira 500 pelo Router.
+- A chave é o `scope` + `companyId:userId` e nunca guarda PII. Escopo único `contractor-mail` para
+  `POST /address-correction-requests/mail` e `POST /contractor-mail-settings/test-email`.
+- A limpeza das janelas vencidas é a rotina `rate-limit.window.purge` do **worker** (piso de 1 h),
+  semeada em `job_schedules` pela mesma migration aditiva da tabela — não o cron, que só publica a
+  batida. Apaga janela que começou há mais de 48 h (janela máxima de 24 h + 24 h de folga).
+- A resposta é `429` com `Retry-After` e o código **`TOO_MANY_REQUESTS`**, o mesmo que o limitador
+  em memória já devolvia — não um `RATE_LIMIT_EXCEEDED` novo.
+- Os tetos vêm de `RATE_LIMIT_CONTRACTOR_MAIL_MAX` e `RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS` no
+  schema de env, com padrão de 20 por hora.
+- Isso fecha, para as rotas de e-mail, o achado "sem limitador" do `docs/SECURITY.md`. As outras
+  rotas públicas continuam listadas lá como pendentes.
 
 ## Riscos
 

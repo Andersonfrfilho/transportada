@@ -4,12 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
-import type { FleetDriverDetail } from '../shared/fleet.types'
+import type { FleetDriverDetail, FleetDriverListItem } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
+import { DriverScoreBadge } from './DriverScoreBadge.component'
 
 type DriverListProps = Readonly<{
   canManageFleet: boolean
-  drivers: readonly FleetDriverDetail[]
+  drivers: readonly FleetDriverListItem[]
   onEdit: (driver: FleetDriverDetail) => void
   onToggleStatus: (driver: FleetDriverDetail) => void
 }>
@@ -23,6 +24,10 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
         <thead>
           <tr>
             <th scope="col">{t('columnDriverName')}</th>
+            {/* Perto do nome de propósito: com a ficha aberta a tabela rola na horizontal e a nota
+                lá na sexta coluna ficava atrás da rolagem — pendência da revisão de design da
+                spec 159 T12. */}
+            <th scope="col">{t('driverScoreColumn')}</th>
             <th scope="col">{t('columnTaxId')}</th>
             <th scope="col">{t('columnLinkedTaxId')}</th>
             <th scope="col">{t('columnLicense')}</th>
@@ -35,6 +40,9 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
           {drivers.map((driver) => (
             <tr key={driver.id}>
               <td>{driver.name}</td>
+              <td>
+                <DriverScoreBadge score={driver.score} />
+              </td>
               <td>{driver.taxId}</td>
               <td>{driver.linkedTaxId === '' ? t('emptyValue') : driver.linkedTaxId}</td>
               <td>{driver.licenseNumber}</td>

@@ -29,6 +29,17 @@ export class ResendProviderUnexpectedResponseError extends Error {
   }
 }
 
+/**
+ * Spec 150 T302. Lista de destinatários vazia, acima do teto, ou com endereço que carrega
+ * separador de cabeçalho ou de lista — recusada antes da rede. Nenhum endereço vai na mensagem.
+ */
+export class ResendInvalidRecipientsError extends Error {
+  public constructor() {
+    super('Resend send request has an invalid recipient list')
+    this.name = 'ResendInvalidRecipientsError'
+  }
+}
+
 /** `downloadUrl` fora da allowlist, ou não `https:` — a URL nunca chega a ser buscada. */
 export class ResendDownloadHostNotAllowedError extends Error {
   public constructor() {

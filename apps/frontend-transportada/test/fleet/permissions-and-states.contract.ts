@@ -109,7 +109,7 @@ describe('fleet permissions and states contract', () => {
     expect(readyViewModel.status).toBe('ready')
     expect(readyViewModel.canManageFleet).toBe(true)
     expect(readyViewModel.vehicles).toEqual([VEHICLE_DETAIL])
-    expect(readyViewModel.drivers).toEqual([DRIVER_DETAIL])
+    expect(readyViewModel.drivers).toEqual([{ ...DRIVER_DETAIL, score: 85 }])
     expect(JSON.stringify(readyViewModel)).not.toContain('companyId')
 
     expect(createFleetViewModel({ permissions: [FLEET_READ], status: 'error' })).toEqual({

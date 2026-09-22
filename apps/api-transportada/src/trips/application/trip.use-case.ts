@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
 import {
   TripDocumentAlreadyDeliveredError,
@@ -9,6 +10,7 @@ import {
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
+import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
 import type {
@@ -22,6 +24,12 @@ import type {
 
 export type CreateTripInput = {
   readonly context: TripCompanyContext
+  /**
+   * Spec 143 D4: ausente é "sugere pela duração estimada" — decisão da política, não daqui.
+   * `| undefined` explícito porque o corpo chega direto do zod (`z.number().int().optional()`),
+   * que sempre tipa o campo assim sob `exactOptionalPropertyTypes` — nunca `.default()` aqui.
+   */
+  readonly dailyAllowanceDays?: number | undefined
   readonly driverIds: readonly string[]
   readonly vehicleId: string
 }
@@ -88,15 +96,23 @@ export function createTripUseCase(dependencies: {
     }): Promise<ReadonlyMap<string, TripAmounts>>
   }
   readonly repository: TripRepositoryPort
+  /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
+  readonly routeFreezer?: PlanTripRouteTollFreezer
 }): TripUseCase {
-  const { repository } = dependencies
+  const { repository, routeFreezer } = dependencies
 
   return {
     async close({ context, tripId }) {
       const trip = await findTripOrThrow({ companyId: context.companyId, repository, tripId })
       if (trip.status === 'completed') return trip
 
-      const closed = await repository.close({ companyId: context.companyId, tripId })
+      const closed = await repository.close({
+        actorUserId: context.userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId: context.companyId,
+        onBehalfOfDriverId: null,
+        tripId,
+      })
       if (closed === null) throw new TripNotFoundError()
 
       /**
@@ -109,11 +125,16 @@ export function createTripUseCase(dependencies: {
       return closed
     },
 
-    async create({ context, driverIds, vehicleId }) {
+    async create({ context, dailyAllowanceDays, driverIds, vehicleId }) {
       const companyId = context.companyId
       const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
       const crew = await resolveTripCrewForCreation({ companyId, driverIds, repository })
-      return repository.create({ companyId, crew, vehicleId: vehicle.id })
+      return repository.create({
+        companyId,
+        crew,
+        ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
+        vehicleId: vehicle.id,
+      })
     },
 
     async deliverDocument({ context, documentId, tripId }) {
@@ -138,7 +159,14 @@ export function createTripUseCase(dependencies: {
       assertTripDocumentReference({ freightCalculationId, nfeDocumentId })
       const companyId = context.companyId
       await assertTripOpen({ companyId, repository, tripId })
-      return repository.linkDocument({ companyId, freightCalculationId, nfeDocumentId, tripId })
+      const linked = await repository.linkDocument({
+        companyId,
+        freightCalculationId,
+        nfeDocumentId,
+        tripId,
+      })
+      await freezeRouteGracefully({ companyId, routeFreezer, tripId })
+      return linked
     },
 
     async list({ context, cursor, filters, limit }) {
@@ -176,8 +204,27 @@ export function createTripUseCase(dependencies: {
       const released = await repository.releaseDocument({ companyId, documentId, tripId })
       // Corrida rara: a nota foi entregue/liberada entre a leitura acima e este update.
       if (released === null) throw new TripDocumentAlreadyDeliveredError()
+      await freezeRouteGracefully({ companyId, routeFreezer, tripId })
       return released
     },
+  }
+}
+
+/**
+ * D6/D5: vincular ou desvincular muda o conjunto de paradas — a rota gravada descreve uma
+ * sequência que não existe mais. O congelamento roda **depois** da escrita principal e nunca a
+ * derruba, mesmo `catch` de fallback gracioso do `plan-trip-route`.
+ */
+async function freezeRouteGracefully(input: {
+  readonly companyId: string
+  readonly routeFreezer: PlanTripRouteTollFreezer | undefined
+  readonly tripId: string
+}): Promise<void> {
+  if (input.routeFreezer === undefined) return
+  try {
+    await input.routeFreezer.freeze({ companyId: input.companyId, tripId: input.tripId })
+  } catch {
+    /* o vínculo já está gravado; o pedágio congela no próximo replanejamento */
   }
 }
 

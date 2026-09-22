@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
+import { FINANCIALS_PERMISSION } from '@/modules/trip-financials/shared/tripFinancialsQueryKey.constant'
 
 import { TRIP_LIST_QUERY_KEY, TRIP_PAGE_SIZE } from '../shared/trip.constant'
 import type { TripFilters, TripStatus } from '../shared/trip.types'
@@ -23,6 +24,7 @@ import {
   previousTripPage,
   sortTrips,
   TRIP_FIRST_PAGE,
+  visibleTripColumns,
   type TripColumnKey,
   type TripPageState,
   type TripSortState,
@@ -34,6 +36,7 @@ const EMPTY_TRIP_FILTERS: TripFilters = {}
 type UseTripTableInput = Readonly<{
   canReadTrips: boolean
   companyId?: string
+  permissions: readonly string[]
 }>
 
 export type TripTableController = ReturnType<typeof useTripTable>
@@ -70,6 +73,9 @@ export function useTripTable(input: UseTripTableInput) {
     /** As marcadas que **ainda podem** ser canceladas — nunca a marcação crua (spec 102). */
     cancellableSelection: cancellableSelection({ selectedIds, trips: visibleItems }),
     clearSelection: () => setRawSelection([]),
+    columns: visibleTripColumns({
+      canReadFinancials: input.permissions.includes(FINANCIALS_PERMISSION),
+    }),
     selectedIds,
     selectAllState: selectAllState({ selectedIds, trips: visibleItems }),
     toggleSelectAll: () =>

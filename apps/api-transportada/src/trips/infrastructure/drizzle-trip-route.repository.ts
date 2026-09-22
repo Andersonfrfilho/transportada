@@ -33,6 +33,8 @@ import {
 } from './eager-cargo-layout-request.support.js'
 import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
 import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
+import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
@@ -67,15 +69,40 @@ export class DrizzleTripRouteRepository
   }
 
   public async markRoutePlanned(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
     readonly companyId: string
+    readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripStatus> {
-    const [updated] = await this.database
-      .update(trips)
-      .set({ status: 'route_planned', updatedAt: sql`now()` })
-      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
-      .returning({ status: trips.status })
-    return updated?.status ?? 'route_planned'
+    return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('no key update')
+        .limit(1)
+      if (tripRow === undefined) return 'route_planned'
+
+      const [updated] = await transaction
+        .update(trips)
+        .set({ status: 'route_planned', updatedAt: sql`now()` })
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .returning({ status: trips.status })
+      if (updated === undefined) return tripRow.status
+
+      await recordTripStatusChange(transaction, {
+        actorUserId: input.actorUserId,
+        channel: input.channel,
+        companyId: input.companyId,
+        fromStatus: tripRow.status,
+        onBehalfOfDriverId: input.onBehalfOfDriverId,
+        toStatus: updated.status,
+        tripId: input.tripId,
+      })
+
+      return updated.status
+    })
   }
 
   public async readPreconditions(input: {
@@ -180,7 +207,10 @@ export class DrizzleTripRouteRepository
   }
 
   public async markCancelled(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
     readonly companyId: string
+    readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripStatus> {
     return this.database.transaction(async (transaction) => {
@@ -194,13 +224,32 @@ export class DrizzleTripRouteRepository
         .set({ releasedAt: sql`now()`, updatedAt: sql`now()` })
         .where(buildCancelReleaseWhere(input))
 
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('no key update')
+        .limit(1)
+      if (tripRow === undefined) return 'cancelled'
+
       const [updated] = await transaction
         .update(trips)
         .set({ status: 'cancelled', updatedAt: sql`now()` })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ status: trips.status })
+      if (updated === undefined) return tripRow.status
 
-      return updated?.status ?? 'cancelled'
+      await recordTripStatusChange(transaction, {
+        actorUserId: input.actorUserId,
+        channel: input.channel,
+        companyId: input.companyId,
+        fromStatus: tripRow.status,
+        onBehalfOfDriverId: input.onBehalfOfDriverId,
+        toStatus: updated.status,
+        tripId: input.tripId,
+      })
+
+      return updated.status
     })
   }
 
@@ -316,13 +365,32 @@ async function dispatch(
    */
   await shiftEstimatedArrivals(transaction, input)
 
+  const [tripRow] = await transaction
+    .select({ status: trips.status })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .for('no key update')
+    .limit(1)
+  if (tripRow === undefined) return { tripStatus: 'dispatched' }
+
   const [updated] = await transaction
     .update(trips)
     .set({ status: 'dispatched', updatedAt: sql`now()` })
     .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     .returning({ status: trips.status })
+  if (updated === undefined) return { tripStatus: tripRow.status }
 
-  return { tripStatus: updated?.status ?? 'dispatched' }
+  await recordTripStatusChange(transaction, {
+    actorUserId: input.actorUserId,
+    channel: input.channel,
+    companyId: input.companyId,
+    fromStatus: tripRow.status,
+    onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
+    toStatus: updated.status,
+    tripId: input.tripId,
+  })
+
+  return { tripStatus: updated.status }
 }
 
 /**

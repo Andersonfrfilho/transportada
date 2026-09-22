@@ -83,6 +83,120 @@ export async function assertTripConstraints(
     'trips_status_check',
   )
 
+  // Spec 153 D4: a rota nasce inteira numa escrita — meia gravação é proibida, uma coluna por vez.
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb, planned_distance_meters = 12000,
+          planned_return_distance_meters = 0, planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_check',
+  )
+  // Casos extremos: `end_policy = 'last_stop'` grava volta zero, nunca nula — 0 é valor legal.
+  await database`
+    update trips
+    set planned_route = '{}'::jsonb, planned_distance_meters = 12000,
+        planned_return_distance_meters = 0, planned_duration_seconds = 3600,
+        planned_route_frozen_at = now()
+    where id = ${tripId}
+  `
+  await database`
+    update trips
+    set planned_route = null, planned_distance_meters = null,
+        planned_return_distance_meters = null, planned_duration_seconds = null,
+        planned_route_frozen_at = null
+    where id = ${tripId}
+  `
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb, planned_distance_meters = -1,
+          planned_return_distance_meters = 0, planned_duration_seconds = 3600,
+          planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_metrics_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb, planned_distance_meters = 12000,
+          planned_return_distance_meters = -1, planned_duration_seconds = 3600,
+          planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_metrics_check',
+  )
+  await expectQueryToFail(
+    database`
+      update trips
+      set planned_route = '{}'::jsonb, planned_distance_meters = 12000,
+          planned_return_distance_meters = 0, planned_duration_seconds = -1,
+          planned_route_frozen_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_planned_route_metrics_check',
+  )
+
+  // Spec 143 D4: meia diária está fora do escopo, e viagem de zero dia não existe — o piso é 1.
+  await database`
+    insert into trips (company_id, vehicle_id, daily_allowance_days)
+    values (${companyId}, ${vehicleId}, 3)
+  `
+  await expectQueryToFail(
+    database`
+      insert into trips (company_id, vehicle_id, daily_allowance_days)
+      values (${companyId}, ${vehicleId}, 0)
+    `,
+    '23514',
+    'trips_daily_allowance_days_check',
+  )
+
+  // Spec 143 D3: uma linha de valor geral por empresa, e ela não aceita diária zerada.
+  await database`
+    insert into company_driver_allowance_settings (company_id, daily_allowance_amount, updated_by_user_id)
+    values (${companyId}, 180.0000, ${userId})
+  `
+  await expectQueryToFail(
+    database`
+      insert into company_driver_allowance_settings (company_id, daily_allowance_amount, updated_by_user_id)
+      values (${companyId}, 200.0000, ${userId})
+    `,
+    '23505',
+    'company_driver_allowance_settings_pkey',
+  )
+  await expectQueryToFail(
+    database`
+      insert into company_driver_allowance_settings (company_id, daily_allowance_amount, updated_by_user_id)
+      values (${otherCompanyId}, 0, ${userId})
+    `,
+    '23514',
+    'company_driver_allowance_settings_amount_check',
+  )
+
   // Spec 065 D4c: motivo so existe para a dispensa, e sobrescrita sem autor nao conta quem assinou.
   await expectQueryToFail(
     database`
@@ -250,7 +364,18 @@ export async function assertTripConstraints(
   await assertFieldExecutionConstraints({
     companyId,
     database,
+    driverId,
+    otherCompanyId,
     tripDocumentId: liveTripDocumentId,
+    tripId,
+    userId,
+  })
+
+  await assertTripStatusEventConstraints({
+    companyId,
+    database,
+    driverId,
+    otherCompanyId,
     tripId,
     userId,
   })
@@ -310,11 +435,13 @@ async function assertLiveManifestConstraint(input: {
 async function assertFieldExecutionConstraints(input: {
   readonly companyId: string
   readonly database: SQL
+  readonly driverId: string
+  readonly otherCompanyId: string
   readonly tripDocumentId: string
   readonly tripId: string
   readonly userId: string
 }): Promise<void> {
-  const { companyId, database, tripDocumentId, tripId, userId } = input
+  const { companyId, database, driverId, otherCompanyId, tripDocumentId, tripId, userId } = input
   const stopId = crypto.randomUUID()
 
   await database`
@@ -394,6 +521,16 @@ async function assertFieldExecutionConstraints(input: {
     'trip_field_reports_company_key_unique',
   )
 
+  await assertFieldChannelConstraints({
+    companyId,
+    database,
+    driverId,
+    otherCompanyId,
+    stopId,
+    tripDocumentId,
+    userId,
+  })
+
   // A parada apagada leva o que aconteceu nela; o que não pode é sobrar evento órfão
   await database`delete from trip_stops where id = ${stopId}`
   const orphanEvents = await database<
@@ -404,4 +541,234 @@ async function assertFieldExecutionConstraints(input: {
       (select count(*) from trip_stop_occurrences where stop_id = ${stopId}) as occurrences
   `
   expect(orphanEvents[0]).toEqual({ events: '0', occurrences: '0' })
+}
+
+/**
+ * ADR-0067 §2 (spec 156 T4): a autoria do registro de campo — canal, e o motorista em nome de quem
+ * o escritório registrou. As seis tabelas repetem o mesmo par de `check`s; aqui a prova cobre as
+ * três formas que os nomes tomam (`trip_stop_events` com `recorded_at`, `trip_document_occurrences`
+ * sem ela, `trip_field_reports` como a chave de idempotência) e a FK composta uma vez, porque o
+ * `(company_id, on_behalf_of_driver_id) -> fleet_drivers` é idêntico nas seis.
+ */
+async function assertFieldChannelConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly driverId: string
+  readonly otherCompanyId: string
+  readonly stopId: string
+  readonly tripDocumentId: string
+  readonly userId: string
+}): Promise<void> {
+  const { companyId, database, driverId, otherCompanyId, stopId, tripDocumentId, userId } = input
+  const otherCompanyDriverId = crypto.randomUUID()
+
+  await database`
+    insert into fleet_drivers (id, company_id, name, tax_id)
+    values (${otherCompanyDriverId}, ${otherCompanyId}, 'Motorista De Outra Empresa', '22233344455')
+  `
+
+  // Canal fora da lista fechada, nas três formas de tabela (com e sem `recorded_at`).
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id, channel)
+      values (${companyId}, ${stopId}, 'arrived', ${userId}, 'fax')
+    `,
+    '23514',
+    'trip_stop_events_channel_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_field_reports (company_id, idempotency_key, operation, actor_user_id, channel)
+      values (${companyId}, 'canal-invalido', 'deliver', ${userId}, 'fax')
+    `,
+    '23514',
+    'trip_field_reports_channel_check',
+  )
+
+  // `channel = 'office'` sem `on_behalf_of_driver_id` — o CHECK de implicação (ADR-0067 §2).
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id, channel)
+      values (${companyId}, ${stopId}, 'arrived', ${userId}, 'office')
+    `,
+    '23514',
+    'trip_stop_events_office_driver_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_document_occurrences (
+        company_id, trip_document_id, stage, occurrence_type_id, actor_user_id, channel
+      )
+      values (
+        ${companyId}, ${tripDocumentId}, 'delivery', ${crypto.randomUUID()}, ${userId}, 'office'
+      )
+    `,
+    '23514',
+    'trip_document_occurrences_office_driver_check',
+  )
+
+  // FK composta: o motorista em nome de quem se registra nunca é de outra empresa (mesma empresa
+  // do evento) — reprovada mesmo com `channel = 'office'` satisfeito por um id que existe, só que
+  // no tenant errado.
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (
+        company_id, stop_id, kind, actor_user_id, channel, on_behalf_of_driver_id
+      )
+      values (${companyId}, ${stopId}, 'arrived', ${userId}, 'office', ${otherCompanyDriverId})
+    `,
+    '23503',
+    'trip_stop_events_company_driver_fk',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_field_reports (
+        company_id, idempotency_key, operation, actor_user_id, channel, on_behalf_of_driver_id
+      )
+      values (
+        ${companyId}, 'chave-fk-outra-empresa', 'deliver', ${userId}, 'office', ${otherCompanyDriverId}
+      )
+    `,
+    '23503',
+    'trip_field_reports_company_driver_fk',
+  )
+
+  // O caminho feliz: canal `office` com o motorista da própria empresa grava normalmente.
+  const [officeEvent] = await database<Array<{ readonly id: string }>>`
+    insert into trip_stop_events (
+      company_id, stop_id, kind, actor_user_id, channel, on_behalf_of_driver_id
+    )
+    values (${companyId}, ${stopId}, 'arrived', ${userId}, 'office', ${driverId})
+    returning id
+  `
+  expect(officeEvent?.id).toBeDefined()
+}
+
+/**
+ * Spec 158 T2 / ADR-0068 §1: `trip_status_events` é o histórico de `trips.status`. Cobre a forma da
+ * tabela — as duas FKs compostas, os três `check`s de vocabulário/transição e o índice de leitura —
+ * no mesmo molde de `assertFieldChannelConstraints`.
+ */
+async function assertTripStatusEventConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly driverId: string
+  readonly otherCompanyId: string
+  readonly tripId: string
+  readonly userId: string
+}): Promise<void> {
+  const { companyId, database, driverId, otherCompanyId, tripId, userId } = input
+  const otherCompanyDriverId = crypto.randomUUID()
+
+  await database`
+    insert into fleet_drivers (id, company_id, name, tax_id)
+    values (${otherCompanyDriverId}, ${otherCompanyId}, 'Motorista De Outra Empresa Do Status', '33344455566')
+  `
+
+  // O caminho feliz: transição registrada com o canal padrão (driver_app).
+  const [event] = await database<Array<{ readonly id: string }>>`
+    insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+    values (${companyId}, ${tripId}, 'draft', 'route_planned', ${userId})
+    returning id
+  `
+  expect(event?.id).toBeDefined()
+
+  // `from_status <> to_status` — não há transição para o próprio estado.
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+      values (${companyId}, ${tripId}, 'draft', 'draft', ${userId})
+    `,
+    '23514',
+    'trip_status_events_transition_check',
+  )
+
+  // Vocabulário fechado de `TripStatus`, nos dois lados da transição.
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+      values (${companyId}, ${tripId}, 'open', 'route_planned', ${userId})
+    `,
+    '23514',
+    'trip_status_events_from_status_check',
+  )
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+      values (${companyId}, ${tripId}, 'draft', 'open', ${userId})
+    `,
+    '23514',
+    'trip_status_events_to_status_check',
+  )
+
+  // Canal fora da lista fechada (agora com `backoffice`).
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id, channel)
+      values (${companyId}, ${tripId}, 'draft', 'route_planned', ${userId}, 'fax')
+    `,
+    '23514',
+    'trip_status_events_channel_check',
+  )
+
+  // `channel = 'office'` sem `on_behalf_of_driver_id` — o CHECK de implicação (ADR-0067 §2).
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id, channel)
+      values (${companyId}, ${tripId}, 'draft', 'route_planned', ${userId}, 'office')
+    `,
+    '23514',
+    'trip_status_events_office_driver_check',
+  )
+
+  // `channel = 'backoffice'` não exige `on_behalf_of_driver_id` (ADR-0068 §3).
+  const [backofficeEvent] = await database<Array<{ readonly id: string }>>`
+    insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id, channel)
+    values (${companyId}, ${tripId}, 'route_planned', 'dispatched', ${userId}, 'backoffice')
+    returning id
+  `
+  expect(backofficeEvent?.id).toBeDefined()
+
+  // FK composta: viagem inexistente na empresa é recusada.
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (company_id, trip_id, from_status, to_status, actor_user_id)
+      values (${companyId}, ${crypto.randomUUID()}, 'draft', 'route_planned', ${userId})
+    `,
+    '23503',
+    'trip_status_events_company_trip_fk',
+  )
+
+  // FK composta: o motorista em nome de quem se registra nunca é de outra empresa, mesmo com
+  // `channel = 'office'` satisfeito por um id que existe, só que no tenant errado.
+  await expectQueryToFail(
+    database`
+      insert into trip_status_events (
+        company_id, trip_id, from_status, to_status, actor_user_id, channel, on_behalf_of_driver_id
+      )
+      values (
+        ${companyId}, ${tripId}, 'draft', 'route_planned', ${userId}, 'office', ${otherCompanyDriverId}
+      )
+    `,
+    '23503',
+    'trip_status_events_company_driver_fk',
+  )
+
+  // O caminho feliz de `office`: o motorista da própria empresa grava normalmente.
+  const [officeEvent] = await database<Array<{ readonly id: string }>>`
+    insert into trip_status_events (
+      company_id, trip_id, from_status, to_status, actor_user_id, channel, on_behalf_of_driver_id
+    )
+    values (${companyId}, ${tripId}, 'dispatched', 'in_transit', ${userId}, 'office', ${driverId})
+    returning id
+  `
+  expect(officeEvent?.id).toBeDefined()
+
+  // A linha do tempo lê por viagem, ordenada por `occurred_at` — sem este índice ela varre tudo.
+  const [index] = await database<Array<{ readonly indexdef: string }>>`
+    select indexdef from pg_indexes where indexname = 'trip_status_events_company_trip_occurred_at_idx'
+  `
+  expect(index?.indexdef).toContain('(company_id, trip_id, occurred_at, id)')
+
+  await database`delete from trip_status_events where company_id = ${companyId}`
 }

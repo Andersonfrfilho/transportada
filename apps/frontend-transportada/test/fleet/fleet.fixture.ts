@@ -124,6 +124,7 @@ export type FleetDriverBodyContract = Readonly<{
   birthCity: string
   birthDate: null | string
   birthState: string
+  dailyAllowanceAmount: null | string
   email: string
   fatherName: string
   firstLicenseAt: null | string
@@ -183,7 +184,7 @@ export type FleetVehiclePageContract = Readonly<{
 }>
 
 export type FleetDriverPageContract = Readonly<{
-  items: readonly FleetDriverDetailContract[]
+  items: readonly (FleetDriverDetailContract & Readonly<{ score: number | null }>)[]
   nextCursor: null | string
 }>
 
@@ -280,6 +281,7 @@ export const DRIVER_BODY = {
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
   birthState: 'SP',
+  dailyAllowanceAmount: null,
   email: '',
   fatherName: 'Antônio da Silva',
   firstLicenseAt: '2008-03-14',
@@ -312,6 +314,7 @@ export const DRIVER_CREATE_BODY = {
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
   birthState: 'SP',
+  dailyAllowanceAmount: null,
   email: '',
   fatherName: 'Antônio da Silva',
   firstLicenseAt: '2008-03-14',
@@ -467,7 +470,7 @@ export const VEHICLE_PAGE = {
 } as const satisfies FleetVehiclePageContract
 
 export const DRIVER_PAGE = {
-  items: [DRIVER_DETAIL],
+  items: [{ ...DRIVER_DETAIL, score: 85 }],
   nextCursor: null,
 } as const satisfies FleetDriverPageContract
 
@@ -535,6 +538,7 @@ export const DRIVER_DRAFT_BODY = {
   birthCity: '',
   birthDate: null,
   birthState: '',
+  dailyAllowanceAmount: null,
   email: '',
   fatherName: '',
   firstLicenseAt: null,

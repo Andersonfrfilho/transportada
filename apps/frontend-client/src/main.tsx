@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { ReactNode } from 'react'
 import { StrictMode, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -13,6 +14,7 @@ import {
   getKeycloakAuthProvider,
   initializeKeycloakAuth,
 } from '@/modules/shared/KeycloakAuthProvider.provider'
+import { LoginIdentifierPage } from '@/modules/shared/LoginIdentifier.page'
 import { createPortalClient } from '@/modules/shared/portalClient.service'
 import '@/styles/index.css'
 
@@ -30,6 +32,18 @@ applyEnvironmentBadge({ document, environment: deploymentEnvironment })
 
 type Tab = 'charges' | 'deliveries'
 
+type PageFrameProps = Readonly<{ children: ReactNode }>
+
+/** A faixa de ambiente vai no topo de toda página — com sessão ou não. */
+function PageFrame({ children }: PageFrameProps): ReactNode {
+  return (
+    <>
+      <EnvironmentBanner environment={deploymentEnvironment} />
+      {children}
+    </>
+  )
+}
+
 function App() {
   const [tab, setTab] = useState<Tab>('deliveries')
   const client = createPortalClient({
@@ -40,41 +54,42 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <EnvironmentBanner environment={deploymentEnvironment} />
-      <main>
-        <div className="page">
-          <nav className="nav">
-            <button
-              aria-current={tab === 'deliveries'}
-              className={tab === 'deliveries' ? '' : 'secondary'}
-              onClick={() => setTab('deliveries')}
-              type="button"
-            >
-              Entregas
-            </button>
-            <button
-              aria-current={tab === 'charges'}
-              className={tab === 'charges' ? '' : 'secondary'}
-              onClick={() => setTab('charges')}
-              type="button"
-            >
-              Repasses
-            </button>
-            <button
-              className="secondary"
-              onClick={() => void getKeycloakAuthProvider().logout()}
-              type="button"
-            >
-              Sair
-            </button>
-          </nav>
-        </div>
-        {tab === 'deliveries' ? (
-          <DeliveryListPage client={client} />
-        ) : (
-          <ChargeBatchListPage client={client} />
-        )}
-      </main>
+      <PageFrame>
+        <main>
+          <div className="page">
+            <nav className="nav">
+              <button
+                aria-current={tab === 'deliveries'}
+                className={tab === 'deliveries' ? '' : 'secondary'}
+                onClick={() => setTab('deliveries')}
+                type="button"
+              >
+                Entregas
+              </button>
+              <button
+                aria-current={tab === 'charges'}
+                className={tab === 'charges' ? '' : 'secondary'}
+                onClick={() => setTab('charges')}
+                type="button"
+              >
+                Repasses
+              </button>
+              <button
+                className="secondary"
+                onClick={() => void getKeycloakAuthProvider().logout()}
+                type="button"
+              >
+                Sair
+              </button>
+            </nav>
+          </div>
+          {tab === 'deliveries' ? (
+            <DeliveryListPage client={client} />
+          ) : (
+            <ChargeBatchListPage client={client} />
+          )}
+        </main>
+      </PageFrame>
     </QueryClientProvider>
   )
 }
@@ -82,12 +97,26 @@ function App() {
 /**
  * A autenticação acontece **antes** de a árvore montar, como no painel: sem token não há o que
  * pedir, e montar a tela primeiro produziria um piscar de "sem entregas" antes do redirect.
+ *
+ * Com a etapa de identificação ligada, `initializeKeycloakAuth` volta sem sessão em vez de
+ * redirecionar: a tela pergunta o identificador, resolve o login e só então leva ao provedor.
+ * Desligada, ela redireciona antes de renderizar, exatamente como sempre fez.
  */
 async function start(): Promise<void> {
   const container = document.getElementById('root')
   if (container === null) throw new Error('CLIENT_ROOT_ELEMENT_MISSING')
 
-  await initializeKeycloakAuth()
+  const isAuthenticated = await initializeKeycloakAuth()
+  if (!isAuthenticated) {
+    createRoot(container).render(
+      <StrictMode>
+        <PageFrame>
+          <LoginIdentifierPage />
+        </PageFrame>
+      </StrictMode>,
+    )
+    return
+  }
 
   createRoot(container).render(
     <StrictMode>

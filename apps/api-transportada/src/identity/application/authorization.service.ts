@@ -3,6 +3,7 @@
  */
 import { HTTP_ERROR } from '../../shared/api.constant'
 import { ApiError } from '../../shared/api.error'
+import { grantsAnyPermission } from '../domain/authorization.policy'
 import type { RouteAuthorizationPolicy } from '../domain/authorization.policy'
 import type {
   AuthenticatedContext,
@@ -22,6 +23,15 @@ export class AuthorizationService {
     }
     if ('membership' in policy) {
       if (isNotAPerson(context.identity)) throw forbidden()
+      return
+    }
+    if ('anyPermission' in policy) {
+      if (
+        context.scope.kind !== 'company' ||
+        !grantsAnyPermission({ granted: context.scope.permissions, required: policy.anyPermission })
+      ) {
+        throw forbidden()
+      }
       return
     }
 

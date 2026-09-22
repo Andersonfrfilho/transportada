@@ -16,13 +16,23 @@ import {
   type TripValuation,
 } from '../domain/trip-valuation.policy.js'
 import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
-import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
+import {
+  DAILY_ALLOWANCE_DAYS_ORIGIN,
+  suggestAllowanceDays,
+} from '../domain/daily-allowance.policy.js'
+import {
+  buildTripDriverCost,
+  type TripCrewMember,
+  type TripDriverCostDays,
+} from '../domain/trip-driver-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import {
   resolveDocumentIcms,
   type IcmsEmissionProfile,
 } from '../domain/trip-icms-projection.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
+import { summarizeRoadDistance } from '../domain/planned-road-distance.policy.js'
+import type { RouteChoice } from '../domain/route-choice.policy.js'
 import {
   readRouteGeometry,
   type ReadRouteGeometryDepotPort,
@@ -82,8 +92,15 @@ export type TripValuationVehicle = {
 }
 
 export type TripValuationContext = {
-  /** Quem dirige e como é pago — o agregado por rota, o da casa por quinzena (ADR-0049 §3). */
+  /**
+   * Spec 143 D3: a diária configurada pela empresa, **uma vez por viagem** — ela vale para todo
+   * condutor que não tem valor próprio. `null`/ausente é "não configurada", e aí paga o padrão.
+   */
+  readonly companyDailyAllowanceAmount?: null | string
+  /** Quem dirige e quanto vale a diária de cada um (spec 143 D1). */
   readonly crew?: readonly TripCrewMember[]
+  /** Spec 143 D4: os dias que a operação informou. Ausente, a duração estimada sugere quantos. */
+  readonly dailyAllowanceDays?: null | number
   /** Taxas de entrega já conferidas (060). `null` enquanto a empresa não usa o módulo. */
   readonly deliveryChargesTotal?: null | string
   /** Metros do roteiro aceito; `null` quando ninguém calculou rota ainda. */
@@ -94,9 +111,19 @@ export type TripValuationContext = {
    * ICMS enquanto a nota não tem CT-e; ausente é "nenhum perfil", e a parcela diz isso por nota.
    */
   readonly emissionProfiles?: readonly IcmsEmissionProfile[]
+  /**
+   * Spec 143 D4: os segundos crus do roteiro aceito. A conversão em dias — e a decisão entre dias
+   * informados e sugeridos — é da política, não do SQL.
+   */
+  readonly estimatedDurationSeconds?: null | number
   /** `null` quando a empresa não declarou regime federal: PIS/COFINS fica `missing`. */
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
+  /**
+   * Spec 143 D6: os avulsos lançados na viagem (`kind = 'other'`), separados do pedágio. `null`
+   * quando ninguém lançou nada — ausência de lançamento, não gratuidade.
+   */
+  readonly manualCostTotal?: null | string
   /**
    * Spec 090 T9/T11: a **projeção** de pedágio — calculada pela mesma rota que resolveu
    * `distanceMeters` na prévia; congelada no momento do planejamento na viagem já criada (T11), e
@@ -209,12 +236,22 @@ export type PreviewTripValuationInput = {
    * barracão entra na distância dela também — duas contas diferentes sobre a mesma viagem é o
    * defeito que a 097 existe para acabar. ⚠️ A **carga** não muda: o barracão não ocupa baú (D3).
    */
+  /**
+   * Spec 143 D4: mesma regra da criação — ausente é "sugere pela duração estimada".
+   * `| undefined` explícito: o corpo chega direto do zod (`z.number().int().optional()`).
+   */
+  readonly dailyAllowanceDays?: number | undefined
   readonly depot?: null | ReadRouteGeometryDepotPort
   readonly driverIds: readonly string[]
   /** A mesma porta da geometria avulsa do mapa (`/route-geometry`) — spec 090 D3. */
   readonly geometry: RouteGeometryPort
   readonly nfeDocumentIds: readonly string[]
   readonly repository: TripValuationPreviewPort
+  /**
+   * Qual rota precificar (spec 153 RF4/aceite 2). Ausente é a mais barata conhecida — o mesmo
+   * default de `readRouteGeometry` — para a prévia continuar respondendo sem seletor nenhum.
+   */
+  readonly routeChoice?: RouteChoice
   /** A ordem que o operador montou no mapa. Vazia é ordem de chegada — a prévia não inventa roteiro. */
   readonly stopOrder: readonly string[]
   /** O catálogo de praças — spec 090 T9, a mesma porta que `/route-geometry` já usa (T7). */
@@ -264,11 +301,20 @@ export async function previewTripValuation(
     repository: input.repository,
     stopOrder: input.stopOrder,
     tollBooths: input.tollBooths,
+    ...(input.routeChoice === undefined ? {} : { choice: input.routeChoice }),
   })
 
   return buildValuationFromContext({
     companyId: input.companyId,
-    context: { ...context, distanceMeters: road.distanceMeters, toll: road.toll },
+    context: {
+      ...context,
+      ...(input.dailyAllowanceDays === undefined
+        ? {}
+        : { dailyAllowanceDays: input.dailyAllowanceDays }),
+      distanceMeters: road.distanceMeters,
+      estimatedDurationSeconds: road.durationSeconds,
+      toll: road.toll,
+    },
     repository: input.repository,
   })
 }
@@ -277,10 +323,14 @@ export async function previewTripValuation(
  * ⚠️ Sem geometria (rota indisponível, ou menos de duas paradas) a distância é `null`, e o gap de
  * `noPlannedDistance` continua valendo — nada muda no que já existia antes desta task. O pedágio
  * segue a mesma regra de `readRouteGeometry`: `null` é "não calculei", nunca zero inventado.
+ *
+ * Spec 143 D4: `durationSeconds` some junto — cru, sem virar dias aqui. É a política
+ * (`suggestAllowanceDays`) quem decide quantos dias a duração sugere.
  */
 async function resolvePreviewRoad(input: {
   readonly axles: AxleCount | null
   readonly multiplier: TollMultiplier | null
+  readonly choice?: RouteChoice
   readonly companyId: string
   readonly hasAutomaticTollPayment: boolean
   readonly depot: null | ReadRouteGeometryDepotPort
@@ -289,7 +339,11 @@ async function resolvePreviewRoad(input: {
   readonly repository: Pick<TripValuationPreviewPort, 'readPreviewStopCoordinates'>
   readonly stopOrder: readonly string[]
   readonly tollBooths: ReadRouteGeometryTollBoothsPort
-}): Promise<{ readonly distanceMeters: null | number; readonly toll: null | RouteGeometryToll }> {
+}): Promise<{
+  readonly distanceMeters: null | number
+  readonly durationSeconds: null | number
+  readonly toll: null | RouteGeometryToll
+}> {
   const points = await input.repository.readPreviewStopCoordinates({
     companyId: input.companyId,
     nfeDocumentIds: input.nfeDocumentIds,
@@ -304,11 +358,18 @@ async function resolvePreviewRoad(input: {
     geometry: input.geometry,
     stops: points,
     tollBooths: input.tollBooths,
+    ...(input.choice === undefined ? {} : { choice: input.choice }),
   })
-  if (road.legs.length === 0) return { distanceMeters: null, toll: road.toll }
+
+  /** Spec 153 D5 + 143 D4: a mesma sumarização entrega os metros com a volta e a duração crua. */
+  const distance = summarizeRoadDistance({
+    legs: road.legs,
+    trailingLegs: road.depot?.trailingLegs ?? 0,
+  })
 
   return {
-    distanceMeters: road.legs.reduce((total, leg) => total + leg.distanceMetres, 0),
+    distanceMeters: distance.distanceMeters,
+    durationSeconds: distance.durationSeconds,
     toll: road.toll,
   }
 }
@@ -318,8 +379,9 @@ async function resolvePreviewRoad(input: {
  * imposto sobre a receita apurada.
  *
  * ⚠️ **Exportada de propósito, e é a única conta de margem do produto.** Quem monta o contexto varia
- * — a viagem existente soma `trip_stops`, a prévia vai ao roteirizador, e a sugestão multi-veículo
- * (spec 101 D1) soma as paradas que o solver já escolheu —, mas a conta é uma só. Uma segunda
+ * — a viagem existente lê a distância e o pedágio congelados no planejamento (spec 153 RF5), a
+ * prévia vai ao roteirizador, e a sugestão multi-veículo (spec 101 D1) soma as paradas que o
+ * solver já escolheu —, mas a conta é uma só. Uma segunda
  * implementação da margem divergiria **calada**: foi exatamente assim que o preço do combustível
  * passou meses lendo só o ajuste manual enquanto a ficha do veículo lia o efetivo (spec 100).
  *
@@ -456,16 +518,52 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
   const hasDistance = distance !== null && distance > 0
 
   return [
-    buildTripDriverCost(context.crew ?? []),
+    buildDriverParcel(context),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
     resolveTollParcel(context),
+    /** Spec 143 D6: o avulso nunca soma com o pedágio — leitura própria, parcela própria. */
+    resolveRecordedParcel({
+      amount: context.manualCostTotal ?? null,
+      gap: VALUATION_GAPS.notRecorded,
+      kind: 'manual',
+    }),
     resolveRecordedParcel({
       amount: context.deliveryChargesTotal ?? null,
       gap: VALUATION_GAPS.featureAbsent,
       kind: 'delivery_charges',
     }),
   ]
+}
+
+/**
+ * Spec 143 D4: **dias informados vencem a sugestão** — quem lançou a viagem sabe o que ela vai
+ * durar melhor do que a duração estimada do roteiro, e é essa diferença que separa a parcela medida
+ * da prevista.
+ */
+function buildDriverParcel(context: TripValuationContext): TripCostParcel {
+  return buildTripDriverCost({
+    companyDailyAmount: context.companyDailyAllowanceAmount ?? null,
+    crew: context.crew ?? [],
+    days: resolveAllowanceDays(context),
+  })
+}
+
+/**
+ * ⚠️ Roteiro sem duração **não é viagem de um dia**: é viagem de duração desconhecida, e a política
+ * responde por ela com lacuna. Tratar a ausência como zero segundo sugeria um dia calado, e a
+ * viagem de três dias saía por um terço do custo do motorista numa margem de aparência fechada.
+ */
+function resolveAllowanceDays(context: TripValuationContext): TripDriverCostDays {
+  const informedDays = context.dailyAllowanceDays ?? null
+  if (informedDays !== null) {
+    return { of: DAILY_ALLOWANCE_DAYS_ORIGIN.informed, value: informedDays }
+  }
+
+  const durationSeconds = context.estimatedDurationSeconds ?? null
+  if (durationSeconds === null) return { of: 'unknown' }
+
+  return { of: DAILY_ALLOWANCE_DAYS_ORIGIN.estimated, value: suggestAllowanceDays(durationSeconds) }
 }
 
 /**

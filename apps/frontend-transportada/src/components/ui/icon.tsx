@@ -25,6 +25,7 @@ export type IconName =
   | 'close'
   | 'columns'
   | 'copy'
+  | 'cost-down'
   | 'document'
   | 'download'
   | 'edit'
@@ -52,6 +53,7 @@ export type IconName =
   | 'search'
   | 'send'
   | 'shield'
+  | 'speed'
   | 'sort'
   | 'spinner'
   | 'sun'
@@ -133,6 +135,14 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   close: ['M6 6l12 12', 'M18 6L6 18'],
   columns: ['M4 5h16v14H4z', 'M10 5v14', 'M15 5v14'],
   copy: ['M9 9h11v11H9z', 'M15 9V4H4v11h5'],
+  /** Moeda com seta para baixo: o objetivo "gastar menos", não um valor (esse é o `workspace-billing`). */
+  'cost-down': [
+    'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14z',
+    'M10 5.5v9',
+    'M12.3 7.5c-.5-.6-1.3-1-2.3-1-1.2 0-2.1.6-2.1 1.5s.9 1.3 2.1 1.6c1.2.3 2.1.7 2.1 1.7s-.9 1.6-2.1 1.6c-1 0-1.9-.4-2.4-1.1',
+    'M19 13v8',
+    'M16 18l3 3 3-3',
+  ],
   document: ['M13 3H6v18h12V8z', 'M13 3v5h5', 'M9 13h6', 'M9 17h6'],
   download: ['M12 4v11', 'M7 11l5 5 5-5', 'M5 20h14'],
   edit: ['M4 20h4L20 8l-4-4L4 16z', 'M14 6l4 4'],
@@ -170,6 +180,12 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   send: ['M4 12l16-8-6 16-2.5-6.5L4 12z'],
   shield: ['M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z'],
   sort: ['M8 9l4-4 4 4', 'M8 15l4 4 4-4'],
+  /** Velocímetro: o objetivo "chegar antes". O relógio (`clock`) fica para hora marcada. */
+  speed: [
+    'M3.3 19a10 10 0 1 1 17.4 0',
+    'M12 14l4.5-4.5',
+    'M12 15.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+  ],
   spinner: ['M12 3a9 9 0 1 0 9 9'],
   sun: [
     'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',

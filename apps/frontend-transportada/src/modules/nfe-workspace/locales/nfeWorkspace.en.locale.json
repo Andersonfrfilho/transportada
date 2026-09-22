@@ -354,7 +354,75 @@
       "postal_code_stale": "The cadastre holds the city-wide postal code. The street-level one makes the address lookup free.",
       "street_incomplete": "The same street with a shorter name in the cadastre. Delivery arrives; the cadastre is just abbreviated."
     },
-    "unresolvedAim": "Delivery currently aims at the municipality centre"
+    "unresolvedAim": "Delivery currently aims at the municipality centre",
+    "correction": {
+      "trigger": "Report correct address",
+      "editTrigger": "Edit correction",
+      "title": "Report correct address",
+      "street": "Street",
+      "number": "Number",
+      "complement": "Complement",
+      "district": "District",
+      "city": "City",
+      "state": "State",
+      "cityCode": "City IBGE code",
+      "postalCode": "Postal code",
+      "genericPostalCodeHint": "This postal code may be the city's single postal code — check before changing it.",
+      "unlabelledErrorsLead": "The server rejected fields this screen does not recognise:",
+      "cancel": "Cancel",
+      "save": "Save correction",
+      "proposedLabel": "Proposed",
+      "stateNone": "No request",
+      "stateDraft": "Draft saved",
+      "stateSent": "Sent on {{date}}",
+      "stateSentWithCount": "Sent to {{count}} contact on {{date}}",
+      "stateSentWithCount_other": "Sent to {{count}} contacts on {{date}}",
+      "lastSentAt": "Last sent on {{date}}",
+      "statusUnavailable": "Could not load the request status.",
+      "mail": {
+        "sendOne": "Send this address",
+        "sendAll": "Send all ({{count}})",
+        "titleUnit": "Send this address correction request",
+        "titleComplete": "Send all correction requests",
+        "close": "Close",
+        "previewTitle": "{{count}} address will be sent",
+        "previewTitle_other": "{{count}} addresses will be sent",
+        "previewAsIs": "As it came",
+        "previewProposed": "Correct",
+        "contactsTitle": "Contacts who will receive it",
+        "contactsUnavailable": "Could not load the contractor's contacts.",
+        "noActiveContact": "This contractor has no active e-mail contact registered.",
+        "noActiveContactLink": "Register a contact in Clients → E-mail with contractors",
+        "openMailSettingsLink": "Open e-mail configuration",
+        "templateTitle": "E-mail template",
+        "templateUnavailable": "Could not load the e-mail templates.",
+        "templateDefaultOption": "{{name}} (default)",
+        "previewExample": "The preview uses sample data — the actual send carries the addresses marked above.",
+        "previewLoading": "Loading template preview…",
+        "previewUnavailable": "Could not load this template's preview.",
+        "previewSubjectLabel": "Subject",
+        "previewFrameTitle": "E-mail preview",
+        "cancel": "Cancel",
+        "confirm": "Send correction request",
+        "sending": "Sending…",
+        "done": "Done",
+        "sent": "Request sent to {{count}} contact.",
+        "sent_other": "Request sent to {{count}} contacts.",
+        "error": {
+          "contractorNotFound": "We could not find this contractor's record.",
+          "nothingToSend": "There is no pending draft to send.",
+          "noActiveContact": "None of the marked contacts is active. Refresh the list and try again.",
+          "requestNotSendable": "One of the selected requests was already sent or does not belong to this contractor.",
+          "mailNotConfigured": "This contractor's e-mail is not configured or verified yet.",
+          "sendingNotVerified": "The sender's e-mail domain has not been verified yet.",
+          "templateMissing": "There is no default address correction e-mail template. Create one in Contractor e-mail.",
+          "templateNotUsable": "The chosen template was archived or is no longer available. Pick another template.",
+          "idempotencyReused": "This send was already processed. Refresh the page before trying again.",
+          "tooManyRequests": "Too many send attempts. Try again in {{minutes}} min.",
+          "generic": "Could not send the correction request."
+        }
+      }
+    }
   },
   "packageBoxes": {
     "title": "Boxes to measure",
@@ -397,6 +465,32 @@
     },
     "outOfRange": "Out of range: {{max}} cm at most.",
     "unitsPerBox": "Units per box",
+    "packagingUnitBadge": "{{unit}} · {{count}} units",
+    "packagingGroup": {
+      "title": "{{description}} · product code {{productCode}}"
+    },
+    "family": {
+      "counter": "{{measured}} of {{total}} measured in this family",
+      "applyToAll": "Apply this flavor's measurement to all flavors",
+      "applyToAllAriaLabel": "Apply this flavor's measurement to all flavors — {{description}}",
+      "applyUnresolved": "No confirmed measurement available to apply in this family.",
+      "applyFailed": "Could not fetch this family's siblings ({{code}}). Try again."
+    },
+    "quickFill": {
+      "useMeasurementOf": "Use the measurement from {{label}}"
+    },
+    "replicateDialog": {
+      "title": "Replicate this measurement to the other variations?",
+      "titleWithOrigin": "Replicate {{originVariantLabel}}'s measurement to the other variations?",
+      "dimensions": "This will save {{length}} × {{width}} × {{height}} cm, {{units}} unit(s) per box",
+      "lowConfidence": "This family mixes different formats (e.g. vacuum-packed and sachet) — check each target before selecting it.",
+      "noTargets": "No other variation is pending in this family right now.",
+      "targetAriaLabel": "{{description}} · product code {{productCode}}",
+      "targetCode": "product code {{productCode}}",
+      "failed": "Could not replicate ({{code}}). Check and try again.",
+      "confirm": "Replicate ({{count}})",
+      "cancel": "Do not replicate"
+    },
     "experimentalBadge": "Experimental",
     "experimentalHint": "The camera measurement is an estimate. Check it with the tape measure before saving; when in doubt, type it in.",
     "margin": "±{{margin}} cm",
@@ -452,6 +546,7 @@
     "source": {
       "camera": "By camera, ±{{margin}} cm",
       "cameraNoMargin": "By camera, no margin recorded",
+      "replicated": "Replicated — not checked",
       "typed": "Typed",
       "unknown": "Origin not recorded"
     },
@@ -491,6 +586,44 @@
         "3": "A stack or another box hiding the base.",
         "4": "Glare or shadow over the card."
       }
+    },
+    "pendingExport": {
+      "csv": "Download CSV",
+      "xlsx": "Download Excel",
+      "columns": {
+        "productCode": "Product code",
+        "description": "Description",
+        "cartonGtin": "Carton GTIN",
+        "emitterTaxId": "Issuer tax ID",
+        "familyKey": "Family",
+        "commercialUnit": "Packaging",
+        "transportedVolumes": "Pending quantity"
+      },
+      "truncated": "The file holds the first {{total, number}} pending boxes in the queue — there are more boxes to measure beyond them.",
+      "preparing": "Preparing…",
+      "empty": "There are no pending boxes to export.",
+      "failed": "The file could not be prepared. Try again.",
+      "rateLimited": "Too many exports in a row. Try again in a few minutes."
+    }
+  },
+  "addressCorrection": {
+    "field": {
+      "street": "Street",
+      "number": "Number",
+      "complement": "Complement",
+      "district": "District",
+      "city": "City",
+      "state": "State",
+      "cityCode": "City IBGE code",
+      "postalCode": "Postal code"
+    },
+    "error": {
+      "streetRequired": "Enter the street.",
+      "numberRequired": "Enter the number.",
+      "cityRequired": "Enter the city.",
+      "stateInvalid": "Choose a valid state.",
+      "postalCodeInvalid": "Postal code must have 8 digits.",
+      "cityCodeInvalid": "IBGE code must have 7 digits and start with the chosen state's prefix."
     }
   }
 }

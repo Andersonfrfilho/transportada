@@ -1,0 +1,1 @@
+ALTER TABLE "company_delivery_proof_settings" ADD COLUMN "canhoto_ocr_enabled" boolean DEFAULT false NOT NULL;

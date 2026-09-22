@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import type {
+  CompanyDeliveryProofSettings,
   DeliveryProofFieldSettings,
   DeliveryProofSettingsOverride,
 } from '../shared/deliveryProofSettings.service'
@@ -16,7 +17,7 @@ const DELIVERY_PROOF_OVERRIDES_QUERY_KEY = ['trip', 'delivery-proof-overrides'] 
  * cadastro existente.
  */
 export function useDeliveryProofSettingsQuery(input: Readonly<{ enabled: boolean }>) {
-  return useQuery<DeliveryProofFieldSettings>({
+  return useQuery<CompanyDeliveryProofSettings>({
     enabled: input.enabled,
     queryFn: () => getTripClient().readDeliveryProofSettings(),
     queryKey: DELIVERY_PROOF_SETTINGS_QUERY_KEY,
@@ -34,8 +35,25 @@ export function useDeliveryProofOverridesQuery(input: Readonly<{ enabled: boolea
 export function useSaveDeliveryProofSettingsMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (settings: DeliveryProofFieldSettings) =>
+    mutationFn: (settings: CompanyDeliveryProofSettings) =>
       getTripClient().saveDeliveryProofSettings(settings),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: DELIVERY_PROOF_SETTINGS_QUERY_KEY })
+    },
+  })
+}
+
+/**
+ * Spec 156 T14, ADR-0069 §6: o painel do interruptor. O `PUT` exige os quatro modos sempre
+ * (`companyDeliveryProofSettingsSchema` é `.strict()` neles) — só os cinco parâmetros de
+ * pontualidade e o interruptor são opcionais ("não mexe" ausente). Por isso a mutação manda os
+ * quatro modos correntes junto do interruptor novo, e nunca os parâmetros de pontualidade.
+ */
+export function useSaveCanhotoOcrEnabledMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: DeliveryProofFieldSettings & Readonly<{ canhotoOcrEnabled: boolean }>) =>
+      getTripClient().saveCanhotoOcrEnabled(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: DELIVERY_PROOF_SETTINGS_QUERY_KEY })
     },

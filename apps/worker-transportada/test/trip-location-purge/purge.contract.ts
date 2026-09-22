@@ -4,7 +4,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createTripLocationPurgeRoutine } from '../../src/trip-location-purge/application/trip-location-purge.routine.js'
-import type { RedactTripLocations } from '../../src/trip-location-purge/application/trip-location.port.js'
+import type {
+  RedactDeliveryProofLocations,
+  RedactTripLocations,
+} from '../../src/trip-location-purge/application/trip-location.port.js'
 import {
   resolveRetentionCutoff,
   TRIP_LOCATION_PURGE_BATCH_SIZE,
@@ -32,12 +35,16 @@ function buildContext(isStopRequested: () => boolean = () => false): JobRoutineC
   }
 }
 
-function buildRoutine(redact: RedactTripLocations) {
+function buildRoutine(
+  redact: RedactTripLocations,
+  redactProofLocations: RedactDeliveryProofLocations = async () => 0,
+) {
   return createTripLocationPurgeRoutine({
     logger: SILENT_LOGGER as never,
     purgeStalePings: async () => 0,
     now: () => NOW,
     redact,
+    redactProofLocations,
   })
 }
 
@@ -59,7 +66,12 @@ describe('expurgo da coordenada de entrega', () => {
     const result = await routine.run(buildContext())
 
     expect(result.outcome).toBe('succeeded')
-    expect(result.counters).toEqual({ batches: 3, purgedPings: 0, redacted: 1007 })
+    expect(result.counters).toEqual({
+      batches: 3,
+      purgedPings: 0,
+      redacted: 1007,
+      redactedProofs: 0,
+    })
     expect(asked).toHaveLength(4)
     expect(asked[0]?.limit).toBe(TRIP_LOCATION_PURGE_BATCH_SIZE)
     expect(asked[0]?.before.toISOString()).toBe('2026-05-28T09:00:00.000Z')
@@ -102,8 +114,29 @@ describe('expurgo da coordenada de entrega', () => {
     const result = await buildRoutine(async () => 0).run(buildContext())
 
     expect(result).toEqual({
-      counters: { batches: 0, purgedPings: 0, redacted: 0 },
+      counters: { batches: 0, purgedPings: 0, redacted: 0, redactedProofs: 0 },
       outcome: 'succeeded',
     })
+  })
+  /**
+   * Spec 159 T11 (item 8): a posição da foto do comprovante (ADR-0070 §4) é dado de localização
+   * como a do evento — cai no mesmo corte de 90 dias, em lotes, contada à parte.
+   */
+  test('apaga a posição vencida da foto do comprovante no mesmo corte', async () => {
+    const asked: Array<{ readonly before: Date; readonly limit: number }> = []
+    const remaining = [TRIP_LOCATION_PURGE_BATCH_SIZE, 3, 0]
+    const routine = buildRoutine(
+      async () => 0,
+      async (input) => {
+        asked.push(input)
+        return remaining[asked.length - 1] ?? 0
+      },
+    )
+
+    const result = await routine.run(buildContext())
+
+    expect(result.counters.redactedProofs).toBe(TRIP_LOCATION_PURGE_BATCH_SIZE + 3)
+    expect(asked[0]?.before.toISOString()).toBe('2026-05-28T09:00:00.000Z')
+    expect(asked[0]?.limit).toBe(TRIP_LOCATION_PURGE_BATCH_SIZE)
   })
 })

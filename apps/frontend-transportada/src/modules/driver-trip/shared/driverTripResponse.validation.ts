@@ -7,6 +7,7 @@ import type {
   DriverTripManifest,
   DriverTripSnapshot,
   DriverTripStop,
+  PendingProofDocument,
 } from './driverTrip.types'
 
 /**
@@ -39,6 +40,22 @@ function readOptionalText(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
+/**
+ * Spec 159 RF1: campo novo do canal do motorista. Ausente (snapshot antigo em cache) vira `false` —
+ * o mesmo espírito de `readOptionalText`, nunca quebra a tela por um campo que ainda não chegou.
+ */
+function readProofPending(value: unknown): boolean {
+  return value === true
+}
+
+/** ADR-0070 §5: a nota é inteira de 0 a 100, ou `null` sem histórico — fora disso, `null`. */
+function readDriverScore(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100
+    ? value
+    : null
+}
+
 function toDocument(value: unknown): DriverTripDocument {
   if (!isRecord(value)) throw new DriverTripResponseError()
 
@@ -55,6 +72,7 @@ function toDocument(value: unknown): DriverTripDocument {
     grossWeight: readOptionalText(value.grossWeight),
     id: readString(value.id),
     number: readOptionalText(value.number),
+    proofPending: readProofPending(value.proofPending),
     recipientName: readOptionalText(value.recipientName),
     returnReason: readNullableString(value.returnReason),
     separationStatus: readString(value.separationStatus),
@@ -131,6 +149,31 @@ function toStop(value: unknown): DriverTripStop {
   }
 }
 
+/**
+ * Spec 159 (T11): item malformado da lista raiz não derruba a tela inteira — ele só some da lista,
+ * o mesmo espírito do resto deste arquivo (campo faltando é recusa explícita do item, não exceção).
+ */
+function toPendingProof(value: unknown): PendingProofDocument | null {
+  if (!isRecord(value)) return null
+  if (typeof value.documentId !== 'string' || typeof value.tripId !== 'string') return null
+
+  return {
+    deliveredAt: readNullableString(value.deliveredAt),
+    deliveryProof: toDeliveryProof(value.deliveryProof),
+    documentId: value.documentId,
+    documentNumber: readOptionalText(value.documentNumber),
+    documentSeries: readOptionalText(value.documentSeries),
+    recipientName: readOptionalText(value.recipientName),
+    tripId: value.tripId,
+    tripStatus: readOptionalText(value.tripStatus),
+  }
+}
+
+function toPendingProofs(value: unknown): readonly PendingProofDocument[] {
+  if (!Array.isArray(value)) return []
+  return value.map(toPendingProof).filter((item): item is PendingProofDocument => item !== null)
+}
+
 function toTrip(value: unknown): DriverTrip {
   if (!isRecord(value) || !Array.isArray(value.stops)) throw new DriverTripResponseError()
 
@@ -150,5 +193,10 @@ export function toDriverTripSnapshot(payload: unknown): DriverTripSnapshot {
     throw new DriverTripResponseError()
   }
 
-  return { isRegisteredDriver: data.isRegisteredDriver, trips: data.trips.map(toTrip) }
+  return {
+    isRegisteredDriver: data.isRegisteredDriver,
+    pendingProofs: toPendingProofs(data.pendingProofs),
+    score: readDriverScore(data.score),
+    trips: data.trips.map(toTrip),
+  }
 }

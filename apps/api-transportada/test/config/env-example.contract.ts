@@ -92,6 +92,19 @@ describe('contrato do .env.example', () => {
     expect(`ROUTING_MATRIX_URL=${declaration?.value}`).toBe('ROUTING_MATRIX_URL=')
   })
 
+  /** Spec 150 RF18: quem preenche o ambiente precisa achar o teto do e-mail, com o padrão do schema. */
+  test('o teto do e-mail com contratantes é declarado com o padrão do schema', async () => {
+    const declarations = readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())
+    const declared = declarations
+      .filter((candidate) => candidate.key.startsWith('RATE_LIMIT_CONTRACTOR_MAIL_'))
+      .map((candidate) => `${candidate.key}=${candidate.value}`)
+
+    expect(declared).toEqual([
+      'RATE_LIMIT_CONTRACTOR_MAIL_MAX=20',
+      'RATE_LIMIT_CONTRACTOR_MAIL_WINDOW_SECONDS=3600',
+    ])
+  })
+
   /** Spec 145 D14: API e worker derivam o mesmo lease deste número — os dois leem esta linha. */
   test('o orçamento da planta de carga é declarado com o padrão do schema', async () => {
     const declarations = readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())

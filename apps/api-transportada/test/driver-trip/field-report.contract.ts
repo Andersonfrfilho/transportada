@@ -236,6 +236,36 @@ describe('a fila offline reenvia, e o servidor não duplica', () => {
       'TRIP_FIELD_REPORT_KEY_REUSED',
     )
   })
+
+  /**
+   * Spec 159 T6, ADR-0070 §1: o reenvio da mesma chave (o caso normal da fila offline) devolve
+   * `proofPending` de novo, na mesma leitura — não fica preso ao valor da primeira resposta.
+   */
+  it('o reenvio da mesma chave recalcula proofPending, não reaproveita a primeira resposta', async () => {
+    const world = buildDocumentWorld()
+    const resolveProofSettings = async () => ({
+      photo: 'required' as const,
+      receiverDocument: 'off' as const,
+      receiverName: 'optional' as const,
+      signature: 'optional' as const,
+    })
+
+    const first = await reportDocumentDelivery({
+      ...deliveryInput(world, 'chave-com-foto-obrigatoria'),
+      resolveProofSettings,
+    })
+    expect(first.proofPending).toBe(true)
+
+    // A foto chega depois, pela fila — e o segundo toque da mesma chave já não está mais pendente.
+    world.state.proofsByEventKind.add(`${first.id}:photo`)
+    const second = await reportDocumentDelivery({
+      ...deliveryInput(world, 'chave-com-foto-obrigatoria'),
+      resolveProofSettings,
+    })
+
+    expect(second.id).toBe(first.id)
+    expect(second.proofPending).toBe(false)
+  })
 })
 
 describe('entreguei e não entreguei', () => {
@@ -299,6 +329,31 @@ describe('entreguei e não entreguei', () => {
 
     expect(result.alreadySettled).toBe(true)
     expect(world.state.calls).not.toContain(`markDocumentDelivered:${DOCUMENT_ID}`)
+  })
+
+  /**
+   * Spec 159 T11 (ALTO 3): o no-op não grava um `delivered` novo — senão o evento repetido vira o
+   * "último" da nota, sem foto, e esconde a foto que já estava no evento verdadeiro (nota e
+   * `proofPending` passavam a ler o evento errado).
+   */
+  it('nota já entregue devolve o evento existente, sem gravar outro', async () => {
+    const world = buildDocumentWorld({ separationStatus: 'delivered' })
+    world.state.latestEvents.set(`${DOCUMENT_ID}:delivered`, { id: 'event-existente' })
+
+    const result = await reportDocumentDelivery(deliveryInput(world, 'chave-repetida'))
+
+    expect(result).toMatchObject({ alreadySettled: true, id: 'event-existente' })
+    expect(world.state.calls).not.toContain('recordEvent:delivered:no-gps')
+  })
+
+  /** Nota entregue sem evento nenhum (dado legado): o no-op ainda precisa de um id para a chave. */
+  it('nota já entregue sem evento anterior grava um, como antes', async () => {
+    const world = buildDocumentWorld({ separationStatus: 'delivered' })
+
+    const result = await reportDocumentDelivery(deliveryInput(world, 'chave-legado'))
+
+    expect(result.alreadySettled).toBe(true)
+    expect(world.state.calls).toContain('recordEvent:delivered:no-gps')
   })
 
   /** Viagem cancelada com o motorista na rua: a confirmação é recusada com o motivo, não engolida. */

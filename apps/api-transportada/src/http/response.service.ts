@@ -2,6 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import {
+  OBJECT_STORAGE_ERROR_CODES,
+  ObjectStorageError,
+} from '@adatechnology/object-storage-provider'
+
+import {
   DatabaseQueryAbortedError,
   DatabaseUnavailableError,
   findDatabaseFailure,
@@ -38,6 +43,14 @@ export function createErrorResponse({
     })
     captureError?.(databaseFailure)
     return knownErrorResponse({ correlationId, error: HTTP_ERROR.databaseUnavailable })
+  }
+  if (
+    error instanceof ObjectStorageError &&
+    error.code === OBJECT_STORAGE_ERROR_CODES.unavailable
+  ) {
+    safeLogError({ logger, message: 'object_storage_unavailable', metadata: { correlationId } })
+    captureError?.(error)
+    return knownErrorResponse({ correlationId, error: HTTP_ERROR.storageUnavailable })
   }
   if (error instanceof ApiError) {
     return jsonResponse({

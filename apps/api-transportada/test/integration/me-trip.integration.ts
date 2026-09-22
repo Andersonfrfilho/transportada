@@ -16,6 +16,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
 import {
   companies,
   fleetDrivers,
@@ -29,17 +30,23 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import {
+  tripDeliveryProofs,
   tripDispatchSnapshots,
   tripDocuments,
   tripDrivers,
+  tripStatusEvents,
   tripStopEvents,
   tripStopOccurrences,
   tripStops,
   trips,
 } from '../../src/database/trip.schema.js'
+import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import { PROOF_PUNCTUALITY } from '../../src/trips/domain/delivery-proof-punctuality.policy.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
+import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { findCurrentDriverTrip } from '../../src/trips/application/find-current-driver-trip.use-case.js'
 import {
   reportDocumentDelivery,
@@ -47,6 +54,7 @@ import {
 } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
+import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 
@@ -92,7 +100,9 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const opened = await findCurrentDriverTrip({
         companyId: world.companyId,
         membershipId: world.membershipId,
+        now: NOW,
         repository: reads,
+        scores: new DrizzleDriverScoreRepository(database.db),
       })
       expect(opened.isRegisteredDriver).toBe(true)
       expect(opened.trips).toHaveLength(1)
@@ -139,6 +149,25 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         unitOfWork,
       })
       expect(await readTripStatus(database, world.tripId)).toBe('in_transit')
+
+      /**
+       * Spec 158 T4 (lacuna da T3): a chegada na primeira parada leva `dispatched → in_transit`
+       * por `markTripInTransit` (report-stop-arrival.use-case.ts) — canal/autoria de
+       * `deriveFieldAuthorship` (motorista: `driver_app`, sem `onBehalfOfDriverId`) e
+       * `occurred_at` igual ao `now` do caso de uso (ADR-0068 §"Consequências").
+       */
+      const [arrivalStatusEvent] = await database.db
+        .select()
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.tripId, world.tripId))
+      expect(arrivalStatusEvent).toMatchObject({
+        actorUserId: world.userId,
+        channel: 'driver_app',
+        fromStatus: 'dispatched',
+        onBehalfOfDriverId: null,
+        toStatus: 'in_transit',
+      })
+      expect(arrivalStatusEvent?.occurredAt.toISOString()).toBe(NOW.toISOString())
 
       const [shiftedSecond] = await database.db
         .select({ estimatedArrivalAt: tripStops.estimatedArrivalAt })
@@ -212,6 +241,26 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(returned).toMatchObject({ stopCompleted: true, tripCompleted: true })
       expect(await readTripStatus(database, world.tripId)).toBe('completed')
 
+      /**
+       * Spec 158 T4 (lacuna da T3): a devolução que fecha a última parada conclui a viagem por
+       * `completeTripIfSettled` (report-document-delivery.use-case.ts), com o `from` real e
+       * `occurred_at` igual ao `now` do caso de uso. Spec 156 T15 M4 (ADR-0058 §3): a entrega da
+       * primeira nota já tinha adiantado a viagem para `on_delivery_route` — este motorista nunca
+       * tocou em "iniciar trajeto", e a baixa de campo passa a derivar o passo, como o barracão fazia.
+       */
+      const [completionStatusEvent] = await database.db
+        .select()
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.toStatus, 'completed'))
+      expect(completionStatusEvent).toMatchObject({
+        actorUserId: world.userId,
+        channel: 'driver_app',
+        fromStatus: 'on_delivery_route',
+        onBehalfOfDriverId: null,
+        toStatus: 'completed',
+      })
+      expect(completionStatusEvent?.occurredAt.toISOString()).toBe(NOW.toISOString())
+
       // 6. O que ficou gravado: a coordenada onde havia, e nada onde não havia
       const events = await database.db
         .select()
@@ -221,6 +270,10 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(events).toHaveLength(5)
       expect(events.filter((event) => event.latitude !== null)).toHaveLength(2)
       expect(events.filter((event) => event.kind === 'returned')).toHaveLength(1)
+      // Spec 159 T11: o motorista que reportou fica no evento, não só no vínculo da conta
+      expect(
+        events.filter((event) => event.kind !== 'arrived').map((event) => event.reportedByDriverId),
+      ).toEqual([world.driverId, world.driverId, world.driverId])
 
       const occurrences = await database.db
         .select()
@@ -266,8 +319,364 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         .from(tripStopEvents)
         .where(eq(tripStopEvents.companyId, world.companyId))
       expect(events).toHaveLength(1)
+
+      /** Spec 158 T4: repetir a chegada não grava um segundo `trip_status_events`. */
+      const statusEvents = await database.db
+        .select()
+        .from(tripStatusEvents)
+        .where(eq(tripStatusEvents.tripId, world.tripId))
+      expect(statusEvents).toHaveLength(1)
+      expect(statusEvents[0]).toMatchObject({ fromStatus: 'dispatched', toStatus: 'in_transit' })
     })
   })
+
+  /**
+   * Spec 159 T5 (ADR-0070 §2-6): `/proof` classifica a pontualidade da foto contra o Postgres de
+   * verdade — a query de `findDeliveryContext` (join `trip_stop_events`+`trip_stops`) e a de
+   * `resolveProofPunctualitySettings` são o que um contrato com dublê não prova.
+   */
+  testWithPostgres(
+    'a foto classifica pontualidade contra a posição da entrega (spec 159)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: world.companyId, photo: 'required' })
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const deliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
+        let objectCounter = 0
+        const storage = {
+          store: async () => ({ sha256: `${(objectCounter += 1)}`.padStart(64, '0') }),
+        }
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+
+        await reportStopArrival({
+          ...context,
+          idempotencyKey: 'chegada-para-a-foto',
+          location: LOCATION,
+          now: NOW,
+          stopId: world.stopIds[0] ?? '',
+          unitOfWork,
+        })
+
+        // A parada não tem coordenada própria (não geocodificada) — a referência é a da entrega.
+        await reportDocumentDelivery({
+          ...context,
+          documentId: world.documentIds[0] ?? '',
+          idempotencyKey: 'entrega-para-a-foto',
+          location: LOCATION,
+          now: NOW,
+          unitOfWork,
+        })
+
+        const onTime = await attachDeliveryProof({
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          documentId: world.documentIds[0] ?? '',
+          driverId: world.driverId,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: new Date(NOW.getTime() + 5 * 60 * 1000),
+          repository: deliveryProofRepository,
+          sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+          storage,
+          upload: {
+            attachmentKey: '',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: new Date(NOW.getTime() + 5 * 60 * 1000),
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: { latitude: LOCATION.latitude, longitude: LOCATION.longitude },
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+        expect(onTime.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+
+        const [savedOnTime] = await database.db
+          .select({
+            latitude: tripDeliveryProofs.latitude,
+            punctuality: tripDeliveryProofs.punctuality,
+          })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.id, onTime.id))
+        expect(savedOnTime?.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+        expect(savedOnTime?.latitude).toBe(LOCATION.latitude)
+
+        // A segunda nota: entrega sem foto ainda, depois foto tardia e longe.
+        await reportDocumentDelivery({
+          ...context,
+          documentId: world.documentIds[1] ?? '',
+          idempotencyKey: 'entrega-2-para-a-foto',
+          location: LOCATION,
+          now: NOW,
+          unitOfWork,
+        })
+
+        const lateAndAway = await attachDeliveryProof({
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          documentId: world.documentIds[1] ?? '',
+          driverId: world.driverId,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: new Date(NOW.getTime() + 3 * 60 * 60 * 1000),
+          repository: deliveryProofRepository,
+          sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+          storage,
+          upload: {
+            attachmentKey: '',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: new Date(NOW.getTime() + 3 * 60 * 60 * 1000),
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: { latitude: '-22.0000000', longitude: '-43.0000000' },
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+        expect(lateAndAway.punctuality).toBe(PROOF_PUNCTUALITY.lateAndAway)
+      })
+    },
+  )
+
+  /**
+   * Spec 159 T6, ADR-0070 §1: `/deliver` responde `proofPending`, e o snapshot mostra o mesmo aviso
+   * por documento até a foto chegar — nunca recusando a entrega. Contra Postgres de verdade porque
+   * a leitura do snapshot é SQL próprio (`listDeliveryPhotoPresence`).
+   */
+  testWithPostgres(
+    'proofPending avisa sem bloquear, no /deliver e no snapshot (spec 159)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          // Spec 159 T11 (D1): a nota vale desde antes do NOW fixo desta suíte.
+          .values({
+            companyId: world.companyId,
+            photo: 'required',
+            scoreEffectiveSince: new Date(NOW.getTime() - 24 * 60 * 60 * 1000),
+          })
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const deliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+        const resolveProofSettings = (settings: { companyId: string; documentId: string }) =>
+          deliveryProofRepository.resolveProofFieldSettings(settings)
+
+        await reportStopArrival({
+          ...context,
+          idempotencyKey: 'chegada-proof-pending',
+          location: LOCATION,
+          now: NOW,
+          stopId: world.stopIds[0] ?? '',
+          unitOfWork,
+        })
+
+        // 1. Entrega sem foto: aceita de qualquer jeito, e avisa que a foto ainda não chegou.
+        const delivery = await reportDocumentDelivery({
+          ...context,
+          documentId: world.documentIds[0] ?? '',
+          idempotencyKey: 'entrega-proof-pending',
+          location: LOCATION,
+          now: NOW,
+          resolveProofSettings,
+          unitOfWork,
+        })
+        expect(delivery.proofPending).toBe(true)
+
+        const beforePhoto = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: NOW,
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+        const documentBeforePhoto = beforePhoto.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        expect(documentBeforePhoto?.proofPending).toBe(true)
+        /**
+         * Spec 159 RF2/RF8 (T7): a entrega com foto obrigatória acabou de acontecer — conta para a
+         * nota (sai de `null`), mas ainda está dentro das `missingAfterHours`: nenhuma penalidade.
+         */
+        expect(beforePhoto.score).toBe(100)
+
+        // 2. A foto chega em lote, depois — e o aviso some, sem ninguém ter recusado nada.
+        let objectCounter = 0
+        await attachDeliveryProof({
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          documentId: world.documentIds[0] ?? '',
+          driverId: world.driverId,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: NOW,
+          repository: deliveryProofRepository,
+          sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+          storage: { store: async () => ({ sha256: `${(objectCounter += 1)}`.padStart(64, '0') }) },
+          upload: {
+            attachmentKey: '',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: NOW,
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: { latitude: LOCATION.latitude, longitude: LOCATION.longitude },
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+
+        const afterPhoto = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: NOW,
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+        const documentAfterPhoto = afterPhoto.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        expect(documentAfterPhoto?.proofPending).toBe(false)
+
+        // 3. A segunda nota da mesma parada, ainda não entregue: nunca pendente antes da entrega.
+        const pendingBeforeDelivery = afterPhoto.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[1],
+        )
+        expect(pendingBeforeDelivery?.proofPending).toBe(false)
+      })
+    },
+  )
+
+  /**
+   * Spec 159 T11 (ALTO 1): a última entrega conclui a viagem, que sai de `trips` — e as fotos
+   * obrigatórias que faltam continuam listadas em `pendingProofs`, e o `/proof` ainda as aceita.
+   */
+  testWithPostgres(
+    'a última entrega conclui a viagem e a pendente continua listada (spec 159 T11)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: world.companyId, photo: 'required' })
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+        const readSnapshot = () =>
+          findCurrentDriverTrip({
+            companyId: world.companyId,
+            membershipId: world.membershipId,
+            now: new Date(),
+            repository: reads,
+            scores: new DrizzleDriverScoreRepository(database.db),
+          })
+
+        for (const [index, stopId] of world.stopIds.entries()) {
+          await reportStopArrival({
+            ...context,
+            idempotencyKey: `chegada-pendente-${String(index)}`,
+            location: null,
+            now: NOW,
+            stopId,
+            unitOfWork,
+          })
+        }
+        const [firstDocumentId = '', secondDocumentId = '', lastDocumentId = ''] = world.documentIds
+        await reportDocumentDelivery({
+          ...context,
+          documentId: firstDocumentId ?? '',
+          idempotencyKey: 'entrega-pendente-1',
+          location: null,
+          now: NOW,
+          unitOfWork,
+        })
+        await reportDocumentReturn({
+          ...context,
+          documentId: secondDocumentId ?? '',
+          idempotencyKey: 'retorno-pendente-2',
+          location: null,
+          now: NOW,
+          reason: 'establishment_closed',
+          unitOfWork,
+        })
+        const last = await reportDocumentDelivery({
+          ...context,
+          documentId: lastDocumentId ?? '',
+          idempotencyKey: 'entrega-pendente-3',
+          location: null,
+          now: NOW,
+          unitOfWork,
+        })
+        expect(last.tripCompleted).toBe(true)
+
+        const afterCompletion = await readSnapshot()
+        expect(afterCompletion.trips).toEqual([])
+        expect(afterCompletion.pendingProofs.map((proof) => proof.documentId).sort()).toEqual(
+          [firstDocumentId, lastDocumentId].sort(),
+        )
+        expect(
+          afterCompletion.pendingProofs.find((proof) => proof.documentId === lastDocumentId),
+        ).toMatchObject({
+          deliveryProof: { photo: 'required' },
+          documentNumber: '3',
+          documentSeries: '1',
+          recipientName: 'Destinatario 3',
+          tripId: world.tripId,
+          tripStatus: 'completed',
+        })
+
+        // O `/proof` alcança a viagem concluída, e a nota sai da lista.
+        await attachDeliveryProof({
+          ...context,
+          documentId: lastDocumentId ?? '',
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: new Date(),
+          repository: new DrizzleDeliveryProofRepository(database.db),
+          sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+          storage: { store: async () => ({ sha256: 'f'.repeat(64) }) },
+          upload: {
+            attachmentKey: 'foto-depois-de-concluir',
+            bytes: new Uint8Array([1, 2, 3]),
+            capturedAt: undefined,
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: undefined,
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+        const afterPhoto = await readSnapshot()
+        expect(afterPhoto.pendingProofs.map((proof) => proof.documentId)).toEqual([firstDocumentId])
+
+        // O motorista de outra empresa não vê a pendência deste (tenant).
+        const other = await seedDriverOnly(database)
+        const otherSnapshot = await findCurrentDriverTrip({
+          companyId: other.companyId,
+          membershipId: other.membershipId,
+          now: new Date(),
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+        expect(otherSnapshot.pendingProofs).toEqual([])
+      })
+    },
+  )
 
   /**
    * O filtro de tenant, exercitado: o motorista da outra empresa **não** enxerga esta viagem, e a
@@ -283,9 +692,16 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const opened = await findCurrentDriverTrip({
         companyId: stranger.companyId,
         membershipId: stranger.membershipId,
+        now: NOW,
         repository: reads,
+        scores: new DrizzleDriverScoreRepository(database.db),
       })
-      expect(opened).toEqual({ isRegisteredDriver: true, trips: [] })
+      expect(opened).toEqual({
+        isRegisteredDriver: true,
+        pendingProofs: [],
+        score: null,
+        trips: [],
+      })
 
       const attempt = reportStopArrival({
         actorUserId: stranger.userId,
@@ -315,6 +731,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
         dispatchTrip({
           actorUserId: input.actorUserId,
+          channel: TRIP_FIELD_CHANNELS.driverApp,
           companyId: world.companyId,
           repository: routeRepository,
           tripId: input.tripId,
@@ -324,7 +741,9 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const opened = await findCurrentDriverTrip({
         companyId: world.companyId,
         membershipId: world.membershipId,
+        now: NOW,
         repository: reads,
+        scores: new DrizzleDriverScoreRepository(database.db),
       })
       expect(opened.trips.map((trip) => trip.status)).toEqual(['route_planned'])
 
@@ -378,6 +797,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         dispatch: (input) =>
           dispatchTrip({
             actorUserId: input.actorUserId,
+            channel: TRIP_FIELD_CHANNELS.driverApp,
             companyId: world.companyId,
             repository: routeRepository,
             tripId: input.tripId,
@@ -409,10 +829,17 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const opened = await findCurrentDriverTrip({
         companyId,
         membershipId,
+        now: NOW,
         repository: new DrizzleCurrentDriverTripRepository(database.db),
+        scores: new DrizzleDriverScoreRepository(database.db),
       })
 
-      expect(opened).toEqual({ isRegisteredDriver: false, trips: [] })
+      expect(opened).toEqual({
+        isRegisteredDriver: false,
+        pendingProofs: [],
+        score: null,
+        trips: [],
+      })
     })
   })
 })

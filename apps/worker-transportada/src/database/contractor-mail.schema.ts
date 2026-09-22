@@ -44,6 +44,7 @@ export const contractorMailMessages = pgTable('contractor_mail_messages', {
   subject: text().notNull(),
   toAddresses: text('to_addresses').array().notNull(),
   bodyText: text('body_text').notNull(),
+  bodyHtml: text('body_html'),
   rawObjectId: uuid('raw_object_id'),
   rawSha256: text('raw_sha256'),
   rfcMessageId: text('rfc_message_id'),

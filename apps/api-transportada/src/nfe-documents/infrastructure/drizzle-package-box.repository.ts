@@ -10,13 +10,29 @@ import {
   nfePackageBoxMeasurements,
   nfeParticipants,
   nfeProducts,
+  type PackageBoxMeasurementSource,
 } from '../../database/nfe.schema.js'
 import type {
   PackageBoxFilters,
   PackageBoxMeasurement,
   PackageBoxRepositoryPort,
+  PackageBoxSiblings,
+  PackageBoxSiblingView,
   PackageBoxView,
 } from '../application/package-box.port.js'
+import {
+  buildPackagingKey,
+  resolveBoxFamily,
+  resolveEmitterFamilyKey,
+  resolvePackagingUnitCount,
+} from '../domain/package-box-family.policy.js'
+import {
+  PackageBoxNotFoundError,
+  PackageBoxReplicationSourceNotMeasuredError,
+  PackageBoxReplicationTargetAlreadyMeasuredError,
+  PackageBoxReplicationTargetOutsideFamilyError,
+} from '../domain/package-box-measurement.error.js'
+import { countBoxFamilies, countPackagingSiblings } from '../domain/package-box-queue.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -25,6 +41,49 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
 
   constructor(database: Database) {
     this.#database = database
+  }
+
+  /**
+   * Spec 155 (G003, D1, D3): a origem lida por `(id, companyId)`, e as irmãs de família e de
+   * embalagem varridas sobre a empresa inteira — mesmo padrão da D9 em `list`, e pelo mesmo motivo:
+   * a família não tem coluna própria, e recalcular em SQL duplicaria a regex da D2.
+   */
+  async getSiblings(input: {
+    readonly boxId: string
+    readonly companyId: string
+  }): Promise<PackageBoxSiblings | null> {
+    const [origin] = await this.#database
+      .select(SIBLING_COLUMNS)
+      .from(nfePackageBoxes)
+      .where(
+        and(eq(nfePackageBoxes.id, input.boxId), eq(nfePackageBoxes.companyId, input.companyId)),
+      )
+      .limit(1)
+    if (origin === undefined) return null
+
+    const companyBoxes = await this.#database
+      .select(SIBLING_COLUMNS)
+      .from(nfePackageBoxes)
+      .where(eq(nfePackageBoxes.companyId, input.companyId))
+
+    const originFamilyKey = resolveEmitterFamilyKey(origin)
+
+    const family =
+      originFamilyKey === undefined
+        ? []
+        : companyBoxes.filter(
+            (box) => box.id !== origin.id && resolveEmitterFamilyKey(box) === originFamilyKey,
+          )
+    const originPackagingKey = buildPackagingKey(origin)
+    const packaging = companyBoxes.filter(
+      (box) => box.id !== origin.id && buildPackagingKey(box) === originPackagingKey,
+    )
+
+    return {
+      family: family.map(toSiblingView),
+      originVariantLabel: resolveBoxFamily(origin).variantLabel,
+      packaging: packaging.map(toSiblingView),
+    }
   }
 
   /**
@@ -111,15 +170,52 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
        * 663 caixas e `limit=50`, a tela abria com as órfãs e as doze que cobrem um quarto dos
        * volumes ficavam fora da página — a política reordena o que recebeu, não o que o `LIMIT` já
        * cortou.
+       *
+       * O desempate pelo id é o mesmo de `buildMeasurementQueue`: sem ele, caixas empatadas na borda
+       * do `LIMIT` entravam ou saíam ao acaso, e a exportação cortada não era o começo da fila.
        */
-      .orderBy(sql`coalesce(${transported.volumes}, 0) desc`)
+      .orderBy(sql`coalesce(${transported.volumes}, 0) desc`, nfePackageBoxes.id)
       .limit(input.limit)
 
-    return rows.map((row) => ({
-      ...row,
-      measuredAt: row.measuredAt?.toISOString() ?? null,
-      transportedVolumes: Number(row.transportedVolumes ?? 0),
-    }))
+    /**
+     * ⚠️ D9: o contador de família e de embalagem tem de ver a empresa inteira, não a janela do
+     * `LIMIT` acima — senão ele mente para toda família que atravessa a borda dos 50 primeiros.
+     * 663 linhas de texto curto em produção; carregar todas é mais barato que reescrever a regex
+     * da D2 em SQL (tasks.md T2.2).
+     */
+    const companyBoxes = await this.#database
+      .select({
+        commercialUnit: nfePackageBoxes.commercialUnit,
+        description: nfePackageBoxes.description,
+        emitterTaxId: nfePackageBoxes.emitterTaxId,
+        id: nfePackageBoxes.id,
+        measuredAt: nfePackageBoxes.measuredAt,
+        productCode: nfePackageBoxes.productCode,
+      })
+      .from(nfePackageBoxes)
+      .where(eq(nfePackageBoxes.companyId, input.companyId))
+
+    const familyCounts = countBoxFamilies(
+      companyBoxes.map((box) => ({ ...box, measured: box.measuredAt !== null })),
+    )
+    const packagingCounts = countPackagingSiblings(companyBoxes)
+
+    return rows.map((row) => {
+      const family = familyCounts.get(row.id)
+      const packaging = packagingCounts.get(row.id)
+
+      return {
+        ...row,
+        familyKey: family?.familyKey,
+        familyMeasuredCount: family?.familyMeasuredCount ?? 0,
+        familyPendingCount: family?.familyPendingCount ?? 0,
+        measuredAt: row.measuredAt?.toISOString() ?? null,
+        packagingSiblingCount: packaging?.packagingSiblingCount ?? 0,
+        packagingUnitCount: packaging?.packagingUnitCount,
+        transportedVolumes: Number(row.transportedVolumes ?? 0),
+        variantLabel: family?.variantLabel ?? '',
+      }
+    })
   }
 
   /**
@@ -177,6 +273,180 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
 
       return true
     })
+  }
+
+  /**
+   * Spec 155 (D1, D4, D6, G004, G005, G006, G007): origem e alvos lidos **dentro** da transação que
+   * escreve — sem isso, uma leitura fora da transação abriria uma corrida entre duas réplicas
+   * concorrentes que passam as duas na validação e escrevem sobre o mesmo alvo. Tudo-ou-nada: o
+   * primeiro alvo inválido lança e desfaz a transação inteira, nenhum alvo é gravado pela metade.
+   */
+  async replicate(input: {
+    readonly boxId: string
+    readonly companyId: string
+    readonly measuredByUserId: string
+    readonly targetIds: readonly string[]
+  }): Promise<number> {
+    /** T14 (revisão final, BAIXO): id repetido no corpo é defeito do cliente — a réplica é por alvo. */
+    const targetIds = [...new Set(input.targetIds)]
+    return this.#database.transaction(async (transaction) => {
+      const [origin] = await transaction
+        .select({
+          commercialUnit: nfePackageBoxes.commercialUnit,
+          description: nfePackageBoxes.description,
+          emitterTaxId: nfePackageBoxes.emitterTaxId,
+          grossWeightGrams: nfePackageBoxes.grossWeightGrams,
+          heightMm: nfePackageBoxes.heightMm,
+          id: nfePackageBoxes.id,
+          lengthMm: nfePackageBoxes.lengthMm,
+          unitsPerBox: nfePackageBoxes.unitsPerBox,
+          widthMm: nfePackageBoxes.widthMm,
+        })
+        .from(nfePackageBoxes)
+        .where(
+          and(eq(nfePackageBoxes.id, input.boxId), eq(nfePackageBoxes.companyId, input.companyId)),
+        )
+        /**
+         * T14 (revisão final, BAIXO): trava a origem — uma remedida concorrente dela espera esta
+         * transação terminar, em vez de a réplica seguir com dimensões que já estão sendo trocadas.
+         */
+        .for('update')
+        .limit(1)
+      if (origin === undefined) throw new PackageBoxNotFoundError()
+      /**
+       * As três dimensões são tudo-ou-nada por CHECK (`nfe_package_boxes_dimensions_together_check`)
+       * — conferir as três aqui é só o que deixa o TypeScript estreitar os tipos para a gravação
+       * abaixo, não uma segunda fonte de verdade.
+       */
+      if (origin.lengthMm === null || origin.widthMm === null || origin.heightMm === null) {
+        throw new PackageBoxReplicationSourceNotMeasuredError()
+      }
+      /** A narrowing acima não atravessa a closure do `.map` abaixo — por isso os locais explícitos. */
+      const sourceHeightMm = origin.heightMm
+      const sourceLengthMm = origin.lengthMm
+      const sourceWidthMm = origin.widthMm
+
+      const originFamilyKey = resolveEmitterFamilyKey(origin)
+      /** Sem família não há com quem replicar — e `undefined === undefined` não é parentesco. */
+      if (originFamilyKey === undefined) throw new PackageBoxReplicationTargetOutsideFamilyError()
+
+      const targets = await transaction
+        .select({
+          commercialUnit: nfePackageBoxes.commercialUnit,
+          description: nfePackageBoxes.description,
+          emitterTaxId: nfePackageBoxes.emitterTaxId,
+          id: nfePackageBoxes.id,
+          measuredAt: nfePackageBoxes.measuredAt,
+        })
+        .from(nfePackageBoxes)
+        .where(
+          and(
+            eq(nfePackageBoxes.companyId, input.companyId),
+            inArray(nfePackageBoxes.id, targetIds),
+          ),
+        )
+      const targetsById = new Map(targets.map((target) => [target.id, target]))
+
+      for (const targetId of targetIds) {
+        const target = targetsById.get(targetId)
+        if (target === undefined) throw new PackageBoxNotFoundError()
+        if (resolveEmitterFamilyKey(target) !== originFamilyKey) {
+          throw new PackageBoxReplicationTargetOutsideFamilyError()
+        }
+        if (target.measuredAt !== null) throw new PackageBoxReplicationTargetAlreadyMeasuredError()
+      }
+
+      const updated = await transaction
+        .update(nfePackageBoxes)
+        .set({
+          grossWeightGrams: origin.grossWeightGrams,
+          heightMm: origin.heightMm,
+          lengthMm: origin.lengthMm,
+          measuredAt: new Date(),
+          measurementMarginMm: null,
+          measurementSource: 'replicated',
+          unitsPerBox: origin.unitsPerBox,
+          updatedAt: new Date(),
+          widthMm: origin.widthMm,
+        })
+        .where(
+          and(
+            eq(nfePackageBoxes.companyId, input.companyId),
+            inArray(nfePackageBoxes.id, targetIds),
+            /** D4 sob concorrência: a leitura acima pode ter visto o alvo antes de alguém medi-lo. */
+            isNull(nfePackageBoxes.measuredAt),
+          ),
+        )
+        .returning({ id: nfePackageBoxes.id })
+      if (updated.length !== targetIds.length) {
+        throw new PackageBoxReplicationTargetAlreadyMeasuredError()
+      }
+
+      if (updated.length > 0) {
+        await transaction.insert(nfePackageBoxMeasurements).values(
+          updated.map((target) => ({
+            companyId: input.companyId,
+            heightMm: sourceHeightMm,
+            lengthMm: sourceLengthMm,
+            measuredByUserId: input.measuredByUserId,
+            packageBoxId: target.id,
+            replicatedFromBoxId: origin.id,
+            source: 'replicated' as const,
+            widthMm: sourceWidthMm,
+          })),
+        )
+      }
+
+      return updated.length
+    })
+  }
+}
+
+const SIBLING_COLUMNS = {
+  commercialUnit: nfePackageBoxes.commercialUnit,
+  description: nfePackageBoxes.description,
+  emitterTaxId: nfePackageBoxes.emitterTaxId,
+  grossWeightGrams: nfePackageBoxes.grossWeightGrams,
+  heightMm: nfePackageBoxes.heightMm,
+  id: nfePackageBoxes.id,
+  lengthMm: nfePackageBoxes.lengthMm,
+  measuredAt: nfePackageBoxes.measuredAt,
+  measurementSource: nfePackageBoxes.measurementSource,
+  productCode: nfePackageBoxes.productCode,
+  unitsPerBox: nfePackageBoxes.unitsPerBox,
+  widthMm: nfePackageBoxes.widthMm,
+} as const
+
+type SiblingRow = {
+  readonly commercialUnit: string
+  readonly description: string
+  readonly emitterTaxId: string
+  readonly grossWeightGrams: number | null
+  readonly heightMm: number | null
+  readonly id: string
+  readonly lengthMm: number | null
+  readonly measuredAt: Date | null
+  readonly measurementSource: PackageBoxMeasurementSource | null
+  readonly productCode: string
+  readonly unitsPerBox: number
+  readonly widthMm: number | null
+}
+
+function toSiblingView(row: SiblingRow): PackageBoxSiblingView {
+  return {
+    commercialUnit: row.commercialUnit,
+    description: row.description,
+    grossWeightGrams: row.grossWeightGrams,
+    heightMm: row.heightMm,
+    id: row.id,
+    lengthMm: row.lengthMm,
+    measuredAt: row.measuredAt?.toISOString() ?? null,
+    measurementSource: row.measurementSource,
+    packagingUnitCount: resolvePackagingUnitCount(row.commercialUnit),
+    productCode: row.productCode,
+    unitsPerBox: row.unitsPerBox,
+    variantLabel: resolveBoxFamily(row).variantLabel,
+    widthMm: row.widthMm,
   }
 }
 
