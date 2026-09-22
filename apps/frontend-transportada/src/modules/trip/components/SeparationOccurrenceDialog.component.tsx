@@ -11,6 +11,7 @@ import { TripOccurrences } from './TripOccurrences.component'
 import type { OccurrencePhoto } from './OccurrencePhotoPicker.component'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import type { OccurrenceType } from '../shared/occurrence.constant'
+import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type { OccurrencePhotoSendItem } from '../shared/occurrencePhotoSend.service'
 import type { TripDocumentDetail, TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
@@ -30,6 +31,9 @@ export type SeparationOccurrenceDialogProps = Readonly<{
     readonly photos: readonly OccurrencePhoto[]
     /** Lista vazia é a nota inteira — não existe código sentinela para ela. */
     readonly productCodes: readonly string[]
+    /** Spec 166 RF4/RF7: alinhadas por índice a `productCodes`. `null` é item sem contagem. */
+    readonly productQuantities: readonly (null | string)[]
+    readonly productQuantityUnits: readonly (null | OccurrenceQuantityUnit)[]
   }) => Promise<Readonly<{ hasFailure: boolean }>>
   photoSendState: readonly OccurrencePhotoSendItem[]
   products: readonly TripDocumentProduct[]

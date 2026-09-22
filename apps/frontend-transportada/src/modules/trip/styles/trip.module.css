@@ -1282,6 +1282,13 @@
   }
 }
 
+/* Spec 166 RF7: o campo numérico de quantidade ao lado do seletor de unidade, por item marcado. */
+.occurrenceItemQuantityFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
 /* Os campos do tipo saem dos tokens (docs/frontend/fields.md) — nunca da altura default do browser. */
 .occurrenceForm input,
 .occurrenceForm textarea {

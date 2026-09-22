@@ -13,13 +13,15 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import {
-  formatOccurrenceProductLabel,
+  formatOccurrenceProductsLine,
+  OCCURRENCE_DEFAULT_QUANTITY_UNIT,
   OCCURRENCE_WHOLE_DOCUMENT_VALUE,
-  resolveOccurrenceProductCodes,
+  resolveOccurrenceItemQuantityFields,
   resolveOccurrenceProductSelection,
   resolveOccurrenceProductSelectionValues,
 } from '../shared/occurrenceProductSelection.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
+import { OCCURRENCE_QUANTITY_UNITS, type OccurrenceQuantityUnit } from '../shared/trip.constant'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import { canSubmitOccurrenceWithPhotos } from '../shared/occurrencePhotoPicker.service'
@@ -77,6 +79,9 @@ type TripOccurrencesProps = Readonly<{
     readonly photos: readonly OccurrencePhoto[]
     /** Lista vazia é a nota inteira — não existe código sentinela para ela. */
     readonly productCodes: readonly string[]
+    /** Spec 166 RF4/RF7: alinhadas por índice a `productCodes`. `null` é item sem contagem. */
+    readonly productQuantities: readonly (null | string)[]
+    readonly productQuantityUnits: readonly (null | OccurrenceQuantityUnit)[]
   }) => Promise<Readonly<{ hasFailure: boolean }>>
   /** Estado por foto do envio em curso/do último tentado — vazio quando nada foi enviado ainda. */
   photoSendState: readonly OccurrencePhotoSendItem[]
@@ -122,6 +127,13 @@ export function TripOccurrences({
   )
   const [occurrenceTypeId, setOccurrenceTypeId] = useState(disponiveis[0]?.id ?? '')
   const [productCodes, setProductCodes] = useState<readonly string[]>([])
+  /**
+   * Spec 166 RF4/RF7: quantidade e unidade por código de item marcado. Mapa em vez de lista
+   * porque o item pode ser desmarcado e remarcado sem perder a ordem de `productCodes`.
+   */
+  const [quantitiesByCode, setQuantitiesByCode] = useState<
+    ReadonlyMap<string, Readonly<{ quantity: string; unit: OccurrenceQuantityUnit }>>
+  >(new Map())
   const [note, setNote] = useState('')
   const [photos, setPhotos] = useState<readonly OccurrencePhoto[]>([])
   /** Revisão de UX (spec 161): Cancelar também confirma quando há foto ou observação em progresso. */
@@ -130,6 +142,39 @@ export function TripOccurrences({
   const noteCounter = resolveOccurrenceNoteCounter(note)
   const hasFailedPhoto = hasOccurrencePhotoSendFailure(photoSendState)
   const isDirty = photos.length > 0 || note.trim() !== ''
+  const selectedType = disponiveis.find((type) => type.id === occurrenceTypeId)
+  /** RF8: sem tipo escolhido ainda, o campo segue no comportamento de hoje (vários itens). */
+  const allowsMultipleItems = selectedType?.allowsMultipleItems ?? true
+
+  function handleOccurrenceTypeChange(nextTypeId: string): void {
+    setOccurrenceTypeId(nextTypeId)
+    const nextType = disponiveis.find((type) => type.id === nextTypeId)
+    /**
+     * RF8: trocar para um tipo de item único com mais de um item marcado substitui pela primeira
+     * escolha — nunca soma. Sem isto, um `MultiSelect` que já tinha dois itens continuaria
+     * mandando os dois para um tipo que a API vai recusar com `422`.
+     */
+    if (nextType?.allowsMultipleItems === false && productCodes.length > 1) {
+      setProductCodes(productCodes.slice(0, 1))
+    }
+  }
+
+  function setItemQuantity(code: string, quantity: string): void {
+    const current = quantitiesByCode.get(code)
+    setQuantitiesByCode(
+      new Map(quantitiesByCode).set(code, {
+        quantity,
+        unit: current?.unit ?? OCCURRENCE_DEFAULT_QUANTITY_UNIT,
+      }),
+    )
+  }
+
+  function setItemQuantityUnit(code: string, unit: OccurrenceQuantityUnit): void {
+    const current = quantitiesByCode.get(code)
+    setQuantitiesByCode(
+      new Map(quantitiesByCode).set(code, { quantity: current?.quantity ?? '', unit }),
+    )
+  }
 
   useEffect(() => {
     onDirtyChange?.(isDirty)
@@ -138,6 +183,7 @@ export function TripOccurrences({
   function clearForm() {
     setNote('')
     setProductCodes([])
+    setQuantitiesByCode(new Map())
     setPhotos([])
     setIsConfirmingCancel(false)
     setIsOpen(false)
@@ -161,15 +207,23 @@ export function TripOccurrences({
    * mesmas fotos, e o botão de reenvio (abaixo) chama `onRegister` de novo sem `onReset`, para o
    * hook retomar a mesma fila pelo que ainda não foi `sent`.
    */
+  function buildRegisterInput() {
+    const { productQuantities, productQuantityUnits } = resolveOccurrenceItemQuantityFields({
+      codes: productCodes,
+      quantitiesByCode,
+    })
+    return { note, occurrenceTypeId, photos, productCodes, productQuantities, productQuantityUnits }
+  }
+
   async function handleSubmit() {
     if (!canSubmit) return
     onReset()
-    const result = await onRegister({ note, occurrenceTypeId, photos, productCodes })
+    const result = await onRegister(buildRegisterInput())
     if (!result.hasFailure) clearForm()
   }
 
   async function handleRetryFailed() {
-    const result = await onRegister({ note, occurrenceTypeId, photos, productCodes })
+    const result = await onRegister(buildRegisterInput())
     if (!result.hasFailure) clearForm()
   }
 
@@ -188,8 +242,12 @@ export function TripOccurrences({
                   moment: momentFormatter.format(new Date(occurrence.createdAt)),
                   type: occurrence.typeName,
                 })}
-                {` — ${formatOccurrenceProductLabel({
-                  codes: resolveOccurrenceProductCodes(occurrence),
+                {` — ${formatOccurrenceProductsLine({
+                  occurrence,
+                  unitLabels: {
+                    box: t('occurrence.quantityUnits.box'),
+                    unit: t('occurrence.quantityUnits.unit'),
+                  },
                   wholeDocumentLabel: t('occurrence.wholeDocument'),
                 })}`}
                 {occurrence.note === '' ? null : ` — ${occurrence.note}`}
@@ -249,7 +307,7 @@ export function TripOccurrences({
               <span>{t('occurrence.typeLabel')}</span>
               <Select
                 ariaLabel={t('occurrence.typeLabel')}
-                onChange={setOccurrenceTypeId}
+                onChange={handleOccurrenceTypeChange}
                 options={disponiveis.map((type) => ({ label: type.name, value: type.id }))}
                 value={occurrenceTypeId}
               />
@@ -259,37 +317,106 @@ export function TripOccurrences({
              * nota são o mesmo registro, com as mesmas fotos. "A nota inteira" segue sendo o padrão
              * e é exclusiva — a regra da exclusividade mora em
              * `resolveOccurrenceProductSelection`, não aqui.
+             *
+             * RF8 (spec 166): tipo com `allowsMultipleItems` desligado vira seleção única — o
+             * `Select` já é exclusivo por natureza, então escolher outro item substitui em vez de
+             * somar, sem precisar de `resolveOccurrenceProductSelection`.
              */}
             <label>
               <span>{t('occurrence.product')}</span>
-              <MultiSelect
-                ariaLabel={t('occurrence.product')}
-                clearAllLabel={t('occurrence.productClear')}
-                emptyLabel={t('occurrence.productEmpty')}
-                onChange={(next) =>
-                  setProductCodes(
-                    resolveOccurrenceProductSelection({
-                      next,
-                      previous: resolveOccurrenceProductSelectionValues(productCodes),
-                    }),
-                  )
-                }
-                options={[
-                  { label: t('occurrence.wholeDocument'), value: OCCURRENCE_WHOLE_DOCUMENT_VALUE },
-                  ...products.map((product) => ({
-                    description: product.description,
-                    label: product.code,
-                    value: product.code,
-                  })),
-                ]}
-                placeholder={t('occurrence.wholeDocument')}
-                removeLabel={t('occurrence.productRemove')}
-                searchPlaceholder={t('occurrence.productSearch')}
-                summaryLabel={(count) => t('occurrence.productSummary', { count })}
-                values={resolveOccurrenceProductSelectionValues(productCodes)}
-              />
+              {allowsMultipleItems ? (
+                <MultiSelect
+                  ariaLabel={t('occurrence.product')}
+                  clearAllLabel={t('occurrence.productClear')}
+                  emptyLabel={t('occurrence.productEmpty')}
+                  onChange={(next) =>
+                    setProductCodes(
+                      resolveOccurrenceProductSelection({
+                        next,
+                        previous: resolveOccurrenceProductSelectionValues(productCodes),
+                      }),
+                    )
+                  }
+                  options={[
+                    {
+                      label: t('occurrence.wholeDocument'),
+                      value: OCCURRENCE_WHOLE_DOCUMENT_VALUE,
+                    },
+                    ...products.map((product) => ({
+                      description: product.description,
+                      label: product.code,
+                      value: product.code,
+                    })),
+                  ]}
+                  placeholder={t('occurrence.wholeDocument')}
+                  removeLabel={t('occurrence.productRemove')}
+                  searchPlaceholder={t('occurrence.productSearch')}
+                  summaryLabel={(count) => t('occurrence.productSummary', { count })}
+                  values={resolveOccurrenceProductSelectionValues(productCodes)}
+                />
+              ) : (
+                <Select
+                  ariaLabel={t('occurrence.product')}
+                  onChange={(next) =>
+                    setProductCodes(next === OCCURRENCE_WHOLE_DOCUMENT_VALUE ? [] : [next])
+                  }
+                  options={[
+                    {
+                      label: t('occurrence.wholeDocument'),
+                      value: OCCURRENCE_WHOLE_DOCUMENT_VALUE,
+                    },
+                    ...products.map((product) => ({
+                      description: product.description,
+                      label: product.code,
+                      value: product.code,
+                    })),
+                  ]}
+                  value={productCodes[0] ?? OCCURRENCE_WHOLE_DOCUMENT_VALUE}
+                />
+              )}
+              {allowsMultipleItems ? null : (
+                <span className={styles.hint}>{t('occurrence.singleItemHint')}</span>
+              )}
             </label>
           </div>
+          {/*
+           * Spec 166 RF7: um campo de quantidade + unidade por item marcado. "A nota inteira"
+           * (lista vazia) não tem item a contar — o bloco só nasce com item escolhido.
+           */}
+          {productCodes.length === 0 ? null : (
+            <div className={styles.occurrenceFormRow}>
+              {productCodes.map((code) => {
+                const entry = quantitiesByCode.get(code)
+                return (
+                  <label key={code}>
+                    <span>{`${code} — ${t('occurrence.quantityLabel')}`}</span>
+                    <div className={styles.occurrenceItemQuantityFields}>
+                      <input
+                        aria-label={`${code} — ${t('occurrence.quantityLabel')}`}
+                        inputMode="decimal"
+                        min="0"
+                        onChange={(event) => setItemQuantity(code, event.target.value)}
+                        step="0.001"
+                        type="number"
+                        value={entry?.quantity ?? ''}
+                      />
+                      <Select
+                        ariaLabel={`${code} — ${t('occurrence.quantityUnitLabel')}`}
+                        onChange={(unit) =>
+                          setItemQuantityUnit(code, unit as OccurrenceQuantityUnit)
+                        }
+                        options={OCCURRENCE_QUANTITY_UNITS.map((unit) => ({
+                          label: t(`occurrence.quantityUnits.${unit}`),
+                          value: unit,
+                        }))}
+                        value={entry?.unit ?? OCCURRENCE_DEFAULT_QUANTITY_UNIT}
+                      />
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          )}
           {/* Marcador de obrigatório (item 7 da revisão): a única seção que de fato trava o envio
               (CA17) ganha o mesmo `*` que o resto do produto usa para campo obrigatório. */}
           <p className={styles.occurrencePhotoSectionLabel}>

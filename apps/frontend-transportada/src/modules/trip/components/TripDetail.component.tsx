@@ -1089,6 +1089,8 @@ function SeparationOccurrenceDialogLoader({
           occurrenceTypeId: occurrence.occurrenceTypeId,
           photos: occurrence.photos,
           productCodes: occurrence.productCodes,
+          productQuantities: occurrence.productQuantities,
+          productQuantityUnits: occurrence.productQuantityUnits,
           tripId: document.tripId,
         })
       }
@@ -1134,6 +1136,8 @@ function TripDeliveryProofLoader({
               occurrenceTypeId: occurrence.occurrenceTypeId,
               photos: occurrence.photos,
               productCodes: occurrence.productCodes,
+              productQuantities: occurrence.productQuantities,
+              productQuantityUnits: occurrence.productQuantityUnits,
               tripId: document.tripId,
             })
           }
