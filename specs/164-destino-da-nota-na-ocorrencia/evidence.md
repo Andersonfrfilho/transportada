@@ -688,3 +688,86 @@ alimenta em `delivery_charges` mexem no mesmo dinheiro e a validação `architec
 os dois juntos. Implementar T13 antes da T16 exigiria ou criar essa tabela sem a revisão que a fase
 exige, ou fechar a task sem prova real contra Postgres — as duas descartadas. T13 foi reposicionada
 para depois da T16 na Fase 5.
+
+## T14a — a proposta de reentrega, só leitura
+
+`trips/domain/redelivery-proposal.policy.ts` (pura, reaproveita `checkTripAcceptsLinkage`),
+`trips/application/redelivery-proposal.use-case.ts`, `drizzle-redelivery-proposal.repository.ts`
+(join `trip_document_occurrences → trip_documents`, sem lock, sem transação) e
+`GET /trip-occurrences/:id/case/redelivery-proposal` (`occurrences.resolve`).
+
+- Cobertos os quatro casos do critério de aceite: viagem `dispatched`/`cancelled` devolve `refused`
+  com o motivo do próprio `TripTransitionBlock` (nunca vocabulário novo); parada com uma nota só
+  devolve `reorder_stop` com `orderedStopIds` (o conjunto inteiro da viagem, nota movida para o
+  fim — a rota de reordenação recusa lista parcial); parada com outras notas vivas
+  (`released_at is null`, sem contar a própria) devolve `release_document`; nota sem parada
+  (`stop_id is null`) e nota já liberada devolvem `refused` com motivo próprio
+  (`DOCUMENT_HAS_NO_STOP`/`DOCUMENT_ALREADY_RELEASED`) — os dois casos que a validação achou fora
+  da spec original.
+- Nenhuma escrita: a policy é pura e o repositório só faz `select`.
+
+### Testes
+
+- `test/trip-domain/redelivery-proposal.contract.ts` — 6 casos da policy pura.
+- `test/trip-application/redelivery-proposal.contract.ts` — 5 casos do caso de uso com port falso
+  (inclusive o atalho de não ler contagem/ordem quando a nota não tem parada).
+- `bun run typecheck` (raiz) — limpo.
+- `bun run lint` — limpo.
+- `bun --env-file=../../.env.test test --timeout 120000` — **7027 pass, 0 fail** (183 arquivos,
+  23934 `expect()`), incluindo os dois arquivos novos e `rate-limited-routes.contract.test.ts`
+  ajustado com a rota nova.
+
+### Commit desta rodada
+
+1. `feat(api): spec 164 T14a — a proposta de reentrega, só leitura`
+
+## T14b — aplicar a proposta é transação do servidor
+
+`POST /trip-occurrences/:id/case/redelivery-application` (`occurrences.resolve`),
+`drizzle-redelivery-application.repository.ts` (escritor único), migration
+`drizzle/20260922211520_redelivery_applied_audit/` (`redelivery_applied_at`/
+`redelivery_applied_by_user_id` + três CHECKs).
+
+- Ordem de lock: `select` sem lock resolve `occurrenceId → tripId` (fora de transação), depois a
+  transação trava `trips` primeiro (`for no key update`), reroda `checkTripAcceptsLinkage` sobre o
+  status travado, trava a tratativa (`for no key update`), recusa se já aplicada
+  (`redeliveryApplication !== null`) ou se a decisão não é `redelivery_authorized`, relê o documento
+  fresco dentro da mesma transação e recalcula a proposta com `resolveRedeliveryProposal` — a mesma
+  política do T14a, nenhuma regra duplicada.
+- A escrita reaproveita o que já existe: `writeStopOrder` (extraída de
+  `DrizzleTripRouteRepository.reorderStops` para ser chamável dentro de uma transação já aberta —
+  `reorderStops` público passou a chamá-la também, mesmo comportamento) para `reorder_stop`, e
+  `releaseLiveLink` (`trip-document-review-link.support.ts`, spec 148/102) para `release_document`.
+  Nenhuma escrita nova em `trip_stops`/`trip_documents`.
+- `redeliveryApplication` saiu do input de transição da tratativa (`occurrence-case.port.ts`,
+  `drizzle-occurrence-case.repository.ts`) — não tinha nenhum chamador de produção (confirmado por
+  grep antes da remoção), só existia como campo morto que o contratante poderia alcançar por engano.
+  Contrato negativo novo (`test/trip-schema/contractor-portal-no-stop-write.contract.ts`) varre
+  `src/contractor-portal/` inteiro e prova que nenhum arquivo escreve `tripStops`/`tripDocuments`
+  nem referencia `redeliveryApplication`.
+
+### Testes contra Postgres (`test/integration/trip-redelivery-application.integration.ts`)
+
+4 cenários, `DrizzleRedeliveryApplicationRepository` direto (sem HTTP):
+
+1. Parada só com a nota → `reordered`, a parada some do início e vai para o fim, `redeliveryAppliedAt`/`redeliveryAppliedByUserId` gravados.
+2. Parada com outra nota viva → `released`, a nota da ocorrência solta (`releasedAt` preenchido, `stopId` nulo), a outra nota **intocada**.
+3. Viagem despachada **entre** a leitura e a aplicação → `trip_stops` idêntica antes/depois (`toEqual`), e a tratativa grava `refused` — não é erro.
+4. Repetir a chamada já aplicada → `OccurrenceCaseTransitionNotAllowedError` (409), nenhuma segunda escrita.
+
+- `bun --env-file=../../.env.test test ./test/integration/trip-redelivery-application.integration.ts --timeout 60000` — **4 pass, 0 fail**.
+- `bun --env-file=../../.env.test run test:integration` (suíte inteira) — **526 pass, 7 skip, 8 fail**
+  (537 testes em 98 arquivos + o novo, 447 s). Os 8 fails são a mesma família conhecida desde a T1:
+  `toll booth extract create-only`/`catalog reload` por `OBJECT_STORAGE_UNAVAILABLE` (credencial do
+  MinIO no `.env.test` local) — nenhum toca `trip_occurrence_cases`, `trip_stops`, `trip_documents`
+  ou qualquer arquivo desta task.
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo) — **7027 pass, 0 fail**
+  depois de ajustar `rate-limited-routes.contract.test.ts` (rota nova com `store: 'postgres'`) e
+  `test/database-migration/static-migration.contract.ts` (pasta de migration nova na lista estática).
+- `make migration-test` — **110 pass, 0 fail** (inclui `database-migration.contract.test.ts`, que
+  confere hash/bytes da migration e do rollback novos contra o schema).
+- `bun run typecheck` / `bun run lint` (raiz) — limpos.
+
+### Commit desta rodada
+
+1. `feat(api): spec 164 T14b — aplicar a proposta de reentrega é transação do servidor`

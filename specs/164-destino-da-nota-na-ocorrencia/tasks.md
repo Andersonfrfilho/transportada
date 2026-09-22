@@ -146,7 +146,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
   - A seleção de **vários itens** por ocorrência, de que esta task depende, já está commitada e no
     ar (`drizzle/20260922164534_trip_document_occurrence_products/`).
 
-- [ ] **T14a** A proposta de reentrega, só leitura — `trips/domain/redelivery-proposal.policy.ts`
+- [x] **T14a** A proposta de reentrega, só leitura — `trips/domain/redelivery-proposal.policy.ts`
       (pura) e `redelivery-proposal.use-case.ts`, servindo
       `GET /trip-occurrences/:id/case/redelivery-proposal`.
   - Critério de aceite (CA6/CA7/CA8/RF17): viagem `dispatched` devolve `refused` com o motivo do
@@ -157,7 +157,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     `release_document`; nota liberada, viagem cancelada **e nota sem parada** (`stop_id is null`, o
     balde sem endereço) devolvem `refused` com motivo próprio.
 
-- [ ] **T14b** 🧠 Aplicar a proposta é transação do servidor —
+- [x] **T14b** 🧠 Aplicar a proposta é transação do servidor —
       `POST /trip-occurrences/:id/case/redelivery-application` (`occurrences.resolve`), mais a
       migration de `redelivery_applied_at`/`redelivery_applied_by_user_id` e o CHECK que amarra
       `redelivery_application` a `decision_kind = 'redelivery_authorized'`.
