@@ -167,6 +167,8 @@ type RegisterOccurrenceRouteInput = {
   readonly note: string
   readonly occurrenceTypeId: string
   readonly productCode: string
+  /** Vários itens da mesma nota. Vazia é a nota inteira; junto com `productCode` é 422. */
+  readonly productCodes: readonly string[]
   readonly tripId: string
 }
 
@@ -1329,6 +1331,7 @@ export function createTripRoutes(
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,
+          productCodes: body.productCodes,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },

@@ -7,7 +7,7 @@ import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
-import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
+import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import {
@@ -26,7 +26,11 @@ export type TripOccurrence = {
   readonly id: string
   readonly note: string
   readonly occurrenceTypeId: string
-  /** Vazio é a nota inteira — ver `occurrence-scope.policy.ts`. */
+  /**
+   * Vazio é a nota inteira — ver `occurrence-scope.policy.ts`. Com vários itens marcados, é o
+   * **primeiro** deles: a coluna continua existindo e continua sendo escrita, porque ocorrência
+   * antiga e o fluxo do WhatsApp leem dela.
+   */
   readonly productCode: string
   readonly stage: TripOccurrenceStage
   /** O nome que a empresa deu ao tipo: é ele que a tela imprime, não um id. */
@@ -53,6 +57,8 @@ export type TripOccurrenceAuthorship = {
 export type TripOccurrenceWithAttachment = TripOccurrence &
   TripOccurrenceAuthorship & {
     readonly attachments: readonly OccurrenceAttachmentView[]
+    /** Todos os itens apontados; `productCode` continua sendo o primeiro deles. */
+    readonly productCodes: readonly string[]
   }
 
 /**
@@ -67,6 +73,11 @@ export type TripOccurrenceWithAttachment = TripOccurrence &
  * o texto pronto já tira o retrabalho de escrever à mão.
  */
 export type RegisteredOccurrence = TripOccurrence & {
+  /**
+   * Todos os itens marcados, na ordem em que foram marcados. Vazia é a nota inteira. Vem ao lado
+   * de `productCode` (o primeiro deles), que continua existindo para quem já lia dele.
+   */
+  readonly productCodes: readonly string[]
   /** Spec 161 T6 (RF5): `[]` quando `saveOccurrence` não devolveu anexo (não deveria acontecer
    * para `separation`, já que D1 exige foto — mas a leitura fica defensiva, nunca `undefined`). */
   readonly attachments: readonly TripOccurrenceAttachmentPosition[]
@@ -109,7 +120,7 @@ export type TripOccurrencePort = {
     readonly documentId: string
     readonly note: string
     readonly occurredOn: string
-    readonly productCode: string
+    readonly productCodes: readonly string[]
     readonly tripId: string
   }): Promise<OccurrenceTemplateValues>
   saveOccurrence(input: {
@@ -129,6 +140,7 @@ export type TripOccurrencePort = {
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    readonly productCodes: readonly string[]
     readonly stage: TripOccurrenceStage
     readonly tripId: string
     readonly typeName: string
@@ -181,6 +193,11 @@ export type RegisterTripOccurrenceInput = {
   readonly notificationParameters?: OccurrenceNotificationParameters
   readonly notificationSettings?: readonly OccurrenceNotificationSetting[]
   readonly productCode: string
+  /**
+   * Os itens que a tela marcou. Ausente ou vazia com `productCode` preenchido é o contrato antigo;
+   * os dois preenchidos é 422 — ver `resolveOccurrenceProductSelection`.
+   */
+  readonly productCodes?: readonly string[]
   readonly repository: TripOccurrencePort
   readonly tripId: string
   readonly occurrenceTypeId: string
@@ -229,13 +246,13 @@ export async function registerTripOccurrence(
   /**
    * ⚠️ Produto fora da nota é **recusado**, nunca convertido em "nota inteira": apontar para item
    * que a nota não tem é engano de quem registrou, e silenciá-lo gravaria ocorrência sobre carga
-   * que nunca esteve ali.
+   * que nunca esteve ali. Item repetido e os dois campos juntos são recusados pelo mesmo caminho.
    */
-  const scope = resolveOccurrenceProductScope({
+  const scope = resolveOccurrenceProductSelection({
     productCode,
+    productCodes: input.productCodes,
     products: await repository.listDocumentProducts({ companyId, documentId, tripId }),
   })
-  if (scope === null) throw new TripDocumentNotFoundError()
 
   const saved = await repository.saveOccurrence({
     actorUserId,
@@ -245,6 +262,7 @@ export async function registerTripOccurrence(
     note,
     occurrenceTypeId: occurrenceType.id,
     productCode: scope.productCode,
+    productCodes: scope.productCodes,
     stage: occurrenceType.stage,
     tripId,
     typeName: occurrenceType.name,
@@ -262,6 +280,7 @@ export async function registerTripOccurrence(
     ...saved,
     attachments: saved.attachments ?? [],
     email: await renderEmail({ input, occurrenceType, scope }),
+    productCodes: scope.productCodes,
   }
 }
 
@@ -275,7 +294,7 @@ export async function registerTripOccurrence(
 async function renderEmail(params: {
   readonly input: RegisterTripOccurrenceInput
   readonly occurrenceType: OccurrenceTypeRecord
-  readonly scope: { readonly productCode: string }
+  readonly scope: { readonly productCodes: readonly string[] }
 }): Promise<null | { readonly body: string; readonly subject: string }> {
   /** Com template do módulo, o aviso sai pelo trilho de notificação — não há e-mail a montar aqui. */
   if (params.occurrenceType.emailTemplateKey !== null) return null
@@ -286,7 +305,7 @@ async function renderEmail(params: {
     documentId: params.input.documentId,
     note: params.input.note,
     occurredOn: params.input.occurredOn,
-    productCode: params.scope.productCode,
+    productCodes: params.scope.productCodes,
     tripId: params.input.tripId,
   })
 

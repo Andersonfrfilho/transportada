@@ -281,6 +281,7 @@ describe('Drizzle migrations', () => {
       '20260922114949_job_schedule_pause_control',
       '20260922121307_job_schedule_pause_origin',
       '20260922140709_package_box_unit_and_estimate',
+      '20260922164534_trip_document_occurrence_products',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

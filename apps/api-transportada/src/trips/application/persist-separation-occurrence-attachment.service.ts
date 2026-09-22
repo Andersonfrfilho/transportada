@@ -29,6 +29,8 @@ export type SeparationOccurrenceSaveInput = {
   readonly note: string
   readonly occurrenceTypeId: string
   readonly productCode: string
+  /** Todos os itens marcados; vazia é a nota inteira. A coluna antiga leva o primeiro deles. */
+  readonly productCodes: readonly string[]
   readonly stage: TripOccurrence['stage']
   readonly tripId: string
   readonly typeName: string
@@ -57,6 +59,12 @@ export type SeparationOccurrenceTransactionPort = {
   insertAttachment(
     input: InsertOccurrenceAttachmentInput,
   ): Promise<TripOccurrenceAttachmentPosition>
+  /** Os itens marcados, na mesma transação da ocorrência — nada de segunda escrita solta. */
+  insertOccurrenceProducts(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly productCodes: readonly string[]
+  }): Promise<void>
   insertStoredObject(input: InsertStoredObjectInput): Promise<void>
   saveOccurrence(input: SeparationOccurrenceSaveInput): Promise<null | TripOccurrence>
 }
@@ -113,6 +121,12 @@ export async function persistSeparationOccurrenceWithAttachment(
       params.unitOfWork.execute(async (transaction) => {
         const saved = await transaction.saveOccurrence(params.input)
         if (saved === null) return null
+
+        await transaction.insertOccurrenceProducts({
+          companyId: params.input.companyId,
+          occurrenceId: saved.id,
+          productCodes: params.input.productCodes,
+        })
 
         const retentionUntil = resolveOccurrenceAttachmentRetentionUntil(params.now())
 

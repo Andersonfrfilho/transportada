@@ -2142,3 +2142,95 @@ para o host `fiscal.t3.storageapi.dev` — 403/503 na foto e na miniatura da oco
 
 - Nenhuma. Migration não foi necessária — `stored_objects.bucket` já é `text()` livre; o reparo é
   `UPDATE` de dados, não schema.
+
+## PDF no anexo da ocorrência + vários itens por ocorrência (pedido após uso em staging)
+
+Duas mudanças de API pedidas depois de a tela rodar em staging. Teste de contrato escrito antes da
+implementação nas duas (o de `product-selection` foi rodado vermelho antes do código existir).
+
+### 1. PDF no anexo da ocorrência
+
+- `src/trips/domain/occurrence-attachment.policy.ts`: lista de tipos **própria** da ocorrência —
+  `OCCURRENCE_ATTACHMENT_MIME_TYPES` = a do canhoto (`DELIVERY_PROOF_MIME_TYPES`) mais
+  `application/pdf`. `delivery-proof.policy.ts` **não foi tocado**: o canhoto continua só imagem, e
+  as duas listas ficam separadas para que mexer numa nunca mexa na outra.
+- Assinatura real, nunca o `content-type` declarado: `%PDF-` (`25 50 44 46 2D`) no offset 0. PDF
+  declarado com bytes de JPEG é `TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE` (422).
+- Teto: `OCCURRENCE_PDF_MAX_BYTES = 896 KiB`. Maior que os 512 KiB da foto porque o PDF não passa
+  pelo reencode do navegador, e 128 KiB **abaixo** do limite de corpo do servidor
+  (`APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES`, 1 MiB, 413 antes da rota) — a folga das fronteiras do
+  multipart, da observação de 500 caracteres e dos `productCodes` repetidos. Travado por teste
+  contra a própria constante do servidor, para que subir um dos dois sem o outro falhe.
+- `assertOccurrenceUploadAccepted` deu lugar a `assertOccurrenceAttachmentAccepted` (original +
+  miniatura num ponto só) e `assertOccurrenceThumbnailAccepted` (miniatura, sempre imagem). Os dois
+  call sites (`persist-separation-occurrence-attachment.service.ts` e
+  `attach-occurrence-photo.use-case.ts`) passaram a fazer uma chamada só.
+- **PDF não tem miniatura** (RF29b/RF32b: a miniatura é cache, nunca prova). PDF sozinho é o caso
+  normal — o caminho de leitura já lida com `thumbnail: null`. PDF **com** miniatura é 422
+  `OCCURRENCE_PDF_HAS_NO_THUMBNAIL` (`OccurrencePdfThumbnailError`), em vez de guardar em silêncio
+  um retrato que ninguém reconhece na lista.
+- Teste: `test/trip-occurrence/attachment-pdf.contract.ts` (13 casos), registrado no entrypoint
+  `test/trip-occurrence.contract.test.ts`.
+
+### 2. Uma ocorrência aponta vários itens da nota
+
+- Tabela nova `trip_document_occurrence_products` (`company_id` em toda chave e FK composta):
+  unique `(company_id, id)`, unique `(company_id, occurrence_id, product_code)` (item repetido
+  também é recusado pelo banco), unique `(company_id, occurrence_id, position)` — que serve de
+  índice da leitura por ocorrência, sem índice extra ao lado. FKs: `company_id → companies`
+  (RESTRICT/CASCADE) e `(company_id, occurrence_id) → trip_document_occurrences(company_id, id)`
+  (CASCADE/CASCADE). Entrada em `test/trip-schema/tenant-safety.contract.ts` + teste próprio da FK
+  composta.
+- Migration aditiva `drizzle/20260922164534_trip_document_occurrence_products/` com `migration.sql`
+  - `snapshot.json` gerados por `bun run db:generate` (folder renomeada do nome aleatório) e
+    `rollback.sql` ao lado, que **recusa** (RAISE) se houver qualquer linha na tabela nova. Diretório
+    registrado na lista explícita de `test/database-migration/static-migration.contract.ts`.
+    `bun run db:generate` depois da mudança → `no_changes`.
+- **Compatibilidade**: `trip_document_occurrences.product_code` continua existindo e continua sendo
+  escrita, com o **primeiro** item marcado (vazia na ocorrência da nota inteira). Ocorrência antiga
+  não tem linha na tabela nova, e o fluxo do WhatsApp grava só a coluna — a leitura deriva de uma ou
+  de outra (`resolveOccurrenceProductCodes`), então ocorrência de um item nunca vira "a nota
+  inteira" depois desta mudança.
+- Política pura `resolveOccurrenceProductSelection` (`occurrence-scope.policy.ts`): lista vazia é a
+  nota inteira; `productCode` e `productCodes` juntos é 422 `OCCURRENCE_PRODUCT_SELECTION_CONFLICT`
+  (nunca um deles escolhido em silêncio); item repetido é 422 `OCCURRENCE_PRODUCT_DUPLICATE`; item
+  fora da nota é 422 `OCCURRENCE_PRODUCT_NOT_IN_DOCUMENT` (recusado, nunca convertido em "nota
+  inteira"). A ordem em que os itens chegam é preservada — é a que o conferente marcou e a que o
+  e-mail cita. Nenhuma recusa chega a `saveOccurrence`.
+- Escrita: os itens entram na **mesma transação** da ocorrência
+  (`SeparationOccurrenceTransactionPort.insertOccurrenceProducts` →
+  `drizzle-occurrence-product.repository.ts`), com `position` atribuída de uma vez. A nota inteira
+  não ganha linha nenhuma.
+- Leitura: `listTripOccurrences` resolve os itens de todas as ocorrências da nota **numa consulta
+  só** (`listOccurrenceProductCodes`), nunca uma por linha; `findTripOccurrenceById` (o `recall` da
+  idempotência) faz o mesmo para uma.
+- E-mail: `buildOccurrenceItemValues` (`occurrence-template.policy.ts`, pura e testável sem banco)
+  junta `{{item}}`, `{{codigoItem}}` e `{{quantidadeItem}}` com `, ` — o texto cita **todos** os
+  itens, não só o primeiro. Nota inteira continua imprimindo vazio nos três, nunca o marcador cru.
+- Idempotência: `productCodes` entra na impressão digital de criação, além de `productCode`. Mesma
+  foto/texto/tipo com outra seleção (ou outra ordem) é outra impressão; sem itens, a impressão é
+  byte a byte a de antes desta mudança.
+- Testes novos: `test/trip-occurrence/product-selection.contract.ts` (política, e-mail, impressão) e
+  `test/trip-occurrence/product-codes.contract.ts` (parser multipart, caso de uso, transação), os
+  dois registrados no entrypoint.
+
+### Gates
+
+- `bun run lint` (raiz) → verde nas seis apps.
+- `bun run typecheck` (raiz) → verde nas seis apps.
+- `bun --env-file=../../.env.test test --timeout 120000` (API): **6880 pass, 23 skip, 9 fail**. As 9
+  falhas são só `toll-booth-catalog-repository` (`ERR_POSTGRES_CONNECTION_CLOSED`), pré-existentes e
+  sem relação com esta mudança — Docker do Postgres local fora do ar (`docker ps` não lista nenhum
+  contêiner do projeto). Só o entrypoint tocado
+  (`test/trip-occurrence.contract.test.ts`): **168 pass, 0 fail**;
+  `test/trip-schema.contract.test.ts`: **80 pass, 0 fail**.
+- `bun --env-file=../../.env.test run test:integration` → **não rodado**: o Postgres local não está
+  no ar.
+- `make migration-test` → **não rodado**: exige Docker de pé, e a infra do projeto não está
+  subida. A migration e o rollback não foram executados contra Postgres nenhum — fica pendente.
+
+### Pendências
+
+- `make migration-test` e `test:integration` pendentes, por falta de Postgres/Docker local.
+- O feed de ocorrências da empresa (`trip-occurrence-feed.query.ts`) continua devolvendo só
+  `productCode`. A tela que o pedido citou é o painel da nota; estender o feed é decisão à parte.

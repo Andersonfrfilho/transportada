@@ -11,6 +11,7 @@ import {
   OFFICE_MULTIPART_FILE_FIELD,
   readOfficeMultipartFile,
   readOfficeMultipartForm,
+  type OfficeForm,
   type OfficeFormValue,
 } from './office-multipart.schema.js'
 
@@ -49,6 +50,8 @@ const OCCURRENCE_MULTIPART_FIELD = {
   note: 'note',
   occurrenceTypeId: 'occurrenceTypeId',
   productCode: 'productCode',
+  /** Repetido uma vez por item marcado — é assim que `FormData` carrega lista. */
+  productCodes: 'productCodes',
   thumbnail: 'thumbnail',
 } as const
 
@@ -56,6 +59,13 @@ const OCCURRENCE_MULTIPART_FIELDS = new Set<string>(Object.values(OCCURRENCE_MUL
 
 const OCCURRENCE_NOTE_MAX_LENGTH = 500
 const OCCURRENCE_PRODUCT_CODE_MAX_LENGTH = 60
+
+/**
+ * O teto de itens de uma ocorrência. Uma nota com mais itens que isso marcados por inteiro é a nota
+ * inteira — e é assim que ela deve ser registrada, com a lista vazia. O teto também impede que o
+ * corpo cresça sem limite por um campo repetido.
+ */
+const OCCURRENCE_PRODUCT_CODES_LIMIT = 200
 
 export type RegisterOccurrenceMultipartAttachment = {
   readonly bytes: Uint8Array
@@ -68,6 +78,7 @@ export type RegisterOccurrenceMultipartBody = {
   readonly note: string
   readonly occurrenceTypeId: string
   readonly productCode: string
+  readonly productCodes: readonly string[]
 }
 
 export async function parseRegisterOccurrenceMultipartRequest(
@@ -110,7 +121,27 @@ export async function parseRegisterOccurrenceMultipartRequest(
       form.get(OCCURRENCE_MULTIPART_FIELD.productCode),
       OCCURRENCE_PRODUCT_CODE_MAX_LENGTH,
     ),
+    productCodes: parseOccurrenceProductCodes(form),
   }
+}
+
+/**
+ * ⚠️ **Não filtra entrada vazia nem repetida.** As duas são recusadas com nome adiante
+ * (`resolveOccurrenceProductSelection`, 422); limpá-las aqui transformaria o engano de quem marcou
+ * numa ocorrência silenciosamente diferente da que ele viu na tela.
+ */
+function parseOccurrenceProductCodes(form: OfficeForm): readonly string[] {
+  const values = form.getAll(OCCURRENCE_MULTIPART_FIELD.productCodes)
+  if (values.length > OCCURRENCE_PRODUCT_CODES_LIMIT) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  return values.map((value) => {
+    if (typeof value !== 'string') throw new ApiError(HTTP_ERROR.invalidRequest)
+    const trimmed = value.trim()
+    if (trimmed.length > OCCURRENCE_PRODUCT_CODE_MAX_LENGTH) {
+      throw new ApiError(HTTP_ERROR.invalidRequest)
+    }
+    return trimmed
+  })
 }
 
 function parseOccurrenceMultipartText(value: OfficeFormValue, maxLength: number): string {

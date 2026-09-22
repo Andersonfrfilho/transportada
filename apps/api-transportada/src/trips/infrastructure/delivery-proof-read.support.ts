@@ -46,6 +46,9 @@ import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
 import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
+import { buildOccurrenceItemValues } from '../domain/occurrence-template.policy.js'
+import { listOccurrenceProductCodes } from './drizzle-occurrence-product.repository.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 /**
@@ -179,7 +182,13 @@ export async function listTripOccurrences(
     readonly documentId: string
     readonly tripId: string
   },
-): Promise<readonly (TripOccurrence & TripOccurrenceAuthorship & { readonly id: string })[]> {
+): Promise<
+  readonly (TripOccurrence &
+    TripOccurrenceAuthorship & {
+      readonly id: string
+      readonly productCodes: readonly string[]
+    })[]
+> {
   const rows = await queryable
     .select({
       actorName: occurrenceActorProfile.name,
@@ -237,6 +246,15 @@ export async function listTripOccurrences(
     )
     .orderBy(asc(tripDocumentOccurrences.createdAt))
 
+  /**
+   * Uma consulta para todas as ocorrências da nota, nunca uma por linha. Ocorrência antiga (e a do
+   * WhatsApp) não tem linha na tabela nova e cai na coluna — `resolveOccurrenceProductCodes`.
+   */
+  const productCodesByOccurrence = await listOccurrenceProductCodes(queryable, {
+    companyId: input.companyId,
+    occurrenceIds: rows.map((row) => row.id),
+  })
+
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
@@ -246,6 +264,10 @@ export async function listTripOccurrences(
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,
     occurrenceTypeId: row.occurrenceTypeId,
     productCode: row.productCode,
+    productCodes: resolveOccurrenceProductCodes({
+      productCode: row.productCode,
+      productCodes: productCodesByOccurrence.get(row.id) ?? [],
+    }),
     stage: row.stage,
     typeName: row.typeName,
   }))
@@ -590,7 +612,7 @@ export async function findOccurrenceType(
 export async function findTripOccurrenceById(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<null | TripOccurrence> {
+): Promise<null | (TripOccurrence & { readonly productCodes: readonly string[] })> {
   const [row] = await queryable
     .select({
       createdAt: tripDocumentOccurrences.createdAt,
@@ -619,12 +641,21 @@ export async function findTripOccurrenceById(
 
   if (row === undefined) return null
 
+  const productCodesByOccurrence = await listOccurrenceProductCodes(queryable, {
+    companyId: input.companyId,
+    occurrenceIds: [row.id],
+  })
+
   return {
     createdAt: row.createdAt.toISOString(),
     id: row.id,
     note: row.note,
     occurrenceTypeId: row.occurrenceTypeId,
     productCode: row.productCode,
+    productCodes: resolveOccurrenceProductCodes({
+      productCode: row.productCode,
+      productCodes: productCodesByOccurrence.get(row.id) ?? [],
+    }),
     stage: row.stage,
     typeName: row.typeName,
   }
@@ -748,7 +779,8 @@ export async function readOccurrenceTemplateValues(
     readonly documentId: string
     readonly note: string
     readonly occurredOn: string
-    readonly productCode: string
+    /** Todos os itens marcados: o e-mail cita todos, não só o primeiro. Vazia é a nota inteira. */
+    readonly productCodes: readonly string[]
     readonly tripId: string
   },
 ): Promise<OccurrenceTemplateValues> {
@@ -797,7 +829,7 @@ export async function readOccurrenceTemplateValues(
           companyId: input.companyId,
           nfeDocumentIds: [nfeDocumentId],
         }),
-    input.productCode === ''
+    input.productCodes.length === 0
       ? []
       : listDocumentProducts(queryable, {
           companyId: input.companyId,
@@ -807,7 +839,11 @@ export async function readOccurrenceTemplateValues(
   ])
 
   const contato = nfeDocumentId === null ? undefined : contatos.get(nfeDocumentId)
-  const produto = produtos.find((candidate) => candidate.code.trim() === input.productCode.trim())
+  /** A ordem é a que o conferente marcou; o texto do e-mail os cita nela. */
+  const itens = input.productCodes.flatMap((code) => {
+    const encontrado = produtos.find((candidate) => candidate.code.trim() === code.trim())
+    return encontrado === undefined ? [] : [encontrado]
+  })
   const numero = row?.nfeNumber ?? ''
   const serie = row?.nfeSeries ?? ''
 
@@ -815,9 +851,7 @@ export async function readOccurrenceTemplateValues(
     contractorName: contato?.contractorName ?? '',
     documentLabel: numero === '' ? '' : serie === '' ? numero : `${numero}/${serie}`,
     driverName: row?.driverName ?? '',
-    itemCode: produto?.code ?? '',
-    itemLabel: produto?.description ?? '',
-    itemQuantity: produto === undefined ? '' : String(produto.quantity),
+    ...buildOccurrenceItemValues(itens),
     note: input.note,
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',

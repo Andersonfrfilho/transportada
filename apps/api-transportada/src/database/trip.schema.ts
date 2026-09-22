@@ -1608,6 +1608,62 @@ export const tripDocumentOccurrenceAttachments = pgTable(
 )
 
 /**
+ * Os itens da nota que **uma mesma** ocorrência aponta. Uma caixa violada costuma levar mais de um
+ * item, e a foto, a observação e o tipo são os mesmos — repetir a ocorrência por item multiplicaria
+ * o mesmo fato e faria a estatística contar avarias que não aconteceram.
+ *
+ * ⚠️ **`trip_document_occurrences.product_code` continua existindo e continua sendo escrita** com o
+ * primeiro item (vazia na ocorrência da nota inteira). Ocorrência antiga não tem linha aqui, e o
+ * fluxo do WhatsApp grava só a coluna — a leitura deriva `productCodes` de uma ou de outra
+ * (`resolveOccurrenceProductCodes`). Migrar a coluna para cá seria reescrever histórico por
+ * conveniência de formato.
+ *
+ * `position` guarda a ordem em que o conferente marcou os itens: o e-mail os cita nessa ordem, e
+ * sem ela o texto mudaria de uma leitura para a outra.
+ */
+export const tripDocumentOccurrenceProducts = pgTable(
+  'trip_document_occurrence_products',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    /** O código do item em `nfe_products`, conferido contra a nota antes de gravar. */
+    productCode: text('product_code').notNull(),
+    position: smallint().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_document_occurrence_products_company_id_id_unique').on(table.companyId, table.id),
+    /** Item repetido na mesma ocorrência é engano de quem marcou — o banco também não o aceita. */
+    unique('trip_document_occurrence_products_unique_code').on(
+      table.companyId,
+      table.occurrenceId,
+      table.productCode,
+    ),
+    /** Serve de índice da leitura por ocorrência, em ordem — sem índice extra ao lado. */
+    unique('trip_document_occurrence_products_unique_position').on(
+      table.companyId,
+      table.occurrenceId,
+      table.position,
+    ),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_occurrence_products_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_document_occurrence_products_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+  ],
+)
+
+/**
  * Spec 079: os tipos de ocorrência que **a empresa cadastrou**.
  *
  * ⚠️ Deixou de ser catálogo fechado do produto em 2026-09-03. O `stage` é escolhido no cadastro

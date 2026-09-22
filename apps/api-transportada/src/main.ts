@@ -939,6 +939,8 @@ export function bootstrap(): Bun.Server<undefined> {
           occurredOn: new Date().toLocaleDateString('pt-BR'),
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: '',
+          /** O fluxo do WhatsApp não escolhe item: a ocorrência é sempre da nota inteira. */
+          productCodes: [],
           repository: {
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
@@ -954,6 +956,7 @@ export function bootstrap(): Bun.Server<undefined> {
                   note: query.note,
                   occurrenceTypeId: query.occurrenceTypeId,
                   productCode: query.productCode,
+                  productCodes: query.productCodes,
                   stage: query.stage,
                   tripId: query.tripId,
                   typeName: query.typeName,
@@ -2986,6 +2989,7 @@ function createApplicationRoutes({
                   note: input.note,
                   occurrenceTypeId: input.occurrenceTypeId,
                   productCode: input.productCode,
+                  productCodes: input.productCodes,
                 },
               )}`,
               transaction: fieldReportGuardTransaction,
@@ -3020,6 +3024,7 @@ function createApplicationRoutes({
                  * acontece. */
                 occurredOn: new Date().toLocaleDateString('pt-BR'),
                 productCode: input.productCode,
+                productCodes: input.productCodes,
                 repository: {
                   findOccurrenceType: (query) => findOccurrenceType(database, query),
                   listDocumentProducts: (query) => listDocumentProducts(database, query),
@@ -3041,6 +3046,7 @@ function createApplicationRoutes({
                         note: query.note,
                         occurrenceTypeId: query.occurrenceTypeId,
                         productCode: query.productCode,
+                        productCodes: query.productCodes,
                         stage: query.stage,
                         tripId: query.tripId,
                         typeName: query.typeName,

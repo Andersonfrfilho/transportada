@@ -110,3 +110,29 @@ export function unknownTemplatePlaceholders(template: string): readonly string[]
     .map((match) => match[1] ?? '')
     .filter((nome) => !conhecidos.has(nome))
 }
+
+/** Os itens que a ocorrência aponta, na ordem em que foram marcados. */
+export type OccurrenceTemplateItem = {
+  readonly code: string
+  readonly description: string
+  readonly quantity: number | string
+}
+
+/**
+ * ⚠️ **O e-mail cita todos os itens marcados, não só o primeiro.** Uma caixa violada leva mais de
+ * um item, e um texto que nomeia um só manda o cliente conferir a carga errada — e ele não teria
+ * como saber que faltou item nenhum na descrição.
+ *
+ * Nota inteira continua imprimindo vazio nos três marcadores, nunca o marcador cru.
+ */
+export function buildOccurrenceItemValues(items: readonly OccurrenceTemplateItem[]): {
+  readonly itemCode: string
+  readonly itemLabel: string
+  readonly itemQuantity: string
+} {
+  return {
+    itemCode: items.map((item) => item.code).join(', '),
+    itemLabel: items.map((item) => item.description).join(', '),
+    itemQuantity: items.map((item) => String(item.quantity)).join(', '),
+  }
+}

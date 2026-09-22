@@ -98,6 +98,12 @@ export type BuildOccurrenceAttachmentCreateFingerprintParams = {
   readonly note: string
   readonly occurrenceTypeId: string
   readonly productCode?: string | null
+  /**
+   * Os itens marcados. Entram na impressão **além** de `productCode`: a mesma foto, o mesmo texto e
+   * o mesmo tipo com outra seleção de itens é outra ocorrência, e convergir para a anterior
+   * engoliria o segundo registro em silêncio.
+   */
+  readonly productCodes?: readonly string[]
 }
 
 /**
@@ -112,6 +118,7 @@ export function buildOccurrenceAttachmentCreateFingerprint(
     params.occurrenceTypeId,
     params.note,
     params.productCode ?? null,
+    params.productCodes ?? [],
     params.attachmentSha256,
   ])
   return sha256(fingerprint)

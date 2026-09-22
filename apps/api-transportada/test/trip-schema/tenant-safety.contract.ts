@@ -11,6 +11,7 @@ import {
   tripDeliveryProofs,
   tripDocumentEvents,
   tripDocumentOccurrenceAttachments,
+  tripDocumentOccurrenceProducts,
   tripDocumentReviews,
   tripDocuments,
   tripDrivers,
@@ -39,6 +40,8 @@ const TRIP_TABLES = [
   { name: 'trip_document_reviews', table: tripDocumentReviews },
   /** Spec 161 T1: a foto da ocorrência de galpão — original e miniatura, as duas por empresa. */
   { name: 'trip_document_occurrence_attachments', table: tripDocumentOccurrenceAttachments },
+  /** Os itens da nota que uma ocorrência aponta — código de produto é dado do cliente. */
+  { name: 'trip_document_occurrence_products', table: tripDocumentOccurrenceProducts },
 ] as const
 
 describe('trip tenant safety', () => {
@@ -53,6 +56,21 @@ describe('trip tenant safety', () => {
         onUpdate: 'cascade',
       })
     }
+  })
+
+  /**
+   * A junção alcança a ocorrência por `(company_id, id)`, nunca pelo id sozinho — senão uma
+   * ocorrência de outro tenant ganharia itens gravados por este.
+   */
+  test('reaches the occurrence of an occurrence product through the tenant', () => {
+    expect(foreignKeys(tripDocumentOccurrenceProducts)).toContainEqual({
+      columns: ['company_id', 'occurrence_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_document_occurrences',
+      name: 'trip_document_occurrence_products_company_occurrence_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
   })
 
   // Sem a chave composta, uma viagem poderia adotar um veículo, motorista ou nota de outro tenant

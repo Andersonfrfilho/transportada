@@ -17,6 +17,7 @@ import type {
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import { insertOccurrenceAttachmentRow } from './drizzle-occurrence-attachment.repository.js'
+import { insertOccurrenceProductRows } from './drizzle-occurrence-product.repository.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -33,6 +34,7 @@ export class DrizzleSeparationOccurrenceUnitOfWork implements SeparationOccurren
     return this.database.transaction((transaction) =>
       operation({
         insertAttachment: (input) => insertOccurrenceAttachmentRow(transaction, input),
+        insertOccurrenceProducts: (input) => insertOccurrenceProductRows(transaction, input),
         insertStoredObject: (input) =>
           insertSeparationStoredObject(transaction, input, this.bucket),
         saveOccurrence: (input) => saveSeparationOccurrence(transaction, input),

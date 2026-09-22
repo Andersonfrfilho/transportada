@@ -608,6 +608,47 @@ export class TripOccurrenceAttachmentLimitError extends ApiError {
 }
 
 /**
+ * `productCode` e `productCodes` no mesmo registro: qual deles vale? Escolher um em silêncio
+ * gravaria a ocorrência sobre um item que quem registrou não marcou, e nada no registro denunciaria
+ * o engano.
+ */
+export class OccurrenceProductSelectionConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PRODUCT_SELECTION_CONFLICT',
+      message: 'Send either productCode or productCodes, never both.',
+      status: 422,
+    })
+  }
+}
+
+/** Item repetido na mesma ocorrência é engano de quem marcou — o unique do banco também o recusa. */
+export class OccurrenceProductDuplicateError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PRODUCT_DUPLICATE',
+      message: 'The same product cannot be listed twice in one occurrence.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * ⚠️ Produto fora da nota é **recusado, nunca convertido** em "a nota inteira": apontar para um
+ * item que a nota não tem é engano de quem registrou, e silenciá-lo gravaria uma ocorrência sobre
+ * carga que nunca esteve ali.
+ */
+export class OccurrenceProductNotInDocumentError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PRODUCT_NOT_IN_DOCUMENT',
+      message: 'The product is not part of this document.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * RF29b/RF32b: a miniatura é **cache, nunca prova**, e PDF não tem miniatura. Guardar um retrato de
  * um PDF na lista mostraria uma imagem que ninguém reconhece como o documento que ela representa —
  * e, pior, uma miniatura sobrevivendo por engano viraria a única coisa visível do anexo. Recusar

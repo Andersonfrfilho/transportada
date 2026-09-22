@@ -165,6 +165,7 @@ function registrar(input: {
           note: '',
           occurrenceTypeId: TIPO,
           productCode: '',
+          productCodes: [],
           stage: saved.stage,
           typeName: saved.typeName,
         }
@@ -198,6 +199,7 @@ function buildStandaloneInput() {
     note: '',
     occurrenceTypeId: TIPO,
     productCode: '',
+    productCodes: [],
     stage: 'separation' as const,
     tripId: TRIP_ID,
     typeName: 'Item avariado',
@@ -295,6 +297,7 @@ function buildFakeUnitOfWork(input: {
           if (input.failInsertAttachment === true) throw new Error('FORCED_INSERT_FAILURE')
           return { id: '00000000-0000-4000-8000-0000000000a1', position: 1 }
         },
+        async insertOccurrenceProducts() {},
         async insertStoredObject() {},
         async saveOccurrence(saveInput) {
           return {
@@ -303,6 +306,7 @@ function buildFakeUnitOfWork(input: {
             note: saveInput.note,
             occurrenceTypeId: saveInput.occurrenceTypeId,
             productCode: saveInput.productCode,
+            productCodes: [],
             stage: saveInput.stage,
             typeName: saveInput.typeName,
           }
@@ -331,6 +335,7 @@ describe('persistência transacional do original e da miniatura (spec 161 T6, CA
         note: '',
         occurrenceTypeId: TIPO,
         productCode: '',
+        productCodes: [],
         stage: 'separation',
         tripId: TRIP_ID,
         typeName: 'Item avariado',
@@ -369,6 +374,7 @@ describe('persistência transacional do original e da miniatura (spec 161 T6, CA
         note: '',
         occurrenceTypeId: TIPO,
         productCode: '',
+        productCodes: [],
         stage: 'separation',
         tripId: TRIP_ID,
         typeName: 'Item avariado',
@@ -403,6 +409,7 @@ describe('persistência transacional do original e da miniatura (spec 161 T6, CA
         note: '',
         occurrenceTypeId: TIPO,
         productCode: '',
+        productCodes: [],
         stage: 'separation',
         tripId: TRIP_ID,
         typeName: 'Item avariado',
