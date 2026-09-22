@@ -886,7 +886,6 @@
     },
     "occurrenceKindLabel": "Occurrence type",
     "occurrenceKindPlaceholder": "Select the type",
-    "occurrencePhotoHint": "Need a photo? Register the occurrence on the document (the row's \"Occurrence\" button) — it accepts a photo.",
     "occurrenceSubmit": "Report occurrence",
     "occurrenceTitle": "Stop occurrence",
     "returnReason": {

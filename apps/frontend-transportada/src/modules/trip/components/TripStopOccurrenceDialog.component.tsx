@@ -134,9 +134,6 @@ export function TripStopOccurrenceDialog({
           {t('fieldActions.occurrenceDescriptionLabel')}
           <textarea onChange={(event) => setDescription(event.target.value)} value={description} />
         </label>
-        {/* A rota do escritório para a parada é JSON (T5): a foto vai pela ocorrência da nota. */}
-        <p className={styles.hint}>{t('fieldActions.occurrencePhotoHint')}</p>
-
         <label>
           {t('fieldActions.occurrenceDistanceLabel')}
           <input

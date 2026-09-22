@@ -1431,3 +1431,43 @@ não há primitivo cru. **Não tirei print da tela renderizada nesta passada** (
 de foto à mão dentro do orçamento desta task): fica como pendência para a T27 (revisão de design e
 usabilidade dedicada, já prevista no `tasks.md`), que é quem fecha a spec com a prova visual do
 `web.md` §15.
+
+## T25 — Textos (RF33)
+
+Levantamento antes de escrever: as chaves de picker (`occurrence.photoPicker.*`), aviso de câmera
+(`cameraDenied`/`cameraLabel`/`cameraUnavailable` dentro do mesmo namespace), erro sem foto
+(`occurrence.photoPicker.noPhoto`), selo de expiração (`occurrenceFeed.detail.photoExpired`) e imagem
+que não carregou (`occurrenceFeed.detail.photoLoadError`) **já existiam** em `trip.locale.json` e
+`trip.en.locale.json`, criadas por T21–T24. Não havia texto novo para adicionar nesta task — só a
+remoção pedida pelo RF33.
+
+- **Removido `fieldActions.occurrencePhotoHint`** de `trip.locale.json` (linha 1067 antes da edição,
+  bloco `fieldActions`) e de `trip.en.locale.json` (par correspondente) — o texto mandava o
+  conferente registrar a ocorrência de rua (`TripStopOccurrenceDialog`, ocorrência de **parada**, não
+  a de separação desta spec) só para poder anexar foto; deixou de ser verdade porque a foto agora é
+  RF28–RF32 da ocorrência de separação, não algo que dependa de trocar de tela.
+- **Removido o único uso**, `apps/frontend-transportada/src/modules/trip/components/TripStopOccurrenceDialog.component.tsx:138`
+  (`<p className={styles.hint}>{t('fieldActions.occurrencePhotoHint')}</p>`), junto com o comentário
+  que o precedia ("A rota do escritório para a parada é JSON (T5): a foto vai pela ocorrência da
+  nota."), que só fazia sentido ao lado do hint removido. `styles.hint` é classe do módulo CSS
+  compartilhado (`trip.module.css`) usada por outras telas — não mexi na classe, só no uso local.
+- Prova de ausência de referência órfã:
+  ```
+  grep -rn "occurrencePhotoHint" --include="*.ts" --include="*.tsx" --include="*.json" .
+  → nenhum resultado (raiz do monorepo)
+  ```
+- **"Textos do passo do WhatsApp na constante do fluxo"** (citado no prompt de execução): não há
+  constante de fluxo no frontend com texto de passo do WhatsApp para esta spec — o texto do passo do
+  WhatsApp (RF28/D7) é inteiramente backend (`src/whatsapp-commands/**`), fora do recorte "só
+  frontend" desta sessão. Nenhuma alteração feita aqui; registrado para não parecer omissão.
+
+### Gates (T25)
+
+- `bun --env-file=../../.env.test test test/shared.contract.test.ts` → `297 pass, 0 fail`
+  (`locale-accents.contract.ts` incluso).
+- `bun --env-file=../../.env.test test test/trip.contract.test.ts` → `1278 pass, 0 fail`.
+- `bun run --cwd apps/frontend-transportada test` (suíte completa da app) → `4762 pass, 0 fail` +
+  `test:hooks` `40 pass, 0 fail`.
+- `bun run lint` (raiz, todas as apps) → verde.
+- `bun run typecheck` (raiz, todas as apps) → verde.
+- `bun run format:check` (raiz) → verde, sem tocar em nada além dos 3 arquivos editados.

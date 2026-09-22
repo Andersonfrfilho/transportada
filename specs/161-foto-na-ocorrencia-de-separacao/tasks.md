@@ -243,12 +243,16 @@ job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
     uma imagem não derruba as outras; anexo `expired` vira selo e **nunca** `<img>`; `attachments`
     ausente → `[]` sem quebrar a tela.
 
-- [ ] **T25** Textos (RF33) — `trip.locale.json` e `trip.en.locale.json`: textos do picker, do aviso
+- [x] **T25** Textos (RF33) — `trip.locale.json` e `trip.en.locale.json`: textos do picker, do aviso
       de câmera, do erro sem foto, do selo de expiração e do estado de imagem que não carregou;
       **sai** `occurrence.occurrencePhotoHint` (`trip.locale.json:1048`). Textos do passo do
       WhatsApp na constante do fluxo.
   - Critério de aceite: `locale-accents.contract.ts` verde; nenhuma referência órfã ao texto removido
     (`grep`).
+  - Feito: as chaves de picker/câmera/erro/expiração/carregamento já existiam (T21–T24) — só a
+    remoção do `fieldActions.occurrencePhotoHint` (chave real, não `occurrence.occurrencePhotoHint`)
+    era pendente; removida a chave dos dois locales e o único uso em `TripStopOccurrenceDialog`.
+    Texto do WhatsApp é backend, fora do recorte "só frontend". Ver `evidence.md` § T25.
 
 ## Fase 7 — Prova e revisão
 
