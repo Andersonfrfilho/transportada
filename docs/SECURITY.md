@@ -5,31 +5,68 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
-### 2026-09-22 — retenção de cinco anos da foto de ocorrência de separação é declarada, mas nada expurga (spec 161)
+### 2026-09-22 — foto de ocorrência vinda do WhatsApp entra sem reencode: EXIF/GPS preservado e sem miniatura (spec 161, risco aceito)
+
+**Onde:** `api-transportada`, `whatsapp-commands` (T13, `registerOccurrence` em `src/main.ts`), que
+chama `persistSeparationOccurrenceWithAttachment` com o **arquivo bruto** baixado da Meta; a mesma
+rota, pelo canal web (T21–T22), reencoda no navegador antes de subir (`occurrencePhotoImage.service.ts`
+— ≤ 1600 px / ≤ 400 KB, sem EXIF, com miniatura).
+
+**O que é (risco aceito):** a foto anexada pelo operador no canal web tem EXIF removido e miniatura
+gerada no cliente, mas a foto que chega pelo WhatsApp é o `mediaBytes` que a Meta entrega, sem
+nenhum reprocessamento no servidor — grava com `purpose = trip_occurrence_attachment` e **sem**
+`thumbnail_object_id` (D14). Dois efeitos: (1) metadado EXIF do aparelho do operador — que pode
+incluir GPS, data/hora e modelo do aparelho — é preservado e servido junto com a foto por quem tiver
+acesso ao presigned URL; (2) sem miniatura, as três telas (painel da nota, detalhe da ocorrência,
+feed) caem para o original em resolução cheia, pesando mais a listagem.
+
+**Por que foi aceito assim:** reencodar/stripar EXIF e gerar miniatura no servidor exigiria uma
+biblioteca de imagem nativa (`sharp` é a referência) — binário nativo por plataforma (risco de
+compatibilidade com Bun), superfície de CVE de decodificador de imagem exposta a arquivo de origem
+externa (a Meta, não o operador autenticado), e custo de CPU no caminho de um webhook que já processa
+mídia de terceiro. O produto optou por não acrescentar essa dependência nesta spec; o caminho do
+canal web (reencode no navegador, de quem já está autenticado e no dispositivo) cobre o caso mais
+comum.
+
+**O que limita o estrago:** o bucket é privado, presigned URL de 5 minutos (`security.md` §7); só
+quem tem `trip.manage`/`trip.report-on-behalf`/o próprio motorista vê a ocorrência. O expurgo de
+cinco anos (achado acima) se aplica igual às duas origens.
+
+**O que falta:** se o volume de uso do canal WhatsApp crescer, revisitar com `sharp` (ou equivalente
+sem binário nativo) atrás de um sandbox/timeout, ou mover o reencode para um passo assíncrono no
+worker em vez do caminho síncrono do webhook.
+
+**Origem:** spec 161, T13 e revisão de arquitetura da Fase 5 (`opus`, ajuste 6). Registrado em
+2026-09-22.
+
+### 2026-09-22 — retenção de cinco anos da foto de ocorrência de separação: rotina existe, prova ponta-a-ponta pendente (spec 161)
 
 **Onde:** `api-transportada`, `trips/domain/occurrence-attachment.policy.ts`
-(`OCCURRENCE_ATTACHMENT_RETENTION_YEARS = 5`, `resolveOccurrenceAttachmentRetentionUntil`); toda
-foto (original e miniatura) anexada a uma ocorrência de separação, via
-`persistSeparationOccurrenceWithAttachment`.
+(`OCCURRENCE_ATTACHMENT_RETENTION_YEARS = 5`, `resolveOccurrenceAttachmentRetentionUntil`);
+`worker-transportada`, `trip-occurrence-attachment-purge/` (rotina `trip.occurrence-attachment.purge`,
+T17/T18).
 
-**O que é (risco aceito):** `stored_objects.retention_until` é gravado corretamente em cada anexo
-(`created_at + 5 anos`) — mas **nenhum job apaga objeto ou linha depois da data**. Um
-`grep -rn "expurg|purge|retention" apps/cron-transportada/src` não encontra nada ligado a
-`trip_document_occurrence_attachments`. É retenção **declarada e não executada**: a foto continua
-acessível indefinidamente depois de vencer, sem tela nem rotina reagindo à data gravada.
+**Atualizado em 22/09/2026 (Fase 5, T17/T18): a rotina de expurgo passou a existir.** A varredura
+consultada pelo índice parcial `stored_objects_purpose_retention_idx` apaga bytes (original e
+miniatura, na mesma unidade de trabalho) e marca `stored_objects.status = 'deleted'`/`deleted_at` no
+mesmo `UPDATE`, além de remover a linha de `trip_document_occurrence_attachments`; objeto órfão
+(sem linha de anexo) é apagado e marcado sozinho. Registrada nas quatro apps
+(`job-catalog.constant.ts`) e agendada por `drizzle/20260922112706_trip_occurrence_attachment_purge_job`
+(`minimumIntervalSeconds: 86_400`). Prova: `test/trip-occurrence-attachment-purge.contract.test.ts`
+(17 casos — ordem das operações com portas falsas, órfão, convergência com objeto ausente, laço,
+teto de lotes, teto de falhas de storage seguidas).
+
+**O que continua aberto:** a T19 (integração contra Postgres + RabbitMQ + MinIO reais, via `make
+worker-integration`) não rodou — o Docker está fora do ar na máquina onde a Fase 5 foi implementada.
+É o único gate que prova que os bytes **de fato** saem do bucket; os testes de contrato substituem o
+storage por porta falsa. Até a T19 rodar contra infraestrutura real, o comportamento fim-a-fim segue
+não verificado, embora a lógica esteja coberta por contrato.
 
 **Dado pessoal guardado:** a foto da ocorrência (galpão) pode conter placa, rosto, documento ou
 qualquer coisa que apareça no enquadramento — dado pessoal guardado além da finalidade declarada
-(LGPD, art. 6º, minimização e necessidade), sem prazo de vida real.
+(LGPD, art. 6º, minimização e necessidade) até o expurgo confirmado rodar contra o ambiente real.
 
-**O que falta:** a Fase 5 da spec 161 (T17–T20) — a rotina de expurgo em `worker-transportada` ou
-`cron-transportada` que varre `stored_objects` por `purpose = trip_occurrence_attachment` e
-`retention_until < now()`, apaga o objeto no bucket e marca a linha (mesmo molde de
-`trip.location.purge`, já em produção para a posição da foto de comprovante — achado de
-2026-09-18, acima). `resolveOccurrenceAttachmentRetentionUntil`/`OCCURRENCE_ATTACHMENT_RETENTION_YEARS`
-já existem e não mudam com a implementação do expurgo.
-
-**Origem:** spec 161, revisão final (achado I6). Registrado em 2026-09-22.
+**Origem:** spec 161, revisão final (achado I6, 2026-09-22) e Fase 5 (T17/T18, 22/09/2026).
 
 ### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)
 
@@ -192,9 +229,14 @@ identificadores opacos (`tenants/<empresa>/delivery-proofs/<evento>/<objeto>`) e
 objeto sem linha que o referencie. O custo é armazenamento e retenção de imagem de canhoto (dado
 pessoal: assinatura e, às vezes, nome) além do necessário.
 
-**O que falta:** uma varredura periódica (cron) que liste os objetos de `delivery-proofs/` e de
-`trip-occurrence-attachments/` sem linha viva que os referencie há mais de N horas e os apague, com
-contagem no log. Até lá, a remoção depende da limpeza por requisição.
+**O que falta:** uma varredura periódica (cron) que liste os objetos de `delivery-proofs/` sem linha
+viva que os referencie há mais de N horas e os apague, com contagem no log. Até lá, a remoção
+depende da limpeza por requisição.
+
+**Fechado parcialmente em 22/09/2026 (spec 161, T17):** para `trip-occurrence-attachments/`, a
+rotina `trip.occurrence-attachment.purge` agora cobre o objeto órfão (sem linha em
+`trip_document_occurrence_attachments`) — mas só depois que `retention_until` vence (cinco anos), não
+logo após a transação desfazer. `delivery-proofs/` continua sem varredura nenhuma.
 
 **Origem:** revisão de código da spec 156 (T15). Registrado em 2026-09-18.
 

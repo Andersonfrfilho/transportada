@@ -177,26 +177,42 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
 > 🤖 Modelo: `sonnet` (T17 é 🧠 — expurgo apaga arquivo de forma irreversível; validar com
 > `architect` em `opus` antes de escrever a rotina)
 
-- [ ] **T17** 🧠 Rotina `trip.occurrence-attachment.purge` no worker (RF21–RF25) —
+- [x] **T17** 🧠 Rotina `trip.occurrence-attachment.purge` no worker (RF21–RF25) —
       `apps/worker-transportada/src/trip-occurrence-attachment-purge/`, registro em
-      `apps/worker-transportada/src/main.ts`, no molde de `rate-limit-window-purge/`.
-  - Critério de aceite (CA13): apaga original **e** miniatura no mesmo lote, marca
-    `status: 'deleted'`/`deleted_at`, remove a linha do anexo, **não** toca a ocorrência, respeita
-    lote/`MAX_BATCHES`/`isStopRequested`, converge com objeto ausente, e loga só contadores.
+      `apps/worker-transportada/src/main.ts`. ⚠️ **Corrigido na implementação (22/09/2026), validação
+      de arquitetura em `opus`**: o molde é `trip-cargo-layout-purge/` (transação, `for update skip
+    locked`, duas tabelas), não `rate-limit-window-purge/` — ver `plan.md`. A porta de bucket é
+      mínima (`deleteObject({bucket, key})`, precedente em `nfe-storage-gateway.ts:36,39-48`); a
+      unidade de trabalho é o **anexo** (`stored_object_id OR thumbnail_object_id`), numa transação
+      por unidade — nunca a do lote inteiro. A ordem (apagar bytes → `DELETE` do anexo → `UPDATE`
+      dos dois objetos no mesmo comando) é invariante de **código**, não do banco (o `plan.md:267`
+      antigo estava errado: `RESTRICT` só morde `DELETE` da linha pai). Objeto órfão (sem linha de
+      anexo) é apagado e marcado sozinho. O laço quebra em `processed === 0`, nunca em `deleted ===
+    0`, e há teto de falhas de storage seguidas que interrompe o ciclo.
+  - Critério de aceite (CA13): apaga original **e** miniatura na mesma unidade, marca
+    `status: 'deleted'`/`deleted_at` no mesmo `UPDATE`, remove a linha do anexo, **não** toca a
+    ocorrência, respeita lote/`MAX_BATCHES`/`isStopRequested`, converge com objeto ausente, e loga só
+    contadores. Prova: `test/trip-occurrence-attachment-purge.contract.test.ts` (17 casos — ordem das
+    operações, órfão, convergência, laço, teto, falhas de storage seguidas, paridade de schema).
 
-- [ ] **T18** Catálogo e agendamento (RF21) — `job-catalog.constant.ts` das **quatro** apps
+- [x] **T18** Catálogo e agendamento (RF21) — `job-catalog.constant.ts` das **quatro** apps
       (`minimumIntervalSeconds: 86_400`) e migration
-      `drizzle/<ts>_trip_occurrence_attachment_purge_job/` (CHECKs ampliados, `INSERT INTO
+      `drizzle/20260922112706_trip_occurrence_attachment_purge_job/` (CHECKs ampliados, `INSERT INTO
 job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
-  - Critério de aceite (CA14): `test/job-catalog/catalog.contract.ts` verde; `make migration-test`
-    verde com rollback.
+  - Critério de aceite (CA14): `test/job-catalog/catalog.contract.ts` verde nas quatro apps;
+    `bun run db:check` e `schema-snapshot.contract.ts` verdes. `make migration-test` **não** rodou
+    (Docker fora do ar nesta máquina — ver T19); o rollback foi escrito no molde do repositório
+    (`BEGIN`/`DO $$`/`ROW_COUNT = 1`/`COMMIT`) mas não executado contra Postgres.
 
 - [ ] **T19** Integração do expurgo — `test/trip-occurrence-attachment-purge.integration.test.ts` no
       worker, **somado ao `package.json`** (`test` e `test:integration`).
   - Critério de aceite (CA15): via `make worker-integration`, foto vencida some do bucket (original e
     miniatura) e da tabela, e a ocorrência segue legível; foto dentro do prazo intocada.
+  - **Aberta**: o critério exige `make worker-integration` (Postgres + RabbitMQ + MinIO em Docker), e
+    o Docker está fora do ar nesta máquina — é o único gate que prova que os bytes saem do bucket de
+    verdade. Ver pendência datada em `evidence.md` § T19.
 
-- [ ] **T20** Registro em `docs/SECURITY.md` (RF27) — entrada no formato do arquivo
+- [x] **T20** Registro em `docs/SECURITY.md` (RF27) — entrada no formato do arquivo
       (`### AAAA-MM-DD — …`, com `Onde`, `O que é`, `Corrigido`/`O que continua aberto`, `Origem`),
       cobrindo: retenção de cinco anos; a varredura nova (fechando parcialmente o achado aberto de
       `docs/SECURITY.md:149-172`); e os dois riscos assumidos — mídia do WhatsApp **com EXIF/GPS e
