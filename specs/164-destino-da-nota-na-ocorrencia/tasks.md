@@ -128,7 +128,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
 > 🤖 Modelo: `sonnet` — **T14 é 🧠**: mexe na porta de não-retorno do despacho, que é a invariante
 > mais cara da viagem (ADR-0043). Validar com `architect` em `opus` antes de escrever.
 
-- [ ] **T13** _(movida para a Fase 5, depois da T16)_ Acerto por item, com o pagador — `trips/domain/occurrence-settlement.policy.ts` (soma
+- [x] **T13** _(movida para a Fase 5, depois da T16)_ Acerto por item, com o pagador — `trips/domain/occurrence-settlement.policy.ts` (soma
       com `Decimal`, validação de item, valor e do par `(payer_kind, payer_id)`),
       `record-occurrence-settlement.use-case.ts`, `PUT /trip-occurrences/:id/case/settlement`.
   - Critério de aceite (CA9/CA9b/RF22–RF24): `numeric(14,4)` do banco à resposta, nunca float; a
@@ -216,7 +216,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     depois de somar os itens com `Decimal`. `amount` chega pronto por parâmetro; a soma em si é da
     T13. Ver `evidence.md`.
 
-- [ ] **T18** Ressarcimento de quem pagou —
+- [x] **T18** Ressarcimento de quem pagou —
       `POST /trip-occurrences/:id/case/settlement/reimbursement` (`occurrences.resolve`).
   - Critério de aceite (CA9e/RF31): idempotente; `payer_kind = 'carrier'` recusa com 422
     `OCCURRENCE_SETTLEMENT_NOT_REIMBURSABLE`; escreve **só** `reimbursed_at` e

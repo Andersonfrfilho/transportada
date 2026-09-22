@@ -891,3 +891,79 @@ Dois cenários, repositório direto (sem HTTP, já que a T13 não existe ainda):
 ### Commit desta rodada
 
 1. `feat(api): spec 164 T17 — a ponte acerto → cobrança`
+
+## T13/T18 — acerto por item e ressarcimento
+
+`trips/domain/occurrence-settlement.policy.ts` (pura): `resolveOccurrenceSettlement` soma em
+`Decimal` (`bigint` escalado via `parseScaledDecimal`/`formatScaledDecimal`, `MONEY_SCALE = 4n`),
+valida item contra `knownProductCodes` (quem chama resolve `''` como item válido quando a ocorrência
+é da nota inteira, via `resolveOccurrenceProductCodes`) e o par `payerKind`/`payerId`;
+`isOccurrenceSettlementWritable` cobre RF23 (`decided` + `goods_paid`, senão 409).
+
+`trips/infrastructure/drizzle-occurrence-settlement.repository.ts`
+(`DrizzleOccurrenceSettlementRepository`) implementa as duas portas:
+
+- `recordSettlement` (T13): trava a tratativa (`select … for no key update`), reconfere a
+  precondição sobre a linha travada, resolve os códigos válidos (incluindo a ocorrência da nota
+  inteira), roda a política pura, substitui a lista (`delete` + `insert`, nunca acumula) e — só com
+  ao menos um item — chama `OccurrenceSettlementChargePort.applyOccurrenceSettlementCharge` (T17,
+  já existente) **na mesma transação**. Lista vazia limpa o acerto e não toca `delivery_charges`.
+- `reimburseSettlementItem` (T18): trava a linha por `(companyId, caseId, productCode)`, recusa
+  `payer_kind = 'carrier'` com `OccurrenceSettlementNotReimbursableError` antes de escrever,
+  converge (`kind: 'unchanged'`) se já ressarcida, e só escreve `reimbursed_at`/
+  `reimbursed_by_user_id`.
+
+`PUT /trip-occurrences/:id/case/settlement` e `POST .../settlement/reimbursement`
+(`trips/presentation/occurrence-settlement.routes.ts`, `occurrences.resolve`, mesmo teto de
+`occurrence-case.routes.ts`) resolvem `occurrenceId → caseId` antes de qualquer leitura — ocorrência
+de outra empresa ou sem tratativa é 404. Três erros novos em `trip.error.ts`:
+`OccurrenceSettlementPayerInvalidError` (422), `OccurrenceSettlementItemNotFoundError` (404),
+`OccurrenceSettlementNotReimbursableError` (422).
+
+Wiring em `main.ts`: `DrizzleOccurrenceSettlementChargeRepository` (T17) passou a ser instanciada
+(não estava ligada antes, porque nada a chamava), injetada com `findChargeParties` do
+`DrizzleDeliveryChargeRepository` já existente — nenhuma segunda cópia da junção nota → cliente →
+contratante.
+
+### Testes
+
+- Contrato (política): `test/trip-domain/occurrence-settlement.contract.ts` — soma, item fora da
+  ocorrência, `productCode = ''` como item válido, valor `<= 0`, os dois lados do par payer/payerId,
+  lista vazia soma zero, `isOccurrenceSettlementWritable` nas quatro combinações.
+- Contrato (erros): três casos novos somados a `test/trip-domain/occurrence-case.error.contract.ts`.
+- Contrato (HTTP): `test/trip-http/occurrence-settlement.contract.ts` — permissão, resolução
+  `occurrenceId → caseId`, corpo estrito, mapa de erro → status para as duas rotas.
+- Integração (Postgres real): `test/integration/trip-occurrence-settlement.integration.ts` — grava e
+  liga a cobrança, regravar substitui a lista (a cobrança acompanha o novo total), item fora da
+  ocorrência desfaz a transação inteira (nem o acerto nem a cobrança gravam), tratativa fora de
+  `decided`/`goods_paid` recusa com 409, ressarcimento marca e é idempotente, `payer_kind = 'carrier'`
+  recusa o ressarcimento sem escrever nada.
+- `test/rate-limited-routes.contract.test.ts` atualizado com a rota nova na lista estática
+  (declara `store: 'postgres'`, mesmo teto de `occurrence-case.routes.ts`).
+
+### Comandos rodados nesta rodada (não a suíte de integração completa — instrução explícita)
+
+- `bun run format:check` (raiz) — 5 arquivos fora de formatação corrigidos com
+  `prettier --write` antes do commit; limpo depois.
+- `bun run lint` / `bun run typecheck` (raiz, 6 apps) — limpos.
+- `bun run db:generate` — **`no_changes`** (nenhuma migration nova nesta rodada: as tabelas já
+  existem desde a T16).
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo da API) —
+  **7084 pass, 23 skip, 0 fail** (183 arquivos, 24052 `expect()`).
+- `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-settlement.integration.ts ./test/integration/occurrence-settlement-charge-bridge.integration.ts --timeout 120000`
+  (só os arquivos de integração que esta rodada tocou, por caminho explícito) — **7 pass, 0 fail**
+  (2 arquivos, 37 `expect()`).
+- ⚠️ **A suíte de integração completa (`bun run test:integration`, ~530 testes) não foi reexecutada
+  nesta rodada** — instrução explícita para não disparar a suíte inteira. A rodada anterior (T17)
+  já tinha provado 528 pass/8 fail conhecidos (`OBJECT_STORAGE_UNAVAILABLE`) sem tocar nenhum arquivo
+  desta task; os arquivos novos desta rodada foram somados à lista explícita do `package.json` e
+  rodam isolados acima, mas a confirmação de que o resto da suíte continua verde fica pendente para
+  quem rodar a suíte completa antes do merge.
+
+### Commit desta rodada
+
+1. `feat(api): spec 164 T13/T17 fecho + T18 — acerto por item e ressarcimento` — commit único: T13 e
+   T18 compartilham os mesmos arquivos de rota (`occurrence-settlement.routes.ts`), schema e
+   repositório (`drizzle-occurrence-settlement.repository.ts` implementa as duas portas), então
+   separar o diff por task exigiria desmontar esses arquivos sem ganho real de revisão — a mesma
+   lógica que já levou T16 a absorver a tabela que "pertencia" à T1.
