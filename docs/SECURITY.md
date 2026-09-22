@@ -5,6 +5,32 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-22 — retenção de cinco anos da foto de ocorrência de separação é declarada, mas nada expurga (spec 161)
+
+**Onde:** `api-transportada`, `trips/domain/occurrence-attachment.policy.ts`
+(`OCCURRENCE_ATTACHMENT_RETENTION_YEARS = 5`, `resolveOccurrenceAttachmentRetentionUntil`); toda
+foto (original e miniatura) anexada a uma ocorrência de separação, via
+`persistSeparationOccurrenceWithAttachment`.
+
+**O que é (risco aceito):** `stored_objects.retention_until` é gravado corretamente em cada anexo
+(`created_at + 5 anos`) — mas **nenhum job apaga objeto ou linha depois da data**. Um
+`grep -rn "expurg|purge|retention" apps/cron-transportada/src` não encontra nada ligado a
+`trip_document_occurrence_attachments`. É retenção **declarada e não executada**: a foto continua
+acessível indefinidamente depois de vencer, sem tela nem rotina reagindo à data gravada.
+
+**Dado pessoal guardado:** a foto da ocorrência (galpão) pode conter placa, rosto, documento ou
+qualquer coisa que apareça no enquadramento — dado pessoal guardado além da finalidade declarada
+(LGPD, art. 6º, minimização e necessidade), sem prazo de vida real.
+
+**O que falta:** a Fase 5 da spec 161 (T17–T20) — a rotina de expurgo em `worker-transportada` ou
+`cron-transportada` que varre `stored_objects` por `purpose = trip_occurrence_attachment` e
+`retention_until < now()`, apaga o objeto no bucket e marca a linha (mesmo molde de
+`trip.location.purge`, já em produção para a posição da foto de comprovante — achado de
+2026-09-18, acima). `resolveOccurrenceAttachmentRetentionUntil`/`OCCURRENCE_ATTACHMENT_RETENTION_YEARS`
+já existem e não mudam com a implementação do expurgo.
+
+**Origem:** spec 161, revisão final (achado I6). Registrado em 2026-09-22.
+
 ### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)
 
 **Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart
