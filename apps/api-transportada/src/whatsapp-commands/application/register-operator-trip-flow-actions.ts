@@ -18,7 +18,9 @@
  */
 
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import { OFFICE_PROOF_MAX_BYTES } from '../../trips/domain/delivery-proof.policy.js'
 import type { DispatchTripResult } from '../../trips/application/dispatch-trip.use-case.js'
+import type { TripOccurrenceAttachmentPosition } from '../../trips/application/register-trip-occurrence.use-case.js'
 import type {
   OccurrenceTypeRecord,
   TripOccurrence,
@@ -31,11 +33,13 @@ import {
   type OperatorTripActionId,
 } from '../../trips/domain/operator-trip-actions.policy.js'
 import {
+  TripDeliveryProofRejectedError,
   TripDocumentNotFoundError,
   TripDispatchForceReasonRequiredError,
   TripHasUnloadedDocumentsError,
   TripHasUnscheduledStopsError,
   TripNotFoundError,
+  TripOccurrenceAttachmentLimitError,
   TripStateTransitionNotAllowedError,
 } from '../../trips/domain/trip.error.js'
 import {
@@ -46,8 +50,14 @@ import {
   OPERATOR_FLOW_NODE,
   OPERATOR_NOTE_SKIP_ANSWER,
   OPERATOR_OCCURRENCE_NOTE_MAX_LENGTH,
+  OPERATOR_OCCURRENCE_PHOTO_ANSWER,
   OPERATOR_TRANSITION_BLOCK_MESSAGES,
 } from '../domain/whatsapp-operator-flow.constant.js'
+import {
+  WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY,
+  WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF,
+} from '../domain/whatsapp-command.constant.js'
+import { WhatsAppCommandHandoffRequestedError } from '../domain/whatsapp-command.error.js'
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
@@ -71,6 +81,13 @@ const OPERATOR_ACTION_LABEL: Readonly<Record<OperatorTripActionId, string>> = {
 }
 
 export type OperatorFlowActionDependencies = {
+  /** Spec 161 T15 (RF18c): segunda foto em diante da mesma ocorrência — a mesma
+   * `attachOccurrencePhoto` (T7) que `POST .../occurrences/:occurrenceId/attachments` usa. */
+  readonly attachOccurrencePhoto: (input: {
+    readonly attachment: { readonly bytes: Uint8Array; readonly mimeType: string }
+    readonly companyId: string
+    readonly occurrenceId: string
+  }) => Promise<TripOccurrenceAttachmentPosition>
   readonly batchTransition: (input: {
     readonly action: 'separate' | 'load'
     readonly context: CompanyContext
@@ -144,6 +161,40 @@ function readPage(context: Record<string, unknown>): number {
 function readStringContext(context: Record<string, unknown>, key: string): string | undefined {
   const value = context[key]
   return typeof value === 'string' ? value : undefined
+}
+
+function readNumberContext(context: Record<string, unknown>, key: string): number | undefined {
+  const value = context[key]
+  return typeof value === 'number' ? value : undefined
+}
+
+/** Spec 161 T14/T15: o descritor que o despachante escreveu — nunca lido de outra forma. */
+function readIncomingImageContext(
+  context: Record<string, unknown>,
+): { readonly mediaId: string; readonly mimeType: string } | undefined {
+  const value = context[WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY]
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    typeof (value as { mediaId?: unknown }).mediaId !== 'string' ||
+    typeof (value as { mimeType?: unknown }).mimeType !== 'string'
+  ) {
+    return undefined
+  }
+  return value as { readonly mediaId: string; readonly mimeType: string }
+}
+
+/** Spec 161 T15: sai do passo de foto — apaga tudo que só ele usava (D8, jsonb enxuto). */
+function clearPhotoStepContext(): Record<string, undefined> {
+  return {
+    [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined,
+    [OPERATOR_FLOW_CONTEXT_KEY.noteAnswer]: undefined,
+    [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: undefined,
+    [OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeId]: undefined,
+    [OPERATOR_FLOW_CONTEXT_KEY.photoAnswer]: undefined,
+    [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: undefined,
+    [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: undefined,
+  }
 }
 
 function isOperatorAction(value: string | undefined): value is OperatorTripActionId {
@@ -587,12 +638,11 @@ export function createOperatorWhatsAppFlowActions(
     return { next: OPERATOR_FLOW_NODE.noteEntry }
   }
 
-  const noteRouter: WhatsAppAuthorizedActionHandler = async ({
-    actor,
-    channel,
-    context,
-    session,
-  }) => {
+  /**
+   * Spec 161 T15 (RF18/D1/RF4): a observação não completa mais a ocorrência — pede a foto. Sem
+   * foto nada é registrado (a ocorrência só nasce com a primeira, D1); é isso que o aviso diz.
+   */
+  const photoPrompt: WhatsAppAuthorizedActionHandler = async ({ channel, context, session }) => {
     const answer = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.noteAnswer)
     const documentId = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.documentId)
     const occurrenceTypeId = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeId)
@@ -615,22 +665,199 @@ export function createOperatorWhatsAppFlowActions(
       return { next: OPERATOR_FLOW_NODE.notePrompt }
     }
 
-    try {
-      await deps.registerOccurrence({
-        actorUserId: actor.scope.userId,
-        companyId: actor.scope.companyId,
+    await channel.sendInteractiveList({
+      body: 'Sem foto nada é registrado. Envie a foto da ocorrência; depois de anexar ao menos uma, toque em ✅ Concluir. Para desistir, toque em ❌ Cancelar ocorrência.',
+      buttonLabel: WHATSAPP_LIST_BUTTON_TEXT,
+      rows: [
+        { id: OPERATOR_OCCURRENCE_PHOTO_ANSWER.done, title: '✅ Concluir' },
+        { id: OPERATOR_OCCURRENCE_PHOTO_ANSWER.cancel, title: '❌ Cancelar ocorrência' },
+      ],
+      to: session.whatsappNumber,
+    })
+    /** A observação já resolvida (`Pular` virou `''`) some do lugar cru e some para o passo de
+     * foto reler sem repetir a lógica de `OPERATOR_NOTE_SKIP_ANSWER`. */
+    return {
+      context: { [OPERATOR_FLOW_CONTEXT_KEY.noteAnswer]: note },
+      next: OPERATOR_FLOW_NODE.photoEntry,
+    }
+  }
+
+  /**
+   * Spec 161 T15 (RF18b/RF18c/RF19/RF20): baixa a imagem por `channel.fetchMediaAsBase64` (o
+   * `media-id` some do contexto no mesmo turno — T14), valida e grava a primeira foto pela mesma
+   * `persistSeparationOccurrenceWithAttachment` da rota HTTP (T13), as demais por
+   * `attachOccurrencePhoto` (T7). Texto que não é `Concluir`/`Cancelar` conta para o handoff (D8) —
+   * contador próprio deste passo, porque o do despachante é zerado a cada turno antes de a
+   * `FlowAction` rodar.
+   */
+  const photoRouter: WhatsAppAuthorizedActionHandler = async ({
+    actor,
+    channel,
+    context,
+    session,
+  }) => {
+    const documentId = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.documentId)
+    const occurrenceTypeId = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeId)
+    const tripId = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.tripId)
+    if (documentId === undefined || occurrenceTypeId === undefined || tripId === undefined) {
+      return { next: OPERATOR_FLOW_NODE.tripActionMenu }
+    }
+    const note = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.noteAnswer) ?? ''
+    const occurrenceId = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.occurrenceId)
+    const photoCount = readNumberContext(context, OPERATOR_FLOW_CONTEXT_KEY.photoCount) ?? 0
+
+    const image = readIncomingImageContext(context)
+    if (image !== undefined) {
+      return handlePhotoUpload({
+        actor,
+        channel,
         documentId,
+        image,
         note,
+        occurrenceId,
         occurrenceTypeId,
+        photoCount,
+        session,
         tripId,
       })
-      await channel.sendText(session.whatsappNumber, 'Ocorrência registrada. ⚠️')
-    } catch (error) {
-      await channel.sendText(session.whatsappNumber, describeTripError(error))
     }
+
+    const answer = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.photoAnswer)
+    if (answer === OPERATOR_OCCURRENCE_PHOTO_ANSWER.done) {
+      if (occurrenceId === undefined) {
+        await channel.sendText(
+          session.whatsappNumber,
+          'Ainda não há foto anexada. Envie ao menos uma antes de concluir.',
+        )
+        return { next: OPERATOR_FLOW_NODE.photoEntry }
+      }
+      await channel.sendText(
+        session.whatsappNumber,
+        `Ocorrência registrada com ${photoCount} foto(s). ✅`,
+      )
+      return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.tripActionMenu }
+    }
+    if (answer === OPERATOR_OCCURRENCE_PHOTO_ANSWER.cancel) {
+      await channel.sendText(
+        session.whatsappNumber,
+        occurrenceId === undefined
+          ? 'Ocorrência cancelada — nada foi registrado.'
+          : `Encerrado. A ocorrência já registrada com ${photoCount} foto(s) continua salva.`,
+      )
+      return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.tripActionMenu }
+    }
+
+    /** Qualquer outra resposta (texto, ou uma opção que não existe) não é imagem nem um dos dois
+     * botões — conta para o handoff, como qualquer resposta fora do menu (D8). */
+    const attempts =
+      (readNumberContext(context, OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts) ?? 0) + 1
+    if (attempts >= WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF) {
+      throw new WhatsAppCommandHandoffRequestedError()
+    }
+    await channel.sendText(
+      session.whatsappNumber,
+      'Envie a foto, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
+    )
     return {
-      context: { [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined },
-      next: OPERATOR_FLOW_NODE.tripActionMenu,
+      context: { [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: attempts },
+      next: OPERATOR_FLOW_NODE.photoEntry,
+    }
+  }
+
+  /**
+   * Spec 161 T15 (RF19/RF20): a foto baixada vira a primeira (`registerOccurrence`, T13) ou uma
+   * das seguintes (`attachOccurrencePhoto`, T7) — teto de bytes do WhatsApp é `OFFICE_PROOF_MAX_BYTES`
+   * (960 KiB), maior que o da web (D13/T15: o teto virou parâmetro para isso), porque a foto do
+   * WhatsApp não passa pelo reencode do navegador.
+   */
+  async function handlePhotoUpload(input: {
+    readonly actor: Actor
+    readonly channel: Parameters<WhatsAppAuthorizedActionHandler>[0]['channel']
+    readonly documentId: string
+    readonly image: { readonly mediaId: string; readonly mimeType: string }
+    readonly note: string
+    readonly occurrenceId: string | undefined
+    readonly occurrenceTypeId: string
+    readonly photoCount: number
+    readonly session: Parameters<WhatsAppAuthorizedActionHandler>[0]['session']
+    readonly tripId: string
+  }): Promise<import('@adatechnology/meta-whatsapp-contracts').FlowActionResult> {
+    const {
+      actor,
+      channel,
+      documentId,
+      image,
+      note,
+      occurrenceId,
+      occurrenceTypeId,
+      session,
+      tripId,
+    } = input
+
+    let downloaded: { readonly data: string; readonly mimeType: string }
+    try {
+      downloaded = await channel.fetchMediaAsBase64(image.mediaId)
+    } catch {
+      /** RF20 (falha de download não grava ocorrência): nunca loga `mediaId`. */
+      await channel.sendText(session.whatsappNumber, 'Não consegui baixar a foto. Envie de novo.')
+      return { next: OPERATOR_FLOW_NODE.photoEntry }
+    }
+    const attachment = {
+      bytes: Uint8Array.from(Buffer.from(downloaded.data, 'base64')),
+      mimeType: downloaded.mimeType,
+    }
+
+    try {
+      if (occurrenceId === undefined) {
+        const registered = await deps.registerOccurrence({
+          actorUserId: actor.scope.userId,
+          attachment,
+          companyId: actor.scope.companyId,
+          documentId,
+          note,
+          occurrenceTypeId,
+          tripId,
+        })
+        await channel.sendText(
+          session.whatsappNumber,
+          'Foto 1 anexada. Envie outra, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
+        )
+        return {
+          context: {
+            [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: registered.id,
+            [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: 1,
+            [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: 0,
+          },
+          next: OPERATOR_FLOW_NODE.photoEntry,
+        }
+      }
+
+      const position = await deps.attachOccurrencePhoto({
+        attachment,
+        companyId: actor.scope.companyId,
+        occurrenceId,
+      })
+      await channel.sendText(
+        session.whatsappNumber,
+        `Foto ${position.position} anexada. Envie outra, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.`,
+      )
+      return {
+        context: {
+          [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: position.position,
+          [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: 0,
+        },
+        next: OPERATOR_FLOW_NODE.photoEntry,
+      }
+    } catch (error) {
+      if (error instanceof TripOccurrenceAttachmentLimitError) {
+        await channel.sendText(
+          session.whatsappNumber,
+          `Limite de 5 fotos por ocorrência atingido. Ocorrência registrada com ${input.photoCount} foto(s). ✅`,
+        )
+        return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.tripActionMenu }
+      }
+      await channel.sendText(session.whatsappNumber, describeTripError(error))
+      return { next: OPERATOR_FLOW_NODE.photoEntry }
     }
   }
 
@@ -682,8 +909,13 @@ export function createOperatorWhatsAppFlowActions(
       policy: OPERATOR_MANAGE_POLICY,
     },
     {
-      handler: noteRouter,
-      kind: OPERATOR_FLOW_ACTION_KIND.completeOccurrence,
+      handler: photoPrompt,
+      kind: OPERATOR_FLOW_ACTION_KIND.photoPrompt,
+      policy: OPERATOR_MANAGE_POLICY,
+    },
+    {
+      handler: photoRouter,
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
       policy: OPERATOR_MANAGE_POLICY,
     },
   ]
@@ -716,6 +948,24 @@ function describeTripError(error: unknown): string {
   }
   if (error instanceof TripDocumentNotFoundError || error instanceof TripNotFoundError) {
     return 'Essa nota não está mais disponível nesta viagem.'
+  }
+  /**
+   * Spec 161 T15 (RF20): a mesma validação de bytes/tipo/assinatura de T6/T7
+   * (`assertOccurrenceUploadAccepted`) reaproveitada — `describeTripError` ganha os dois casos que
+   * `TripDeliveryProofRejectedError` já cobre para o canhoto, agora também para a foto do WhatsApp.
+   * A mensagem diz o limite (o do WhatsApp, `OFFICE_PROOF_MAX_BYTES` — 960 KiB) e a saída.
+   */
+  if (
+    error instanceof TripDeliveryProofRejectedError &&
+    error.code === 'TRIP_DELIVERY_PROOF_TOO_LARGE'
+  ) {
+    return `Essa foto é maior que o tamanho aceito (${Math.floor(OFFICE_PROOF_MAX_BYTES / 1024)} KiB). Envie uma foto menor ou toque em ❌ Cancelar ocorrência.`
+  }
+  if (
+    error instanceof TripDeliveryProofRejectedError &&
+    error.code === 'TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE'
+  ) {
+    return 'O arquivo enviado precisa ser uma imagem (JPEG, PNG ou WEBP). Envie a foto de novo ou toque em ❌ Cancelar ocorrência.'
   }
   throw error
 }

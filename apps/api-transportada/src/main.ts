@@ -236,6 +236,7 @@ import { attachOccurrencePhoto } from './trips/application/attach-occurrence-pho
 import { DrizzleAttachOccurrencePhotoUnitOfWork } from './trips/infrastructure/drizzle-attach-occurrence-photo.repository.js'
 import { DrizzleOccurrenceAttachmentRepository } from './trips/infrastructure/drizzle-occurrence-attachment.repository.js'
 import { readOccurrenceAttachments } from './trips/application/occurrence-attachment.service.js'
+import { OFFICE_PROOF_MAX_BYTES } from './trips/domain/delivery-proof.policy.js'
 import { withFieldReport } from './trips/application/trip-field-report.port.js'
 import {
   buildOccurrenceAttachmentAppendFingerprint,
@@ -804,6 +805,31 @@ export function bootstrap(): Bun.Server<undefined> {
   const whatsappTripRouteRepository = new DrizzleTripRouteRepository(database.db)
   const whatsappWarehouseTripRepository = new DrizzleWarehouseTripRepository(database.db)
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
+    /**
+     * Spec 161 T15 (RF18c): segunda foto em diante da mesma ocorrência — a mesma
+     * `attachOccurrencePhoto` (T7) que a rota HTTP usa, sem o envelope de idempotência por
+     * `Idempotency-Key` (a idempotência do WhatsApp é por sha256 do arquivo, T16).
+     */
+    attachOccurrencePhoto: (input) =>
+      attachOccurrencePhoto({
+        attachment: input.attachment,
+        companyId: input.companyId,
+        occurrenceId: input.occurrenceId,
+        repository: {
+          countOccurrenceAttachments: (query) =>
+            new DrizzleOccurrenceAttachmentRepository(database.db).countOccurrenceAttachments(
+              query,
+            ),
+          findOccurrence: (query) => findOccurrenceForAttachment(database.db, query),
+          newObjectId: () => crypto.randomUUID(),
+          now: () => new Date(),
+          storage: createDeliveryProofStorage({
+            bucket: whatsappStorageBucket,
+            storage: whatsappStorageGateway,
+          }),
+          unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database.db),
+        },
+      }),
     batchTransition: (input) =>
       transitionTripDocumentsBatch({
         action: input.action,
@@ -876,6 +902,13 @@ export function bootstrap(): Bun.Server<undefined> {
                 tripId: query.tripId,
                 typeName: query.typeName,
               },
+              /**
+               * Spec 161 T15 (D13): a foto sai do aparelho do operador, sem o reencode do
+               * navegador (que já limita a web a `OCCURRENCE_PHOTO_MAX_BYTES`, 512 KiB) — o teto
+               * do WhatsApp é `OFFICE_PROOF_MAX_BYTES` (960 KiB, importado de
+               * `delivery-proof.policy.ts`, §16 do code-standart: nenhuma constante nova).
+               */
+              maxOriginalBytes: OFFICE_PROOF_MAX_BYTES,
               newObjectId: () => crypto.randomUUID(),
               now: () => new Date(),
               storage: createDeliveryProofStorage({

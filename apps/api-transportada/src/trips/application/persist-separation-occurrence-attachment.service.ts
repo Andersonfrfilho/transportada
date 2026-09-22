@@ -75,6 +75,14 @@ export type PersistSeparationOccurrenceWithAttachmentParams = {
     readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
   }
   readonly input: SeparationOccurrenceSaveInput
+  /**
+   * Spec 161 T15: teto do **original**, agora parâmetro — a web usa `OCCURRENCE_PHOTO_MAX_BYTES`
+   * (o padrão, se omitido) e o WhatsApp passa `OFFICE_PROOF_MAX_BYTES` (importado de
+   * `delivery-proof.policy.ts`, sem constante nova — §16 do code-standart), porque a foto que sai
+   * do aparelho do operador é maior que a que sai do reencode do navegador. A miniatura continua
+   * fixa em `OCCURRENCE_THUMBNAIL_MAX_BYTES` — nenhum canal manda miniatura maior que isso.
+   */
+  readonly maxOriginalBytes?: number
   readonly newObjectId: () => string
   readonly now: () => Date
   readonly storage: RemovableObjectStoragePort
@@ -94,7 +102,7 @@ export async function persistSeparationOccurrenceWithAttachment(
    */
   assertOccurrenceUploadAccepted({
     bytes: params.attachment.bytes,
-    maxBytes: OCCURRENCE_PHOTO_MAX_BYTES,
+    maxBytes: params.maxOriginalBytes ?? OCCURRENCE_PHOTO_MAX_BYTES,
     mimeType: params.attachment.mimeType,
   })
   if (params.attachment.thumbnail !== undefined) {

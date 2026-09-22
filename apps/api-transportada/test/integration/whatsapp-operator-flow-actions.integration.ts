@@ -38,24 +38,31 @@ import { AuthorizationService } from '../../src/identity/application/authorizati
 import { TenantContextService } from '../../src/identity/application/tenant-context.service.js'
 import { DrizzleMembershipRepository } from '../../src/identity/infrastructure/drizzle-membership.repository.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
+import { attachOccurrencePhoto } from '../../src/trips/application/attach-occurrence-photo.use-case.js'
+import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
+import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
+import { DrizzleAttachOccurrencePhotoUnitOfWork } from '../../src/trips/infrastructure/drizzle-attach-occurrence-photo.repository.js'
+import { DrizzleOccurrenceAttachmentRepository } from '../../src/trips/infrastructure/drizzle-occurrence-attachment.repository.js'
+import { OFFICE_PROOF_MAX_BYTES } from '../../src/trips/domain/delivery-proof.policy.js'
 import { listWarehouseTrips } from '../../src/trips/application/list-warehouse-trips.use-case.js'
 import { registerTripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
 import { transitionTripDocumentsBatch } from '../../src/trips/application/transition-trip-documents-batch.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import {
+  findOccurrenceForAttachment,
   findOccurrenceType,
   listDocumentProducts,
   listOccurrenceTypes,
   listTripOccurrences,
   readOccurrenceTemplateValues,
-  saveTripOccurrence,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleTripDocumentBatchRepository } from '../../src/trips/infrastructure/drizzle-trip-document-batch.repository.js'
 import { DrizzleTripDocumentRepository } from '../../src/trips/infrastructure/drizzle-trip-document.repository.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { DrizzleWarehouseTripRepository } from '../../src/trips/infrastructure/drizzle-warehouse-trip.repository.js'
 import { createResolveWhatsAppActorUseCase } from '../../src/whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
+import { fakeAttachmentStorage } from '../fixtures/trip-field-office-database.fixture.js'
 import { createOperatorWhatsAppFlowActions } from '../../src/whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createModuleWhatsAppFlowGraphProvider } from '../../src/whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import {
@@ -566,7 +573,23 @@ async function buildScenario(db: Database, companyId: string) {
   const tripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(db)
   const tripRouteRepository = new DrizzleTripRouteRepository(db)
   const warehouseTripRepository = new DrizzleWarehouseTripRepository(db)
+  const occurrenceUploads: { objectId: string; objectKey: string }[] = []
   const operatorFlowActions = createOperatorWhatsAppFlowActions({
+    attachOccurrencePhoto: (input) =>
+      attachOccurrencePhoto({
+        attachment: input.attachment,
+        companyId: input.companyId,
+        occurrenceId: input.occurrenceId,
+        repository: {
+          countOccurrenceAttachments: (query) =>
+            new DrizzleOccurrenceAttachmentRepository(db).countOccurrenceAttachments(query),
+          findOccurrence: (query) => findOccurrenceForAttachment(db, query),
+          newObjectId: () => crypto.randomUUID(),
+          now: () => new Date(),
+          storage: fakeAttachmentStorage(occurrenceUploads),
+          unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(db),
+        },
+      }),
     batchTransition: (input) =>
       transitionTripDocumentsBatch({
         action: input.action,
@@ -601,6 +624,7 @@ async function buildScenario(db: Database, companyId: string) {
     registerOccurrence: (input) =>
       registerTripOccurrence({
         actorUserId: input.actorUserId,
+        ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
         companyId: input.companyId,
         documentId: input.documentId,
         note: input.note,
@@ -612,7 +636,26 @@ async function buildScenario(db: Database, companyId: string) {
           listDocumentProducts: (query) => listDocumentProducts(db, query),
           listOccurrences: (query) => listTripOccurrences(db, query),
           readTemplateValues: (query) => readOccurrenceTemplateValues(db, query),
-          saveOccurrence: (query) => saveTripOccurrence(db, query),
+          saveOccurrence: (query) =>
+            persistSeparationOccurrenceWithAttachment({
+              attachment: query.attachment,
+              input: {
+                actorUserId: query.actorUserId,
+                companyId: query.companyId,
+                documentId: query.documentId,
+                note: query.note,
+                occurrenceTypeId: query.occurrenceTypeId,
+                productCode: query.productCode,
+                stage: query.stage,
+                tripId: query.tripId,
+                typeName: query.typeName,
+              },
+              maxOriginalBytes: OFFICE_PROOF_MAX_BYTES,
+              newObjectId: () => crypto.randomUUID(),
+              now: () => new Date(),
+              storage: fakeAttachmentStorage(occurrenceUploads),
+              unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(db),
+            }),
         },
         tripId: input.tripId,
       }),
