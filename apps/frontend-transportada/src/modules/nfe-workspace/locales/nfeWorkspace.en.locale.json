@@ -555,6 +555,7 @@
       "camera": "By camera, ±{{margin}} cm",
       "cameraNoMargin": "By camera, no margin recorded",
       "replicated": "Replicated — not checked",
+      "catalog": "GTIN catalog — not checked",
       "typed": "Typed",
       "unknown": "Origin not recorded"
     },

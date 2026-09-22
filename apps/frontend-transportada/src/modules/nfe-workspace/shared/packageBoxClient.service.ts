@@ -7,12 +7,14 @@ import {
 /**
  * D8: cópia por valor de `PACKAGE_BOX_MEASUREMENT_SOURCES` (API) — origem gravada com a medida.
  * Spec 155 (D6): `replicated` — a caixa nunca foi medida, a dimensão veio de uma irmã da família.
+ * Spec 162: `catalog` — promovida do catálogo de GTIN por consenso de duas fontes, sem conferência.
  */
 export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
   'typed',
   'camera',
   'camera_adjusted',
   'replicated',
+  'catalog',
 ] as const
 export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
 

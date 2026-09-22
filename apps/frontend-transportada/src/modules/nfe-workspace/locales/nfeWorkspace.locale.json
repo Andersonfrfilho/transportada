@@ -736,6 +736,7 @@
       "camera": "Pela câmera, ±{{margin}} cm",
       "cameraNoMargin": "Pela câmera, sem margem registrada",
       "replicated": "Replicada — não conferida",
+      "catalog": "Catálogo de GTIN — não conferida",
       "typed": "Digitada",
       "unknown": "Origem não registrada"
     },

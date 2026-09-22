@@ -6,6 +6,10 @@ import {
   type PackageBox,
 } from '@/modules/nfe-workspace/shared/packageBoxClient.service'
 import {
+  measurementSourceLabel,
+  type Translate,
+} from '@/modules/nfe-workspace/shared/packageBoxMeasurementLabel.service'
+import {
   buildPackageBoxEstimateConfirmation,
   describePackageBoxEstimate,
   describePackageBoxUnit,
@@ -123,5 +127,32 @@ describe('a fila aceita unit, estimate e isEstimated da API (RF08)', () => {
         },
       }),
     ).toThrow()
+  })
+
+  it('caixa promovida pelo catálogo (spec 162) não derruba a fila e ganha rótulo próprio', () => {
+    const queue = packageBoxQueueFromApi({
+      data: {
+        coveredCount: 1,
+        items: [
+          {
+            ...BASE_BOX,
+            lengthMm: 300,
+            widthMm: 200,
+            heightMm: 150,
+            measurementSource: 'catalog',
+            measuredAt: '2026-09-22T12:00:00.000Z',
+          },
+        ],
+        totalVolumes: 48,
+      },
+    })
+    expect(queue.items[0]?.measurementSource).toBe('catalog')
+    const translate: Translate = (key) => key
+    expect(
+      measurementSourceLabel(translate, {
+        measurementMarginMm: null,
+        measurementSource: 'catalog',
+      }),
+    ).toBe('packageBoxes.source.catalog')
   })
 })
