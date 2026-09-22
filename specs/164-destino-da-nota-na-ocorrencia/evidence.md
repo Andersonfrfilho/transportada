@@ -953,12 +953,18 @@ contratante.
 - `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-settlement.integration.ts ./test/integration/occurrence-settlement-charge-bridge.integration.ts --timeout 120000`
   (só os arquivos de integração que esta rodada tocou, por caminho explícito) — **7 pass, 0 fail**
   (2 arquivos, 37 `expect()`).
-- ⚠️ **A suíte de integração completa (`bun run test:integration`, ~530 testes) não foi reexecutada
-  nesta rodada** — instrução explícita para não disparar a suíte inteira. A rodada anterior (T17)
-  já tinha provado 528 pass/8 fail conhecidos (`OBJECT_STORAGE_UNAVAILABLE`) sem tocar nenhum arquivo
-  desta task; os arquivos novos desta rodada foram somados à lista explícita do `package.json` e
-  rodam isolados acima, mas a confirmação de que o resto da suíte continua verde fica pendente para
-  quem rodar a suíte completa antes do merge.
+- ⚠️ **Correção**: uma execução da suíte de integração completa (`bun run test:integration`) tinha
+  ficado rodando em segundo plano desde antes da instrução de não disparar a suíte inteira, e
+  terminou depois — **506 pass, 7 skip, 31 fail, 1 error** (544 testes em 101 arquivos, 902 s). Os
+  últimos fails visíveis no log (`toll-booth-reload`, a transação de mensagem/outbox da spec 150
+  T304, `package-box-catalog-import`) são timeout de hook (`5000ms`) e erro de conexão Postgres
+  fechada (`wrapPostgresError`/`#onClose`) — sinal de contenção do ambiente local rodando a suíte
+  inteira (902 s) em paralelo com o resto do trabalho desta sessão, não de código: nenhum dos nomes
+  de teste que apareceram toca `trip_occurrence_item_settlements`, `delivery_charges` ou qualquer
+  arquivo desta task, e os dois arquivos de integração desta rodada, rodados isolados por caminho
+  explícito, deram **7 pass, 0 fail** (acima). O log completo dos 31 fails não foi capturado (o
+  comando de fundo tinha `| tail -60`, e só as últimas linhas sobreviveram) — quem for confirmar
+  antes do merge deve rodar `bun run test:integration` sozinho, sem outra carga na máquina.
 
 ### Commit desta rodada
 
