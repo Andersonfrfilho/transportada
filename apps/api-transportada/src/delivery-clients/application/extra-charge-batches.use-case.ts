@@ -12,6 +12,13 @@ import type {
   ExtraChargeDecision,
 } from './extra-charge-batch.port.js'
 
+export type OccurrenceStatementGenerationPort = {
+  readonly generate: (input: {
+    readonly batchId: string
+    readonly companyId: string
+  }) => Promise<void>
+}
+
 export class ExtraChargeBatchEmptyError extends ApiError {
   public constructor() {
     super({
@@ -67,6 +74,12 @@ export function createExtraChargeBatchesUseCase(dependencies: {
   readonly batches: ExtraChargeBatchRepositoryPort
   readonly charges: DeliveryChargeRepositoryPort
   readonly createToken: () => string
+  /**
+   * Spec 164 T20: o demonstrativo é gerado **aqui**, no fechamento, e nunca recomputado na leitura.
+   * Opcional porque a página pública monta este caso de uso só para decidir lançamento — ela não
+   * fecha lote e não teria como montar o renderizador.
+   */
+  readonly statement?: OccurrenceStatementGenerationPort
 }): ExtraChargeBatchesUseCase & {
   decideByToken(input: DecideOnBehalfOfTokenInput): Promise<ExtraChargeBatchReport>
   readReportByToken(input: { readonly accessToken: string }): Promise<ExtraChargeBatchReport>
@@ -131,6 +144,18 @@ export function createExtraChargeBatchesUseCase(dependencies: {
        * contratante receberia um link que não diz nada.
        */
       if (batch === null) throw new ExtraChargeBatchEmptyError()
+
+      /**
+       * ⚠️ O dinheiro já está fechado quando isto roda — falha aqui **não** desfaz o lote. Quem
+       * decide o que fazer com ela é a composição (`main.ts`), que registra no log e deixa o
+       * fechamento responder: derrubar a resposta faria o operador fechar de novo e girar o token do
+       * link que a contratante já recebeu. O lote fica sem demonstrativo, e a leitura responde
+       * `EXTRA_CHARGE_BATCH_STATEMENT_NOT_FOUND` — nunca um PDF errado.
+       */
+      await dependencies.statement?.generate({
+        batchId: batch.id,
+        companyId: context.companyId,
+      })
 
       return batch
     },

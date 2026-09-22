@@ -21,6 +21,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies } from './identity.schema.js'
+import { storedObjects } from './storage.schema.js'
 import { tripDocumentOccurrences } from './trip.schema.js'
 import { inList } from './schema-check.constant.js'
 
@@ -611,6 +612,12 @@ export const extraChargeBatches = pgTable(
     closedAt: timestamp('closed_at', { withTimezone: true }).notNull().defaultNow(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /**
+     * Spec 164 T20: o demonstrativo de ressarcimento em PDF, artefato **imutável** gerado no
+     * fechamento. Nulável porque todo lote fechado antes desta migration não tem um, e porque a
+     * geração falhando não pode derrubar o fechamento do dinheiro.
+     */
+    statementObjectId: uuid('statement_object_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -632,7 +639,18 @@ export const extraChargeBatches = pgTable(
     unique('extra_charge_batches_company_id_id_unique').on(table.companyId, table.id),
     /** O token é a credencial: colisão entre empresas abriria o lote de outra transportadora. */
     unique('extra_charge_batches_access_token_unique').on(table.accessToken),
+    foreignKey({
+      columns: [table.companyId, table.statementObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'extra_charge_batches_company_statement_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     index('extra_charge_batches_contractor_idx').on(table.companyId, table.contractorId),
+    /** FK parcial: só o lote que já tem demonstrativo, no molde do índice da miniatura (spec 161). */
+    index('extra_charge_batches_company_statement_object_idx')
+      .on(table.companyId, table.statementObjectId)
+      .where(sql`${table.statementObjectId} is not null`),
     check(
       'extra_charge_batches_status_check',
       sql`${table.status} in (${sql.raw(inList(EXTRA_CHARGE_BATCH_STATUSES))})`,

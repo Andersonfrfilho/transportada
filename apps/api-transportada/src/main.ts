@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { createHash } from 'node:crypto'
+
 import { createDatabaseProvider } from './database/database-client.service.js'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
@@ -504,6 +506,11 @@ import {
 import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
 import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
 import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
+import { createOccurrenceStatementUseCase } from './delivery-clients/application/occurrence-statement.use-case.js'
+import { DrizzleOccurrenceStatementRepository } from './delivery-clients/infrastructure/drizzle-occurrence-statement.repository.js'
+import { createOccurrenceStatementArchiveGateway } from './delivery-clients/infrastructure/occurrence-statement-archive.gateway.js'
+import { createOccurrenceStatementPdfGateway } from './delivery-clients/infrastructure/occurrence-statement-pdf.gateway.js'
+import { createOccurrenceStatementRoutes } from './delivery-clients/presentation/occurrence-statement.routes.js'
 import { DrizzleExtraChargeBatchRepository } from './delivery-clients/infrastructure/drizzle-extra-charge-batch.repository.js'
 import { createExtraChargeBatchRoutes } from './delivery-clients/presentation/extra-charge-batch.routes.js'
 import { createPublicExtraChargeBatchRoutes } from './delivery-clients/presentation/public-extra-charge-batch.routes.js'
@@ -1633,10 +1640,47 @@ function createApplicationRoutes({
     logger,
     rules: deliveryChargeRuleRepository,
   })
+  /**
+   * Spec 164 T20: o demonstrativo de ressarcimento. Bucket e gateway próprios porque a composição do
+   * storage principal só acontece adiante neste arquivo — mesmo recurso, mesma configuração de
+   * ambiente (molde do `whatsappStorageGateway`).
+   */
+  const occurrenceStatementBucket = resolveStorageBucket(process.env)
+  const occurrenceStatements = createOccurrenceStatementUseCase({
+    archive: createOccurrenceStatementArchiveGateway({
+      bucket: occurrenceStatementBucket,
+      storage: createNfeStorageGatewayFromEnvironment({
+        environment: process.env,
+        finalBucket: occurrenceStatementBucket,
+        stagingBucket: occurrenceStatementBucket,
+      }),
+    }),
+    clock: () => new Date(),
+    createObjectId: () => crypto.randomUUID(),
+    renderer: createOccurrenceStatementPdfGateway(),
+    repository: new DrizzleOccurrenceStatementRepository(database),
+    sha256: (bytes) => createHash('sha256').update(bytes).digest('hex'),
+  })
   const extraChargeBatches = createExtraChargeBatchesUseCase({
     batches: new DrizzleExtraChargeBatchRepository(database),
     charges: deliveryChargeRepository,
     createToken: createExtraChargeBatchToken,
+    statement: {
+      /**
+       * ⚠️ O lote já foi fechado quando isto roda: a falha vira log, nunca uma resposta de erro que
+       * faria o operador fechar de novo e girar o token do link já enviado à contratante.
+       */
+      generate: async (input) => {
+        try {
+          await occurrenceStatements.generate(input)
+        } catch (error) {
+          logger.error('extra_charge_batch.statement.generation_failed', {
+            batchId: input.batchId,
+            reason: error instanceof Error ? error.message : 'unknown',
+          })
+        }
+      },
+    },
   })
   const tripStopSchedules = createTripStopSchedulesUseCase({
     repository: new DrizzleTripStopScheduleRepository(database),
@@ -2677,6 +2721,9 @@ function createApplicationRoutes({
     }),
     ...createOccurrenceChargeReportRoutes({
       readReport: { execute: (input) => occurrenceChargeReport.read.execute(input) },
+    }),
+    ...createOccurrenceStatementRoutes({
+      readStatement: { execute: (input) => occurrenceStatements.read(input) },
     }),
     ...createDeliveryChargeRoutes({
       confirmCharges: { execute: (input) => deliveryCharges.confirm(input) },

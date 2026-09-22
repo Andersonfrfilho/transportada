@@ -28,6 +28,12 @@ export const STORAGE_OBJECT_PURPOSES = [
   'trip_occurrence_attachment',
   /** Spec 161 D12: a miniatura gerada do mesmo canvas do original, o que as listas carregam. */
   'trip_occurrence_thumbnail',
+  /**
+   * Spec 164 T20: o demonstrativo de ressarcimento do lote de cobrança extra, gerado uma vez no
+   * fechamento e servido de lá. Guarda própria e mais longa que a da foto: o expurgo da 161 é cego
+   * à cobrança, e é este PDF que faz a prova sobreviver ao expurgo do original.
+   */
+  'extra_charge_batch_statement',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 
