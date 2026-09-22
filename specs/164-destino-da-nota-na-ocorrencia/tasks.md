@@ -51,7 +51,7 @@ fecha com typecheck + testes + commit isolado e evidência em `evidence.md`.
 
 - [ ] **T4** Repositório e abertura na transação —
       `trips/infrastructure/drizzle-occurrence-case.repository.ts` (escritor único, `select … for no
-    key update` antes do `update`, compare-and-set por status, evento só quando mudou) e a abertura
+  key update` antes do `update`, compare-and-set por status, evento só quando mudou) e a abertura
       da tratativa dentro da transação de `register-trip-occurrence.use-case.ts` e
       `register-office-document-occurrences.use-case.ts`.
   - Critério de aceite (RF3/RNF1): tipo `unset` não abre tratativa e o fluxo de hoje fica idêntico;
@@ -311,7 +311,8 @@ Invariantes que nenhuma task pode quebrar: a ocorrência continua append-only e 
 tratativa recorded/under_review/returned_to_warehouse NUNCA alcança o portal, e o filtro é inner
 join no SQL, não condicional de tela; dinheiro é numeric/Decimal do banco à tela; o demonstrativo
 NÃO é CT-e nem NFS-e e nada pode ser escrito em billing_*, cte_*, nfse_* ou fiscal_sequences.
-T13 não começa antes de a seleção de vários itens por ocorrência estar commitada nesta árvore.
+A seleção de vários itens por ocorrência (`productCodes`) já está commitada e em staging desde
+2026-09-22 — T13 lê esse formato, não o `productCode` sozinho.
 Pare e pergunte antes de: deploy, migration destrutiva, e antes de qualquer mudança que faça a
 ocorrência escrever em trip_documents.separation_status.
 ```
