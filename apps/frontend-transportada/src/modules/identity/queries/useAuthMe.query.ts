@@ -76,6 +76,12 @@ const COMPANY_PERMISSIONS = [
   'deliveries.track',
   /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
   'charges.decide',
+  /**
+   * Spec 164 T6: tratar a ocorrência (revisar, devolver ao galpão, mandar à contratante, fechar,
+   * cancelar) é do escritório — nunca do separador, que é quem registra: resolver a própria seria
+   * autoaprovação.
+   */
+  'occurrences.resolve',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const

@@ -460,6 +460,10 @@
       "operations.run": {
         "label": "Rodar rotina agora",
         "where": "Operações"
+      },
+      "occurrences.resolve": {
+        "label": "Tratar ocorrência",
+        "where": "Ocorrências: revisar, devolver ao galpão, mandar à contratante, fechar e cancelar a tratativa."
       }
     },
     "matrix": {
@@ -484,7 +488,8 @@
         "settings": "Configurações",
         "operations": "Operação e auditoria",
         "portal": "Portal do contratante",
-        "other": "Outras"
+        "other": "Outras",
+        "occurrences": "Ocorrências"
       }
     },
     "fleet": {
