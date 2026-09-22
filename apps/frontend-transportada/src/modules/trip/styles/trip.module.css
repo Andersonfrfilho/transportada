@@ -1862,12 +1862,6 @@
   max-width: 60ch;
 }
 
-.occurrencePhotoGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
 /*
  * O pino de posição aproximada: anel tracejado e um pouco apagado. Ele é o centroide do município,
  * não o endereço — e precisa ser lido como palpite antes de alguém dirigir até lá (ADR-0044 §1).
@@ -1881,21 +1875,6 @@
 .assemblyStopApproximate {
   color: var(--color-copper);
   font-size: 0.74rem;
-}
-
-.occurrencePhotoButton {
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
-  border-radius: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.occurrencePhotoThumb {
-  display: block;
-  width: 8rem;
-  height: 6rem;
-  object-fit: cover;
 }
 
 /* Foto em tela cheia ao tocar — fechar volta ao detalhe, nunca a outra tela. */
@@ -1925,8 +1904,9 @@
 }
 
 /* Spec 161 T24: grade de miniaturas compartilhada pelo painel da nota, pelo feed e pelo detalhe
-   da ocorrência (RF9/RF10/RF11). Nome próprio — não reaproveita `.occurrencePhotoGrid`/`Thumb`,
-   que já colidem entre o feed antigo e o seletor da T23. */
+   da ocorrência (RF9/RF10/RF11). Nome próprio — `.occurrencePhotoGrid`/`Thumb` já pertencem ao
+   seletor de foto (T23, `OccurrencePhotoPicker`); o feed antigo que os definia primeiro foi
+   removido na revisão da T27 (era CSS morto). */
 .occurrenceAttachmentGrid {
   display: flex;
   flex-wrap: wrap;

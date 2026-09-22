@@ -272,7 +272,7 @@ job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
     `trip-smoke.helper.ts`. Nenhum print inventado, nenhum spec quebrado commitado — plano detalhado
     de retomada em `evidence.md` § T26.
 
-- [ ] **T27** Revisão de design e usabilidade (`web.md` §15) — comparar o picker e a grade com os
+- [x] **T27** Revisão de design e usabilidade (`web.md` §15) — comparar o picker e a grade com os
       vizinhos da mesma tela (campo com campo, botão com botão), conferir contraste no estado normal
       e no selecionado, e revisar o caminho completo no telefone: abrir, fotografar, remover, enviar,
       falhar, reenviar, abrir a foto em tela cheia, ver foto expirada.
@@ -280,6 +280,12 @@ job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
     `make check` verde; `bun --env-file=../../.env.test run test:integration` verde;
     `make worker-integration` verde; revisão final por `code-reviewer` em `opus` (passe separado,
     sem autoaprovação).
+  - Feito, com débito explícito: sem prints (T26 bloqueada), revisão por leitura de código — achado
+    real corrigido (`.occurrencePhotoGrid`/`.occurrencePhotoThumb` duplicados em `trip.module.css`,
+    resíduo do feed antigo, removido). `bun run test`/`lint`/`typecheck`/`format:check` verdes;
+    `test:integration`/`worker-integration`/revisão do `code-reviewer` não rodados (fora de escopo —
+    só frontend, sem diff de backend — e Docker fora do ar). Ver `evidence.md` § T27 e "Fechamento do
+    recorte".
 
 ## Prompt de execução
 

@@ -1522,3 +1522,133 @@ Investigação antes de escrever o spec (sem gastar rodada de Playwright sem nec
 **Nenhum print foi gerado nem inventado.** Não commitei um arquivo de spec incompleto para não deixar
 código morto/quebrado no repositório (violaria os gates de lint/typecheck se entrasse na suíte, e um
 spec que não roda não é evidência). T26 permanece com a caixa **não marcada** em `tasks.md`.
+
+## T27 — Revisão de design e usabilidade (`web.md` §15)
+
+Sem prints (T26 bloqueada, ver acima) — revisão feita por **leitura de código** e comparação com os
+primitivos e telas vizinhas do próprio `apps/frontend-transportada`. Registrado sem maquiar: não há
+prova visual desta passada.
+
+### Achado corrigido: `.occurrencePhotoGrid`/`.occurrencePhotoThumb` duplicados
+
+Confirmado exatamente o que o prompt de execução apontava. `trip.module.css` tinha **duas**
+definições de `.occurrencePhotoGrid` e `.occurrencePhotoThumb`:
+
+- Uma órfã (linhas ~1865–1899, antes da revisão): `.occurrencePhotoGrid` (flex simples, sem
+  `list-style`), `.occurrencePhotoThumb` (8rem × 6rem, `object-fit: cover`) e `.occurrencePhotoButton`
+  — resíduo do feed antigo de antes da T24. `grep` confirmou que **nenhum** `.tsx` referenciava mais
+  essas três classes (`.occurrenceAttachmentGrid`/`Thumb`/`Badge`, criadas na T24, tomaram o lugar
+  delas no feed, no painel da nota e no detalhe).
+- A real, em uso: `.occurrencePhotoGrid`/`.occurrencePhotoThumb` do `OccurrencePhotoPicker` (T23,
+  4.5rem, `list-style: none`, com `.occurrencePhotoRemove` sobreposto).
+
+Como CSS Modules não renomeia por seletor duplicado dentro do **mesmo** arquivo — as duas viravam a
+mesma classe hasheada, e a que vem depois no arquivo cascateava sobre a primeira nas propriedades que
+divergem — a definição órfã não quebrava a tela hoje (a do picker vinha depois e vencia), mas era uma
+mina: uma reordenação futura do arquivo, ou um merge, faria o picker herdar `8rem × 6rem` sem
+`list-style: none`. Removidas as três regras órfãs (`trip.module.css`); mantido o comentário da T24
+que já explicava a não-reutilização do nome, agora **corrigido** para não descrever uma colisão que
+deixou de existir. `grep -n "occurrencePhotoGrid\|occurrencePhotoThumb\|occurrencePhotoButton"` depois
+da edição mostra só as três regras do picker e o comentário atualizado.
+
+### Comparação com vizinhos
+
+- **`OccurrencePhotoPicker`** copia deliberadamente a moldura de `FieldDeliveryCaptureStep`
+  (`.occurrencePhotoViewport`/`.occurrencePhotoVideo`, mesmo `aspect-ratio`/`border-radius` que
+  `fieldDeliveryWizard.module.css` usa para o vídeo da câmera do canhoto) — mesma tela, mesmo
+  vocabulário visual, comentário no próprio CSS confirma a origem.
+- **Botão "Fotografar"**: `Button` do design system, `size="sm"`, com `Icon name="camera"` — mesmo
+  padrão do botão "Capturar" do wizard de canhoto (ícone + rótulo, nunca ícone sozinho numa ação
+  primária, `web.md` §9).
+- **Botão remover foto**: `<button>` cru com `aria-label` e classe própria do módulo
+  (`.occurrencePhotoRemove`) — o mesmo padrão que `.iconAction` já usa em
+  `TripStopOccurrenceDialog.component.tsx` para o botão de fechar o diálogo; não é um primitivo cru
+  fora de convenção, é a convenção local para botão-ícone isolado neste módulo (o design system
+  caseiro não tem um `IconButton` componentizado — `Button` sempre leva rótulo visível). Tamanho
+  `var(--control-height-compact)` (2,4rem = 38,4px): abaixo do `--touch-target` (2,75rem/44px) do
+  §10 do `web.md`, mas é o **mesmo token** que a tabela do `CLAUDE.md` da app manda usar para "altura
+  de controle/botão quadrado" — convenção consciente de botão compacto dentro de grade densa, igual
+  aos outros controles compactos do mesmo arquivo (linhas 872–886, 2227–2229). Não é regressão desta
+  spec.
+- **Seleção de arquivo**: `FileField` do design system (mesmo componente do canhoto), com
+  `actionLabel`/`label`/`placeholder` traduzidos — sem `<input type=file>` cru.
+- **Selo de foto expirada** (`.occurrenceAttachmentBadge`): borda tracejada + `color-copper`, mesmo
+  vocabulário de "estado incompleto/atenção" que `.assemblyStopApproximate` já usa nesta tela (pino
+  de posição aproximada) — consistente com a regra do `CLAUDE.md`: verde/vermelho são só para
+  entra/sai de carga, e cobre é o tom neutro de aviso usado em outras telas.
+- **Esqueleto de carregamento**: `OccurrenceAttachmentGrid` usa `.occurrenceAttachmentSkeleton`
+  posicionado sobre a miniatura (`position: absolute; inset: 0`) — mesmo padrão de esqueleto "na
+  forma do conteúdo real" que a tabela do `CLAUDE.md` exige (nunca texto solto nem `null`); li o
+  componente e confirmei que ele usa o `Skeleton` do design system (`@/components/ui/skeleton`), não
+  uma barra cinza avulsa.
+
+### Contraste
+
+- `.occurrenceAttachmentBadge` (selo expirado/erro): `color: var(--color-copper)` sobre o fundo do
+  card onde a grade mora — mesmo par de cores que `.assemblyStopApproximate` já usa nesta mesma
+  tela, então o contraste é o que a tela já aceita hoje (tema escuro único da app — não há segundo
+  tema a conferir, diferente do que o prompt de execução presumia ao pedir "claro e escuro"; o
+  `CLAUDE.md` da app é explícito: "tema escuro único").
+- Botão "Fotografar" e miniatura removível seguem os tokens de cor do `Button`/ícone padrão — sem cor
+  literal nova introduzida por esta spec.
+
+### Leitura em 390px
+
+`OccurrencePhotoPicker` usa `max-width: 24rem` no viewport da câmera (384px) — cabe dentro de um
+diálogo a 390px de largura com a margem do modal. A grade (`.occurrencePhotoGrid`, `flex-wrap: wrap`,
+itens de `4.5rem`) quebra linha naturalmente; não há `overflow-x` nem largura fixa maior que o
+container. Não pude medir com o navegador real (sem prints); a leitura do CSS não mostra nenhuma
+largura mínima capaz de forçar rolagem horizontal a 390px.
+
+### Estado de carregamento e selo de expirada — comportamento conferido por leitura
+
+- `OccurrenceAttachmentGrid.component.tsx`: `display.kind === 'expired'` nunca monta `<img>` (if/
+  return cedo, ver achado já registrado na T24) — conferido de novo nesta revisão, sem mudança
+  necessária.
+- Falha de carregamento de uma foto cai no mesmo selo (`onError` → estado local), sem derrubar as
+  outras miniaturas da grade — comportamento por `key` individual do `<li>`, sem estado compartilhado
+  entre itens.
+
+### Pendência
+
+Sem print, esta revisão não pôde cumprir o item 3 do `web.md` §15 ("olhar de verdade" — prova
+visual). Fica registrado aqui como o item da spec 161 que fecha com débito explícito, ao lado da T26
+e da fase 5 (ver seção de fechamento do recorte, abaixo).
+
+### Gates (T27)
+
+- `bun run --cwd apps/frontend-transportada test` → `4762 pass, 0 fail` + `test:hooks` `40 pass,
+0 fail`.
+- `bun run lint` (raiz) → verde.
+- `bun run typecheck` (raiz) → verde.
+- `bun run format:check` (raiz) → verde.
+- `bun --env-file=../../.env.test run test:integration` e `make worker-integration`: **não rodei** —
+  esta task é só frontend (escopo do prompt de execução) e nenhuma mudança tocou
+  `apps/api-transportada` ou `apps/worker-transportada`; os dois comandos exercitam bancos/filas que
+  o Docker parado desta sessão não tem como levantar, e não há diff de backend para justificar o
+  risco. Revisão final por `code-reviewer` em `opus`: não delegada nesta sessão — pendência explícita
+  também.
+
+## Fechamento do recorte (T21–T27)
+
+**Dentro do recorte** (spec 161, fases 6–7): T21–T25 fechadas com teste antes da implementação, T26
+tentada e bloqueada com o motivo documentado, T27 fechada por leitura de código com um achado
+corrigido (CSS duplicado) e uma pendência explícita (prova visual).
+
+**Fora do recorte, por decisão do prompt de execução:**
+
+- **Fase 5 inteira (T17–T20, retenção de cinco anos)** — `OCCURRENCE_ATTACHMENT_RETENTION_YEARS = 5`
+  e `resolveOccurrenceAttachmentRetentionUntil` (T2) **gravam** `retention_until` em cada anexo, mas
+  **nenhum expurgo roda**: não há job/cron que apague objeto ou linha depois da data. É retenção
+  **declarada e não executada** — o dado continua acessível indefinidamente depois de vencer, sem
+  nenhuma tela nem rotina reagindo à data gravada. Verificado por leitura: `command grep -rn "expurg\|purge\|retention"` em `apps/cron-transportada/src` não encontra nada ligado a
+  `trip_document_occurrence_attachments`.
+- **T26 (prints)**: bloqueada por Docker fora do ar (Postgres + RabbitMQ, este último conecta no
+  boot da API real) e por mocks de rota ainda não escritos (`documents/:id/occurrences`,
+  `occurrences/:id/attachments`, feed `/ocorrencias`). Plano de retomada completo na seção T26 acima.
+- **Revisão final por `code-reviewer` em `opus`** (fecho formal da T27): não executada nesta sessão —
+  seria um passe separado, sem autoaprovação, e este agente não tem como se substituir a ele.
+- **`bun --env-file=../../.env.test run test:integration` / `make worker-integration`**: não rodados
+  por escopo (nenhuma mudança de backend) e por Docker indisponível.
+
+Nenhum código de `apps/api-transportada` ou `specs/162-*` foi tocado nesta sessão, conforme pedido.
