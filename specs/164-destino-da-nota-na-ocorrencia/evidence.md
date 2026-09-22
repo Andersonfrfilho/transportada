@@ -1013,28 +1013,86 @@ and charged_on between … and …` casa `Index Scan using delivery_charges_cont
 
 Commit: `feat(api): spec 164 T19 — leitura do acumulado de ocorrência, por seleção`.
 
-## T20 — o demonstrativo em PDF — **não fechada nesta rodada**
+## T20 — o demonstrativo em PDF
 
-Não foi implementada. Registro do que falta, para quem continuar:
+Retomada em rodada própria depois do corte anterior (a rodada da T19 tinha ficado sem tempo para
+T20 e não deixou commit). O grosso do código já estava escrito, não commitado, na árvore quando esta
+rodada começou — foi lido e conferido arquivo a arquivo antes de qualquer mudança nova, e aproveitado
+sem reescrita, exceto pelas duas correções abaixo.
 
-- `stored_objects.purpose` precisa de um valor novo (`extra_charge_batch_statement` ou similar) em
-  `STORAGE_OBJECT_PURPOSES` (`src/database/storage.schema.ts`) — isso muda o CHECK gerado e exige
-  migration aditiva própria (`drizzle/<ts>_.../` com `migration.sql`, `rollback.sql`, `snapshot.json`
-  - `make migration-test`), separada da leitura da T19.
-- `src/delivery-clients/domain/occurrence-statement-layout.policy.ts` (puro, molde de
-  `billing/domain/invoice-layout.policy.ts`) e
-  `src/delivery-clients/infrastructure/occurrence-statement-pdf.gateway.ts` (`pdfkit`, só desenho,
-  molde de `billing/infrastructure/invoice-pdf.gateway.ts`) — nenhum dos dois foi criado.
-  `OCCURRENCE_STATEMENT_MAX_BYTES` (sugerido 8 MiB) e o teste que falha acima do teto também faltam.
-- `GET /extra-charge-batches/:id/statement` (`trip.financials`, `application/pdf`) não existe.
-- Geração no fechamento (não recomputada a cada leitura), download das fotos com concorrência
-  limitada, selo textual para anexo vencido, a frase "não é documento fiscal" dentro do PDF, e o
-  contrato negativo provando que o token público de `extra_charge_batches` não abre o demonstrativo
-  — nada disso foi tocado.
-- Risco 5 do `plan.md` ("o demonstrativo pode ficar pesado") segue sem mitigação de código.
+`stored_objects.purpose` ganhou o valor novo `extra_charge_batch_statement`
+(`src/database/storage.schema.ts`), com migration aditiva própria
+(`drizzle/20260922231219_extra_charge_batch_statement/`, `migration.sql` + `rollback.sql` com `RAISE`
+se houver linha viva usando o propósito ou lote apontando para demonstrativo + `snapshot.json`) —
+`statement_object_id` nulável em `extra_charge_batches`, FK composta `(company_id,
+statement_object_id)` para `stored_objects`, índice parcial no molde da miniatura da spec 161.
 
-Motivo do corte: T20 tem escopo de várias tasks em uma (migration própria, política pura, gateway
-`pdfkit`, download de anexos com concorrência limitada, teto de tamanho com teste que prova o
-estouro, contrato negativo de superfície pública) e não coube no orçamento desta rodada depois de
-T19. Não há commit para T20 — nada de código incompleto ou quebrado foi deixado no worktree por
-causa dela.
+`src/delivery-clients/domain/occurrence-statement-layout.policy.ts` (puro, molde de
+`billing/domain/invoice-layout.policy.ts`, duplicado de propósito porque este documento não é
+fiscal) monta a estrutura da página a partir das linhas já resolvidas; recusa **antes** de montar
+quando a soma das imagens embutidas já passa `OCCURRENCE_STATEMENT_MAX_BYTES` (8 MiB).
+`src/delivery-clients/infrastructure/occurrence-statement-pdf.gateway.ts` (`pdfkit`, só desenho,
+molde de `invoice-pdf.gateway.ts`) desenha o cabeçalho, uma foto por linha (a de `position: 1`,
+preferindo a miniatura via `toPhotoReference`), as demais por contagem, e recusa de novo pelo
+**arquivo montado** — o teto vale duas vezes, pela soma das imagens (barato, falha cedo) e pelo PDF
+final (o que decide de verdade, inclusive quando o texto é que cresceu).
+
+`occurrence-statement.use-case.ts` separa gerar (uma vez, no fechamento — `statement_object_id is
+null` no `where` do `UPDATE` faz duas gerações concorrentes não se sobrescreverem) de ler (serve o
+que está guardado, nunca recomputa). Download de fotos com concorrência limitada e prazo por item
+(`concurrent-map.service.ts`, novo, `mapWithConcurrencyLimit`): foto que não chega vira `null` e a
+linha sai com selo textual, nunca imagem quebrada nem a geração inteira travada.
+
+`GET /extra-charge-batches/:id/statement` (`trip.financials`) devolve `application/pdf`. **Não** está
+pendurada sob `/client/me` e o token público do lote não a alcança — os dois contratos negativos
+passam.
+
+Wiring em `main.ts`: a geração roda dentro de `extraChargeBatches.close`, mas com falha **capturada e
+logada**, nunca propagada — o dinheiro já fechou quando isso roda, e derrubar a resposta faria o
+operador fechar de novo e girar o token do link que a contratante já recebeu (`decide-se`, RF29 não
+bloqueia RF12/D12).
+
+### Duas correções encontradas pelos gates (não estavam na T19)
+
+Dois contratos estáticos têm a lista de nomes/CHECKs do schema escrita à mão e não seguiam junto da
+migration nova:
+
+- `test/database-migration/static-migration.contract.ts` — lista de diretórios de `drizzle/` esperada
+  pelo teste de hash/identidade da baseline; faltava `20260922231219_extra_charge_batch_statement`.
+- `test/nfe-schema/storage.contract.ts` — o texto do `stored_objects_purpose_check` esperado pelo
+  contrato de schema; faltava `'extra_charge_batch_statement'` na lista.
+
+Sem as duas, `make migration-test` e o contrato completo falhavam — não por causa do código novo, mas
+porque dois testes guardam string estática do catálogo e precisam de atualização manual a cada
+migration que mexe nessas duas superfícies. Ambos corrigidos e commitados junto.
+
+### Comandos rodados (T20)
+
+- `bun run lint` (raiz, 6 apps) — limpo.
+- `bun run typecheck` (raiz, 6 apps) — limpo.
+- `bunx prettier --check .` (raiz) — limpo.
+- `bun run db:generate` (api-transportada) — **`no_changes`**.
+- `make migration-test` — falhou uma vez por `static-migration.contract.ts` desatualizado (acima),
+  corrigido, depois **110 pass, 0 fail** (1417 `expect()`).
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo da API) — falhou uma vez
+  por `storage.contract.ts` desatualizado (acima), corrigido, depois **7094 pass, 23 skip, 0 fail**
+  (24076 `expect()`, 183 arquivos).
+- `bun --env-file=../../.env.test test ./test/integration/extra-charge-batch-statement.integration.ts --timeout 120000`
+  (só o arquivo de integração desta task, por caminho explícito) — **2 pass, 0 fail**, 15
+  `expect()`. Prova: o demonstrativo nasce no fechamento e fica em `stored_objects` com o propósito
+  novo; a foto viva foi baixada e a foto fora do prazo de guarda **não** foi (vira selo); ler duas
+  vezes devolve os mesmos bytes (`archive.putCount` continua 1 — artefato imutável, nunca
+  recomputado); as oito tabelas fiscais (`billing_*`, `cte_*`, `nfse_*`, `fiscal_sequences`) têm
+  a mesma contagem antes e depois; lote sem demonstrativo (fechado sem a porta de geração, o caso do
+  lote de antes desta spec) recusa a leitura com `EXTRA_CHARGE_BATCH_STATEMENT_NOT_FOUND` em vez de
+  inventar um documento.
+- Arquivo somado à lista explícita de `test:integration` em `apps/api-transportada/package.json`
+  (já estava, herdado da rodada anterior não commitada).
+- ⚠️ Suíte de integração completa (`bun run test:integration`) **não foi rodada nesta rodada** —
+  instrução explícita para rodar só os arquivos da task, por caminho. `docs`/CLAUDE.md registram a
+  falha conhecida `OBJECT_STORAGE_UNAVAILABLE` (credencial do MinIO local) como não relacionada a
+  esta task.
+
+### Commit desta rodada
+
+1. `feat(api): spec 164 T20 — o demonstrativo de ressarcimento em PDF`

@@ -229,7 +229,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     **nenhuma tabela de lote nova**; total conferido com `Decimal`; `explain` das consultas na
     evidência; isolamento por empresa exercitado.
 
-- [ ] **T20** O demonstrativo em PDF —
+- [x] **T20** O demonstrativo em PDF —
       `delivery-clients/domain/occurrence-statement-layout.policy.ts` (puro, molde de
       `billing/domain/invoice-layout.policy.ts`),
       `delivery-clients/infrastructure/occurrence-statement-pdf.gateway.ts` (`pdfkit`, só desenho) e
