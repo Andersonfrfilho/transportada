@@ -101,6 +101,12 @@ const CATALOG = [
     job: 'rate-limit.window.purge',
     minimumIntervalSeconds: 3600,
   },
+  {
+    /** Spec 161 RF21: a foto de ocorrência vencida só toca o próprio banco e o bucket. */
+    failureOutcomes: [],
+    job: 'trip.occurrence-attachment.purge',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 describe('worker job catalog', () => {
