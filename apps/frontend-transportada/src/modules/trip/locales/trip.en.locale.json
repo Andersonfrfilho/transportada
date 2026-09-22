@@ -530,7 +530,15 @@
     "title": "Pending CT-e"
   },
   "occurrence": {
+    "cancelConfirmBody": "Cancelling discards the photo and the note you filled in.",
+    "cancelConfirmContinue": "Keep filling in",
+    "cancelConfirmDiscard": "Discard",
+    "closeConfirmBody": "Closing now discards the photo and the note you filled in. Continue anyway?",
+    "closeConfirmContinue": "Keep filling in",
+    "closeConfirmDiscard": "Discard and close",
     "dialogTitle": "Separation occurrence — {{document}}",
+    "dialogTitleFixed": "Separation occurrence",
+    "notePresetsToggle": "Ready-made phrases ({{count}})",
     "photoPicker": {
       "captureFailed": "Could not process the photo — try again.",
       "cameraDenied": "Camera denied — send the photo through the file field below.",
@@ -541,11 +549,14 @@
       "limitReached": "Limit of {{limit}} photos reached.",
       "noPhoto": "Add at least one photo to register the occurrence.",
       "remove": "Remove photo",
+      "removeConfirm": "Confirm photo removal",
+      "sectionLabel": "Occurrence photo",
       "thumbAlt": "Occurrence photo",
       "uploadChoose": "Choose file",
       "uploadEmpty": "No file chosen",
       "uploadLabel": "Upload photo"
-    }
+    },
+    "typeLabel": "Occurrence type"
   },
   "occurrenceFeed": {
     "columns": {

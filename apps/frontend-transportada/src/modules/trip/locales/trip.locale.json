@@ -667,13 +667,21 @@
   },
   "occurrence": {
     "cancel": "Cancelar",
+    "cancelConfirmBody": "Cancelar descarta a foto e a observação preenchidas.",
+    "cancelConfirmContinue": "Continuar preenchendo",
+    "cancelConfirmDiscard": "Descartar",
+    "closeConfirmBody": "Fechar agora descarta a foto e a observação preenchidas. Continuar mesmo assim?",
+    "closeConfirmContinue": "Continuar preenchendo",
+    "closeConfirmDiscard": "Descartar e fechar",
     "copyEmail": "Copiar e-mail",
     "dialogTitle": "Ocorrência de separação — {{document}}",
+    "dialogTitleFixed": "Ocorrência de separação",
     "emailBody": "Texto do e-mail",
     "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
     "emailSubject": "Assunto do e-mail",
     "line": "{{type}} — {{moment}}",
     "none": "Nenhuma ocorrência registrada.",
+    "noteCounter": "{{used}} de {{limit}} caracteres",
     "noteLabel": "Observação",
     "notePresets": {
       "damagedProduct": "Produto avariado",
@@ -685,6 +693,7 @@
       "wetVolume": "Volume molhado"
     },
     "notePresetsHint": "Frases prontas — clique para acrescentar à observação.",
+    "notePresetsToggle": "Frases prontas ({{count}})",
     "photoPicker": {
       "cameraDenied": "Câmera negada — envie a foto pelo arquivo abaixo.",
       "cameraLabel": "Câmera para foto da ocorrência",
@@ -695,6 +704,8 @@
       "limitReached": "Teto de {{limit}} fotos atingido.",
       "noPhoto": "Adicione ao menos uma foto para registrar a ocorrência.",
       "remove": "Remover foto",
+      "removeConfirm": "Confirmar remoção da foto",
+      "sectionLabel": "Foto da ocorrência",
       "switchToBack": "Usar câmera traseira",
       "switchToFront": "Usar câmera frontal",
       "thumbAlt": "Foto da ocorrência",
@@ -717,6 +728,7 @@
     },
     "submit": "Registrar",
     "title": "Ocorrências",
+    "typeLabel": "Tipo de ocorrência",
     "wholeDocument": "A nota inteira"
   },
   "occurrenceFeed": {

@@ -39,3 +39,34 @@ export function appendOccurrenceNotePreset(input: {
 
   return `${note}${PRESET_SEPARATOR}${preset}`
 }
+
+/** A API recusa observação acima disto (`occurrence.schema.ts`, `z.string().trim().max(500)`). */
+export const OCCURRENCE_NOTE_LIMIT = 500
+
+/** Aviso antes do fim: quem escreve em pé precisa saber que está acabando, não descobrir no envio. */
+const NOTE_NEAR_LIMIT_REMAINING = 50
+
+export type OccurrenceNoteCounter = Readonly<{
+  isNearLimit: boolean
+  isOverLimit: boolean
+  limit: number
+  remaining: number
+  used: number
+}>
+
+/**
+ * O limite é do servidor; sem contador, o operador escreve 520 caracteres e só descobre no envio,
+ * com a foto já tirada. O corte usa o texto aparado, como o Zod da rota faz.
+ */
+export function resolveOccurrenceNoteCounter(note: string): OccurrenceNoteCounter {
+  const used = note.trim().length
+  const remaining = OCCURRENCE_NOTE_LIMIT - used
+
+  return {
+    isNearLimit: remaining <= NOTE_NEAR_LIMIT_REMAINING && remaining >= 0,
+    isOverLimit: remaining < 0,
+    limit: OCCURRENCE_NOTE_LIMIT,
+    remaining,
+    used,
+  }
+}

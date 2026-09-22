@@ -325,6 +325,12 @@
 .mdfeGateOverlay {
   /* Portal fora de `.tripShell`: sem isto o botão compacto do diálogo ficava com 38px no celular. */
   --control-height-compact: var(--touch-target);
+  /*
+   * Revisão de design (spec 161): o `FileField` do seletor de foto usa `--control-height` (não o
+   * `-compact`) — sem este espelho ele ficava em 48px ao lado de botões `sm` de 44px na mesma
+   * fileira de ações, quebrando a paridade de altura que `web.md` §10 exige no alvo de toque.
+   */
+  --control-height: var(--touch-target);
 
   position: fixed;
   z-index: 40;
@@ -352,11 +358,52 @@
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
 }
 
+/* Sticky no scrollport do próprio diálogo (`.mdfeGateDialog` rola, não o body) — o cabeçalho fica
+   à vista mesmo com o corpo do formulário mais alto que a tela do celular (revisão spec 161). */
 .mdfeGateHeader {
+  /*
+   * Grid item herda mínimo automático = min-content do conteúdo (`h2` com `white-space: nowrap`
+   * conta como uma palavra só, do tamanho do texto inteiro) — sem zerar aqui, o cabeçalho e a
+   * coluna única de `.mdfeGateDialog` esticavam para caber o título sem quebrar, empurrando tudo
+   * (inclusive o rodapé) para fora dos 390px do celular. Mesma pegadinha do `min-width: auto` em
+   * item de flex, só que em item de grid (revisão spec 161).
+   */
+  min-width: 0;
+  position: sticky;
+  z-index: 1;
+  top: calc(var(--space-5) * -1);
   display: flex;
   gap: var(--space-3);
   align-items: flex-start;
   justify-content: space-between;
+  padding-block: var(--space-5) var(--space-2);
+  margin-top: calc(var(--space-5) * -1);
+  background: var(--color-graphite);
+}
+
+/*
+ * Revisão de UX (spec 161): o `title` nativo é proibido pelo design system (`docs/frontend/
+ * tooltips.md` — o componente `Tooltip` existe exatamente para isto, e `title=` reprova o
+ * contrato). A correção anterior truncava o texto inteiro (que É o número da nota — o dado que a
+ * pessoa entrou no diálogo para conferir) atrás de reticências. Agora o `<h2>` é fixo, curto, nunca
+ * quebra; a nota vai numa segunda linha que quebra por `overflow-wrap: anywhere` em vez de sumir.
+ */
+.mdfeGateHeader .occurrenceDialogTitleWrap {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.mdfeGateHeader .occurrenceDialogTitleWrap h2 {
+  font-size: 1.1rem;
+}
+
+.occurrenceDialogSubtitle {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
 }
 
 /**
@@ -379,6 +426,7 @@
 
 /* "Chegou em" e a distância da ocorrência de parada saíam crus: 21px e o fundo do navegador. */
 .mdfeGateDialog label {
+  min-width: 0;
   display: grid;
   gap: var(--space-1);
   align-content: start;
@@ -441,11 +489,25 @@
   border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
 }
 
+/*
+ * Rodapé fixo do diálogo (revisão spec 161): as ações principais (registrar/reenviar/cancelar)
+ * ficam sempre alcançáveis mesmo com o corpo mais alto que a tela — quem preenche em pé, com uma
+ * mão, não pode depender de rolar até o fim para achar o botão que fecha a tarefa.
+ */
 .mdfeGateFooter {
+  /* Mesmo zeramento do `.mdfeGateHeader` acima. */
+  min-width: 0;
+  position: sticky;
+  bottom: calc(var(--space-5) * -1);
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
+  margin: var(--space-2) calc(var(--space-5) * -1) calc(var(--space-5) * -1);
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
+  background: var(--color-graphite);
 }
 
 .scanQueue {
@@ -475,6 +537,7 @@
 
   .mdfeGateOverlay {
     --control-height-compact: var(--field-height-compact);
+    --control-height: var(--field-height);
 
     padding: var(--space-4);
   }
@@ -1187,12 +1250,36 @@
   font-size: 0.8rem;
 }
 
-/* O formulário de ocorrência quebra naturalmente no celular do galpão (web.md §10). */
+/*
+ * Uma coluna só (revisão spec 161): o `Select` do design system não ganhava `flex: 1 1 100%` (essa
+ * regra só alcança `input`/`textarea`) e ficava estreito, do tamanho do próprio texto, ao lado da
+ * observação de largura cheia — os dois selects e o textarea agora vêm da mesma largura e da mesma
+ * altura de campo (`--field-height`), porque todo filho de grid ocupa a coluna inteira por padrão.
+ */
 .occurrenceForm {
-  display: flex;
-  flex-wrap: wrap;
+  /* Mesmo zeramento do `.mdfeGateHeader` acima — item de grid sem isto herda o min-content do
+     conteúdo mais largo (nome de tipo de ocorrência sem quebra, por exemplo) como largura mínima. */
+  min-width: 0;
+  display: grid;
   gap: var(--space-2);
   margin-block: var(--space-2);
+}
+
+/*
+ * Tipo + item lado a lado do tablet para cima (revisão spec 161, item 11) — mesmo padrão de
+ * `.cargoMeasures`. `min-width: 0` pela mesma razão do `.mdfeGateHeader` acima: item de grid sem
+ * isto herda o min-content do nome mais longo do tipo de ocorrência como piso de largura.
+ */
+.occurrenceFormRow {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .occurrenceFormRow {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* Os campos do tipo saem dos tokens (docs/frontend/fields.md) — nunca da altura default do browser. */
@@ -1201,7 +1288,7 @@
   min-height: var(--field-height);
   padding: var(--field-padding);
   font-size: var(--field-font-size);
-  flex: 1 1 100%;
+  width: 100%;
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   border-radius: var(--radius-sm, 0.25rem);
   color: var(--color-fog);
@@ -1211,6 +1298,17 @@
 
 .occurrenceForm textarea {
   resize: vertical;
+}
+
+/* Rodapé das ações quando `TripOccurrences` nasce fora de diálogo (`TripDetail`,
+   `TripOccurrencesWorkspace`) — mesmo grupo de botões do `.mdfeGateFooter`, sem o sticky que só
+   faz sentido dentro do molde de diálogo (revisão spec 161). */
+.occurrenceFormActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
 }
 
 /* O mapa acompanha a largura do painel e não empurra a tela para o lado no celular (web.md §10). */
@@ -2954,11 +3052,18 @@
   margin-block: var(--space-2);
 }
 
+/*
+ * Teto de altura (revisão spec 161): em retrato 3/4 e sem teto, o visor chegava a ~480px no celular
+ * do galpão — metade da tela vazia antes de qualquer foto. 4/3 com `max-height` mantém o enquadramento
+ * usável para provar avaria sem dominar a dobra; o vídeo preenche por `object-fit: cover` de qualquer
+ * jeito, então encolher a caixa não recorta a prévia de um jeito que engane quem está fotografando.
+ */
 .occurrencePhotoViewport {
   position: relative;
   width: 100%;
-  max-width: 24rem;
-  aspect-ratio: 3 / 4;
+  max-width: 18rem;
+  max-height: 11rem;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   border-radius: var(--radius-sm, 0.25rem);
   background: var(--color-asphalt);
@@ -2970,11 +3075,34 @@
   object-fit: cover;
 }
 
+/*
+ * Faixa de ações (revisão spec 161): Fotografar / lanterna / virar câmera / escolher arquivo saem
+ * da mesma altura — o botão `sm` já usa `--control-height-compact` (`.mdfeGateOverlay` o eleva a
+ * `--touch-target`, 44px) e o `FileField` agora lê `--control-height` no mesmo escopo, ver abaixo.
+ * `align-items: stretch` mantém as bordas alinhadas quando a fileira quebra em duas linhas no
+ * celular, sem depender de as caixas nascerem com a mesma altura intrínseca.
+ */
 .occurrencePhotoActions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  align-items: center;
+  align-items: stretch;
+}
+
+/*
+ * O `FileField` traz um rótulo próprio acima da caixa (`occurrence.photoPicker.uploadLabel`), que
+ * duplicava o texto já visível dentro da caixa (`actionLabel` + nome do arquivo) e ficava sozinho,
+ * de altura maior, ao lado dos botões — daí o "rótulo centralizado fora do padrão" da revisão. O
+ * nome acessível do campo continua vindo do `aria-label` no input (`file-field.tsx`), então esconder
+ * só o texto redundante não tira nada do leitor de tela.
+ */
+.occurrencePhotoUpload {
+  flex: 1 1 12rem;
+  min-width: 12rem;
+}
+
+.occurrencePhotoUpload > label:first-child {
+  display: none;
 }
 
 .occurrencePhotoGrid {
@@ -2986,9 +3114,14 @@
   padding: 0;
 }
 
+/*
+ * Revisão de UX (spec 161): 4.5rem (72px) de miniatura com um botão de 44px encostado no canto
+ * cobria 61% dela — quase impossível ver a foto por trás do próprio botão de apagar. 6rem dá
+ * espaço para o alvo de toque recuado (`inset: var(--space-1)`) sem comer a imagem.
+ */
 .occurrencePhotoThumb {
   position: relative;
-  width: 4.5rem;
+  width: 6rem;
   aspect-ratio: 1;
   border-radius: var(--radius-sm, 0.25rem);
   overflow: hidden;
@@ -3004,28 +3137,151 @@
 
 .occurrencePhotoRemove {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: var(--space-1);
+  right: var(--space-1);
   display: flex;
   align-items: center;
   justify-content: center;
   width: var(--control-height-compact, 1.75rem);
   height: var(--control-height-compact, 1.75rem);
   border: none;
+  border-radius: var(--radius-sm, 0.25rem);
   background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
   color: var(--color-fog);
   cursor: pointer;
 }
 
-.occurrencePhotoRemove:disabled {
+/*
+ * Estado armado (revisão spec 161): a `previewUrl` é revogada na hora da remoção — não existe
+ * desfazer depois. Foto de câmera pede este segundo toque; o botão muda de cor e de ícone
+ * (`trash` → `check`) para o estado ficar visível, não só no `aria-label`.
+ */
+.occurrencePhotoRemoveConfirming {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact, 1.75rem);
+  height: var(--control-height-compact, 1.75rem);
+  border: none;
+  border-radius: var(--radius-sm, 0.25rem);
+  background: var(--color-copper);
+  color: var(--color-ink-on-accent);
+  cursor: pointer;
+}
+
+.occurrencePhotoRemove:disabled,
+.occurrencePhotoRemoveConfirming:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
 
-/* Frases prontas da observação: quebram em linha no celular e não empurram a tela (web.md §10). */
+/*
+ * Grid em vez de flex com `gap` de 4px (revisão spec 161): sete botões de alvo de toque cheio
+ * (44px) com `--space-1` (4px) entre eles formavam uma escada irregular — 1, depois 2, depois 1 —
+ * porque o texto de cada frase tem um comprimento diferente. `repeat(auto-fill, minmax(10rem,
+ * 1fr))` mantém colunas do mesmo tamanho no mesmo `gap` do resto do formulário (`--space-2`).
+ */
 .occurrenceNotePresets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-2);
+}
+
+/* Disclosure das frases prontas (revisão spec 161, item 1): fechado por padrão — a foto obrigatória
+   não devia competir com sete botões opcionais pela primeira dobra do celular. */
+.occurrenceNotePresetsDetails {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.occurrenceNotePresetsDetails summary {
+  cursor: pointer;
+  color: var(--color-copper);
+  font-size: 0.85rem;
+}
+
+/* Contador da observação perto do teto: alerta discreto, no token de aviso, nunca vermelho de erro
+   — o texto ainda é válido, só está acabando. */
+.occurrenceNoteCounterNear {
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--color-copper);
+}
+
+/*
+ * `rows={2}` só dá o ponto de partida — `field-sizing: content` (Chromium recente; navegador sem
+ * suporte fica com as duas linhas fixas, degradê aceitável) deixa o campo crescer com o texto em
+ * vez de nascer com quatro linhas fixas, a maioria vazia, empurrando a foto obrigatória para baixo
+ * dela (revisão spec 161, item 1).
+ */
+.occurrenceNoteField {
+  field-sizing: content;
+  max-height: 12rem;
+}
+
+/* Marcador de campo obrigatório (revisão spec 161, item 7) — a foto é a única seção que trava o
+   envio (CA17); o `*` segue o mesmo padrão do resto do produto para campo obrigatório. */
+.occurrencePhotoSectionLabel {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.85rem;
+}
+
+.occurrencePhotoSectionLabel span {
+  color: var(--color-copper);
+}
+
+/* Progresso de envio por foto: cada item já traz `.hint`/`.alert` conforme o status (revisão spec
+   161, item 8) — a lista só precisa não herdar cor própria por cima. */
+.occurrencePhotoSendStatus {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.occurrencePhotoSendStatus li {
+  margin: 0;
+}
+
+/* "Adicione ao menos uma foto…" ao lado das ações do rodapé (revisão spec 161, item 7) — perto do
+   botão que ela explica, não solto no meio do formulário que já rolou para fora de vista. */
+.occurrenceFooterHint {
+  margin: 0;
+  margin-inline-end: auto;
+  color: var(--color-copper);
+  /* Frase corrida, nunca caixa alta: no rodapé ela fica ao lado do botão que explica, e versal
+     com espaçamento vira grito de duas linhas que empurra as ações. */
+  font-family: inherit;
+  font-size: 0.82rem;
+  letter-spacing: normal;
+  text-transform: none;
+  align-self: center;
+}
+
+/*
+ * Confirmação em duas etapas antes de descartar (revisão spec 161, item 3) — mesmo molde do
+ * `.confirm` do `WhatsAppPhonePanel` (`role="alertdialog"`, ghost + secondary), só que no rótulo
+ * dos tokens deste módulo em vez de um novo `whatsappPhone.module.css`.
+ */
+.occurrenceDiscardConfirm {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1, 0.25rem);
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+}
+
+.occurrenceDiscardConfirm p {
+  margin: 0;
   flex: 1 1 100%;
 }

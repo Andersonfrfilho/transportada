@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
@@ -22,7 +22,9 @@ import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrencePhotoPicker, type OccurrencePhoto } from './OccurrencePhotoPicker.component'
 import {
   appendOccurrenceNotePreset,
+  OCCURRENCE_NOTE_LIMIT,
   OCCURRENCE_NOTE_PRESET_IDS,
+  resolveOccurrenceNoteCounter,
 } from '../shared/occurrenceNotePreset.service'
 import styles from '../styles/trip.module.css'
 
@@ -30,8 +32,23 @@ type TripOccurrencesProps = Readonly<{
   canRegister: boolean
   /** O e-mail que o último registro produziu, para o operador conferir e enviar. */
   email: null | Readonly<{ body: string; subject: string }>
+  /**
+   * Revisão de design spec 161: `SeparationOccurrenceDialog` hospeda este formulário dentro do
+   * molde `.mdfeGateDialog`/`.mdfeGateFooter` (rodapé sticky) que todo outro diálogo de viagem usa;
+   * `TripDetail` e `TripOccurrencesWorkspace` renderizam o mesmo componente **fora** de diálogo, no
+   * corpo normal da página, onde um rodapé fixo à tela não faz sentido — o rodapé sticky só nasce
+   * quando `isDialog` é `true`.
+   */
+  isDialog?: boolean
   isRegistering: boolean
   occurrences: readonly TripOccurrence[]
+  /**
+   * Revisão de UX (spec 161): reporta se há foto ou observação em progresso — o diálogo hospedeiro
+   * usa isto para confirmar antes de descartar pelo X do cabeçalho (que não vê o estado interno
+   * deste formulário). Só `SeparationOccurrenceDialog` passa a prop; fora de diálogo não há X a
+   * proteger.
+   */
+  onDirtyChange?: (isDirty: boolean) => void
   /**
    * B1 (revisão spec 161): zera a sessão de envio de fotos do hook
    * (`resetSeparationOccurrencePhotoSend`) — sem isto, a segunda ocorrência de separação na mesma
@@ -77,8 +94,10 @@ const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
 export function TripOccurrences({
   canRegister,
   email,
+  isDialog = false,
   isRegistering,
   occurrences,
+  onDirtyChange,
   onRegister,
   onReset,
   photoSendState,
@@ -94,14 +113,33 @@ export function TripOccurrences({
   const [productCode, setProductCode] = useState('')
   const [note, setNote] = useState('')
   const [photos, setPhotos] = useState<readonly OccurrencePhoto[]>([])
+  /** Revisão de UX (spec 161): Cancelar também confirma quando há foto ou observação em progresso. */
+  const [isConfirmingCancel, setIsConfirmingCancel] = useState(false)
   const canSubmit = occurrenceTypeId !== '' && canSubmitOccurrenceWithPhotos(photos.length)
+  const noteCounter = resolveOccurrenceNoteCounter(note)
   const hasFailedPhoto = hasOccurrencePhotoSendFailure(photoSendState)
+  const isDirty = photos.length > 0 || note.trim() !== ''
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
 
   function clearForm() {
     setNote('')
     setProductCode('')
     setPhotos([])
+    setIsConfirmingCancel(false)
     setIsOpen(false)
+  }
+
+  function handleCancelClick(): void {
+    if (isDirty && !isConfirmingCancel) {
+      setIsConfirmingCancel(true)
+      return
+    }
+    onReset()
+    setIsOpen(false)
+    clearForm()
   }
 
   /**
@@ -182,69 +220,62 @@ export function TripOccurrences({
           {t('occurrence.register')}
         </Button>
       ) : null}
+      {/*
+       * Revisão de UX (spec 161): a ordem virou tipo → item → **foto** → observação. A foto é
+       * obrigatória (CA17) e começava fora da dobra em 390px porque vinha depois do textarea de
+       * quatro linhas e das frases prontas, todas opcionais — quem preenche em pé via primeiro os
+       * campos que pode pular, e só rolando bastante chegava no único bloco que trava o envio.
+       */}
       {canRegister && isOpen ? (
         <div className={styles.occurrenceForm}>
-          <Select
-            ariaLabel={t('occurrence.title')}
-            onChange={setOccurrenceTypeId}
-            options={disponiveis.map((type) => ({ label: type.name, value: type.id }))}
-            value={occurrenceTypeId}
-          />
-          <Select
-            ariaLabel={t('occurrence.product')}
-            onChange={setProductCode}
-            options={[
-              { label: t('occurrence.wholeDocument'), value: '' },
-              ...products.map((product) => ({
-                label: `${product.code} — ${product.description}`,
-                value: product.code,
-              })),
-            ]}
-            value={productCode}
-          />
-          <textarea
-            aria-label={t('occurrence.noteLabel')}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder={t('occurrence.noteLabel')}
-            rows={4}
-            value={note}
-          />
-          {/* Frases prontas: o botão escreve a frase inteira e o texto continua editável — quem
-              separa registra em pé, no celular do galpão. */}
-          <p className={styles.hint}>{t('occurrence.notePresetsHint')}</p>
-          <div className={styles.occurrenceNotePresets}>
-            {OCCURRENCE_NOTE_PRESET_IDS.map((presetId) => {
-              const preset = t(`occurrence.notePresets.${presetId}`)
-              return (
-                <Button
-                  key={presetId}
-                  onClick={() => setNote(appendOccurrenceNotePreset({ note, preset }))}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Icon name="add" />
-                  {preset}
-                </Button>
-              )
-            })}
+          {/* Tipo + item lado a lado do tablet para cima (revisão spec 161, item 11) — mesmo
+              padrão de `.cargoMeasures`: o diálogo tem 38rem de largura no desktop, e uma coluna
+              só desperdiçava metade dela num par de campos curtos. */}
+          <div className={styles.occurrenceFormRow}>
+            <label>
+              <span>{t('occurrence.typeLabel')}</span>
+              <Select
+                ariaLabel={t('occurrence.typeLabel')}
+                onChange={setOccurrenceTypeId}
+                options={disponiveis.map((type) => ({ label: type.name, value: type.id }))}
+                value={occurrenceTypeId}
+              />
+            </label>
+            <label>
+              <span>{t('occurrence.product')}</span>
+              <Select
+                ariaLabel={t('occurrence.product')}
+                onChange={setProductCode}
+                options={[
+                  { label: t('occurrence.wholeDocument'), value: '' },
+                  ...products.map((product) => ({
+                    label: `${product.code} — ${product.description}`,
+                    value: product.code,
+                  })),
+                ]}
+                value={productCode}
+              />
+            </label>
           </div>
+          {/* Marcador de obrigatório (item 7 da revisão): a única seção que de fato trava o envio
+              (CA17) ganha o mesmo `*` que o resto do produto usa para campo obrigatório. */}
+          <p className={styles.occurrencePhotoSectionLabel}>
+            {t('occurrence.photoPicker.sectionLabel')}
+            <span aria-hidden="true"> *</span>
+          </p>
           <OccurrencePhotoPicker disabled={isRegistering} onChange={setPhotos} photos={photos} />
-          {/* CA17: sem foto o envio fica desabilitado, e o motivo fica visível — nunca só o botão
-              cinza sem explicação. */}
-          {photos.length === 0 ? (
-            <p className={styles.hint} role="alert">
-              {t('occurrence.photoPicker.noPhoto')}
-            </p>
-          ) : null}
           {/*
            * B2 (revisão spec 161): progresso por foto — o operador vê qual foto está indo, qual já
-           * foi e qual falhou (com o motivo), em vez de um resultado só para o lote inteiro.
+           * foi e qual falhou (com o motivo), em vez de um resultado só para o lote inteiro. Cada
+           * item usa `.alert`/`.hint` conforme o status muda ou não o fluxo (item 8 da revisão).
            */}
           {photoSendState.length === 0 ? null : (
-            <ul className={styles.hint} role="status">
+            <ul className={styles.occurrencePhotoSendStatus} role="status">
               {photoSendState.map((item, index) => (
-                <li key={item.photoId}>
+                <li
+                  className={item.status === 'failed' ? styles.alert : styles.hint}
+                  key={item.photoId}
+                >
                   {t('occurrence.sendStatus.photoLabel', { position: index + 1 })}
                   {': '}
                   {t(`occurrence.sendStatus.${item.status}`)}
@@ -253,6 +284,113 @@ export function TripOccurrences({
               ))}
             </ul>
           )}
+          <label>
+            <span>{t('occurrence.noteLabel')}</span>
+            {/* `field-sizing: content` (item 1 da revisão) deixa o campo nascer em duas linhas e
+                crescer com o texto — sem isto quatro linhas fixas de observação (opcional) somadas
+                à foto empurravam o rodapé para fora da tela em 390px. */}
+            <textarea
+              className={styles.occurrenceNoteField}
+              maxLength={OCCURRENCE_NOTE_LIMIT}
+              onChange={(event) => setNote(event.target.value)}
+              rows={2}
+              value={note}
+            />
+          </label>
+          {/* O limite é do servidor (`z.string().trim().max(500)`): sem contador, o operador só
+              descobriria no envio, com a foto já tirada. */}
+          <p className={noteCounter.isNearLimit ? styles.occurrenceNoteCounterNear : styles.hint}>
+            {t('occurrence.noteCounter', {
+              limit: noteCounter.limit,
+              used: noteCounter.used,
+            })}
+          </p>
+          {/*
+           * Frases prontas atrás de um `<details>` fechado (item 1 da revisão): sete botões de
+           * alvo de toque cheio empurravam a foto — que é obrigatória — para baixo deles, que são
+           * opcionais. `<details>` é o mesmo primitivo nativo já usado em `DriverStopCard`
+           * (`proofPendingWarningDetails`) para disclosure sem trazer um componente novo.
+           */}
+          <details className={styles.occurrenceNotePresetsDetails}>
+            <summary>
+              {t('occurrence.notePresetsToggle', { count: OCCURRENCE_NOTE_PRESET_IDS.length })}
+            </summary>
+            <p className={styles.hint}>{t('occurrence.notePresetsHint')}</p>
+            <div className={styles.occurrenceNotePresets}>
+              {OCCURRENCE_NOTE_PRESET_IDS.map((presetId) => {
+                const preset = t(`occurrence.notePresets.${presetId}`)
+                return (
+                  <Button
+                    key={presetId}
+                    onClick={() => setNote(appendOccurrenceNotePreset({ note, preset }))}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Icon name="add" />
+                    {preset}
+                  </Button>
+                )
+              })}
+            </div>
+          </details>
+        </div>
+      ) : null}
+      {/*
+       * Rodapé fixo do diálogo (revisão spec 161): registrar/reenviar/cancelar ficam sempre
+       * alcançáveis — antes caíam abaixo da dobra, dentro do `.occurrenceForm` que rola com o
+       * corpo. `.mdfeGateFooter` é o mesmo rodapé sticky que todo outro diálogo de viagem usa
+       * (`TripCancelDialog`, `TripCloseDialog`, …); este diálogo era o único que não o tinha. Fora
+       * de diálogo (`isDialog` falso) as mesmas ações ficam em `.occurrenceFormActions`, sem sticky.
+       *
+       * Item 7 da revisão: "Adicione ao menos uma foto…" mora aqui agora, ao lado do botão que ela
+       * explica — não solta no meio do formulário, longe de onde o operador olha antes de tocar
+       * Registrar. Item 10: Registrar por último/à direita (ação primária, onde o polegar destro
+       * chega por último no gesto de rolar), Cancelar em `ghost` mais afastado, Reenviar em
+       * `secondary` — três pesos, não dois botões escuros competindo.
+       */}
+      {canRegister && isOpen ? (
+        <footer className={isDialog ? styles.mdfeGateFooter : styles.occurrenceFormActions}>
+          {photos.length === 0 ? (
+            <p className={styles.occurrenceFooterHint} role="alert">
+              {t('occurrence.photoPicker.noPhoto')}
+            </p>
+          ) : null}
+          {isConfirmingCancel ? (
+            <>
+              <p className={styles.occurrenceFooterHint}>{t('occurrence.cancelConfirmBody')}</p>
+              <Button
+                onClick={() => setIsConfirmingCancel(false)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="close" />
+                {t('occurrence.cancelConfirmContinue')}
+              </Button>
+              <Button onClick={handleCancelClick} size="sm" type="button" variant="secondary">
+                <Icon name="trash" />
+                {t('occurrence.cancelConfirmDiscard')}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleCancelClick} size="sm" type="button" variant="ghost">
+              <Icon name="close" />
+              {t('occurrence.cancel')}
+            </Button>
+          )}
+          {hasFailedPhoto ? (
+            <Button
+              disabled={isRegistering}
+              onClick={() => void handleRetryFailed()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="save" />
+              {t('occurrence.sendStatus.retry')}
+            </Button>
+          ) : null}
           <Button
             disabled={isRegistering || !canSubmit}
             onClick={() => void handleSubmit()}
@@ -262,30 +400,7 @@ export function TripOccurrences({
             <Icon name="save" />
             {t('occurrence.submit')}
           </Button>
-          {hasFailedPhoto ? (
-            <Button
-              disabled={isRegistering}
-              onClick={() => void handleRetryFailed()}
-              size="sm"
-              type="button"
-            >
-              <Icon name="save" />
-              {t('occurrence.sendStatus.retry')}
-            </Button>
-          ) : null}
-          <Button
-            onClick={() => {
-              onReset()
-              setIsOpen(false)
-            }}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="close" />
-            {t('occurrence.cancel')}
-          </Button>
-        </div>
+        </footer>
       ) : null}
     </>
   )

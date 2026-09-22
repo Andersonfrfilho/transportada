@@ -1,7 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
@@ -55,8 +57,29 @@ export function SeparationOccurrenceDialog({
 }: SeparationOccurrenceDialogProps) {
   const { t } = useTranslation('trip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose })
+  /**
+   * Revisão de UX (spec 161): `TripOccurrences` guarda o rascunho (foto/observação) e é quem sabe
+   * se há algo a perder — reporta aqui por `onDirtyChange` para o X do cabeçalho (que não tem
+   * acesso a esse estado) também confirmar antes de descartar até cinco fotos.
+   */
+  const [isDirty, setIsDirty] = useState(false)
+  const [isConfirmingClose, setIsConfirmingClose] = useState(false)
 
   if (!isOpen) return null
+
+  function discardAndClose(): void {
+    setIsConfirmingClose(false)
+    onReset()
+    onClose()
+  }
+
+  function handleCloseClick(): void {
+    if (isDirty) {
+      setIsConfirmingClose(true)
+      return
+    }
+    discardAndClose()
+  }
 
   return createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">
@@ -69,27 +92,57 @@ export function SeparationOccurrenceDialog({
         tabIndex={-1}
       >
         <header className={styles.mdfeGateHeader}>
-          <h2 id="separation-occurrence-title">
-            {t('occurrence.dialogTitle', { document: tripDocumentLabel(tripDocument) })}
-          </h2>
+          {/*
+           * Revisão de UX (spec 161): título fixo, curto, nunca quebra — a nota (que é o dado
+           * variável e o que a pessoa veio conferir) vai numa segunda linha que quebra por
+           * `overflow-wrap`, em vez de truncar atrás de reticências ou depender de `title=`
+           * nativo (proibido pelo design system, `docs/frontend/tooltips.md`).
+           */}
+          <div className={styles.occurrenceDialogTitleWrap}>
+            <h2 id="separation-occurrence-title">{t('occurrence.dialogTitleFixed')}</h2>
+            <p className={styles.occurrenceDialogSubtitle}>{tripDocumentLabel(tripDocument)}</p>
+          </div>
           <button
             aria-label={t('mdfeGate.close')}
             className={styles.iconAction}
-            onClick={() => {
-              onReset()
-              onClose()
-            }}
+            onClick={handleCloseClick}
             type="button"
           >
             <Icon name="close" />
           </button>
         </header>
 
+        {/*
+         * Revisão de UX (spec 161): o X e o Cancelar descartavam até cinco fotos sem perguntar —
+         * mesmo bloco de confirmação em duas etapas do `WhatsAppPhonePanel` (`isConfirmingUnlink`),
+         * já com o teste de acessibilidade (`role="alertdialog"`) resolvido ali.
+         */}
+        {isConfirmingClose ? (
+          <div className={styles.occurrenceDiscardConfirm} role="alertdialog">
+            <p>{t('occurrence.closeConfirmBody')}</p>
+            <Button
+              onClick={() => setIsConfirmingClose(false)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="close" />
+              {t('occurrence.closeConfirmContinue')}
+            </Button>
+            <Button onClick={discardAndClose} size="sm" type="button" variant="secondary">
+              <Icon name="trash" />
+              {t('occurrence.closeConfirmDiscard')}
+            </Button>
+          </div>
+        ) : null}
+
         <TripOccurrences
           canRegister={canRegister}
           email={email}
+          isDialog
           isRegistering={isRegistering}
           occurrences={occurrences}
+          onDirtyChange={setIsDirty}
           onRegister={onRegister}
           onReset={onReset}
           photoSendState={photoSendState}
