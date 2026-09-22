@@ -452,3 +452,13 @@ Commit único desta task (SHA e mensagem no relatório final da conversa — sem
 ## Fase 1 encerrada
 
 T1–T4 commitadas e verificadas. Fase 2 (T5–T8) fica para outra rodada.
+
+## T8 — o feed enxerga a tratativa
+
+- `bun run lint` e `bun run typecheck` (raiz, seis apps) — limpos.
+- `bun --env-file=../../.env.test test --timeout 120000` — **7015 pass, 0 fail** (183 arquivos).
+- `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-feed-case.integration.ts`
+  — **2 pass, 0 fail**: ocorrência sem tratativa devolve `case: null` e o cursor do feed não muda.
+
+⚠️ A suíte de integração completa não foi reexecutada nesta task — rodou por último na T4
+(517 pass, 8 fail conhecidas de credencial do MinIO, nenhuma de ocorrência). Fica registrado.

@@ -27,17 +27,24 @@ import {
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
+  tripOccurrenceCases,
   tripStopOccurrences,
   tripStops,
   trips,
 } from '../../database/trip.schema.js'
-import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import type {
+  RedeliveryPolicy,
+  TripOccurrenceCaseDecisionKind,
+  TripOccurrenceCaseStatus,
+  TripStopOccurrenceKind,
+} from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { mergeOccurrenceFeed } from '../domain/occurrence-feed.policy.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 import type {
+  TripOccurrenceFeedCaseView,
   TripOccurrenceFeedFilters,
   TripOccurrenceFeedItem,
   TripOccurrenceFeedPage,
@@ -112,6 +119,25 @@ function stageSelects(filters: TripOccurrenceFeedFilters | undefined): {
   }
 }
 
+/**
+ * RF11: `caseStatusIn` mistura estados reais da tratativa com `'none'` (sem tratativa aberta).
+ * `null` quando o filtro não foi pedido — a query inteira segue sem restrição de tratativa.
+ */
+function caseStatusCondition(filters: TripOccurrenceFeedFilters | undefined): SQL | null {
+  if (filters?.caseStatusIn === undefined || filters.caseStatusIn.length === 0) return null
+  const wantsNone = filters.caseStatusIn.includes('none')
+  const statuses = filters.caseStatusIn.filter(
+    (value): value is TripOccurrenceCaseStatus => value !== 'none',
+  )
+
+  if (wantsNone && statuses.length === 0) return sql`${tripOccurrenceCases.id} is null`
+  if (!wantsNone && statuses.length > 0) return inArray(tripOccurrenceCases.status, statuses)
+  if (wantsNone && statuses.length > 0) {
+    return sql`(${tripOccurrenceCases.id} is null or ${inArray(tripOccurrenceCases.status, statuses)})`
+  }
+  return null
+}
+
 async function listDocumentOccurrenceRows(
   queryable: TripQueryable,
   query: TripOccurrenceFeedQuery,
@@ -140,10 +166,19 @@ async function listDocumentOccurrenceRows(
   if (query.filters?.plateIn !== undefined && query.filters.plateIn.length > 0) {
     conditions.push(inArray(fleetVehicles.plate, query.filters.plateIn))
   }
+  const caseCondition = caseStatusCondition(query.filters)
+  if (caseCondition !== null) conditions.push(caseCondition)
 
   const rows = await queryable
     .select({
       actorName: feedActorProfile.name,
+      caseDecidedAt: tripOccurrenceCases.decidedAt,
+      caseDecisionKind: tripOccurrenceCases.decisionKind,
+      caseDecisionNote: tripOccurrenceCases.decisionNote,
+      caseId: tripOccurrenceCases.id,
+      caseRedeliveryPolicy: tripOccurrenceCases.redeliveryPolicy,
+      caseStatus: tripOccurrenceCases.status,
+      caseUpdatedAt: tripOccurrenceCases.updatedAt,
       channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
@@ -214,6 +249,14 @@ async function listDocumentOccurrenceRows(
         eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
       ),
     )
+    /** RF10: tratativa desta ocorrência, `null` quando ela nunca foi aberta (tipo `unset`, T2/RF3). */
+    .leftJoin(
+      tripOccurrenceCases,
+      and(
+        eq(tripOccurrenceCases.companyId, tripDocumentOccurrences.companyId),
+        eq(tripOccurrenceCases.occurrenceId, tripDocumentOccurrences.id),
+      ),
+    )
     .leftJoin(
       feedActorMembership,
       and(
@@ -242,6 +285,7 @@ async function listDocumentOccurrenceRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    case: buildCaseView(row),
     channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
@@ -261,11 +305,56 @@ async function listDocumentOccurrenceRows(
   }))
 }
 
+/**
+ * RF10: `null` quando o `left join` não achou tratativa. `settlementTotal` é sempre `null` até a
+ * Fase 5 (T16/T17) existir — `trip_occurrence_cases` não tem coluna de valor hoje.
+ */
+function buildCaseView(row: {
+  readonly caseDecidedAt: Date | null
+  readonly caseDecisionKind: TripOccurrenceCaseDecisionKind | null
+  readonly caseDecisionNote: string | null
+  readonly caseId: string | null
+  readonly caseRedeliveryPolicy: RedeliveryPolicy | null
+  readonly caseStatus: TripOccurrenceCaseStatus | null
+  readonly caseUpdatedAt: Date | null
+}): TripOccurrenceFeedCaseView | null {
+  if (row.caseId === null || row.caseStatus === null || row.caseRedeliveryPolicy === null) {
+    return null
+  }
+  return {
+    decision:
+      row.caseDecisionKind === null
+        ? null
+        : {
+            decidedAt: row.caseDecidedAt?.toISOString() ?? null,
+            kind: row.caseDecisionKind,
+            note: row.caseDecisionNote ?? '',
+          },
+    redeliveryPolicy: row.caseRedeliveryPolicy === 'blocked' ? 'blocked' : 'allowed',
+    settlementTotal: null,
+    status: row.caseStatus,
+    updatedAt: row.caseUpdatedAt?.toISOString() ?? new Date(0).toISOString(),
+  }
+}
+
+/**
+ * RF10/RF11: a ocorrência de parada nunca tem tratativa — `trip_occurrence_cases.occurrence_id`
+ * aponta só para `trip_document_occurrences`. Filtro por estado da tratativa que **não** pediu
+ * `'none'` exclui a parada inteira; sem esse filtro (ou com `'none'` entre os valores), ela entra
+ * normalmente, sempre com `case: null`.
+ */
+function stopOccurrencesMatchCaseFilter(filters: TripOccurrenceFeedFilters | undefined): boolean {
+  if (filters?.caseStatusIn === undefined || filters.caseStatusIn.length === 0) return true
+  return filters.caseStatusIn.includes('none')
+}
+
 async function listStopOccurrenceRows(
   queryable: TripQueryable,
   query: TripOccurrenceFeedQuery,
   cursor: KeysetCursor | null,
 ): Promise<readonly FeedRow[]> {
+  if (!stopOccurrencesMatchCaseFilter(query.filters)) return []
+
   const conditions: SQL[] = [
     eq(tripStopOccurrences.companyId, query.companyId),
     ...periodConditions(tripStopOccurrences.createdAt, query.filters),
@@ -361,6 +450,8 @@ async function listStopOccurrenceRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    /** RF10: a ocorrência de parada nunca tem tratativa (ver o comentário acima do filtro). */
+    case: null,
     channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,

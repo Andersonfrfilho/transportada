@@ -107,4 +107,14 @@ describe('fronteira da listagem de ocorrências', () => {
       parse('?cursor=2026-09-01T10:00:00.000Z::00000000-0000-4000-8000-000000000001'),
     ).not.toThrow()
   })
+
+  /** Spec 164 T8 (RF11): o filtro por estado da tratativa mistura estados reais com `'none'`. */
+  test('caseStatusIn aceita estados da tratativa e "none" (sem tratativa)', () => {
+    const parsed = parse('?caseStatusIn=recorded,none,closed')
+    expect(parsed.filters).toEqual({ caseStatusIn: ['recorded', 'none', 'closed'] })
+  })
+
+  test('caseStatusIn fora do vocabulário é recusa, não silêncio', () => {
+    expect(() => parse('?caseStatusIn=invented')).toThrow()
+  })
 })

@@ -6,6 +6,10 @@
  * não existe "tratar" ocorrência nesta versão, e a lista não muda estado nenhum.
  */
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type {
+  TripOccurrenceCaseDecisionKind,
+  TripOccurrenceCaseStatus,
+} from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 import type { DeliveryProofDownloadPort } from './read-delivery-proof.use-case.js'
@@ -23,9 +27,30 @@ import type {
 export const TRIP_OCCURRENCE_FEED_STAGES = ['separation', 'delivery', 'stop'] as const
 export type TripOccurrenceFeedStage = (typeof TRIP_OCCURRENCE_FEED_STAGES)[number]
 
+/**
+ * Spec 164 T8 (RF10): a tratativa desta ocorrência, ou `null` quando não há uma aberta — nunca um
+ * estado inventado. Só a ocorrência de nota tem tratativa; a de parada é sempre `null` (a tabela
+ * `trip_occurrence_cases` referencia `trip_document_occurrences`, não `trip_stop_occurrences`).
+ * `settlementTotal` é sempre `null` nesta fase: o item do acerto (`trip_occurrence_item_settlements`)
+ * é da Fase 5 (T16/T17), que ainda não existe nesta árvore.
+ */
+export type TripOccurrenceFeedCaseView = {
+  readonly decision: {
+    readonly decidedAt: null | string
+    readonly kind: TripOccurrenceCaseDecisionKind
+    readonly note: string
+  } | null
+  readonly redeliveryPolicy: 'allowed' | 'blocked'
+  readonly settlementTotal: null
+  readonly status: TripOccurrenceCaseStatus
+  readonly updatedAt: string
+}
+
 export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): nome de quem clicou, `null` sem vínculo ativo na empresa. */
   readonly actorName: string | null
+  /** Spec 164 T8 (RF10): `null` quando a ocorrência não tem tratativa aberta. */
+  readonly case: TripOccurrenceFeedCaseView | null
   readonly channel: TripFieldChannel
   readonly createdAt: string
   readonly description: string
@@ -53,7 +78,11 @@ export type TripOccurrenceFeedItem = {
   readonly vehiclePlate: string
 }
 
+/** RF11: `'none'` é "sem tratativa" — a ocorrência não tem `trip_occurrence_cases`. */
+export type TripOccurrenceFeedCaseStatusFilter = 'none' | TripOccurrenceCaseStatus
+
 export type TripOccurrenceFeedFilters = {
+  readonly caseStatusIn?: readonly TripOccurrenceFeedCaseStatusFilter[]
   readonly createdFrom?: string
   readonly createdUntil?: string
   readonly plateIn?: readonly string[]
