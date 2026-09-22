@@ -126,3 +126,20 @@
   caso de uso da T005 e pelo importador. Contratos da API: **6891 pass, 9 fail** (toll booth, pré-existentes).
   Typecheck 0, eslint limpo.
 - Políticas `-catalog-sanity`/`-catalog-consensus` da 160 intocadas.
+
+## T010 — Userscript Alt+U + servidor `found_unit_manual` (RF06)
+
+- `cosmos-capture.user.js` (1.2.0): **Alt+U** captura a **seleção** como unidade (`kind: 'unit'`,
+  `extracted.unitEdges`/`unitGrossWeight`, `edges: {}`), mesmo fluxo do Alt+C (`kind: 'carton'`).
+  A unidade não encerra a espera da caixa (Alt+C continua valendo). Nenhuma navegação, clique ou
+  avanço automático foi adicionado — só o `keydown` com Alt, disparado pela pessoa.
+- `assisted-capture-server.ts`: `/capture-manual` aceita `kind` (`carton` padrão → `found_manual`;
+  `unit` → `found_unit_manual`); `kind` desconhecido → 400 `INVALID_CAPTURE`; `kind` não vai ao JSONL.
+- Verificação: `bun build --target=bun scripts/box-catalog-harvest/assisted-capture-server.ts` ok;
+  `node --check scripts/box-catalog-harvest/cosmos-capture.user.js` ok.
+- Fumaça local do servidor com `HOME`, fila e JSONL isolados no scratchpad (porta 53998, fila já
+  capturada para o servidor não abrir navegador): `kind: unit` → linha `found_unit_manual`
+  (`source: www.drogaria.com.br`); `kind: carton` → `found_manual`; `kind: bogus` → `INVALID_CAPTURE`.
+  A linha `found_unit_manual` gravada passou por `mapPackageBoxCatalogCaptureUnit` (T009) →
+  `{accepted: true, 60×90×30 mm, source: manual:www.drogaria.com.br}`.
+- Só os três arquivos de `scripts/box-catalog-harvest/` tocados nesta task entram no commit.

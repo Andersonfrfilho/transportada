@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         TransportAdA — captura assistida de caixa
 // @namespace    transportada
-// @version      1.1.0
-// @description  Cosmos: lê a caixa na página que VOCÊ abriu. Outros sites: selecione o texto da medida e aperte Alt+C.
+// @version      1.2.0
+// @description  Cosmos: lê a caixa na página que VOCÊ abriu. Outros sites: selecione a medida e aperte Alt+C (caixa) ou Alt+U (unidade).
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -26,6 +26,11 @@
   const EDGE_PATTERN = /(comprimento|largura|altura|profundidade)\s*:?\s*([\d.,]+)\s*(mm|cm|m)\b/gi
   const TRIPLE_PATTERN = /([\d.,]+)\s*[x×]\s*([\d.,]+)\s*[x×]\s*([\d.,]+)\s*(mm|cm|m)\b/i
   const WEIGHT_PATTERN = /peso\s*bruto\s*:?\s*([\d.,]+)\s*(kg|g)\b/i
+  const UNIT_WEIGHT_PATTERN = /(?:peso(?:\s*(?:bruto|l[ií]quido))?\s*:?\s*)?([\d.,]+)\s*(kg|g)\b/i
+  const CAPTURE_KINDS = {
+    carton: { key: 'KeyC', label: 'caixa', shortcut: 'Alt+C' },
+    unit: { key: 'KeyU', label: 'unidade (o produto na prateleira)', shortcut: 'Alt+U' },
+  }
   const QUANTITY_PATTERN = /(?:quantidade|unidades)(?:\s*(?:na|por)\s*caixa)?\s*:?\s*(\d+)/i
   const CARTON_GTIN_PATTERN = /\b([1-8]\d{13})\b/
 
@@ -88,6 +93,16 @@
     }
   }
 
+  /** Spec 163: a unidade vai em `unitEdges`/`unitGrossWeight` — nunca no lugar da caixa. */
+  function extractUnit(text) {
+    const weight = text.match(UNIT_WEIGHT_PATTERN)
+    return {
+      edges: {},
+      unitEdges: extractEdges(text),
+      unitGrossWeight: weight ? { value: weight[1], unit: weight[2].toLowerCase() } : undefined,
+    }
+  }
+
   function createButton(label, onClick) {
     const button = document.createElement('button')
     button.textContent = label
@@ -136,6 +151,7 @@
       [
         'Cosmos sem a medida da caixa.',
         'Ache a medida em outro site, selecione o texto e aperte Alt+C lá.',
+        'Só achou a medida do produto (unidade)? Selecione e aperte Alt+U.',
         `Restam ${next.remaining ?? 0}`,
       ],
       [
@@ -195,15 +211,19 @@
     }
   }
 
-  async function captureSelection() {
+  async function captureSelection(kind) {
+    const { label, shortcut } = CAPTURE_KINDS[kind]
     const target = GM_getValue(FALLBACK_KEY, undefined)
     if (!target)
       return renderPanel(['Nenhum produto aguardando medida. Comece pela fila do Cosmos.'])
     const selection = String(window.getSelection() ?? '').trim()
     if (!selection)
-      return renderPanel(['Selecione o texto com as medidas da caixa e aperte Alt+C de novo.'])
-    const extracted = extractCarton(selection)
-    if (Object.keys(extracted.edges).length < 3) {
+      return renderPanel([
+        `Selecione o texto com as medidas da ${label} e aperte ${shortcut} de novo.`,
+      ])
+    const extracted = kind === 'unit' ? extractUnit(selection) : extractCarton(selection)
+    const capturedEdges = kind === 'unit' ? extracted.unitEdges : extracted.edges
+    if (Object.keys(capturedEdges).length < 3) {
       return renderPanel([
         'Não achei 3 medidas na seleção.',
         'Ex.: "47,4 x 24,7 x 24,0 cm" ou Comprimento/Largura/Altura.',
@@ -212,17 +232,19 @@
     try {
       const next = await requestServer('POST', '/capture-manual', {
         cartonGtin: target.cartonGtin,
+        kind,
         pageUrl: window.location.href,
         extracted,
         snippet: selection,
       })
       if (next.error) return renderPanel([`Erro do servidor: ${next.error}`])
-      GM_setValue(FALLBACK_KEY, undefined)
+      // A unidade não resolve a caixa: o produto segue aguardando a medida dela (Alt+C).
+      if (kind === 'carton') GM_setValue(FALLBACK_KEY, undefined)
       bindNextShortcut(target.nextUrl)
       renderPanel(
         [
-          `Gravado para ${target.cartonGtin} (fonte: ${window.location.hostname})`,
-          ...describeEdges(extracted.edges),
+          `Gravada a ${label} de ${target.cartonGtin} (fonte: ${window.location.hostname})`,
+          ...describeEdges(capturedEdges),
         ],
         target.nextUrl
           ? [
@@ -239,7 +261,9 @@
   }
 
   document.addEventListener('keydown', (event) => {
-    if (event.altKey && event.code === 'KeyC') captureSelection()
+    if (!event.altKey) return
+    if (event.code === CAPTURE_KINDS.carton.key) captureSelection('carton')
+    if (event.code === CAPTURE_KINDS.unit.key) captureSelection('unit')
   })
 
   if (isCosmosProductPage) runCosmosCapture()
