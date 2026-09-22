@@ -1107,3 +1107,51 @@ não se perderem:
   verdade (nó de ação apontando para si mesmo como `next`) até estourar o teto interno do
   interpretador (50 iterações) — não é vazamento, é a mesma armadilha que `command-driver.contract.ts`
   já evita com nós terminais sem `actionKind`. Corrigido apontando para um nó terminal novo.
+
+## T21 — Reencode e miniatura no navegador (RF29/RF29b/D12)
+
+Data: 2026-09-21.
+
+### O que mudou
+
+- `apps/frontend-transportada/src/modules/trip/shared/occurrencePhotoImage.service.ts` (novo): sobre
+  `loadImageFromFile` (reaproveitado de `fieldDeliveryImage.service.ts`) e o mesmo molde de
+  `reduceFieldDeliveryImageToJpeg`. Original: lado maior ≤ 1600 px (`OCCURRENCE_PHOTO_MAX_SIDE`),
+  degraus de qualidade 0.85→0.5 até `OCCURRENCE_PHOTO_TARGET_BYTES` (400 KB). Miniatura: lado maior
+  ≤ 320 px (`OCCURRENCE_THUMBNAIL_MAX_SIDE`), qualidade fixa 0.7 (D12) — sem degraus, porque a spec
+  fixa a qualidade da miniatura, ao contrário do original. As duas saem do mesmo `HTMLImageElement`
+  carregado uma vez só (`buildOccurrencePhotoAttachment`), cada uma com seu próprio canvas reduzido —
+  reencodar pelo canvas descarta o EXIF sozinho, sem lib extra, igual ao original de `fieldDelivery`.
+  RF29b isolado em `attemptOccurrencePhotoThumbnail(encode)`: recebe a função de encode como
+  dependência, então é testável sem canvas — falha do `encode` (canvas indisponível, memória) volta
+  `undefined` em vez de lançar, e `buildOccurrencePhotoAttachment` nunca deixa a falha da miniatura
+  impedir o original.
+- `apps/frontend-transportada/test/trip/occurrence-photo-image.contract.ts` (novo), importado por
+  `test/trip.contract.test.ts`: dimensões do original e da miniatura (inclusive proporção extrema
+  sem dimensão zero), sequência de qualidade do original (0.85→0.5), e os dois ramos de
+  `attemptOccurrencePhotoThumbnail` (encode resolve / encode rejeita) — mesmo padrão de
+  `field-delivery-image.contract.ts`: só a parte pura é testada, porque `canvas.toBlob` não roda no
+  ambiente de teste.
+
+### Vermelho e verde
+
+Vermelho: `computeOccurrencePhotoOriginalDimensions`/`computeOccurrencePhotoThumbnailDimensions`/
+`buildOccurrencePhotoQualitySequence`/`attemptOccurrencePhotoThumbnail` não existiam —
+`bun test ./test/trip.contract.test.ts` falhava na importação antes do serviço nascer.
+Verde após o serviço: `bun run --cwd apps/frontend-transportada test` → 1252 pass em
+`trip.contract.test.ts` (18364 `expect()`) + 40 pass na suíte de hooks, 0 fail.
+
+### Gates
+
+- `bun run --cwd apps/frontend-transportada test` → verde (0 fail).
+- `bun run lint` (raiz) → verde após remover `async` de dois `it` sem `await` interno
+  (`require-await`) — os dois testes de `attemptOccurrencePhotoThumbnail` usam
+  `expect(promise).resolves.toX(...)` sem `await`/`return`, mesmo padrão não-awaited já usado em
+  `document-scan-lookup.contract.ts`.
+- `bun run typecheck` (raiz) → verde, sem tocar nas seis apps do monorepo.
+- `bun run format:check` (raiz) → verde após `prettier --write` nos dois arquivos novos.
+
+### Divergência frente à spec
+
+Nenhuma. RF29/RF29b e D12 batem com o que foi implementado; T22 (cliente/envio) é quem vai consumir
+`buildOccurrencePhotoAttachment` para montar o multipart com `file` + `thumbnail`.

@@ -209,7 +209,7 @@ job_schedules`, índice parcial `stored_objects_purpose_retention_idx`).
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T21** Reencode e miniatura no navegador (RF29/RF29b) —
+- [x] **T21** Reencode e miniatura no navegador (RF29/RF29b) —
       `occurrencePhotoImage.service.ts` sobre `loadImageFromFile`/`drawFullResolutionCanvas` já
       existentes: original ≤ 1600 px / ≤ 400 KB e miniatura ≤ 320 px / qualidade 0,7 do **mesmo**
       canvas.
