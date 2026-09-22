@@ -494,3 +494,38 @@ auditoria com comentário que mente é o pior modo de falha possível.
 `redelivery_policy`/`redelivery_application`, `decided_by_user_id`, o histórico de eventos inteiro
 (carrega nota interna de cancelamento e de devolução ao barracão) e tudo de acerto financeiro.
 Serialização campo a campo, `cache-control: no-store`.
+
+## Validação 🧠 da T14 (architect, opus) — a task vira duas
+
+A T14, como estava escrita, **passaria em todos os seus critérios de aceite entregando a RF18 vazia**:
+a coluna `redelivery_application` é ingravável pelo escritor único (aplicar a proposta acontece com a
+tratativa já `decided`, e a máquina devolve `unchanged` antes do `UPDATE`), não existe coluna de
+quem/quando aplicou, e nenhuma task liga a reordenação ao registro — sobrariam duas chamadas do
+navegador, com a segunda se perdendo se a aba fechasse.
+
+**T14a** — a política pura e o `GET` da proposta, como estava, mais: o caso da nota **sem parada**
+(`stop_id is null`, o balde "sem endereço") como recusa com motivo próprio; a **ordem completa
+proposta** (`orderedStopIds`), porque a rota de reordenação exige o conjunto inteiro e recusa lista
+parcial; e a contagem de notas vivas da parada com `released_at is null`, excluindo a própria nota.
+
+**T14b** 🧠 — `POST /trip-occurrences/:id/case/redelivery-application` (`occurrences.resolve`), que
+**executa e registra na mesma transação**: trava `trips` com `for no key update`, reroda
+`checkTripAcceptsLinkage` sobre a linha travada, executa a reordenação ou a liberação, e grava a
+aplicação por compare-and-set (`where redelivery_application is null`). Fecha junto o TOCTOU de
+`readStopOrderPreconditions`, que hoje lê o status da viagem fora da transação que escreve — defeito
+latente que esta feature transformaria em rotina, porque a janela entre a proposta e o clique passa a
+ser minutos. Ordem de lock fixada e escrita no cabeçalho: **`trips` primeiro, tratativa depois**.
+
+Migration junto: `redelivery_applied_at` e `redelivery_applied_by_user_id` com CHECK de par, e o CHECK
+que amarra `redelivery_application` a `decision_kind = 'redelivery_authorized'` — hoje uma tratativa
+`recorded` com decisão de pagamento aceitaria `reordered`.
+
+⚠️ **Tirar `redeliveryApplication` do input de transição.** Ele está disponível na mesma chamada que o
+contratante dispara; uma linha por distração e a decisão do cliente escreve roteiro. Vai para o método
+dedicado, com contrato negativo provando que nenhum caminho do portal alcança `trip_stops` ou
+`trip_documents`.
+
+⚠️ **`release_document` não é "vai para o fim do roteiro"** — a nota sai da viagem e volta para o pool
+(`released_at` + `stop_id = null`, e a parada some se esvaziar). A tela precisa dizer isso com todas as
+letras, e a reordenação continua permitida ao operador mesmo quando a proposta foi liberar: a coluna
+registra **o fato**, não a proposta.
