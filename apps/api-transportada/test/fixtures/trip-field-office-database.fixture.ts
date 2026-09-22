@@ -184,7 +184,7 @@ export function wireOccurrenceRoute(
           logger,
           readLabels: (query) => readOccurrenceLabelsForDocuments(database.db, query),
         },
-        unitOfWork: new DrizzleOfficeOccurrenceBatchUnitOfWork(database.db),
+        unitOfWork: new DrizzleOfficeOccurrenceBatchUnitOfWork(database.db, 'test-bucket'),
       }),
     targets: new DrizzleFieldTripTargetRepository(database.db),
   })
@@ -235,8 +235,8 @@ export function wireRoutes(
 ) {
   const targets = new DrizzleFieldTripTargetRepository(database.db)
   const currentDriverTrips = new DrizzleCurrentDriverTripRepository(database.db)
-  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
-  const deliveryProofs = new DrizzleDeliveryProofRepository(database.db)
+  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+  const deliveryProofs = new DrizzleDeliveryProofRepository(database.db, 'test-bucket')
   const attachment = {
     newObjectId: () => crypto.randomUUID(),
     newProofId: () => crypto.randomUUID(),

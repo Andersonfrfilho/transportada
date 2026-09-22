@@ -20,7 +20,10 @@ import type { TripQueryable } from './trip-queryable.type.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 export class DrizzleAttachOccurrencePhotoUnitOfWork implements AttachOccurrencePhotoUnitOfWork {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly bucket: string,
+  ) {}
 
   public execute<TResult>(
     operation: (transaction: AttachOccurrencePhotoTransactionPort) => Promise<TResult>,
@@ -28,7 +31,8 @@ export class DrizzleAttachOccurrencePhotoUnitOfWork implements AttachOccurrenceP
     return this.database.transaction((transaction) =>
       operation({
         insertAttachment: (input) => insertOccurrenceAttachmentRow(transaction, input),
-        insertStoredObject: (input) => insertAttachmentStoredObject(transaction, input),
+        insertStoredObject: (input) =>
+          insertAttachmentStoredObject(transaction, input, this.bucket),
       }),
     )
   }
@@ -37,9 +41,10 @@ export class DrizzleAttachOccurrencePhotoUnitOfWork implements AttachOccurrenceP
 async function insertAttachmentStoredObject(
   queryable: TripQueryable,
   input: InsertOccurrenceStoredObjectInput,
+  bucket: string,
 ): Promise<void> {
   await queryable.insert(storedObjects).values({
-    bucket: 'fiscal',
+    bucket,
     companyId: input.companyId,
     id: input.id,
     mimeType: input.mimeType,

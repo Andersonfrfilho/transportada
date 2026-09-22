@@ -41,6 +41,7 @@ describe('Pre-deploy da API', () => {
     })
 
     expect(report).toEqual({
+      bucketRepairs: 'skipped',
       migrated: true,
       migrationsChecked: 0,
       occurrenceTypes: 'skipped',
@@ -54,11 +55,13 @@ describe('Pre-deploy da API', () => {
       migrate: async () => undefined,
       verifyMigrationsComplete: async () => 215,
       provision: async () => ['company'],
+      repairStoredObjectBuckets: async () => 2,
       seedTemplates: async () => 4,
       seedOccurrenceTypes: async () => 7,
     })
 
     expect(report).toEqual({
+      bucketRepairs: 2,
       created: ['company'],
       migrated: true,
       migrationsChecked: 215,
@@ -66,6 +69,32 @@ describe('Pre-deploy da API', () => {
       provisioning: 'ensured',
       templates: 4,
     })
+  })
+
+  /**
+   * O literal `bucket: 'fiscal'` gravado por `src/trips/**` antes da correção (spec 161) deixava a
+   * leitura assinando URL para um host que não existe. O reparo é idempotente por desenho — rodar de
+   * novo sem linha para corrigir devolve `0`, nunca falha.
+   */
+  test('repara o bucket errado depois do provisionamento, nunca antes', async () => {
+    const order: string[] = []
+
+    await runPreDeploy({
+      migrate: async () => {
+        order.push('migrate')
+      },
+      verifyMigrationsComplete: async () => 0,
+      provision: async () => {
+        order.push('provision')
+        return []
+      },
+      repairStoredObjectBuckets: async () => {
+        order.push('bucket-repair')
+        return 0
+      },
+    })
+
+    expect(order).toEqual(['migrate', 'provision', 'bucket-repair'])
   })
 
   /**
@@ -196,6 +225,7 @@ describe('Pre-deploy da API', () => {
     })
 
     expect(report).toEqual({
+      bucketRepairs: 'skipped',
       migrated: true,
       migrationsChecked: 3,
       occurrenceTypes: 'skipped',

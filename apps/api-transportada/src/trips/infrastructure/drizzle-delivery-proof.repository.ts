@@ -55,7 +55,10 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 export const PROOF_REACHABLE_TRIP_STATUSES = TRIP_DISPATCHED_STATUSES
 
 export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly bucket: string,
+  ) {}
 
   /**
    * O comprovante prende no **evento de entrega da viagem do alvo** (o motorista logado, ou a viagem
@@ -283,7 +286,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   public async saveProof(input: SaveProofInput): Promise<{ readonly id: string }> {
     return this.database.transaction(async (transaction) => {
       await transaction.insert(storedObjects).values({
-        bucket: 'fiscal',
+        bucket: this.bucket,
         companyId: input.companyId,
         id: input.objectId,
         mimeType: input.mimeType,

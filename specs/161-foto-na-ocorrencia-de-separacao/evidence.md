@@ -2074,3 +2074,71 @@ SIGTERM`, subprocesso recusa subir por `KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMI
 - `bun run --cwd apps/api-transportada db:generate` depois da migration → `{"status":"no_changes"}`.
 - Migration e rollback aplicados contra Postgres nativo (`127.0.0.1:65433`), com e sem linha
   pausada por usuário, descrito acima.
+
+## Bucket errado em stored_objects (src/trips/\*\*)
+
+**Defeito medido em staging:** cinco repositórios de `src/trips/infrastructure/` gravavam o literal
+`bucket: 'fiscal'` na linha de `stored_objects` enquanto os bytes subiam para o bucket real
+(`OBJECT_STORAGE_BUCKET`). A leitura assinava a URL com `location.bucket` vindo da linha, saindo
+para o host `fiscal.t3.storageapi.dev` — 403/503 na foto e na miniatura da ocorrência.
+
+### Mudança
+
+- Os cinco pontos passam a receber `bucket: string` no construtor, atribuído na composição
+  (`src/main.ts`, mesmo valor que o gateway de armazenamento usa no mesmo bloco —
+  `resolveStorageBucket(environment)`/`storageBucket`/`whatsappStorageBucket`):
+  - `src/trips/infrastructure/drizzle-separation-occurrence.repository.ts`
+    (`DrizzleSeparationOccurrenceUnitOfWork`)
+  - `src/trips/infrastructure/drizzle-delivery-proof.repository.ts` (`DrizzleDeliveryProofRepository`)
+  - `src/trips/infrastructure/drizzle-office-occurrence-batch.repository.ts`
+    (`DrizzleOfficeOccurrenceBatchUnitOfWork`, e `saveOccurrenceAttachmentObject` passou a receber
+    `bucket` por parâmetro)
+  - `src/trips/infrastructure/drizzle-attach-occurrence-photo.repository.ts`
+    (`DrizzleAttachOccurrencePhotoUnitOfWork`)
+  - `src/trips/infrastructure/drizzle-driver-field-report.repository.ts`
+    (`DrizzleDriverFieldReportUnitOfWork` e `DrizzleDriverFieldReportTransaction`)
+  - `src/main.ts`: os 9 pontos de instanciação (`new Drizzle*UnitOfWork(...)` /
+    `new DrizzleDeliveryProofRepository(...)`) passam a receber o segundo argumento.
+- Reparo idempotente novo: `src/database/stored-object-bucket-repair.service.ts`
+  (`repairStoredObjectBuckets` + `createDrizzleStoredObjectBucketRepairPort`) —
+  `UPDATE stored_objects SET bucket = <bucket configurado> WHERE bucket = 'fiscal'`. Ligado ao
+  `runPreDeploy` (`src/database/pre-deploy.service.ts`) depois de `assertMigrationsAreComplete` e
+  `seedOccurrenceTypeCatalog`, com o resultado no relatório (`bucketRepairs`). Repetir o deploy sem
+  linha para corrigir devolve `0`.
+
+### Testes novos
+
+- `test/trip-schema/stored-object-bucket-literal.contract.ts` (entrypoint
+  `test/trip-schema.contract.test.ts`, já listado em `package.json`): varre `src/trips/**` e reprova
+  qualquer `bucket: '...'`/`bucket: "..."` literal.
+- `test/database-migration/stored-object-bucket-repair.contract.ts` (entrypoint
+  `test/database-migration.contract.test.ts`, já listado em `package.json`): unidade sem Postgres —
+  `repairStoredObjectBuckets` repassa o bucket e devolve a contagem da porta fake; a porta Drizzle
+  (`createDrizzleStoredObjectBucketRepairPort`) testada com uma fake mínima da cadeia
+  `update().set().where().returning()`, conferindo o `set` montado e a contagem das linhas
+  retornadas — com e sem linha para corrigir.
+- `test/database-migration/pre-deploy.contract.ts`: ajustado — os `toEqual(report)` existentes
+  agora incluem `bucketRepairs`, e um teste novo confere que o reparo roda depois do
+  provisionamento, nunca antes (mesmo molde do teste de `seedOccurrenceTypes`).
+- Fixtures/integração que instanciavam as cinco classes com um argumento só passaram a receber
+  `'test-bucket'` como segundo argumento (`test/fixtures/trip-field-office-database.fixture.ts` e
+  seis arquivos em `test/integration/`) — não rodados aqui (Docker do Postgres fora do ar), só
+  corrigidos para o typecheck.
+
+### Gates
+
+- `bun run lint` (raiz) → verde nas seis apps.
+- `bun run typecheck` (raiz) → verde nas seis apps (0 erro; os 32 call sites de teste corrigidos
+  para o segundo argumento).
+- `bun --env-file=../../.env.test test --timeout 120000` (API): 6834 pass, 23 skip, 9 fail — as 9
+  falhas são só `toll-booth-catalog-repository` (`ERR_POSTGRES_CONNECTION_CLOSED`), pré-existentes
+  e sem relação com esta mudança (mesma causa já registrada nesta evidência e na memória do
+  operador — Docker do Postgres local fora do ar). Rodando só os dois entrypoints tocados
+  (`test/trip-schema.contract.test.ts` e `test/database-migration.contract.test.ts`): **149 pass, 4
+  skip, 0 fail**.
+- `test:integration` **não rodado** por instrução explícita (Docker do Postgres fora do ar).
+
+### Pendências
+
+- Nenhuma. Migration não foi necessária — `stored_objects.bucket` já é `text()` livre; o reparo é
+  `UPDATE` de dados, não schema.

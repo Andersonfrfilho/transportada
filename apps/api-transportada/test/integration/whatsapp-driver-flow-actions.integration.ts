@@ -424,7 +424,7 @@ async function buildScenario(db: Database, companyId: string) {
   const baseUrl = `http://127.0.0.1:${graphServer?.port}`
 
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(db)
-  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(db)
+  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(db, 'test-bucket')
   const driverFlowActions = createDriverWhatsAppFlowActions({
     findCurrentTrip: (input) =>
       findCurrentDriverTrip({

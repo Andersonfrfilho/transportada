@@ -594,7 +594,7 @@ async function buildScenario(db: Database, companyId: string) {
    * Spec 161 T16 (RF20b): mesmo molde de `main.ts` — a reserva/liquidação da chave de
    * idempotência sobre `trip_field_reports`, aqui contra o Postgres descartável do teste.
    */
-  const occurrenceFieldReports = new DrizzleDriverFieldReportUnitOfWork(db)
+  const occurrenceFieldReports = new DrizzleDriverFieldReportUnitOfWork(db, 'test-bucket')
   const occurrenceFieldReportGuardTransaction = {
     claim: (input: Parameters<DriverFieldReportTransactionPort['claim']>[0]) =>
       occurrenceFieldReports.execute((transaction) => transaction.claim(input)),
@@ -629,7 +629,7 @@ async function buildScenario(db: Database, companyId: string) {
               newObjectId: () => crypto.randomUUID(),
               now: () => new Date(),
               storage: fakeAttachmentStorage(occurrenceUploads),
-              unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(db),
+              unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(db, 'test-bucket'),
             },
           }),
         recall: async (resultId) =>
@@ -703,7 +703,7 @@ async function buildScenario(db: Database, companyId: string) {
                 newObjectId: () => crypto.randomUUID(),
                 now: () => new Date(),
                 storage: fakeAttachmentStorage(occurrenceUploads),
-                unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(db),
+                unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(db, 'test-bucket'),
               }),
           },
           tripId: input.tripId,

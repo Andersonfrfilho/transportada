@@ -753,8 +753,14 @@ export function bootstrap(): Bun.Server<undefined> {
    */
   const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db)
   const whatsappDriverScoreRepository = new DrizzleDriverScoreRepository(database.db)
-  const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
-  const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
+  const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
+    database.db,
+    resolveStorageBucket(process.env),
+  )
+  const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(
+    database.db,
+    resolveStorageBucket(process.env),
+  )
   /**
    * Spec 161 T16: a mesma reserva/liquidação de chave que `fieldReportGuardTransaction`
    * (`createApplicationRoutes`) monta para a rota HTTP — instância própria porque este bloco vive
@@ -860,7 +866,10 @@ export function bootstrap(): Bun.Server<undefined> {
                 bucket: whatsappStorageBucket,
                 storage: whatsappStorageGateway,
               }),
-              unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database.db),
+              unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(
+                database.db,
+                whatsappStorageBucket,
+              ),
             },
           }),
         recall: async (resultId) =>
@@ -960,7 +969,10 @@ export function bootstrap(): Bun.Server<undefined> {
                   bucket: whatsappStorageBucket,
                   storage: whatsappStorageGateway,
                 }),
-                unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db),
+                unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(
+                  database.db,
+                  whatsappStorageBucket,
+                ),
               }),
           },
           tripId: input.tripId,
@@ -1710,7 +1722,10 @@ function createApplicationRoutes({
         locale: NOTIFICATION_DEFAULT_LOCALE,
       } as never),
   })
-  const officeOccurrenceBatches = new DrizzleOfficeOccurrenceBatchUnitOfWork(database)
+  const officeOccurrenceBatches = new DrizzleOfficeOccurrenceBatchUnitOfWork(
+    database,
+    resolveStorageBucket(environment),
+  )
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database, logger)
   const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
@@ -1735,7 +1750,10 @@ function createApplicationRoutes({
     database,
     readiness: tripFiscalReadinessQuery,
   })
-  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
+  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
+    database,
+    resolveStorageBucket(environment),
+  )
   /**
    * Spec 161 T8: a reserva e a liquidação da chave para o galpão — cada chamada abre sua própria
    * transação curta (não a mesma da escrita). É o que `FieldReportGuardInput.transaction` exige
@@ -1750,7 +1768,10 @@ function createApplicationRoutes({
     settle: (input: Parameters<DriverFieldReportTransactionPort['settle']>[0]) =>
       driverFieldReports.execute((transaction) => transaction.settle(input)),
   }
-  const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
+  const deliveryProofRepository = new DrizzleDeliveryProofRepository(
+    database,
+    resolveStorageBucket(environment),
+  )
   const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
   const tripPlannedRouteRepository = new DrizzleTripPlannedRouteRepository(database)
   /**
@@ -3028,7 +3049,10 @@ function createApplicationRoutes({
                         bucket: storageBucket,
                         storage: storageGateway,
                       }),
-                      unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database),
+                      unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(
+                        database,
+                        storageBucket,
+                      ),
                     }),
                 },
                 tripId: input.tripId,
@@ -3096,7 +3120,7 @@ function createApplicationRoutes({
                     bucket: storageBucket,
                     storage: storageGateway,
                   }),
-                  unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database),
+                  unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database, storageBucket),
                 },
               }),
             recall: async (resultId) =>

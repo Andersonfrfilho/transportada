@@ -9,6 +9,10 @@ import { seedNotificationTemplates } from '../notification/application/notificat
 import { seedOccurrenceTypeCatalog } from './occurrence-type-catalog-seed.service.js'
 import { createDrizzleOccurrenceTypeCatalogSeedPort } from './occurrence-type-catalog-seed.repository.js'
 import { runAllDatabaseMigrations } from './database-migration.service.js'
+import {
+  createDrizzleStoredObjectBucketRepairPort,
+  repairStoredObjectBuckets,
+} from './stored-object-bucket-repair.service.js'
 import type { ProvisionedArtifact } from './environment-provisioning.constant.js'
 import {
   isEnvironmentProvisioningConfigured,
@@ -27,10 +31,13 @@ export type PreDeploySteps = {
   /** O catálogo de tipos de ocorrência (spec 079) para toda empresa — sem ele nenhuma tela oferece
    * tipo para registrar ocorrência. */
   readonly seedOccurrenceTypes?: (() => Promise<number>) | undefined
+  /** Reparo do literal `bucket: 'fiscal'` gravado por `src/trips/**` (spec 161) — idempotente. */
+  readonly repairStoredObjectBuckets?: (() => Promise<number>) | undefined
 }
 
 export type PreDeployReport =
   | {
+      readonly bucketRepairs: number | 'skipped'
       readonly migrated: true
       readonly migrationsChecked: number
       readonly occurrenceTypes: number | 'skipped'
@@ -38,6 +45,7 @@ export type PreDeployReport =
       readonly templates: number | 'skipped'
     }
   | {
+      readonly bucketRepairs: number | 'skipped'
       readonly created: readonly ProvisionedArtifact[]
       readonly migrated: true
       readonly migrationsChecked: number
@@ -62,12 +70,14 @@ export async function runPreDeploy({
   provision,
   seedTemplates,
   seedOccurrenceTypes,
+  repairStoredObjectBuckets: repairBuckets,
 }: PreDeploySteps): Promise<PreDeployReport> {
   await migrate()
   const migrationsChecked = await verifyMigrationsComplete()
 
   if (provision === undefined) {
     return {
+      bucketRepairs: await runSeed(repairBuckets),
       migrated: true,
       migrationsChecked,
       occurrenceTypes: await runSeed(seedOccurrenceTypes),
@@ -80,6 +90,7 @@ export async function runPreDeploy({
 
   // Depois do provisionamento: a empresa precisa existir para o template pertencer a alguém.
   return {
+    bucketRepairs: await runSeed(repairBuckets),
     created,
     migrated: true,
     migrationsChecked,
@@ -91,6 +102,15 @@ export async function runPreDeploy({
 
 async function runSeed(seed: (() => Promise<number>) | undefined): Promise<number | 'skipped'> {
   return seed === undefined ? 'skipped' : await seed()
+}
+
+/** Mesma resolução de `resolveStorageBucket` (`src/main.ts`): `OBJECT_STORAGE_BUCKET`, com o
+ * nome antigo `STORAGE_BUCKET` como alternativa. */
+function resolveObjectStorageBucket(environment: Record<string, string | undefined>): string {
+  const bucket = environment.OBJECT_STORAGE_BUCKET ?? environment.STORAGE_BUCKET
+  if (bucket === undefined || bucket.trim() === '')
+    throw new Error('Object storage bucket is required')
+  return bucket
 }
 
 if (import.meta.main) {
@@ -132,6 +152,19 @@ if (import.meta.main) {
       try {
         return await seedOccurrenceTypeCatalog({
           port: createDrizzleOccurrenceTypeCatalogSeedPort(provider.db),
+        })
+      } finally {
+        await provider.close()
+      }
+    },
+    repairStoredObjectBuckets: async () => {
+      const provider = createDrizzleProvider({
+        connection: { adapter: 'postgres', max: 1, url: config.databaseUrl },
+      })
+      try {
+        return await repairStoredObjectBuckets({
+          bucket: resolveObjectStorageBucket(process.env),
+          port: createDrizzleStoredObjectBucketRepairPort(provider.db),
         })
       } finally {
         await provider.close()

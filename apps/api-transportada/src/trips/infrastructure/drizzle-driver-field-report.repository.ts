@@ -59,19 +59,25 @@ const TRIP_ON_DELIVERY_ROUTE_STATUS = 'on_delivery_route' satisfies TripStatus
 const SETTLED_DOCUMENT_STATUSES = [DELIVERED_DOCUMENT_STATUS, RETURNED_DOCUMENT_STATUS] as const
 
 export class DrizzleDriverFieldReportUnitOfWork implements DriverFieldReportUnitOfWork {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly bucket: string,
+  ) {}
 
   public execute<TResult>(
     operation: (transaction: DriverFieldReportTransactionPort) => Promise<TResult>,
   ): Promise<TResult> {
     return this.database.transaction((transaction) =>
-      operation(new DrizzleDriverFieldReportTransaction(transaction)),
+      operation(new DrizzleDriverFieldReportTransaction(transaction, this.bucket)),
     )
   }
 }
 
 export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactionPort {
-  public constructor(private readonly transaction: Transaction) {}
+  public constructor(
+    private readonly transaction: Transaction,
+    private readonly bucket: string,
+  ) {}
 
   /**
    * ADR-0045 §5: a reserva é o próprio `insert` no unique. O reenvio concorrente fica **bloqueado
@@ -590,7 +596,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     input: Parameters<DriverFieldReportTransactionPort['saveDeliveryProofWithinTransaction']>[0],
   ): Promise<{ readonly id: string }> {
     await this.transaction.insert(storedObjects).values({
-      bucket: 'fiscal',
+      bucket: this.bucket,
       companyId: input.companyId,
       id: input.objectId,
       mimeType: input.mimeType,

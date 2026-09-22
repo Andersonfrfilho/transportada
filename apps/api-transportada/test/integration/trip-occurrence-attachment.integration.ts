@@ -93,7 +93,7 @@ async function seedSeparationOccurrenceType(
 
 /** Molde de `main.ts` (T6/T8): registro com foto + miniatura, protegido por `withFieldReport`. */
 function wireOccurrenceUseCases(database: TestDatabase) {
-  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
+  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
   const guardTransaction = {
     claim: (input: Parameters<DriverFieldReportTransactionPort['claim']>[0]) =>
       driverFieldReports.execute((transaction) => transaction.claim(input)),
@@ -197,7 +197,7 @@ function wireOccurrenceUseCases(database: TestDatabase) {
                 newObjectId: () => crypto.randomUUID(),
                 now: () => new Date(),
                 storage: fakeAttachmentStorage(uploads),
-                unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db),
+                unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db, 'test-bucket'),
               }),
           },
           tripId: input.tripId,
@@ -263,7 +263,7 @@ function wireOccurrenceUseCases(database: TestDatabase) {
             newObjectId: () => crypto.randomUUID(),
             now: () => new Date(),
             storage: fakeAttachmentStorage(uploads),
-            unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database.db),
+            unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database.db, 'test-bucket'),
           },
         }),
       recall: (resultId) =>

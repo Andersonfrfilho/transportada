@@ -74,7 +74,7 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
         const trip = await seedTrip(database, company)
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
 
         await reportDocumentDelivery({
           actorUserId: company.userId,
@@ -116,7 +116,7 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
         const trip = await seedTrip(database, company)
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
 
         await reportDocumentDelivery({
           actorUserId: company.userId,
@@ -148,7 +148,7 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
         const trip = await seedTrip(database, company)
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
         const target = await resolveFieldTripTarget({
           companyId: company.companyId,
           repository: new DrizzleFieldTripTargetRepository(database.db),

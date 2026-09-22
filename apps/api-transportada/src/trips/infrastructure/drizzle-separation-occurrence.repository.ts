@@ -22,7 +22,10 @@ import type { TripQueryable } from './trip-queryable.type.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 export class DrizzleSeparationOccurrenceUnitOfWork implements SeparationOccurrenceUnitOfWork {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly bucket: string,
+  ) {}
 
   public execute<TResult>(
     operation: (transaction: SeparationOccurrenceTransactionPort) => Promise<TResult>,
@@ -30,7 +33,8 @@ export class DrizzleSeparationOccurrenceUnitOfWork implements SeparationOccurren
     return this.database.transaction((transaction) =>
       operation({
         insertAttachment: (input) => insertOccurrenceAttachmentRow(transaction, input),
-        insertStoredObject: (input) => insertSeparationStoredObject(transaction, input),
+        insertStoredObject: (input) =>
+          insertSeparationStoredObject(transaction, input, this.bucket),
         saveOccurrence: (input) => saveSeparationOccurrence(transaction, input),
       }),
     )
@@ -40,9 +44,10 @@ export class DrizzleSeparationOccurrenceUnitOfWork implements SeparationOccurren
 async function insertSeparationStoredObject(
   queryable: TripQueryable,
   input: InsertStoredObjectInput,
+  bucket: string,
 ): Promise<void> {
   await queryable.insert(storedObjects).values({
-    bucket: 'fiscal',
+    bucket,
     companyId: input.companyId,
     id: input.id,
     mimeType: input.mimeType,
