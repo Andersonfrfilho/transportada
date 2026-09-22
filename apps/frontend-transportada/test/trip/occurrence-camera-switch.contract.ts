@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
+import { readFile } from 'node:fs/promises'
+
 import {
   buildCameraConstraints,
   countVideoInputDevices,
@@ -67,5 +69,27 @@ describe('seleção de câmera', () => {
         },
       }),
     ).toBe(0)
+  })
+})
+
+/**
+ * Contrato estático: a lanterna e a troca de câmera são do mesmo dono (`useCameraStream`), e o
+ * botão de cada uma só aparece quando o aparelho a suporta — `hasTorch` e `hasMultipleCameras`.
+ */
+describe('botões da câmera da ocorrência', () => {
+  const componentPath = 'src/modules/trip/components/OccurrencePhotoPicker.component.tsx'
+
+  test('a lanterna aparece só com torch na trilha, e diz se está ligada', async () => {
+    const component = await readFile(componentPath, 'utf8')
+
+    expect(component).toContain('showCamera && hasTorch')
+    expect(component).toContain('aria-pressed={torchOn}')
+    expect(component).toContain('onClick={toggleTorch}')
+  })
+
+  test('virar a câmera aparece só com mais de uma câmera', async () => {
+    const component = await readFile(componentPath, 'utf8')
+
+    expect(component).toContain('showCamera && hasMultipleCameras')
   })
 })

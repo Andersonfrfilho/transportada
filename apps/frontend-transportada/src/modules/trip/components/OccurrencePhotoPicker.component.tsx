@@ -51,8 +51,11 @@ export function OccurrencePhotoPicker({
   const [facingMode, setFacingMode] = useState<CameraFacingMode>(DEFAULT_CAMERA_FACING_MODE)
   const {
     hasMultipleCameras,
+    hasTorch,
     status: cameraStatus,
     stream,
+    toggleTorch,
+    torchOn,
   } = useCameraStream({ facingMode, isActive: canAdd })
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -178,6 +181,21 @@ export function OccurrencePhotoPicker({
             >
               <Icon name="camera" />
               {t('occurrence.photoPicker.capture')}
+            </Button>
+          ) : null}
+          {/* Lanterna: o galpão à noite e o fundo do baú são escuros, e foto escura não prova nada.
+              Só aparece quando a trilha ativa expõe `torch` — o botão diz se está ligada. */}
+          {showCamera && hasTorch ? (
+            <Button
+              aria-pressed={torchOn}
+              disabled={disabled}
+              onClick={toggleTorch}
+              size="sm"
+              type="button"
+              variant={torchOn ? 'secondary' : 'ghost'}
+            >
+              <Icon name={torchOn ? 'sun' : 'moon'} />
+              {t(torchOn ? 'occurrence.photoPicker.torchOff' : 'occurrence.photoPicker.torchOn')}
             </Button>
           ) : null}
           {/* Só aparece em aparelho com mais de uma câmera: botão que não faz nada é pior que

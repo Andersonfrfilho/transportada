@@ -698,6 +698,8 @@
       "switchToBack": "Usar câmera traseira",
       "switchToFront": "Usar câmera frontal",
       "thumbAlt": "Foto da ocorrência",
+      "torchOff": "Lanterna ligada — apagar",
+      "torchOn": "Ligar lanterna",
       "uploadChoose": "Escolher arquivo",
       "uploadEmpty": "Nenhum arquivo escolhido",
       "uploadLabel": "Enviar foto"
