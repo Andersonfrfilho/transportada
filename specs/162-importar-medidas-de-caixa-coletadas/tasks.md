@@ -17,14 +17,14 @@
 
 - [x] T003 🧠 Conferir se `measured_by_user_id` tem FK; decidir o ator e registrar no `plan.md`
 - [x] T004 Migration aditiva `'catalog'` nas duas CHECKs (+ ator se preciso) com rollback — `make migration-test` verde (CA07)
-- [ ] T005 `drizzle-package-box-catalog-import.repository.ts` com as escritas condicionais do plano
+- [x] T005 `drizzle-package-box-catalog-import.repository.ts` com as escritas condicionais do plano
 
 ## Fase 3 — Caso de uso e CLI
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T006 `import-package-box-catalog.use-case.ts` (sanidade → consenso → proposta/promoção, relatório)
-- [ ] T007 Integração CA03–CA06 — `bun --env-file=../../.env.test run test:integration` de dentro de
+- [x] T006 `import-package-box-catalog.use-case.ts` (sanidade → consenso → proposta/promoção, relatório)
+- [x] T007 Integração CA03–CA06 — `bun --env-file=../../.env.test run test:integration` de dentro de
       `apps/api-transportada` (sem a flag a integração pula e não vale)
 - [ ] T008 CLI `src/cli/import-package-box-catalog.ts` (stdin, `--apply`, relatório JSON); conferir que entra na imagem
 - [ ] T009 `scripts/box-catalog-harvest/import-to-production.sh` (simulação padrão; `--apply` pede `IMPORTAR`)
