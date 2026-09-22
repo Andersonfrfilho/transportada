@@ -235,6 +235,17 @@ export type JobExecutionOrigin = (typeof JOB_EXECUTION_ORIGINS)[number]
 export const JOB_EXECUTION_ORIGIN_MAX_LENGTH = 10
 export const JOB_OUTCOME_MAX_LENGTH = 40
 
+/**
+ * Origem da pausa: `system` é a que a migration grava para a rotina que nasce desligada, sem
+ * usuário a quem atribuir — `user` é a que o botão de ligar/desligar grava, com autor. Não é o
+ * mesmo vocabulário de `JOB_EXECUTION_ORIGINS` (aquele é de quem *dispara o ciclo*; este é de quem
+ * *desligou a rotina*), então não compartilham a constante.
+ */
+export const JOB_PAUSE_ORIGINS = ['system', 'user'] as const
+export type JobPauseOrigin = (typeof JOB_PAUSE_ORIGINS)[number]
+
+export const JOB_PAUSE_ORIGIN_MAX_LENGTH = 6
+
 function indexByJob<TValue>(
   select: (entry: JobCatalogEntry) => TValue,
 ): Record<ScheduledJob, TValue> {

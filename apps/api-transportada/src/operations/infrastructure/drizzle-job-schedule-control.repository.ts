@@ -28,6 +28,7 @@ export function createDrizzleJobScheduleControlRepository(
           enabled: false,
           pausedAt: sql`now()`,
           pausedBy: input.actorUserId,
+          pausedOrigin: 'user',
           updatedAt: sql`now()`,
         })
         .where(eq(jobSchedules.job, input.job))
@@ -40,7 +41,13 @@ export function createDrizzleJobScheduleControlRepository(
     async resume(input) {
       const updated = await database
         .update(jobSchedules)
-        .set({ enabled: true, pausedAt: null, pausedBy: null, updatedAt: sql`now()` })
+        .set({
+          enabled: true,
+          pausedAt: null,
+          pausedBy: null,
+          pausedOrigin: null,
+          updatedAt: sql`now()`,
+        })
         .where(eq(jobSchedules.job, input.job))
         .returning()
 
@@ -58,5 +65,6 @@ function toJobScheduleRow(row: typeof jobSchedules.$inferSelect): JobScheduleRow
     nextRunAt: row.nextRunAt.toISOString(),
     pausedAt: row.pausedAt === null ? null : row.pausedAt.toISOString(),
     pausedBy: row.pausedBy,
+    pausedOrigin: row.pausedOrigin,
   }
 }

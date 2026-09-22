@@ -76,6 +76,7 @@ type JobScheduleRow = {
   readonly nextRunAt: string
   readonly pausedAt: string | null
   readonly pausedBy: string | null
+  readonly pausedOrigin: 'system' | 'user' | null
 }
 
 export const FRONTEND_ORIGIN = 'http://localhost:53000'
@@ -227,6 +228,7 @@ const RUNNING_SCHEDULE: JobScheduleRow = {
   nextRunAt: '2026-07-23T15:05:00.000Z',
   pausedAt: null,
   pausedBy: null,
+  pausedOrigin: null,
 }
 const PAUSED_SCHEDULE: JobScheduleRow = {
   enabled: false,
@@ -235,6 +237,7 @@ const PAUSED_SCHEDULE: JobScheduleRow = {
   nextRunAt: '2026-09-22T11:27:06.000Z',
   pausedAt: '2026-09-22T11:27:06.000Z',
   pausedBy: null,
+  pausedOrigin: 'system',
 }
 
 export const JOB_SCHEDULES_PAGE: readonly JobScheduleRow[] = [RUNNING_SCHEDULE, PAUSED_SCHEDULE]
@@ -278,7 +281,7 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
       async pause(input) {
         pauseCalls.push(structuredClone(input) as { actorUserId: string; job: string })
         if (params.jobScheduleNotFound === true) throw scheduleNotFoundError()
-        return { ...PAUSED_SCHEDULE, pausedBy: input.actorUserId }
+        return { ...PAUSED_SCHEDULE, pausedBy: input.actorUserId, pausedOrigin: 'user' }
       },
       async resume(input) {
         resumeCalls.push(structuredClone(input) as { job: string })

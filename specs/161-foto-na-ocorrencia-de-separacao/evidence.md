@@ -1980,3 +1980,97 @@ melhoria de UX como task própria.
   dockerizado (55432), fora do ar; mesma limitação já registrada na T19. Nenhum teste de integração
   novo depende de bucket ou fila — a única prova que falta é a mesma classe de gate que a T19 já
   deixou pendente.
+
+## T21 (emenda) — origem da pausa: o CHECK volta a exigir dono, com a nuance da pausa de fábrica
+
+Data: 2026-09-22.
+
+### O problema
+
+Para a rotina `trip.occurrence-attachment.purge` nascer desligada sem ninguém a quem atribuir a
+pausa (T21 original), o CHECK `job_schedules_pause_check` foi afrouxado: passou a aceitar
+`paused_by` nulo mesmo com `paused_at` preenchido, sem distinguir "pausa sem dono porque é de
+fábrica" de "pausa sem dono porque o código esqueceu de gravar o ator". A garantia de que pausa
+**feita por gente** sempre tem autor foi perdida.
+
+### O que mudou
+
+- **Coluna nova** `paused_origin` em `job_schedules`
+  (`src/database/job-schedule.schema.ts:58-67`), `varchar(6)`, tipada por
+  `JobPauseOrigin` (`shared/job-catalog.constant.ts`): `system` | `user`. Vocabulário fechado por
+  CHECK próprio (`job_schedules_paused_origin_check`) — não reaproveita `JOB_EXECUTION_ORIGINS`
+  (`schedule`/`manual`), que é de quem _dispara o ciclo_, vocabulário diferente de quem _desligou a
+  rotina_.
+- **CHECK `job_schedules_pause_check` restaurado com a nuance**
+  (`src/database/job-schedule.schema.ts:86-100`):
+
+  ```sql
+  (
+    enabled = true
+    and paused_at is null and paused_by is null and paused_origin is null
+  ) or (
+    enabled = false
+    and paused_at is not null and paused_origin is not null
+    and (
+      (paused_origin = 'user' and paused_by is not null) or
+      (paused_origin = 'system' and paused_by is null)
+    )
+  )
+  ```
+
+  Habilitada exige os três campos de pausa nulos. Pausada exige `paused_at` e `paused_origin`
+  sempre presentes; `paused_by` só é obrigatório quando `paused_origin = 'user'` — origem `system`
+  aceita `paused_by` nulo porque a pausa de fábrica não tem ator.
+
+- **Casos inválidos provados contra Postgres nativo** (banco descartável
+  `transportada_migtest`, `127.0.0.1:65433`, migração completa aplicada do zero):
+  1. `paused_origin = 'user'` com `paused_by` nulo → rejeitado (`job_schedules_pause_check`).
+  2. `paused_origin = 'system'` com `paused_by` preenchido → rejeitado (mesmo CHECK).
+  3. Desabilitada com `paused_at` preenchido e `paused_origin` nulo → rejeitado.
+  4. Habilitada com `paused_origin` preenchido (mesmo com os outros campos nulos) → rejeitado.
+  5. `paused_origin` fora do vocabulário (`'robot'`) → rejeitado por
+     `job_schedules_paused_origin_check`.
+  6. Caso válido de controle: `paused_origin = 'user'` com `paused_by` de um `identity_users` real
+     → aceito.
+
+- **Migration aditiva** `drizzle/20260922121307_job_schedule_pause_origin/migration.sql`, ordem:
+  1. `ADD COLUMN paused_origin` (nulo, sem CHECK ainda — evita rejeitar linha existente antes do
+     backfill).
+  2. Backfill: linha pausada sem `paused_by` → `paused_origin = 'system'` (cobre a linha semeada de
+     `trip.occurrence-attachment.purge` e qualquer outra pausa sem ator); linha pausada **com**
+     `paused_by` → `paused_origin = 'user'` (cobre pausa feita pelo botão antes desta migration
+     existir).
+  3. Só então os dois `ADD CONSTRAINT` (vocabulário e CHECK restaurado) — na ordem inversa a
+     validação falharia contra a linha semeada, que só ganha `paused_origin` no passo 2.
+- **Rollback** (`rollback.sql`, padrão do repositório: `BEGIN`/`COMMIT`, guarda `RAISE EXCEPTION` se
+  o `DELETE` do journal não afetar exatamente uma linha): derruba os dois CHECKs, recria o CHECK
+  antigo (o formato frouxo que a migration T21 original deixou) e apaga `paused_origin`. Testado
+  duas vezes contra Postgres nativo: (a) com uma rotina pausada por `user` além da semeada por
+  `system` — `COMMIT` limpo, coluna e CHECK removidos; (b) banco recriado do zero, só a linha
+  semeada — mesmo resultado. `db:generate` depois da migration → `{"status":"no_changes"}`.
+- **`pause`/`resume` gravam a origem**
+  (`operations/infrastructure/drizzle-job-schedule-control.repository.ts`): `pause` grava
+  `pausedOrigin: 'user'` junto com `pausedBy`/`pausedAt`; `resume` limpa os três campos
+  (`enabled`, `pausedAt`, `pausedBy`, `pausedOrigin`) de volta ao estado habilitado. Porta e caso de
+  uso (`job-schedule-control.port.ts`) devolvem `pausedOrigin` na leitura.
+- **Cron (`apps/cron-transportada`)**: schema espelhado (`src/database/job-schedule.schema.ts`) já
+  não copiava `paused_at`/`paused_by` — o comentário no topo explica que a batida só lê o relógio e
+  abre a execução, nunca as colunas do operador. `paused_origin` segue a mesma regra: não entra no
+  espelho. Confirmado por leitura e pelos 101 testes do cron passando sem alteração.
+
+### Gates
+
+- `bun run --cwd apps/api-transportada test` → 6828 pass, 23 skip, 0 fail relacionado (os 9 testes
+  de `toll-booth-catalog-repository.integration` seguem falhando por Postgres dockerizado fora do
+  ar — mesma causa pré-existente já registrada acima, confirmada de novo agora).
+- `bun --env-file=../../.env.test run test:integration` (api), com `DATABASE_URL` apontado para o
+  Postgres nativo (`127.0.0.1:65433/transportada`, já provisionado nesta máquina) no lugar do
+  Docker fora do ar: 502 pass, 1 fail — `server.integration.ts > drains and exits cleanly on
+SIGTERM`, subprocesso recusa subir por `KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET`
+  ausentes no ambiente do teste (config de Keycloak fora do escopo desta task, nada em
+  `job_schedules`). Zero falhas em qualquer teste de `job-schedule`/`operations`.
+- `bun run --cwd apps/cron-transportada test` → 101 pass, 0 fail.
+- `bun run lint` / `bun run typecheck` / `bun run format:check` (raiz) — todos verdes.
+- `bun run --cwd apps/api-transportada db:generate` depois da migration → `{"status":"no_changes"}`.
+- Migration e rollback aplicados contra Postgres nativo (`127.0.0.1:65433`), com e sem linha
+  pausada por usuário, descrito acima.

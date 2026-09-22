@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { ScheduledJob } from '../../shared/job-catalog.constant.js'
+import type { JobPauseOrigin, ScheduledJob } from '../../shared/job-catalog.constant.js'
 
 export type JobScheduleRow = Readonly<{
   enabled: boolean
@@ -10,6 +10,7 @@ export type JobScheduleRow = Readonly<{
   nextRunAt: string
   pausedAt: string | null
   pausedBy: string | null
+  pausedOrigin: JobPauseOrigin | null
 }>
 
 export type JobScheduleControlRepository = Readonly<{
