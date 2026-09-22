@@ -10,13 +10,25 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service'
-import { companies, nfePackageBoxes } from '../../src/database/database.schema'
+import {
+  companies,
+  fleetVehicles,
+  identityUsers,
+  nfeDocuments,
+  nfeImports,
+  nfePackageBoxes,
+  nfeParticipants,
+  nfeProducts,
+  storedObjects,
+  userCompanyMemberships,
+} from '../../src/database/database.schema'
 import { createRecordPackageBoxUnit } from '../../src/nfe-documents/application/record-package-box-unit.use-case'
 import { resolveBoxDimensionsForCubage } from '../../src/nfe-documents/domain/package-box-cubage-dimensions.policy'
 import { PackageBoxNotFoundError } from '../../src/nfe-documents/domain/package-box-measurement.error'
 import { PackageBoxUnitRejectedError } from '../../src/nfe-documents/domain/package-box-unit.error'
 import { DrizzlePackageBoxRepository } from '../../src/nfe-documents/infrastructure/drizzle-package-box.repository'
 import { DrizzlePackageBoxUnitRepository } from '../../src/nfe-documents/infrastructure/drizzle-package-box-unit.repository'
+import { loadTripOccupancy } from '../../src/trips/infrastructure/trip-occupancy.support'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -26,6 +38,8 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
+const EMITTER_TAX_ID = '05868574001090'
+const PRODUCT_CODE = '7891'
 const LUX_UNIT = { grossWeightGrams: 85, heightMm: 30, lengthMm: 60, widthMm: 90 } as const
 
 describe('medida da unidade e caixa estimada (spec 163, T006)', () => {
@@ -103,6 +117,70 @@ describe('medida da unidade e caixa estimada (spec 163, T006)', () => {
         expect(afterSecondUnit.estimatedArrangement).toBe('2x2x6')
         expect(afterSecondUnit.lengthMm).toBe(190)
         expect(afterSecondUnit.measurementSource).toBe('typed')
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'T007: a ocupação e a planta usam a caixa estimada na falta da medida, e a marcam',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const scenario = await seedScenario(database)
+        const cargo = await seedCargo(database, scenario)
+        await createRecordPackageBoxUnit({
+          repository: new DrizzlePackageBoxUnitRepository(database.db),
+        }).execute({
+          boxId: scenario.boxId,
+          context: { companyId: scenario.companyId },
+          source: 'typed',
+          unit: LUX_UNIT,
+        })
+
+        const withEstimate = await loadTripOccupancy(database.db, {
+          companyId: scenario.companyId,
+          nfeDocumentIds: [cargo.documentId],
+          vehicleId: cargo.vehicleId,
+        })
+        const [estimatedBox] = withEstimate.boxesByDocument.get(cargo.documentId) ?? []
+        expect([estimatedBox?.lengthMm, estimatedBox?.widthMm, estimatedBox?.heightMm]).toEqual([
+          188, 188, 128,
+        ])
+        // 48 unidades de 24 por caixa = 2 caixas de 0,004524 m³.
+        expect(estimatedBox?.count).toBe(2)
+        expect(withEstimate.volumeByDocument.get(cargo.documentId)).toBe('0.009048')
+        // P3: a nota somou caixa estimada — a ocupação nunca sai como `measured`.
+        expect(withEstimate.occupancy?.source).toBe('partial')
+        // A estimativa não entra nas formas medidas nem na mediana da empresa.
+        expect(withEstimate.measuredShapes).toEqual([])
+        expect(withEstimate.fallbackBoxVolumeM3).toBeNull()
+
+        await new DrizzlePackageBoxRepository(database.db).measure({
+          boxId: scenario.boxId,
+          companyId: scenario.companyId,
+          measuredByUserId: scenario.userId,
+          measurement: {
+            grossWeightGrams: 2300,
+            heightMm: 130,
+            lengthMm: 190,
+            source: 'typed',
+            unitsPerBox: 24,
+            widthMm: 185,
+          },
+          measurementMarginMm: null,
+        })
+        const withMeasure = await loadTripOccupancy(database.db, {
+          companyId: scenario.companyId,
+          nfeDocumentIds: [cargo.documentId],
+          vehicleId: cargo.vehicleId,
+        })
+        const [measuredBox] = withMeasure.boxesByDocument.get(cargo.documentId) ?? []
+        expect([measuredBox?.lengthMm, measuredBox?.widthMm, measuredBox?.heightMm]).toEqual([
+          190, 185, 130,
+        ])
+        expect(withMeasure.occupancy?.source).toBe('measured')
+        // 190 × 185 × 130 mm = 0,0045695 m³ → 0.004570 (meio para cima, como o round do Postgres); × 2.
+        expect(withMeasure.volumeByDocument.get(cargo.documentId)).toBe('0.009140')
       })
     },
     60_000,
@@ -196,12 +274,105 @@ async function seedScenario(database: TestDatabase): Promise<{
     commercialUnit: 'CX24',
     companyId,
     description: 'SAB LUX BOTANICALS 85G',
-    emitterTaxId: '05868574001090',
+    emitterTaxId: EMITTER_TAX_ID,
     id: boxId,
-    productCode: '7891',
+    productCode: PRODUCT_CODE,
     unitsPerBox: 24,
   })
   return { boxId, companyId, otherCompanyId, userId: crypto.randomUUID() }
+}
+
+async function seedCargo(
+  database: TestDatabase,
+  scenario: { readonly companyId: string; readonly userId: string },
+): Promise<{ readonly documentId: string; readonly vehicleId: string }> {
+  const vehicleId = crypto.randomUUID()
+  const importId = crypto.randomUUID()
+  const documentId = crypto.randomUUID()
+  const xmlObjectId = crypto.randomUUID()
+  const sha = 'c'.repeat(64)
+  await database.db.insert(identityUsers).values({ id: scenario.userId, status: 'active' })
+  await database.db.insert(userCompanyMemberships).values({
+    companyId: scenario.companyId,
+    id: crypto.randomUUID(),
+    status: 'active',
+    userId: scenario.userId,
+  })
+  await database.db.insert(fleetVehicles).values({
+    capacityM3: '48.000',
+    cargoHeightM: '2.500',
+    cargoLengthM: '8.000',
+    cargoWidthM: '2.400',
+    companyId: scenario.companyId,
+    id: vehicleId,
+    plate: 'ABC1D23',
+    role: 'traction',
+    state: 'SP',
+    vehicleType: 'three_quarter',
+  })
+  await database.db.insert(storedObjects).values({
+    bucket: 'integration',
+    companyId: scenario.companyId,
+    id: xmlObjectId,
+    mimeType: 'application/xml',
+    objectKey: `nfe/package-box-unit-${documentId}.xml`,
+    provider: 's3',
+    purpose: 'nfe_document',
+    sha256: sha,
+    sizeBytes: 100n,
+    status: 'final',
+  })
+  await database.db.insert(nfeImports).values({
+    companyId: scenario.companyId,
+    correlationId: `correlation-${importId}`,
+    id: importId,
+    idempotencyKey: `import-${importId}`,
+    requestFingerprint: `fingerprint-${importId}`,
+    requestedByUserId: scenario.userId,
+    source: 'upload',
+    status: 'completed',
+  })
+  await database.db.insert(nfeDocuments).values({
+    accessKey: `9${String(Math.floor(Math.random() * 1e15)).padStart(15, '0')}${'1'.repeat(28)}`,
+    authorizationProtocol: `protocol-${documentId}`,
+    companyId: scenario.companyId,
+    createdByUserId: scenario.userId,
+    freightValue: '0.0000',
+    id: documentId,
+    importId,
+    issuedAt: new Date('2026-09-22T12:00:00.000Z'),
+    model: '55',
+    number: '163',
+    operationNature: 'Venda',
+    operationType: '1',
+    productsValue: '100.0000',
+    series: '1',
+    source: 'upload',
+    status: 'authorized',
+    totalValue: '100.0000',
+    xmlObjectId,
+    xmlSha256: sha,
+  })
+  await database.db.insert(nfeParticipants).values({
+    companyId: scenario.companyId,
+    documentId,
+    role: 'emitter',
+    taxId: EMITTER_TAX_ID,
+  })
+  await database.db.insert(nfeProducts).values({
+    cfop: '5102',
+    code: PRODUCT_CODE,
+    commercialUnit: 'CX24',
+    companyId: scenario.companyId,
+    description: 'SAB LUX BOTANICALS 85G',
+    documentId,
+    ncm: '34011190',
+    ordinal: 1n,
+    quantity: '48.0000',
+    totalValue: '100.0000',
+    unitValue: '2.0833',
+  })
+  return { documentId, vehicleId }
 }
 
 async function withDisposableDatabase(

@@ -29,6 +29,10 @@ import {
   resolveDocumentCargoEstimate,
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
 import { resolveVehicleCapacity } from '../../fleet/domain/vehicle-capacity.policy.js'
+import {
+  resolveBoxDimensionsForCubage,
+  type PackageBoxDimensionsSource,
+} from '../../nfe-documents/domain/package-box-cubage-dimensions.policy.js'
 import type { TripOccupancyView } from '../application/trip.port.js'
 import { resolveTripOccupancy } from '../domain/trip-occupancy.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -193,22 +197,26 @@ export async function loadTripOccupancy(
    * Spec 144 (D1/D2): uma estimativa por nota, na precedência ficha → resíduo → mediana → ausência.
    * `resolveDocumentCargoEstimate` já decide tudo isso — o par `resolveMeasuredCargoVolume` +
    * `resolveCargoVolume` que vivia aqui só cobria ficha e espécie, sem o resíduo no meio.
+   * Spec 163 (P3): nota que somou caixa estimada pela unidade nunca sai como `measured`.
    */
-  const estimates = new Map(
-    input.nfeDocumentIds.map((documentId) => {
-      const row = byDocument.get(documentId)
+  const estimates = markDocumentsWithEstimatedBoxes(
+    new Map(
+      input.nfeDocumentIds.map((documentId) => {
+        const row = byDocument.get(documentId)
 
-      return [
-        documentId,
-        resolveDocumentCargoEstimate({
-          items: measured.itemsByDocument.get(documentId) ?? [],
-          medianBoxVolumeM3: measured.medianM3,
-          volumeFactor:
-            row === undefined ? null : (factorBySpecies.get(row.species) ?? defaultFactor),
-          volumeQuantity: row?.quantity ?? null,
-        }),
-      ] as const
-    }),
+        return [
+          documentId,
+          resolveDocumentCargoEstimate({
+            items: measured.itemsByDocument.get(documentId) ?? [],
+            medianBoxVolumeM3: measured.medianM3,
+            volumeFactor:
+              row === undefined ? null : (factorBySpecies.get(row.species) ?? defaultFactor),
+            volumeQuantity: row?.quantity ?? null,
+          }),
+        ] as const
+      }),
+    ),
+    measured.documentsWithEstimatedBoxes,
   )
   const documents = input.nfeDocumentIds.map((documentId) => {
     const estimate = estimates.get(documentId)
@@ -371,6 +379,8 @@ async function loadMeasuredItems(
 ): Promise<{
   /** Spec 088 G003: a mesma linha, agora com a caixa que a planta conta em camadas. */
   readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
+  /** Spec 163 (P3): as notas em que alguma caixa entrou pela estimativa da unidade. */
+  readonly documentsWithEstimatedBoxes: ReadonlySet<string>
   readonly itemsByDocument: ReadonlyMap<string, readonly MeasuredCargoItem[]>
   /**
    * Spec 094: as formas das caixas que a empresa mediu. É delas que sai a **proporção** da caixa
@@ -383,12 +393,14 @@ async function loadMeasuredItems(
   if (input.nfeDocumentIds.length === 0) {
     return {
       boxesByDocument: new Map(),
+      documentsWithEstimatedBoxes: new Set(),
       itemsByDocument: new Map(),
       measuredShapes: [],
       medianM3: null,
     }
   }
 
+  /** Só a medida real: a mediana e as formas medidas nunca aprendem com estimativa (spec 163). */
   const boxVolume = sql<string | null>`
     case
       when ${nfePackageBoxes.lengthMm} is null then null
@@ -405,8 +417,11 @@ async function loadMeasuredItems(
     .select({
       boxHeightMm: nfePackageBoxes.heightMm,
       boxLengthMm: nfePackageBoxes.lengthMm,
-      boxVolumeM3: boxVolume,
       boxWidthMm: nfePackageBoxes.widthMm,
+      /** Spec 163 (RF07): a caixa estimada pela unidade, lida só na falta da medida real. */
+      estimatedHeightMm: nfePackageBoxes.estimatedHeightMm,
+      estimatedLengthMm: nfePackageBoxes.estimatedLengthMm,
+      estimatedWidthMm: nfePackageBoxes.estimatedWidthMm,
       documentId: nfeProducts.documentId,
       /** Spec 094: as restrições que decidem onde a caixa pode ir. Nulo é "não informado". */
       isFragile: nfePackageBoxes.isFragile,
@@ -468,9 +483,19 @@ async function loadMeasuredItems(
 
   const itemsByDocument = new Map<string, MeasuredCargoItem[]>()
   const boxesByDocument = new Map<string, CargoPlanBox[]>()
+  const documentsWithEstimatedBoxes = new Set<string>()
   for (const row of rows) {
+    const box = resolveCubageBoxRow({
+      estimatedHeightMm: row.estimatedHeightMm,
+      estimatedLengthMm: row.estimatedLengthMm,
+      estimatedWidthMm: row.estimatedWidthMm,
+      heightMm: row.boxHeightMm,
+      lengthMm: row.boxLengthMm,
+      widthMm: row.boxWidthMm,
+    })
+    if (box.isEstimated) documentsWithEstimatedBoxes.add(row.documentId)
     const item: MeasuredCargoItem = {
-      boxVolumeM3: row.boxVolumeM3,
+      boxVolumeM3: box.boxVolumeM3,
       quantity: row.quantity,
       /** Caixa ainda não medida não tem coluna: a reserva conta a linha como uma caixa por unidade. */
       unitsPerBox: row.unitsPerBox ?? 1,
@@ -485,23 +510,24 @@ async function loadMeasuredItems(
       ...(boxesByDocument.get(row.documentId) ?? []),
       {
         count: countMeasuredBoxes(item),
-        heightMm: row.boxHeightMm,
+        heightMm: box.heightMm,
         /** Spec 094: as restrições viajam com a caixa — nulas até alguém informar. */
         isFragile: row.isFragile,
         isStackable: row.isStackable,
         keepUpright: row.keepUpright,
         label: row.label,
-        lengthMm: row.boxLengthMm,
+        lengthMm: box.lengthMm,
         maxStackCount: row.maxStackCount,
         /** Spec 144: só a caixa sem ficha carrega o código — a medida nunca precisou dele. */
-        ...(row.boxHeightMm === null ? { productCode: row.productCode } : {}),
-        widthMm: row.boxWidthMm,
+        ...(box.heightMm === null ? { productCode: row.productCode } : {}),
+        widthMm: box.widthMm,
       },
     ])
   }
 
   return {
     boxesByDocument,
+    documentsWithEstimatedBoxes,
     itemsByDocument,
     measuredShapes: measuredBoxes.flatMap((row) =>
       row.heightMm === null || row.lengthMm === null || row.widthMm === null
@@ -520,4 +546,61 @@ function toNumber(value: string | null): number | null {
   const parsed = Number.parseFloat(value)
 
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+type CubageBoxRow = {
+  readonly boxVolumeM3: string | null
+  readonly heightMm: number | null
+  readonly isEstimated: boolean
+  readonly lengthMm: number | null
+  readonly widthMm: number | null
+}
+
+const CUBIC_MILLIMETERS_PER_MICRO_CUBIC_METER = 1000
+const MICRO_CUBIC_METERS_PER_CUBIC_METER = 1_000_000
+
+/**
+ * Spec 163 (RF07): a caixa que a ocupação e a planta leem — por `resolveBoxDimensionsForCubage`,
+ * nunca pelas colunas cruas. ⚠️ O m³ sai em texto com seis casas, arredondado como o
+ * `round(numeric, 6)` que o Postgres fazia aqui: a caixa medida precisa do mesmo texto de antes,
+ * ou o hash da planta (spec 145 D6) mudaria para toda viagem sem nada ter mudado.
+ */
+export function resolveCubageBoxRow(row: PackageBoxDimensionsSource): CubageBoxRow {
+  const resolved = resolveBoxDimensionsForCubage(row)
+  if (resolved === undefined) {
+    return { boxVolumeM3: null, heightMm: null, isEstimated: false, lengthMm: null, widthMm: null }
+  }
+  const { heightMm, lengthMm, widthMm } = resolved.dims
+  const cubicMillimeters = lengthMm * widthMm * heightMm
+  const microCubicMeters = Math.floor(
+    (cubicMillimeters + CUBIC_MILLIMETERS_PER_MICRO_CUBIC_METER / 2) /
+      CUBIC_MILLIMETERS_PER_MICRO_CUBIC_METER,
+  )
+  const whole = Math.floor(microCubicMeters / MICRO_CUBIC_METERS_PER_CUBIC_METER)
+  const fraction = String(microCubicMeters % MICRO_CUBIC_METERS_PER_CUBIC_METER).padStart(6, '0')
+  return {
+    boxVolumeM3: `${whole}.${fraction}`,
+    heightMm,
+    isEstimated: resolved.isEstimated,
+    lengthMm,
+    widthMm,
+  }
+}
+
+/**
+ * Spec 163 (P3): a nota que somou alguma caixa estimada pela unidade cai de `measured` para
+ * `partial` — a pior origem manda (`resolveTripOccupancy`), e a ocupação imprime a marca de
+ * estimativa ao lado do número. Origem já pior que `measured` fica como está.
+ */
+export function markDocumentsWithEstimatedBoxes(
+  estimates: ReadonlyMap<string, ResolvedDocumentCargoEstimate>,
+  documentsWithEstimatedBoxes: ReadonlySet<string>,
+): ReadonlyMap<string, ResolvedDocumentCargoEstimate> {
+  return new Map(
+    [...estimates].map(([documentId, estimate]) =>
+      documentsWithEstimatedBoxes.has(documentId) && estimate.source === 'measured'
+        ? ([documentId, { ...estimate, source: 'partial' }] as const)
+        : ([documentId, estimate] as const),
+    ),
+  )
 }

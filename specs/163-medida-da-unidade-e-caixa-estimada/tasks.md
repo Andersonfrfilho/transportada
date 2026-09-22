@@ -22,7 +22,7 @@
 
 > 🤖 Modelo: `sonnet` (T007 🧠)
 
-- [ ] T007 🧠 Mapear leitores de `length_mm` e trocar por `resolveBoxDimensionsForCubage`; marcar "contém caixa estimada"
+- [x] T007 🧠 Mapear leitores de `length_mm` e trocar por `resolveBoxDimensionsForCubage`; marcar "contém caixa estimada"
 - [ ] T008 Rota para informar a unidade + API da fila/detalhe com `unit`, `estimate`, `isEstimated` (contrato)
 
 ## Fase 4 — Captura e importação

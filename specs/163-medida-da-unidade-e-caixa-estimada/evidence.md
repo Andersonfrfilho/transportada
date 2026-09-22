@@ -66,3 +66,23 @@
   - CA06: `companyId` de outra empresa → `PackageBoxNotFoundError`, e `saveUnit` direto devolve `false`
     sem gravar nada.
   - CA03 contra o banco: 2160 mm → `PackageBoxUnitRejectedError`, nada gravado.
+
+## T007 🧠 — Pontos de consumo da cubagem
+
+- Mapeamento isolado primeiro (commit `docs(spec)`, tabela "Pontos de consumo" no `plan.md`): um único
+  leitor de dimensão para cubagem (`trips/infrastructure/trip-occupancy.support.ts`, `loadMeasuredItems`);
+  worker não lê dimensão de `nfe_package_boxes`; fila, réplica, exportação e guarda da importação
+  ficam só com medida real.
+- Troca: `loadMeasuredItems` lê `estimated_*` e resolve cada linha por `resolveCubageBoxRow` →
+  `resolveBoxDimensionsForCubage`; nota com caixa estimada `measured` → `partial`
+  (`markDocumentsWithEstimatedBoxes`); mediana e formas medidas continuam só com medida real.
+- Vermelho: `test/package-box-estimate/cubage-consumer.contract.ts` → erro de export inexistente.
+  Verde: `bun test ./test/package-box-estimate.contract.test.ts` → **37 pass, 0 fail**.
+- Integração (Postgres nativo): `package-box-unit-estimate.integration.ts` → **4 pass, 0 fail**
+  (novo caso: `loadTripOccupancy` desenha 2 caixas 188×188×128, m³ `0.009048`, ocupação `partial`,
+  sem entrar na mediana; depois da medida real, 190×185×130, `0.009140`, `measured`). Texto do m³
+  conferido contra o Postgres: `select round((190::numeric*185*130)/1000000000, 6)` → `0.004570`.
+- Regressão das consumidoras de `loadTripOccupancy`: `trip-cargo-layout-read`, `trip-cargo-preview-layout`,
+  `trip-detail-query-count`, `trip-document-review`, `mixed-cargo-end-to-end`, `trip-repository`
+  → **42 pass, 0 fail**.
+- Contratos da API: **6871 pass, 9 fail** (as 9 pré-existentes do toll booth). Typecheck, eslint verdes.
