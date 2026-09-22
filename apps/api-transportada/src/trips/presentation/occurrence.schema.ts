@@ -122,6 +122,53 @@ function parseOccurrenceMultipartText(value: OfficeFormValue, maxLength: number)
 }
 
 /**
+ * Spec 161 T7 (RF6): o anexo adicional — lista fechada com **só** `file` (o original) e no máximo
+ * um `thumbnail`, sem `note`/`occurrenceTypeId`/`productCode` (a ocorrência já existe). Mesmas
+ * regras de bytes de `parseRegisterOccurrenceMultipartRequest`, sem o texto ao redor.
+ */
+const ATTACH_OCCURRENCE_MULTIPART_FIELD = {
+  file: OFFICE_MULTIPART_FILE_FIELD,
+  thumbnail: 'thumbnail',
+} as const
+
+const ATTACH_OCCURRENCE_MULTIPART_FIELDS = new Set<string>(
+  Object.values(ATTACH_OCCURRENCE_MULTIPART_FIELD),
+)
+
+export type AttachOccurrencePhotoMultipartBody = {
+  readonly attachment: RegisterOccurrenceMultipartAttachment
+}
+
+export async function parseAttachOccurrencePhotoRequest(
+  request: Request,
+): Promise<AttachOccurrencePhotoMultipartBody> {
+  const form = await readOfficeMultipartForm({
+    allowedFields: ATTACH_OCCURRENCE_MULTIPART_FIELDS,
+    request,
+  })
+  if (form.getAll(ATTACH_OCCURRENCE_MULTIPART_FIELD.thumbnail).length > 1) {
+    throw new ApiError(HTTP_ERROR.invalidRequest)
+  }
+
+  const file = await readOfficeMultipartFile(form)
+  if (file === null) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  const thumbnailRaw = form.get(ATTACH_OCCURRENCE_MULTIPART_FIELD.thumbnail)
+  let thumbnail: { readonly bytes: Uint8Array; readonly mimeType: string } | undefined
+  if (thumbnailRaw !== null) {
+    if (!(thumbnailRaw instanceof File)) throw new ApiError(HTTP_ERROR.invalidRequest)
+    thumbnail = {
+      bytes: new Uint8Array(await thumbnailRaw.arrayBuffer()),
+      mimeType: thumbnailRaw.type,
+    }
+  }
+
+  return {
+    attachment: { ...file, ...(thumbnail === undefined ? {} : { thumbnail }) },
+  }
+}
+
+/**
  * O cadastro do tipo. ⚠️ `stage` é **obrigatório**: é ele que decide quem registra, e um padrão
  * escondido aqui daria permissão por omissão. O `strict()` recusa campo a mais — inclusive
  * `companyId` vindo do cliente.

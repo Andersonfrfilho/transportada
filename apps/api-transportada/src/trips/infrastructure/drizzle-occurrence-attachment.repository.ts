@@ -8,6 +8,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { alias } from 'drizzle-orm/pg-core'
 import { and, asc, eq, sql } from 'drizzle-orm'
 
+import { findPostgresError } from '../../database/postgres-error.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   tripDocumentOccurrenceAttachments,
@@ -17,6 +18,7 @@ import type {
   OccurrenceAttachmentRecord,
   ReadOccurrenceAttachmentsPort,
 } from '../application/occurrence-attachment.service.js'
+import { TripOccurrenceAttachmentLimitError } from '../domain/trip.error.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -52,23 +54,48 @@ type InsertOccurrenceAttachmentRow = {
  * (`persist-separation-occurrence-attachment.service.ts`, T6) — o `queryable` pode ser a conexão ou
  * uma transação aberta, nunca uma segunda conexão.
  */
+/**
+ * T6/T7: os dois SQLSTATE que travam o teto de cinco — `23505` do unique de posição
+ * (`trip_document_occurrence_attachments_unique_position`) e `23514` do CHECK
+ * (`trip_document_occurrence_attachments_position_check`) — convergem para
+ * `TripOccurrenceAttachmentLimitError`. Cobrir só o unique deixaria a sexta foto de uma ocorrência
+ * já no teto (onde `max(position) + 1` calcularia 6, e nenhum unique bateria antes do CHECK) virar
+ * 500 em vez de 409.
+ */
+const OCCURRENCE_ATTACHMENT_LIMIT_CONSTRAINTS = new Set([
+  'trip_document_occurrence_attachments_unique_position',
+  'trip_document_occurrence_attachments_position_check',
+])
+
 export async function insertOccurrenceAttachmentRow(
   queryable: TripQueryable,
   input: InsertOccurrenceAttachmentInput,
 ): Promise<InsertOccurrenceAttachmentResult> {
-  const rows = await queryable.execute<InsertOccurrenceAttachmentRow>(sql`
-    insert into trip_document_occurrence_attachments
-      (company_id, occurrence_id, stored_object_id, thumbnail_object_id, position)
-    select
-      ${input.companyId}::uuid,
-      ${input.occurrenceId}::uuid,
-      ${input.storedObjectId}::uuid,
-      ${input.thumbnailObjectId ?? null}::uuid,
-      coalesce(max(position), 0) + 1
-    from trip_document_occurrence_attachments
-    where company_id = ${input.companyId}::uuid and occurrence_id = ${input.occurrenceId}::uuid
-    returning id, position
-  `)
+  let rows: readonly InsertOccurrenceAttachmentRow[]
+  try {
+    rows = await queryable.execute<InsertOccurrenceAttachmentRow>(sql`
+      insert into trip_document_occurrence_attachments
+        (company_id, occurrence_id, stored_object_id, thumbnail_object_id, position)
+      select
+        ${input.companyId}::uuid,
+        ${input.occurrenceId}::uuid,
+        ${input.storedObjectId}::uuid,
+        ${input.thumbnailObjectId ?? null}::uuid,
+        coalesce(max(position), 0) + 1
+      from trip_document_occurrence_attachments
+      where company_id = ${input.companyId}::uuid and occurrence_id = ${input.occurrenceId}::uuid
+      returning id, position
+    `)
+  } catch (error) {
+    const details = findPostgresError({ error })
+    if (
+      details?.constraint !== undefined &&
+      OCCURRENCE_ATTACHMENT_LIMIT_CONSTRAINTS.has(details.constraint)
+    ) {
+      throw new TripOccurrenceAttachmentLimitError()
+    }
+    throw error
+  }
   const row = rows[0]
   if (row === undefined) throw new Error('TRIP_OCCURRENCE_ATTACHMENT_NOT_SAVED')
 

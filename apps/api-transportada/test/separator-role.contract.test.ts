@@ -290,6 +290,8 @@ describe('separator role contract', () => {
        * que muda é que o motorista tem a rota dele em `/me`, com o escopo da viagem ativa.
        */
       'POST /trips/:id/documents/:documentId/occurrences',
+      /** Spec 161 T7 (RF6): mesma permissão do registro — a segunda foto em diante. */
+      'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/attachments',
       'POST /trips/:id/documents/:documentId/separate',
       /**
        * Decisão escrita (spec 075): **o separador alcança o vínculo em lote.** Ele já alcançava o

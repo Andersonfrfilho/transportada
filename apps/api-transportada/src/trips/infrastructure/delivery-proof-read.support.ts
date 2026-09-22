@@ -603,6 +603,32 @@ export async function findOccurrenceType(
   return row ?? null
 }
 
+/**
+ * Spec 161 T7 (RF6): resolve a ocorrência pela **empresa do contexto** — de outra empresa,
+ * inexistente, responde igual (`null`), porque distinguir os dois diria a quem tenta se aquele
+ * identificador existe em algum lugar. É o que faz o anexo adicional 404 antes de qualquer escrita.
+ */
+export async function findOccurrenceForAttachment(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<null | { readonly id: string; readonly stage: TripOccurrenceStage }> {
+  const [row] = await queryable
+    .select({
+      id: tripDocumentOccurrences.id,
+      stage: tripDocumentOccurrences.stage,
+    })
+    .from(tripDocumentOccurrences)
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.occurrenceId),
+      ),
+    )
+    .limit(1)
+
+  return row ?? null
+}
+
 /** Os tipos que a empresa cadastrou. O aposentado vem junto: a tela o mostra apagado, não some. */
 export async function listOccurrenceTypes(
   queryable: TripQueryable,

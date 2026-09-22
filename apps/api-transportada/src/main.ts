@@ -232,6 +232,9 @@ import { createTripFieldDeliveryDocumentsRoutes } from './trips/presentation/tri
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { persistSeparationOccurrenceWithAttachment } from './trips/application/persist-separation-occurrence-attachment.service.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from './trips/infrastructure/drizzle-separation-occurrence.repository.js'
+import { attachOccurrencePhoto } from './trips/application/attach-occurrence-photo.use-case.js'
+import { DrizzleAttachOccurrencePhotoUnitOfWork } from './trips/infrastructure/drizzle-attach-occurrence-photo.repository.js'
+import { DrizzleOccurrenceAttachmentRepository } from './trips/infrastructure/drizzle-occurrence-attachment.repository.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import {
@@ -246,6 +249,7 @@ import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-noti
 import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
 import {
   findDriverReachableDocument,
+  findOccurrenceForAttachment,
   listDeliveryProofs,
   listDocumentProducts,
   findOccurrenceType,
@@ -2825,6 +2829,29 @@ function createApplicationRoutes({
                 }),
             },
             tripId: input.tripId,
+          }),
+      },
+      /** Spec 161 T7 (RF6): a segunda foto em diante, para uma ocorrência já registrada. */
+      attachOccurrencePhoto: {
+        execute: (input) =>
+          attachOccurrencePhoto({
+            attachment: input.attachment,
+            companyId: input.context.companyId,
+            occurrenceId: input.occurrenceId,
+            repository: {
+              countOccurrenceAttachments: (query) =>
+                new DrizzleOccurrenceAttachmentRepository(database).countOccurrenceAttachments(
+                  query,
+                ),
+              findOccurrence: (query) => findOccurrenceForAttachment(database, query),
+              newObjectId: () => crypto.randomUUID(),
+              now: () => new Date(),
+              storage: createDeliveryProofStorage({
+                bucket: storageBucket,
+                storage: storageGateway,
+              }),
+              unitOfWork: new DrizzleAttachOccurrencePhotoUnitOfWork(database),
+            },
           }),
       },
       readTripDocumentProducts: {

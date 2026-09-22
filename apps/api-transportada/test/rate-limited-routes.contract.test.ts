@@ -132,10 +132,11 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
   })
 
   /**
-   * Spec 161 T6 (RF5): o registro da ocorrência de galpão vira multipart, com a mesma escrita mais
-   * cara e mais rara que o lote do escritório — uma foto por ocorrência.
+   * Spec 161 T6/T7 (RF5/RF6): o registro da ocorrência de galpão e o anexo adicional viram
+   * multipart, com a mesma escrita mais cara e mais rara que o lote do escritório — uma foto por
+   * ocorrência, e a segunda em diante é ainda mais comum que o registro em si.
    */
-  test('o registro da ocorrência de galpão tem o próprio balde', () => {
+  test('o registro e o anexo da ocorrência de galpão têm balde próprio', () => {
     const unused = unusedDependencies() as never
     const routes = createTripRoutes(unused)
 
@@ -155,6 +156,15 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
           windowSeconds: 300,
         },
         signature: 'POST /trips/:id/documents/:documentId/occurrences',
+      },
+      {
+        rateLimit: {
+          maxRequests: 300,
+          scope: 'trip-occurrence-attachment',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/attachments',
       },
     ])
   })

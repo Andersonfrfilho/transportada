@@ -7,8 +7,12 @@ import type { DeliveryProofView } from '../application/read-delivery-proof.use-c
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
 import type { TripRouteGeometryView } from '../application/read-trip-route-geometry.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
-import type { TripOccurrenceWithAttachment } from '../application/register-trip-occurrence.use-case.js'
+import type {
+  TripOccurrenceAttachmentPosition,
+  TripOccurrenceWithAttachment,
+} from '../application/register-trip-occurrence.use-case.js'
 import {
+  parseAttachOccurrencePhotoRequest,
   parseOccurrenceTypeRequest,
   parseRegisterOccurrenceMultipartRequest,
 } from './occurrence.schema.js'
@@ -174,6 +178,31 @@ type RegisterOccurrenceRouteInput = {
 const REGISTER_OCCURRENCE_RATE_LIMIT = {
   maxRequests: 60,
   scope: 'trip-separation-occurrence',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+const TRIP_OCCURRENCE_ATTACHMENTS_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/:occurrenceId/attachments`
+
+type AttachOccurrencePhotoRouteInput = {
+  readonly attachment: {
+    readonly bytes: Uint8Array
+    readonly mimeType: string
+    readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  }
+  readonly context: CompanyContext
+  readonly idempotencyKey: string
+  readonly occurrenceId: string
+}
+
+/**
+ * Spec 161 T7 (RF6): a segunda foto em diante — mais comum que o registro em si (uma ocorrência de
+ * cinco fotos manda esta rota quatro vezes). 300/300 s por empresa e usuário, cinco vezes o teto do
+ * registro, no molde da rota de anexo do lote do escritório.
+ */
+const ATTACH_OCCURRENCE_PHOTO_RATE_LIMIT = {
+  maxRequests: 300,
+  scope: 'trip-occurrence-attachment',
   store: 'postgres',
   windowSeconds: 300,
 } as const
@@ -403,6 +432,12 @@ type Dependencies = {
   }
   readonly registerTripOccurrence: {
     execute(input: TenantInput<RegisterOccurrenceRouteInput>): Promise<RegisteredOccurrence>
+  }
+  /** Spec 161 T7 (RF6): o anexo adicional a uma ocorrência já registrada — segunda foto em diante. */
+  readonly attachOccurrencePhoto: {
+    execute(
+      input: TenantInput<AttachOccurrencePhotoRouteInput>,
+    ): Promise<TripOccurrenceAttachmentPosition>
   }
   readonly readTripDocumentProducts: {
     execute(
@@ -1300,6 +1335,32 @@ export function createTripRoutes(
       pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
       policy: TRIP_MANAGE_POLICY,
       rateLimit: REGISTER_OCCURRENCE_RATE_LIMIT,
+    }),
+    /**
+     * Spec 161 T7 (RF6): a segunda foto em diante, para uma ocorrência já registrada. 404 quando a
+     * ocorrência não é desta empresa (nunca 403 — o caso de uso não distingue "não existe" de "é de
+     * outra empresa"), 422 quando a etapa não é `separation`, 409 no teto de cinco.
+     */
+    defineRoute<Omit<AttachOccurrencePhotoRouteInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const attachment = await dependencies.attachOccurrencePhoto.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: attachment }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseAttachOccurrencePhotoRequest(request)
+        return {
+          attachment: body.attachment,
+          idempotencyKey: parseIdempotencyKey(request),
+          occurrenceId: parseUuidPathIdentifier(pathParameters.occurrenceId ?? ''),
+        }
+      },
+      pathname: TRIP_OCCURRENCE_ATTACHMENTS_PATH,
+      policy: TRIP_MANAGE_POLICY,
+      rateLimit: ATTACH_OCCURRENCE_PHOTO_RATE_LIMIT,
     }),
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {

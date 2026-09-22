@@ -476,3 +476,92 @@ Postgres é: (1) o parser aceita exatamente o formato esperado e recusa o resto;
 encaminha o anexo e publica a posição; (3) a orquestração de escrita valida antes de subir bytes e
 limpa os dois objetos se a transação falhar depois do upload. Falta, para prova de ponta a ponta
 contra banco de verdade: T12.
+
+## T7 — Rota de anexo adicional (RF6, CA3)
+
+### O que foi implementado
+
+- `src/trips/application/attach-occurrence-photo.use-case.ts` (novo): `attachOccurrencePhoto` —
+  resolve a ocorrência **pela empresa do contexto** (`repository.findOccurrence`); 404
+  `TripOccurrenceNotFoundError` quando não acha (outra empresa e inexistente respondem igual, de
+  propósito); 422 `OccurrenceTypeNotSeparationError` quando a etapa não é `separation`; valida
+  teto/tipo/assinatura do original e da miniatura opcional (`assertOccurrenceUploadAccepted`, os
+  mesmos tetos de T6) **antes** de contar ou tocar storage; confere o teto de 5 por
+  `countOccurrenceAttachments` como **mensagem amigável** (não é a trava); sobe original e miniatura
+  dentro de uma transação (`AttachOccurrencePhotoUnitOfWork`), com `runWithStoredObjectCleanup`
+  limpando o bucket se a transação falhar depois do upload.
+- `src/trips/infrastructure/drizzle-attach-occurrence-photo.repository.ts` (novo):
+  `DrizzleAttachOccurrencePhotoUnitOfWork` — molde de `DrizzleSeparationOccurrenceUnitOfWork` (T6),
+  sem `saveOccurrence` (a ocorrência já existe). Reaproveita `insertOccurrenceAttachmentRow`.
+- `src/trips/infrastructure/delivery-proof-read.support.ts`: `findOccurrenceForAttachment` —
+  `SELECT id, stage FROM trip_document_occurrences WHERE company_id = … AND id = …`, `null` quando
+  não acha (RF6).
+- `src/trips/presentation/occurrence.schema.ts`: `parseAttachOccurrencePhotoRequest` — lista fechada
+  com **só** `file` (exatamente um) e no máximo um `thumbnail`, sem `note`/`occurrenceTypeId`/
+  `productCode` (a ocorrência já existe); reaproveita `readOfficeMultipartForm`/
+  `readOfficeMultipartFile` de T6.
+- `src/trips/presentation/trip.routes.ts`: `POST
+/trips/:id/documents/:documentId/occurrences/:occurrenceId/attachments`, `trip.manage`, rate limit
+  `{ maxRequests: 300, scope: 'trip-occurrence-attachment', store: 'postgres', windowSeconds: 300 }`.
+- `src/main.ts`: fiação de `attachOccurrencePhoto` — `countOccurrenceAttachments` via
+  `DrizzleOccurrenceAttachmentRepository`, `findOccurrence` via `findOccurrenceForAttachment`,
+  `unitOfWork` via `DrizzleAttachOccurrencePhotoUnitOfWork`, mesmo `storage`/`storageBucket` de T6.
+
+### O mapeamento dos dois SQLSTATE (23505/23514), provado
+
+`src/trips/infrastructure/drizzle-occurrence-attachment.repository.ts`,
+`insertOccurrenceAttachmentRow`: o `INSERT … SELECT` (posição monotônica, T1) agora roda dentro de
+um `try/catch`. `findPostgresError` (`database/postgres-error.support.ts`) sobe a cadeia de `cause`
+até achar `{ constraint, sqlState }`; se `constraint` estiver em
+`OCCURRENCE_ATTACHMENT_LIMIT_CONSTRAINTS` (`trip_document_occurrence_attachments_unique_position` —
+`23505` — ou `trip_document_occurrence_attachments_position_check` — `23514`), lança
+`TripOccurrenceAttachmentLimitError` (409); qualquer outro erro sobe intacto. Cobrir só o unique
+deixaria a sexta foto de uma ocorrência **já no teto** (onde `coalesce(max(position), 0) + 1`
+calcula 6, e nenhum unique bate antes do CHECK) virar 500 — é exatamente o cenário que o teste "a
+corrida da sexta foto (constraint do banco) também converge em 409" prova, forçando
+`insertAttachment` a lançar `TripOccurrenceAttachmentLimitError` (simulando o que o Postgres faria
+por qualquer um dos dois SQLSTATE) e conferindo que a limpeza de storage roda (1 objeto subido, 1
+removido). Esta função é comum a T6 e T7 — o mapeamento corrige os dois caminhos de escrita.
+
+### Vermelho e verde
+
+Vermelho: `attach-occurrence-photo.use-case.ts` não existia; escrevi
+`test/trip-occurrence/attachment-append.contract.ts` primeiro (parser + caso de uso), que falhava
+por `Cannot find module`. Depois de implementar o parser e o caso de uso, rodei e um teste falhou de
+verdade (não por ausência de código): "caso feliz com thumbnail sobe os dois objetos" usava bytes
+`[1, 2, 3]` como miniatura, que não batem a assinatura JPEG — `assertOccurrenceUploadAccepted`
+recusou com `TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE`, como deveria. Troquei pelos bytes de assinatura
+JPEG válida (mesmos de `separation-upload.contract.ts`) e o teste passou pelo motivo certo.
+
+Verde, depois do ajuste:
+
+- `bun --env-file=../../.env.test test test/trip-occurrence.contract.test.ts --timeout 120000` →
+  **122 pass, 0 fail**, 263 `expect()` (era 111/0/247 depois de T6; T7 soma 11 testes).
+- `bun run --cwd apps/api-transportada test` (suíte completa) → **6794 pass, 32 skip, 0 fail**,
+  23301 `expect()` em 182 arquivos.
+- `bun run typecheck` (as seis apps) → verde.
+- `bun run lint` (as seis apps) → verde.
+- `bun run format:check` → verde (depois de `prettier --write` em `main.ts` e no contrato novo).
+- `bun --env-file=../../.env.test run test:integration` **não rodou** — T7 não criou nenhum arquivo
+  em `test/integration/`; a integração é T12/T16, fora deste recorte.
+
+### Dois contratos pré-existentes precisaram de ajuste (efeito esperado de rota nova)
+
+- `test/separator-role.contract.test.ts`: a rota nova entrou na lista de rotas que o `separator`
+  alcança — mesma permissão (`trip.manage`) do registro, mesmo raciocínio (T7 não muda quem alcança
+  o quê, só acrescenta uma rota sob a permissão que já existia).
+- `test/rate-limited-routes.contract.test.ts`: a rota nova entrou na lista fechada de rotas com
+  `rateLimit: { store: 'postgres' }`, com o balde exato (300/300 s, `trip-occurrence-attachment`).
+  Isto também cumpre metade do CA18 de T8 ("as duas rotas listadas no contrato de rate limit") — T8
+  ainda falta a parte da idempotência (fingerprint do anexo, convergência/409 por conteúdo).
+
+### Decisão além do que a spec fixava
+
+A spec (plan.md) não detalha o _shape_ do port do caso de uso — segui o mesmo desenho de T6
+(`*TransactionPort` + `*UnitOfWork` injetados, validação fora da transação, `newObjectId`/`now`
+como funções puras injetadas) para manter os dois casos de uso de anexo com a mesma forma, e porque
+`insertOccurrenceAttachmentRow` já era pensado para rodar dentro de qualquer transação (T3). O
+`countOccurrenceAttachments` como checagem prévia (evitar upload numa ocorrência já no teto) não
+está no `plan.md` mas é consistente com "o `count` antes do insert serve para mensagem amigável,
+nunca como trava" (nota da migration, T1) — implementei exatamente essa leitura: o `count` só evita
+gasto de rede/bucket no caso comum, e quem decide de verdade é o banco.

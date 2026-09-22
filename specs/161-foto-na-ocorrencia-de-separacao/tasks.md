@@ -5,7 +5,7 @@
 | 1    | T1–T3   | `sonnet` (T1 é 🧠 — validar com `architect` em `opus` antes) |
 | 2    | T4–T8   | `sonnet`                                                     |
 | 3    | T9–T12  | `sonnet`                                                     |
-| 4    | T13–T16 | `sonnet` (T13 é 🧠 — injeção no módulo do WhatsApp)          |
+| 4    | T13–T16 | `sonnet` (sem task 🧠 — ver nota da fase)                    |
 | 5    | T17–T20 | `sonnet` (T17 é 🧠 — expurgo irreversível)                   |
 | 6    | T21–T25 | `sonnet`                                                     |
 | 7    | T26–T27 | `sonnet` (T27 fecha com `code-reviewer` em `opus`)           |
@@ -82,10 +82,10 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
     objetos limpos; `file` sem `thumbnail` grava anexo sem miniatura; caso feliz grava ocorrência +
     `position: 1` + dois `stored_objects` `final` com retenção.
 
-- [ ] **T7** Rota de anexo adicional (RF6) — `attach-occurrence-photo.use-case.ts`,
+- [x] **T7** Rota de anexo adicional (RF6) — `attach-occurrence-photo.use-case.ts`,
       `occurrence.schema.ts`, `trip.routes.ts` (rate limit 300/300 s), `main.ts`.
   - Critério de aceite (CA3): `position: 2`; sexta → 409; outra empresa → 404; `delivery` → 422;
-    aceita `file` + `thumbnail` como RF5.
+    aceita `file` + `thumbnail` como RF5. Ver `evidence.md`.
 
 - [ ] **T8** Idempotência e rate limit registrados — fingerprints em
       `occurrence-attachment.policy.ts` (sha256 do **original**, não da miniatura),
@@ -122,37 +122,54 @@ typecheck + testes + commit isolado e evidência em `evidence.md`.
 
 ## Fase 4 — WhatsApp pede a foto
 
-> 🤖 Modelo: `sonnet` (T13 é 🧠 — ligar `providers.objectStorage` muda o módulo inteiro do WhatsApp;
-> validar com `architect` em `opus` antes)
+> 🤖 Modelo: `sonnet` — **nenhuma task 🧠 nesta fase**. A T13 era 🧠 porque injetava
+> `providers.objectStorage`; a validação de arquitetura reprovou esse desenho (D7), e o que sobrou é
+> reuso de um bloco que já existe, sem decisão estrutural pendente.
 
-- [ ] **T13** 🧠 Ingestão de mídia ligada (RF16) —
-      `meta-whatsapp-module.resolver.ts:85-98` passa a injetar `providers.objectStorage`, adapter
-      novo gravando com a chave de RNF1, o purpose de original e a retenção de RF3;
-      `src/main.ts:1176-1188`.
-  - Critério de aceite: contrato em `test/whatsapp/` prova que o módulo passa a expor
-    `ingestInboundMedia`, que o objeto nasce com purpose e retenção corretos, que a chave **não** é
-    a `meta-whatsapp/...` do pacote, e que o anexo fica **sem** miniatura (D14). Medir e registrar
-    no `evidence.md` o que passa a ser ingerido além da ocorrência.
+- [ ] **T13** A ocorrência do WhatsApp usa a mesma persistência da rota HTTP (RF16) — na dep
+      `registerOccurrence` de `src/main.ts:826-843`, trocar o `saveOccurrence` cru por
+      `persistSeparationOccurrenceWithAttachment` (já importado em `src/main.ts:233` e usado pela
+      rota em `src/main.ts:2799-2824`), com `attachment` opcional.
+  - Critério de aceite (CA9b/CA9c): a ocorrência vinda do WhatsApp nasce com `stored_objects` de
+    purpose `trip_occurrence_attachment`, `retention_until` de cinco anos, chave
+    `tenants/…/trip-occurrence-attachments/…` e **sem** miniatura; e um contrato de regressão prova
+    que `meta-whatsapp-module.resolver.ts:82-95` continua **sem** `providers` — falha se alguém
+    injetar `objectStorage`.
 
-- [ ] **T14** A resposta pode ser uma imagem (RF17) — `whatsapp-answer.policy.ts:7-13`:
-      `extractWhatsAppAnswer` devolve `{ kind: 'media', mediaId, mimeType }` para `message.image`,
-      mantendo botão, lista e texto.
-  - Critério de aceite (CA9): mídia reconhecida; botão/lista/texto inalterados; nó que espera texto
-    continua rejeitando mídia (regressão coberta).
+- [ ] **T14** A imagem viaja por contexto, não pela assinatura (RF17/D16) —
+      `whatsapp-answer.policy.ts:7-13` **mantém** `string | undefined`; o despachante escreve o
+      descritor da imagem numa chave de contexto ao montar o cursor
+      (`whatsapp-command-driver.service.ts:222-229`), e o router lê e **apaga no mesmo turno**.
+  - Critério de aceite (CA9): assinatura inalterada — de outro jeito não compila, porque o
+    `FlowInterpreter` tipa `userAnswer?: string` e o handler não recebe a mensagem; botão, lista e
+    texto inalterados; **imagem em nó de escolha vira resposta inválida e conta para o handoff**;
+    `media-id` nunca em log e ausente do contexto ao fim do turno (é handle resgatável com o token
+    da empresa, vale como credencial de curta duração).
 
-- [ ] **T15** Passo de foto no fluxo do operador (RF18/RF19/RF20) —
+- [ ] **T15** Passo de foto no fluxo do operador (RF18/RF18b/RF18c/RF19/RF20) —
       `whatsapp-operator-flow.constant.ts` (nó `operator_occurrence_photo_entry`, `actionKind`,
-      chaves de contexto, rótulos "✅ Concluir" e "❌ Cancelar ocorrência"),
-      `register-operator-trip-flow-actions.ts` (`noteRouter` l.580-616 passa a `photoPrompt`;
-      `photoRouter` baixa, valida e grava), `src/main.ts:825-841`.
-  - Critério de aceite (CA10/CA11): imagem anexa e repete o pedido; texto repete a instrução;
-    cancelar não grava nada; sexta imagem recusada; falha de download **não** grava ocorrência;
-    mídia acima de 960 KiB ou de tipo errado recusada.
+      chaves de contexto, rótulos "✅ Concluir" e "❌ Cancelar ocorrência", e o texto que avisa que
+      sem foto nada é registrado), `register-operator-trip-flow-actions.ts` (`noteRouter` l.580-620
+      passa a `photoPrompt`; `photoRouter` lê o contexto, baixa por `channel.fetchMediaAsBase64`,
+      valida e grava), teto de bytes como **parâmetro** de
+      `persistSeparationOccurrenceWithAttachment` (o WhatsApp passa `OFFICE_PROOF_MAX_BYTES`
+      **importado** de `delivery-proof.policy.ts`, sem constante nova — §16 do code-standart), e
+      `describeTripError` com `TRIP_DELIVERY_PROOF_TOO_LARGE` e `_UNSUPPORTED_TYPE`.
+  - Critério de aceite (CA10/CA11/CA11d): imagem anexa e repete o pedido; **foto entre 512 KiB e
+    960 KiB é aceita** (prova que o teto virou parâmetro — sem isso ela passaria no router e seria
+    recusada dentro do serviço); acima de 960 KiB e tipo errado são recusados com mensagem que diz o
+    limite e a saída; **texto incrementa o contador de tentativas inválidas e o handoff acontece** —
+    o teste falha se o fluxo repetir o pedido indefinidamente; cancelar não grava nada; sexta imagem
+    recusada; falha de download não grava ocorrência.
 
-- [ ] **T16** Integração do fluxo ponta a ponta —
-      `test/integration/whatsapp-operator-flow-actions.integration.ts` (já listado).
-  - Critério de aceite (CA12): ocorrência + anexo **sem miniatura** + `stored_objects` com purpose e
-    retenção corretos; nenhum log com `mediaId`, telefone ou chave.
+- [ ] **T16** Idempotência e integração ponta a ponta (RF20b) — chave por **sha256 do arquivo
+      baixado**, nunca `media-id` (muda no reenvio) nem `occurrenceId` (circular: ainda não existe
+      no momento do upload); `test/integration/whatsapp-operator-flow-actions.integration.ts` (já
+      listado).
+  - Critério de aceite (CA11b/CA11c/CA12): reenviar a mesma foto com `media-id` diferente não
+    duplica anexo; **a reentrega do mesmo webhook é barrada pelo `nonceStore`, provado por teste, não
+    assumido**; nenhum `stored_objects` com origem WhatsApp nasce com purpose diferente de
+    `trip_occurrence_attachment`; nenhum log com `mediaId`, telefone ou chave.
 
 ## Fase 5 — Retenção de cinco anos
 
@@ -261,8 +278,9 @@ plan.md e tasks.md antes de começar). 27 tasks em 7 fases, uma por vez, na orde
 de contrato antes da implementação.
 Modelos: Fase 1 → executor model=sonnet, T1 🧠 validada por architect model=opus antes da migration ·
 Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet · Fase 4 → executor model=sonnet,
-T13 🧠 validada por architect model=opus (ligar providers.objectStorage muda o módulo inteiro do
-WhatsApp) · Fase 5 → executor model=sonnet, T17 🧠 validada por architect model=opus (o expurgo apaga
+sem task 🧠 (a validação de arquitetura já reprovou a injeção de providers.objectStorage: NÃO injete;
+reuse persistSeparationOccurrenceWithAttachment e mantenha o resolver sem providers) ·
+Fase 5 → executor model=sonnet, T17 🧠 validada por architect model=opus (o expurgo apaga
 arquivo de forma irreversível) · Fase 6 → executor model=sonnet · Fase 7 → executor model=sonnet e
 revisão final por code-reviewer model=opus.
 Cada task fecha com typecheck + testes + commit isolado, evidência em evidence.md. Testes da API são
@@ -270,7 +288,7 @@ dois comandos: `bun --env-file=../../.env.test test --timeout 120000` (contrato)
 `bun --env-file=../../.env.test run test:integration` (integração) — sem a flag a integração pula.
 O expurgo também exige `make worker-integration`, e as migrations exigem `make migration-test`.
 A miniatura é cache, nunca prova: nenhuma falha de miniatura pode impedir o envio ou a leitura do
-original (RF29b, RF32b).
+original (RF29b, RF32b). T1–T8 já estão implementadas e commitadas — comece pela T9.
 Pare e pergunte antes de: deploy, migration destrutiva, e antes de rodar o expurgo em produção (ele
 apaga arquivo e não tem volta — um ciclo de observação em staging primeiro).
 ```
