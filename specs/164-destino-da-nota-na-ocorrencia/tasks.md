@@ -232,6 +232,10 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
   - Critério de aceite (RF33): o passo atual, só os botões que o estado **e** a permissão permitem,
     o histórico de eventos, e o filtro por estado com "sem tratativa". `case: null` não quebra a
     tela.
+  - ⚠️ Inclui as duas ações que nasceram de decisão do usuário depois da spec: **cancelar** a
+    tratativa aberta por engano (só antes de ir ao contratante, com motivo obrigatório, e o
+    marcador de problema some da nota) e **decidir no lugar do contratante** que não responde,
+    com a tela deixando claro que a decisão será registrada como da transportadora, não do cliente.
 
 - [ ] **T23** Painel de acerto — `OccurrenceSettlementPanel.component.tsx`, valor proposto editável,
       origem visível, **seletor de pagador** (motorista, transportadora, contratante, seguradora —
