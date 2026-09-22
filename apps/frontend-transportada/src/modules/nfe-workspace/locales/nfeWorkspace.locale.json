@@ -637,6 +637,12 @@
         "position": "{{position}} de {{total}}",
         "measured": "Já medida",
         "overflow": "Mostrando {{shown}} de {{total}} candidatas. Refine a busca para achar a caixa certa."
+      },
+      "alreadyMeasured": {
+        "title": "Caixa já medida — confira as medidas",
+        "measuredOn": "Medida em {{date}}",
+        "confirm": "Conferir",
+        "readAnother": "Ler outra"
       }
     },
     "outOfRange": "Valor fora da faixa: no máximo {{max}} cm.",

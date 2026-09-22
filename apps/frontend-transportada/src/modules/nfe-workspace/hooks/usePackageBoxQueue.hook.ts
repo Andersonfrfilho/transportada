@@ -16,6 +16,7 @@ import {
 } from '../shared/packageBoxClient.service'
 import { PACKAGE_BOX_REPLICATE_FAILED_CODE } from '../shared/nfeWorkspace.constant'
 import { isRepeatedScan } from '../shared/packageBoxScan.js'
+import { resolvePackageBoxQueryStatus } from '../shared/packageBoxScanResolution.service'
 
 export const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
 const SEARCH_DEBOUNCE_MS = 400
@@ -80,9 +81,15 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
      * dado anterior durante o refetch, `isLoading` só vale para o carregamento inicial de verdade.
      */
     placeholderData: keepPreviousData,
+    /**
+     * ⚠️ Uma etiqueta lida (câmera ou pistola) busca sempre em `status: 'all'` — a caixa já medida
+     * não pode sumir da resposta só porque a tela estava filtrando "o que falta medir". O filtro que
+     * o operador escolheu para a listagem normal (`status`) continua intocado; só a consulta desta
+     * etiqueta usa `all`.
+     */
     queryFn: () =>
       client.listBoxes({
-        status,
+        status: resolvePackageBoxQueryStatus({ scanned, status }),
         ...(scanned === null ? {} : { scanned }),
         ...(debouncedSearch === '' ? {} : { search: debouncedSearch }),
       }),

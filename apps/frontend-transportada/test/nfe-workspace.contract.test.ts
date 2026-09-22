@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './nfe-workspace/address-correction.contract.js'
+import './nfe-workspace/package-box-already-measured.contract.js'
 import './nfe-workspace/brazilian-state-parity.contract.js'
 import './nfe-workspace/address-correction-mail.contract.js'
 import './nfe-workspace/address-correction-status.contract.js'

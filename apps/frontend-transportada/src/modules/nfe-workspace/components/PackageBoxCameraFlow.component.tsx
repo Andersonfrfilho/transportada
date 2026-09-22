@@ -22,6 +22,12 @@ import {
   packageBoxCameraFlowReducer,
 } from '../shared/packageBoxCameraFlow.service'
 import {
+  formatMeasuredAtDate,
+  measurementSourceLabel,
+  type Translate,
+} from '../shared/packageBoxMeasurementLabel.service'
+import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
+import {
   hasSeenMeasurementGuide,
   markMeasurementGuideSeen,
   readMeasurementGuideStorage,
@@ -325,6 +331,33 @@ export function PackageBoxCameraFlow({
           <div className={styles.identified}>
             <p className={styles.identifiedName}>{box.description || box.productCode}</p>
             <p className={styles.hint}>{box.emitterTaxId}</p>
+            {/*
+              ⚠️ A caixa lida pela câmera já tem medida: mostra o aviso e as medidas atuais antes de
+              qualquer ação — nem "Medir pela câmera" nem "Digitar medida" gravam sem o operador ver
+              o que já está registrado (nunca a edição silenciosa que este bloco existe para evitar).
+            */}
+            {box.measuredAt === null ? null : (
+              <>
+                <p className={styles.notice} role="status">
+                  {t('packageBoxes.scanner.alreadyMeasured.title')}
+                </p>
+                <p className={styles.hint}>
+                  {t('packageBoxes.measured', {
+                    height: toCentimetres(box.heightMm),
+                    length: toCentimetres(box.lengthMm),
+                    units: box.unitsPerBox,
+                    width: toCentimetres(box.widthMm),
+                  })}
+                  {' · '}
+                  {measurementSourceLabel(t as Translate, box)}
+                </p>
+                <p className={styles.hint}>
+                  {t('packageBoxes.scanner.alreadyMeasured.measuredOn', {
+                    date: formatMeasuredAtDate(box.measuredAt),
+                  })}
+                </p>
+              </>
+            )}
             <div className={styles.actions}>
               {cameraEnabled ? (
                 <Button onClick={() => dispatch({ kind: 'measureRequested' })} type="button">

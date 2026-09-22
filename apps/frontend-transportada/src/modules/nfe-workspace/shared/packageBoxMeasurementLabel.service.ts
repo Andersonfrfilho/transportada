@@ -39,6 +39,18 @@ export function measurementSourceLabel(t: Translate, input: MeasurementSourceLab
   })
 }
 
+const MEASURED_AT_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+
+/** A data da última gravação, no aviso de "caixa já medida" — sem hora, só o dia da conferência. */
+export function formatMeasuredAtDate(value: string): string {
+  const moment = new Date(value)
+  return Number.isNaN(moment.getTime()) ? value : MEASURED_AT_DATE_FORMATTER.format(moment)
+}
+
 /** A recusa do `PUT` de medida que a etapa Medida pela câmera já nomeia (`packageBoxClient.service.ts`). */
 export const PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED_CODE =
   'PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED'

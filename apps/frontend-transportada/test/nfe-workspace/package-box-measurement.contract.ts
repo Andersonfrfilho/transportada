@@ -507,7 +507,7 @@ describe('bipar leva direto à medição da caixa achada', () => {
 
     expect(panel).toContain("kind: 'notFound'")
     /** Não achar não fecha o leitor — o bloco que trata a ausência de caixa não chama `setIsScannerOpen`. */
-    const notFoundBlock = panel.split('if (items.length === 0) {')[1]?.split('}')[0]
+    const notFoundBlock = panel.split("if (resolution.kind === 'notFound') {")[1]?.split('}')[0]
     expect(notFoundBlock).toBeDefined()
     expect(notFoundBlock).not.toContain('setIsScannerOpen')
   })
@@ -630,11 +630,11 @@ describe('mais de uma caixa achada pela mesma etiqueta', () => {
       ),
     ).text()
 
-    expect(panel).toContain('if (items.length === 0) {')
-    expect(panel).toContain('if (items.length > 1) {')
-    expect(panel).toContain('setCandidates(items)')
-    expect(panel).toContain('const [match] = items')
-    expect(panel).toContain('if (match !== undefined) openMeasurementForScannedBox(match.id)')
+    expect(panel).toContain('resolvePackageBoxScanMatch(queue?.items ?? [])')
+    expect(panel).toContain("if (resolution.kind === 'notFound') {")
+    expect(panel).toContain("if (resolution.kind === 'candidates') {")
+    expect(panel).toContain('setCandidates(resolution.candidates)')
+    expect(panel).toContain('openMeasurementForScannedBox(resolution.box.id)')
   })
 
   it('nenhuma candidata segue mostrando o aviso de não achou, sem abrir a lista', async () => {
@@ -645,7 +645,7 @@ describe('mais de uma caixa achada pela mesma etiqueta', () => {
       ),
     ).text()
 
-    const zeroBlock = panel.split('if (items.length === 0) {')[1]?.split('}')[0]
+    const zeroBlock = panel.split("if (resolution.kind === 'notFound') {")[1]?.split('}')[0]
     expect(zeroBlock).toBeDefined()
     expect(zeroBlock).toContain("kind: 'notFound'")
     expect(zeroBlock).not.toContain('setCandidates')
@@ -659,9 +659,9 @@ describe('mais de uma caixa achada pela mesma etiqueta', () => {
       ),
     ).text()
 
-    const manyBlock = panel.split('if (items.length > 1) {')[1]?.split('}')[0]
+    const manyBlock = panel.split("if (resolution.kind === 'candidates') {")[1]?.split('}')[0]
     expect(manyBlock).toBeDefined()
-    expect(manyBlock).toContain('setCandidates(items)')
+    expect(manyBlock).toContain('setCandidates(resolution.candidates)')
     expect(manyBlock).not.toContain('openMeasurementForScannedBox')
   })
 
@@ -729,7 +729,7 @@ describe('mais de uma caixa achada pela mesma etiqueta', () => {
 
     expect(panel).toContain('<Button')
     expect(panel).toContain('className={styles.candidateButton}')
-    expect(panel).toContain('onClick={() => onSelect(box.id)}')
+    expect(panel).toContain('onClick={() => onSelect(box)}')
 
     const css = await Bun.file(
       new URL('../../src/modules/nfe-workspace/styles/packageBoxes.module.css', import.meta.url),
@@ -883,9 +883,12 @@ describe('o leitor físico (pistola) no campo de busca', () => {
     expect(panel).not.toContain("addEventListener('keydown'")
     expect(panel).not.toContain('window.addEventListener')
     expect(panel).not.toContain('document.addEventListener')
-    /** Os dois `onKeyDown` que existem são de elemento: o campo de busca e o diálogo de candidatas. */
+    /**
+     * Os três `onKeyDown` que existem são de elemento: o campo de busca, o diálogo de candidatas e
+     * o diálogo de "caixa já medida" (mesma moldura do diálogo de candidatas).
+     */
     const keydownOccurrences = panel.match(/onKeyDown=/g) ?? []
-    expect(keydownOccurrences.length).toBe(2)
+    expect(keydownOccurrences.length).toBe(3)
   })
 })
 

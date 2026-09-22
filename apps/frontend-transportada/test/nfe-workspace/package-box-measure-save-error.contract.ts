@@ -100,7 +100,7 @@ describe('a linha do caminho digitado não fecha calada quando o PUT falha', () 
     ).text()
 
     expect(panel).toContain(
-      "import {\n  measurementSourceLabel,\n  packageBoxMeasureFailureMessage,\n  type Translate,\n} from '../shared/packageBoxMeasurementLabel.service'",
+      "import {\n  formatMeasuredAtDate,\n  measurementSourceLabel,\n  packageBoxMeasureFailureMessage,\n  type Translate,\n} from '../shared/packageBoxMeasurementLabel.service'",
     )
 
     const editingBlock = panel.split('{isEditing ? (')[1]?.split(') : (')[0]
