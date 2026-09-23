@@ -63,6 +63,7 @@ import { buildFieldDeliveryWizardDocuments } from '../shared/fieldDeliveryDocume
 import { FieldDeliveryWizard } from './FieldDeliveryWizard.component'
 import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
 import { TripFieldActions } from './TripFieldActions.component'
+import { TripHeaderActions } from './TripHeaderActions.component'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
@@ -532,6 +533,21 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       <div className={styles.panelHead}>
         <h2 id="trip-detail-title">{t('detail.title')}</h2>
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
+        {/*
+         * Spec 170: as ações de estado ficam **aqui**, junto do status, com o resumo do que barra o
+         * próximo passo. Elas viviam numa seção no meio da página, e a decisão exigia rolar.
+         */}
+        <TripHeaderActions
+          canManage={canManage}
+          fiscalReadiness={workspace.fiscalReadiness}
+          isCancelPending={workspace.cancelMutation.isPending}
+          isDispatchPending={workspace.dispatchMutation.isPending}
+          isPlanRoutePending={workspace.planRouteMutation.isPending}
+          onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
+          onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
+          onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
+          trip={trip}
+        />
       </div>
 
       {/*
@@ -766,18 +782,12 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         capabilities={workspace.fieldActionCapabilities}
         isBatchPending={workspace.batchStatusMutation.isPending}
         isBatchReturnPending={workspace.batchFieldReturnMutation.isPending}
-        isCancelPending={workspace.cancelMutation.isPending}
-        isDispatchPending={workspace.dispatchMutation.isPending}
-        isPlanRoutePending={workspace.planRouteMutation.isPending}
         onBatch={handleBatch}
         onBatchReturn={handleBatchReturn}
-        onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
-        onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
         onOpenFieldDeliveryBatch={(documentIds) => setFieldDeliveryDocumentIds([...documentIds])}
         onOpenFieldOccurrenceBatch={(documentIds) =>
           setFieldOccurrenceDocumentIds([...documentIds])
         }
-        onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
         isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
         pendingCteSelection={
           workspace.controller.canSubmitCte
@@ -791,7 +801,6 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           workspace.createCteBatchMutation.mutate({ tripDocumentIds, tripId: trip.id })
         }
         selection={selection}
-        trip={trip}
       />
 
       <TripFieldActions

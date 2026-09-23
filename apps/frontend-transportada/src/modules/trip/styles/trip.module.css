@@ -3590,3 +3590,16 @@
 .occurrenceEntryNote {
   margin: var(--space-1) 0 0;
 }
+
+/*
+ * Spec 170: as ações de estado no cabeçalho. `margin-left:auto` as empurra para a direita do título
+ * e do status quando há espaço; abaixo disso a linha quebra e elas descem inteiras, sem espremer o
+ * status — que é o que o operador lê primeiro.
+ */
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
