@@ -24,8 +24,11 @@ export type TripRevenueEntriesController = Readonly<{
   isError: boolean
   isLoading: boolean
   isRecording: boolean
+  isRemoving: boolean
   /** `false` quando a API recusou: o formulário guarda o que foi digitado em vez de limpar. */
   record: (fields: TripRevenueEntryFormFields) => Promise<boolean>
+  /** Spec 169 RF12/RF13: remove sem apagar — some da lista e da soma. */
+  remove: (entryId: string) => Promise<boolean>
   retry: () => void
 }>
 
@@ -69,6 +72,15 @@ export function useTripRevenueEntries(
     },
   })
 
+  const remove = useMutation({
+    mutationFn: (entryId: string) =>
+      getTripFinancialsClient().removeRevenue({ entryId, tripId: input.tripId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [TRIP_REVENUE_ENTRIES_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_VALUATION_QUERY_KEY] })
+    },
+  })
+
   return {
     canReadEntries,
     canRecord,
@@ -77,12 +89,21 @@ export function useTripRevenueEntries(
     isError: entries.isError,
     isLoading: entries.isLoading,
     isRecording: record.isPending,
+    isRemoving: remove.isPending,
     async record(fields) {
       try {
         await record.mutateAsync(fields)
         return true
       } catch {
         /** A recusa já é estado da mutação; relançar aqui só produziria rejeição solta. */
+        return false
+      }
+    },
+    async remove(entryId) {
+      try {
+        await remove.mutateAsync(entryId)
+        return true
+      } catch {
         return false
       }
     },

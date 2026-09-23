@@ -15,10 +15,11 @@ import {
   validateTripCostEntryForm,
   type TripCostEntryFormFields,
 } from '../shared/tripCostEntryForm.service'
-import { TRIP_COST_ENTRY_KINDS, isTripCostEntryKind } from '../shared/tripFinancials.types'
+import type { CompanyEntryKind } from '../shared/tripFinancials.types'
 import styles from '../styles/tripFinancials.module.css'
 
 type TripCostEntryFormProps = Readonly<{
+  entryKinds: readonly CompanyEntryKind[]
   isRecording: boolean
   onRecord: (fields: TripCostEntryFormFields) => Promise<boolean>
 }>
@@ -26,10 +27,13 @@ type TripCostEntryFormProps = Readonly<{
 /**
  * Spec 143 D6: o campo que lança um gasto avulso da viagem.
  *
+ * Spec 169 RF5: o seletor de espécie migrou do enum fixo (`toll`/`other`) para o cadastro da
+ * empresa, do lado "expense" — a mesma tela que alimenta o seletor de receita.
+ *
  * ⚠️ O arquivo é a fronteira da permissão: quem não tem `trip.manage` não monta este componente —
  * campo desabilitado seria promessa de que basta pedir, e aviso de permissão seria ruído.
  */
-export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormProps) {
+export function TripCostEntryForm({ entryKinds, isRecording, onRecord }: TripCostEntryFormProps) {
   const { t } = useTranslation('tripFinancials')
   const [fields, setFields] = useState<TripCostEntryFormFields>(EMPTY_TRIP_COST_ENTRY_FORM)
   const issues = validateTripCostEntryForm(fields)
@@ -59,14 +63,9 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
       <label className={styles.field}>
         {t('costEntries.kind')}
         <Select
-          onChange={(value) => {
-            if (isTripCostEntryKind(value)) setFields({ ...fields, kind: value })
-          }}
-          options={TRIP_COST_ENTRY_KINDS.map((kind) => ({
-            label: t(`costEntries.kinds.${kind}`),
-            value: kind,
-          }))}
-          value={fields.kind}
+          onChange={(value) => setFields({ ...fields, entryKindId: value })}
+          options={entryKinds.map((kind) => ({ label: kind.name, value: kind.id }))}
+          value={fields.entryKindId}
         />
       </label>
       <label className={cn(styles.field, styles.costEntryDescriptionField)}>
@@ -79,7 +78,7 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
         />
       </label>
       <Button
-        disabled={issues.length > 0 || isRecording}
+        disabled={issues.length > 0 || isRecording || entryKinds.length === 0}
         onClick={() => void handleRecord()}
         type="button"
         variant="ghost"

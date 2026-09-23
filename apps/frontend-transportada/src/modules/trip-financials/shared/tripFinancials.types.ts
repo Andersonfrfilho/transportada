@@ -86,6 +86,8 @@ export type TripCostEntry = Readonly<{
   amount: string
   createdAt: string
   description: string
+  /** Spec 169 RF5: `null` para lançamento antigo, feito antes do cadastro de espécies existir. */
+  entryKind: Readonly<{ id: string; name: string }> | null
   id: string
   kind: TripCostEntryKind
 }>

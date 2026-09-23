@@ -33,23 +33,47 @@ type TripFinancialPanelProps = Readonly<{
   valuation: TripValuation | null
 }>
 
-/** Spec 169 P1/RF4: extraído para caber no teto de 200 linhas do repositório. */
-function RevenueEntries({
+/**
+ * Spec 169 RF11: os dois blocos de lançamento, juntos — extraídos para caber no teto de 200
+ * linhas do repositório, e para nascer sempre **antes** do total (CA08): o total é a conclusão,
+ * e conclusão não vem antes do que a compõe.
+ */
+function LaunchedEntries({
+  costEntries,
   revenueEntries,
-}: Readonly<{ revenueEntries: TripRevenueEntriesController | undefined }>) {
-  if (revenueEntries === undefined) return null
-
+}: Readonly<{
+  costEntries: TripCostEntriesController
+  revenueEntries: TripRevenueEntriesController | undefined
+}>) {
   return (
-    <TripRevenueEntries
-      canRecord={revenueEntries.canRecord}
-      entries={revenueEntries.entries}
-      entryKinds={revenueEntries.entryKinds}
-      isError={revenueEntries.isError}
-      isLoading={revenueEntries.isLoading}
-      isRecording={revenueEntries.isRecording}
-      onRecord={revenueEntries.record}
-      onRetry={revenueEntries.retry}
-    />
+    <>
+      <TripCostEntries
+        canRecord={costEntries.canRecord}
+        entries={costEntries.entries}
+        entryKinds={costEntries.entryKinds}
+        isError={costEntries.isError}
+        isLoading={costEntries.isLoading}
+        isRecording={costEntries.isRecording}
+        isRemoving={costEntries.isRemoving}
+        onRecord={costEntries.record}
+        onRemove={costEntries.remove}
+        onRetry={costEntries.retry}
+      />
+      {revenueEntries === undefined ? null : (
+        <TripRevenueEntries
+          canRecord={revenueEntries.canRecord}
+          entries={revenueEntries.entries}
+          entryKinds={revenueEntries.entryKinds}
+          isError={revenueEntries.isError}
+          isLoading={revenueEntries.isLoading}
+          isRecording={revenueEntries.isRecording}
+          isRemoving={revenueEntries.isRemoving}
+          onRecord={revenueEntries.record}
+          onRemove={revenueEntries.remove}
+          onRetry={revenueEntries.retry}
+        />
+      )}
+    </>
   )
 }
 
@@ -95,11 +119,7 @@ export function TripFinancialPanel({
     )
   }
 
-  /**
-   * Viagem aberta não tem congelado — e o painel dizia isso **sem mostrar a prevista**, que é a
-   * única conta que existe até ela fechar. Zeros como conta fechada seriam pior; anunciar a
-   * previsão e não a mostrar é o que estava lá.
-   */
+  /** Viagem aberta não tem congelado — o painel mostra a prevista até ela fechar. */
   if (result === null) {
     const expected = summarizeTripValuation(valuation)
 
@@ -107,13 +127,10 @@ export function TripFinancialPanel({
       <section className={styles.panel}>
         <h2>{t('panel.title')}</h2>
         <p className={styles.hint}>{t('panel.notFrozen')}</p>
+        {/* RF11/CA08: os lançamentos vêm antes do total — aqui, a prévia (ValuationLedger). */}
+        <LaunchedEntries costEntries={costEntries} revenueEntries={revenueEntries} />
         {expected === null ? null : (
           <>
-            {/*
-              A viagem aberta mostra **a mesma conta da criação**: receita em verde, cada custo com
-              a derivação — combustível em km/l × preço, pedágio praça a praça — e despesas em
-              vermelho. Três totais sem cor e sem parcela não diziam de onde o custo vinha.
-            */}
             <ValuationLedger valuation={valuation} />
             {/* A lacuna vai junto do número: total sem parcela sai menor do que a viagem custa. */}
             {expected.hasGaps ? (
@@ -125,16 +142,6 @@ export function TripFinancialPanel({
             ) : null}
           </>
         )}
-        <TripCostEntries
-          canRecord={costEntries.canRecord}
-          entries={costEntries.entries}
-          isError={costEntries.isError}
-          isLoading={costEntries.isLoading}
-          isRecording={costEntries.isRecording}
-          onRecord={costEntries.record}
-          onRetry={costEntries.retry}
-        />
-        <RevenueEntries revenueEntries={revenueEntries} />
       </section>
     )
   }
@@ -160,6 +167,9 @@ export function TripFinancialPanel({
         <p className={styles.hint}>{t('panel.operationalNote')}</p>
       </header>
 
+      {/* RF11/CA08: os lançamentos vêm antes do total — aqui, o resultado congelado. */}
+      <LaunchedEntries costEntries={costEntries} revenueEntries={revenueEntries} />
+
       <FrozenResultTable result={result} />
 
       <div className={styles.recalculate}>
@@ -182,17 +192,6 @@ export function TripFinancialPanel({
           {isRecalculating ? t('panel.recalculating') : t('panel.recalculate')}
         </Button>
       </div>
-
-      <TripCostEntries
-        canRecord={costEntries.canRecord}
-        entries={costEntries.entries}
-        isError={costEntries.isError}
-        isLoading={costEntries.isLoading}
-        isRecording={costEntries.isRecording}
-        onRecord={costEntries.record}
-        onRetry={costEntries.retry}
-      />
-      <RevenueEntries revenueEntries={revenueEntries} />
     </section>
   )
 }

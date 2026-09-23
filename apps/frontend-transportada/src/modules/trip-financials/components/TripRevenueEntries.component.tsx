@@ -19,7 +19,9 @@ type TripRevenueEntriesProps = Readonly<{
   isError: boolean
   isLoading: boolean
   isRecording: boolean
+  isRemoving: boolean
   onRecord: (fields: TripRevenueEntryFormFields) => Promise<boolean>
+  onRemove: (entryId: string) => Promise<boolean>
   onRetry: () => void
 }>
 
@@ -42,7 +44,9 @@ export function TripRevenueEntries({
   isError,
   isLoading,
   isRecording,
+  isRemoving,
   onRecord,
+  onRemove,
   onRetry,
 }: TripRevenueEntriesProps) {
   const { t } = useTranslation('tripFinancials')
@@ -85,6 +89,18 @@ export function TripRevenueEntries({
                   moment: momentFormatter.format(new Date(entry.createdAt)),
                 })}
               </span>
+              {canRecord ? (
+                <Button
+                  disabled={isRemoving}
+                  onClick={() => void onRemove(entry.id)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="trash" />
+                  {t('revenueEntries.remove')}
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>

@@ -8,17 +8,20 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
 import type { TripCostEntryFormFields } from '../shared/tripCostEntryForm.service'
-import type { TripCostEntry } from '../shared/tripFinancials.types'
+import type { CompanyEntryKind, TripCostEntry } from '../shared/tripFinancials.types'
 import styles from '../styles/tripFinancials.module.css'
 import { TripCostEntryForm } from './TripCostEntryForm.component'
 
 type TripCostEntriesProps = Readonly<{
   canRecord: boolean
   entries: readonly TripCostEntry[]
+  entryKinds: readonly CompanyEntryKind[]
   isError: boolean
   isLoading: boolean
   isRecording: boolean
+  isRemoving: boolean
   onRecord: (fields: TripCostEntryFormFields) => Promise<boolean>
+  onRemove: (entryId: string) => Promise<boolean>
   onRetry: () => void
 }>
 
@@ -30,16 +33,22 @@ const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
 /**
  * Spec 143 D6: o que já foi lançado nesta viagem, com autor e momento, e o campo para lançar mais.
  *
+ * Spec 169 RF12/RF13: cada linha ganha "remover" (mesma permissão de lançar) — soft, some da lista
+ * e da soma, e a trilha (quem, quando) fica gravada no servidor.
+ *
  * ⚠️ A falha desta lista **não apaga o painel**: ela tem bandeira e nova tentativa próprias, porque
  * o ramo de erro do painel devolveria só a caixa de erro e o ledger sumiria junto.
  */
 export function TripCostEntries({
   canRecord,
   entries,
+  entryKinds,
   isError,
   isLoading,
   isRecording,
+  isRemoving,
   onRecord,
+  onRemove,
   onRetry,
 }: TripCostEntriesProps) {
   const { t } = useTranslation('tripFinancials')
@@ -73,7 +82,7 @@ export function TripCostEntries({
           {entries.map((entry) => (
             <li key={entry.id}>
               <span className={styles.amountOut}>{formatAmount(entry.amount)}</span>
-              <span>{t(`costEntries.kinds.${entry.kind}`)}</span>
+              <span>{entry.entryKind?.name ?? t(`costEntries.kinds.${entry.kind}`)}</span>
               <span className={styles.costEntryDescription}>{entry.description}</span>
               <span className={styles.hint}>
                 {t('costEntries.by', {
@@ -81,11 +90,25 @@ export function TripCostEntries({
                   moment: momentFormatter.format(new Date(entry.createdAt)),
                 })}
               </span>
+              {canRecord ? (
+                <Button
+                  disabled={isRemoving}
+                  onClick={() => void onRemove(entry.id)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="trash" />
+                  {t('costEntries.remove')}
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>
       )}
-      {canRecord ? <TripCostEntryForm isRecording={isRecording} onRecord={onRecord} /> : null}
+      {canRecord ? (
+        <TripCostEntryForm entryKinds={entryKinds} isRecording={isRecording} onRecord={onRecord} />
+      ) : null}
     </div>
   )
 }

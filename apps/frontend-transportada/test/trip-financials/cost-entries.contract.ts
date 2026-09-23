@@ -47,7 +47,7 @@ describe('o valor digitado vira o decimal que a API aceita (spec 143 D6)', () =>
     const { toTripCostEntryBody } = await loadFormService()
 
     expect(
-      toTripCostEntryBody({ amount: '1.234,56', description: 'Pedágio', kind: 'toll' }).amount,
+      toTripCostEntryBody({ amount: '1.234,56', description: 'Pedágio', entryKindId: 'e1' }).amount,
     ).toBe('1234.5600')
   })
 
@@ -55,8 +55,8 @@ describe('o valor digitado vira o decimal que a API aceita (spec 143 D6)', () =>
     const { toTripCostEntryBody } = await loadFormService()
 
     expect(
-      toTripCostEntryBody({ amount: '80,00', description: 'Chaveiro', kind: 'other' }),
-    ).toEqual({ amount: '80.0000', description: 'Chaveiro', kind: 'other' })
+      toTripCostEntryBody({ amount: '80,00', description: 'Chaveiro', entryKindId: 'e2' }),
+    ).toEqual({ amount: '80.0000', description: 'Chaveiro', entryKindId: 'e2' })
   })
 })
 
@@ -64,7 +64,7 @@ describe('as regras do formulário, contra o serviço puro', () => {
   test('campo de valor em branco não sai do formulário', async () => {
     const { validateTripCostEntryForm } = await loadFormService()
 
-    expect(validateTripCostEntryForm({ amount: '', description: '', kind: 'toll' })).toEqual([
+    expect(validateTripCostEntryForm({ amount: '', description: '', entryKindId: 'e1' })).toEqual([
       'amountRequired',
     ])
   })
@@ -76,9 +76,18 @@ describe('as regras do formulário, contra o serviço puro', () => {
   test('zero não é custo, e nem sai do formulário', async () => {
     const { validateTripCostEntryForm } = await loadFormService()
 
-    expect(validateTripCostEntryForm({ amount: '0,00', description: '', kind: 'toll' })).toEqual([
-      'amountRequired',
-    ])
+    expect(
+      validateTripCostEntryForm({ amount: '0,00', description: '', entryKindId: 'e1' }),
+    ).toEqual(['amountRequired'])
+  })
+
+  /** RF5: espécie é obrigatória — sem escolha, o servidor recusaria o lançamento. */
+  test('sem espécie escolhida não sai do formulário', async () => {
+    const { validateTripCostEntryForm } = await loadFormService()
+
+    expect(
+      validateTripCostEntryForm({ amount: '80,00', description: '', entryKindId: '' }),
+    ).toEqual(['entryKindRequired'])
   })
 
   /** 200 é o teto do servidor; 200 caracteres soltos numa linha de lista destroem o painel. */
@@ -91,7 +100,7 @@ describe('as regras do formulário, contra o serviço puro', () => {
       validateTripCostEntryForm({
         amount: '80,00',
         description: 'x'.repeat(TRIP_COST_ENTRY_DESCRIPTION_MAX_LENGTH + 1),
-        kind: 'other',
+        entryKindId: 'e2',
       }),
     ).toEqual(['descriptionTooLong'])
   })
@@ -100,7 +109,7 @@ describe('as regras do formulário, contra o serviço puro', () => {
     const { validateTripCostEntryForm } = await loadFormService()
 
     expect(
-      validateTripCostEntryForm({ amount: '80,00', description: 'Chaveiro', kind: 'other' }),
+      validateTripCostEntryForm({ amount: '80,00', description: 'Chaveiro', entryKindId: 'e2' }),
     ).toEqual([])
   })
 
@@ -115,7 +124,7 @@ describe('as regras do formulário, contra o serviço puro', () => {
       validateTripCostEntryForm({
         amount: '99.999.999.999.999,00',
         description: '',
-        kind: 'toll',
+        entryKindId: 'e1',
       }),
     ).toEqual(['amountInvalid'])
   })
@@ -144,6 +153,7 @@ describe('a resposta da API é entrada não confiável', () => {
         amount: '44.6000',
         createdAt: '2026-08-05T09:00:00.000Z',
         description: 'Pedágio da BR-101',
+        entryKind: null,
         id: '00000000-0000-4000-8000-000000000e01',
         kind: 'toll',
       },
@@ -228,11 +238,13 @@ describe('a resposta da API é entrada não confiável', () => {
   })
 
   /** O seletor nasce do mesmo catálogo: espécie nova viraria opção na tela e pedágio no envio. */
-  test('o formulário não converte espécie desconhecida em pedágio', async () => {
+  /** Spec 169 RF5: o seletor migrou do enum fixo para o cadastro de espécies (entryKindId). */
+  test('o formulário lê a espécie do cadastro, não de um enum fixo', async () => {
     const source = await readSource(FORM_COMPONENT)
 
     expect(source).not.toContain("value === 'other' ? 'other' : 'toll'")
-    expect(source).toContain('isTripCostEntryKind(')
+    expect(source).toContain('entryKindId')
+    expect(source).toContain('entryKinds.map(')
   })
 })
 
@@ -406,11 +418,16 @@ describe('o painel monta a lista nas duas situações da viagem', () => {
     expect(panel).toMatch(/<\/ValuationLedger>|<ValuationLedger valuation=\{valuation\} \/>/u)
   })
 
-  /** Viagem aberta e viagem fechada mostram o que foi lançado: os dois ramos montam a lista. */
-  test('os dois ramos do painel montam a lista', async () => {
+  /**
+   * Viagem aberta e viagem fechada mostram o que foi lançado: os dois ramos montam
+   * `LaunchedEntries` (spec 169 RF11 — extraído para caber no teto e nascer antes do total),
+   * que por sua vez monta `TripCostEntries` uma vez só.
+   */
+  test('os dois ramos do painel montam os lançamentos', async () => {
     const panel = await readSource(PANEL)
 
-    expect(panel.match(/<TripCostEntries\b/gu)?.length).toBe(2)
+    expect(panel.match(/<LaunchedEntries\b/gu)?.length).toBe(2)
+    expect(panel.match(/<TripCostEntries\b/gu)?.length).toBe(1)
   })
 
   /** Teto de 200 linhas: a tabela do congelado sai para arquivo próprio em vez de inchar o painel. */

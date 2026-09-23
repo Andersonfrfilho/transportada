@@ -15,6 +15,7 @@
     "loading": "Loading the expenses…",
     "record": "Record",
     "recording": "Recording…",
+    "remove": "Remove",
     "retry": "Try again",
     "title": "Recorded expenses",
     "unknownActor": "removed user"
@@ -31,6 +32,7 @@
     "loading": "Loading the revenue entries…",
     "record": "Record",
     "recording": "Recording…",
+    "remove": "Remove",
     "retry": "Try again",
     "title": "Recorded revenue",
     "unknownActor": "removed user"

@@ -9,7 +9,6 @@ import {
   type FinancialSummary,
   type FinancialSummaryGroup,
   type TripCostEntry,
-  type TripCostEntryKind,
   type TripFinancialResult,
   type TripRevenueEntry,
 } from './tripFinancials.types'
@@ -54,14 +53,17 @@ export type TripFinancialsClient = Readonly<{
   recalculate: (
     input: Readonly<{ reason: string; tripId: string }>,
   ) => Promise<TripFinancialResult | null>
+  /** Spec 169 RF5: o seletor migrou para o cadastro de espécies — `entryKindId`, não `kind` fixo. */
   recordCost: (
     input: Readonly<{
       amount: string
       description: string
-      kind: TripCostEntryKind
+      entryKindId: string
       tripId: string
     }>,
   ) => Promise<void>
+  /** Spec 169 RF12/RF13: remove sem apagar — mesma permissão de lançar. */
+  removeCost: (input: Readonly<{ entryId: string; tripId: string }>) => Promise<void>
   /** Spec 169 P1: a receita lançada à mão — mesma trilha do gasto. */
   readRevenues: (tripId: string) => Promise<readonly TripRevenueEntry[]>
   recordRevenue: (
@@ -72,6 +74,7 @@ export type TripFinancialsClient = Readonly<{
       tripId: string
     }>,
   ) => Promise<void>
+  removeRevenue: (input: Readonly<{ entryId: string; tripId: string }>) => Promise<void>
   /** Spec 169 RF5: só as ativas do lado certo, na ordem cadastrada — para o seletor do lançamento. */
   readActiveEntryKinds: (side: CompanyEntryKindSide) => Promise<readonly CompanyEntryKind[]>
   /** Spec 169 P2: o cadastro inteiro da empresa (ativas e inativas), para a tela de configuração. */
@@ -142,13 +145,16 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
         }),
       )
     },
-    async recordCost({ amount, description, kind, tripId }) {
+    async recordCost({ amount, description, entryKindId, tripId }) {
       await request({
-        body: JSON.stringify({ amount, description, kind }),
+        body: JSON.stringify({ amount, description, entryKindId }),
         dependencies,
         method: 'POST',
         path: `/trips/${tripId}/costs`,
       })
+    },
+    async removeCost({ entryId, tripId }) {
+      await request({ dependencies, method: 'DELETE', path: `/trips/${tripId}/costs/${entryId}` })
     },
     async readRevenues(tripId) {
       return toTripRevenueEntries(
@@ -161,6 +167,13 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
         dependencies,
         method: 'POST',
         path: `/trips/${tripId}/revenues`,
+      })
+    },
+    async removeRevenue({ entryId, tripId }) {
+      await request({
+        dependencies,
+        method: 'DELETE',
+        path: `/trips/${tripId}/revenues/${entryId}`,
       })
     },
     async readActiveEntryKinds(side) {
