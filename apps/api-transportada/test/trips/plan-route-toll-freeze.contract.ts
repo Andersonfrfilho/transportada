@@ -13,7 +13,10 @@ import type {
   TripRouteState,
 } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
-import { TripStateTransitionNotAllowedError } from '../../src/trips/domain/trip.error.js'
+import {
+  TripRouteUnavailableError,
+  TripStateTransitionNotAllowedError,
+} from '../../src/trips/domain/trip.error.js'
 import type { RouteChoice } from '../../src/trips/domain/route-choice.policy.js'
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
@@ -40,7 +43,7 @@ function createFreezer(): {
     readonly companyId: string
     readonly routeChoice?: RouteChoice
     readonly tripId: string
-  }) => Promise<void>
+  }) => Promise<{ readonly routeFrozen: boolean }>
 } {
   const calls: { readonly routeChoice?: RouteChoice; readonly tripId: string }[] = []
   return {
@@ -51,6 +54,7 @@ function createFreezer(): {
           ? { tripId: input.tripId }
           : { routeChoice: input.routeChoice, tripId: input.tripId },
       )
+      return { routeFrozen: true }
     },
   }
 }
@@ -169,6 +173,77 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
     })
 
     expect(tollFreezer.calls).toEqual([{ tripId: TRIP_ID }])
+  })
+})
+
+describe('o roteirizador indisponível não pode virar route_planned (bancada spec 165)', () => {
+  /**
+   * ⚠️ **Este é o caminho real do defeito medido na bancada**, não uma exceção: o congelador
+   * do roteirizador (`osrm-route-geometry.gateway.ts`) trata "serviço fora do ar" como ausência,
+   * não como erro — ele devolve `routeFrozen: false` sem nunca rejeitar a promise. A viagem
+   * `819ad1bf-66cc-4d08-a181-ac9aef80a2b5` (bancada, 2026-09-23) nasceu `route_planned` com
+   * `planned_distance_meters`/`planned_route`/`planned_toll` todos nulos exatamente por este
+   * caminho — nenhum `catch` chegou a disparar, porque nada lançou.
+   */
+  test('freeze resolve routeFrozen: false (sem lançar) e a transição real não se aplica', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
+    let markRoutePlannedCalls = 0
+    const guardedRepository: PlanTripRoutePort = {
+      ...repository,
+      async markRoutePlanned(markInput) {
+        markRoutePlannedCalls += 1
+        return repository.markRoutePlanned(markInput)
+      },
+    }
+
+    const error = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository: guardedRepository,
+      tollFreezer: {
+        // O roteirizador respondeu — só não trouxe rota nenhuma. Sem exceção.
+        freeze: () => Promise.resolve({ routeFrozen: false }),
+      },
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(TripRouteUnavailableError)
+    expect(markRoutePlannedCalls).toBe(0)
+  })
+
+  test('freeze resolve routeFrozen: true e a viagem planeja normalmente', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
+
+    const result = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tollFreezer: {
+        freeze: () => Promise.resolve({ routeFrozen: true }),
+      },
+      tripId: TRIP_ID,
+    })
+
+    expect(result.tripStatus).toBe('route_planned')
+  })
+
+  test('numa repetição idempotente (viagem já route_planned), routeFrozen: false não derruba o status já gravado', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'separating' })
+
+    const result = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tollFreezer: {
+        freeze: () => Promise.resolve({ routeFrozen: false }),
+      },
+      tripId: TRIP_ID,
+    })
+
+    expect(result.tripStatus).toBe('separating')
   })
 })
 

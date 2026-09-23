@@ -228,6 +228,21 @@ export class TripDocumentTransitionConflictError extends ApiError {
   }
 }
 
+/**
+ * O roteirizador não devolveu rota (serviço fora do ar, tempo esgotado, praças indisponíveis) —
+ * `planned-route.use-case.ts` grava `null` em vez de lançar (D5), então esta é a forma de a
+ * transição de planejamento recusar um `route_planned` sem `planned_route` para sustentá-lo.
+ */
+export class TripRouteUnavailableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_ROUTE_UNAVAILABLE',
+      message: 'The route planner did not return a route; the trip stays unplanned.',
+      status: 422,
+    })
+  }
+}
+
 /** O ator da transição precisa ser membro desta empresa — mesma regra de `audit_logs`. */
 export class TripActorNotAMemberError extends ApiError {
   public constructor() {

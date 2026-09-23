@@ -4,7 +4,11 @@
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
-import { TripNotFoundError, TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
+import {
+  TripNotFoundError,
+  TripRouteUnavailableError,
+  TripStateTransitionNotAllowedError,
+} from '../domain/trip.error.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 export type TripRouteState = {
@@ -47,8 +51,17 @@ export type PlanTripRouteTollFreezer = {
     readonly companyId: string
     readonly routeChoice?: RouteChoice
     readonly tripId: string
-  }): Promise<void>
+  }): Promise<PlanTripRouteFreezeResult>
 }
+
+/**
+ * `routeFrozen: false` é o roteirizador (OSRM/depósito/praças) sem responder com uma rota —
+ * "falha é ausência, nunca reta" (`osrm-route-geometry.gateway.ts`), então `freeze` grava
+ * `planned_route`/`planned_toll` nulos **sem lançar**. Sem este sinal, `planTripRoute` não tinha
+ * como distinguir "congelou de verdade" de "congelou nulo", e marcava `route_planned` nos dois
+ * casos — o status afirmando um roteiro que o próprio congelamento admite não ter.
+ */
+export type PlanTripRouteFreezeResult = { readonly routeFrozen: boolean }
 
 export type PlanTripRouteInput = {
   readonly actorUserId: string
@@ -78,6 +91,12 @@ export type PlanTripRouteResult = {
  * o status afirmando um planejamento que não existe. Falha aqui bloqueia a transição: a viagem
  * fica no status anterior, e quem chamou decide se tenta de novo.
  *
+ * ⚠️ **`routeFrozen: false` bloqueia a transição real do mesmo jeito, mesmo sem exceção.** O
+ * roteirizador indisponível não lança — grava rota nula de propósito (D5, "falha é ausência,
+ * nunca reta") — e sem este segundo gate a viagem virava `route_planned` com `planned_route`,
+ * `planned_distance_meters` e `planned_toll` todos nulos: o defeito medido na bancada, onde a
+ * exceção nunca existiu para o `catch` anterior capturar.
+ *
  * Roda em toda chamada que não é bloqueada — tanto na transição real (`applied`) quanto na
  * repetição idempotente (`unchanged`, ex: reordenar parada e planejar de novo), preservando o
  * recongelamento do replanejamento. A chamada bloqueada (viagem despachada, cancelada, sem
@@ -98,11 +117,14 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
   }
 
   if (input.tollFreezer !== undefined) {
-    await input.tollFreezer.freeze({
+    const freezeResult = await input.tollFreezer.freeze({
       companyId: input.companyId,
       ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
       tripId: input.tripId,
     })
+    if (transition.outcome === 'applied' && !freezeResult.routeFrozen) {
+      throw new TripRouteUnavailableError()
+    }
   }
 
   const tripStatus =
