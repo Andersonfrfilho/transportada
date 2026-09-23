@@ -20,6 +20,12 @@ export function resolveDocumentRowAction(
   permissions: DocumentRowActionPermissions,
 ): DocumentRowAction | null {
   if (entry === undefined || entry.expectedDocument === null) return null
+  /**
+   * Bloqueada e sem perfil vêm da fonte única do documento de saída: nos dois a linha informa o
+   * estado e cala. Oferecer emissão aqui terminaria em erro do outro lado, e a recusa é escrita de
+   * propósito — deixá-la cair no ramo da NFS-e a tornaria resto de outra decisão.
+   */
+  if (entry.expectedDocument === 'blocked' || entry.expectedDocument === 'no_profile') return null
 
   if (entry.expectedDocument === 'cte') {
     if (!permissions.canSubmitCte) return null

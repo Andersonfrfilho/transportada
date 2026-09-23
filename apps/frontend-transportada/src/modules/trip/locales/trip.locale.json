@@ -18,8 +18,7 @@
     "fieldOccurrence": "Ocorrência",
     "fieldDelivery": "Dar baixa",
     "separationOccurrence": "Ocorrência de separação",
-    "generateCte": "Gerar CT-e",
-    "emitNfse": "Emitir NFS-e"
+    "generateCte": "Gerar CT-e"
   },
   "authorship": {
     "backoffice": "por {{actor}}",

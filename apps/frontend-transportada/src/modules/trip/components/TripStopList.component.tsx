@@ -5,10 +5,11 @@ import { CSS } from '@dnd-kit/utilities'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonClassName } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
+import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
@@ -75,12 +76,11 @@ export type TripStopDocumentActions = Readonly<{
   onFieldReturn: (documentId: string) => void
   /** Spec 174 RF3: gera o CT-e só desta nota, sem passar pela seleção. */
   onGenerateCte: (documentId: string) => void
-  /**
-   * Spec 175 RF3 (Fase 3): abre o diálogo de emissão de NFS-e com a nota pré-selecionada. Nesta
-   * fase o botão já sai do dado e confere a permissão certa; a abertura do diálogo é o próximo
-   * passo — até lá o callback é o ponto de extensão explícito, não uma emissão direta.
-   */
-  onOpenNfseEmission: (documentId: string) => void
+  /** A empresa e as permissões que a ação de NFS-e do módulo dono exige para se abrir. */
+  companyId: string | undefined
+  permissions: readonly string[]
+  /** Depois da emissão a prontidão muda: sem isso a linha continuaria oferecendo o que já foi feito. */
+  onNfseEmitted: () => void
   /** Spec 156 T9: abre `FieldOccurrenceDialog` para esta nota (ação da linha, não em massa). */
   onOpenFieldOccurrence: (documentId: string) => void
   /** Spec 156 T11: abre `FieldDeliveryWizard` para esta nota (ação da linha, não em massa). */
@@ -396,8 +396,8 @@ function TripStopDocumentRow({
       <div className={styles.rowActions}>
         {/*
          * Spec 175 RF1/RF2/RF4/RF7: uma ação só, e o rótulo sai do documento que a nota espera —
-         * `cte` emite direto (spec 174 RF3), `nfse` abre o diálogo (Fase 3). `city_unknown` ou
-         * campo ausente não oferece nada: o selo já explica o motivo.
+         * `cte` emite direto (spec 174 RF3), `nfse` abre o diálogo do módulo dono. Sem documento
+         * decidido não se oferece nada: o selo já explica o motivo.
          */}
         {rowAction?.kind === 'cte' ? (
           <Button
@@ -411,14 +411,18 @@ function TripStopDocumentRow({
           </Button>
         ) : null}
         {rowAction?.kind === 'nfse' ? (
-          <Button
-            onClick={() => actions.onOpenNfseEmission(document.id)}
-            size="sm"
-            type="button"
-          >
-            <Icon name="send" />
-            {t('actions.emitNfse')}
-          </Button>
+          /*
+           * O componente de ação é do módulo dono da NFS-e, e é ele que decide estado interno,
+           * permissão e abertura do diálogo. A linha só empresta o estilo do botão do design
+           * system — emitir daqui seria emitir contra um perfil que ninguém escolheu.
+           */
+          <NfseEmissionAction
+            className={buttonClassName({ size: 'sm' })}
+            {...(actions.companyId === undefined ? {} : { companyId: actions.companyId })}
+            documentIds={[fiscalReadiness?.nfeDocumentId ?? document.id]}
+            onEmitted={actions.onNfseEmitted}
+            permissions={actions.permissions}
+          />
         ) : null}
         {/*
          * O comprovante é do escritório, e ler não é administrar: quem acompanha a operação abre o

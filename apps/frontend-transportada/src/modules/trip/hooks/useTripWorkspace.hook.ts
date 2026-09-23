@@ -904,6 +904,10 @@ export function useTripWorkspace(
     openSeparationOccurrenceDocumentId,
     setOpenSeparationOccurrenceDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,
+    refetchFiscalReadiness: () => void fiscalReadinessQuery.refetch(),
+    /** O par que o componente de ação de outro módulo exige; `permissions` já vem vazio sem empresa. */
+    companyId: input.companyId,
+    permissions,
     setMdfeRequirementMutation,
     dispatchMutation,
     linkDocumentMutation,
