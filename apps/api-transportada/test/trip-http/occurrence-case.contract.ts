@@ -18,6 +18,7 @@ import type {
 } from '../../src/identity/domain/tenant-context.js'
 import type { OccurrenceCaseUseCase } from '../../src/trips/application/occurrence-case.use-case.js'
 import {
+  OccurrenceCaseDecisionConflictError,
   OccurrenceCaseNotFoundError,
   OccurrenceCaseRedeliveryNotAllowedError,
   OccurrenceCaseSettlementWithoutItemsError,
@@ -55,6 +56,7 @@ function createFixture(params: {
     cancel: [],
     closure: [],
     contractorSubmission: [],
+    decide: [],
     review: [],
     warehouseReturn: [],
   }
@@ -71,6 +73,7 @@ function createFixture(params: {
     cancel: record('cancel'),
     closure: record('closure'),
     contractorSubmission: record('contractorSubmission'),
+    decide: record('decide'),
     review: record('review'),
     warehouseReturn: record('warehouseReturn'),
   }
@@ -276,5 +279,128 @@ describe('rotas internas da tratativa (spec 164 T7)', () => {
     expect(first.status).toBe(200)
     expect(second.status).toBe(200)
     expect(fixture.calls.review).toHaveLength(2)
+  })
+})
+
+/** Achado 1 da revisão: a decisão em nome do contratante — permissão própria e nota obrigatória. */
+describe('POST .../case/decision (achado 1 da revisão)', () => {
+  test('sem occurrences.resolve, 403 antes de tocar o caso de uso', async () => {
+    const fixture = createFixture({ permissions: new Set(['fleet.read']) })
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'other', note: 'contratante não responde' },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(403)
+    expect(fixture.calls.decide).toEqual([])
+  })
+
+  /** RF12/D6/D7: `occurrences.decide` é do papel `contractor`, nunca alcança a rota interna. */
+  test('papel contractor (occurrences.decide, sem occurrences.resolve) não alcança a rota', async () => {
+    const fixture = createFixture({
+      permissions: new Set(['deliveries.track', 'occurrences.decide']),
+    })
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'other', note: 'contratante não responde' },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(403)
+    expect(fixture.calls.decide).toEqual([])
+  })
+
+  /** Molde de `separator-role.contract.test.ts`: o separador (`trip.manage`) nunca ganha `occurrences.resolve`. */
+  test('papel separator (trip.manage, sem occurrences.resolve) não alcança a rota', async () => {
+    const fixture = createFixture({
+      permissions: new Set(['invoices.read', 'fleet.read', 'trip.read', 'trip.manage']),
+    })
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'other', note: 'contratante não responde' },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(403)
+    expect(fixture.calls.decide).toEqual([])
+  })
+
+  test('resolve occurrenceId -> caseId e chama decide com actorKind fixo no caso de uso', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'redelivery_authorized', note: 'escritório decidiu pelo contratante' },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(200)
+    expect(fixture.findCaseIdCalls).toEqual([
+      { companyId: COMPANY_CONTEXT.companyId, occurrenceId: OCCURRENCE_ID },
+    ])
+    expect(fixture.calls.decide).toEqual([
+      {
+        caseId: CASE_ID,
+        context: CONTEXT_WITH_OCCURRENCE_RESOLVE,
+        kind: 'redelivery_authorized',
+        note: 'escritório decidiu pelo contratante',
+      },
+    ])
+  })
+
+  test('nota ausente é 400 (zod) — decidir em nome de alguém nunca é silencioso', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'other' },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(400)
+    expect(fixture.calls.decide).toEqual([])
+  })
+
+  test('ocorrência de outra empresa (ou sem tratativa) é 404 antes de chamar o caso de uso', async () => {
+    const fixture = createFixture({ findCaseIdReturnsNull: true })
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'other', note: 'motivo' },
+        method: 'POST',
+        path: casePath(OTHER_OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(404)
+    expect((await responseApiError(response)).code).toBe('OCCURRENCE_CASE_NOT_FOUND')
+    expect(fixture.calls.decide).toEqual([])
+  })
+
+  test('corpo com chave desconhecida é 400 (zod .strict())', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'other', note: 'motivo', extra: true },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(400)
+  })
+
+  test('OCCURRENCE_CASE_DECISION_CONFLICT sai como 409', async () => {
+    const fixture = createFixture({ error: new OccurrenceCaseDecisionConflictError() })
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'other', note: 'motivo' },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(409)
+    expect((await responseApiError(response)).code).toBe('OCCURRENCE_CASE_DECISION_CONFLICT')
   })
 })

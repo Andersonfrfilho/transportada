@@ -7,13 +7,25 @@
  * o caso de uso (T5). Ocorrência de outra empresa, ou sem tratativa aberta, é `404`; corrida perdida
  * entre duas transições concorrentes já responde `409` de dentro do repositório (T4); repetir a
  * mesma ação converge (`kind: 'unchanged'`), nunca estoura.
+ *
+ * Achado 1 da revisão: `POST .../case/decision` é a sexta rota — o escritório decide em nome de
+ * uma contratante que não responde. Mesma permissão `occurrences.resolve` (nunca
+ * `occurrences.decide`, que é do papel `contractor`, ADR-0050 §6/D7 do spec.md); `actorKind:
+ * 'internal'` é constante da rota, nunca do corpo — é essa separação que impede um ator interno
+ * assinar como se fosse o cliente. Nota é sempre obrigatória.
  */
-import { parseOptionalBody, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import {
+  parseBody,
+  parseOptionalBody,
+  parseUuidPathIdentifier,
+} from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
+import type { TripOccurrenceCaseDecisionKind } from '../../database/trip.schema.js'
 import type { OccurrenceCaseUseCase } from '../application/occurrence-case.use-case.js'
 import { OccurrenceCaseNotFoundError } from '../domain/trip.error.js'
 import {
   EMPTY_BODY_SCHEMA,
+  INTERNAL_DECISION_BODY_SCHEMA,
   OPTIONAL_NOTE_BODY_SCHEMA,
   REQUIRED_NOTE_BODY_SCHEMA,
 } from './occurrence-case.schema.js'
@@ -27,6 +39,7 @@ const OCCURRENCE_CASE_WAREHOUSE_RETURN_PATH = `${OCCURRENCE_CASE_BASE_PATH}/ware
 const OCCURRENCE_CASE_CONTRACTOR_SUBMISSION_PATH = `${OCCURRENCE_CASE_BASE_PATH}/contractor-submission`
 const OCCURRENCE_CASE_CLOSURE_PATH = `${OCCURRENCE_CASE_BASE_PATH}/closure`
 const OCCURRENCE_CASE_CANCEL_PATH = `${OCCURRENCE_CASE_BASE_PATH}/cancel`
+const OCCURRENCE_CASE_DECISION_PATH = `${OCCURRENCE_CASE_BASE_PATH}/decision`
 
 /**
  * Um balde só para as cinco: são transições de estado do escritório, não um alvo de custo externo
@@ -48,6 +61,12 @@ export type OccurrenceCaseRoutesDependencies = {
 }
 
 type OccurrenceCasePathInput = { readonly note?: string; readonly occurrenceId: string }
+
+type OccurrenceCaseDecisionPathInput = {
+  readonly kind: TripOccurrenceCaseDecisionKind
+  readonly note: string
+  readonly occurrenceId: string
+}
 
 async function resolveCaseId(
   dependencies: OccurrenceCaseRoutesDependencies,
@@ -174,6 +193,39 @@ export function createOccurrenceCaseRoutes(
         return { note: body.note, occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? '') }
       },
       pathname: OCCURRENCE_CASE_CANCEL_PATH,
+      policy: OCCURRENCE_CASE_POLICY,
+      rateLimit: OCCURRENCE_CASE_RATE_LIMIT,
+    }),
+    /**
+     * Achado 1 da revisão: decisão interna, em nome da contratante que não respondeu. `note` é
+     * sempre obrigatória (diferente do portal); a máquina (dentro do repositório) reprova decisão
+     * divergente sobre tratativa já `decided` com 409 `OCCURRENCE_CASE_DECISION_CONFLICT`, e
+     * reentrega sobre tipo `blocked` com 422 `OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED`.
+     */
+    defineRoute<OccurrenceCaseDecisionPathInput>({
+      async handle({ context, input }): Promise<Response> {
+        const caseId = await resolveCaseId(dependencies, {
+          companyId: context.scope.companyId,
+          occurrenceId: input.occurrenceId,
+        })
+        const result = await dependencies.occurrenceCase.decide({
+          caseId,
+          context: context.scope,
+          kind: input.kind,
+          note: input.note,
+        })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseBody(INTERNAL_DECISION_BODY_SCHEMA, request)
+        return {
+          kind: body.kind,
+          note: body.note,
+          occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: OCCURRENCE_CASE_DECISION_PATH,
       policy: OCCURRENCE_CASE_POLICY,
       rateLimit: OCCURRENCE_CASE_RATE_LIMIT,
     }),

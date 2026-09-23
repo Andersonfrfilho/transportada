@@ -170,8 +170,9 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
-  /** Spec 164 T7: as cinco ações internas da tratativa dividem um balde só. */
-  test('as cinco ações internas da tratativa dividem o balde trip-occurrence-case', () => {
+  /** Spec 164 T7 (achado 1 da revisão: decisão em nome do contratante): as seis ações internas da
+   * tratativa dividem um balde só. */
+  test('as seis ações internas da tratativa dividem o balde trip-occurrence-case', () => {
     const unused = unusedDependencies() as never
     const routes = createOccurrenceCaseRoutes(unused)
 
@@ -194,6 +195,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       { rateLimit, signature: 'POST /trip-occurrences/:id/case/contractor-submission' },
       { rateLimit, signature: 'POST /trip-occurrences/:id/case/closure' },
       { rateLimit, signature: 'POST /trip-occurrences/:id/case/cancel' },
+      { rateLimit, signature: 'POST /trip-occurrences/:id/case/decision' },
     ])
   })
 

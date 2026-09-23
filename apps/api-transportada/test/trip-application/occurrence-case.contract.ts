@@ -184,4 +184,46 @@ describe('occurrence-case use-case (T5)', () => {
       OccurrenceCaseTransitionNotAllowedError,
     )
   })
+
+  /** Achado 1 da revisão: a decisão em nome do contratante — nota sempre obrigatória, actorKind fixo. */
+  test('decide without note never calls the repository', async () => {
+    const { calls, repository } = createFakeRepository({
+      kind: 'result',
+      value: { kind: 'changed', status: 'decided' },
+    })
+    const useCase = createOccurrenceCaseUseCase({ repository })
+
+    await expect(
+      useCase.decide({ caseId: CASE_ID, context: CONTEXT, kind: 'other', note: '   ' }),
+    ).rejects.toBeInstanceOf(OccurrenceCaseNoteRequiredError)
+    expect(calls).toHaveLength(0)
+  })
+
+  test('decide with a note delegates to the repository with actorKind internal and the decision', async () => {
+    const { calls, repository } = createFakeRepository({
+      kind: 'result',
+      value: { kind: 'changed', status: 'decided' },
+    })
+    const useCase = createOccurrenceCaseUseCase({ repository })
+
+    const result = await useCase.decide({
+      caseId: CASE_ID,
+      context: CONTEXT,
+      kind: 'redelivery_authorized',
+      note: 'contratante não respondeu em cinco dias',
+    })
+
+    expect(result).toEqual({ kind: 'changed', status: 'decided' })
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({
+      action: 'decide',
+      actorKind: 'internal',
+      actorUserId: USER_ID,
+      caseId: CASE_ID,
+      companyId: COMPANY_ID,
+      decisionKind: 'redelivery_authorized',
+      decisionNote: 'contratante não respondeu em cinco dias',
+      note: 'contratante não respondeu em cinco dias',
+    })
+  })
 })

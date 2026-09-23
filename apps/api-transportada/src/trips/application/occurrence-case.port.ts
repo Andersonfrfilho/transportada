@@ -12,7 +12,13 @@ import type {
 } from '../../database/trip.schema.js'
 
 export type OccurrenceCaseTransitionInput = {
-  readonly action: 'cancel' | 'closure' | 'contractor_submission' | 'review' | 'warehouse_return'
+  readonly action:
+    | 'cancel'
+    | 'closure'
+    | 'contractor_submission'
+    | 'decide'
+    | 'review'
+    | 'warehouse_return'
   readonly actorKind: TripOccurrenceCaseActorKind
   /** Spec 164 T9: obrigatória para os dois atores — interno ou contratante. */
   readonly actorUserId: string
