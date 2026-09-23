@@ -89,3 +89,29 @@ export type TripCostEntry = Readonly<{
   id: string
   kind: TripCostEntryKind
 }>
+
+/** Spec 169 RF1: espécie de lançamento é cadastro da empresa, não constante de código. */
+export const COMPANY_ENTRY_KIND_SIDES = ['expense', 'revenue'] as const
+export type CompanyEntryKindSide = (typeof COMPANY_ENTRY_KIND_SIDES)[number]
+
+export type CompanyEntryKind = Readonly<{
+  active: boolean
+  displayOrder: number
+  id: string
+  name: string
+  side: CompanyEntryKindSide
+}>
+
+/**
+ * Spec 169 P1/RF3/RF4: a receita lançada à mão na viagem — ajuda de carga, taxa de reentrega,
+ * diária cobrada do embarcador. Entra na conta como entrada, em **linha separada** do frete
+ * previsto (decisão registrada no topo do spec.md): nunca soma dentro de `revenueAmount`.
+ */
+export type TripRevenueEntry = Readonly<{
+  actor: TripCostEntryActor
+  amount: string
+  createdAt: string
+  description: string
+  entryKind: Readonly<{ id: string; name: string }>
+  id: string
+}>

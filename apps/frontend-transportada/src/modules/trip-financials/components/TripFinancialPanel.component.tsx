@@ -7,10 +7,12 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import type { TripCostEntriesController } from '../hooks/useTripCostEntries.hook'
+import type { TripRevenueEntriesController } from '../hooks/useTripRevenueEntries.hook'
 import type { TripFinancialResult } from '../shared/tripFinancials.types'
 import { summarizeTripValuation, type TripValuation } from '../shared/tripValuation.service'
 import { FrozenResultTable } from './FrozenResultTable.component'
 import { TripCostEntries } from './TripCostEntries.component'
+import { TripRevenueEntries } from './TripRevenueEntries.component'
 import { ValuationLedger } from './ValuationLedger.component'
 import styles from '../styles/tripFinancials.module.css'
 
@@ -22,9 +24,34 @@ type TripFinancialPanelProps = Readonly<{
   onRecalculate: (reason: string) => Promise<void>
   onRetry: () => void
   result: TripFinancialResult | null
+  /**
+   * Spec 169 P1/RF4: a receita lançada, em linha separada do frete previsto — opcional para não
+   * quebrar quem ainda não monta o controller (spec 169 não altera `TripDetail.page.tsx`).
+   */
+  revenueEntries?: TripRevenueEntriesController
   /** A conta prevista da viagem aberta — é ela que aparece enquanto não há congelada. */
   valuation: TripValuation | null
 }>
+
+/** Spec 169 P1/RF4: extraído para caber no teto de 200 linhas do repositório. */
+function RevenueEntries({
+  revenueEntries,
+}: Readonly<{ revenueEntries: TripRevenueEntriesController | undefined }>) {
+  if (revenueEntries === undefined) return null
+
+  return (
+    <TripRevenueEntries
+      canRecord={revenueEntries.canRecord}
+      entries={revenueEntries.entries}
+      entryKinds={revenueEntries.entryKinds}
+      isError={revenueEntries.isError}
+      isLoading={revenueEntries.isLoading}
+      isRecording={revenueEntries.isRecording}
+      onRecord={revenueEntries.record}
+      onRetry={revenueEntries.retry}
+    />
+  )
+}
 
 /**
  * Spec 061 P1: **a viagem mostra a conta** — receita, cada parcela com sua origem, o total e a
@@ -38,6 +65,7 @@ export function TripFinancialPanel({
   onRecalculate,
   onRetry,
   result,
+  revenueEntries,
   valuation,
 }: TripFinancialPanelProps) {
   const { t } = useTranslation('tripFinancials')
@@ -106,6 +134,7 @@ export function TripFinancialPanel({
           onRecord={costEntries.record}
           onRetry={costEntries.retry}
         />
+        <RevenueEntries revenueEntries={revenueEntries} />
       </section>
     )
   }
@@ -163,6 +192,7 @@ export function TripFinancialPanel({
         onRecord={costEntries.record}
         onRetry={costEntries.retry}
       />
+      <RevenueEntries revenueEntries={revenueEntries} />
     </section>
   )
 }

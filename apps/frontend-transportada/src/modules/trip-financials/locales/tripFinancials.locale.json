@@ -19,6 +19,22 @@
     "title": "Gastos lançados",
     "unknownActor": "usuário removido"
   },
+  "revenueEntries": {
+    "amount": "Valor",
+    "amountPlaceholder": "0,00",
+    "by": "{{actor}} · {{moment}}",
+    "description": "Descrição",
+    "descriptionPlaceholder": "Ajuda de carga, taxa de reentrega, diária…",
+    "empty": "Nenhuma receita lançada nesta viagem até agora.",
+    "error": "Não foi possível carregar as receitas lançadas nesta viagem.",
+    "kind": "Espécie",
+    "loading": "Carregando as receitas…",
+    "record": "Lançar",
+    "recording": "Lançando…",
+    "retry": "Tentar novamente",
+    "title": "Receita lançada",
+    "unknownActor": "usuário removido"
+  },
   "gap": {
     "CITY_WITHOUT_REGION": "destino sem zona de frete cadastrada",
     "DRIVER_RATE_MISSING_FOR_CLASS": "zona sem preço para a classe do veículo — confira a aba Regiões",
