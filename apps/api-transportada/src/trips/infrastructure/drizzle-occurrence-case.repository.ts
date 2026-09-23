@@ -20,7 +20,11 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
-import { tripOccurrenceCaseEvents, tripOccurrenceCases } from '../../database/trip.schema.js'
+import {
+  tripOccurrenceCaseEvents,
+  tripOccurrenceCases,
+  tripOccurrenceItemSettlements,
+} from '../../database/trip.schema.js'
 import type {
   RedeliveryPolicy,
   TripOccurrenceCaseActorKind,
@@ -98,8 +102,6 @@ export type OccurrenceCaseTransitionInput = {
   /** Só em `decide`: a decisão sendo aplicada agora (T5/T9-T10) — `null` nas demais ações. */
   readonly decisionKind?: TripOccurrenceCaseDecisionKind
   readonly decisionNote?: string
-  /** Existe ao menos um item de `trip_occurrence_item_settlements` gravado (T16) — o caso de uso chamador calcula. */
-  readonly hasSettlementItems: boolean
   readonly note: string
 }
 
@@ -166,10 +168,19 @@ async function applyTransition(
     .limit(1)
   if (locked === undefined) throw new OccurrenceCaseNotFoundError()
 
+  /** Só o fechamento pergunta pelos itens acertados — as demais ações não pagam a consulta. */
+  const hasSettlementItems =
+    input.action === 'closure'
+      ? await countsSettlementItems(transaction, {
+          caseId: input.caseId,
+          companyId: input.companyId,
+        })
+      : false
+
   const transition = checkOccurrenceCaseTransition({
     action: input.action,
     decisionKind: input.decisionKind ?? locked.decisionKind,
-    hasSettlementItems: input.hasSettlementItems,
+    hasSettlementItems,
     redeliveryPolicy: locked.redeliveryPolicy,
     status: locked.status,
   })
@@ -233,6 +244,29 @@ async function applyTransition(
   })
 
   return { kind: 'changed', status: transition.to }
+}
+
+/**
+ * A contagem que decide o fechamento de `goods_paid` (RF23) — lida **depois** do lock e dentro da
+ * mesma transação do `update`. Contar fora dela é a mesma classe de defeito que a spec 158 fechou:
+ * a pré-condição do caso de uso envelhece entre a leitura e a escrita, e aqui ela envelhecia para
+ * sempre — os três chamadores passavam o literal `false`.
+ */
+async function countsSettlementItems(
+  transaction: TripTransaction,
+  input: { readonly caseId: string; readonly companyId: string },
+): Promise<boolean> {
+  const [found] = await transaction
+    .select({ id: tripOccurrenceItemSettlements.id })
+    .from(tripOccurrenceItemSettlements)
+    .where(
+      and(
+        eq(tripOccurrenceItemSettlements.companyId, input.companyId),
+        eq(tripOccurrenceItemSettlements.caseId, input.caseId),
+      ),
+    )
+    .limit(1)
+  return found !== undefined
 }
 
 function refusalError(code: OccurrenceCaseTransitionRefusalCode): Error {

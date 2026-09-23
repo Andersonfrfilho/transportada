@@ -210,7 +210,6 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
         actorUserId: company.userId,
         caseId: (await findCaseId(database, company.companyId, occurrence.id)) ?? '',
         companyId: company.companyId,
-        hasSettlementItems: false,
         note: '',
       })
       // `under_review`: ainda invisível.
@@ -222,7 +221,6 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
         actorUserId: company.userId,
         caseId: (await findCaseId(database, company.companyId, occurrence.id)) ?? '',
         companyId: company.companyId,
-        hasSettlementItems: false,
         note: '',
       })
 
@@ -240,7 +238,6 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
         actorUserId: otherCompany.userId,
         caseId: otherCaseId,
         companyId: otherCompany.companyId,
-        hasSettlementItems: false,
         note: '',
       })
       await cases.transition({
@@ -249,7 +246,6 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
         actorUserId: otherCompany.userId,
         caseId: otherCaseId,
         companyId: otherCompany.companyId,
-        hasSettlementItems: false,
         note: '',
       })
       expect(
@@ -308,7 +304,6 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
           companyId: company.companyId,
           decisionKind: 'goods_paid',
           decisionNote: 'pela porta dos fundos',
-          hasSettlementItems: false,
           note: 'pela porta dos fundos',
         }),
       ).rejects.toMatchObject({ code: 'OCCURRENCE_CASE_DECISION_CONFLICT', status: 409 })
@@ -345,7 +340,6 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
         actorUserId: company.userId,
         caseId,
         companyId: company.companyId,
-        hasSettlementItems: false,
         note: '',
       })
       await cases.transition({
@@ -354,7 +348,6 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
         actorUserId: company.userId,
         caseId,
         companyId: company.companyId,
-        hasSettlementItems: false,
         note: '',
       })
 
@@ -470,7 +463,6 @@ describe('a nota, os itens e a observação no portal (spec 164 RF13)', () => {
         actorUserId: company.userId,
         caseId,
         companyId: company.companyId,
-        hasSettlementItems: false,
         note: '',
       })
       await cases.transition({
@@ -479,7 +471,6 @@ describe('a nota, os itens e a observação no portal (spec 164 RF13)', () => {
         actorUserId: company.userId,
         caseId,
         companyId: company.companyId,
-        hasSettlementItems: false,
         note: '',
       })
 

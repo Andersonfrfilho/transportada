@@ -105,7 +105,6 @@ export function createOccurrenceCaseUseCase(dependencies: {
       actorUserId: input.context.userId,
       caseId: input.caseId,
       companyId: input.context.companyId,
-      hasSettlementItems: false,
       note,
     })
 
@@ -126,7 +125,6 @@ export function createOccurrenceCaseUseCase(dependencies: {
       companyId: input.context.companyId,
       decisionKind: input.kind,
       decisionNote: note,
-      hasSettlementItems: false,
       note,
     })
 

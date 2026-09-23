@@ -4,6 +4,11 @@
  * Spec 164 T5: o que o caso de uso das ações internas precisa do repositório — só `transition`,
  * para permitir dublê nos testes de contrato sem tocar banco. `DrizzleOccurrenceCaseRepository`
  * (T4) implementa esta porta.
+ *
+ * ⚠️ **Nenhuma pré-condição contada fora da transação entra aqui.** `hasSettlementItems` era campo
+ * desta entrada e os três chamadores passavam o literal `false` — o fechamento de `goods_paid`
+ * respondia 422 para sempre. Quem conta os itens é o escritor único, sobre a linha travada, dentro
+ * da mesma transação do fechamento (mesma classe de defeito que a spec 158 já registrou).
  */
 import type {
   TripOccurrenceCaseActorKind,
@@ -26,7 +31,6 @@ export type OccurrenceCaseTransitionInput = {
   readonly companyId: string
   readonly decisionKind?: TripOccurrenceCaseDecisionKind
   readonly decisionNote?: string
-  readonly hasSettlementItems: boolean
   readonly note: string
 }
 

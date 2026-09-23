@@ -63,7 +63,6 @@ export function createDecideOccurrenceCaseUseCase(dependencies: {
       readonly companyId: string
       readonly decisionKind: TripOccurrenceCaseDecisionKind
       readonly decisionNote: string
-      readonly hasSettlementItems: boolean
       readonly note: string
     }): Promise<{ readonly kind: 'changed' | 'unchanged'; readonly status: string }>
   }
@@ -136,7 +135,6 @@ export function createDecideOccurrenceCaseUseCase(dependencies: {
         companyId: context.companyId,
         decisionKind: kind,
         decisionNote: trimmedNote,
-        hasSettlementItems: false,
         note: trimmedNote,
       })
 

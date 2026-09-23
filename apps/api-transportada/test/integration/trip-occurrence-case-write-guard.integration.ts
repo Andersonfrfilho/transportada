@@ -171,7 +171,6 @@ describe('escritor único da tratativa: corrida real contra Postgres (spec 164 T
           actorUserId: company.userId,
           caseId: caseRow.id,
           companyId: company.companyId,
-          hasSettlementItems: false,
           note: '',
         })
 
@@ -187,7 +186,6 @@ describe('escritor único da tratativa: corrida real contra Postgres (spec 164 T
               actorUserId: company.userId,
               caseId: caseRow.id,
               companyId: company.companyId,
-              hasSettlementItems: false,
               note: '',
             }),
         })
