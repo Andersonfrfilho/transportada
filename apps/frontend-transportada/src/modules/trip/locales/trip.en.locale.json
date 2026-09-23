@@ -1096,10 +1096,10 @@
   },
   "stops": {
     "arrivedAt": "Arrived at {{time}}",
+    "cargoValue": "Cargo: {{amount}}",
     "completedAt": "Completed at {{time}}",
     "documentCount": "{{count}} document",
     "documentCount_other": "{{count}} documents",
-    "cargoValue": "Cargo: {{amount}}",
     "empty": "No stop on this trip yet",
     "freight": {
       "amount": "Freight: {{amount}}",
@@ -1107,6 +1107,9 @@
       "missing": "No freight calculated",
       "rule": "Rule: {{name}}"
     },
+    "openOccurrenceDocument": "Open occurrence",
+    "openOccurrence_one": "1 invoice with an occurrence",
+    "openOccurrence_other": "{{count}} invoices with occurrences",
     "processCount": "{{reached}} of {{total}}",
     "processReturned": "{{count}} invoice returned — outside the flow",
     "processReturned_other": "{{count}} invoices returned — outside the flow",
