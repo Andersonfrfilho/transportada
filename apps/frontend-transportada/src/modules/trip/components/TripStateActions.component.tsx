@@ -2,8 +2,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonClassName } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
 import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
@@ -37,6 +38,14 @@ export type TripStateActionsProps = Readonly<{
   pendingCteSelection: readonly string[]
   isGeneratingCteBatch: boolean
   onGenerateCteSelection: (tripDocumentIds: readonly string[]) => void
+  /**
+   * O que da seleção espera NFS-e, em ids de **nota**. Marcar notas dos dois tipos oferece as duas
+   * ações: uma seleção mista não é motivo para esconder metade do que dá para fazer com ela.
+   */
+  pendingNfseSelection: readonly string[]
+  companyId: string | undefined
+  permissions: readonly string[]
+  onNfseEmitted: () => void
 }>
 
 /** RF-6/P1/P2 (spec 056): ações da viagem — planejar rota, despachar (com o portão de `force` +
@@ -58,6 +67,10 @@ export function TripStateActions({
   pendingCteSelection,
   isGeneratingCteBatch,
   onGenerateCteSelection,
+  pendingNfseSelection,
+  companyId,
+  permissions,
+  onNfseEmitted,
 }: TripStateActionsProps) {
   const { t } = useTranslation('trip')
   const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false)
@@ -111,7 +124,8 @@ export function TripStateActions({
         canReturnSelection ||
         canFieldOccurrenceBatch ||
         canFieldDeliveryBatch ||
-        pendingCteSelection.length > 0) ? (
+        pendingCteSelection.length > 0 ||
+        pendingNfseSelection.length > 0) ? (
         <div className={styles.actionActions}>
           {canSeparateOrLoad ? (
             <Button
@@ -147,6 +161,17 @@ export function TripStateActions({
               <Icon name="send" />
               {t('stateActions.generateCteSelection', { count: pendingCteSelection.length })}
             </Button>
+          ) : null}
+          {/* A ação da NFS-e é do módulo dono: ela abre o diálogo com as notas marcadas e o perfil
+              continua sendo escolha de quem emite. */}
+          {pendingNfseSelection.length > 0 ? (
+            <NfseEmissionAction
+              className={buttonClassName({ size: 'sm' })}
+              {...(companyId === undefined ? {} : { companyId })}
+              documentIds={pendingNfseSelection}
+              onEmitted={onNfseEmitted}
+              permissions={permissions}
+            />
           ) : null}
           {canReturnSelection ? (
             <Button

@@ -17,7 +17,10 @@ import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettin
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
-import { selectPendingCteDocumentIds } from '../shared/cteSelection.service'
+import {
+  selectPendingCteDocumentIds,
+  selectPendingNfseDocumentIds,
+} from '../shared/cteSelection.service'
 import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey, resolveTripFeedbackKey } from '../shared/tripFeedback.service'
@@ -820,6 +823,17 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         onGenerateCteSelection={(tripDocumentIds) =>
           workspace.createCteBatchMutation.mutate({ tripDocumentIds, tripId: trip.id })
         }
+        pendingNfseSelection={
+          workspace.controller.canIssueNfse
+            ? selectPendingNfseDocumentIds({
+                documents: workspace.fiscalReadiness?.documents,
+                selectedIds: selection.selectedIds,
+              })
+            : []
+        }
+        companyId={workspace.companyId}
+        permissions={workspace.permissions}
+        onNfseEmitted={() => workspace.refetchFiscalReadiness()}
         selection={selection}
       />
 
