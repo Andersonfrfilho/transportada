@@ -6,6 +6,7 @@
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
 import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
@@ -98,6 +99,12 @@ export type OccurrenceTypeRecord = {
   readonly active: boolean
   /** Spec 166 (RF3/RF8): se este tipo aceita mais de um item marcado. Padrão `true`. */
   readonly allowsMultipleItems: boolean
+  /**
+   * Spec 179 (RF1): se o registro do motorista exige comprovante. Ausente é tratado como `'off'`
+   * — existe como opcional só para os dublês de teste que ainda não conhecem a exigência; a
+   * implementação real (`findOccurrenceType`) sempre grava.
+   */
+  readonly attachmentMode?: DeliveryProofFieldMode
   /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
   readonly emailBody: string
   readonly emailSubject: string
@@ -112,6 +119,11 @@ export type OccurrenceTypeRecord = {
    * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /**
+   * Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão. Ausente é
+   * tratado como `false` — mesma justificativa de `attachmentMode` acima.
+   */
+  readonly returnsToDepot?: boolean
   readonly stage: TripOccurrenceStage
 }
 

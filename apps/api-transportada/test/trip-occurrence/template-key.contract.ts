@@ -19,12 +19,14 @@ const TIPO = '00000000-0000-4000-8000-0000000000e1'
 const BASE_VALUES = {
   active: true,
   allowsMultipleItems: true,
+  attachmentMode: 'off' as const,
   emailBody: 'corpo digitado',
   emailSubject: 'assunto digitado',
   emailTemplateKey: null as null | string,
   name: 'Recusa total',
   notifies: true,
   occurrenceTypeId: null,
+  returnsToDepot: false,
   stage: 'delivery' as const,
 }
 

@@ -88,9 +88,17 @@ o motivo da ocorrência — não se digita duas vezes.
 - **RF1** `company_occurrence_types` ganha a exigência de comprovante, no vocabulário que o produto
   já usa para isto (`off` / `optional` / `required` de `DELIVERY_PROOF_FIELD_MODES`) — não se
   inventa um segundo vocabulário para a mesma ideia.
-- **RF2** A rota do motorista passa a aceitar multipart com a imagem, como a do escritório já faz,
-  reaproveitando `readOfficeMultipartFile` e o `storage.store` — não nasce um segundo caminho de
-  upload.
+- **RF2** O arquivo **não passa pela API**: o app o envia direto ao storage por URL assinada de vida
+  curta, e a rota da ocorrência — que **continua JSON** — referencia o objeto já enviado. Carregar
+  bytes de celular em rede ruim através da API é custo que não precisa existir, e é o que "sem
+  sobrecarregar a API" quer dizer. Efeito colateral bem-vindo: nenhum cliente antigo quebra.
+- **RF2a** O comprovante aceita **imagem e documento** (PDF) — o motorista às vezes fotografa, às
+  vezes recebe um papel digitalizado. O tipo e o tamanho são validados ao emitir a URL assinada e
+  reconferidos quando a ocorrência referencia o objeto: URL assinada sem conferência depois é upload
+  de qualquer coisa.
+- **RF2b** A ocorrência só é aceita se o objeto referenciado **existir, pertencer à empresa do
+  contexto autenticado e ter sido enviado por esta viagem**. Sem isso, o cliente escolhe qual objeto
+  anexar, o que é pior do que não ter anexo.
 - **RF3** `register-driver-occurrence.use-case.ts` recusa o registro de tipo `required` sem anexo ou
   sem `note`, com erro de domínio próprio e código estável.
 - **RF4** A validação é do servidor; a tela apenas antecipa. Bloqueio só no frontend não é regra.
@@ -103,17 +111,23 @@ o motivo da ocorrência — não se digita duas vezes.
 - **RF8** A imagem entra em `stored_objects` com o `companyId` do contexto autenticado, nunca do
   payload, e a chave do objeto não carrega dado pessoal.
 - **RF9** O tipo de ocorrência declara também se **devolve a nota ao barracão**. Quando declara, o
-  registro da ocorrência marca a nota como devolvida na **mesma transação**, reaproveitando o que
-  `return_reason` / `separation_status = 'returned'` já significam — não nasce um segundo conceito
-  de devolução ao lado do que existe.
-- **RF10** O motivo da devolução é o motivo da ocorrência. O operador não digita duas vezes, e os
-  dois registros nunca divergem.
+  registro entra no **mesmo encadeamento de `runDocumentOutcome`** que a devolução já usa. Escrever
+  `separation_status = 'returned'` direto marcaria a nota sem fechar parada nem viagem: a nota sairia
+  do fluxo e a parada ficaria aberta para sempre.
+- **RF10** O tipo de ocorrência declara **qual código** de `DRIVER_RETURN_REASONS` ele aplica —
+  `return_reason` é lista fechada (`recipient_refused`, `damaged_goods`, …) usada como chave de
+  tradução na tela do motorista e no fluxo de WhatsApp, não campo de texto. A narrativa do motorista
+  vive na `note` da ocorrência; a nota carrega o código. Gravar a `note` em `return_reason` faria a
+  UI procurar uma tradução que não existe.
 - **RF11** A rota de devolução que existe hoje continua valendo para quem devolve sem ocorrência
   (barracão, cancelamento): esta spec acrescenta um caminho, não remove o outro.
-- **RF12** Toda imagem de ocorrência ganha **miniatura** gerada no servidor, servida pelo caminho de
-  anexos; a lista mostra a miniatura e busca a imagem inteira só ao abrir.
-- **RF13** A miniatura não é decisão de exibição do cliente: recortar no navegador faria cada lista
-  baixar a imagem cheia, que é exatamente o custo que a miniatura existe para evitar.
+- **RF12** A miniatura segue o caminho que a spec 161 já entregou: **gerada no cliente** e enviada
+  no campo `thumbnail` do mesmo multipart, gravada como objeto próprio com `purpose:
+  'trip_occurrence_thumbnail'`. O caminho do motorista passa a mandar `thumbnail` como o do
+  escritório já manda — não nasce um segundo modo de produzir miniatura.
+- **RF13** A ocorrência do motorista ganha **chave de idempotência**, que hoje ela não tem (ao
+  contrário de `/deliver` e `/return`, que já leem a chave). Sem ela o reenvio da fila offline
+  duplica a ocorrência e o objeto no bucket — e é justamente a fila que esta spec torna obrigatória.
 - **RF14** Textos em pt-BR e en.
 
 ## Requisitos não funcionais
@@ -133,14 +147,14 @@ o motivo da ocorrência — não se digita duas vezes.
   de descartar em silêncio.
 - **Empresa marca `required` num tipo de separação**: a exigência vale onde o anexo faz sentido; o
   painel não oferece o que a tela não cumpre.
-- **Reenvio da fila**: a chave de idempotência já existente impede ocorrência duplicada, e a imagem
-  não é armazenada duas vezes — nem a devolução é aplicada duas vezes.
-- **Nota já devolvida**: registrar de novo um tipo que devolve não empilha devolução; o estado já é
-  o pretendido e a operação é idempotente.
-- **Nota já entregue**: tipo que devolve não pode desfazer entrega confirmada — recusa o registro
-  dizendo por quê.
-- **Miniatura que não gera** (formato exótico, arquivo corrompido): a ocorrência e a imagem cheia
-  continuam válidas; a lista mostra o lugar da miniatura vazio, e não finge que não há foto.
+- **Reenvio da fila**: a chave de idempotência **precisa ser criada** (RF13) — esta rota não tem.
+  Com ela, o reenvio devolve o mesmo registro e nada reexecuta; sem ela, duplica ocorrência e objeto.
+- **Nota já devolvida**: `runDocumentOutcome` já devolve `unchanged` quando o estado é o pretendido,
+  sem gravar evento novo. Nada a escrever — só não contorná-lo.
+- **Nota já entregue**: a política de transição já bloqueia com `documentAlreadyClosed`. Nada a
+  escrever — de novo, só não contorná-la.
+- **Miniatura que não gera** no cliente: a ocorrência e a imagem cheia continuam válidas; a lista
+  mostra o lugar da miniatura vazio, e não finge que não há foto.
 - **Ocorrência anterior a esta spec**: sem miniatura gravada, a lista busca a imagem cheia ou mostra
   o lugar vazio — nunca quebra.
 

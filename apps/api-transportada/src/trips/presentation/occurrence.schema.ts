@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
 import { unknownTemplatePlaceholders } from '../domain/occurrence-template.policy.js'
 import {
   OFFICE_MULTIPART_FILE_FIELD,
@@ -250,6 +251,11 @@ const occurrenceTypeSchema = z
     /** Spec 166 (RF3/RF9): padrão `true` preserva o comportamento de hoje. */
     allowsMultipleItems: z.boolean().default(true),
     /**
+     * Spec 179 (RF1): se o registro do motorista exige comprovante — o mesmo vocabulário do
+     * comprovante de entrega. Padrão `'off'` preserva o comportamento de hoje.
+     */
+    attachmentMode: z.enum(DELIVERY_PROOF_FIELD_MODES).default('off'),
+    /**
      * ⚠️ **Marcador desconhecido é recusado aqui, no cadastro.** Deixar passar faria o e-mail sair
      * com `{{numeroNF}}` cru para o cliente, e quem escreveu o modelo só descobriria pelo SAC dele.
      */
@@ -275,6 +281,11 @@ const occurrenceTypeSchema = z
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),
+    /**
+     * Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão. Padrão
+     * `false` preserva o comportamento de hoje.
+     */
+    returnsToDepot: z.boolean().default(false),
     stage: z.enum(['delivery', 'separation']),
   })
   .strict()

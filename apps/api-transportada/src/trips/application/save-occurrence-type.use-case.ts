@@ -7,6 +7,7 @@
  */
 import { OccurrenceEmailTemplateNotFoundError } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 
@@ -22,6 +23,8 @@ export type SaveOccurrenceTypeValues = {
   readonly active: boolean
   /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
   readonly allowsMultipleItems: boolean
+  /** Spec 179 (RF1): se o registro do motorista exige comprovante. */
+  readonly attachmentMode: DeliveryProofFieldMode
   readonly emailBody: string
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
@@ -30,6 +33,8 @@ export type SaveOccurrenceTypeValues = {
   readonly occurrenceTypeId: null | string
   /** Ausente é `'unset'` — nenhum caso de tratativa abre para este tipo. */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /** Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão. */
+  readonly returnsToDepot: boolean
   readonly stage: TripOccurrenceStage
 }
 

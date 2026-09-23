@@ -14,24 +14,43 @@ evidência em `evidence.md`.
 - **T103** Schema, repositório e use-case de salvar tipo passam a ler e gravar os dois campos. (CA01)
 
 ## Fase 2 — A API aceita e exige
-> 🤖 Modelo: `sonnet` (T203 é 🧠 — validar com `architect` em `opus` antes de escrever)
+> 🤖 Modelo: `sonnet` (T203 e T205 são 🧠 — o parecer do `architect` está em `architecture-review.md`)
 
-- **T201** Teste de contrato: `POST /me/current-trip/documents/:id/occurrences` aceita multipart com
-  `file`, e segue aceitando JSON quando o tipo não exige anexo.
-- **T202** A rota vira multipart reaproveitando `readOfficeMultipartFile` e `storage.store`; o
-  anexo grava `attachmentObjectId` com o `companyId` do contexto autenticado. (RF2, RF8)
+> ⚠️ A revisão de arquitetura de 23/09 mudou esta fase. Três coisas vieram dela: a idempotência que
+> não existe (T200), o `runDocumentOutcome` da T205, e a miniatura que já é do cliente (T206).
+
+- **T200** A rota de ocorrência do motorista ganha **chave de idempotência**, que hoje ela não tem —
+  `/deliver` e `/return` já leem a chave, esta não. Reaproveitar `withFieldReport` e derivar a
+  operação do conteúdo, como `buildOccurrenceBatchOperation` faz com `sha256Hex(bytes)`. Sem isto a
+  fila offline da Fase 3 duplica ocorrência e objeto no bucket. (RF13)
+- **T201** Teste de contrato: emitir URL assinada de upload valida tipo (imagem ou PDF) e tamanho, e
+  a rota da ocorrência recusa objeto que não existe, não é da empresa ou não veio desta viagem.
+  (RF2a, RF2b)
+- **T202** Upload direto ao storage por URL assinada de vida curta: rota que emite a URL e
+  conferência do objeto ao registrar a ocorrência. A rota da ocorrência **continua JSON** — o
+  arquivo não passa pela API (RF2). Isto substitui o plano anterior de multipart, e por isso nenhum
+  cliente antigo quebra.
+  ⚠️ O parecer de arquitetura assumia multipart; releia `architecture-review.md` sabendo que esta
+  parte mudou por decisão do usuário em 23/09. A compensação de bucket (`runWithStoredObjectCleanup`)
+  continua valendo, agora para o objeto órfão de uma ocorrência que nunca chegou.
 - **T203** 🧠 `register-driver-occurrence.use-case.ts` recusa tipo `required` sem anexo ou sem
-  `note`, com erro de domínio próprio e código estável em `shared/errors/codes.ts`. Decidir aqui se
-  a escrita é única ou se a ocorrência nasce pendente de envio — é o ponto que a spec mais arrisca
-  errar. (CA02, CA03, RF3)
-
-- **T204** Teste de contrato: tipo com `returnsToDepot` marca a nota como devolvida com o motivo da
-  ocorrência; tipo sem a marca não toca a nota. (CA09, RF10)
-- **T205** 🧠 O registro da ocorrência aplica a devolução na **mesma transação**, reaproveitando
-  `return_reason` / `separation_status = 'returned'`. Recusa a devolução de nota já entregue; ser
-  idempotente para nota já devolvida. Nunca deixar um dos dois gravado sem o outro. (CA10)
-- **T206** Miniatura gerada no servidor ao armazenar a imagem, servida pelo caminho de anexos, com
-  ocorrência antiga sem miniatura seguindo válida. (RF12, CA12)
+  `note`, com erro de domínio próprio e código estável em `shared/errors/codes.ts`. A escrita é
+  **única**: `runWithStoredObjectCleanup` + `unitOfWork.execute`, o padrão que o escritório já usa —
+  falha no insert apaga o objeto, falha no upload nunca grava a linha. Ocorrência "pendente de
+  envio" foi **descartada**: criaria um estado que nenhuma outra ocorrência tem e violaria CA02.
+  ⚠️ Isto exige **dar uma unit of work ao caminho do motorista**, que hoje não tem. É o custo real
+  desta task, e não estava estimado. (CA02, CA03, RF3)
+- **T204** Teste de contrato: tipo com `returnsToDepot` devolve a nota **fechando parada e viagem**;
+  tipo sem a marca não toca a nota. (CA09, RF10)
+- **T205** 🧠 A devolução entra no encadeamento de `runDocumentOutcome`, como o canhoto já entra —
+  **nunca** escrevendo `separation_status` direto, que marcaria a nota sem fechar parada nem viagem
+  e deixaria a parada aberta para sempre. Nota já entregue e nota já devolvida **já estão resolvidas**
+  pela política de transição (`documentAlreadyClosed` e `unchanged`): a task é não contorná-las.
+  O tipo declara **qual código** de `DRIVER_RETURN_REASONS` aplica — coluna própria, nunca a `note`,
+  que quebraria a tradução da tela. (CA10, RF10)
+- **T206** O caminho do motorista manda `thumbnail` como o do escritório já manda (spec 161). **Não**
+  se gera miniatura no servidor: o produto já a gera no cliente, com objeto e `purpose` próprios.
+  (RF12, CA12)
 
 ## Fase 3 — O motorista tira a foto
 > 🤖 Modelo: `sonnet`

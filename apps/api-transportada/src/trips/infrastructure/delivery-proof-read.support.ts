@@ -31,6 +31,7 @@ import {
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
+import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type {
@@ -622,6 +623,7 @@ export async function findOccurrenceType(
     .select({
       active: companyOccurrenceTypes.active,
       allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
+      attachmentMode: companyOccurrenceTypes.attachmentMode,
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
@@ -630,6 +632,7 @@ export async function findOccurrenceType(
       notifies: companyOccurrenceTypes.notifies,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      returnsToDepot: companyOccurrenceTypes.returnsToDepot,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)
@@ -748,12 +751,14 @@ export async function listOccurrenceTypes(
     .select({
       active: companyOccurrenceTypes.active,
       allowsMultipleItems: companyOccurrenceTypes.allowsMultipleItems,
+      attachmentMode: companyOccurrenceTypes.attachmentMode,
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
+      returnsToDepot: companyOccurrenceTypes.returnsToDepot,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)
@@ -766,6 +771,11 @@ export async function saveOccurrenceType(
   input: {
     readonly active: boolean
     readonly allowsMultipleItems: boolean
+    /**
+     * Spec 179 (RF1): ausente é `'off'` — o padrão da coluna. Opcional só para os chamadores que
+     * ainda não conhecem a exigência (seeder da bancada, dublês de teste); a rota HTTP sempre grava.
+     */
+    readonly attachmentMode?: DeliveryProofFieldMode
     readonly companyId: string
     readonly emailBody: string
     readonly emailSubject: string
@@ -779,12 +789,15 @@ export async function saveOccurrenceType(
      * internos o definem).
      */
     readonly redeliveryPolicy?: RedeliveryPolicy
+    /** Spec 179 (RF9): ausente é `false` — mesma justificativa de `attachmentMode` acima. */
+    readonly returnsToDepot?: boolean
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
   const values = {
     active: input.active,
     allowsMultipleItems: input.allowsMultipleItems,
+    attachmentMode: input.attachmentMode ?? 'off',
     companyId: input.companyId,
     emailBody: input.emailBody,
     emailSubject: input.emailSubject,
@@ -792,6 +805,7 @@ export async function saveOccurrenceType(
     name: input.name.trim(),
     notifies: input.notifies,
     redeliveryPolicy: input.redeliveryPolicy ?? 'unset',
+    returnsToDepot: input.returnsToDepot ?? false,
     stage: input.stage,
   }
 
@@ -814,6 +828,7 @@ export async function saveOccurrenceType(
   return {
     active: saved.active,
     allowsMultipleItems: saved.allowsMultipleItems,
+    attachmentMode: saved.attachmentMode,
     emailBody: saved.emailBody,
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
@@ -821,6 +836,7 @@ export async function saveOccurrenceType(
     name: saved.name,
     notifies: saved.notifies,
     redeliveryPolicy: saved.redeliveryPolicy,
+    returnsToDepot: saved.returnsToDepot,
     stage: saved.stage,
   }
 }

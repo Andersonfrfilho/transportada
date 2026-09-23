@@ -3,6 +3,7 @@
  */
 import { resolveClientIp } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
+import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
 import type { TripRouteGeometryView } from '../application/read-trip-route-geometry.use-case.js'
@@ -221,6 +222,8 @@ type SaveOccurrenceTypeInput = {
   readonly active: boolean
   /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
   readonly allowsMultipleItems: boolean
+  /** Spec 179 (RF1): se o registro do motorista exige comprovante. */
+  readonly attachmentMode: DeliveryProofFieldMode
   readonly context: CompanyContext
   readonly emailBody: string
   readonly emailSubject: string
@@ -228,6 +231,8 @@ type SaveOccurrenceTypeInput = {
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
+  /** Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão. */
+  readonly returnsToDepot: boolean
   readonly stage: 'delivery' | 'separation'
 }
 
