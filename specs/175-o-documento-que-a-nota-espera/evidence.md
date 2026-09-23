@@ -261,13 +261,17 @@ $ bun --env-file=../../.env.test test ./test/integration/trip-fiscal-readiness.i
                            → 8 pass / 0 fail / 33 expect() calls
 ```
 
-A suíte de integração completa (`test:integration`, 100+ arquivos) não fechou nesta rodada:
-`mixed-cargo-end-to-end.integration.ts` (spec 065 T018) semeava notas sem CNPJ de participante e
-sem perfil de emissão cadastrado — sob a conta de município isso bastava, sob a do perfil as três
-notas viram `no_profile`. Esse arquivo ficou **fora deste commit**, em correção concorrente na
-mesma árvore; os dois arquivos de integração que este commit toca diretamente
-(`trip-fiscal-readiness.integration.ts`, semeado com o mesmo par CT-e/NFS-e por CNPJ do
-destinatário, e `nfe-document-output.integration.ts`) passam isolados, como mostrado acima.
+⚠️ **Correção da ressalva anterior.** A primeira rodada de `test:integration` fechou com 5 falhas
+porque `mixed-cargo-end-to-end.integration.ts` (spec 065 T018) semeava notas sem CNPJ de
+participante e sem perfil de emissão — sob a conta de município isso bastava, sob a do perfil as
+três notas viravam `no_profile`. Com o seed corrigido (commit próprio), a suíte completa fechou
+**duas vezes seguidas**, sem falha:
+
+```
+$ bun --env-file=../../.env.test run test:integration
+564 pass / 7 skip / 0 fail — Ran 571 tests across 105 files [509.70s]
+564 pass / 7 skip / 0 fail — Ran 571 tests across 105 files [660.54s]
+```
 
 O contrato novo (`test/trip-fiscal-readiness/document-output-source.contract.ts`, registrado no
 entrypoint `test/trip-fiscal-readiness.contract.test.ts`) foi escrito **antes** da implementação e
@@ -290,3 +294,80 @@ componente de ação autocontido que o dono exporta (`NfseEmissionAction`), nunc
 internos —, com o precedente literal (`NfeDocumentTable.component.tsx` já importa
 `NfseEmissionAction` de `nfse-invoice`). Não inventa regra nova; documenta a que T201 já tinha
 encontrado no código.
+
+### T202 e T203 — a linha abre o diálogo do módulo dono
+
+**Contrato antes** (`test/trip/nfse-row-emission.contract.ts`, registrado em
+`test/trip.contract.test.ts`), falhou em 4 casos pelo motivo certo: a linha não renderizava
+`NfseEmissionAction`, não mandava `documentIds`, os comentários da fase anterior ainda citavam
+`NfseEmissionDialog` dentro do módulo `trip`, e o no-op `void documentId` continuava em
+`TripDetail.component.tsx`.
+
+**O que mudou.**
+
+- `src/modules/trip/components/TripStopList.component.tsx` — o ramo `nfse` passa a montar
+  `NfseEmissionAction` (importado de `@/modules/nfse-invoice/components/…`, seguindo T201), com a
+  nota pré-selecionada. O id enviado é o `nfeDocumentId` da prontidão, não o id do documento da
+  viagem: é o que a rota de NFS-e conhece.
+- `src/modules/trip/components/TripDetail.component.tsx` — `onOpenNfseEmission` (o no-op da Fase 2)
+  some; no lugar descem `companyId`, `permissions` e `onNfseEmitted`.
+- `src/modules/trip/hooks/useTripWorkspace.hook.ts` — passa a expor `companyId`, `permissions` e
+  `refetchFiscalReadiness`. `permissions` já vem vazio sem empresa, como o hook fazia.
+- `src/components/ui/button.tsx` — `buttonClassName` sai de dentro de `Button`. `NfseEmissionAction`
+  renderiza um `<button>` cru e aceita `className`; copiar `ui-button ui-button-size-sm …` no call
+  site faria a próxima mudança de variante do design system não chegar aqui. **Esta é a única
+  mudança fora dos dois módulos, e foi o mínimo**: nenhuma variante nova, nenhum arquivo movido,
+  `NfseEmissionAction` intocado.
+- `actions.emitNfse` saiu das duas locales de `trip`: o rótulo é do módulo dono
+  (`nfseInvoice:emission.action`), e a chave ficaria morta. O contrato de rótulo da Fase 2 passou a
+  exigir `<NfseEmissionAction` no lugar de `t('actions.emitNfse')`.
+
+**Descida de `permissions`/`companyId`.** Foram pelo objeto `actions` (`TripStopDocumentActions`),
+que já é o portador do que a linha precisa para agir e já atravessa
+`TripDetail → TripStopList → TripStopCard → linha`. Criar duas props paralelas ao lado dele
+duplicaria a mesma travessia.
+
+### T204 — os dois estados que informam e não agem
+
+**Contrato antes** (`test/trip/document-row-action.contract.ts`): os dois casos de comportamento
+(`blocked` e `no_profile` sem ação, mesmo com as duas permissões) **passaram de primeira** — hoje
+eles caem no ramo da NFS-e e devolvem `null` só porque o motivo não é `nfse_expected`. Isso é
+acidente, não decisão: a primeira mudança naquele ramo passaria a oferecer emissão para nota
+bloqueada. O contrato que falhou é o que exige a recusa **escrita** no serviço, e ele falhou assim:
+
+```
+error: expect(received).toInclude(expected)
+(fail) a ação da linha sai do dado > a recusa dos dois estados está escrita,
+       não é resto do ramo da NFS-e
+1496 pass / 1 fail
+```
+
+**O que mudou.** `src/modules/trip/shared/documentRowAction.service.ts` recusa os dois estados
+explicitamente, antes do ramo de CT-e.
+
+**O selo, não um componente novo.** O estado já aparece: a linha renderiza o selo fiscal da spec
+174 para todo motivo que não seja `ok`, e os dois motivos novos entraram no `Record` exaustivo de
+`readinessIcon.service.ts` (`blocked` → `alert`, `no_profile` → `search`) e nas duas locales
+(`readiness.reason.blocked`, `readiness.reason.no_profile`). Nenhum componente novo — o padrão
+existente já cobre "mostrar o motivo em texto".
+
+⚠️ Não confundir com "nenhum perfil casa com a nota" (`emission-profile-resolution.policy.ts`, que
+é resolução de perfil de **CT-e**): `blocked` e `no_profile` aqui vêm da fonte única do ADR-0071.
+
+**Gates (frontend, depois de T202/T203/T204).**
+
+```
+$ bun run typecheck   → $ tsc --noEmit (sem saída, sem erro)
+$ bun run lint        → $ eslint . (sem saída, sem erro)
+$ bun run test        → 5047 pass / 0 fail / 29 arquivos
+                        44 pass / 0 fail (suíte de hooks)
+$ bun test ./test/trip.contract.test.ts → 1497 pass / 0 fail
+```
+
+### Nota de processo
+
+Esta fase foi executada com **outra sessão ativa na mesma árvore**: os commits desta fase
+(`e8f0bcd81`, `b65101654`, `82c74a38e`, `59008b26c`, `bdef455b7`) foram criados a partir deste
+trabalho por essa sessão concorrente, à medida que cada task fechava. O conteúdo confere com o que
+está descrito acima; o que **não** conferia era a ressalva sobre a integração, corrigida no início
+desta seção com os números das duas rodadas verdes.
