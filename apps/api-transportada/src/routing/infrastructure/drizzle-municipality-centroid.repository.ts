@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import { municipalityCentroids } from '../../database/database.schema.js'
 import type {
@@ -16,6 +16,20 @@ export function createDrizzleMunicipalityCentroidRepository(
   database: MunicipalityCentroidDatabase,
 ): MunicipalityCentroidRepository {
   return {
+    async findByCityCode(cityCode) {
+      const [row] = await database
+        .select({
+          cityCode: municipalityCentroids.cityCode,
+          latitude: municipalityCentroids.latitude,
+          longitude: municipalityCentroids.longitude,
+          state: municipalityCentroids.state,
+        })
+        .from(municipalityCentroids)
+        .where(eq(municipalityCentroids.cityCode, cityCode))
+        .limit(1)
+
+      return row ?? null
+    },
     async saveMany(centroids) {
       if (centroids.length === 0) return 0
 

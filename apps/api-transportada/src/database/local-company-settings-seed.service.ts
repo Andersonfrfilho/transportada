@@ -15,8 +15,14 @@
  * o seeder de novo reconcilia para o valor declarado aqui, e não só cria quando falta.
  */
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { eq } from 'drizzle-orm'
 
 import { parseEnvironment } from '../config/environment.schema.js'
+import { companyFiscalProfiles } from './database.schema.js'
+import { geocodeCompanyDepot } from '../routing/application/geocode-company-depot.use-case.js'
+import { createDrizzleGeocodedAddressRepository } from '../routing/infrastructure/drizzle-geocoded-address.repository.js'
+import { createDrizzleMunicipalityCentroidRepository } from '../routing/infrastructure/drizzle-municipality-centroid.repository.js'
+import { resolveDepotOrigin } from '../trips/domain/depot-origin.policy.js'
 import { createSetDriverAllowanceSettingsUseCase } from '../companies/application/driver-allowance-settings.use-case.js'
 import { DrizzleDriverAllowanceSettingsRepository } from '../companies/infrastructure/drizzle-driver-allowance-settings.repository.js'
 import { createAdjustFuelPriceUseCase } from '../companies/application/adjust-fuel-price.use-case.js'
@@ -192,22 +198,81 @@ export async function runLocalCompanySettingsSeed({
     })
     seeded.push('company_delivery_proof_settings')
 
-    return {
-      seeded,
-      skipped: [
-        {
-          reason: 'no use case or repository exposes a write path (schema only)',
-          table: 'company_distribution_settings',
-        },
-        {
-          reason: 'no use case or repository exposes a write path (schema only)',
-          table: 'company_route_optimization_settings',
-        },
-      ],
+    const skipped: { reason: string; table: string }[] = [
+      {
+        reason: 'no use case or repository exposes a write path (schema only)',
+        table: 'company_distribution_settings',
+      },
+      {
+        reason: 'no use case or repository exposes a write path (schema only)',
+        table: 'company_route_optimization_settings',
+      },
+    ]
+
+    /**
+     * Spec 165 (bancada): sem isto, toda viagem nasce com o barracão `not_geocoded`
+     * (`route-depot.query.ts`) — nenhum worker roda nesta bancada para geocodificar o endereço
+     * fiscal da empresa pela fila real (`geocoding-backfill`), e uma viagem de parada única nunca
+     * chega a ter as duas paradas que `readRouteGeometry` exige para traçar rota nenhuma.
+     * `company_route_optimization_settings` está vazia (skip acima), então a origem é sempre o
+     * endereço fiscal (`resolveDepotOrigin`, D7).
+     */
+    const depotResult = await seedCompanyDepotGeocode(database)
+    if (depotResult === null) {
+      skipped.push({
+        reason: 'company_fiscal_profiles has no row for the local company, or its address key does not normalize',
+        table: 'geocoded_addresses (company depot)',
+      })
+    } else if (depotResult.status === 'centroid_missing') {
+      skipped.push({
+        reason: `no municipality centroid for city_ibge_code — run db:seed:municipality-centroids first`,
+        table: 'geocoded_addresses (company depot)',
+      })
+    } else {
+      seeded.push('geocoded_addresses (company depot)')
     }
+
+    return { seeded, skipped }
   } finally {
     await provider.close()
   }
+}
+
+type LocalSeedDatabase = ReturnType<typeof createDrizzleProvider>['db']
+
+/**
+ * `null` é "nada para geocodificar" (sem perfil fiscal, ou CEP que não normaliza — D2): o mesmo
+ * caso que `resolveDepotOrigin`/`buildStopAddressKey` já tratam como barracão ausente, não erro.
+ */
+async function seedCompanyDepotGeocode(
+  database: LocalSeedDatabase,
+): Promise<Awaited<ReturnType<typeof geocodeCompanyDepot>> | null> {
+  const [profile] = await database
+    .select({
+      cityIbgeCode: companyFiscalProfiles.cityIbgeCode,
+      number: companyFiscalProfiles.number,
+      postalCode: companyFiscalProfiles.postalCode,
+    })
+    .from(companyFiscalProfiles)
+    .where(eq(companyFiscalProfiles.companyId, LOCAL_COMPANY_ID))
+    .limit(1)
+  if (profile === undefined) return null
+
+  /**
+   * `company_route_optimization_settings` está sempre vazia nesta bancada (skip documentado
+   * acima), então a origem configurada nunca vence aqui — mas a chamada segue `resolveDepotOrigin`
+   * (D7) por inteiro, em vez de montar a chave à mão, para nunca discordar dela se isso mudar.
+   */
+  const origin = resolveDepotOrigin({ companyAddress: profile, configuredAddressKey: null })
+  if (origin === null) return null
+
+  return geocodeCompanyDepot(
+    {
+      centroids: createDrizzleMunicipalityCentroidRepository(database),
+      geocodedAddresses: createDrizzleGeocodedAddressRepository(database),
+    },
+    { addressKey: origin.addressKey, cityIbgeCode: profile.cityIbgeCode },
+  )
 }
 
 if (import.meta.main) {
