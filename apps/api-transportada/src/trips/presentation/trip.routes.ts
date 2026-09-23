@@ -49,6 +49,7 @@ import type {
 import { parseTripStopScheduleRequest } from '../../delivery-clients/presentation/trip-stop-schedule.schema.js'
 import type { TripFinancialResult } from '../application/trip-financial-result.port.js'
 import type { TripCostEntryView } from '../application/list-trip-costs.use-case.js'
+import type { TripRevenueEntryView } from '../application/list-trip-revenues.use-case.js'
 import type {
   RequestCargoLayoutParams,
   RequestCargoLayoutUseCase,
@@ -61,7 +62,11 @@ import {
 } from '../../shared/monetary-redaction.service.js'
 
 const CARGO_LAYOUT_REQUEST_FAILED_MESSAGE = 'trip.cargo_layout.request_failed'
-import { parseTripCostRequest, parseTripFinancialReason } from './trip-financial.schema.js'
+import {
+  parseTripCostRequest,
+  parseTripFinancialReason,
+  parseTripRevenueRequest,
+} from './trip-financial.schema.js'
 import { parseTripTimelineQuery } from './trip-timeline.schema.js'
 import type {
   ReadTripTimelineResult,
@@ -274,6 +279,8 @@ const TRIP_FINANCIAL_RESULT_PATH = `${API_TRIPS_PATH}/:id/financial-result`
 const TRIP_FINANCIAL_RECALCULATE_PATH = `${TRIP_FINANCIAL_RESULT_PATH}/recalculate`
 /** Pedágio e avulso são lançamento de operação: quem monta a viagem lança. */
 const TRIP_COSTS_PATH = `${API_TRIPS_PATH}/:id/costs`
+/** Spec 169 P1: receita lançada à mão na viagem — mesmo molde do gasto. */
+const TRIP_REVENUES_PATH = `${API_TRIPS_PATH}/:id/revenues`
 /** Spec 158 T6: a linha do tempo unificada da viagem, com a mesma leitura de `TRIP_FIELD_READ_POLICY`. */
 const TRIP_TIMELINE_PATH = `${API_TRIPS_PATH}/:id/timeline`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
@@ -574,6 +581,21 @@ type Dependencies = {
       readonly tripId: string
     }): Promise<readonly TripCostEntryView[]>
   }
+  readonly recordTripRevenue: {
+    execute(
+      input: TenantInput<TripIdInput> & {
+        readonly amount: string
+        readonly description: string
+        readonly entryKindId: string
+      },
+    ): Promise<{ readonly id: string }>
+  }
+  readonly listTripRevenues: {
+    execute(input: {
+      readonly companyId: string
+      readonly tripId: string
+    }): Promise<readonly TripRevenueEntryView[]>
+  }
   /** Spec 158 T6: a linha do tempo unificada — o caso de uso resolve o 404 antes de ler qualquer fonte. */
   readonly readTripTimeline: {
     execute(input: {
@@ -741,6 +763,51 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_COSTS_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
+    }),
+    /** Spec 169 P1: receita lançada — mesma trilha do gasto (autor, hora), rota irmã de custos. */
+    defineRoute<
+      TripIdInput & {
+        readonly amount: string
+        readonly description: string
+        readonly entryKindId: string
+      }
+    >({
+      async handle({ context, input }): Promise<Response> {
+        const created = await dependencies.recordTripRevenue.execute({
+          amount: input.amount,
+          context: context.scope,
+          description: input.description,
+          entryKindId: input.entryKindId,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: created }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        return {
+          ...(await parseTripRevenueRequest(request)),
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_REVENUES_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<TripIdInput>({
+      async handle({ context, input }): Promise<Response> {
+        const entries = await dependencies.listTripRevenues.execute({
+          companyId: context.scope.companyId,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: entries }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_REVENUES_PATH,
       policy: TRIP_FINANCIALS_POLICY,
     }),
     /**

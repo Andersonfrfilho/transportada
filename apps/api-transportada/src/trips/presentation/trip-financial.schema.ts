@@ -21,6 +21,18 @@ const costSchema = z
   })
   .strict()
 
+/** Spec 169 RF3: mesmas regras do gasto — valor maior que zero, descrição opcional. */
+const revenueSchema = z
+  .object({
+    amount: z
+      .string()
+      .regex(AMOUNT_PATTERN)
+      .refine((value) => NON_ZERO_DIGIT.test(value)),
+    description: z.string().trim().max(200).default(''),
+    entryKindId: z.uuid(),
+  })
+  .strict()
+
 /** Recalcular um congelado exige motivo: número que muda sem explicação é pergunta sem resposta. */
 const reasonSchema = z.object({ reason: z.string().trim().min(1).max(500) }).strict()
 
@@ -34,4 +46,12 @@ export async function parseTripCostRequest(request: Request): Promise<{
 
 export async function parseTripFinancialReason(request: Request): Promise<string> {
   return (await parseBody(reasonSchema, request)).reason
+}
+
+export async function parseTripRevenueRequest(request: Request): Promise<{
+  readonly amount: string
+  readonly description: string
+  readonly entryKindId: string
+}> {
+  return parseBody(revenueSchema, request)
 }
