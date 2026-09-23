@@ -1833,3 +1833,36 @@ raro), abre a aba mesmo assim só sem termo.
 Detalhe completo (vermelho→verde, contratos de repositório/use-case/HTTP, integração MinIO/Postgres,
 decisão da contagem de praças sem tarifa estar vinculada à empresa): `specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md`
 (T001, T101–T102, T201–T204, T301–T303, T401, T402).
+
+## Spec 164 — a tratativa da ocorrência (T27/T29, 22/09/2026)
+
+**A prova do dinheiro ponta a ponta.** `test/integration/occurrence-charge.integration.ts` (T27) é o
+único teste que exercita o fluxo inteiro contra Postgres real, sobre as mesmas linhas: acerto por
+item (`DrizzleOccurrenceSettlementRepository.recordSettlement`) grava `trip_occurrence_item_settlements`
+e, na mesma transação, cria a linha de `delivery_charges` (`origin: 'occurrence'`, `charge_type:
+'returned_goods'`); regravar o mesmo acerto **converge** — mesma linha, valor atualizado, nunca uma
+segunda (`count = 1` verificado por consulta); o lote (`extra_charge_batches`) fecha **pela seleção
+explícita** (`chargeIds`), não por "tudo do período"; o demonstrativo é gerado no fechamento e servido
+de volta byte a byte igual na leitura; e regravar o acerto depois que a cobrança virou `submitted`
+(fechada no lote) é recusado com 409 `DELIVERY_CHARGE_TRANSITION_NOT_ALLOWED`, sem mudar o valor
+gravado. Uma contagem de `billing_*`/`cte_*`/`nfse_*`/`fiscal_sequences` lida **antes do primeiro
+passo e depois do último** prova que nenhuma dessas oito tabelas ganhou linha — é a mesma técnica de
+`extra-charge-batch-statement.integration.ts` (T20), estendida ao caminho completo em vez de só ao
+fechamento isolado.
+
+**T29 — segurança e contexto.** Achado registrado em `docs/SECURITY.md` (22/09/2026): a superfície
+externa nova do portal (segunda decisão do contratante, depois de `charges.decide`), as duas
+permissões (`occurrences.decide` só em `contractor`; `occurrences.resolve` nunca em `separator`, por
+causa da autoaprovação que a ADR-0067 já fechou), e o PDF do demonstrativo que vira cópia sem prazo de
+descarte assim que alguém baixa — mesmo risco que já existe para `invoice-pdf.gateway.ts`, sem
+controle novo. A retenção de cinco anos das fotos (spec 161 D9) ganhou o segundo motivo que a D15
+previu: a foto é anexo de uma cobrança agora, então o prazo cobre os dois motivos ao mesmo tempo, sem
+prazo próprio para a cobrança correndo em paralelo. `grep -rn "logger\.\|console\."` sobre os 77
+arquivos que a spec tocou não bate em nenhum — nenhum caso de uso, rota ou repositório novo loga nota,
+observação, nome de produto ou dado de motorista; o mesmo grep por `note|observ|driver|motorista|
+product|payer` dentro de `message:` de erro de domínio também não bate — o que chega ao
+`http_request_failed` é código e status, nunca o conteúdo.
+
+`apps/api-transportada/CLAUDE.md` § "Ocorrência da nota — tratativa e cobrança (spec 164)" tem o
+núcleo operacional (máquina de estados, os dois escritores, a fronteira de visibilidade do portal, o
+discriminador da cobrança); este parágrafo é só o registro datado da prova e da revisão.

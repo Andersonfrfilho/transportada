@@ -309,6 +309,53 @@ endereço, e-mail é da parte) do destinatário existem para a viagem ligar ante
 sempre serve o cru, máscara/cópia é do frontend (`formatStoredPhone`). Detalhe completo: docs/ai-context
 § "O telefone do cliente" e § "O e-mail do destinatário".
 
+## Ocorrência da nota — tratativa e cobrança (spec 164)
+
+**A ocorrência é append-only; o estado mora ao lado.** `trip_document_occurrences` nunca ganha
+coluna de status — quem sabe onde aquele fato está é `trip_occurrence_cases` (uma linha por
+ocorrência), e cada mudança grava `trip_occurrence_case_events`, escritor único, na mesma transação,
+só quando mudou (molde de `trip_status_events`, ADR-0068). **A nota nunca é presa por isso**:
+`separation_status` segue com os cinco valores de sempre, nenhuma ação some da listagem, o despacho
+não é bloqueado — o que a leitura ganha é `openOccurrenceCase`/`hasOpenOccurrence`, marcador
+**derivado**, nunca uma escrita nova em `trip_documents`. Quem reintroduzir esse acoplamento quebra o
+contrato de regressão de `GET /trips/:id/allowed-actions` (tem de continuar byte a byte igual com
+tratativa aberta).
+
+**A tratativa tem dois escritores, e são papéis diferentes.** `occurrences.resolve`
+(`company-admin`/`operator`/`finance`, nunca `separator` nem `trip.manage` — validar a própria
+ocorrência seria autoaprovação, o mesmo erro que a ADR-0067 fechou) conduz `recorded → under_review →
+(returned_to_warehouse | awaiting_contractor)` e fecha `decided → closed`. `occurrences.decide`
+(só no papel `contractor`, nunca em papel interno) é do contratante no portal, e só alcança
+`awaiting_contractor → decided`.
+
+**A fronteira de visibilidade do portal é do SQL, não da tela.** `contractor-occurrence.query.ts` faz
+`inner join` com `trip_occurrence_cases` filtrando `status in ('awaiting_contractor', 'decided',
+'closed')` **dentro da consulta**, somado ao recorte de `ContractorScope` (ADR-0050 §4). Tratativa
+`recorded`/`under_review`/`returned_to_warehouse` não existe para o portal — não é escondida na
+serialização, não chega na query. Contrato negativo obrigatório em
+`test/*-schema/tenant-safety.contract.ts` para qualquer mudança nessa leitura.
+
+**A cobrança de ocorrência reusa `delivery_charges`, e o discriminador é `charge_type` +
+`occurrence_id`, nunca `origin`.** `origin = 'occurrence'` já existia antes desta spec (ocorrência de
+parada, spec 060 D4c) — o que distingue mercadoria devolvida de taxa de entrega é `charge_type =
+'returned_goods'` com `occurrence_id` preenchido (FK composta `(company_id, occurrence_id)`). A
+cobrança nasce `recorded` direto (nunca `suggested` — um operador com `occurrences.resolve` acabou de
+digitar valor por valor) e a ponte fica em `DrizzleOccurrenceSettlementChargeRepository`: regravar o
+acerto **atualiza a mesma linha** enquanto ela estiver `recorded`; a partir de `submitted` é imutável,
+409 `DELIVERY_CHARGE_TRANSITION_NOT_ALLOWED`. Prova ponta a ponta contra Postgres (acerto → cobrança →
+lote por seleção → demonstrativo, sobre as mesmas linhas):
+`test/integration/occurrence-charge.integration.ts`.
+
+**O demonstrativo de ressarcimento não é documento fiscal.** É um PDF (`pdfkit`, molde de
+`invoice-pdf.gateway.ts`) gerado **uma vez**, no fechamento do `extra_charge_batches` (nunca
+recomputado na leitura) — não entra em `billing_*`, não vira CT-e (`cte_*`), não vira NFS-e
+(`nfse_*`) e não toca `fiscal_sequences`. `occurrence-statement.use-case.ts` e o teste acima provam
+isso por **contagem de linhas antes e depois**, não por ausência de erro — é o jeito certo de provar
+"não escreveu nada" nesta base. A foto da ocorrência que ilustra o demonstrativo virou, por causa
+disso, um segundo motivo para os cinco anos de retenção da spec 161 D9: enquanto o demonstrativo for
+contestável, a foto que o sustenta precisa sobreviver ao mesmo prazo (`docs/SECURITY.md`, achado
+22/09/2026).
+
 ## Fleet — ficha do motorista e geocodificação
 
 **A ficha do motorista guarda dado de pessoa física que hoje ninguém lê** (`birth_date`,

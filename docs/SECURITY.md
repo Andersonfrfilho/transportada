@@ -5,6 +5,61 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-22 — a tratativa da ocorrência abre superfície externa nova, duas permissões novas, e a evidência em PDF fica com quem baixou (spec 164)
+
+**Onde:** `api-transportada`, `contractor-portal/presentation/contractor-occurrence.routes.ts`
+(`GET /client/me/occurrences`, `POST /client/me/occurrences/:id/decision`); `identity/domain/
+authorization.policy.ts` (`occurrences.decide` no papel `contractor`, `occurrences.resolve` em
+`company-admin`/`operator`/`finance`); `delivery-clients/application/occurrence-statement.use-case.ts`
+
+- `presentation/occurrence-statement.routes.ts` (`GET /extra-charge-batches/:id/statement`).
+
+**O que é:** três coisas novas no mesmo pacote de risco de sempre — superfície pública que decide
+dinheiro/logística, permissão nova cujo escopo precisa ser revisitado quando o produto crescer, e um
+artefato com dado pessoal que sai do controle do sistema assim que é baixado.
+
+1. **Superfície externa nova.** O portal ganha uma segunda decisão do contratante (a primeira é
+   `charges.decide`, spec 060): autorizar reentrega, marcar pagamento de produto ou registrar outra
+   solução, com nota livre de até 2000 caracteres. A rota lê o escopo da conta (`ContractorScope`,
+   ADR-0050 §4) e a listagem é `inner join` com `trip_occurrence_cases` filtrando por status
+   (`test/*-schema/tenant-safety.contract.ts` cobre o vazamento cruzado); o risco que fica é o mesmo
+   de toda superfície do portal — texto livre do contratante grava direto em `decision_note`, sem
+   sanitização de HTML/script, porque hoje ele só é lido de volta pela transportadora numa tela
+   interna (nunca renderizado para outro contratante). Se um dia esse texto for exibido a um terceiro,
+   sanitizar antes.
+2. **Duas permissões novas.** `occurrences.decide` (só no papel `contractor`, nunca em papel interno —
+   D6) e `occurrences.resolve` (`company-admin`, `operator`, `finance`; nunca `separator`, que registra
+   a própria ocorrência — D7, autoaprovação seria o mesmo modo de falha que a ADR-0067 fechou).
+   `test/separator-role.contract.test.ts` reprova se alguma rota de `occurrences.resolve` aparecer
+   como alcançável pelo separador. Nenhuma das duas herda de permissão existente — revisar de novo
+   quando o catálogo de papéis mudar.
+3. **A evidência sai em PDF e fica com quem baixou.** `GET /extra-charge-batches/:id/statement`
+   (`trip.financials`) devolve o demonstrativo com as fotos da ocorrência embutidas — depois do
+   download, o arquivo está fora do alcance do expurgo e de qualquer controle de acesso do produto.
+   O artefato em si é imutável e gerado uma vez (D14), mas **quem baixa vira dono de uma cópia sem
+   prazo de descarte**, exatamente como qualquer PDF de fatura hoje. Sem controle novo além do que já
+   existe para `invoice-pdf.gateway.ts`.
+
+**Segundo motivo da retenção de cinco anos (spec 161 D9, ampliado pela D15 desta spec):** a foto da
+ocorrência deixou de ser só guarda fiscal e janela de rediscussão — agora é **anexo de uma cobrança**
+(`delivery_charges.origin = 'occurrence'`). Enquanto o demonstrativo daquele período for contestável,
+a imagem que o sustenta precisa sobreviver ao mesmo prazo que a cobrança. Os cinco anos continuam
+cobrindo os dois motivos ao mesmo tempo — não há prazo próprio da cobrança correndo em paralelo — e o
+expurgo do worker segue apagando de verdade ao fim da janela; a leitura do demonstrativo já sai com o
+selo "foto expirada (retenção de 5 anos)" para a foto vencida, nunca com imagem quebrada nem
+escondendo a cobrança (`occurrence-statement-layout.policy.ts`, `resolveEvidence`).
+
+**Nenhum log carrega PII dos caminhos novos:** `grep -rn "logger\.\|console\." $(git diff
+main...HEAD --name-only -- 'src/**occurrence*' 'src/delivery-clients/**')` não bate em nenhum dos 77
+arquivos tocados pela spec — a rota, os casos de uso e os repositórios não logam nota, observação,
+nome de produto nem dado de motorista; erros de domínio (`occurrence-charge.policy.ts`,
+`occurrence-settlement.policy.ts` etc.) também não embutem esses campos na `message` do `ApiError`
+(mesma varredura, filtrando por `note|observ|driver|motorista|product|payer` em `message:`, zero
+resultado). O que chega ao `http_request_failed` é código e status, nunca o texto do contratante nem
+o valor do acerto.
+
+**Origem:** spec 164, T29 (revisão final da Fase 7). Registrado em 2026-09-22.
+
 ### 2026-09-22 — foto de ocorrência vinda do WhatsApp entra sem reencode: EXIF/GPS preservado e sem miniatura (spec 161, risco aceito)
 
 **Onde:** `api-transportada`, `whatsapp-commands` (T13, `registerOccurrence` em `src/main.ts`), que
