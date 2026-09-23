@@ -445,3 +445,31 @@ necessária.
   7174 pass, 23 skip, 0 fail.
 - `bun --env-file=../../.env.test run test:integration` (de dentro de `apps/api-transportada`) —
   ver resultado abaixo.
+
+### Integração — regressão encontrada e corrigida
+
+O correção de produção já foi commitada por outra sessão (`cf8addc0b`) depois de validar na bancada
+real (caixa saiu da lista, 171→168 campos). A suíte completa de integração
+(`bun --env-file=../../.env.test run test:integration`) rodou em paralelo e apontou uma regressão
+real, do lado do teste: `test/integration/trip-detail-query-count.integration.ts` — "a pendência que
+casa... ganha os três campos do catálogo" — seedava a caixa de casamento **já medida**
+(`heightMm`/`lengthMm`/`widthMm`/`measuredAt` preenchidos) e esperava que ela continuasse na lista.
+Essa era exatamente a situação do defeito original: com o fix, a caixa medida agora sai da lista
+corretamente, então o fixture antigo ficou obsoleto.
+
+Corrigido em `6e44ed862`: o fixture da caixa "casa mas não descarta" passou a usar uma caixa **sem**
+medida (só `grossWeightGrams`/`unitsPerBox`, sem dimensões), e um segundo teste foi adicionado no
+mesmo `describe` — `"a caixa casada já tem as três dimensões gravadas: a pendência some da lista (bug
+do spec 168)"` — reproduzindo a planta `stale` (guardada antes da medida) com uma caixa já medida,
+confirmando `pendingMeasurements` vazio pelo caminho de integração (com Postgres real), não só pelo
+teste de contrato em memória.
+
+`bun --env-file=../../.env.test test ./test/integration/trip-detail-query-count.integration.ts --timeout 120000`
+— 4 pass, 0 fail (isolado).
+
+Os demais 8 testes que falharam na rodada completa de integração (timeouts de 5000ms em
+`address-report-repository`, `package-box-pending-export`, `trip-field-office`,
+`trip-field-office-review`) não têm relação com esta mudança — nenhum toca `nfe_package_boxes`,
+`pendingMeasurements` ou os arquivos alterados; o padrão (vários arquivos de suítes diferentes
+estourando o mesmo teto de 5s na mesma leva) aponta para contenção de recursos na bancada
+compartilhada (múltiplas sessões rodando ao mesmo tempo), não para uma regressão desta correção.
