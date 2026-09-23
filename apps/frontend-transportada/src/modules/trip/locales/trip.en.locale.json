@@ -1220,5 +1220,26 @@
       "close": "Close case",
       "cancel": "Cancel case"
     }
+  },
+  "occurrenceSettlement": {
+    "title": "Goods settlement",
+    "productCode": "Product code",
+    "amount": "Amount",
+    "amountPlaceholder": "0.00",
+    "payerKind": "Paid by",
+    "payerId": "Driver id",
+    "payerIdPlaceholder": "Id of the driver who paid",
+    "payer": {
+      "driver": "Driver",
+      "carrier": "Carrier",
+      "contractor": "Contractor",
+      "insurer": "Insurer"
+    },
+    "addRow": "Add item",
+    "removeRow": "Remove",
+    "total": "Screen total",
+    "save": "Save settlement",
+    "savedTotal": "Saved total",
+    "markReimbursed": "Mark as reimbursed"
   }
 }

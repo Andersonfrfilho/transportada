@@ -2,8 +2,12 @@
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isRecord, isString } from './tripGuards.validation'
 import {
+  OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES,
+  OCCURRENCE_SETTLEMENT_PAYER_KINDS,
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
   TRIP_OCCURRENCE_CASE_STATUSES,
+  type OccurrenceSettlementItem,
+  type OccurrenceSettlementResult,
   type TripOccurrenceAttachment,
   type TripOccurrenceCaseView,
   type TripOccurrenceFeedFilters,
@@ -48,6 +52,14 @@ export type TripOccurrenceFeedClient = Readonly<{
   returnOccurrenceCaseToWarehouse: (
     input: CaseActionWithNoteInput,
   ) => Promise<TripOccurrenceCaseView>
+  /** RF23: substitui a lista inteira — só com a tratativa `decided` e decisão `goods_paid`. */
+  recordOccurrenceSettlement: (
+    input: Readonly<{ items: readonly OccurrenceSettlementItem[]; occurrenceId: string }>,
+  ) => Promise<OccurrenceSettlementResult>
+  /** RF31: idempotente; `payer_kind = 'carrier'` nunca chega aqui — a tela esconde o botão. */
+  reimburseOccurrenceSettlementItem: (
+    input: Readonly<{ occurrenceId: string; productCode: string }>,
+  ) => Promise<Readonly<{ kind: 'changed' | 'unchanged' }>>
 }>
 
 class TripOccurrenceRequestError extends Error {
@@ -117,6 +129,41 @@ function readPage(payload: unknown): TripOccurrenceFeedPage {
   return { items: payload.data, nextCursor }
 }
 
+function isSettlementItem(value: unknown): value is OccurrenceSettlementItem {
+  if (!isRecord(value)) return false
+  return (
+    isString(value.amount) &&
+    (OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES as readonly unknown[]).includes(value.amountSource) &&
+    (value.payerId === undefined || isString(value.payerId)) &&
+    (OCCURRENCE_SETTLEMENT_PAYER_KINDS as readonly unknown[]).includes(value.payerKind) &&
+    isString(value.productCode)
+  )
+}
+
+function readSettlementResult(payload: unknown): OccurrenceSettlementResult {
+  if (
+    !isRecord(payload) ||
+    !isRecord(payload.data) ||
+    !Array.isArray(payload.data.items) ||
+    !payload.data.items.every(isSettlementItem) ||
+    !isString(payload.data.total)
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return { items: payload.data.items, total: payload.data.total }
+}
+
+function readReimbursementResult(payload: unknown): Readonly<{ kind: 'changed' | 'unchanged' }> {
+  if (
+    !isRecord(payload) ||
+    !isRecord(payload.data) ||
+    (payload.data.kind !== 'changed' && payload.data.kind !== 'unchanged')
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return { kind: payload.data.kind }
+}
+
 function readCaseView(payload: unknown): TripOccurrenceCaseView {
   if (!isRecord(payload) || !isCaseView(payload.data)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
@@ -142,7 +189,7 @@ function readErrorCode(payload: unknown): string {
 async function requestJson(
   dependencies: ClientDependencies,
   path: string,
-  init?: Readonly<{ body?: object; method?: 'GET' | 'POST' }>,
+  init?: Readonly<{ body?: object; method?: 'GET' | 'POST' | 'PUT' }>,
 ): Promise<unknown> {
   const accessToken = await dependencies.getAccessToken()
   let response: Response
@@ -227,6 +274,22 @@ export function createTripOccurrenceFeedClient(
         { body: { note: input.note }, method: 'POST' },
       )
       return readCaseView(payload)
+    },
+    async recordOccurrenceSettlement(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/settlement`,
+        { body: { items: input.items }, method: 'PUT' },
+      )
+      return readSettlementResult(payload)
+    },
+    async reimburseOccurrenceSettlementItem(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/settlement/reimbursement`,
+        { body: { productCode: input.productCode }, method: 'POST' },
+      )
+      return readReimbursementResult(payload)
     },
   }
 }

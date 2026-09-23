@@ -1428,5 +1428,26 @@
       "close": "Encerrar tratativa",
       "cancel": "Cancelar tratativa"
     }
+  },
+  "occurrenceSettlement": {
+    "title": "Acerto dos produtos",
+    "productCode": "Código do produto",
+    "amount": "Valor",
+    "amountPlaceholder": "0,00",
+    "payerKind": "Quem pagou",
+    "payerId": "Id do motorista",
+    "payerIdPlaceholder": "Id do motorista que pagou",
+    "payer": {
+      "driver": "Motorista",
+      "carrier": "Transportadora",
+      "contractor": "Contratante",
+      "insurer": "Seguradora"
+    },
+    "addRow": "Adicionar item",
+    "removeRow": "Remover",
+    "total": "Total da tela",
+    "save": "Salvar acerto",
+    "savedTotal": "Total gravado",
+    "markReimbursed": "Marcar como ressarcido"
   }
 }

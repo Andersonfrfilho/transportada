@@ -63,6 +63,31 @@ export type TripOccurrenceCaseView = Readonly<{
   updatedAt: string
 }>
 
+/** Spec 164 T23 (RF22): quem pagou o item — só `driver` carrega `payerId`. */
+export const OCCURRENCE_SETTLEMENT_PAYER_KINDS = [
+  'driver',
+  'carrier',
+  'contractor',
+  'insurer',
+] as const
+export type OccurrenceSettlementPayerKind = (typeof OCCURRENCE_SETTLEMENT_PAYER_KINDS)[number]
+
+export const OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES = ['nfe', 'manual'] as const
+export type OccurrenceSettlementAmountSource = (typeof OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES)[number]
+
+export type OccurrenceSettlementItem = Readonly<{
+  amount: string
+  amountSource: OccurrenceSettlementAmountSource
+  payerId?: string
+  payerKind: OccurrenceSettlementPayerKind
+  productCode: string
+}>
+
+export type OccurrenceSettlementResult = Readonly<{
+  items: readonly OccurrenceSettlementItem[]
+  total: string
+}>
+
 export type TripOccurrenceFeedItem = Readonly<{
   case: null | TripOccurrenceCaseView
   createdAt: string

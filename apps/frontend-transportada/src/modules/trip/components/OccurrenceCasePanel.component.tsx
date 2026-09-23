@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/icon'
 
 import { useOccurrenceCaseActions } from '../hooks/useOccurrenceCaseActions.hook'
 import type { TripOccurrenceCaseView } from '../shared/tripOccurrenceFeed.service'
+import { OccurrenceSettlementPanel } from './OccurrenceSettlementPanel.component'
 import styles from '../styles/trip.module.css'
 
 export type OccurrenceCasePanelProps = Readonly<{
@@ -198,6 +199,10 @@ export function OccurrenceCasePanel({
           ) : null}
         </div>
       )}
+
+      {status === 'decided' && occurrenceCase.decision?.kind === 'goods_paid' ? (
+        <OccurrenceSettlementPanel canResolve={canResolve} occurrenceId={occurrenceId} />
+      ) : null}
     </div>
   )
 }
