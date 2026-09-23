@@ -27,6 +27,7 @@ import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastru
 import { DrizzleOccurrenceSettlementChargeRepository } from '../../src/trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
 import { DrizzleOccurrenceSettlementRepository } from '../../src/trips/infrastructure/drizzle-occurrence-settlement.repository.js'
 import { DrizzleDeliveryChargeRepository } from '../../src/delivery-clients/infrastructure/drizzle-delivery-charge.repository.js'
+import { DeliveryChargeTransitionNotAllowedError } from '../../src/delivery-clients/application/delivery-charges.use-case.js'
 import {
   OccurrenceCaseTransitionNotAllowedError,
   OccurrenceSettlementItemNotFoundError,
@@ -291,6 +292,107 @@ describe('DrizzleOccurrenceSettlementRepository (spec 164 T13/T18)', () => {
       })
     },
   )
+
+  /**
+   * Revisão final (B4): esvaziar a lista apagava os itens e deixava a cobrança viva, com o valor
+   * antigo — elegível para fechar em lote e cobrar a contratante por um prejuízo sem nenhum item
+   * que o sustente. E, com a cobrança já `submitted`, o `delete` passava mesmo assim, apagando a
+   * evidência de uma cobrança já enviada.
+   */
+  testWithPostgres('lista vazia remove a cobrança na mesma transação', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      await bindDeliveryParties(database, company, trip)
+      const occurrenceTypeId = await seedOccurrenceType(database, company)
+      const occurrenceId = await registerOccurrence(database, company, trip, occurrenceTypeId)
+      const caseId = await seedDecidedCase(database, company, occurrenceId)
+      const repository = createRepository(database)
+
+      await repository.recordSettlement({
+        actorUserId: company.userId,
+        caseId,
+        companyId: company.companyId,
+        items: [
+          { amount: '150.5000', amountSource: 'manual', payerKind: 'carrier', productCode: '' },
+        ],
+      })
+
+      const emptied = await repository.recordSettlement({
+        actorUserId: company.userId,
+        caseId,
+        companyId: company.companyId,
+        items: [],
+      })
+      expect(emptied.total).toBe('0.0000')
+
+      const settlementRows = await database.db
+        .select({ id: tripOccurrenceItemSettlements.id })
+        .from(tripOccurrenceItemSettlements)
+        .where(eq(tripOccurrenceItemSettlements.caseId, caseId))
+      expect(settlementRows.length).toBe(0)
+
+      const chargeRows = await database.db
+        .select({ id: deliveryCharges.id })
+        .from(deliveryCharges)
+        .where(eq(deliveryCharges.occurrenceId, occurrenceId))
+      expect(chargeRows.length).toBe(0)
+    })
+  })
+
+  testWithPostgres('esvaziar o acerto de cobrança já submitted recusa com 409', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+      await bindDeliveryParties(database, company, trip)
+      const occurrenceTypeId = await seedOccurrenceType(database, company)
+      const occurrenceId = await registerOccurrence(database, company, trip, occurrenceTypeId)
+      const caseId = await seedDecidedCase(database, company, occurrenceId)
+      const repository = createRepository(database)
+
+      await repository.recordSettlement({
+        actorUserId: company.userId,
+        caseId,
+        companyId: company.companyId,
+        items: [
+          { amount: '150.5000', amountSource: 'manual', payerKind: 'carrier', productCode: '' },
+        ],
+      })
+      await database.db
+        .update(deliveryCharges)
+        .set({ status: 'submitted' })
+        .where(eq(deliveryCharges.occurrenceId, occurrenceId))
+
+      let thrown: unknown
+      try {
+        await repository.recordSettlement({
+          actorUserId: company.userId,
+          caseId,
+          companyId: company.companyId,
+          items: [],
+        })
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toBeInstanceOf(DeliveryChargeTransitionNotAllowedError)
+
+      /** A transação inteira desfez: o item continua ali, e a cobrança enviada também. */
+      const settlementRows = await database.db
+        .select({ id: tripOccurrenceItemSettlements.id })
+        .from(tripOccurrenceItemSettlements)
+        .where(eq(tripOccurrenceItemSettlements.caseId, caseId))
+      expect(settlementRows.length).toBe(1)
+
+      const [chargeRow] = await database.db
+        .select({ amount: deliveryCharges.amount, status: deliveryCharges.status })
+        .from(deliveryCharges)
+        .where(eq(deliveryCharges.occurrenceId, occurrenceId))
+        .limit(1)
+      if (chargeRow === undefined) throw new Error('EXPECTED_CHARGE_ROW')
+      expect(chargeRow.status).toBe('submitted')
+      expect(chargeRow.amount).toBe('150.5000')
+    })
+  })
 
   testWithPostgres('tratativa fora de decided/goods_paid recusa com 409', async () => {
     await withDisposableDatabase(async (database) => {

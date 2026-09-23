@@ -124,4 +124,35 @@ export class DrizzleOccurrenceSettlementChargeRepository implements OccurrenceSe
 
     return updated
   }
+
+  public async clearOccurrenceSettlementCharge(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly transaction: Parameters<
+      OccurrenceSettlementChargePort['clearOccurrenceSettlementCharge']
+    >[0]['transaction']
+  }): Promise<void> {
+    const { companyId, occurrenceId, transaction } = input
+
+    const [existing] = await transaction
+      .select({ id: deliveryCharges.id, status: deliveryCharges.status })
+      .from(deliveryCharges)
+      .where(
+        and(
+          eq(deliveryCharges.companyId, companyId),
+          eq(deliveryCharges.occurrenceId, occurrenceId),
+        ),
+      )
+      .for('no key update')
+      .limit(1)
+    if (existing === undefined) return
+
+    if (!isOccurrenceChargeWritable(existing.status)) {
+      throw new DeliveryChargeTransitionNotAllowedError({ from: existing.status, to: 'recorded' })
+    }
+
+    await transaction
+      .delete(deliveryCharges)
+      .where(and(eq(deliveryCharges.companyId, companyId), eq(deliveryCharges.id, existing.id)))
+  }
 }

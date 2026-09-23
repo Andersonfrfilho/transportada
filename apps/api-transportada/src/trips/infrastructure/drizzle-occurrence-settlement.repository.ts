@@ -8,7 +8,9 @@
  * `recordSettlement` (T13, RF22-RF25/CA9/CA9b/CA9c) substitui a lista inteira (`delete` + `insert`,
  * nunca acumula), valida item e valor com `resolveOccurrenceSettlement` (política pura) e, com ao
  * menos um item, chama a ponte `OccurrenceSettlementChargePort` (T17) na mesma transação — gravar o
- * acerto sem conseguir gravar a cobrança é o defeito mais caro desta spec.
+ * acerto sem conseguir gravar a cobrança é o defeito mais caro desta spec. **Lista vazia é o
+ * simétrico, não a ausência de caso**: remove a cobrança na mesma transação, e recusa com 409
+ * quando ela já foi enviada.
  *
  * `reimburseSettlementItem` (T18, RF31/CA9e) só marca `reimbursed_at`/`reimbursed_by_user_id` —
  * idempotente, e recusa `payer_kind = 'carrier'` antes de tocar o banco.
@@ -93,6 +95,19 @@ export class DrizzleOccurrenceSettlementRepository
       const knownProductCodes = declaredCodes.length === 0 ? [''] : declaredCodes
 
       const resolved = resolveOccurrenceSettlement({ items, knownProductCodes })
+
+      /**
+       * ⚠️ A lista vazia decide a cobrança **antes** de apagar os itens: sem prejuízo declarado não
+       * há o que cobrar, e uma cobrança já enviada recusa em 409 — o `delete` da lista não pode
+       * apagar a evidência de uma cobrança que já foi à contratante (revisão final, B4).
+       */
+      if (resolved.items.length === 0) {
+        await this.charges.clearOccurrenceSettlementCharge({
+          companyId,
+          occurrenceId: locked.occurrenceId,
+          transaction,
+        })
+      }
 
       await transaction
         .delete(tripOccurrenceItemSettlements)

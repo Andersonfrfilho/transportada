@@ -27,4 +27,16 @@ export type OccurrenceSettlementChargePort = {
     readonly occurrenceId: string
     readonly transaction: TripTransaction
   }): Promise<OccurrenceSettlementChargeResult>
+  /**
+   * O simétrico, para o acerto esvaziado: remove a linha de `delivery_charges` da ocorrência na
+   * mesma transação. Sem item nenhum não há prejuízo a cobrar, e deixar a cobrança viva com o valor
+   * antigo a mantinha elegível para fechar em lote e cobrar a contratante por nada. A imutabilidade
+   * de RF25 vale igual neste caminho: linha a partir de `submitted` recusa com
+   * `DeliveryChargeTransitionNotAllowedError` (409), nunca some em silêncio.
+   */
+  clearOccurrenceSettlementCharge(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly transaction: TripTransaction
+  }): Promise<void>
 }
