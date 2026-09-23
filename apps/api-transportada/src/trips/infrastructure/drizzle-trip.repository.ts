@@ -9,9 +9,18 @@ import {
   fleetDrivers,
   fleetVehicles,
   freightCalculations,
+  freightRules,
+  freightRuleVersions,
+  nfeAddresses,
   nfeDocuments,
+  nfeParticipants,
 } from '../../database/database.schema.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
+import {
+  resolveTripDocumentFreight,
+  type DocumentFreightRule,
+} from '../domain/trip-document-freight.policy.js'
+import { normalizeFreightRuleFilters } from '../../freight-rules/domain/freight-rule-filters.policy.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import {
@@ -793,6 +802,15 @@ function buildTripDocumentFilters(input: {
 const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight')
 
 /**
+ * Spec 176: participantes da nota **direta** (`tripDocuments.nfeDocumentId`) — o caminho que precisa
+ * de previsão de frete. A nota que chega só por cálculo (`freightCalculationId`) já tem o valor
+ * congelado e não passa por aqui.
+ */
+const tripDocumentEmitter = alias(nfeParticipants, 'trip_document_freight_emitter')
+const tripDocumentRecipient = alias(nfeParticipants, 'trip_document_freight_recipient')
+const tripDocumentRecipientAddress = alias(nfeAddresses, 'trip_document_freight_recipient_address')
+
+/**
  * Spec 156 T8d: mesmo molde da junção de ator da linha do tempo
  * (`timelineActorMembership`/`timelineActorProfile`, `trip-timeline-status.query.ts`) — membership
  * ativa escopada pela empresa. Pessoa sem membership ativa (removida) devolve `null`, nunca lança.
@@ -817,6 +835,49 @@ async function resolveTripCloserName(
     )
     .limit(1)
   return row?.name ?? null
+}
+
+/**
+ * Spec 176: as regras ativas de percentual da empresa, **uma consulta por leitura da viagem** — o
+ * mesmo molde de `loadActiveFreightRules` em `drizzle-nfe-document.repository.ts`. `freight_rules`
+ * é configuração (poucas linhas), e resolvê-la por nota faria uma consulta a mais por documento.
+ */
+async function loadActiveFreightRules(
+  queryable: TripQueryable,
+  companyId: string,
+): Promise<readonly DocumentFreightRule[]> {
+  const rows = await queryable
+    .select({ rule: freightRules, version: freightRuleVersions })
+    .from(freightRuleVersions)
+    .innerJoin(
+      freightRules,
+      and(
+        eq(freightRules.companyId, freightRuleVersions.companyId),
+        eq(freightRules.id, freightRuleVersions.freightRuleId),
+      ),
+    )
+    .where(
+      and(
+        eq(freightRuleVersions.companyId, companyId),
+        eq(freightRules.type, 'percentage_of_invoice_total'),
+        eq(freightRules.status, 'active'),
+        eq(freightRuleVersions.status, 'active'),
+      ),
+    )
+
+  return rows.map((row) => ({
+    filters: normalizeFreightRuleFilters(
+      row.version.filters as Parameters<typeof normalizeFreightRuleFilters>[0],
+    ),
+    freightRuleId: row.rule.id,
+    maximumAmount: row.version.maximumAmount,
+    minimumAmount: row.version.minimumAmount,
+    name: row.rule.name,
+    percentage: row.version.percentage,
+    priority: row.rule.priority,
+    validFrom: row.version.validFrom,
+    validUntil: row.version.validUntil,
+  }))
 }
 
 async function readTripDetail(
@@ -874,6 +935,7 @@ async function readTripDetail(
       cteAuthorized: sql<boolean>`${cteAuthorizedExpression()}`,
       document: tripDocuments,
       freightCalculationStatus: freightCalculations.status,
+      freightCalculationTotalAmount: freightCalculations.totalAmount,
       nfeDocumentStatus: nfeDocuments.status,
       /**
        * Spec 079 T017: o que identifica a nota na tela. Sai da junção que já existia — nenhuma
@@ -890,6 +952,13 @@ async function readTripDetail(
       nfeTotalValue: sql<
         null | string
       >`coalesce(${nfeDocuments.totalValue}, ${nfeDocumentsViaFreight.totalValue})`,
+      /**
+       * Spec 176: só para o caminho direto (`nfeDocumentId`) — a nota que chega por cálculo já tem
+       * o valor de frete congelado em `freightCalculations`, e não precisa de participante nenhum.
+       */
+      freightDestinationCityCode: tripDocumentRecipientAddress.cityCode,
+      freightDestinationState: tripDocumentRecipientAddress.state,
+      freightSenderTaxId: tripDocumentEmitter.taxId,
     })
     .from(tripDocuments)
     .leftJoin(
@@ -913,8 +982,38 @@ async function readTripDetail(
         eq(nfeDocumentsViaFreight.id, freightCalculations.nfeDocumentId),
       ),
     )
+    .leftJoin(
+      tripDocumentEmitter,
+      and(
+        eq(tripDocumentEmitter.companyId, nfeDocuments.companyId),
+        eq(tripDocumentEmitter.documentId, nfeDocuments.id),
+        eq(tripDocumentEmitter.role, 'emitter'),
+      ),
+    )
+    .leftJoin(
+      tripDocumentRecipient,
+      and(
+        eq(tripDocumentRecipient.companyId, nfeDocuments.companyId),
+        eq(tripDocumentRecipient.documentId, nfeDocuments.id),
+        eq(tripDocumentRecipient.role, 'recipient'),
+      ),
+    )
+    .leftJoin(
+      tripDocumentRecipientAddress,
+      and(
+        eq(tripDocumentRecipientAddress.companyId, tripDocumentRecipient.companyId),
+        eq(tripDocumentRecipientAddress.participantId, tripDocumentRecipient.id),
+      ),
+    )
     .where(and(...buildTripDocumentListFilters(input)))
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
+
+  /**
+   * Spec 176 (CA06): **uma consulta para as N notas** — as regras ativas da empresa são
+   * configuração (poucas linhas), carregadas uma vez e casadas em memória, o mesmo padrão de
+   * `loadActiveFreightRules` na listagem de notas (`drizzle-nfe-document.repository.ts`).
+   */
+  const activeFreightRules = await loadActiveFreightRules(queryable, input.companyId)
   /**
    * Spec 079 P2: o contato entra **aqui**, no mesmo map que monta a nota — depois seria tarde: as
    * paradas já agrupam `documents`, e um segundo objeto com contato produziria duas verdades sobre
@@ -942,6 +1041,21 @@ async function readTripDetail(
         row.document.nfeDocumentId === null
           ? null
           : (contacts.get(row.document.nfeDocumentId) ?? null),
+      freight: resolveTripDocumentFreight({
+        freightCalculationStatus: row.freightCalculationStatus,
+        freightCalculationTotalAmount: row.freightCalculationTotalAmount,
+        note:
+          row.document.nfeDocumentId === null
+            ? null
+            : {
+                destinationCityCode: row.freightDestinationCityCode,
+                destinationState: row.freightDestinationState,
+                issuedAt: row.nfeIssuedAt,
+                senderTaxId: row.freightSenderTaxId,
+                totalAmount: row.nfeTotalValue,
+              },
+        rules: activeFreightRules,
+      }),
       openOccurrenceCase: openOccurrenceCaseDocumentIds.has(row.document.id),
     }),
   )

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { FreightCalculationStatus } from '../../database/freight.schema.js'
+import type { ResolvedTripDocumentFreight } from '../domain/trip-document-freight.policy.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
 import type { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
@@ -92,6 +93,8 @@ export function mapTripDocumentDetail(input: {
   readonly freightCalculationStatus: FreightCalculationStatus | null
   readonly nfeDocumentStatus: NfeDocumentStatus | null
   readonly contact?: TripDocumentDetail['contact']
+  /** Spec 176: já resolvido antes do map — a política não conhece linha de banco. */
+  readonly freight: ResolvedTripDocumentFreight
   readonly nfeIssuedAt?: Date | null
   readonly nfeNumber?: null | string
   readonly nfeSeries?: null | string
@@ -106,6 +109,9 @@ export function mapTripDocumentDetail(input: {
     contact: input.contact ?? null,
     cteAuthorized: input.cteAuthorized,
     fiscalStatus,
+    freightAmount: input.freight.amount,
+    freightRuleName: input.freight.ruleName,
+    freightSource: input.freight.source,
     nfeIssuedAt: input.nfeIssuedAt?.toISOString() ?? null,
     nfeNumber: input.nfeNumber ?? null,
     nfeSeries: input.nfeSeries ?? null,

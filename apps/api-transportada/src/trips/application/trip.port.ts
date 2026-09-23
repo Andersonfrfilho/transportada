@@ -13,6 +13,7 @@ import type {
   TripDriverLine,
   TripVehicleCandidate,
 } from '../domain/trip.policy.js'
+import type { TripDocumentFreightSource } from '../domain/trip-document-freight.policy.js'
 
 /**
  * A tripulação **na leitura**: o retrato fiscal (`TripDriverLine`, congelado quando a viagem foi
@@ -123,6 +124,18 @@ export type TripDocumentDetail = TripDocument & {
   readonly nfeNumber: null | string
   readonly nfeSeries: null | string
   readonly nfeTotalValue: null | string
+  /**
+   * Spec 176: quanto esta nota rende de frete — nunca a mercadoria, RF1. `null` é "não há como
+   * dizer" (`freightSource: 'missing'`), nunca `R$ 0,00`.
+   */
+  readonly freightAmount: null | string
+  /**
+   * O nome da regra que produziu `freightAmount`. `null` com `freightAmount` preenchido é lacuna
+   * real no caminho `measured`: `freight_calculations.rule_snapshot` não congela o nome — só o
+   * percentual e os limites. A tela não inventa rótulo para cobrir o buraco.
+   */
+  readonly freightRuleName: null | string
+  readonly freightSource: TripDocumentFreightSource
 }
 
 /**
