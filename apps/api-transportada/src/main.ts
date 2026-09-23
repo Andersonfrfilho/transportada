@@ -86,6 +86,14 @@ import {
 } from './companies/application/federal-tax-settings.use-case.js'
 import { DrizzleFederalTaxSettingsRepository } from './companies/infrastructure/drizzle-federal-tax-settings.repository.js'
 import { createFederalTaxSettingsRoutes } from './companies/presentation/federal-tax-settings.routes.js'
+import { DrizzleCompanyEntryKindRepository } from './companies/infrastructure/drizzle-company-entry-kind.repository.js'
+import { createCompanyEntryKindRoutes } from './companies/presentation/company-entry-kind.routes.js'
+import {
+  createCreateCompanyEntryKindUseCase,
+  createDeactivateCompanyEntryKindUseCase,
+  createListActiveCompanyEntryKindsUseCase,
+  createListCompanyEntryKindsUseCase,
+} from './companies/application/company-entry-kind.use-case.js'
 import {
   createClearDriverAllowanceSettingsUseCase,
   createGetDriverAllowanceSettingsUseCase,
@@ -373,6 +381,8 @@ import { DrizzleOccurrenceSettlementRepository } from './trips/infrastructure/dr
 import { DrizzleOccurrenceSettlementChargeRepository } from './trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
+import { DrizzleTripRevenueRepository } from './trips/infrastructure/drizzle-trip-revenue.repository.js'
+import { listTripRevenues } from './trips/application/list-trip-revenues.use-case.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
 import { DrizzleApplicableFreightRuleQuery } from './freight/infrastructure/drizzle-freight.repository'
 import { createTripCteBatch } from './trips/application/create-trip-cte-batch.use-case'
@@ -1825,6 +1835,8 @@ function createApplicationRoutes({
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)
+  const tripRevenueRepository = new DrizzleTripRevenueRepository(database)
+  const companyEntryKindRepository = new DrizzleCompanyEntryKindRepository(database)
   const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
   const automaticManifestRepository = new DrizzleAutomaticManifestRepository({
     database,
@@ -2482,6 +2494,16 @@ function createApplicationRoutes({
       clear: createClearFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
       get: createGetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
       set: createSetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
+    }),
+    ...createCompanyEntryKindRoutes({
+      create: createCreateCompanyEntryKindUseCase({ entryKinds: companyEntryKindRepository }),
+      deactivate: createDeactivateCompanyEntryKindUseCase({
+        entryKinds: companyEntryKindRepository,
+      }),
+      list: createListCompanyEntryKindsUseCase({ entryKinds: companyEntryKindRepository }),
+      listActive: createListActiveCompanyEntryKindsUseCase({
+        entryKinds: companyEntryKindRepository,
+      }),
     }),
     ...createDriverAllowanceSettingsRoutes({
       clear: createClearDriverAllowanceSettingsUseCase({
@@ -3500,6 +3522,20 @@ function createApplicationRoutes({
       },
       listTripCosts: {
         execute: (input) => listTripCosts({ ...input, repository: tripCostRepository }),
+      },
+      recordTripRevenue: {
+        execute: (input) =>
+          tripRevenueRepository.record({
+            actorUserId: input.context.userId,
+            amount: input.amount,
+            companyId: input.context.companyId,
+            description: input.description,
+            entryKindId: input.entryKindId,
+            tripId: input.tripId,
+          }),
+      },
+      listTripRevenues: {
+        execute: (input) => listTripRevenues({ ...input, repository: tripRevenueRepository }),
       },
       readTripTimeline: createReadTripTimelineUseCase({
         existence: { findTripCompanyScope: (input) => findTripCompanyScope(database, input) },
