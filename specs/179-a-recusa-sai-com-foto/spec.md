@@ -16,22 +16,21 @@ semente (`trip-occurrence.constant.ts`) usada apenas pela tela de avisos; o cat�
 `company_occurrence_types`, onde recusa é só um nome que a empresa digitou. Uma regra escrita como
 "se o tipo se chamar recusa" falha na primeira transportadora que cadastrar "Cliente recusou".
 
-E há um terceiro fio solto: **devolução hoje é outro caminho**. `POST
-/me/current-trip/documents/:documentId/return` grava `returnReason` e `separation_status =
-'returned'` sem passar por ocorrência nenhuma. Quem recusa a mercadoria gera dois registros
-desconexos — a ocorrência que conta o que houve e a devolução que move a nota — e nada garante que
-os dois existam juntos.
-
-Resultado: **o tipo de ocorrência declara se exige comprovante e se devolve a nota ao barracão**.
-O tipo que exige não é registrado sem foto e sem motivo escrito; o tipo que devolve marca a nota
-para retornar, numa escrita só. A empresa marca suas recusas; o código não adivinha nome.
+Resultado: **o tipo de ocorrência declara se exige comprovante**. O tipo que exige não é registrado
+sem foto e sem motivo escrito. A empresa marca suas recusas; o código não adivinha nome.
 
 ## Fora do escopo
 
 - O comprovante de entrega (canhoto), que já tem seus próprios modos e painel.
 - Política de reentrega — quando e como a nota sai de novo — que não existe e não nasce aqui.
-- O que o barracão faz com a mercadoria devolvida: esta spec marca a nota como devolvida, não
-  reescreve a separação.
+- **Devolução da nota ao barracão e o motivo dela.** Já resolvido pela spec 164:
+  `company_occurrence_types.redelivery_policy` decide se o tipo abre tratativa, e
+  `trip_occurrence_cases` chega ao estado terminal `returned_to_warehouse` com nota obrigatória
+  (`occurrence-case-state.policy.ts`). Esta spec não reabre essa decisão.
+- **Miniatura da foto.** Já entregue pela spec 161: gerada no cliente, gravada como objeto próprio
+  (`purpose: 'trip_occurrence_thumbnail'`) com FK composta em
+  `trip_document_occurrence_attachments.thumbnail_object_id`, devolvida como `thumbnailUrl`. Esta
+  spec reaproveita esse caminho — não inventa um segundo.
 - Ocorrência de parada (`trip_stop_occurrences`), que é outro eixo — esta spec é a ocorrência de
   nota, que é onde a recusa acontece.
 - Revisão do escritório sobre a ocorrência, que segue como está.
@@ -64,20 +63,7 @@ falta.
 **When** o operador abre a ocorrência no escritório
 **Then** ele vê a imagem junto do motivo, pelo caminho de anexos que já existe.
 
-### P5 — A nota volta ao barracão
-
-**Given** um tipo de ocorrência que devolve a mercadoria
-**When** o motorista registra a recusa
-**Then** a nota fica marcada para retornar ao barracão na mesma escrita, e o motivo da devolução é
-o motivo da ocorrência — não se digita duas vezes.
-
-### P6 — Ver sem baixar
-
-**Given** uma lista de ocorrências com foto
-**When** o operador percorre a lista
-**Then** cada uma mostra a miniatura da imagem, e a foto inteira só é buscada ao abrir.
-
-### P7 — Quem não exige não muda
+### P5 — Quem não exige não muda
 
 **Given** um tipo sem a marca
 **When** o motorista registra
@@ -116,25 +102,10 @@ o motivo da ocorrência — não se digita duas vezes.
   registro novo em diante.
 - **RF8** A imagem entra em `stored_objects` com o `companyId` do contexto autenticado, nunca do
   payload, e a chave do objeto não carrega dado pessoal.
-- **RF9** O tipo de ocorrência declara também se **devolve a nota ao barracão**. Quando declara, o
-  registro entra no **mesmo encadeamento de `runDocumentOutcome`** que a devolução já usa. Escrever
-  `separation_status = 'returned'` direto marcaria a nota sem fechar parada nem viagem: a nota sairia
-  do fluxo e a parada ficaria aberta para sempre.
-- **RF10** O tipo de ocorrência declara **qual código** de `DRIVER_RETURN_REASONS` ele aplica —
-  `return_reason` é lista fechada (`recipient_refused`, `damaged_goods`, …) usada como chave de
-  tradução na tela do motorista e no fluxo de WhatsApp, não campo de texto. A narrativa do motorista
-  vive na `note` da ocorrência; a nota carrega o código. Gravar a `note` em `return_reason` faria a
-  UI procurar uma tradução que não existe.
-- **RF11** A rota de devolução que existe hoje continua valendo para quem devolve sem ocorrência
-  (barracão, cancelamento): esta spec acrescenta um caminho, não remove o outro.
-- **RF12** A miniatura segue o caminho que a spec 161 já entregou: **gerada no cliente** e enviada
-  no campo `thumbnail` do mesmo multipart, gravada como objeto próprio com `purpose:
-  'trip_occurrence_thumbnail'`. O caminho do motorista passa a mandar `thumbnail` como o do
-  escritório já manda — não nasce um segundo modo de produzir miniatura.
-- **RF13** A ocorrência do motorista ganha **chave de idempotência**, que hoje ela não tem (ao
+- **RF9** A ocorrência do motorista ganha **chave de idempotência**, que hoje ela não tem (ao
   contrário de `/deliver` e `/return`, que já leem a chave). Sem ela o reenvio da fila offline
   duplica a ocorrência e o objeto no bucket — e é justamente a fila que esta spec torna obrigatória.
-- **RF14** Textos em pt-BR e en.
+- **RF10** Textos em pt-BR e en.
 
 ## Requisitos não funcionais
 
@@ -153,16 +124,8 @@ o motivo da ocorrência — não se digita duas vezes.
   de descartar em silêncio.
 - **Empresa marca `required` num tipo de separação**: a exigência vale onde o anexo faz sentido; o
   painel não oferece o que a tela não cumpre.
-- **Reenvio da fila**: a chave de idempotência **precisa ser criada** (RF13) — esta rota não tem.
+- **Reenvio da fila**: a chave de idempotência **precisa ser criada** (RF9) — esta rota não tem.
   Com ela, o reenvio devolve o mesmo registro e nada reexecuta; sem ela, duplica ocorrência e objeto.
-- **Nota já devolvida**: `runDocumentOutcome` já devolve `unchanged` quando o estado é o pretendido,
-  sem gravar evento novo. Nada a escrever — só não contorná-lo.
-- **Nota já entregue**: a política de transição já bloqueia com `documentAlreadyClosed`. Nada a
-  escrever — de novo, só não contorná-la.
-- **Miniatura que não gera** no cliente: a ocorrência e a imagem cheia continuam válidas; a lista
-  mostra o lugar da miniatura vazio, e não finge que não há foto.
-- **Ocorrência anterior a esta spec**: sem miniatura gravada, a lista busca a imagem cheia ou mostra
-  o lugar vazio — nunca quebra.
 
 ## Critérios de aceite
 
@@ -174,11 +137,7 @@ o motivo da ocorrência — não se digita duas vezes.
 - **CA06** A imagem aparece para o escritório pelo caminho de anexos existente.
 - **CA07** Tipo sem a marca continua aceitando ocorrência sem foto.
 - **CA08** Ocorrência gravada antes da marca continua válida.
-- **CA09** Tipo que devolve marca a nota como devolvida na mesma escrita, com o motivo da ocorrência.
-- **CA10** Falha ao marcar a devolução não deixa ocorrência gravada sem devolução, nem o contrário.
-- **CA11** A lista de ocorrências mostra miniatura, e a imagem cheia só é buscada ao abrir.
-- **CA12** Ocorrência antiga, sem miniatura gravada, não quebra a lista.
-- **CA13** Revisão de design com print, em 375px e no desktop (web.md §15).
+- **CA09** Revisão de design com print, em 375px e no desktop (web.md §15).
 
 ## Dúvidas
 
