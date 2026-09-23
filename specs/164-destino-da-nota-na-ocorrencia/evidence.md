@@ -1216,10 +1216,19 @@ explícita de `package.json` (arquivo já estava listado, task só adicionou o d
 --timeout 120000` (a integração do portal, por caminho explícito) — **3 pass, 0 fail**, incluindo o
   teste novo.
 - ⚠️ **A suíte completa de integração (`bun run test:integration`, 72 arquivos) não foi confirmada
-  nesta rodada** — passou de dois minutos rodando contra o Postgres descartável e foi movida para
-  segundo plano sem terminar antes do commit, por instrução do coordenador (a tarefa não fica refém
-  de uma suíte lenta). O gate da CI é quem a exercita em máquina limpa; se o resultado tardio
-  mostrar algo quebrado por esta mudança, entra como task de correção separada.
+  antes do commit** — passou de dois minutos rodando contra o Postgres descartável e foi movida para
+  segundo plano, por instrução do coordenador (a tarefa não fica refém de uma suíte lenta). O gate
+  da CI é quem a exercita em máquina limpa. O resultado chegou depois, em segundo plano: **540 pass,
+  10 fail, 7 skip, 103 arquivos, 698s.** As 10 falhas **não são desta mudança** — reproduzidas em
+  isolamento após o commit:
+  - 8 em `test/integration/toll-booth-reload.integration.ts` — `ObjectStorageError:
+OBJECT_STORAGE_UNAVAILABLE`, o MinIO local indisponível (infra do ambiente, nada a ver com
+    ocorrência/portal). Rodando o arquivo sozinho: `0 pass, 4 fail`, mesmo erro.
+  - 2 em `test/integration/trip-occurrence-item-quantity.integration.ts` — timeout de 5000ms sob a
+    carga da suíte inteira (698s, 103 arquivos). Rodando o arquivo sozinho:
+    `3 pass, 0 fail`, 5.6s — não é regressão, é o timeout padrão contra a carga concorrente.
+  - Nenhuma falha em `contractor-occurrence.query.ts`/`routes.ts` nem em
+    `trip-occurrence-case.integration.ts` (o arquivo desta task) na rodada completa.
 
 ### Commit desta rodada
 
