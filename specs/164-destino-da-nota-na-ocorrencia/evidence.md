@@ -1699,3 +1699,55 @@ uma em commit isolado.
 
 - `fix(frontend): spec 164 — fechamento de ressarcimentos por seleção (chargeIds)` (f2512c13).
 - `feat(frontend): spec 164 — painel do acerto abre com o que já foi gravado` (db54a247b).
+
+## Três correções da revisão final de segurança (apps/api-transportada)
+
+Revisão final não achou bloqueante, mas deixou três itens para entrar antes do fechamento.
+
+### 1. Rate limit nas duas rotas do portal (nenhuma tinha antes desta spec)
+
+- `src/contractor-portal/presentation/contractor-occurrence.routes.ts` — `GET
+/client/me/occurrences` amplifica (até 50 ocorrências por chamada, cada uma com leitura de anexo
+  e assinatura de URL): `rateLimit` próprio, 60/300s, `scope: 'contractor-occurrence-list'`.
+  `POST .../decision` é mais apertado — decidir é raro e escreve estado: 20/300s,
+  `scope: 'contractor-occurrence-decision'`. Molde de `occurrence-case.routes.ts` (spec 164 T7).
+- `test/rate-limited-routes.contract.test.ts` — as duas entram na lista fechada por extenso (o
+  arquivo novo precisa estar lá, senão o teste reprova) e ganham teste próprio dos dois baldes.
+
+### 2. Teto de 2000 caracteres na nota interna (estava sem teto)
+
+- `src/trips/presentation/occurrence-case.schema.ts` — `OPTIONAL_NOTE_BODY_SCHEMA`,
+  `REQUIRED_NOTE_BODY_SCHEMA` e `INTERNAL_DECISION_BODY_SCHEMA` ganham `.max(2000)`, mesmo teto do
+  portal (`MAX_NOTE_LENGTH` em `contractor-occurrence.routes.ts`).
+- `test/trip-http/occurrence-case.contract.ts` — nota de 2001 caracteres é `400` em
+  `warehouse-return`, `cancel` e `decision`, sem chamar o caso de uso nos três casos.
+
+### 3. Cursor do relatório de cobrança sem validação (500 em vez de 400)
+
+- `src/delivery-clients/presentation/occurrence-charge-report.routes.ts` — não é injeção (Drizzle
+  parametriza), mas `?cursor=abc` virava erro de sintaxe do Postgres, respondido como `500`. Troca
+  o repasse cru por `parseUuidFilter` (`request-parsing.service.ts`), o mesmo validador que os
+  outros filtros da rota já usam.
+- `test/delivery-clients-http/occurrence-charge-report.contract.ts` (novo, registrado em
+  `test/delivery-clients-http.contract.test.ts`) — cursor não-uuid é `400 INVALID_REQUEST` sem
+  chamar o caso de uso; cursor uuid válido chega aos filtros; sem cursor, segue sem filtro.
+
+### Gates (apps/api-transportada)
+
+- `bun run lint` (raiz, todas as apps) — OK, 0 erros/avisos.
+- `bun run typecheck` (raiz, todas as apps) — OK, 0 erros.
+- `bunx prettier --check .` (raiz) — OK (os dois avisos de `frontend-transportada` são
+  pré-existentes, de outra sessão, fora do escopo desta tarefa).
+- `bun --env-file=../../.env.test test --timeout 120000` — **7140 testes, 7117 pass, 23 skip, 0
+  fail**.
+- `bun --env-file=../../.env.test test ./test/integration/occurrence-charge-report.integration.ts
+./test/integration/trip-occurrence-case.integration.ts
+./test/integration/trip-occurrence-case-write-guard.integration.ts --timeout 120000` — **9 pass, 0
+  fail** (nenhum arquivo `.integration.ts` foi tocado por esta tarefa; rodados por precaução, por
+  exercitarem exatamente o comportamento das três rotas mexidas).
+
+### Commits
+
+- `fix(api): spec 164 — rate limit nas rotas de ocorrência do portal`.
+- `fix(api): spec 164 — teto de 2000 caracteres na nota interna da tratativa`.
+- `fix(api): spec 164 — cursor do relatório de cobrança valida como uuid`.
