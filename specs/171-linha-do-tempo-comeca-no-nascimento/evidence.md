@@ -6,6 +6,35 @@
   `repository.create`; `drizzle-trip.repository.ts#create` grava `recordTripCreation`
   (`trip-status-event.persistence.ts`) na **mesma transação** do `INSERT trips`, escrevendo em
   `trip_status_events` — mesma tabela e mesmo molde de `recordTripStatusChange`.
+
+## Revisão pós-review do usuário: coluna própria em vez de `from_status = to_status`
+
+A primeira versão desta feature usava `fromStatus = toStatus` como o próprio sinal de
+`trip.created`, e por isso precisou derrubar o CHECK `trip_status_events_transition_check`
+(`from_status <> to_status`). O usuário revisou e pediu para voltar atrás **nesse ponto
+específico**: derrubar a garantia do banco para codificar um sinal só documentado em comentário
+deixava a proteção inteira do lado da aplicação — e ainda abria a porta para uma transição real
+degenerada (`from_status = to_status` sem querer dizer nascimento nenhum) que nada no banco
+impedia mais.
+
+Solução adotada, exatamente como pedido: `trip_status_events` ganha `event_kind` (`varchar(16)`,
+CHECK em `('created', 'transition')`, `default: 'transition'` — nunca ENUM nativo,
+`code-standart.md` §8). `TRIP_STATUS_EVENT_KINDS` (`trip.schema.ts`, mesmo molde de
+`TRIP_FIELD_CHANNELS`) documenta o vocabulário fechado.
+
+- `recordTripStatusChange` grava `eventKind: 'transition'` explicitamente (documenta a intenção,
+  mesmo sendo o `default` da coluna).
+- `recordTripCreation` grava `eventKind: 'created'`.
+- O CHECK `trip_status_events_transition_check` **voltou**, mas só vale para `event_kind =
+'transition'`: `event_kind <> 'transition' or from_status <> to_status`. Uma transição real
+  degenerada continua impossível de gravar — o banco garante isso, não um comentário.
+- `listCreatedRows`/`listStatusChangedRows` filtram por `eq(tripStatusEvents.eventKind, ...)`, não
+  mais pela (des)igualdade de `fromStatus`/`toStatus`.
+- Novo teste de integração prova a garantia pelo lado do banco: inserir uma linha com `eventKind`
+  ausente (cai no `default: 'transition'`) e `fromStatus = toStatus` **é rejeitado** pelo Postgres
+  (`test/integration/trip-timeline.integration.ts`, "o banco recusa transição degenerada").
+- `actor_user_id`/`channel` e o resto do desenho (prioridade `-1`, animação CSS,
+  `prefers-reduced-motion`, RF4 não migra viagem antiga) **não mudaram** — só a coluna do sinal.
 - **RF2** `trip.created` entra em `TRIP_TIMELINE_KINDS` (API e cópia do frontend) com prioridade
   `-1` em `TRIP_TIMELINE_KIND_PRIORITY` — menor que qualquer outra — para desempatar como o item
   mais antigo (`mergeTripTimeline` já é genérico sobre o mapa de prioridade).
@@ -38,28 +67,37 @@ sem ator), documentado em `trip.schema.ts`. `CreateTripRecord.actorUserId`/
 
 ## Migration que falta
 
-`trip_status_events_transition_check` (`from_status <> to_status`) bloqueava a escrita de
-`trip.created` com `from_status = to_status`. Essa parte **precisou** de migration — removida do
-schema (`trip.schema.ts`), mas **nenhum arquivo em `drizzle/` foi commitado por mim**: toda
-tentativa de `bun run db:generate` isolada (parqueando as pastas não rastreadas de outros agentes e
-devolvendo-as depois) ainda assim capturava steps de outras specs, porque o diff é contra o
-TypeScript inteiro, não por arquivo. Confirmei em isolamento total (pastas estranhas movidas para
-fora) que o diff correto e único seria:
+O schema (`trip.schema.ts`) já tem a coluna nova e o CHECK ajustado; **nenhum arquivo em
+`drizzle/` foi commitado por mim** — esse worktree é compartilhado ao vivo por vários agentes em
+paralelo (spec166-api, spec167-api, spec169, spec172, main), e qualquer `bun run db:generate`
+roda contra `database.schema.ts` inteiro, então captura tabelas de outras specs em progresso
+(`company_entry_kinds`, `trip_revenue_entries`, `trip_cost_entries`, etc.) que não são minhas para
+commitar.
+
+Confirmei em isolamento total (nenhuma pasta não rastreada em `drizzle/` no momento da checagem)
+que o diff correto e único desta spec é:
 
 ```sql
-ALTER TABLE "trip_status_events" DROP CONSTRAINT "trip_status_events_transition_check";
+ALTER TABLE "trip_status_events" ADD COLUMN "event_kind" varchar(16) DEFAULT 'transition' NOT NULL;
+ALTER TABLE "trip_status_events" ADD CONSTRAINT "trip_status_events_event_kind_check" CHECK ("event_kind" in ('created', 'transition'));
+ALTER TABLE "trip_status_events" DROP CONSTRAINT "trip_status_events_transition_check", ADD CONSTRAINT "trip_status_events_transition_check" CHECK ("event_kind" <> 'transition' or "from_status" <> "to_status");
 ```
 
-Para testar localmente, apliquei esse `ALTER` num migration temporário
-(`drizzle/20260923999999_spec171_temp_local_only/`), rodei os testes, e **apaguei o arquivo antes de
-terminar** — não sobrou rastro no `drizzle/` compartilhado.
+É aditiva: a coluna nasce com `default: 'transition'`, então toda linha existente vira
+`transition` sem `UPDATE` nenhum — exatamente o requisito do usuário ("a coluna nasce com padrão,
+e as linhas existentes viram `transition` sem reescrita de dado").
 
-**Pendência explícita**: `test/database-migration/schema-snapshot.contract.ts` (dentro de
-`test:integration`) falha hoje porque `trip.schema.ts` já não bate com a última migration
-commitada — por causa exatamente desse `DROP CONSTRAINT` que falta. Por `CLAUDE.md` §"Numeração e
+Para testar localmente, apliquei esse `ALTER` (as três linhas acima) num migration temporário
+(`drizzle/20260923035249_reflective_sumo/`, nome gerado pelo próprio `db:generate` isolado), rodei
+os testes, e **apaguei o arquivo antes de terminar** — não sobrou rastro no `drizzle/`
+compartilhado.
+
+**Pendência explícita**: `test/database-migration/schema-snapshot.contract.ts` (dentro do `bun
+test` de contrato) falha hoje porque `trip.schema.ts` já não bate com a última migration
+commitada — por causa exatamente dessas três linhas que faltam. Por `CLAUDE.md` §"Numeração e
 migrations no rebase", a migration correta e isolada só pode ser gerada com segurança **na
 publicação**: `git fetch && git rebase origin/staging && bun run db:generate` (deve dar
-`no_changes` depois de eu gerar o `DROP CONSTRAINT` sozinho, sem as outras specs no meio). Quem for
+`no_changes` depois de eu gerar essas três linhas sozinho, sem as outras specs no meio). Quem for
 publicar este branch precisa rodar `bun run db:generate` de novo, isolado, e commitar a migration
 resultante — só ela, sem as tabelas de outras specs que estiverem no schema naquele momento.
 
@@ -77,8 +115,10 @@ resultante — só ela, sem as tabelas de outras specs que estiverem no schema n
   (só `.env` foi linkado; não é `make worktree`, é um scratchpad de sessão). Rodei os testes de
   banco relevantes à mão, contra o Postgres nativo de 55432 (`DATABASE_URL`/`API_TEST_DATABASE_URL`
   exportados na chamada, sem tocar `.env*`):
-  - `trip-timeline.integration.ts`: **18 pass, 0 fail** — inclui os dois novos casos (CA02/CA04:
-    `trip.created` mais antigo mesmo empatado; CA03: viagem sem o evento não inventa `trip.created`).
+  - `trip-timeline.integration.ts`: **19 pass, 0 fail** — inclui os três casos novos (CA02/CA04:
+    `trip.created` mais antigo mesmo empatado; CA03: viagem sem o evento não inventa `trip.created`;
+    e o teste pós-review que prova a garantia pelo lado do banco: inserir `event_kind` ausente
+    (default `transition`) com `fromStatus = toStatus` é rejeitado pelo Postgres).
   - `trip-lifecycle.integration.ts`, `trip-repository.integration.ts`,
     `mixed-cargo-end-to-end.integration.ts`, `delivery-charge-end-to-end.integration.ts`,
     `trip-status-write-guard.integration.ts`: **11 pass, 0 fail** — os testes que contavam ou

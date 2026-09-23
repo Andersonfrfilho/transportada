@@ -339,6 +339,7 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
           actorUserId: company.userId,
           channel: 'backoffice',
           companyId: company.companyId,
+          eventKind: 'created',
           fromStatus: 'draft',
           id: crypto.randomUUID(),
           occurredAt: bornAt,
@@ -373,6 +374,32 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
         expect(created?.channel).toBe('backoffice')
         expect(created?.fromStatus).toBeNull()
         expect(created?.toStatus).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'spec 171: o banco recusa transição degenerada — event_kind = transition exige from <> to',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+
+        const insertDegenerateTransition = async () => {
+          await database.db.insert(tripStatusEvents).values({
+            actorUserId: company.userId,
+            channel: 'backoffice',
+            companyId: company.companyId,
+            // eventKind ausente cai no default 'transition' — a mesma linha que hoje descreve o
+            // nascimento (`created`) vira degenerada aqui, e o CHECK barra sem depender de nada na
+            // aplicação.
+            fromStatus: 'draft',
+            id: crypto.randomUUID(),
+            toStatus: 'draft',
+            tripId,
+          })
+        }
+        await expect(insertDegenerateTransition()).rejects.toThrow()
       })
     },
   )

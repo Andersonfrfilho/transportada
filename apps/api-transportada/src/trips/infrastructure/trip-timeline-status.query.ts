@@ -5,10 +5,15 @@
  * a troca de status da viagem (`trip_status_events`). Escopadas por `company_id` **em cada junção**
  * (`test/trip-schema/trip-timeline-query-tenant-safety.contract.ts`).
  */
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
-import { trips, tripDispatchSnapshots, tripStatusEvents } from '../../database/trip.schema.js'
+import {
+  TRIP_STATUS_EVENT_KINDS,
+  trips,
+  tripDispatchSnapshots,
+  tripStatusEvents,
+} from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
@@ -100,9 +105,9 @@ export async function listStatusChangedRows(
   const conditions: SQL[] = [
     eq(tripStatusEvents.companyId, params.companyId),
     eq(tripStatusEvents.tripId, params.tripId),
-    // Spec 171: `fromStatus = toStatus` é a linha de `trip.created` (`listCreatedRows`) — nunca uma
-    // transição real, que `recordTripStatusChange` recusa gravar igual.
-    sql`${tripStatusEvents.fromStatus} <> ${tripStatusEvents.toStatus}`,
+    // Spec 171: `event_kind = 'created'` é a linha de `trip.created` (`listCreatedRows`) — nunca
+    // uma transição real.
+    eq(tripStatusEvents.eventKind, TRIP_STATUS_EVENT_KINDS.transition),
   ]
   if (params.cursor !== null) {
     conditions.push(
@@ -181,9 +186,10 @@ export async function listStatusChangedRows(
 
 /**
  * Spec 171 RF1/RF2: o nascimento da viagem — mesma tabela de `listStatusChangedRows`, mas só as
- * linhas que `recordTripCreation` grava (`fromStatus = toStatus`, combinação que uma transição real
- * nunca produz: `recordTripStatusChange` é no-op quando os dois coincidem). `fromStatus`/`toStatus`
- * saem nulos na leitura — não são dado de tela aqui, no mesmo molde de `trip.dispatched`.
+ * linhas que `recordTripCreation` grava (`event_kind = 'created'`, uma coluna própria — não a
+ * igualdade de `fromStatus`/`toStatus`, que o banco impede de significar qualquer coisa numa
+ * transição real via `trip_status_events_transition_check`). `fromStatus`/`toStatus` saem nulos na
+ * leitura — não são dado de tela aqui, no mesmo molde de `trip.dispatched`.
  */
 export async function listCreatedRows(
   queryable: TripQueryable,
@@ -193,7 +199,7 @@ export async function listCreatedRows(
   const conditions: SQL[] = [
     eq(tripStatusEvents.companyId, params.companyId),
     eq(tripStatusEvents.tripId, params.tripId),
-    sql`${tripStatusEvents.fromStatus} = ${tripStatusEvents.toStatus}`,
+    eq(tripStatusEvents.eventKind, TRIP_STATUS_EVENT_KINDS.created),
   ]
   if (params.cursor !== null) {
     conditions.push(
