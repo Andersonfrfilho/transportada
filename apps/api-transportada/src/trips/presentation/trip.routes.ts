@@ -1811,6 +1811,26 @@ function serializeTrip(
   }
 }
 
+/**
+ * Spec 168: `trip.cargoLayout` vem do pacote `@adatechnology/cargo-placement` e nunca teve
+ * `packageBoxId`/`grossWeightGrams`/`unitsPerBox` — esses três só existem na planta enriquecida que
+ * `readCargoLayout` monta com o `packageBoxLookup` (rota `/cargo-layouts/:layoutId`). Sem esta
+ * normalização, a chave simplesmente não existe no objeto que chega aqui, `{ ...item }` a mantém
+ * ausente, e o frontend lê `undefined` em vez de `null` — a tabela "o que falta medir" então
+ * confunde todas as linhas no mesmo rascunho e nunca grava (id `undefined`).
+ */
+function serializeCargoLayoutForDetail(cargoLayout: NonNullable<TripDetail['cargoLayout']>) {
+  return {
+    ...cargoLayout,
+    pendingMeasurements: cargoLayout.pendingMeasurements.map((item) => ({
+      ...item,
+      grossWeightGrams: null,
+      packageBoxId: null,
+      unitsPerBox: null,
+    })),
+  }
+}
+
 function serializeTripDetail(input: {
   /** Spec 156 D11: CPF, e-mail e telefone do motorista são ficha de frota — só com `fleet.read`. */
   readonly canReadDriverContact: boolean
@@ -1828,7 +1848,7 @@ function serializeTripDetail(input: {
     closedAt: trip.closedAt,
     closedByName: trip.closedByName,
     /** Spec 076: `null` quando a capacidade não é conhecida — escala honesta ou nada. */
-    cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout },
+    cargoLayout: trip.cargoLayout === null ? null : serializeCargoLayoutForDetail(trip.cargoLayout),
     /** Spec 145 D10/D17: chaves exatas — o validador do frontend recusa a resposta com uma a mais. */
     cargoLayoutState: { ...trip.cargoLayoutState },
     documents: trip.documents.map((document) =>

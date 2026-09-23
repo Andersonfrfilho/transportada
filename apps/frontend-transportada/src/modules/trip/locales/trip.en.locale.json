@@ -681,7 +681,8 @@
       "height": "Height",
       "outOfRange": "Above {{max}} cm — check the measurement.",
       "saveFailed": "Could not save. The value is still here — try again.",
-      "noBoxReason": "No catalog box matches this product."
+      "noBoxReason": "No catalog box matches this product.",
+      "saved": "Measurement saved"
     }
   },
   "pagination": {

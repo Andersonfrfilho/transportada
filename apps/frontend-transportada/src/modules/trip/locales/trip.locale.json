@@ -860,7 +860,8 @@
       "height": "Altura",
       "outOfRange": "Maior que {{max}} cm — confira a medida.",
       "saveFailed": "Não foi possível gravar. A medida continua aqui — tente de novo.",
-      "noBoxReason": "Sem caixa do catálogo para casar com este produto."
+      "noBoxReason": "Sem caixa do catálogo para casar com este produto.",
+      "saved": "Medida salva"
     }
   },
   "pagination": {

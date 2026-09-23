@@ -71,10 +71,32 @@ describe('a tabela do que falta medir ganha os campos de medida (spec 168)', () 
     expect(source).toContain('useMeasurePendingBox')
   })
 
-  it('produto sem caixa casada aparece sem campos, com o motivo (edge case)', () => {
+  /**
+   * Spec 168 (defeito medido): a API do detalhe da viagem nunca enriquece `packageBoxId` — a chave
+   * chega `undefined`, não `null`. `=== null` deixava passar, todas as linhas compartilhavam o
+   * rascunho `drafts["undefined"]` e a gravação ia com `id: undefined`, sem gravar nada.
+   */
+  it('produto sem caixa casada (null OU undefined) aparece sem campos, com o motivo (edge case)', () => {
     const source = readFileSync(COMPONENT_PATH, 'utf8')
 
-    expect(source).toContain('packageBoxId === null')
+    expect(source).toContain('packageBoxId == null')
+    expect(source).not.toContain('packageBoxId === null')
+    expect(source).toContain('if (boxId == null) return')
+    expect(source).toContain('if (boxId == null) return null')
+  })
+
+  it('duas linhas com caixas diferentes nunca dividem o mesmo rascunho (edge case)', () => {
+    const source = readFileSync(COMPONENT_PATH, 'utf8')
+
+    // O rascunho é sempre indexado pelo `boxId` real da linha, nunca por uma chave compartilhada.
+    expect(source).toContain('drafts[boxId]')
+    expect(source).toMatch(/setDrafts\(\(current\) => \(\{ \.\.\.current, \[boxId\]:/)
+  })
+
+  it('a gravação sempre envia o id da própria linha, nunca um id fixo (RF03)', () => {
+    const source = readFileSync(COMPONENT_PATH, 'utf8')
+
+    expect(source).toMatch(/measure\.mutate\(\s*\{[\s\S]{0,120}id: boxId,/)
   })
 
   it('falha de rede mantém o valor digitado (CA06)', () => {
@@ -82,6 +104,18 @@ describe('a tabela do que falta medir ganha os campos de medida (spec 168)', () 
 
     // O estado do rascunho nunca é limpo num `onError` — só quando a gravação dá certo.
     expect(source).not.toMatch(/onError[\s\S]{0,80}setDraft/)
+  })
+
+  /**
+   * O usuário reclamou que preenchia os três campos no blur e não via nada acontecer — "não temos
+   * botão de salvar medidas". A gravação continua automática no blur (RF02/RF04), mas agora sobra
+   * uma confirmação visível: quem preenche precisa saber se salvou.
+   */
+  it('confirma visivelmente que a medida foi gravada (edge case)', () => {
+    const source = readFileSync(COMPONENT_PATH, 'utf8')
+
+    expect(source).toContain('savedBoxIds')
+    expect(source).toContain("t('pendingMeasurement.inline.saved')")
   })
 
   it('textos em pt-BR e traduzidos (RF08)', () => {
@@ -97,5 +131,7 @@ describe('a tabela do que falta medir ganha os campos de medida (spec 168)', () 
     expect(en.pendingMeasurement.inline.outOfRange).toBeString()
     expect(en.pendingMeasurement.inline.saveFailed).toBeString()
     expect(en.pendingMeasurement.inline.noBoxReason).toBeString()
+    expect(trip.pendingMeasurement.inline.saved).toBeString()
+    expect(en.pendingMeasurement.inline.saved).toBeString()
   })
 })

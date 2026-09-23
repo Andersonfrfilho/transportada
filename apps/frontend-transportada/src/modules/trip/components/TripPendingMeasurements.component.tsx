@@ -31,6 +31,8 @@ import {
 import type { TripPendingMeasurement } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
+import measurementStyles from './TripPendingMeasurements.module.css'
+
 type TripPendingMeasurementsProps = Readonly<{
   measurements: readonly TripPendingMeasurement[]
 }>
@@ -59,6 +61,12 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
   const [drafts, setDrafts] = useState<Record<string, PendingMeasurementDraft>>({})
   const [savingBoxId, setSavingBoxId] = useState<string | null>(null)
   const [errorByBoxId, setErrorByBoxId] = useState<Record<string, string>>({})
+  /**
+   * RF04: quem preenche precisa saber se gravou — sem isso o usuário preenchia os três campos no
+   * blur e não via nada acontecer. Some assim que a linha volta a ser editada, não por tempo: um
+   * `setTimeout` correria o risco de sumir antes de o operador olhar de volta para a tela.
+   */
+  const [savedBoxIds, setSavedBoxIds] = useState<ReadonlySet<string>>(new Set())
 
   if (measurements.length === 0) return null
 
@@ -76,12 +84,19 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
     value: string,
   ) {
     const boxId = measurement.packageBoxId
-    if (boxId === null) return
+    /** Ausência é ausência: `undefined` de planta sem enriquecimento não pode virar rascunho. */
+    if (boxId == null) return
     setErrorByBoxId((current) => {
       if (!(boxId in current)) return current
       const rest = { ...current }
       delete rest[boxId]
       return rest
+    })
+    setSavedBoxIds((current) => {
+      if (!current.has(boxId)) return current
+      const next = new Set(current)
+      next.delete(boxId)
+      return next
     })
     setDrafts((current) => ({ ...current, [boxId]: { ...current[boxId], [dimension]: value } }))
   }
@@ -112,6 +127,7 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
         },
         onSuccess: () => {
           setSavingBoxId(null)
+          setSavedBoxIds((current) => new Set(current).add(boxId))
         },
       },
     )
@@ -158,7 +174,7 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
     dimension: PendingMeasurementDimensionKey,
   ) {
     const boxId = measurement.packageBoxId
-    if (boxId === null) return null
+    if (boxId == null) return null
 
     const value = draftOf(boxId)[dimension] ?? ''
     const field = DIMENSION_FIELD[dimension]
@@ -182,6 +198,11 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
         {invalid ? (
           <span className={styles.measureFieldError} id={errorId} role="alert">
             {t('pendingMeasurement.inline.outOfRange', { max: MAX_CENTIMETRES[field] })}
+          </span>
+        ) : null}
+        {!invalid && savedBoxIds.has(boxId) ? (
+          <span className={measurementStyles.measureFieldSaved} role="status">
+            {t('pendingMeasurement.inline.saved')}
           </span>
         ) : null}
       </label>
@@ -224,7 +245,7 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
                 <td>{measurement.boxCount}</td>
                 <td>{t(`pendingMeasurement.estimateSource.${measurement.estimateSource}`)}</td>
                 {canMeasure ? (
-                  measurement.packageBoxId === null ? (
+                  measurement.packageBoxId == null ? (
                     <td className={styles.measureFieldReason} colSpan={3}>
                       {t('pendingMeasurement.inline.noBoxReason')}
                     </td>

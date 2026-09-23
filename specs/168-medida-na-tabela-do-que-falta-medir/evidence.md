@@ -105,6 +105,137 @@ $ bun run test
 44 pass, 0 fail — Ran 44 tests across 1 file. [test:hooks, 644ms]
 ```
 
+## Defeito pós-entrega: `packageBoxId` chega `undefined` pelo detalhe da viagem
+
+### Medição
+
+No DOM da bancada, a tabela "O que falta medir" tinha **177 inputs de medida, todos com o id
+`pending-measurement-undefined-<dimensão>`** — `measurement.packageBoxId` chegava **`undefined`**
+(chave ausente), não `null`. Consequência em cadeia, com o guard `boxId === null` da spec 168:
+
+- `undefined !== null` escapa da guarda em `handleDimensionChange` (linha ~79) e em `dimensionCell`
+  (linha ~161) e do ramo `measurement.packageBoxId === null` na tabela (linha ~227) — todas as linhas
+  passam a compartilhar o mesmo rascunho `drafts["undefined"]` (preencher uma preenche todas).
+- O salvamento no blur envia `id: undefined` — nada é gravado (`select count(*) from
+  nfe_package_boxes where length_mm is not null` = 0 depois de o usuário preencher vários campos).
+
+### Causa raiz
+
+Duas rotas servem `TripCargoLayoutView`, e só uma delas enriquece as pendências de medição:
+
+1. **`GET /trips/:id/cargo-layouts/:layoutId`** (polling da prévia/planta) chama
+   `createReadCargoLayoutUseCase` (`apps/api-transportada/src/trips/application/read-cargo-layout.use-case.ts:52-70`),
+   que usa `packageBoxLookup` para preencher `packageBoxId`/`grossWeightGrams`/`unitsPerBox` — os
+   três só existem no tipo local `CargoLayoutPendingMeasurement`
+   (`apps/api-transportada/src/trips/application/read-cargo-layout.types.ts:25-28`), que **estende**
+   `PendingMeasurement` do pacote `@adatechnology/cargo-placement`
+   (importado em `apps/api-transportada/src/trips/application/trip.port.ts:4`).
+2. **`GET /trips/:id`** (detalhe da viagem — a rota que a tela realmente usa para desenhar
+   `TripCargoPanel`, via `layout={trip.cargoLayout}` em
+   `apps/frontend-transportada/src/modules/trip/components/TripDetail.component.tsx:752`) serializa
+   `trip.cargoLayout` **direto**, sem passar pelo caso de uso de enriquecimento:
+   `apps/api-transportada/src/trips/presentation/trip.routes.ts:1831` (antes da correção) fazia
+   `cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout }` — um spread raso. Como
+   `trip.cargoLayout.pendingMeasurements[]` é tipado como `PendingMeasurement[]` puro (o tipo do
+   pacote, sem os três campos — confirmado em `apps/api-transportada/src/trips/application/trip.port.ts:247`),
+   a chave `packageBoxId` **não existe no objeto**, e o `JSON.stringify` simplesmente a omite. No
+   frontend, `measurement.packageBoxId` lê `undefined` — nunca `null`.
+
+O guard do frontend (`isPendingMeasurement`,
+`apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts:1005`) exige
+`isNullableString(value.packageBoxId)`, que recusa `undefined` — mas ele **não é aplicado** ao
+detalhe da viagem: o comentário em
+`apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts:934` já registrava,
+de propósito, que "o detalhe da viagem não valida `cargoLayout` — ele passa direto, lacuna da spec
+076" (para não derrubar a tela inteira por causa da planta). Essa lacuna deliberada é o motivo de a
+tabela aparecer sem erro, em vez de a consulta falhar.
+
+### Correção
+
+1. **Origem (API)** — `apps/api-transportada/src/trips/presentation/trip.routes.ts`: nova função
+   `serializeCargoLayoutForDetail` substitui o spread raso; cada `pendingMeasurements[i]` ganha
+   `grossWeightGrams: null`, `packageBoxId: null`, `unitsPerBox: null` explícitos — a chave passa a
+   sempre existir, e ausência vira `null`, nunca `undefined` solto. (O detalhe da viagem continua sem
+   o `packageBoxLookup` real — ele exigiria injetar a mesma porta assíncrona no caminho de leitura do
+   `getTrip`, fora do escopo mínimo deste defeito; ver "Pendente" abaixo.)
+2. **Defesa em profundidade (frontend)** —
+   `apps/frontend-transportada/src/modules/trip/components/TripPendingMeasurements.component.tsx`:
+   os três pontos que comparavam `boxId === null` (linhas ~79, ~161, ~227) passam a `boxId == null` /
+   `measurement.packageBoxId == null` — ausência é ausência, cobre `null` e `undefined` igualmente,
+   sem depender de o servidor nunca mais soltar um `undefined`.
+3. **Confirmação de gravação (RF04, reclamação do usuário — "não temos botão de salvar medidas")** —
+   escolhido um indicador visível por linha (`savedBoxIds`, texto "Medida salva" /
+   "Measurement saved") em vez de um botão explícito ou de fazer a linha sumir: a gravação já é
+   `onBlur` reusando a mesma mutação da fila (RF03 não pode virar uma segunda escrita), e a lista já
+   se refaz pela invalidação de `trip-cargo-layout`/`trip-cargo-preview` quando a leitura confirma o
+   `packageBoxId` real — mas até essa releitura devolver a planta enriquecida (que, pelo caminho do
+   detalhe da viagem, hoje nunca acontece — ver "Pendente"), a linha não some sozinha. Um texto de
+   confirmação some assim que o campo volta a ser editado (não por tempo, para não desaparecer antes
+   de o operador olhar de volta à tela) — o critério é "quem preenche precisa saber se salvou", e o
+   texto cumpre isso sem depender da releitura.
+
+### Testes novos
+
+- `apps/api-transportada/test/trip-http/detail.contract.ts` — `GET /trips/:id > normalizes
+  packageBoxId/grossWeightGrams/unitsPerBox to null in the trip detail layout`: roda no worktree
+  (`bun --env-file=../../.env.test test ./test/trip-http.contract.test.ts`, já listado no
+  entrypoint); **falha pelo motivo certo** antes da correção (`Received` sem as três chaves,
+  `Expected` com `null`) — confirmado revertendo `trip.routes.ts` com `git stash` e rodando de novo.
+- `apps/frontend-transportada/test/trip/pending-measurement-inline.contract.ts`: assertivas
+  estruturais atualizadas (`packageBoxId == null`, nunca `=== null`), mais três casos novos —
+  rascunho sempre indexado por `boxId` real (`drafts[boxId]`), gravação sempre com `id: boxId`, e a
+  confirmação visível (`savedBoxIds`, chave i18n `pendingMeasurement.inline.saved` em pt-BR e en).
+  Ambos os arquivos já estavam na lista explícita dos `package.json` (não são arquivos novos).
+- Chave i18n nova: `pendingMeasurement.inline.saved` em
+  `apps/frontend-transportada/src/modules/trip/locales/trip.locale.json` e `trip.en.locale.json`.
+- CSS: `apps/frontend-transportada/src/modules/trip/components/TripPendingMeasurements.module.css`
+  (arquivo novo, colocado ao lado do componente) — `trip.module.css` está no território de outra
+  frente e não foi tocado; o teste `test/design-system.contract.test.ts` (que audita classes CSS
+  Module em uso) passou com o módulo novo.
+
+## Gates — saída real desta sessão
+
+```
+$ bun run typecheck                                    # raiz — todas as 6 apps
+(sem saída — 0 erros)
+
+$ bun run --cwd apps/api-transportada lint
+(sem saída — 0 erros)
+
+$ bun run --cwd apps/frontend-transportada lint
+(sem saída — 0 erros)
+
+$ bun --env-file=../../.env.test test ./test/trip-http.contract.test.ts   # apps/api-transportada
+141 pass, 0 fail — Ran 141 tests across 1 file.
+
+$ bun --env-file=../../.env.test test --timeout 120000                    # apps/api-transportada
+7173 pass, 23 skip, 0 fail — Ran 7196 tests across 183 files.
+
+$ bun --env-file=../../.env.test run test:integration                     # apps/api-transportada
+(em andamento — ver nota abaixo)
+
+$ bun test ./test/trip.contract.test.ts                # apps/frontend-transportada
+1514 pass, 0 fail — Ran 1514 tests across 1 file.
+
+$ bun test ./test/design-system.contract.test.ts        # apps/frontend-transportada
+392 pass, 0 fail — Ran 392 tests across 1 file.
+```
+
+## Pendente
+
+- A integração completa (`test:integration`) estava rodando em background no fim desta sessão; a
+  spec original já registrava 75 falhas pré-existentes por `event_kind` faltando no banco descartável
+  (drift do worktree, não desta correção) — falta confirmar que o número não mudou e que nenhuma nova
+  falha cita `cargo-layout`/`pending-measurement`/`trip-http`.
+- **`GET /trips/:id` continua sem `packageBoxId` real** — a normalização feita aqui só evita o
+  `undefined` solto (troca por `null` sempre), então toda linha servida por esse caminho aparece como
+  "sem caixa do catálogo" (`noBoxReason`), mesmo quando existe casamento único. Medir efetivamente
+  pela tabela da viagem só funciona hoje enquanto a planta ainda está sendo servida pela rota de
+  polling dedicada (`/cargo-layouts/:layoutId`, que já enriquece). Fechar isso de verdade exige
+  injetar o mesmo `packageBoxLookup` (ou equivalente) no caminho de `getTrip`/`serializeTripDetail` —
+  mudança de escopo maior (chamada assíncrona nova dentro da leitura do detalhe), fora do que cabe
+  numa correção mínima de bug; sinalizo como acompanhamento.
+
 ## O que não fechou nesta spec
 
 - **RF07** ("a coluna 'Origem da medida' passa a dizer quem mediu e quando, para a medida digitada
