@@ -225,58 +225,60 @@ export function OccurrenceReimbursementsWorkspacePage() {
         ) : rows.length === 0 ? (
           <p className={styles.hint}>{t('reimbursements.empty')}</p>
         ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope="col">
-                  <Checkbox
-                    ariaLabel={t('reimbursements.table.selectAll')}
-                    checked={rows.every((row) => controller.selectedIds.has(row.id))}
-                    indeterminate={
-                      rows.some((row) => controller.selectedIds.has(row.id)) &&
-                      !rows.every((row) => controller.selectedIds.has(row.id))
-                    }
-                    onChange={() => rows.forEach((row) => controller.toggleRow(row.id))}
-                  />
-                </th>
-                <th scope="col">{t('reimbursements.table.date')}</th>
-                <th scope="col">{t('reimbursements.table.note')}</th>
-                <th scope="col">{t('reimbursements.table.type')}</th>
-                <th scope="col">{t('reimbursements.table.amount')}</th>
-                <th scope="col">{t('reimbursements.table.status')}</th>
-                <th scope="col">{t('reimbursements.table.settlement')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">
                     <Checkbox
-                      ariaLabel={t('reimbursements.table.select')}
-                      checked={controller.selectedIds.has(row.id)}
-                      onChange={() => controller.toggleRow(row.id)}
+                      ariaLabel={t('reimbursements.table.selectAll')}
+                      checked={rows.every((row) => controller.selectedIds.has(row.id))}
+                      indeterminate={
+                        rows.some((row) => controller.selectedIds.has(row.id)) &&
+                        !rows.every((row) => controller.selectedIds.has(row.id))
+                      }
+                      onChange={() => rows.forEach((row) => controller.toggleRow(row.id))}
                     />
-                  </td>
-                  <td>{row.chargedOn}</td>
-                  <td>
-                    {row.noteNumber === null
-                      ? '—'
-                      : row.noteSeries === null
-                        ? row.noteNumber
-                        : `${row.noteNumber}/${row.noteSeries}`}
-                  </td>
-                  <td>{t(`chargeType.${row.chargeType}`)}</td>
-                  <td>{formatAmount(row.amount)}</td>
-                  <td>{t(`chargeStatus.${row.status}`)}</td>
-                  <td>
-                    {row.hasSettlement
-                      ? t('reimbursements.table.settlementDone')
-                      : t('reimbursements.table.settlementPending')}
-                  </td>
+                  </th>
+                  <th scope="col">{t('reimbursements.table.date')}</th>
+                  <th scope="col">{t('reimbursements.table.note')}</th>
+                  <th scope="col">{t('reimbursements.table.type')}</th>
+                  <th scope="col">{t('reimbursements.table.amount')}</th>
+                  <th scope="col">{t('reimbursements.table.status')}</th>
+                  <th scope="col">{t('reimbursements.table.settlement')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <Checkbox
+                        ariaLabel={t('reimbursements.table.select')}
+                        checked={controller.selectedIds.has(row.id)}
+                        onChange={() => controller.toggleRow(row.id)}
+                      />
+                    </td>
+                    <td>{row.chargedOn}</td>
+                    <td>
+                      {row.noteNumber === null
+                        ? '—'
+                        : row.noteSeries === null
+                          ? row.noteNumber
+                          : `${row.noteNumber}/${row.noteSeries}`}
+                    </td>
+                    <td>{t(`chargeType.${row.chargeType}`)}</td>
+                    <td>{formatAmount(row.amount)}</td>
+                    <td>{t(`chargeStatus.${row.status}`)}</td>
+                    <td>
+                      {row.hasSettlement
+                        ? t('reimbursements.table.settlementDone')
+                        : t('reimbursements.table.settlementPending')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {controller.report === undefined ? null : (
