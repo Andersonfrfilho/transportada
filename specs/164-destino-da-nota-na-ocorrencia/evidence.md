@@ -1926,7 +1926,7 @@ explícita (`responsive.smoke.spec.ts`, `field-delivery.smoke.spec.ts`,
 `trip-timeline.smoke.spec.ts`) que não inclui o arquivo novo — mesmo arranjo do `spec-159-prints`.
 O gate da CI não passa a depender de servidor de pré-visualização para gerar imagem.
 
-Sete testes de print: painel da tratativa em `awaiting_contractor`, `decided` (com o painel de
+Oito testes de print: painel da tratativa em `awaiting_contractor`, `decided` (com o painel de
 acerto e os itens, `OccurrenceSettlementPanel`), `returned_to_warehouse` e `cancelled` (todos em
 `/ocorrencias`, `OccurrenceCasePanel`/`OccurrenceSettlementPanel`); "Ressarcimentos" com filtro e
 seleção de linha em desktop e celular (`/ressarcimentos`); e a nota marcada na listagem da viagem
@@ -1950,27 +1950,69 @@ mapa por esse motivo (`hasBasemap` tem fallback textual exatamente para quando o
 carrega em CI headless); esta task segue o mesmo precedente e usa o selo textual "Tratativa
 aberta" da listagem como a asserção verificável, com o mapa capturado best-effort no mesmo print.
 
+### Correção: a chave `occurrence` duplicada em `trip.locale.json`/`trip.en.locale.json`
+
+A primeira rodada dos prints (com a API livre, ver abaixo) travou em dois pontos e revelou um
+defeito real de produção, não só do mock:
+
+1. **`t('occurrence.openCase')`/`openCaseHint` voltavam a chave crua** — `TripStopList` mostrava
+   literalmente `occurrence.openCase` em vez de "Tratativa aberta". Causa:
+   `trip.locale.json`/`trip.en.locale.json` tinham **duas chaves `"occurrence"` no nível raiz**
+   (uma pequena, só com `openCase`/`openCaseHint`/`stopOpenCase`, e uma grande, com o resto do
+   namespace de ocorrência de separação). Em JSON, chave duplicada faz o parser ficar só com a
+   última — `JSON.parse` (e o `import` do bundler) descartava o bloco pequeno inteiro, e as três
+   chaves do RF36 (spec 164) nunca existiram em tempo de execução, silenciosamente, desde que a
+   T15 as introduziu. **Conserto**: as três chaves migraram para dentro do bloco grande, nos dois
+   locales (pt-BR e en); `python3 -c "json.load(...)"` confirma que os arquivos continuam JSON
+   válido, e `grep -c '^  "occurrence"'` confirma uma ocorrência só da chave raiz em cada arquivo.
+2. **Duas asserções por texto batiam em dois lugares** (`getByText('Retornada ao barracão')` e
+   `getByText('Cancelada')`) — o rótulo do filtro "Tratativa" lista os mesmos nomes de estado como
+   opção. Escopadas para dentro do `<tr>` do painel expandido (`detailRow.getByText(...)`), que é
+   a única leitura sem ambiguidade.
+3. **A tabela de "Ressarcimentos" vinha vazia** — o mock de `GET /occurrence-charges/report`
+   aninhava as linhas em `{ data: { items, nextCursor, totals } }`, mas
+   `toOccurrenceChargeReportPage` (`extraChargesResponse.validation.ts`) lê `data` como o array de
+   linhas e `page.nextCursor`/`totals` **soltos no envelope**, formato diferente do resto deste
+   helper. Corrigido para `{ data: [...linhas], page: { nextCursor }, totals: {...} }`.
+
 ### Gates
 
 - `bun run lint` (raiz, todas as apps) — OK, 0 erros/avisos.
 - `bun run typecheck` (raiz, todas as apps) — OK, 0 erros.
-- `bunx prettier --check .` (raiz) — OK para os dois arquivos desta task (formatados com
-  `prettier --write`); `specs/164-destino-da-nota-na-ocorrencia/evidence.md` segue com o aviso
-  pré-existente de outra sessão (conteúdo anterior a esta tarefa, fora do escopo de reescrever).
-- `bun run --cwd apps/frontend-transportada test` — não roda o arquivo novo (fora de `testMatch`
-  por desenho); suíte de contratos e `test:hooks` não tocados por esta task.
+- `bunx prettier --check` nos arquivos desta task (2 de teste + 2 locales) — OK, formatados com
+  `prettier --write`.
+- `bun run --cwd apps/frontend-transportada test` — **4946 pass / 0 fail** (contratos) + **44
+  pass / 0 fail** (`test:hooks`); a suíte de contratos exercita os dois `*.locale.json` tocados
+  (nenhuma chave nova, só a deduplicação) e ficou toda verde. O arquivo de smoke novo não roda
+  aqui, de propósito (fora de `testMatch`).
 
-**⚠️ Os PNGs não foram gerados nesta sessão.** `bunx playwright test` com
-`PLAYWRIGHT_TEST_MATCH=spec-164-prints.smoke.spec.ts` builda a API (`webServer` do
-`playwright.config.ts`) em `PORT=53001` — porta ocupada por outra sessão do Claude trabalhando em
-`apps/api-transportada` nesta mesma árvore (`lsof` confirmou o processo). Redirecionar via
-`PLAYWRIGHT_API_PORT`/`VITE_API_URL` não resolve: o `bun run start` da API lê a porta do próprio
-`.env`/config, não da variável de ambiente de teste, e mudar isso tocaria `apps/api-transportada`
-— fora do escopo autorizado desta sessão. Não matei nem reiniciei o processo da outra sessão. Os
-sete testes foram revisados por leitura contra os componentes reais (`OccurrenceCasePanel`,
-`OccurrenceSettlementPanel`, `TripOccurrenceTable`, `OccurrenceReimbursementsWorkspace.page.tsx`,
-`TripStopList`) e os textos/rótulos batem com os `*.locale.json`; `lint`/`typecheck`/`prettier`
-confirmam que o arquivo compila e roda contra o app real. **Pendência explícita**: rodar
-`PLAYWRIGHT_TEST_MATCH=spec-164-prints.smoke.spec.ts bunx playwright test` (de dentro de
-`apps/frontend-transportada`, com a API livre na 53001) e conferir os sete PNGs em
-`specs/164-destino-da-nota-na-ocorrencia/prints/` antes de fechar a T30.
+### Os oito PNGs, gerados de verdade
+
+Com a porta 53001 livre (a outra sessão de `apps/api-transportada` liberou o processo):
+
+```
+cd apps/frontend-transportada
+PLAYWRIGHT_TEST_MATCH='spec-164-prints.smoke.spec.ts' \
+PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
+PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
+PLAYWRIGHT_FRONTEND_PORT=53120 \
+VITE_SMOKE_AUTH_BYPASS=true bunx playwright test
+```
+
+**8 passed (20.9s)**. Caminhos (todos em `specs/164-destino-da-nota-na-ocorrencia/prints/`):
+
+- `painel-tratativa-aguardando-contratante.png`
+- `painel-tratativa-decidida-com-acerto.png`
+- `painel-tratativa-retornada-ao-barracao.png`
+- `painel-tratativa-cancelada.png`
+- `ressarcimentos-filtro-selecao-desktop.png`
+- `ressarcimentos-filtro-selecao-mobile.png`
+- `nota-marcada-listagem-mapa-desktop.png`
+- `nota-marcada-listagem-mapa-mobile.png`
+
+**Pendência que segue explícita**: o ícone da tratativa no pino do mapa (`AssemblyVectorMap`,
+canvas WebGL) aparece nos dois `nota-marcada-listagem-mapa-*` quando o basemap carrega, mas
+nenhuma asserção de texto/`read_page` o confirma — canvas não expõe nós de acessibilidade, e
+nenhum smoke do repositório testa conteúdo de mapa por esse motivo. A asserção verificável destes
+dois testes é o selo textual "Tratativa aberta" da listagem (`TripStopList`); o mapa é capturado
+best-effort no mesmo print, e quem revisar o design confere o pino a olho no PNG.

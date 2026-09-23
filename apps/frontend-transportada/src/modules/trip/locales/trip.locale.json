@@ -488,11 +488,6 @@
     "delivery": "Entrega",
     "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
   },
-  "occurrence": {
-    "openCase": "Tratativa aberta",
-    "openCaseHint": "Esta nota tem uma ocorrência de destino em tratativa",
-    "stopOpenCase": "Parada com tratativa aberta"
-  },
   "detail": {
     "closedManually": "Encerrada manualmente em {{moment}}",
     "closedManuallyBy": "Encerrada manualmente por {{name}} em {{moment}}",
@@ -677,6 +672,9 @@
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta."
   },
   "occurrence": {
+    "openCase": "Tratativa aberta",
+    "openCaseHint": "Esta nota tem uma ocorrência de destino em tratativa",
+    "stopOpenCase": "Parada com tratativa aberta",
     "cancel": "Cancelar",
     "cancelConfirmBody": "Cancelar descarta a foto e a observação preenchidas.",
     "cancelConfirmContinue": "Continuar preenchendo",

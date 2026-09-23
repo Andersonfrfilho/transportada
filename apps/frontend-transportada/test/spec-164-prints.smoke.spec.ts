@@ -102,21 +102,22 @@ test('print: painel da tratativa decidida, com o acerto e os itens', async ({ pa
 test('print: painel da tratativa retornada ao barracão', async ({ page }) => {
   await page.setViewportSize(DESKTOP)
   await openOccurrencesWorkspace({ occurrenceId: OCCURRENCE_RETURNED_TO_WAREHOUSE_ID, page })
-  await expect(page.getByText('Retornada ao barracão')).toBeVisible()
-  await page
-    .locator('tr:has-text("Passo atual")')
-    .first()
-    .screenshot({ path: printPath('painel-tratativa-retornada-ao-barracao') })
+  /**
+   * `getByText` sem escopo bate duas vezes: o rótulo do filtro "Tratativa" também lista
+   * "Retornada ao barracão" como opção. A asserção e o print ficam presos ao painel expandido
+   * (a `tr` com "Passo atual"), que é a única leitura sem ambiguidade.
+   */
+  const detailRow = page.locator('tr:has-text("Passo atual")').first()
+  await expect(detailRow.getByText('Retornada ao barracão')).toBeVisible()
+  await detailRow.screenshot({ path: printPath('painel-tratativa-retornada-ao-barracao') })
 })
 
 test('print: painel da tratativa cancelada', async ({ page }) => {
   await page.setViewportSize(DESKTOP)
   await openOccurrencesWorkspace({ occurrenceId: OCCURRENCE_CANCELLED_ID, page })
-  await expect(page.getByText('Cancelada')).toBeVisible()
-  await page
-    .locator('tr:has-text("Passo atual")')
-    .first()
-    .screenshot({ path: printPath('painel-tratativa-cancelada') })
+  const detailRow = page.locator('tr:has-text("Passo atual")').first()
+  await expect(detailRow.getByText('Cancelada')).toBeVisible()
+  await detailRow.screenshot({ path: printPath('painel-tratativa-cancelada') })
 })
 
 for (const viewport of ['desktop', 'mobile'] as const) {

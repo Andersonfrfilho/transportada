@@ -306,9 +306,14 @@ const REIMBURSEMENT_ROWS = [
   },
 ] as const
 
-const REIMBURSEMENT_REPORT = {
-  items: REIMBURSEMENT_ROWS,
-  nextCursor: null,
+/**
+ * `toOccurrenceChargeReportPage` (`extraChargesResponse.validation.ts`) lê `data` (as linhas) e
+ * `page.nextCursor`/`totals` **soltos no envelope**, não aninhados dentro de `data` — formato
+ * diferente do resto deste helper (`GET /trip-occurrences`, que aninha em `data`).
+ */
+const REIMBURSEMENT_REPORT_ENVELOPE = {
+  data: REIMBURSEMENT_ROWS,
+  page: { nextCursor: null },
   totals: {
     byChargeType: [{ amount: '124.90', chargeType: 'returned_goods', count: 2 }],
     totalAmount: '124.90',
@@ -344,7 +349,7 @@ export async function mockReimbursementsApi(
       await fulfillOptions(route)
       return
     }
-    await fulfillJson(route, { data: REIMBURSEMENT_REPORT })
+    await fulfillJson(route, REIMBURSEMENT_REPORT_ENVELOPE)
   })
 
   await input.page.route(/\/contractors(?:\?.*)?$/, async (route) => {
