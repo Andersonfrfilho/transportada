@@ -17,6 +17,8 @@ import {
   cteBatchItemCharges,
   cteBatchItems,
   cteBatches,
+  cteEmissionProfileMatchers,
+  cteEmissionProfiles,
   cteFiscalDocuments,
   cteIssuanceAttempts,
   fiscalSequenceReservations,
@@ -31,6 +33,8 @@ import {
   nfeDocuments,
   nfeImports,
   nfeParticipants,
+  nfeVolumes,
+  nfseEmissionProfiles,
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
@@ -41,6 +45,8 @@ import { readTripValuation } from '../../src/trips/application/read-trip-valuati
 import { setTripMdfeRequirement } from '../../src/trips/application/set-trip-mdfe-requirement.use-case.js'
 import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
 import { DrizzleTripFiscalReadinessQuery } from '../../src/trips/infrastructure/trip-fiscal-readiness.query.js'
+import { DrizzleNfeDocumentRepository } from '../../src/nfe-documents/infrastructure/drizzle-nfe-document.repository.js'
+import type { NfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 
 /** A valoração avisa por log quando um id de motorista não responde; aqui o aviso não interessa. */
 const SILENT_LOGGER = { error: () => undefined, info: () => undefined, warn: () => undefined }
@@ -50,6 +56,9 @@ const databaseUrl =
   process.env.API_TEST_DATABASE_URL ??
   process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
+
+/** A classificação do documento não toca o armazenamento — o dublê existe só pelo construtor. */
+const NOT_STORAGE = {} as NfeStorageGateway
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
@@ -65,6 +74,16 @@ type Outcome = 'authorized' | 'none' | 'rejected' | 'urban'
 const COMPANY_CITY_CODE = '3543402'
 const OTHER_CITY_CODE = '3551702'
 
+/**
+ * A classificação (ADR-0071) casa pelo CNPJ do destinatário, não mais pela cidade: as três notas
+ * fora do município e a urbana precisam de destinatários com CNPJ diferente para casar com o
+ * perfil de CT-e ou o de NFS-e, respectivamente.
+ */
+const CTE_RECIPIENT_TAX_ID = '11111111000191'
+const NFSE_RECIPIENT_TAX_ID = '22222222000191'
+/** Só precisa ser um CNPJ válido: nenhum matcher casa por remetente neste mundo semeado. */
+const SENDER_TAX_ID = '33333333000191'
+
 type World = {
   readonly companyId: string
   readonly tripDocumentIdByOutcome: ReadonlyMap<Outcome, string>
@@ -77,7 +96,10 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
   testWithPostgres('diz por nota o que falta, numa consulta só', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedTrip(database)
-      const query = new DrizzleTripFiscalReadinessQuery(database.db)
+      const query = new DrizzleTripFiscalReadinessQuery(
+        database.db,
+        new DrizzleNfeDocumentRepository(database.db, NOT_STORAGE),
+      )
 
       const readiness = await readTripFiscalReadiness({
         companyId: world.companyId,
@@ -116,7 +138,10 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
   testWithPostgres('vira ready quando a última nota é autorizada', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedTrip(database)
-      const query = new DrizzleTripFiscalReadinessQuery(database.db)
+      const query = new DrizzleTripFiscalReadinessQuery(
+        database.db,
+        new DrizzleNfeDocumentRepository(database.db, NOT_STORAGE),
+      )
 
       // Desvincular as duas pendentes é o caminho da P2 da spec: a viagem segue sem elas.
       // A urbana **fica**, e é justamente ela que não pode impedir a viagem de ficar pronta.
@@ -156,7 +181,10 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
         vehicleId: world.vehicleId,
       })
 
-      const query = new DrizzleTripFiscalReadinessQuery(database.db)
+      const query = new DrizzleTripFiscalReadinessQuery(
+        database.db,
+        new DrizzleNfeDocumentRepository(database.db, NOT_STORAGE),
+      )
       expect(
         (
           await readTripFiscalReadiness({
@@ -202,7 +230,10 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
 
       const readiness = await readTripFiscalReadiness({
         companyId: world.companyId,
-        repository: new DrizzleTripFiscalReadinessQuery(database.db),
+        repository: new DrizzleTripFiscalReadinessQuery(
+          database.db,
+          new DrizzleNfeDocumentRepository(database.db, NOT_STORAGE),
+        ),
         tripId: world.tripId,
       })
 
@@ -223,7 +254,10 @@ describe('a prontidão fiscal da viagem (spec 059 T006)', () => {
   testWithPostgres('a dispensa de MDF-e grava com trilha e volta ao derivado', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedTrip(database)
-      const repository = new DrizzleTripFiscalReadinessQuery(database.db)
+      const repository = new DrizzleTripFiscalReadinessQuery(
+        database.db,
+        new DrizzleNfeDocumentRepository(database.db, NOT_STORAGE),
+      )
 
       const dispensed = await setTripMdfeRequirement({
         actorUserId: world.userId,
@@ -494,6 +528,41 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     reservationKey: 'reservation-readiness',
   })
 
+  const activeNfseProfileId = crypto.randomUUID()
+  await database.db.insert(nfseEmissionProfiles).values({
+    chargeComponentLabel: 'Frete',
+    cnaeCode: '4930202',
+    companyId,
+    createdByUserId: userId,
+    descriptionTemplate: 'Transporte {{periodo}}',
+    freightRuleId,
+    id: activeNfseProfileId,
+    municipalityIbgeCode: COMPANY_CITY_CODE,
+    municipalityName: 'Ribeirao Preto',
+    name: 'NFS-e prontidão',
+    serviceListItem: '1602',
+    status: 'active',
+    taker: '0',
+  })
+  /**
+   * A conta única (ADR-0071): o documento de saída sai do perfil que casa com o CNPJ do
+   * destinatário, não mais da comparação de município. Um perfil por desfecho.
+   */
+  await seedEmissionProfile(database, {
+    companyId,
+    freightRuleId,
+    nfseEmissionProfileId: null,
+    recipientTaxId: CTE_RECIPIENT_TAX_ID,
+    userId,
+  })
+  await seedEmissionProfile(database, {
+    companyId,
+    freightRuleId,
+    nfseEmissionProfileId: activeNfseProfileId,
+    recipientTaxId: NFSE_RECIPIENT_TAX_ID,
+    userId,
+  })
+
   const tripDocumentIdByOutcome = new Map<Outcome, string>()
   const outcomes: readonly Outcome[] = ['authorized', 'rejected', 'none', 'urban']
 
@@ -522,12 +591,16 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     })
 
     /**
-     * O município vem do endereço do participante da própria nota — é o trajeto real. `sender` sempre
-     * no município da transportadora (a coleta é aqui); `recipient` é o que decide o documento.
+     * O endereço segue marcando o trajeto real (urbano × fora do município); o CNPJ do destinatário
+     * é quem casa com o perfil de emissão e decide o documento (ADR-0071).
      */
-    for (const [role, cityCode] of [
-      ['sender', COMPANY_CITY_CODE],
-      ['recipient', outcome === 'urban' ? COMPANY_CITY_CODE : OTHER_CITY_CODE],
+    for (const [role, cityCode, taxId] of [
+      ['emitter', COMPANY_CITY_CODE, SENDER_TAX_ID],
+      [
+        'recipient',
+        outcome === 'urban' ? COMPANY_CITY_CODE : OTHER_CITY_CODE,
+        outcome === 'urban' ? NFSE_RECIPIENT_TAX_ID : CTE_RECIPIENT_TAX_ID,
+      ],
     ] as const) {
       const participantId = crypto.randomUUID()
       await database.db.insert(nfeParticipants).values({
@@ -536,6 +609,7 @@ async function seedTrip(database: TestDatabase): Promise<World> {
         id: participantId,
         legalName: `Participante ${role} ${index}`,
         role,
+        taxId,
       })
       await database.db.insert(nfeAddresses).values({
         city: cityCode === COMPANY_CITY_CODE ? 'Ribeirao Preto' : 'Sertaozinho',
@@ -548,6 +622,16 @@ async function seedTrip(database: TestDatabase): Promise<World> {
         street: 'Rua da Entrega',
       })
     }
+
+    /** O CT-e exige peso na `infQ`; sem volume a nota fica bloqueada antes de chegar à classificação. */
+    await database.db.insert(nfeVolumes).values({
+      companyId,
+      documentId: nfeDocumentId,
+      grossWeight: '120.0000',
+      netWeight: '100.0000',
+      ordinal: 1n,
+      quantity: '4.0000',
+    })
 
     const tripDocumentId = crypto.randomUUID()
     await database.db.insert(tripDocuments).values({
@@ -647,6 +731,47 @@ async function seedTrip(database: TestDatabase): Promise<World> {
   }
 
   return { companyId, tripDocumentIdByOutcome, tripId, userId, vehicleId }
+}
+
+/** Um perfil de emissão casado por CNPJ do destinatário — o par (destinatário, documento) do teste. */
+async function seedEmissionProfile(
+  database: TestDatabase,
+  input: {
+    readonly companyId: string
+    readonly freightRuleId: string
+    readonly nfseEmissionProfileId: string | null
+    readonly recipientTaxId: string
+    readonly userId: string
+  },
+): Promise<void> {
+  const profileId = crypto.randomUUID()
+  await database.db.insert(cteEmissionProfiles).values({
+    cfopInternal: '5353',
+    cfopInterstate: '6353',
+    chargeComponentLabel: 'FRETE PESO',
+    companyId: input.companyId,
+    createdByUserId: input.userId,
+    freightRuleId: input.freightRuleId,
+    groupingMode: 'per_invoice',
+    icmsCst: '00',
+    icmsRate: '0.120000',
+    id: profileId,
+    matchMode: 'sender_tax_id',
+    name: `Perfil ${input.recipientTaxId}`,
+    nfseEmissionProfileId: input.nfseEmissionProfileId,
+    operationNature: 'PRESTACAO DE SERVICO DE TRANSPORTE',
+    outputDocument: input.nfseEmissionProfileId === null ? 'cte' : 'nfse',
+    predominantProductMode: 'highest_value',
+    receiverIeIndicator: '1',
+    status: 'active',
+    taker: '0',
+  })
+  await database.db.insert(cteEmissionProfileMatchers).values({
+    companyId: input.companyId,
+    matchRole: 'recipient',
+    profileId,
+    taxId: input.recipientTaxId,
+  })
 }
 
 async function withDisposableDatabase(

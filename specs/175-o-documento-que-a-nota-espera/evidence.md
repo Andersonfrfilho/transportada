@@ -183,3 +183,110 @@ duas locales) é quem explica o motivo.
 - O estado "sem perfil que case com a nota" (RF5) não foi tratado — depende do mesmo trabalho da
   Fase 3 (T204).
 - O resumo de prontidão ainda não conta NFS-e pendente (RF8) — fica para a Fase 4 (T301/T302).
+
+## Fase 3 — A fonte única e o caminho da NFS-e
+
+### T205 — `expectedDocument` passa a sair de `classifyDocumentOutput`
+
+**O que mudou.**
+
+- `apps/api-transportada/src/trips/infrastructure/trip-fiscal-readiness.query.ts` — a consulta
+  deixa de ler `company_fiscal_profiles` e os quatro `left join` de participante/endereço que só
+  existiam para comparar código de município, e passa a classificar pela porta da listagem de
+  notas (`classifyDocumentOutputs`), numa chamada para as N notas. A nota classificada é
+  `coalesce(trip_documents.nfe_document_id, freight_calculations.nfe_document_id)` — os dois
+  caminhos de vínculo que a consulta já atravessava.
+- `apps/api-transportada/src/trips/application/read-trip-fiscal-readiness.use-case.ts` —
+  `expectedDocument` passa a ser `'blocked' | 'cte' | 'nfse' | 'no_profile'` (nunca `null`), e a
+  nota carrega `nfseProfileId`. Vocabulário de motivo ganhou `blocked` e `no_profile`.
+- `apps/api-transportada/src/main.ts` — `tripFiscalReadinessQuery` nasce **depois** de
+  `nfeDocumentRepository`, porque agora depende dele.
+- `apps/frontend-transportada/src/modules/trip/shared/trip.types.ts` e
+  `tripResponse.validation.ts` — guard tolerante: aceita `nfseProfileId` e os dois valores novos.
+
+**Mapeamento de `blocked` e `no_profile` em `toReason` (hoje `readDocumentReason`).** Cada um vira
+um motivo **próprio**, não um motivo existente. Achatá-los em `no_cte` ofereceria ao operador uma
+emissão que terminaria em erro; achatá-los em `city_unknown` diria "cidade desconhecida" sobre
+uma nota cuja cidade é conhecida e cujo problema é outro. Os dois entram no topo do `REASON_RANK`,
+junto de `nfse_expected`, porque são classificação e não desfecho de tentativa — a classificação
+manda sobre qualquer CT-e que por acaso exista. Os dois também entram em `UNDECIDED_REASONS`, pela
+mesma razão que `city_unknown` entrava: a nota ainda pode ser CT-e, então ela **bloqueia** o
+"pronta" em vez de sumir da conta.
+
+**`city_unknown` continua no vocabulário dos dois lados.** A API não o produz mais, mas removê-lo
+faria o bundle novo recusar a resposta inteira de uma API ainda não atualizada — o oposto da
+tolerância que esta task pede. Ele fica como valor de compatibilidade, e é também o que o
+frontend usa quando `expectedDocument` vem ausente.
+
+**Forma da invariante (escolha registrada).** Leitura estática do fonte, não `goto-definition`. O
+que se proíbe é uma **tela ou rota** decidir o documento de saída pelo município; isso é
+propriedade dos arquivos que compõem esse caminho, não do grafo de chamadas — no grafo,
+`resolveFiscalDocumentKind` continua legítima dentro do domínio que alimenta a fonte única, e uma
+invariante sobre o grafo reprovaria o uso legítimo junto com o proibido. O contrato lê
+`trip-fiscal-readiness.query.ts`, `read-trip-fiscal-readiness.use-case.ts` e `trip.routes.ts` e
+exige que o nome não apareça. O frontend não entra na lista porque o bundle não carrega código da
+API: lá a mesma invariante é a que já existe em `document-row-action.contract.ts` — a ação sai de
+`expectedDocument`, e de mais nada.
+
+**Estreitamento da porta de classificação.** `NfeDocumentOutputClassifierPort` passou a receber
+`companyId` no lugar do `CompanyContext` inteiro. A prontidão da viagem só tem `companyId`, e
+exigir o contexto autenticado a obrigaria a forjar permissões e papéis que ela não usa.
+
+**Semeadura dos testes de integração.** `mixed-cargo-end-to-end.integration.ts` não dava CNPJ a
+emitente/destinatário nem cadastrava perfil de emissão — com a conta de município isso bastava,
+com a do perfil as três notas viravam `no_profile`. A regra de frete e os dois perfis (um de CT-e,
+um de NFS-e, casados pelo CNPJ do destinatário) subiram para `seedWarehouse`, e
+`authorizeCteDocuments` passou a reusá-los pelo `World` — o perfil precisa existir **antes** da
+primeira leitura de prontidão, que acontece antes do lote.
+
+**Ordem de execução.** O frontend tolerante fechou **antes** da API, em commit próprio: chave nova
+que derrubasse o guard apagaria a tela da viagem na janela entre os dois deploys.
+
+**Gates.**
+
+```
+$ cd apps/frontend-transportada
+$ bun run typecheck        → $ tsc --noEmit (sem saída, sem erro)
+$ bun run lint             → $ eslint . (sem saída, sem erro)
+$ bun run test             → 5037 pass / 0 fail / 29 arquivos
+                             44 pass / 0 fail (suíte de hooks)
+
+$ cd apps/api-transportada
+$ bun run typecheck        → $ bunx tsc --noEmit (sem saída, sem erro)
+$ bun run lint             → $ bunx eslint ... --max-warnings=0 (sem saída, sem erro)
+$ bun --env-file=../../.env.test test --timeout 120000
+                           → 7165 pass / 23 skip / 0 fail / 183 arquivos
+$ bun --env-file=../../.env.test test ./test/integration/trip-fiscal-readiness.integration.ts \
+    ./test/integration/nfe-document-output.integration.ts
+                           → 8 pass / 0 fail / 33 expect() calls
+```
+
+A suíte de integração completa (`test:integration`, 100+ arquivos) não fechou nesta rodada:
+`mixed-cargo-end-to-end.integration.ts` (spec 065 T018) semeava notas sem CNPJ de participante e
+sem perfil de emissão cadastrado — sob a conta de município isso bastava, sob a do perfil as três
+notas viram `no_profile`. Esse arquivo ficou **fora deste commit**, em correção concorrente na
+mesma árvore; os dois arquivos de integração que este commit toca diretamente
+(`trip-fiscal-readiness.integration.ts`, semeado com o mesmo par CT-e/NFS-e por CNPJ do
+destinatário, e `nfe-document-output.integration.ts`) passam isolados, como mostrado acima.
+
+O contrato novo (`test/trip-fiscal-readiness/document-output-source.contract.ts`, registrado no
+entrypoint `test/trip-fiscal-readiness.contract.test.ts`) foi escrito **antes** da implementação e
+falhou pelo motivo certo:
+
+```
+SyntaxError: Export named 'readDocumentClassification' not found in module
+  '.../src/trips/infrastructure/trip-fiscal-readiness.query.ts'
+0 pass / 1 fail / 1 error
+```
+
+No frontend, o contrato tolerante falhou antes com 4 casos:
+`TRIP_RESPONSE_INVALID` nos dois estados novos, e `nfseProfileId` chegando `undefined`.
+
+### T206 — a fronteira de módulo, escrita
+
+`apps/frontend-transportada/CLAUDE.md` ganhou a seção "Fronteira entre módulos": um parágrafo
+descrevendo o costume que já valia antes de T201 decidir por ele — módulo consome de outro só o
+componente de ação autocontido que o dono exporta (`NfseEmissionAction`), nunca o diálogo ou o hook
+internos —, com o precedente literal (`NfeDocumentTable.component.tsx` já importa
+`NfseEmissionAction` de `nfse-invoice`). Não inventa regra nova; documenta a que T201 já tinha
+encontrado no código.

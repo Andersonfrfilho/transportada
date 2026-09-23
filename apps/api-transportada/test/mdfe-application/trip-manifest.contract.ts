@@ -157,6 +157,7 @@ function createFixture(params: FixtureParams = {}) {
             cteFiscalDocumentId: CTE_DOCUMENT_ID,
             expectedDocument: 'cte',
             nfeDocumentId: NFE_DOCUMENT_ID,
+            nfseProfileId: null,
             reason: 'ok',
             rejectionCode: null,
             rejectionMessage: null,

@@ -13,12 +13,14 @@ import { ApiError } from '../../src/shared/api.error.js'
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const TRIP_ID = '00000000-0000-4000-8000-000000000002'
 
-/** A classificação manda: `nfse_expected` é nota urbana, `city_unknown` é nota que não se decidiu. */
-function expectedDocumentOf(reason: TripDocumentReadiness['reason']) {
-  if (reason === 'nfse_expected') return 'nfse' as const
-  if (reason === 'city_unknown') return null
+/** A classificação manda: `nfse_expected` é nota de serviço, `no_profile` é nota que não se decidiu. */
+function expectedDocumentOf(
+  reason: TripDocumentReadiness['reason'],
+): TripDocumentReadiness['expectedDocument'] {
+  if (reason === 'nfse_expected') return 'nfse'
+  if (reason === 'blocked' || reason === 'no_profile') return reason
 
-  return 'cte' as const
+  return 'cte'
 }
 
 function document(
@@ -30,6 +32,7 @@ function document(
     cteFiscalDocumentId: reason === 'ok' ? crypto.randomUUID() : null,
     expectedDocument: expectedDocumentOf(reason),
     nfeDocumentId: crypto.randomUUID(),
+    nfseProfileId: null,
     reason,
     rejectionCode: null,
     rejectionMessage: null,
@@ -152,17 +155,17 @@ describe('a prontidão fiscal da viagem', () => {
     expect((await read(buildRepository({ documents: [] }))).state).toBe('not_applicable')
   })
 
-  /** Nota sem município pode ser CT-e: enquanto não se sabe, ela **bloqueia** em vez de sumir. */
-  it('nota sem município de destino bloqueia', async () => {
+  /** Nota sem perfil pode ser CT-e: enquanto não se sabe, ela **bloqueia** em vez de sumir. */
+  it('nota sem perfil de emissão bloqueia', async () => {
     const snapshot = await read(
-      buildRepository({ documents: [document('ok'), document('city_unknown')] }),
+      buildRepository({ documents: [document('ok'), document('no_profile')] }),
     )
 
     expect(snapshot.state).toBe('incomplete')
   })
 
-  it('viagem só com nota sem município não vira not_applicable', async () => {
-    const snapshot = await read(buildRepository({ documents: [document('city_unknown')] }))
+  it('viagem só com nota sem perfil não vira not_applicable', async () => {
+    const snapshot = await read(buildRepository({ documents: [document('no_profile')] }))
 
     expect(snapshot.state).toBe('incomplete')
   })

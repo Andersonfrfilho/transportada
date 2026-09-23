@@ -1816,7 +1816,6 @@ function createApplicationRoutes({
     database,
     resolveStorageBucket(environment),
   )
-  const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database, logger)
   const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
   /**
@@ -1838,10 +1837,6 @@ function createApplicationRoutes({
   const tripRevenueRepository = new DrizzleTripRevenueRepository(database)
   const companyEntryKindRepository = new DrizzleCompanyEntryKindRepository(database)
   const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
-  const automaticManifestRepository = new DrizzleAutomaticManifestRepository({
-    database,
-    readiness: tripFiscalReadinessQuery,
-  })
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database,
     resolveStorageBucket(environment),
@@ -1976,6 +1971,18 @@ function createApplicationRoutes({
   })
   const storedObjectRepository = new DrizzleStoredObjectRepository(database)
   const nfeDocumentRepository = new DrizzleNfeDocumentRepository(database, storageGateway)
+  /**
+   * A prontidão da viagem classifica pela mesma porta da listagem de notas, e por isso nasce depois
+   * dela: duas contas para o documento de saída fariam a viagem e a tela de notas discordarem.
+   */
+  const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(
+    database,
+    nfeDocumentRepository,
+  )
+  const automaticManifestRepository = new DrizzleAutomaticManifestRepository({
+    database,
+    readiness: tripFiscalReadinessQuery,
+  })
   const listNfeDocumentEvents = createListNfeDocumentEvents({
     repository: new DrizzleNfeDocumentEventRepository(database),
   })

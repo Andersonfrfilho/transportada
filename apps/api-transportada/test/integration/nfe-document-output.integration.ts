@@ -75,7 +75,10 @@ describe('nfe document output classification integration', () => {
         const page = await repository.list({ accessKey: null, context, cursor: null, limit: 50 })
         const listed = new Map(page.items.map((item) => [item.id, item]))
         const documentIds = Object.values(primary.documentIdByScenario)
-        const classified = await repository.classifyDocumentOutputs({ context, documentIds })
+        const classified = await repository.classifyDocumentOutputs({
+          companyId: primary.companyId,
+          documentIds,
+        })
 
         const byScenario = (key: ScenarioKey) => listed.get(primary.documentIdByScenario[key])
         expect(byScenario('cte')?.documentOutput).toEqual({ output: 'cte' })
@@ -106,7 +109,7 @@ describe('nfe document output classification integration', () => {
 
         // Isolamento: nota de outra empresa no pedido do bot fica fora do mapa, sem erro.
         const crossed = await repository.classifyDocumentOutputs({
-          context,
+          companyId: primary.companyId,
           documentIds: [...documentIds, other.documentIdByScenario.cte],
         })
         expect(crossed.has(other.documentIdByScenario.cte)).toBe(false)

@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { FiscalDocumentKind } from '../domain/fiscal-document-kind.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
 
 /**
@@ -27,6 +26,10 @@ export const TRIP_DOCUMENT_READINESS_REASONS = [
   'nfse_expected',
   /** Sem município de destino não dá para decidir o documento. Pendência explícita, nunca um chute. */
   'city_unknown',
+  /** O perfil manda emitir, mas alguma condição da nota impede. Informar é o que cabe aqui. */
+  'blocked',
+  /** Nenhum perfil de emissão rege a nota: escolher o documento por omissão seria inventar regra. */
+  'no_profile',
 ] as const
 export type TripDocumentReadinessReason = (typeof TRIP_DOCUMENT_READINESS_REASONS)[number]
 
@@ -34,10 +37,12 @@ export type TripDocumentReadiness = {
   readonly cteAccessKey: string | null
   /** O id do CT-e autorizado — é ele que o manifesto declara, e é por isso que ele sobe daqui. */
   readonly cteFiscalDocumentId: string | null
-  /** O documento que esta nota espera. `null` quando não deu para decidir (`city_unknown`). */
-  readonly expectedDocument: FiscalDocumentKind | null
+  /** O documento que esta nota espera, pelo perfil de emissão que a rege — a conta é uma só. */
+  readonly expectedDocument: 'blocked' | 'cte' | 'nfse' | 'no_profile'
   /** A NF-e por trás da linha da viagem — é ela que entra no lote, e por isso ela sobe daqui. */
   readonly nfeDocumentId: string | null
+  /** O perfil que a emissão de NFS-e vai usar; `null` fora do caminho da NFS-e. */
+  readonly nfseProfileId: string | null
   readonly reason: TripDocumentReadinessReason
   readonly rejectionCode: string | null
   readonly rejectionMessage: string | null
@@ -92,6 +97,12 @@ export type ReadTripFiscalReadinessInput = {
  * manifesto a emitir. Ficar incompleta para sempre é como uma viagem some da lista sem ninguém
  * entender.
  */
+const UNDECIDED_REASONS: readonly TripDocumentReadinessReason[] = [
+  'blocked',
+  'city_unknown',
+  'no_profile',
+]
+
 export async function readTripFiscalReadiness(
   input: ReadTripFiscalReadinessInput,
 ): Promise<TripFiscalReadinessSnapshot> {
@@ -100,8 +111,11 @@ export async function readTripFiscalReadiness(
 
   const manifestable = documents.filter((document) => document.expectedDocument === 'cte')
   const readyCount = manifestable.filter((document) => document.reason === 'ok').length
-  /** Sem município não se decide o documento, e uma nota indecisa **bloqueia** — ela pode ser CT-e. */
-  const hasUndecided = documents.some((document) => document.reason === 'city_unknown')
+  /**
+   * Nota indecidida **bloqueia**: ela ainda pode ser CT-e. Sem perfil e bloqueada entram aqui pela
+   * mesma razão que a sem município entrava — dizer "pronta" sobre elas é dizer que nada falta.
+   */
+  const hasUndecided = documents.some((document) => UNDECIDED_REASONS.includes(document.reason))
   const isComplete = manifestable.length > 0 && readyCount === manifestable.length && !hasUndecided
   const hasLiveManifest = await input.repository.hasLiveManifest(input)
 
