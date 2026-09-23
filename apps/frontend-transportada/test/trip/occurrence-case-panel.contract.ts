@@ -97,3 +97,24 @@ describe('spec 164 T22 (RF11): filtro por estado da tratativa, incluindo "sem tr
     expect(new URLSearchParams(allSelected).get('caseStatusIn')).toBeNull()
   })
 })
+
+/** Revisão de design da spec 164 (T30): a ordem dos botões e o ruído da reentrega. */
+describe('spec 164 T30: o painel da tratativa depois da revisão', () => {
+  test('encerrar espera o acerto estar gravado, e diz por que está esperando', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+
+    expect(panel).toContain('hasUnsavedSettlement')
+    expect(panel).toContain('disabled={isBusy || hasUnsavedSettlement}')
+    expect(panel).toContain("t('occurrenceCase.closeBlockedByDraft')")
+    expect(panel).toContain('onDraftDirtyChange={setHasUnsavedSettlement}')
+  })
+
+  test('a política de reentrega só aparece com a tratativa em aberto', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+
+    expect(panel).toContain('const isCaseOpen =')
+    expect(panel).toContain('{isCaseOpen ? (')
+    expect(panel).not.toContain("status === 'cancelled'")
+    expect(panel).not.toContain("status === 'returned_to_warehouse'")
+  })
+})

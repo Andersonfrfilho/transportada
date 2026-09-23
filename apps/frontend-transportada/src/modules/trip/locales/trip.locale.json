@@ -1444,7 +1444,8 @@
       "submitToContractor": "Enviar ao contratante",
       "close": "Encerrar tratativa",
       "cancel": "Cancelar tratativa"
-    }
+    },
+    "closeBlockedByDraft": "Salve o acerto antes de encerrar — há item digitado que ainda não foi gravado."
   },
   "occurrenceSettlement": {
     "title": "Acerto dos produtos",
@@ -1452,8 +1453,8 @@
     "amount": "Valor",
     "amountPlaceholder": "0,00",
     "payerKind": "Quem pagou",
-    "payerId": "Id do motorista",
-    "payerIdPlaceholder": "Id do motorista que pagou",
+    "payerId": "Motorista que pagou",
+    "payerIdPlaceholder": "Escolha o motorista",
     "payer": {
       "driver": "Motorista",
       "carrier": "Transportadora",
@@ -1465,6 +1466,17 @@
     "total": "Total da tela",
     "save": "Salvar acerto",
     "savedTotal": "Total gravado",
-    "markReimbursed": "Marcar como ressarcido"
+    "markReimbursed": "Marcar como ressarcido",
+    "payerSearch": "Buscar motorista pelo nome",
+    "payerEmpty": "Nenhum motorista ativo encontrado",
+    "payerNotApplicable": "Só se aplica quando quem pagou é o motorista",
+    "payerManualHint": "Sem permissão de frota nesta conta: o nome do motorista não pode ser conferido aqui.",
+    "payerResolved": "Motorista: {{name}}",
+    "payerUnresolved": "Motorista não identificado por este id",
+    "amountRequired": "Informe um valor maior que zero.",
+    "productCodeRequired": "Informe o código do produto.",
+    "invalidRows": "Há item incompleto no acerto — confira os campos marcados. Nada foi gravado.",
+    "reimbursedOn": "Ressarcido em {{date}}",
+    "savedItemsTitle": "Itens gravados"
   }
 }

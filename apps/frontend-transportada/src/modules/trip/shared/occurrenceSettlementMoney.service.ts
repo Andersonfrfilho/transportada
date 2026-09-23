@@ -43,3 +43,30 @@ export function formatOccurrenceSettlementAmount(amount: string): string {
   const scaled = toScaled(amount)
   return BRL_FORMATTER.format(Number(scaled) / Number(SCALE))
 }
+
+/**
+ * Máscara de moeda pt-BR **na digitação** (revisão de design da T30, A3): a tela mostrava `89.90`
+ * no campo e `R$ 124,90` no total, dois formatos para a mesma grandeza na mesma tela. Só dígito
+ * entra, e os dois últimos são sempre os centavos — o separador não é digitado, é consequência.
+ */
+export function maskAmountInput(raw: string): string {
+  const digits = raw.replace(/\D/gu, '')
+  if (digits.length === 0) return ''
+  const padded = digits.padStart(3, '0')
+  const whole = BigInt(padded.slice(0, -2)).toString()
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/gu, '.')
+  return `${grouped},${padded.slice(-2)}`
+}
+
+/** O decimal que a soma e a API leem, a partir do texto mascarado. Vazio continua vazio. */
+export function unmaskAmountInput(masked: string): string {
+  const digits = masked.replace(/\D/gu, '')
+  if (digits.length === 0) return ''
+  const padded = digits.padStart(3, '0')
+  return `${BigInt(padded.slice(0, -2)).toString()}.${padded.slice(-2)}`
+}
+
+/** O valor que a API devolveu (`numeric(14,4)`) chega ao campo já mascarado, nunca como `10.0000`. */
+export function maskAmountFromDecimal(amount: string): string {
+  return maskAmountInput((toScaled(amount) / 100n).toString())
+}

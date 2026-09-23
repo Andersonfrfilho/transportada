@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { Tooltip } from '@/components/ui/tooltip'
 
 import { useOccurrenceCaseActions } from '../hooks/useOccurrenceCaseActions.hook'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
@@ -60,12 +61,23 @@ export function OccurrenceCasePanel({
     TRIP_OCCURRENCE_CASE_DECISION_KINDS[0],
   )
   const [decisionNote, setDecisionNote] = useState('')
+  /** Encerrar antes de salvar o acerto perde o que foi digitado — o painel de baixo avisa daqui. */
+  const [hasUnsavedSettlement, setHasUnsavedSettlement] = useState(false)
 
   if (occurrenceCase === null) {
     return <p className={styles.hint}>{t('occurrenceCase.none')}</p>
   }
 
   const { redeliveryPolicy, status } = occurrenceCase
+  /**
+   * A política de reentrega só diz algo enquanto a tratativa está viva. Em tratativa cancelada ou
+   * retornada ao barracão, "Admite reentrega" é ruído que se lê como autorização.
+   */
+  const isCaseOpen =
+    status === 'recorded' ||
+    status === 'under_review' ||
+    status === 'awaiting_contractor' ||
+    status === 'decided'
   const isBusy =
     actions.review.isPending ||
     actions.returnToWarehouse.isPending ||
@@ -132,10 +144,12 @@ export function OccurrenceCasePanel({
         {t('occurrenceCase.statusLabel')}:{' '}
         <strong>{t(`occurrenceFeed.caseStatus.${status}`)}</strong>
       </p>
-      <p className={styles.hint}>
-        {t('occurrenceCase.redeliveryPolicyLabel')}:{' '}
-        {t(`occurrenceCase.redeliveryPolicy.${occurrenceCase.redeliveryPolicy}`)}
-      </p>
+      {isCaseOpen ? (
+        <p className={styles.hint}>
+          {t('occurrenceCase.redeliveryPolicyLabel')}:{' '}
+          {t(`occurrenceCase.redeliveryPolicy.${occurrenceCase.redeliveryPolicy}`)}
+        </p>
+      ) : null}
 
       {occurrenceCase.decision !== null ? (
         <p className={styles.hint}>
@@ -276,15 +290,21 @@ export function OccurrenceCasePanel({
             </Button>
           ) : null}
           {canClose ? (
-            <Button
-              disabled={isBusy}
-              onClick={() => actions.close.mutate({ occurrenceId })}
-              size="sm"
-              type="button"
-            >
-              <Icon name="check" />
-              {t('occurrenceCase.action.close')}
-            </Button>
+            /*
+             * "Encerrar tratativa" aparece antes de "Salvar acerto" e convidava a encerrar com
+             * rascunho por gravar. Ele espera o acerto estar salvo, e diz por que está esperando.
+             */
+            <Tooltip label={hasUnsavedSettlement ? t('occurrenceCase.closeBlockedByDraft') : ''}>
+              <Button
+                disabled={isBusy || hasUnsavedSettlement}
+                onClick={() => actions.close.mutate({ occurrenceId })}
+                size="sm"
+                type="button"
+              >
+                <Icon name="check" />
+                {t('occurrenceCase.action.close')}
+              </Button>
+            </Tooltip>
           ) : null}
           {canCancel ? (
             <Button
@@ -302,7 +322,11 @@ export function OccurrenceCasePanel({
       )}
 
       {status === 'decided' && occurrenceCase.decision?.kind === 'goods_paid' ? (
-        <OccurrenceSettlementPanel canResolve={canResolve} occurrenceId={occurrenceId} />
+        <OccurrenceSettlementPanel
+          canResolve={canResolve}
+          onDraftDirtyChange={setHasUnsavedSettlement}
+          occurrenceId={occurrenceId}
+        />
       ) : null}
     </div>
   )

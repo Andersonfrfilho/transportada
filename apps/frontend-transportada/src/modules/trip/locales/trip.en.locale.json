@@ -1223,7 +1223,8 @@
       "submitToContractor": "Send to contractor",
       "close": "Close case",
       "cancel": "Cancel case"
-    }
+    },
+    "closeBlockedByDraft": "Save the settlement before closing — there is a typed item that has not been saved."
   },
   "occurrenceSettlement": {
     "title": "Goods settlement",
@@ -1231,8 +1232,8 @@
     "amount": "Amount",
     "amountPlaceholder": "0.00",
     "payerKind": "Paid by",
-    "payerId": "Driver id",
-    "payerIdPlaceholder": "Id of the driver who paid",
+    "payerId": "Driver who paid",
+    "payerIdPlaceholder": "Choose the driver",
     "payer": {
       "driver": "Driver",
       "carrier": "Carrier",
@@ -1244,6 +1245,17 @@
     "total": "Screen total",
     "save": "Save settlement",
     "savedTotal": "Saved total",
-    "markReimbursed": "Mark as reimbursed"
+    "markReimbursed": "Mark as reimbursed",
+    "payerSearch": "Search the driver by name",
+    "payerEmpty": "No active driver found",
+    "payerNotApplicable": "Only applies when the driver is the one who paid",
+    "payerManualHint": "No fleet permission on this account: the driver name cannot be checked here.",
+    "payerResolved": "Driver: {{name}}",
+    "payerUnresolved": "No driver matches this id",
+    "amountRequired": "Enter an amount greater than zero.",
+    "productCodeRequired": "Enter the product code.",
+    "invalidRows": "There is an incomplete item in the settlement — check the marked fields. Nothing was saved.",
+    "reimbursedOn": "Reimbursed on {{date}}",
+    "savedItemsTitle": "Saved items"
   }
 }
