@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { Page, Route } from '@playwright/test'
 
+import { DRIVER_DETAIL } from './fleet/fleet.fixture'
 import { mockTripWorkspaceApi, TRIP_ID } from './trip-smoke.helper'
 
 const CORS_HEADERS = {
@@ -240,6 +241,22 @@ export async function mockOccurrencePrintsApi(
     mode: 'all-authorized',
     page: input.page,
     permissions: input.permissions,
+  })
+
+  /**
+   * Revisão da T30 (B3): o campo "quem pagou" deixou de pedir UUID e passou a listar motorista pelo
+   * nome — `mockTripWorkspaceApi` devolve a frota vazia, e sem isto o print sairia com a lista sem
+   * ninguém, que é o oposto do que a correção mostra.
+   */
+  await input.page.route(/\/fleet\/drivers(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: [{ ...DRIVER_DETAIL, id: DRIVER_ID, name: 'Motorista Sintético', score: 85 }],
+      page: { nextCursor: null },
+    })
   })
 
   await input.page.route(/\/trips\/[^/]+\/allowed-actions$/, async (route) => {

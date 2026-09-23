@@ -1470,7 +1470,7 @@
     "markReimbursed": "Marcar como ressarcido",
     "payerSearch": "Buscar motorista pelo nome",
     "payerEmpty": "Nenhum motorista ativo encontrado",
-    "payerNotApplicable": "Só se aplica quando quem pagou é o motorista",
+    "payerNotApplicable": "Não se aplica",
     "payerManualHint": "Sem permissão de frota nesta conta: o nome do motorista não pode ser conferido aqui.",
     "payerResolved": "Motorista: {{name}}",
     "payerUnresolved": "Motorista não identificado por este id",

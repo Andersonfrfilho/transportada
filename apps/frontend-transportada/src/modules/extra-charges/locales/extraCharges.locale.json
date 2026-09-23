@@ -65,7 +65,7 @@
       "chargeTypeSummary": "{{count}} tipos selecionados",
       "chargeTypeSearchPlaceholder": "Buscar tipo",
       "chargeTypeClearAll": "Limpar tipos",
-      "chargeTypeRemove": "Remover {{label}}",
+      "chargeTypeRemove": "Remover tipo de cobrança",
       "status": "Situação",
       "statusAll": "Todas as situações",
       "settlement": "Acerto",

@@ -129,7 +129,25 @@ for (const viewport of ['desktop', 'mobile'] as const) {
     await expect(page.getByRole('heading', { level: 1, name: 'Ressarcimentos' })).toBeVisible()
     await expect(page.getByText('4521')).toBeVisible()
 
+    /**
+     * ⚠️ Print de filtro com os filtros **vazios** não prova nada (revisão da T30). Os três
+     * filtros que mudam a tela são preenchidos de verdade antes da foto: o contratante, o
+     * multi-select de tipo (que é onde nasce o chip) e a situação.
+     */
+    await page.getByRole('button', { name: 'Contratante' }).click()
+    await page.getByRole('option', { name: 'Mercado Bom Preço' }).click()
+
+    await page.getByRole('button', { name: 'Tipo de cobrança' }).click()
+    await page.getByRole('option', { name: 'Produtos devolvidos' }).click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: 'Remover tipo de cobrança' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Situação' }).click()
+    await page.getByRole('option', { name: 'Registrada' }).click()
+
+    await expect(page.getByText('4521')).toBeVisible()
     await page.getByRole('checkbox', { name: 'Selecionar a cobrança' }).first().check()
+    await expect(page.getByText(/Total selecionado/u)).toBeVisible()
 
     await page.screenshot({
       fullPage: true,
@@ -138,20 +156,31 @@ for (const viewport of ['desktop', 'mobile'] as const) {
   })
 }
 
+/**
+ * ⚠️ **O mapa não entra nestes prints, e é decisão, não esquecimento.** O fundo vetorial é o
+ * `/map-tiles/area.pmtiles`, que não existe no build de pré-visualização — sem ele o MapLibre não
+ * monta e o painel do roteiro sai como retângulo vazio. Um print assim foi exatamente o que a
+ * revisão da T30 reprovou: o nome prometia mapa com pino e a imagem não tinha nenhum dos dois.
+ * O que **é** fotografável aqui é a listagem de notas com a marca (RF36), e é o que sai — em
+ * recorte da lista e na página inteira.
+ */
 for (const viewport of ['desktop', 'mobile'] as const) {
-  test(`print: nota marcada na listagem, com o ícone da tratativa aberta (${viewport})`, async ({
-    page,
-  }) => {
+  test(`print: nota marcada na listagem da viagem (${viewport})`, async ({ page }) => {
     await page.setViewportSize(viewport === 'desktop' ? DESKTOP : PHONE)
     await mockOccurrencePrintsApi({ page, permissions: OCCURRENCES_PERMISSIONS })
     await loginAsLocalUser(page)
     await navigateTo(page, `/trips/${TRIP_ID}`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect(page.getByText('Tratativa aberta')).toBeVisible()
+    await expect(page.getByText('Ocorrência em tratativa')).toBeVisible()
 
     await page.screenshot({
       fullPage: true,
-      path: printPath(`nota-marcada-listagem-mapa-${viewport}`),
+      path: printPath(`nota-marcada-listagem-${viewport}`),
     })
+
+    await page
+      .locator('section', { hasText: 'Cargas da viagem' })
+      .last()
+      .screenshot({ path: printPath(`nota-marcada-listagem-recorte-${viewport}`) })
   })
 }

@@ -1249,7 +1249,7 @@
     "markReimbursed": "Mark as reimbursed",
     "payerSearch": "Search the driver by name",
     "payerEmpty": "No active driver found",
-    "payerNotApplicable": "Only applies when the driver is the one who paid",
+    "payerNotApplicable": "Not applicable",
     "payerManualHint": "No fleet permission on this account: the driver name cannot be checked here.",
     "payerResolved": "Driver: {{name}}",
     "payerUnresolved": "No driver matches this id",

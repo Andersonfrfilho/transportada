@@ -65,7 +65,7 @@
       "chargeTypeSummary": "{{count}} types selected",
       "chargeTypeSearchPlaceholder": "Search type",
       "chargeTypeClearAll": "Clear types",
-      "chargeTypeRemove": "Remove {{label}}",
+      "chargeTypeRemove": "Remove charge type",
       "status": "Status",
       "statusAll": "All statuses",
       "settlement": "Settlement",
