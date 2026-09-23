@@ -38,6 +38,15 @@ export {
 export { mergeTripTimeline } from '../application/trip-timeline-merge.service.js'
 export type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
 
+/** Tira a chave de ordenação da linha antes de ela virar resposta — ver o comentário no `map`. */
+function withoutOrderingKey<TRow extends { occurredAtKey: string }>(
+  row: TRow,
+): Omit<TRow, 'occurredAtKey'> {
+  const copy: Partial<TRow> = { ...row }
+  delete copy.occurredAtKey
+  return copy as Omit<TRow, 'occurredAtKey'>
+}
+
 /**
  * Spec 158 T6: existência da viagem **nesta empresa**, antes de ler qualquer fonte da linha do
  * tempo — molde de `DrizzleTripCostRepository.listByTrip` (`select({ id: trips.id })`). As seis
@@ -105,10 +114,10 @@ export async function listTripTimeline(
      * a linha do tempo" sobre uma resposta 200 completa (medido em 22/09 em staging e reproduzido
      * na bancada local).
      */
-    items: merged.items.map(({ occurredAtKey: _ordenacao, ...row }) => ({
-      ...row,
-      occurredAt: row.occurredAt.toISOString(),
-      recordedAt: row.recordedAt === null ? null : row.recordedAt.toISOString(),
+    items: merged.items.map((item) => ({
+      ...withoutOrderingKey(item),
+      occurredAt: item.occurredAt.toISOString(),
+      recordedAt: item.recordedAt === null ? null : item.recordedAt.toISOString(),
     })),
     nextCursor:
       merged.hasMore && last !== undefined
