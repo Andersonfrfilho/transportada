@@ -254,6 +254,20 @@
   font-size: 0.74rem;
 }
 
+/* Spec 164 RF36: marca — não substitui nenhuma ação da linha, só acrescenta o aviso. */
+.occurrenceCaseBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-alert) 55%, transparent);
+  color: var(--color-alert);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
 .rowActions {
   display: flex;
   flex-wrap: wrap;
@@ -1409,6 +1423,7 @@
 .tilePin {
   display: grid;
   place-items: center;
+  position: relative;
   width: var(--space-6);
   height: var(--space-6);
   border-radius: 50%;
@@ -1422,6 +1437,29 @@
    * onde mais se tenta arrastar.
    */
   pointer-events: none;
+}
+
+/*
+ * Spec 164 RF37: o ícone de problema fica no canto do pino, sobre a cor de `stopColorOf` — nunca a
+ * substitui. `position: absolute` porque os dois desenhos (número da sequência + glifo) não cabem
+ * disputando o mesmo centro.
+ */
+.tilePinOccurrenceBadge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  display: grid;
+  place-items: center;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: 50%;
+  background: var(--color-alert);
+  color: var(--color-ink-on-accent);
+}
+
+.tilePinOccurrenceBadge svg {
+  width: 70%;
+  height: 70%;
 }
 
 /**

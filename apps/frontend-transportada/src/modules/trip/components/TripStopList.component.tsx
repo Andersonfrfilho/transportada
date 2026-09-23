@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { Tooltip } from '@/components/ui/tooltip'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
@@ -300,6 +301,19 @@ function TripStopDocumentRow({
       ) : null}
       {hasTripDocumentFiscalWarning(document) ? (
         <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
+      ) : null}
+      {/*
+       * Spec 164 RF36: marca da tratativa aberta na nota. ⚠️ Só sinaliza — nenhuma ação da linha
+       * some ou desabilita por causa dela (CA5), é o contrato de regressão em
+       * test/trip/allowed-actions-occurrence-badge.contract.ts.
+       */}
+      {document.openOccurrenceCase === true ? (
+        <Tooltip label={t('occurrence.openCaseHint')}>
+          <span className={styles.occurrenceCaseBadge}>
+            <Icon name="alert" />
+            {t('occurrence.openCase')}
+          </span>
+        </Tooltip>
       ) : null}
       <div className={styles.rowActions}>
         {/*

@@ -409,6 +409,7 @@ export function AssemblyVectorMap({
           element: stopElement({
             approximate: point.isApproximate,
             color: stopColor(point.sequence ?? 1),
+            hasOpenOccurrence: point.hasOpenOccurrence === true,
             outline: resolveBasemapOutline(readToken, theme),
             sequence: point.sequence ?? 1,
           }),
@@ -691,6 +692,7 @@ function depotElement(input: { readonly color: string; readonly outline: string 
 function stopElement(input: {
   readonly approximate: boolean
   readonly color: string
+  readonly hasOpenOccurrence: boolean
   readonly outline: string
   readonly sequence: number
 }): HTMLElement {
@@ -706,7 +708,34 @@ function stopElement(input: {
   element.style.background = input.color
   element.style.borderColor = input.outline
   element.textContent = String(input.sequence)
+  if (input.hasOpenOccurrence) element.append(occurrenceBadgeElement())
   return element
+}
+
+/**
+ * Spec 164 RF37: o glifo de problema, **sobreposto** ao pino — a cor de `stopColorOf` continua
+ * sendo a do fundo, nunca substituída. `position: absolute` no canto: dois desenhos no mesmo pino
+ * não podem disputar o centro, que já é o número da sequência.
+ */
+function occurrenceBadgeElement(): HTMLElement {
+  const badge = document.createElement('span')
+  badge.className = styles.tilePinOccurrenceBadge ?? ''
+  badge.title = 'Parada com tratativa aberta'
+  const glyph = document.createElementNS(SVG_NAMESPACE, 'svg')
+  glyph.setAttribute('viewBox', '0 0 24 24')
+  glyph.setAttribute('fill', 'none')
+  glyph.setAttribute('stroke', 'currentColor')
+  glyph.setAttribute('stroke-width', '2')
+  glyph.setAttribute('stroke-linecap', 'round')
+  glyph.setAttribute('stroke-linejoin', 'round')
+  glyph.setAttribute('aria-hidden', 'true')
+  for (const definition of ICON_PATHS.alert) {
+    const path = document.createElementNS(SVG_NAMESPACE, 'path')
+    path.setAttribute('d', definition)
+    glyph.append(path)
+  }
+  badge.append(glyph)
+  return badge
 }
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'

@@ -80,6 +80,12 @@ export type AssemblyMapPoint = Readonly<{
    * exato, que é o modo de falha da ADR-0044 §1.
    */
   isApproximate: boolean
+  /**
+   * Spec 164 RF37: `true` quando a parada tem tratativa de ocorrência aberta — o mapa desenha um
+   * ícone de problema **sobre** a cor que `stopColorOf` já calcula, nunca a substituindo. Ausente
+   * (`undefined`) fora do contexto da viagem, onde a informação não existe.
+   */
+  hasOpenOccurrence?: boolean
   /** A ordem que o operador montou. `null` na cidade que ficou de fora da seleção. */
   sequence: number | null
   x: number

@@ -64,6 +64,7 @@ function locateStops(stops: readonly TripStopDetail[]): LocatedStops {
     }
     points.push({
       cityCode: stop.cityCode ?? '',
+      hasOpenOccurrence: stop.hasOpenOccurrence === true,
       isApproximate: false,
       label: stop.label,
       latitude,

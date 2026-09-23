@@ -371,6 +371,11 @@
     "delivery": "Delivery",
     "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
   },
+  "occurrence": {
+    "openCase": "Open case",
+    "openCaseHint": "This document has an open destination occurrence case",
+    "stopOpenCase": "Stop with an open occurrence case"
+  },
   "detail": {
     "closedManually": "Closed manually on {{moment}}",
     "closedManuallyBy": "Closed manually by {{name}} on {{moment}}",

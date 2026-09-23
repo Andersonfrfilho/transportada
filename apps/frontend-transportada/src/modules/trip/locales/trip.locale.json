@@ -488,6 +488,11 @@
     "delivery": "Entrega",
     "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
   },
+  "occurrence": {
+    "openCase": "Tratativa aberta",
+    "openCaseHint": "Esta nota tem uma ocorrência de destino em tratativa",
+    "stopOpenCase": "Parada com tratativa aberta"
+  },
   "detail": {
     "closedManually": "Encerrada manualmente em {{moment}}",
     "closedManuallyBy": "Encerrada manualmente por {{name}} em {{moment}}",
