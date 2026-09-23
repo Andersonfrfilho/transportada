@@ -84,12 +84,20 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    */
   cameraMeasurement: { module: 'nfe-workspace', source: 'cameraMeasurementSettings', tab: 'boxes' },
   /**
-   * Spec 077 — o fator de cubagem mora **ao lado do peso padrão**: os dois estimam a mesma coisa a
-   * partir do mesmo `qVol` da nota, e separá-los faria o operador procurar em dois lugares por duas
-   * metades da mesma configuração.
+   * O fator de cubagem mora **ao lado do peso padrão**: os dois estimam a mesma coisa a partir do
+   * mesmo `qVol` da nota, e separá-los faria o operador procurar em dois lugares por duas metades
+   * da mesma configuração.
+   *
+   * ⚠️ Os dois moram na aba **Caixas**, e não mais em Importações. Estimativa não tem nada a ver
+   * com importar XML — estavam ali por gravidade histórica, atrás do seletor de mecanismo, e o
+   * preço disso foi medido: o bloqueio "Sem peso da carga" travou um faturamento inteiro porque
+   * ninguém sabia que existia um campo para destravá-lo.
+   *
+   * Caixas é o endereço certo porque é a mesma escada, do degrau medido para o estimado: medida da
+   * caixa → `qVol` × fator → nada. O degrau medido já morava aqui (`cameraMeasurement`).
    */
-  cargoVolume: { module: 'nfe-workspace', source: 'cargoVolumeFactors', tab: 'imports' },
-  cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'imports' },
+  cargoVolume: { module: 'nfe-workspace', source: 'cargoVolumeFactors', tab: 'boxes' },
+  cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'boxes' },
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
   /**
    * Spec 143 — o painel entra na tela onde as contratantes são cadastradas (`delivery-clients`),
