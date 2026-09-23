@@ -26,6 +26,10 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 
+import {
+  DELIVERY_PROOF_FIELD_MODES,
+  type DeliveryProofFieldMode,
+} from './company-delivery-proof-settings.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
@@ -1871,6 +1875,21 @@ export const companyOccurrenceTypes = pgTable(
      * comportamento de hoje — nenhuma instalação muda de comportamento ao aplicar esta migration.
      */
     allowsMultipleItems: boolean('allows_multiple_items').notNull().default(true),
+    /**
+     * Spec 179 (RF1): se o registro do motorista exige comprovante — o mesmo vocabulário de
+     * `DELIVERY_PROOF_FIELD_MODES`, para "exigir foto" continuar sendo uma ideia só no produto.
+     * Padrão `'off'`: nenhuma instalação passa a exigir nada ao aplicar esta migration.
+     */
+    attachmentMode: varchar('attachment_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default('off'),
+    /**
+     * Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão, na mesma
+     * escrita da ocorrência. Padrão `false`: nenhuma instalação passa a devolver nota sozinha ao
+     * aplicar esta migration.
+     */
+    returnsToDepot: boolean('returns_to_depot').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1890,6 +1909,10 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_redelivery_policy_check',
       sql`${table.redeliveryPolicy} in (${raw(inList(REDELIVERY_POLICIES))})`,
+    ),
+    check(
+      'company_occurrence_types_attachment_mode_check',
+      sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],
