@@ -89,25 +89,105 @@ Company-settings: `CompanyEntryKindCatalogPanel` (cadastro por lado, criar e des
 `CompanySettings.page.tsx` (`COMPANY_SETTINGS_TAB_IDS`, `SETTINGS_PANEL_PLACEMENT`,
 `resolveSettingsDataScope`), locale pt-BR/en.
 
-## O que não rodou, e por quê
+## Segunda rodada — RF11, RF12, RF13 (CA08-CA10) e a lacuna fechada
 
-- **`TripFinancialPanel` não está ligado à página real da viagem.** Quem monta a tela por trip é
-  `apps/frontend-transportada/src/modules/trip/pages/TripDetail.page.tsx`, e a instrução da tarefa
-  proibiu explicitamente tocar em `TripDetail*`. O prop `revenueEntries` é opcional exatamente por
-  isso: o painel funciona e está testado, mas ninguém ainda constrói o
-  `TripRevenueEntriesController` e passa para ele. Isso é trabalho de fora do meu território —
-  quem mexer em `TripDetail.page.tsx` (provavelmente outra spec) precisa chamar
-  `useTripRevenueEntries` e passar o resultado como `revenueEntries` no `TripFinancialPanel`.
-- **Não toquei no seletor de espécie do lançamento de gasto** (`TripCostEntryForm`, que ainda usa
-  o enum fixo `TRIP_COST_ENTRY_KINDS`/`toll`/`other`). A spec pede espécie cadastrável para os dois
-  lados (RF1, RF5), mas migrar o gasto existente do enum para o cadastro novo é uma mudança maior
-  em código e testes já em produção, fora do escopo mínimo de "receita lançada + cadastro de
-  espécies" e arriscava conflitar com o território de gasto de outra spec. Ficou documentado aqui
-  como lacuna deliberada, não esquecimento.
-- **`make migration-test`** (Postgres descartável) não rodou — dependeria de Docker local, que a
-  memória do projeto registra como instável nesta máquina; a migration foi validada por
-  `db:generate` → `no_changes` na cópia isolada e pelos testes de schema (`entry-kind-schema.
-contract.ts`), que leem as colunas e constraints reais do Drizzle.
+Retomando o pedido do coordenador, além do já registrado acima:
+
+### RF12/RF13 — remover sem apagar
+
+- Migration `20260923040021_fine_wendell_rand`: `entry_kind_id` (nullable) em `trip_cost_entries`,
+  e `removed_at`/`removed_by_user_id` nas duas tabelas de lançamento, com `CHECK` de trilha
+  inteira (`(removed_at is null) = (removed_by_user_id is null)`).
+- `DELETE /trips/:id/costs/:entryId` e `DELETE /trips/:id/revenues/:entryId`, mesma permissão de
+  lançar (`trip.manage`). `remove()` no repositório marca `removedAt`/`removedByUserId` só quando
+  ainda não removido (idempotente pelo `where` com `isNull`).
+- `listByTrip` das duas tabelas passa a filtrar `removedAt is null` — removido não aparece na
+  lista nem entra na soma (CA10).
+- Frontend: botão "Remover" em cada linha de `TripCostEntries`/`TripRevenueEntries`, mesma
+  permissão `canRecord` do formulário.
+
+### RF5 — o gasto migra para o cadastro de espécies
+
+`POST /trips/:id/costs` passa a aceitar `entryKindId` (novo) **ou** `kind` (legado,
+compatibilidade com integrações e testes existentes) — nunca os dois juntos, validado por
+`refine` no schema Zod. `kind` continua gravado internamente, derivado do nome da espécie
+(`Pedágio` → `toll`, qualquer outro nome → `other`), porque `trip-valuation.query.ts` (spec 143
+D6) ainda filtra pedágio × avulso por esse campo — não toquei nessa leitura, fora do território.
+
+`TripCostEntryForm.component.tsx` trocou o `Select` sobre `TRIP_COST_ENTRY_KINDS` pelo mesmo
+padrão do formulário de receita: lê `entryKinds` (lado `expense`) do `useTripCostEntries.hook.ts`,
+que agora busca `readActiveEntryKinds('expense')` como o hook de receita já fazia para `'revenue'`.
+
+### RF11/CA08 — lançamentos antes do total
+
+`TripFinancialPanel.component.tsx`: extraí `LaunchedEntries` (gasto + receita) e movi a chamada
+para **antes** de `ValuationLedger` (viagem aberta) e de `FrozenResultTable` (viagem fechada), nos
+dois ramos do painel.
+
+### A lacuna anterior, fechada
+
+`TripDetail.page.tsx` agora monta `useTripRevenueEntries` e passa o resultado como
+`revenueEntries` para `TripFinancialPanel` — a permissão dada pelo coordenador cobriu só esta
+ligação; **não toquei `TripDetail.component.tsx`**, `<TripHeaderActions>` nem os marcadores de
+ocorrência.
+
+### Backend — verde na segunda rodada
+
+`bunx tsc --noEmit`: 0 erros. `bun --env-file=../../.env.test test --timeout 120000`:
+
+```
+7155 pass
+23 skip
+0 fail
+```
+
+(O `1 fail` da primeira rodada, de `trip_status_events` de outra sessão, sumiu nesta rodada — a
+outra sessão fechou o próprio trabalho nesse meio-tempo; não foi ação minha.)
+
+`bun run db:generate` confirmado `no_changes` de novo depois da segunda migration.
+
+⚠️ A segunda migration também precisou da cópia isolada: entre a primeira rodada e esta, outra
+sessão (spec 172) commitou uma mudança em `trip.schema.ts` (`trip_status_events.event_kind`) sem
+gerar a própria migration. Copiei o repo para fora do worktree, revertive `trip.schema.ts` para o
+commit anterior a essa mudança **só na cópia**, gerei limpo, e removi manualmente as duas linhas
+de `trip_status_events` do `migration.sql` real antes de trazê-lo de volta — o `snapshot.json`
+final inclui `event_kind` porque é a verdade atual do `trip.schema.ts`; a migration que cria essa
+coluna continua pendente, e não é minha para escrever (não entendo a intenção completa da spec
+172 para arriscar um `ADD COLUMN` no lugar dela).
+
+**`bun --env-file=../../.env.test run test:integration`** (105 arquivos, [589.60s]):
+
+```
+485 pass
+7 skip
+79 fail
+```
+
+O banco caiu no meio da execução — `PostgresError: database "transportada" does not exist` —, e
+tudo que dependia dele a partir daí falhou em cascata. Bate com a nota já registrada na memória do
+projeto (`banco-de-teste-local-quebrado.md`: Postgres local instável nesta máquina), não é
+regressão de código. Conferi as 79 falhas por nome de suíte: nenhuma em `trip-financial`,
+`entry-kind` ou `revenue` — cte-archive-gateway, trip-repository, trip-lifecycle,
+close/cancel/batch-status de `trip_status_events`, field-delivery/return/proof, trip-timeline,
+detalhe de encerramento, carga mista, multi-veículo, reentrega — todas de território de outras
+sessões. Uma rodada anterior, antes das mudanças desta segunda etapa, já tinha devolvido 538
+pass / 25 fail pela mesma causa (banco instável), confirmando que o padrão é ambiental e não teve
+piora com o que entrou aqui.
+
+### Frontend — verde na segunda rodada
+
+`bun run typecheck`: 0 erros no meu território (erros pré-existentes em
+`test/trip/pending-measurements*.contract.ts`, de outra sessão — território `TripPendingMeasurements*`,
+explicitamente vetado para mim).
+`bun run lint`: exit 0. `bun run test`: `4971 pass, 0 fail` + `44 pass, 0 fail` (hooks).
+
+## O que ficou deliberadamente fora
+
+- **`make migration-test`** (Postgres descartável) não rodou nas duas rodadas — Docker local
+  registrado como instável na memória do projeto; validado por `db:generate` → `no_changes` e
+  pelos testes de schema, que leem colunas/constraints reais do Drizzle.
+- **A migration de `trip_status_events.event_kind`** (spec 172, outra sessão) não foi escrita por
+  mim — ver nota acima.
 
 ## Commits
 
@@ -120,3 +200,8 @@ Isolados por área, só arquivos do meu território (`git add` por caminho, nunc
 5. frontend trip-financials (tipos, cliente, hook, componentes, locale).
 6. frontend company-settings (painel, hook, aba, locale).
 7. decisão registrada em spec.md.
+8. remover sem apagar + gasto migrado para o cadastro (backend).
+9. testes de remover + migração do gasto.
+10. remover lançamento, seletor migrado, ordem antes do total (frontend).
+11. liga a receita lançada em `TripDetail.page.tsx`.
+12. RF11-RF13/CA08-CA10 registrados em spec.md.
