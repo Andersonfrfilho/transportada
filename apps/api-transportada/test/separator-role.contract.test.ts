@@ -303,6 +303,8 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/batch',
       'POST /trips/:id/documents/batch-status',
       'POST /trips/:id/plan-route',
+      /** Spec 169: receita lançada é a mesma trilha do gasto — mesma permissão, quem monta a viagem lança. */
+      'POST /trips/:id/revenues',
       'POST /trips/:id/stops/:stopId/schedule',
       /**
        * ⚠️ **Decisão escrita (spec 085 G002/G003):** o separador **alcança** a prévia de carga. Ela

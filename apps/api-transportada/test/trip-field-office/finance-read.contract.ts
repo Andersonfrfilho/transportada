@@ -227,6 +227,8 @@ describe('o finance lê a viagem sem ler a frota (aceite 14)', () => {
       'GET /trips/:id/documents/:documentId/occurrences',
       'GET /trips/:id/documents/:documentId/proof',
       'GET /trips/:id/financial-result',
+      /** Spec 169: receita lançada é dinheiro da viagem — mesma trilha do gasto (trip.financials). */
+      'GET /trips/:id/revenues',
       'GET /trips/:id/stops',
       'GET /trips/:id/timeline',
       'GET /trips/:id/valuation',
