@@ -830,11 +830,11 @@ export function createTripResponseAdapters() {
     },
     occurrenceTypesFromApi(input: unknown): readonly OccurrenceType[] {
       if (!Array.isArray(input) || !input.every(isOccurrenceType)) throw invalid()
-      return input
+      return input.map(toOccurrenceType)
     },
     occurrenceTypeFromApi(input: unknown): OccurrenceType {
       if (!isOccurrenceType(input)) throw invalid()
-      return input
+      return toOccurrenceType(input)
     },
     occurrencesFromApi(input: unknown): readonly TripOccurrence[] {
       if (!Array.isArray(input) || !input.every(isTripOccurrence)) throw invalid()
@@ -1366,35 +1366,64 @@ function isNullableNumber(value: unknown): value is null | number {
   return value === null || (typeof value === 'number' && Number.isFinite(value))
 }
 
-function isOccurrenceType(value: unknown): value is OccurrenceType {
+const OCCURRENCE_TYPE_REQUIRED_KEYS = [
+  'active',
+  'emailBody',
+  'emailSubject',
+  'emailTemplateKey',
+  'id',
+  'name',
+  'notifies',
+  'stage',
+] as const
+
+/**
+ * Spec 166/164: `allowsMultipleItems` e `redeliveryPolicy` nasceram depois do tipo — API anterior
+ * ao marcador não os manda. Exigi-los em `hasExactKeys` derrubaria o catálogo inteiro e a consulta
+ * de tipos que alimenta o diálogo de registro (achado B7 da revisão). Ausente degrada para o
+ * padrão de hoje, em `toOccurrenceType`; presente continua validado como antes.
+ */
+type RawOccurrenceType = Omit<OccurrenceType, 'allowsMultipleItems' | 'redeliveryPolicy'> &
+  Readonly<{ allowsMultipleItems?: unknown; redeliveryPolicy?: unknown }>
+
+function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
-    !hasExactKeys(value, [
-      'active',
-      'allowsMultipleItems',
-      'emailBody',
-      'emailSubject',
-      'emailTemplateKey',
-      'id',
-      'name',
-      'notifies',
-      'redeliveryPolicy',
-      'stage',
-    ] as const)
+    !hasKeys(value, {
+      allowed: [...OCCURRENCE_TYPE_REQUIRED_KEYS, 'allowsMultipleItems', 'redeliveryPolicy'],
+      required: OCCURRENCE_TYPE_REQUIRED_KEYS,
+    })
   ) {
     return false
   }
   return (
     isBoolean(value.active) &&
-    isBoolean(value.allowsMultipleItems) &&
+    (value.allowsMultipleItems === undefined || isBoolean(value.allowsMultipleItems)) &&
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     isString(value.id) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
-    (value.redeliveryPolicy === 'unset' ||
+    (value.redeliveryPolicy === undefined ||
+      value.redeliveryPolicy === 'unset' ||
       value.redeliveryPolicy === 'allowed' ||
       value.redeliveryPolicy === 'blocked') &&
     (value.stage === 'delivery' || value.stage === 'separation')
   )
+}
+
+/** Achado B7: `allowsMultipleItems` nasce `true` (comportamento de hoje) e `redeliveryPolicy`
+ * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`. */
+function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
+  const { allowsMultipleItems, redeliveryPolicy, ...rest } = raw
+  return {
+    ...rest,
+    allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
+    redeliveryPolicy:
+      redeliveryPolicy === 'allowed' ||
+      redeliveryPolicy === 'blocked' ||
+      redeliveryPolicy === 'unset'
+        ? redeliveryPolicy
+        : 'unset',
+  }
 }
