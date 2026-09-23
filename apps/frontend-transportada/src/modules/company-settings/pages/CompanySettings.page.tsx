@@ -24,6 +24,11 @@ import {
   type OccurrenceTypeCatalogPanelProps,
 } from '../components/OccurrenceTypeCatalogPanel.component'
 import { useOccurrenceTypeCatalogPanel } from '../hooks/useOccurrenceTypeCatalogPanel.hook'
+import {
+  CompanyEntryKindCatalogPanel,
+  type CompanyEntryKindCatalogPanelProps,
+} from '../components/CompanyEntryKindCatalogPanel.component'
+import { useCompanyEntryKindCatalogPanel } from '../hooks/useCompanyEntryKindCatalogPanel.hook'
 import { LandingSettingsPanel } from '../components/LandingSettingsPanel.component'
 import { useCompanyContactsPanel } from '../hooks/useCompanyContactsPanel.hook'
 import { useLandingSettingsPanel } from '../hooks/useLandingSettingsPanel.hook'
@@ -114,6 +119,7 @@ type SettingsBodyProps = Readonly<{
   certificatePending: boolean
   contacts: ContactsSection
   driverAllowance: DriverAllowancePanelProps
+  entryKindCatalog: CompanyEntryKindCatalogPanelProps
   federalTaxes: FederalTaxPanelProps
   initialValue: CompanySettingsUpdate | undefined
   landing: LandingSection
@@ -238,6 +244,7 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'driverAllowance') return <DriverAllowancePanel {...props.driverAllowance} />
   if (tab === 'occurrenceTypes')
     return <OccurrenceTypeCatalogPanel {...props.occurrenceTypeCatalog} />
+  if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
   if (tab === 'site') {
     return (
       <>
@@ -353,6 +360,9 @@ export function CompanySettingsPage() {
   const occurrenceTypeCatalogPanel = useOccurrenceTypeCatalogPanel({
     enabled: canManageSettings && activeTab === 'occurrenceTypes',
   })
+  const entryKindCatalogPanel = useCompanyEntryKindCatalogPanel({
+    enabled: canManageSettings && activeTab === 'entryKinds',
+  })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -433,6 +443,15 @@ export function CompanySettingsPage() {
           isSaving: occurrenceTypeCatalogPanel.saveMutation.isPending,
           onSave: (type) => occurrenceTypeCatalogPanel.saveMutation.mutate(type),
           types: occurrenceTypeCatalogPanel.query.data ?? [],
+        }}
+        entryKindCatalog={{
+          canManage: canManageSettings,
+          isDeactivating: entryKindCatalogPanel.deactivateMutation.isPending,
+          isSaving: entryKindCatalogPanel.createMutation.isPending,
+          kinds: entryKindCatalogPanel.query.data ?? [],
+          onCreate: (input) => entryKindCatalogPanel.createMutation.mutate(input),
+          onDeactivate: (entryKindId) =>
+            entryKindCatalogPanel.deactivateMutation.mutate(entryKindId),
         }}
         landing={{
           data: landingPanel.query.data,

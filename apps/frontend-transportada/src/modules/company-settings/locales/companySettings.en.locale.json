@@ -7,7 +7,23 @@
     "certificates": "Certificates",
     "taxes": "Taxes",
     "driverAllowance": "Driver allowance",
-    "occurrenceTypes": "Occurrence types"
+    "occurrenceTypes": "Occurrence types",
+    "entryKinds": "Entry kinds"
+  },
+  "entryKinds": {
+    "title": "Entry kinds",
+    "subtitle": "The kinds that show up in the trip's expense and revenue selectors. Toll and Other already exist, on the expense side.",
+    "side": {
+      "label": "Side",
+      "expense": "Expense",
+      "revenue": "Revenue"
+    },
+    "empty": "No entry kind registered.",
+    "name": "Name",
+    "save": "Register",
+    "saving": "Registering…",
+    "deactivate": "Deactivate",
+    "inactive": "inactive"
   },
   "driverAllowance": {
     "kicker": "Trip cost",

@@ -7,7 +7,23 @@
     "certificates": "Certificados",
     "taxes": "Tributos",
     "driverAllowance": "Diária do motorista",
-    "occurrenceTypes": "Tipos de ocorrência"
+    "occurrenceTypes": "Tipos de ocorrência",
+    "entryKinds": "Espécies de lançamento"
+  },
+  "entryKinds": {
+    "title": "Espécies de lançamento",
+    "subtitle": "As espécies que aparecem no seletor de gasto e receita da viagem. Pedágio e Avulso já vêm cadastrados, do lado gasto.",
+    "side": {
+      "label": "Lado",
+      "expense": "Gasto",
+      "revenue": "Receita"
+    },
+    "empty": "Nenhuma espécie cadastrada.",
+    "name": "Nome",
+    "save": "Cadastrar",
+    "saving": "Cadastrando…",
+    "deactivate": "Desativar",
+    "inactive": "inativa"
   },
   "driverAllowance": {
     "kicker": "Custo de viagem",

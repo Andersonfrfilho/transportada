@@ -21,6 +21,7 @@ export const SETTINGS_PANELS = [
   'occurrenceTypeCatalog',
   'contractorMail',
   'cameraMeasurement',
+  'entryKindCatalog',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -46,6 +47,7 @@ export type SettingsDataSource =
   | 'deliveryProofSettings'
   | 'distributionCursor'
   | 'driverAllowanceSettings'
+  | 'entryKindCatalog'
   | 'federalTaxes'
   | 'freightRegions'
   | 'fuelPrices'
@@ -125,6 +127,15 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
     tab: 'occurrenceTypes',
   },
   /**
+   * Spec 169 RF7: o cadastro mora perto do efeito — a mesma aba financeira de Configurações onde
+   * o operador já pensa em dinheiro da viagem, não junto do catálogo de ocorrências.
+   */
+  entryKindCatalog: {
+    module: 'company-settings',
+    source: 'entryKindCatalog',
+    tab: 'entryKinds',
+  },
+  /**
    * Spec 068 — os contatos e as redes moram na aba Site: é o mesmo cadastro público que a landing
    * publica, e é onde o operador já está quando pensa em "o que aparece para quem me procura". O
    * rodapé do e-mail do sistema lê a mesma lista.
@@ -190,6 +201,7 @@ export function resolveSettingsDataScope(
     deliveryProofSettings: sources.has('deliveryProofSettings'),
     distributionCursor: sources.has('distributionCursor'),
     driverAllowanceSettings: sources.has('driverAllowanceSettings'),
+    entryKindCatalog: sources.has('entryKindCatalog'),
     federalTaxes: sources.has('federalTaxes'),
     freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),
@@ -208,6 +220,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'taxes',
   'driverAllowance',
   'occurrenceTypes',
+  'entryKinds',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
