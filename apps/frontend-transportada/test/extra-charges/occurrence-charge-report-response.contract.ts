@@ -6,10 +6,14 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import { DELIVERY_CHARGE_TYPES } from '@/modules/extra-charges/shared/extraCharges.types'
 import {
   ExtraChargeResponseError,
   toOccurrenceChargeReportPage,
 } from '@/modules/extra-charges/shared/extraChargesResponse.validation'
+
+import chargesEnLocale from '@/modules/extra-charges/locales/extraCharges.en.locale.json'
+import chargesLocale from '@/modules/extra-charges/locales/extraCharges.locale.json'
 
 function buildPayload(overrides: Record<string, unknown> = {}) {
   return {
@@ -62,4 +66,40 @@ describe('toOccurrenceChargeReportPage (spec 164 T26)', () => {
 
     expect(() => toOccurrenceChargeReportPage(payload)).toThrow(ExtraChargeResponseError)
   })
+
+  /**
+   * B1 da revisão da T30: a linha do relatório é **sempre** `returned_goods` hoje, e o cast cego
+   * deixava o valor passar sem rótulo — a tabela imprimia `chargeType.returned_goods`.
+   */
+  it('aceita returned_goods, que é o tipo que esta tela lista', () => {
+    const payload = buildPayload()
+    payload.data[0].chargeType = 'returned_goods'
+    payload.totals.byChargeType[0].chargeType = 'returned_goods'
+
+    expect(toOccurrenceChargeReportPage(payload).items[0]?.chargeType).toBe('returned_goods')
+  })
+
+  it('recusa tipo de cobrança fora do vocabulário, em vez de deixar o cast afirmar', () => {
+    const payload = buildPayload()
+    payload.data[0].chargeType = 'mercadoria_devolvida'
+
+    expect(() => toOccurrenceChargeReportPage(payload)).toThrow(ExtraChargeResponseError)
+  })
+
+  it('recusa situação fora do vocabulário', () => {
+    const payload = buildPayload()
+    payload.data[0].status = 'quase_aprovada'
+
+    expect(() => toOccurrenceChargeReportPage(payload)).toThrow(ExtraChargeResponseError)
+  })
+})
+
+/** Tipo sem rótulo vira chave crua na tela — o filtro e a coluna leem a mesma lista. */
+describe('rótulo de cada tipo de cobrança (revisão T30 B1)', () => {
+  for (const chargeType of DELIVERY_CHARGE_TYPES) {
+    it(`tem rótulo pt-BR e inglês para ${chargeType}`, () => {
+      expect(chargesLocale.chargeType[chargeType]).toBeString()
+      expect(chargesEnLocale.chargeType[chargeType]).toBeString()
+    })
+  }
 })

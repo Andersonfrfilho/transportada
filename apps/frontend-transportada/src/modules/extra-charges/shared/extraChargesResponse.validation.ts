@@ -1,4 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  DELIVERY_CHARGE_STATUSES,
+  DELIVERY_CHARGE_TYPES,
+  type DeliveryChargeStatus,
+  type DeliveryChargeType,
+} from './extraCharges.types'
 import type {
   Contractor,
   DeliveryCharge,
@@ -25,6 +31,27 @@ function readString(value: unknown): string {
   return value
 }
 
+/**
+ * ⚠️ O `as DeliveryChargeType` que estava aqui deixava passar qualquer texto, e a tabela imprimia
+ * a chave de tradução crua (`chargeType.returned_goods`) quando o vocabulário da API andava e o
+ * daqui não. Vocabulário fechado se **confere**, nunca se afirma.
+ */
+function readChargeType(value: unknown): DeliveryChargeType {
+  const chargeType = readString(value)
+  if (!(DELIVERY_CHARGE_TYPES as readonly string[]).includes(chargeType)) {
+    throw new ExtraChargeResponseError()
+  }
+  return chargeType as DeliveryChargeType
+}
+
+function readChargeStatus(value: unknown): DeliveryChargeStatus {
+  const status = readString(value)
+  if (!(DELIVERY_CHARGE_STATUSES as readonly string[]).includes(status)) {
+    throw new ExtraChargeResponseError()
+  }
+  return status as DeliveryChargeStatus
+}
+
 function readText(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
@@ -41,7 +68,7 @@ function toCharge(value: unknown): DeliveryCharge {
     /** Valor é **texto** do começo ao fim: convertê-lo para número aqui perderia centavo adiante. */
     amount: readString(value.amount),
     batchId: readNullableString(value.batchId),
-    chargeType: readString(value.chargeType) as DeliveryCharge['chargeType'],
+    chargeType: readChargeType(value.chargeType),
     chargedOn: readString(value.chargedOn),
     contractorId: readNullableString(value.contractorId),
     deliveryClientId: readString(value.deliveryClientId),
@@ -49,7 +76,7 @@ function toCharge(value: unknown): DeliveryCharge {
     notes: readText(value.notes),
     origin: readText(value.origin),
     rejectionReason: readText(value.rejectionReason),
-    status: readString(value.status) as DeliveryCharge['status'],
+    status: readChargeStatus(value.status),
   }
 }
 
@@ -89,7 +116,7 @@ export function toBatchReport(payload: unknown): ExtraChargeBatchReport {
       if (!isRecord(item)) throw new ExtraChargeResponseError()
       return {
         amount: readString(item.amount),
-        chargeType: readString(item.chargeType) as DeliveryCharge['chargeType'],
+        chargeType: readChargeType(item.chargeType),
         chargedOn: readString(item.chargedOn),
         clientName: readText(item.clientName),
         id: readString(item.id),
@@ -109,7 +136,7 @@ function toOccurrenceChargeReportRow(value: unknown): OccurrenceChargeReportRow 
   return {
     accessKey: readNullableString(value.accessKey),
     amount: readString(value.amount),
-    chargeType: readString(value.chargeType) as DeliveryCharge['chargeType'],
+    chargeType: readChargeType(value.chargeType),
     chargedOn: readString(value.chargedOn),
     contractorId: readNullableString(value.contractorId),
     hasSettlement: value.hasSettlement,
@@ -117,7 +144,7 @@ function toOccurrenceChargeReportRow(value: unknown): OccurrenceChargeReportRow 
     noteNumber: readNullableString(value.noteNumber),
     noteSeries: readNullableString(value.noteSeries),
     occurrenceId: readNullableString(value.occurrenceId),
-    status: readString(value.status) as DeliveryCharge['status'],
+    status: readChargeStatus(value.status),
     tripDocumentId: readNullableString(value.tripDocumentId),
   }
 }
@@ -144,7 +171,7 @@ export function toOccurrenceChargeReportPage(payload: unknown): OccurrenceCharge
         }
         return {
           amount: readString(entry.amount),
-          chargeType: readString(entry.chargeType) as DeliveryCharge['chargeType'],
+          chargeType: readChargeType(entry.chargeType),
           count: entry.count,
         }
       }),

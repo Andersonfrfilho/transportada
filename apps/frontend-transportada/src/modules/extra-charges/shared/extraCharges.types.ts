@@ -7,6 +7,13 @@ export const DELIVERY_CHARGE_TYPES = [
   'platform',
   'parking',
   'other',
+  /**
+   * Spec 164 T16 (RF25/RF26): a mercadoria devolvida que a tratativa de ocorrência cobra. Ela nunca
+   * é lançada à mão — nasce da ponte da tratativa —, mas **é** o único tipo que a tela de
+   * ressarcimentos lista, e sem ela aqui o filtro não oferecia o que a página mostrava e a linha
+   * saía com a chave de tradução crua.
+   */
+  'returned_goods',
 ] as const
 export type DeliveryChargeType = (typeof DELIVERY_CHARGE_TYPES)[number]
 
