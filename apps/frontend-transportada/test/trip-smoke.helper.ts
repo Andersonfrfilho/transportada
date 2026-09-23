@@ -481,6 +481,18 @@ async function registerTripMocks(
     }
     await fulfillJson(route, { data: [] })
   })
+  /**
+   * Spec 169: a conta da viagem lê as espécies ativas de despesa e de receita assim que abre. Sem
+   * este dublê os dois pedidos escapam para a API real e o `requestfailed` derruba oito smokes que
+   * nada têm a ver com lançamento — exatamente o que o catálogo de ocorrências já tinha causado.
+   */
+  await input.page.route(/\/company-settings\/entry-kinds\/active(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
   // Spec 158: o detalhe da viagem sempre lê a linha do tempo; smoke que precisa de itens registra
   // `mockTripTimelineApi` por cima (o mais recente vence no Playwright).
   await input.page.route(/\/trips\/[^/]+\/timeline(?:\?.*)?$/, async (route) => {
