@@ -16,6 +16,7 @@ import {
   contractors,
   deliveryCharges,
   deliveryClients,
+  extraChargeBatches,
   fleetVehicles,
   identityUsers,
   nfeDocuments,
@@ -243,6 +244,61 @@ describe('o repasse contra Postgres (spec 060 T010–T012)', () => {
       const byId = new Map(rows.map((row) => [row.id, row]))
       /** Nada prendeu: a recusa aconteceu dentro da mesma transação, antes de qualquer escrita. */
       expect(byId.get(world.recordedIds[0] ?? '')?.batchId).toBeNull()
+    })
+  })
+
+  /**
+   * Revisão final (R1): a validação da seleção não travava as linhas. Duas requisições
+   * concorrentes com ids sobrepostos passavam as duas, inseriam dois lotes, e o segundo `update`
+   * casava zero linhas — lote `submitted` com total preenchido e **nenhuma cobrança vinculada**,
+   * com demonstrativo gerado em cima.
+   */
+  testWithPostgres('duas seleções concorrentes sobre os mesmos ids fecham uma só', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedCharges(database)
+      const useCase = createExtraChargeBatchesUseCase({
+        batches: new DrizzleExtraChargeBatchRepository(database.db),
+        charges: new DrizzleDeliveryChargeRepository(database.db),
+        createToken: () => crypto.randomUUID(),
+      })
+      const chargeIds = [world.recordedIds[0] as string, world.recordedIds[1] as string]
+
+      const outcomes = await Promise.allSettled([
+        useCase.close({
+          chargeIds,
+          context: world.context,
+          contractorId: world.contractorId,
+          periodEnd: '2026-08-31',
+          periodStart: '2026-08-01',
+        }),
+        useCase.close({
+          chargeIds,
+          context: world.context,
+          contractorId: world.contractorId,
+          periodEnd: '2026-08-31',
+          periodStart: '2026-08-01',
+        }),
+      ])
+
+      expect(outcomes.filter((outcome) => outcome.status === 'fulfilled').length).toBe(1)
+      const rejected = outcomes.find((outcome) => outcome.status === 'rejected')
+      expect(rejected?.status === 'rejected' ? rejected.reason : undefined).toMatchObject({
+        code: 'EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE',
+        status: 422,
+      })
+
+      const batches = await database.db
+        .select({ id: extraChargeBatches.id })
+        .from(extraChargeBatches)
+        .where(eq(extraChargeBatches.companyId, world.companyId))
+      expect(batches.length).toBe(1)
+
+      /** Nenhum lote sem cobrança vinculada: as duas linhas foram para o único lote que fechou. */
+      const linked = await database.db
+        .select({ id: deliveryCharges.id })
+        .from(deliveryCharges)
+        .where(eq(deliveryCharges.batchId, batches[0]?.id ?? ''))
+      expect(linked.length).toBe(2)
     })
   })
 })

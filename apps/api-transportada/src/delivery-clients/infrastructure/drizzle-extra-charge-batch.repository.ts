@@ -58,11 +58,20 @@ export class DrizzleExtraChargeBatchRepository implements ExtraChargeBatchReposi
          * A seleção é validada dentro da própria transação: qualquer id fora do contratante, já
          * com lote ou fora de `recorded` derruba a requisição inteira — fechamento parcial
          * silencioso seria pior que erro (plan.md "O fechamento é por seleção, com filtros").
+         *
+         * ⚠️ **`for no key update`, e ordenado por id.** Sem o lock, duas requisições concorrentes
+         * com ids sobrepostos passavam as duas: inseriam dois lotes, e o segundo `update` casava
+         * zero linhas — lote `submitted` com total preenchido e nenhuma cobrança vinculada, com
+         * demonstrativo gerado em cima. A ordem fixa é o que impede as duas travarem em ordens
+         * opostas e deadlocarem. Nunca `for update`: a FK de `delivery_charges` para `batch_id`
+         * pega `FOR KEY SHARE` do outro lado (CLAUDE.md da app).
          */
         const found = await transaction
           .select({ id: deliveryCharges.id })
           .from(deliveryCharges)
           .where(eligible)
+          .orderBy(asc(deliveryCharges.id))
+          .for('no key update')
         if (found.length !== input.chargeIds.length) return { kind: 'selection_ineligible' }
       }
 
