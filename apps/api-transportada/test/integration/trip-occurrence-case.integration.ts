@@ -15,6 +15,7 @@ import {
   nfeParticipants,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
+import { nfeDocuments, nfeProducts } from '../../src/database/nfe.schema.js'
 import {
   companyOccurrenceTypes,
   tripDocuments,
@@ -22,7 +23,10 @@ import {
   tripOccurrenceCases,
 } from '../../src/database/trip.schema.js'
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
-import { TRIP_OCCURRENCE_STAGE } from '../../src/shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_ITEM_QUANTITY_UNIT,
+  TRIP_OCCURRENCE_STAGE,
+} from '../../src/shared/trip-occurrence.constant.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import { DrizzleOccurrenceCaseRepository } from '../../src/trips/infrastructure/drizzle-occurrence-case.repository.js'
 import { DrizzleContractorPortalRepository } from '../../src/contractor-portal/infrastructure/drizzle-contractor-portal.repository.js'
@@ -382,6 +386,134 @@ describe('a tratativa contra Postgres (spec 164 T12)', () => {
           ),
         )
       expect(decideEvents).toHaveLength(1)
+    })
+  })
+})
+
+describe('a nota, os itens e a observação no portal (spec 164 RF13)', () => {
+  testWithPostgres('a listagem e o detalhe trazem o que falta e nada além disso', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'in_transit')
+
+      const [tripDocument] = await database.db
+        .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+        .from(tripDocuments)
+        .where(eq(tripDocuments.id, trip.documentId))
+        .limit(1)
+      if (tripDocument === undefined || tripDocument.nfeDocumentId === null) {
+        throw new Error('EXPECTED_TRIP_DOCUMENT')
+      }
+      const nfeDocumentId = tripDocument.nfeDocumentId
+
+      const [nfeDocument] = await database.db
+        .select({
+          accessKey: nfeDocuments.accessKey,
+          number: nfeDocuments.number,
+          series: nfeDocuments.series,
+        })
+        .from(nfeDocuments)
+        .where(eq(nfeDocuments.id, nfeDocumentId))
+        .limit(1)
+      if (nfeDocument === undefined) throw new Error('EXPECTED_NFE_DOCUMENT')
+
+      const productCode = 'PROD-01'
+      await database.db.insert(nfeProducts).values({
+        cfop: '5102',
+        code: productCode,
+        commercialUnit: 'UN',
+        companyId: company.companyId,
+        description: 'Caixa de parafusos',
+        documentId: nfeDocumentId,
+        ncm: '84713012',
+        ordinal: 1n,
+        quantity: '4.0000',
+        totalValue: '1000.0000',
+        unitValue: '250.0000',
+      })
+
+      const typeId = await seedOccurrenceType(database, company, 'allowed', 'Caixa violada')
+      const uploads: { objectId: string; objectKey: string }[] = []
+      const registered = await persistSeparationOccurrenceWithAttachment({
+        attachment: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+        input: {
+          actorUserId: company.userId,
+          companyId: company.companyId,
+          documentId: trip.documentId,
+          items: [
+            { code: productCode, quantity: '2.0000', unit: OCCURRENCE_ITEM_QUANTITY_UNIT.unit },
+          ],
+          note: 'caixa com avaria visível',
+          occurrenceTypeId: typeId,
+          productCode: '',
+          productCodes: [productCode],
+          redeliveryPolicy: 'allowed',
+          stage: TRIP_OCCURRENCE_STAGE.separation,
+          tripId: trip.tripId,
+          typeName: 'Caixa violada',
+        },
+        newObjectId: () => crypto.randomUUID(),
+        now: () => new Date('2026-09-22T12:00:00.000Z'),
+        storage: fakeAttachmentStorage(uploads),
+        unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db, 'test-bucket'),
+      })
+      if (registered === null) throw new Error('EXPECTED_OCCURRENCE')
+
+      const contractorContext = await bindContractor(database, company, trip, OWN_TAX_ID)
+      const { cases, useCase } = buildPortalUseCase(database)
+      const caseId = await findCaseId(database, company.companyId, registered.id)
+      if (caseId === null) throw new Error('EXPECTED_CASE')
+
+      await cases.transition({
+        action: 'review',
+        actorKind: 'internal',
+        actorUserId: company.userId,
+        caseId,
+        companyId: company.companyId,
+        hasSettlementItems: false,
+        note: '',
+      })
+      await cases.transition({
+        action: 'contractor_submission',
+        actorKind: 'internal',
+        actorUserId: company.userId,
+        caseId,
+        companyId: company.companyId,
+        hasSettlementItems: false,
+        note: '',
+      })
+
+      const [listed] = await useCase.list({ context: contractorContext })
+      if (listed === undefined) throw new Error('EXPECTED_LISTED_OCCURRENCE')
+
+      expect(listed.nfeNumber).toBe(nfeDocument.number)
+      expect(listed.nfeSeries).toBe(nfeDocument.series)
+      expect(listed.nfeAccessKey).toBe(nfeDocument.accessKey)
+      expect(listed.note).toBe('caixa com avaria visível')
+      expect(listed.items).toEqual([
+        { code: productCode, description: 'Caixa de parafusos', quantity: '2.000', unit: 'unit' },
+      ])
+
+      // Contrato negativo: nada além do que RF13 pede sai da listagem.
+      expect(Object.keys(listed).sort()).toEqual(
+        [
+          'caseStatus',
+          'decidedAt',
+          'decisionKind',
+          'items',
+          'nfeAccessKey',
+          'nfeNumber',
+          'nfeSeries',
+          'note',
+          'occurrenceId',
+          'occurrenceTypeName',
+          'openedAt',
+          'stage',
+        ].sort(),
+      )
+      expect(Object.keys(listed.items[0] ?? {}).sort()).toEqual(
+        ['code', 'description', 'quantity', 'unit'].sort(),
+      )
     })
   })
 })

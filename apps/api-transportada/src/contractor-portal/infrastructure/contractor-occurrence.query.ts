@@ -15,7 +15,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, exists, inArray } from 'drizzle-orm'
 
-import { nfeParticipants } from '../../database/nfe.schema.js'
+import { nfeDocuments, nfeParticipants, nfeProducts } from '../../database/nfe.schema.js'
 import {
   companyOccurrenceTypes,
   tripDocumentOccurrences,
@@ -27,16 +27,33 @@ import type {
   TripOccurrenceCaseStatus,
 } from '../../database/trip.schema.js'
 import { CONTRACTOR_VISIBLE_CASE_STATUSES } from '../../trips/domain/occurrence-case.policy.js'
+import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
+import { listOccurrenceProducts } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
+import type { OccurrenceItemQuantityUnit } from '../../shared/trip-occurrence.constant.js'
 import type { ContractorScope } from '../domain/contractor-scope.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const CONTRACTOR_ROLES = ['emitter', 'recipient'] as const
 
+/** Spec 164 RF13: o item apontado — código e descrição vêm da nota, quantidade/unidade da marcação. */
+export type ContractorOccurrenceItem = {
+  readonly code: string
+  readonly description: string
+  readonly quantity: string | null
+  readonly unit: OccurrenceItemQuantityUnit | null
+}
+
 export type ContractorOccurrenceListItem = {
   readonly caseStatus: TripOccurrenceCaseStatus
   readonly decidedAt: string | null
   readonly decisionKind: TripOccurrenceCaseDecisionKind | null
+  /** Lista vazia é a nota inteira (RF13) — nunca "sem item". */
+  readonly items: readonly ContractorOccurrenceItem[]
+  readonly nfeAccessKey: string
+  readonly nfeNumber: string
+  readonly nfeSeries: string
+  readonly note: string
   readonly occurrenceId: string
   readonly occurrenceTypeName: string
   readonly openedAt: string
@@ -46,7 +63,6 @@ export type ContractorOccurrenceListItem = {
 export type ContractorOccurrenceDetail = ContractorOccurrenceListItem & {
   readonly caseId: string
   readonly decisionNote: string
-  readonly note: string
 }
 
 /** A mesma condição de escopo que `listContractorDeliveries` usa — a nota é do contratante quando ele emitiu ou recebe. */
@@ -75,9 +91,15 @@ export async function listContractorOccurrences(
       caseStatus: tripOccurrenceCases.status,
       decidedAt: tripOccurrenceCases.decidedAt,
       decisionKind: tripOccurrenceCases.decisionKind,
+      nfeAccessKey: nfeDocuments.accessKey,
+      nfeDocumentId: nfeDocuments.id,
+      nfeNumber: nfeDocuments.number,
+      nfeSeries: nfeDocuments.series,
+      note: tripDocumentOccurrences.note,
       occurrenceId: tripDocumentOccurrences.id,
       occurrenceTypeName: companyOccurrenceTypes.name,
       openedAt: tripOccurrenceCases.openedAt,
+      productCode: tripDocumentOccurrences.productCode,
       stage: tripDocumentOccurrences.stage,
     })
     .from(tripDocumentOccurrences)
@@ -103,6 +125,13 @@ export async function listContractorOccurrences(
         eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
       ),
     )
+    .innerJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, input.companyId),
@@ -112,15 +141,90 @@ export async function listContractorOccurrences(
     .orderBy(desc(tripOccurrenceCases.openedAt))
     .limit(input.limit)
 
+  const itemsByOccurrence = await resolveContractorOccurrenceItems(database, {
+    companyId: input.companyId,
+    rows,
+  })
+
   return rows.map((row) => ({
     caseStatus: row.caseStatus,
     decidedAt: row.decidedAt?.toISOString() ?? null,
     decisionKind: row.decisionKind,
+    items: itemsByOccurrence.get(row.occurrenceId) ?? [],
+    nfeAccessKey: row.nfeAccessKey,
+    nfeNumber: row.nfeNumber,
+    nfeSeries: row.nfeSeries,
+    note: row.note,
     occurrenceId: row.occurrenceId,
     occurrenceTypeName: row.occurrenceTypeName,
     openedAt: row.openedAt.toISOString(),
     stage: row.stage,
   }))
+}
+
+/**
+ * Junta o código legado (`productCode`) com a tabela nova (spec 166) para chegar à lista de itens, e
+ * resolve a descrição de cada um na `nfe_products` da própria nota — uma consulta em lote para todas
+ * as ocorrências da página, nunca uma por linha.
+ */
+async function resolveContractorOccurrenceItems(
+  database: Database,
+  input: {
+    readonly companyId: string
+    readonly rows: readonly {
+      readonly nfeDocumentId: string
+      readonly occurrenceId: string
+      readonly productCode: string
+    }[]
+  },
+): Promise<ReadonlyMap<string, readonly ContractorOccurrenceItem[]>> {
+  const result = new Map<string, readonly ContractorOccurrenceItem[]>()
+  if (input.rows.length === 0) return result
+
+  const storedByOccurrence = await listOccurrenceProducts(database, {
+    companyId: input.companyId,
+    occurrenceIds: input.rows.map((row) => row.occurrenceId),
+  })
+
+  const documentIds = [...new Set(input.rows.map((row) => row.nfeDocumentId))]
+  const descriptionRows = await database
+    .select({
+      code: nfeProducts.code,
+      description: nfeProducts.description,
+      documentId: nfeProducts.documentId,
+    })
+    .from(nfeProducts)
+    .where(
+      and(eq(nfeProducts.companyId, input.companyId), inArray(nfeProducts.documentId, documentIds)),
+    )
+
+  const descriptionByDocumentAndCode = new Map<string, string>()
+  for (const row of descriptionRows) {
+    descriptionByDocumentAndCode.set(`${row.documentId}:${row.code}`, row.description)
+  }
+
+  for (const row of input.rows) {
+    const storedProducts = storedByOccurrence.get(row.occurrenceId) ?? []
+    const codes = resolveOccurrenceProductCodes({
+      productCode: row.productCode,
+      productCodes: storedProducts.map((product) => product.code),
+    })
+
+    result.set(
+      row.occurrenceId,
+      codes.map((code) => {
+        const stored = storedProducts.find((product) => product.code === code)
+        return {
+          code,
+          description: descriptionByDocumentAndCode.get(`${row.nfeDocumentId}:${code}`) ?? '',
+          quantity: stored?.quantity ?? null,
+          unit: stored?.unit ?? null,
+        }
+      }),
+    )
+  }
+
+  return result
 }
 
 /**
@@ -144,10 +248,15 @@ export async function findContractorOccurrenceDetail(
       decidedAt: tripOccurrenceCases.decidedAt,
       decisionKind: tripOccurrenceCases.decisionKind,
       decisionNote: tripOccurrenceCases.decisionNote,
+      nfeAccessKey: nfeDocuments.accessKey,
+      nfeDocumentId: nfeDocuments.id,
+      nfeNumber: nfeDocuments.number,
+      nfeSeries: nfeDocuments.series,
       note: tripDocumentOccurrences.note,
       occurrenceId: tripDocumentOccurrences.id,
       occurrenceTypeName: companyOccurrenceTypes.name,
       openedAt: tripOccurrenceCases.openedAt,
+      productCode: tripDocumentOccurrences.productCode,
       stage: tripDocumentOccurrences.stage,
     })
     .from(tripDocumentOccurrences)
@@ -173,6 +282,13 @@ export async function findContractorOccurrenceDetail(
         eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
       ),
     )
+    .innerJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
     .where(
       and(
         eq(tripDocumentOccurrences.companyId, input.companyId),
@@ -184,12 +300,21 @@ export async function findContractorOccurrenceDetail(
 
   if (row === undefined) return null
 
+  const itemsByOccurrence = await resolveContractorOccurrenceItems(database, {
+    companyId: input.companyId,
+    rows: [row],
+  })
+
   return {
     caseId: row.caseId,
     caseStatus: row.caseStatus,
     decidedAt: row.decidedAt?.toISOString() ?? null,
     decisionKind: row.decisionKind,
     decisionNote: row.decisionNote,
+    items: itemsByOccurrence.get(row.occurrenceId) ?? [],
+    nfeAccessKey: row.nfeAccessKey,
+    nfeNumber: row.nfeNumber,
+    nfeSeries: row.nfeSeries,
     note: row.note,
     occurrenceId: row.occurrenceId,
     occurrenceTypeName: row.occurrenceTypeName,

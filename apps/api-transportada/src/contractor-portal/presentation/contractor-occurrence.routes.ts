@@ -8,6 +8,10 @@
  * `on_behalf_of_driver_id`, `channel`, qualquer id interno (`tripId`/`stopId`/`tripDocumentId`/
  * `occurrenceTypeId`), `bucket`/`objectKey`, `redelivery_policy`/`redelivery_application`,
  * `decided_by_user_id` e o histórico de eventos.
+ *
+ * RF13: sem a nota, os itens e a observação o contratante não tem como decidir — a listagem
+ * acrescenta `nfe` (número/série/chave, o mesmo recorte que o resto do portal já expõe), `items`
+ * (código, descrição e quantidade dos produtos apontados; lista vazia é a nota inteira) e `note`.
  */
 import { z } from 'zod'
 
@@ -22,7 +26,10 @@ import type {
   ContractorOccurrenceCaseTransition,
   DecideOccurrenceCaseUseCase,
 } from '../application/decide-occurrence-case.use-case.js'
-import type { ContractorOccurrenceListItem } from '../infrastructure/contractor-occurrence.query.js'
+import type {
+  ContractorOccurrenceItem,
+  ContractorOccurrenceListItem,
+} from '../infrastructure/contractor-occurrence.query.js'
 
 const TRACK_POLICY = { permission: 'deliveries.track', scope: 'company' } as const
 const DECIDE_POLICY = { permission: 'occurrences.decide', scope: 'company' } as const
@@ -110,10 +117,26 @@ async function serialize(
     caseStatus: occurrence.caseStatus,
     decidedAt: occurrence.decidedAt,
     decisionKind: occurrence.decisionKind,
+    items: occurrence.items.map(serializeItem),
+    nfe: {
+      accessKey: occurrence.nfeAccessKey,
+      number: occurrence.nfeNumber,
+      series: occurrence.nfeSeries,
+    },
+    note: occurrence.note,
     occurrenceId: occurrence.occurrenceId,
     occurrenceTypeName: occurrence.occurrenceTypeName,
     openedAt: occurrence.openedAt,
     stage: occurrence.stage,
+  }
+}
+
+function serializeItem(item: ContractorOccurrenceItem): Record<string, unknown> {
+  return {
+    code: item.code,
+    description: item.description,
+    quantity: item.quantity,
+    unit: item.unit,
   }
 }
 

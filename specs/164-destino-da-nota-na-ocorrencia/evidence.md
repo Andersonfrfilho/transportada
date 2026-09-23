@@ -1167,3 +1167,60 @@ escopo de "só frontend-client" desta rodada.
 ### Commit desta rodada
 
 1. `feat(frontend-client): spec 164 T25 — tela de ocorrências do contratante`
+
+## RF13/RF35 — a nota, os itens e a observação faltando no `GET /client/me/occurrences`
+
+Data: 2026-09-22.
+
+A divergência registrada na rodada anterior (acima, "Divergência achada entre a spec e a API já
+publicada") era real: `contractor-occurrence.routes.ts` serializava só `attachments`, `caseStatus`,
+`decidedAt`, `decisionKind`, `occurrenceId`, `occurrenceTypeName`, `openedAt`, `stage` — sem nota,
+itens ou observação, a tela do contratante mostrava "Item avariado" sem dizer de qual nota ou
+produto.
+
+- `contractor-occurrence.query.ts`: `listContractorOccurrences`/`findContractorOccurrenceDetail`
+  ganham `innerJoin` com `nfe_documents` (número/série/chave, mesmo recorte que
+  `contractor-delivery.query.ts` já expõe) e `note` (já existia só no detalhe, agora também na
+  listagem). Os itens vêm de `resolveOccurrenceProductCodes` (código legado + tabela nova, spec 166)
+  cruzado em lote com `nfe_products` por `(companyId, documentId, code)` — uma consulta para todas as
+  ocorrências da página, nunca uma por linha (`resolveContractorOccurrenceItems`). Lista vazia
+  continua significando a nota inteira.
+- `contractor-occurrence.routes.ts`: serialização campo a campo acrescenta `nfe {accessKey, number,
+series}`, `items [{code, description, quantity, unit}]` e `note`. Nada do que o rodapé do
+  `plan.md` proíbe (autor/motorista, `channel`, ids internos, `bucket`/`objectKey`,
+  `redeliveryPolicy`/`redeliveryApplication`, `decidedByUserId`, histórico) entrou.
+- A fronteira de visibilidade não mudou — mesmo `inner join` em `trip_occurrence_cases` filtrado por
+  `CONTRACTOR_VISIBLE_CASE_STATUSES` e mesmo `exists` sobre `nfe_participants` (nunca `distinct`).
+
+### Teste novo (contra Postgres real)
+
+`test/integration/trip-occurrence-case.integration.ts` ganhou o describe "a nota, os itens e a
+observação no portal (spec 164 RF13)": semeia uma nota com um produto, registra a ocorrência
+apontando esse item, avança a tratativa até `awaiting_contractor` e confere `listContractorOccurrences`
+(via `useCase.list`) — número/série/chave da nota, `note`, e `items` com código+descrição+quantidade.
+O contrato negativo é literal: `Object.keys(listed)` e `Object.keys(listed.items[0])` comparados contra
+a lista exata de chaves esperada, então qualquer campo interno vazado quebra o teste. Entrou na lista
+explícita de `package.json` (arquivo já estava listado, task só adicionou o describe).
+
+### Gates
+
+- `bun run lint` (raiz) — limpo em `api-transportada`; o único erro reportado é pré-existente em
+  `apps/frontend-transportada` (`TripOccurrenceFilters.component.tsx`/`tripOccurrenceFilterPills.service.ts`,
+  trabalho de outro agente em andamento), fora do escopo desta task.
+- `bun run typecheck` (raiz, todas as apps) — limpo.
+- `bunx prettier --check .` — limpo depois de `--write` em `contractor-occurrence.query.ts` e
+  `trip-occurrence-case.integration.ts`.
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato, 183 arquivos) — **7094 pass, 0
+  fail**, 23 skip (pré-existentes, não desta task).
+- `bun --env-file=../../.env.test test ./test/integration/trip-occurrence-case.integration.ts
+--timeout 120000` (a integração do portal, por caminho explícito) — **3 pass, 0 fail**, incluindo o
+  teste novo.
+- ⚠️ **A suíte completa de integração (`bun run test:integration`, 72 arquivos) não foi confirmada
+  nesta rodada** — passou de dois minutos rodando contra o Postgres descartável e foi movida para
+  segundo plano sem terminar antes do commit, por instrução do coordenador (a tarefa não fica refém
+  de uma suíte lenta). O gate da CI é quem a exercita em máquina limpa; se o resultado tardio
+  mostrar algo quebrado por esta mudança, entra como task de correção separada.
+
+### Commit desta rodada
+
+2. `fix(api): spec 164 RF13 — nota, itens e observação no portal do contratante`
