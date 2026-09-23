@@ -212,7 +212,7 @@ $ bun --env-file=../../.env.test test --timeout 120000                    # apps
 7173 pass, 23 skip, 0 fail — Ran 7196 tests across 183 files.
 
 $ bun --env-file=../../.env.test run test:integration                     # apps/api-transportada
-(em andamento — ver nota abaixo)
+564 pass, 7 skip, 0 fail — Ran 571 tests across 105 files. [578.57s]
 
 $ bun test ./test/trip.contract.test.ts                # apps/frontend-transportada
 1514 pass, 0 fail — Ran 1514 tests across 1 file.
@@ -223,10 +223,9 @@ $ bun test ./test/design-system.contract.test.ts        # apps/frontend-transpor
 
 ## Pendente
 
-- A integração completa (`test:integration`) estava rodando em background no fim desta sessão; a
-  spec original já registrava 75 falhas pré-existentes por `event_kind` faltando no banco descartável
-  (drift do worktree, não desta correção) — falta confirmar que o número não mudou e que nenhuma nova
-  falha cita `cargo-layout`/`pending-measurement`/`trip-http`.
+- Integração completa rodada até o fim nesta sessão: **564 pass, 7 skip, 0 fail** — sem nenhuma
+  falha (o drift de `event_kind` que a spec original registrava não se repetiu; provavelmente outra
+  sessão nesta mesma árvore já aplicou a migration entre as duas rodadas).
 - **`GET /trips/:id` continua sem `packageBoxId` real** — a normalização feita aqui só evita o
   `undefined` solto (troca por `null` sempre), então toda linha servida por esse caminho aparece como
   "sem caixa do catálogo" (`noBoxReason`), mesmo quando existe casamento único. Medir efetivamente
