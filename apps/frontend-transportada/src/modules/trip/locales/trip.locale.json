@@ -599,6 +599,7 @@
     "notFound": "Viagem não encontrada.",
     "readOnly": "Seu acesso atual não permite esta ação.",
     "requestFailed": "Sem conexão com o servidor. Confira a internet e tente de novo.",
+    "serverRefused": "O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário.",
     "responseInvalid": "A API respondeu em um formato inesperado.",
     "scannedDocumentNotFound": "Nenhuma nota com esta chave de acesso nesta empresa.",
     "stateTransitionNotAllowed": "Esta ação não é mais permitida no estado atual da viagem.",

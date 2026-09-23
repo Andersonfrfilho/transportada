@@ -13,7 +13,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.query'
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import {
-  formatOccurrenceProductsLine,
+  describeOccurrenceItems,
   OCCURRENCE_DEFAULT_QUANTITY_UNIT,
   OCCURRENCE_WHOLE_DOCUMENT_VALUE,
   resolveOccurrenceItemQuantityFields,
@@ -121,6 +121,11 @@ export function TripOccurrences({
   types,
 }: TripOccurrencesProps) {
   const { t } = useTranslation('trip')
+
+  /** O nome do item da nota, para o rótulo do campo e a leitura. `null` é item que a nota não tem. */
+  function describeProduct(code: string): null | string {
+    return products.find((product) => product.code === code)?.description ?? null
+  }
   const [isOpen, setIsOpen] = useState(false)
   const disponiveis = types.filter(
     (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.separation,
@@ -238,20 +243,55 @@ export function TripOccurrences({
             const authorship = resolveFieldAuthorshipText(occurrence, t as Translate)
             return (
               <li key={occurrence.id}>
-                {t('occurrence.line', {
-                  moment: momentFormatter.format(new Date(occurrence.createdAt)),
-                  type: occurrence.typeName,
-                })}
-                {` — ${formatOccurrenceProductsLine({
+                <p className={styles.occurrenceEntryHeader}>
+                  <span className={styles.occurrenceEntryType}>{occurrence.typeName}</span>
+                  <span className={styles.hint}>
+                    {momentFormatter.format(new Date(occurrence.createdAt))}
+                  </span>
+                </p>
+                {/*
+                 * Revisão de leitura (22/09): o código sozinho ("183") não diz o que foi avariado,
+                 * e a descrição já está na tela — o formulário a usa para marcar. Cada item em sua
+                 * linha porque a lista cresceu: três itens numa linha só viram parede de texto.
+                 */}
+                {describeOccurrenceItems({
                   occurrence,
+                  products,
                   unitLabels: {
                     box: t('occurrence.quantityUnits.box'),
                     unit: t('occurrence.quantityUnits.unit'),
                   },
-                  wholeDocumentLabel: t('occurrence.wholeDocument'),
-                })}`}
-                {occurrence.note === '' ? null : ` — ${occurrence.note}`}
-                {authorship === null ? null : <span className={styles.hint}> — {authorship}</span>}
+                }).length === 0 ? (
+                  <p className={styles.occurrenceEntryWhole}>{t('occurrence.wholeDocument')}</p>
+                ) : (
+                  <ul className={styles.occurrenceEntryItems}>
+                    {describeOccurrenceItems({
+                      occurrence,
+                      products,
+                      unitLabels: {
+                        box: t('occurrence.quantityUnits.box'),
+                        unit: t('occurrence.quantityUnits.unit'),
+                      },
+                    }).map((item) => (
+                      <li key={item.code}>
+                        <span className={styles.occurrenceEntryItemCode}>{item.code}</span>
+                        {/* Item que não está na nota carregada sai só com o código — nada inventado. */}
+                        {item.description === null ? null : (
+                          <span className={styles.occurrenceEntryItemName}>{item.description}</span>
+                        )}
+                        {item.quantity === null ? null : (
+                          <span className={styles.occurrenceEntryItemQuantity}>
+                            {item.quantity}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {occurrence.note === '' ? null : (
+                  <p className={styles.occurrenceEntryNote}>{occurrence.note}</p>
+                )}
+                {authorship === null ? null : <p className={styles.hint}>{authorship}</p>}
                 {occurrence.attachments === undefined ||
                 occurrence.attachments.length === 0 ? null : (
                   <OccurrenceAttachmentGrid
@@ -384,12 +424,15 @@ export function TripOccurrences({
            * (lista vazia) não tem item a contar — o bloco só nasce com item escolhido.
            */}
           {productCodes.length === 0 ? null : (
-            <div className={styles.occurrenceFormRow}>
+            <div className={styles.occurrenceItemQuantityList}>
               {productCodes.map((code) => {
                 const entry = quantitiesByCode.get(code)
                 return (
                   <label key={code}>
-                    <span>{`${code} — ${t('occurrence.quantityLabel')}`}</span>
+                    <span>
+                      {`${code}${describeProduct(code) === null ? '' : ` — ${describeProduct(code)}`}`}
+                      <span className={styles.hint}>{` · ${t('occurrence.quantityLabel')}`}</span>
+                    </span>
                     <div className={styles.occurrenceItemQuantityFields}>
                       <input
                         aria-label={`${code} — ${t('occurrence.quantityLabel')}`}

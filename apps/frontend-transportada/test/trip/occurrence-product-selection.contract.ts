@@ -1,7 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, it, test } from 'bun:test'
 
 import {
+  describeOccurrenceItems,
   formatOccurrenceProductEntryLabel,
   formatOccurrenceProductLabel,
   formatOccurrenceProductsLine,
@@ -220,5 +221,117 @@ describe('spec 166: a leitura mostra a contagem, item sem ela some — nunca vir
       wholeDocumentLabel: 'A nota inteira',
     })
     expect(wholeDocument).toBe('A nota inteira')
+  })
+})
+
+/**
+ * Revisão de leitura (22/09, pedido do usuário): a linha da ocorrência dizia só o **código** do item
+ * ("183"), e código não é item — quem lê a lista não sabe o que foi avariado sem abrir a nota. A
+ * descrição já está na tela (o formulário a usa no seletor); o que faltava era levá-la à leitura.
+ */
+describe('descrição do item na leitura da ocorrência', () => {
+  const PRODUCTS = [
+    {
+      code: '183',
+      commercialUnit: 'UN',
+      description: 'SHAMP MONANGE 325ML HIDR COM PODER',
+      ordinal: 1,
+      quantity: '12.0000',
+      totalValue: '120.0000',
+      unitValue: '10.0000',
+    },
+    {
+      code: '184',
+      commercialUnit: 'CX',
+      description: 'SAB LUX 85G',
+      ordinal: 2,
+      quantity: '3.0000',
+      totalValue: '30.0000',
+      unitValue: '10.0000',
+    },
+  ]
+  const UNIT_LABELS = { box: 'caixas', unit: 'peças' } as const
+
+  function build(
+    input: Readonly<{
+      codes: readonly string[]
+      products?: readonly Readonly<{
+        code: string
+        quantity: null | string
+        unit: 'box' | 'unit' | null
+      }>[]
+    }>,
+  ) {
+    return {
+      productCode: input.codes[0] ?? '',
+      productCodes: input.codes,
+      ...(input.products === undefined ? {} : { products: input.products }),
+    }
+  }
+
+  it('casa cada item com a descrição da nota e com a contagem', () => {
+    const itens = describeOccurrenceItems({
+      occurrence: build({
+        codes: ['183'],
+        products: [{ code: '183', quantity: '3.000', unit: 'unit' }],
+      }),
+      products: PRODUCTS,
+      unitLabels: UNIT_LABELS,
+    })
+
+    expect(itens).toEqual([
+      { code: '183', description: 'SHAMP MONANGE 325ML HIDR COM PODER', quantity: '3.000 peças' },
+    ])
+  })
+
+  it('mantém a ordem dos itens marcados, com vários', () => {
+    const itens = describeOccurrenceItems({
+      occurrence: build({ codes: ['184', '183'] }),
+      products: PRODUCTS,
+      unitLabels: UNIT_LABELS,
+    })
+
+    expect(itens.map((item) => item.code)).toEqual(['184', '183'])
+    expect(itens.map((item) => item.description)).toEqual([
+      'SAB LUX 85G',
+      'SHAMP MONANGE 325ML HIDR COM PODER',
+    ])
+  })
+
+  /** Item sem contagem aparece sem número — a leitura nunca inventa um zero (spec 166 P3). */
+  it('item sem contagem sai sem quantidade', () => {
+    const [item] = describeOccurrenceItems({
+      occurrence: build({ codes: ['183'] }),
+      products: PRODUCTS,
+      unitLabels: UNIT_LABELS,
+    })
+
+    expect(item?.quantity).toBeNull()
+  })
+
+  /**
+   * ⚠️ Nota antiga, item removido do cadastro, ou a lista da nota ainda carregando: o código
+   * continua sendo verdade, a descrição não. Inventar "item desconhecido" seria afirmar sobre o que
+   * não se sabe — a linha mostra o código sozinho.
+   */
+  it('item que não está na nota carregada sai só com o código', () => {
+    const [item] = describeOccurrenceItems({
+      occurrence: build({ codes: ['999'] }),
+      products: PRODUCTS,
+      unitLabels: UNIT_LABELS,
+    })
+
+    expect(item).toEqual({ code: '999', description: null, quantity: null })
+  })
+
+  /** Lista vazia é a nota inteira, e quem decide como dizer isso é a tela, não esta função. */
+  it('nota inteira devolve lista vazia', () => {
+    expect(
+      describeOccurrenceItems({
+        occurrence: build({ codes: [] }),
+        products: PRODUCTS,
+        unitLabels: UNIT_LABELS,
+      }),
+    ).toEqual([])
   })
 })

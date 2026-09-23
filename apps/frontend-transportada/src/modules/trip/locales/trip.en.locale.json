@@ -476,6 +476,7 @@
     "notFound": "Trip not found.",
     "readOnly": "Your current access does not allow this action.",
     "requestFailed": "Could not reach the server. Check the connection and try again.",
+    "serverRefused": "The server refused this operation. Nothing was saved — try again and, if it repeats, tell support the time.",
     "responseInvalid": "The API responded in an unexpected format.",
     "scannedDocumentNotFound": "No note with this access key in this company.",
     "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",

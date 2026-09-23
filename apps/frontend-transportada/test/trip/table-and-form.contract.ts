@@ -162,7 +162,8 @@ describe('trip feedback contract', () => {
 
     expect(resolveTripFeedbackKey(null)).toBeNull()
     expect(resolveTripFeedbackKey(new Error('TRIP_CLOSED'))).toBe('closed')
-    expect(resolveTripFeedbackKey(new Error('UNKNOWN'))).toBe('requestFailed')
+    /** Desde 23/09: desconhecido é recusa do servidor, nunca "confira a internet". */
+    expect(resolveTripFeedbackKey(new Error('UNKNOWN'))).toBe('serverRefused')
     expect(resolveFirstTripFeedbackKey([null, null])).toBeNull()
     expect(
       resolveFirstTripFeedbackKey([

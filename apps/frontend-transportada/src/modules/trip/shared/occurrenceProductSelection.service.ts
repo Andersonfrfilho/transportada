@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { OCCURRENCE_QUANTITY_UNITS, type OccurrenceQuantityUnit } from './trip.constant'
-import type { TripOccurrence } from './trip.types'
+import type { TripDocumentProduct, TripOccurrence } from './trip.types'
 
 /** A unidade padrão quando a quantidade foi digitada e a unidade ainda não foi escolhida. */
 export const OCCURRENCE_DEFAULT_QUANTITY_UNIT: OccurrenceQuantityUnit = OCCURRENCE_QUANTITY_UNITS[1]
@@ -133,4 +133,41 @@ export function formatOccurrenceProductsLine(
   return entries
     .map((entry) => formatOccurrenceProductEntryLabel({ entry, unitLabels: input.unitLabels }))
     .join(', ')
+}
+
+/** Um item da ocorrência pronto para a leitura: o código, o que ele é, e quanto foi. */
+export type OccurrenceItemDescription = Readonly<{
+  code: string
+  /** `null` quando a nota carregada não tem esse código — o código é verdade, a descrição não. */
+  description: null | string
+  /** `null` é item sem contagem. Nunca zero (spec 166 P3). */
+  quantity: null | string
+}>
+
+/**
+ * Revisão de leitura (22/09): a lista de ocorrências dizia só o código do item, e código não é
+ * item — quem lê não sabe o que foi avariado sem abrir a nota. A descrição já está na tela, no
+ * mesmo `products` que o formulário usa para marcar; aqui ela chega à leitura.
+ *
+ * Lista vazia é a nota inteira, e **quem decide como dizer isso é a tela** — devolver aqui um rótulo
+ * pronto misturaria texto de interface com regra, e o texto tem de vir do dicionário.
+ */
+export function describeOccurrenceItems(
+  input: Readonly<{
+    occurrence: Pick<TripOccurrence, 'productCode' | 'productCodes' | 'products'>
+    products: readonly TripDocumentProduct[]
+    unitLabels: Readonly<Record<OccurrenceQuantityUnit, string>>
+  }>,
+): readonly OccurrenceItemDescription[] {
+  const descriptionByCode = new Map(
+    input.products.map((product) => [product.code, product.description] as const),
+  )
+  return resolveOccurrenceProductEntries(input.occurrence).map((entry) => ({
+    code: entry.code,
+    description: descriptionByCode.get(entry.code) ?? null,
+    quantity:
+      entry.quantity === null || entry.unit === null
+        ? null
+        : `${entry.quantity} ${input.unitLabels[entry.unit]}`,
+  }))
 }

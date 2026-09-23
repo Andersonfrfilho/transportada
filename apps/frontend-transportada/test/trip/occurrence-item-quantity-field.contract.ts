@@ -44,8 +44,15 @@ describe('spec 166: campo de quantidade por item em TripOccurrences', () => {
     expect(SOURCE).toContain('productQuantityUnits')
   })
 
-  it('a leitura usa formatOccurrenceProductsLine, com a contagem por item (P3)', () => {
-    expect(SOURCE).toContain('formatOccurrenceProductsLine')
+  /**
+   * ⚠️ Era `formatOccurrenceProductsLine`, que devolvia uma **linha só** com os códigos separados
+   * por vírgula. A revisão de 22/09 trocou isso por `describeOccurrenceItems`: cada item em sua
+   * linha, com o **nome** do produto ao lado do código — código sozinho não diz o que foi avariado.
+   */
+  it('a leitura descreve item a item, com nome e contagem (P3)', () => {
+    expect(SOURCE).toContain('describeOccurrenceItems')
+    expect(SOURCE).toContain('occurrenceEntryItemName')
+    expect(SOURCE).toContain('occurrenceEntryItemQuantity')
   })
 
   it('os textos novos existem nos dois locales', () => {

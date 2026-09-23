@@ -1296,10 +1296,21 @@
   }
 }
 
+/*
+ * Um item por linha (pedido do usuário, 22/09): a lista de quantidades usava a linha de duas colunas
+ * do formulário, e no desktop dois itens ficavam lado a lado — com o nome do produto no rótulo, isso
+ * espreme o nome e obriga a ler em ziguezague para conferir item contra contagem.
+ */
+.occurrenceItemQuantityList {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
 /* Spec 166 RF7: o campo numérico de quantidade ao lado do seletor de unidade, por item marcado. */
 .occurrenceItemQuantityFields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(6rem, 1fr) minmax(7rem, 1fr);
   gap: var(--space-2);
 }
 
@@ -3381,4 +3392,76 @@
 .occurrenceDiscardConfirm p {
   margin: 0;
   flex: 1 1 100%;
+}
+
+/*
+ * Revisão de leitura (22/09): a ocorrência era uma linha corrida — tipo, hora, código do item e
+ * autoria separados por travessão. Com vários itens e a contagem da spec 166, virava parede de
+ * texto. Agora cada ocorrência é um bloco, e cada item tem sua linha.
+ */
+.documentProductList > li + li {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
+.occurrenceEntryHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.occurrenceEntryType {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.occurrenceEntryItems {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.occurrenceEntryItems > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/* O código é etiqueta, não texto: largura própria para os itens alinharem entre si. */
+.occurrenceEntryItemCode {
+  min-width: 3.5rem;
+  color: color-mix(in srgb, var(--color-fog) 78%, var(--color-slate) 22%);
+  font-family: var(--font-utility, monospace);
+  font-size: 0.78rem;
+}
+
+.occurrenceEntryItemName {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+/* A contagem é o número que decide a tratativa — ela não pode ler como detalhe secundário. */
+.occurrenceEntryItemQuantity {
+  border: 1px solid color-mix(in srgb, var(--color-fog) 26%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  padding: 0 var(--space-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.occurrenceEntryWhole {
+  margin: var(--space-1) 0 0;
+  font-style: italic;
+  color: color-mix(in srgb, var(--color-fog) 78%, var(--color-slate) 22%);
+}
+
+.occurrenceEntryNote {
+  margin: var(--space-1) 0 0;
 }

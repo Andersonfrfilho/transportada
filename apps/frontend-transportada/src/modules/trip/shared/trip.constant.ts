@@ -98,6 +98,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_HAS_UNLOADED_DOCUMENTS: 'hasUnloadedDocuments',
   TRIP_NOT_FOUND: 'notFound',
   TRIP_REQUEST_FAILED: 'requestFailed',
+  /** Mesmo fato, nome sem prefixo — vem das telas de rua. Falha de rede de verdade fala em internet. */
+  REQUEST_FAILED: 'requestFailed',
   TRIP_RESPONSE_INVALID: 'responseInvalid',
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
   /** Spec 158 T6: `GET /trips/:id/timeline` com `cursor` malformado. */

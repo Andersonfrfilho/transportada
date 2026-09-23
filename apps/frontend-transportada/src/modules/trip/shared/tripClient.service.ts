@@ -871,7 +871,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
        * `productCode` legado continua indo com o primeiro item para o bundle não quebrar contra
        * uma API que ainda não subiu — a API nova ignora o legado quando a lista vem.
        */
-      form.set('productCode', input.productCodes[0] ?? '')
+      /**
+       * ⚠️ **Só a lista.** Mandar também o `productCode` antigo fazia a API responder `422`
+       * (`OccurrenceProductSelectionConflictError`): com os dois preenchidos ninguém sabe qual
+       * vale, e ela recusa em vez de escolher. Medido em staging em 23/09 com três itens marcados,
+       * e a tela ainda traduzia o 422 para "sem conexão com o servidor".
+       *
+       * A linha do legado existia para sobreviver a uma API sem a lista; essa API não existe mais.
+       */
       for (const productCode of input.productCodes) form.append('productCodes', productCode)
       /**
        * Spec 166 RF4/RF7: alinhadas por índice a `productCodes` — posição vazia é item sem
