@@ -14,6 +14,7 @@
     "db:generate": "drizzle-kit generate --output json --config drizzle.config.ts",
     "db:migrate": "bun src/database/database-migration.service.ts",
     "db:provision": "bun src/database/environment-provisioning.service.ts",
+    "db:seed:company-settings": "bun src/database/local-company-settings-seed.service.ts",
     "db:seed:emission-profiles": "bun src/database/local-emission-profile-seed.service.ts",
     "db:seed:fleet": "bun src/database/local-fleet-seed.service.ts",
     "db:seed:local": "bun src/database/local-identity-seed.service.ts",
