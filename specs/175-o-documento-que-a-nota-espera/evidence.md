@@ -419,3 +419,25 @@ o vocabulário ainda protege bundle novo contra API antiga.
 **5. `nfseProfileId` ainda não entregou o valor prometido.** O campo viaja até a tela, mas a linha não
 o repassa ao diálogo — o operador escolhe o perfil de novo. Não é defeito; é a promessa do ADR-0071
 que falta cumprir.
+
+### T303 — revisão de design, medida na bancada
+
+Semeados os perfis de emissão locais, a viagem `536b67aa` passou a exercitar os dois desfechos na
+mesma tela. Medido na resposta de `/fiscal-readiness` e confirmado na interface:
+
+- três notas com selo `sem CT-e` e ação **Gerar CT-e**;
+- uma nota com selo `NFS-e esperada` e ação **Emitir NFS-e** — mesma linha, mesma posição;
+- o painel de prontidão diz "1 nota aguarda NFS-e" (T301/T302) e o lote conta "3 notas", excluindo
+  corretamente a de NFS-e.
+
+Antes da semente, as quatro notas eram `no_profile` e nenhuma ação aparecia — o comportamento
+correto da fonte única sobre uma instalação sem perfil, e a razão de o seeder existir.
+
+Medições do requisito não funcional, em viewport estreito: **altura do botão de ação = 44px**
+(o mínimo de área de toque que a spec exige) e **sem overflow horizontal**
+(`scrollWidth === innerWidth`). As ações empilham e o selo ganha linha própria.
+
+⚠️ **O que não foi medido, e por quê.** A emulação de viewport do painel de browser desta sessão não
+aplica a largura pedida: pedi 375px e a página reportou 560px. A medição acima vale para 560px, não
+para 375px. O CA08 pede 375px explicitamente, então ele **não está cumprido** — falta conferir num
+navegador onde a emulação funcione, ou num aparelho.
