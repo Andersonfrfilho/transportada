@@ -19,7 +19,52 @@ import type { OccurrenceAttachment } from './trip.types'
 export const TRIP_OCCURRENCE_STAGES = ['separation', 'delivery', 'stop'] as const
 export type TripOccurrenceFeedStage = (typeof TRIP_OCCURRENCE_STAGES)[number]
 
+/**
+ * Spec 164 D3/RF4: a máquina da tratativa. Cópia por valor do vocabulário da API
+ * (`occurrence-case-state.policy.ts`) — o bundle não carrega código do servidor.
+ */
+export const TRIP_OCCURRENCE_CASE_STATUSES = [
+  'recorded',
+  'under_review',
+  'returned_to_warehouse',
+  'awaiting_contractor',
+  'decided',
+  'closed',
+  'cancelled',
+] as const
+export type TripOccurrenceCaseStatus = (typeof TRIP_OCCURRENCE_CASE_STATUSES)[number]
+
+/** `none` é "sem tratativa aberta" — RF11 exige o filtro incluir esta opção. */
+export const TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES = [
+  'none',
+  ...TRIP_OCCURRENCE_CASE_STATUSES,
+] as const
+export type TripOccurrenceCaseStatusFilterValue =
+  (typeof TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES)[number]
+
+export const TRIP_OCCURRENCE_CASE_DECISION_KINDS = [
+  'redelivery_authorized',
+  'goods_paid',
+  'other',
+] as const
+export type TripOccurrenceCaseDecisionKind = (typeof TRIP_OCCURRENCE_CASE_DECISION_KINDS)[number]
+
+/** RF10: o que a API devolve por ocorrência — `null` quando ela não abriu tratativa. */
+export type TripOccurrenceCaseView = Readonly<{
+  decision: null | Readonly<{
+    decidedAt: null | string
+    kind: TripOccurrenceCaseDecisionKind
+    note: string
+  }>
+  redeliveryPolicy: 'allowed' | 'blocked'
+  /** A API só devolve `null` hoje (T8) — o total por acerto chega numa spec futura. */
+  settlementTotal: null
+  status: TripOccurrenceCaseStatus
+  updatedAt: string
+}>
+
 export type TripOccurrenceFeedItem = Readonly<{
+  case: null | TripOccurrenceCaseView
   createdAt: string
   description: string
   driverName: string
@@ -48,6 +93,8 @@ export type TripOccurrenceAttachment = OccurrenceAttachment
 export type TripOccurrenceFeedOrder = 'asc' | 'desc'
 
 export type TripOccurrenceFeedFilters = Readonly<{
+  /** RF11: estado da tratativa, incluindo `none` ("sem tratativa"). Todos selecionados = sem filtro. */
+  caseStatuses: readonly TripOccurrenceCaseStatusFilterValue[]
   createdFrom: string
   createdUntil: string
   /** Placas digitadas, separadas por vírgula — multi-valor por campo. */
@@ -58,6 +105,7 @@ export type TripOccurrenceFeedFilters = Readonly<{
 }>
 
 export const EMPTY_TRIP_OCCURRENCE_FILTERS: TripOccurrenceFeedFilters = {
+  caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
   createdFrom: '',
   createdUntil: '',
   platesQuery: '',
@@ -131,6 +179,18 @@ export function toggleTripOccurrenceStage(
   }
 }
 
+export function setTripOccurrenceCaseStatuses(
+  filters: TripOccurrenceFeedFilters,
+  statuses: readonly TripOccurrenceCaseStatusFilterValue[],
+): TripOccurrenceFeedFilters {
+  return {
+    ...filters,
+    caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.filter((value) =>
+      statuses.includes(value),
+    ),
+  }
+}
+
 function parseListQuery(raw: string): readonly string[] {
   return raw
     .split(',')
@@ -179,6 +239,12 @@ export function serializeTripOccurrenceQuery(
   ) {
     search.set('stageIn', input.filters.stages.join(','))
   }
+  if (
+    input.filters.caseStatuses.length > 0 &&
+    input.filters.caseStatuses.length < TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length
+  ) {
+    search.set('caseStatusIn', input.filters.caseStatuses.join(','))
+  }
   return search.toString()
 }
 
@@ -210,5 +276,11 @@ export function countActiveTripOccurrenceFilters(filters: TripOccurrenceFeedFilt
     filters.typesQuery,
   ]
   const stagesChanged = filters.stages.length === TRIP_OCCURRENCE_STAGES.length ? 0 : 1
-  return scalarFields.filter((field) => field.trim().length > 0).length + stagesChanged
+  const caseStatusesChanged =
+    filters.caseStatuses.length === TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length ? 0 : 1
+  return (
+    scalarFields.filter((field) => field.trim().length > 0).length +
+    stagesChanged +
+    caseStatusesChanged
+  )
 }

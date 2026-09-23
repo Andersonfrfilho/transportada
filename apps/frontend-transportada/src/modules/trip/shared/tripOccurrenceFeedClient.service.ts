@@ -1,12 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isRecord, isString } from './tripGuards.validation'
-import type {
-  TripOccurrenceAttachment,
-  TripOccurrenceFeedFilters,
-  TripOccurrenceFeedItem,
-  TripOccurrenceFeedOrder,
-  TripOccurrenceFeedPage,
+import {
+  TRIP_OCCURRENCE_CASE_DECISION_KINDS,
+  TRIP_OCCURRENCE_CASE_STATUSES,
+  type TripOccurrenceAttachment,
+  type TripOccurrenceCaseView,
+  type TripOccurrenceFeedFilters,
+  type TripOccurrenceFeedItem,
+  type TripOccurrenceFeedOrder,
+  type TripOccurrenceFeedPage,
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
 
@@ -25,11 +28,26 @@ export type ListTripOccurrencesInput = Readonly<{
   perPage: number
 }>
 
+type CaseActionInput = Readonly<{ occurrenceId: string }>
+type CaseActionWithNoteInput = Readonly<{ note: string; occurrenceId: string }>
+
 export type TripOccurrenceFeedClient = Readonly<{
   listAttachments: (
     input: Readonly<{ occurrenceId: string }>,
   ) => Promise<readonly TripOccurrenceAttachment[]>
   listOccurrences: (input: ListTripOccurrencesInput) => Promise<TripOccurrenceFeedPage>
+  /** Spec 164 T7/RF8b: motivo obrigatório — ocorrência aberta por engano, só de `recorded`/`under_review`. */
+  cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<TripOccurrenceCaseView>
+  /** RF8: só sai de `decided`. */
+  closeOccurrenceCase: (input: CaseActionInput) => Promise<TripOccurrenceCaseView>
+  /** RF7: recusa 422 quando `blocked` sem item para acertar. */
+  submitOccurrenceCaseToContractor: (input: CaseActionInput) => Promise<TripOccurrenceCaseView>
+  /** RF5: `recorded` → `under_review`. */
+  reviewOccurrenceCase: (input: CaseActionInput) => Promise<TripOccurrenceCaseView>
+  /** RF6: nota obrigatória — encerra dentro da transportadora, sem visibilidade externa. */
+  returnOccurrenceCaseToWarehouse: (
+    input: CaseActionWithNoteInput,
+  ) => Promise<TripOccurrenceCaseView>
 }>
 
 class TripOccurrenceRequestError extends Error {
@@ -49,9 +67,29 @@ function isNullableString(value: unknown): value is null | string {
   return value === null || isString(value)
 }
 
+/** RF10: `null` é "sem tratativa aberta" — nunca um estado inventado. */
+function isCaseView(value: unknown): value is TripOccurrenceCaseView {
+  if (!isRecord(value)) return false
+  const decision = value.decision
+  const isValidDecision =
+    decision === null ||
+    (isRecord(decision) &&
+      (decision.decidedAt === null || isString(decision.decidedAt)) &&
+      (TRIP_OCCURRENCE_CASE_DECISION_KINDS as readonly unknown[]).includes(decision.kind) &&
+      isString(decision.note))
+  return (
+    isValidDecision &&
+    (value.redeliveryPolicy === 'allowed' || value.redeliveryPolicy === 'blocked') &&
+    value.settlementTotal === null &&
+    (TRIP_OCCURRENCE_CASE_STATUSES as readonly unknown[]).includes(value.status) &&
+    isString(value.updatedAt)
+  )
+}
+
 function isFeedItem(value: unknown): value is TripOccurrenceFeedItem {
   if (!isRecord(value)) return false
   return (
+    (value.case === null || isCaseView(value.case)) &&
     isString(value.createdAt) &&
     isString(value.description) &&
     isString(value.driverName) &&
@@ -79,6 +117,13 @@ function readPage(payload: unknown): TripOccurrenceFeedPage {
   return { items: payload.data, nextCursor }
 }
 
+function readCaseView(payload: unknown): TripOccurrenceCaseView {
+  if (!isRecord(payload) || !isCaseView(payload.data)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return payload.data
+}
+
 function readAttachments(payload: unknown): readonly TripOccurrenceAttachment[] {
   if (!isRecord(payload) || !Array.isArray(payload.data)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
@@ -94,15 +139,23 @@ function readErrorCode(payload: unknown): string {
   return TRIP_ERROR.REQUEST_FAILED
 }
 
-async function requestJson(dependencies: ClientDependencies, path: string): Promise<unknown> {
+async function requestJson(
+  dependencies: ClientDependencies,
+  path: string,
+  init?: Readonly<{ body?: object; method?: 'GET' | 'POST' }>,
+): Promise<unknown> {
   const accessToken = await dependencies.getAccessToken()
   let response: Response
   try {
     response = await dependencies.fetch(
       new Request(`${dependencies.apiUrl}${path}`, {
+        ...(init?.body === undefined ? {} : { body: JSON.stringify(init.body) }),
         cache: 'no-store',
-        headers: { authorization: `Bearer ${accessToken}` },
-        method: 'GET',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
+        method: init?.method ?? 'GET',
       }),
     )
   } catch {
@@ -134,6 +187,46 @@ export function createTripOccurrenceFeedClient(
       const search = serializeTripOccurrenceQuery(input)
       const payload = await requestJson(dependencies, `${TRIP_OCCURRENCES_PATH}?${search}`)
       return readPage(payload)
+    },
+    async reviewOccurrenceCase(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/review`,
+        { method: 'POST' },
+      )
+      return readCaseView(payload)
+    },
+    async returnOccurrenceCaseToWarehouse(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/warehouse-return`,
+        { body: { note: input.note }, method: 'POST' },
+      )
+      return readCaseView(payload)
+    },
+    async submitOccurrenceCaseToContractor(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/contractor-submission`,
+        { method: 'POST' },
+      )
+      return readCaseView(payload)
+    },
+    async closeOccurrenceCase(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/closure`,
+        { method: 'POST' },
+      )
+      return readCaseView(payload)
+    },
+    async cancelOccurrenceCase(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/cancel`,
+        { body: { note: input.note }, method: 'POST' },
+      )
+      return readCaseView(payload)
     },
   }
 }

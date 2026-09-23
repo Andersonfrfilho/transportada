@@ -14,6 +14,7 @@ import {
   type TripOccurrenceFeedItem,
 } from '../shared/tripOccurrenceFeed.service'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
+import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
 import styles from '../styles/trip.module.css'
 
 const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -26,7 +27,11 @@ function formatMoment(value: string): string {
   return Number.isNaN(moment.getTime()) ? value : momentFormatter.format(moment)
 }
 
-type TripOccurrenceTableProps = Readonly<{ table: TripOccurrenceTableController }>
+type TripOccurrenceTableProps = Readonly<{
+  /** Spec 164 T22: `occurrences.resolve` — quem valida a tratativa, nunca `trip.manage` (D7). */
+  canResolveOccurrenceCases: boolean
+  table: TripOccurrenceTableController
+}>
 
 function OccurrenceCell({
   column,
@@ -89,9 +94,14 @@ function OccurrenceAttachments({ item }: Readonly<{ item: TripOccurrenceFeedItem
 }
 
 function OccurrenceDetailRow({
+  canResolveOccurrenceCases,
   columnCount,
   item,
-}: Readonly<{ columnCount: number; item: TripOccurrenceFeedItem }>) {
+}: Readonly<{
+  canResolveOccurrenceCases: boolean
+  columnCount: number
+  item: TripOccurrenceFeedItem
+}>) {
   const { t } = useTranslation('trip')
 
   return (
@@ -103,6 +113,13 @@ function OccurrenceDetailRow({
             : item.description}
         </p>
         <OccurrenceAttachments item={item} />
+        {item.source === 'document' ? (
+          <OccurrenceCasePanel
+            canResolve={canResolveOccurrenceCases}
+            occurrenceCase={item.case}
+            occurrenceId={item.id}
+          />
+        ) : null}
       </td>
     </tr>
   )
@@ -141,7 +158,10 @@ export function TripOccurrenceTableSkeleton() {
   )
 }
 
-export function TripOccurrenceTable({ table }: TripOccurrenceTableProps) {
+export function TripOccurrenceTable({
+  canResolveOccurrenceCases,
+  table,
+}: TripOccurrenceTableProps) {
   const { t } = useTranslation('trip')
 
   if (table.isLoading) return <TripOccurrenceTableSkeleton />
@@ -208,6 +228,7 @@ export function TripOccurrenceTable({ table }: TripOccurrenceTableProps) {
               if (table.expandedId === item.id) {
                 rows.push(
                   <OccurrenceDetailRow
+                    canResolveOccurrenceCases={canResolveOccurrenceCases}
                     columnCount={columnCount}
                     item={item}
                     key={`${item.id}-detail`}

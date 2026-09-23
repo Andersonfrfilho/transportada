@@ -786,7 +786,12 @@
       "stageSummary": "{{count}} selecionados",
       "title": "Filtros",
       "types": "Tipos",
-      "typesPlaceholder": "Nomes separados por vírgula"
+      "typesPlaceholder": "Nomes separados por vírgula",
+      "caseStatus": "Tratativa",
+      "caseStatusEmpty": "Nenhum estado encontrado",
+      "removeCaseStatus": "Remover estado de tratativa",
+      "caseStatusSearch": "Buscar estado",
+      "caseStatusSummary": "{{count}} selecionados"
     },
     "intro": "Tudo o que aconteceu com as notas e as paradas das viagens da empresa, em uma lista só.",
     "kicker": "Operações",
@@ -806,7 +811,17 @@
       "stop": "Parada"
     },
     "tableTitle": "Ocorrências registradas",
-    "title": "Ocorrências"
+    "title": "Ocorrências",
+    "caseStatus": {
+      "none": "Sem tratativa",
+      "recorded": "Registrada",
+      "under_review": "Em validação",
+      "returned_to_warehouse": "Retornada ao barracão",
+      "awaiting_contractor": "Aguardando o contratante",
+      "decided": "Decidida",
+      "closed": "Encerrada",
+      "cancelled": "Cancelada"
+    }
   },
   "pendingMeasurement": {
     "columns": {
@@ -1385,5 +1400,33 @@
     "unreachableDocuments": "Notas fora do alcance desta viagem: {{documents}}.",
     "photoChoose": "Escolher foto",
     "photoEmpty": "Nenhuma foto escolhida"
+  },
+  "occurrenceCase": {
+    "none": "Sem tratativa aberta para esta ocorrência.",
+    "statusLabel": "Passo atual",
+    "redeliveryPolicyLabel": "Reentrega",
+    "redeliveryPolicy": {
+      "allowed": "Admite reentrega",
+      "blocked": "Não admite reentrega"
+    },
+    "decisionKind": {
+      "redelivery_authorized": "O contratante autorizou a reentrega",
+      "goods_paid": "O contratante decidiu pagar os produtos",
+      "other": "O contratante registrou outra solução"
+    },
+    "awaitingContractor": "Aguardando a decisão do contratante no portal.",
+    "noteLabel": {
+      "cancel": "Motivo do cancelamento (obrigatório)",
+      "warehouse-return": "Motivo do retorno ao barracão (obrigatório)"
+    },
+    "confirm": "Confirmar",
+    "dismiss": "Desistir",
+    "action": {
+      "review": "Iniciar validação interna",
+      "warehouseReturn": "Retornar ao barracão",
+      "submitToContractor": "Enviar ao contratante",
+      "close": "Encerrar tratativa",
+      "cancel": "Cancelar tratativa"
+    }
   }
 }

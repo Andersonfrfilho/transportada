@@ -612,7 +612,12 @@
       "stageSummary": "{{count}} selected",
       "title": "Filters",
       "types": "Types",
-      "typesPlaceholder": "Comma-separated names"
+      "typesPlaceholder": "Comma-separated names",
+      "caseStatus": "Case",
+      "caseStatusEmpty": "No status found",
+      "removeCaseStatus": "Remove case status",
+      "caseStatusSearch": "Search status",
+      "caseStatusSummary": "{{count}} selected"
     },
     "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
     "kicker": "Operations",
@@ -632,7 +637,17 @@
       "stop": "Stop"
     },
     "tableTitle": "Recorded occurrences",
-    "title": "Occurrences"
+    "title": "Occurrences",
+    "caseStatus": {
+      "none": "No case",
+      "recorded": "Recorded",
+      "under_review": "Under review",
+      "returned_to_warehouse": "Returned to warehouse",
+      "awaiting_contractor": "Awaiting contractor",
+      "decided": "Decided",
+      "closed": "Closed",
+      "cancelled": "Cancelled"
+    }
   },
   "pendingMeasurement": {
     "columns": {
@@ -1177,5 +1192,33 @@
     "unreachableDocuments": "Documents outside this trip's reach: {{documents}}.",
     "photoChoose": "Choose photo",
     "photoEmpty": "No photo chosen"
+  },
+  "occurrenceCase": {
+    "none": "No case opened for this occurrence.",
+    "statusLabel": "Current step",
+    "redeliveryPolicyLabel": "Redelivery",
+    "redeliveryPolicy": {
+      "allowed": "Allows redelivery",
+      "blocked": "Blocks redelivery"
+    },
+    "decisionKind": {
+      "redelivery_authorized": "The contractor authorized redelivery",
+      "goods_paid": "The contractor decided to pay for the goods",
+      "other": "The contractor recorded another solution"
+    },
+    "awaitingContractor": "Waiting for the contractor decision on the portal.",
+    "noteLabel": {
+      "cancel": "Cancellation reason (required)",
+      "warehouse-return": "Warehouse return reason (required)"
+    },
+    "confirm": "Confirm",
+    "dismiss": "Dismiss",
+    "action": {
+      "review": "Start internal review",
+      "warehouseReturn": "Return to warehouse",
+      "submitToContractor": "Send to contractor",
+      "close": "Close case",
+      "cancel": "Cancel case"
+    }
   }
 }

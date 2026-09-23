@@ -11,10 +11,12 @@ import {
   EMPTY_TRIP_OCCURRENCE_FILTERS,
   readTripOccurrenceColumnPreferences,
   reorderTripOccurrenceColumns,
+  setTripOccurrenceCaseStatuses,
   toggleTripOccurrenceOrder,
   toggleTripOccurrenceStage,
   TRIP_OCCURRENCE_STAGES,
   writeTripOccurrenceColumnPreferences,
+  type TripOccurrenceCaseStatusFilterValue,
   type TripOccurrenceColumnKey,
   type TripOccurrenceColumnPreferences,
   type TripOccurrenceFeedFilters,
@@ -87,6 +89,10 @@ export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
     })
   }
 
+  function setCaseStatuses(statuses: readonly TripOccurrenceCaseStatusFilterValue[]): void {
+    applyFilters(setTripOccurrenceCaseStatuses(filters, statuses))
+  }
+
   function clearFilters(): void {
     applyFilters(EMPTY_TRIP_OCCURRENCE_FILTERS)
   }
@@ -140,6 +146,7 @@ export function useTripOccurrenceTable(input: UseTripOccurrenceTableInput) {
     items,
     moveColumn,
     order,
+    setCaseStatuses,
     setDateRange,
     setStages,
     setTextFilter,

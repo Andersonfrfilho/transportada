@@ -9,7 +9,10 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { formatCalendarDate } from '@/modules/shared/calendarDate.service'
 
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
-import { TRIP_OCCURRENCE_STAGES } from '../shared/tripOccurrenceFeed.service'
+import {
+  TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
+  TRIP_OCCURRENCE_STAGES,
+} from '../shared/tripOccurrenceFeed.service'
 import {
   describeTripOccurrenceFilterPills,
   type TripOccurrenceFilterPill,
@@ -83,6 +86,30 @@ export function TripOccurrenceFilters({ table }: TripOccurrenceFiltersProps) {
             placeholder={t('occurrenceFeed.filters.platesPlaceholder')}
             type="search"
             value={table.filters.platesQuery}
+          />
+        </label>
+        <label>
+          {t('occurrenceFeed.filters.caseStatus')}
+          <MultiSelect
+            ariaLabel={t('occurrenceFeed.filters.caseStatus')}
+            clearAllLabel={t('filters.clear')}
+            emptyLabel={t('occurrenceFeed.filters.caseStatusEmpty')}
+            onChange={(values) =>
+              table.setCaseStatuses(
+                TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.filter((status) =>
+                  values.includes(status),
+                ),
+              )
+            }
+            options={TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.map((status) => ({
+              label: t(`occurrenceFeed.caseStatus.${status}`),
+              value: status,
+            }))}
+            placeholder={t('filters.all')}
+            removeLabel={t('occurrenceFeed.filters.removeCaseStatus')}
+            searchPlaceholder={t('occurrenceFeed.filters.caseStatusSearch')}
+            summaryLabel={(count) => t('occurrenceFeed.filters.caseStatusSummary', { count })}
+            values={table.filters.caseStatuses}
           />
         </label>
         <label>
