@@ -18,6 +18,7 @@
     "remove": "Remover",
     "retry": "Tentar novamente",
     "title": "Gastos lançados",
+    "total": "Total lançado",
     "unknownActor": "usuário removido"
   },
   "revenueEntries": {
@@ -35,6 +36,7 @@
     "remove": "Remover",
     "retry": "Tentar novamente",
     "title": "Receita lançada",
+    "total": "Total lançado",
     "unknownActor": "usuário removido"
   },
   "gap": {

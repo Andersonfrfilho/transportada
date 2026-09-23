@@ -18,6 +18,7 @@
     "remove": "Remove",
     "retry": "Try again",
     "title": "Recorded expenses",
+    "total": "Recorded total",
     "unknownActor": "removed user"
   },
   "revenueEntries": {
@@ -35,6 +36,7 @@
     "remove": "Remove",
     "retry": "Try again",
     "title": "Recorded revenue",
+    "total": "Recorded total",
     "unknownActor": "removed user"
   },
   "gap": {
