@@ -94,9 +94,10 @@ describe('a troca de critério, em rascunho e nos estados que ainda replanejam (
  */
 describe('a troca de critério não pode virar rota nula em silêncio (spec 178 RF6)', () => {
   it('a recusa não fica presa à transição `applied`', () => {
-    const source = readFileSync(PLAN_TRIP_ROUTE_USE_CASE, 'utf8')
+    /** Sem espaços: a condição é a mesma quebrada em uma linha ou em quatro, e o formatador escolhe. */
+    const source = readFileSync(PLAN_TRIP_ROUTE_USE_CASE, 'utf8').replace(/\s+/gu, '')
     expect(source).toInclude(
-      "if (!freezeResult.routeFrozen && (transition.outcome === 'applied' || input.routeChoice !== undefined)) {",
+      "if(!freezeResult.routeFrozen&&(transition.outcome==='applied'||input.routeChoice!==undefined)){",
     )
   })
 })
