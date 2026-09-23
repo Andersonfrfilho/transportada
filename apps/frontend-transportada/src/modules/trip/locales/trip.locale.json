@@ -986,6 +986,8 @@
     "generateCteBatchHint": "Antecipa o lote que a contratante autorizaria. O faturamento continua alcançando esses CT-e.",
     "generateCteBatch_one": "Gerar CT-e desta viagem ({{count}} nota)",
     "generateCteBatch_other": "Gerar CT-e desta viagem ({{count}} notas)",
+    "nfsePending_one": "{{count}} nota aguarda NFS-e",
+    "nfsePending_other": "{{count}} notas aguardam NFS-e",
     "reason": {
       "blocked": "emissão bloqueada para esta nota",
       "no_profile": "sem perfil de emissão",
@@ -1248,6 +1250,7 @@
     "generateCteSelection_other": "Gerar CT-e de {{count}} notas marcadas",
     "planRoute": "Liberar para separação",
     "readinessSummary": "{{ready}} de {{total}} notas prontas",
+    "readinessSummaryWithNfse": "{{ready}} de {{total}} notas prontas ({{nfsePending}} aguardando NFS-e)",
     "returnReasonLabel": "Motivo da devolução",
     "returnSubmit": "Confirmar devolução",
     "returnSubtitle": "Nota {{document}} — o motivo entra na trilha da viagem.",

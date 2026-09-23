@@ -803,6 +803,8 @@
     "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e.",
     "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
     "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
+    "nfsePending_one": "{{count}} invoice awaiting NFS-e",
+    "nfsePending_other": "{{count}} invoices awaiting NFS-e",
     "reason": {
       "blocked": "issuing blocked for this invoice",
       "no_profile": "no emission profile",
@@ -1037,6 +1039,8 @@
     "generateCteSelection": "Issue CT-e for {{count}} selected invoice",
     "generateCteSelection_other": "Issue CT-e for {{count}} selected invoices",
     "planRoute": "Plan route",
+    "readinessSummary": "{{ready}} of {{total}} invoices ready",
+    "readinessSummaryWithNfse": "{{ready}} of {{total}} invoices ready ({{nfsePending}} awaiting NFS-e)",
     "returnReasonLabel": "Return reason",
     "returnSubmit": "Confirm return",
     "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",

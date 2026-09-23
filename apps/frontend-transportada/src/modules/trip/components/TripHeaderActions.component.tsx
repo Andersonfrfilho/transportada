@@ -78,14 +78,25 @@ export function TripHeaderActions({
   /**
    * O resumo só aparece quando há nota a preparar. Viagem sem nota não tem prontidão a informar, e
    * uma linha dizendo "0 de 0" seria ruído no lugar mais nobre da tela.
+   *
+   * RF8/CA07 (spec 175): `readyCount`/`totalCount` respondem só pelo CT-e — a nota que espera NFS-e
+   * entra no `total`, mas nunca no `ready`, porque não há como saber aqui se ela já foi emitida.
+   * Sem citar `fiscalReadiness.nfseCount`, "3 de 3" leria como viagem pronta mesmo com nota de NFS-e
+   * ainda pendente ao lado.
    */
   const readinessSummary =
     fiscalReadiness === undefined || fiscalReadiness.totalCount === 0
       ? null
-      : t('stateActions.readinessSummary', {
-          ready: fiscalReadiness.readyCount,
-          total: fiscalReadiness.totalCount,
-        })
+      : fiscalReadiness.nfseCount === 0
+        ? t('stateActions.readinessSummary', {
+            ready: fiscalReadiness.readyCount,
+            total: fiscalReadiness.totalCount,
+          })
+        : t('stateActions.readinessSummaryWithNfse', {
+            nfsePending: fiscalReadiness.nfseCount,
+            ready: fiscalReadiness.readyCount,
+            total: fiscalReadiness.totalCount,
+          })
 
   /**
    * Spec 173 RF6: quantas notas da viagem têm tratativa aberta. Zero não vira linha — o cabeçalho é

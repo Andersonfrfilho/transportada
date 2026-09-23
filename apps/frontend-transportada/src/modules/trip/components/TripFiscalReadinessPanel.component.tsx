@@ -60,6 +60,12 @@ export function TripFiscalReadinessPanel({
       </header>
       <p className={styles.readinessState}>{t(`readiness.state.${readiness.state}`)}</p>
 
+      {readiness.nfseCount === 0 ? null : (
+        <p className={styles.readinessState}>
+          {t('readiness.nfsePending', { count: readiness.nfseCount })}
+        </p>
+      )}
+
       <p className={styles.readinessState}>
         {t(
           requiresMdfe === null
