@@ -1331,3 +1331,192 @@ uso do `Select`).
 ### Commit
 
 `feat(frontend): spec 164 T23 — painel de acerto dos produtos da ocorrência` (89bd64f2a).
+
+## T24 — Marcador de tratativa na listagem e no mapa (RF36/RF37, CA5)
+
+`TripStopList.component.tsx` ganha um selo (`Icon name="alert"` + `Tooltip`, classe
+`.occurrenceCaseBadge`) na linha da nota quando `document.openOccurrenceCase === true` —
+adicionado **depois** do aviso fiscal e **antes** das ações da linha, sem remover, esconder ou
+desabilitar nenhum botão existente. `AssemblyVectorMap.component.tsx` ganha um ícone sobreposto ao
+pino (`occurrenceBadgeElement`, `.tilePinOccurrenceBadge`, `position: absolute` no canto) quando
+`point.hasOpenOccurrence === true` — a cor do pino continua vindo de `stopColorOf`, o ícone só
+acrescenta. `AssemblyMapPoint.hasOpenOccurrence` é campo opcional novo em `assemblyMap.service.ts`,
+preenchido em `TripRouteMap.component.tsx` a partir de `stop.hasOpenOccurrence`; parada sem
+coordenada continua fora de `points` (filtrada por `locateStops` antes do mapa, como já era) —
+não muda o comportamento existente de "parada sem coordenada não quebra o mapa".
+
+`openOccurrenceCase`/`hasOpenOccurrence` já chegavam validados desde T15/T21 (opcionais em
+`trip.types.ts`, `tripResponse.validation.ts`, whitelist em `trip.constant.ts`) — esta task só
+consome os campos na UI.
+
+Contrato novo: `test/trip/occurrence-badge-actions.contract.ts` — prova que
+`resolveFieldActionCapabilities` (a mesma fonte que `TripStopList` usa para decidir botão por
+botão) não recebe o marcador como entrada e devolve a mesma capacidade por nota, chamada duas
+vezes com a mesma `TripAllowedActions`; `GET /trips/:id/allowed-actions` continua a única fonte
+das ações, byte a byte igual com ou sem o marcador (RF20).
+
+Textos novos: `occurrence.openCase`/`occurrence.openCaseHint`/`occurrence.stopOpenCase` em
+`trip.locale.json` (pt-BR acentuado) e `trip.en.locale.json`.
+
+Arquivos tocados:
+
+- `apps/frontend-transportada/src/modules/trip/components/TripStopList.component.tsx`
+- `apps/frontend-transportada/src/modules/trip/components/TripRouteMap.component.tsx`
+- `apps/frontend-transportada/src/modules/trip/components/AssemblyVectorMap.component.tsx`
+- `apps/frontend-transportada/src/modules/trip/shared/assemblyMap.service.ts`
+- `apps/frontend-transportada/src/modules/trip/styles/trip.module.css`
+- `apps/frontend-transportada/src/modules/trip/locales/trip.locale.json`
+- `apps/frontend-transportada/src/modules/trip/locales/trip.en.locale.json`
+- `apps/frontend-transportada/test/trip/occurrence-badge-actions.contract.ts` (novo)
+- `apps/frontend-transportada/test/trip.contract.test.ts` (import do contrato novo)
+
+### Gates
+
+- `bun run lint` (raiz) — OK.
+- `bun run typecheck` (raiz) — a única falha reportada é pré-existente em
+  `apps/api-transportada/test/trip-http/occurrence-settlement.contract.ts` (`FindOccurrenceSettlementResult`),
+  de outro agente com trabalho não commitado naquela app (fora do escopo desta task). Isolado, só
+  `apps/frontend-transportada`: `bunx tsc --noEmit` — 0 erros.
+- `bunx prettier --check src test` (`apps/frontend-transportada`) — OK.
+- `bun run --cwd apps/frontend-transportada test` — **4898 pass + 44 pass (hooks), 0 fail**.
+
+### Commit
+
+`feat(frontend): spec 164 T24 — marcador de tratativa na listagem e no mapa` (187f12e59).
+
+## Duas lacunas de API encontradas ao construir as telas (agente executor)
+
+### 1. Decisão interna em nome do contratante
+
+`POST /trip-occurrences/:id/case/decision` (`occurrences.resolve`, nunca `occurrences.decide` — essa
+é do papel `contractor`). `actorKind: 'internal'` é constante da rota, nunca do corpo; nota é sempre
+obrigatória (diferente do portal, que só exige em `other`). Reusa `OccurrenceCaseUseCase.decide` →
+`DrizzleOccurrenceCaseRepository.transition` (ação `decide` já suportada pela máquina desde a T2/T9),
+então conflito de decisão divergente (409 `OCCURRENCE_CASE_DECISION_CONFLICT`) e bloqueio de
+reentrega (422 `OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED`) continuam vindo do escritor único, sem
+reimplementação.
+
+Arquivos tocados:
+
+- `apps/api-transportada/src/trips/application/occurrence-case.port.ts` (ação `decide` na união)
+- `apps/api-transportada/src/trips/application/occurrence-case.use-case.ts` (`decide`)
+- `apps/api-transportada/src/trips/presentation/occurrence-case.routes.ts` (rota nova)
+- `apps/api-transportada/src/trips/presentation/occurrence-case.schema.ts` (`INTERNAL_DECISION_BODY_SCHEMA`)
+- `apps/api-transportada/test/rate-limited-routes.contract.test.ts` (balde `trip-occurrence-case` com 6 rotas)
+- `apps/api-transportada/test/trip-application/occurrence-case.contract.ts` (nota obrigatória, actorKind fixo)
+- `apps/api-transportada/test/trip-http/occurrence-case.contract.ts` (403 para `contractor`/`separator`, 200/400/404/409)
+
+Nenhuma permissão nova, nenhuma mudança na tabela de papéis: `occurrences.resolve` já não está em
+`contractor` nem em `separator` (`COMPANY_ROLE_PERMISSIONS`), então a mesma policy das outras cinco
+rotas internas já barra os dois papéis — confirmado por contrato.
+
+### 2. Leitura do acerto já gravado
+
+`GET /trip-occurrences/:id/case/settlement` (`occurrences.resolve`) devolve os itens de
+`trip_occurrence_item_settlements` no mesmo formato que o `PUT` aceita (`amount` string,
+`amountSource`, `payerKind`/`payerId`), com `reimbursedAt` a mais. Leitura simples, sem lock — a
+rota já resolveu `occurrenceId → caseId` antes de chamar o caso de uso, então a existência da
+tratativa não precisa ser reconferida na leitura.
+
+Arquivos tocados:
+
+- `apps/api-transportada/src/trips/application/find-occurrence-settlement.use-case.ts` (novo)
+- `apps/api-transportada/src/trips/infrastructure/drizzle-occurrence-settlement.repository.ts` (`findSettlement`)
+- `apps/api-transportada/src/trips/presentation/occurrence-settlement.routes.ts` (rota `GET`)
+- `apps/api-transportada/src/main.ts` (wiring)
+- `apps/api-transportada/test/trip-http/occurrence-settlement.contract.ts` (403/200/404/lista vazia)
+
+### Gates
+
+- `bun run lint` (raiz) — OK.
+- `bun run --cwd apps/api-transportada typecheck` — OK (0 erros; a falha `FindOccurrenceSettlementResult`
+  registrada na entrada anterior deste arquivo era este próprio trabalho em andamento, e já fechou).
+- `bunx prettier --check .` (raiz) — OK nos arquivos tocados por este agente.
+- `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`) —
+  **7108 pass, 23 skip, 0 fail** (7131 testes, 183 arquivos).
+- Integração dos arquivos tocados (`bun --env-file=../../.env.test test
+./test/integration/trip-occurrence-case.integration.ts
+./test/integration/trip-occurrence-case-write-guard.integration.ts
+./test/integration/trip-occurrence-settlement.integration.ts
+./test/integration/occurrence-settlement-charge-bridge.integration.ts`) — **13 pass, 0 fail**.
+
+### Commits
+
+- `feat(api): spec 164 — decisão da tratativa em nome do contratante` (318ee1a2)
+- `feat(api): spec 164 — GET do acerto por item da ocorrência` (0b5f16dfc)
+
+Sem push, como pedido.
+
+## T26 — Página "Ressarcimentos" (RF32)
+
+Investigação da API antes de implementar: `GET /occurrence-charges/report`
+(`occurrence-charge-report.routes.ts`, `trip.financials`) já existe e devolve as cobranças de
+ocorrência **sem lote** (`batchId is null`), com filtros `contractorId`, `from`/`to`,
+`chargeType`, `status`, `hasSettlement`, `search`, cursor e totais (`totals.totalAmount`,
+`byChargeType`). O comentário do port já registra a decisão do usuário (plan.md §
+"O fechamento é por seleção, com filtros"). **Mas** `POST /extra-charge-batches`
+(`extra-charge-batch.routes.ts`) continua recebendo só `contractorId` + `periodStart` +
+`periodEnd` — nenhum campo de lista de ids. Ou seja: a API lista por seleção, mas **fecha por
+período**, não por seleção literal. `GET /extra-charge-batches/:id/statement` (PDF) já existe e
+não muda.
+
+Implementação, dentro do que a API oferece hoje: a tela lista o relatório com os filtros pedidos
+(contratante `Select`, período `DateRangePicker`, tipo `MultiSelect`, situação `Select`, acerto
+`Select`, busca por nota), marca linhas por `Checkbox`, soma a seleção em decimal exato
+(`sumScaledAmounts` de `shared/decimalAmount.service.ts` — reaproveitado, não duplicado) e mostra
+o total do relatório inteiro (conferido pela API) ao lado do total selecionado. O botão "Fechar o
+período da seleção" calcula o intervalo mínimo/máximo de `chargedOn` das linhas marcadas e chama
+o `closeBatch` **existente** (o mesmo da página Repasses) — reaproveitado de
+`extraChargesClient.service.ts`, sem endpoint novo. A tela recusa fechar com seleção vazia, com
+mais de um contratante marcado, ou com linha sem `contractorId`, e **avisa explicitamente antes
+do clique** que o fechamento pega todas as cobranças sem lote do contratante dentro do período —
+não só as marcadas (lacuna documentada em `resolveSelectionPeriod`, `occurrenceReimbursementSelection.service.ts`,
+e no texto `reimbursements.close.hint` da tela). Depois de fechar, o botão "Baixar demonstrativo"
+usa o `batchId` retornado e baixa o PDF de `GET /extra-charge-batches/:id/statement`
+(`downloadStatement`, cliente novo em `extraChargesClient.service.ts`, corpo binário — não passa
+pelo parser de JSON). Nenhum botão de envio à contratante foi criado.
+
+Miniatura de foto (pedida na spec): **não implementada** — `OccurrenceChargeReportRow` não traz
+URL nem contagem de anexo (só `occurrenceId`), e a rota de anexos (`/trip-occurrences/:id/attachments`)
+não está pensada para leitura em massa numa lista de até 100 linhas. Marcado como lacuna
+documentada, não como endpoint inventado.
+
+Rota nova `/ressarcimentos` registrada em `src/main.tsx` (chave `reimbursements`, grupo "Fiscal"),
+com ícone novo `workspace-reimbursements` em `components/ui/icon.tsx`. Permissão `trip.financials`
+esconde a tela (mensagem `reimbursements.forbidden`) em vez de escondê-la do menu — mesmo padrão
+das outras telas financeiras da app.
+
+Arquivos tocados:
+
+- `apps/frontend-transportada/src/modules/extra-charges/pages/OccurrenceReimbursementsWorkspace.page.tsx` (novo)
+- `apps/frontend-transportada/src/modules/extra-charges/hooks/useOccurrenceReimbursements.hook.ts` (novo)
+- `apps/frontend-transportada/src/modules/extra-charges/shared/occurrenceReimbursementSelection.service.ts` (novo)
+- `apps/frontend-transportada/src/modules/extra-charges/shared/extraCharges.types.ts`
+- `apps/frontend-transportada/src/modules/extra-charges/shared/extraChargesClient.service.ts`
+- `apps/frontend-transportada/src/modules/extra-charges/shared/extraChargesResponse.validation.ts`
+- `apps/frontend-transportada/src/modules/extra-charges/locales/extraCharges.locale.json` / `.en.locale.json`
+- `apps/frontend-transportada/src/components/ui/icon.tsx` (ícone `workspace-reimbursements`)
+- `apps/frontend-transportada/src/main.tsx` (rota/menu)
+- `apps/frontend-transportada/test/extra-charges/occurrence-reimbursement-selection.contract.ts` (novo)
+- `apps/frontend-transportada/test/extra-charges/occurrence-charge-report-response.contract.ts` (novo)
+- `apps/frontend-transportada/test/extra-charges.contract.test.ts` (import dos contratos novos)
+
+### Gates
+
+- `bun run lint` (raiz) — OK.
+- `bun run typecheck` (raiz) — mesma falha pré-existente de `apps/api-transportada` já registrada
+  na T24 (outro agente, fora do escopo). Isolado: `apps/frontend-transportada` →
+  `bunx tsc --noEmit` — 0 erros.
+- `bunx prettier --check src test` (`apps/frontend-transportada`) — OK.
+- `bun run --cwd apps/frontend-transportada test` — **4908 pass + 44 pass (hooks), 0 fail**.
+
+### Commit
+
+`feat(frontend): spec 164 T26 — página de ressarcimentos (RF32)` (584ccc32).
+
+### Pendências explícitas
+
+- Fechamento **não é** por seleção literal na API (só a listagem é) — documentado na tela e no
+  código; corrigir exige campo novo em `POST /extra-charge-batches` (fora do escopo desta task,
+  que não editou `apps/api-transportada`).
+- Miniatura de foto por linha não implementada — API do relatório não traz o dado.
