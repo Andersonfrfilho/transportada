@@ -21,9 +21,11 @@ import type { ChargeParties } from '../../delivery-clients/application/delivery-
 import { DeliveryChargeTransitionNotAllowedError } from '../../delivery-clients/application/delivery-charges.use-case.js'
 import { isOccurrenceChargeWritable } from '../domain/occurrence-charge.policy.js'
 import {
+  OccurrenceChargeConcurrentWriteError,
   OccurrenceChargePartiesUnresolvedError,
   TripOccurrenceNotFoundError,
 } from '../domain/trip.error.js'
+import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import type {
   OccurrenceSettlementChargePort,
   OccurrenceSettlementChargeResult,
@@ -34,6 +36,7 @@ export type FindChargePartiesFunction = (input: {
   readonly tripDocumentId: string
 }) => Promise<ChargeParties | null>
 
+const OCCURRENCE_CHARGE_UNIQUE_CONSTRAINT = 'delivery_charges_occurrence_unique'
 const RETURNED_GOODS_CHARGE_TYPE = 'returned_goods'
 const RETURNED_GOODS_ORIGIN = 'occurrence'
 
@@ -85,28 +88,40 @@ export class DrizzleOccurrenceSettlementChargeRepository implements OccurrenceSe
       .limit(1)
 
     if (existing === undefined) {
-      const [inserted] = await transaction
-        .insert(deliveryCharges)
-        .values({
-          amount,
-          chargedOn: occurrenceRow.chargedOn,
-          chargeType: RETURNED_GOODS_CHARGE_TYPE,
-          companyId,
-          contractorId: parties.contractorId,
-          deliveryClientId: parties.deliveryClientId,
-          occurrenceId,
-          origin: RETURNED_GOODS_ORIGIN,
-          recordedByUserId: actorUserId,
-          status: 'recorded' satisfies DeliveryChargeStatus,
-          tripDocumentId: occurrenceRow.tripDocumentId,
-          tripId: parties.tripId,
-        })
-        .returning({ id: deliveryCharges.id, status: deliveryCharges.status })
-      /** Sem `onConflictDoNothing`: o lock acima já decidiu insert vs. update — isto é invariante. */
-      if (inserted === undefined) {
-        throw new Error('delivery_charges insert returned no row')
+      /**
+       * ⚠️ O `for no key update` acima **não trava o que ainda não existe**: duas requisições
+       * concorrentes chegam as duas aqui, e quem perde bate no índice único
+       * `delivery_charges_occurrence_unique`. 409, nunca a violação crua como 500.
+       */
+      try {
+        const [inserted] = await transaction
+          .insert(deliveryCharges)
+          .values({
+            amount,
+            chargedOn: occurrenceRow.chargedOn,
+            chargeType: RETURNED_GOODS_CHARGE_TYPE,
+            companyId,
+            contractorId: parties.contractorId,
+            deliveryClientId: parties.deliveryClientId,
+            occurrenceId,
+            origin: RETURNED_GOODS_ORIGIN,
+            recordedByUserId: actorUserId,
+            status: 'recorded' satisfies DeliveryChargeStatus,
+            tripDocumentId: occurrenceRow.tripDocumentId,
+            tripId: parties.tripId,
+          })
+          .returning({ id: deliveryCharges.id, status: deliveryCharges.status })
+        /** Sem `onConflictDoNothing`: quem perde a corrida precisa saber, não convergir em silêncio. */
+        if (inserted === undefined) {
+          throw new Error('delivery_charges insert returned no row')
+        }
+        return inserted
+      } catch (error) {
+        if (violatedUniqueConstraint(error) === OCCURRENCE_CHARGE_UNIQUE_CONSTRAINT) {
+          throw new OccurrenceChargeConcurrentWriteError()
+        }
+        throw error
       }
-      return inserted
     }
 
     if (!isOccurrenceChargeWritable(existing.status)) {

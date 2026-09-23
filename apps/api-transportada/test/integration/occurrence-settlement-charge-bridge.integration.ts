@@ -23,7 +23,10 @@ import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastru
 import { DrizzleOccurrenceSettlementChargeRepository } from '../../src/trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
 import { DrizzleDeliveryChargeRepository } from '../../src/delivery-clients/infrastructure/drizzle-delivery-charge.repository.js'
 import { DeliveryChargeTransitionNotAllowedError } from '../../src/delivery-clients/application/delivery-charges.use-case.js'
-import { OccurrenceChargePartiesUnresolvedError } from '../../src/trips/domain/trip.error.js'
+import {
+  OccurrenceChargeConcurrentWriteError,
+  OccurrenceChargePartiesUnresolvedError,
+} from '../../src/trips/domain/trip.error.js'
 import {
   fakeAttachmentStorage,
   JPEG_BYTES,
@@ -285,6 +288,68 @@ describe('DrizzleOccurrenceSettlementChargeRepository (spec 164 T17)', () => {
           .from(deliveryCharges)
           .where(eq(deliveryCharges.companyId, company.companyId))
         expect(rows.length).toBe(0)
+      })
+    },
+  )
+
+  /**
+   * Revisão final (R2): `for no key update` não trava o que ainda não existe. Duas requisições
+   * concorrentes sobre a mesma ocorrência inserem as duas, o índice único
+   * (`delivery_charges_occurrence_unique`) impede a duplicata — e a violação subia crua, como 500.
+   */
+  testWithPostgres(
+    'a corrida de duas cobranças da mesma ocorrência vira 409, nunca 500',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await bindDeliveryParties(database, company, trip)
+        const occurrenceTypeId = await seedOccurrenceType(database, company)
+        const occurrenceId = await registerOccurrence(database, company, trip, occurrenceTypeId)
+
+        const chargeRepository = new DrizzleDeliveryChargeRepository(database.db)
+        const bridge = new DrizzleOccurrenceSettlementChargeRepository(
+          chargeRepository.findChargeParties.bind(chargeRepository),
+        )
+
+        const outcomes = await Promise.allSettled([
+          database.db.transaction((transaction) =>
+            bridge.applyOccurrenceSettlementCharge({
+              actorUserId: company.userId,
+              amount: '100.0000',
+              companyId: company.companyId,
+              occurrenceId,
+              transaction,
+            }),
+          ),
+          database.db.transaction((transaction) =>
+            bridge.applyOccurrenceSettlementCharge({
+              actorUserId: company.userId,
+              amount: '200.0000',
+              companyId: company.companyId,
+              occurrenceId,
+              transaction,
+            }),
+          ),
+        ])
+
+        const rejected = outcomes.filter((outcome) => outcome.status === 'rejected')
+        expect(outcomes.filter((outcome) => outcome.status === 'fulfilled').length).toBe(1)
+        expect(rejected.length).toBe(1)
+        expect(rejected[0]?.status === 'rejected' ? rejected[0].reason : undefined).toBeInstanceOf(
+          OccurrenceChargeConcurrentWriteError,
+        )
+
+        const rows = await database.db
+          .select({ id: deliveryCharges.id })
+          .from(deliveryCharges)
+          .where(
+            and(
+              eq(deliveryCharges.companyId, company.companyId),
+              eq(deliveryCharges.occurrenceId, occurrenceId),
+            ),
+          )
+        expect(rows.length).toBe(1)
       })
     },
   )

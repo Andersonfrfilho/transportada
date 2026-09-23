@@ -886,3 +886,19 @@ export class OccurrenceChargePartiesUnresolvedError extends ApiError {
     })
   }
 }
+
+/**
+ * Revisão final (R2): `select … for no key update` não trava a linha que ainda não existe. Duas
+ * requisições concorrentes sobre a mesma ocorrência inserem as duas, e quem perde bate no índice
+ * único `delivery_charges_occurrence_unique`. 409, para quem repetir a chamada de rede reler o que
+ * ficou gravado — a violação crua virava 500, sem nada dizer que a cobrança já existe.
+ */
+export class OccurrenceChargeConcurrentWriteError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CHARGE_CONCURRENT_WRITE',
+      message: 'Another request is already recording the charge for this occurrence.',
+      status: 409,
+    })
+  }
+}
