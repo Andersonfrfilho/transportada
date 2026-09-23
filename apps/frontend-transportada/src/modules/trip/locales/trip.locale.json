@@ -1228,7 +1228,7 @@
     "forceTitle": "Despachar com pendência",
     "generateCteSelection": "Gerar CT-e de {{count}} nota marcada",
     "generateCteSelection_other": "Gerar CT-e de {{count}} notas marcadas",
-    "planRoute": "Planejar rota",
+    "planRoute": "Liberar para separação",
     "returnReasonLabel": "Motivo da devolução",
     "returnSubmit": "Confirmar devolução",
     "returnSubtitle": "Nota {{document}} — o motivo entra na trilha da viagem.",

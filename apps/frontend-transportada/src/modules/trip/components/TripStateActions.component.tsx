@@ -247,13 +247,20 @@ export function TripStateActions({
             {t('stateActions.dispatch')}
           </Button>
         ) : null}
+        {/*
+          Revisão de design (23/09): "Cancelar viagem" era `ghost` — lia como link — e ficava colada
+          na ação principal, a um pixel de erro de distância. Agora ela é secundária, com o tom de
+          alerta, e empurrada para a outra ponta da linha: a ação destrutiva não divide vizinhança
+          com a que o operador clica todo dia.
+        */}
         {canCancel ? (
           <Button
+            className={styles.actionDestructive}
             disabled={isCancelPending}
             onClick={onCancel}
             size="sm"
             type="button"
-            variant="ghost"
+            variant="secondary"
           >
             <Icon name="close" />
             {t('stateActions.cancel')}

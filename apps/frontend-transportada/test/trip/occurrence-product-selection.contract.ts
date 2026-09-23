@@ -199,7 +199,7 @@ describe('spec 166: a leitura mostra a contagem, item sem ela some — nunca vir
         entry: { code: 'A1', quantity: '3.000', unit: 'unit' },
         unitLabels: UNIT_LABELS,
       }),
-    ).toBe('A1 (3.000 peça(s))')
+    ).toBe('A1 (3 peça(s))')
   })
 
   test('a linha inteira mistura item com e sem contagem, e a nota inteira quando não há item', () => {
@@ -213,7 +213,7 @@ describe('spec 166: a leitura mostra a contagem, item sem ela some — nunca vir
       unitLabels: UNIT_LABELS,
       wholeDocumentLabel: 'A nota inteira',
     })
-    expect(line).toBe('A1 (2.000 caixa(s)), B2')
+    expect(line).toBe('A1 (2 caixa(s)), B2')
 
     const wholeDocument = formatOccurrenceProductsLine({
       occurrence: { ...base, productCode: '', productCodes: [] },
@@ -280,7 +280,7 @@ describe('descrição do item na leitura da ocorrência', () => {
     })
 
     expect(itens).toEqual([
-      { code: '183', description: 'SHAMP MONANGE 325ML HIDR COM PODER', quantity: '3.000 peças' },
+      { code: '183', description: 'SHAMP MONANGE 325ML HIDR COM PODER', quantity: '3 peças' },
     ])
   })
 
@@ -333,5 +333,44 @@ describe('descrição do item na leitura da ocorrência', () => {
         unitLabels: UNIT_LABELS,
       }),
     ).toEqual([])
+  })
+})
+
+/**
+ * ⚠️ Pegado pelo usuário na bancada local, 23/09: a contagem aparecia como **"1.000 Caixa"**. A
+ * quantidade é `numeric(12,3)`, e a tela imprimia a string crua do banco — em português, "1.000" lê
+ * como **mil**. Uma caixa avariada virava mil caixas na leitura de quem confere.
+ *
+ * O formato é o brasileiro, sem zero à toa: `1`, `1,5`, `0,25`.
+ */
+describe('formato brasileiro da quantidade (defeito medido em 23/09)', () => {
+  const UNIT_LABELS = { box: 'caixas', unit: 'peças' } as const
+
+  function quantidadeDe(valor: string): null | string {
+    const [item] = describeOccurrenceItems({
+      occurrence: {
+        productCode: '696',
+        productCodes: ['696'],
+        products: [{ code: '696', quantity: valor, unit: 'box' }],
+      },
+      products: [],
+      unitLabels: UNIT_LABELS,
+    })
+    return item?.quantity ?? null
+  }
+
+  it('inteiro não ganha casa decimal nenhuma', () => {
+    expect(quantidadeDe('1.000')).toBe('1 caixas')
+    expect(quantidadeDe('12.000')).toBe('12 caixas')
+  })
+
+  it('fração usa vírgula, como todo número em português', () => {
+    expect(quantidadeDe('1.500')).toBe('1,5 caixas')
+    expect(quantidadeDe('0.250')).toBe('0,25 caixas')
+  })
+
+  /** Três casas existem no banco e têm de sobreviver à tela quando são significativas. */
+  it('mantém as casas que importam', () => {
+    expect(quantidadeDe('2.125')).toBe('2,125 caixas')
   })
 })

@@ -338,7 +338,23 @@
 .actionActions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
+}
+
+/*
+ * A destrutiva vai para a outra ponta e veste o tom de alerta (revisão de 23/09). `margin-left:auto`
+ * só empurra quando há espaço: no celular a linha quebra e ela desce, sem colar na principal.
+ */
+.actionDestructive {
+  margin-left: auto;
+  border-color: color-mix(in srgb, var(--color-alert) 45%, transparent);
+  color: var(--color-alert);
+}
+
+.actionDestructive:hover:not(:disabled) {
+  border-color: var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 12%, transparent);
 }
 
 .mdfeGateOverlay {

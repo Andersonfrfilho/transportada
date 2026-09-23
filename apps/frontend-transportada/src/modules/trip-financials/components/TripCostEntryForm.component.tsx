@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-import { AMOUNT_MAX_SCALE, maskTypedAmount } from '@/modules/shared/decimalAmount.service'
+import { maskTypedAmount, TYPED_MONEY_SCALE } from '@/modules/shared/decimalAmount.service'
 
 import {
   EMPTY_TRIP_COST_ENTRY_FORM,
@@ -49,7 +49,7 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
           onChange={(event) =>
             setFields({
               ...fields,
-              amount: maskTypedAmount({ scale: AMOUNT_MAX_SCALE, value: event.target.value }),
+              amount: maskTypedAmount({ scale: TYPED_MONEY_SCALE, value: event.target.value }),
             })
           }
           placeholder={t('costEntries.amountPlaceholder')}

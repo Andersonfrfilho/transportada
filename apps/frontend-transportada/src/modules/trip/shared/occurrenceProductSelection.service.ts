@@ -117,7 +117,7 @@ export function formatOccurrenceProductEntryLabel(
 ): string {
   const { entry, unitLabels } = input
   if (entry.quantity === null || entry.unit === null) return entry.code
-  return `${entry.code} (${entry.quantity} ${unitLabels[entry.unit]})`
+  return `${entry.code} (${formatOccurrenceQuantity(entry.quantity)} ${unitLabels[entry.unit]})`
 }
 
 /** A linha inteira da leitura: todos os itens, cada um com a contagem que tiver, ou "a nota inteira". */
@@ -133,6 +133,17 @@ export function formatOccurrenceProductsLine(
   return entries
     .map((entry) => formatOccurrenceProductEntryLabel({ entry, unitLabels: input.unitLabels }))
     .join(', ')
+}
+
+/**
+ * A quantidade vem do banco como decimal de três casas (`numeric(12,3)`), e "1.000" em português lê
+ * como **mil** — uma caixa avariada viraria mil na leitura de quem confere (medido em 23/09). Aqui
+ * ela vira número brasileiro, sem zero à toa: `1`, `1,5`, `0,25`.
+ */
+function formatOccurrenceQuantity(quantity: string): string {
+  const numero = Number(quantity)
+  if (!Number.isFinite(numero)) return quantity
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(numero)
 }
 
 /** Um item da ocorrência pronto para a leitura: o código, o que ele é, e quanto foi. */
@@ -168,6 +179,6 @@ export function describeOccurrenceItems(
     quantity:
       entry.quantity === null || entry.unit === null
         ? null
-        : `${entry.quantity} ${input.unitLabels[entry.unit]}`,
+        : `${formatOccurrenceQuantity(entry.quantity)} ${input.unitLabels[entry.unit]}`,
   }))
 }

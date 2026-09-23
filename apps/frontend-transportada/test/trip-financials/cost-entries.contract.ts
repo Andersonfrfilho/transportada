@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
+import { maskTypedAmount, TYPED_MONEY_SCALE } from '@/modules/shared/decimalAmount.service'
 import tripFinancials from '../../src/modules/trip-financials/locales/tripFinancials.locale.json'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
@@ -433,5 +434,27 @@ describe('as duas direções da permissão, pela página', () => {
     expect(page).toContain('costEntries={costEntries}')
     expect(page).not.toContain('<TripCostEntries')
     expect(page).not.toContain('<TripCostEntryForm')
+  })
+})
+
+/**
+ * ⚠️ Pegado pelo usuário na bancada, 23/09: o campo "Valor" do lançamento avulso mostrava
+ * **`100,0000`** — quatro casas num campo de dinheiro. A máscara usava `AMOUNT_MAX_SCALE`, que é a
+ * escala de **armazenamento** (a API guarda quatro casas para não perder centavo em conta
+ * intermediária), não a de digitação. Quem lança R$ 100 digita "10000" e vê "100,00", como em toda
+ * outra tela de dinheiro do produto — a ficha do veículo já fazia assim.
+ */
+describe('escala do campo de dinheiro do lançamento avulso (defeito medido em 23/09)', () => {
+  test('o formulário digita com duas casas, como o resto do produto', async () => {
+    const component = await readSource(FORM_COMPONENT)
+
+    expect(component).toContain('TYPED_MONEY_SCALE')
+    expect(component).not.toContain('scale: AMOUNT_MAX_SCALE')
+  })
+
+  test('a máscara com duas casas produz o valor que o operador espera', () => {
+    expect(maskTypedAmount({ scale: TYPED_MONEY_SCALE, value: '10000' })).toBe('100,00')
+    expect(maskTypedAmount({ scale: TYPED_MONEY_SCALE, value: '1' })).toBe('0,01')
+    expect(maskTypedAmount({ scale: TYPED_MONEY_SCALE, value: '' })).toBe('')
   })
 })

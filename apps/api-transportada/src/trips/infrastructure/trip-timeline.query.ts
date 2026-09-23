@@ -91,7 +91,14 @@ export async function listTripTimeline(
   const last = merged.items[merged.items.length - 1]
 
   return {
-    items: merged.items.map((row) => ({
+    /**
+     * ⚠️ `occurredAtKey` é **ordenação interna**, não dado de tela: ele existe para a mesclagem das
+     * seis fontes comparar microssegundos. Espalhar a linha inteira o publicava junto, e o guard do
+     * bundle — que é de chave exata — recusava a lista toda: a tela dizia "não foi possível carregar
+     * a linha do tempo" sobre uma resposta 200 completa (medido em 22/09 em staging e reproduzido
+     * na bancada local).
+     */
+    items: merged.items.map(({ occurredAtKey: _ordenacao, ...row }) => ({
       ...row,
       occurredAt: row.occurredAt.toISOString(),
       recordedAt: row.recordedAt === null ? null : row.recordedAt.toISOString(),
