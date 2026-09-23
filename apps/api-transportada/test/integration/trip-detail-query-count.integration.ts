@@ -261,6 +261,13 @@ describe('the trip detail resolves the box of each pending measurement (spec 168
           totalValue: '10.0000',
           unitValue: '10.0000',
         })
+        /**
+         * Spec 168 (regressão): a caixa do catálogo casa a pendência, mas ainda **não tem** as três
+         * dimensões — só `grossWeightGrams`/`unitsPerBox`. Uma caixa já medida some da lista (é
+         * exatamente o defeito que o fix corrige), então este cenário precisa de uma caixa sem
+         * medida para continuar provando o enriquecimento (`packageBoxId`/`grossWeightGrams`/
+         * `unitsPerBox`) sem se confundir com o descarte.
+         */
         const boxId = crypto.randomUUID()
         await database.db.insert(nfePackageBoxes).values({
           commercialUnit: 'CX',
@@ -268,14 +275,9 @@ describe('the trip detail resolves the box of each pending measurement (spec 168
           description: 'CAIXA DO CATÁLOGO',
           emitterTaxId,
           grossWeightGrams: 700,
-          heightMm: 100,
           id: boxId,
-          lengthMm: 200,
-          measuredAt: new Date('2026-09-16T12:00:00.000Z'),
-          measurementSource: 'typed' as const,
           productCode,
           unitsPerBox: 4,
-          widthMm: 150,
         })
 
         /**
@@ -335,6 +337,136 @@ describe('the trip detail resolves the box of each pending measurement (spec 168
             unitsPerBox: 4,
           },
         ])
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'a caixa casada já tem as três dimensões gravadas: a pendência some da lista (bug do spec 168)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        const userId = crypto.randomUUID()
+        const vehicleId = crypto.randomUUID()
+        const emitterTaxId = '05868574001090'
+        const documentNumber = '9'
+        const productCode = 'SKU-168-MEASURED'
+
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+        await database.db.insert(userCompanyMemberships).values({
+          companyId,
+          id: crypto.randomUUID(),
+          status: 'active',
+          userId,
+        })
+        await database.db.insert(fleetVehicles).values({
+          capacityM3: '48.000',
+          cargoHeightM: '2.500',
+          cargoLengthM: '8.000',
+          cargoWidthM: '2.400',
+          companyId,
+          id: vehicleId,
+          plate: 'ABC1D26',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'three_quarter',
+        })
+
+        const freightRule = await seedFreightRuleVersion(database, { companyId, userId })
+        const nfeDocumentId = await seedNfeDocument(database, { companyId, userId })
+        const tripId = await seedTripWithStops(database, {
+          companyId,
+          documentsPerStop: 1,
+          freightRule,
+          nfeDocumentId,
+          stopCount: 1,
+          userId,
+          vehicleId,
+        })
+
+        await database.db.insert(nfeParticipants).values({
+          companyId,
+          documentId: nfeDocumentId,
+          legalName: 'Emitente de teste',
+          role: 'emitter',
+          taxId: emitterTaxId,
+        })
+        await database.db.insert(nfeProducts).values({
+          cfop: '5102',
+          code: productCode,
+          commercialUnit: 'CX',
+          companyId,
+          description: 'PRODUTO DE TESTE',
+          documentId: nfeDocumentId,
+          ncm: '84713012',
+          ordinal: 1n,
+          quantity: '1.0000',
+          totalValue: '10.0000',
+          unitValue: '10.0000',
+        })
+        /** A caixa já foi medida — a mesma que o defeito medido na bancada reproduziu (spec 168). */
+        await database.db.insert(nfePackageBoxes).values({
+          commercialUnit: 'CX',
+          companyId,
+          description: 'CAIXA JÁ MEDIDA',
+          emitterTaxId,
+          grossWeightGrams: 700,
+          heightMm: 250,
+          id: crypto.randomUUID(),
+          lengthMm: 400,
+          measuredAt: new Date('2026-09-23T16:53:51.562Z'),
+          measurementSource: 'typed' as const,
+          productCode,
+          unitsPerBox: 4,
+          widthMm: 300,
+        })
+
+        /**
+         * Planta guardada **antes** da medida (`stale`, servida por `readPreviousReady`): a mesma
+         * situação que a bancada mediu — a planta pronta mais recente pode não ter recalculado ainda.
+         */
+        await database.db.insert(tripCargoLayouts).values({
+          companyId,
+          computedAt: new Date('2026-09-20T10:00:00.000Z'),
+          input: {},
+          inputHash: 'fabricated-hash-168-measured',
+          layout: {
+            freeRows: 0,
+            occupancyKnown: true,
+            orderIsBinding: true,
+            overflowM3: '0.000000',
+            placement: { layers: [], source: 'measured', unplaced: [] },
+            pendingMeasurements: [
+              {
+                boxCount: 2,
+                documentNumber,
+                estimateSource: 'none',
+                label: 'Caixa sem código',
+                productCode,
+                sequence: 1,
+                stopLabel: 'Parada 1',
+              },
+            ],
+            rows: [],
+            slices: [],
+            stopsWithoutVolume: [],
+          },
+          policyVersion: 'test-168',
+          status: 'ready',
+          tripId,
+        })
+
+        const repository = new DrizzleTripRepository(
+          database.db,
+          undefined,
+          { packageBoxLookup: new DrizzlePackageBoxRepository(database.db) },
+        )
+
+        const detail = await repository.findById({ companyId, tripId })
+
+        expect(detail?.cargoLayout?.pendingMeasurements).toEqual([])
       })
     },
     30_000,
