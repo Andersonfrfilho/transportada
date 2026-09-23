@@ -15,7 +15,6 @@
     "db:migrate": "bun src/database/database-migration.service.ts",
     "db:provision": "bun src/database/environment-provisioning.service.ts",
     "db:seed:emission-profiles": "bun src/database/local-emission-profile-seed.service.ts",
-    "db:seed:cost-parameters": "bun src/database/local-cost-parameter-seed.service.ts",
     "db:seed:fleet": "bun src/database/local-fleet-seed.service.ts",
     "db:seed:local": "bun src/database/local-identity-seed.service.ts",
     "db:seed:trip": "bun src/database/local-trip-seed.service.ts",
