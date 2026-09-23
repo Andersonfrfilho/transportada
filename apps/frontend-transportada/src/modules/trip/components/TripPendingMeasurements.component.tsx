@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import {
@@ -59,14 +60,17 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
 
   const measure = useMeasurePendingBox()
   const [drafts, setDrafts] = useState<Record<string, PendingMeasurementDraft>>({})
-  const [savingBoxId, setSavingBoxId] = useState<string | null>(null)
+  /** Mais de uma linha pode estar gravando ao mesmo tempo — a ação em massa dispara várias. */
+  const [savingBoxIds, setSavingBoxIds] = useState<ReadonlySet<string>>(new Set())
   const [errorByBoxId, setErrorByBoxId] = useState<Record<string, string>>({})
   /**
-   * RF04: quem preenche precisa saber se gravou — sem isso o usuário preenchia os três campos no
-   * blur e não via nada acontecer. Some assim que a linha volta a ser editada, não por tempo: um
+   * RF04: quem preenche precisa saber se gravou — sem isso o usuário preenchia os três campos e
+   * não via nada acontecer. Some assim que a linha volta a ser editada, não por tempo: um
    * `setTimeout` correria o risco de sumir antes de o operador olhar de volta para a tela.
    */
   const [savedBoxIds, setSavedBoxIds] = useState<ReadonlySet<string>>(new Set())
+  /** O usuário pediu "uma seleção para gravar todos" — marca linhas para a ação em massa. */
+  const [selectedBoxIds, setSelectedBoxIds] = useState<ReadonlySet<string>>(new Set())
 
   if (measurements.length === 0) return null
 
@@ -101,12 +105,16 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
     setDrafts((current) => ({ ...current, [boxId]: { ...current[boxId], [dimension]: value } }))
   }
 
-  /** RF02/RF04: grava ao sair do campo, só com os três preenchidos — a linha some pela releitura. */
-  function handleDimensionBlur(measurement: TripPendingMeasurement, boxId: string) {
+  /**
+   * O salvamento automático saiu (RF novo): o operador reclamou que preenchia os três campos e não
+   * via nada acontecer. Agora é sempre um clique explícito — o botão da linha ou a ação em massa —,
+   * só com os três valores preenchidos e dentro da faixa; a linha some pela releitura.
+   */
+  function handleSaveBox(measurement: TripPendingMeasurement, boxId: string) {
     const submission = resolvePendingMeasurementSubmission(draftOf(boxId))
     if (!submission.ready) return
 
-    setSavingBoxId(boxId)
+    setSavingBoxIds((current) => new Set(current).add(boxId))
     measure.mutate(
       {
         grossWeightGrams: measurement.grossWeightGrams,
@@ -118,7 +126,11 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
       },
       {
         onError: (error: unknown) => {
-          setSavingBoxId(null)
+          setSavingBoxIds((current) => {
+            const next = new Set(current)
+            next.delete(boxId)
+            return next
+          })
           setErrorByBoxId((current) => ({
             ...current,
             [boxId]: packageBoxErrorCode(error) ?? 'network',
@@ -126,11 +138,48 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
           /** CA06: o valor digitado permanece — `drafts` nunca é limpo aqui. */
         },
         onSuccess: () => {
-          setSavingBoxId(null)
+          setSavingBoxIds((current) => {
+            const next = new Set(current)
+            next.delete(boxId)
+            return next
+          })
           setSavedBoxIds((current) => new Set(current).add(boxId))
+          setSelectedBoxIds((current) => {
+            if (!current.has(boxId)) return current
+            const next = new Set(current)
+            next.delete(boxId)
+            return next
+          })
         },
       },
     )
+  }
+
+  function handleToggleRowSelection(boxId: string, checked: boolean) {
+    setSelectedBoxIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(boxId)
+      else next.delete(boxId)
+      return next
+    })
+  }
+
+  function handleToggleSelectAll(checked: boolean, selectableBoxIds: readonly string[]) {
+    setSelectedBoxIds(checked ? new Set(selectableBoxIds) : new Set())
+  }
+
+  /**
+   * A seleção ignora linha sem caixa (nunca entra nela, não tem checkbox) e linha sem os três
+   * valores prontos — grava só o que está pronto, e diz quanto ficou de fora (mesmo espírito do
+   * aviso em `TripStateActions.component.tsx`).
+   */
+  function handleSaveSelected(byBoxId: ReadonlyMap<string, TripPendingMeasurement>) {
+    for (const boxId of selectedBoxIds) {
+      const measurement = byBoxId.get(boxId)
+      if (measurement === undefined) continue
+      if (!resolvePendingMeasurementSubmission(draftOf(boxId)).ready) continue
+      handleSaveBox(measurement, boxId)
+    }
   }
 
   function exportLabels(): TripPendingMeasurementsExportLabels {
@@ -188,10 +237,9 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
         <input
           aria-describedby={invalid ? errorId : undefined}
           aria-invalid={invalid}
-          disabled={savingBoxId === boxId}
+          disabled={savingBoxIds.has(boxId)}
           id={inputId}
           inputMode="numeric"
-          onBlur={() => handleDimensionBlur(measurement, boxId)}
           onChange={(event) => handleDimensionChange(measurement, dimension, event.target.value)}
           value={value}
         />
@@ -209,6 +257,55 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
     )
   }
 
+  function measurableRowCells(measurement: TripPendingMeasurement, boxId: string) {
+    const rowReady = resolvePendingMeasurementSubmission(draftOf(boxId)).ready
+
+    return (
+      <>
+        <td className={measurementStyles.selectionCell}>
+          <Checkbox
+            ariaLabel={t('pendingMeasurement.inline.selectRow')}
+            checked={selectedBoxIds.has(boxId)}
+            disabled={savingBoxIds.has(boxId)}
+            onChange={(checked) => handleToggleRowSelection(boxId, checked)}
+          />
+        </td>
+        <td>{dimensionCell(measurement, 'length')}</td>
+        <td>{dimensionCell(measurement, 'width')}</td>
+        <td>{dimensionCell(measurement, 'height')}</td>
+        <td>
+          {rowReady ? (
+            <Button
+              className={measurementStyles.rowSaveButton}
+              disabled={savingBoxIds.has(boxId)}
+              onClick={() => handleSaveBox(measurement, boxId)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="save" />
+              {t('pendingMeasurement.inline.saveRow')}
+            </Button>
+          ) : null}
+        </td>
+      </>
+    )
+  }
+
+  const byBoxId = new Map(
+    measurements
+      .filter((measurement) => measurement.packageBoxId != null)
+      .map((measurement) => [measurement.packageBoxId as string, measurement] as const),
+  )
+  const selectableBoxIds = [...byBoxId.keys()]
+  const readySelection = [...selectedBoxIds].filter(
+    (boxId) => byBoxId.has(boxId) && resolvePendingMeasurementSubmission(draftOf(boxId)).ready,
+  )
+  const excludedSelectionCount = selectedBoxIds.size - readySelection.length
+  const allSelectableSelected =
+    selectableBoxIds.length > 0 && selectableBoxIds.every((boxId) => selectedBoxIds.has(boxId))
+  const someSelected = selectedBoxIds.size > 0 && !allSelectableSelected
+
   return (
     <section aria-labelledby="trip-pending-measurements-title" className={styles.panel}>
       <h3 id="trip-pending-measurements-title">{t('pendingMeasurement.title')}</h3>
@@ -223,9 +320,20 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
               <th scope="col">{t('pendingMeasurement.columns.estimateSource')}</th>
               {canMeasure ? (
                 <>
+                  <th className={measurementStyles.selectionCell} scope="col">
+                    {selectableBoxIds.length > 0 ? (
+                      <Checkbox
+                        ariaLabel={t('pendingMeasurement.inline.selectAll')}
+                        checked={allSelectableSelected}
+                        indeterminate={someSelected}
+                        onChange={(checked) => handleToggleSelectAll(checked, selectableBoxIds)}
+                      />
+                    ) : null}
+                  </th>
                   <th scope="col">{t('pendingMeasurement.inline.length')}</th>
                   <th scope="col">{t('pendingMeasurement.inline.width')}</th>
                   <th scope="col">{t('pendingMeasurement.inline.height')}</th>
+                  <th scope="col">{t('pendingMeasurement.inline.saveRow')}</th>
                 </>
               ) : null}
             </tr>
@@ -246,15 +354,11 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
                 <td>{t(`pendingMeasurement.estimateSource.${measurement.estimateSource}`)}</td>
                 {canMeasure ? (
                   measurement.packageBoxId == null ? (
-                    <td className={styles.measureFieldReason} colSpan={3}>
+                    <td className={styles.measureFieldReason} colSpan={5}>
                       {t('pendingMeasurement.inline.noBoxReason')}
                     </td>
                   ) : (
-                    <>
-                      <td>{dimensionCell(measurement, 'length')}</td>
-                      <td>{dimensionCell(measurement, 'width')}</td>
-                      <td>{dimensionCell(measurement, 'height')}</td>
-                    </>
+                    measurableRowCells(measurement, measurement.packageBoxId)
                   )
                 ) : null}
               </tr>
@@ -267,7 +371,23 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
           {t('pendingMeasurement.inline.saveFailed')}
         </p>
       ) : null}
+      {canMeasure && excludedSelectionCount > 0 ? (
+        <p className={styles.hint} role="status">
+          {t('pendingMeasurement.inline.selectionExcluded', { count: excludedSelectionCount })}
+        </p>
+      ) : null}
       <div className={styles.actions}>
+        {canMeasure && selectedBoxIds.size > 0 ? (
+          <Button
+            disabled={readySelection.length === 0}
+            onClick={() => handleSaveSelected(byBoxId)}
+            size="sm"
+            type="button"
+          >
+            <Icon name="save" />
+            {t('pendingMeasurement.inline.saveSelected', { count: readySelection.length })}
+          </Button>
+        ) : null}
         <Button onClick={handleGoToQueue} size="sm" type="button" variant="ghost">
           <Icon name="link" />
           {t('pendingMeasurement.goToQueue')}

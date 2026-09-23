@@ -317,3 +317,59 @@ $ bun --env-file=../../.env.test run test:integration                     # apps
 
 Postgres de teste: instância nativa descartável (`initdb`/`pg_ctl`, porta 57018) — o Docker local
 (65432) segue com o defeito de I/O já registrado em `banco-de-teste-local-quebrado.md`.
+
+## Botão por linha + seleção em massa (sessão seguinte)
+
+O usuário procurou botão de salvar três vezes ao longo da sessão anterior — a gravação automática
+no `onBlur` não se explicava sozinha. Trocado por gravação explícita:
+
+- **Salvamento automático no blur saiu.** `handleDimensionBlur` virou `handleSaveBox`, chamado só
+  por clique — do botão da linha ou da ação em massa. Nenhum `onBlur` restou no componente.
+- **Botão por linha**: aparece na última coluna só quando os três valores da linha estão prontos
+  (`resolvePendingMeasurementSubmission(...).ready`); ausente quando falta valor — não desabilitado,
+  porque um botão sempre visível e quase sempre desabilitado é mais ruído que ausência.
+- **Seleção por linha + ação em massa**: `Checkbox` (`@/components/ui/checkbox`, já existente) em
+  cada linha com `packageBoxId`; checkbox de "selecionar todas" no cabeçalho, com `indeterminate`
+  quando a seleção é parcial. `selectedBoxIds: ReadonlySet<string>` guarda o estado.
+  - `handleSaveSelected` grava só quem está em `selectedBoxIds` **e** com submissão pronta —
+    ignora silenciosamente linha sem caixa (nunca entra na seleção, não tem checkbox) e linha com
+    algum campo vazio ou fora de faixa.
+  - O botão "Salvar N medidas" mostra `readySelection.length` (só o que de fato vai ser gravado);
+    quando a seleção inclui algo inelegível, um aviso `role="status"` diz quantas linhas selecionadas
+    ficaram de fora (`pendingMeasurement.inline.selectionExcluded`, `_one`/`_other`) — mesmo padrão
+    de `excludedFromOccurrenceBatch`/`excludedFromDeliveryBatch` em `TripStateActions.component.tsx`.
+  - Ao gravar com sucesso, a linha sai de `selectedBoxIds` (junto com `savingBoxIds`/entra em
+    `savedBoxIds`), e `savingBoxIds` virou `Set` (antes era um único `string | null`) porque a ação
+    em massa dispara várias mutações concorrentes — cada uma precisa desabilitar só a própria linha.
+- **Indicador "salva" por linha continua** (`savedBoxIds`, `measureFieldSaved`), inalterado.
+- **Erro por linha continua** (`errorByBoxId`), inalterado — `handleSaveBox` mantém o mesmo
+  `onError`/`onSuccess` de antes, só que reutilizável pelas duas vias de disparo.
+- Novos textos em `trip.locale.json`/`trip.en.locale.json` sob `pendingMeasurement.inline`:
+  `saveRow`, `saveSelected_one`/`_other`, `selectAll`, `selectRow`, `selectionExcluded_one`/`_other`.
+- Estilo novo em `TripPendingMeasurements.module.css` (não em `trip.module.css`, que é read-only
+  nesta tarefa): `.selectionCell` (coluna estreita do checkbox) e `.rowSaveButton` (min 44px de
+  área de toque, para caber em 375px).
+- Nenhum arquivo de teste novo foi criado — os casos novos entraram em
+  `test/trip/pending-measurement-inline.contract.ts`, que já estava na lista explícita via
+  `test/trip.contract.test.ts` (import `pending-measurement-inline.contract.js`), por sua vez já
+  registrado em `package.json`. Casos adicionados: botão não aparece sem os três valores prontos,
+  ausência total de `onBlur`/`handleDimensionBlur` no componente, presença de `Checkbox` e
+  `selectedBoxIds`, e o aviso de linhas excluídas da seleção.
+
+### Gates — saída real desta sessão (de dentro de apps/frontend-transportada)
+
+```
+$ bun run typecheck
+(sem saída — 0 erros)
+
+$ bun run lint
+(sem saída — 0 erros)
+
+$ bun run test
+5081 pass, 0 fail — Ran 5081 tests across 29 files. [3.76s]
+44 pass, 0 fail — Ran 44 tests across 1 file. [622.00ms]   (test:hooks)
+```
+
+Pendente: não foi possível testar clique real na bancada (localhost:53000) nesta sessão — a API em
+53011 exige token Keycloak e não havia fluxo de login disponível sem interação manual do usuário.
+Verificação ficou nos contratos (`pending-measurement-inline.contract.ts`) e nos gates acima.

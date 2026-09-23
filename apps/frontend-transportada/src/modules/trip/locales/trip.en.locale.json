@@ -682,7 +682,14 @@
       "outOfRange": "Above {{max}} cm — check the measurement.",
       "saveFailed": "Could not save. The value is still here — try again.",
       "noBoxReason": "No catalog box matches this product.",
-      "saved": "Measurement saved"
+      "saved": "Measurement saved",
+      "saveRow": "Save measurement",
+      "saveSelected_one": "Save 1 measurement",
+      "saveSelected_other": "Save {{count}} measurements",
+      "selectAll": "Select all",
+      "selectRow": "Select this row",
+      "selectionExcluded_one": "1 selected row was left out — missing a box or a value.",
+      "selectionExcluded_other": "{{count}} selected rows were left out — missing a box or a value."
     }
   },
   "pagination": {

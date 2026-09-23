@@ -5,3 +5,14 @@
   color: var(--color-ready);
   font-size: 0.78rem;
 }
+
+/** Coluna estreita: só cabe a caixa de seleção, sem empurrar as colunas de medida. */
+.selectionCell {
+  width: 2.75rem;
+}
+
+/** Botão de salvar por linha: mesma área de toque mínima do resto da tabela em 375px. */
+.rowSaveButton {
+  min-height: 44px;
+  min-width: 44px;
+}

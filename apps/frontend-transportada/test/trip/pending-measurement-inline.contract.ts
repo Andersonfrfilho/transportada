@@ -107,15 +107,44 @@ describe('a tabela do que falta medir ganha os campos de medida (spec 168)', () 
   })
 
   /**
-   * O usuário reclamou que preenchia os três campos no blur e não via nada acontecer — "não temos
-   * botão de salvar medidas". A gravação continua automática no blur (RF02/RF04), mas agora sobra
-   * uma confirmação visível: quem preenche precisa saber se salvou.
+   * O usuário reclamou que preenchia os três campos e não via nada acontecer — "não temos botão
+   * de salvar medidas". A gravação automática no blur saiu: agora é um clique explícito, e a
+   * confirmação visível continua sendo o retorno de que gravou.
    */
   it('confirma visivelmente que a medida foi gravada (edge case)', () => {
     const source = readFileSync(COMPONENT_PATH, 'utf8')
 
     expect(source).toContain('savedBoxIds')
     expect(source).toContain("t('pendingMeasurement.inline.saved')")
+  })
+
+  it('não grava mais sozinho ao sair do campo — o operador pediu um botão (defeito medido)', () => {
+    const source = readFileSync(COMPONENT_PATH, 'utf8')
+
+    expect(source).not.toContain('onBlur')
+    expect(source).not.toContain('handleDimensionBlur')
+  })
+
+  it('tem um botão de salvar por linha, que só aparece com os três valores prontos (RF novo)', () => {
+    const source = readFileSync(COMPONENT_PATH, 'utf8')
+
+    expect(source).toContain('handleSaveBox')
+    expect(source).toContain("t('pendingMeasurement.inline.saveRow')")
+  })
+
+  it('tem seleção por linha e uma ação para gravar as selecionadas de uma vez', () => {
+    const source = readFileSync(COMPONENT_PATH, 'utf8')
+
+    expect(source).toContain('Checkbox')
+    expect(source).toContain('selectedBoxIds')
+    expect(source).toContain("t('pendingMeasurement.inline.saveSelected'")
+  })
+
+  it('a seleção ignora linha sem caixa e linha sem os três valores, e avisa quantas ficaram de fora', () => {
+    const source = readFileSync(COMPONENT_PATH, 'utf8')
+
+    expect(source).toContain('readySelection')
+    expect(source).toContain("t('pendingMeasurement.inline.selectionExcluded'")
   })
 
   it('textos em pt-BR e traduzidos (RF08)', () => {
