@@ -1233,3 +1233,101 @@ OBJECT_STORAGE_UNAVAILABLE`, o MinIO local indisponível (infra do ambiente, nad
 ### Commit desta rodada
 
 2. `fix(api): spec 164 RF13 — nota, itens e observação no portal do contratante`
+
+## T21 — `redeliveryPolicy` no cadastro do tipo de ocorrência
+
+Data: 2026-09-22.
+
+`OccurrenceTypeCatalogPanel.component.tsx` ganhou o `Select` (design system, três opções: indefinido/
+admite/não admite) no formulário de cadastro e por tipo já cadastrado. `OccurrenceType`,
+`isOccurrenceType` (guard de chave exata) e `saveOccurrenceType`/`SaveOccurrenceTypeValues` (client e
+o wrapper de permissão em `useTripWorkspace.hook.ts`) passaram a exigir `redeliveryPolicy` — o `PUT`
+sempre manda o conjunto completo. Contrato novo em
+`test/company-settings/occurrence-type-catalog-panel.contract.ts`: varre todo `onSave({` do painel e
+prova que nenhuma chamada escapa sem o campo (a armadilha registrada na T1 — salvar sem o campo
+devolveria silenciosamente um tipo "permite" para "indefinido").
+
+### Gates
+
+- `bun run lint` / `bun run typecheck` (raiz) — limpos.
+- `bunx prettier --check .` — limpo.
+- `bun --env-file=../../.env.test run test` (`apps/frontend-transportada`) — **4882 pass + 44 pass
+  (hooks), 0 fail**.
+
+### Commit
+
+`feat(frontend): spec 164 T21 — redeliveryPolicy no cadastro do tipo de ocorrência` (33a862fb8).
+
+## T22 — Painel da tratativa na página de ocorrências
+
+Data: 2026-09-22.
+
+`OccurrenceCasePanel.component.tsx` (novo) dentro do detalhe da linha em `/ocorrencias`: passo atual
+(`case.status`), política de reentrega, decisão do contratante quando houver, e só os botões que o
+estado (RF5-RF8b) e a permissão `occurrences.resolve` permitem — `review`, `warehouse-return` (nota
+obrigatória), `contractor-submission`, `closure`, `cancel` (nota obrigatória, só de
+`recorded`/`under_review`). `case: null` mostra "sem tratativa" sem quebrar. Filtro por estado da
+tratativa (RF11) na página, incluindo "sem tratativa" (`none`), viajando como `caseStatusIn` só
+quando restringe algo — mesmo padrão de `stageIn`. `useOccurrenceCaseActions.hook.ts` (novo) encapsula
+as cinco mutações, cada uma invalidando o feed inteiro ao terminar (o `case` vem embutido na página,
+sem consulta própria para reescrever).
+
+⚠️ **"Decidir no lugar do contratante que não responde" não foi implementado.** A API só expõe
+`POST /client-occurrences/:id/decision` (`occurrences.decide`), e a D6 do `spec.md` concede essa
+permissão só ao papel `contractor` — "em nenhum papel de dentro". Não existe rota interna equivalente
+(`occurrence-case.routes.ts` só tem as cinco transições do escritório). Construir o botão aqui faria a
+tela oferecer uma ação que a API sempre recusa com 403; a lacuna é registrada no comentário do
+componente para virar task de backend, em vez de simulada com um caminho que não funciona.
+
+Contrato novo: `test/trip/occurrence-case-panel.contract.ts` (fiação estática dos botões por estado,
+nota obrigatória, ausência da ação "decidir por"; filtro por estado incluindo `none`).
+
+### Gates
+
+- `bun run lint` / `bun run typecheck` (raiz) — limpos.
+- `bunx prettier --check .` — limpo.
+- `bun --env-file=../../.env.test run test` (`apps/frontend-transportada`) — **4889 pass + 44 pass
+  (hooks), 0 fail**.
+
+### Commit
+
+`feat(frontend): spec 164 T22 — painel da tratativa na página de ocorrências` (884460d7e).
+
+## T23 — Painel de acerto dos produtos da ocorrência
+
+Data: 2026-09-22.
+
+`OccurrenceSettlementPanel.component.tsx` (novo), embutido no `OccurrenceCasePanel` quando
+`status === 'decided' && decision.kind === 'goods_paid'` e `occurrences.resolve`: itens com código,
+valor, seletor de pagador (`Select` do design system — motorista/transportadora/contratante/
+seguradora, motorista é o padrão e o único que pede id), total somado, `PUT` que substitui a lista e
+botão de ressarcimento por item. `occurrenceSettlementMoney.service.ts` (novo) faz a soma e a
+validação em `BigInt` escalado por 10 000 (quatro casas decimais) — nunca `number`/`parseFloat` na
+conta; a conversão para `double` só acontece na borda de exibição (`Intl.NumberFormat`), depois de
+somar. Item sem código ou sem valor positivo não entra no `PUT`; `payerKind: 'carrier'` esconde o
+botão de ressarcimento em vez de oferecer um clique que a API recusaria com 422.
+
+⚠️ **Duas lacunas do backend, documentadas no componente:**
+
+1. `amountSource` sempre `'manual'` — o feed de `/ocorrencias` (`GET /trip-occurrences`) não carrega
+   o valor do item na nota (`vUnCom`) nem o id do motorista da ocorrência; não há como propor o valor
+   nem pré-selecionar o motorista sem um novo campo na API.
+2. Sem `GET` para reler um acerto já gravado (`occurrence-settlement.routes.ts` só tem `PUT` e o
+   `POST` de ressarcimento), a tela nasce vazia a cada abertura — ela não sabe o que já foi salvo
+   antes de o operador digitar de novo.
+
+Contrato novo: `test/trip/occurrence-settlement-panel.contract.ts` — soma sem float (dez vezes
+R$0,10 bate R$1,00 exato), item sem valor conta como zero, valor zero/negativo não é positivo,
+formatação pt-BR, e a fiação estática (filtro de envio, `carrier` sem botão, `amountSource` manual,
+uso do `Select`).
+
+### Gates
+
+- `bun run lint` / `bun run typecheck` (raiz) — limpos.
+- `bunx prettier --check .` — limpo.
+- `bun --env-file=../../.env.test run test` (`apps/frontend-transportada`) — **4897 pass + 44 pass
+  (hooks), 0 fail**.
+
+### Commit
+
+`feat(frontend): spec 164 T23 — painel de acerto dos produtos da ocorrência` (89bd64f2a).
