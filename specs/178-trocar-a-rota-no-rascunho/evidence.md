@@ -88,8 +88,12 @@ acompanha, sem regredir o status).
 - `bun run lint` (raiz, todas as apps) — limpo.
 - `apps/api-transportada`: `bun --env-file=../../.env.test test --timeout 120000` — 7182 pass, 23
   skip, 0 fail (183 arquivos).
-- `apps/api-transportada`: `bun --env-file=../../.env.test run test:integration` — ver linha final
-  abaixo (rodado em segundo plano por causa do tempo da bancada compartilhada).
+- `apps/api-transportada`: `bun --env-file=../../.env.test run test:integration` — 565 pass, 7
+  skip, 1 fail em 105 arquivos (656,99s). A falha (`server.integration.ts`, preflight CORS, timeout
+  de 5000ms) é a bancada compartilhada sob carga, não esta mudança — isolado
+  (`bun --env-file=../../.env.test test ./test/integration/server.integration.ts --timeout
+  120000`) deu 4 pass, 0 fail. `trip-repository`, `trip-detail-*` e
+  `freeze-trip-planned-route.integration.ts` passaram na rodada cheia.
 - `apps/frontend-transportada`: `bun run test` — 5092 + 44 pass, 0 fail (30 arquivos).
 - Teste novo registrado: `test/trip/route-map-criterion-trade.contract.ts`, importado em
   `test/trip.contract.test.ts`; `test/trips/plan-route-toll-freeze.contract.ts` já estava na lista
