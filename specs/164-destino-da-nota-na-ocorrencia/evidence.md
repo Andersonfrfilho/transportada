@@ -2016,3 +2016,126 @@ nenhuma asserção de texto/`read_page` o confirma — canvas não expõe nós d
 nenhum smoke do repositório testa conteúdo de mapa por esse motivo. A asserção verificável destes
 dois testes é o selo textual "Tratativa aberta" da listagem (`TripStopList`); o mapa é capturado
 best-effort no mesmo print, e quem revisar o design confere o pino a olho no PNG.
+
+## T30 — revisão de design e usabilidade: os achados corrigidos
+
+A revisão voltou **REVISE**. A leitura escrita dela, achado por achado, e o que mudou.
+
+### A leitura da revisão
+
+O que ela pegou não foi um conjunto de detalhes soltos: foram três famílias de defeito, e as três
+vinham de a tela ter sido escrita olhando o contrato da API em vez da pessoa que a usa.
+
+A primeira é **o vocabulário que não fechou a volta**. `returned_goods` existia na API, nascia na
+ponte da tratativa e era o único tipo que "Ressarcimentos" lista — mas a cópia por valor no
+frontend não o tinha, o filtro não o oferecia, os locales não o nomeavam, e a validação **afirmava**
+o tipo (`as DeliveryChargeType`) em vez de conferi-lo. O cast é o pivô: sem ele, o valor
+desconhecido teria estourado na fronteira, e o defeito não teria chegado à célula como
+`chargeType.returned_goods`. Cast cego não é atalho de tipagem — é a remoção da única checagem que
+existia ali.
+
+A segunda é **o formulário que pede o que o sistema já sabe**. O campo "quem pagou" pedia o UUID do
+motorista digitado à mão, com `GET /fleet/drivers` disponível e já consumido nesta app. Um dígito
+trocado gravava a dívida no motorista errado, e nada na tela tinha como perceber: id não se confere
+a olho. A mesma raiz explica o valor sem máscara (`89.90` no campo, `R$ 124,90` no total: dois
+formatos para a mesma grandeza na mesma tela) e a linha incompleta descartada em silêncio no envio
+— em todos, a tela transferia para a pessoa um trabalho que era dela.
+
+A terceira é **a marca que diz mais do que devia**. `--color-alert` é a cor do impedimento fiscal;
+vesti-la na nota em tratativa fazia a marca ler como bloqueio, quando a decisão de produto é
+justamente que a nota **continua liberada** (CA5). Cor é asserção, não decoração.
+
+Somadas a elas, três defeitos de grade e responsividade que a revisão também pegou e que só
+aparecem quando se olha a tela: o número de células por linha variando com o pagador (e "Remover"
+de uma linha caindo na coluna do pagador da outra), a tabela de sete colunas empurrando a página
+inteira em 375px, e o rótulo que só existia como placeholder — isto é, que some exatamente quando a
+pessoa está digitando e mais precisa dele.
+
+### Os commits
+
+| Achado                                                                                   | Commit                                                        |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| B1 — chave crua, cast cego, filtro sem o tipo que a página lista                         | `fix(frontend): spec 164 T30 B1`                              |
+| B2 — tabela empurrando a página em 375px                                                 | `fix(frontend): spec 164 T30 B2`                              |
+| Médios — plural do total, linha inelegível que se anuncia                                | `fix(frontend): spec 164 T30 — a linha inelegível se anuncia` |
+| B3, A1, A2, A3 + selo de ressarcido, alvo de 44px, ordem do encerrar, ruído da reentrega | `fix(frontend): spec 164 T30 B3/A1/A2/A3`                     |
+| A4 — texto cravado e `title` nativo no mapa · A5 — cor de erro na marca                  | `fix(frontend): spec 164 T30 A4/A5`                           |
+| Prints refeitos                                                                          | `test(frontend): spec 164 T30 — refaz os prints`              |
+
+### Achado por achado
+
+- **B1.** `returned_goods` entra em `DELIVERY_CHARGE_TYPES` (cópia por valor) e ganha rótulo nos dois
+  locales ("Produtos devolvidos" / "Returned goods"). `readChargeType`/`readChargeStatus` conferem o
+  vocabulário e recusam forma inesperada no lugar do cast. Com o tipo na lista, o filtro "Tipo de
+  cobrança" passa a oferecer o único tipo que a página mostra. Contrato:
+  `test/extra-charges/occurrence-charge-report-response.contract.ts` (aceita `returned_goods`,
+  recusa tipo e situação fora do vocabulário, e cobra rótulo pt-BR/inglês para **cada** tipo).
+- **B2.** `.tableScroll` (`position: relative` + `overflow-x: auto` + `min-width: 0`, padrão de
+  `data-tables.md` já usado em `cte-batch`) envolve a tabela. Contrato:
+  `test/extra-charges/reimbursements-table.contract.ts`. Prova visual em
+  `ressarcimentos-filtro-selecao-mobile.png`: a tabela é recortada no contêiner ("Produtos
+  devolvic…") e a página não anda para o lado.
+- **B3.** `useDriverOptions` (`fleet/hooks`) lista motorista ativo por `GET /fleet/drivers`, e o
+  campo virou `Select` com busca mostrando o **nome** e guardando o id. Sem `fleet.read` o campo de
+  texto continua, mas nunca sozinho: ao lado dele sai o nome resolvido, ou a frase dizendo que ele
+  não pôde ser conferido nesta conta.
+- **A1.** Uma grade só para o bloco (`.settlementGrid` com as linhas em `display: contents` a partir
+  de 40rem), célula do motorista sempre presente e desabilitada quando não se aplica, "Remover" em
+  coluna própria. Vale para o rascunho **e** para a lista de itens gravados.
+- **A2.** Cabeçalho de colunas no desktop, rótulo por campo abaixo de 40rem.
+- **A3.** `maskAmountInput`/`unmaskAmountInput`/`maskAmountFromDecimal` no mesmo serviço que já fazia
+  a conta em `BigInt` escalado — o campo mostra `1.234,56`, o decimal só nasce no envio, e o valor
+  que a API devolveu volta mascarado. Linha incompleta marca `aria-invalid` no campo, imprime a
+  mensagem e **para o envio inteiro**, no lugar do filtro silencioso.
+- **A4.** O pino é `HTMLElement` do MapLibre, fora da árvore do React. O nó da marca passa a nascer
+  vazio e o React desenha dentro dele por portal, com `Tooltip` e `Icon` do design system — o que
+  também alinha o traço em 1.8, que é o do `Icon`. O texto vem de `occurrence.stopOpenCase`, a chave
+  que já existia sem uso. O barracão troca o `title` nativo por `aria-label` traduzido.
+- **A5.** `--color-copper` (o token de aviso que o módulo já usa) no selo e no pino, rótulo
+  "Ocorrência em tratativa" e dica dizendo que a nota continua liberada. Nenhum hexadecimal novo.
+- **Médios e baixos.** Plural do i18next (`selectedTotal_one`/`_other`); checkbox da linha inelegível
+  desabilitado com o motivo em tooltip (sem contratante, ou de outro contratante) e "selecionar
+  todas" marcando só as elegíveis; linha de reentrega omitida fora da tratativa em aberto; id por
+  linha no lugar da chave pelo índice; selo "Ressarcido em dd/mm" no lugar do botão que sumia;
+  `min-height: var(--control-height)` no botão destrutivo; "Encerrar tratativa" desabilitado com
+  dica enquanto houver rascunho por gravar.
+
+### Prints refeitos
+
+```
+cd apps/frontend-transportada
+PLAYWRIGHT_TEST_MATCH='spec-164-prints.smoke.spec.ts' \
+PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
+PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
+PLAYWRIGHT_FRONTEND_PORT=53120 \
+VITE_SMOKE_AUTH_BYPASS=true bunx playwright test
+```
+
+**8 passed (20.2s)**, dez PNGs em `specs/164-destino-da-nota-na-ocorrencia/prints/`.
+
+- `ressarcimentos-filtro-selecao-{desktop,mobile}.png` — agora com filtro **aplicado**: contratante,
+  o chip `PRODUTOS DEVOLVIDOS` do multi-select e a situação, mais uma linha marcada. O print mostra
+  de uma vez o rótulo novo na coluna "Tipo" (B1), o chip com o botão de remover sem `{{label}}`, o
+  total no singular ("1 linha") e, no mobile, a tabela rolando dentro do contêiner (B2).
+- `nota-marcada-listagem-{desktop,mobile}.png` e `nota-marcada-listagem-recorte-{desktop,mobile}.png`
+  — a marca da nota na lista de cargas, em página inteira e em recorte.
+- `painel-tratativa-decidida-com-acerto.png` — o acerto depois de B3/A1/A2/A3: colunas alinhadas com
+  cabeçalho, "Motorista Sintético" escolhido pelo nome, "Não se aplica" na linha da transportadora,
+  e `89,90`/`35,00` no campo batendo com `R$ 124,90` no total.
+
+**A pendência do mapa deixa de ser best-effort e vira fato medido.** O fundo vetorial é
+`/map-tiles/area.pmtiles`, e esse arquivo não existe no build de pré-visualização (não há `.pmtiles`
+nenhum no repositório). Sem ele o MapLibre não monta, `isReady` não vira verdadeiro e **nenhum
+marcador é criado** — era por isso que o print antigo saía com um retângulo cinza sem pino, e nenhuma
+viagem "com paradas geocodificadas" mudaria isso: a parada do dublê já tem latitude e longitude. O
+print foi renomeado para o que ele de fato mostra, e o pino em si continua sem prova automatizável
+neste ambiente — a correção de A4/A5 que o afeta está coberta por contrato de fonte
+(`test/trip/occurrence-badge-actions.contract.ts`), não por imagem.
+
+### Gates (raiz, com todas as correções aplicadas)
+
+- `bun run lint` — OK, 0 erros/avisos.
+- `bun run typecheck` — OK, 0 erros.
+- `bunx prettier --check .` — "All matched files use Prettier code style!".
+- `bun run --cwd apps/frontend-transportada test` — **4981 pass / 0 fail** (contratos) + **44 pass /
+  0 fail** (`test:hooks`).
