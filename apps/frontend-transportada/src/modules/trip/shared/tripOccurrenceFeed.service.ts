@@ -57,8 +57,12 @@ export type TripOccurrenceCaseView = Readonly<{
     note: string
   }>
   redeliveryPolicy: 'allowed' | 'blocked'
-  /** A API só devolve `null` hoje (T8) — o total por acerto chega numa spec futura. */
-  settlementTotal: null
+  /**
+   * A API só devolve `null` hoje (T8) — o total por acerto chega numa spec futura. Achado B6 da
+   * revisão: o tipo já aceita o valor (`string`, dinheiro) para o dia em que a API o preencher —
+   * um guard que continuasse exigindo `null` literal reprovaria o feed inteiro nesse dia.
+   */
+  settlementTotal: null | string
   status: TripOccurrenceCaseStatus
   updatedAt: string
 }>

@@ -101,8 +101,17 @@ function isNullableString(value: unknown): value is null | string {
   return value === null || isString(value)
 }
 
+/**
+ * Achados B5/B6 da revisão, mesma família da quebra de 22/09 (`trip.constant.ts`): campo novo
+ * entra opcional no guard, e ausente degrada para o padrão — nunca derruba a resposta inteira.
+ * `case` ausente é "sem tratativa aberta" (mesmo padrão de `null`, RF10); `settlementTotal`
+ * ausente é o de hoje, `null`, até a API preencher o valor (T8).
+ */
+type RawCaseView = Omit<TripOccurrenceCaseView, 'settlementTotal'> &
+  Readonly<{ settlementTotal?: unknown }>
+
 /** RF10: `null` é "sem tratativa aberta" — nunca um estado inventado. */
-function isCaseView(value: unknown): value is TripOccurrenceCaseView {
+function isCaseView(value: unknown): value is RawCaseView {
   if (!isRecord(value)) return false
   const decision = value.decision
   const isValidDecision =
@@ -114,16 +123,25 @@ function isCaseView(value: unknown): value is TripOccurrenceCaseView {
   return (
     isValidDecision &&
     (value.redeliveryPolicy === 'allowed' || value.redeliveryPolicy === 'blocked') &&
-    value.settlementTotal === null &&
+    (value.settlementTotal === undefined ||
+      value.settlementTotal === null ||
+      isString(value.settlementTotal)) &&
     (TRIP_OCCURRENCE_CASE_STATUSES as readonly unknown[]).includes(value.status) &&
     isString(value.updatedAt)
   )
 }
 
-function isFeedItem(value: unknown): value is TripOccurrenceFeedItem {
+function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
+  const { settlementTotal, ...rest } = raw
+  return { ...rest, settlementTotal: isString(settlementTotal) ? settlementTotal : null }
+}
+
+type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case'> & Readonly<{ case?: unknown }>
+
+function isFeedItem(value: unknown): value is RawFeedItem {
   if (!isRecord(value)) return false
   return (
-    (value.case === null || isCaseView(value.case)) &&
+    (value.case === undefined || value.case === null || isCaseView(value.case)) &&
     isString(value.createdAt) &&
     isString(value.description) &&
     isString(value.driverName) &&
@@ -141,6 +159,11 @@ function isFeedItem(value: unknown): value is TripOccurrenceFeedItem {
   )
 }
 
+function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
+  const { case: rawCase, ...rest } = raw
+  return { ...rest, case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null }
+}
+
 function readPage(payload: unknown): TripOccurrenceFeedPage {
   if (!isRecord(payload) || !Array.isArray(payload.data) || !isRecord(payload.pagination)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
@@ -148,7 +171,7 @@ function readPage(payload: unknown): TripOccurrenceFeedPage {
   if (!payload.data.every(isFeedItem)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   const nextCursor = payload.pagination.nextCursor
   if (!isNullableString(nextCursor)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
-  return { items: payload.data, nextCursor }
+  return { items: payload.data.map(toFeedItem), nextCursor }
 }
 
 function isSettlementItem(value: unknown): value is OccurrenceSettlementItem {
@@ -209,7 +232,7 @@ function readCaseView(payload: unknown): TripOccurrenceCaseView {
   if (!isRecord(payload) || !isCaseView(payload.data)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  return payload.data
+  return toCaseView(payload.data)
 }
 
 function readAttachments(payload: unknown): readonly TripOccurrenceAttachment[] {
