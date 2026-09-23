@@ -1751,3 +1751,90 @@ Revisão final não achou bloqueante, mas deixou três itens para entrar antes d
 - `fix(api): spec 164 — rate limit nas rotas de ocorrência do portal`.
 - `fix(api): spec 164 — teto de 2000 caracteres na nota interna da tratativa`.
 - `fix(api): spec 164 — cursor do relatório de cobrança valida como uuid`.
+
+## Revisão final (opus) — bloqueantes B1–B4, R1–R2 (apps/api-transportada)
+
+Cada item fechou em commit próprio, com teste que reproduz o defeito **antes** da correção.
+
+### B1 — `hasSettlementItems` nunca era calculado
+
+Os três chamadores passavam o literal `false`, e a política usa esse campo para recusar `closure`
+de tratativa `goods_paid` sem item: o fechamento respondia 422 para sempre, com o acerto gravado ao
+lado. O campo saiu de `OccurrenceCaseRepositoryPort`; quem conta é `applyTransition`, sobre a linha
+travada, dentro da mesma transação do `update`, e só no `closure`.
+
+- Reprodução (antes): `test/integration/occurrence-case-closure.integration.ts` — 1 fail,
+  `OCCURRENCE_CASE_SETTLEMENT_WITHOUT_ITEMS` em `refusalError` / `applyTransition`.
+- Depois: **1 pass / 0 fail**, 9 expects — a tratativa vai a `closed`, `resolved_at` preenchido e a
+  cobrança fica em `412,5000`.
+- Commit: `fix(api): spec 164 B1 — o fechamento conta os itens acertados de verdade`.
+
+### B2 — a política `blocked` era beco sem saída
+
+`contractor_submission` dependia do acerto, que só existe depois da decisão, que vem depois do
+envio. A entrada virou `hasOccurrenceItems` (produtos declarados da ocorrência; `product_code = ''`
+é a nota inteira e **não** conta como item), contada dentro da transação conciliando
+`trip_document_occurrence_products` com a coluna antiga. `hasSettlementItems` ficou só no `closure`
+de `goods_paid`. A mudança de leitura está registrada no `plan.md`.
+
+- Reprodução (antes): novo caso em `test/integration/trip-occurrence-case.integration.ts` — 1 fail,
+  `OCCURRENCE_CASE_REDELIVERY_BLOCKED_HAS_NO_QUESTION`.
+- Depois: `trip-occurrence-case.integration.ts` **4 pass / 0 fail**; `test/trip-domain.contract.test.ts`
+  **248 pass / 0 fail**.
+- Commit: `fix(api): spec 164 B2 — a RF7 pergunta pelos itens da ocorrência, não pelo acerto`.
+
+### B3 — o dublê que sempre devolvia sucesso
+
+`test/trip-application/occurrence-case.contract.ts` recebia o resultado pronto por parâmetro e
+devolvia `closed` para qualquer entrada, sem ninguém aferir a entrega. Agora o destino sai da ação
+recebida (tabela copiada à mão da máquina) e o payload entregue ao escritor único é aferido com
+`toEqual` — campo fantasma na porta reprova.
+
+- `test/trip-application.contract.test.ts` — **144 pass / 0 fail**.
+- A integração ponta a ponta que faltava (`goods_paid` → acerto → `closure` contra Postgres) é a do
+  B1, em `test/integration/occurrence-case-closure.integration.ts`.
+- Commit: `test(api): spec 164 B3 — o dublê da tratativa reflete a entrada`.
+
+### B4 — apagar o acerto deixava a cobrança em pé
+
+`{ items: [] }` apagava os itens e deixava `delivery_charges` viva com o valor antigo, elegível
+para fechar em lote; com a cobrança já `submitted`, o `delete` passava e apagava a evidência de uma
+cobrança enviada. `clearOccurrenceSettlementCharge` é o simétrico da ponte: trava, remove na mesma
+transação e recusa com 409 a partir de `submitted`. A decisão vem antes do `delete` dos itens.
+
+- Reprodução (antes): dois casos novos em `test/integration/trip-occurrence-settlement.integration.ts`
+  — 2 fail (cobrança sobrevivia com 1 linha; o esvaziar de cobrança `submitted` não lançava nada).
+- Depois: **7 pass / 0 fail** no arquivo; bridge + `occurrence-charge` + fechamento **11 pass / 0 fail**.
+- Commit: `fix(api): spec 164 B4 — esvaziar o acerto remove a cobrança, e respeita a imutabilidade`.
+
+### R1 — lote fechado por seleção sem lock
+
+A validação da seleção lia sem travar: duas requisições concorrentes com ids sobrepostos passavam
+as duas e o segundo `update` casava zero linhas — lote `submitted` com total e nenhuma cobrança
+vinculada. `for no key update` na validação, ordenado por id para não deadlocar em ordens opostas.
+
+- Reprodução (antes): `test/integration/extra-charge-batch.integration.ts` — 1 fail, 2 lotes
+  inseridos (`Expected: 1, Received: 2`).
+- Depois: **6 pass / 0 fail** no arquivo; com demonstrativo e cobrança de ocorrência, **9 pass / 0 fail**.
+- Commit: `fix(api): spec 164 R1 — a seleção do lote trava as linhas antes de fechar`.
+
+### R2 — cobrança duplicada concorrente virava 500
+
+`for no key update` não trava o que ainda não existe. O 23505 de
+`delivery_charges_occurrence_unique` — e só dele — passou a virar 409
+`OCCURRENCE_CHARGE_CONCURRENT_WRITE`.
+
+- Reprodução: com o mapeamento desligado à mão, `occurrence-settlement-charge-bridge.integration.ts`
+  dá 1 fail; ligado, **3 pass / 0 fail**.
+- Commit: `fix(api): spec 164 R2 — cobrança duplicada concorrente vira 409, não 500`.
+
+### Gates (apps/api-transportada, revisão final)
+
+- `bun run lint` (raiz) — OK, 0 erros/avisos.
+- `bun run typecheck` (raiz) — OK, 0 erros nas seis apps.
+- `bunx prettier --check .` (raiz) — 3 avisos, todos em arquivos **não commitados de outra sessão**
+  (`apps/frontend-transportada/test/spec-164-prints*`, `specs/164/evidence.md`); nenhum arquivo
+  desta tarefa.
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato) — **7117 pass / 23 skip / 0 fail**,
+  183 arquivos.
+- Integração dos arquivos tocados, por caminho explícito (11 arquivos) — **36 pass / 0 fail**.
