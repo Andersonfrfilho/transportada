@@ -145,7 +145,9 @@ function resolveVehicleIdentityBandProps(
       ...(vehicle.modelYear > 0
         ? [{ label: translateFleet('identityBand.year'), value: String(vehicle.modelYear) }]
         : []),
-      ...(colorLabel === '' ? [] : [{ label: translateFleet('identityBand.color'), value: colorLabel }]),
+      ...(colorLabel === ''
+        ? []
+        : [{ label: translateFleet('identityBand.color'), value: colorLabel }]),
     ],
     label,
     plate: vehicle.plate,

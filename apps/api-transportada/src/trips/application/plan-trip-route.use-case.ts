@@ -129,7 +129,10 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
      * repetição idempotente continua tolerando `routeFrozen: false` sem lançar (spec 090/153):
      * reordenar parada com o roteirizador fora do ar não pode travar a reordenação.
      */
-    if (!freezeResult.routeFrozen && (transition.outcome === 'applied' || input.routeChoice !== undefined)) {
+    if (
+      !freezeResult.routeFrozen &&
+      (transition.outcome === 'applied' || input.routeChoice !== undefined)
+    ) {
       throw new TripRouteUnavailableError()
     }
   }

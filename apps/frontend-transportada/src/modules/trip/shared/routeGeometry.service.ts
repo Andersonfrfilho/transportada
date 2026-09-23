@@ -383,7 +383,9 @@ export function resolveRouteLegs(input: {
     const boundary = boundaries[index + 1]
     if (slice.length < 2 || boundary === undefined) return []
 
-    return [{ dashed: false, kind: 'road' as const, points: slice, toSequence: boundary.toSequence }]
+    return [
+      { dashed: false, kind: 'road' as const, points: slice, toSequence: boundary.toSequence },
+    ]
   })
 }
 

@@ -16,10 +16,7 @@
  * exatamente o degrau que o produto já aceita mostrar na tela (`GEOCODING_PRECISIONS`), e é
  * infinitamente melhor que a rota nunca ser calculada.
  */
-import type {
-  GeocodedAddressRecord,
-  GeocodedAddressRepository,
-} from './geocoding.port.js'
+import type { GeocodedAddressRecord, GeocodedAddressRepository } from './geocoding.port.js'
 import type { MunicipalityCentroidRepository } from './municipality-centroid.port.js'
 
 export type GeocodeCompanyDepotInput = Readonly<{

@@ -220,7 +220,8 @@ export async function runLocalCompanySettingsSeed({
     const depotResult = await seedCompanyDepotGeocode(database)
     if (depotResult === null) {
       skipped.push({
-        reason: 'company_fiscal_profiles has no row for the local company, or its address key does not normalize',
+        reason:
+          'company_fiscal_profiles has no row for the local company, or its address key does not normalize',
         table: 'geocoded_addresses (company depot)',
       })
     } else if (depotResult.status === 'centroid_missing') {

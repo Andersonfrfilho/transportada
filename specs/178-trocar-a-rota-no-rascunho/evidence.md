@@ -92,7 +92,7 @@ acompanha, sem regredir o status).
   skip, 1 fail em 105 arquivos (656,99s). A falha (`server.integration.ts`, preflight CORS, timeout
   de 5000ms) é a bancada compartilhada sob carga, não esta mudança — isolado
   (`bun --env-file=../../.env.test test ./test/integration/server.integration.ts --timeout
-  120000`) deu 4 pass, 0 fail. `trip-repository`, `trip-detail-*` e
+120000`) deu 4 pass, 0 fail. `trip-repository`, `trip-detail-*` e
   `freeze-trip-planned-route.integration.ts` passaram na rodada cheia.
 - `apps/frontend-transportada`: `bun run test` — 5092 + 44 pass, 0 fail (30 arquivos).
 - Teste novo registrado: `test/trip/route-map-criterion-trade.contract.ts`, importado em

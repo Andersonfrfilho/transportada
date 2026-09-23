@@ -31,7 +31,7 @@ describe('o critério da rota, no detalhe (spec 178 RF1/RF4)', () => {
 
   it('mostra o critério congelado junto da distância', () => {
     expect(source).toInclude('geometry?.criterion')
-    expect(source).toInclude("t(`routeMap.criterion.${toCriterionKey(geometry.criterion)}`)")
+    expect(source).toInclude('t(`routeMap.criterion.${toCriterionKey(geometry.criterion)}`)')
   })
 
   it('deriva a etiqueta de sem pedágio do critério, não mais um `false` fixo', () => {

@@ -653,7 +653,7 @@ function createFreezer(
     async freeze(input) {
       freezeCalls.push(input)
       if (options.shouldFail === true) throw new Error('OSRM indisponível')
-    return { routeFrozen: true }
+      return { routeFrozen: true }
     },
   }
 }
