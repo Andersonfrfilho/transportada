@@ -1630,3 +1630,72 @@ cada abertura, comentário já registrado na T23) — a instrução desta task t
 ### Commit
 
 `feat(frontend): spec 164 — painel decide em nome da contratante` (cf94e85a4).
+
+## Duas ligações pendentes (API nasceu depois da tela)
+
+A API publicou duas rotas que a tela ainda não usava: `POST /extra-charge-batches` aceitando
+`chargeIds` e `GET /trip-occurrences/:id/case/settlement`. As duas foram ligadas nesta sessão, cada
+uma em commit isolado.
+
+### 1. Fechamento de ressarcimentos por seleção (`chargeIds`)
+
+- `apps/frontend-transportada/src/modules/extra-charges/shared/occurrenceReimbursementSelection.service.ts`
+  — `SelectionPeriod` ganha `chargeIds: readonly string[]` (os ids das linhas marcadas);
+  `resolveSelectionPeriod` continua calculando `periodStart`/`periodEnd` como o intervalo que a
+  seleção cobre, mas agora devolve também a lista exata de ids. Comentário da lacuna reescrito: o
+  fechamento deixou de pegar "todas as cobranças sem lote do contratante no período" e passa a
+  pegar exatamente as linhas marcadas.
+- `apps/frontend-transportada/src/modules/extra-charges/shared/extraChargesClient.service.ts` —
+  `closeBatch` aceita `chargeIds?: readonly string[]` opcional no corpo (o serviço já enviava o
+  objeto inteiro como body; só o tipo mudou).
+- `apps/frontend-transportada/src/modules/extra-charges/hooks/useOccurrenceReimbursements.hook.ts`
+  — `closeSelection` já passava o `SelectionPeriod` inteiro para `closeBatch`; com `chargeIds`
+  dentro dele, a chamada passou a levar a seleção sem mudança de assinatura.
+- `apps/frontend-transportada/src/modules/extra-charges/locales/extraCharges.locale.json` e
+  `extraCharges.en.locale.json` — **removido** o aviso `reimbursements.close.hint` que dizia que o
+  fechamento pegava todas as cobranças do período (deixou de ser verdade); texto novo diz que o
+  fechamento pega exatamente as linhas marcadas. Adicionada
+  `errors.EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE` (pt/en) para o novo 422 da API — a tela já tinha
+  o mecanismo genérico de exibir `error.code` como aviso (`OccurrenceReimbursementsWorkspace.page.tsx`),
+  bastou a chave de tradução.
+- `apps/frontend-transportada/test/extra-charges/occurrence-reimbursement-selection.contract.ts` —
+  o teste que provava o intervalo de datas agora também espera `chargeIds` no resultado; teste novo
+  prova que a lista de ids é exatamente a das linhas marcadas (não as intermediárias não marcadas).
+
+### 2. Painel do acerto (`OccurrenceSettlementPanel`) abre com o que já existe
+
+- `apps/frontend-transportada/src/modules/trip/shared/tripOccurrenceFeed.service.ts` — tipo novo
+  `OccurrenceSettlementItemView` (item do acerto + `reimbursedAt`) e `OccurrenceSettlementView`
+  (a forma do `GET`, com `total`).
+- `apps/frontend-transportada/src/modules/trip/shared/tripOccurrenceFeedClient.service.ts` —
+  `findOccurrenceSettlement` no cliente HTTP (`GET .../case/settlement`), com guard de chave exata
+  `isSettlementItemView` (reaproveita `isSettlementItem` + valida `reimbursedAt` nulo ou string).
+- `apps/frontend-transportada/src/modules/trip/queries/tripOccurrenceFeed.query.ts` —
+  `useOccurrenceSettlementQuery` (mesmo molde de `useTripOccurrenceAttachmentsQuery`:
+  `gcTime`/`staleTime` zerados) e a chave `TRIP_OCCURRENCE_SETTLEMENT_QUERY_KEY`.
+- `apps/frontend-transportada/src/modules/trip/hooks/useOccurrenceCaseActions.hook.ts` —
+  `recordSettlement` e `reimburse` agora invalidam também a consulta do acerto, além do feed.
+- `apps/frontend-transportada/src/modules/trip/components/OccurrenceSettlementPanel.component.tsx`
+  — chama `useOccurrenceSettlementQuery`; um `useEffect` com `loadedOccurrenceIdRef` carrega o
+  rascunho (`rows`) e o resultado exibido (`lastResult`) a partir da consulta **uma vez por
+  ocorrência**, para não sobrescrever o que o operador está digitando quando a consulta refaz depois
+  de salvar/ressarcir. Estado de carregamento com `Skeleton` do design system. Item já com
+  `reimbursedAt` preenchido esconde o botão "Marcar como ressarcido" (idempotência da RF31 vira
+  também sinal de UI, não só comportamento silencioso no clique). O comentário que registrava a
+  lacuna do `GET` (T23) foi substituído pelo comentário da ligação.
+- `apps/frontend-transportada/test/trip/occurrence-settlement-panel.contract.ts` — teste existente
+  de "carrier esconde o botão" atualizado para a nova condição (`|| item.reimbursedAt !== null`);
+  suíte nova cobre o uso do hook de consulta, o carregamento único por ocorrência e o estado de
+  `Skeleton`.
+
+### Gates (apps/frontend-transportada)
+
+- `bun run lint` (raiz, todas as apps) — OK, 0 erros/avisos.
+- `bun run typecheck` (raiz, todas as apps) — OK, 0 erros.
+- `bunx prettier --check .` (raiz) — OK.
+- `bun run --cwd apps/frontend-transportada test` — **4935 pass + 44 pass (test:hooks), 0 fail**.
+
+### Commits
+
+- `fix(frontend): spec 164 — fechamento de ressarcimentos por seleção (chargeIds)` (f2512c13).
+- `feat(frontend): spec 164 — painel do acerto abre com o que já foi gravado` (db54a247b).
