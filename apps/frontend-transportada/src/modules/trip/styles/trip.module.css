@@ -3669,8 +3669,19 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  /*
+   * Ao quebrar, a linha de baixo continua ancorada na mesma borda das de cima — sem isto os botões
+   * caíam alinhados pelo início do que sobrou e pareciam soltos no meio do cabeçalho.
+   */
+  justify-content: flex-end;
   gap: var(--space-2);
   margin-left: auto;
+}
+
+/* O resumo cede a linha inteira antes de espremer os botões que ele acompanha. */
+.headerActions > .hint {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /*
