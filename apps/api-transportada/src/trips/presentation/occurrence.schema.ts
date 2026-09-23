@@ -40,6 +40,25 @@ export async function parseRegisterOccurrenceRequest(
 }
 
 /**
+ * Spec 179 T202 (RF2): o pedido de URL assinada de upload — só a forma declarada (tipo, tamanho).
+ * `.strict()` pelo mesmo motivo do registro: campo extra é recusado, não ignorado.
+ */
+const createOccurrenceUploadSchema = z
+  .object({
+    mimeType: z.string().trim().min(1).max(255),
+    sizeBytes: z.number().int().positive(),
+  })
+  .strict()
+
+export type CreateOccurrenceUploadBody = z.infer<typeof createOccurrenceUploadSchema>
+
+export async function parseCreateOccurrenceUploadRequest(
+  request: Request,
+): Promise<CreateOccurrenceUploadBody> {
+  return parseBody(createOccurrenceUploadSchema, request)
+}
+
+/**
  * Spec 161 T6 (RF5): a criação passou a ser **só** multipart — corpo JSON cai no `catch` de
  * `readOfficeMultipartForm` (não é `multipart/form-data`) e responde 400. Lista fechada:
  * `occurrenceTypeId`, `note`, `productCode`, exatamente um `file` (o original) e no máximo um

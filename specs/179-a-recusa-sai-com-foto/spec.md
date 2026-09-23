@@ -93,9 +93,15 @@ o motivo da ocorrência — não se digita duas vezes.
   bytes de celular em rede ruim através da API é custo que não precisa existir, e é o que "sem
   sobrecarregar a API" quer dizer. Efeito colateral bem-vindo: nenhum cliente antigo quebra.
 - **RF2a** O comprovante aceita **imagem e documento** (PDF) — o motorista às vezes fotografa, às
-  vezes recebe um papel digitalizado. O tipo e o tamanho são validados ao emitir a URL assinada e
-  reconferidos quando a ocorrência referencia o objeto: URL assinada sem conferência depois é upload
-  de qualquer coisa.
+  vezes recebe um papel digitalizado.
+  ⚠️ **O `Content-Type` não é amarrável na assinatura.** O `@aws-sdk/s3-request-presigner` marca
+  `content-type` como cabeçalho não-assinável (`unsignableHeaders.add('content-type')`, verificado em
+  3.1091.0): duas URLs com tipos diferentes e mesmo tamanho saem com assinatura idêntica. Só o
+  `Content-Length` entra na assinatura.
+  Consequência: **a conferência do servidor depois do upload deixa de ser cautela e vira a única
+  garantia de tipo**. Quem emite a URL valida a forma; quem aceita a ocorrência confere o objeto de
+  verdade (`head()` — tipo, tamanho e sha256) antes de gravar. Sem essa etapa, uma URL para "foto"
+  aceita qualquer arquivo.
 - **RF2b** A ocorrência só é aceita se o objeto referenciado **existir, pertencer à empresa do
   contexto autenticado e ter sido enviado por esta viagem**. Sem isso, o cliente escolhe qual objeto
   anexar, o que é pior do que não ter anexo.

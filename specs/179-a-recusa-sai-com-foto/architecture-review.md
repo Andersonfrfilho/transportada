@@ -51,6 +51,24 @@ existe.
 work** (`register-driver-occurrence.use-case.ts:110-121`). A escrita única da T203 exige dar uma
 unit of work a esse caminho. É o trabalho real da task.
 
+## Pendência aberta: o confirm baixa os bytes
+
+A confirmação implementada em 23/09 faz `head()` e depois **baixa o arquivo** para calcular o sha256
+e conferir o tipo real. Isso é tráfego na API — parcialmente contra o "sem sobrecarregar a API" que
+motivou o upload direto.
+
+Atenua, mas não elimina: é um download servidor↔storage, na mesma rede, uma vez por ocorrência —
+não o upload de celular em rede ruim, que era o caso caro. E é obrigatório enquanto o sha256 tiver
+de ser verdadeiro e o `Content-Type` não for assinável.
+
+**Saída possível, não implementada:** o S3 calcula sha256 no próprio upload quando o `PutObjectCommand`
+é assinado com `ChecksumAlgorithm: 'SHA256'` e o cliente manda `x-amz-checksum-sha256`. O `head()`
+passa a devolver o checksum pronto e o servidor não baixa nada. **Antes de adotar, confirmar que o
+MinIO da stack local suporta** — se não suportar, o caminho quebra em desenvolvimento e passa em
+produção, que é a pior combinação possível.
+
+Fica registrado para não se perder: hoje funciona e é seguro, só não é o mais barato.
+
 ## O que o parecer não verificou
 
 - Não rodou teste nenhum (read-only).

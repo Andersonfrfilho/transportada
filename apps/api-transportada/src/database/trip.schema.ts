@@ -1638,6 +1638,63 @@ export const tripDocumentOccurrences = pgTable(
   ],
 )
 
+export const TRIP_OCCURRENCE_UPLOAD_STATUSES = ['pending', 'confirmed', 'expired'] as const
+export type TripOccurrenceUploadStatus = (typeof TRIP_OCCURRENCE_UPLOAD_STATUSES)[number]
+
+/**
+ * Spec 179 T201 (RF2/RF2a/RF2b): o link entre a URL assinada que o app pediu e a viagem que pediu —
+ * o que `stored_objects` **não tem** (só `company_id`, nunca viagem). `id` é o próprio `objectId` da
+ * chave do objeto: nasce aqui, na emissão da URL, e vira `stored_objects.id` na confirmação, sem
+ * troca de identificador no meio do caminho.
+ *
+ * ⚠️ **O `Content-Type` não entra na assinatura da URL** (`@aws-sdk/s3-request-presigner` marca
+ * `content-type` como cabeçalho não-assinável). `mimeType`/`declaredSizeBytes` aqui são só a forma
+ * declarada na emissão — quem garante que o objeto de verdade bate com eles é a confirmação
+ * (`head()` + bytes reais), nunca esta linha sozinha.
+ */
+export const tripOccurrenceUploads = pgTable(
+  'trip_occurrence_uploads',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    tripId: uuid('trip_id').notNull(),
+    driverId: uuid('driver_id').notNull(),
+    bucket: text().notNull(),
+    objectKey: text('object_key').notNull(),
+    mimeType: text('mime_type').notNull(),
+    declaredSizeBytes: bigint('declared_size_bytes', { mode: 'bigint' }).notNull(),
+    status: text().$type<TripOccurrenceUploadStatus>().notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_occurrence_uploads_company_id_id_unique').on(table.companyId, table.id),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_occurrence_uploads_company_trip_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    index('trip_occurrence_uploads_company_trip_idx').on(table.companyId, table.tripId),
+    check(
+      'trip_occurrence_uploads_status_check',
+      sql`${table.status} in (${raw(inList(TRIP_OCCURRENCE_UPLOAD_STATUSES))})`,
+    ),
+    check(
+      'trip_occurrence_uploads_declared_size_check',
+      sql`${table.declaredSizeBytes} > 0`,
+    ),
+    check(
+      'trip_occurrence_uploads_confirmed_check',
+      sql`(${table.status} = 'confirmed') = (${table.confirmedAt} is not null)`,
+    ),
+  ],
+)
+
 /**
  * Spec 161 (D2/D12): as fotos da ocorrência de galpão — até cinco por ocorrência, cada uma com um
  * original (`stored_object_id`, prova) e uma miniatura opcional (`thumbnail_object_id`, o que as

@@ -19,6 +19,8 @@ const NOT_CALLED = () => {
 
 const meRoutes = createMeTripRoutes({
   attachProof: NOT_CALLED,
+  confirmOccurrenceUpload: NOT_CALLED,
+  createOccurrenceUpload: NOT_CALLED,
   dispatchCurrentTrip: NOT_CALLED,
   registerDriverOccurrence: NOT_CALLED,
   findCurrentTrip: NOT_CALLED,
@@ -165,6 +167,8 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
     const asked: string[] = []
     const routes = createMeTripRoutes({
       attachProof: NOT_CALLED,
+      confirmOccurrenceUpload: NOT_CALLED,
+      createOccurrenceUpload: NOT_CALLED,
       dispatchCurrentTrip: NOT_CALLED,
       findCurrentTrip: NOT_CALLED,
       listFieldOccurrenceTypes: async ({ companyId }) => {

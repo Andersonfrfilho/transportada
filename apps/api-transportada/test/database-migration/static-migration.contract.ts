@@ -294,6 +294,7 @@ describe('Drizzle migrations', () => {
       '20260923040021_fine_wendell_rand',
       '20260923051500_trip_status_event_kind',
       '20260923204855_company_occurrence_type_attachment_mode',
+      '20260923215639_trip_occurrence_uploads',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

@@ -234,6 +234,11 @@ import { createReadCargoLayoutUseCase } from './trips/application/read-cargo-lay
 import { createReopenCargoLayoutUseCase } from './trips/application/reopen-cargo-layout.use-case.js'
 import { DrizzleCargoLayoutLookupRepository } from './trips/infrastructure/drizzle-cargo-layout-lookup.repository.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
+import {
+  confirmReachableOccurrenceUpload,
+  requestOccurrenceUpload,
+} from './trips/application/request-occurrence-upload.use-case.js'
+import { DrizzleOccurrenceUploadRepository } from './trips/infrastructure/drizzle-occurrence-upload.repository.js'
 import { readTripActionSnapshot } from './trips/application/read-trip-action-snapshot.use-case.js'
 import { readTripActionSnapshot as readTripActionSnapshotQuery } from './trips/infrastructure/trip-action-snapshot.query.js'
 import { readTripFieldDeliveryDocuments as readTripFieldDeliveryDocumentsQuery } from './trips/infrastructure/trip-field-delivery-documents.query.js'
@@ -1977,6 +1982,8 @@ function createApplicationRoutes({
     storage: storageGateway,
   })
   const storedObjectRepository = new DrizzleStoredObjectRepository(database)
+  /** Spec 179 T202: o link entre a URL assinada e a viagem, e a confirmação do objeto de verdade. */
+  const occurrenceUploadRepository = new DrizzleOccurrenceUploadRepository(database)
   const nfeDocumentRepository = new DrizzleNfeDocumentRepository(database, storageGateway)
   /**
    * A prontidão da viagem classifica pela mesma porta da listagem de notas, e por isso nasce depois
@@ -2928,6 +2935,34 @@ function createApplicationRoutes({
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
           unitOfWork: driverFieldReports,
+        }),
+      /**
+       * Spec 179 T202 (RF2): o arquivo nunca chega até aqui — só o pedido da URL e, depois, a
+       * confirmação. As duas passam pela mesma consulta de alcance de `registerDriverOccurrence`
+       * (RF2b): a nota fora da viagem dele nunca vira objeto de ninguém.
+       */
+      createOccurrenceUpload: (input) =>
+        requestOccurrenceUpload({
+          ...input,
+          bucket: storageBucket,
+          newObjectId: () => crypto.randomUUID(),
+          now: new Date(),
+          repository: {
+            findReachableDocument: (query) => findDriverReachableDocument(database, query),
+            insertPendingUpload: (query) => occurrenceUploadRepository.insertPendingUpload(query),
+          },
+          storage: storageGateway,
+        }),
+      confirmOccurrenceUpload: (input) =>
+        confirmReachableOccurrenceUpload({
+          ...input,
+          now: new Date(),
+          repository: {
+            confirmUpload: (query) => occurrenceUploadRepository.confirmUpload(query),
+            findPendingUpload: (query) => occurrenceUploadRepository.findPendingUpload(query),
+            findReachableDocument: (query) => findDriverReachableDocument(database, query),
+          },
+          storage: storageGateway,
         }),
       attachProof: (input) =>
         attachDeliveryProof({

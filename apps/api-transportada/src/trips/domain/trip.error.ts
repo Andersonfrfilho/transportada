@@ -920,3 +920,18 @@ export class OccurrenceChargeConcurrentWriteError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 179 T201 (RF2b): objeto inexistente, de outra empresa, de outra viagem, expirado ou ainda
+ * não confirmado respondem **igual** — o motorista não escolhe qual objeto anexar. Distinguir os
+ * casos contaria algo sobre o cadastro de outra empresa.
+ */
+export class TripOccurrenceUploadNotReachableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_UPLOAD_NOT_REACHABLE',
+      message: 'The upload does not belong to an active trip of this driver.',
+      status: 404,
+    })
+  }
+}

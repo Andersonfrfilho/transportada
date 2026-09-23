@@ -30,7 +30,10 @@ import type { ReportStopArrivalResult } from '../application/report-stop-arrival
 import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
-import { parseRegisterOccurrenceRequest } from './occurrence.schema.js'
+import {
+  parseCreateOccurrenceUploadRequest,
+  parseRegisterOccurrenceRequest,
+} from './occurrence.schema.js'
 import {
   parseDispatchCurrentTripRequest,
   parseDocumentReturnRequest,
@@ -56,6 +59,13 @@ const DOCUMENT_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/p
  * pela consulta.
  */
 const DOCUMENT_OCCURRENCE_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/occurrences`
+/**
+ * Spec 179 T202 (RF2): a URL assinada de upload do comprovante da ocorrência — o arquivo nunca
+ * passa por aqui, só o pedido dela. Escopada pela mesma nota da ocorrência (`documentId`), porque
+ * é essa consulta que resolve a viagem alcançável (RF2b) sem confiar em id que o cliente mande.
+ */
+const DOCUMENT_OCCURRENCE_UPLOAD_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/occurrence-uploads`
+const DOCUMENT_OCCURRENCE_UPLOAD_CONFIRM_PATH = `${DOCUMENT_OCCURRENCE_UPLOAD_PATH}/:uploadId/confirm`
 /**
  * O manifesto sai por id, e o id vem da própria viagem que o motorista acabou de ler — ele não
  * procura manifesto, ele abre o da carga que está levando. A escala dele é a condição da consulta:
@@ -138,6 +148,21 @@ export type MeTripDependencies = {
     readonly occurrenceTypeId: string
     readonly productCode: string
   }) => Promise<TripOccurrence>
+  /** Spec 179 T202 (RF2): a URL assinada — o arquivo nunca passa por aqui. */
+  readonly createOccurrenceUpload: (input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+    readonly mimeType: string
+    readonly sizeBytes: number
+  }) => Promise<{ readonly id: string; readonly uploadUrl: URL }>
+  /** Spec 179 T202 (RF2a): confere o objeto de verdade e só então ele existe em `stored_objects`. */
+  readonly confirmOccurrenceUpload: (input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+    readonly id: string
+  }) => Promise<{ readonly id: string }>
   readonly dispatchCurrentTrip: (input: {
     readonly actorUserId: string
     readonly companyId: string
@@ -471,6 +496,58 @@ export function createMeTripRoutes(
         }
       },
       pathname: DOCUMENT_OCCURRENCE_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{
+      readonly documentId: string
+      readonly mimeType: string
+      readonly sizeBytes: number
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const upload = await dependencies.createOccurrenceUpload({
+          companyId: context.scope.companyId,
+          documentId: input.documentId,
+          driverId,
+          mimeType: input.mimeType,
+          sizeBytes: input.sizeBytes,
+        })
+
+        return jsonResponse({
+          body: { data: { id: upload.id, uploadUrl: upload.uploadUrl.toString() } },
+          status: 201,
+        })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseCreateOccurrenceUploadRequest(request)
+        return {
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          mimeType: body.mimeType,
+          sizeBytes: body.sizeBytes,
+        }
+      },
+      pathname: DOCUMENT_OCCURRENCE_UPLOAD_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{ readonly documentId: string; readonly uploadId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const confirmed = await dependencies.confirmOccurrenceUpload({
+          companyId: context.scope.companyId,
+          documentId: input.documentId,
+          driverId,
+          id: input.uploadId,
+        })
+
+        return jsonResponse({ body: { data: confirmed }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+        uploadId: parseUuidPathIdentifier(pathParameters.uploadId ?? ''),
+      }),
+      pathname: DOCUMENT_OCCURRENCE_UPLOAD_CONFIRM_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<undefined>({

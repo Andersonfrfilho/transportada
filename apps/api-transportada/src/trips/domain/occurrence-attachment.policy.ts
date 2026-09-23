@@ -79,6 +79,19 @@ export function buildOccurrenceThumbnailObjectKey(input: {
   return `tenants/${input.companyId}/trip-occurrence-attachments/${input.occurrenceId}/thumbnails/${input.objectId}`
 }
 
+/**
+ * Spec 179 T201 (RF2/RF8): a chave do upload do motorista, antes de a ocorrência existir — por isso
+ * escopada pela **viagem**, não pela ocorrência (`buildOccurrenceAttachmentObjectKey`). Só
+ * identificadores opacos, a mesma regra de sempre.
+ */
+export function buildOccurrenceUploadObjectKey(input: {
+  readonly companyId: string
+  readonly objectId: string
+  readonly tripId: string
+}): string {
+  return `tenants/${input.companyId}/trip-occurrence-uploads/${input.tripId}/${input.objectId}`
+}
+
 /** Spec 161: a criação da ocorrência de galpão com a(s) foto(s) — `withFieldReport`. */
 export const OCCURRENCE_ATTACHMENT_CREATE_OPERATION = 'separation.document.occurrence'
 
@@ -261,4 +274,26 @@ function assertOccurrenceFileAccepted(upload: {
 
 function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex')
+}
+
+/**
+ * Spec 179 T201 (RF2a): a validação **na emissão** da URL assinada — só a forma declarada, porque
+ * os bytes ainda não existem no servidor. ⚠️ Isto nunca é a garantia de tipo: o `Content-Type` não
+ * entra na assinatura da URL (`@aws-sdk/s3-request-presigner` marca-o não-assinável), então duas
+ * URLs com tipos diferentes e o mesmo tamanho saem idênticas. Quem garante o tipo de verdade é a
+ * confirmação, com o objeto já enviado (`assertOccurrenceAttachmentAccepted`, sobre os bytes reais).
+ */
+export function assertOccurrenceUploadRequestAccepted(request: {
+  readonly mimeType: string
+  readonly sizeBytes: number
+}): void {
+  if (!isOccurrenceAttachmentMimeType(request.mimeType)) {
+    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  }
+  const maxBytes = isOccurrencePdf(request.mimeType)
+    ? OCCURRENCE_PDF_MAX_BYTES
+    : OCCURRENCE_PHOTO_MAX_BYTES
+  if (request.sizeBytes <= 0 || request.sizeBytes > maxBytes) {
+    throw new TripDeliveryProofRejectedError('TOO_LARGE')
+  }
 }

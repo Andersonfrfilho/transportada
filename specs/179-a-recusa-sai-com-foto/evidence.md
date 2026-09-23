@@ -50,3 +50,20 @@ só existem depois do upload, o que não combina com criar a linha antes de emit
 arquitetura de 23/09 (`architecture-review.md`) não avaliou esta parte porque assumia multipart; isto
 é desenho novo, com implicação de segurança (RF2b), e por isso parei aqui para pedir a decisão em vez
 de inventar o formato do endpoint de confirmação sem revisão.
+
+## T201/T202 — upload direto ao storage por URL assinada
+
+```
+$ bunx tsc --noEmit                        # sem saída
+$ bunx eslint src test drizzle.config.ts   # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7205 pass · 0 fail
+$ make migration-test
+ 110 pass · 0 fail  (inclui trip_occurrence_uploads, com rollback ida-e-volta)
+$ bun --env-file=../../.env.test run test:integration
+ 566 pass · 7 skip · 0 fail · 105 arquivos [648.80s]
+```
+
+⚠️ Duas execuções anteriores da integração foram descartadas: a primeira competia com um processo do
+subagente, a segunda morreu junto com o encerramento dele. A terceira rodou destacada (`nohup`), sem
+concorrência — é a que vale.
