@@ -245,6 +245,48 @@ describe('o roteirizador indisponível não pode virar route_planned (bancada sp
 
     expect(result.tripStatus).toBe('separating')
   })
+
+  /**
+   * Spec 178 RF6: a troca de critério (`routeChoice` no corpo) é diferente de recongelar por
+   * reordenar parada — o operador está esperando a rota nova, e um `routeFrozen: false` silencioso
+   * deixaria a tela dizer que trocou quando a rota anterior é a que continua valendo.
+   */
+  test('spec 178: troca de critério numa repetição idempotente recusa quando o roteirizador falha', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'separating' })
+    const routeChoice: RouteChoice = { criterion: 'fastest', signature: null }
+
+    const error = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      routeChoice,
+      tollFreezer: {
+        freeze: () => Promise.resolve({ routeFrozen: false }),
+      },
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(TripRouteUnavailableError)
+  })
+
+  /** Sem `routeChoice`, o mesmo cenário continua tolerante — é a reordenação de sempre. */
+  test('spec 178: sem troca de critério, a repetição idempotente continua tolerante a routeFrozen: false', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'separating' })
+
+    const result = await planTripRoute({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tollFreezer: {
+        freeze: () => Promise.resolve({ routeFrozen: false }),
+      },
+      tripId: TRIP_ID,
+    })
+
+    expect(result.tripStatus).toBe('separating')
+  })
 })
 
 describe('o congelamento que falha não pode deixar o status mentir', () => {

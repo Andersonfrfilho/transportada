@@ -122,7 +122,14 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
       ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
       tripId: input.tripId,
     })
-    if (transition.outcome === 'applied' && !freezeResult.routeFrozen) {
+    /**
+     * Spec 178 RF6: a troca de critério pede `routeChoice` explicitamente — e aí uma falha do
+     * roteirizador precisa recusar, mesmo numa repetição idempotente (`unchanged`), porque o
+     * operador está esperando a rota nova, não a de sempre. Fora de uma troca explícita, a
+     * repetição idempotente continua tolerando `routeFrozen: false` sem lançar (spec 090/153):
+     * reordenar parada com o roteirizador fora do ar não pode travar a reordenação.
+     */
+    if (!freezeResult.routeFrozen && (transition.outcome === 'applied' || input.routeChoice !== undefined)) {
       throw new TripRouteUnavailableError()
     }
   }
