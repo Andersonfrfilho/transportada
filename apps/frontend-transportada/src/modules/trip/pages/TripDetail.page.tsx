@@ -12,6 +12,7 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { TripFinancialPanel } from '@/modules/trip-financials/components/TripFinancialPanel.component'
 import { useTripCostEntries } from '@/modules/trip-financials/hooks/useTripCostEntries.hook'
 import { useTripFinancials } from '@/modules/trip-financials/hooks/useTripFinancials.hook'
+import { useTripRevenueEntries } from '@/modules/trip-financials/hooks/useTripRevenueEntries.hook'
 
 import { TripDetail, TripDetailSkeleton } from '../components/TripDetail.component'
 import { TripTimeline } from '../components/TripTimeline.component'
@@ -57,6 +58,8 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
    * proposital da rota, e expor a lista ao lado do painel vazaria o valor que ela protege.
    */
   const costEntries = useTripCostEntries({ permissions, tripId })
+  /** Spec 169 P1/RF4: a receita lançada — mesma trilha do gasto, dentro do mesmo painel. */
+  const revenueEntries = useTripRevenueEntries({ permissions, tripId })
 
   /**
    * Spec 158 T8 (RF6): a linha do tempo fica entre o detalhe (paradas/notas) e o razão financeiro —
@@ -121,6 +124,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
               onRecalculate={financials.recalculate}
               onRetry={financials.refetch}
               result={financials.result}
+              revenueEntries={revenueEntries}
               valuation={financials.valuation}
             />
           ) : null}
