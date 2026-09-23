@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { Tooltip } from '@/components/ui/tooltip'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
@@ -18,6 +19,9 @@ import {
   type OccurrenceChargeReportFilters,
 } from '../shared/extraCharges.types'
 import {
+  resolveRowIneligibility,
+  resolveSelectedContractorId,
+  ROW_INELIGIBILITY,
   sumSelectedReimbursementAmounts,
   SELECTION_PERIOD_ERROR,
 } from '../shared/occurrenceReimbursementSelection.service'
@@ -65,6 +69,10 @@ export function OccurrenceReimbursementsWorkspacePage() {
   const rows = controller.report?.items ?? []
   const selectedTotal = sumSelectedReimbursementAmounts(rows, controller.selectedIds)
   const period = controller.selectionPeriod
+  const selectedContractorId = resolveSelectedContractorId(rows, controller.selectedIds)
+  const eligibleRows = rows.filter(
+    (row) => resolveRowIneligibility(row, selectedContractorId) === null,
+  )
 
   return (
     <main className={styles.shell}>
@@ -232,12 +240,16 @@ export function OccurrenceReimbursementsWorkspacePage() {
                   <th scope="col">
                     <Checkbox
                       ariaLabel={t('reimbursements.table.selectAll')}
-                      checked={rows.every((row) => controller.selectedIds.has(row.id))}
-                      indeterminate={
-                        rows.some((row) => controller.selectedIds.has(row.id)) &&
-                        !rows.every((row) => controller.selectedIds.has(row.id))
+                      checked={
+                        eligibleRows.length > 0 &&
+                        eligibleRows.every((row) => controller.selectedIds.has(row.id))
                       }
-                      onChange={() => rows.forEach((row) => controller.toggleRow(row.id))}
+                      disabled={eligibleRows.length === 0}
+                      indeterminate={
+                        eligibleRows.some((row) => controller.selectedIds.has(row.id)) &&
+                        !eligibleRows.every((row) => controller.selectedIds.has(row.id))
+                      }
+                      onChange={() => eligibleRows.forEach((row) => controller.toggleRow(row.id))}
                     />
                   </th>
                   <th scope="col">{t('reimbursements.table.date')}</th>
@@ -249,33 +261,56 @@ export function OccurrenceReimbursementsWorkspacePage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <Checkbox
-                        ariaLabel={t('reimbursements.table.select')}
-                        checked={controller.selectedIds.has(row.id)}
-                        onChange={() => controller.toggleRow(row.id)}
-                      />
-                    </td>
-                    <td>{row.chargedOn}</td>
-                    <td>
-                      {row.noteNumber === null
-                        ? '—'
-                        : row.noteSeries === null
-                          ? row.noteNumber
-                          : `${row.noteNumber}/${row.noteSeries}`}
-                    </td>
-                    <td>{t(`chargeType.${row.chargeType}`)}</td>
-                    <td>{formatAmount(row.amount)}</td>
-                    <td>{t(`chargeStatus.${row.status}`)}</td>
-                    <td>
-                      {row.hasSettlement
-                        ? t('reimbursements.table.settlementDone')
-                        : t('reimbursements.table.settlementPending')}
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const ineligibility = resolveRowIneligibility(row, selectedContractorId)
+                  const ineligibilityLabel =
+                    ineligibility === null
+                      ? ''
+                      : t(
+                          ineligibility === ROW_INELIGIBILITY.MISSING_CONTRACTOR
+                            ? 'reimbursements.table.ineligibleMissingContractor'
+                            : 'reimbursements.table.ineligibleOtherContractor',
+                        )
+
+                  return (
+                    <tr key={row.id}>
+                      <td>
+                        {/*
+                         * A linha que não pode entrar no fechamento diz isso aqui, na própria linha:
+                         * marcá-la e só descobrir o problema no rodapé é descobrir tarde.
+                         */}
+                        <Tooltip label={ineligibilityLabel}>
+                          <Checkbox
+                            ariaLabel={
+                              ineligibility === null
+                                ? t('reimbursements.table.select')
+                                : `${t('reimbursements.table.select')} — ${ineligibilityLabel}`
+                            }
+                            checked={controller.selectedIds.has(row.id)}
+                            disabled={ineligibility !== null}
+                            onChange={() => controller.toggleRow(row.id)}
+                          />
+                        </Tooltip>
+                      </td>
+                      <td>{row.chargedOn}</td>
+                      <td>
+                        {row.noteNumber === null
+                          ? '—'
+                          : row.noteSeries === null
+                            ? row.noteNumber
+                            : `${row.noteNumber}/${row.noteSeries}`}
+                      </td>
+                      <td>{t(`chargeType.${row.chargeType}`)}</td>
+                      <td>{formatAmount(row.amount)}</td>
+                      <td>{t(`chargeStatus.${row.status}`)}</td>
+                      <td>
+                        {row.hasSettlement
+                          ? t('reimbursements.table.settlementDone')
+                          : t('reimbursements.table.settlementPending')}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

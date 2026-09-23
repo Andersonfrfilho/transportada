@@ -84,11 +84,14 @@
       "status": "Status",
       "settlement": "Settlement",
       "settlementDone": "Settled",
-      "settlementPending": "Not settled"
+      "settlementPending": "Not settled",
+      "ineligibleMissingContractor": "No identified contractor — this row cannot enter a statement.",
+      "ineligibleOtherContractor": "Belongs to another contractor — closing takes one contractor at a time."
     },
     "totals": {
       "reportTotal": "Filter total: {{total}}",
-      "selectedTotal": "Selected total: {{total}} ({{count}} rows)"
+      "selectedTotal_one": "Selected total: {{total}} ({{count}} row)",
+      "selectedTotal_other": "Selected total: {{total}} ({{count}} rows)"
     },
     "close": {
       "action": "Close the selection's period",

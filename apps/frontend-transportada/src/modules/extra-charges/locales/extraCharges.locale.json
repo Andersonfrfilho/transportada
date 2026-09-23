@@ -84,11 +84,14 @@
       "status": "Situação",
       "settlement": "Acerto",
       "settlementDone": "Com acerto",
-      "settlementPending": "Sem acerto"
+      "settlementPending": "Sem acerto",
+      "ineligibleMissingContractor": "Sem contratante identificado — esta linha não entra num demonstrativo.",
+      "ineligibleOtherContractor": "É de outro contratante — o fechamento é de um contratante por vez."
     },
     "totals": {
       "reportTotal": "Total do filtro: {{total}}",
-      "selectedTotal": "Total selecionado: {{total}} ({{count}} linhas)"
+      "selectedTotal_one": "Total selecionado: {{total}} ({{count}} linha)",
+      "selectedTotal_other": "Total selecionado: {{total}} ({{count}} linhas)"
     },
     "close": {
       "action": "Fechar o período da seleção",

@@ -27,6 +27,37 @@ export function sumSelectedReimbursementAmounts(
   return amounts.length === 0 ? '0.00' : sumScaledAmounts(amounts)
 }
 
+/**
+ * Revisão de design da T30: a linha que não pode entrar no fechamento **se anuncia** na própria
+ * linha. Antes ela aceitava a marcação e só o rodapé, depois, dizia que a seleção era inválida —
+ * o operador descobria o problema longe de onde ele estava.
+ */
+export const ROW_INELIGIBILITY = {
+  MISSING_CONTRACTOR: 'MISSING_CONTRACTOR',
+  OTHER_CONTRACTOR: 'OTHER_CONTRACTOR',
+} as const
+export type RowIneligibility = (typeof ROW_INELIGIBILITY)[keyof typeof ROW_INELIGIBILITY]
+
+/** O contratante que a seleção já fixou; `null` enquanto nada está marcado. */
+export function resolveSelectedContractorId(
+  rows: readonly OccurrenceChargeReportRow[],
+  selectedIds: ReadonlySet<string>,
+): string | null {
+  const selected = rows.find((row) => selectedIds.has(row.id))
+  return selected?.contractorId ?? null
+}
+
+export function resolveRowIneligibility(
+  row: OccurrenceChargeReportRow,
+  selectedContractorId: string | null,
+): RowIneligibility | null {
+  if (row.contractorId === null) return ROW_INELIGIBILITY.MISSING_CONTRACTOR
+  if (selectedContractorId !== null && selectedContractorId !== row.contractorId) {
+    return ROW_INELIGIBILITY.OTHER_CONTRACTOR
+  }
+  return null
+}
+
 export type SelectionPeriod = Readonly<{
   chargeIds: readonly string[]
   contractorId: string

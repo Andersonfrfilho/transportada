@@ -43,6 +43,13 @@ function buildPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** `noUncheckedIndexedAccess`: a linha do payload de teste é lida uma vez, e com prova. */
+function rowOf(payload: ReturnType<typeof buildPayload>) {
+  const [first] = payload.data
+  if (first === undefined) throw new Error('payload de teste sem linha')
+  return first
+}
+
 describe('toOccurrenceChargeReportPage (spec 164 T26)', () => {
   it('lê a página com linhas e totais', () => {
     const page = toOccurrenceChargeReportPage(buildPayload())
@@ -73,22 +80,21 @@ describe('toOccurrenceChargeReportPage (spec 164 T26)', () => {
    */
   it('aceita returned_goods, que é o tipo que esta tela lista', () => {
     const payload = buildPayload()
-    payload.data[0].chargeType = 'returned_goods'
-    payload.totals.byChargeType[0].chargeType = 'returned_goods'
+    rowOf(payload).chargeType = 'returned_goods'
 
     expect(toOccurrenceChargeReportPage(payload).items[0]?.chargeType).toBe('returned_goods')
   })
 
   it('recusa tipo de cobrança fora do vocabulário, em vez de deixar o cast afirmar', () => {
     const payload = buildPayload()
-    payload.data[0].chargeType = 'mercadoria_devolvida'
+    rowOf(payload).chargeType = 'mercadoria_devolvida'
 
     expect(() => toOccurrenceChargeReportPage(payload)).toThrow(ExtraChargeResponseError)
   })
 
   it('recusa situação fora do vocabulário', () => {
     const payload = buildPayload()
-    payload.data[0].status = 'quase_aprovada'
+    rowOf(payload).status = 'quase_aprovada'
 
     expect(() => toOccurrenceChargeReportPage(payload)).toThrow(ExtraChargeResponseError)
   })
