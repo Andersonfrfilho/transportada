@@ -230,6 +230,18 @@ export function resolveCompanySettingsTab(value: string | null | undefined): Com
   return COMPANY_SETTINGS_TAB_IDS.find((id) => id === value) ?? 'company'
 }
 
+export const COMPANY_SETTINGS_TAB_PARAMETER = 'tab'
+
+/**
+ * A lacuna "regime federal não declarado" do razão de valoração leva a
+ * `/company-settings?tab=taxes` — sem ler a query no início, a tela sempre abriria em **Empresa** e
+ * o link cairia na aba errada. `?tab=` ausente ou fora de `COMPANY_SETTINGS_TAB_IDS` cai em
+ * `resolveCompanySettingsTab`, que já resolve para `'company'`.
+ */
+export function parseCompanySettingsTabParameter(search: string): CompanySettingsTabId {
+  return resolveCompanySettingsTab(new URLSearchParams(search).get(COMPANY_SETTINGS_TAB_PARAMETER))
+}
+
 export function resolveCompanySettingsDataScope(tab: CompanySettingsTabId): SettingsDataScope {
   return resolveSettingsDataScope('company-settings', tab)
 }

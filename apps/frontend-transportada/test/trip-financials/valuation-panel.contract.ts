@@ -93,7 +93,8 @@ describe('a avaliação prevista da viagem', () => {
     // A chamada, não o import: o nome no `import` sozinho passa com o painel sem consumir nada.
     expect(painel).toContain('summarizeTripValuation(valuation)')
     // A conta prevista é o razão da criação: cores e parcelas (combustível, pedágio) vêm dele.
-    expect(painel).toContain('<ValuationLedger valuation={valuation} />')
+    expect(painel).toContain('<ValuationLedger')
+    expect(painel).toContain('valuation={valuation}')
     expect(cliente).toContain('/valuation')
   })
 })

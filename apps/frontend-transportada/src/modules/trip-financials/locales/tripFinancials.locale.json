@@ -39,6 +39,12 @@
     "total": "Total lançado",
     "unknownActor": "usuário removido"
   },
+  "gapAction": {
+    "emissionProfile": "abrir perfis de emissão",
+    "federalRegime": "declarar regime",
+    "planRoute": "calcular roteiro",
+    "recordCost": "lançar agora"
+  },
   "gap": {
     "CITY_WITHOUT_REGION": "destino sem zona de frete cadastrada",
     "DRIVER_RATE_MISSING_FOR_CLASS": "zona sem preço para a classe do veículo — confira a aba Regiões",

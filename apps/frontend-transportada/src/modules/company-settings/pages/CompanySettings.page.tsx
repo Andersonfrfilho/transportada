@@ -53,6 +53,7 @@ import {
 } from '../shared/companySettingsClient.service'
 import {
   COMPANY_SETTINGS_TAB_IDS,
+  parseCompanySettingsTabParameter,
   resolveCompanySettingsTab,
   type CompanySettingsTabId,
 } from '../shared/companySettingsTabs.service'
@@ -320,7 +321,9 @@ function SettingsBody(props: SettingsBodyProps) {
 export function CompanySettingsPage() {
   useTranslation('companySettings')
   const authQuery = useAuthMeQuery()
-  const [activeTab, setActiveTab] = useState<CompanySettingsTabId>('company')
+  const [activeTab, setActiveTab] = useState<CompanySettingsTabId>(() =>
+    parseCompanySettingsTabParameter(window.location.search),
+  )
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
   const {

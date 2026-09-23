@@ -127,6 +127,7 @@ describe('valuation ledger contract', () => {
       isEstimated: false,
       isGapStruckThrough: false,
       kind: 'fuel',
+      remedy: null,
     })
     expect(ledger.hasGaps).toBe(true)
   })

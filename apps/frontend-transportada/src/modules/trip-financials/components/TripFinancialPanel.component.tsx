@@ -13,12 +13,13 @@ import { summarizeTripValuation, type TripValuation } from '../shared/tripValuat
 import { FrozenResultTable } from './FrozenResultTable.component'
 import { TripCostEntries } from './TripCostEntries.component'
 import { TripRevenueEntries } from './TripRevenueEntries.component'
-import { ValuationLedger } from './ValuationLedger.component'
+import { ValuationLedger, type GapActions } from './ValuationLedger.component'
 import styles from '../styles/tripFinancials.module.css'
 
 type TripFinancialPanelProps = Readonly<{
   /** Os lançamentos avulsos da viagem — a lista vive dentro do painel, e só dentro dele. */
   costEntries: TripCostEntriesController
+  gapActions?: GapActions
   isError: boolean
   isLoading: boolean
   onRecalculate: (reason: string) => Promise<void>
@@ -84,6 +85,7 @@ function LaunchedEntries({
  */
 export function TripFinancialPanel({
   costEntries,
+  gapActions,
   isError,
   isLoading,
   onRecalculate,
@@ -131,7 +133,7 @@ export function TripFinancialPanel({
         <LaunchedEntries costEntries={costEntries} revenueEntries={revenueEntries} />
         {expected === null ? null : (
           <>
-            <ValuationLedger valuation={valuation} />
+            <ValuationLedger gapActions={gapActions} valuation={valuation} />
             {/* A lacuna vai junto do número: total sem parcela sai menor do que a viagem custa. */}
             {expected.hasGaps ? (
               <p className={styles.hint}>

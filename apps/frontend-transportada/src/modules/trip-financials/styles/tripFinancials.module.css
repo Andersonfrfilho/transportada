@@ -193,6 +193,37 @@
 }
 
 /**
+ * O motivo que vira ação: continua **lendo como o motivo**, não como um botão avulso. O `ghost` do
+ * design system traz borda, fundo e altura de controle — dentro de uma linha do razão alinhada por
+ * baseline, ele viraria uma caixa cinza e trocaria o cobre da lacuna pela cor neutra do botão,
+ * apagando justamente o sinal de que aquela parcela não tem número.
+ */
+.ledgerGapAction {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  /* O `<dd>` é `nowrap`: com o rótulo da ação junto, a frase da diária estouraria em tela estreita. */
+  white-space: normal;
+  background: none;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-copper) 45%, transparent);
+  text-underline-offset: 0.2em;
+}
+
+.ledgerGapAction:hover:not(:disabled) {
+  color: var(--color-copper);
+  text-decoration-color: var(--color-copper);
+}
+
+.ledgerGapAction:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/**
  * Spec 122: risco visual para a lacuna `FEATURE_ABSENT` — o recurso não existe no produto ainda,
  * e não é um cadastro esquecido. O texto continua no lugar (o leitor de tela lê a mesma frase);
  * o risco é só o reforço visual de que a linha não é acionável hoje.

@@ -1,5 +1,7 @@
-/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { fractionToPercentage } from '@/modules/shared/fractionPercentage.service'
@@ -7,10 +9,33 @@ import { fractionToPercentage } from '@/modules/shared/fractionPercentage.servic
 import { formatMargin, isNegative } from '../shared/financialView.service'
 import { composeCostParcelDetail, type Translate } from '../shared/tripCostParcelDetail.service'
 import type { TripValuation } from '../shared/tripValuation.service'
-import { buildValuationLedger, type ValuationLedgerLine } from '../shared/valuationLedger.service'
+import {
+  buildValuationLedger,
+  type GapRemedy,
+  type ValuationLedgerLine,
+} from '../shared/valuationLedger.service'
 import styles from '../styles/tripFinancials.module.css'
 
-type ValuationLedgerProps = Readonly<{ valuation: null | TripValuation }>
+/**
+ * O remédio da lacuna, como a tela hospedeira sabe executá-lo.
+ *
+ * ⚠️ **Sempre `onAct`, nunca uma âncora.** A navegação deste shell é manual (`pushPath` +
+ * `rememberWorkspace` + `popstate`): um `href` cru recarregaria a app inteira e ainda abriria o
+ * workspace errado, porque `main.tsx` decide a tela pelo que foi lembrado, não só pelo caminho.
+ */
+export type GapAction = Readonly<{ isPending?: boolean; onAct: () => void }>
+
+export type GapActions = Partial<Record<GapRemedy, GapAction>>
+
+type ValuationLedgerProps = Readonly<{
+  /**
+   * Opcional de propósito. A proposta multi-veículo e a criação manual desenham o razão **sem**
+   * ações: ali a lacuna continua texto puro, porque planejar rota ou lançar gasto só existe depois
+   * que a viagem existe — oferecer o botão seria mandar procurar o que não há.
+   */
+  gapActions?: GapActions | undefined
+  valuation: null | TripValuation
+}>
 
 /**
  * Spec 110 D7: **a conta numa coluna, e cada custo com a derivação na linha de baixo.**
@@ -22,7 +47,7 @@ type ValuationLedgerProps = Readonly<{ valuation: null | TripValuation }>
  * ⚠️ **Despesas em `--color-alert`**, lucro em `--color-ready`: os dois números que decidem a viagem
  * se distinguem antes de o rótulo ser lido.
  */
-export function ValuationLedger({ valuation }: ValuationLedgerProps) {
+export function ValuationLedger({ gapActions, valuation }: ValuationLedgerProps) {
   const ledger = buildValuationLedger(valuation)
   const { t } = useTranslation('tripFinancials')
 
@@ -37,16 +62,15 @@ export function ValuationLedger({ valuation }: ValuationLedgerProps) {
 
       <p className={styles.ledgerGroup}>{t('ledger.operating')}</p>
       {ledger.operating.map((line) => (
-        <LedgerLine key={line.kind} line={line} />
+        <LedgerLine key={line.kind} gapActions={gapActions} line={line} />
       ))}
 
       {ledger.taxes.length === 0 ? null : (
         <>
           <p className={styles.ledgerGroup}>{t('ledger.taxes')}</p>
           {ledger.taxes.map((line) => (
-            <LedgerLine key={line.kind} line={line} />
+            <LedgerLine key={line.kind} gapActions={gapActions} line={line} />
           ))}
-          {/* ADR-0049 §4: dizer por que eles não estão somados com a operação, uma vez só. */}
           <p className={styles.ledgerDetail}>{t('ledger.taxNote')}</p>
         </>
       )}
@@ -62,10 +86,6 @@ export function ValuationLedger({ valuation }: ValuationLedgerProps) {
           {ledger.marginPercentage === null ? '' : ` · ${formatMargin(ledger.marginPercentage)}`}
         </dd>
       </div>
-      {/*
-        ⚠️ A marca depende de `hasGaps` e de nada mais: uma condição a mais é o caminho pelo qual ela
-        desaparece sem ninguém notar, e o total volta a se apresentar como previsão fechada.
-      */}
       {ledger.hasGaps ? <p className={styles.ledgerIncomplete}>{t('ledger.incomplete')}</p> : null}
     </dl>
   )
@@ -77,7 +97,10 @@ export function ValuationLedger({ valuation }: ValuationLedgerProps) {
  * ⚠️ A frase é composta **aqui**, não na API: ela traduz, formata por locale e quebra em duas
  * linhas, e nada disso a API tem como fazer.
  */
-function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
+function LedgerLine({
+  gapActions,
+  line,
+}: Readonly<{ gapActions: GapActions | undefined; line: ValuationLedgerLine }>) {
   const { t } = useTranslation('tripFinancials')
   const basis = line.basis
   /**
@@ -85,6 +108,8 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
    * aqui, no mesmo serviço que a proposta usa, para as duas telas nunca discordarem.
    */
   const detail = composeCostParcelDetail({ basis, detail: line.detail, t: t as Translate })
+  const action = line.remedy === null ? undefined : gapActions?.[line.remedy]
+  const gapText = `${t(`gap.${line.gap}`, { defaultValue: line.gap })}${detail === null ? '' : ` — ${detail}`}`
 
   return (
     <>
@@ -92,7 +117,6 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
         <dt>{t(`parcel.${line.kind}`, line.kind)}</dt>
         {line.gap === null || line.isAdvisory ? (
           <dd>
-            {/* Projeção sai marcada: o número conta no total, e não se confunde com apuração. */}
             {line.isEstimated ? (
               <span className={styles.ledgerEstimated}>{t('source.estimated')}</span>
             ) : null}
@@ -106,8 +130,27 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
                 : styles.ledgerGap
             }
           >
-            {t(`gap.${line.gap}`, { defaultValue: line.gap })}
-            {detail === null ? '' : ` — ${detail}`}
+            {/*
+              O motivo vira o próprio botão onde há remédio: quem lê "roteiro ainda não calculado"
+              está a um clique de calculá-lo, em vez de sair procurando a tela. Sem ação — proposta,
+              criação manual, lacuna sem remédio — o `<dd>` continua exatamente como antes.
+            */}
+            {action === undefined ? (
+              gapText
+            ) : (
+              <Button
+                className={styles.ledgerGapAction}
+                disabled={action.isPending === true}
+                onClick={action.onAct}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                {gapText}
+                <Icon name="chevron-right" />
+                {t(`gapAction.${line.remedy}`)}
+              </Button>
+            )}
           </dd>
         )}
       </div>
@@ -128,7 +171,6 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
               : detail}
         </p>
       )}
-      {/* Spec 124: o aviso vem abaixo do número — ele diz o que cadastrar, não que falta valor. */}
       {line.isAdvisory ? (
         <p className={styles.ledgerAdvisory}>
           {t(`gap.${line.gap ?? ''}`, { defaultValue: line.gap ?? '' })}

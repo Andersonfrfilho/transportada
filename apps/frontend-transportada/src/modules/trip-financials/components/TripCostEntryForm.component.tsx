@@ -18,6 +18,13 @@ import {
 import type { CompanyEntryKind } from '../shared/tripFinancials.types'
 import styles from '../styles/tripFinancials.module.css'
 
+/**
+ * O motivo `NOT_RECORDED` do razão leva o foco até aqui (`document.getElementById` +
+ * `scrollIntoView`) — id estável em vez de `ref`, porque o formulário nasce numa árvore distante
+ * do razão que dispara a ação.
+ */
+export const TRIP_COST_ENTRY_AMOUNT_FIELD_ID = 'trip-cost-entry-amount'
+
 type TripCostEntryFormProps = Readonly<{
   entryKinds: readonly CompanyEntryKind[]
   isRecording: boolean
@@ -49,6 +56,7 @@ export function TripCostEntryForm({ entryKinds, isRecording, onRecord }: TripCos
       <label className={styles.field}>
         {t('costEntries.amount')}
         <input
+          id={TRIP_COST_ENTRY_AMOUNT_FIELD_ID}
           inputMode="decimal"
           onChange={(event) =>
             setFields({
