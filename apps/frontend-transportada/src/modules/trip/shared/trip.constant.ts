@@ -109,6 +109,9 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   /** Mesmo fato, nome sem prefixo — vem das telas de rua. Falha de rede de verdade fala em internet. */
   REQUEST_FAILED: 'requestFailed',
   TRIP_RESPONSE_INVALID: 'responseInvalid',
+  /** Spec 178 RF6: a troca de critério pediu uma rota nova e o roteirizador não devolveu — a
+   *  anterior continua valendo. */
+  TRIP_ROUTE_UNAVAILABLE: 'routeUnavailable',
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
   /** Spec 158 T6: `GET /trips/:id/timeline` com `cursor` malformado. */
   TRIP_TIMELINE_CURSOR_INVALID: 'timelineCursorInvalid',

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
-import type { RouteGeometry } from '../shared/routeGeometry.service'
+import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import type { OccurrenceRedeliveryPolicy, OccurrenceType } from '../shared/occurrence.constant'
 import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
@@ -196,7 +196,10 @@ export type TripController = Readonly<{
     input: DeliveryAddressHistoryInput,
   ) => Promise<readonly DeliveryAddressOverride[]>
   overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
-  planTripRoute: (input: Readonly<{ tripId: string }>) => Promise<PlanTripRouteResult>
+  /** Spec 178 RF2: a troca de critério manda `routeChoice` — ausente segue o default do servidor. */
+  planTripRoute: (
+    input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
+  ) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
   transitionTripDocument: (

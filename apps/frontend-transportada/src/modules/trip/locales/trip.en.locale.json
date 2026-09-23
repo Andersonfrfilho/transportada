@@ -475,6 +475,7 @@
     "requestFailed": "Could not reach the server. Check the connection and try again.",
     "serverRefused": "The server refused this operation. Nothing was saved — try again and, if it repeats, tell support the time.",
     "responseInvalid": "The API responded in an unexpected format.",
+    "routeUnavailable": "The route planner did not return a new route right now. The previous route still applies — try again shortly.",
     "scannedDocumentNotFound": "No note with this access key in this company.",
     "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
@@ -914,6 +915,25 @@
     "vehiclesSearch": "Search by plate, make or model",
     "vehiclesSummary": "{{count}} vehicle chosen",
     "vehiclesSummary_other": "{{count}} vehicles chosen"
+  },
+  "routeMap": {
+    "criterion": {
+      "alternative": "Route chosen manually by the operator.",
+      "cheapest": "Criterion: cheapest (fuel + toll).",
+      "fastest": "Criterion: fastest.",
+      "noToll": "Criterion: toll-free — avoids a booth on purpose.",
+      "title": "Route criterion"
+    },
+    "trade": {
+      "cancel": "Cancel change",
+      "confirm": "Use this route",
+      "loading": "Fetching alternatives…",
+      "open": "Change route",
+      "pending": "Replanning…",
+      "singleOption": "There is only this route for the current stops — nothing to compare.",
+      "title": "Choose another route",
+      "unavailable": "Could not fetch the alternatives right now."
+    }
   },
   "selection": {
     "barLabel": "Bulk actions",

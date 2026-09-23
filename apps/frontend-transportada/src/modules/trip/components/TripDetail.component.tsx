@@ -771,13 +771,23 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         <TripRouteMap
           canAdjustTollBooth={canAdjustTollBooth}
           canCorrect={canManage}
+          canManage={canManage}
           geometry={workspace.routeGeometryQuery.data ?? null}
           stops={trip.stops}
           isCorrecting={workspace.correctAddressMutation.isPending}
           isGeometryError={workspace.routeGeometryQuery.isError}
           isGeometryPending={workspace.routeGeometryQuery.isPending}
+          isPlanRoutePending={workspace.planRouteMutation.isPending}
           onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+          onPlanRoute={(routeChoice) =>
+            workspace.planRouteMutation.mutate({
+              ...(routeChoice === undefined ? {} : { routeChoice }),
+              tripId: trip.id,
+            })
+          }
           onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
+          tripStatus={trip.status}
+          vehicleId={trip.vehicleId === '' ? null : trip.vehicleId}
         />
       ) : null}
 

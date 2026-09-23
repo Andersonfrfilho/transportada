@@ -600,6 +600,7 @@
     "requestFailed": "Sem conexão com o servidor. Confira a internet e tente de novo.",
     "serverRefused": "O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário.",
     "responseInvalid": "A API respondeu em um formato inesperado.",
+    "routeUnavailable": "O roteirizador não devolveu uma rota nova agora. A rota anterior continua valendo — tente de novo em instantes.",
     "scannedDocumentNotFound": "Nenhuma nota com esta chave de acesso nesta empresa.",
     "stateTransitionNotAllowed": "Esta ação não é mais permitida no estado atual da viagem.",
     "stopSetMismatch": "A lista de paradas não corresponde às paradas atuais da viagem — recarregue a página.",
@@ -1111,6 +1112,13 @@
       "toll": "Pedágio",
       "total": "Custo da rota"
     },
+    "criterion": {
+      "alternative": "Rota escolhida manualmente pelo operador.",
+      "cheapest": "Critério: mais barata (combustível + pedágio).",
+      "fastest": "Critério: mais rápida.",
+      "noToll": "Critério: sem pedágio — evita praça de propósito.",
+      "title": "Critério da rota"
+    },
     "geometryUnavailable": "Não foi possível traçar a estrada agora. A linha reta entre as paradas continua abaixo.",
     "latitude": "Latitude",
     "loadingGeometry": "Traçando a estrada entre as paradas…",
@@ -1122,6 +1130,16 @@
     "trace": {
       "road": "A linha segue a estrada, pela ordem das paradas.",
       "straight": "Linha reta entre as paradas — o traçado por estrada não está disponível agora."
+    },
+    "trade": {
+      "cancel": "Cancelar troca",
+      "confirm": "Usar esta rota",
+      "loading": "Buscando as alternativas…",
+      "open": "Trocar rota",
+      "pending": "Replanejando…",
+      "singleOption": "Só existe esta rota para as paradas atuais — não há outra para comparar.",
+      "title": "Escolher outra rota",
+      "unavailable": "Não foi possível buscar as alternativas agora."
     },
     "withoutLocation": "Sem localização no mapa: {{stops}}"
   },
