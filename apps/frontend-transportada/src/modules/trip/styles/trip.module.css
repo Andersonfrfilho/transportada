@@ -3603,3 +3603,20 @@
   gap: var(--space-2);
   margin-left: auto;
 }
+
+/*
+ * Spec 173: o marcador de tratativa aberta. Alerta, não erro: ele diz que há algo a tratar naquela
+ * nota, e o tom `--color-alert` é o mesmo que o resto do produto usa para o que pede atenção.
+ */
+.openOccurrenceBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid color-mix(in srgb, var(--color-alert) 40%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  padding: 0 var(--space-2);
+  color: var(--color-alert);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}

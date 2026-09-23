@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import { countDocumentsWithOpenOccurrence } from '../shared/occurrenceMarker.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import type { TripDetail, TripFiscalReadiness } from '../shared/trip.types'
 import { TripReasonDialog } from './TripReasonDialog.component'
@@ -86,10 +87,30 @@ export function TripHeaderActions({
           total: fiscalReadiness.totalCount,
         })
 
-  if (!canPlanRoute && !canDispatch && !canCancel && readinessSummary === null) return null
+  /**
+   * Spec 173 RF6: quantas notas da viagem têm tratativa aberta. Zero não vira linha — o cabeçalho é
+   * o lugar mais nobre da tela, e "0 notas com ocorrência" ocuparia espaço para não dizer nada.
+   */
+  const openOccurrences = countDocumentsWithOpenOccurrence(trip.documents)
+
+  if (
+    !canPlanRoute &&
+    !canDispatch &&
+    !canCancel &&
+    readinessSummary === null &&
+    openOccurrences === 0
+  ) {
+    return null
+  }
 
   return (
     <div className={styles.headerActions}>
+      {openOccurrences === 0 ? null : (
+        <span className={styles.openOccurrenceBadge}>
+          <Icon name="alert" size="sm" />
+          {t('stops.openOccurrence', { count: openOccurrences })}
+        </span>
+      )}
       {readinessSummary === null ? null : <span className={styles.hint}>{readinessSummary}</span>}
       {canPlanRoute ? (
         <Button disabled={isPlanRoutePending} onClick={onPlanRoute} size="sm" type="button">

@@ -15,6 +15,10 @@ import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import { hasTripDocumentFiscalWarning, tripDocumentLabel } from '../shared/tripDocument.service'
 import type { TripDocumentDetail, TripStopDetail } from '../shared/trip.types'
+import {
+  countDocumentsWithOpenOccurrence,
+  hasOpenOccurrenceMarker,
+} from '../shared/occurrenceMarker.service'
 import styles from '../styles/trip.module.css'
 
 /**
@@ -175,6 +179,18 @@ function TripStopCard({ actions, canReorder, selection, stop }: TripStopCardProp
         <span className={styles.stopCounter}>
           {t('stops.documentCount', { count: stop.documents.length })}
         </span>
+        {/*
+         * Spec 173: a parada marca quando alguma nota dela tem tratativa aberta. O dado chega da
+         * API desde a spec 164 T15 e a tela o ignorava — era preciso abrir nota por nota.
+         */}
+        {stop.hasOpenOccurrence === true ? (
+          <span className={styles.openOccurrenceBadge}>
+            <Icon name="alert" size="sm" />
+            {t('stops.openOccurrence', {
+              count: countDocumentsWithOpenOccurrence(stop.documents),
+            })}
+          </span>
+        ) : null}
         <StopExecution stop={stop} />
       </div>
 
@@ -289,6 +305,19 @@ function TripStopDocumentRow({
       <span className={styles.separationStatusBadge}>
         {t(`separationStatus.${document.separationStatus}`)}
       </span>
+      {/* Spec 173: a nota marcada leva direto ao diálogo da ocorrência dela, sem procurar o botão. */}
+      {hasOpenOccurrenceMarker(document) ? (
+        <Button
+          className={styles.openOccurrenceBadge}
+          onClick={() => actions.onOpenSeparationOccurrence(document.id)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="alert" size="sm" />
+          {t('stops.openOccurrenceDocument')}
+        </Button>
+      ) : null}
       {/*
        * Spec 073 CA10: a marca aparece **só** no endereço de entrega. Em 345 de 345 notas reais o
        * endereço é o do cadastro — imprimir "Cadastro" em todas seria ruído que apaga justamente a

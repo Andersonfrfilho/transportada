@@ -27,6 +27,7 @@
     "office": "por {{actor}} (escritório) pelo motorista {{driver}}",
     "officeWithoutActor": "pelo escritório pelo motorista {{driver}}",
     "removedActor": "usuário removido",
+    "system": "pelo sistema",
     "unknownDriver": "não identificado",
     "whatsapp": "(WhatsApp)",
     "whatsappWithActor": "por {{actor}} pelo WhatsApp"
@@ -554,6 +555,7 @@
       "stopArrived": "Chegada na parada {{sequence}}",
       "stopArrivedUnknown": "Chegada em parada",
       "stopOccurrence": "Ocorrência: {{type}}",
+      "tripCreated": "Viagem criada",
       "tripStatus": {
         "cancelled": "Viagem cancelada",
         "completed": "Viagem concluída",
@@ -866,6 +868,9 @@
     "discardOne": "Descartar esta viagem — as {{count}} notas voltam para o maço",
     "discardOrder": "Descartar alterações",
     "documentCount_one": "{{count}} nota",
+    "openOccurrence": "{{count}} nota com ocorrência",
+    "openOccurrence_other": "{{count}} notas com ocorrência",
+    "openOccurrenceDocument": "Ocorrência aberta",
     "documentCount_other": "{{count}} notas",
     "edited": "roteiro alterado",
     "editedBanner": "Proposta alterada. As paradas riscadas ainda não saíram: o aceite parte do que o servidor distribuiu, e ele não sabe da remoção até o recálculo.",
