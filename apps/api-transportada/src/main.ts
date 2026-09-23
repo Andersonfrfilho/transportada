@@ -1775,7 +1775,15 @@ function createApplicationRoutes({
       maxAttempts: CARGO_LAYOUT_MAX_ATTEMPTS,
     }),
   }
-  const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions)
+  /**
+   * Spec 168: construído aqui, cedo, para servir `tripRepository` — `GET /trips/:id` enriquece as
+   * pendências de medição do baú com o mesmo lookup que `GET /trips/:id/cargo-layouts/:layoutId` já
+   * usa. A instância é reaproveitada mais abaixo, onde os demais casos de uso de caixa a exigem.
+   */
+  const packageBoxRepository = new DrizzlePackageBoxRepository(database)
+  const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions, {
+    packageBoxLookup: packageBoxRepository,
+  })
   /** Spec 145 D7 (lazy): transação própria, fora da leitura do detalhe, com o mesmo lease do worker. */
   const cargoLayoutRequestRepository = new DrizzleCargoLayoutRequestRepository(
     database,
@@ -1986,7 +1994,6 @@ function createApplicationRoutes({
   const listNfeDocumentEvents = createListNfeDocumentEvents({
     repository: new DrizzleNfeDocumentEventRepository(database),
   })
-  const packageBoxRepository = new DrizzlePackageBoxRepository(database)
   const cameraMeasurementSettingsRepository = new DrizzleCameraMeasurementSettingsRepository(
     database,
   )

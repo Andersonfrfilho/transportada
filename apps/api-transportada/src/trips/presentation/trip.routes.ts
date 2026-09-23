@@ -1819,14 +1819,19 @@ function serializeTrip(
  * ausente, e o frontend lê `undefined` em vez de `null` — a tabela "o que falta medir" então
  * confunde todas as linhas no mesmo rascunho e nunca grava (id `undefined`).
  */
+/**
+ * Spec 168: `packageBoxId`/`grossWeightGrams`/`unitsPerBox` já vêm resolvidos do repositório
+ * (`readTripDetail`) — aqui só a rede de segurança contra `undefined`: sem ela a chave simplesmente
+ * não existe no JSON, e o frontend lê `undefined` em vez de `null`.
+ */
 function serializeCargoLayoutForDetail(cargoLayout: NonNullable<TripDetail['cargoLayout']>) {
   return {
     ...cargoLayout,
     pendingMeasurements: cargoLayout.pendingMeasurements.map((item) => ({
       ...item,
-      grossWeightGrams: null,
-      packageBoxId: null,
-      unitsPerBox: null,
+      grossWeightGrams: item.grossWeightGrams ?? null,
+      packageBoxId: item.packageBoxId ?? null,
+      unitsPerBox: item.unitsPerBox ?? null,
     })),
   }
 }

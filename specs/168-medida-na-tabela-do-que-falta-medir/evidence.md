@@ -244,3 +244,76 @@ $ bun test ./test/design-system.contract.test.ts        # apps/frontend-transpor
   suficiente para o escopo desta implementação (fora de `trips/**`, e a fila de medição está
   explicitamente fora do escopo — "Fora do escopo" §1 do `spec.md`). Sinalizado como acompanhamento
   separado abaixo, sem bloquear CA01-CA06, todos cobertos.
+
+## Acompanhamento fechado: `GET /trips/:id` ganha `packageBoxId` real
+
+O "Pendente" acima ficou resolvido nesta sessão: `GET /trips/:id` — a rota que a tela de detalhe usa
+de fato — agora resolve `packageBoxId`/`grossWeightGrams`/`unitsPerBox` com o **mesmo**
+`PendingMeasurementBoxLookupPort` (`DrizzlePackageBoxRepository.findBoxIdsForPendingMeasurements`,
+casado por `buildPendingMeasurementBoxKey`) que `createReadCargoLayoutUseCase` já usava só na rota
+dedicada `/cargo-layouts/:layoutId`. Nenhum casamento novo foi escrito — é o mesmo mecanismo, injetado
+num ponto novo.
+
+### O que mudou
+
+- `apps/api-transportada/src/trips/infrastructure/drizzle-trip.repository.ts`: `DrizzleTripRepository`
+  ganha um terceiro parâmetro de construtor opcional (`{ packageBoxLookup }`, default sem caixa
+  nenhuma — mesmo padrão de `createReadCargoLayoutUseCase`). A função interna `readTripDetail` chama o
+  novo helper `enrichPendingMeasurementsWithBox` logo depois de `readTripCargoLayout` — **uma consulta
+  para todas as pendências**, nunca uma por linha.
+- `apps/api-transportada/src/trips/application/trip.port.ts`: `TripCargoLayoutView.pendingMeasurements`
+  passa a usar `CargoLayoutPendingMeasurement` (de `read-cargo-layout.types.ts`, já existente) em vez do
+  `PendingMeasurement` cru do pacote — a interface do repositório agora declara os três campos.
+- `apps/api-transportada/src/trips/presentation/trip.routes.ts`: `serializeCargoLayoutForDetail` para
+  de **forçar** os três campos para `null` — agora só normaliza `undefined → null` (rede de segurança),
+  preservando o valor real que o repositório já resolveu.
+- `apps/api-transportada/src/main.ts`: `packageBoxRepository` (`DrizzlePackageBoxRepository`) é
+  construído mais cedo — antes de `tripRepository` — e injetado nele; a instância é a mesma reusada
+  mais abaixo pelos demais casos de uso de caixa (nenhuma instância duplicada).
+
+### Sem N+1
+
+Teste novo em `test/integration/trip-detail-query-count.integration.ts` (describe
+`the trip detail resolves the box of each pending measurement (spec 168)`), no molde dos dois testes
+de contagem de query já existentes no arquivo: semeia uma nota com um produto sem código de caixa
+medida, um `nfe_package_boxes` do catálogo que casa por (emitente, código do produto, unidade
+comercial), e uma linha `ready` fabricada em `trip_cargo_layouts` (servida via `readPreviousReady`,
+que casa só por `companyId`/`tripId`/`status` — sem precisar reproduzir o hash real da entrada). O
+teste prova a correção end-to-end contra Postgres: a pendência sai com `packageBoxId`, `grossWeightGrams`
+e `unitsPerBox` do catálogo, não `null`. Os dois testes de contagem de query que já existiam no arquivo
+continuam provando que o número de `select`s não cresce com o tamanho da viagem — o lookup novo é
+sempre uma consulta fixa a mais, do mesmo jeito que `read-cargo-layout.use-case.ts` já fazia.
+
+Também precisou de dois ajustes em `test/integration/trip-cargo-layout-read.integration.ts`: dois
+`expect(detail?.cargoLayout)` comparavam contra `resolveCargoLayout(...)` puro, que não tem os três
+campos novos no tipo — o `as unknown` (já usado nos vizinhos do mesmo arquivo) resolve o TS sem mudar
+o comportamento do teste, já que nesses cenários `pendingMeasurements` é sempre vazio.
+
+### Medido contra o banco de desenvolvimento local (viagem `536b67aa-3409-4ec4-b086-ca5231063edf`)
+
+A API local na porta 53011 exige token Keycloak; sem um fluxo de login à mão nesta sessão, a
+verificação foi feita direto no Postgres de desenvolvimento (a mesma base que a API usa), reproduzindo
+a consulta que `DrizzlePackageBoxRepository.findBoxIdsForPendingMeasurements` roda: das **59**
+pendências de medição da planta `ready` mais recente da viagem, **59 casam uma caixa única** do
+catálogo (0 ambíguas, 0 sem casamento) — ou seja, `GET /trips/:id` para essa viagem passa a servir
+`packageBoxId`/`grossWeightGrams`/`unitsPerBox` preenchidos em **59 de 59** pendências, contra 0 de 59
+antes desta correção.
+
+### Gates — saída real desta sessão
+
+```
+$ bun run typecheck                                    # raiz — todas as 6 apps
+(sem saída — 0 erros)
+
+$ bun run --cwd apps/api-transportada lint
+(sem saída — 0 erros)
+
+$ bun --env-file=../../.env.test test --timeout 120000                    # apps/api-transportada
+7196 pass, 0 fail — Ran 7196 tests across 183 files.
+
+$ bun --env-file=../../.env.test run test:integration                     # apps/api-transportada
+572 pass, 0 fail — Ran 572 tests across 105 files. [319.00s]
+```
+
+Postgres de teste: instância nativa descartável (`initdb`/`pg_ctl`, porta 57018) — o Docker local
+(65432) segue com o defeito de I/O já registrado em `banco-de-teste-local-quebrado.md`.

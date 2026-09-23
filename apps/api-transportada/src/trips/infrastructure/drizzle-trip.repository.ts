@@ -93,6 +93,10 @@ import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { buildLayoutStop } from './trip-cargo-layout-input.support.js'
 import { readTripCargoLayout } from './stored-cargo-layout-read.support.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
+import { buildPendingMeasurementBoxKey } from '../../nfe-documents/domain/pending-measurement-box.policy.js'
+import type { PendingMeasurementBoxLookupPort } from '../application/pending-measurement-box-lookup.port.js'
+import type { CargoLayoutPendingMeasurement } from '../application/read-cargo-layout.types.js'
+import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -113,16 +117,25 @@ const MISSING_REFERENCE_CONSTRAINTS = new Set([
   'trip_documents_company_freight_calculation_fk',
 ])
 
+const noPendingMeasurementBoxLookup: PendingMeasurementBoxLookupPort = {
+  async findBoxIdsForPendingMeasurements() {
+    return new Map()
+  },
+}
+
 export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
   private readonly cargoLayoutLeaseMs: number
+  private readonly packageBoxLookup: PendingMeasurementBoxLookupPort
 
   public constructor(
     private readonly database: TripDatabase,
     options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
+    dependencies: { readonly packageBoxLookup?: PendingMeasurementBoxLookupPort } = {},
   ) {
     this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
     this.cargoLayoutLeaseMs = options.cargoLayoutLeaseMs
+    this.packageBoxLookup = dependencies.packageBoxLookup ?? noPendingMeasurementBoxLookup
   }
 
   public async close(input: {
@@ -164,6 +177,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           companyId: input.companyId,
           tripId: input.tripId,
           cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+          packageBoxLookup: this.packageBoxLookup,
         })
       }
 
@@ -218,6 +232,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         }
         return readTripDetail(transaction, {
           cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+          packageBoxLookup: this.packageBoxLookup,
           companyId: input.companyId,
           tripId: input.tripId,
         })
@@ -259,6 +274,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         companyId: input.companyId,
         tripId: input.tripId,
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+          packageBoxLookup: this.packageBoxLookup,
       })
     })
   }
@@ -305,6 +321,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
 
       const detail = await readTripDetail(transaction, {
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+          packageBoxLookup: this.packageBoxLookup,
         companyId: input.companyId,
         tripId: created.id,
       })
@@ -324,7 +341,11 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     readonly companyId: string
     readonly tripId: string
   }): Promise<TripDetail | null> {
-    return readTripDetail(this.database, { ...input, cargoLayoutLeaseMs: this.cargoLayoutLeaseMs })
+    return readTripDetail(this.database, {
+      ...input,
+      cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+      packageBoxLookup: this.packageBoxLookup,
+    })
   }
 
   public async findDocumentById(input: {
@@ -880,11 +901,37 @@ async function loadActiveFreightRules(
   }))
 }
 
+/**
+ * Spec 168: mesma enriquecimento que `createReadCargoLayoutUseCase` faz — uma consulta para todas as
+ * pendências, casada por `buildPendingMeasurementBoxKey`. `null` nos três campos quando a pendência
+ * não casa nenhuma caixa (produto sem código, nota sem casamento, ou mais de uma caixa possível).
+ */
+async function enrichPendingMeasurementsWithBox(
+  pendingMeasurements: readonly PendingMeasurement[],
+  params: { readonly companyId: string; readonly packageBoxLookup: PendingMeasurementBoxLookupPort },
+): Promise<readonly CargoLayoutPendingMeasurement[]> {
+  const boxMatchesByKey = await params.packageBoxLookup.findBoxIdsForPendingMeasurements({
+    companyId: params.companyId,
+    items: pendingMeasurements,
+  })
+  return pendingMeasurements.map((item) => {
+    const key = buildPendingMeasurementBoxKey(item)
+    const match = key === null ? undefined : boxMatchesByKey.get(key)
+    return {
+      ...item,
+      grossWeightGrams: match?.grossWeightGrams ?? null,
+      packageBoxId: match?.boxId ?? null,
+      unitsPerBox: match?.unitsPerBox ?? null,
+    }
+  })
+}
+
 async function readTripDetail(
   queryable: TripQueryable,
   input: {
     readonly cargoLayoutLeaseMs: number
     readonly companyId: string
+    readonly packageBoxLookup: PendingMeasurementBoxLookupPort
     readonly tripId: string
   },
 ): Promise<TripDetail | null> {
@@ -1182,13 +1229,29 @@ async function readTripDetail(
       tripId: input.tripId,
     },
   )
+  /**
+   * Spec 168: o mesmo enriquecimento que `createReadCargoLayoutUseCase` já faz na rota dedicada
+   * (`GET /trips/:id/cargo-layouts/:layoutId`) — uma consulta para todas as pendências, casada por
+   * `buildPendingMeasurementBoxKey`. Sem isso, `GET /trips/:id` (a rota que a tela usa de fato)
+   * nunca devolvia `packageBoxId`/`grossWeightGrams`/`unitsPerBox`.
+   */
+  const cargoLayout =
+    cargoLayoutReading.cargoLayout === null
+      ? null
+      : {
+          ...cargoLayoutReading.cargoLayout,
+          pendingMeasurements: await enrichPendingMeasurementsWithBox(
+            cargoLayoutReading.cargoLayout.pendingMeasurements,
+            { companyId: input.companyId, packageBoxLookup: input.packageBoxLookup },
+          ),
+        }
 
   return {
     ...mapTrip(record),
     closeReason: record.closeReason,
     closedAt: record.closedAt === null ? null : record.closedAt.toISOString(),
     closedByName,
-    cargoLayout: cargoLayoutReading.cargoLayout,
+    cargoLayout,
     cargoLayoutState: cargoLayoutReading.cargoLayoutState,
     cargoLayoutId: layoutId,
     ...(pendingCargoLayoutInput === null ? {} : { pendingCargoLayoutInput }),

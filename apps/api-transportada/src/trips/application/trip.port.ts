@@ -1,13 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
+import type { CargoLayoutPendingMeasurement } from './read-cargo-layout.types.js'
 import type {
   TripDriverCandidate,
   TripDriverLine,
@@ -244,7 +244,7 @@ export type TripCargoLayoutView = {
   readonly occupancyKnown: boolean
   readonly overflowM3: string
   /** Spec 144 (D4): a lista do que falta medir, ordenada por `boxCount` decrescente. */
-  readonly pendingMeasurements: readonly PendingMeasurement[]
+  readonly pendingMeasurements: readonly CargoLayoutPendingMeasurement[]
   readonly slices: readonly {
     readonly label: string
     /** `1` é o fundo, e o fundo é da **última** entrega. */
