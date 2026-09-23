@@ -368,6 +368,7 @@ import { DrizzleRedeliveryApplicationRepository } from './trips/infrastructure/d
 import { createOccurrenceSettlementRoutes } from './trips/presentation/occurrence-settlement.routes.js'
 import { createRecordOccurrenceSettlementUseCase } from './trips/application/record-occurrence-settlement.use-case.js'
 import { createReimburseOccurrenceSettlementUseCase } from './trips/application/reimburse-occurrence-settlement.use-case.js'
+import { createFindOccurrenceSettlementUseCase } from './trips/application/find-occurrence-settlement.use-case.js'
 import { DrizzleOccurrenceSettlementRepository } from './trips/infrastructure/drizzle-occurrence-settlement.repository.js'
 import { DrizzleOccurrenceSettlementChargeRepository } from './trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
@@ -1918,6 +1919,9 @@ function createApplicationRoutes({
   const reimburseOccurrenceSettlement = createReimburseOccurrenceSettlementUseCase({
     repository: occurrenceSettlementRepository,
   })
+  const findOccurrenceSettlement = createFindOccurrenceSettlementUseCase({
+    repository: occurrenceSettlementRepository,
+  })
   /** Spec 164 T10: mesmo escritor único de transição do escritório (T4/T5) — só muda o ator. */
   const decideOccurrenceCase = createDecideOccurrenceCaseUseCase({
     cases: {
@@ -2693,6 +2697,7 @@ function createApplicationRoutes({
     ...createOccurrenceSettlementRoutes({
       findCaseIdByOccurrenceId: (input) => occurrenceCaseRepository.findIdByOccurrenceId(input),
       settlement: recordOccurrenceSettlement,
+      settlementFind: findOccurrenceSettlement,
       settlementReimbursement: reimburseOccurrenceSettlement,
     }),
     ...createRedeliveryProposalRoutes({

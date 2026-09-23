@@ -12,8 +12,12 @@
  *
  * `reimburseSettlementItem` (T18, RF31/CA9e) só marca `reimbursed_at`/`reimbursed_by_user_id` —
  * idempotente, e recusa `payer_kind = 'carrier'` antes de tocar o banco.
+ *
+ * `findSettlement` (achado 2 da revisão): leitura simples, sem lock — a lista já veio da mesma
+ * tabela que `recordSettlement` escreve, e quem chamou já resolveu `occurrenceId → caseId` (rota),
+ * então a existência da tratativa não precisa ser reconferida aqui.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import {
   tripDocumentOccurrences,
@@ -41,12 +45,26 @@ import type {
   ReimburseOccurrenceSettlementPort,
   ReimburseOccurrenceSettlementResult,
 } from '../application/reimburse-occurrence-settlement.use-case.js'
+import type {
+  FindOccurrenceSettlementPort,
+  FindOccurrenceSettlementResult,
+} from '../application/find-occurrence-settlement.use-case.js'
 import type { OccurrenceSettlementChargePort } from '../application/occurrence-settlement-charge.port.js'
+import {
+  MONEY_SCALE,
+  formatScaledDecimal,
+  parseScaledDecimal,
+} from '../../shared/decimal.service.js'
 import type { TripDatabase, TripTransaction } from './trip-queryable.type.js'
+
+const SETTLEMENT_ERROR_CODE_PREFIX = 'OCCURRENCE_SETTLEMENT'
 
 /** Molde de `FindChargePartiesFunction` (`drizzle-occurrence-settlement-charge.repository.ts`). */
 export class DrizzleOccurrenceSettlementRepository
-  implements RecordOccurrenceSettlementPort, ReimburseOccurrenceSettlementPort
+  implements
+    RecordOccurrenceSettlementPort,
+    ReimburseOccurrenceSettlementPort,
+    FindOccurrenceSettlementPort
 {
   public constructor(
     private readonly database: TripDatabase,
@@ -156,6 +174,48 @@ export class DrizzleOccurrenceSettlementRepository
 
       return { kind: 'changed' as const }
     })
+  }
+
+  public async findSettlement(input: {
+    readonly caseId: string
+    readonly companyId: string
+  }): Promise<FindOccurrenceSettlementResult> {
+    const rows = await this.database
+      .select({
+        amount: tripOccurrenceItemSettlements.amount,
+        amountSource: tripOccurrenceItemSettlements.amountSource,
+        payerId: tripOccurrenceItemSettlements.payerId,
+        payerKind: tripOccurrenceItemSettlements.payerKind,
+        productCode: tripOccurrenceItemSettlements.productCode,
+        reimbursedAt: tripOccurrenceItemSettlements.reimbursedAt,
+      })
+      .from(tripOccurrenceItemSettlements)
+      .where(
+        and(
+          eq(tripOccurrenceItemSettlements.companyId, input.companyId),
+          eq(tripOccurrenceItemSettlements.caseId, input.caseId),
+        ),
+      )
+      .orderBy(asc(tripOccurrenceItemSettlements.productCode))
+
+    let totalScaled = 0n
+    const items = rows.map((row) => {
+      totalScaled += parseScaledDecimal({
+        errorCodePrefix: SETTLEMENT_ERROR_CODE_PREFIX,
+        scale: MONEY_SCALE,
+        value: row.amount,
+      })
+      return {
+        amount: row.amount,
+        amountSource: row.amountSource,
+        ...(row.payerId === null ? {} : { payerId: row.payerId }),
+        payerKind: row.payerKind,
+        productCode: row.productCode,
+        reimbursedAt: row.reimbursedAt === null ? null : row.reimbursedAt.toISOString(),
+      }
+    })
+
+    return { items, total: formatScaledDecimal(totalScaled, MONEY_SCALE) }
   }
 }
 

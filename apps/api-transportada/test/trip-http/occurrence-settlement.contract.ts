@@ -15,6 +15,10 @@ import type {
   AuthenticatedContext,
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
+import type {
+  FindOccurrenceSettlementResult,
+  FindOccurrenceSettlementUseCase,
+} from '../../src/trips/application/find-occurrence-settlement.use-case.js'
 import type { RecordOccurrenceSettlementUseCase } from '../../src/trips/application/record-occurrence-settlement.use-case.js'
 import type { ReimburseOccurrenceSettlementUseCase } from '../../src/trips/application/reimburse-occurrence-settlement.use-case.js'
 import {
@@ -48,12 +52,15 @@ const CONTEXT_WITH_OCCURRENCE_RESOLVE: CompanyContext = {
 
 function createFixture(params: {
   readonly findCaseIdReturnsNull?: boolean
+  readonly findError?: Error
+  readonly findResult?: FindOccurrenceSettlementResult
   readonly permissions?: CompanyContext['permissions']
   readonly recordError?: Error
   readonly reimburseError?: Error
 }) {
   const recordCalls: unknown[] = []
   const reimburseCalls: unknown[] = []
+  const findCalls: unknown[] = []
   const settlement: RecordOccurrenceSettlementUseCase = {
     async record(input) {
       recordCalls.push(input)
@@ -66,6 +73,13 @@ function createFixture(params: {
       reimburseCalls.push(input)
       if (params.reimburseError !== undefined) throw params.reimburseError
       return { kind: 'changed' }
+    },
+  }
+  const settlementFind: FindOccurrenceSettlementUseCase = {
+    async find(input) {
+      findCalls.push(input)
+      if (params.findError !== undefined) throw params.findError
+      return params.findResult ?? { items: [], total: '0.0000' }
     },
   }
   const findCaseIdCalls: unknown[] = []
@@ -102,6 +116,7 @@ function createFixture(params: {
         return CASE_ID
       },
       settlement,
+      settlementFind,
       settlementReimbursement,
     }),
     rateLimitWindows: { consume: async () => ({ allowed: true }) },
@@ -115,6 +130,7 @@ function createFixture(params: {
     router,
   })
   return {
+    findCalls,
     findCaseIdCalls,
     handle: (request: Request) => handleRequest(request, { timeout() {} }),
     recordCalls,
@@ -316,5 +332,56 @@ describe('POST .../case/settlement/reimbursement (spec 164 T18)', () => {
     )
     expect(response.status).toBe(status)
     expect((await responseApiError(response)).code).toBe(code)
+  })
+})
+
+/** Achado 2 da revisão: `GET` devolve o que o `PUT` gravou, no mesmo formato de item. */
+describe('GET .../case/settlement (achado 2 da revisão)', () => {
+  test('sem occurrences.resolve, 403 antes de tocar o caso de uso', async () => {
+    const fixture = createFixture({ permissions: new Set(['fleet.read']) })
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: SETTLEMENT_PATH }))
+    expect(response.status).toBe(403)
+    expect(fixture.findCalls).toEqual([])
+  })
+
+  test('resolve occurrenceId -> caseId e devolve os itens gravados', async () => {
+    const storedItem = {
+      amount: '150.0000',
+      amountSource: 'nfe' as const,
+      payerKind: 'contractor' as const,
+      productCode: 'ABC-1',
+      reimbursedAt: null,
+    }
+    const fixture = createFixture({ findResult: { items: [storedItem], total: '150.0000' } })
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: SETTLEMENT_PATH }))
+
+    expect(response.status).toBe(200)
+    expect(fixture.findCaseIdCalls).toEqual([
+      { companyId: COMPANY_CONTEXT.companyId, occurrenceId: OCCURRENCE_ID },
+    ])
+    expect(fixture.findCalls).toEqual([
+      { caseId: CASE_ID, context: CONTEXT_WITH_OCCURRENCE_RESOLVE },
+    ])
+    const body = (await response.json()) as {
+      data: { items: readonly unknown[]; total: string }
+    }
+    expect(body.data.items).toEqual([storedItem])
+    expect(body.data.total).toBe('150.0000')
+  })
+
+  test('ocorrência de outra empresa (ou sem tratativa) é 404 antes de chamar o caso de uso', async () => {
+    const fixture = createFixture({ findCaseIdReturnsNull: true })
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: SETTLEMENT_PATH }))
+    expect(response.status).toBe(404)
+    expect((await responseApiError(response)).code).toBe('OCCURRENCE_CASE_NOT_FOUND')
+    expect(fixture.findCalls).toEqual([])
+  })
+
+  test('sem acerto gravado, devolve lista vazia e total zero', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: SETTLEMENT_PATH }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: { items: readonly unknown[]; total: string } }
+    expect(body.data).toEqual({ items: [], total: '0.0000' })
   })
 })
