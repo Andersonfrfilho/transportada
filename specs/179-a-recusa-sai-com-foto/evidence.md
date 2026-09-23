@@ -67,3 +67,67 @@ $ bun --env-file=../../.env.test run test:integration
 ⚠️ Duas execuções anteriores da integração foram descartadas: a primeira competia com um processo do
 subagente, a segunda morreu junto com o encerramento dele. A terceira rodou destacada (`nohup`), sem
 concorrência — é a que vale.
+
+## 23/09 (segunda passada) — desfeita a duplicação com as specs 164 e 161
+
+Ver `duplicacao.md`. Três achados, um só era código de verdade:
+
+1. **`returns_to_depot`** duplicava `redelivery_policy` (spec 164). Removida a coluna da migration
+   `20260923204855_company_occurrence_type_attachment_mode` (migration.sql, rollback.sql,
+   snapshot.json) e todo o código/teste que a referenciava. `attachment_mode` — a contribuição real
+   da 179 — foi mantida.
+2. **`return_reason_code`** (RF10 original): existia em `trip.schema.ts` desde o commit
+   `aee673fd7`, mas **nunca tinha migration** — `db:generate` já estava quebrado antes desta limpeza
+   por causa dela, não só de `returns_to_depot`. Removida junto, por não ter sentido sem
+   `returnsToDepot` e não ser usada em nenhum outro arquivo (`grep` confirmou).
+3. **`thumbnailObjectId`/`OCCURRENCE_UPLOAD_PURPOSES`** (T206): achado como alteração **não
+   commitada** em `trip.schema.ts` ao rodar o teste de `db:generate` pela primeira vez nesta
+   passada — sobra de uma tentativa anterior de T206, que a missão explicitamente pediu para não
+   implementar agora. Revertida. O fluxo de upload assinado já commitado (`b1ec3a13e`,
+   `confirmUpload` em `drizzle-occurrence-upload.repository.ts`) grava em `stored_objects`, a mesma
+   tabela que `attach-occurrence-photo.use-case.ts` usa — nenhuma tabela ou coluna de miniatura
+   paralela existe no código commitado. Não havia nada a desfazer aqui além da sobra não commitada.
+
+```
+$ bunx tsc --noEmit --cwd apps/api-transportada        # sem saída
+$ bunx tsc --noEmit --cwd apps/worker-transportada     # sem saída
+$ bunx tsc --noEmit --cwd apps/cron-transportada       # sem saída
+$ tsc --noEmit --cwd apps/frontend-transportada        # sem saída
+$ tsc --noEmit --cwd apps/frontend-client              # sem saída
+$ tsc --noEmit --cwd apps/frontend-landing             # sem saída
+$ bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0   # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7203 pass · 23 skip · 2 fail · 24291 expect() · 183 arquivos [173.15s]
+```
+
+As 2 falhas: um timeout de `toll-booths.contract.test.ts` (120s, flaky sob carga — nada a ver com
+esta task) e `database-migration.contract.test.ts` acusando o `thumbnail_object_id` não commitado
+do item 3 acima. Depois de removê-lo:
+
+```
+$ bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts --timeout 30000
+ 70 pass · 4 skip · 0 fail · 763 expect() [4.38s]     # db:generate volta a responder no_changes
+$ make migration-test
+ 110 pass · 0 fail [63.01s]
+```
+
+Integração completa, uma vez, no fim:
+
+```
+$ bun --env-file=../../.env.test run test:integration
+ 563 pass · 7 skip · 3 fail · 3270 expect() · 105 arquivos [847.10s]
+```
+
+As 3 falhas (`extra-charge-batch`, `company-energy-repository`, `whatsapp-command-repository`) são
+todas `timed out after 5000ms` — nenhuma toca `company_occurrence_types`, `trip_occurrence_uploads`
+ou `trip_document_occurrence_attachments`. Isoladas com timeout de 30s, sem a bateria completa
+disputando o Postgres:
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/extra-charge-batch.integration.ts \
+    ./test/integration/company-energy-repository.integration.ts \
+    ./test/integration/whatsapp-command-repository.integration.ts --timeout 30000
+ 20 pass · 0 fail · 61 expect() [47.76s]
+```
+
+Confirma timeout de carga, não regressão desta limpeza.
