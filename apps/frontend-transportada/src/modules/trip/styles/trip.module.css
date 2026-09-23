@@ -261,8 +261,13 @@
   gap: var(--space-1);
   height: var(--control-height-compact);
   padding: 0 var(--space-2);
-  border: 1px solid color-mix(in srgb, var(--color-alert) 55%, transparent);
-  color: var(--color-alert);
+  /*
+   * ⚠️ Cobre, **não** a cor de erro: `--color-alert` é a do impedimento fiscal, e vestir a mesma cor
+   * fazia a marca ler como bloqueio. A nota em tratativa não é presa — ela segue liberada (CA5), e
+   * o marcador só sinaliza. Token de atenção intermediário da paleta, nunca hexadecimal de módulo.
+   */
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
   font-family: var(--font-utility);
   font-size: 0.72rem;
   text-transform: uppercase;
@@ -1558,8 +1563,18 @@
   width: var(--space-4);
   height: var(--space-4);
   border-radius: 50%;
-  background: var(--color-alert);
+  background: var(--color-copper);
   color: var(--color-ink-on-accent);
+  /* `.tilePin` desliga o ponteiro para o arrasto do mapa; a marca precisa dele para abrir a dica. */
+  pointer-events: auto;
+}
+
+/* O gatilho do tooltip entra entre a marca e o glifo — ele veste a marca, não encolhe dentro dela. */
+.tilePinOccurrenceBadge > * {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
 }
 
 .tilePinOccurrenceBadge svg {
