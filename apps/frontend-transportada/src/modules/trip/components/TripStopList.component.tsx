@@ -12,14 +12,23 @@ import { Tooltip } from '@/components/ui/tooltip'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
+import { canGenerateCteForDocument } from '../shared/cteSelection.service'
+import { readinessReasonIcon } from '../shared/readinessIcon.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import { hasTripDocumentFiscalWarning, tripDocumentLabel } from '../shared/tripDocument.service'
-import type { TripDocumentDetail, TripStopDetail } from '../shared/trip.types'
+import type {
+  TripDocumentDetail,
+  TripDocumentReadiness,
+  TripStopDetail,
+} from '../shared/trip.types'
 import {
   countDocumentsWithOpenOccurrence,
   hasOpenOccurrenceMarker,
 } from '../shared/occurrenceMarker.service'
 import styles from '../styles/trip.module.css'
+
+/** Spec 174 RF6: recusa e cancelamento são o que muda de cor — o resto é aviso neutro. */
+const FISCAL_ALERT_REASONS = new Set(['cte_cancelled', 'cte_rejected'])
 
 /**
  * Três portões distintos, não um: o domínio separa trabalho de barracão (separar/carregar, só
@@ -47,15 +56,23 @@ export type TripStopDocumentActions = Readonly<{
    */
   canSeparationOccurrence: boolean
   canSeparateOrLoad: boolean
+  /** Spec 174 RF7: sem `trip.submit-cte`, o estado fiscal aparece na linha e o botão não. */
+  canSubmitCte: boolean
   /** `allowedActions.documents[id]` — a mesma capacidade que `TripFieldActions` consome. */
   capabilities: FieldActionCapabilities
+  /** Spec 174 RF1: a prontidão por nota, para a linha mostrar o próprio estado fiscal. */
+  fiscalReadinessByDocumentId: ReadonlyMap<string, TripDocumentReadiness>
   isDeliverPending: boolean
   isEditable: boolean
+  /** Spec 174 RF3: o mesmo pendente do lote — a linha e a barra de seleção nunca emitem ao mesmo tempo. */
+  isGeneratingCte: boolean
   isReleasePending: boolean
   isReturnPending: boolean
   isTransitionPending: boolean
   onFieldDeliver: (documentId: string) => void
   onFieldReturn: (documentId: string) => void
+  /** Spec 174 RF3: gera o CT-e só desta nota, sem passar pela seleção. */
+  onGenerateCte: (documentId: string) => void
   /** Spec 156 T9: abre `FieldOccurrenceDialog` para esta nota (ação da linha, não em massa). */
   onOpenFieldOccurrence: (documentId: string) => void
   /** Spec 156 T11: abre `FieldDeliveryWizard` para esta nota (ação da linha, não em massa). */
@@ -254,6 +271,8 @@ function TripStopDocumentRow({
   selection: TripDocumentSelectionController
 }>) {
   const { t } = useTranslation('trip')
+  const fiscalReadiness = actions.fiscalReadinessByDocumentId.get(document.id)
+  const canGenerateCte = actions.canSubmitCte && canGenerateCteForDocument(fiscalReadiness)
 
   return (
     <li
@@ -344,7 +363,38 @@ function TripStopDocumentRow({
           </span>
         </Tooltip>
       ) : null}
+      {/*
+       * Spec 174 RF1/RF2/RF6: o estado fiscal é **da nota** — ícone e texto na linha dela, nunca só
+       * a cor, com a explicação pelo tooltip do design system. Nota pronta ou que não espera
+       * documento fiscal não ganha selo (ausência é silêncio, não "nada a fazer").
+       */}
+      {fiscalReadiness !== undefined && fiscalReadiness.reason !== 'ok' ? (
+        <Tooltip label={fiscalStatusLabel(fiscalReadiness, t)}>
+          <span
+            className={
+              FISCAL_ALERT_REASONS.has(fiscalReadiness.reason)
+                ? `${styles.fiscalStatusBadge} ${styles.fiscalStatusBadgeAlert}`
+                : styles.fiscalStatusBadge
+            }
+          >
+            <Icon name={readinessReasonIcon(fiscalReadiness.reason)} size="sm" />
+            <span className={styles.fiscalStatusText}>{fiscalStatusLabel(fiscalReadiness, t)}</span>
+          </span>
+        </Tooltip>
+      ) : null}
       <div className={styles.rowActions}>
+        {/* Spec 174 RF3: mesma regra da ação em massa — só a nota que ainda espera CT-e ganha o botão. */}
+        {canGenerateCte ? (
+          <Button
+            disabled={actions.isGeneratingCte}
+            onClick={() => actions.onGenerateCte(document.id)}
+            size="sm"
+            type="button"
+          >
+            <Icon name="send" />
+            {t('actions.generateCte')}
+          </Button>
+        ) : null}
         {/*
          * O comprovante é do escritório, e ler não é administrar: quem acompanha a operação abre o
          * canhoto sem `trip.manage`. O botão só aparece quando há entrega ou devolução para
@@ -470,6 +520,18 @@ function TripStopDocumentRow({
       {actions.openProofDocumentId === document.id ? actions.renderProof(document.id) : null}
     </li>
   )
+}
+
+/** Spec 174 RF6: código e mensagem da SEFAZ juntos — é o que diz o que fazer com a rejeição. */
+function fiscalStatusLabel(entry: TripDocumentReadiness, t: (key: string) => string): string {
+  const reasonLabel = t(`readiness.reason.${entry.reason}`)
+  if (entry.rejectionCode === null) return reasonLabel
+
+  const detail =
+    entry.rejectionMessage === null
+      ? entry.rejectionCode
+      : `${entry.rejectionCode}: ${entry.rejectionMessage}`
+  return `${reasonLabel} — ${detail}`
 }
 
 const amountFormatter = new Intl.NumberFormat('pt-BR', {

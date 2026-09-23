@@ -17,7 +17,8 @@
     "viewTrip": "Abrir a viagem de {{vehicle}}",
     "fieldOccurrence": "Ocorrência",
     "fieldDelivery": "Dar baixa",
-    "separationOccurrence": "Ocorrência de separação"
+    "separationOccurrence": "Ocorrência de separação",
+    "generateCte": "Gerar CT-e"
   },
   "authorship": {
     "backoffice": "por {{actor}}",
@@ -986,9 +987,11 @@
     "generateCteBatch_one": "Gerar CT-e desta viagem ({{count}} nota)",
     "generateCteBatch_other": "Gerar CT-e desta viagem ({{count}} notas)",
     "reason": {
+      "city_unknown": "cidade de destino desconhecida",
       "cte_cancelled": "CT-e cancelado",
       "cte_in_progress": "CT-e em processamento",
       "cte_rejected": "CT-e rejeitado",
+      "nfse_expected": "NFS-e esperada",
       "no_cte": "sem CT-e"
     },
     "state": {

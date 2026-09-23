@@ -336,15 +336,27 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     isEditable,
     types: workspace.occurrenceTypesQuery.data ?? [],
   })
+  /**
+   * Spec 174 RF1: a prontidão por nota, indexada por `tripDocumentId` — é o que a linha da parada
+   * lê para mostrar o próprio estado fiscal, sem repetir a lista que o painel de prontidão tinha.
+   */
+  const fiscalReadinessByDocumentId = new Map(
+    (workspace.fiscalReadiness?.documents ?? []).map((entry) => [entry.tripDocumentId, entry]),
+  )
   const documentActions = {
     canManage,
     canSeparateOrLoad,
     canSeparationOccurrence,
+    canSubmitCte: workspace.controller.canSubmitCte,
     canFieldDelivery: (documentId: string) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldDelivery'),
     canFieldOccurrence: (documentId: string) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldOccurrence'),
     capabilities: workspace.fieldActionCapabilities,
+    fiscalReadinessByDocumentId,
+    isGeneratingCte: workspace.createCteBatchMutation.isPending,
+    onGenerateCte: (documentId: string) =>
+      workspace.createCteBatchMutation.mutate({ tripDocumentIds: [documentId], tripId: trip.id }),
     onOpenFieldDelivery: (documentId: string) => setFieldDeliveryDocumentIds([documentId]),
     onOpenFieldOccurrence: (documentId: string) => setFieldOccurrenceDocumentIds([documentId]),
     onOpenSeparationOccurrence: (documentId: string) =>
@@ -962,7 +974,6 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         <TripFiscalReadinessPanel
           canManageMdfe={workspace.controller.canManageMdfe}
           canSubmitCte={workspace.controller.canSubmitCte}
-          documents={trip.documents}
           isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
           isSavingRequirement={workspace.setMdfeRequirementMutation.isPending}
           readiness={workspace.fiscalReadiness}

@@ -15,6 +15,7 @@
     "view": "View",
     "viewTrip": "Open the trip for {{vehicle}}",
     "fieldOccurrence": "Occurrence",
+    "generateCte": "Issue CT-e",
     "fieldDelivery": "Deliver",
     "separationOccurrence": "Separation occurrence"
   },
@@ -803,9 +804,11 @@
     "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
     "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
     "reason": {
+      "city_unknown": "destination city unknown",
       "cte_cancelled": "CT-e cancelled",
       "cte_in_progress": "CT-e in progress",
       "cte_rejected": "CT-e rejected",
+      "nfse_expected": "NFS-e expected",
       "no_cte": "no CT-e"
     },
     "state": {

@@ -286,6 +286,35 @@
   font-size: 0.74rem;
 }
 
+/*
+ * Spec 174 RF1/RF6: o estado fiscal da nota, na própria linha. Neutro por padrão; recusa e
+ * cancelamento (`.fiscalStatusBadgeAlert`) usam a mesma cor de alerta do resto da tela.
+ */
+.fiscalStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+}
+
+.fiscalStatusBadgeAlert {
+  border-color: color-mix(in srgb, var(--color-alert) 55%, transparent);
+  color: var(--color-alert);
+}
+
+/* A mensagem da SEFAZ pode ser longa; a linha corta, e o tooltip carrega o texto inteiro. */
+.fiscalStatusText {
+  overflow: hidden;
+  max-width: 22rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Spec 164 RF36: marca — não substitui nenhuma ação da linha, só acrescenta o aviso. */
 .occurrenceCaseBadge {
   display: inline-flex;

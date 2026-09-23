@@ -4,9 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
-import type { TripDocumentDetail, TripFiscalReadiness } from '../shared/trip.types'
-import { readinessReasonIcon } from '../shared/readinessIcon.service'
-import { tripDocumentLabel } from '../shared/tripDocument.service'
+import type { TripFiscalReadiness } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripFiscalReadinessPanelProps = Readonly<{
@@ -14,7 +12,6 @@ type TripFiscalReadinessPanelProps = Readonly<{
   canManageMdfe: boolean
   /** Spec 065 D4bis: só quem submete lote vê o disparo — separar carga não emite CT-e. */
   canSubmitCte: boolean
-  documents: readonly TripDocumentDetail[]
   isGeneratingCteBatch: boolean
   isSavingRequirement: boolean
   onGenerateCteBatch: () => void
@@ -32,7 +29,6 @@ type TripFiscalReadinessPanelProps = Readonly<{
 export function TripFiscalReadinessPanel({
   canManageMdfe,
   canSubmitCte,
-  documents,
   isGeneratingCteBatch,
   isSavingRequirement,
   onGenerateCteBatch,
@@ -44,10 +40,6 @@ export function TripFiscalReadinessPanel({
   const { t } = useTranslation('trip')
   if (readiness === undefined || readiness.totalCount === 0) return null
 
-  const labelByDocumentId = new Map(
-    documents.map((document) => [document.id, tripDocumentLabel(document)]),
-  )
-  const pending = readiness.documents.filter((entry) => entry.reason !== 'ok')
   /**
    * O disparo só faz sentido para nota que **espera CT-e e ainda não o tem**. A urbana vira NFS-e e
    * nunca entra; oferecer o botão por causa dela seria oferecer um lote que nasceria vazio.
@@ -136,26 +128,6 @@ export function TripFiscalReadinessPanel({
           <p className={styles.readinessHint}>{t('readiness.generateCteBatchHint')}</p>
         </div>
       ) : null}
-
-      {pending.length === 0 ? null : (
-        <ul className={styles.readinessList}>
-          {pending.map((entry) => (
-            <li className={styles.readinessItem} key={entry.tripDocumentId}>
-              <span>{labelByDocumentId.get(entry.tripDocumentId) ?? entry.tripDocumentId}</span>
-              <span className={styles.readinessReason}>
-                <Icon name={readinessReasonIcon(entry.reason)} />
-                {t(`readiness.reason.${entry.reason}`)}
-                {/* O cStat e a mensagem vão junto: é o que decide o próximo passo do operador */}
-                {entry.rejectionCode === null
-                  ? null
-                  : ` — ${entry.rejectionCode}${
-                      entry.rejectionMessage === null ? '' : `: ${entry.rejectionMessage}`
-                    }`}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   )
 }

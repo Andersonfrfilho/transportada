@@ -8,10 +8,6 @@ import { describe, expect, it } from 'bun:test'
 import { tripDocumentLabel } from '../../src/modules/trip/shared/tripDocument.service'
 
 const ROW = new URL('../../src/modules/trip/components/TripStopList.component.tsx', import.meta.url)
-const READINESS = new URL(
-  '../../src/modules/trip/components/TripFiscalReadinessPanel.component.tsx',
-  import.meta.url,
-)
 
 const UUID = '00000000-0000-4000-8000-000000000a17'
 
@@ -60,8 +56,11 @@ describe('a nota se identifica pelo número, não pelo UUID (spec 079 T017)', ()
     expect(source).toInclude('document.nfeIssuedAt')
   })
 
-  /** A prontidão fiscal nomeia a nota do mesmo jeito — duas grafias seriam duas notas na leitura. */
-  it('a prontidão fiscal usa o mesmo rótulo', () => {
-    expect(readFileSync(READINESS, 'utf8')).toInclude('tripDocumentLabel')
+  /**
+   * Spec 174 RF5: o bloco de prontidão deixou de listar notas — quem nomeia a nota pelo número e
+   * série agora é só a linha da parada, e é ela quem carrega `tripDocumentLabel`.
+   */
+  it('a linha da parada usa o rótulo da nota', () => {
+    expect(readFileSync(ROW, 'utf8')).toInclude('tripDocumentLabel')
   })
 })
