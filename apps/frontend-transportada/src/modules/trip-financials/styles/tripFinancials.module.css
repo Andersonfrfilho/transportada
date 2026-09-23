@@ -156,6 +156,8 @@
   justify-content: space-between;
   padding: var(--space-1) 0;
   font-size: 0.85rem;
+  /* Sem isto o texto de lacuna mede a frase inteira e empurra a página para fora da tela. */
+  min-width: 0;
 }
 
 .ledgerRow dt {
@@ -187,9 +189,18 @@
 }
 
 /* A parcela sem valor fica na lista: o motivo ocupa o lugar do número. */
-.ledgerGap {
+/*
+ * `.ledgerRow dd` é mais específico que uma classe sozinha, então o seletor precisa do elemento
+ * junto: o `nowrap` de lá existe para o número não partir no meio, e a lacuna é frase — frase que
+ * não quebra estoura a tela estreita.
+ */
+.ledgerRow dd.ledgerGap {
   color: var(--color-copper);
   font-size: 0.8rem;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 /**
