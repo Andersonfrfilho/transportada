@@ -53,7 +53,13 @@ export function TripFiscalReadinessPanel({
   return (
     <section className={styles.readinessPanel}>
       <header className={styles.readinessHeader}>
-        <h3>{t('readiness.title')}</h3>
+        {/*
+         * `tabIndex={-1}`: o resumo do cabeçalho (spec 173) rola e foca aqui quando falta nota
+         * pronta, para o leitor de tela anunciar onde a rolagem parou — sem entrar no Tab normal.
+         */}
+        <h3 id="trip-fiscal-readiness-title" tabIndex={-1}>
+          {t('readiness.title')}
+        </h3>
         <p className={styles.readinessCount}>
           {t('readiness.count', { ready: readiness.readyCount, total: readiness.totalCount })}
         </p>

@@ -78,3 +78,53 @@ describe('ações de estado no cabeçalho da viagem (spec 170)', () => {
     expect(cabecalho).toContain("t('stateActions.readinessSummary'")
   })
 })
+
+/**
+ * O usuário pediu: "isso precisa ser um link para o botão" — os dois resumos do cabeçalho param de
+ * ser texto morto. Uma nota em ocorrência abre o diálogo dela direto (mesma ação do selo da linha);
+ * mais de uma rola até a lista; a prontidão rola até o painel — nunca um `onClick` num `<span>`.
+ */
+describe('os resumos do cabeçalho levam à ação que os resolve', () => {
+  const cabecalho = readFileSync(CABECALHO, 'utf8')
+  const painel = readFileSync(
+    new URL(
+      '../../src/modules/trip/components/TripFiscalReadinessPanel.component.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+  const detalhe = readFileSync(DETALHE, 'utf8')
+
+  it('uma nota com ocorrência abre o diálogo dela — a mesma ação do selo da linha', () => {
+    expect(cabecalho).toContain('onOpenOccurrenceDocument')
+    expect(cabecalho).toContain('firstOpenOccurrenceDocument.id')
+  })
+
+  it('mais de uma nota com ocorrência é um `<a>` real até a lista de paradas', () => {
+    expect(cabecalho).toContain('href="#trip-stops-title"')
+    expect(detalhe).toContain('id="trip-stops-title"')
+  })
+
+  it('a prontidão pendente é um `<a>` real até o painel — nada de `onClick` num `<span>`', () => {
+    expect(cabecalho).toContain('href="#trip-fiscal-readiness-title"')
+    expect(painel).toContain('id="trip-fiscal-readiness-title"')
+  })
+
+  /** Link que não leva a nada é pior que texto: sem `fleet.read`, o painel não existe na página. */
+  it('sem o painel de prontidão visível, o resumo não vira link', () => {
+    expect(cabecalho).toContain('isFiscalReadinessPanelVisible')
+    expect(detalhe).toContain('isFiscalReadinessPanelVisible={canReadFleetDetails}')
+  })
+
+  /** Zero ocorrência ou viagem toda pronta: nada a resolver, o resumo continua texto puro. */
+  it('sem nota em ocorrência o resumo some, e prontidão completa não vira link', () => {
+    expect(cabecalho).toContain('openOccurrences === 0 ? null')
+    expect(cabecalho).toContain('readinessHasGap && isFiscalReadinessPanelVisible')
+  })
+
+  /** Alvo de rolagem alcançável por teclado: foco por script, fora da ordem normal do Tab. */
+  it('os alvos de rolagem ficam focáveis só por script (`tabIndex={-1}`)', () => {
+    expect(detalhe).toContain('tabIndex={-1}')
+    expect(painel).toContain('tabIndex={-1}')
+  })
+})

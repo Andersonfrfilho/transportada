@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
-import { countDocumentsWithOpenOccurrence } from '../shared/occurrenceMarker.service'
+import { hasOpenOccurrenceMarker } from '../shared/occurrenceMarker.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import type { TripDetail, TripFiscalReadiness } from '../shared/trip.types'
 import { TripReasonDialog } from './TripReasonDialog.component'
@@ -19,9 +19,16 @@ export type TripHeaderActionsProps = Readonly<{
   fiscalReadiness: TripFiscalReadiness | undefined
   isCancelPending: boolean
   isDispatchPending: boolean
+  /**
+   * Se o painel "Prontidão fiscal" está na página para o resumo apontar. Sem `fleet.read`
+   * (spec 156 D11) o painel some da tela, e um link para lá seria um link que não leva a nada.
+   */
+  isFiscalReadinessPanelVisible: boolean
   isPlanRoutePending: boolean
   onCancel: () => void
   onDispatch: (input: { readonly force: boolean; readonly forceReason?: string }) => void
+  /** A nota é a mesma que o selo da linha abre — o resumo do cabeçalho leva direto ao diálogo dela. */
+  onOpenOccurrenceDocument: (documentId: string) => void
   onPlanRoute: () => void
   trip: TripDetail
 }>
@@ -43,9 +50,11 @@ export function TripHeaderActions({
   fiscalReadiness,
   isCancelPending,
   isDispatchPending,
+  isFiscalReadinessPanelVisible,
   isPlanRoutePending,
   onCancel,
   onDispatch,
+  onOpenOccurrenceDocument,
   onPlanRoute,
   trip,
 }: TripHeaderActionsProps) {
@@ -102,7 +111,16 @@ export function TripHeaderActions({
    * Spec 173 RF6: quantas notas da viagem têm tratativa aberta. Zero não vira linha — o cabeçalho é
    * o lugar mais nobre da tela, e "0 notas com ocorrência" ocuparia espaço para não dizer nada.
    */
-  const openOccurrences = countDocumentsWithOpenOccurrence(trip.documents)
+  const openOccurrenceDocuments = trip.documents.filter(hasOpenOccurrenceMarker)
+  const openOccurrences = openOccurrenceDocuments.length
+  const firstOpenOccurrenceDocument = openOccurrenceDocuments[0]
+  /**
+   * O texto vira link para a única ação que o resolve. Com uma nota só, é o diálogo dela — a mesma
+   * que o selo da linha abre; com mais de uma, a rolagem para a lista onde os selos aparecem. O
+   * mesmo `t('stops.openOccurrence')` de antes: o resumo ganha ação sem trocar de texto.
+   */
+  const readinessHasGap =
+    fiscalReadiness !== undefined && fiscalReadiness.readyCount < fiscalReadiness.totalCount
 
   if (
     !canPlanRoute &&
@@ -116,13 +134,36 @@ export function TripHeaderActions({
 
   return (
     <div className={styles.headerActions}>
-      {openOccurrences === 0 ? null : (
-        <span className={styles.openOccurrenceBadge}>
+      {openOccurrences === 0 ? null : openOccurrences === 1 &&
+        firstOpenOccurrenceDocument !== undefined ? (
+        <Button
+          className={styles.openOccurrenceBadge}
+          onClick={() => onOpenOccurrenceDocument(firstOpenOccurrenceDocument.id)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
           <Icon name="alert" size="sm" />
           {t('stops.openOccurrence', { count: openOccurrences })}
-        </span>
+        </Button>
+      ) : (
+        <Button asChild className={styles.openOccurrenceBadge} size="sm" variant="ghost">
+          <a href="#trip-stops-title">
+            <Icon name="alert" size="sm" />
+            {t('stops.openOccurrence', { count: openOccurrences })}
+          </a>
+        </Button>
       )}
-      {readinessSummary === null ? null : <span className={styles.hint}>{readinessSummary}</span>}
+      {readinessSummary === null ? null : readinessHasGap && isFiscalReadinessPanelVisible ? (
+        <Button asChild className={styles.hint} size="sm" variant="ghost">
+          <a href="#trip-fiscal-readiness-title">
+            {readinessSummary}
+            <Icon name="chevron-right" size="sm" />
+          </a>
+        </Button>
+      ) : (
+        <span className={styles.hint}>{readinessSummary}</span>
+      )}
       {canPlanRoute ? (
         <Button disabled={isPlanRoutePending} onClick={onPlanRoute} size="sm" type="button">
           <Icon name="sort" />

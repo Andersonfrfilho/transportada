@@ -565,9 +565,13 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           fiscalReadiness={workspace.fiscalReadiness}
           isCancelPending={workspace.cancelMutation.isPending}
           isDispatchPending={workspace.dispatchMutation.isPending}
+          isFiscalReadinessPanelVisible={canReadFleetDetails}
           isPlanRoutePending={workspace.planRouteMutation.isPending}
           onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
           onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
+          onOpenOccurrenceDocument={(documentId) =>
+            workspace.setOpenSeparationOccurrenceDocumentId(documentId)
+          }
           onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
           trip={trip}
         />
@@ -964,7 +968,14 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
        * viagem saía do barracão — justamente quando o escritório acompanha as entregas.
        */}
       <section className={styles.stopSection}>
-        <h3>{t('stops.title')}</h3>
+        {/*
+         * `tabIndex={-1}` deixa o título focável só por script: o link do cabeçalho (spec 173, mais
+         * de uma nota com ocorrência) rola até aqui e move o foco para o leitor de tela anunciar
+         * onde a rolagem parou, sem entrar na ordem normal do Tab.
+         */}
+        <h3 id="trip-stops-title" tabIndex={-1}>
+          {t('stops.title')}
+        </h3>
         <TripStopList
           actions={documentActions}
           canReorder={canManage && isEditable}
