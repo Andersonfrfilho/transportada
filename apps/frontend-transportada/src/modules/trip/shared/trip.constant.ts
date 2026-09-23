@@ -216,6 +216,10 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'nfeNumber',
   'nfeSeries',
   'nfeTotalValue',
+  /** Spec 176: mesmo motivo — API vai à frente do bundle, e ausente é API anterior à feature. */
+  'freightAmount',
+  'freightRuleName',
+  'freightSource',
 ] as const
 
 /** Spec 078 D2: campo novo nasce opcional até a API que o serve estar garantidamente no ar. */
@@ -261,6 +265,9 @@ export const TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTot
  * `api-transportada/src/trips/domain/trip-valuation.policy.ts` (`VALUATION_SOURCES`).
  */
 export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period'] as const
+
+/** Spec 176: o frete **da nota**, mesmo vocabulário de `TRIP_REVENUE_SOURCES` sem `period` — não há período por nota. */
+export const TRIP_DOCUMENT_FREIGHT_SOURCES = ['measured', 'estimated', 'missing'] as const
 
 /**
  * Spec 078 D2: **campo novo nasce opcional**, e sai desta lista até a API que o serve estar

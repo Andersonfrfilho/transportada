@@ -318,7 +318,21 @@ export type TripDocumentDetail = TripDocument &
     nfeNumber?: null | string
     nfeSeries?: null | string
     nfeTotalValue?: null | string
+    /**
+     * Spec 176: quanto esta nota rende de frete — nunca a mercadoria. `null`/ausente é "não há como
+     * dizer" (`freightSource: 'missing'`/ausente), nunca `R$ 0,00`. Opcional: API anterior não manda.
+     */
+    freightAmount?: null | string
+    /**
+     * O nome da regra que produziu `freightAmount`. `null` com `freightAmount` preenchido é lacuna
+     * real do caminho `measured` — o cálculo guardado não congela o nome da regra.
+     */
+    freightRuleName?: null | string
+    freightSource?: TripDocumentFreightSource
   }>
+
+/** O mesmo vocabulário de `TripAmounts.revenueSource` (spec 065 D7). */
+export type TripDocumentFreightSource = 'estimated' | 'measured' | 'missing'
 
 /** ADR-0043 §3, T014: as mesmas notas de `TripDetail.documents`, aninhadas sob a parada que as
  * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */

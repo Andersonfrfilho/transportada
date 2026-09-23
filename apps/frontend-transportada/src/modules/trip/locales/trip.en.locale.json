@@ -1071,7 +1071,14 @@
     "completedAt": "Completed at {{time}}",
     "documentCount": "{{count}} document",
     "documentCount_other": "{{count}} documents",
+    "cargoValue": "Cargo: {{amount}}",
     "empty": "No stop on this trip yet",
+    "freight": {
+      "amount": "Freight: {{amount}}",
+      "estimated": "estimated",
+      "missing": "No freight calculated",
+      "rule": "Rule: {{name}}"
+    },
     "processCount": "{{reached}} of {{total}}",
     "processReturned": "{{count}} invoice returned — outside the flow",
     "processReturned_other": "{{count}} invoices returned — outside the flow",

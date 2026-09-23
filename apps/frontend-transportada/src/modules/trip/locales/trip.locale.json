@@ -1281,8 +1281,15 @@
     "completedAt": "Concluída às {{time}}",
     "documentCount": "{{count}} nota",
     "documentCount_other": "{{count}} notas",
+    "cargoValue": "Mercadoria: {{amount}}",
     "empty": "Nenhuma parada nesta viagem ainda",
     "estimatedCompletion": "Previsão de término: {{moment}} (estimativa pelo ritmo das paradas já concluídas)",
+    "freight": {
+      "amount": "Frete: {{amount}}",
+      "estimated": "previsto",
+      "missing": "Sem frete calculado",
+      "rule": "Regra: {{name}}"
+    },
     "processCount": "{{reached}} de {{total}}",
     "processReturned": "{{count}} nota devolvida — fora do fluxo",
     "processReturned_other": "{{count}} notas devolvidas — fora do fluxo",

@@ -56,6 +56,7 @@ import {
   TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
   TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS,
+  TRIP_DOCUMENT_FREIGHT_SOURCES,
   TRIP_DOCUMENT_KEYS,
   TRIP_DRIVER_KEYS,
   TRIP_DRIVER_OPTIONAL_KEYS,
@@ -326,7 +327,12 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     isBoolean(value.cteAuthorized) &&
     isString(value.fiscalStatus) &&
     /** Spec 164 T15: ausente é API anterior ao marcador; presente tem de ser booleano. */
-    (value.openOccurrenceCase === undefined || isBoolean(value.openOccurrenceCase))
+    (value.openOccurrenceCase === undefined || isBoolean(value.openOccurrenceCase)) &&
+    /** Spec 176: ausente é API anterior à feature; presente segue a mesma regra de dinheiro/rótulo. */
+    isAbsentOrNullableString(value.freightAmount) &&
+    isAbsentOrNullableString(value.freightRuleName) &&
+    (value.freightSource === undefined ||
+      isOneOf(value.freightSource, TRIP_DOCUMENT_FREIGHT_SOURCES))
   )
 }
 

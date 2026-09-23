@@ -305,7 +305,29 @@ function TripStopDocumentRow({
        * traço nem zero, que seriam afirmações sobre uma nota que não existe.
        */}
       {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
-        <span className={styles.stopDocumentMeta}>{formatAmount(document.nfeTotalValue)}</span>
+        <span className={styles.stopDocumentMeta}>
+          {t('stops.cargoValue', { amount: formatAmount(document.nfeTotalValue) })}
+        </span>
+      )}
+      {/*
+       * Spec 176: o frete **da nota**, nunca a mercadoria — os dois rótulos ficam lado a lado para
+       * não se confundirem. `estimated` marca a previsão; `measured` não precisa de selo. Sem valor
+       * e sem regra, a ausência é dita em texto — nunca `R$ 0,00`.
+       */}
+      {document.freightAmount === null || document.freightAmount === undefined ? (
+        document.freightSource === 'missing' ? (
+          <span className={styles.stopDocumentMeta}>{t('stops.freight.missing')}</span>
+        ) : null
+      ) : (
+        <span className={styles.stopDocumentMeta}>
+          {t('stops.freight.amount', { amount: formatAmount(document.freightAmount) })}
+          {document.freightSource === 'estimated' ? ` (${t('stops.freight.estimated')})` : ''}
+        </span>
+      )}
+      {document.freightRuleName === null || document.freightRuleName === undefined ? null : (
+        <span className={styles.stopDocumentMeta}>
+          {t('stops.freight.rule', { name: document.freightRuleName })}
+        </span>
       )}
       {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
         <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
