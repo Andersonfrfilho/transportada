@@ -131,7 +131,14 @@ export type TripOccurrencePort = {
     readonly companyId: string
     readonly documentId: string
     readonly tripId: string
-  }): Promise<readonly { readonly code: string; readonly description: string }[]>
+  }): Promise<
+    readonly {
+      readonly code: string
+      /** Spec 172 (RF2): a unidade comercial da nota — ausente em teste dublê antigo. */
+      readonly commercialUnit?: string
+      readonly description: string
+    }[]
+  >
   readTemplateValues(input: {
     readonly companyId: string
     readonly documentId: string
@@ -275,10 +282,12 @@ export async function registerTripOccurrence(
    * que a nota não tem é engano de quem registrou, e silenciá-lo gravaria ocorrência sobre carga
    * que nunca esteve ali. Item repetido e os dois campos juntos são recusados pelo mesmo caminho.
    */
+  const documentProducts = await repository.listDocumentProducts({ companyId, documentId, tripId })
+
   const scope = resolveOccurrenceProductSelection({
     productCode,
     productCodes: input.productCodes,
-    products: await repository.listDocumentProducts({ companyId, documentId, tripId }),
+    products: documentProducts,
   })
 
   /**
@@ -290,9 +299,13 @@ export async function registerTripOccurrence(
     throw new OccurrenceTypeSingleItemError()
   }
 
-  /** Spec 166 (RF4): a quantidade/unidade por item, alinhada à lista final de itens marcados. */
+  /**
+   * Spec 166 (RF4)/172 (RF2): a quantidade/unidade por item, alinhada à lista final de itens
+   * marcados — `products` dá a cada item a própria unidade comercial da nota, além de unit/box.
+   */
   const items = resolveOccurrenceItemQuantities({
     productCodes: scope.productCodes,
+    products: documentProducts,
     quantities: input.productQuantities ?? [],
     units: input.productQuantityUnits ?? [],
   })

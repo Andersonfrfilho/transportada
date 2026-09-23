@@ -1,0 +1,2 @@
+ALTER TABLE "trip_document_occurrence_products" ALTER COLUMN "quantity_unit" SET DATA TYPE varchar(20) USING "quantity_unit"::varchar(20);--> statement-breakpoint
+ALTER TABLE "trip_document_occurrence_products" DROP CONSTRAINT "trip_document_occurrence_products_quantity_unit_check", ADD CONSTRAINT "trip_document_occurrence_products_quantity_unit_check" CHECK ("quantity_unit" is null or length(btrim("quantity_unit")) > 0);

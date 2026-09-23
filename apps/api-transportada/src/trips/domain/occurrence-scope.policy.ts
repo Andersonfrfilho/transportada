@@ -13,6 +13,8 @@ import {
 
 export type OccurrenceProduct = {
   readonly code: string
+  /** Spec 172 (RF2): a unidade comercial da nota para este item — ausente em quem ainda não a lê. */
+  readonly commercialUnit?: string
   readonly description: string
 }
 

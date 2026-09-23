@@ -52,7 +52,7 @@ async function register(input: {
   readonly items: readonly {
     readonly code: string
     readonly quantity: null | string
-    readonly unit: null | 'box' | 'unit'
+    readonly unit: null | string
   }[]
   readonly occurrenceTypeId: string
   readonly trip: SeededTrip
@@ -172,4 +172,59 @@ describe('quantidade/unidade por item contra o Postgres (spec 166 T208)', () => 
       )
     })
   })
+
+  testWithPostgres(
+    'unidade comercial da nota (fora de unit/box) persiste como veio (spec 172 CA01/CA02)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceTypeId = await seedSeparationOccurrenceType(database, company)
+
+        const saved = await register({
+          company,
+          database,
+          items: [{ code: 'ZG-4410', quantity: '2.5', unit: 'KG' }],
+          occurrenceTypeId,
+          trip,
+        })
+
+        const rows = await database.db
+          .select({ quantityUnit: tripDocumentOccurrenceProducts.quantityUnit })
+          .from(tripDocumentOccurrenceProducts)
+          .where(
+            and(
+              eq(tripDocumentOccurrenceProducts.companyId, company.companyId),
+              eq(tripDocumentOccurrenceProducts.occurrenceId, saved.id),
+            ),
+          )
+
+        expect(rows).toEqual([{ quantityUnit: 'KG' }])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'unidade em branco (só espaço) é recusada pelo CHECK do banco (spec 172 RF1)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceTypeId = await seedSeparationOccurrenceType(database, company)
+
+        const error = await register({
+          company,
+          database,
+          items: [{ code: 'ZG-4410', quantity: '2', unit: '   ' }],
+          occurrenceTypeId,
+          trip,
+        }).catch((caught: unknown) => caught)
+
+        expect(error).toBeInstanceOf(Error)
+        expect(String((error as { readonly cause?: unknown }).cause)).toContain(
+          'trip_document_occurrence_products_quantity_unit_check',
+        )
+      })
+    },
+  )
 })

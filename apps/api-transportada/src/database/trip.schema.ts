@@ -354,6 +354,17 @@ export const trips = pgTable(
 )
 
 /**
+ * Spec 171: o tipo de linha em `trip_status_events` — nascimento ou transição real. `transition` é
+ * o `default`: toda linha gravada antes desta spec é uma transição, sem reescrita de dado.
+ */
+export const TRIP_STATUS_EVENT_KINDS = {
+  created: 'created',
+  transition: 'transition',
+} as const
+export type TripStatusEventKind =
+  (typeof TRIP_STATUS_EVENT_KINDS)[keyof typeof TRIP_STATUS_EVENT_KINDS]
+
+/**
  * ADR-0068 §1: histórico de `trips.status`. `recordTripStatusChange` (`trip-status-event.persistence.ts`,
  * spec 158 T3) é o **único** escritor.
  *
@@ -368,8 +379,11 @@ export const trips = pgTable(
  *
  * `from_status`/`actor_user_id` são `not null` (spec 171 mantém: hoje só `POST /trips` autenticado
  * cria viagem, sempre com ator). `recordTripCreation` (`trip-status-event.persistence.ts`) é o
- * segundo escritor — grava `trip.created` com `from_status = to_status`, combinação que
- * `recordTripStatusChange` nunca produz numa transição real (é o próprio no-op dela).
+ * segundo escritor — grava `event_kind = 'created'` com `from_status = to_status` (o estado inicial
+ * da viagem repetido nas duas colunas, porque não há "de onde" ela veio). O banco, não só a
+ * aplicação, garante a diferença: `trip_status_events_transition_check` só exige `from_status <>
+ * to_status` quando `event_kind = 'transition'` — uma linha de transição degenerada continua
+ * impossível de gravar.
  */
 export const tripStatusEvents = pgTable(
   'trip_status_events',
@@ -384,6 +398,15 @@ export const tripStatusEvents = pgTable(
       .$type<TripFieldChannel>()
       .notNull()
       .default(TRIP_FIELD_CHANNELS.driverApp),
+    /**
+     * Spec 171: distingue o nascimento da viagem (`created`) de uma transição real
+     * (`transition`, o default — toda linha existente antes desta spec é uma). VARCHAR + CHECK,
+     * nunca ENUM nativo (`code-standart.md` §8).
+     */
+    eventKind: varchar('event_kind', { length: 16 })
+      .$type<TripStatusEventKind>()
+      .notNull()
+      .default(TRIP_STATUS_EVENT_KINDS.transition),
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
     /** A hora em que a transição aconteceu — não necessariamente a hora em que foi gravada. */
@@ -436,12 +459,20 @@ export const tripStatusEvents = pgTable(
       'trip_status_events_office_driver_check',
       sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
+    check(
+      'trip_status_events_event_kind_check',
+      sql`${table.eventKind} in (${raw(inList(Object.values(TRIP_STATUS_EVENT_KINDS)))})`,
+    ),
     /**
-     * Spec 171: deixou de exigir `from_status <> to_status`. `fromStatus = toStatus` passou a ser
-     * o próprio sinal de `trip.created` (`recordTripCreation`) — uma transição real continua sem
-     * gravar linha igual porque `recordTripStatusChange` é no-op nesse caso, em `application`, não
-     * no banco.
+     * Spec 171: volta a existir, mas só vale para `event_kind = 'transition'` — o banco, não só a
+     * aplicação, barra uma transição degenerada (`from_status = to_status`). `event_kind = 'created'`
+     * é a única exceção, e ela é gravada por um caminho próprio (`recordTripCreation`), nunca pelo
+     * caminho de transição (`recordTripStatusChange`).
      */
+    check(
+      'trip_status_events_transition_check',
+      sql`${table.eventKind} <> 'transition' or ${table.fromStatus} <> ${table.toStatus}`,
+    ),
     check(
       'trip_status_events_from_status_check',
       sql`${table.fromStatus} in (${raw(inList(TRIP_STATUSES))})`,

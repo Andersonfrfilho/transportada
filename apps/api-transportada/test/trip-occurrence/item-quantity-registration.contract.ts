@@ -16,8 +16,8 @@ const TRIP_ID = '00000000-0000-4000-8000-000000000011'
 const ACTOR_USER_ID = '00000000-0000-4000-8000-00000000000f'
 
 const PRODUTOS = [
-  { code: 'ZG-4410', description: 'Parafuso sextavado' },
-  { code: 'ZG-4411', description: 'Porca' },
+  { code: 'ZG-4410', commercialUnit: 'KG', description: 'Parafuso sextavado' },
+  { code: 'ZG-4411', commercialUnit: 'UN', description: 'Porca' },
 ] as const
 
 function registrar(input: {
@@ -159,5 +159,32 @@ describe('a resposta publica products ao lado de productCodes (spec 166 RF5/CA06
     const registered = await promise
     expect(registered.productCodes).toEqual([])
     expect(registered.products).toEqual([])
+  })
+})
+
+describe('a unidade aceita a unidade comercial do item na nota (spec 172 RF2/RF5)', () => {
+  test('item vendido em quilo registra com KG, a unidade que a nota declarou', async () => {
+    const { promise } = registrar({
+      allowsMultipleItems: true,
+      productCodes: ['ZG-4410'],
+      productQuantities: ['2.5'],
+      productQuantityUnits: ['KG'],
+    })
+
+    expect((await promise).products).toEqual([{ code: 'ZG-4410', quantity: '2.5', unit: 'KG' }])
+  })
+
+  test('unidade da nota de outro item marcado é recusada, sem gravar (RF6)', async () => {
+    const { calls, promise } = registrar({
+      allowsMultipleItems: true,
+      productCodes: ['ZG-4410'],
+      productQuantities: ['2.5'],
+      productQuantityUnits: ['UN'],
+    })
+
+    const error = await promise.catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ code: 'OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN', status: 400 })
+    expect(calls.saved).toBe(0)
   })
 })

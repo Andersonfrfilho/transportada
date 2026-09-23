@@ -3,6 +3,9 @@
  *
  * Spec 166 T202: quanto de cada item marcado foi atingido — par casado, zero/negativo, unidade
  * desconhecida, listas desalinhadas.
+ *
+ * Spec 172: a unidade aceita para cada item deixa de ser só `unit`/`box` — passa a aceitar também
+ * a unidade comercial *daquele item específico* na nota.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -160,5 +163,70 @@ describe('a quantidade por item é opcional, e sempre alinhada por índice', () 
         }),
       ),
     ).toBe('OCCURRENCE_ITEM_QUANTITY_LENGTH_MISMATCH')
+  })
+})
+
+describe('a unidade também aceita a unidade comercial do próprio item (spec 172 RF2/RF3)', () => {
+  test('unidade igual à unidade comercial do item é aceita', () => {
+    expect(
+      resolveOccurrenceItemQuantities({
+        productCodes: ['ZG-4410'],
+        products: [{ code: 'ZG-4410', commercialUnit: 'KG' }],
+        quantities: ['2.5'],
+        units: ['KG'],
+      }),
+    ).toEqual([{ code: 'ZG-4410', quantity: '2.5', unit: 'KG' }])
+  })
+
+  test('unit/box continuam aceitos mesmo quando o item tem unidade comercial própria', () => {
+    expect(
+      resolveOccurrenceItemQuantities({
+        productCodes: ['ZG-4410'],
+        products: [{ code: 'ZG-4410', commercialUnit: 'KG' }],
+        quantities: ['1'],
+        units: ['box'],
+      }),
+    ).toEqual([{ code: 'ZG-4410', quantity: '1', unit: 'box' }])
+  })
+
+  test('unidade de outro item da mesma nota é recusada, nunca aceita por engano', () => {
+    expect(
+      recusaDe(() =>
+        resolveOccurrenceItemQuantities({
+          productCodes: ['ZG-4410', 'ZG-4411'],
+          products: [
+            { code: 'ZG-4410', commercialUnit: 'KG' },
+            { code: 'ZG-4411', commercialUnit: 'L' },
+          ],
+          quantities: ['2', ''],
+          units: ['L', ''],
+        }),
+      ),
+    ).toBe('OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN')
+  })
+
+  test('item sem unidade comercial declarada cai no par unit/box de sempre', () => {
+    expect(
+      recusaDe(() =>
+        resolveOccurrenceItemQuantities({
+          productCodes: ['ZG-4410'],
+          products: [{ code: 'ZG-4410' }],
+          quantities: ['2'],
+          units: ['KG'],
+        }),
+      ),
+    ).toBe('OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN')
+  })
+
+  test('sem a lista de products (compatibilidade), só unit/box são aceitos', () => {
+    expect(
+      recusaDe(() =>
+        resolveOccurrenceItemQuantities({
+          productCodes: ['ZG-4410'],
+          quantities: ['2'],
+          units: ['KG'],
+        }),
+      ),
+    ).toBe('OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN')
   })
 })

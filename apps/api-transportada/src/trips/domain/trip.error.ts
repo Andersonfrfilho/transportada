@@ -696,12 +696,15 @@ export class OccurrenceItemQuantityNotPositiveError extends ApiError {
   }
 }
 
-/** Spec 166: unidade fora de `unit`/`box` nunca cai em `unit` por padrão. */
+/**
+ * Spec 166/172: a unidade tem que ser `unit`, `box`, ou a unidade comercial *daquele item* na
+ * nota — nunca cai em `unit` por padrão, e nunca aceita a unidade de outro item da mesma nota.
+ */
 export class OccurrenceItemQuantityUnitUnknownError extends ApiError {
   public constructor() {
     super({
       code: 'OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN',
-      message: 'The item quantity unit must be "unit" or "box".',
+      message: 'The item quantity unit must be "unit", "box", or the item’s own commercial unit.',
       status: 400,
     })
   }
