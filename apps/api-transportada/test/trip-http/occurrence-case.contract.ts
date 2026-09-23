@@ -214,6 +214,32 @@ describe('rotas internas da tratativa (spec 164 T7)', () => {
     ])
   })
 
+  /** Revisão de segurança da spec 164: nota sem teto virava o corpo global da aplicação. */
+  test('nota acima de 2000 caracteres é 400, em warehouse-return e em cancel', async () => {
+    const fixture = createFixture({})
+    const tooLong = 'a'.repeat(2001)
+
+    const warehouseReturn = await fixture.handle(
+      jsonRequest({
+        body: { note: tooLong },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'warehouse-return'),
+      }),
+    )
+    expect(warehouseReturn.status).toBe(400)
+    expect(fixture.calls.warehouseReturn).toEqual([])
+
+    const cancel = await fixture.handle(
+      jsonRequest({
+        body: { note: tooLong },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'cancel'),
+      }),
+    )
+    expect(cancel.status).toBe(400)
+    expect(fixture.calls.cancel).toEqual([])
+  })
+
   test('contractor-submission e closure não exigem nota', async () => {
     const fixture = createFixture({})
     const submission = await fixture.handle(
@@ -376,6 +402,20 @@ describe('POST .../case/decision (achado 1 da revisão)', () => {
     )
     expect(response.status).toBe(404)
     expect((await responseApiError(response)).code).toBe('OCCURRENCE_CASE_NOT_FOUND')
+    expect(fixture.calls.decide).toEqual([])
+  })
+
+  /** Revisão de segurança da spec 164: nota sem teto virava o corpo global da aplicação. */
+  test('nota acima de 2000 caracteres é 400', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { kind: 'other', note: 'a'.repeat(2001) },
+        method: 'POST',
+        path: casePath(OCCURRENCE_ID, 'decision'),
+      }),
+    )
+    expect(response.status).toBe(400)
     expect(fixture.calls.decide).toEqual([])
   })
 

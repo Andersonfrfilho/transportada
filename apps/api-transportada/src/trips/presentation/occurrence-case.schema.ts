@@ -9,16 +9,26 @@
  * `POST /trip-occurrences/:id/case/decision` — `note` é obrigatória aqui (diferente do portal, que
  * só exige em `other`), porque decidir em nome de quem não respondeu sempre precisa de motivo por
  * escrito. `kind` reusa a mesma lista fechada do contratante — é a mesma decisão, ator diferente.
+ *
+ * Revisão de segurança da spec 164: as três notas usavam `z.string()` sem teto — o corpo global da
+ * aplicação virava o limite efetivo. Mesmo teto do portal (`contractor-occurrence.routes.ts`).
  */
 import { z } from 'zod'
 
 import { TRIP_OCCURRENCE_CASE_DECISION_KINDS } from '../../database/trip.schema.js'
 
+const MAX_NOTE_LENGTH = 2000
+
 const EMPTY_BODY_SCHEMA = z.object({}).strict()
-const OPTIONAL_NOTE_BODY_SCHEMA = z.object({ note: z.string().optional() }).strict()
-const REQUIRED_NOTE_BODY_SCHEMA = z.object({ note: z.string() }).strict()
+const OPTIONAL_NOTE_BODY_SCHEMA = z
+  .object({ note: z.string().max(MAX_NOTE_LENGTH).optional() })
+  .strict()
+const REQUIRED_NOTE_BODY_SCHEMA = z.object({ note: z.string().max(MAX_NOTE_LENGTH) }).strict()
 const INTERNAL_DECISION_BODY_SCHEMA = z
-  .object({ kind: z.enum(TRIP_OCCURRENCE_CASE_DECISION_KINDS), note: z.string() })
+  .object({
+    kind: z.enum(TRIP_OCCURRENCE_CASE_DECISION_KINDS),
+    note: z.string().max(MAX_NOTE_LENGTH),
+  })
   .strict()
 
 export {
