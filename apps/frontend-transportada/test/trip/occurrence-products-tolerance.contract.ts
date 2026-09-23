@@ -67,13 +67,25 @@ describe('tolerância a `products` na ocorrência registrada (spec 166 CA07)', (
   })
 
   /**
-   * Tolerar chave nova não é aceitar lixo: uma unidade que o bundle não conhece cairia na tela como
-   * texto cru. O item inteiro é recusado, e a resposta segue sem ele.
+   * Spec 172 RF1: a unidade deixou de ser fechada em `unit`/`box` — a unidade comercial da nota
+   * (texto livre validado pela API, não por uma lista aqui) chega e é aceita como veio.
+   */
+  it('aceita `products` com uma unidade comercial da nota, fora de unit/box', () => {
+    const registered = adapters.registeredOccurrenceFromApi(
+      buildRegistered({ products: [{ code: '183', quantity: '1.000', unit: 'KG' }] }),
+    )
+
+    expect(registered.products).toEqual([{ code: '183', quantity: '1.000', unit: 'KG' }])
+  })
+
+  /**
+   * Tolerar chave nova não é aceitar lixo: a forma do item (as três chaves, o par
+   * quantidade/unidade) continua obrigatória — só o **valor** da unidade deixou de ser enumerado.
    */
   it('recusa a resposta quando `products` não tem a forma combinada', () => {
     expect(() =>
       adapters.registeredOccurrenceFromApi(
-        buildRegistered({ products: [{ code: '183', quantity: '1.000', unit: 'caixas' }] }),
+        buildRegistered({ products: [{ code: '183', quantity: '1.000', unit: null }] }),
       ),
     ).toThrow()
     expect(() =>

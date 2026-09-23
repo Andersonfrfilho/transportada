@@ -14,14 +14,19 @@ import { loadTripOccurrenceAttachments } from '../queries/tripOccurrenceFeed.que
 import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import {
   describeOccurrenceItems,
-  OCCURRENCE_DEFAULT_QUANTITY_UNIT,
   OCCURRENCE_WHOLE_DOCUMENT_VALUE,
+  resolveOccurrenceItemDefaultQuantityUnit,
   resolveOccurrenceItemQuantityFields,
+  resolveOccurrenceItemQuantityUnitOptions,
   resolveOccurrenceProductSelection,
   resolveOccurrenceProductSelectionValues,
 } from '../shared/occurrenceProductSelection.service'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
-import { OCCURRENCE_QUANTITY_UNITS, type OccurrenceQuantityUnit } from '../shared/trip.constant'
+import {
+  OCCURRENCE_QUANTITY_UNITS,
+  type OccurrenceFallbackQuantityUnit,
+  type OccurrenceQuantityUnit,
+} from '../shared/trip.constant'
 import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
 import type { OccurrenceType } from '../shared/occurrence.constant'
 import { canSubmitOccurrenceWithPhotos } from '../shared/occurrencePhotoPicker.service'
@@ -94,6 +99,13 @@ const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeStyle: 'short',
 })
 
+/** Spec 172 RF2: só o par unit/box tem nome traduzido — a unidade comercial da nota é rótulo cru. */
+function isFallbackQuantityUnit(
+  unit: OccurrenceQuantityUnit,
+): unit is OccurrenceFallbackQuantityUnit {
+  return (OCCURRENCE_QUANTITY_UNITS as readonly string[]).includes(unit)
+}
+
 /**
  * Spec 079: o que houve com a carga.
  *
@@ -125,6 +137,11 @@ export function TripOccurrences({
   /** O nome do item da nota, para o rótulo do campo e a leitura. `null` é item que a nota não tem. */
   function describeProduct(code: string): null | string {
     return products.find((product) => product.code === code)?.description ?? null
+  }
+
+  /** Spec 172 RF2/RF3: a unidade comercial daquele item na nota — `null` é item sem unidade declarada. */
+  function commercialUnitOf(code: string): null | string {
+    return products.find((product) => product.code === code)?.commercialUnit ?? null
   }
   const [isOpen, setIsOpen] = useState(false)
   const disponiveis = types.filter(
@@ -169,7 +186,7 @@ export function TripOccurrences({
     setQuantitiesByCode(
       new Map(quantitiesByCode).set(code, {
         quantity,
-        unit: current?.unit ?? OCCURRENCE_DEFAULT_QUANTITY_UNIT,
+        unit: current?.unit ?? resolveOccurrenceItemDefaultQuantityUnit(commercialUnitOf(code)),
       }),
     )
   }
@@ -427,6 +444,8 @@ export function TripOccurrences({
             <div className={styles.occurrenceItemQuantityList}>
               {productCodes.map((code) => {
                 const entry = quantitiesByCode.get(code)
+                const commercialUnit = commercialUnitOf(code)
+                const defaultUnit = resolveOccurrenceItemDefaultQuantityUnit(commercialUnit)
                 return (
                   <label key={code}>
                     <span>
@@ -445,14 +464,16 @@ export function TripOccurrences({
                       />
                       <Select
                         ariaLabel={`${code} — ${t('occurrence.quantityUnitLabel')}`}
-                        onChange={(unit) =>
-                          setItemQuantityUnit(code, unit as OccurrenceQuantityUnit)
-                        }
-                        options={OCCURRENCE_QUANTITY_UNITS.map((unit) => ({
-                          label: t(`occurrence.quantityUnits.${unit}`),
-                          value: unit,
-                        }))}
-                        value={entry?.unit ?? OCCURRENCE_DEFAULT_QUANTITY_UNIT}
+                        onChange={(unit) => setItemQuantityUnit(code, unit)}
+                        options={resolveOccurrenceItemQuantityUnitOptions(commercialUnit).map(
+                          (unit) => ({
+                            label: isFallbackQuantityUnit(unit)
+                              ? t(`occurrence.quantityUnits.${unit}`)
+                              : unit,
+                            value: unit,
+                          }),
+                        )}
+                        value={entry?.unit ?? defaultUnit}
                       />
                     </div>
                   </label>

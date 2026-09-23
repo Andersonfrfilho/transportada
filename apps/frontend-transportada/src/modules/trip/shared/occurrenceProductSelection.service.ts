@@ -1,9 +1,35 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { OCCURRENCE_QUANTITY_UNITS, type OccurrenceQuantityUnit } from './trip.constant'
+import {
+  OCCURRENCE_QUANTITY_UNITS,
+  type OccurrenceFallbackQuantityUnit,
+  type OccurrenceQuantityUnit,
+} from './trip.constant'
 import type { TripDocumentProduct, TripOccurrence } from './trip.types'
 
 /** A unidade padrão quando a quantidade foi digitada e a unidade ainda não foi escolhida. */
 export const OCCURRENCE_DEFAULT_QUANTITY_UNIT: OccurrenceQuantityUnit = OCCURRENCE_QUANTITY_UNITS[1]
+
+/**
+ * Spec 172 (RF2/RF3): as opções de unidade oferecidas para um item — a unidade comercial daquele
+ * item na nota primeiro, mais o par de fallback (unit/box), para quem avaria uma caixa fechada de
+ * um produto vendido por quilo. Sem unidade comercial declarada (RF3), sobra só o par de sempre.
+ */
+export function resolveOccurrenceItemQuantityUnitOptions(
+  commercialUnit: null | undefined | string,
+): readonly OccurrenceQuantityUnit[] {
+  const trimmed = commercialUnit?.trim() ?? ''
+  const fallback: readonly OccurrenceQuantityUnit[] = OCCURRENCE_QUANTITY_UNITS
+  if (trimmed === '' || fallback.includes(trimmed)) return fallback
+  return [trimmed, ...fallback]
+}
+
+/** Spec 172 (RF2/CA02): o campo nasce marcado na unidade daquele item na nota, não numa escolha. */
+export function resolveOccurrenceItemDefaultQuantityUnit(
+  commercialUnit: null | undefined | string,
+): OccurrenceQuantityUnit {
+  const trimmed = commercialUnit?.trim() ?? ''
+  return trimmed === '' ? OCCURRENCE_DEFAULT_QUANTITY_UNIT : trimmed
+}
 
 /**
  * Uma ocorrência pode apontar **vários** itens da nota. A lista vazia é "a nota inteira" — não há
@@ -108,23 +134,40 @@ export function resolveOccurrenceProductEntries(
   })
 }
 
+/**
+ * Spec 172 RF4: a leitura imprime a unidade **como a nota a escreve** (`KG`, `L`, `CX`) — só o par
+ * de fallback (`unit`/`box`) tem nome comprido traduzido no dicionário. Um item de comercial unit
+ * exótica sai com a sigla crua, no molde do romaneio que o conferente já lê.
+ */
+function formatOccurrenceUnitLabel(
+  unit: OccurrenceQuantityUnit,
+  unitLabels: Readonly<Record<OccurrenceFallbackQuantityUnit, string>>,
+): string {
+  return isOneOfFallbackUnit(unit) ? unitLabels[unit] : unit
+}
+
+function isOneOfFallbackUnit(unit: OccurrenceQuantityUnit): unit is OccurrenceFallbackQuantityUnit {
+  return (OCCURRENCE_QUANTITY_UNITS as readonly string[]).includes(unit)
+}
+
 /** Item sem contagem aparece sem número — nunca com zero (P3). */
 export function formatOccurrenceProductEntryLabel(
   input: Readonly<{
     entry: OccurrenceProductEntry
-    unitLabels: Readonly<Record<OccurrenceQuantityUnit, string>>
+    unitLabels: Readonly<Record<OccurrenceFallbackQuantityUnit, string>>
   }>,
 ): string {
   const { entry, unitLabels } = input
   if (entry.quantity === null || entry.unit === null) return entry.code
-  return `${entry.code} (${formatOccurrenceQuantity(entry.quantity)} ${unitLabels[entry.unit]})`
+  const unitLabel = formatOccurrenceUnitLabel(entry.unit, unitLabels)
+  return `${entry.code} (${formatOccurrenceQuantity(entry.quantity)} ${unitLabel})`
 }
 
 /** A linha inteira da leitura: todos os itens, cada um com a contagem que tiver, ou "a nota inteira". */
 export function formatOccurrenceProductsLine(
   input: Readonly<{
     occurrence: Pick<TripOccurrence, 'productCode' | 'productCodes' | 'products'>
-    unitLabels: Readonly<Record<OccurrenceQuantityUnit, string>>
+    unitLabels: Readonly<Record<OccurrenceFallbackQuantityUnit, string>>
     wholeDocumentLabel: string
   }>,
 ): string {
@@ -167,7 +210,7 @@ export function describeOccurrenceItems(
   input: Readonly<{
     occurrence: Pick<TripOccurrence, 'productCode' | 'productCodes' | 'products'>
     products: readonly TripDocumentProduct[]
-    unitLabels: Readonly<Record<OccurrenceQuantityUnit, string>>
+    unitLabels: Readonly<Record<OccurrenceFallbackQuantityUnit, string>>
   }>,
 ): readonly OccurrenceItemDescription[] {
   const descriptionByCode = new Map(
@@ -179,6 +222,6 @@ export function describeOccurrenceItems(
     quantity:
       entry.quantity === null || entry.unit === null
         ? null
-        : `${formatOccurrenceQuantity(entry.quantity)} ${input.unitLabels[entry.unit]}`,
+        : `${formatOccurrenceQuantity(entry.quantity)} ${formatOccurrenceUnitLabel(entry.unit, input.unitLabels)}`,
   }))
 }

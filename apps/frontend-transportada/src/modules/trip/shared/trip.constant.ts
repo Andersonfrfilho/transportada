@@ -355,9 +355,19 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
   'cancellation',
 ] as const
 
-/** Spec 166 RF1: em que a quantidade do item é contada. Peça solta ou volume fechado. */
+/**
+ * Spec 166 RF1: o par de fallback — peça solta ou volume fechado — para quando o item não trouxe
+ * unidade comercial da nota (spec 172 RF3).
+ */
 export const OCCURRENCE_QUANTITY_UNITS = ['box', 'unit'] as const
-export type OccurrenceQuantityUnit = (typeof OCCURRENCE_QUANTITY_UNITS)[number]
+export type OccurrenceFallbackQuantityUnit = (typeof OCCURRENCE_QUANTITY_UNITS)[number]
+
+/**
+ * Spec 172 (RF1/RF2): a unidade real é **aberta** — a unidade comercial que o item traz da nota
+ * (`KG`, `L`, `CX`...), mais o par de fallback acima. Fechar num union faria toda sigla de XML
+ * virar erro de tipo; a API é quem confere o valor contra o item, não o tipo.
+ */
+export type OccurrenceQuantityUnit = string
 
 /** Spec 161 T24 (RF8): campos sempre presentes no anexo. */
 export const TRIP_OCCURRENCE_ATTACHMENT_KEYS = ['expired', 'id', 'mimeType', 'position'] as const

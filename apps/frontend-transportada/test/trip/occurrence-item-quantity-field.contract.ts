@@ -25,7 +25,11 @@ const SOURCE = readFileSync(COMPONENT, 'utf8')
 describe('spec 166: campo de quantidade por item em TripOccurrences', () => {
   it('o número sai do primitivo Select para a unidade, nunca de um <select> cru', () => {
     expect(SOURCE).not.toMatch(/<select[\s>]/u)
-    expect(SOURCE).toContain('OCCURRENCE_QUANTITY_UNITS.map')
+    /**
+     * Spec 172 RF2: as opções deixaram de ser a lista fixa `OCCURRENCE_QUANTITY_UNITS` — nascem
+     * por item, com a unidade comercial da nota daquele item na frente do par unit/box.
+     */
+    expect(SOURCE).toContain('resolveOccurrenceItemQuantityUnitOptions(commercialUnit).map')
   })
 
   it('o campo de item vira Select único quando o tipo não aceita vários (RF8)', () => {
@@ -53,6 +57,12 @@ describe('spec 166: campo de quantidade por item em TripOccurrences', () => {
     expect(SOURCE).toContain('describeOccurrenceItems')
     expect(SOURCE).toContain('occurrenceEntryItemName')
     expect(SOURCE).toContain('occurrenceEntryItemQuantity')
+  })
+
+  /** Spec 172 RF2/CA02: o campo nasce marcado na unidade daquele item na nota, não numa escolha. */
+  it('a unidade nasce na unidade comercial daquele item na nota', () => {
+    expect(SOURCE).toContain('resolveOccurrenceItemDefaultQuantityUnit')
+    expect(SOURCE).toContain('commercialUnitOf')
   })
 
   it('os textos novos existem nos dois locales', () => {
