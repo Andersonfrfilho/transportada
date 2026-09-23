@@ -86,7 +86,7 @@ import { readTripCargoLayout } from './stored-cargo-layout-read.support.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
-import { recordTripStatusChange } from './trip-status-event.persistence.js'
+import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Spec 156 T8c: encerrar não é em nome de ninguém — o alvo da auditoria é a própria viagem. */
@@ -267,6 +267,19 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         })
         .returning({ id: trips.id })
       if (created === undefined) throw new Error('TRIP_CREATE_FAILED')
+
+      /**
+       * Spec 171 RF1: mesmo caminho das demais transições — grava na mesma transação do `INSERT
+       * trips`, direto em `trip_status_events`. `draft` é o `default` da coluna `trips.status`
+       * (spec 158 T3 nunca escreveu a criação; agora escreve).
+       */
+      await recordTripCreation(transaction, {
+        actorUserId: input.actorUserId,
+        channel: input.channel,
+        companyId: input.companyId,
+        status: 'draft',
+        tripId: created.id,
+      })
 
       if (input.crew.length > 0) {
         await transaction.insert(tripDrivers).values(

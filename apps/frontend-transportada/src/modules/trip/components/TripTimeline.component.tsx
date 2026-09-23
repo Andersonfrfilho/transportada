@@ -9,11 +9,11 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
-import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
 import type { TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
 import {
   filterTripTimelineItemsByDocumentId,
   removeDuplicateDispatchEvents,
+  resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
   resolveTripTimelineTone,
   type TripTimelineTone,
@@ -144,7 +144,7 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
   const title = resolveTripTimelineTitle(item, translate)
-  const authorship = resolveFieldAuthorshipText(item, translate)
+  const authorship = resolveTripTimelineAuthorshipText(item, translate)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
     item.occurrence !== null &&
@@ -173,7 +173,7 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
       : null
 
   return (
-    <li className={cn(styles.item, TONE_CLASS[resolveTripTimelineTone(item)])}>
+    <li className={cn(styles.item, styles.itemEnter, TONE_CLASS[resolveTripTimelineTone(item)])}>
       <p className={styles.itemTitle}>{title}</p>
       <p className={styles.itemMeta}>
         <time className={styles.itemTime} dateTime={item.occurredAt}>

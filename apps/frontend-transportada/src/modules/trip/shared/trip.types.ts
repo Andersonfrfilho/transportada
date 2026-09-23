@@ -238,6 +238,7 @@ export const TRIP_TIMELINE_KINDS = [
   'stop.occurrence',
   'document.occurrence',
   'document.status_changed',
+  'trip.created',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 

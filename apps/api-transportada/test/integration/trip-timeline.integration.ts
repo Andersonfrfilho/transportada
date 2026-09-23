@@ -327,6 +327,84 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
     },
   )
 
+  testWithPostgres(
+    'spec 171 CA02/CA04: trip.created é o item mais antigo, mesmo empatado no mesmo instante',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const bornAt = new Date('2026-09-18T08:00:00.000Z')
+
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          fromStatus: 'draft',
+          id: crypto.randomUUID(),
+          occurredAt: bornAt,
+          toStatus: 'draft',
+          tripId,
+        })
+        // Mesmo instante da criação: CA04 exige a criação abaixo (mais antiga) no desempate.
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          fromStatus: 'draft',
+          id: crypto.randomUUID(),
+          occurredAt: bornAt,
+          toStatus: 'route_planned',
+          tripId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+
+        expect(result.items.map((item) => item.kind)).toEqual([
+          'trip.status_changed',
+          'trip.created',
+        ])
+        const created = result.items[1]
+        expect(created?.actorName).toBe('Usuária Escritório')
+        expect(created?.channel).toBe('backoffice')
+        expect(created?.fromStatus).toBeNull()
+        expect(created?.toStatus).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'spec 171 CA03: viagem sem o evento de criação não inventa trip.created',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          fromStatus: 'draft',
+          id: crypto.randomUUID(),
+          toStatus: 'route_planned',
+          tripId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+
+        expect(result.items.map((item) => item.kind)).toEqual(['trip.status_changed'])
+      })
+    },
+  )
+
   testWithPostgres('aceite 5: viagem de outra empresa não vaza nenhum item', async () => {
     await withDisposableDatabase(async (database) => {
       const companyA = await seedCompany(database)

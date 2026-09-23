@@ -276,6 +276,9 @@ export type TripDetail = Trip & {
 }
 
 export type CreateTripRecord = {
+  /** Spec 171 RF1: quem criou e por qual canal. */
+  readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
   readonly crew: readonly TripDriverLine[]
   readonly dailyAllowanceDays?: number

@@ -9,7 +9,13 @@
  */
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 
-/** Spec 158 D5. `TRIP_STOP_EVENT_KINDS.occurrence` nunca aparece aqui — não é escrito hoje. */
+/**
+ * Spec 158 D5. `TRIP_STOP_EVENT_KINDS.occurrence` nunca aparece aqui — não é escrito hoje.
+ *
+ * Spec 171: `trip.created` é o nono. Mesma fonte de `trip.status_changed` (`trip_status_events`,
+ * `listCreatedRows`) — a leitura separa pelas duas linhas que `fromStatus = toStatus` nunca produz
+ * numa transição real (`recordTripStatusChange` é no-op nesse caso; só `recordTripCreation` grava).
+ */
 export const TRIP_TIMELINE_KINDS = [
   'trip.dispatched',
   'trip.status_changed',
@@ -19,6 +25,7 @@ export const TRIP_TIMELINE_KINDS = [
   'stop.occurrence',
   'document.occurrence',
   'document.status_changed',
+  'trip.created',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -27,8 +34,12 @@ export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
  * aparece. Tudo é decrescente, como a tupla `(occurred_at, prioridade, id) < cursor` do SQL exige.
  * A troca de status usa o mesmo `now` da chegada ou da entrega que a provocou; lida de cima para
  * baixo, a lista mostra o efeito acima da causa, como em qualquer instante mais recente.
+ *
+ * Spec 171 RF2: `trip.created` leva a prioridade **menor que qualquer outra** — nascer é sempre o
+ * mais antigo de um empate, nunca o efeito de nada.
  */
 export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, number>> = {
+  'trip.created': -1,
   'stop.arrived': 0,
   'stop.occurrence': 1,
   'document.occurrence': 2,

@@ -106,6 +106,8 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
         const routeRepository = new DrizzleTripRouteRepository(database.db)
         const documentRepository = new DrizzleTripDocumentRepository(database.db)
         const trip = await tripRepository.create({
+          actorUserId: world.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           crew: [
             {

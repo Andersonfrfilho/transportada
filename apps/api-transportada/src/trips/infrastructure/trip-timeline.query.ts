@@ -24,7 +24,11 @@ import {
   listDocumentOccurrenceRows,
   listDocumentStatusChangedRows,
 } from './trip-timeline-document.query.js'
-import { listDispatchedRows, listStatusChangedRows } from './trip-timeline-status.query.js'
+import {
+  listCreatedRows,
+  listDispatchedRows,
+  listStatusChangedRows,
+} from './trip-timeline-status.query.js'
 import { listStopEventRows, listStopOccurrenceRows } from './trip-timeline-stop.query.js'
 
 export {
@@ -53,15 +57,16 @@ export async function findTripCompanyScope(
 }
 
 /**
- * A linha do tempo de uma viagem: seis consultas (D5 — `trip_stop_events` cobre três `kind`s),
- * escopadas por `companyId` e `tripId`, unidas em memória por `mergeTripTimeline`. RNF: uma consulta
- * por fonte, `Promise.all`, sem N+1.
+ * A linha do tempo de uma viagem: sete consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
+ * 171 acrescenta `trip.created`), escopadas por `companyId` e `tripId`, unidas em memória por
+ * `mergeTripTimeline`. RNF: uma consulta por fonte, `Promise.all`, sem N+1.
  */
 export async function listTripTimeline(
   queryable: TripQueryable,
   params: ReadTripTimelineParams,
 ): Promise<ReadTripTimelineResult> {
   const [
+    created,
     dispatched,
     statusChanged,
     stopEvents,
@@ -69,6 +74,7 @@ export async function listTripTimeline(
     documentOccurrences,
     documentStatusChanged,
   ] = await Promise.all([
+    listCreatedRows(queryable, params),
     listDispatchedRows(queryable, params),
     listStatusChangedRows(queryable, params),
     listStopEventRows(queryable, params),
@@ -80,6 +86,7 @@ export async function listTripTimeline(
   const merged = mergeTripTimeline({
     limit: params.limit,
     sources: [
+      created,
       dispatched,
       statusChanged,
       stopEvents,

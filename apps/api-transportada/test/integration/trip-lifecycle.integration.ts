@@ -117,6 +117,8 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
         const documentRepository = new DrizzleTripDocumentRepository(database.db)
 
         const trip = await tripRepository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           crew: [
             {
@@ -254,6 +256,13 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           .where(eq(tripStatusEvents.tripId, trip.id))
           .orderBy(asc(tripStatusEvents.occurredAt), asc(tripStatusEvents.id))
         expect(statusEvents).toEqual([
+          // Spec 171 RF1: a criação grava aqui também — mesmo caminho das demais transições.
+          {
+            actorUserId: userId,
+            channel: 'backoffice',
+            fromStatus: 'draft',
+            toStatus: 'draft',
+          },
           {
             actorUserId: userId,
             channel: 'backoffice',
@@ -367,7 +376,13 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
         const { companyId, userId, vehicleId } = await seedMinimalCompany(database)
         const tripRepository = new DrizzleTripRepository(database.db)
 
-        const trip = await tripRepository.create({ companyId, crew: [], vehicleId })
+        const trip = await tripRepository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          crew: [],
+          vehicleId,
+        })
 
         const closed = await tripRepository.close({
           actorUserId: userId,
@@ -381,10 +396,14 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
         })
         expect(closed?.status).toBe('completed')
 
+        // Spec 171: a criação também grava em trip_status_events (fromStatus = toStatus = 'draft')
+        // — filtra pelo toStatus da transição real para não pegar o nascimento.
         const [event] = await database.db
           .select()
           .from(tripStatusEvents)
-          .where(eq(tripStatusEvents.tripId, trip.id))
+          .where(
+            and(eq(tripStatusEvents.tripId, trip.id), eq(tripStatusEvents.toStatus, 'completed')),
+          )
         expect(event).toMatchObject({
           actorUserId: userId,
           channel: 'backoffice',
@@ -404,11 +423,12 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
           onBehalfOfDriverId: null,
           tripId: trip.id,
         })
+        // Spec 171: a criação soma 1 ao total (nascimento + a transição real).
         const events = await database.db
           .select()
           .from(tripStatusEvents)
           .where(eq(tripStatusEvents.tripId, trip.id))
-        expect(events).toHaveLength(1)
+        expect(events).toHaveLength(2)
       })
     },
   )
@@ -419,7 +439,13 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
       const tripRepository = new DrizzleTripRepository(database.db)
       const routeRepository = new DrizzleTripRouteRepository(database.db)
 
-      const trip = await tripRepository.create({ companyId, crew: [], vehicleId })
+      const trip = await tripRepository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew: [],
+        vehicleId,
+      })
 
       const result = await cancelTrip({
         actorUserId: userId,
@@ -430,10 +456,14 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
       })
       expect(result.tripStatus).toBe('cancelled')
 
+      // Spec 171: a criação também grava em trip_status_events (fromStatus = toStatus = 'draft') —
+      // filtra pelo toStatus da transição real para não pegar o nascimento.
       const [event] = await database.db
         .select()
         .from(tripStatusEvents)
-        .where(eq(tripStatusEvents.tripId, trip.id))
+        .where(
+          and(eq(tripStatusEvents.tripId, trip.id), eq(tripStatusEvents.toStatus, 'cancelled')),
+        )
       expect(event).toMatchObject({
         actorUserId: userId,
         channel: 'backoffice',
@@ -450,11 +480,12 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
         repository: routeRepository,
         tripId: trip.id,
       })
+      // Spec 171: a criação soma 1 ao total (nascimento + a transição real).
       const events = await database.db
         .select()
         .from(tripStatusEvents)
         .where(eq(tripStatusEvents.tripId, trip.id))
-      expect(events).toHaveLength(1)
+      expect(events).toHaveLength(2)
     })
   })
 })
@@ -484,7 +515,13 @@ describe('batch-status grava channel backoffice (spec 158 T4)', () => {
           userId,
         })
 
-        const trip = await tripRepository.create({ companyId, crew: [], vehicleId })
+        const trip = await tripRepository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          crew: [],
+          vehicleId,
+        })
         const linkedA = await tripRepository.linkDocument({
           companyId,
           freightCalculationId: null,

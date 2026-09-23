@@ -153,6 +153,8 @@ export function createTripUseCase(dependencies: {
       const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
       const crew = await resolveTripCrewForCreation({ companyId, driverIds, repository })
       return repository.create({
+        actorUserId: context.userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId,
         crew,
         ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),

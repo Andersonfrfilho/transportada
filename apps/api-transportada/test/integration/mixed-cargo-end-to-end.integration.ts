@@ -95,6 +95,8 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
         const readinessQuery = new DrizzleTripFiscalReadinessQuery(database.db)
 
         const trip = await tripRepository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           crew: [
             { driverId, driverName: 'Motorista Misto', driverTaxId: DRIVER_TAX_ID, position: 1 },

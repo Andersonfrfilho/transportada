@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   filterTripTimelineItemsByDocumentId,
   removeDuplicateDispatchEvents,
+  resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
   resolveTripTimelineTone,
 } from '../../src/modules/trip/shared/tripTimeline.service'
@@ -134,6 +135,20 @@ describe('filtro pela nota aberta (spec 158 T8)', () => {
 
 /** Spec 158 D6/T8/T10: o título por `kind` e, nas mudanças de situação, por transição. */
 describe('título do item por kind (spec 158 T8)', () => {
+  it('trip.created (spec 171 RF3/CA02)', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      document: null,
+      fromStatus: null,
+      kind: 'trip.created',
+      stop: null,
+      toStatus: null,
+    }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.tripCreated',
+    )
+  })
+
   it('trip.dispatched', () => {
     const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.dispatched', toStatus: null }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe('eventTimeline.itemTitle.dispatched')
@@ -274,6 +289,56 @@ describe('tom do marcador por kind (spec 158 T10)', () => {
     expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'stop.arrived' })).toBe('progress')
     expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'document.status_changed' })).toBe(
       'progress',
+    )
+  })
+})
+
+/**
+ * Spec 171 (caso extremo): viagem criada por semeadura ou importação sem ator humano diz "pelo
+ * sistema", frase diferente de "usuário removido" — as duas leituras têm `actorName: null`, mas
+ * significam coisas diferentes.
+ */
+describe('autoria de trip.created sem ator (spec 171)', () => {
+  it('trip.created sem actorName vira "pelo sistema"', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      actorName: null,
+      channel: 'backoffice',
+      kind: 'trip.created',
+    }
+    expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe('authorship.system')
+  })
+
+  it('trip.created com actorName segue a autoria comum por canal', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, channel: 'backoffice', kind: 'trip.created' }
+    expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe(
+      'authorship.backoffice(actor=Marina Alves)',
+    )
+  })
+
+  it('outro kind sem actorName continua "usuário removido", nunca "pelo sistema"', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      actorName: null,
+      channel: 'backoffice',
+      kind: 'trip.status_changed',
+    }
+    expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe(
+      'authorship.backoffice(actor=authorship.removedActor)',
+    )
+  })
+})
+
+/** Spec 171 RF5/CA05: a animação de entrada é CSS puro e desliga sob prefers-reduced-motion. */
+describe('animação de entrada da linha do tempo (spec 171)', () => {
+  it('a classe .itemEnter tem keyframe e respeita prefers-reduced-motion', async () => {
+    const source = new URL('../../src/modules/trip/styles/tripTimeline.module.css', import.meta.url)
+    const css = await Bun.file(source).text()
+
+    expect(css).toContain('@keyframes tripTimelineItemEnter')
+    expect(css).toMatch(/\.itemEnter\s*{[^}]*animation:\s*tripTimelineItemEnter/)
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*{\s*\.itemEnter\s*{\s*animation:\s*none/,
     )
   })
 })

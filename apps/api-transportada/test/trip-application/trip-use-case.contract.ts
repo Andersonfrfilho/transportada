@@ -208,6 +208,8 @@ describe('trip use case contract', () => {
      */
     expect(fixture.createCalls).toEqual([
       {
+        actorUserId: USER_ID,
+        channel: 'backoffice',
         companyId: COMPANY_ID,
         crew: trip.drivers.map((driver) => ({
           driverId: driver.driverId,
@@ -218,6 +220,16 @@ describe('trip use case contract', () => {
         vehicleId: VEHICLE_ID,
       },
     ])
+  })
+
+  /** Spec 171 RF1: quem criou e por qual canal chegam ao repositório — mesmo caminho das transições. */
+  test('forwards the creator and the backoffice channel to the repository', async () => {
+    const fixture = createFixture()
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await useCase.create({ context: CONTEXT, driverIds: [FIRST_DRIVER_ID], vehicleId: VEHICLE_ID })
+
+    expect(fixture.createCalls[0]).toMatchObject({ actorUserId: USER_ID, channel: 'backoffice' })
   })
 
   /**

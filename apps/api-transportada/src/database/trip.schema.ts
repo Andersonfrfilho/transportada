@@ -1,10 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import {
-  OCCURRENCE_ITEM_QUANTITY_UNIT,
-  TRIP_OCCURRENCE_STAGE,
-} from '../shared/trip-occurrence.constant.js'
+import { TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceItemQuantityUnit,
   TripOccurrenceStage,
@@ -369,8 +366,10 @@ export const trips = pgTable(
  * vínculo referencial. A leitura resolve o nome por membership escopado pela empresa; ator removido
  * aparece sem nome.
  *
- * `from_status`/`actor_user_id` são `not null`: não há escrita de sistema hoje (inventário da
- * ADR-0068), e nada grava a criação da viagem — ela já está em `trips.created_at`.
+ * `from_status`/`actor_user_id` são `not null` (spec 171 mantém: hoje só `POST /trips` autenticado
+ * cria viagem, sempre com ator). `recordTripCreation` (`trip-status-event.persistence.ts`) é o
+ * segundo escritor — grava `trip.created` com `from_status = to_status`, combinação que
+ * `recordTripStatusChange` nunca produz numa transição real (é o próprio no-op dela).
  */
 export const tripStatusEvents = pgTable(
   'trip_status_events',
@@ -437,7 +436,12 @@ export const tripStatusEvents = pgTable(
       'trip_status_events_office_driver_check',
       sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
-    check('trip_status_events_transition_check', sql`${table.fromStatus} <> ${table.toStatus}`),
+    /**
+     * Spec 171: deixou de exigir `from_status <> to_status`. `fromStatus = toStatus` passou a ser
+     * o próprio sinal de `trip.created` (`recordTripCreation`) — uma transição real continua sem
+     * gravar linha igual porque `recordTripStatusChange` é no-op nesse caso, em `application`, não
+     * no banco.
+     */
     check(
       'trip_status_events_from_status_check',
       sql`${table.fromStatus} in (${raw(inList(TRIP_STATUSES))})`,
@@ -1717,7 +1721,13 @@ export const tripDocumentOccurrenceProducts = pgTable(
      * larga demais para uma coisa que hoje só é digitada.
      */
     quantity: numeric('quantity', { precision: 12, scale: 3 }),
-    quantityUnit: varchar('quantity_unit', { length: 8 }).$type<OccurrenceItemQuantityUnit>(),
+    /**
+     * Spec 172 (RF1): deixou de caber só `unit`/`box` — a unidade comercial da nota (`KG`, `L`,
+     * `CX`...) grava como veio, inclusive sigla exótica fora do vocabulário conhecido. `20` cabe
+     * folgado a maior unidade comercial já vista em `nfe_products.commercial_unit` (texto livre do
+     * XML) sem virar `text` sem teto.
+     */
+    quantityUnit: varchar('quantity_unit', { length: 20 }).$type<OccurrenceItemQuantityUnit>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -1761,9 +1771,16 @@ export const tripDocumentOccurrenceProducts = pgTable(
       'trip_document_occurrence_products_quantity_positive_check',
       sql`${table.quantity} is null or ${table.quantity} > 0`,
     ),
+    /**
+     * Spec 172 (RF1/CA01): deixou de ser a lista fechada `unit`/`box` — a unidade comercial da
+     * nota é aceita como veio, inclusive sigla exótica fora de qualquer vocabulário conhecido
+     * (spec 172 § Casos extremos). O CHECK só recusa o vazio/só-espaço; **quem confere valor
+     * contra o cadastro da nota é a política de domínio**, não o banco — o banco não teria como
+     * saber qual é o item para consultar a unidade dele.
+     */
     check(
       'trip_document_occurrence_products_quantity_unit_check',
-      sql`${table.quantityUnit} is null or ${table.quantityUnit} in (${raw(inList(Object.values(OCCURRENCE_ITEM_QUANTITY_UNIT)))})`,
+      sql`${table.quantityUnit} is null or length(btrim(${table.quantityUnit})) > 0`,
     ),
   ],
 )

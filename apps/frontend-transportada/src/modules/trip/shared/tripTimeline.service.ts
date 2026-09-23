@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import { resolveFieldAuthorshipText } from './fieldAuthorship.service'
 import { formatOccurrenceInvoice } from './tripOccurrenceFeed.service'
 import {
   TRIP_DOCUMENT_SEPARATION_STATUS,
@@ -61,6 +62,8 @@ function formatTripTimelineDocumentLabel(
  */
 export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): string {
   switch (item.kind) {
+    case 'trip.created':
+      return t('eventTimeline.itemTitle.tripCreated')
     case 'trip.dispatched':
       return t('eventTimeline.itemTitle.dispatched')
     case 'trip.status_changed':
@@ -129,4 +132,19 @@ export function resolveTripTimelineTone(item: TripTimelineItem): TripTimelineTon
   if (DONE_STATUSES.has(item.toStatus)) return 'done'
   if (PROBLEM_STATUSES.has(item.toStatus)) return 'problem'
   return 'progress'
+}
+
+/**
+ * Spec 171 (caso extremo): `trip.created` semeada/importada sem ator humano diz "pelo sistema" —
+ * frase diferente de `authorship.removedActor` ("usuário removido"), que é para um ator que
+ * existiu e perdeu o vínculo. As duas leituras têm `actorName: null`; só `trip.created` pode não
+ * ter tido ator nenhum, então só ela ganha o desvio. Toda a autoria por `channel` continua em
+ * `resolveFieldAuthorshipText` — este wrapper não duplica aquela regra.
+ */
+export function resolveTripTimelineAuthorshipText(
+  item: TripTimelineItem,
+  t: Translate,
+): null | string {
+  if (item.kind === 'trip.created' && item.actorName === null) return t('authorship.system')
+  return resolveFieldAuthorshipText(item, t)
 }

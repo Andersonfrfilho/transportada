@@ -119,6 +119,8 @@ describe('trip repository integration', () => {
         const repository = new DrizzleTripRepository(database.db)
 
         const created = await repository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           crew: [
             {
@@ -162,7 +164,13 @@ describe('trip repository integration', () => {
           },
         ])
 
-        const secondTrip = await repository.create({ companyId, crew: [], vehicleId })
+        const secondTrip = await repository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          crew: [],
+          vehicleId,
+        })
 
         expect(await repository.findById({ companyId, tripId: created.id })).toEqual(created)
         // Outro tenant nunca enxerga a viagem, mesmo sabendo o id.

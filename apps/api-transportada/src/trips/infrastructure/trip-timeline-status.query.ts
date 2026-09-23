@@ -5,7 +5,7 @@
  * a troca de status da viagem (`trip_status_events`). Escopadas por `company_id` **em cada junção**
  * (`test/trip-schema/trip-timeline-query-tenant-safety.contract.ts`).
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { trips, tripDispatchSnapshots, tripStatusEvents } from '../../database/trip.schema.js'
@@ -100,6 +100,9 @@ export async function listStatusChangedRows(
   const conditions: SQL[] = [
     eq(tripStatusEvents.companyId, params.companyId),
     eq(tripStatusEvents.tripId, params.tripId),
+    // Spec 171: `fromStatus = toStatus` é a linha de `trip.created` (`listCreatedRows`) — nunca uma
+    // transição real, que `recordTripStatusChange` recusa gravar igual.
+    sql`${tripStatusEvents.fromStatus} <> ${tripStatusEvents.toStatus}`,
   ]
   if (params.cursor !== null) {
     conditions.push(
@@ -173,5 +176,77 @@ export async function listStatusChangedRows(
     returnReason: null,
     stop: null,
     toStatus: row.toStatus,
+  }))
+}
+
+/**
+ * Spec 171 RF1/RF2: o nascimento da viagem — mesma tabela de `listStatusChangedRows`, mas só as
+ * linhas que `recordTripCreation` grava (`fromStatus = toStatus`, combinação que uma transição real
+ * nunca produz: `recordTripStatusChange` é no-op quando os dois coincidem). `fromStatus`/`toStatus`
+ * saem nulos na leitura — não são dado de tela aqui, no mesmo molde de `trip.dispatched`.
+ */
+export async function listCreatedRows(
+  queryable: TripQueryable,
+  params: ReadTripTimelineParams,
+): Promise<readonly TripTimelineRow[]> {
+  const priorityExpr = constantPriority('trip.created')
+  const conditions: SQL[] = [
+    eq(tripStatusEvents.companyId, params.companyId),
+    eq(tripStatusEvents.tripId, params.tripId),
+    sql`${tripStatusEvents.fromStatus} = ${tripStatusEvents.toStatus}`,
+  ]
+  if (params.cursor !== null) {
+    conditions.push(
+      timelineKeysetCondition(
+        tripStatusEvents.occurredAt,
+        priorityExpr,
+        tripStatusEvents.id,
+        params.cursor,
+      ),
+      timelineIndexablePredicate(tripStatusEvents.occurredAt, params.cursor),
+    )
+  }
+
+  const rows = await queryable
+    .select({
+      actorName: timelineActorProfile.name,
+      channel: tripStatusEvents.channel,
+      id: tripStatusEvents.id,
+      occurredAt: tripStatusEvents.occurredAt,
+      occurredAtKey: formatTimelineTimestampKey(tripStatusEvents.occurredAt),
+      recordedAt: tripStatusEvents.recordedAt,
+    })
+    .from(tripStatusEvents)
+    .leftJoin(
+      timelineActorMembership,
+      and(
+        eq(timelineActorMembership.companyId, tripStatusEvents.companyId),
+        eq(timelineActorMembership.userId, tripStatusEvents.actorUserId),
+        eq(timelineActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .leftJoin(timelineActorProfile, eq(timelineActorProfile.userId, timelineActorMembership.userId))
+    .where(and(...conditions))
+    .orderBy(
+      ...timelineOrderExpression(tripStatusEvents.occurredAt, priorityExpr, tripStatusEvents.id),
+    )
+    .limit(params.limit + 1)
+
+  return rows.map((row) => ({
+    actorName: row.actorName ?? null,
+    channel: row.channel,
+    closeReason: null,
+    document: null,
+    fromStatus: null,
+    id: row.id,
+    kind: 'trip.created' as const,
+    occurrence: null,
+    occurredAt: row.occurredAt,
+    occurredAtKey: row.occurredAtKey,
+    onBehalfOfDriverName: null,
+    recordedAt: resolveRecordedAt(row.channel, row.occurredAt, row.recordedAt),
+    returnReason: null,
+    stop: null,
+    toStatus: null,
   }))
 }

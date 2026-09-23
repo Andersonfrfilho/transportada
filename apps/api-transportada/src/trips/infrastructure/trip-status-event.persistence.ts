@@ -8,9 +8,15 @@
  */
 import { tripStatusEvents } from '../../database/trip.schema.js'
 import type { TripTransaction } from './trip-queryable.type.js'
-import type { RecordTripStatusChangeParams } from './trip-status-event.types.js'
+import type {
+  RecordTripCreationParams,
+  RecordTripStatusChangeParams,
+} from './trip-status-event.types.js'
 
-export type { RecordTripStatusChangeParams } from './trip-status-event.types.js'
+export type {
+  RecordTripCreationParams,
+  RecordTripStatusChangeParams,
+} from './trip-status-event.types.js'
 
 export async function recordTripStatusChange(
   transaction: TripTransaction,
@@ -27,5 +33,26 @@ export async function recordTripStatusChange(
     toStatus: params.toStatus,
     tripId: params.tripId,
     ...(params.occurredAt === undefined ? {} : { occurredAt: params.occurredAt }),
+  })
+}
+
+/**
+ * Spec 171 RF1: o segundo (e único outro) escritor de `trip_status_events` — o nascimento da
+ * viagem. Grava sempre, sem o guard de no-op de `recordTripStatusChange`: `fromStatus = toStatus`
+ * aqui é o próprio sinal que a leitura (`listCreatedRows`) usa para separar `trip.created` de
+ * `trip.status_changed` — uma transição real nunca produz essa combinação.
+ */
+export async function recordTripCreation(
+  transaction: TripTransaction,
+  params: RecordTripCreationParams,
+): Promise<void> {
+  await transaction.insert(tripStatusEvents).values({
+    actorUserId: params.actorUserId,
+    channel: params.channel,
+    companyId: params.companyId,
+    fromStatus: params.status,
+    onBehalfOfDriverId: null,
+    toStatus: params.status,
+    tripId: params.tripId,
   })
 }

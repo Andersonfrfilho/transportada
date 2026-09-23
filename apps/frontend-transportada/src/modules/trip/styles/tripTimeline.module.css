@@ -71,6 +71,35 @@
   content: '';
 }
 
+/**
+ * Spec 171 P2/RF5/CA05: entrada curta para quem chega novo na lista — recarga, "tentar de novo" ou
+ * paginação. Aplicada em todo `<li>` sem custo de estado: React mantém o nó de quem já estava (a
+ * `key` não muda), então só o item que acabou de montar no DOM roda a animação; o resto não
+ * remonta, e a keyframe não replay. `prefers-reduced-motion` desliga por completo — quem pediu
+ * menos movimento não recebe movimento nenhum, nem a versão curta.
+ */
+@keyframes tripTimelineItemEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.itemEnter {
+  animation: tripTimelineItemEnter 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .itemEnter {
+    animation: none;
+  }
+}
+
 .itemDone {
   --timeline-marker-color: var(--color-ready);
 }
