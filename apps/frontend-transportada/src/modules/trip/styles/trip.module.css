@@ -69,6 +69,13 @@
 }
 
 .panelHead {
+  /*
+   * Item de grid (filho de `.panel`) herda `min-content` do conteúdo mais largo como piso de
+   * largura — sem isto, quando `.headerActions` não cabia numa linha, o cabeçalho inteiro (e com
+   * ele `.panel`/`.tripShell`) crescia além da viewport em vez de quebrar (achado da revisão de
+   * design de 23/09: o rodapé de página encostava na borda direita em telas estreitas).
+   */
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
@@ -3658,11 +3665,24 @@
  * status — que é o que o operador lê primeiro.
  */
 .headerActions {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   margin-left: auto;
+}
+
+/*
+ * Sem `flex-shrink: 0` o flexbox espreme o botão inteiro (ícone + rótulo) até o rótulo quebrar no
+ * meio da palavra antes de tentar descer para a linha de baixo — "Liberar para separação" e
+ * "Cancelar viagem" partiam em duas ou três linhas dentro do próprio botão em telas estreitas, em
+ * vez do botão inteiro pular de linha. Mesma técnica que `.openOccurrenceBadge` já usa com
+ * `white-space: nowrap`.
+ */
+.headerActions :global(.ui-button) {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /*
