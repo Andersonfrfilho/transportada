@@ -315,11 +315,9 @@ describe('the trip detail resolves the box of each pending measurement (spec 168
           tripId,
         })
 
-        const repository = new DrizzleTripRepository(
-          database.db,
-          undefined,
-          { packageBoxLookup: new DrizzlePackageBoxRepository(database.db) },
-        )
+        const repository = new DrizzleTripRepository(database.db, undefined, {
+          packageBoxLookup: new DrizzlePackageBoxRepository(database.db),
+        })
 
         const detail = await repository.findById({ companyId, tripId })
 
@@ -458,11 +456,9 @@ describe('the trip detail resolves the box of each pending measurement (spec 168
           tripId,
         })
 
-        const repository = new DrizzleTripRepository(
-          database.db,
-          undefined,
-          { packageBoxLookup: new DrizzlePackageBoxRepository(database.db) },
-        )
+        const repository = new DrizzleTripRepository(database.db, undefined, {
+          packageBoxLookup: new DrizzlePackageBoxRepository(database.db),
+        })
 
         const detail = await repository.findById({ companyId, tripId })
 

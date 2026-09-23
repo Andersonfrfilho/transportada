@@ -117,7 +117,7 @@ No DOM da bancada, a tabela "O que falta medir" tinha **177 inputs de medida, to
   (linha ~161) e do ramo `measurement.packageBoxId === null` na tabela (linha ~227) — todas as linhas
   passam a compartilhar o mesmo rascunho `drafts["undefined"]` (preencher uma preenche todas).
 - O salvamento no blur envia `id: undefined` — nada é gravado (`select count(*) from
-  nfe_package_boxes where length_mm is not null` = 0 depois de o usuário preencher vários campos).
+nfe_package_boxes where length_mm is not null` = 0 depois de o usuário preencher vários campos).
 
 ### Causa raiz
 
@@ -177,7 +177,7 @@ tabela aparecer sem erro, em vez de a consulta falhar.
 ### Testes novos
 
 - `apps/api-transportada/test/trip-http/detail.contract.ts` — `GET /trips/:id > normalizes
-  packageBoxId/grossWeightGrams/unitsPerBox to null in the trip detail layout`: roda no worktree
+packageBoxId/grossWeightGrams/unitsPerBox to null in the trip detail layout`: roda no worktree
   (`bun --env-file=../../.env.test test ./test/trip-http.contract.test.ts`, já listado no
   entrypoint); **falha pelo motivo certo** antes da correção (`Received` sem as três chaves,
   `Expected` com `null`) — confirmado revertendo `trip.routes.ts` com `git stash` e rodando de novo.
