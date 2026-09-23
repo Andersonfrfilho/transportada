@@ -432,6 +432,11 @@ A migration da T1 ainda não estava publicada quando a T2 chegou (ajustada no lu
   (`redeliveryBlockedHasNoQuestion`, RF7); `decide` com `redelivery_authorized` sobre `blocked`
   (`redeliveryNotAllowed`, RF16); `closure` sobre `goods_paid` sem item acertado
   (`settlementWithoutItems`).
+- **Emenda da revisão final (B2): a RF7 lê os itens da ocorrência, não o acerto.** A entrada de
+  `contractor_submission` passou a ser `hasOccurrenceItems` — o acerto só pode ser gravado depois da
+  decisão, que vem depois do envio, então condicioná-lo ali fazia de `blocked` um beco sem saída e a
+  tratativa nunca chegava à contratante. `hasSettlementItems` ficou só onde faz sentido, no `closure`
+  de `goods_paid`, e os dois são contados pelo escritor único dentro da transação (B1).
 - **`code` é união literal.** `OccurrenceCaseTransitionRefusalCode` deriva de
   `OCCURRENCE_CASE_TRANSITION_REFUSALS` — copiar o `code: string` de
   `delivery-charge-state.policy.ts` apagaria a garantia de código estável.

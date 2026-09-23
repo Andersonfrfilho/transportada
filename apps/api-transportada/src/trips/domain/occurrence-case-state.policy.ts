@@ -89,7 +89,7 @@ const TRANSITIONS: Readonly<
 })
 
 export const OCCURRENCE_CASE_TRANSITION_REFUSALS = {
-  /** RF7: tratativa `blocked` sem item para acertar não tem pergunta a fazer ao contratante. */
+  /** RF7: tratativa `blocked` sobre ocorrência que não aponta produto nenhum não tem o que perguntar. */
   redeliveryBlockedHasNoQuestion: 'OCCURRENCE_CASE_REDELIVERY_BLOCKED_HAS_NO_QUESTION',
   /** RF16: o tipo diz que aquele fato não admite segunda tentativa. */
   redeliveryNotAllowed: 'OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED',
@@ -119,8 +119,17 @@ export type CheckOccurrenceCaseTransitionInput = {
    * tratativa (RF23). Nas demais ações ainda não existe decisão — `null`.
    */
   readonly decisionKind: TripOccurrenceCaseDecisionKind | null
-  /** Existe ao menos um item de `trip_occurrence_item_settlements` gravado para esta ocorrência. */
+  /**
+   * `closure` de `goods_paid`: existe ao menos um item de `trip_occurrence_item_settlements`
+   * gravado para esta tratativa.
+   */
   readonly hasSettlementItems: boolean
+  /**
+   * RF7: a ocorrência aponta ao menos um produto declarado. ⚠️ `product_code = ''` é a nota
+   * inteira — ela **não** é um item apontado, e é justamente o caso em que não há o que perguntar
+   * ao contratante quando a reentrega está bloqueada.
+   */
+  readonly hasOccurrenceItems: boolean
 }
 
 export function checkOccurrenceCaseTransition(
@@ -132,10 +141,15 @@ export function checkOccurrenceCaseTransition(
     return { code: OCCURRENCE_CASE_TRANSITION_REFUSALS.transitionNotAllowed, kind: 'refused' }
   }
 
+  /**
+   * ⚠️ A entrada é **os itens da ocorrência**, nunca o acerto: o acerto só pode ser gravado depois
+   * da decisão, que vem depois do envio, e condicioná-lo aqui fazia de `blocked` um beco sem saída
+   * — a tratativa nunca chegava à contratante (revisão final, B2).
+   */
   if (
     input.action === 'contractor_submission' &&
     input.redeliveryPolicy === 'blocked' &&
-    !input.hasSettlementItems
+    !input.hasOccurrenceItems
   ) {
     return {
       code: OCCURRENCE_CASE_TRANSITION_REFUSALS.redeliveryBlockedHasNoQuestion,

@@ -35,6 +35,7 @@ import {
   listContractorOccurrences,
 } from '../../src/contractor-portal/infrastructure/contractor-occurrence.query.js'
 import { createDecideOccurrenceCaseUseCase } from '../../src/contractor-portal/application/decide-occurrence-case.use-case.js'
+import { OccurrenceCaseRedeliveryNotAllowedError } from '../../src/trips/domain/trip.error.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import {
   fakeAttachmentStorage,
@@ -507,6 +508,133 @@ describe('a nota, os itens e a observação no portal (spec 164 RF13)', () => {
       )
     })
   })
+
+  /**
+   * Revisão final (B2): a RF7 é sobre **os itens da ocorrência**, não sobre o acerto. O acerto só
+   * pode ser gravado depois da decisão, que vem depois do envio — condicionar o envio a ele fazia
+   * de `blocked` um beco sem saída, e a tratativa nunca chegava à contratante.
+   */
+  testWithPostgres(
+    'RF7 — `blocked` pergunta quando a ocorrência aponta item, e cala quando aponta a nota inteira',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const cases = new DrizzleOccurrenceCaseRepository(database.db)
+
+        const wholeDocumentTypeId = await seedOccurrenceType(
+          database,
+          company,
+          'blocked',
+          'Extravio total',
+        )
+        const wholeDocument = await registerOccurrence(
+          database,
+          company,
+          trip,
+          wholeDocumentTypeId,
+          'blocked',
+        )
+        const wholeDocumentCaseId = await findCaseId(database, company.companyId, wholeDocument.id)
+        if (wholeDocumentCaseId === null) throw new Error('EXPECTED_CASE')
+
+        await cases.transition({
+          action: 'review',
+          actorKind: 'internal',
+          actorUserId: company.userId,
+          caseId: wholeDocumentCaseId,
+          companyId: company.companyId,
+          note: '',
+        })
+
+        let refused: unknown
+        try {
+          await cases.transition({
+            action: 'contractor_submission',
+            actorKind: 'internal',
+            actorUserId: company.userId,
+            caseId: wholeDocumentCaseId,
+            companyId: company.companyId,
+            note: '',
+          })
+        } catch (error) {
+          refused = error
+        }
+        expect(refused).toBeInstanceOf(OccurrenceCaseRedeliveryNotAllowedError)
+
+        const [tripDocument] = await database.db
+          .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, trip.documentId))
+          .limit(1)
+        if (tripDocument === undefined || tripDocument.nfeDocumentId === null) {
+          throw new Error('EXPECTED_TRIP_DOCUMENT')
+        }
+
+        const productCode = 'PROD-77'
+        await database.db.insert(nfeProducts).values({
+          cfop: '5102',
+          code: productCode,
+          commercialUnit: 'UN',
+          companyId: company.companyId,
+          description: 'Caixa de parafusos',
+          documentId: tripDocument.nfeDocumentId,
+          ncm: '84713012',
+          ordinal: 1n,
+          quantity: '4.0000',
+          totalValue: '1000.0000',
+          unitValue: '250.0000',
+        })
+
+        const itemTypeId = await seedOccurrenceType(database, company, 'blocked', 'Caixa violada')
+        const withItem = await persistSeparationOccurrenceWithAttachment({
+          attachment: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+          input: {
+            actorUserId: company.userId,
+            companyId: company.companyId,
+            documentId: trip.documentId,
+            items: [
+              { code: productCode, quantity: '2.0000', unit: OCCURRENCE_ITEM_QUANTITY_UNIT.unit },
+            ],
+            note: 'caixa com avaria visível',
+            occurrenceTypeId: itemTypeId,
+            productCode: '',
+            productCodes: [productCode],
+            redeliveryPolicy: 'blocked',
+            stage: TRIP_OCCURRENCE_STAGE.separation,
+            tripId: trip.tripId,
+            typeName: 'Caixa violada',
+          },
+          newObjectId: () => crypto.randomUUID(),
+          now: () => new Date('2026-09-22T12:30:00.000Z'),
+          storage: fakeAttachmentStorage([]),
+          unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db, 'test-bucket'),
+        })
+        if (withItem === null) throw new Error('EXPECTED_OCCURRENCE')
+
+        const withItemCaseId = await findCaseId(database, company.companyId, withItem.id)
+        if (withItemCaseId === null) throw new Error('EXPECTED_CASE')
+
+        await cases.transition({
+          action: 'review',
+          actorKind: 'internal',
+          actorUserId: company.userId,
+          caseId: withItemCaseId,
+          companyId: company.companyId,
+          note: '',
+        })
+        const submitted = await cases.transition({
+          action: 'contractor_submission',
+          actorKind: 'internal',
+          actorUserId: company.userId,
+          caseId: withItemCaseId,
+          companyId: company.companyId,
+          note: '',
+        })
+        expect(submitted).toEqual({ kind: 'changed', status: 'awaiting_contractor' })
+      })
+    },
+  )
 })
 
 async function findCaseId(

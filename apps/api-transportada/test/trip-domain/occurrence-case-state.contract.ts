@@ -15,7 +15,8 @@ import {
 } from '../../src/trips/domain/occurrence-case-state.policy.js'
 
 /**
- * Contexto neutro: `redeliveryPolicy: 'allowed'` e `hasSettlementItems: true` desligam as três
+ * Contexto neutro: `redeliveryPolicy: 'allowed'`, `hasSettlementItems: true` e
+ * `hasOccurrenceItems: true` desligam as três
  * recusas de negócio (RF7, RF16, `settlementWithoutItems`), deixando só a forma da máquina
  * aparecer. `decisionKind: null` é o estado antes de qualquer decisão existir.
  */
@@ -25,6 +26,7 @@ function baseInput(
 ): CheckOccurrenceCaseTransitionInput {
   return {
     decisionKind: null,
+    hasOccurrenceItems: true,
     hasSettlementItems: true,
     redeliveryPolicy: 'allowed',
     ...overrides,
@@ -182,13 +184,17 @@ describe('a máquina da tratativa de ocorrência (spec 164 T2)', () => {
     }
   })
 
-  /** RF7: tratativa `blocked` sem item para acertar não tem pergunta a fazer ao contratante. */
-  test('RF7 — `contractor_submission` recusa `blocked` sem item', () => {
+  /**
+   * RF7: tratativa `blocked` sobre ocorrência que não aponta produto nenhum não tem pergunta a
+   * fazer ao contratante. ⚠️ A entrada é **o item da ocorrência**, nunca o acerto — o acerto só
+   * existe depois da decisão, que vem depois do envio (revisão final, B2).
+   */
+  test('RF7 — `contractor_submission` recusa `blocked` sem item declarado na ocorrência', () => {
     expect(
       checkOccurrenceCaseTransition(
         baseInput({
           action: 'contractor_submission',
-          hasSettlementItems: false,
+          hasOccurrenceItems: false,
           redeliveryPolicy: 'blocked',
           status: 'under_review',
         }),
@@ -202,7 +208,20 @@ describe('a máquina da tratativa de ocorrência (spec 164 T2)', () => {
       checkOccurrenceCaseTransition(
         baseInput({
           action: 'contractor_submission',
-          hasSettlementItems: true,
+          hasOccurrenceItems: true,
+          redeliveryPolicy: 'blocked',
+          status: 'under_review',
+        }),
+      ),
+    ).toEqual({ kind: 'changed', to: 'awaiting_contractor' })
+
+    /** O acerto não tem voz nenhuma neste envio — `blocked` com item passa mesmo sem acerto. */
+    expect(
+      checkOccurrenceCaseTransition(
+        baseInput({
+          action: 'contractor_submission',
+          hasOccurrenceItems: true,
+          hasSettlementItems: false,
           redeliveryPolicy: 'blocked',
           status: 'under_review',
         }),

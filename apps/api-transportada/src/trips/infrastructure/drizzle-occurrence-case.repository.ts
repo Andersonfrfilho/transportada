@@ -21,6 +21,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
 import {
+  tripDocumentOccurrences,
   tripOccurrenceCaseEvents,
   tripOccurrenceCases,
   tripOccurrenceItemSettlements,
@@ -41,6 +42,8 @@ import type {
   OccurrenceCaseTransitionRefusalCode,
 } from '../domain/occurrence-case-state.policy.js'
 import { resolveOccurrenceCaseOpening } from '../domain/occurrence-case.policy.js'
+import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
+import { listOccurrenceProductCodes } from './drizzle-occurrence-product.repository.js'
 import {
   OccurrenceCaseDecisionConflictError,
   OccurrenceCaseNotFoundError,
@@ -154,6 +157,7 @@ async function applyTransition(
     .select({
       decisionKind: tripOccurrenceCases.decisionKind,
       decisionNote: tripOccurrenceCases.decisionNote,
+      occurrenceId: tripOccurrenceCases.occurrenceId,
       redeliveryPolicy: tripOccurrenceCases.redeliveryPolicy,
       status: tripOccurrenceCases.status,
     })
@@ -177,9 +181,19 @@ async function applyTransition(
         })
       : false
 
+  /** Só o envio à contratante pergunta pelos itens declarados (RF7). */
+  const hasOccurrenceItems =
+    input.action === 'contractor_submission'
+      ? await countsOccurrenceItems(transaction, {
+          companyId: input.companyId,
+          occurrenceId: locked.occurrenceId,
+        })
+      : false
+
   const transition = checkOccurrenceCaseTransition({
     action: input.action,
     decisionKind: input.decisionKind ?? locked.decisionKind,
+    hasOccurrenceItems,
     hasSettlementItems,
     redeliveryPolicy: locked.redeliveryPolicy,
     status: locked.status,
@@ -267,6 +281,40 @@ async function countsSettlementItems(
     )
     .limit(1)
   return found !== undefined
+}
+
+/**
+ * RF7: a ocorrência aponta produto? `trip_document_occurrence_products` é a lista nova e
+ * `trip_document_occurrences.product_code` é a coluna antiga — `resolveOccurrenceProductCodes`
+ * concilia as duas, e a nota inteira (`''`, sem linha nenhuma) devolve lista vazia.
+ */
+async function countsOccurrenceItems(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<boolean> {
+  const [occurrence] = await transaction
+    .select({ productCode: tripDocumentOccurrences.productCode })
+    .from(tripDocumentOccurrences)
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (occurrence === undefined) throw new OccurrenceCaseNotFoundError()
+
+  const productCodes = await listOccurrenceProductCodes(transaction, {
+    companyId: input.companyId,
+    occurrenceIds: [input.occurrenceId],
+  })
+
+  return (
+    resolveOccurrenceProductCodes({
+      productCode: occurrence.productCode,
+      productCodes: productCodes.get(input.occurrenceId) ?? [],
+    }).length > 0
+  )
 }
 
 function refusalError(code: OccurrenceCaseTransitionRefusalCode): Error {
