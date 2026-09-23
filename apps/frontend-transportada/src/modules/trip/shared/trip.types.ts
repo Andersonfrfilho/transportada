@@ -451,15 +451,22 @@ export type TripCargoPlacement = Readonly<{
  * Spec 144 (D4): uma linha da lista do que falta medir — um produto sem ficha, numa parada.
  * `label`/`productCode` vêm da caixa; `stopLabel`/`sequence` são da parada, para o conferente
  * saber **onde** procurar antes de abrir a fila da 085.
+ *
+ * Spec 168: `packageBoxId` diz qual caixa do catálogo medir direto na linha — `null` sem par único
+ * (produto sem código, ou mais de uma caixa possível). `unitsPerBox`/`grossWeightGrams` vêm junto
+ * porque a gravação reusa o corpo da fila de medição, que os exige.
  */
 export type TripPendingMeasurement = Readonly<{
   boxCount: number
   documentNumber: null | string
   estimateSource: 'median' | 'none' | 'note'
+  grossWeightGrams: null | number
   label: null | string
+  packageBoxId: null | string
   productCode: null | string
   sequence: number
   stopLabel: string
+  unitsPerBox: null | number
 }>
 
 export type TripCargoLayout = Readonly<{

@@ -149,6 +149,17 @@ export type ListPackageBoxSiblingsResult = PackageBoxSiblings & {
   readonly isLowConfidenceFamily: boolean
 }
 
+/**
+ * Spec 168: a caixa do catálogo que resolve uma pendência de medição, com o que a gravação inline
+ * precisa além do id — `unitsPerBox`/`grossWeightGrams` já existem na caixa, e a linha da tabela não
+ * tem de onde tirá-los sem outra consulta por item.
+ */
+export type PendingMeasurementBoxMatch = {
+  readonly boxId: string
+  readonly grossWeightGrams: number | null
+  readonly unitsPerBox: number
+}
+
 export type PackageBoxRepositoryPort = {
   /**
    * Spec 155 (G003, D1): as irmãs de família (replicáveis) e de embalagem (só mostradas, nunca

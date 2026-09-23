@@ -1,10 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import {
+  MAX_CENTIMETRES,
+  toMillimetres,
+} from '@/modules/nfe-workspace/shared/packageBoxMeasurementUnits.service'
 import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
 
+import { useMeasurePendingBox, packageBoxErrorCode } from '../hooks/useMeasurePendingBox.hook'
 import {
   createBrowserWorkspaceNavigator,
   navigateToPackageBoxQueue,
@@ -16,12 +23,25 @@ import {
   tripPendingMeasurementsFileName,
   type TripPendingMeasurementsExportLabels,
 } from '../shared/tripPendingMeasurementsExport.service'
+import {
+  resolvePendingMeasurementSubmission,
+  type PendingMeasurementDimensionKey,
+  type PendingMeasurementDraft,
+} from '../shared/tripPendingMeasurementInline.service'
 import type { TripPendingMeasurement } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripPendingMeasurementsProps = Readonly<{
   measurements: readonly TripPendingMeasurement[]
 }>
+
+const DIMENSION_FIELD: Readonly<
+  Record<PendingMeasurementDimensionKey, keyof typeof MAX_CENTIMETRES>
+> = {
+  height: 'heightMm',
+  length: 'lengthMm',
+  width: 'widthMm',
+}
 
 /** `YYYY-MM-DD` local, sem depender de fuso — mesmo formato que o resto do bundle usa em nome de arquivo. */
 function todayIsoDate(): string {
@@ -30,11 +50,71 @@ function todayIsoDate(): string {
 
 export function TripPendingMeasurements({ measurements }: TripPendingMeasurementsProps) {
   const { t } = useTranslation('trip')
+  const authQuery = useAuthMeQuery()
+  const permissions = authQuery.data?.data.permissions ?? []
+  /** RF06/CA05: medir caixa é `cargo.measure` — sem ela, a tabela continua como hoje. */
+  const canMeasure = permissions.includes('cargo.measure')
+
+  const measure = useMeasurePendingBox()
+  const [drafts, setDrafts] = useState<Record<string, PendingMeasurementDraft>>({})
+  const [savingBoxId, setSavingBoxId] = useState<string | null>(null)
+  const [errorByBoxId, setErrorByBoxId] = useState<Record<string, string>>({})
 
   if (measurements.length === 0) return null
 
   function handleGoToQueue() {
     navigateToPackageBoxQueue(createBrowserWorkspaceNavigator())
+  }
+
+  function draftOf(boxId: string): PendingMeasurementDraft {
+    return drafts[boxId] ?? {}
+  }
+
+  function handleDimensionChange(
+    measurement: TripPendingMeasurement,
+    dimension: PendingMeasurementDimensionKey,
+    value: string,
+  ) {
+    const boxId = measurement.packageBoxId
+    if (boxId === null) return
+    setErrorByBoxId((current) => {
+      if (!(boxId in current)) return current
+      const rest = { ...current }
+      delete rest[boxId]
+      return rest
+    })
+    setDrafts((current) => ({ ...current, [boxId]: { ...current[boxId], [dimension]: value } }))
+  }
+
+  /** RF02/RF04: grava ao sair do campo, só com os três preenchidos — a linha some pela releitura. */
+  function handleDimensionBlur(measurement: TripPendingMeasurement, boxId: string) {
+    const submission = resolvePendingMeasurementSubmission(draftOf(boxId))
+    if (!submission.ready) return
+
+    setSavingBoxId(boxId)
+    measure.mutate(
+      {
+        grossWeightGrams: measurement.grossWeightGrams,
+        heightMm: submission.heightMm,
+        id: boxId,
+        lengthMm: submission.lengthMm,
+        unitsPerBox: measurement.unitsPerBox ?? 1,
+        widthMm: submission.widthMm,
+      },
+      {
+        onError: (error: unknown) => {
+          setSavingBoxId(null)
+          setErrorByBoxId((current) => ({
+            ...current,
+            [boxId]: packageBoxErrorCode(error) ?? 'network',
+          }))
+          /** CA06: o valor digitado permanece — `drafts` nunca é limpo aqui. */
+        },
+        onSuccess: () => {
+          setSavingBoxId(null)
+        },
+      },
+    )
   }
 
   function exportLabels(): TripPendingMeasurementsExportLabels {
@@ -73,6 +153,41 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
     })
   }
 
+  function dimensionCell(
+    measurement: TripPendingMeasurement,
+    dimension: PendingMeasurementDimensionKey,
+  ) {
+    const boxId = measurement.packageBoxId
+    if (boxId === null) return null
+
+    const value = draftOf(boxId)[dimension] ?? ''
+    const field = DIMENSION_FIELD[dimension]
+    const parsed = value.trim() === '' ? null : toMillimetres(value, field)
+    const invalid = value.trim() !== '' && parsed === null
+    const inputId = `pending-measurement-${boxId}-${dimension}`
+    const errorId = `${inputId}-error`
+
+    return (
+      <label className={styles.measureField} htmlFor={inputId}>
+        <input
+          aria-describedby={invalid ? errorId : undefined}
+          aria-invalid={invalid}
+          disabled={savingBoxId === boxId}
+          id={inputId}
+          inputMode="numeric"
+          onBlur={() => handleDimensionBlur(measurement, boxId)}
+          onChange={(event) => handleDimensionChange(measurement, dimension, event.target.value)}
+          value={value}
+        />
+        {invalid ? (
+          <span className={styles.measureFieldError} id={errorId} role="alert">
+            {t('pendingMeasurement.inline.outOfRange', { max: MAX_CENTIMETRES[field] })}
+          </span>
+        ) : null}
+      </label>
+    )
+  }
+
   return (
     <section aria-labelledby="trip-pending-measurements-title" className={styles.panel}>
       <h3 id="trip-pending-measurements-title">{t('pendingMeasurement.title')}</h3>
@@ -85,6 +200,13 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
               <th scope="col">{t('pendingMeasurement.columns.stop')}</th>
               <th scope="col">{t('pendingMeasurement.columns.boxCount')}</th>
               <th scope="col">{t('pendingMeasurement.columns.estimateSource')}</th>
+              {canMeasure ? (
+                <>
+                  <th scope="col">{t('pendingMeasurement.inline.length')}</th>
+                  <th scope="col">{t('pendingMeasurement.inline.width')}</th>
+                  <th scope="col">{t('pendingMeasurement.inline.height')}</th>
+                </>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -101,11 +223,29 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
                 <td>{measurement.stopLabel}</td>
                 <td>{measurement.boxCount}</td>
                 <td>{t(`pendingMeasurement.estimateSource.${measurement.estimateSource}`)}</td>
+                {canMeasure ? (
+                  measurement.packageBoxId === null ? (
+                    <td className={styles.measureFieldReason} colSpan={3}>
+                      {t('pendingMeasurement.inline.noBoxReason')}
+                    </td>
+                  ) : (
+                    <>
+                      <td>{dimensionCell(measurement, 'length')}</td>
+                      <td>{dimensionCell(measurement, 'width')}</td>
+                      <td>{dimensionCell(measurement, 'height')}</td>
+                    </>
+                  )
+                ) : null}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {canMeasure && Object.keys(errorByBoxId).length > 0 ? (
+        <p className={styles.measureFieldError} role="alert">
+          {t('pendingMeasurement.inline.saveFailed')}
+        </p>
+      ) : null}
       <div className={styles.actions}>
         <Button onClick={handleGoToQueue} size="sm" type="button" variant="ghost">
           <Icon name="link" />

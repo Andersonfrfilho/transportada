@@ -19,6 +19,7 @@ import type {
   PackageBoxSiblings,
   PackageBoxSiblingView,
   PackageBoxView,
+  PendingMeasurementBoxMatch,
 } from '../application/package-box.port.js'
 import {
   buildPackagingKey,
@@ -33,6 +34,10 @@ import {
   PackageBoxReplicationTargetOutsideFamilyError,
 } from '../domain/package-box-measurement.error.js'
 import { countBoxFamilies, countPackagingSiblings } from '../domain/package-box-queue.policy.js'
+import {
+  buildPendingMeasurementBoxKey,
+  resolveUniquePackageBoxId,
+} from '../domain/pending-measurement-box.policy.js'
 import { toPackageBoxUnitFields } from './package-box-unit.mapper.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -42,6 +47,86 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
 
   constructor(database: Database) {
     this.#database = database
+  }
+
+  /**
+   * Spec 168: um `inArray` só por número de nota — o produto e a ambiguidade se resolvem em memória,
+   * do mesmo jeito que `resolveUniquePackageBoxId` já decide (uma consulta, nunca uma por linha).
+   * `unitsPerBox`/`grossWeightGrams` viajam junto: a gravação inline reusa o caso de uso da fila, que
+   * os exige no corpo, e a linha da tabela não tem de onde tirá-los sem outra consulta por item.
+   */
+  async findBoxIdsForPendingMeasurements(input: {
+    readonly companyId: string
+    readonly items: readonly {
+      readonly documentNumber: string | null
+      readonly productCode: string | null
+    }[]
+  }): Promise<ReadonlyMap<string, PendingMeasurementBoxMatch>> {
+    const documentNumbers = [
+      ...new Set(input.items.map((item) => item.documentNumber).filter((value) => value !== null)),
+    ]
+    if (documentNumbers.length === 0) return new Map()
+
+    const rows = await this.#database
+      .select({
+        boxId: nfePackageBoxes.id,
+        documentNumber: nfeDocuments.number,
+        grossWeightGrams: nfePackageBoxes.grossWeightGrams,
+        productCode: nfeProducts.code,
+        unitsPerBox: nfePackageBoxes.unitsPerBox,
+      })
+      .from(nfeProducts)
+      .innerJoin(
+        nfeDocuments,
+        and(
+          eq(nfeDocuments.id, nfeProducts.documentId),
+          eq(nfeDocuments.companyId, nfeProducts.companyId),
+        ),
+      )
+      .innerJoin(
+        nfeParticipants,
+        and(
+          eq(nfeParticipants.documentId, nfeDocuments.id),
+          eq(nfeParticipants.companyId, nfeDocuments.companyId),
+          eq(nfeParticipants.role, 'emitter'),
+        ),
+      )
+      .innerJoin(
+        nfePackageBoxes,
+        and(
+          eq(nfePackageBoxes.companyId, nfeProducts.companyId),
+          eq(nfePackageBoxes.emitterTaxId, nfeParticipants.taxId),
+          eq(nfePackageBoxes.productCode, nfeProducts.code),
+          eq(nfePackageBoxes.commercialUnit, nfeProducts.commercialUnit),
+        ),
+      )
+      .where(
+        and(
+          eq(nfeProducts.companyId, input.companyId),
+          inArray(nfeDocuments.number, documentNumbers),
+        ),
+      )
+
+    const rowsByKey = new Map<string, typeof rows>()
+    for (const row of rows) {
+      const key = buildPendingMeasurementBoxKey(row)
+      if (key === null) continue
+      rowsByKey.set(key, [...(rowsByKey.get(key) ?? []), row])
+    }
+
+    const resolved = new Map<string, PendingMeasurementBoxMatch>()
+    for (const [key, matchingRows] of rowsByKey) {
+      const boxId = resolveUniquePackageBoxId(matchingRows.map((row) => row.boxId))
+      if (boxId === null) continue
+      const box = matchingRows.find((row) => row.boxId === boxId)
+      if (box === undefined) continue
+      resolved.set(key, {
+        boxId,
+        grossWeightGrams: box.grossWeightGrams,
+        unitsPerBox: box.unitsPerBox,
+      })
+    }
+    return resolved
   }
 
   /**

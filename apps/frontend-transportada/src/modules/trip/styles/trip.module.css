@@ -178,6 +178,38 @@
   gap: var(--space-2);
 }
 
+/** Spec 168: os três campos de medida direto na linha do que falta medir. */
+.measureField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.measureField input {
+  width: 4.5rem;
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.measureField input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.measureFieldError {
+  color: var(--color-alert);
+  font-size: 0.78rem;
+}
+
+.measureFieldReason {
+  color: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  font-size: 0.82rem;
+}
+
 .sortButton {
   display: inline-flex;
   gap: var(--space-1);

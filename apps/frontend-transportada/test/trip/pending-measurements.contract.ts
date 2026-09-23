@@ -49,10 +49,13 @@ const PENDING_MEASUREMENT = {
   boxCount: 6,
   documentNumber: '111',
   estimateSource: 'note',
+  grossWeightGrams: null,
   label: 'Caneta',
+  packageBoxId: 'box-1',
   productCode: 'P1',
   sequence: 1,
   stopLabel: 'Barrinha',
+  unitsPerBox: 1,
 } as const
 
 function readLayout(overrides: Record<string, unknown>) {

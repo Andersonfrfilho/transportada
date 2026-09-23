@@ -673,6 +673,14 @@
     "export": {
       "csv": "Download CSV",
       "xlsx": "Download Excel"
+    },
+    "inline": {
+      "length": "Length (cm)",
+      "width": "Width",
+      "height": "Height",
+      "outOfRange": "Above {{max}} cm — check the measurement.",
+      "saveFailed": "Could not save. The value is still here — try again.",
+      "noBoxReason": "No catalog box matches this product."
     }
   },
   "pagination": {

@@ -30,6 +30,7 @@ const COMPACT_HEIGHT_FIELDS = [
   { filePath: 'src/modules/mdfe-manifest/styles/mdfeManifest.module.css', selector: null },
   { filePath: NFE_STYLES_PATH, selector: null },
   { filePath: 'src/modules/operations/styles/operationsWorkspace.module.css', selector: null },
+  { filePath: 'src/modules/trip/styles/trip.module.css', selector: null },
 ] as const
 const OFF_STANDARD_HEIGHTS = ['min-height: 2.75rem', 'min-height: 2.5rem', 'min-height: 2.4rem']
 const FIELD_STYLESHEETS_WITHOUT_OFF_STANDARD_FIELDS = [

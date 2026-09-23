@@ -12,6 +12,7 @@ import {
   type TripCargoPreviewContext,
 } from '../../src/trips/application/preview-trip-cargo.use-case.js'
 import { createReadCargoLayoutUseCase } from '../../src/trips/application/read-cargo-layout.use-case.js'
+import type { CargoLayoutWithPackageBoxIds } from '../../src/trips/application/read-cargo-layout.types.js'
 import type { RequestCargoLayoutParams } from '../../src/trips/application/request-cargo-layout.types.js'
 import {
   buildCargoLayoutInput,
@@ -399,7 +400,8 @@ describe('a tela pergunta de novo pelo layoutId (spec 145 T11)', () => {
 
     expect(lookups).toEqual([{ companyId: COMPANY_ID, layoutId: LAYOUT_ID }])
     expect(result).toEqual({
-      cargoLayout: STORED_LAYOUT,
+      /** Spec 168: `pendingMeasurements` está vazio aqui — o tipo só ganha `packageBoxId` na linha. */
+      cargoLayout: STORED_LAYOUT as unknown as CargoLayoutWithPackageBoxIds,
       layoutId: LAYOUT_ID,
       shouldRequest: false,
       state: {
@@ -424,7 +426,17 @@ describe('a tela pergunta de novo pelo layoutId (spec 145 T11)', () => {
 
     const result = await useCase.execute({ companyId: COMPANY_ID, layoutId: LAYOUT_ID })
 
-    expect(result.cargoLayout).toEqual(drawnWith(NEW_INPUT))
+    /** Spec 168: sem `packageBoxLookup` (default), toda pendência sai sem caixa casada. */
+    const expected = drawnWith(NEW_INPUT)
+    expect(result.cargoLayout).toEqual({
+      ...expected,
+      pendingMeasurements: expected.pendingMeasurements.map((item) => ({
+        ...item,
+        grossWeightGrams: null,
+        packageBoxId: null,
+        unitsPerBox: null,
+      })),
+    })
     expect(result.state.status).toBe('ready')
   })
 

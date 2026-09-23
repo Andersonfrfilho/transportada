@@ -991,10 +991,13 @@ function isPendingMeasurement(value: unknown): value is TripPendingMeasurement {
     isUnsignedInteger(value.boxCount) &&
     isNullableString(value.documentNumber) &&
     isOneOf(value.estimateSource, CARGO_ESTIMATE_SOURCES) &&
+    isNullableNumber(value.grossWeightGrams) &&
     isNullableString(value.label) &&
+    isNullableString(value.packageBoxId) &&
     isNullableString(value.productCode) &&
     isUnsignedInteger(value.sequence) &&
-    isString(value.stopLabel)
+    isString(value.stopLabel) &&
+    isNullableNumber(value.unitsPerBox)
   )
 }
 
