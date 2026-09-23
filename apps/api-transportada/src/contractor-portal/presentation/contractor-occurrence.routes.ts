@@ -12,6 +12,11 @@
  * RF13: sem a nota, os itens e a observação o contratante não tem como decidir — a listagem
  * acrescenta `nfe` (número/série/chave, o mesmo recorte que o resto do portal já expõe), `items`
  * (código, descrição e quantidade dos produtos apontados; lista vazia é a nota inteira) e `note`.
+ *
+ * Revisão de segurança da spec 164: as duas rotas não tinham teto — `GET` percorre até 50
+ * ocorrências por chamada e lê anexo/assina URL de cada uma, amplificação de mais de cem consultas
+ * por requisição. Primeiras rotas do portal com `rateLimit` (nenhuma tinha antes desta spec);
+ * molde de `occurrence-case.routes.ts`, mas em dois baldes — decidir é raro e escreve estado.
  */
 import { z } from 'zod'
 
@@ -37,6 +42,21 @@ const DECIDE_POLICY = { permission: 'occurrences.decide', scope: 'company' } as 
 const OCCURRENCE_DECISION_PATH = `${API_CLIENT_OCCURRENCES_PATH}/:id/decision`
 
 const MAX_NOTE_LENGTH = 2000
+
+const OCCURRENCE_LIST_RATE_LIMIT = {
+  maxRequests: 60,
+  scope: 'contractor-occurrence-list',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+/** Decidir é raro e escreve estado — balde mais apertado que a listagem. */
+const OCCURRENCE_DECISION_RATE_LIMIT = {
+  maxRequests: 20,
+  scope: 'contractor-occurrence-decision',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
 
 const decisionSchema = z
   .object({
@@ -71,6 +91,7 @@ export function createContractorOccurrenceRoutes(
       parse: () => ({}) as Record<string, never>,
       pathname: API_CLIENT_OCCURRENCES_PATH,
       policy: TRACK_POLICY,
+      rateLimit: OCCURRENCE_LIST_RATE_LIMIT,
     }),
     defineRoute<{
       readonly kind: TripOccurrenceCaseDecisionKind
@@ -98,6 +119,7 @@ export function createContractorOccurrenceRoutes(
       },
       pathname: OCCURRENCE_DECISION_PATH,
       policy: DECIDE_POLICY,
+      rateLimit: OCCURRENCE_DECISION_RATE_LIMIT,
     }),
   ]
 }

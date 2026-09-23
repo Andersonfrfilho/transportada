@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createAddressCorrectionRoutes } from '../src/address-correction/presentation/address-correction.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
+import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
 import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripFieldOfficeRoutes } from '../src/trips/presentation/trip-field-office.routes'
@@ -199,6 +200,45 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
+  /**
+   * Revisão de segurança da spec 164: nenhuma rota do portal declarava teto antes desta spec —
+   * são as primeiras. `GET` amplifica (até 50 ocorrências por chamada, cada uma com leitura de
+   * anexo e assinatura de URL); `POST .../decision` é mais apertado porque decidir é raro e escreve
+   * estado.
+   */
+  test('as duas rotas do portal de ocorrência têm balde próprio, cada uma no seu', () => {
+    const unused = unusedDependencies() as never
+    const routes = createContractorOccurrenceRoutes(unused)
+
+    const limited = routes
+      .filter((route) => route.rateLimit !== undefined)
+      .map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      }))
+
+    expect(limited).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'contractor-occurrence-list',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'GET /client/me/occurrences',
+      },
+      {
+        rateLimit: {
+          maxRequests: 20,
+          scope: 'contractor-occurrence-decision',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /client/me/occurrences/:id/decision',
+      },
+    ])
+  })
+
   test('nenhum outro arquivo da API declara teto no Postgres', async () => {
     const files = await listSourceFiles(SOURCE_DIRECTORY)
     const declaring: string[] = []
@@ -210,6 +250,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     expect(declaring.sort()).toEqual([
       'address-correction/presentation/address-correction.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
+      'contractor-portal/presentation/contractor-occurrence.routes.ts',
       'trips/presentation/occurrence-case.routes.ts',
       'trips/presentation/occurrence-settlement.routes.ts',
       'trips/presentation/redelivery-application.routes.ts',
