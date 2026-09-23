@@ -663,6 +663,10 @@ export const TRIP_DOCUMENT_READINESS_REASONS = [
   'nfse_expected',
   /** Sem município de destino não se decide o documento — pendência explícita, nunca um chute. */
   'city_unknown',
+  /** O perfil que rege a nota manda emitir, mas alguma condição da nota impede — informa, não age. */
+  'blocked',
+  /** Nenhum perfil de emissão rege a nota: escolher o documento por omissão seria inventar regra. */
+  'no_profile',
 ] as const
 export type TripDocumentReadinessReason = (typeof TRIP_DOCUMENT_READINESS_REASONS)[number]
 
@@ -679,8 +683,10 @@ export type TripFiscalReadinessState = (typeof TRIP_FISCAL_READINESS_STATES)[num
 export type TripDocumentReadiness = Readonly<{
   cteAccessKey: null | string
   cteFiscalDocumentId: null | string
-  expectedDocument: 'cte' | 'nfse' | null
+  expectedDocument: 'blocked' | 'cte' | 'nfse' | 'no_profile' | null
   nfeDocumentId: null | string
+  /** O perfil que a emissão de NFS-e vai usar; `null` fora do caminho da NFS-e. */
+  nfseProfileId: null | string
   reason: TripDocumentReadinessReason
   rejectionCode: null | string
   rejectionMessage: null | string

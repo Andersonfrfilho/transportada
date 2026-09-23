@@ -490,9 +490,11 @@ function isScannedDocument(value: unknown): value is ScannedNfeDocument {
   )
 }
 
-/** Documento fora do par conhecido vira `null`: é o mesmo que "não se decidiu", e não um chute. */
-function readExpectedDocument(value: unknown): 'cte' | 'nfse' | null {
-  return value === 'cte' || value === 'nfse' ? value : null
+const EXPECTED_DOCUMENTS = ['blocked', 'cte', 'nfse', 'no_profile'] as const
+
+/** Documento fora do vocabulário vira `null`: é o mesmo que "não se decidiu", e não um chute. */
+function readExpectedDocument(value: unknown): TripDocumentReadiness['expectedDocument'] {
+  return isOneOf(value, EXPECTED_DOCUMENTS) ? value : null
 }
 
 function toDocumentReadiness(value: unknown): TripDocumentReadiness {
@@ -509,6 +511,7 @@ function toDocumentReadiness(value: unknown): TripDocumentReadiness {
     cteFiscalDocumentId: isString(value.cteFiscalDocumentId) ? value.cteFiscalDocumentId : null,
     expectedDocument: readExpectedDocument(value.expectedDocument),
     nfeDocumentId: isString(value.nfeDocumentId) ? value.nfeDocumentId : null,
+    nfseProfileId: isString(value.nfseProfileId) ? value.nfseProfileId : null,
     reason: value.reason,
     rejectionCode: isString(value.rejectionCode) ? value.rejectionCode : null,
     rejectionMessage: isString(value.rejectionMessage) ? value.rejectionMessage : null,

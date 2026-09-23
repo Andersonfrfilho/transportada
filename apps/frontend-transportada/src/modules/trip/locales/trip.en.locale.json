@@ -805,6 +805,8 @@
     "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
     "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
     "reason": {
+      "blocked": "issuing blocked for this invoice",
+      "no_profile": "no emission profile",
       "city_unknown": "destination city unknown",
       "cte_cancelled": "CT-e cancelled",
       "cte_in_progress": "CT-e in progress",

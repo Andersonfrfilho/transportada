@@ -27,6 +27,7 @@ const READY: TripDocumentReadiness = {
   cteFiscalDocumentId: '00000000-0000-4000-8000-000000000001',
   expectedDocument: 'cte',
   nfeDocumentId: '00000000-0000-4000-8000-000000000003',
+  nfseProfileId: null,
   reason: 'ok',
   rejectionCode: null,
   rejectionMessage: null,

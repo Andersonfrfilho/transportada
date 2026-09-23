@@ -20,6 +20,8 @@ import type { TripDocumentReadinessReason } from './trip.types'
  * resolver.
  */
 const ICON_BY_REASON: Record<TripDocumentReadinessReason, IconName> = {
+  blocked: 'alert',
+  no_profile: 'search',
   cte_cancelled: 'close',
   cte_in_progress: 'spinner',
   cte_rejected: 'alert',

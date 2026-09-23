@@ -988,6 +988,8 @@
     "generateCteBatch_one": "Gerar CT-e desta viagem ({{count}} nota)",
     "generateCteBatch_other": "Gerar CT-e desta viagem ({{count}} notas)",
     "reason": {
+      "blocked": "emissão bloqueada para esta nota",
+      "no_profile": "sem perfil de emissão",
       "city_unknown": "cidade de destino desconhecida",
       "cte_cancelled": "CT-e cancelado",
       "cte_in_progress": "CT-e em processamento",
