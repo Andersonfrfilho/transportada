@@ -209,6 +209,86 @@ export const tripCostEntries = pgTable(
   ],
 )
 
+export const COMPANY_ENTRY_KIND_SIDES = ['expense', 'revenue'] as const
+export type CompanyEntryKindSide = (typeof COMPANY_ENTRY_KIND_SIDES)[number]
+
+/**
+ * Spec 169 RF1: espécie de lançamento é cadastro da empresa, não constante de código. `side`
+ * separa gasto de receita — os dois nunca compartilham a lista (spec 169 CA03). Nome único por
+ * empresa e por lado; a ordem de exibição é a ordem cadastrada.
+ */
+export const companyEntryKinds = pgTable(
+  'company_entry_kinds',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    name: text().notNull(),
+    side: text().$type<CompanyEntryKindSide>().notNull(),
+    /** Spec 169 RF6: espécie em uso não é apagada — é desativada. */
+    active: boolean().notNull().default(true),
+    displayOrder: bigint('display_order', { mode: 'number' }).notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_entry_kinds_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_entry_kinds_company_id_id_unique').on(table.companyId, table.id),
+    unique('company_entry_kinds_company_side_name_unique').on(
+      table.companyId,
+      table.side,
+      table.name,
+    ),
+    index('company_entry_kinds_company_side_idx').on(table.companyId, table.side),
+    check(
+      'company_entry_kinds_side_check',
+      sql`${table.side} in (${sql.raw(inList(COMPANY_ENTRY_KIND_SIDES))})`,
+    ),
+  ],
+)
+
+/**
+ * Spec 169 RF3/RF4: a receita lançada à mão na viagem — ajuda de carga, taxa de reentrega, diária
+ * cobrada do embarcador. Entra na conta como entrada, em linha separada do frete previsto (spec
+ * 169, decisão registrada no topo do spec.md): nunca soma dentro de `revenueAmount`.
+ */
+export const tripRevenueEntries = pgTable(
+  'trip_revenue_entries',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    entryKindId: uuid('entry_kind_id').notNull(),
+    amount: numeric({ precision: 19, scale: 4 }).notNull(),
+    description: text().notNull().default(''),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_revenue_entries_company_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.entryKindId],
+      foreignColumns: [companyEntryKinds.companyId, companyEntryKinds.id],
+      name: 'trip_revenue_entries_entry_kind_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('trip_revenue_entries_trip_idx').on(table.companyId, table.tripId),
+    check('trip_revenue_entries_amount_check', sql`${table.amount} > 0`),
+  ],
+)
+
 export const COMPANY_FEDERAL_REGIMES = ['presumed', 'real', 'simple'] as const
 export type CompanyFederalRegime = (typeof COMPANY_FEDERAL_REGIMES)[number]
 
