@@ -1520,3 +1520,58 @@ Arquivos tocados:
   código; corrigir exige campo novo em `POST /extra-charge-batches` (fora do escopo desta task,
   que não editou `apps/api-transportada`).
 - Miniatura de foto por linha não implementada — API do relatório não traz o dado.
+
+## Fechamento por seleção explícita (RF27/RF32) — apps/api-transportada
+
+Fecha a pendência registrada acima ("Fechamento **não é** por seleção literal na API"): o
+`POST /extra-charge-batches` passa a aceitar `chargeIds` no corpo (`z.array(z.string().uuid()).min(1).max(500).optional()`).
+Comportamento:
+
+- Sem `chargeIds`: idêntico a antes — fecha por `contractorId` + janela `periodStart..periodEnd`.
+- Com `chargeIds`: fecha exatamente as linhas escolhidas. O período gravado no lote é o intervalo
+  que cobre essas linhas (`min`/`max` de `charged_on` das selecionadas), nunca o do corpo — decisão
+  explícita do usuário em `plan.md` § "O fechamento é por seleção, com filtros".
+- Toda a validação de elegibilidade (mesmo contratante, sem lote, status `recorded`) roda **dentro
+  da mesma transação** que insere o lote e prende as linhas — qualquer id fora disso recusa a
+  requisição inteira, código estável `EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE` (422). Sem
+  fechamento parcial silencioso.
+
+Arquivos tocados:
+
+- `apps/api-transportada/src/delivery-clients/application/extra-charge-batch.port.ts` — `close`
+  ganha `chargeIds?` e passa a devolver `ExtraChargeBatchCloseOutcome`
+  (`closed | empty | selection_ineligible`) em vez de `ExtraChargeBatch | null`.
+- `apps/api-transportada/src/delivery-clients/infrastructure/drizzle-extra-charge-batch.repository.ts`
+  — seleção validada e período derivado dentro da transação de fechamento.
+- `apps/api-transportada/src/delivery-clients/application/extra-charge-batches.use-case.ts` — novo
+  erro `ExtraChargeBatchSelectionIneligibleError` (422); `close` repassa `chargeIds`.
+- `apps/api-transportada/src/delivery-clients/presentation/extra-charge-batch.routes.ts` —
+  `closeSchema.chargeIds` opcional.
+- `apps/api-transportada/test/delivery-clients/batches.contract.ts` — regressão do fechamento por
+  período (sem `chargeIds`) + seleção explícita elegível/inelegível.
+- `apps/api-transportada/test/integration/extra-charge-batch.integration.ts` — contra Postgres:
+  fecha só a seleção com período derivado (inclusive linha fora da janela do corpo), e recusa
+  seleção com linha de outro contratante sem prender nada.
+
+### Gates (apps/api-transportada)
+
+- `bun run typecheck` (raiz) — OK, 0 erros.
+- `bun run lint` (raiz) — `apps/api-transportada` OK; falhas pré-existentes em
+  `apps/frontend-transportada/src/modules/trip/components/OccurrenceCasePanel.component.tsx` são de
+  outra sessão em andamento neste worktree, fora do escopo.
+- `bunx prettier --check` nos arquivos tocados — OK.
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo) — **7111 pass, 23
+  skip, 0 fail**, 183 arquivos.
+- `bun --env-file=../../.env.test test ./test/integration/extra-charge-batch.integration.ts
+./test/integration/extra-charge-batch-statement.integration.ts` (integração, arquivos tocados) —
+  **7 pass, 0 fail**.
+
+### Commit
+
+`feat(api): spec 164 — fechamento do lote por seleção explícita` (e7308354c).
+
+### Pendência explícita
+
+- O frontend (`OccurrenceReimbursementsWorkspace.page.tsx`) ainda não envia `chargeIds` no
+  `POST /extra-charge-batches` — a API já aceita; falta ligar a seleção da tela ao corpo da
+  requisição. Fora do escopo desta task (frontend está fora do worktree autorizado).
