@@ -86,8 +86,16 @@ export function TripStateActions({
     capabilities,
     documentIds: [...selection.selectedIds],
   })
-  const excludedFromOccurrenceBatch = selection.selectedIds.size - occurrenceSelection.length
-  const excludedFromDeliveryBatch = selection.selectedIds.size - deliverySelection.length
+  /**
+   * A exclusão só se conta quando a ação está sendo oferecida. Sem isto a tela avisava que notas
+   * ficaram de fora de um botão que ela não mostra, com o número da seleção inteira.
+   */
+  const excludedFromOccurrenceBatch = canFieldOccurrenceBatch
+    ? selection.selectedIds.size - occurrenceSelection.length
+    : 0
+  const excludedFromDeliveryBatch = canFieldDeliveryBatch
+    ? selection.selectedIds.size - deliverySelection.length
+    : 0
 
   function handleBatchReturn(reason: DriverReturnReason): void {
     setIsReturnDialogOpen(false)

@@ -1258,12 +1258,12 @@
     "title": "Ações da viagem",
     "batchFieldOccurrence": "Ocorrência em {{count}} nota",
     "batchFieldOccurrence_other": "Ocorrência em {{count}} notas",
-    "batchFieldOccurrenceExcluded": "{{count}} nota sem essa ação ficou de fora. ",
-    "batchFieldOccurrenceExcluded_other": "{{count}} notas sem essa ação ficaram de fora. ",
+    "batchFieldOccurrenceExcluded": "{{count}} nota marcada não aceita registro de ocorrência. ",
+    "batchFieldOccurrenceExcluded_other": "{{count}} notas marcadas não aceitam registro de ocorrência. ",
     "batchFieldDelivery": "Dar baixa em {{count}} nota",
     "batchFieldDelivery_other": "Dar baixa em {{count}} notas",
-    "batchFieldDeliveryExcluded": "{{count}} nota sem essa ação ficou de fora.",
-    "batchFieldDeliveryExcluded_other": "{{count}} notas sem essa ação ficaram de fora."
+    "batchFieldDeliveryExcluded": "{{count}} nota marcada não aceita baixa de entrega.",
+    "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega."
   },
   "status": {
     "cancelled": "Cancelada",

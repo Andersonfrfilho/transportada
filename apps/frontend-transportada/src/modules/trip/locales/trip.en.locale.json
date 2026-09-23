@@ -1048,12 +1048,12 @@
     "title": "Trip actions",
     "batchFieldOccurrence": "Occurrence on {{count}} document",
     "batchFieldOccurrence_other": "Occurrence on {{count}} documents",
-    "batchFieldOccurrenceExcluded": "{{count}} document without that action was left out. ",
-    "batchFieldOccurrenceExcluded_other": "{{count}} documents without that action were left out. ",
+    "batchFieldOccurrenceExcluded": "{{count}} selected invoice does not accept occurrence logging. ",
+    "batchFieldOccurrenceExcluded_other": "{{count}} selected invoices do not accept occurrence logging. ",
     "batchFieldDelivery": "Deliver {{count}} document",
     "batchFieldDelivery_other": "Deliver {{count}} documents",
-    "batchFieldDeliveryExcluded": "{{count}} document without that action was left out.",
-    "batchFieldDeliveryExcluded_other": "{{count}} documents without that action were left out."
+    "batchFieldDeliveryExcluded": "{{count}} selected invoice does not accept delivery confirmation.",
+    "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation."
   },
   "status": {
     "cancelled": "Cancelled",
