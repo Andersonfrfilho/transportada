@@ -231,8 +231,6 @@ type SaveOccurrenceTypeInput = {
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
-  /** Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão. */
-  readonly returnsToDepot: boolean
   readonly stage: 'delivery' | 'separation'
 }
 

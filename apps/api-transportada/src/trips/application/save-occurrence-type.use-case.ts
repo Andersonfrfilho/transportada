@@ -33,8 +33,6 @@ export type SaveOccurrenceTypeValues = {
   readonly occurrenceTypeId: null | string
   /** Ausente é `'unset'` — nenhum caso de tratativa abre para este tipo. */
   readonly redeliveryPolicy?: RedeliveryPolicy
-  /** Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão. */
-  readonly returnsToDepot: boolean
   readonly stage: TripOccurrenceStage
 }
 

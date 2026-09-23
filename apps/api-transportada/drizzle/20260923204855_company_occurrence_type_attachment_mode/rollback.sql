@@ -1,18 +1,15 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
 --
--- Desfaz a spec 179 T102 (RF1/RF9): as colunas `attachment_mode` e `returns_to_depot` de
--- `company_occurrence_types`, com o CHECK do vocabulário de `attachment_mode`.
+-- Desfaz a spec 179 T102 (RF1): a coluna `attachment_mode` de `company_occurrence_types`, com o
+-- CHECK do seu vocabulário.
 --
--- O que se perde: a exigência de comprovante e a marca de devolução ao barracão de todo tipo
--- cadastrado. As duas colunas são aditivas e nascem com padrão (`'off'`/`false`) — nenhuma outra
--- tabela depende delas.
+-- O que se perde: a exigência de comprovante de todo tipo cadastrado. A coluna é aditiva e nasce
+-- com padrão (`'off'`) — nenhuma outra tabela depende dela.
 
 BEGIN;
 
 ALTER TABLE "company_occurrence_types" DROP CONSTRAINT "company_occurrence_types_attachment_mode_check";
-
-ALTER TABLE "company_occurrence_types" DROP COLUMN "returns_to_depot";
 
 ALTER TABLE "company_occurrence_types" DROP COLUMN "attachment_mode";
 

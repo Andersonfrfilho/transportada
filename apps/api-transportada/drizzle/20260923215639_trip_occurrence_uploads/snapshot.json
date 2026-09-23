@@ -27456,19 +27456,6 @@
       "table": "company_occurrence_types"
     },
     {
-      "type": "boolean",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "false",
-      "generated": null,
-      "identity": null,
-      "name": "returns_to_depot",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,

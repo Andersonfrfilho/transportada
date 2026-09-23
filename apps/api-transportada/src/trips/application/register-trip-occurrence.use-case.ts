@@ -119,11 +119,6 @@ export type OccurrenceTypeRecord = {
    * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
-  /**
-   * Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão. Ausente é
-   * tratado como `false` — mesma justificativa de `attachmentMode` acima.
-   */
-  readonly returnsToDepot?: boolean
   readonly stage: TripOccurrenceStage
 }
 

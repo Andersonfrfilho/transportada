@@ -300,11 +300,6 @@ const occurrenceTypeSchema = z
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),
-    /**
-     * Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão. Padrão
-     * `false` preserva o comportamento de hoje.
-     */
-    returnsToDepot: z.boolean().default(false),
     stage: z.enum(['delivery', 'separation']),
   })
   .strict()

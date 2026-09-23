@@ -1,3 +1,2 @@
 ALTER TABLE "company_occurrence_types" ADD COLUMN "attachment_mode" varchar(16) DEFAULT 'off' NOT NULL;--> statement-breakpoint
-ALTER TABLE "company_occurrence_types" ADD COLUMN "returns_to_depot" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "company_occurrence_types" ADD CONSTRAINT "company_occurrence_types_attachment_mode_check" CHECK ("attachment_mode" in ('required', 'optional', 'off'));

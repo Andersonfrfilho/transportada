@@ -1941,12 +1941,6 @@ export const companyOccurrenceTypes = pgTable(
       .$type<DeliveryProofFieldMode>()
       .notNull()
       .default('off'),
-    /**
-     * Spec 179 (RF9): se o registro deste tipo marca a nota como devolvida ao barracão, na mesma
-     * escrita da ocorrência. Padrão `false`: nenhuma instalação passa a devolver nota sozinha ao
-     * aplicar esta migration.
-     */
-    returnsToDepot: boolean('returns_to_depot').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

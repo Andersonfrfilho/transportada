@@ -3151,7 +3151,6 @@ function createApplicationRoutes({
               name: input.name,
               notifies: input.notifies,
               occurrenceTypeId: input.occurrenceTypeId,
-              returnsToDepot: input.returnsToDepot,
               stage: input.stage,
             },
           }),

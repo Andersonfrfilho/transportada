@@ -632,7 +632,6 @@ export async function findOccurrenceType(
       notifies: companyOccurrenceTypes.notifies,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
-      returnsToDepot: companyOccurrenceTypes.returnsToDepot,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)
@@ -758,7 +757,6 @@ export async function listOccurrenceTypes(
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
-      returnsToDepot: companyOccurrenceTypes.returnsToDepot,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)
@@ -789,8 +787,6 @@ export async function saveOccurrenceType(
      * internos o definem).
      */
     readonly redeliveryPolicy?: RedeliveryPolicy
-    /** Spec 179 (RF9): ausente é `false` — mesma justificativa de `attachmentMode` acima. */
-    readonly returnsToDepot?: boolean
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -805,7 +801,6 @@ export async function saveOccurrenceType(
     name: input.name.trim(),
     notifies: input.notifies,
     redeliveryPolicy: input.redeliveryPolicy ?? 'unset',
-    returnsToDepot: input.returnsToDepot ?? false,
     stage: input.stage,
   }
 
@@ -836,7 +831,6 @@ export async function saveOccurrenceType(
     name: saved.name,
     notifies: saved.notifies,
     redeliveryPolicy: saved.redeliveryPolicy,
-    returnsToDepot: saved.returnsToDepot,
     stage: saved.stage,
   }
 }

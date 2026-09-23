@@ -1,10 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 179 T101 (RF1/RF9, CA01/CA07/CA08): o cadastro do tipo de ocorrência aceita a exigência de
- * comprovante (`attachmentMode`, o mesmo vocabulário de `DELIVERY_PROOF_FIELD_MODES`) e a marca de
- * devolução ao barracão (`returnsToDepot`). Omitidos, os dois viram `'off'` e `false` — nenhuma
- * instalação muda de comportamento ao aplicar esta migration.
+ * Spec 179 T101 (RF1, CA01/CA07/CA08): o cadastro do tipo de ocorrência aceita a exigência de
+ * comprovante (`attachmentMode`, o mesmo vocabulário de `DELIVERY_PROOF_FIELD_MODES`). Omitido,
+ * vira `'off'` — nenhuma instalação muda de comportamento ao aplicar esta migration.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -31,25 +30,23 @@ function putRequest(body: unknown): Request {
   })
 }
 
-describe('o cadastro do tipo aceita a exigência de comprovante e a devolução ao barracão (spec 179 RF1/RF9)', () => {
-  test('sem os campos, os padrões são off e false', async () => {
+describe('o cadastro do tipo aceita a exigência de comprovante (spec 179 RF1)', () => {
+  test('sem o campo, o padrão é off', async () => {
     const parsed = await parseOccurrenceTypeRequest(putRequest(JSON.parse(baseBody())))
 
     expect(parsed.attachmentMode).toBe('off')
-    expect(parsed.returnsToDepot).toBe(false)
   })
 
-  test('aceita optional e required, e preserva returnsToDepot true', async () => {
+  test('aceita optional e required', async () => {
     const optional = await parseOccurrenceTypeRequest(
       putRequest({ ...JSON.parse(baseBody()), attachmentMode: 'optional' }),
     )
     expect(optional.attachmentMode).toBe('optional')
 
     const required = await parseOccurrenceTypeRequest(
-      putRequest({ ...JSON.parse(baseBody()), attachmentMode: 'required', returnsToDepot: true }),
+      putRequest({ ...JSON.parse(baseBody()), attachmentMode: 'required' }),
     )
     expect(required.attachmentMode).toBe('required')
-    expect(required.returnsToDepot).toBe(true)
   })
 
   test('valor fora do vocabulário é recusado', async () => {

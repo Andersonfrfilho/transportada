@@ -26,7 +26,6 @@ const BASE_VALUES = {
   name: 'Recusa total',
   notifies: true,
   occurrenceTypeId: null,
-  returnsToDepot: false,
   stage: 'delivery' as const,
 }
 
