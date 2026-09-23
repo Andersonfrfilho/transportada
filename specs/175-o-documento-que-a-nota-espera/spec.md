@@ -7,11 +7,15 @@ linha continuou fixo em **Gerar CT-e**. Numa entrega urbana a tela passa a dizer
 a nota espera NFS-e e que a ação disponível emite CT-e — o operador tem de saber, de cabeça, que
 ali ele não deve clicar.
 
-A informação para decidir **já existe e já é calculada**: `resolveFiscalDocumentKind`
-(`apps/api-transportada/src/trips/domain/fiscal-document-kind.policy.ts:46`) compara o município de
-destino com o da transportadora — mesmo município espera **NFS-e**, outro município espera
-**CT-e**, e município ausente ou sujo não decide nada (`city_unknown`). O resultado viaja por nota
-em `expectedDocument`, na resposta de prontidão. Quem não usa é o botão.
+A informação para decidir **já existe e já é calculada**, e viaja por nota em `expectedDocument`,
+na resposta de prontidão. Quem não usa é o botão.
+
+⚠️ **Emenda de 23/09 (ADR-0071).** Esta spec nasceu apontando para `resolveFiscalDocumentKind`, que
+decide por código IBGE de município. A análise da T201 achou uma **segunda** política decidindo o
+mesmo fato — `classifyDocumentOutput`, que decide pelo perfil de emissão, alimenta a coluna
+"Documento" da tela de notas e devolve o `nfseProfileId` junto. As duas podem discordar sobre a
+mesma nota. O ADR-0071 elegeu a do **perfil** como fonte única; a de município vira entrada dela.
+Tudo o que esta spec diz sobre `expectedDocument` vale, com o valor vindo da fonte única.
 
 Resultado: **um botão por linha, rotulado pelo documento que aquela nota espera**. A tela deixa de
 perguntar ao operador o que o dado já responde, e some a vizinhança perigosa de duas ações
@@ -51,7 +55,7 @@ emite direto, porque é o que o caminho de hoje faz.
 
 ### P4 — Saber quando não há perfil
 
-**Given** uma nota que espera NFS-e e nenhum perfil fiscal que case com ela
+**Given** uma nota sem perfil de emissão configurado (`no_profile`)
 **When** o operador olha a linha
 **Then** a tela diz que falta perfil, e não oferece uma ação que terminaria em erro.
 
@@ -70,8 +74,10 @@ emite direto, porque é o que o caminho de hoje faz.
 - **RF3** A ação de NFS-e **abre o diálogo de emissão** (`NfseEmissionDialog`) com a nota
   pré-selecionada, nunca emite direto: `profileId` é obrigatório e é escolha do operador.
 - **RF4** A ação de CT-e segue emitindo direto, como hoje — esta spec não muda o caminho dele.
-- **RF5** Sem perfil fiscal que case com a nota, a linha informa isso e não oferece a ação. É o
-  mesmo estado que a tela de notas já sabe exibir ("nenhum perfil casa com a nota").
+- **RF5** Nota sem perfil de emissão (`no_profile`) ou bloqueada (`blocked`) informa o estado e não
+  oferece ação. ⚠️ Corrigido depois da análise de 23/09: "nenhum perfil casa com a nota" é resolução
+  de perfil de **CT-e** (`emission-profile-resolution.policy.ts`), não existe no caminho da NFS-e. O
+  que a linha sabe vem da fonte única do ADR-0071, que transporta o `nfseProfileId` junto.
 - **RF6** O gate de permissão do frontend para NFS-e passa a ser **`nfse.issue`**, que é o que a
   API exige em `nfse-invoices.routes.ts:172`. Hoje o frontend usa `nfse.manage`
   (`nfseEmission.service.ts:101`): quem tem só essa vê o botão e toma 403.
@@ -108,7 +114,7 @@ emite direto, porque é o que o caminho de hoje faz.
 - **CA01** Nota urbana mostra "Emitir NFS-e"; nota interurbana mostra "Gerar CT-e".
 - **CA02** `city_unknown` não mostra ação nenhuma.
 - **CA03** A ação de NFS-e abre o diálogo com a nota pré-selecionada e não emite antes do perfil.
-- **CA04** Sem perfil que case, a linha diz isso e não oferece a ação.
+- **CA04** Nota `no_profile` ou `blocked` diz o estado e não oferece a ação.
 - **CA05** O gate do frontend usa `nfse.issue`; um contrato prova que ele casa com a permissão que
   a rota exige.
 - **CA06** Sem permissão do documento esperado, o estado aparece e a ação não.

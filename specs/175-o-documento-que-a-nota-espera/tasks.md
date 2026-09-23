@@ -28,19 +28,32 @@ isolado e evidência em `evidence.md`.
       (`cte.submit` / `nfse.issue`).
 - [x] **T104** Locales pt-BR e en dos dois rótulos e do estado sem ação.
 
-## Fase 3 — O caminho da NFS-e
+## Fase 3 — A fonte única e o caminho da NFS-e
 
-> 🤖 Modelo: `sonnet` — **T201 é 🧠**
+> 🤖 Modelo: `sonnet` — **T205 é 🧠**
 
-- [ ] **T201** 🧠 Decidir como a viagem abre o diálogo de NFS-e sem duplicá-lo: importar de
-      `nfse-invoice`, ou levantar para um lugar compartilhado. **Validar com `architect` em `opus`
-      antes de escrever código** — é fronteira de módulo, não detalhe. Registrar a decisão em
-      `evidence.md`; se implicar rota nova na API, **parar** e abrir ADR.
+- [x] **T201** 🧠 Fronteira de módulo decidida (análise de 23/09): a regra não é declarada em lugar
+      nenhum, é costume permissivo, e o padrão do repositório é o **componente de ação autocontido**
+      exportado pelo módulo dono — precedente literal em `NfeDocumentTable.component.tsx:13`, que já
+      importa `NfseEmissionAction` de `nfse-invoice`. Decisão: `trip` importa `NfseEmissionAction`,
+      não o diálogo. Nada se move, não há ciclo. Emitir **um** documento é caminho legítimo
+      (`nfse-invoice.use-case.ts:130`) — não vira ADR.
+- [ ] **T205** 🧠 **ADR-0071**: fazer `expectedDocument` sair da fonte única
+      (`classifyDocumentOutput`, pelo perfil de emissão) em vez de `resolveFiscalDocumentKind`, e
+      transportar o `nfseProfileId` e os estados `blocked`/`no_profile` até a viagem. Contrato que
+      prova que existe **uma conta só** — falha se alguma tela voltar a decidir por município.
+      Frontend tolerante primeiro: o bundle aceita as chaves novas antes de a API emitir.
+- [ ] **T206** Escrever a regra de fronteira, hoje só costume, num parágrafo em
+      `apps/frontend-transportada/CLAUDE.md`: módulo consome de outro apenas o componente de ação
+      autocontido que o dono exporta, nunca o diálogo ou o hook internos.
 - [ ] **T202** Contrato: a ação de NFS-e **abre o diálogo** com a nota pré-selecionada e não dispara
       emissão antes de o perfil ser escolhido.
-- [ ] **T203** Implementar a abertura do diálogo a partir da linha da viagem.
-- [ ] **T204** Estado "nenhum perfil casa com a nota": contrato primeiro, depois a linha informando
-      e sem oferecer a ação.
+- [ ] **T203** Implementar a abertura do diálogo a partir da linha, por `NfseEmissionAction`.
+      Pré-requisito: descer `permissions` e `companyId` até `TripStopList` (molde em
+      `NfeWorkspace.page.tsx:196,220`) — hoje a lista só recebe `canSubmitCte` já resolvido.
+- [ ] **T204** Estados `no_profile` e `blocked`: contrato primeiro, depois a linha informando e sem
+      oferecer a ação. ⚠️ Não confundir com "nenhum perfil casa com a nota", que é resolução de
+      perfil de CT-e e não existe no caminho da NFS-e.
 
 ## Fase 4 — O resumo e o fecho
 
