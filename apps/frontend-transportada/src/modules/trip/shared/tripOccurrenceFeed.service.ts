@@ -88,6 +88,18 @@ export type OccurrenceSettlementResult = Readonly<{
   total: string
 }>
 
+/**
+ * `GET /trip-occurrences/:id/case/settlement`: mesmo formato do item que o `PUT` aceita, com
+ * `reimbursedAt` a mais — a marca de ressarcido que só a leitura carrega.
+ */
+export type OccurrenceSettlementItemView = OccurrenceSettlementItem &
+  Readonly<{ reimbursedAt: null | string }>
+
+export type OccurrenceSettlementView = Readonly<{
+  items: readonly OccurrenceSettlementItemView[]
+  total: string
+}>
+
 export type TripOccurrenceFeedItem = Readonly<{
   case: null | TripOccurrenceCaseView
   createdAt: string

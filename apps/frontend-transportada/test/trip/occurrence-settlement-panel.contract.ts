@@ -48,9 +48,9 @@ describe('spec 164 T23 (RF34): painel de acerto', () => {
     expect(panel).toContain('row.productCode.trim().length > 0')
   })
 
-  test('transportadora (carrier) esconde o botão de ressarcimento, nunca oferece para dar 422', () => {
+  test('transportadora (carrier) ou item já ressarcido esconde o botão, nunca oferece para dar 422', () => {
     const panel = readFileSync(PANEL, 'utf8')
-    expect(panel).toContain("item.payerKind === 'carrier' ? null :")
+    expect(panel).toContain("item.payerKind === 'carrier' || item.reimbursedAt !== null ? null :")
   })
 
   test('amountSource é sempre manual — esta tela não tem de onde ler o valor da nota', () => {
@@ -63,5 +63,29 @@ describe('spec 164 T23 (RF34): painel de acerto', () => {
     expect(panel).toContain("from '@/components/ui/select'")
     expect(panel).toContain("from '@/components/ui/button'")
     expect(panel).not.toMatch(/<select[\s>]/u)
+  })
+})
+
+/**
+ * Achado 2 da revisão (spec 164): `GET /trip-occurrences/:id/case/settlement` — o painel deixa de
+ * nascer sempre vazio e passa a carregar o acerto já gravado.
+ */
+describe('spec 164 (achado 2): GET do acerto já gravado', () => {
+  test('usa o hook de consulta do acerto, habilitado só com a permissão de resolver', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toContain('useOccurrenceSettlementQuery')
+    expect(panel).toContain('enabled: canResolve, occurrenceId')
+  })
+
+  test('carrega o rascunho e o resultado a partir da consulta, uma vez por ocorrência', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toContain('loadedOccurrenceIdRef')
+    expect(panel).toContain('setLastResult(settlementQuery.data)')
+  })
+
+  test('mostra um estado de carregamento com Skeleton do design system', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toContain('settlementQuery.isLoading')
+    expect(panel).toContain("from '@/components/ui/skeleton'")
   })
 })

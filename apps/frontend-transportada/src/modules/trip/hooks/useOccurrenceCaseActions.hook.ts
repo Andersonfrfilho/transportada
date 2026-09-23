@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getTripOccurrenceFeedClient,
   TRIP_OCCURRENCE_FEED_QUERY_KEY,
+  TRIP_OCCURRENCE_SETTLEMENT_QUERY_KEY,
 } from '../queries/tripOccurrenceFeed.query'
 
 /**
@@ -17,6 +18,10 @@ export function useOccurrenceCaseActions() {
 
   function invalidateFeed(): void {
     void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+  }
+
+  function invalidateSettlement(): void {
+    void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_SETTLEMENT_QUERY_KEY] })
   }
 
   const review = useMutation({
@@ -45,11 +50,17 @@ export function useOccurrenceCaseActions() {
   })
   const recordSettlement = useMutation({
     mutationFn: client.recordOccurrenceSettlement,
-    onSuccess: invalidateFeed,
+    onSuccess: () => {
+      invalidateFeed()
+      invalidateSettlement()
+    },
   })
   const reimburse = useMutation({
     mutationFn: client.reimburseOccurrenceSettlementItem,
-    onSuccess: invalidateFeed,
+    onSuccess: () => {
+      invalidateFeed()
+      invalidateSettlement()
+    },
   })
 
   return {

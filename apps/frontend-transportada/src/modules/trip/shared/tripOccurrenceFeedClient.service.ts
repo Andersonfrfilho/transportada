@@ -7,7 +7,9 @@ import {
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
   TRIP_OCCURRENCE_CASE_STATUSES,
   type OccurrenceSettlementItem,
+  type OccurrenceSettlementItemView,
   type OccurrenceSettlementResult,
+  type OccurrenceSettlementView,
   type TripOccurrenceAttachment,
   type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseView,
@@ -72,6 +74,10 @@ export type TripOccurrenceFeedClient = Readonly<{
   recordOccurrenceSettlement: (
     input: Readonly<{ items: readonly OccurrenceSettlementItem[]; occurrenceId: string }>,
   ) => Promise<OccurrenceSettlementResult>
+  /** Achado 2 da revisão: devolve o que o `PUT` gravou — a tela abre com o acerto que já existe. */
+  findOccurrenceSettlement: (
+    input: Readonly<{ occurrenceId: string }>,
+  ) => Promise<OccurrenceSettlementView>
   /** RF31: idempotente; `payer_kind = 'carrier'` nunca chega aqui — a tela esconde o botão. */
   reimburseOccurrenceSettlementItem: (
     input: Readonly<{ occurrenceId: string; productCode: string }>,
@@ -162,6 +168,25 @@ function readSettlementResult(payload: unknown): OccurrenceSettlementResult {
     !isRecord(payload.data) ||
     !Array.isArray(payload.data.items) ||
     !payload.data.items.every(isSettlementItem) ||
+    !isString(payload.data.total)
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return { items: payload.data.items, total: payload.data.total }
+}
+
+function isSettlementItemView(value: unknown): value is OccurrenceSettlementItemView {
+  if (!isSettlementItem(value)) return false
+  const reimbursedAt = (value as Readonly<{ reimbursedAt?: unknown }>).reimbursedAt
+  return reimbursedAt === null || isString(reimbursedAt)
+}
+
+function readSettlementView(payload: unknown): OccurrenceSettlementView {
+  if (
+    !isRecord(payload) ||
+    !isRecord(payload.data) ||
+    !Array.isArray(payload.data.items) ||
+    !payload.data.items.every(isSettlementItemView) ||
     !isString(payload.data.total)
   ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
@@ -298,6 +323,13 @@ export function createTripOccurrenceFeedClient(
         { body: { kind: input.kind, note: input.note }, method: 'POST' },
       )
       return readCaseView(payload)
+    },
+    async findOccurrenceSettlement(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/settlement`,
+      )
+      return readSettlementView(payload)
     },
     async recordOccurrenceSettlement(input) {
       const payload = await requestJson(

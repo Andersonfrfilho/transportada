@@ -1,12 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 
 import { useOccurrenceCaseActions } from '../hooks/useOccurrenceCaseActions.hook'
+import { useOccurrenceSettlementQuery } from '../queries/tripOccurrenceFeed.query'
 import {
   formatOccurrenceSettlementAmount,
   isPositiveDecimalAmount,
@@ -16,7 +18,7 @@ import {
   OCCURRENCE_SETTLEMENT_PAYER_KINDS,
   type OccurrenceSettlementItem,
   type OccurrenceSettlementPayerKind,
-  type OccurrenceSettlementResult,
+  type OccurrenceSettlementView,
 } from '../shared/tripOccurrenceFeed.service'
 import styles from '../styles/trip.module.css'
 
@@ -43,10 +45,10 @@ function emptyRow(): DraftRow {
  * (`occurrenceSettlementMoney.service.ts`), nunca em `number`. `payerKind: 'carrier'` esconde o
  * botão de ressarcimento em vez de deixar o clique estourar 422 (critério de aceite da T23).
  *
- * ⚠️ Sem `GET` para ler o acerto já gravado (a API só expõe `PUT` que substitui e `POST` de
- * ressarcimento), a tela nasce com o formulário vazio a cada abertura — ela não sabe o que já foi
- * salvo antes de o operador digitar de novo. É lacuna do backend, registrada aqui em vez de
- * fingida com um estado inventado.
+ * Achado 2 da revisão: `GET /trip-occurrences/:id/case/settlement` traz o que já foi gravado —
+ * o painel abre com o acerto existente em vez de sempre vazio. O carregamento inicial só acontece
+ * uma vez por ocorrência (`loadedOccurrenceIdRef`), para não sobrescrever o que o operador está
+ * digitando quando a consulta refaz depois de salvar/ressarcir.
  */
 export function OccurrenceSettlementPanel({
   canResolve,
@@ -54,8 +56,26 @@ export function OccurrenceSettlementPanel({
 }: OccurrenceSettlementPanelProps) {
   const { t } = useTranslation('trip')
   const actions = useOccurrenceCaseActions()
+  const settlementQuery = useOccurrenceSettlementQuery({ enabled: canResolve, occurrenceId })
   const [rows, setRows] = useState<readonly DraftRow[]>([emptyRow()])
-  const [lastResult, setLastResult] = useState<null | OccurrenceSettlementResult>(null)
+  const [lastResult, setLastResult] = useState<null | OccurrenceSettlementView>(null)
+  const loadedOccurrenceIdRef = useRef<null | string>(null)
+
+  useEffect(() => {
+    if (settlementQuery.data === undefined) return
+    if (loadedOccurrenceIdRef.current === occurrenceId) return
+    loadedOccurrenceIdRef.current = occurrenceId
+    if (settlementQuery.data.items.length === 0) return
+    setRows(
+      settlementQuery.data.items.map((item) => ({
+        amount: item.amount,
+        payerId: item.payerId ?? '',
+        payerKind: item.payerKind,
+        productCode: item.productCode,
+      })),
+    )
+    setLastResult(settlementQuery.data)
+  }, [occurrenceId, settlementQuery.data])
 
   const clientTotal = sumOccurrenceSettlementAmounts(rows.map((row) => row.amount))
   const isBusy = actions.recordSettlement.isPending
@@ -84,7 +104,18 @@ export function OccurrenceSettlementPanel({
           ? { payerId: row.payerId.trim() }
           : {}),
       }))
-    actions.recordSettlement.mutate({ items, occurrenceId }, { onSuccess: setLastResult })
+    actions.recordSettlement.mutate(
+      { items, occurrenceId },
+      {
+        /** `PUT` substitui a lista inteira — os itens gravados nascem sempre não ressarcidos. */
+        onSuccess: (result) => {
+          setLastResult({
+            items: result.items.map((item) => ({ ...item, reimbursedAt: null })),
+            total: result.total,
+          })
+        },
+      },
+    )
   }
 
   function handleReimburse(productCode: string): void {
@@ -92,6 +123,15 @@ export function OccurrenceSettlementPanel({
   }
 
   if (!canResolve) return null
+
+  if (settlementQuery.isLoading) {
+    return (
+      <div className={styles.occurrenceStage}>
+        <h4 className={styles.hint}>{t('occurrenceSettlement.title')}</h4>
+        <Skeleton height="2.5rem" />
+      </div>
+    )
+  }
 
   return (
     <div className={styles.occurrenceStage}>
@@ -177,7 +217,7 @@ export function OccurrenceSettlementPanel({
               <span>{item.productCode}</span>
               <span>{formatOccurrenceSettlementAmount(item.amount)}</span>
               <span>{t(`occurrenceSettlement.payer.${item.payerKind}`)}</span>
-              {item.payerKind === 'carrier' ? null : (
+              {item.payerKind === 'carrier' || item.reimbursedAt !== null ? null : (
                 <Button
                   disabled={actions.reimburse.isPending}
                   onClick={() => handleReimburse(item.productCode)}
