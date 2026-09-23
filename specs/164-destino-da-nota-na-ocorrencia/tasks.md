@@ -46,13 +46,13 @@ fecha com typecheck + testes + commit isolado e evidência em `evidence.md`.
     `OCCURRENCE_CASE_TRANSITION_NOT_ALLOWED`, idempotência de todas, e `returned_to_warehouse` e
     `closed` sem saída. O teste falha se alguém acrescentar aresta de volta.
 
-- [ ] **T3** Erros novos — `trips/domain/trip.error.ts`: `OccurrenceCaseNotFoundError` (404),
+- [x] **T3** Erros novos — `trips/domain/trip.error.ts`: `OccurrenceCaseNotFoundError` (404),
       `OccurrenceCaseTransitionNotAllowedError` (409), `OccurrenceCaseRedeliveryNotAllowedError`
       (422), `OccurrenceCaseSettlementWithoutItemsError` (422),
       `OccurrenceSettlementItemUnknownError` (422), `OccurrenceSettlementAmountInvalidError` (422).
   - Critério de aceite: contrato confere código estável, status e **ausência de PII** na mensagem.
 
-- [ ] **T4** Repositório e abertura na transação —
+- [x] **T4** Repositório e abertura na transação —
       `trips/infrastructure/drizzle-occurrence-case.repository.ts` (escritor único, `select … for no
 key update` antes do `update`, compare-and-set por status, evento só quando mudou) e a abertura
       da tratativa dentro da transação de `register-trip-occurrence.use-case.ts` e
@@ -65,17 +65,17 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5** `trips/application/occurrence-case.use-case.ts` + `occurrence-case.port.ts` — as quatro
+- [x] **T5** `trips/application/occurrence-case.use-case.ts` + `occurrence-case.port.ts` — as quatro
       ações (`review`, `warehouse_return`, `contractor_submission`, `closure`), com a recusa da RF7.
   - Critério de aceite (RF5–RF9): contrato a partir do **caso de uso**, com dublê de repositório —
     o dublê não é chamado quando a política recusa.
 
-- [ ] **T6** Permissão `occurrences.resolve` — `identity/domain/authorization.policy.ts`
+- [x] **T6** Permissão `occurrences.resolve` — `identity/domain/authorization.policy.ts`
       (`company-admin`, `operator`, `finance`; **nunca** `separator`, `driver`, `aggregate`).
   - Critério de aceite (CA11/D7): contrato de papéis verde; `test/separator-role.contract.test.ts`
     continua verde e **sem** rota nova listada.
 
-- [ ] **T7** Rotas internas — `trips/presentation/occurrence-case.routes.ts` e
+- [x] **T7** Rotas internas — `trips/presentation/occurrence-case.routes.ts` e
       `occurrence-case.schema.ts` (Zod `.strict()`), fiação em `src/main.ts`, `rateLimit` no
       Postgres declarado em cada uma. **Cinco rotas, não quatro**: RF5–RF8 mais RF8b (`cancel`) — a
       spec original não previa rota para o estado terminal `cancelled` que a T2 já tinha criado
@@ -84,7 +84,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     `test/rate-limited-routes.contract.test.ts`; ocorrência de outra empresa é 404; corrida perdida
     é 409.
 
-- [ ] **T8** O feed enxerga a tratativa — `trips/infrastructure/trip-occurrence-feed.query.ts`
+- [x] **T8** O feed enxerga a tratativa — `trips/infrastructure/trip-occurrence-feed.query.ts`
       (`left join`), `trip-occurrence-feed.use-case.ts`, `trip-occurrence-feed.schema.ts`.
   - Critério de aceite (RF10/RF11): ocorrência sem tratativa devolve `case: null`; o filtro por
     estado inclui "sem tratativa"; o cursor do feed fica inalterado.
@@ -222,7 +222,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     `OCCURRENCE_SETTLEMENT_NOT_REIMBURSABLE`; escreve **só** `reimbursed_at` e
     `reimbursed_by_user_id`; nenhum movimento de dinheiro é simulado.
 
-- [ ] **T19** Relatório mensal — `delivery-clients/application/occurrence-charge-report.use-case.ts`
+- [x] **T19** Relatório mensal — `delivery-clients/application/occurrence-charge-report.use-case.ts`
       e `GET /occurrence-charges/report` (`trip.financials`), por contratante e período, com quebra
       por `charge_type` e o estado de cada cobrança.
   - Critério de aceite (RF27/RF28/RNF5): o lote do período é o `extra_charge_batches` que já existe —
@@ -246,7 +246,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T21** Cadastro do tipo — `modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx`
+- [x] **T21** Cadastro do tipo — `modules/company-settings/components/OccurrenceTypeCatalogPanel.component.tsx`
       e o hook, com a escolha de `redelivery_policy` em três opções e o texto que explica o que
       `unset` faz.
   - ⚠️ **Precondição (correção do `architect` na T1)**: `SaveOccurrenceTypeValues` é conjunto
@@ -257,7 +257,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
   - Critério de aceite (RF1/Risco 1): `PUT` sem o campo não altera o valor; a tela deixa evidente
     que tipo `unset` não abre tratativa. Primitivos do design system obrigatórios.
 
-- [ ] **T22** Painel de tratativa na página `/ocorrencias` — `OccurrenceCasePanel.component.tsx`,
+- [x] **T22** Painel de tratativa na página `/ocorrencias` — `OccurrenceCasePanel.component.tsx`,
       `TripOccurrenceTable`, `TripOccurrenceFilters`, `TripOccurrenceColumnsMenu`,
       `useTripOccurrenceTable.hook.ts`, `tripOccurrenceFeed.query.ts`, `trip.types.ts`,
       `tripResponse.validation.ts`.
@@ -269,27 +269,27 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     marcador de problema some da nota) e **decidir no lugar do contratante** que não responde,
     com a tela deixando claro que a decisão será registrada como da transportadora, não do cliente.
 
-- [ ] **T23** Painel de acerto — `OccurrenceSettlementPanel.component.tsx`, valor proposto editável,
+- [x] **T23** Painel de acerto — `OccurrenceSettlementPanel.component.tsx`, valor proposto editável,
       origem visível, **seletor de pagador** (motorista, transportadora, contratante, seguradora —
       motorista é o padrão e o único que pede escolher quem), marca de ressarcido, total em pt-BR.
   - Critério de aceite (RF34): nenhum cálculo de dinheiro em float no cliente; o total da tela bate
     com o do servidor; item sem valor não é enviado; escolher "transportadora" esconde o botão de
     ressarcimento em vez de oferecê-lo para dar 422.
 
-- [ ] **T24** Listagem e mapa — marcador na nota (`TripStopList.component.tsx`) e ícone de problema
+- [x] **T24** Listagem e mapa — marcador na nota (`TripStopList.component.tsx`) e ícone de problema
       na parada (`TripRouteMap` + `AssemblyVectorMap`), sobre a cor de `stopColorOf`.
   - Critério de aceite (CA5/RF36/RF37): contrato prova que **nenhuma** ação da linha some ou
     desabilita por causa da tratativa; o ícone acrescenta à cor, não a substitui; parada sem
     coordenada não quebra o mapa.
 
-- [ ] **T25** Portal do contratante — `apps/frontend-client/src/modules/occurrences/OccurrenceList.page.tsx`
+- [x] **T25** Portal do contratante — `apps/frontend-client/src/modules/occurrences/OccurrenceList.page.tsx`
       e `DecisionForm.component.tsx`, no molde de `modules/charges/ChargeBatchList.page.tsx`; textos
       em `trip.locale.json` e `trip.en.locale.json` para o painel.
   - Critério de aceite (RF35/RF38): três botões de decisão, motivo obrigatório em "outra solução",
     foto e itens visíveis; `locale-accents.contract.ts` verde; sem design system e sem dependência
     nova na app do portal.
 
-- [ ] **T26** Página "Ressarcimentos" — acumulado por contratante e mês, quebra por tipo de cobrança,
+- [x] **T26** Página "Ressarcimentos" — acumulado por contratante e mês, quebra por tipo de cobrança,
       lista das ocorrências com miniatura, e o botão que baixa o demonstrativo da T20.
   - Critério de aceite (RF32): permissão `trip.financials` (quem valida ocorrência não vê valor por
     carona); dinheiro formatado em pt-BR e **nenhum** cálculo em float no cliente; o total da tela
@@ -301,14 +301,14 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
 > 🤖 Modelo: `sonnet` (a revisão final vai para `code-reviewer` **e** `security-reviewer` em `opus`,
 > em passes separados — nunca autoaprovação no mesmo contexto)
 
-- [ ] **T27** Integração do dinheiro contra Postgres —
+- [x] **T27** Integração do dinheiro contra Postgres —
       `test/integration/occurrence-charge.integration.ts`, **somado ao script `test:integration` do
       `package.json`**: acerto → cobrança → lote do período → demonstrativo, sobre as mesmas linhas.
   - Critério de aceite (CA9c/CA9d): a cobrança nasce e converge; a regravação sobre linha submetida
     é recusada e o valor não muda; o lote soma o que deve somar; e, depois de gerar o PDF, uma
     leitura de `billing_*`, `cte_*`, `nfse_*` e `fiscal_sequences` prova que **nada** foi tocado.
 
-- [ ] **T28** Smoke e prints — `test/spec-164-prints.smoke.spec.ts`, molde de
+- [x] **T28** Smoke e prints — `test/spec-164-prints.smoke.spec.ts`, molde de
       `test/spec-161-prints.smoke.spec.ts`.
   - Critério de aceite (CA13): PNGs em `specs/164-destino-da-nota-na-ocorrencia/prints/` — página de
     ocorrências com a tratativa em cada estado, painel de acerto com o seletor de pagador, página
@@ -316,7 +316,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
     escuro. O demonstrativo em PDF entra como página renderizada, com foto sintética, **nunca** com
     dado real de cliente.
 
-- [ ] **T29** `docs/SECURITY.md` e contexto da I.A. — entrada datada no formato do arquivo (`Onde`,
+- [x] **T29** `docs/SECURITY.md` e contexto da I.A. — entrada datada no formato do arquivo (`Onde`,
       `O que é`, `Corrigido`/`O que continua aberto`, `Origem`) sobre a superfície externa nova e as
       duas permissões, **e o segundo motivo da retenção de cinco anos das fotos** (spec 161 D9: a
       foto passou a ser anexo de uma cobrança, e reduzir o prazo passa a exigir a pergunta do
@@ -325,7 +325,7 @@ key update` antes do `update`, compare-and-set por status, evento só quando mud
   - Critério de aceite (CA12): nenhum achado antigo apagado; `grep` provando que nenhum log carrega
     observação, valor, nome ou documento.
 
-- [ ] **T30** Revisão de design e usabilidade (`web.md` §15) + revisão final — comparar o painel de
+- [x] **T30** Revisão de design e usabilidade (`web.md` §15) + revisão final — comparar o painel de
       tratativa e o de acerto com os vizinhos da mesma tela, conferir contraste, e percorrer o
       caminho no telefone: validar, devolver ao barracão, enviar ao contratante, decidir no portal,
       registrar acerto com pagador, marcar ressarcimento, fechar o mês e baixar o demonstrativo.
