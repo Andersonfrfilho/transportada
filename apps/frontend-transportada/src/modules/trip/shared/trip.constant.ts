@@ -130,6 +130,11 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   /** Spec 156 T15: canhoto do escritório maior que o teto, ou bytes que não batem com uma imagem. */
   TRIP_DELIVERY_PROOF_TOO_LARGE: 'deliveryProofTooLarge',
   TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE: 'deliveryProofUnsupportedType',
+  /** Spec 164, achado 1: decisão divergente da transportadora sobre tratativa já `decided`. */
+  OCCURRENCE_CASE_DECISION_CONFLICT: 'occurrenceCaseDecisionConflict',
+  /** Spec 164, achado 1: reentrega escolhida sobre política `blocked` da tratativa. */
+  OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED: 'occurrenceCaseRedeliveryNotAllowed',
+  OCCURRENCE_CASE_NOTE_REQUIRED: 'occurrenceCaseNoteRequired',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */

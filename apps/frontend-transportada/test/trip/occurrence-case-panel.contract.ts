@@ -43,12 +43,23 @@ describe('spec 164 T22: painel da tratativa de ocorrência', () => {
     expect(panel).toContain('note.trim().length === 0 || isBusy')
   })
 
-  test('aguardando o contratante mostra aviso, sem botão de decidir por ele — a API não expõe rota interna', () => {
+  test('aguardando o contratante mostra aviso, e o botão de decidir por ele só aparece nesse estado', () => {
     const panel = readFileSync(PANEL, 'utf8')
     expect(panel).toContain("status === 'awaiting_contractor'")
     expect(panel).toContain("t('occurrenceCase.awaitingContractor')")
-    expect(panel).not.toContain('decideOnBehalf')
-    expect(panel).not.toContain('occurrenceCase.action.decide')
+    expect(panel).toContain("canDecideOnBehalf = canResolve && status === 'awaiting_contractor'")
+    expect(panel).toContain("t('occurrenceCase.action.decide')")
+  })
+
+  test('decidir em nome da contratante exige nota e avisa que a decisão é da transportadora', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toContain('decisionNote.trim().length === 0 || isBusy')
+    expect(panel).toContain("t('occurrenceCase.decisionWarning')")
+  })
+
+  test('reentrega some das opções quando a tratativa não admite — evita o 422 previsível', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    expect(panel).toContain("kind !== 'redelivery_authorized' || redeliveryPolicy === 'allowed'")
   })
 
   test('usa Button e Icon do design system, nunca botão cru', () => {

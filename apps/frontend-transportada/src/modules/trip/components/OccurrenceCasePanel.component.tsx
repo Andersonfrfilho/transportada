@@ -4,9 +4,15 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
 
 import { useOccurrenceCaseActions } from '../hooks/useOccurrenceCaseActions.hook'
-import type { TripOccurrenceCaseView } from '../shared/tripOccurrenceFeed.service'
+import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
+import {
+  TRIP_OCCURRENCE_CASE_DECISION_KINDS,
+  type TripOccurrenceCaseDecisionKind,
+  type TripOccurrenceCaseView,
+} from '../shared/tripOccurrenceFeed.service'
 import { OccurrenceSettlementPanel } from './OccurrenceSettlementPanel.component'
 import styles from '../styles/trip.module.css'
 
@@ -30,11 +36,15 @@ function formatMoment(value: string): string {
  * estado e a permissão permitem**. `occurrenceCase: null` é o registro de hoje — tipo `unset` ou
  * ocorrência anterior à migration (D11) — e a tela mostra "sem tratativa", nunca quebra.
  *
- * ⚠️ **"Decidir no lugar do contratante" não está aqui.** A API só expõe
- * `POST /client-occurrences/:id/decision` com a permissão `occurrences.decide`, que a D6 do
- * spec.md concede só ao papel `contractor` — "em nenhum papel de dentro". Sem rota interna para essa
- * ação, o botão ficaria aqui apenas para devolver 403; a lacuna é do backend, registrada para a
- * próxima task, não implementada aqui com um caminho que a API recusa.
+ * **"Decidir no lugar do contratante" (achado 1 da revisão)**: a rota interna
+ * `POST /trip-occurrences/:id/case/decision` (`occurrences.resolve`, nunca `occurrences.decide` —
+ * essa é do papel `contractor`) só aparece em `awaiting_contractor`. Nota é **sempre** obrigatória
+ * — decidir por quem não respondeu sem dizer por quê não pode ser silencioso — e a tela avisa,
+ * antes do clique, que a decisão fica registrada como da transportadora, nunca do cliente: é a
+ * diferença entre "o contratante autorizou" e "nós decidimos por ele" numa trilha que sustenta
+ * cobrança. Reentrega fica fora das opções quando `redeliveryPolicy` é `blocked` — evita o 422 que
+ * a API já recusaria; decisão divergente sobre tratativa já `decided` volta `409` e aparece como
+ * aviso, nunca erro de sistema.
  */
 export function OccurrenceCasePanel({
   canResolve,
@@ -45,18 +55,24 @@ export function OccurrenceCasePanel({
   const actions = useOccurrenceCaseActions()
   const [pendingNoteAction, setPendingNoteAction] = useState<NoteAction | null>(null)
   const [note, setNote] = useState('')
+  const [isDeciding, setIsDeciding] = useState(false)
+  const [decisionKind, setDecisionKind] = useState<TripOccurrenceCaseDecisionKind>(
+    TRIP_OCCURRENCE_CASE_DECISION_KINDS[0],
+  )
+  const [decisionNote, setDecisionNote] = useState('')
 
   if (occurrenceCase === null) {
     return <p className={styles.hint}>{t('occurrenceCase.none')}</p>
   }
 
-  const { status } = occurrenceCase
+  const { redeliveryPolicy, status } = occurrenceCase
   const isBusy =
     actions.review.isPending ||
     actions.returnToWarehouse.isPending ||
     actions.submitToContractor.isPending ||
     actions.close.isPending ||
-    actions.cancel.isPending
+    actions.cancel.isPending ||
+    actions.decide.isPending
 
   function startNoteAction(action: NoteAction): void {
     setPendingNoteAction(action)
@@ -79,11 +95,36 @@ export function OccurrenceCasePanel({
     setNote('')
   }
 
+  const decisionOptions = TRIP_OCCURRENCE_CASE_DECISION_KINDS.filter(
+    (kind) => kind !== 'redelivery_authorized' || redeliveryPolicy === 'allowed',
+  )
+
+  function startDecision(): void {
+    setIsDeciding(true)
+    setDecisionKind(decisionOptions[0] ?? TRIP_OCCURRENCE_CASE_DECISION_KINDS[0])
+    setDecisionNote('')
+  }
+
+  function cancelDecision(): void {
+    setIsDeciding(false)
+    setDecisionNote('')
+  }
+
+  function submitDecision(): void {
+    if (decisionNote.trim().length === 0) return
+    actions.decide.mutate(
+      { kind: decisionKind, note: decisionNote, occurrenceId },
+      { onSuccess: cancelDecision },
+    )
+  }
+
   const canReview = canResolve && status === 'recorded'
   const canWarehouseReturn = canResolve && status === 'under_review'
   const canSubmitToContractor = canResolve && status === 'under_review'
   const canCancel = canResolve && (status === 'recorded' || status === 'under_review')
   const canClose = canResolve && status === 'decided'
+  const canDecideOnBehalf = canResolve && status === 'awaiting_contractor'
+  const decisionFeedbackKey = resolveTripFeedbackKey(actions.decide.error)
 
   return (
     <div className={styles.occurrenceStage}>
@@ -110,6 +151,66 @@ export function OccurrenceCasePanel({
         <p className={styles.hint} role="status">
           {t('occurrenceCase.awaitingContractor')}
         </p>
+      ) : null}
+
+      {isDeciding ? (
+        <div className={styles.occurrenceForm}>
+          <p className={styles.hint} role="alert">
+            {t('occurrenceCase.decisionWarning')}
+          </p>
+          <label>
+            {t('occurrenceCase.decisionKindLabel')}
+            <Select
+              ariaLabel={t('occurrenceCase.decisionKindLabel')}
+              onChange={(value) => setDecisionKind(value as TripOccurrenceCaseDecisionKind)}
+              options={decisionOptions.map((kind) => ({
+                label: t(`occurrenceCase.decisionOption.${kind}`),
+                value: kind,
+              }))}
+              value={decisionKind}
+            />
+          </label>
+          {redeliveryPolicy === 'blocked' ? (
+            <p className={styles.hint}>{t('occurrenceCase.decisionRedeliveryBlocked')}</p>
+          ) : null}
+          <label>
+            {t('occurrenceCase.decisionNoteLabel')}
+            <textarea
+              aria-label={t('occurrenceCase.decisionNoteLabel')}
+              onChange={(event) => setDecisionNote(event.target.value)}
+              value={decisionNote}
+            />
+          </label>
+          {decisionFeedbackKey !== null ? (
+            <p className={styles.hint} role="alert">
+              {t(`feedback.${decisionFeedbackKey}`)}
+            </p>
+          ) : null}
+          <div className={styles.occurrenceFormActions}>
+            <Button
+              disabled={decisionNote.trim().length === 0 || isBusy}
+              onClick={submitDecision}
+              size="sm"
+              type="button"
+            >
+              <Icon name="shield" />
+              {t('occurrenceCase.confirm')}
+            </Button>
+            <Button onClick={cancelDecision} size="sm" type="button" variant="ghost">
+              <Icon name="close" />
+              {t('occurrenceCase.dismiss')}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {canDecideOnBehalf && !isDeciding ? (
+        <div className={styles.occurrenceFormActions}>
+          <Button disabled={isBusy} onClick={startDecision} size="sm" type="button">
+            <Icon name="shield" />
+            {t('occurrenceCase.action.decide')}
+          </Button>
+        </div>
       ) : null}
 
       {pendingNoteAction !== null ? (

@@ -622,7 +622,10 @@
     "statusWriteConflict": "A viagem mudou enquanto você agia. Recarregue e tente de novo.",
     "deliveryProofTooLarge": "O arquivo é maior que o aceito pelo escritório.",
     "deliveryProofUnsupportedType": "O arquivo precisa ser uma imagem.",
-    "timelineCursorInvalid": "O cursor da linha do tempo é inválido."
+    "timelineCursorInvalid": "O cursor da linha do tempo é inválido.",
+    "occurrenceCaseDecisionConflict": "Outra decisão diferente já foi registrada para esta tratativa. Recarregue a página para ver o que ficou gravado.",
+    "occurrenceCaseRedeliveryNotAllowed": "Esta ocorrência não admite reentrega — escolha outra decisão.",
+    "occurrenceCaseNoteRequired": "Informe o motivo da decisão."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",
@@ -1421,6 +1424,15 @@
       "other": "O contratante registrou outra solução"
     },
     "awaitingContractor": "Aguardando a decisão do contratante no portal.",
+    "decisionOption": {
+      "redelivery_authorized": "Autorizar reentrega",
+      "goods_paid": "Registrar produtos pagos",
+      "other": "Outra solução"
+    },
+    "decisionKindLabel": "Decisão",
+    "decisionNoteLabel": "Motivo da decisão (obrigatório)",
+    "decisionWarning": "Esta decisão fica registrada como decisão da transportadora, não da contratante.",
+    "decisionRedeliveryBlocked": "Reentrega indisponível para esta ocorrência.",
     "noteLabel": {
       "cancel": "Motivo do cancelamento (obrigatório)",
       "warehouse-return": "Motivo do retorno ao barracão (obrigatório)"
@@ -1428,6 +1440,7 @@
     "confirm": "Confirmar",
     "dismiss": "Desistir",
     "action": {
+      "decide": "Decidir em nome da contratante",
       "review": "Iniciar validação interna",
       "warehouseReturn": "Retornar ao barracão",
       "submitToContractor": "Enviar ao contratante",

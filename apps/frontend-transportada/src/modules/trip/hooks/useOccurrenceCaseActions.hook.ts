@@ -39,6 +39,10 @@ export function useOccurrenceCaseActions() {
     mutationFn: client.cancelOccurrenceCase,
     onSuccess: invalidateFeed,
   })
+  const decide = useMutation({
+    mutationFn: client.decideOccurrenceCaseOnBehalfOfContractor,
+    onSuccess: invalidateFeed,
+  })
   const recordSettlement = useMutation({
     mutationFn: client.recordOccurrenceSettlement,
     onSuccess: invalidateFeed,
@@ -51,6 +55,7 @@ export function useOccurrenceCaseActions() {
   return {
     cancel,
     close,
+    decide,
     recordSettlement,
     reimburse,
     returnToWarehouse,

@@ -9,6 +9,7 @@ import {
   type OccurrenceSettlementItem,
   type OccurrenceSettlementResult,
   type TripOccurrenceAttachment,
+  type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseView,
   type TripOccurrenceFeedFilters,
   type TripOccurrenceFeedItem,
@@ -34,6 +35,11 @@ export type ListTripOccurrencesInput = Readonly<{
 
 type CaseActionInput = Readonly<{ occurrenceId: string }>
 type CaseActionWithNoteInput = Readonly<{ note: string; occurrenceId: string }>
+type CaseDecisionInput = Readonly<{
+  kind: TripOccurrenceCaseDecisionKind
+  note: string
+  occurrenceId: string
+}>
 
 export type TripOccurrenceFeedClient = Readonly<{
   listAttachments: (
@@ -51,6 +57,16 @@ export type TripOccurrenceFeedClient = Readonly<{
   /** RF6: nota obrigatória — encerra dentro da transportadora, sem visibilidade externa. */
   returnOccurrenceCaseToWarehouse: (
     input: CaseActionWithNoteInput,
+  ) => Promise<TripOccurrenceCaseView>
+  /**
+   * Achado 1 da revisão (spec 164): decisão em nome do contratante que não respondeu, feita pelo
+   * escritório. `actorKind: 'internal'` é constante da rota — nunca vem daqui —, e é isso que
+   * impede um ator interno assinar como se fosse o cliente. Nota sempre obrigatória. Recusa `409`
+   * (`OCCURRENCE_CASE_DECISION_CONFLICT`) sobre tratativa já decidida com decisão divergente, e
+   * `422` (`OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED`) para reentrega sobre política `blocked`.
+   */
+  decideOccurrenceCaseOnBehalfOfContractor: (
+    input: CaseDecisionInput,
   ) => Promise<TripOccurrenceCaseView>
   /** RF23: substitui a lista inteira — só com a tratativa `decided` e decisão `goods_paid`. */
   recordOccurrenceSettlement: (
@@ -272,6 +288,14 @@ export function createTripOccurrenceFeedClient(
         dependencies,
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/cancel`,
         { body: { note: input.note }, method: 'POST' },
+      )
+      return readCaseView(payload)
+    },
+    async decideOccurrenceCaseOnBehalfOfContractor(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/case/decision`,
+        { body: { kind: input.kind, note: input.note }, method: 'POST' },
       )
       return readCaseView(payload)
     },
