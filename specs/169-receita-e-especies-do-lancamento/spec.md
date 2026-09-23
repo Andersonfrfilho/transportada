@@ -63,6 +63,14 @@ da empresa**, não constante de código.
   (`companySettingsTabs.service.ts`), e exige `settings.manage`.
 - **RF8** Lançar receita exige a mesma permissão de lançar gasto.
 - **RF9** Textos em pt-BR; en onde a seção já existir.
+- **RF11** O bloco dos lançamentos fica **antes do total** da viagem: o total é a conclusão, e
+  conclusão não vem antes do que a compõe. Hoje ele aparece depois, e quem confere lê o resultado
+  antes de ver de onde ele veio.
+- **RF12** Cada lançamento — gasto ou receita — tem ação de **remover**, com a mesma permissão de
+  lançar. Remover não apaga do banco: marca quem removeu e quando, e o lançamento sai das contas.
+  Erro de digitação é o caso comum, e obrigar o operador a conviver com ele suja a conta da viagem;
+  apagar de verdade tiraria da trilha o que alguém precisou explicar depois.
+- **RF13** Lançamento removido não aparece na lista por padrão, e a conta não o soma.
 - **RF10** O campo de valor digita com **duas casas** (o defeito de 23/09 já corrigido vale para o
   formulário novo desde o começo).
 
@@ -88,6 +96,9 @@ da empresa**, não constante de código.
 - **CA05** Espécie em uso desativada some do seletor e permanece no lançamento antigo.
 - **CA06** Nome repetido no mesmo lado é recusado com código estável.
 - **CA07** O campo de valor mostra `100,00` ao digitar `10000`.
+- **CA08** Os lançamentos aparecem antes do total na tela.
+- **CA09** Remover um lançamento tira-o da conta e guarda quem removeu e quando.
+- **CA10** Lançamento removido não volta a aparecer na lista nem na soma.
 
 ## Dúvidas
 
