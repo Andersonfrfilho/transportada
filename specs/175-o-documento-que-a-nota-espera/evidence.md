@@ -371,3 +371,51 @@ Esta fase foi executada com **outra sessão ativa na mesma árvore**: os commits
 trabalho por essa sessão concorrente, à medida que cada task fechava. O conteúdo confere com o que
 está descrito acima; o que **não** conferia era a ressalva sobre a integração, corrigida no início
 desta seção com os números das duas rodadas verdes.
+
+## Fase 4 e revisão final (23/09)
+
+### T301/T302 — o resumo conta a NFS-e pendente
+
+A correção ficou **só no frontend**, e a medição explica por quê: o contrato de backend
+`trip-fiscal-readiness/readiness.contract.ts` já trava, de propósito (ADR-0046 / spec 065 D4), que
+viagem com CT-e completo e nota `nfse_expected` é `state: 'ready'` — NFS-e não bloqueia o MDF-e.
+Mudar o `state` teria quebrado esse contrato. O defeito era de exibição: o resumo que o operador lê
+não citava a nota de NFS-e ao lado. `nfseCount` já existia na resposta.
+
+### Revisão final (`code-reviewer`, opus): 7 achados, 0 bloqueios
+
+Dois de severidade alta, os dois tratados:
+
+**1. Id de espaço errado indo para a API de NFS-e.** A query classificava pelo id coalescido dos dois
+vínculos (`coalesce(trip_documents.nfe_document_id, freight_calculations.nfe_document_id)`) e
+publicava em `nfeDocumentId` **só** o vínculo direto. Nota que chega pelo cálculo de frete vinha como
+`nfse_expected` com `nfeDocumentId` nulo, e a linha completava com `document.id`, que é de
+`trip_documents` — outro espaço de id. Corrigido na origem (publica o id que classificou) e na tela
+(sem id da nota não há ação). Commit `9dec27791`.
+
+**2. Risco de dados, não de código.** `create-trip-cte-batch.use-case.ts:113` e
+`set-trip-mdfe-requirement.use-case.ts:65` filtram `expectedDocument === 'cte'`. Com a fonte única,
+nota sem perfil de emissão vira `no_profile` e **some do lote de CT-e e do `manifestableCount`**, sem
+erro aparecer. Medido no banco local: `cte_emission_profiles` = 0, matchers = 0, `nfse_emission_profiles`
+= 0, com 345 notas e 1 empresa — ou seja, 100% das notas locais cairiam em `no_profile`. Decisão do
+usuário: semear perfis de emissão na bancada local antes de seguir.
+
+⚠️ **Pré-requisito de produção, ainda não medido:** contar em produção as notas ativas cujo
+`classifyDocumentOutput` devolveria `no_profile`/`blocked`. Diferente de zero significa que a
+publicação desliga a emissão de CT-e dessas notas em silêncio.
+
+**3. Guard que não guardava.** `document-output-source.contract.ts` listava
+`src/trips/infrastructure/trip.routes.ts`, caminho que não existe (o arquivo está em
+`presentation/`), e o laço fazia `continue` quando o arquivo faltava: um dos três caminhos prometidos
+nunca era lido e o teste passava verde. Mesmo "pular não é passar" da spec 092. Caminho corrigido e o
+`continue` virou falha explícita.
+
+**4. `city_unknown` virou estado morto.** `readDocumentReason` não o devolve mais em nenhum ramo e
+`expectedDocument` na API não admite mais `null`, então **P2/RF2/CA02 desta spec ficaram
+inalcançáveis**: o caso "sem município resolvido" agora chega como `no_profile` ou `blocked`. O
+frontend segue aceitando `null` por tolerância, corretamente. Fica registrado aqui em vez de removido:
+o vocabulário ainda protege bundle novo contra API antiga.
+
+**5. `nfseProfileId` ainda não entregou o valor prometido.** O campo viaja até a tela, mas a linha não
+o repassa ao diálogo — o operador escolhe o perfil de novo. Não é defeito; é a promessa do ADR-0071
+que falta cumprir.

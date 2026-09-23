@@ -59,9 +59,9 @@ isolado e evidência em `evidence.md`.
 
 > 🤖 Modelo: `sonnet` — **T303 é 🧠**
 
-- [ ] **T301** Contrato: o resumo de prontidão conta NFS-e pendente, e viagem só com NFS-e
+- [x] **T301** Contrato: o resumo de prontidão conta NFS-e pendente, e viagem só com NFS-e
       pendente não é dita "pronta".
-- [ ] **T302** Implementar a contagem.
+- [x] **T302** Implementar a contagem.
 - [ ] **T303** 🧠 Revisão de design e usabilidade das linhas com as duas ações, em 375px e no
       desktop, **com print** (web.md §15). Conferir área de toque, contraste e a linha marcada.
 - [ ] **T304** `evidence.md` consolidado: o que foi medido, onde, e o que ficou de fora.
