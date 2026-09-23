@@ -100,13 +100,14 @@ describe('nenhuma tela ou rota decide o documento pelo município', () => {
   const SOURCES = [
     '../../src/trips/infrastructure/trip-fiscal-readiness.query.ts',
     '../../src/trips/application/read-trip-fiscal-readiness.use-case.ts',
-    '../../src/trips/infrastructure/trip.routes.ts',
+    '../../src/trips/presentation/trip.routes.ts',
   ] as const
 
   it('a prontidão fiscal não chama a conta de município', async () => {
     for (const source of SOURCES) {
       const file = Bun.file(new URL(source, import.meta.url))
-      if (!(await file.exists())) continue
+      /** Caminho que não existe é guarda que não guarda: o arquivo mudou de lugar e ninguém soube. */
+      expect(await file.exists()).toBe(true)
       expect(await file.text()).not.toContain('resolveFiscalDocumentKind')
     }
   })

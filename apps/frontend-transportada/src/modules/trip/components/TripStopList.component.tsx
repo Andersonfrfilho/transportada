@@ -410,16 +410,19 @@ function TripStopDocumentRow({
             {t('actions.generateCte')}
           </Button>
         ) : null}
-        {rowAction?.kind === 'nfse' ? (
+        {rowAction?.kind === 'nfse' && fiscalReadiness?.nfeDocumentId != null ? (
           /*
            * O componente de ação é do módulo dono da NFS-e, e é ele que decide estado interno,
            * permissão e abertura do diálogo. A linha só empresta o estilo do botão do design
            * system — emitir daqui seria emitir contra um perfil que ninguém escolheu.
+           *
+           * Sem id da nota não há ação: o id desta linha é de `trip_documents`, e a emissão de
+           * NFS-e recebe `nfe_documents`. Usá-lo como reserva mandaria um id de outro espaço.
            */
           <NfseEmissionAction
             className={buttonClassName({ size: 'sm' })}
             {...(actions.companyId === undefined ? {} : { companyId: actions.companyId })}
-            documentIds={[fiscalReadiness?.nfeDocumentId ?? document.id]}
+            documentIds={[fiscalReadiness.nfeDocumentId]}
             onEmitted={actions.onNfseEmitted}
             permissions={actions.permissions}
           />

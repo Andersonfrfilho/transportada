@@ -284,7 +284,12 @@ function toReadiness(input: {
     cteAccessKey: reason === 'ok' ? row.cteAccessKey : null,
     cteFiscalDocumentId: reason === 'ok' ? row.cteFiscalDocumentId : null,
     expectedDocument,
-    nfeDocumentId: row.nfeDocumentId,
+    /**
+     * O mesmo id que a classificação usou, e não só o vínculo direto: a nota que chega pelo cálculo
+     * de frete era classificada como NFS-e e viajava com `nfeDocumentId` nulo, e a tela tinha de
+     * inventar um id para oferecer a emissão.
+     */
+    nfeDocumentId: row.classifiedNfeDocumentId,
     nfseProfileId,
     reason,
     rejectionCode: isRejection ? row.rejectionCode : null,
