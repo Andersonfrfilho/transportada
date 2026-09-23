@@ -176,6 +176,75 @@ describe('o repasse contra Postgres (spec 060 T010–T012)', () => {
       ).rejects.toThrow()
     })
   })
+
+  /**
+   * Spec 164 (plan.md "O fechamento é por seleção, com filtros"): o operador escolhe as linhas —
+   * o período gravado é o intervalo que cobre exatamente o que foi marcado, nunca o pedido no
+   * corpo, e a linha fora da janela do período original entra do mesmo jeito se foi selecionada.
+   */
+  testWithPostgres(
+    'fecha só a seleção explícita, com o período derivado das linhas escolhidas',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedCharges(database)
+        const useCase = buildUseCase(database)
+
+        const batch = await useCase.close({
+          chargeIds: [world.recordedIds[0] as string, world.outOfPeriodId],
+          context: world.context,
+          contractorId: world.contractorId,
+          /** Período do corpo é ignorado quando há seleção — só para conferir que não é usado. */
+          periodEnd: '2026-08-31',
+          periodStart: '2026-08-01',
+        })
+
+        /** 45,30 + 20,00 — só as duas linhas escolhidas, mesmo a que estava fora da janela pedida. */
+        expect(batch.totalAmount).toBe('65.3000')
+        expect(batch.periodStart).toBe('2026-08-10')
+        expect(batch.periodEnd).toBe('2026-09-02')
+
+        const rows = await database.db
+          .select()
+          .from(deliveryCharges)
+          .where(eq(deliveryCharges.companyId, world.companyId))
+        const byId = new Map(rows.map((row) => [row.id, row]))
+
+        expect(byId.get(world.recordedIds[0] ?? '')?.batchId).toBe(batch.id)
+        expect(byId.get(world.outOfPeriodId)?.batchId).toBe(batch.id)
+        /** Não selecionada: fica de fora, mesmo elegível e dentro da janela do corpo. */
+        expect(byId.get(world.recordedIds[1] ?? '')?.batchId).toBeNull()
+      })
+    },
+  )
+
+  /**
+   * Linha de outro contratante na seleção derruba a requisição inteira — fechamento parcial
+   * silencioso seria pior que erro.
+   */
+  testWithPostgres('recusa a seleção com linha de outro contratante', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedCharges(database)
+      const useCase = buildUseCase(database)
+
+      await expect(
+        useCase.close({
+          chargeIds: [world.recordedIds[0] as string, world.otherContractorId],
+          context: world.context,
+          contractorId: world.contractorId,
+          periodEnd: '2026-08-31',
+          periodStart: '2026-08-01',
+        }),
+      ).rejects.toMatchObject({ code: 'EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE', status: 422 })
+
+      const rows = await database.db
+        .select()
+        .from(deliveryCharges)
+        .where(eq(deliveryCharges.companyId, world.companyId))
+      const byId = new Map(rows.map((row) => [row.id, row]))
+      /** Nada prendeu: a recusa aconteceu dentro da mesma transação, antes de qualquer escrita. */
+      expect(byId.get(world.recordedIds[0] ?? '')?.batchId).toBeNull()
+    })
+  })
 })
 
 function buildUseCase(database: TestDatabase) {

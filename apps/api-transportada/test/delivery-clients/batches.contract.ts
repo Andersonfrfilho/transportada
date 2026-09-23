@@ -9,6 +9,7 @@ import type {
 } from '../../src/delivery-clients/application/delivery-charge.port.js'
 import type {
   ExtraChargeBatch,
+  ExtraChargeBatchCloseOutcome,
   ExtraChargeBatchReport,
   ExtraChargeBatchRepositoryPort,
 } from '../../src/delivery-clients/application/extra-charge-batch.port.js'
@@ -48,7 +49,7 @@ const REPORT: ExtraChargeBatchReport = {
 function buildWorld(
   overrides: {
     readonly charge?: DeliveryCharge | null
-    readonly closed?: ExtraChargeBatch | null
+    readonly closed?: ExtraChargeBatchCloseOutcome
   } = {},
 ) {
   const transitions: unknown[] = []
@@ -92,7 +93,7 @@ function buildWorld(
   const batches: ExtraChargeBatchRepositoryPort = {
     async close(input) {
       closes.push(structuredClone(input))
-      return overrides.closed === undefined ? BATCH : overrides.closed
+      return overrides.closed ?? { batch: BATCH, kind: 'closed' }
     },
     async findByToken(input) {
       return input.accessToken === TOKEN ? { batchId: BATCH_ID, companyId: COMPANY_ID } : null
@@ -140,7 +141,7 @@ describe('o lote de repasse (spec 060 T011)', () => {
 
   /** Lote vazio nasceria, seria enviado e voltaria sem nada — e o link não diria nada ao contratante. */
   test('recusa fechar período sem nada a cobrar', async () => {
-    const world = buildWorld({ closed: null })
+    const world = buildWorld({ closed: { kind: 'empty' } })
 
     await expect(
       world.useCase.close({
@@ -265,5 +266,74 @@ describe('o lote de repasse (spec 060 T011)', () => {
     })
 
     expect(world.transitions).toEqual([])
+  })
+
+  /**
+   * spec 164 (plan.md "O fechamento é por seleção, com filtros"): lista ausente é o comportamento
+   * de sempre — fechamento por contratante e período, sem tocar em `chargeIds`.
+   */
+  test('sem chargeIds, o fechamento continua sendo por período (regressão)', async () => {
+    const world = buildWorld()
+
+    await world.useCase.close({
+      context: CONTEXT,
+      contractorId: CONTRACTOR_ID,
+      periodEnd: '2026-08-31',
+      periodStart: '2026-08-01',
+    })
+
+    expect(world.closes).toEqual([
+      {
+        accessToken: TOKEN,
+        actorUserId: USER_ID,
+        companyId: COMPANY_ID,
+        contractorId: CONTRACTOR_ID,
+        periodEnd: '2026-08-31',
+        periodStart: '2026-08-01',
+      },
+    ])
+  })
+
+  test('fecha com a seleção explícita, repassando os ids ao repositório', async () => {
+    const world = buildWorld()
+
+    const batch = await world.useCase.close({
+      chargeIds: [CHARGE_ID, OTHER_CHARGE_ID],
+      context: CONTEXT,
+      contractorId: CONTRACTOR_ID,
+      periodEnd: '2026-08-31',
+      periodStart: '2026-08-01',
+    })
+
+    expect(batch).toEqual(BATCH)
+    expect(world.closes).toEqual([
+      {
+        accessToken: TOKEN,
+        actorUserId: USER_ID,
+        chargeIds: [CHARGE_ID, OTHER_CHARGE_ID],
+        companyId: COMPANY_ID,
+        contractorId: CONTRACTOR_ID,
+        periodEnd: '2026-08-31',
+        periodStart: '2026-08-01',
+      },
+    ])
+  })
+
+  /**
+   * Linha fora do contratante, já com lote, ou fora de `recorded` derruba a requisição inteira —
+   * fechamento parcial silencioso seria pior que erro.
+   */
+  test('recusa a seleção com linha inelegível, código estável', async () => {
+    const world = buildWorld({ closed: { kind: 'selection_ineligible' } })
+
+    await expect(
+      world.useCase.close({
+        chargeIds: [CHARGE_ID, OTHER_CHARGE_ID],
+        context: CONTEXT,
+        contractorId: CONTRACTOR_ID,
+        periodEnd: '2026-08-31',
+        periodStart: '2026-08-01',
+      }),
+    ).rejects.toMatchObject({ code: 'EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE', status: 422 })
   })
 })

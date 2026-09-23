@@ -39,8 +39,20 @@ export class ExtraChargeBatchNotFoundError extends ApiError {
   }
 }
 
+/** Alguma linha selecionada não é do contratante, já tem lote, ou não está em `recorded`. */
+export class ExtraChargeBatchSelectionIneligibleError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE',
+      message: 'One or more selected charges are not eligible for this batch',
+      status: 422,
+    })
+  }
+}
+
 export type ExtraChargeBatchesUseCase = {
   close(input: {
+    readonly chargeIds?: readonly string[]
     readonly context: CompanyContext
     readonly contractorId: string
     readonly periodEnd: string
@@ -130,20 +142,29 @@ export function createExtraChargeBatchesUseCase(dependencies: {
   }
 
   return {
-    async close({ context, contractorId, periodEnd, periodStart }) {
-      const batch = await dependencies.batches.close({
+    async close({ chargeIds, context, contractorId, periodEnd, periodStart }) {
+      const outcome = await dependencies.batches.close({
         accessToken: dependencies.createToken(),
         actorUserId: context.userId,
+        ...(chargeIds === undefined ? {} : { chargeIds }),
         companyId: context.companyId,
         contractorId,
         periodEnd,
         periodStart,
       })
       /**
+       * Seleção com linha fora do contratante, já em lote, ou fora de `recorded`: a requisição
+       * inteira recua — fechamento parcial silencioso seria pior que erro.
+       */
+      if (outcome.kind === 'selection_ineligible') {
+        throw new ExtraChargeBatchSelectionIneligibleError()
+      }
+      /**
        * Lote vazio é recusa, não lote de zero: ele nasceria, seria enviado e voltaria sem nada — e o
        * contratante receberia um link que não diz nada.
        */
-      if (batch === null) throw new ExtraChargeBatchEmptyError()
+      if (outcome.kind === 'empty') throw new ExtraChargeBatchEmptyError()
+      const batch = outcome.batch
 
       /**
        * ⚠️ O dinheiro já está fechado quando isto roda — falha aqui **não** desfaz o lote. Quem

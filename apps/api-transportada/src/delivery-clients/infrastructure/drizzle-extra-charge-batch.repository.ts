@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq, gte, isNull, lte, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 
 import {
   contractors,
@@ -12,6 +12,7 @@ import {
 } from '../../database/delivery-client.schema.js'
 import type {
   ExtraChargeBatch,
+  ExtraChargeBatchCloseOutcome,
   ExtraChargeBatchReport,
   ExtraChargeBatchRepositoryPort,
 } from '../application/extra-charge-batch.port.js'
@@ -25,35 +26,69 @@ export class DrizzleExtraChargeBatchRepository implements ExtraChargeBatchReposi
   public async close(input: {
     readonly accessToken: string
     readonly actorUserId: string
+    readonly chargeIds?: readonly string[]
     readonly companyId: string
     readonly contractorId: string
     readonly periodEnd: string
     readonly periodStart: string
-  }): Promise<ExtraChargeBatch | null> {
+  }): Promise<ExtraChargeBatchCloseOutcome> {
     return this.database.transaction(async (transaction) => {
       /**
        * O recorte é `recorded` **e sem lote**: sugestão não confirmada fica fora (e continua na
        * fila, visível), e lançamento já submetido pertence ao lote anterior.
        */
-      const eligible = and(
+      const baseEligible = and(
         eq(deliveryCharges.companyId, input.companyId),
         eq(deliveryCharges.contractorId, input.contractorId),
         eq(deliveryCharges.status, 'recorded'),
         isNull(deliveryCharges.batchId),
-        gte(deliveryCharges.chargedOn, input.periodStart),
-        lte(deliveryCharges.chargedOn, input.periodEnd),
       )
+
+      const eligible =
+        input.chargeIds === undefined
+          ? and(
+              baseEligible,
+              gte(deliveryCharges.chargedOn, input.periodStart),
+              lte(deliveryCharges.chargedOn, input.periodEnd),
+            )
+          : and(baseEligible, inArray(deliveryCharges.id, input.chargeIds))
+
+      if (input.chargeIds !== undefined) {
+        /**
+         * A seleção é validada dentro da própria transação: qualquer id fora do contratante, já
+         * com lote ou fora de `recorded` derruba a requisição inteira — fechamento parcial
+         * silencioso seria pior que erro (plan.md "O fechamento é por seleção, com filtros").
+         */
+        const found = await transaction
+          .select({ id: deliveryCharges.id })
+          .from(deliveryCharges)
+          .where(eligible)
+        if (found.length !== input.chargeIds.length) return { kind: 'selection_ineligible' }
+      }
 
       const [totals] = await transaction
         .select({
           count: sql<string>`count(*)::text`,
+          periodEnd: sql<string | null>`max(${deliveryCharges.chargedOn})`,
+          periodStart: sql<string | null>`min(${deliveryCharges.chargedOn})`,
           /** A soma é do Postgres, em `numeric`: somar dinheiro em JavaScript perde centavo. */
           total: sql<string>`coalesce(sum(${deliveryCharges.amount}), 0)::text`,
         })
         .from(deliveryCharges)
         .where(eligible)
 
-      if (totals === undefined || totals.count === '0') return null
+      if (totals === undefined || totals.count === '0') return { kind: 'empty' }
+
+      /**
+       * Sem seleção, o período gravado é o pedido no corpo (comportamento de sempre). Com
+       * seleção, é o intervalo que cobre exatamente as linhas escolhidas — nunca o do corpo.
+       */
+      const periodStart =
+        input.chargeIds === undefined
+          ? input.periodStart
+          : (totals.periodStart ?? input.periodStart)
+      const periodEnd =
+        input.chargeIds === undefined ? input.periodEnd : (totals.periodEnd ?? input.periodEnd)
 
       const [batch] = await transaction
         .insert(extraChargeBatches)
@@ -62,21 +97,21 @@ export class DrizzleExtraChargeBatchRepository implements ExtraChargeBatchReposi
           closedByUserId: input.actorUserId,
           companyId: input.companyId,
           contractorId: input.contractorId,
-          periodEnd: input.periodEnd,
-          periodStart: input.periodStart,
+          periodEnd,
+          periodStart,
           status: 'submitted',
           submittedAt: new Date(),
           totalAmount: totals.total,
         })
         .returning()
-      if (batch === undefined) return null
+      if (batch === undefined) return { kind: 'empty' }
 
       await transaction
         .update(deliveryCharges)
         .set({ batchId: batch.id, status: 'submitted', updatedAt: new Date() })
         .where(eligible)
 
-      return toBatch(batch)
+      return { batch: toBatch(batch), kind: 'closed' }
     })
   }
 
