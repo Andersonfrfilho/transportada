@@ -28,16 +28,3 @@ export function selectPendingCteDocumentIds(input: SelectPendingCteInput): reado
     )
     .map((document) => document.tripDocumentId)
 }
-
-/**
- * Spec 174 RF3: a ação por nota segue **a mesma regra** da ação em massa — sem prontidão carregada
- * ou fora do vocabulário de pendência, o botão não aparece, porque oferecer errado só se resolve na
- * emissão fiscal, tarde demais.
- */
-export function canGenerateCteForDocument(entry: TripDocumentReadiness | undefined): boolean {
-  return (
-    entry !== undefined &&
-    entry.expectedDocument === 'cte' &&
-    (PENDING_CTE_REASONS as readonly string[]).includes(entry.reason)
-  )
-}

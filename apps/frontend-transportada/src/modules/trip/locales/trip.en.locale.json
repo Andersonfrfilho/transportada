@@ -16,6 +16,7 @@
     "viewTrip": "Open the trip for {{vehicle}}",
     "fieldOccurrence": "Occurrence",
     "generateCte": "Issue CT-e",
+    "emitNfse": "Issue NFS-e",
     "fieldDelivery": "Deliver",
     "separationOccurrence": "Separation occurrence"
   },

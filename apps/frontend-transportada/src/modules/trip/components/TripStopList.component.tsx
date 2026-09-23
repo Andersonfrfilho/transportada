@@ -12,7 +12,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
-import { canGenerateCteForDocument } from '../shared/cteSelection.service'
+import { resolveDocumentRowAction } from '../shared/documentRowAction.service'
 import { readinessReasonIcon } from '../shared/readinessIcon.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import { hasTripDocumentFiscalWarning, tripDocumentLabel } from '../shared/tripDocument.service'
@@ -58,6 +58,8 @@ export type TripStopDocumentActions = Readonly<{
   canSeparateOrLoad: boolean
   /** Spec 174 RF7: sem `trip.submit-cte`, o estado fiscal aparece na linha e o botão não. */
   canSubmitCte: boolean
+  /** Spec 175 RF7: gate próprio da nota que espera NFS-e — `nfse.issue`, separado do de CT-e. */
+  canIssueNfse: boolean
   /** `allowedActions.documents[id]` — a mesma capacidade que `TripFieldActions` consome. */
   capabilities: FieldActionCapabilities
   /** Spec 174 RF1: a prontidão por nota, para a linha mostrar o próprio estado fiscal. */
@@ -73,6 +75,12 @@ export type TripStopDocumentActions = Readonly<{
   onFieldReturn: (documentId: string) => void
   /** Spec 174 RF3: gera o CT-e só desta nota, sem passar pela seleção. */
   onGenerateCte: (documentId: string) => void
+  /**
+   * Spec 175 RF3 (Fase 3): abre o diálogo de emissão de NFS-e com a nota pré-selecionada. Nesta
+   * fase o botão já sai do dado e confere a permissão certa; a abertura do diálogo é o próximo
+   * passo — até lá o callback é o ponto de extensão explícito, não uma emissão direta.
+   */
+  onOpenNfseEmission: (documentId: string) => void
   /** Spec 156 T9: abre `FieldOccurrenceDialog` para esta nota (ação da linha, não em massa). */
   onOpenFieldOccurrence: (documentId: string) => void
   /** Spec 156 T11: abre `FieldDeliveryWizard` para esta nota (ação da linha, não em massa). */
@@ -272,7 +280,10 @@ function TripStopDocumentRow({
 }>) {
   const { t } = useTranslation('trip')
   const fiscalReadiness = actions.fiscalReadinessByDocumentId.get(document.id)
-  const canGenerateCte = actions.canSubmitCte && canGenerateCteForDocument(fiscalReadiness)
+  const rowAction = resolveDocumentRowAction(fiscalReadiness, {
+    canIssueNfse: actions.canIssueNfse,
+    canSubmitCte: actions.canSubmitCte,
+  })
 
   return (
     <li
@@ -383,8 +394,12 @@ function TripStopDocumentRow({
         </Tooltip>
       ) : null}
       <div className={styles.rowActions}>
-        {/* Spec 174 RF3: mesma regra da ação em massa — só a nota que ainda espera CT-e ganha o botão. */}
-        {canGenerateCte ? (
+        {/*
+         * Spec 175 RF1/RF2/RF4/RF7: uma ação só, e o rótulo sai do documento que a nota espera —
+         * `cte` emite direto (spec 174 RF3), `nfse` abre o diálogo (Fase 3). `city_unknown` ou
+         * campo ausente não oferece nada: o selo já explica o motivo.
+         */}
+        {rowAction?.kind === 'cte' ? (
           <Button
             disabled={actions.isGeneratingCte}
             onClick={() => actions.onGenerateCte(document.id)}
@@ -393,6 +408,16 @@ function TripStopDocumentRow({
           >
             <Icon name="send" />
             {t('actions.generateCte')}
+          </Button>
+        ) : null}
+        {rowAction?.kind === 'nfse' ? (
+          <Button
+            onClick={() => actions.onOpenNfseEmission(document.id)}
+            size="sm"
+            type="button"
+          >
+            <Icon name="send" />
+            {t('actions.emitNfse')}
           </Button>
         ) : null}
         {/*

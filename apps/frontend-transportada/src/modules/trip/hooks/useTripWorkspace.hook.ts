@@ -42,6 +42,7 @@ import {
   canReadTrip,
   CTE_SUBMIT_PERMISSION,
   MDFE_MANAGE_PERMISSION,
+  NFSE_ISSUE_PERMISSION,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
   TRIP_QUERY_KEY,
@@ -107,6 +108,8 @@ export type TripController = Readonly<{
   canReportOnBehalf: boolean
   canManageMdfe: boolean
   canSubmitCte: boolean
+  /** Spec 175 RF7: gate próprio da linha — `nfse.issue`, a mesma que a rota de emissão exige. */
+  canIssueNfse: boolean
   closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
   confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
@@ -216,10 +219,12 @@ export function createTripController(
   const canManageSettings = input.permissions.includes('settings.manage')
   const canSubmitCte = input.permissions.includes(CTE_SUBMIT_PERMISSION)
   const canManageMdfe = input.permissions.includes(MDFE_MANAGE_PERMISSION)
+  const canIssueNfse = input.permissions.includes(NFSE_ISSUE_PERMISSION)
 
   return {
     batchStatus: (body) => (canManageTrips ? input.client.batchStatus(body) : forbidden()),
     cancelTrip: (body) => (canManageTrips ? input.client.cancelTrip(body) : forbidden()),
+    canIssueNfse,
     canManageMdfe,
     canManageTrips,
     canReadTripFleetDetails,

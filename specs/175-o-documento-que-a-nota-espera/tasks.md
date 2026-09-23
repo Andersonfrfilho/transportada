@@ -19,14 +19,14 @@ isolado e evidência em `evidence.md`.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T101** Contrato: `expectedDocument === 'cte'` → rótulo de CT-e; `'nfse'` → rótulo de NFS-e;
+- [x] **T101** Contrato: `expectedDocument === 'cte'` → rótulo de CT-e; `'nfse'` → rótulo de NFS-e;
       `null` → nenhuma ação. Inclui o caso do campo **ausente** na resposta (trata como `null`).
-- [ ] **T102** Confirmar que `expectedDocument` chega ao componente da linha
+- [x] **T102** Confirmar que `expectedDocument` chega ao componente da linha
       (`fiscalReadinessByDocumentId` em `TripDetail.component.tsx`). Se não chegar, propagar — e só
       mexer na API se o campo não estiver saindo dela.
-- [ ] **T103** Trocar o botão fixo pela ação derivada, com a permissão conferida por documento
+- [x] **T103** Trocar o botão fixo pela ação derivada, com a permissão conferida por documento
       (`cte.submit` / `nfse.issue`).
-- [ ] **T104** Locales pt-BR e en dos dois rótulos e do estado sem ação.
+- [x] **T104** Locales pt-BR e en dos dois rótulos e do estado sem ação.
 
 ## Fase 3 — O caminho da NFS-e
 

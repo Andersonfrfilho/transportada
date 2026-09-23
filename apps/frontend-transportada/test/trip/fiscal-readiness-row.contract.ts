@@ -8,8 +8,10 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import { canGenerateCteForDocument } from '@/modules/trip/shared/cteSelection.service'
+import { resolveDocumentRowAction } from '@/modules/trip/shared/documentRowAction.service'
 import type { TripDocumentReadiness } from '@/modules/trip/shared/trip.types'
+
+const CAN_SUBMIT_CTE = { canIssueNfse: false, canSubmitCte: true }
 
 const LISTA = new URL(
   '../../src/modules/trip/components/TripStopList.component.tsx',
@@ -31,32 +33,43 @@ const READY: TripDocumentReadiness = {
   tripDocumentId: '00000000-0000-4000-8000-000000000002',
 }
 
-describe('ação de emitir CT-e na própria linha da nota (spec 174 RF3)', () => {
+/**
+ * Spec 175: a decisão de "aceita emitir CT-e nesta linha" deixou de viver em
+ * `canGenerateCteForDocument` — agora é um dos dois ramos de `resolveDocumentRowAction`, que
+ * também decide o ramo NFS-e. Os casos abaixo restatam a mesma regra da spec 174 RF3 pelo novo
+ * ponto de entrada.
+ */
+describe('ação de emitir CT-e na própria linha da nota (spec 174 RF3, spec 175 RF1)', () => {
   it('aceita nota sem CT-e', () => {
-    expect(canGenerateCteForDocument({ ...READY, reason: 'no_cte' })).toBe(true)
+    expect(resolveDocumentRowAction({ ...READY, reason: 'no_cte' }, CAN_SUBMIT_CTE)).toEqual({
+      kind: 'cte',
+    })
   })
 
   it('aceita CT-e rejeitado ou cancelado — a mesma regra do lote', () => {
-    expect(canGenerateCteForDocument({ ...READY, reason: 'cte_rejected' })).toBe(true)
-    expect(canGenerateCteForDocument({ ...READY, reason: 'cte_cancelled' })).toBe(true)
+    expect(
+      resolveDocumentRowAction({ ...READY, reason: 'cte_rejected' }, CAN_SUBMIT_CTE),
+    ).toEqual({ kind: 'cte' })
+    expect(
+      resolveDocumentRowAction({ ...READY, reason: 'cte_cancelled' }, CAN_SUBMIT_CTE),
+    ).toEqual({ kind: 'cte' })
   })
 
   it('recusa nota já pronta', () => {
-    expect(canGenerateCteForDocument({ ...READY, reason: 'ok' })).toBe(false)
+    expect(resolveDocumentRowAction({ ...READY, reason: 'ok' }, CAN_SUBMIT_CTE)).toBeNull()
   })
 
-  it('recusa nota que espera NFS-e, não CT-e', () => {
+  it('recusa nota que espera NFS-e, não CT-e, sem nfse.issue', () => {
     expect(
-      canGenerateCteForDocument({
-        ...READY,
-        expectedDocument: 'nfse',
-        reason: 'nfse_expected',
-      }),
-    ).toBe(false)
+      resolveDocumentRowAction(
+        { ...READY, expectedDocument: 'nfse', reason: 'nfse_expected' },
+        CAN_SUBMIT_CTE,
+      ),
+    ).toBeNull()
   })
 
   it('recusa nota sem prontidão carregada — não oferecer é melhor que oferecer errado', () => {
-    expect(canGenerateCteForDocument(undefined)).toBe(false)
+    expect(resolveDocumentRowAction(undefined, CAN_SUBMIT_CTE)).toBeNull()
   })
 })
 
@@ -74,10 +87,11 @@ describe('a linha da nota mostra o próprio estado fiscal (spec 174 CA01, CA02, 
     expect(source).toInclude('onGenerateCte(document.id)')
   })
 
-  it('a ação só aparece com a permissão de emitir', () => {
+  it('a ação só aparece com a permissão de emitir (spec 175: sai de resolveDocumentRowAction)', () => {
     const source = readFileSync(LISTA, 'utf8')
 
-    expect(source).toInclude('actions.canSubmitCte && canGenerateCteForDocument(')
+    expect(source).toInclude('resolveDocumentRowAction(fiscalReadiness, {')
+    expect(source).toInclude('canSubmitCte: actions.canSubmitCte')
   })
 })
 

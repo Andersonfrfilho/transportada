@@ -347,6 +347,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     canManage,
     canSeparateOrLoad,
     canSeparationOccurrence,
+    canIssueNfse: workspace.controller.canIssueNfse,
     canSubmitCte: workspace.controller.canSubmitCte,
     canFieldDelivery: (documentId: string) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldDelivery'),
@@ -355,6 +356,14 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     capabilities: workspace.fieldActionCapabilities,
     fiscalReadinessByDocumentId,
     isGeneratingCte: workspace.createCteBatchMutation.isPending,
+    /**
+     * Spec 175 RF3 (Fase 3): abrir `NfseEmissionDialog` com a nota pré-selecionada. O botão já sai
+     * do dado e confere `nfse.issue` nesta fase — a abertura do diálogo é o próximo passo; até lá o
+     * callback é o ponto de extensão explícito, nunca uma emissão direta (que exige `profileId`).
+     */
+    onOpenNfseEmission: (documentId: string) => {
+      void documentId
+    },
     onGenerateCte: (documentId: string) =>
       workspace.createCteBatchMutation.mutate({ tripDocumentIds: [documentId], tripId: trip.id }),
     onOpenFieldDelivery: (documentId: string) => setFieldDeliveryDocumentIds([documentId]),

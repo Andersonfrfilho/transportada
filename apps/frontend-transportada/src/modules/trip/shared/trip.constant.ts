@@ -35,6 +35,14 @@ export function canReadTrip(permissions: readonly string[]): boolean {
 export const CTE_SUBMIT_PERMISSION = 'cte.submit'
 
 /**
+ * Spec 175 RF7: a permissão de cada documento é conferida separadamente — `nfse.issue` é a mesma
+ * que a rota `POST /nfse-service-invoices` exige (`nfse-invoices.routes.ts:172`). Mesmo valor de
+ * `NFSE_ISSUE_PERMISSION` em `modules/nfse-invoice/shared/nfseInvoice.constant.ts`; cópia por valor
+ * para não fazer `trip` depender de `nfse-invoice` só por uma string.
+ */
+export const NFSE_ISSUE_PERMISSION = 'nfse.issue'
+
+/**
  * Spec 065 D4c: dispensar manifesto é decisão fiscal com multa do outro lado — a mesma permissão
  * de quem emite, nunca a de quem monta a viagem.
  */
