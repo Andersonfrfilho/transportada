@@ -1752,6 +1752,79 @@ Revisão final não achou bloqueante, mas deixou três itens para entrar antes d
 - `fix(api): spec 164 — teto de 2000 caracteres na nota interna da tratativa`.
 - `fix(api): spec 164 — cursor do relatório de cobrança valida como uuid`.
 
+## Revisão final (opus) — três bloqueantes da família "guard de chave exata sem degradação" (frontend-transportada)
+
+Data: 2026-09-22.
+
+A revisão final achou três bloqueantes da mesma família que já derrubou esta base em 22/09
+(`trip.constant.ts`): guard exigindo campo/chave que uma API anterior ao marcador não manda,
+transformando ausência legítima em tela quebrada em vez de degradar para o padrão.
+
+### B5 — `case` ausente derrubava a página de ocorrências inteira
+
+`src/modules/trip/shared/tripOccurrenceFeedClient.service.ts` (`isFeedItem`): o guard aceitava
+`case: null` e objeto, mas recusava a **chave ausente**. Um item reprovado fazia
+`payload.data.every(isFeedItem)` falhar e a workspace inteira virar `TRIP_RESPONSE_INVALID`, sem
+degradação — cenário real de rollout parcial/rollback entre bundle e API.
+
+### B6 — `settlementTotal === null` era bomba-relógio
+
+Mesmo arquivo (`isCaseView`): o guard exigia `settlementTotal === null` literal. `TripOccurrenceCaseView.settlementTotal`
+passou de `null` para `null | string` (`tripOccurrenceFeed.service.ts`) — o dia em que a API
+preencher o campo (spec futura já anunciada no comentário do tipo) deixa de reprovar o item.
+
+**Conserto (B5+B6, mesmo mecanismo):** `case`/`settlementTotal` nascem opcionais no guard —
+`RawCaseView`/`RawFeedItem` tipam os dois como `unknown` opcional — e `toCaseView`/`toFeedItem`
+materializam o padrão (`null`) quando ausentes, em vez de deixar `undefined` vazar para um tipo
+que promete `null`. `readCaseView` (usado pelas seis ações de tratativa: cancelar, fechar,
+submeter, revisar, devolver, decidir) passa pelo mesmo `toCaseView`.
+
+### B7 — `redeliveryPolicy`/`allowsMultipleItems` obrigatórios em guard de chave exata
+
+`src/modules/trip/shared/tripResponse.validation.ts` (`isOccurrenceType`, via `hasExactKeys`): os
+dois campos nasceram depois do tipo de ocorrência; API anterior ao marcador não os manda, e
+reprovar a resposta inteira derrubava o painel de catálogo (Frota/config) **e** a consulta de
+tipos que alimenta o diálogo de registro de ocorrência.
+
+**Conserto:** segue o padrão já em uso no mesmo arquivo para geometria de rota
+(`toGeometryOption`) — `isOccurrenceType` passa a usar `hasKeys` com os dois campos como
+opcionais, e `toOccurrenceType` preenche o padrão documentado em `occurrence.constant.ts`:
+`allowsMultipleItems: true` (comportamento de hoje) e `redeliveryPolicy: 'unset'` (D1/RF1).
+Presente com forma errada continua reprovando; chave desconhecida continua recusada — a regra
+tolera ausência, não qualquer coisa.
+
+### Testes novos (reproduzem a quebra antes do conserto)
+
+- `test/trip/occurrence-feed-tolerance.contract.ts` (novo, registrado em
+  `test/trip.contract.test.ts`): `case` ausente degrada para `null` (B5); `settlementTotal`
+  ausente dentro de `case` degrada para `null`, e o valor preenchido também é aceito (B6); forma
+  inesperada de `case` continua reprovando.
+- `test/trip/occurrence-type-tolerance.contract.ts` (novo, registrado em
+  `test/trip.contract.test.ts`): `allowsMultipleItems`/`redeliveryPolicy` ausentes degradam para
+  `true`/`unset`, isolados e juntos, em `occurrenceTypesFromApi` e `occurrenceTypeFromApi`; forma
+  errada e chave desconhecida continuam reprovando.
+
+### Gates (apps/frontend-transportada)
+
+- `bun run lint` (raiz, todas as apps) — OK, 0 erros/avisos.
+- `bun run typecheck` (raiz) — `apps/api-transportada` tem 11 erros pré-existentes de outra sessão
+  em andamento (`test/integration/trip-occurrence-case*.integration.ts`, propriedade
+  `hasSettlementItems` fora do tipo `OccurrenceCaseTransitionInput`), fora do escopo desta tarefa —
+  confirmado com `git stash`/`pop` que o erro já existe nas mudanças não commitadas daquela app.
+  `bun run --cwd apps/frontend-transportada typecheck` isolado — **OK, 0 erros**.
+- `bunx prettier --check .` (raiz) — **OK, todos os arquivos no padrão** (os dois avisos que a
+  seção da T1-T3 registrou como pré-existentes de `frontend-transportada` eram os próprios
+  arquivos desta tarefa antes da formatação; `prettier --write` os dois e o check ficou limpo).
+- `bun run --cwd apps/frontend-transportada test` — **4946 pass / 0 fail** (suíte de contratos) +
+  **44 pass / 0 fail** (`test:hooks`).
+
+### Commits
+
+- `fix(frontend): spec 164 — feed de ocorrências não derruba mais com case/settlementTotal ausentes`
+  (B5 + B6, mesmo mecanismo).
+- `fix(frontend): spec 164/166 — allowsMultipleItems e redeliveryPolicy ausentes não derrubam o
+catálogo` (B7).
+
 ## Revisão final (opus) — bloqueantes B1–B4, R1–R2 (apps/api-transportada)
 
 Cada item fechou em commit próprio, com teste que reproduz o defeito **antes** da correção.
@@ -1838,3 +1911,66 @@ vinculada. `for no key update` na validação, ordenado por id para não deadloc
 - `bun --env-file=../../.env.test test --timeout 120000` (contrato) — **7117 pass / 23 skip / 0 fail**,
   183 arquivos.
 - Integração dos arquivos tocados, por caminho explícito (11 arquivos) — **36 pass / 0 fail**.
+
+## T28 — Smoke com prints das telas (frontend-transportada)
+
+Data: 2026-09-22.
+
+Arquivos novos: `apps/frontend-transportada/test/spec-164-prints.smoke.spec.ts` (molde de
+`test/spec-159-prints.smoke.spec.ts` — não existe `spec-161-prints.smoke.spec.ts`, citado na T28,
+neste repositório) e `apps/frontend-transportada/test/spec-164-prints-smoke.helper.ts` (mocks,
+molde de `test/field-delivery-smoke.helper.ts`). Nenhum arquivo de `apps/api-transportada` tocado.
+
+**Fora do smoke da CI, de propósito**: `playwright.config.ts` restringe `testMatch` a uma lista
+explícita (`responsive.smoke.spec.ts`, `field-delivery.smoke.spec.ts`,
+`trip-timeline.smoke.spec.ts`) que não inclui o arquivo novo — mesmo arranjo do `spec-159-prints`.
+O gate da CI não passa a depender de servidor de pré-visualização para gerar imagem.
+
+Sete testes de print: painel da tratativa em `awaiting_contractor`, `decided` (com o painel de
+acerto e os itens, `OccurrenceSettlementPanel`), `returned_to_warehouse` e `cancelled` (todos em
+`/ocorrencias`, `OccurrenceCasePanel`/`OccurrenceSettlementPanel`); "Ressarcimentos" com filtro e
+seleção de linha em desktop e celular (`/ressarcimentos`); e a nota marcada na listagem da viagem
+com o selo "Tratativa aberta" (RF36, `TripStopList`) em desktop e celular (`/trips/:id`).
+
+### Estado não fotografado, e por quê
+
+**O contratante decidindo no portal (`apps/frontend-client`) fica de fora.** Aquela app não tem
+`playwright.config.ts` nem infraestrutura de smoke com browser — só `bun test` de unidade
+(`test/*.contract.test.ts`, sem DOM). Montar essa infraestrutura do zero é escopo maior que um
+print de revisão de design desta task (T28 pede o arquivo dentro de `apps/frontend-transportada`,
+e a restrição desta sessão é não tocar `apps/api-transportada` nem abrir uma segunda frente); o
+estado fica documentado aqui como não fotografado, em vez de forçado com uma tela que não é a
+real.
+
+**O ícone da tratativa no mapa (MapLibre/`AssemblyVectorMap`) é desenhado em `<canvas>` WebGL, não
+em DOM** — o print de `/trips/:id` captura a tela inteira (parada + mapa), então o pino aparece no
+PNG quando o basemap carrega, mas nenhuma asserção de texto/`read_page` consegue confirmá-lo (o
+canvas não expõe nós de acessibilidade). Nenhum smoke existente no repositório testa o conteúdo do
+mapa por esse motivo (`hasBasemap` tem fallback textual exatamente para quando o WebGL/tile não
+carrega em CI headless); esta task segue o mesmo precedente e usa o selo textual "Tratativa
+aberta" da listagem como a asserção verificável, com o mapa capturado best-effort no mesmo print.
+
+### Gates
+
+- `bun run lint` (raiz, todas as apps) — OK, 0 erros/avisos.
+- `bun run typecheck` (raiz, todas as apps) — OK, 0 erros.
+- `bunx prettier --check .` (raiz) — OK para os dois arquivos desta task (formatados com
+  `prettier --write`); `specs/164-destino-da-nota-na-ocorrencia/evidence.md` segue com o aviso
+  pré-existente de outra sessão (conteúdo anterior a esta tarefa, fora do escopo de reescrever).
+- `bun run --cwd apps/frontend-transportada test` — não roda o arquivo novo (fora de `testMatch`
+  por desenho); suíte de contratos e `test:hooks` não tocados por esta task.
+
+**⚠️ Os PNGs não foram gerados nesta sessão.** `bunx playwright test` com
+`PLAYWRIGHT_TEST_MATCH=spec-164-prints.smoke.spec.ts` builda a API (`webServer` do
+`playwright.config.ts`) em `PORT=53001` — porta ocupada por outra sessão do Claude trabalhando em
+`apps/api-transportada` nesta mesma árvore (`lsof` confirmou o processo). Redirecionar via
+`PLAYWRIGHT_API_PORT`/`VITE_API_URL` não resolve: o `bun run start` da API lê a porta do próprio
+`.env`/config, não da variável de ambiente de teste, e mudar isso tocaria `apps/api-transportada`
+— fora do escopo autorizado desta sessão. Não matei nem reiniciei o processo da outra sessão. Os
+sete testes foram revisados por leitura contra os componentes reais (`OccurrenceCasePanel`,
+`OccurrenceSettlementPanel`, `TripOccurrenceTable`, `OccurrenceReimbursementsWorkspace.page.tsx`,
+`TripStopList`) e os textos/rótulos batem com os `*.locale.json`; `lint`/`typecheck`/`prettier`
+confirmam que o arquivo compila e roda contra o app real. **Pendência explícita**: rodar
+`PLAYWRIGHT_TEST_MATCH=spec-164-prints.smoke.spec.ts bunx playwright test` (de dentro de
+`apps/frontend-transportada`, com a API livre na 53001) e conferir os sete PNGs em
+`specs/164-destino-da-nota-na-ocorrencia/prints/` antes de fechar a T30.
