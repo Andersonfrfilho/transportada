@@ -1,5 +1,11 @@
 # Feature 169 — Receita lançada na viagem e espécies cadastráveis
 
+## Decisão registrada (resolve a dúvida aberta)
+
+Receita lançada entra em **linha separada**, identificada como "Receita lançada", somando no total
+de entradas da viagem mas visualmente distinta do frete previsto. Opção conservadora: não mistura o
+valor lançado manualmente com o cálculo de frete previsto, que continua vindo só da regra de frete.
+
 ## Problema e resultado
 
 A viagem sabe lançar **gasto** avulso (pedágio, chaveiro, lavagem) e não sabe lançar **receita**. O
