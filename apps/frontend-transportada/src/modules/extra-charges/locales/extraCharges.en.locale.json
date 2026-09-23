@@ -47,6 +47,60 @@
     "EXTRA_CHARGE_BATCH_EMPTY": "There is no checked charge for this contractor in this period.",
     "REQUEST_FAILED": "Could not complete. Try again."
   },
+  "reimbursements": {
+    "title": "Reimbursements",
+    "subtitle": "Occurrence charges still without a batch — mark the rows that enter the next statement.",
+    "forbidden": "This screen requires the trip financials permission.",
+    "loading": "Loading the report…",
+    "empty": "No occurrence charge open for this filter.",
+    "filters": {
+      "contractor": "Contractor",
+      "contractorAll": "All contractors",
+      "period": "Period",
+      "periodPlaceholder": "mm/dd/yyyy to mm/dd/yyyy",
+      "chargeType": "Charge type",
+      "chargeTypeAll": "All types",
+      "chargeTypeSummary": "{{count}} types selected",
+      "chargeTypeSearchPlaceholder": "Search type",
+      "chargeTypeClearAll": "Clear types",
+      "chargeTypeRemove": "Remove {{label}}",
+      "status": "Status",
+      "statusAll": "All statuses",
+      "settlement": "Settlement",
+      "settlementAll": "With or without settlement",
+      "settlementWith": "Already settled",
+      "settlementWithout": "Not settled yet",
+      "search": "Search note"
+    },
+    "table": {
+      "select": "Select the charge",
+      "selectAll": "Select all charges on the page",
+      "date": "Date",
+      "note": "Note",
+      "type": "Type",
+      "amount": "Amount",
+      "status": "Status",
+      "settlement": "Settlement",
+      "settlementDone": "Settled",
+      "settlementPending": "Not settled"
+    },
+    "totals": {
+      "reportTotal": "Filter total: {{total}}",
+      "selectedTotal": "Selected total: {{total}} ({{count}} rows)"
+    },
+    "close": {
+      "action": "Close the selection's period",
+      "hint": "Closing uses the date range that covers the marked rows — but it takes **all** unbatched charges of this contractor within that period, not only the marked ones. Check the range before closing.",
+      "emptyError": "Mark at least one row before closing.",
+      "mixedContractorError": "The marked rows belong to different contractors — close one contractor at a time.",
+      "missingContractorError": "One of the marked rows has no identified contractor.",
+      "result": "Batch closed: {{contractor}} · from {{periodStart}} to {{periodEnd}}."
+    },
+    "statement": {
+      "action": "Download statement",
+      "hint": "The statement belongs to the batch that just closed. Sending it to the contractor is a person's call — this screen never sends anything on its own."
+    }
+  },
   "queue": {
     "amount": "Amount",
     "confirm": "Confirm {{count}} selected",

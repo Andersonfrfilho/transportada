@@ -4,6 +4,8 @@ import type {
   DeliveryCharge,
   ExtraChargeBatch,
   ExtraChargeBatchReport,
+  OccurrenceChargeReportPage,
+  OccurrenceChargeReportRow,
 } from './extraCharges.types'
 
 /** Resposta de API é entrada não confiável — e aqui ela vira dinheiro cobrado de outra empresa. */
@@ -97,6 +99,58 @@ export function toBatchReport(payload: unknown): ExtraChargeBatchReport {
       }
     }),
     itemsTotal: readString(data.itemsTotal),
+  }
+}
+
+function toOccurrenceChargeReportRow(value: unknown): OccurrenceChargeReportRow {
+  if (!isRecord(value)) throw new ExtraChargeResponseError()
+  if (typeof value.hasSettlement !== 'boolean') throw new ExtraChargeResponseError()
+
+  return {
+    accessKey: readNullableString(value.accessKey),
+    amount: readString(value.amount),
+    chargeType: readString(value.chargeType) as DeliveryCharge['chargeType'],
+    chargedOn: readString(value.chargedOn),
+    contractorId: readNullableString(value.contractorId),
+    hasSettlement: value.hasSettlement,
+    id: readString(value.id),
+    noteNumber: readNullableString(value.noteNumber),
+    noteSeries: readNullableString(value.noteSeries),
+    occurrenceId: readNullableString(value.occurrenceId),
+    status: readString(value.status) as DeliveryCharge['status'],
+    tripDocumentId: readNullableString(value.tripDocumentId),
+  }
+}
+
+/** RF28: `GET /occurrence-charges/report` — página de linhas ainda sem lote, mais o total conferido. */
+export function toOccurrenceChargeReportPage(payload: unknown): OccurrenceChargeReportPage {
+  if (!isRecord(payload) || !Array.isArray(payload.data) || !isRecord(payload.page)) {
+    throw new ExtraChargeResponseError()
+  }
+  const totals = payload.totals
+  if (!isRecord(totals) || !Array.isArray(totals.byChargeType)) {
+    throw new ExtraChargeResponseError()
+  }
+  const nextCursor = payload.page.nextCursor
+  if (nextCursor !== null && typeof nextCursor !== 'string') throw new ExtraChargeResponseError()
+
+  return {
+    items: payload.data.map(toOccurrenceChargeReportRow),
+    nextCursor,
+    totals: {
+      byChargeType: totals.byChargeType.map((entry) => {
+        if (!isRecord(entry) || typeof entry.count !== 'number') {
+          throw new ExtraChargeResponseError()
+        }
+        return {
+          amount: readString(entry.amount),
+          chargeType: readString(entry.chargeType) as DeliveryCharge['chargeType'],
+          count: entry.count,
+        }
+      }),
+      totalAmount: readString(totals.totalAmount),
+      totalCount: typeof totals.totalCount === 'number' ? totals.totalCount : 0,
+    },
   }
 }
 

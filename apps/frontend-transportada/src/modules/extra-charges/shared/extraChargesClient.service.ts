@@ -6,16 +6,20 @@ import {
   CONTRACTORS_PATH,
   EXTRA_CHARGE_BATCHES_PATH,
   EXTRA_CHARGES_PATH,
+  OCCURRENCE_CHARGES_REPORT_PATH,
   type Contractor,
   type DeliveryCharge,
   type ExtraChargeBatch,
   type ExtraChargeBatchReport,
+  type OccurrenceChargeReportFilters,
+  type OccurrenceChargeReportPage,
 } from './extraCharges.types'
 import {
   toBatchReport,
   toBatchResponse,
   toChargePage,
   toContractors,
+  toOccurrenceChargeReportPage,
 } from './extraChargesResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -23,6 +27,9 @@ type ClientDependencies = Readonly<{
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   getAccessToken: () => Promise<string>
 }>
+
+/** RF29: o demonstrativo já gerado, servido como `application/pdf` — nunca refeito no cliente. */
+export type OccurrenceStatementFile = Readonly<{ blob: Blob; fileName: string }>
 
 export type ExtraChargesClient = Readonly<{
   closeBatch: (
@@ -38,8 +45,13 @@ export type ExtraChargesClient = Readonly<{
     }>,
   ) => Promise<ExtraChargeBatchReport>
   dismissCharge: (input: Readonly<{ id: string; reason: string }>) => Promise<void>
+  /** RF28, `trip.financials`: linhas de cobrança de ocorrência ainda sem lote. */
+  downloadStatement: (batchId: string) => Promise<OccurrenceStatementFile>
   listCharges: (status: string) => Promise<readonly DeliveryCharge[]>
   listContractors: () => Promise<readonly Contractor[]>
+  readOccurrenceChargeReport: (
+    filters: OccurrenceChargeReportFilters,
+  ) => Promise<OccurrenceChargeReportPage>
   readReport: (batchId: string) => Promise<ExtraChargeBatchReport>
 }>
 
@@ -106,7 +118,73 @@ export function createExtraChargesClient(dependencies: ClientDependencies): Extr
         }),
       )
     },
+    async readOccurrenceChargeReport(filters) {
+      return toOccurrenceChargeReportPage(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `${OCCURRENCE_CHARGES_REPORT_PATH}?${serializeReportFilters(filters)}`,
+        }),
+      )
+    },
+    async downloadStatement(batchId) {
+      return requestFile({
+        dependencies,
+        path: `${EXTRA_CHARGE_BATCHES_PATH}/${batchId}/statement`,
+      })
+    },
   }
+}
+
+function serializeReportFilters(filters: OccurrenceChargeReportFilters): string {
+  const search = new URLSearchParams()
+  if (filters.chargeType !== undefined) search.set('chargeType', filters.chargeType)
+  if (filters.contractorId !== undefined) search.set('contractorId', filters.contractorId)
+  if (filters.cursor !== undefined) search.set('cursor', filters.cursor)
+  if (filters.from !== undefined) search.set('from', filters.from)
+  if (filters.hasSettlement !== undefined) {
+    search.set('hasSettlement', filters.hasSettlement ? 'true' : 'false')
+  }
+  if (filters.limit !== undefined) search.set('limit', String(filters.limit))
+  if (filters.search !== undefined) search.set('search', filters.search)
+  if (filters.status !== undefined) search.set('status', filters.status)
+  if (filters.to !== undefined) search.set('to', filters.to)
+  return search.toString()
+}
+
+/** O PDF não passa pelo `request()` de JSON — o corpo é binário e o nome vem do cabeçalho. */
+async function requestFile(
+  input: Readonly<{ dependencies: ClientDependencies; path: string }>,
+): Promise<OccurrenceStatementFile> {
+  const accessToken = await input.dependencies.getAccessToken()
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(
+      new Request(`${input.dependencies.apiUrl}${input.path}`, {
+        cache: 'no-store',
+        headers: { authorization: `Bearer ${accessToken}` },
+        method: 'GET',
+      }),
+    )
+  } catch {
+    throw new Error('REQUEST_FAILED')
+  }
+  if (!response.ok) {
+    let payload: unknown
+    try {
+      payload = JSON.parse(await response.text()) as unknown
+    } catch {
+      throw new Error('REQUEST_FAILED')
+    }
+    throw new Error(readErrorCode(payload))
+  }
+  const fileName = resolveAttachmentFileName(response.headers.get('content-disposition'))
+  return { blob: await response.blob(), fileName }
+}
+
+function resolveAttachmentFileName(headerValue: null | string): string {
+  const match = headerValue === null ? null : /filename="([^"]+)"/u.exec(headerValue)
+  return match?.[1] ?? 'demonstrativo.pdf'
 }
 
 export function getExtraChargesClient(): ExtraChargesClient {
