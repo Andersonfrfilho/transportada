@@ -1575,3 +1575,58 @@ Arquivos tocados:
 - O frontend (`OccurrenceReimbursementsWorkspace.page.tsx`) ainda não envia `chargeIds` no
   `POST /extra-charge-batches` — a API já aceita; falta ligar a seleção da tela ao corpo da
   requisição. Fora do escopo desta task (frontend está fora do worktree autorizado).
+
+## Frontend — painel decide em nome da contratante (achado 1 da revisão, pós-T22)
+
+A rota interna `POST /trip-occurrences/:id/case/decision` (permissão `occurrences.resolve`) e o
+`GET .../case/settlement` passaram a existir na API durante esta sessão. `OccurrenceCasePanel`
+(T22) ficou sem a ação "decidir no lugar do contratante" porque a rota não existia até então; esta
+task fecha a lacuna do lado do frontend.
+
+Arquivos tocados:
+
+- `apps/frontend-transportada/src/modules/trip/shared/tripOccurrenceFeedClient.service.ts` —
+  `decideOccurrenceCaseOnBehalfOfContractor` (`POST .../case/decision`, corpo `{ kind, note }`),
+  reaproveitando o guard `readCaseView`/`isCaseView` já existente para as outras cinco ações.
+- `apps/frontend-transportada/src/modules/trip/hooks/useOccurrenceCaseActions.hook.ts` — mutação
+  `decide`, invalida o feed no sucesso, mesmo molde das demais.
+- `apps/frontend-transportada/src/modules/trip/components/OccurrenceCasePanel.component.tsx` — a
+  ação só aparece com `canResolve && status === 'awaiting_contractor'`; abre um formulário com
+  `Select` (as três decisões — `redelivery_authorized` some da lista quando `redeliveryPolicy` é
+  `blocked`, evitando o 422 previsível) e nota **sempre obrigatória** (as três, não só `other` como
+  no portal do contratante); texto de aviso antes de confirmar deixa explícito que a decisão fica
+  registrada como da transportadora, nunca do cliente; erro de mutação (`409`
+  `OCCURRENCE_CASE_DECISION_CONFLICT`, `422` `OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED`) aparece como
+  aviso de tela via `resolveTripFeedbackKey`, não como falha genérica.
+- `apps/frontend-transportada/src/modules/trip/shared/trip.constant.ts` — três chaves novas em
+  `TRIP_FEEDBACK_KEY_BY_ERROR` (`OCCURRENCE_CASE_DECISION_CONFLICT`,
+  `OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED`, `OCCURRENCE_CASE_NOTE_REQUIRED`).
+- `apps/frontend-transportada/src/modules/trip/locales/trip.locale.json` — textos pt-BR acentuados
+  para a ação, as três opções de decisão, o aviso de autoria e as três mensagens de erro.
+- `apps/frontend-transportada/test/trip/occurrence-case-panel.contract.ts` — a asserção antiga que
+  provava a **ausência** do botão foi substituída (a lacuna que ela documentava foi fechada);
+  cobre presença condicionada ao estado, nota obrigatória, aviso de autoria e a exclusão da opção
+  de reentrega quando bloqueada.
+- `apps/frontend-transportada/test/trip/occurrence-case-decision-client.contract.ts` (novo) —
+  contrato do cliente HTTP: caminho/método/corpo de `.../case/decision`, os dois códigos de erro
+  (409/422) chegando como `error.message`, e dois casos do guard de chave exata (`redeliveryPolicy`/
+  `status` ausentes, `decision.kind` fora do vocabulário fechado) rejeitando com
+  `TRIP_RESPONSE_INVALID`.
+- `apps/frontend-transportada/test/trip.contract.test.ts` — registra o novo arquivo no entrypoint.
+
+**Pendência explícita, deixada de fora do escopo:** o `GET .../case/settlement` que também passou a
+existir não foi ligado a `OccurrenceSettlementPanel` (o painel de acerto continua nascendo vazio a
+cada abertura, comentário já registrado na T23) — a instrução desta task tratava isso como opcional
+("se o painel precisar mostrar"), e o painel de decisão não depende dele.
+
+### Gates (apps/frontend-transportada)
+
+- `bun run typecheck` (raiz, todas as apps) — OK, 0 erros.
+- `bun run lint` (raiz, todas as apps) — OK, 0 erros/avisos (inclusive a falha pré-existente de
+  `OccurrenceCasePanel.component.tsx` registrada na seção anterior — corrigida junto).
+- `bunx prettier --check .` (raiz) — OK.
+- `bun run --cwd apps/frontend-transportada test` — **4918 pass + 44 pass (test:hooks), 0 fail**.
+
+### Commit
+
+`feat(frontend): spec 164 — painel decide em nome da contratante` (cf94e85a4).
