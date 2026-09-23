@@ -82,9 +82,17 @@ describe('resolveSelectionPeriod (spec 164 T26)', () => {
       row({ chargedOn: '2026-09-20', id: 'r3' }),
     ]
     expect(resolveSelectionPeriod(rows, new Set(['r1', 'r2', 'r3']))).toEqual({
+      chargeIds: ['r1', 'r2', 'r3'],
       contractorId: 'contractor-1',
       periodEnd: '2026-09-20',
       periodStart: '2026-09-01',
     })
+  })
+
+  it('leva a lista de ids marcados — o fechamento passa a ser por seleção, não por período inteiro', () => {
+    const rows = [row({ id: 'r1' }), row({ id: 'r2' }), row({ id: 'r3' })]
+    const result = resolveSelectionPeriod(rows, new Set(['r1', 'r3']))
+    if (typeof result === 'string') throw new Error('expected a SelectionPeriod')
+    expect(result.chargeIds).toEqual(['r1', 'r3'])
   })
 })

@@ -28,6 +28,7 @@ export function sumSelectedReimbursementAmounts(
 }
 
 export type SelectionPeriod = Readonly<{
+  chargeIds: readonly string[]
   contractorId: string
   periodEnd: string
   periodStart: string
@@ -40,10 +41,10 @@ export const SELECTION_PERIOD_ERROR = {
 } as const
 
 /**
- * ⚠️ `closeBatch` (API) não recebe a lista de ids — fecha por `contratante + período`. O período
- * aqui é o intervalo que **cobre** a seleção (spec 164 plan.md § "O fechamento é por seleção"), mas
- * o fechamento em si continua pegando **todas** as cobranças sem lote daquele contratante dentro do
- * período — não só as linhas marcadas. A tela avisa isso antes de fechar (RF32, lacuna documentada).
+ * `closeBatch` (API) aceita `chargeIds` (spec 164, revisão RF32): o fechamento passa a pegar
+ * exatamente as linhas marcadas, nunca mais "todas as cobranças sem lote do contratante no
+ * período". `periodStart`/`periodEnd` seguem enviados — são o intervalo que as linhas marcadas
+ * cobrem — mas o recorte de elegibilidade agora é a lista de ids.
  */
 export function resolveSelectionPeriod(
   rows: readonly OccurrenceChargeReportRow[],
@@ -64,5 +65,5 @@ export function resolveSelectionPeriod(
   const periodEnd = dates[dates.length - 1]
   if (periodStart === undefined || periodEnd === undefined) return SELECTION_PERIOD_ERROR.EMPTY
 
-  return { contractorId, periodEnd, periodStart }
+  return { chargeIds: selected.map((row) => row.id), contractorId, periodEnd, periodStart }
 }

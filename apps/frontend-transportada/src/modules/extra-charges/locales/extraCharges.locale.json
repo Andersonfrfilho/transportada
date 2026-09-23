@@ -45,6 +45,7 @@
   "errors": {
     "DELIVERY_CHARGE_AMOUNT_REQUIRED": "Esta sugestão veio do motorista sem valor. Preencha o valor do recibo antes de confirmar.",
     "EXTRA_CHARGE_BATCH_EMPTY": "Não há taxa conferida deste contratante neste período.",
+    "EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE": "Uma das linhas marcadas não está mais disponível para fechamento. Atualize a lista e marque de novo.",
     "REQUEST_FAILED": "Não foi possível concluir. Tente de novo."
   },
   "reimbursements": {
@@ -90,7 +91,7 @@
     },
     "close": {
       "action": "Fechar o período da seleção",
-      "hint": "O fechamento usa o intervalo de datas que cobre as linhas marcadas — mas pega **todas** as cobranças sem lote deste contratante dentro do período, não só as marcadas. Confira o intervalo antes de fechar.",
+      "hint": "O fechamento pega exatamente as linhas marcadas. O intervalo mostrado é só o período que elas cobrem.",
       "emptyError": "Marque ao menos uma linha antes de fechar.",
       "mixedContractorError": "As linhas marcadas são de contratantes diferentes — feche um contratante por vez.",
       "missingContractorError": "Uma das linhas marcadas não tem contratante identificado.",

@@ -39,9 +39,9 @@ export type OccurrenceReimbursementsController = Readonly<{
 
 /**
  * Spec 164 T26 (RF32): "Ressarcimentos" — relatório de cobranças de ocorrência sem lote, seleção
- * por linha, e o fechamento existente (`POST /extra-charge-batches`) tomando o período que cobre a
- * seleção. ⚠️ A API não aceita fechamento por lista de ids — a lacuna é documentada em
- * `resolveSelectionPeriod` e repetida na tela antes do clique.
+ * por linha, e o fechamento existente (`POST /extra-charge-batches`) recebendo `chargeIds` com
+ * exatamente as linhas marcadas. `periodStart`/`periodEnd` seguem enviados como o intervalo que
+ * a seleção cobre (`resolveSelectionPeriod`).
  */
 export function useOccurrenceReimbursements(
   input: Readonly<{ permissions: readonly string[] }>,

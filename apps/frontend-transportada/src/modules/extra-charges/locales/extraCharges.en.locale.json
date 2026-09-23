@@ -45,6 +45,7 @@
   "errors": {
     "DELIVERY_CHARGE_AMOUNT_REQUIRED": "This suggestion came from the driver without an amount. Fill in the receipt amount before confirming.",
     "EXTRA_CHARGE_BATCH_EMPTY": "There is no checked charge for this contractor in this period.",
+    "EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE": "One of the marked rows is no longer available for closing. Refresh the list and mark it again.",
     "REQUEST_FAILED": "Could not complete. Try again."
   },
   "reimbursements": {
@@ -90,7 +91,7 @@
     },
     "close": {
       "action": "Close the selection's period",
-      "hint": "Closing uses the date range that covers the marked rows — but it takes **all** unbatched charges of this contractor within that period, not only the marked ones. Check the range before closing.",
+      "hint": "Closing takes exactly the marked rows. The date range shown is only the period they cover.",
       "emptyError": "Mark at least one row before closing.",
       "mixedContractorError": "The marked rows belong to different contractors — close one contractor at a time.",
       "missingContractorError": "One of the marked rows has no identified contractor.",

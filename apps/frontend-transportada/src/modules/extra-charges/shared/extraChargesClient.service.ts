@@ -33,7 +33,12 @@ export type OccurrenceStatementFile = Readonly<{ blob: Blob; fileName: string }>
 
 export type ExtraChargesClient = Readonly<{
   closeBatch: (
-    input: Readonly<{ contractorId: string; periodEnd: string; periodStart: string }>,
+    input: Readonly<{
+      chargeIds?: readonly string[]
+      contractorId: string
+      periodEnd: string
+      periodStart: string
+    }>,
   ) => Promise<ExtraChargeBatch>
   confirmCharges: (
     charges: readonly Readonly<{ amount?: string; id: string }>[],
