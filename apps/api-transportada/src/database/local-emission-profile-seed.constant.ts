@@ -9,11 +9,16 @@ const VALID_FROM = '2020-01-01T00:00:00.000Z'
 /**
  * O ADR-0071 move o documento fiscal esperado do código IBGE para o perfil de emissão. Sem um
  * perfil que casa, toda nota vira `no_profile` — o botão de CT-e some da linha e o MDF-e trava. As
- * duas notas abaixo já existem na semente de NF-e local (`local-nfe-seed.service.ts`); os CNPJs do
- * destinatário vêm de lá, não são inventados.
+ * Os CNPJs são os destinatários que as notas da bancada realmente têm — conferidos no banco local,
+ * não inventados nem copiados de outra semente. Três vão para CT-e e um para NFS-e, para a tela
+ * exercitar os dois desfechos na mesma viagem.
  */
-export const LOCAL_CTE_OUTPUT_RECIPIENT_TAX_ID = '01307355000190'
-export const LOCAL_NFSE_OUTPUT_RECIPIENT_TAX_ID = '00246872000215'
+export const LOCAL_CTE_OUTPUT_RECIPIENT_TAX_IDS = [
+  '32442562000181',
+  '36662191000447',
+  '69060457000198',
+] as const
+export const LOCAL_NFSE_OUTPUT_RECIPIENT_TAX_ID = '12074149000102'
 
 export const LOCAL_CTE_OUTPUT_PROFILE_SETTINGS: CteEmissionProfileSettingsInput = {
   cargoInsuranceDeclared: true,
@@ -43,9 +48,10 @@ export const LOCAL_CTE_OUTPUT_PROFILE_SETTINGS: CteEmissionProfileSettingsInput 
   taker: '3',
 }
 
-export const LOCAL_CTE_OUTPUT_PROFILE_MATCHERS = [
-  { matchRole: 'recipient' as const, taxId: LOCAL_CTE_OUTPUT_RECIPIENT_TAX_ID },
-]
+export const LOCAL_CTE_OUTPUT_PROFILE_MATCHERS: readonly {
+  readonly matchRole: 'recipient'
+  readonly taxId: string
+}[] = LOCAL_CTE_OUTPUT_RECIPIENT_TAX_IDS.map((taxId) => ({ matchRole: 'recipient', taxId }))
 
 /** Perfil que aponta para NFS-e — `nfseEmissionProfileId` é preenchido em tempo de semeadura. */
 export const LOCAL_NFSE_OUTPUT_PROFILE_SETTINGS_BASE: Omit<

@@ -157,12 +157,29 @@ async function seedCteProfile(input: {
   const existing = await cteProfiles.list({ context, cursor: null, limit: PAGE_LIMIT })
   const found = existing.items.find((profile) => profile.name === settings.name)
   if (found !== undefined) {
-    if (found.status === 'active') return found
-    return cteProfiles.activate({
+    /**
+     * Reconcilia em vez de devolver o que achou: o perfil semeado ontem pode ter CNPJ que a semente
+     * de hoje não declara mais, e aí a bancada diverge em silêncio do que este arquivo diz.
+     */
+    const reconciled = await cteProfiles.update({
+      components: [],
       context,
       correlationId: CORRELATION_ID,
       expectedVersion: found.version,
+      freightRule:
+        settings.outputDocument === 'nfse'
+          ? LOCAL_NFSE_OUTPUT_FREIGHT_RULE
+          : LOCAL_CTE_OUTPUT_FREIGHT_RULE,
+      matchers,
       profileId: found.id,
+      settings,
+    })
+    if (reconciled.status === 'active') return reconciled
+    return cteProfiles.activate({
+      context,
+      correlationId: CORRELATION_ID,
+      expectedVersion: reconciled.version,
+      profileId: reconciled.id,
     })
   }
 
