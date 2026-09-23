@@ -3478,7 +3478,10 @@ function createApplicationRoutes({
       getTrip: { execute: (input) => trips.get(input) },
       logger,
       requestCargoLayout,
-      readCargoLayout: createReadCargoLayoutUseCase({ repository: cargoLayoutLookup }),
+      readCargoLayout: createReadCargoLayoutUseCase({
+        packageBoxLookup: packageBoxRepository,
+        repository: cargoLayoutLookup,
+      }),
       reopenCargoLayout: createReopenCargoLayoutUseCase({
         repository: cargoLayoutRequestRepository,
       }),
@@ -3516,12 +3519,23 @@ function createApplicationRoutes({
             amount: input.amount,
             companyId: input.context.companyId,
             description: input.description,
+            entryKindId: input.entryKindId,
             kind: input.kind,
             tripId: input.tripId,
           }),
       },
       listTripCosts: {
         execute: (input) => listTripCosts({ ...input, repository: tripCostRepository }),
+      },
+      removeTripCost: {
+        execute: async (input) => ({
+          removed: await tripCostRepository.remove({
+            actorUserId: input.context.userId,
+            companyId: input.context.companyId,
+            entryId: input.entryId,
+            tripId: input.tripId,
+          }),
+        }),
       },
       recordTripRevenue: {
         execute: (input) =>
@@ -3536,6 +3550,16 @@ function createApplicationRoutes({
       },
       listTripRevenues: {
         execute: (input) => listTripRevenues({ ...input, repository: tripRevenueRepository }),
+      },
+      removeTripRevenue: {
+        execute: async (input) => ({
+          removed: await tripRevenueRepository.remove({
+            actorUserId: input.context.userId,
+            companyId: input.context.companyId,
+            entryId: input.entryId,
+            tripId: input.tripId,
+          }),
+        }),
       },
       readTripTimeline: createReadTripTimelineUseCase({
         existence: { findTripCompanyScope: (input) => findTripCompanyScope(database, input) },

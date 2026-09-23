@@ -5,7 +5,7 @@
  * apagado (spec 143 aceite 6).
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { companyEntryKinds, tripRevenueEntries } from '../../database/trip-financial.schema.js'
@@ -46,6 +46,29 @@ export class DrizzleTripRevenueRepository implements TripRevenueListPort {
     return { id: created.id }
   }
 
+  /** Spec 169 RF12/RF13: remove sem apagar — marca quem e quando, e a leitura passa a ignorar. */
+  public async remove(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly entryId: string
+    readonly tripId: string
+  }): Promise<boolean> {
+    const [updated] = await this.database
+      .update(tripRevenueEntries)
+      .set({ removedAt: new Date(), removedByUserId: input.actorUserId })
+      .where(
+        and(
+          eq(tripRevenueEntries.companyId, input.companyId),
+          eq(tripRevenueEntries.tripId, input.tripId),
+          eq(tripRevenueEntries.id, input.entryId),
+          isNull(tripRevenueEntries.removedAt),
+        ),
+      )
+      .returning({ id: tripRevenueEntries.id })
+
+    return updated !== undefined
+  }
+
   /** Spec 143 aceite 7 (espelhado): viagem fora da empresa devolve `null`, nunca a lista vazia de outro tenant. */
   public async listByTrip(input: {
     readonly companyId: string
@@ -80,6 +103,8 @@ export class DrizzleTripRevenueRepository implements TripRevenueListPort {
         and(
           eq(tripRevenueEntries.companyId, input.companyId),
           eq(tripRevenueEntries.tripId, input.tripId),
+          /** Spec 169 RF13: removida não aparece na lista por padrão. */
+          isNull(tripRevenueEntries.removedAt),
         ),
       )
       .orderBy(desc(tripRevenueEntries.createdAt))

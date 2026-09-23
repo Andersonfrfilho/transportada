@@ -10,6 +10,11 @@ const AMOUNT_PATTERN = /^[0-9]{1,13}(\.[0-9]{1,4})?$/u
 /** Lançamento é dinheiro que saiu: zero não é custo, e o CHECK do banco devolveria 500. */
 const NON_ZERO_DIGIT = /[1-9]/u
 
+/**
+ * Spec 169 RF5: o seletor novo manda `entryKindId`, lido do cadastro da empresa. `kind` continua
+ * aceito sozinho (compatibilidade — integrações e testes existentes que já lançam por ele), mas
+ * nunca os dois juntos: um mandaria o outro calado.
+ */
 const costSchema = z
   .object({
     amount: z
@@ -17,9 +22,14 @@ const costSchema = z
       .regex(AMOUNT_PATTERN)
       .refine((value) => NON_ZERO_DIGIT.test(value)),
     description: z.string().trim().max(200).default(''),
-    kind: z.enum(TRIP_COST_ENTRY_KINDS),
+    entryKindId: z.uuid().optional(),
+    kind: z.enum(TRIP_COST_ENTRY_KINDS).optional(),
   })
   .strict()
+  .refine((body) => (body.kind === undefined) !== (body.entryKindId === undefined), {
+    message: 'inform kind or entryKindId, never both or neither',
+    path: ['kind'],
+  })
 
 /** Spec 169 RF3: mesmas regras do gasto — valor maior que zero, descrição opcional. */
 const revenueSchema = z
@@ -39,7 +49,8 @@ const reasonSchema = z.object({ reason: z.string().trim().min(1).max(500) }).str
 export async function parseTripCostRequest(request: Request): Promise<{
   readonly amount: string
   readonly description: string
-  readonly kind: (typeof TRIP_COST_ENTRY_KINDS)[number]
+  readonly entryKindId?: string | undefined
+  readonly kind?: (typeof TRIP_COST_ENTRY_KINDS)[number] | undefined
 }> {
   return parseBody(costSchema, request)
 }

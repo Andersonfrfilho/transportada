@@ -279,8 +279,11 @@ const TRIP_FINANCIAL_RESULT_PATH = `${API_TRIPS_PATH}/:id/financial-result`
 const TRIP_FINANCIAL_RECALCULATE_PATH = `${TRIP_FINANCIAL_RESULT_PATH}/recalculate`
 /** Pedágio e avulso são lançamento de operação: quem monta a viagem lança. */
 const TRIP_COSTS_PATH = `${API_TRIPS_PATH}/:id/costs`
+/** Spec 169 RF12: remover não apaga — só sai da lista e da soma. */
+const TRIP_COST_ITEM_PATH = `${TRIP_COSTS_PATH}/:entryId`
 /** Spec 169 P1: receita lançada à mão na viagem — mesmo molde do gasto. */
 const TRIP_REVENUES_PATH = `${API_TRIPS_PATH}/:id/revenues`
+const TRIP_REVENUE_ITEM_PATH = `${TRIP_REVENUES_PATH}/:entryId`
 /** Spec 158 T6: a linha do tempo unificada da viagem, com a mesma leitura de `TRIP_FIELD_READ_POLICY`. */
 const TRIP_TIMELINE_PATH = `${API_TRIPS_PATH}/:id/timeline`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
@@ -571,7 +574,8 @@ type Dependencies = {
       input: TenantInput<TripIdInput> & {
         readonly amount: string
         readonly description: string
-        readonly kind: 'other' | 'toll'
+        readonly entryKindId?: string | undefined
+        readonly kind?: ('other' | 'toll') | undefined
       },
     ): Promise<{ readonly id: string }>
   }
@@ -580,6 +584,12 @@ type Dependencies = {
       readonly companyId: string
       readonly tripId: string
     }): Promise<readonly TripCostEntryView[]>
+  }
+  /** Spec 169 RF12/RF13: remove sem apagar — `false` quando já não havia o que remover. */
+  readonly removeTripCost: {
+    execute(
+      input: TenantInput<TripIdInput> & { readonly entryId: string },
+    ): Promise<{ readonly removed: boolean }>
   }
   readonly recordTripRevenue: {
     execute(
@@ -595,6 +605,11 @@ type Dependencies = {
       readonly companyId: string
       readonly tripId: string
     }): Promise<readonly TripRevenueEntryView[]>
+  }
+  readonly removeTripRevenue: {
+    execute(
+      input: TenantInput<TripIdInput> & { readonly entryId: string },
+    ): Promise<{ readonly removed: boolean }>
   }
   /** Spec 158 T6: a linha do tempo unificada — o caso de uso resolve o 404 antes de ler qualquer fonte. */
   readonly readTripTimeline: {
@@ -720,7 +735,8 @@ export function createTripRoutes(
       TripIdInput & {
         readonly amount: string
         readonly description: string
-        readonly kind: 'other' | 'toll'
+        readonly entryKindId?: string | undefined
+        readonly kind?: ('other' | 'toll') | undefined
       }
     >({
       async handle({ context, input }): Promise<Response> {
@@ -728,6 +744,7 @@ export function createTripRoutes(
           amount: input.amount,
           context: context.scope,
           description: input.description,
+          entryKindId: input.entryKindId,
           kind: input.kind,
           tripId: input.tripId,
         })
@@ -765,6 +782,25 @@ export function createTripRoutes(
       pathname: TRIP_COSTS_PATH,
       policy: TRIP_FINANCIALS_POLICY,
     }),
+    /** Spec 169 RF12/RF13: remove sem apagar — mesma permissão de lançar. */
+    defineRoute<TripIdInput & { readonly entryId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        await dependencies.removeTripCost.execute({
+          context: context.scope,
+          entryId: input.entryId,
+          tripId: input.tripId,
+        })
+
+        return new Response(null, { headers: { 'cache-control': 'no-store' }, status: 204 })
+      },
+      method: 'DELETE',
+      parse: ({ pathParameters }) => ({
+        entryId: parseUuidPathIdentifier(pathParameters.entryId ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_COST_ITEM_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
     /** Spec 169 P1: receita lançada — mesma trilha do gasto (autor, hora), rota irmã de custos. */
     defineRoute<
       TripIdInput & {
@@ -792,6 +828,25 @@ export function createTripRoutes(
         }
       },
       pathname: TRIP_REVENUES_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    /** Spec 169 RF12/RF13: remove sem apagar — mesma permissão de lançar. */
+    defineRoute<TripIdInput & { readonly entryId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        await dependencies.removeTripRevenue.execute({
+          context: context.scope,
+          entryId: input.entryId,
+          tripId: input.tripId,
+        })
+
+        return new Response(null, { headers: { 'cache-control': 'no-store' }, status: 204 })
+      },
+      method: 'DELETE',
+      parse: ({ pathParameters }) => ({
+        entryId: parseUuidPathIdentifier(pathParameters.entryId ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_REVENUE_ITEM_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<TripIdInput>({
