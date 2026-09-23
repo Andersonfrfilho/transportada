@@ -7,12 +7,12 @@ isolado e evidência em `evidence.md`.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T001** Contrato que prova que o gate de NFS-e do frontend usa a mesma permissão que a rota
+- [x] **T001** Contrato que prova que o gate de NFS-e do frontend usa a mesma permissão que a rota
       exige (`nfse.issue`). Escrever **antes** da correção e confirmar que falha.
-- [ ] **T002** Trocar `NFSE_MANAGE_PERMISSION` por `nfse.issue` em
+- [x] **T002** Trocar `NFSE_MANAGE_PERMISSION` por `nfse.issue` em
       `modules/nfse-invoice/shared/nfseEmission.service.ts:101` e no que consumir a constante.
       Conferir se `nfse.manage` ainda tem uso legítimo (leitura, configuração) antes de removê-la.
-- [ ] **T003** Verificar na bancada que quem tem só `nfse.manage` não vê mais o botão na tela de
+- [x] **T003** Verificar na bancada que quem tem só `nfse.manage` não vê mais o botão na tela de
       notas, e que quem tem `nfse.issue` vê. Registrar a medição, não a suposição.
 
 ## Fase 2 — A ação sai do dado
@@ -38,20 +38,20 @@ isolado e evidência em `evidence.md`.
       importa `NfseEmissionAction` de `nfse-invoice`. Decisão: `trip` importa `NfseEmissionAction`,
       não o diálogo. Nada se move, não há ciclo. Emitir **um** documento é caminho legítimo
       (`nfse-invoice.use-case.ts:130`) — não vira ADR.
-- [ ] **T205** 🧠 **ADR-0071**: fazer `expectedDocument` sair da fonte única
+- [x] **T205** 🧠 **ADR-0071**: fazer `expectedDocument` sair da fonte única
       (`classifyDocumentOutput`, pelo perfil de emissão) em vez de `resolveFiscalDocumentKind`, e
       transportar o `nfseProfileId` e os estados `blocked`/`no_profile` até a viagem. Contrato que
       prova que existe **uma conta só** — falha se alguma tela voltar a decidir por município.
       Frontend tolerante primeiro: o bundle aceita as chaves novas antes de a API emitir.
-- [ ] **T206** Escrever a regra de fronteira, hoje só costume, num parágrafo em
+- [x] **T206** Escrever a regra de fronteira, hoje só costume, num parágrafo em
       `apps/frontend-transportada/CLAUDE.md`: módulo consome de outro apenas o componente de ação
       autocontido que o dono exporta, nunca o diálogo ou o hook internos.
-- [ ] **T202** Contrato: a ação de NFS-e **abre o diálogo** com a nota pré-selecionada e não dispara
+- [x] **T202** Contrato: a ação de NFS-e **abre o diálogo** com a nota pré-selecionada e não dispara
       emissão antes de o perfil ser escolhido.
-- [ ] **T203** Implementar a abertura do diálogo a partir da linha, por `NfseEmissionAction`.
+- [x] **T203** Implementar a abertura do diálogo a partir da linha, por `NfseEmissionAction`.
       Pré-requisito: descer `permissions` e `companyId` até `TripStopList` (molde em
       `NfeWorkspace.page.tsx:196,220`) — hoje a lista só recebe `canSubmitCte` já resolvido.
-- [ ] **T204** Estados `no_profile` e `blocked`: contrato primeiro, depois a linha informando e sem
+- [x] **T204** Estados `no_profile` e `blocked`: contrato primeiro, depois a linha informando e sem
       oferecer a ação. ⚠️ Não confundir com "nenhum perfil casa com a nota", que é resolução de
       perfil de CT-e e não existe no caminho da NFS-e.
 
