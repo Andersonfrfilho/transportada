@@ -4,6 +4,12 @@
  * Spec 164 T5: o caso de uso das ações internas da tratativa. Dublê de repositório contando
  * chamadas — a nota ausente em `warehouse_return`/`cancel` nunca deve alcançar o repositório, e a
  * recusa da máquina (agora dentro do repositório) deve ser propagada sem engolir.
+ *
+ * ⚠️ **O dublê reflete a entrada.** A versão anterior recebia o resultado pronto por parâmetro e
+ * devolvia `closed` para qualquer chamada, ignorando o que lhe era entregue — foi por isso que o
+ * `hasSettlementItems: false` fixo do chamador (B1 da revisão final) atravessou a suíte inteira sem
+ * nenhum teste reclamar. Aqui o destino sai da ação recebida, e a entrega ao repositório é aferida
+ * campo a campo.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -30,11 +36,19 @@ const CONTEXT: CompanyContext = {
   userId: USER_ID,
 }
 
-function createFakeRepository(
-  result:
-    | { readonly kind: 'result'; readonly value: OccurrenceCaseTransitionResult }
-    | { readonly error: Error; readonly kind: 'error' },
-): {
+/** O destino de cada ação, copiado à mão da máquina (`occurrence-case-state.policy.ts`). */
+const DESTINATION: Readonly<
+  Record<OccurrenceCaseTransitionInput['action'], OccurrenceCaseTransitionResult['status']>
+> = {
+  cancel: 'cancelled',
+  closure: 'closed',
+  contractor_submission: 'awaiting_contractor',
+  decide: 'decided',
+  review: 'under_review',
+  warehouse_return: 'returned_to_warehouse',
+}
+
+function createFakeRepository(failure?: Error): {
   readonly calls: OccurrenceCaseTransitionInput[]
   readonly repository: OccurrenceCaseRepositoryPort
 } {
@@ -44,8 +58,8 @@ function createFakeRepository(
     repository: {
       async transition(input) {
         calls.push(input)
-        if (result.kind === 'error') throw result.error
-        return result.value
+        if (failure !== undefined) throw failure
+        return { kind: 'changed', status: DESTINATION[input.action] }
       },
     },
   }
@@ -53,10 +67,7 @@ function createFakeRepository(
 
 describe('occurrence-case use-case (T5)', () => {
   test('review delegates to the repository with actorKind internal', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'under_review' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     const result = await useCase.review({ caseId: CASE_ID, context: CONTEXT })
@@ -73,36 +84,47 @@ describe('occurrence-case use-case (T5)', () => {
   })
 
   test('contractor_submission delegates without requiring a note', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'awaiting_contractor' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     const result = await useCase.contractorSubmission({ caseId: CASE_ID, context: CONTEXT })
 
     expect(result.status).toBe('awaiting_contractor')
     expect(calls).toHaveLength(1)
+    expect(calls[0]).toEqual({
+      action: 'contractor_submission',
+      actorKind: 'internal',
+      actorUserId: USER_ID,
+      caseId: CASE_ID,
+      companyId: COMPANY_ID,
+      note: '',
+    })
   })
 
   test('closure delegates without requiring a note', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'closed' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     const result = await useCase.closure({ caseId: CASE_ID, context: CONTEXT })
 
-    expect(result.status).toBe('closed')
+    expect(result).toEqual({ kind: 'changed', status: 'closed' })
     expect(calls).toHaveLength(1)
+    /**
+     * ⚠️ `toEqual` e não `toMatchObject`: é esta asserção que reprova a volta de qualquer
+     * pré-condição contada fora da transação (`hasSettlementItems`) na entrada do escritor único.
+     */
+    expect(calls[0]).toEqual({
+      action: 'closure',
+      actorKind: 'internal',
+      actorUserId: USER_ID,
+      caseId: CASE_ID,
+      companyId: COMPANY_ID,
+      note: '',
+    })
   })
 
   test('warehouse_return without note never calls the repository', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'returned_to_warehouse' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     await expect(
@@ -112,10 +134,7 @@ describe('occurrence-case use-case (T5)', () => {
   })
 
   test('warehouse_return with a blank note never calls the repository', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'returned_to_warehouse' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     await expect(
@@ -125,10 +144,7 @@ describe('occurrence-case use-case (T5)', () => {
   })
 
   test('warehouse_return with a note delegates to the repository', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'returned_to_warehouse' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     const result = await useCase.warehouseReturn({
@@ -143,10 +159,7 @@ describe('occurrence-case use-case (T5)', () => {
   })
 
   test('cancel without note never calls the repository', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'cancelled' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     await expect(useCase.cancel({ caseId: CASE_ID, context: CONTEXT })).rejects.toBeInstanceOf(
@@ -156,10 +169,7 @@ describe('occurrence-case use-case (T5)', () => {
   })
 
   test('cancel with a note delegates to the repository', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'cancelled' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     const result = await useCase.cancel({
@@ -174,10 +184,7 @@ describe('occurrence-case use-case (T5)', () => {
   })
 
   test('propagates a refusal from the state machine (inside the repository) without swallowing it', async () => {
-    const { repository } = createFakeRepository({
-      error: new OccurrenceCaseTransitionNotAllowedError(),
-      kind: 'error',
-    })
+    const { repository } = createFakeRepository(new OccurrenceCaseTransitionNotAllowedError())
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     await expect(useCase.review({ caseId: CASE_ID, context: CONTEXT })).rejects.toBeInstanceOf(
@@ -187,10 +194,7 @@ describe('occurrence-case use-case (T5)', () => {
 
   /** Achado 1 da revisão: a decisão em nome do contratante — nota sempre obrigatória, actorKind fixo. */
   test('decide without note never calls the repository', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'decided' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     await expect(
@@ -200,10 +204,7 @@ describe('occurrence-case use-case (T5)', () => {
   })
 
   test('decide with a note delegates to the repository with actorKind internal and the decision', async () => {
-    const { calls, repository } = createFakeRepository({
-      kind: 'result',
-      value: { kind: 'changed', status: 'decided' },
-    })
+    const { calls, repository } = createFakeRepository()
     const useCase = createOccurrenceCaseUseCase({ repository })
 
     const result = await useCase.decide({
