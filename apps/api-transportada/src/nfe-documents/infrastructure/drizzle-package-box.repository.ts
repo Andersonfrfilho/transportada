@@ -72,6 +72,8 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         boxId: nfePackageBoxes.id,
         documentNumber: nfeDocuments.number,
         grossWeightGrams: nfePackageBoxes.grossWeightGrams,
+        /** A planta guardada pode ser mais velha que esta medida — é isto que a filtra da pendência. */
+        measuredAt: nfePackageBoxes.measuredAt,
         productCode: nfeProducts.code,
         unitsPerBox: nfePackageBoxes.unitsPerBox,
       })
@@ -123,6 +125,7 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       resolved.set(key, {
         boxId,
         grossWeightGrams: box.grossWeightGrams,
+        isMeasured: box.measuredAt !== null,
         unitsPerBox: box.unitsPerBox,
       })
     }

@@ -274,7 +274,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         companyId: input.companyId,
         tripId: input.tripId,
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
-          packageBoxLookup: this.packageBoxLookup,
+        packageBoxLookup: this.packageBoxLookup,
       })
     })
   }
@@ -321,7 +321,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
 
       const detail = await readTripDetail(transaction, {
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
-          packageBoxLookup: this.packageBoxLookup,
+        packageBoxLookup: this.packageBoxLookup,
         companyId: input.companyId,
         tripId: created.id,
       })
@@ -908,21 +908,32 @@ async function loadActiveFreightRules(
  */
 async function enrichPendingMeasurementsWithBox(
   pendingMeasurements: readonly PendingMeasurement[],
-  params: { readonly companyId: string; readonly packageBoxLookup: PendingMeasurementBoxLookupPort },
+  params: {
+    readonly companyId: string
+    readonly packageBoxLookup: PendingMeasurementBoxLookupPort
+  },
 ): Promise<readonly CargoLayoutPendingMeasurement[]> {
   const boxMatchesByKey = await params.packageBoxLookup.findBoxIdsForPendingMeasurements({
     companyId: params.companyId,
     items: pendingMeasurements,
   })
-  return pendingMeasurements.map((item) => {
+  /**
+   * Spec 168: a planta guardada pode ser mais velha que a última medida (fica `stale` enquanto o
+   * worker recalcula) — sem descartar aqui, uma caixa já medida ficava na tabela do que falta medir
+   * até o recálculo acontecer.
+   */
+  return pendingMeasurements.flatMap((item) => {
     const key = buildPendingMeasurementBoxKey(item)
     const match = key === null ? undefined : boxMatchesByKey.get(key)
-    return {
-      ...item,
-      grossWeightGrams: match?.grossWeightGrams ?? null,
-      packageBoxId: match?.boxId ?? null,
-      unitsPerBox: match?.unitsPerBox ?? null,
-    }
+    if (match?.isMeasured === true) return []
+    return [
+      {
+        ...item,
+        grossWeightGrams: match?.grossWeightGrams ?? null,
+        packageBoxId: match?.boxId ?? null,
+        unitsPerBox: match?.unitsPerBox ?? null,
+      },
+    ]
   })
 }
 

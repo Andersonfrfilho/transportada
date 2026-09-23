@@ -373,3 +373,75 @@ $ bun run test
 Pendente: não foi possível testar clique real na bancada (localhost:53000) nesta sessão — a API em
 53011 exige token Keycloak e não havia fluxo de login disponível sem interação manual do usuário.
 Verificação ficou nos contratos (`pending-measurement-inline.contract.ts`) e nos gates acima.
+
+## Regressão pós-entrega: caixa medida continuava na lista
+
+### Reprodução medida na bancada
+
+- Caixa `87886444-c0ab-4971-a9e3-b5e9e5a631f2` recebeu 40 × 30 × 25 cm ("Salvar medida").
+- Banco confirmou a gravação: `nfe_package_boxes.length_mm/width_mm/height_mm = 400/300/250`,
+  `measured_at = 2026-09-23T16:53:51.562Z`.
+- Uma planta `ready` nova (`trip_cargo_layouts.id = fee3daec-...`) foi computada às 16:57:27 — depois
+  da medida. Nela, `input->stops[*].boxes[*]` e `layout->pendingMeasurements[*]` **já não** têm mais
+  nenhum item com `productCode = "5015"` (`jsonb_path_query` vazio nas duas colunas): o worker recalcula
+  certo.
+- Mesmo assim a tela seguia mostrando a linha de pendência para essa caixa, com os campos de medida.
+
+### Causa raiz
+
+O caminho que a tela realmente usa (`GET /trips/:id`) pode servir uma planta **`stale`** — uma
+`trip_cargo_layouts` `ready` mais antiga, enquanto o worker ainda não terminou de recalcular a planta
+do hash atual (`readPreviousReady` em
+`apps/api-transportada/src/trips/infrastructure/stored-cargo-layout-read.support.ts:125-144`, usada
+por `resolveCargoLayoutReading` em
+`apps/api-transportada/src/trips/domain/cargo-layout-state.policy.ts:61-79`). Isso é intencional
+(D10/D16) — o `stale: true` da resposta existe exatamente para isso.
+
+O bug: o enriquecimento que casa cada `pendingMeasurement` com a caixa do catálogo —
+`enrichPendingMeasurementsWithBox` em
+`apps/api-transportada/src/trips/infrastructure/drizzle-trip.repository.ts:909-927` (usado por
+`GET /trips/:id`) e `createReadCargoLayoutUseCase.execute` em
+`apps/api-transportada/src/trips/application/read-cargo-layout.use-case.ts:34-74` (usado por
+`GET /trips/:id/cargo-layouts/:layoutId`) — já faz uma consulta **fresca** ao banco para achar a caixa
+de cada pendência (`DrizzlePackageBoxRepository.findBoxIdsForPendingMeasurements`,
+`apps/api-transportada/src/nfe-documents/infrastructure/drizzle-package-box.repository.ts:58-129`),
+mas essa consulta nunca trazia `measured_at`/as três dimensões — só `grossWeightGrams` e
+`unitsPerBox`. Sem esse dado, o enriquecimento só **anexava** `packageBoxId` ao item da planta velha;
+nunca tinha como descartar da lista uma pendência cuja caixa já foi medida depois que aquela planta
+foi calculada. O `stale` cobre a planta 3D (cubagem, arranjo); a tabela "o que falta medir" não tinha
+o mesmo amortecedor.
+
+### Correção
+
+- `apps/api-transportada/src/nfe-documents/application/package-box.port.ts`: `PendingMeasurementBoxMatch`
+  ganha `isMeasured: boolean`.
+- `apps/api-transportada/src/nfe-documents/infrastructure/drizzle-package-box.repository.ts`:
+  `findBoxIdsForPendingMeasurements` agora seleciona `measuredAt` e resolve
+  `isMeasured: box.measuredAt !== null`.
+- `apps/api-transportada/src/trips/application/read-cargo-layout.use-case.ts` e
+  `apps/api-transportada/src/trips/infrastructure/drizzle-trip.repository.ts`
+  (`enrichPendingMeasurementsWithBox`): trocado `.map` por `.flatMap`, descartando (`return []`) o item
+  quando `match?.isMeasured === true` — a pendência de uma caixa já medida some da lista mesmo servindo
+  uma planta `stale`, sem esperar o worker recalcular.
+
+Não foi tocado o pacote externo `@adatechnology/cargo-placement`: a causa é só do lado da aplicação
+(o enriquecimento nunca lia `measured_at`), o pacote em si já decide corretamente com o `input` que
+recebe (`collectPendingMeasurements` em `dist/index.js:3671-3703` só marca pendente quando as três
+dimensões são `null`).
+
+### Teste
+
+`apps/api-transportada/test/cargo-volume/cargo-layout-package-box-id.contract.ts`: novo caso "a caixa
+casada ja tem as tres dimensoes gravadas: a pendencia sai da lista (bug do spec 168)" — falhou antes
+da correção (`pendingMeasurements` trazia o item em vez de lista vazia), passa depois. Registrado no
+entrypoint existente (`test/cargo-volume.contract.test.ts`), nenhuma entrada nova de `package.json`
+necessária.
+
+### Gates
+
+- `bun run typecheck` (raiz, todas as apps) — limpo.
+- `bun run --cwd apps/api-transportada lint` — limpo.
+- `bun --env-file=../../.env.test test --timeout 120000` (de dentro de `apps/api-transportada`) —
+  7174 pass, 23 skip, 0 fail.
+- `bun --env-file=../../.env.test run test:integration` (de dentro de `apps/api-transportada`) —
+  ver resultado abaixo.

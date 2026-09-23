@@ -57,15 +57,23 @@ export function createReadCargoLayoutUseCase(dependencies: {
       return {
         cargoLayout: {
           ...relabeled,
-          pendingMeasurements: relabeled.pendingMeasurements.map((item) => {
+          /**
+           * Spec 168: a planta guardada pode ser mais velha que a última medida (fica `stale`
+           * enquanto o worker recalcula) — sem descartar aqui, uma caixa já medida ficava na lista
+           * até o recálculo acontecer.
+           */
+          pendingMeasurements: relabeled.pendingMeasurements.flatMap((item) => {
             const key = buildPendingMeasurementBoxKey(item)
             const match = key === null ? undefined : boxMatchesByKey.get(key)
-            return {
-              ...item,
-              grossWeightGrams: match?.grossWeightGrams ?? null,
-              packageBoxId: match?.boxId ?? null,
-              unitsPerBox: match?.unitsPerBox ?? null,
-            }
+            if (match?.isMeasured === true) return []
+            return [
+              {
+                ...item,
+                grossWeightGrams: match?.grossWeightGrams ?? null,
+                packageBoxId: match?.boxId ?? null,
+                unitsPerBox: match?.unitsPerBox ?? null,
+              },
+            ]
           }),
         },
         layoutId: stored.id,

@@ -153,10 +153,15 @@ export type ListPackageBoxSiblingsResult = PackageBoxSiblings & {
  * Spec 168: a caixa do catálogo que resolve uma pendência de medição, com o que a gravação inline
  * precisa além do id — `unitsPerBox`/`grossWeightGrams` já existem na caixa, e a linha da tabela não
  * tem de onde tirá-los sem outra consulta por item.
+ *
+ * `isMeasured` diz se essa caixa já tem as três dimensões gravadas: a planta guardada pode ser mais
+ * velha que a última medida (fica `stale` enquanto o worker recalcula), e sem isto a pendência de uma
+ * caixa já medida continuava na lista até o recálculo acontecer.
  */
 export type PendingMeasurementBoxMatch = {
   readonly boxId: string
   readonly grossWeightGrams: number | null
+  readonly isMeasured: boolean
   readonly unitsPerBox: number
 }
 
