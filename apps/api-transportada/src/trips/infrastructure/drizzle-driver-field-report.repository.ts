@@ -7,8 +7,10 @@ import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'driz
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
+  companyOccurrenceTypes,
   tripDeliveryProofs,
   tripDispatchSnapshots,
+  tripDocumentOccurrences,
   tripDocuments,
   tripFieldReports,
   tripStopEvents,
@@ -28,7 +30,9 @@ import type {
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
+import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { TripFieldOfficeAuditInput } from '../application/trip-field-office-audit.port.js'
+import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
@@ -815,5 +819,76 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .limit(1)
 
     return occurrence ?? null
+  }
+
+  /** Spec 179 T200: a mesma escrita que o galpão usa (`saveTripOccurrence`), dentro desta transação. */
+  public async saveDocumentOccurrence(input: {
+    readonly actorUserId: string
+    readonly attachmentObjectId: string | null
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly documentId: string
+    readonly note: string
+    readonly occurrenceTypeId: string
+    readonly productCode: string
+    readonly stage: 'delivery'
+    readonly tripId: string
+    readonly typeName: string
+  }): Promise<null | TripOccurrence> {
+    return saveTripOccurrence(this.transaction, {
+      actorUserId: input.actorUserId,
+      attachmentObjectId: input.attachmentObjectId,
+      authorship: input.authorship,
+      companyId: input.companyId,
+      documentId: input.documentId,
+      note: input.note,
+      occurrenceTypeId: input.occurrenceTypeId,
+      productCode: input.productCode,
+      stage: input.stage,
+      tripId: input.tripId,
+      typeName: input.typeName,
+    })
+  }
+
+  public async findDocumentOccurrenceById(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<null | TripOccurrence> {
+    const [occurrence] = await this.transaction
+      .select({
+        createdAt: tripDocumentOccurrences.createdAt,
+        id: tripDocumentOccurrences.id,
+        note: tripDocumentOccurrences.note,
+        occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
+        productCode: tripDocumentOccurrences.productCode,
+        stage: tripDocumentOccurrences.stage,
+        typeName: companyOccurrenceTypes.name,
+      })
+      .from(tripDocumentOccurrences)
+      .innerJoin(
+        companyOccurrenceTypes,
+        and(
+          eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+          eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+        ),
+      )
+      .where(
+        and(
+          eq(tripDocumentOccurrences.companyId, input.companyId),
+          eq(tripDocumentOccurrences.id, input.occurrenceId),
+        ),
+      )
+      .limit(1)
+    if (occurrence === undefined) return null
+
+    return {
+      createdAt: occurrence.createdAt.toISOString(),
+      id: occurrence.id,
+      note: occurrence.note,
+      occurrenceTypeId: occurrence.occurrenceTypeId,
+      productCode: occurrence.productCode,
+      stage: occurrence.stage,
+      typeName: occurrence.typeName,
+    }
   }
 }

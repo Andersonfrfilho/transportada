@@ -280,7 +280,6 @@ import {
   readOccurrenceLabelsForDocuments,
   readOccurrenceTemplateValues,
   saveOccurrenceType,
-  saveTripOccurrence,
 } from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
 import { createMdfeXmlReaderGateway } from './mdfe-manifests/infrastructure/mdfe-xml-reader.gateway.js'
@@ -834,8 +833,8 @@ export function bootstrap(): Bun.Server<undefined> {
           findOccurrenceType: (query) => findOccurrenceType(database.db, query),
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-          saveOccurrence: (query) => saveTripOccurrence(database.db, query),
         },
+        unitOfWork: whatsappDriverFieldReports,
       }),
     reportDelivery: (input) =>
       reportDocumentDelivery({
@@ -2927,8 +2926,8 @@ function createApplicationRoutes({
             findOccurrenceType: (query) => findOccurrenceType(database, query),
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
             listDocumentProducts: (query) => listDocumentProducts(database, query),
-            saveOccurrence: (query) => saveTripOccurrence(database, query),
           },
+          unitOfWork: driverFieldReports,
         }),
       attachProof: (input) =>
         attachDeliveryProof({

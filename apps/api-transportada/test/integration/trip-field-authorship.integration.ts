@@ -39,7 +39,6 @@ import {
   findDriverReachableDocument,
   findOccurrenceType,
   listDocumentProducts,
-  saveTripOccurrence,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleFieldTripTargetRepository } from '../../src/trips/infrastructure/drizzle-field-trip-target.repository.js'
@@ -203,6 +202,7 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
           companyId: company.companyId,
           documentId: trip.documentId,
           driverId: company.driverId,
+          idempotencyKey: crypto.randomUUID(),
           note: 'cliente recusou a carga',
           occurrenceTypeId,
           productCode: '',
@@ -210,8 +210,8 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
             findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-            saveOccurrence: (query) => saveTripOccurrence(database.db, query),
           },
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
         })
 
         const [occurrence] = await database.db

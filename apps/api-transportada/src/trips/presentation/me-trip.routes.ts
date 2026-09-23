@@ -133,6 +133,7 @@ export type MeTripDependencies = {
     readonly companyId: string
     readonly documentId: string
     readonly driverId: string
+    readonly idempotencyKey: string
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
@@ -438,6 +439,7 @@ export function createMeTripRoutes(
     }),
     defineRoute<{
       readonly documentId: string
+      readonly idempotencyKey: string
       readonly note: string
       readonly occurrenceTypeId: string
       readonly productCode: string
@@ -449,6 +451,7 @@ export function createMeTripRoutes(
           companyId: context.scope.companyId,
           documentId: input.documentId,
           driverId,
+          idempotencyKey: input.idempotencyKey,
           note: input.note,
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: input.productCode,
@@ -461,6 +464,7 @@ export function createMeTripRoutes(
         const body = await parseRegisterOccurrenceRequest(request)
         return {
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          idempotencyKey: parseIdempotencyKey(request),
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           productCode: body.productCode,

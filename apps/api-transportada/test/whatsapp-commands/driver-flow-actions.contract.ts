@@ -715,6 +715,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         companyId: COMPANY_ID,
         documentId: DOCUMENT_ID,
         driverId: DRIVER_ID,
+        idempotencyKey: expect.any(String),
         note: '',
         occurrenceTypeId: OCCURRENCE_TYPE_ID,
         productCode: '',

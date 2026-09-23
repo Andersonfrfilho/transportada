@@ -12,16 +12,18 @@
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
+import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
-  type FieldAuthorship,
   type FieldTripLocator,
   type FieldTripTarget,
 } from './field-trip-target.types.js'
 import type { OccurrenceTypeRecord, TripOccurrence } from './register-trip-occurrence.use-case.js'
+import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
-export type DriverOccurrencePort = {
+/** Spec 179 T200: só as três leituras — a escrita passou a viver na transação da chave (T203). */
+export type DriverOccurrenceReadPort = {
   findOccurrenceType(input: {
     readonly companyId: string
     readonly occurrenceTypeId: string
@@ -37,29 +39,21 @@ export type DriverOccurrencePort = {
     readonly documentId: string
     readonly tripId: string
   }): Promise<readonly { readonly code: string; readonly description: string }[]>
-  saveOccurrence(input: {
-    readonly actorUserId: string
-    readonly authorship: FieldAuthorship
-    readonly companyId: string
-    readonly documentId: string
-    readonly note: string
-    readonly occurrenceTypeId: string
-    readonly productCode: string
-    readonly stage: 'delivery'
-    readonly tripId: string
-    readonly typeName: string
-  }): Promise<null | TripOccurrence>
 }
+
+const DOCUMENT_OCCURRENCE_OPERATION = 'document.occurrence'
 
 export type RegisterDriverOccurrenceInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly companyId: string
   readonly documentId: string
+  readonly idempotencyKey: string
   readonly note: string
   readonly occurrenceTypeId: string
   /** Vazio é a nota inteira: o motorista aponta o item quando o cliente recusou só parte. */
   readonly productCode: string
-  readonly repository: DriverOccurrencePort
+  readonly repository: DriverOccurrenceReadPort
+  readonly unitOfWork: DriverFieldReportUnitOfWork
 }
 
 /**
@@ -107,19 +101,49 @@ export async function registerDriverOccurrence(
   })
   if (scope === null) throw new TripDocumentNotReachableError()
 
-  const saved = await input.repository.saveOccurrence({
-    actorUserId: input.actorUserId,
-    authorship: deriveFieldAuthorship(input),
-    companyId: input.companyId,
-    documentId: input.documentId,
-    note: input.note,
-    occurrenceTypeId: occurrenceType.id,
-    productCode: scope.productCode,
-    stage: TRIP_OCCURRENCE_STAGE.delivery,
-    tripId: reachable.tripId,
-    typeName: occurrenceType.name,
-  })
-  if (saved === null) throw new TripDocumentNotReachableError()
+  const authorship = deriveFieldAuthorship(input)
+  const tripId = reachable.tripId
+
+  /**
+   * Spec 179 T200: a chave de idempotência que esta rota não tinha (ADR-0045 §5, revisão de
+   * arquitetura de 23/09). Reserva e escrita na **mesma transação** — o reenvio da fila offline
+   * (Fase 3) não pode duplicar a ocorrência.
+   */
+  const saved = await input.unitOfWork.execute((transaction) =>
+    withFieldReport<TripOccurrence>({
+      guard: {
+        actorUserId: input.actorUserId,
+        authorship,
+        companyId: input.companyId,
+        idempotencyKey: input.idempotencyKey,
+        operation: resolveFieldReportOperation({
+          locator: input,
+          operation: DOCUMENT_OCCURRENCE_OPERATION,
+        }),
+        transaction,
+      },
+      perform: async () => {
+        const result = await transaction.saveDocumentOccurrence({
+          actorUserId: input.actorUserId,
+          attachmentObjectId: null,
+          authorship,
+          companyId: input.companyId,
+          documentId: input.documentId,
+          note: input.note,
+          occurrenceTypeId: occurrenceType.id,
+          productCode: scope.productCode,
+          stage: TRIP_OCCURRENCE_STAGE.delivery,
+          tripId,
+          typeName: occurrenceType.name,
+        })
+        if (result === null) throw new TripDocumentNotReachableError()
+
+        return result
+      },
+      recall: (occurrenceId) =>
+        transaction.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId }),
+    }),
+  )
 
   return saved
 }
