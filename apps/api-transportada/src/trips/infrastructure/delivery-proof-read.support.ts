@@ -773,6 +773,12 @@ export async function saveOccurrenceType(
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
+    /**
+     * Spec 164 T1: ausente é `'unset'` — o padrão da coluna, e o que a rota HTTP grava hoje (o
+     * cadastro por API ainda não expõe este campo; só o seeder da bancada e futuros chamadores
+     * internos o definem).
+     */
+    readonly redeliveryPolicy?: RedeliveryPolicy
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -785,6 +791,7 @@ export async function saveOccurrenceType(
     emailTemplateKey: input.emailTemplateKey,
     name: input.name.trim(),
     notifies: input.notifies,
+    redeliveryPolicy: input.redeliveryPolicy ?? 'unset',
     stage: input.stage,
   }
 
@@ -813,6 +820,7 @@ export async function saveOccurrenceType(
     id: saved.id,
     name: saved.name,
     notifies: saved.notifies,
+    redeliveryPolicy: saved.redeliveryPolicy,
     stage: saved.stage,
   }
 }

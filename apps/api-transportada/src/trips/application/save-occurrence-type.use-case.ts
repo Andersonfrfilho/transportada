@@ -6,6 +6,7 @@
  * antiga, e o cadastro com chave os zera de propósito, porque o template manda.
  */
 import { OccurrenceEmailTemplateNotFoundError } from '../domain/trip.error.js'
+import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 
@@ -27,6 +28,8 @@ export type SaveOccurrenceTypeValues = {
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
+  /** Ausente é `'unset'` — nenhum caso de tratativa abre para este tipo. */
+  readonly redeliveryPolicy?: RedeliveryPolicy
   readonly stage: TripOccurrenceStage
 }
 

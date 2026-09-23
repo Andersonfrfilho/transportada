@@ -15,17 +15,33 @@ import { and, eq } from 'drizzle-orm'
 import { parseEnvironment } from '../config/environment.schema.js'
 import { companies } from './identity.schema.js'
 import { companyOccurrenceTypes } from './trip.schema.js'
+import type { RedeliveryPolicy } from './trip.schema.js'
 import { saveOccurrenceType } from '../trips/infrastructure/delivery-proof-read.support.js'
 import type { TripOccurrenceStage } from '../shared/trip-occurrence.constant.js'
 
-/** Os mesmos três de staging, para a bancada exercitar o caso real (spec 166: multi-item). */
+/**
+ * Os mesmos três de staging, para a bancada exercitar o caso real (spec 166: multi-item).
+ *
+ * `redeliveryPolicy` decide se o registro abre tratativa (spec 164 T4). Escolhida por tipo, não
+ * uniforme: "Item avariado" e "Item faltante" são falha da separação — o item nem devia ter saído
+ * assim, então reentrega **não** é a resposta automática (`blocked`, quem decide é o operador na
+ * tratativa manual, fora deste fluxo). "Divergência de quantidade" é o inverso: falta um item que
+ * a rota já vai cobrir de novo, então **permite** reentrega. Do lado da entrega, "Destinatário
+ * ausente" é o caso clássico de reentrega — ninguém recebeu, a nota inteira volta (`allowed`).
+ * "Recusa parcial" quem recusou foi o próprio destinatário; reentregar sem contato prévio repete a
+ * recusa, então fica bloqueada (`blocked`) até a tratativa manual decidir.
+ */
 const LOCAL_OCCURRENCE_TYPES = [
-  { name: 'Item avariado', stage: 'separation' },
-  { name: 'Divergência de quantidade', stage: 'separation' },
-  { name: 'Item faltante', stage: 'separation' },
-  { name: 'Destinatário ausente', stage: 'delivery' },
-  { name: 'Recusa parcial', stage: 'delivery' },
-] as const satisfies readonly { name: string; stage: TripOccurrenceStage }[]
+  { name: 'Item avariado', redeliveryPolicy: 'blocked', stage: 'separation' },
+  { name: 'Divergência de quantidade', redeliveryPolicy: 'allowed', stage: 'separation' },
+  { name: 'Item faltante', redeliveryPolicy: 'blocked', stage: 'separation' },
+  { name: 'Destinatário ausente', redeliveryPolicy: 'allowed', stage: 'delivery' },
+  { name: 'Recusa parcial', redeliveryPolicy: 'blocked', stage: 'delivery' },
+] as const satisfies readonly {
+  name: string
+  redeliveryPolicy: RedeliveryPolicy
+  stage: TripOccurrenceStage
+}[]
 
 async function seedOccurrenceTypes(): Promise<void> {
   const config = parseEnvironment(process.env)
@@ -34,7 +50,7 @@ async function seedOccurrenceTypes(): Promise<void> {
   if (empresas.length === 0) throw new Error('LOCAL_OCCURRENCE_TYPE_SEED_WITHOUT_COMPANY')
 
   let criados = 0
-  let existentes = 0
+  let atualizados = 0
   for (const empresa of empresas) {
     for (const tipo of LOCAL_OCCURRENCE_TYPES) {
       const [existente] = await db
@@ -47,10 +63,6 @@ async function seedOccurrenceTypes(): Promise<void> {
           ),
         )
         .limit(1)
-      if (existente !== undefined) {
-        existentes += 1
-        continue
-      }
 
       await saveOccurrenceType(db, {
         active: true,
@@ -62,14 +74,17 @@ async function seedOccurrenceTypes(): Promise<void> {
         emailTemplateKey: null,
         name: tipo.name,
         notifies: false,
-        occurrenceTypeId: null,
+        occurrenceTypeId: existente?.id ?? null,
+        redeliveryPolicy: tipo.redeliveryPolicy,
         stage: tipo.stage,
       })
-      criados += 1
+
+      if (existente === undefined) criados += 1
+      else atualizados += 1
     }
   }
 
-  console.log(`occurrence type seed: ${criados} created, ${existentes} skipped`)
+  console.log(`occurrence type seed: ${criados} created, ${atualizados} reconciled`)
 }
 
 await seedOccurrenceTypes()
