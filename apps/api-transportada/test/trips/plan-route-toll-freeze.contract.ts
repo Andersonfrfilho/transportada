@@ -172,30 +172,37 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
   })
 })
 
-describe('o congelamento não derruba o planejamento (revisão de 2026-09-08)', () => {
+describe('o congelamento que falha não pode deixar o status mentir', () => {
   /**
-   * ⚠️ O congelamento roda **depois** de `markRoutePlanned`: a viagem já está `route_planned` quando
-   * ele começa. Sem guarda, um erro dele — timeout, CHECK de `planned_toll`, conexão caída — sobe e
-   * o operador recebe falha numa ação **que deu certo**. No caso persistente ele nunca vê sucesso,
-   * mesmo com a viagem planejada no banco.
-   *
-   * Efeito secundário não pode derrubar o primário: é o `catch` de fallback gracioso que o
-   * `code-standart.md` §7 admite, e o único caso em que ele se aplica aqui.
+   * ⚠️ Desde a spec 153 T201 o congelamento grava traçado, métricas e pedágio juntos — não só o
+   * pedágio. Uma revisão anterior (2026-09-08) engolia o erro daqui achando que só o pedágio
+   * ficaria sem congelar; o efeito real era a viagem virar `route_planned` sem roteiro nenhum
+   * (distância, rota e pedágio nulos) — o status afirmando um planejamento que não aconteceu.
+   * Agora a falha propaga e a transição não se aplica: `markRoutePlanned` nem chega a ser chamado.
    */
-  test('devolve o roteiro planejado mesmo quando o congelamento falha', async () => {
+  test('propaga o erro do congelamento e não marca a viagem como planejada', async () => {
     const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
+    let markRoutePlannedCalls = 0
+    const guardedRepository: PlanTripRoutePort = {
+      ...repository,
+      async markRoutePlanned(markInput) {
+        markRoutePlannedCalls += 1
+        return repository.markRoutePlanned(markInput)
+      },
+    }
 
-    const result = await planTripRoute({
+    const error = await planTripRoute({
       actorUserId: ACTOR_USER_ID,
       channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
-      repository,
+      repository: guardedRepository,
       tollFreezer: {
         freeze: () => Promise.reject(new Error('planned_toll indisponível')),
       },
       tripId: TRIP_ID,
-    })
+    }).catch((caught: unknown) => caught)
 
-    expect(result.tripStatus).toBe('route_planned')
+    expect(error).toBeInstanceOf(Error)
+    expect(markRoutePlannedCalls).toBe(0)
   })
 })

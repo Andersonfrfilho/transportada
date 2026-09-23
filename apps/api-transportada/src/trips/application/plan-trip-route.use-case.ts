@@ -70,10 +70,18 @@ export type PlanTripRouteResult = {
  * ADR-0043 §1: `route_planned` exige ≥1 parada e nenhuma nota sem parada. Idempotente — planejar
  * de novo uma viagem já planejada, ou uma que já andou além disso, não regride nem falha.
  *
- * ⚠️ **O congelamento do pedágio (T11) roda em toda chamada que não é bloqueada** — tanto na
- * transição real (`applied`) quanto na repetição idempotente (`unchanged`, ex: reordenar parada e
- * planejar de novo). Replanejar regrava o congelado; a chamada bloqueada (viagem despachada,
- * cancelada, sem roteiro) nunca chega a este ponto, então despachar nunca recongela.
+ * ⚠️ **O congelamento roda ANTES de marcar `route_planned`, e uma falha dele propaga.** Desde a
+ * spec 153 T201 ele não grava só o pedágio — traçado, métricas e pedágio nascem juntos, numa
+ * escrita só (`freeze-trip-planned-route.use-case.ts`). Gravar o status primeiro e engolir o erro
+ * do congelamento (revisão de 2026-09-08, válida quando só o pedágio dependia dele) passou a
+ * deixar a viagem `route_planned` sem roteiro nenhum quando o congelamento falhava de verdade —
+ * o status afirmando um planejamento que não existe. Falha aqui bloqueia a transição: a viagem
+ * fica no status anterior, e quem chamou decide se tenta de novo.
+ *
+ * Roda em toda chamada que não é bloqueada — tanto na transição real (`applied`) quanto na
+ * repetição idempotente (`unchanged`, ex: reordenar parada e planejar de novo), preservando o
+ * recongelamento do replanejamento. A chamada bloqueada (viagem despachada, cancelada, sem
+ * roteiro) nunca chega a este ponto, então despachar nunca recongela.
  */
 export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTripRouteResult> {
   const state = await input.repository.readRouteState(input)
@@ -89,6 +97,14 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
     throw new TripStateTransitionNotAllowedError(transition.reason)
   }
 
+  if (input.tollFreezer !== undefined) {
+    await input.tollFreezer.freeze({
+      companyId: input.companyId,
+      ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
+      tripId: input.tripId,
+    })
+  }
+
   const tripStatus =
     transition.outcome === 'unchanged'
       ? state.tripStatus
@@ -100,28 +116,6 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
           onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
           tripId: input.tripId,
         })
-
-  /**
-   * ⚠️ **O congelamento não pode derrubar o planejamento.** Ele roda depois de `markRoutePlanned`,
-   * com a viagem já em `route_planned`: um erro aqui devolveria falha ao operador para uma ação que
-   * deu certo — e, se persistente, ele nunca veria sucesso. É o `catch` de fallback gracioso do
-   * `code-standart.md` §7, não captura para logar e relançar.
-   *
-   * O preço é o pedágio ficar sem congelar até o próximo replanejamento — e ausência de congelado
-   * já é caso tratado: a parcela volta ao lançamento manual e a tela diz que ninguém lançou. É
-   * subestimar dizendo que subestima, que é a direção segura desta linha de trabalho.
-   */
-  if (input.tollFreezer !== undefined) {
-    try {
-      await input.tollFreezer.freeze({
-        companyId: input.companyId,
-        ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
-        tripId: input.tripId,
-      })
-    } catch {
-      /* o roteiro está planejado; o pedágio congela no próximo replanejamento */
-    }
-  }
 
   return { tripStatus }
 }
