@@ -3,6 +3,10 @@
  *
  * Spec 164 T19: `trip.financials` — dinheiro tem permissão própria (spec 061 D4); quem valida
  * ocorrência não vê valor por carona.
+ *
+ * Revisão de segurança da spec 164: `cursor` era repassado cru — não é injeção (Drizzle
+ * parametriza), mas `?cursor=abc` virava erro de sintaxe do Postgres e saía como 500 em vez de 400.
+ * `parseUuidFilter` é o mesmo validador que os outros filtros desta rota já usam.
  */
 import { z } from 'zod'
 
@@ -11,6 +15,7 @@ import {
   DELIVERY_CHARGE_TYPES,
 } from '../../database/delivery-client.schema.js'
 import { defineRoute } from '../../http/router.service.js'
+import { parseUuidFilter } from '../../http/request-parsing.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_OCCURRENCE_CHARGES_REPORT_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type {
@@ -68,7 +73,7 @@ function parseReportFilters(url: URL): OccurrenceChargeReportFilters {
   const parameters = url.searchParams
   const chargeType = parameters.get('chargeType')
   const contractorId = parameters.get('contractorId')
-  const cursor = parameters.get('cursor')
+  const cursor = parseUuidFilter(parameters.get('cursor'))
   const from = parameters.get('from')
   const hasSettlement = parameters.get('hasSettlement')
   const search = parameters.get('search')
@@ -78,7 +83,7 @@ function parseReportFilters(url: URL): OccurrenceChargeReportFilters {
   return {
     ...(chargeType === null ? {} : { chargeType: z.enum(DELIVERY_CHARGE_TYPES).parse(chargeType) }),
     ...(contractorId === null ? {} : { contractorId: z.string().uuid().parse(contractorId) }),
-    ...(cursor === null ? {} : { cursor }),
+    ...(cursor === undefined ? {} : { cursor }),
     ...(from === null ? {} : { from: z.string().regex(DATE_PATTERN).parse(from) }),
     ...(hasSettlement === null
       ? {}
