@@ -48,12 +48,12 @@ describe('ação de emitir CT-e na própria linha da nota (spec 174 RF3, spec 17
   })
 
   it('aceita CT-e rejeitado ou cancelado — a mesma regra do lote', () => {
-    expect(
-      resolveDocumentRowAction({ ...READY, reason: 'cte_rejected' }, CAN_SUBMIT_CTE),
-    ).toEqual({ kind: 'cte' })
-    expect(
-      resolveDocumentRowAction({ ...READY, reason: 'cte_cancelled' }, CAN_SUBMIT_CTE),
-    ).toEqual({ kind: 'cte' })
+    expect(resolveDocumentRowAction({ ...READY, reason: 'cte_rejected' }, CAN_SUBMIT_CTE)).toEqual({
+      kind: 'cte',
+    })
+    expect(resolveDocumentRowAction({ ...READY, reason: 'cte_cancelled' }, CAN_SUBMIT_CTE)).toEqual(
+      { kind: 'cte' },
+    )
   })
 
   it('recusa nota já pronta', () => {

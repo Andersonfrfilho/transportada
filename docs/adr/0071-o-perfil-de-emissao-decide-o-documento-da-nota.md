@@ -25,7 +25,7 @@ viagem.
 
 A divergência não é hipotética: um perfil configurado para CT-e numa entrega dentro do próprio
 município produz `cte` numa tela e `nfse` na outra. A própria política de 144 registra por que isso é
-proibido — *"uma segunda conta ao lado delas faria a tela e o bot discordarem da mesma nota"* — e a
+proibido — _"uma segunda conta ao lado delas faria a tela e o bot discordarem da mesma nota"_ — e a
 spec 175 ia consagrar a divergência ao pôr o botão de emissão sob a conta de município.
 
 Há ainda a assimetria de riqueza: só a conta do perfil sabe **qual** perfil de NFS-e rege a nota. A

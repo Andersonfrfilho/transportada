@@ -36,9 +36,9 @@ const BASE: TripDocumentReadiness = {
 
 describe('a ação da linha sai do dado (spec 175 RF1, RF2, RF7)', () => {
   it('expectedDocument cte pendente, com cte.submit, oferece emitir CT-e', () => {
-    expect(
-      resolveDocumentRowAction(BASE, { canIssueNfse: false, canSubmitCte: true }),
-    ).toEqual({ kind: 'cte' })
+    expect(resolveDocumentRowAction(BASE, { canIssueNfse: false, canSubmitCte: true })).toEqual({
+      kind: 'cte',
+    })
   })
 
   it('expectedDocument nfse pendente, com nfse.issue, oferece emitir NFS-e', () => {
@@ -60,12 +60,17 @@ describe('a ação da linha sai do dado (spec 175 RF1, RF2, RF7)', () => {
   })
 
   it('campo ausente na resposta (entry undefined) trata como null — sem ação', () => {
-    expect(resolveDocumentRowAction(undefined, { canIssueNfse: true, canSubmitCte: true })).toBeNull()
+    expect(
+      resolveDocumentRowAction(undefined, { canIssueNfse: true, canSubmitCte: true }),
+    ).toBeNull()
   })
 
   it('nota cte já pronta não oferece ação', () => {
     expect(
-      resolveDocumentRowAction({ ...BASE, reason: 'ok' }, { canIssueNfse: true, canSubmitCte: true }),
+      resolveDocumentRowAction(
+        { ...BASE, reason: 'ok' },
+        { canIssueNfse: true, canSubmitCte: true },
+      ),
     ).toBeNull()
   })
 
@@ -79,9 +84,7 @@ describe('a ação da linha sai do dado (spec 175 RF1, RF2, RF7)', () => {
   })
 
   it('permissão por documento: sem cte.submit não oferece CT-e mesmo pendente', () => {
-    expect(
-      resolveDocumentRowAction(BASE, { canIssueNfse: true, canSubmitCte: false }),
-    ).toBeNull()
+    expect(resolveDocumentRowAction(BASE, { canIssueNfse: true, canSubmitCte: false })).toBeNull()
   })
 
   /**
