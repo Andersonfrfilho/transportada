@@ -292,8 +292,48 @@ export type RouteLeg = Readonly<{
   toSequence: number
 }>
 
+/** Uma parada de corte, com a cor que a leva sai (0 para o barracão de saída, nunca usada como fim). */
+type RouteBoundary = Readonly<{ point: ProjectedPoint; toSequence: number }>
+
 /**
- * Corta o traço em um trecho por par de paradas consecutivas.
+ * As paradas para cortar o traço, com o barracão nas pontas quando a rota o incluiu (spec 097).
+ *
+ * ⚠️ **O barracão não é uma entrega e não entra na numeração das paradas.** `depot.leadingLegs`/
+ * `trailingLegs` dizem quantos trechos de `legs` são dele — não quantas paradas: o roteirizador
+ * sempre envia um único ponto de barracão em cada ponta, saída e retorno pelo mesmo lugar. Sem este
+ * ponto, uma viagem de uma entrega só tem uma parada — `resolveRouteLegs` via `stops.length < 2` e
+ * descartava o traço inteiro, mesmo com o barracão respondendo pelos outros dois trechos da rota.
+ */
+function resolveRouteBoundaries(input: {
+  readonly geometry: RouteGeometry | null
+  readonly project: (point: Readonly<{ latitude: number; longitude: number }>) => ProjectedPoint
+  readonly stops: readonly ProjectedPoint[]
+}): readonly RouteBoundary[] {
+  const depot = input.geometry?.depot ?? null
+  const origin = depot?.origin ?? null
+  const depotPoint =
+    origin === null
+      ? null
+      : input.project({ latitude: Number(origin.latitude), longitude: Number(origin.longitude) })
+
+  const leading: readonly RouteBoundary[] =
+    depotPoint !== null && (depot?.leadingLegs ?? 0) > 0
+      ? [{ point: depotPoint, toSequence: 0 }]
+      : []
+  const trailing: readonly RouteBoundary[] =
+    depotPoint !== null && (depot?.trailingLegs ?? 0) > 0
+      ? [{ point: depotPoint, toSequence: input.stops.length + 1 }]
+      : []
+
+  return [
+    ...leading,
+    ...input.stops.map((point, index) => ({ point, toSequence: index + 1 })),
+    ...trailing,
+  ]
+}
+
+/**
+ * Corta o traço em um trecho por par de paradas consecutivas, barracão incluído nas pontas.
  *
  * ⚠️ **Os `legs` não dizem onde cada trecho começa na polilinha** — eles trazem só distância e
  * duração. O corte é feito achando, para cada parada, o ponto da polilinha mais próximo dela. Isso
@@ -311,16 +351,23 @@ export function resolveRouteLegs(input: {
   readonly project: (point: Readonly<{ latitude: number; longitude: number }>) => ProjectedPoint
   readonly stops: readonly ProjectedPoint[]
 }): readonly RouteLeg[] {
-  if (input.stops.length < 2) return []
+  const boundaries = resolveRouteBoundaries(input)
+  if (boundaries.length < 2) return []
 
+  const points = boundaries.map((boundary) => boundary.point)
   const road = input.geometry?.source === 'road' ? input.geometry.points : []
   if (road.length < 2) {
-    return input.stops.slice(1).flatMap((stop, index) => {
-      const from = input.stops[index]
+    return boundaries.slice(1).flatMap((boundary, index) => {
+      const from = points[index]
       if (from === undefined) return []
 
       return [
-        { dashed: true, kind: 'straight' as const, points: [from, stop], toSequence: index + 2 },
+        {
+          dashed: true,
+          kind: 'straight' as const,
+          points: [from, boundary.point],
+          toSequence: boundary.toSequence,
+        },
       ]
     })
   }
@@ -328,14 +375,15 @@ export function resolveRouteLegs(input: {
   const projected = road.map((point) =>
     input.project({ latitude: Number(point.latitude), longitude: Number(point.longitude) }),
   )
-  const cuts = cutIndexes({ projected, stops: input.stops })
+  const cuts = cutIndexes({ projected, stops: points })
 
   return cuts.slice(1).flatMap((end, index) => {
     const start = cuts[index] ?? 0
     const slice = projected.slice(start, end + 1)
-    if (slice.length < 2) return []
+    const boundary = boundaries[index + 1]
+    if (slice.length < 2 || boundary === undefined) return []
 
-    return [{ dashed: false, kind: 'road' as const, points: slice, toSequence: index + 2 }]
+    return [{ dashed: false, kind: 'road' as const, points: slice, toSequence: boundary.toSequence }]
   })
 }
 
