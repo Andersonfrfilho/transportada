@@ -58,6 +58,7 @@ import { TripCloseDialog } from './TripCloseDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
+import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 
@@ -107,6 +108,49 @@ function describeVehicle(
     modelYear: vehicle.modelYear > 0 ? String(vehicle.modelYear) : '',
     plate: vehicle.plate,
   })
+}
+
+/**
+ * O quadro do veículo (pedido do usuário: "add isso tbm em um quadrado") reaproveita
+ * `VehicleIdentityBand` — a mesma faixa que a proposta e a criação manual já usam (D8 do
+ * componente): marca/modelo em destaque, placa ao lado, ano e cor como fichas. `null` quando o
+ * veículo saiu da frota — a linha de texto com o identificador bruto continua sendo o fallback,
+ * porque o quadro não tem o que desenhar sem marca, modelo ou tipo.
+ */
+function resolveVehicleIdentityBandProps(
+  vehicles: readonly FleetVehicleDetail[],
+  vehicleId: string,
+  translateFleet: (key: string) => string,
+): null | {
+  facts: readonly { label: string; value: string }[]
+  label: null | string
+  plate: string
+  vehicleType: FleetVehicleDetail['vehicleType']
+} {
+  const vehicle = vehicles.find((entry) => entry.id === vehicleId)
+  if (vehicle === undefined) return null
+
+  const name = [vehicle.brand, vehicle.model]
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .join(' ')
+  const label = name === '' ? null : name
+  const colorLabel =
+    resolveVehicleColorSwatch(vehicle.color) === undefined
+      ? ''
+      : translateFleet(`colorOption.${vehicle.color}`)
+
+  return {
+    facts: [
+      ...(vehicle.modelYear > 0
+        ? [{ label: translateFleet('identityBand.year'), value: String(vehicle.modelYear) }]
+        : []),
+      ...(colorLabel === '' ? [] : [{ label: translateFleet('identityBand.color'), value: colorLabel }]),
+    ],
+    label,
+    plate: vehicle.plate,
+    vehicleType: vehicle.vehicleType,
+  }
 }
 
 function statusClassName(status: TripStatus): string {
@@ -306,6 +350,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    * botão de configurar isso.
    */
   const canReadFleetDetails = workspace.controller.canReadTripFleetDetails
+  const vehicleIdentity = resolveVehicleIdentityBandProps(vehicles, trip.vehicleId, tFleet)
   const isEditable = isTripEditable(trip.status)
   const canSeparateOrLoad = canSeparateOrLoadDocuments(trip.status)
   const isCompleted = trip.status === 'completed'
@@ -621,9 +666,19 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
        * mostrá-lo vazaria o identificador interno em vez de omitir a linha (t7-design §2.6).
        */}
       {canReadFleetDetails ? (
-        <p className={styles.summaryLine}>
-          {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
-        </p>
+        vehicleIdentity === null ? (
+          <p className={styles.summaryLine}>
+            {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
+          </p>
+        ) : (
+          <VehicleIdentityBand
+            facts={vehicleIdentity.facts}
+            label={vehicleIdentity.label}
+            plate={vehicleIdentity.plate}
+            specification={null}
+            vehicleType={vehicleIdentity.vehicleType}
+          />
+        )
       ) : null}
 
       <fieldset className={styles.driverChecklist}>
