@@ -100,7 +100,10 @@ describe('separator role contract', () => {
     // cancel) e a leitura de paradas entram sob a mesma trip.manage/fleet.read que já valiam; o
     // separador ganha acesso a elas de graça, sem mudar nenhuma outra permissão.
     expect(reachableRoutes(['separator'])).toEqual([
+      /** Spec 169 RF12: remover gasto/receita é a mesma permissão de lançar (trip.manage). */
+      'DELETE /trips/:id/costs/:entryId',
       'DELETE /trips/:id/documents/:documentId',
+      'DELETE /trips/:id/revenues/:entryId',
       'GET /fleet/capabilities',
       // spec 081: o vínculo motorista↔veículo é leitura de `fleet.read`, e o separador a alcança de
       // propósito — é ele quem escolhe veículo e motorista ao montar a viagem. O par não carrega

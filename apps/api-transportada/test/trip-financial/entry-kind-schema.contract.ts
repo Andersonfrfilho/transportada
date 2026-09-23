@@ -5,7 +5,11 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { companyEntryKinds, tripRevenueEntries } from '../../src/database/database.schema.js'
+import {
+  companyEntryKinds,
+  tripCostEntries,
+  tripRevenueEntries,
+} from '../../src/database/database.schema.js'
 import {
   columnSqlTypes,
   foreignKeys,
@@ -68,5 +72,32 @@ describe('a receita lançada na viagem (spec 169 P1/RF3/RF4)', () => {
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })
+  })
+
+  /** RF13: removido não volta a aparecer — a trilha exige as duas colunas juntas ou nenhuma. */
+  test('remover é trilha inteira, nunca pela metade', () => {
+    expect(unqualifiedCheckSqlByName(tripRevenueEntries).trip_revenue_entries_removed_check).toBe(
+      '("removed_at" is null) = ("removed_by_user_id" is null)',
+    )
+  })
+})
+
+describe('o gasto migra para o cadastro de espécies (spec 169 RF5)', () => {
+  test('o seletor novo lê a mesma tabela do cadastro, por empresa', () => {
+    expect(foreignKeys(tripCostEntries)).toContainEqual({
+      columns: ['company_id', 'entry_kind_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'company_entry_kinds',
+      name: 'trip_cost_entries_entry_kind_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
+  /** RF12/RF13: mesma trilha da receita — remover não apaga, e as duas colunas andam juntas. */
+  test('remover é trilha inteira, nunca pela metade', () => {
+    expect(unqualifiedCheckSqlByName(tripCostEntries).trip_cost_entries_removed_check).toBe(
+      '("removed_at" is null) = ("removed_by_user_id" is null)',
+    )
   })
 })
