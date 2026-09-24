@@ -627,3 +627,58 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   - `bun run lint` e `bun run typecheck` limpos na raiz.
   - API, integração completa: no momento do commit ainda rodava, só com as 8 falhas conhecidas de
     object storage (MinIO) até ali. O número final fica registrado na T405.
+
+## T405 — A resposta por e-mail na conversa e o status do Resend (verde)
+
+- **Resposta recebida:** o worker grava, na **mesma transação** da mensagem `inbound` da 143, a
+  mensagem `inbound` da conversa (`email`, `sender_address`, `mail_message_id`).
+  - A thread acha a conversa pelas mensagens enviadas que a T403 ligou a ela.
+  - Thread da 143 sem conversa (correção de endereço, teste de configuração) segue como estava.
+  - Só a mensagem que acabou de nascer entra, então a reentrega do Resend não duplica.
+  - Corpo acima de 8000 caracteres (CHECK da conversa) entra cortado; o inteiro segue na 143 e no
+    MIME.
+- **Status:** a política da T402 foi copiada por valor para o worker, com contrato de paridade
+  (`test/occurrence-conversation/message-status-parity.contract.ts`).
+  - Envio aceito pelo Resend: `sent` e o `provider_message_id`, na transação do `markMessageSent`.
+  - Falha permanente: `failed`.
+  - O webhook assinado da 143 passou a aplicar `email.sent`, `email.delivered`, `email.bounced` e
+    `email.failed` à mensagem da conversa, pelo id do provedor dentro da empresa do webhook, com a
+    linha travada.
+  - `email.opened`/`clicked` continuam ignorados (D7: e-mail não tem "lida"), assim como
+    `delivery_delayed` e `complained`.
+- **Mudança de comportamento da 143 (registrada):** o contrato da 143 usava `email.bounced` como
+  exemplo de evento ignorado; agora o exemplo é `email.clicked`, porque a devolução passou a importar.
+  Nada muda na spec 143.
+- **Depende do usuário:** o webhook do Resend de cada instalação precisa assinar também
+  `email.sent`, `email.delivered`, `email.bounced` e `email.failed`. Sem isso o selo para em
+  "enviada", sem erro.
+- **Testes e ordem:**
+  - Worker: contrato de paridade e integração `test/integration/occurrence-conversation-mail.integration.ts`
+    (no `package.json`) escritos **antes** e vistos falhando (módulos inexistentes). Depois, três
+    rodadas vermelhas por erro do próprio seed: hash do token, `from_address` e valor de DKIM.
+    **6 pass**, cobrindo:
+    - resposta vira mensagem uma vez só;
+    - corpo cortado;
+    - thread sem conversa intocada;
+    - `sent` com id e horário;
+    - `failed` que nada desfaz;
+    - outra empresa sem efeito.
+  - API: contrato do webhook (`process-inbound-email-webhook-use-case.contract.ts`) escrito antes e
+    visto falhando.
+  - Integração `test/integration/occurrence-conversation-mail-status.integration.ts` (no
+    `package.json`) escrita **depois** do adaptador. **1 pass**, cobrindo:
+    - outra empresa sem efeito;
+    - `delivered` avançando;
+    - `bounced` depois da entrega não desfazendo;
+    - id que não é de conversa sem efeito.
+- **Rodado:**
+  - worker, contrato: **1423 pass, 0 fail**;
+  - worker, integração: as de e-mail (novas e as da 143), **11 pass**, contra banco próprio migrado
+    pela API, como no `make worker-integration`. RabbitMQ e MinIO não estão de pé neste ambiente,
+    então o resto da integração do worker não rodou;
+  - API, contrato do e-mail: **213 pass, 0 fail**;
+  - lint e typecheck limpos.
+  - API, `bun run test` (lista do `package.json`): **7320 pass, 0 fail**;
+  - API, integração completa, lançada durante a T404 e terminada aqui: **587 pass, 7 skip, 8 fail**.
+    As 8 são as mesmas de object storage (MinIO: arquivo de CT-e e extrato/recarga de pedágio da
+    154); nenhuma da 183. É o número final que a T404 deixou pendente.

@@ -384,6 +384,7 @@ import {
   createOccurrenceSuggestedMailReader,
   DrizzleOccurrenceMailRepository,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
+import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
 import {
   findOccurrenceConversations,
   markOccurrenceConversationRead,
@@ -1422,6 +1423,7 @@ function createAnonymousRoutes({
    */
   const contractorMailInboundWebhookRoutes = createPublicInboundEmailRoutes({
     processInboundEmailWebhook: createProcessInboundEmailWebhookUseCase({
+      occurrenceMailStatus: createDrizzleOccurrenceMailStatusRepository(database),
       repository: new DrizzleContractorMailRepository(database),
       secretService: createContractorMailCredentialSecretService({
         envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),

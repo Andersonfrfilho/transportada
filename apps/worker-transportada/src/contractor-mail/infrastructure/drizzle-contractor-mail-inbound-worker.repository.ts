@@ -10,6 +10,7 @@ import {
   contractorMailThreads,
 } from '../../database/contractor-mail.schema.js'
 import { storedObjects } from '../../database/nfe.schema.js'
+import { recordOccurrenceConversationMailReply } from '../../occurrence-conversation/infrastructure/drizzle-occurrence-conversation-mail.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -196,7 +197,17 @@ export function createDrizzleContractorMailInboundWorkerRepository(
           })
           .returning({ id: contractorMailMessages.id })
 
-        if (message !== undefined) return { id: message.id }
+        if (message !== undefined) {
+          /** Spec 183 T405: só a mensagem que acabou de nascer vira mensagem da conversa. */
+          await recordOccurrenceConversationMailReply(transaction, {
+            bodyText: input.bodyText,
+            companyId: input.companyId,
+            fromAddress: input.fromAddress,
+            mailMessageId: message.id,
+            threadId: input.threadId,
+          })
+          return { id: message.id }
+        }
 
         const [existing] = await transaction
           .select({ id: contractorMailMessages.id })

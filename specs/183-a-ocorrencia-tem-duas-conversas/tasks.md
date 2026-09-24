@@ -83,7 +83,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       listagem (RF4, vindo da T203) com tenant, permissão e o
       separador, e a coluna Conversa da tabela (vinda da T205), no menu e na persistência.
       Evidência: contratos de rota e o da `docs/frontend/data-tables.md` § 6.
-- [ ] **T405** Recebida por e-mail vira mensagem da conversa; status do Resend aplicado pela
+- [x] **T405** Recebida por e-mail vira mensagem da conversa; status do Resend aplicado pela
       política. Evidência: integração no worker.
 - [ ] **T406** Política de identificação do remetente (RF16), `from_display_name` gravado pelo
       worker, cartão do contato e "Adicionar aos contatos" preenchido. Evidência: suíte da política +
