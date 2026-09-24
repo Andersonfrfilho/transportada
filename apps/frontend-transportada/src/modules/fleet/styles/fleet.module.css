@@ -1420,26 +1420,34 @@
 }
 
 /**
- * A placa vem **antes** do modelo e ocupa a própria linha, centralizada na largura inteira do
- * quadro: ela é o que identifica o veículo de relance, e o nome comercial é a confirmação. Lado a
- * lado, num flex que quebra, a placa caía desalinhada do nome quando não cabia.
+ * A placa vem **antes** do modelo, à esquerda e centrada na altura do nome: ela é o que identifica
+ * o veículo de relance, e o nome comercial é a confirmação, lido à direita no mesmo gesto. Duas
+ * colunas de grid, e não um flex que quebra — era a quebra que desalinhava a placa do nome quando
+ * não cabia. `minmax(0, 1fr)` no texto porque modelo longo em 375px precisa poder quebrar em vez
+ * de empurrar a placa para fora.
  */
 .identityTitle {
   display: grid;
   gap: var(--space-2);
-  justify-items: center;
+  justify-items: start;
   font-size: 0.95rem;
-  text-align: center;
+  text-align: start;
 }
 
 /**
- * O primitivo da placa traz `justify-self: start` — serve às listas, onde ela alinha com a coluna.
- * Aqui ela é o título do quadro, e aquele `start` ganhava do `justify-items` do pai: o modelo
- * centralizava e a placa ficava colada à esquerda, desalinhada justo do nome que ela identifica.
+ * Lado a lado só quando há largura para isso. Medido em 375px: com a placa fixa em 10rem, a coluna
+ * do texto caía para 39px e "FIAT FIORINO 1.4 FURGAO" virava uma coluna de letras de 82px de
+ * altura. Abaixo de 40rem — o primeiro dos pontos de quebra do sistema — a placa fica em cima e o
+ * nome embaixo, os dois à esquerda.
  */
-.identityTitle > :first-child {
-  justify-self: center;
+@media (min-width: 40rem) {
+  .identityTitle {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: center;
+  }
 }
+
 
 .identitySpecification {
   margin: 0;
