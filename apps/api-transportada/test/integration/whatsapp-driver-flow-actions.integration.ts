@@ -437,6 +437,7 @@ async function buildScenario(db: Database, companyId: string) {
       registerDriverOccurrence({
         ...input,
         repository: {
+          findConfirmedUpload: async () => null,
           findOccurrenceType: (query) => findOccurrenceType(db, query),
           findReachableDocument: (query) => findDriverReachableDocument(db, query),
           listDocumentProducts: (query) => listDocumentProducts(db, query),

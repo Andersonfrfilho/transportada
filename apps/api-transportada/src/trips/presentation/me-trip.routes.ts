@@ -140,6 +140,8 @@ export type MeTripDependencies = {
   ) => Promise<ReportDocumentOutcomeResult>
   readonly registerDriverOccurrence: (input: {
     readonly actorUserId: string
+    /** Spec 179 T203 (RF2/RF2b): a referência ao upload já confirmado — nunca o arquivo. */
+    readonly attachmentObjectId?: string | undefined
     readonly companyId: string
     readonly documentId: string
     readonly driverId: string
@@ -463,6 +465,7 @@ export function createMeTripRoutes(
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<{
+      readonly attachmentObjectId?: string | undefined
       readonly documentId: string
       readonly idempotencyKey: string
       readonly note: string
@@ -473,6 +476,7 @@ export function createMeTripRoutes(
         const driverId = await resolveDriver(context.scope)
         const occurrence = await dependencies.registerDriverOccurrence({
           actorUserId: context.scope.userId,
+          attachmentObjectId: input.attachmentObjectId,
           companyId: context.scope.companyId,
           documentId: input.documentId,
           driverId,
@@ -488,6 +492,7 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseRegisterOccurrenceRequest(request)
         return {
+          attachmentObjectId: body.attachmentObjectId,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
           note: body.note,

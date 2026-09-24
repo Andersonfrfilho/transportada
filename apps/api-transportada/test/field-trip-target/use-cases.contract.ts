@@ -290,6 +290,7 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
       occurrenceTypeId: 'type-1',
       productCode: '',
       repository: {
+        findConfirmedUpload: async () => null,
         findOccurrenceType: async () => ({
           active: true,
           allowsMultipleItems: true,

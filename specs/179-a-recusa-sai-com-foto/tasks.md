@@ -32,17 +32,22 @@ direto ao storage.
   conferência do objeto ao confirmar (`confirm-occurrence-upload.use-case.ts`), gravando em
   `stored_objects` — a mesma tabela que o multipart do escritório já usa, sem tabela paralela de
   anexo. A rota da ocorrência **continua JSON** — o arquivo não passa pela API (RF2).
-- **T203** 🧠 Pendente. `register-driver-occurrence.use-case.ts` recusa tipo `required` sem anexo ou
-  sem `note`, com erro de domínio próprio e código estável em `shared/errors/codes.ts`. Ao gravar,
-  resolve o upload confirmado (`resolveOccurrenceUploadAttachment`) e grava a linha em
-  `trip_document_occurrence_attachments` pelo mesmo caminho de `attach-occurrence-photo.use-case.ts`
-  — **nenhuma tabela ou coluna de anexo nova**, o upload assinado só troca *como* o objeto chega ao
-  `stored_objects`, nunca onde a ocorrência o referencia. A escrita é **única**:
-  `runWithStoredObjectCleanup` + `unitOfWork.execute`, o padrão que o escritório já usa — falha no
-  insert apaga o objeto, falha no upload nunca grava a linha. Ocorrência "pendente de envio" foi
-  **descartada**: criaria um estado que nenhuma outra ocorrência tem e violaria CA02.
-  ⚠️ Isto exige **dar uma unit of work ao caminho do motorista**, que hoje não tem. É o custo real
-  desta task. (CA02, CA03, RF3)
+- **T203** ✅ `register-driver-occurrence.use-case.ts` recusa tipo `required` sem anexo ou sem
+  `note`, com dois erros de domínio próprios e códigos estáveis em `trip.error.ts`
+  (`TRIP_OCCURRENCE_ATTACHMENT_REQUIRED`/`TRIP_OCCURRENCE_NOTE_REQUIRED` — este repositório não tem
+  `shared/errors/codes.ts`, o padrão real é classe `ApiError` por erro em `domain/trip.error.ts`, e
+  T203 seguiu ele). Ao gravar, resolve o upload confirmado (`resolveOccurrenceUploadAttachment`) e
+  passa o id resolvido para `saveDocumentOccurrence`, que grava em
+  `trip_document_occurrences.attachment_object_id` — **não** em
+  `trip_document_occurrence_attachments`. Essa tabela é do galpão (`stage = 'separation'`, spec 161);
+  `attach-occurrence-photo.use-case.ts` recusa qualquer ocorrência que não seja dessa etapa, e o
+  comentário de `trip.schema.ts` já registra que a coluna direta "continua servindo a ocorrência de
+  rua" e que a tabela nova "nunca é escrita por aquele canal". A coluna direta já é o caminho que o
+  escritório lê (CA06, `listDocumentOccurrenceAttachmentLocations` cai para ela quando não há linha
+  na tabela nova) e já tinha FK provada contra Postgres real
+  (`trip-occurrence-attachment.integration.ts`). Detalhe completo em `evidence.md`. A escrita
+  continua **única**, dentro do `unitOfWork.execute` + `withFieldReport` que a T200 já tinha montado
+  — não precisou de unit of work nova. (CA02, CA03, RF3)
 
 ## Fase 3 — O motorista tira a foto
 > 🤖 Modelo: `sonnet`

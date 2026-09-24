@@ -173,7 +173,9 @@ export function createFieldReportUnitOfWork(
     findProofExistsForEvent: async (input) =>
       state.proofsByEventKind.has(`${input.eventId}:${input.kind}`),
     saveDocumentOccurrence: async (input) => {
-      state.calls.push(`saveDocumentOccurrence:${input.documentId}`)
+      state.calls.push(
+        `saveDocumentOccurrence:${input.documentId}:${input.attachmentObjectId ?? 'none'}`,
+      )
       if (!state.documents.has(input.documentId)) return null
       const occurrence: TripOccurrence = {
         createdAt: new Date().toISOString(),

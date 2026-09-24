@@ -809,6 +809,13 @@ export function bootstrap(): Bun.Server<undefined> {
     resolveStorageBucket(process.env),
   )
   /**
+   * Spec 179 T203 (RF2b): o WhatsApp não sobe anexo (texto puro), mas `registerDriverOccurrence` é a
+   * MESMA função de `me-trip` — o port exige `findConfirmedUpload` de qualquer chamador. Instância
+   * própria pelo mesmo motivo de `whatsappFieldReportGuardTransaction` logo abaixo: este bloco vive
+   * em `bootstrap()`, antes de `occurrenceUploadRepository` nascer em `createApplicationRoutes`.
+   */
+  const whatsappOccurrenceUploadRepository = new DrizzleOccurrenceUploadRepository(database.db)
+  /**
    * Spec 161 T16: a mesma reserva/liquidação de chave que `fieldReportGuardTransaction`
    * (`createApplicationRoutes`) monta para a rota HTTP — instância própria porque este bloco vive
    * em `bootstrap()`, escopo diferente. A idempotência do WhatsApp (sha256 do arquivo) usa a mesma
@@ -835,6 +842,8 @@ export function bootstrap(): Bun.Server<undefined> {
         ...input,
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         repository: {
+          findConfirmedUpload: (query) =>
+            whatsappOccurrenceUploadRepository.findConfirmedUpload(query),
           findOccurrenceType: (query) => findOccurrenceType(database.db, query),
           findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
@@ -2930,6 +2939,7 @@ function createApplicationRoutes({
         registerDriverOccurrence({
           ...input,
           repository: {
+            findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
             findOccurrenceType: (query) => findOccurrenceType(database, query),
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
             listDocumentProducts: (query) => listDocumentProducts(database, query),

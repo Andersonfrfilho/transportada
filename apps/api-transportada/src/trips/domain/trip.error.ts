@@ -935,3 +935,32 @@ export class TripOccurrenceUploadNotReachableError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 179 T203 (RF3/CA02): o tipo marcou `attachmentMode = 'required'` e o motorista registrou sem
+ * referenciar um upload confirmado. Código estável — a tela usa para dizer qual dos dois falta.
+ */
+export class TripOccurrenceAttachmentRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ATTACHMENT_REQUIRED',
+      message: 'This occurrence type requires an attached photo or document.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 179 T203 (RF3/CA03): o tipo marcou `attachmentMode = 'required'` e o motorista registrou sem
+ * escrever o motivo. Código estável, distinto do anterior — a tela precisa dizer qual dos dois
+ * falta, não só que algo falta.
+ */
+export class TripOccurrenceNoteRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_NOTE_REQUIRED',
+      message: 'This occurrence type requires a written note.',
+      status: 422,
+    })
+  }
+}

@@ -10,7 +10,11 @@
  * ativa dele, e quem o garante é a consulta, não a permissão.
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
-import { TripDocumentNotReachableError } from '../domain/trip.error.js'
+import {
+  TripDocumentNotReachableError,
+  TripOccurrenceAttachmentRequiredError,
+  TripOccurrenceNoteRequiredError,
+} from '../domain/trip.error.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
 import {
@@ -20,10 +24,16 @@ import {
   type FieldTripTarget,
 } from './field-trip-target.types.js'
 import type { OccurrenceTypeRecord, TripOccurrence } from './register-trip-occurrence.use-case.js'
+import type { OccurrenceUploadAttachmentPort } from './resolve-occurrence-upload-attachment.use-case.js'
+import { resolveOccurrenceUploadAttachment } from './resolve-occurrence-upload-attachment.use-case.js'
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
-/** Spec 179 T200: só as três leituras — a escrita passou a viver na transação da chave (T203). */
-export type DriverOccurrenceReadPort = {
+/**
+ * Spec 179 T200: só as três leituras — a escrita passou a viver na transação da chave (T203).
+ * `findConfirmedUpload` (T203/RF2b) entrou na mesma leitura: confere o anexo referenciado antes de
+ * abrir a transação, exatamente como as outras três já conferem tipo, nota e produto.
+ */
+export type DriverOccurrenceReadPort = OccurrenceUploadAttachmentPort & {
   findOccurrenceType(input: {
     readonly companyId: string
     readonly occurrenceTypeId: string
@@ -45,6 +55,13 @@ const DOCUMENT_OCCURRENCE_OPERATION = 'document.occurrence'
 
 export type RegisterDriverOccurrenceInput = FieldTripLocator & {
   readonly actorUserId: string
+  /**
+   * Spec 179 T203 (RF2/RF2b): a referência ao upload já confirmado (`trip_occurrence_uploads`) —
+   * nunca o arquivo. `undefined`/`null` é "sem anexo", válido para todo tipo que não seja
+   * `required`. Quando presente, é sempre conferido contra empresa e viagem, mesmo em tipo
+   * `optional` — o cliente nunca escolhe qual objeto anexar sem essa conferência (RF2b).
+   */
+  readonly attachmentObjectId?: string | null | undefined
   readonly companyId: string
   readonly documentId: string
   readonly idempotencyKey: string
@@ -105,6 +122,38 @@ export async function registerDriverOccurrence(
   const tripId = reachable.tripId
 
   /**
+   * Spec 179 T203 (RF3/CA02/CA03): a exigência é do **tipo**, nunca do nome que a empresa deu a ele
+   * (`duplicacao.md`) — `attachmentMode` vem do cadastro (T101/T103), não de "o tipo se chama
+   * recusa". Ausente (dado legado sem a coluna preenchida na leitura) é `'off'`, o comportamento de
+   * sempre (CA07/CA08).
+   */
+  const attachmentMode = occurrenceType.attachmentMode ?? 'off'
+  if (attachmentMode === 'required') {
+    if (input.note.trim() === '') throw new TripOccurrenceNoteRequiredError()
+    if (input.attachmentObjectId === undefined || input.attachmentObjectId === null) {
+      throw new TripOccurrenceAttachmentRequiredError()
+    }
+  }
+
+  /**
+   * Spec 179 T203 (RF2b): qualquer referência recebida é conferida — existe, é desta empresa e veio
+   * desta viagem —, mesmo em tipo que não exige. O cliente nunca escolhe qual objeto anexar sem essa
+   * conferência; `resolveOccurrenceUploadAttachment` lança `TripOccurrenceUploadNotReachableError`
+   * quando não bate.
+   */
+  const attachmentObjectId =
+    input.attachmentObjectId === undefined || input.attachmentObjectId === null
+      ? null
+      : (
+          await resolveOccurrenceUploadAttachment({
+            companyId: input.companyId,
+            objectId: input.attachmentObjectId,
+            repository: input.repository,
+            tripId,
+          })
+        ).id
+
+  /**
    * Spec 179 T200: a chave de idempotência que esta rota não tinha (ADR-0045 §5, revisão de
    * arquitetura de 23/09). Reserva e escrita na **mesma transação** — o reenvio da fila offline
    * (Fase 3) não pode duplicar a ocorrência.
@@ -125,7 +174,7 @@ export async function registerDriverOccurrence(
       perform: async () => {
         const result = await transaction.saveDocumentOccurrence({
           actorUserId: input.actorUserId,
-          attachmentObjectId: null,
+          attachmentObjectId,
           authorship,
           companyId: input.companyId,
           documentId: input.documentId,

@@ -23,6 +23,11 @@ import {
  */
 const registerOccurrenceSchema = z
   .object({
+    /**
+     * Spec 179 T203 (RF2/RF2b): a referência ao upload já confirmado — nunca o arquivo. Ausente é
+     * "sem anexo", recusado pelo caso de uso quando o tipo exige (`attachmentMode = 'required'`).
+     */
+    attachmentObjectId: z.string().uuid().optional(),
     note: z.string().trim().max(500).default(''),
     /** O tipo que a empresa cadastrou — conferido contra o cadastro dela, não contra uma lista. */
     occurrenceTypeId: z.string().uuid(),
