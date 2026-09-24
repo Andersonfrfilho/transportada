@@ -279,3 +279,75 @@ Gates (de `apps/api-transportada`, banco nativo descartável 127.0.0.1:65433, PG
 Commits: `76f0c0671` — test(trips): despacho concorrente sai uma vez (spec 185 T4.3);
 `0fdcd04f8` — fix(trips): "leva todas" com a viagem já despachada responde unchanged
 (spec 185 T4.3).
+
+## T5.1 — teste de "sem Conferir carga" (CA07)
+
+Levantamento antes de escrever o teste:
+
+- `resolveTripLevelActions` (`trips/domain/trip-allowed-actions.policy.ts:130-147`) era o único
+  ponto que oferecia `TRIP_ACTION.confirmLoad`, junto com `startRoute`, quando
+  `canReportInField` e a máquina (`checkTripTransition`) aplicaria a transição — o que acontecia em
+  `dispatched` (`confirmLoad` aplica `dispatched → in_transit`).
+- `confirmLoad` também existe em `trip-state.policy.ts` (`TRIP_ACTION.confirmLoad`, `checkFieldStart`)
+  e em `start-field-trip.use-case.ts`/`me-trip.routes.ts`/`trip-field-office-trip.routes.ts`
+  (`FIELD_TRIP_STEP.confirmLoad`, uma constante à parte) — são o enum e as rotas que a spec pede para
+  **manter**; só a oferta em `allowed-actions` sai.
+- `GET /me/trips/current` (`find-current-driver-trip.use-case.ts`, tipo `DriverTrip`) **não** expõe
+  nenhum campo de ações/capacidades — não lê `trip-allowed-actions.policy.ts` em nenhum ponto. Não há
+  o que ajustar ali: registrado aqui porque a task pedia conferir.
+- `rg -n "confirmLoad" test/` achou 7 arquivos: `test/trip-allowed-actions/policy.contract.ts` (a
+  única afirmação de que `confirmLoad` é **oferecido** em `allowed-actions`) e mais seis que testam a
+  rota `confirm-load`/o enum `FIELD_TRIP_STEP`/a transição pura (`checkTripTransition` com
+  `TRIP_ACTION.confirmLoad`) — nenhum deles afirma oferta em `allowed-actions`, e nenhum muda com a
+  spec 185 (RF7 mantém a rota aceita e idempotente).
+- `test/integration/trip-detail-occurrence-marker.integration.ts:80-125` (spec 164 T15, regressão
+  "byte a byte") compara `actionsAfter` com `actionsBefore` (antes/depois de abrir tratativa) — não é
+  um valor fixo, então continua válido com ou sem `confirmLoad` na lista.
+
+Ajuste (contrato existente, spec 156 D10): `test/trip-allowed-actions/policy.contract.ts`, teste "os
+dois toques só quando a máquina aplicaria" virou "CA07: confirmLoad nunca é oferecido, mesmo quando a
+máquina aplicaria (dispatched)" — antes esperava `dispatched.trip` igual a `['confirmLoad',
+'startRoute']`, agora espera `['startRoute']` e `not.toContain('confirmLoad')`; `in_transit`
+continua `['startRoute']` (inalterado).
+
+Comando (de `apps/api-transportada`, antes da implementação):
+`bun --env-file=../../.env.test test --timeout 120000 test/trip-allowed-actions.contract.test.ts`
+→ 18 pass, **1 fail** — `expect(dispatched.trip).toEqual(['startRoute'])` recebeu
+`['confirmLoad', 'startRoute']`. Falha esperada: a policy ainda oferece `confirmLoad`.
+
+`POST /trips/:id/confirm-load` continuar 200/idempotente em viagem `dispatched` já tem prova viva que
+não muda com esta spec (nada em T5.2 toca rota, caso de uso ou enum): unitário em
+`test/field-trip-target/start-field-trip-driver.contract.ts:52-66` (`step: 'confirmLoad'` sobre
+`dispatched` → `{ changed: true, tripStatus: 'in_transit' }`) e fiação HTTP em
+`test/trip-field-office/routes.contract.ts:96-135` (`confirmLoadRoute!.execute` → 200, `{ data: {
+changed: true, status: '...' } }`).
+
+Commit: `917d65cb7` — test(trips): allowed-actions para de oferecer confirmLoad (spec 185 T5.1).
+
+## T5.2 — a policy para de oferecer `confirmLoad`
+
+`trips/domain/trip-allowed-actions.policy.ts`: em `resolveTripLevelActions`, `field` passa de
+`[TRIP_ACTION.confirmLoad, TRIP_ACTION.startRoute]` para só `[TRIP_ACTION.startRoute]`, com comentário
+citando a ADR-0074 §5. Nenhuma rota, caso de uso, enum (`TRIP_ACTION.confirmLoad`,
+`FIELD_TRIP_STEP.confirmLoad`) ou máquina de estados (`checkFieldStart`) mudou — só o que a lista
+**oferece**.
+
+Gates (de `apps/api-transportada`, banco nativo descartável 127.0.0.1:65433, PG 18.4):
+
+- `bun --env-file=../../.env.test test --timeout 120000 test/trip-allowed-actions.contract.test.ts`
+  → 19 pass, 0 fail, 31 expect() calls
+- contrato inteiro `bun --env-file=../../.env.test test --timeout 120000` → 7257 pass, 23 skip,
+  0 fail, 24396 expect() em 183 arquivos
+- integração inteira `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres
+  bun --env-file=../../.env.test run test:integration` → 603 pass, 0 fail, 4101 expect() em
+  110 arquivos (330,17 s) — inclui `trip-field-office`, `field-trip-target`,
+  `trip-detail-occurrence-marker` (regressão byte a byte da spec 164) e `me-trip`, todos verdes.
+- `bun run typecheck` (raiz) limpo nas seis apps (api, worker, cron, frontend, frontend-client,
+  frontend-landing).
+- `bunx eslint` e `bunx prettier --check` em `trip-allowed-actions.policy.ts` e
+  `policy.contract.ts` → limpos (exit 0).
+- Frontend (fora do escopo desta fase, só para registrar): `bun run --cwd apps/frontend-transportada
+  test` → 51 pass, 0 fail, 206 expect() calls. Nenhum contrato do frontend dependia de `confirmLoad`
+  vir da API — como esperado, a Fase 6 é quem mexe na tela.
+
+Commit: `923fe31f8` — feat(trips): allowed-actions para de oferecer "Conferir carga" (spec 185 T5.2).

@@ -48,8 +48,8 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T5.1** Teste (CA07): `allowed-actions` sem `confirmLoad`; `confirm-load` ainda 200.
-- [ ] **T5.2** Policy de `allowed-actions`; ajustar os contratos que citavam `confirmLoad`.
+- [x] **T5.1** Teste (CA07): `allowed-actions` sem `confirmLoad`; `confirm-load` ainda 200.
+- [x] **T5.2** Policy de `allowed-actions`; ajustar os contratos que citavam `confirmLoad`.
 
 ## Fase 6 — A tela
 
