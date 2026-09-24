@@ -714,11 +714,7 @@ function TripStopDocumentRow({
           </Button>
         ) : null}
         {actions.canFieldDelivery(document.id) ? (
-          <Button
-            onClick={() => actions.onOpenFieldDelivery(document.id)}
-            size="sm"
-            type="button"
-          >
+          <Button onClick={() => actions.onOpenFieldDelivery(document.id)} size="sm" type="button">
             <Icon name="camera" />
             {t('actions.fieldDelivery')}
           </Button>
