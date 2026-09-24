@@ -60,7 +60,9 @@ describe('ciclo de expiração do upload de ocorrência (achado [3], spec 179)',
 
     expect(asked).toHaveLength(1)
     expect(asked[0]?.limit).toBe(TRIP_OCCURRENCE_UPLOAD_EXPIRE_BATCH_SIZE)
-    expect(asked[0]?.before.getTime()).toBe(NOW.getTime() - TRIP_OCCURRENCE_UPLOAD_EXPIRE_GRACE_SECONDS * 1000)
+    expect(asked[0]?.before.getTime()).toBe(
+      NOW.getTime() - TRIP_OCCURRENCE_UPLOAD_EXPIRE_GRACE_SECONDS * 1000,
+    )
   })
 
   test('pede lotes até não sobrar candidato — nunca até `expired` zerar', async () => {
@@ -127,7 +129,9 @@ describe('ciclo de expiração do upload de ocorrência (achado [3], spec 179)',
     const result = await routine.run(buildContext())
 
     expect(calls).toBe(TRIP_OCCURRENCE_UPLOAD_EXPIRE_MAX_CONSECUTIVE_STORAGE_FAILURES)
-    expect(result.counters.failed).toBe(TRIP_OCCURRENCE_UPLOAD_EXPIRE_MAX_CONSECUTIVE_STORAGE_FAILURES)
+    expect(result.counters.failed).toBe(
+      TRIP_OCCURRENCE_UPLOAD_EXPIRE_MAX_CONSECUTIVE_STORAGE_FAILURES,
+    )
     expect(JSON.stringify(logged)).toContain('"stoppedByStorageFailures":true')
   })
 

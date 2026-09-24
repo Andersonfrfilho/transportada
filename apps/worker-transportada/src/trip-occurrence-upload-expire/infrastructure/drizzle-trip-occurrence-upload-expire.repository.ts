@@ -25,7 +25,10 @@ export function createDrizzleExpireOccurrenceUploadBatch(input: {
       .select({ id: tripOccurrenceUploads.id })
       .from(tripOccurrenceUploads)
       .where(
-        and(eq(tripOccurrenceUploads.status, 'pending'), lt(tripOccurrenceUploads.expiresAt, before)),
+        and(
+          eq(tripOccurrenceUploads.status, 'pending'),
+          lt(tripOccurrenceUploads.expiresAt, before),
+        ),
       )
       .orderBy(asc(tripOccurrenceUploads.expiresAt))
       .limit(limit)

@@ -91,36 +91,39 @@ describe('confirmar o upload de ocorrência contra o Postgres (achados [1] e [2]
     },
   )
 
-  testWithPostgres('achado [1]: objeto de outra viagem continua 404, mesmo já confirmado', async () => {
-    await withDisposableDatabase(async (database) => {
-      const company = await seedCompany(database)
-      const trip = await seedTrip(database, company)
-      const otherTrip = await seedTrip(database, company)
-      const repository = new DrizzleOccurrenceUploadRepository(database.db)
-      const objectId = crypto.randomUUID()
-      await seedPendingUpload(database, company, trip, objectId)
+  testWithPostgres(
+    'achado [1]: objeto de outra viagem continua 404, mesmo já confirmado',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company)
+        const otherTrip = await seedTrip(database, company)
+        const repository = new DrizzleOccurrenceUploadRepository(database.db)
+        const objectId = crypto.randomUUID()
+        await seedPendingUpload(database, company, trip, objectId)
 
-      await confirmOccurrenceUpload({
-        companyId: company.companyId,
-        id: objectId,
-        now: NOW,
-        repository,
-        storage: fakeStorage(),
-        tripId: trip.tripId,
-      })
-
-      await expect(
-        confirmOccurrenceUpload({
+        await confirmOccurrenceUpload({
           companyId: company.companyId,
           id: objectId,
           now: NOW,
           repository,
           storage: fakeStorage(),
-          tripId: otherTrip.tripId,
-        }),
-      ).rejects.toBeInstanceOf(TripOccurrenceUploadNotReachableError)
-    })
-  })
+          tripId: trip.tripId,
+        })
+
+        await expect(
+          confirmOccurrenceUpload({
+            companyId: company.companyId,
+            id: objectId,
+            now: NOW,
+            repository,
+            storage: fakeStorage(),
+            tripId: otherTrip.tripId,
+          }),
+        ).rejects.toBeInstanceOf(TripOccurrenceUploadNotReachableError)
+      })
+    },
+  )
 
   testWithPostgres(
     'achado [2]: dois confirms concorrentes para o mesmo pedido não dão 500, e só um objeto é gravado',

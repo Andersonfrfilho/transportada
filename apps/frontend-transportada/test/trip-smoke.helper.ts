@@ -267,7 +267,11 @@ const STOP_CARD_STOP = {
   completedAt: null,
   deliveryWindowEnd: null,
   deliveryWindowStart: null,
-  documents: [STOP_CARD_LOADED_DOCUMENT, STOP_CARD_RETURNED_DOCUMENT, STOP_CARD_OCCURRENCE_DOCUMENT],
+  documents: [
+    STOP_CARD_LOADED_DOCUMENT,
+    STOP_CARD_RETURNED_DOCUMENT,
+    STOP_CARD_OCCURRENCE_DOCUMENT,
+  ],
   hasOpenOccurrence: true,
   id: STOP_CARD_STOP_ID,
   label: 'Barracão Sintético',

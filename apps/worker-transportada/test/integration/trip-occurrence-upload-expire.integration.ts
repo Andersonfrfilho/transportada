@@ -121,7 +121,10 @@ describeIntegration(
 
       // Dentro da janela (900s + folga) — não deve ser tocado.
       freshUploadKey = `tenants/${companyId}/trip-occurrence-uploads/${tripId}/${crypto.randomUUID()}`
-      freshUploadId = await insertPendingUpload({ expiresAt: FRESH_EXPIRES_AT, key: freshUploadKey })
+      freshUploadId = await insertPendingUpload({
+        expiresAt: FRESH_EXPIRES_AT,
+        key: freshUploadKey,
+      })
       const freshBytes = new TextEncoder().encode(`occurrence-upload-expire:${freshUploadId}`)
       await storage.storeObject({
         body: freshBytes,
@@ -137,7 +140,9 @@ describeIntegration(
       await db
         .execute(sql`delete from trip_occurrence_uploads where company_id = ${companyId}`)
         .catch(() => undefined)
-      await db.execute(sql`delete from trips where company_id = ${companyId}`).catch(() => undefined)
+      await db
+        .execute(sql`delete from trips where company_id = ${companyId}`)
+        .catch(() => undefined)
       await db
         .execute(sql`delete from fleet_vehicles where company_id = ${companyId}`)
         .catch(() => undefined)

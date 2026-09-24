@@ -169,7 +169,7 @@ eixos de selo que a spec 181 reorganizou:
   da spec de prints: é o botão "Marcar entregue" que só aparece com a capacidade **e** a permissão
   juntas.
 - `902/1` — **devolvida com motivo** (`separationStatus: 'returned'`, `returnReason:
-  'recipient_absent'`): o selo compõe "Devolvida · Ausente" (RF3/CA03), e por ter `returnedAt`
+'recipient_absent'`): o selo compõe "Devolvida · Ausente" (RF3/CA03), e por ter `returnedAt`
   também expõe o toggle "Comprovante" (a outra expansão do card).
 - `903/1` — **ocorrência em tratativa** (`openOccurrenceCase: true`) e **sem perfil de emissão**
   (`fiscalReadiness.reason: 'no_profile'`) ao mesmo tempo — os outros dois eixos de selo (RF2/CA02 e

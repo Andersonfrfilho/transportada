@@ -275,7 +275,7 @@ mesma confirmação entre a leitura e esta escrita — a transação termina sem
 - `test/trip-occurrence/upload.contract.ts`: `unreachableStorage()` prova que o recall não toca
   `head()`/bytes; testes novos para reenvio pós-confirmação, objeto de outra empresa/viagem
   continuando 404 mesmo com a checagem extra, e a corrida (repositório devolvendo `confirmed:
-  false`) resolvida pelo recall. Os dois dublês existentes (`repository()` e `reachableRepository()`)
+false`) resolvida pelo recall. Os dois dublês existentes (`repository()` e `reachableRepository()`)
   ganharam `findConfirmedUpload`.
 - `test/integration/trip-occurrence-upload-confirm.integration.ts` (novo): três provas contra
   Postgres real — reenvio depois de confirmado devolve o mesmo `id` e grava um único `stored_objects`
@@ -312,7 +312,7 @@ são reais e verificados nesta sessão:
 
 - Upload confirmado no storage mas nunca chega ao `confirm` (motorista perde sinal): bytes no bucket,
   linha `pending` para sempre, **sem** `stored_objects` — invisível para `trip.occurrence-
-  attachment.purge` (o expurgo de retenção existente só varre `stored_objects`).
+attachment.purge` (o expurgo de retenção existente só varre `stored_objects`).
 - `confirm` roda mas a ocorrência nunca é registrada: `stored_objects` fica com `retentionUntil` de
   cinco anos e nenhuma ocorrência aponta para ele — ninguém encontra para revisar antes do prazo.
 
@@ -337,10 +337,11 @@ mas não é chamado de `main.ts` nem de nenhum outro lugar em `src` — parece s
 quatro serviços de cron viram um" (`95c711def`). Não mexi nisso; fica registrado para quem revisar.
 
 **O que falta para fechar, e onde:**
+
 1. `apps/worker-transportada`: `JobRoutine` nova (padrão de
    `trip-occurrence-attachment-purge.routine.ts`) que varre `trip_occurrence_uploads` com `status =
-   'pending'` e `expires_at` vencido, apaga o objeto do bucket quando existir e marca `status =
-   'expired'` — e, no caso "confirmado sem ocorrência", decide se cabe na mesma rotina ou é uma
+'pending'` e `expires_at` vencido, apaga o objeto do bucket quando existir e marca `status =
+'expired'` — e, no caso "confirmado sem ocorrência", decide se cabe na mesma rotina ou é uma
    segunda (a spec não distingue as duas, e a retenção de 5 anos do achado 2 (`docs/SECURITY.md`,
    2026-09-22) pode já cobrir o segundo caso via `trip.occurrence-attachment.purge`, a confirmar).
 2. `JOB_CATALOG`: entrada nova nas **quatro** cópias (`api-transportada`, `worker-transportada`,
@@ -385,7 +386,7 @@ anexo para juntar):
   `markExpired`.
 - `application/trip-occurrence-upload-expire.port.ts` + `.routine.ts`: o lote e o laço de batidas —
   cópia estrutural de `trip-occurrence-attachment-purge.port.ts`/`.routine.ts`, com `before = now -
-  grace` (a folga desloca o corte para trás de `now`, nunca esconde um upload que ainda não venceu).
+grace` (a folga desloca o corte para trás de `now`, nunca esconde um upload que ainda não venceu).
 - `infrastructure/drizzle-trip-occurrence-upload-expire-gateway.ts` + `.repository.ts`: candidatos por
   `status = 'pending' and expires_at < before`, uma transação por unidade.
 - `apps/worker-transportada/src/database/trip-occurrence-upload.schema.ts`: cópia por valor de
