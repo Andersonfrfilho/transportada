@@ -372,6 +372,8 @@ import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
+import { createReadTripOccurrenceTimelineUseCase } from './trips/application/read-trip-occurrence-timeline.use-case.js'
+import { findTripOccurrenceTimelineSources } from './trips/infrastructure/trip-occurrence-timeline.query.js'
 import { createOccurrenceCaseUseCase } from './trips/application/occurrence-case.use-case.js'
 import { DrizzleOccurrenceCaseRepository } from './trips/infrastructure/drizzle-occurrence-case.repository.js'
 import { createRedeliveryProposalRoutes } from './trips/presentation/redelivery-proposal.routes.js'
@@ -2748,6 +2750,9 @@ function createApplicationRoutes({
     ...createTripOccurrenceDetailRoutes({
       readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({
         reader: { findDetail: (input) => findTripOccurrenceDetail(database, input) },
+      }),
+      readTripOccurrenceTimeline: createReadTripOccurrenceTimelineUseCase({
+        reader: { findSources: (input) => findTripOccurrenceTimelineSources(database, input) },
       }),
     }),
     ...createOccurrenceCaseRoutes({

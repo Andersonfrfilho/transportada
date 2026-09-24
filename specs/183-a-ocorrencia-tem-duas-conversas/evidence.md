@@ -217,3 +217,69 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   razão de luminância das recebidas; o piso do contrato é 1,25.
 
 - Rodado: `bun test test/design-system.contract.test.ts` → **393 pass, 0 fail**.
+
+## T206 — A linha do tempo da ocorrência (verde)
+
+- **API**, contratos escritos antes e vermelhos antes da implementação:
+  - `test/trip-occurrence/timeline.contract.ts`: política pura `buildOccurrenceTimeline`. Ordem
+    crescente, com desempate do mesmo instante (registro → fotos → tratativa → e-mails); intervalo
+    desde o anterior; fotos do mesmo envio viram um evento com a contagem; eventos-chave (registro e
+    decisão); ator entre os quatro; os três tempos. Falhou na importação.
+  - `test/trip-http/occurrence-detail.contract.ts`: `GET /trip-occurrences/:id/timeline` com
+    `fleet.read`, `trip.read` → 403 sem tocar o caso de uso, 404 de outra empresa, UUID inválido,
+    `no-store`. **3 fail** sem a rota, verdes com ela.
+- A query `trip-occurrence-timeline.query.ts` faz quatro leituras fixas, todas com `company_id`:
+  - a linha do feed;
+  - as fotos da tabela da 161, ou a coluna antiga;
+  - `trip_occurrence_cases` → `trip_occurrence_case_events`, com o nome de quem agiu;
+  - `contractor_mail_threads` → `contractor_mail_messages` da conversa desta ocorrência.
+
+  Do e-mail só saem direção, hora, entrega e interpretação — **nunca** endereço, assunto ou corpo.
+  Envio sem autor é o aviso automático (ator `system`); a resposta é da contratante, sem nome (o nome
+  chega pela T406).
+
+- **Na ordem, a query veio antes do teste dela:**
+  `test/integration/trip-occurrence-timeline.integration.ts` (no `package.json`) foi escrito depois
+  da query. Na primeira rodada reprovou por fixture (CHECKs de `trip_occurrence_cases` e de
+  `contractor_mail_threads`, e o `now()` do registro depois dos horários fixos). Corrigida a fixture:
+  **3 pass**. Cobre:
+  - a história completa em ordem, com os três tempos;
+  - o aviso como `system`, a decisão como `contractor` e evento-chave;
+  - o JSON sem o domínio do e-mail e sem o texto do corpo e do assunto;
+  - outra empresa → `null`;
+  - a conversa **de outra empresa** apontando para o mesmo id não entra;
+  - parada sem foto e sem tratativa → só o registro, com o motorista.
+- **Tela**, contrato escrito antes: `test/trip/occurrence-timeline.contract.ts` (entra por
+  `test/trip.contract.test.ts`), vermelho na importação. Cobre:
+  - o cliente estrito (ator fora dos quatro reprova);
+  - o filtro Tudo / Contratante (o que é dela e os e-mails) / Motorista;
+  - ator → cor (`operation` → `out`, a do balão enviado, T704);
+  - a frase por chave de locale, com o status da tratativa pela chave da listagem;
+  - as durações (a aberta corre até agora; sem envio, sem tempo de resposta);
+  - o formato compacto e o intervalo que some abaixo de um minuto.
+- Componente `OccurrenceTimeline.component.tsx`:
+  - três tempos no topo, contados por um relógio de minuto;
+  - filtro sobre o `Tabs` do design system, com a contagem em cada aba;
+  - cartão com a borda e o selo do nome no token do participante; sistema tracejado; marca "Marco"
+    nos eventos-chave.
+
+  Fica na mesma chave do feed, então agir na tratativa atualiza a linha do tempo junto.
+
+- Rodado:
+  - API, contrato: `bun --env-file=../../.env.test test --timeout 120000` → **7235 pass, 23 skip, 0
+    fail**.
+  - API, integração: `bun --env-file=../../.env.test run test:integration` → **576 pass, 7 skip, 8
+    fail**. As 8 são de object storage: `cte-archive-gateway` e o pedágio 154 T301/T302, que precisam
+    do MinIO, e o MinIO vem do `quay.io`, bloqueado nesta sessão. Nenhuma toca código da 183.
+  - Frontend: `bun run --cwd apps/frontend-transportada test` → **5182 pass, 0 fail** + **44 pass**.
+  - `bun run lint` e `bun run typecheck` na raiz limpos. Sem migration.
+- Revisão de design, prints `linha-do-tempo-desktop.png` e `linha-do-tempo-celular.png` (390 px, sem
+  rolagem horizontal). Smoke **8 pass**. Achados corrigidos na task:
+  - no tema claro o token do balão é fundo pálido e a borda do cartão sumia: a borda mistura o token
+    com `--color-fog`, que escurece no claro e clareia no escuro;
+  - "+0 min desde o anterior" entre registro e fotos era ruído: o intervalo abaixo de um minuto some
+    (`formatOccurrenceGap`).
+- Divergência aplicada na spec: "quanto o motorista levou para ser liberado" não tinha definição, e
+  nenhum dado grava liberação. Definido no RF19, igual à política: **liberado** é a tratativa sair do
+  caminho dele (`decided` ou terminal). Os outros dois tempos também ficaram escritos. Se o dono do
+  projeto quiser outra régua, ela muda num conjunto só (`RELEASING_STATUSES`).

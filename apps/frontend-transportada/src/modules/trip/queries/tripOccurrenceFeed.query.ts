@@ -8,6 +8,7 @@ import {
   createTripOccurrenceFeedClient,
   type TripOccurrenceFeedClient,
 } from '../shared/tripOccurrenceFeedClient.service'
+import type { OccurrenceTimeline } from '../shared/tripOccurrenceTimeline.service'
 import {
   serializeTripOccurrenceQuery,
   TRIP_OCCURRENCE_PER_PAGE,
@@ -123,5 +124,18 @@ export function useTripOccurrenceDetailQuery(
     enabled: input.enabled,
     queryFn: () => client.readOccurrence({ occurrenceId: input.occurrenceId }),
     queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY, 'detail', input.companyId, input.occurrenceId],
+  })
+}
+
+/** Spec 183 RF19: sob a mesma chave do feed — a ação na tratativa invalida a linha do tempo junto. */
+export function useTripOccurrenceTimelineQuery(
+  input: Readonly<{ companyId?: string; enabled: boolean; occurrenceId: string }>,
+) {
+  const client = getTripOccurrenceFeedClient()
+
+  return useQuery<OccurrenceTimeline>({
+    enabled: input.enabled,
+    queryFn: () => client.readOccurrenceTimeline({ occurrenceId: input.occurrenceId }),
+    queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY, 'timeline', input.companyId, input.occurrenceId],
   })
 }

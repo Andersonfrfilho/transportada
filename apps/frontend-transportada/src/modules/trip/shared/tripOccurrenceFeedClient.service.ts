@@ -22,6 +22,8 @@ import {
   type TripOccurrenceFeedPage,
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
+import type { OccurrenceTimeline } from './tripOccurrenceTimeline.service'
+import { isOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
 
 const TRIP_OCCURRENCES_PATH = '/trip-occurrences'
 
@@ -53,6 +55,8 @@ export type TripOccurrenceFeedClient = Readonly<{
   listOccurrences: (input: ListTripOccurrencesInput) => Promise<TripOccurrenceFeedPage>
   /** Spec 183 RF1: `GET /trip-occurrences/:id` — a linha, a nota e o motorista. */
   readOccurrence: (input: Readonly<{ occurrenceId: string }>) => Promise<TripOccurrenceDetail>
+  /** Spec 183 RF19: `GET /trip-occurrences/:id/timeline` — os eventos em ordem e os três tempos. */
+  readOccurrenceTimeline: (input: Readonly<{ occurrenceId: string }>) => Promise<OccurrenceTimeline>
   /** Spec 164 T7/RF8b: motivo obrigatório — ocorrência aberta por engano, só de `recorded`/`under_review`. */
   cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<TripOccurrenceCaseView>
   /** RF8: só sai de `decided`. */
@@ -377,6 +381,16 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${encodeURIComponent(input.occurrenceId)}`,
       )
       return readDetail(payload)
+    },
+    async readOccurrenceTimeline(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${encodeURIComponent(input.occurrenceId)}/timeline`,
+      )
+      if (!isRecord(payload) || !isOccurrenceTimeline(payload.data)) {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      return payload.data
     },
     async listOccurrences(input) {
       const search = serializeTripOccurrenceQuery(input)

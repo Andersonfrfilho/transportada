@@ -12,6 +12,7 @@ import { formatStoredPhone } from '@/modules/shared/phone.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
+import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { formatMoment, OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
 import { buildOccurrenceDriverContact } from '../shared/tripOccurrenceDetail.service'
@@ -349,6 +350,10 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
                 />
               </section>
             ) : null}
+            <OccurrenceTimelinePanel
+              {...(companyId === undefined ? {} : { companyId })}
+              occurrenceId={occurrence.id}
+            />
           </div>
         </>
       )}

@@ -4052,3 +4052,156 @@ button.occurrenceCaseBadge {
 .occurrenceMoneyHeader {
   text-align: right;
 }
+
+/*
+ * Spec 183 T206 (RF19): a linha do tempo da ocorrência. A cor é do ator, a mesma dos balões (T704):
+ * a borda do cartão e o selo do nome vêm do token do participante, o texto sobre ele é o `--color-fog`
+ * (4,5:1 medido no contrato dos tokens). Sistema não tem balão: tracejado e neutro.
+ */
+.occurrenceTimings {
+  margin: 0 0 var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
+
+.occurrenceTimings > div {
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+}
+
+.occurrenceTimings dt {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.occurrenceTimings dd {
+  margin: var(--space-1) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.occurrenceTimingValue {
+  font-family: var(--font-utility);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.occurrenceTimingRunning {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.occurrenceTimingEmpty {
+  color: var(--color-slate);
+}
+
+.occurrenceTimelineList {
+  margin: var(--space-3) 0 0;
+  padding: 0 0 0 var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  border-left: 2px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+}
+
+.occurrenceTimelineItem {
+  --occurrence-tone: var(--color-slate);
+  /*
+   * A borda puxa o token do participante para o lado do texto do tema: no claro o balão é pálido
+   * (é fundo) e a borda some sem isso; no escuro, o fundo escuro ganha uma borda mais clara.
+   */
+  --occurrence-edge: color-mix(in srgb, var(--occurrence-tone) 55%, var(--color-fog));
+  display: grid;
+  gap: var(--space-1);
+}
+
+.occurrenceTimelineOut {
+  --occurrence-tone: var(--color-bubble-out);
+}
+
+.occurrenceTimelineContractor {
+  --occurrence-tone: var(--color-bubble-contractor);
+}
+
+.occurrenceTimelineDriver {
+  --occurrence-tone: var(--color-bubble-driver);
+}
+
+.occurrenceTimelineGap {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}
+
+.occurrenceTimelineCard {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  border-left: 4px solid var(--occurrence-edge);
+  background: color-mix(in srgb, var(--occurrence-tone) 14%, transparent);
+}
+
+.occurrenceTimelineSystem .occurrenceTimelineCard {
+  border-style: dashed;
+  border-left-width: 1px;
+  background: transparent;
+}
+
+.occurrenceTimelineKey .occurrenceTimelineCard {
+  border-color: var(--occurrence-edge);
+  border-left-width: 6px;
+}
+
+.occurrenceTimelineHead {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.occurrenceTimelineActor {
+  padding: 0 var(--space-2);
+  background: var(--occurrence-tone);
+  color: var(--color-fog);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.occurrenceTimelineSystem .occurrenceTimelineActor {
+  border: 1px dashed var(--color-slate);
+  background: transparent;
+}
+
+.occurrenceTimelineTime {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+}
+
+.occurrenceTimelineTitle {
+  margin: var(--space-1) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.occurrenceTimelineKeyMark {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.occurrenceTimelineNote {
+  margin: var(--space-1) 0 0;
+  color: var(--color-slate);
+  font-size: 0.9rem;
+}

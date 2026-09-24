@@ -17,6 +17,7 @@ import type {
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
 import type { TripOccurrenceDetail } from '../../src/trips/application/read-trip-occurrence-detail.use-case.js'
+import type { OccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
 import { TripOccurrenceNotFoundError } from '../../src/trips/domain/trip.error.js'
 import { createTripOccurrenceDetailRoutes } from '../../src/trips/presentation/trip-occurrence-detail.routes.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
@@ -31,6 +32,26 @@ import {
 import { OCCURRENCE_DETAIL } from '../fixtures/trip-occurrence-detail.fixture.js'
 
 const OCCURRENCE_ID = OCCURRENCE_DETAIL.id
+
+const OCCURRENCE_TIMELINE: OccurrenceTimeline = {
+  events: [
+    {
+      actor: { kind: 'driver', name: 'Motorista Alves' },
+      id: `occurrence.recorded:${OCCURRENCE_DETAIL.id}`,
+      isKey: true,
+      kind: 'occurrence.recorded',
+      occurredAt: '2026-09-24T10:00:00.000Z',
+      sincePreviousSeconds: null,
+    },
+  ],
+  timings: {
+    contractorAskedAt: null,
+    contractorRepliedAt: null,
+    driverReleasedAt: null,
+    openSince: '2026-09-24T10:00:00.000Z',
+    openUntil: null,
+  },
+}
 
 function createFixture(params: {
   readonly error?: Error
@@ -69,6 +90,13 @@ function createFixture(params: {
           calls.push(input)
           if (params.error !== undefined) throw params.error
           return OCCURRENCE_DETAIL
+        },
+      },
+      readTripOccurrenceTimeline: {
+        async execute(input): Promise<OccurrenceTimeline> {
+          calls.push(input)
+          if (params.error !== undefined) throw params.error
+          return OCCURRENCE_TIMELINE
         },
       },
     }),
@@ -139,5 +167,46 @@ describe('GET /trip-occurrences/:id (spec 183 T201)', () => {
     )
 
     expect(response.headers.get('cache-control')).toContain('no-store')
+  })
+})
+
+const timelinePath = (id: string): string => `/trip-occurrences/${id}/timeline`
+
+describe('GET /trip-occurrences/:id/timeline (spec 183 T206)', () => {
+  test('com fleet.read devolve a linha do tempo, escopada pela empresa do contexto', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: timelinePath(OCCURRENCE_ID) }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: OCCURRENCE_TIMELINE })
+    expect(fixture.calls).toEqual([{ context: fixture.context.scope, occurrenceId: OCCURRENCE_ID }])
+    expect(response.headers.get('cache-control')).toContain('no-store')
+  })
+
+  test('só com trip.read é 403 antes de tocar o caso de uso', async () => {
+    const fixture = createFixture({ permissions: new Set(['trip.read'] as const) })
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: timelinePath(OCCURRENCE_ID) }),
+    )
+
+    expect(response.status).toBe(403)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('inexistente ou de outra empresa é 404; id que não é UUID nem chega ao caso de uso', async () => {
+    const missing = createFixture({ error: new TripOccurrenceNotFoundError() })
+    const notFound = await missing.handle(
+      jsonRequest({ method: 'GET', path: timelinePath(OCCURRENCE_ID) }),
+    )
+    expect(notFound.status).toBe(404)
+    expect((await responseApiError(notFound)).code).toBe('TRIP_OCCURRENCE_NOT_FOUND')
+
+    const invalid = createFixture({})
+    const response = await invalid.handle(jsonRequest({ method: 'GET', path: timelinePath('abc') }))
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(response.status).toBeLessThan(500)
+    expect(invalid.calls).toEqual([])
   })
 })

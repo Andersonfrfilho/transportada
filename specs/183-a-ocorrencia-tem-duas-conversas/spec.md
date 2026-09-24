@@ -361,7 +361,11 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   balões. Mostra o intervalo desde o evento anterior e marca os eventos-chave (registro, decisão).
   No topo ficam três tempos: há quanto tempo a ocorrência está aberta, quanto a contratante levou
   para responder e quanto o motorista levou para ser liberado. Filtros: Tudo, Contratante e
-  Motorista.
+  Motorista. Definições (T206): **aberta** vai do registro ao primeiro estado terminal da tratativa
+  (`closed`, `returned_to_warehouse`, `cancelled`); **resposta da contratante** vai do primeiro
+  envio à primeira resposta depois dele (resposta automática não conta), e sem envio não existe;
+  **liberação do motorista** vai do registro até a tratativa sair do caminho dele — `decided` ou um
+  dos terminais. Os três saem da API como instantes, e a tela conta a duração com o relógio dela.
 
 - **RF20** Expiração da janela do WhatsApp, por conversa:
   - **fechando** é a última hora da janela: a caixa de envio mostra "a janela fecha em N min (HH:MM)"

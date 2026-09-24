@@ -1382,5 +1382,42 @@
     "case": {
       "title": "Case"
     }
+  },
+  "occurrenceTimeline": {
+    "title": "Timeline",
+    "loading": "Loading the timeline",
+    "error": "Could not load the timeline.",
+    "empty": "Nothing from this participant yet.",
+    "filterLabel": "Filter the timeline by participant",
+    "filter": {
+      "all": "All",
+      "contractor": "Contracting party",
+      "driver": "Driver"
+    },
+    "actor": {
+      "contractor": "Contracting party",
+      "driver": "Driver",
+      "operation": "Operations",
+      "system": "System"
+    },
+    "gap": "+{{elapsed}} since the previous one",
+    "key": "Milestone",
+    "running": "ongoing",
+    "timing": {
+      "open": "Open for",
+      "contractorResponse": "Contracting party response",
+      "driverRelease": "Driver release",
+      "notAsked": "Not sent to the contracting party",
+      "none": "—"
+    },
+    "event": {
+      "recorded": "Recorded the occurrence",
+      "photos_one": "Attached {{count}} photo",
+      "photos_other": "Attached {{count}} photos",
+      "caseTransition": "Case: {{status}}",
+      "mailSent": "E-mailed the contracting party",
+      "mailSentAutomatic": "Automatic notice sent to the contracting party",
+      "mailReceived": "The contracting party replied by e-mail"
+    }
   }
 }

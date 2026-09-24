@@ -51,7 +51,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [x] **T205** Colunas Contratante, Endereço de entrega e Valor NF-e na tabela, no menu de colunas e
       na persistência. A coluna Conversa lê o RF4 e vai com a T404. Evidência: a da
       `docs/frontend/data-tables.md` § 6.
-- [ ] **T206** Linha do tempo (RF19) com os eventos que já existem (registro, fotos, avisos e os da
+- [x] **T206** Linha do tempo (RF19) com os eventos que já existem (registro, fotos, avisos e os da
       tratativa em `trip_occurrence_case_events`), tempos no topo e filtros; os eventos de conversa entram nas Fases 4–6 pela mesma fonte.
       Evidência: contrato da query de eventos (ordem, intervalo) e do mapeamento ator → cor.
 - [ ] **T207** Item, quantidade e unidade da ocorrência (specs 166/172) no detalhe: saíram da T204

@@ -1610,5 +1610,42 @@
     "case": {
       "title": "Tratativa"
     }
+  },
+  "occurrenceTimeline": {
+    "title": "Linha do tempo",
+    "loading": "Carregando a linha do tempo",
+    "error": "Não foi possível carregar a linha do tempo.",
+    "empty": "Nada deste participante ainda.",
+    "filterLabel": "Filtrar a linha do tempo por participante",
+    "filter": {
+      "all": "Tudo",
+      "contractor": "Contratante",
+      "driver": "Motorista"
+    },
+    "actor": {
+      "contractor": "Contratante",
+      "driver": "Motorista",
+      "operation": "Operação",
+      "system": "Sistema"
+    },
+    "gap": "+{{elapsed}} desde o anterior",
+    "key": "Marco",
+    "running": "em andamento",
+    "timing": {
+      "open": "Aberta há",
+      "contractorResponse": "Resposta da contratante",
+      "driverRelease": "Liberação do motorista",
+      "notAsked": "Sem envio à contratante",
+      "none": "—"
+    },
+    "event": {
+      "recorded": "Registrou a ocorrência",
+      "photos_one": "Anexou {{count}} foto",
+      "photos_other": "Anexou {{count}} fotos",
+      "caseTransition": "Tratativa: {{status}}",
+      "mailSent": "Enviou e-mail à contratante",
+      "mailSentAutomatic": "Aviso automático enviado à contratante",
+      "mailReceived": "A contratante respondeu por e-mail"
+    }
   }
 }

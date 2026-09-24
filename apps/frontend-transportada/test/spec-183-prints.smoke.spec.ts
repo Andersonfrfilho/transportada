@@ -107,3 +107,32 @@ test('print: ocorrência de parada sem nota e sem motorista', async ({ page }) =
     path: resolve(PRINTS_DIRECTORY, 'detalhe-parada-desktop.png'),
   })
 })
+
+test('print: a linha do tempo da ocorrência, com os tempos e o filtro (T206)', async ({ page }) => {
+  await page.setViewportSize(DESKTOP)
+  await open(page, `/ocorrencias/${DOCUMENT_OCCURRENCE_ID}`)
+  const panel = page.locator('section', {
+    has: page.getByRole('heading', { name: 'Linha do tempo' }),
+  })
+  await expect(panel.getByText('Tratativa: Decidida')).toBeVisible()
+  await expect(panel.getByText('Resposta da contratante')).toBeVisible()
+  await panel.screenshot({ path: resolve(PRINTS_DIRECTORY, 'linha-do-tempo-desktop.png') })
+
+  await panel.getByRole('tab', { name: /Contratante/ }).click()
+  await expect(panel.getByText('Registrou a ocorrência')).toHaveCount(0)
+  await expect(panel.getByText('A contratante respondeu por e-mail')).toBeVisible()
+})
+
+test('print: a linha do tempo no celular', async ({ page }) => {
+  await page.setViewportSize(PHONE)
+  await open(page, `/ocorrencias/${DOCUMENT_OCCURRENCE_ID}`)
+  const panel = page.locator('section', {
+    has: page.getByRole('heading', { name: 'Linha do tempo' }),
+  })
+  await expect(panel.getByText('Tratativa: Decidida')).toBeVisible()
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(overflow).toBeLessThanOrEqual(0)
+  await panel.screenshot({ path: resolve(PRINTS_DIRECTORY, 'linha-do-tempo-celular.png') })
+})
