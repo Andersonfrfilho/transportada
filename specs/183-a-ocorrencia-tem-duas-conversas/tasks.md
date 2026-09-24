@@ -88,7 +88,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [x] **T406** Política de identificação do remetente (RF16), `from_display_name` gravado pelo
       worker, cartão do contato e "Adicionar aos contatos" preenchido. Evidência: suíte da política +
       contrato do payload da conversa (nome e tipos vêm do contato; o endereço como chegou também).
-- [ ] **T407** Aba Contratante (canal e-mail) sobre o `conversations-ui` e o diálogo "Enviar à
+- [x] **T407** Aba Contratante (canal e-mail) sobre o `conversations-ui` e o diálogo "Enviar à
       contratante" com prévia; os tokens de balão da T704 chegam às peças pelos `classNames`.
       Evidência: contratos de serviço puro + smoke do envio.
 

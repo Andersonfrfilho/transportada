@@ -197,6 +197,13 @@ describe('o e-mail da conversa contra Postgres (spec 183 T403)', () => {
         expect(preview.subject).toMatch(/^Ocorrência — NF /u)
         expect(preview.bodyText).toContain('caixa com avaria visível')
         expect(preview.subject).not.toContain('{{')
+        /** Spec 183 T407: os destinatários do diálogo — só quem recebe ocorrências, marcados. */
+        expect(
+          preview.recipients.map((recipient) => [recipient.email, recipient.preselected]),
+        ).toEqual([
+          ['compras@alfa.example.test', true],
+          ['fiscal@alfa.example.test', true],
+        ])
       })
     },
     30_000,

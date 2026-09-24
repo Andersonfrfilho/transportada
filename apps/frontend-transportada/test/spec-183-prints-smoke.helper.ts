@@ -243,4 +243,172 @@ export async function mockOccurrenceDetailPrintsApi(
     if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
     return fulfillJson(route, { data: [] })
   })
+
+  await mockOccurrenceConversationApi(input.page)
+}
+
+const CONTRACTOR_CONTACT = {
+  contractorId: '00000000-0000-4000-8000-000000183020',
+  email: 'compras@alfa.example.test',
+  id: '00000000-0000-4000-8000-000000183030',
+  name: 'Maria Souza',
+  phone: '5511987654321',
+  preferredChannel: 'email',
+  roleLabel: 'Compras',
+  status: 'active',
+  types: ['occurrences', 'approves_charges'],
+  whatsappOptInAt: null,
+} as const
+
+const CONVERSATION_MESSAGES = [
+  {
+    author: { kind: 'operation', name: 'Operadora Lima', userId: 'user-operator' },
+    bodyText:
+      'Bom dia. O recebedor está cobrando taxa de descarga de R$ 180,00 para liberar a doca. Autorizam o pagamento?',
+    channel: 'email',
+    createdAt: '2026-09-24T14:20:00.000Z',
+    direction: 'outbound',
+    id: 'conversation-message-1',
+    status: 'delivered',
+    statusTimes: {
+      delivered: '2026-09-24T14:20:09.000Z',
+      queued: '2026-09-24T14:20:00.000Z',
+      sent: '2026-09-24T14:20:03.000Z',
+    },
+  },
+  {
+    author: {
+      identity: {
+        arrivedAs: 'Compras@Alfa.example.test',
+        contact: CONTRACTOR_CONTACT,
+        inactive: false,
+        kind: 'contact',
+        profileName: null,
+      },
+      kind: 'contractor',
+      userId: null,
+    },
+    bodyText: 'Autorizado. Pode pagar e mandar o comprovante junto com o canhoto.',
+    channel: 'email',
+    createdAt: '2026-09-24T14:41:00.000Z',
+    direction: 'inbound',
+    id: 'conversation-message-2',
+    status: null,
+    statusTimes: {},
+  },
+  {
+    author: {
+      identity: {
+        arrivedAs: 'joao.lima@alfa.example.test',
+        displayName: 'João Lima',
+        kind: 'unknown',
+        suggestion: { email: 'joao.lima@alfa.example.test', name: 'João Lima', phone: null },
+      },
+      kind: 'contractor',
+      userId: null,
+    },
+    bodyText: 'Complementando: a nota de serviço da descarga vem no nome da Alfa.',
+    channel: 'email',
+    createdAt: '2026-09-24T14:52:00.000Z',
+    direction: 'inbound',
+    id: 'conversation-message-3',
+    status: null,
+    statusTimes: {},
+  },
+] as const
+
+/** O que o diálogo mandou: o smoke do envio confere o corpo e a chave. */
+export const SENT_CONTRACTOR_MAILS: { body: unknown; idempotencyKey: null | string }[] = []
+
+/**
+ * Spec 183 T407: a conversa com a contratante da ocorrência de nota (a de parada não tem). O envio
+ * acrescenta a mensagem "na fila", como a API faria.
+ */
+async function mockOccurrenceConversationApi(page: Page): Promise<void> {
+  const messages: unknown[] = [...CONVERSATION_MESSAGES]
+
+  await page.route(/\/trip-occurrences\/[^/]+\/conversations$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
+    const id = new URL(route.request().url()).pathname.split('/').at(-2)
+    if (id !== DOCUMENT_OCCURRENCE_ID) return fulfillJson(route, { data: { conversations: [] } })
+    return fulfillJson(route, {
+      data: {
+        conversations: [
+          {
+            id: 'conversation-contractor',
+            messages,
+            participant: 'contractor',
+            status: 'open',
+            unreadCount: 0,
+          },
+        ],
+      },
+    })
+  })
+
+  await page.route(/\/conversations\/contractor\/mail-preview$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
+    const typed = (route.request().postDataJSON() ?? {}) as { body?: string; subject?: string }
+    const bodyText =
+      typed.body ??
+      'Ocorrência na NF 4512/1: recebedor cobrando taxa de descarga para liberar a doca.'
+    return fulfillJson(route, {
+      data: {
+        bodyText,
+        contractorName: 'Contratante Alfa Indústria',
+        html: `<p>${bodyText}</p>`,
+        recipients: [
+          {
+            approvesCharges: true,
+            contactId: CONTRACTOR_CONTACT.id,
+            email: CONTRACTOR_CONTACT.email,
+            name: CONTRACTOR_CONTACT.name,
+            preselected: true,
+            roleLabel: 'Compras',
+          },
+          {
+            approvesCharges: false,
+            contactId: '00000000-0000-4000-8000-000000183031',
+            email: 'expedicao@alfa.example.test',
+            name: '',
+            preselected: false,
+            roleLabel: '',
+          },
+        ],
+        subject: typed.subject ?? 'Ocorrência — NF 4512/1',
+        suggested: typed.body === undefined,
+        text: `${bodyText}\n\n—\nOperadora Lima\nTransportadora Sintética`,
+      },
+    })
+  })
+
+  await page.route(/\/conversations\/contractor\/messages$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
+    const body = route.request().postDataJSON() as { body: string }
+    SENT_CONTRACTOR_MAILS.push({
+      body,
+      idempotencyKey: route.request().headers()['idempotency-key'] ?? null,
+    })
+    messages.push({
+      author: { kind: 'operation', name: 'Operadora Lima', userId: 'user-operator' },
+      bodyText: body.body,
+      channel: 'email',
+      createdAt: '2026-09-24T15:05:00.000Z',
+      direction: 'outbound',
+      id: `conversation-message-${String(messages.length + 1)}`,
+      status: 'queued',
+      statusTimes: { queued: '2026-09-24T15:05:00.000Z' },
+    })
+    return route.fulfill({
+      body: JSON.stringify({ data: { conversationId: 'conversation-contractor' } }),
+      contentType: 'application/json',
+      headers: CORS_HEADERS,
+      status: 202,
+    })
+  })
+
+  await page.route(/\/occurrence-conversations\/[^/]+\/read$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
+    return fulfillJson(route, { data: { unreadCount: 0 } })
+  })
 }

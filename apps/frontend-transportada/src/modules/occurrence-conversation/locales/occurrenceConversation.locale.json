@@ -1,0 +1,81 @@
+{
+  "tabs": {
+    "ariaLabel": "Conversas da ocorrência",
+    "contractor": "Contratante"
+  },
+  "contractor": {
+    "title": "Conversa com a contratante",
+    "withName": "Conversa com {{name}}",
+    "empty": "Nenhuma mensagem ainda. O e-mail enviado daqui chega aos contatos da contratante, e a resposta volta para esta conversa.",
+    "noContractor": "Esta ocorrência não tem contratante identificada pela nota; não há a quem escrever.",
+    "noDocument": "Ocorrência de parada não tem nota, e por isso não tem contratante a quem escrever.",
+    "send": "Enviar à contratante",
+    "loading": "Carregando a conversa",
+    "error": "Não foi possível carregar a conversa. Tente de novo em instantes.",
+    "unread_one": "{{count}} nova",
+    "unread_other": "{{count}} novas"
+  },
+  "author": {
+    "operation": "Operação",
+    "operationNamed": "{{name}} · Operação",
+    "driver": "Motorista",
+    "contractorUser": "Usuário da contratante",
+    "approvesCharges": "Aprova cobranças",
+    "inactive": "Inativo",
+    "outside": "Fora dos contatos",
+    "addContact": "Adicionar aos contatos",
+    "showCard": "Ver o cartão de {{name}}",
+    "arrivedAs": "Chegou de",
+    "email": "E-mail",
+    "phone": "Telefone",
+    "role": "Setor",
+    "preferredChannel": "Canal preferido",
+    "optIn": "Aceite do WhatsApp",
+    "optInYes": "Registrado em {{date}}",
+    "optInNo": "Sem aceite",
+    "channel": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    }
+  },
+  "status": {
+    "queued": "Na fila",
+    "sent": "Enviado",
+    "delivered": "Entregue",
+    "read": "Lido",
+    "failed": "Falhou",
+    "bounced": "Devolvido",
+    "at": "{{status}} às {{time}}"
+  },
+  "dialog": {
+    "title": "Enviar à contratante",
+    "close": "Fechar",
+    "loading": "Preparando o e-mail",
+    "recipients": "Destinatários",
+    "recipientsEmpty": "Nenhum contato desta contratante recebe ocorrências. Cadastre um nos contatos da contratante.",
+    "recipientsRequired": "Escolha ao menos um destinatário.",
+    "subject": "Assunto",
+    "subjectRequired": "Escreva o assunto.",
+    "body": "Mensagem",
+    "bodyRequired": "Escreva a mensagem.",
+    "suggested": "Texto sugerido pelo tipo da ocorrência. Revise antes de enviar.",
+    "preview": "Ver prévia",
+    "previewTitle": "O e-mail que sai, com a assinatura",
+    "send": "Enviar e-mail",
+    "sending": "Enviando…",
+    "cancel": "Cancelar",
+    "error": {
+      "generic": "Não foi possível enviar. Tente de novo em instantes.",
+      "CONTRACTOR_MAIL_NOT_CONFIGURED": "O e-mail da contratante ainda não foi configurado. Peça a quem administra a configuração.",
+      "CONTRACTOR_MAIL_SENDING_NOT_VERIFIED": "O remetente de e-mail ainda não foi verificado. Peça a quem administra a configuração.",
+      "OCCURRENCE_CONVERSATION_NO_RECIPIENT": "Nenhum dos contatos escolhidos recebe ocorrências agora. Confira o cadastro e tente de novo.",
+      "OCCURRENCE_CONVERSATION_CONTRACTOR_UNKNOWN": "A nota desta ocorrência não tem contratante cadastrada.",
+      "OCCURRENCE_CONVERSATION_MAIL_INVALID": "Assunto ou mensagem em branco, ou longos demais.",
+      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "Este envio já foi feito com outro texto. Feche e abra o diálogo de novo."
+    }
+  },
+  "addContact": {
+    "title": "Adicionar aos contatos",
+    "close": "Fechar"
+  }
+}

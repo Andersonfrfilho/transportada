@@ -1627,6 +1627,9 @@
     "items": {
       "title": "Itens atingidos",
       "noDescription": "Item fora do cadastro da nota"
+    },
+    "conversations": {
+      "title": "Conversas"
     }
   },
   "occurrenceTimeline": {

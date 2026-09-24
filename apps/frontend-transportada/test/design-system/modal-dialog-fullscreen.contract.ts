@@ -45,6 +45,12 @@ const MODAL_DIALOG_SHAPES: readonly DialogShape[] = [
     overlay: '.overlay',
   },
   { dialog: '.dialog', filePath: 'src/modules/fleet/styles/fleet.module.css', overlay: '.overlay' },
+  /** Spec 183 T407: "Enviar à contratante" e "Adicionar aos contatos" dividem o mesmo par. */
+  {
+    dialog: '.dialog',
+    filePath: 'src/modules/occurrence-conversation/styles/occurrenceConversation.module.css',
+    overlay: '.overlay',
+  },
   {
     dialog: '.driverDialog',
     filePath: 'src/modules/fleet/styles/fleet.module.css',

@@ -20,9 +20,24 @@ export type PreviewOccurrenceMailInput = {
   readonly subject?: string
 }
 
+/**
+ * Spec 183 T407: o destinatário como o diálogo mostra. `preselected` marca quem recebe ocorrências
+ * do grupo desta (RF5); o operador pode marcar qualquer um da lista, e o envio confere de novo.
+ */
+export type OccurrenceMailRecipient = {
+  readonly approvesCharges: boolean
+  readonly contactId: string
+  readonly email: string
+  readonly name: string
+  readonly preselected: boolean
+  readonly roleLabel: string
+}
+
 export type OccurrenceMailPreview = OccurrenceMail & {
   /** O texto do operador (ou o do modelo), para o diálogo abrir preenchido. */
   readonly bodyText: string
+  readonly contractorName: string
+  readonly recipients: readonly OccurrenceMailRecipient[]
   /** `true` quando o texto veio do modelo do tipo, e não do operador. */
   readonly suggested: boolean
 }
@@ -34,7 +49,7 @@ export type PreviewOccurrenceMailUseCase = Readonly<{
 export function createPreviewOccurrenceMailUseCase(dependencies: {
   readonly reader: Pick<
     OccurrenceMailTransactionPort,
-    'findCarrierName' | 'findOccurrenceTarget' | 'findOperatorName'
+    'findCarrierName' | 'findOccurrenceTarget' | 'findOperatorName' | 'listOccurrenceRecipients'
   >
   readonly suggestedMail: OccurrenceSuggestedMailPort
 }): PreviewOccurrenceMailUseCase {
@@ -57,9 +72,13 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
       const subject = input.subject ?? suggestion?.subject ?? ''
       const bodyText = input.bodyText ?? suggestion?.bodyText ?? ''
 
-      const [carrierName, operatorName] = await Promise.all([
+      const { contractorId } = target
+      const [carrierName, operatorName, candidates] = await Promise.all([
         dependencies.reader.findCarrierName({ companyId }),
         dependencies.reader.findOperatorName({ companyId, userId: input.actorUserId }),
+        contractorId === null
+          ? []
+          : dependencies.reader.listOccurrenceRecipients({ companyId, contractorId }),
       ])
       return {
         ...buildOccurrenceMail({
@@ -69,6 +88,15 @@ export function createPreviewOccurrenceMailUseCase(dependencies: {
           subject,
         }),
         bodyText,
+        contractorName: target.contractorName,
+        recipients: candidates.map((candidate) => ({
+          approvesCharges: candidate.types.includes('approves_charges'),
+          contactId: candidate.id,
+          email: candidate.email,
+          name: candidate.name,
+          preselected: candidate.occurrenceStages.includes(target.stage),
+          roleLabel: candidate.roleLabel,
+        })),
         suggested: suggestion !== null,
       }
     },

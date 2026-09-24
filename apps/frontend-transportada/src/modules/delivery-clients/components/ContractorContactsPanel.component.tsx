@@ -62,7 +62,8 @@ type ContactFormProps = Readonly<{
  * ocorrência, o aceite do WhatsApp e o canal preferido. As regras da política da API (T302) aparecem
  * no campo antes do envio; a API continua sendo a última palavra.
  */
-function ContactForm({
+/** Spec 183 T407: também serve ao "Adicionar aos contatos" da conversa, já preenchido (RF16). */
+export function ContactForm({
   error,
   initialDraft,
   isBusy,

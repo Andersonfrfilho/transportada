@@ -5,6 +5,10 @@
  * 143 — thread por objeto, token derivado, `contractor_mail_messages` e outbox na mesma transação —;
  * esta porta só acrescenta a conversa e a mensagem de conversa que aponta para a mensagem da 143.
  */
+import type {
+  ContractorContactOccurrenceStage,
+  ContractorContactType,
+} from '../../database/contractor-mail.schema.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
 
 /** A ocorrência como o e-mail precisa dela: de que tipo, e de qual contratante (pelo emitente). */
@@ -12,6 +16,18 @@ export type OccurrenceMailTarget = {
   readonly contractorId: string | null
   readonly contractorName: string
   readonly kind: OccurrenceConversationKind
+  /** O grupo da ocorrência nos contatos (RF5): a de parada não tem etapa e é `stop`. */
+  readonly stage: ContractorContactOccurrenceStage
+}
+
+/** Spec 183 T407: quem o diálogo oferece — ativos da contratante que recebem ocorrências. */
+export type OccurrenceMailRecipientCandidate = {
+  readonly email: string
+  readonly id: string
+  readonly name: string
+  readonly occurrenceStages: readonly ContractorContactOccurrenceStage[]
+  readonly roleLabel: string
+  readonly types: readonly ContractorContactType[]
 }
 
 export type OccurrenceMailSettings = {
@@ -75,6 +91,11 @@ export type OccurrenceMailTransactionPort = {
   findMailSettings(params: {
     readonly companyId: string
   }): Promise<OccurrenceMailSettings | undefined>
+  /** Os candidatos a destinatário do diálogo, na ordem do cadastro. */
+  listOccurrenceRecipients(params: {
+    readonly companyId: string
+    readonly contractorId: string
+  }): Promise<readonly OccurrenceMailRecipientCandidate[]>
   /** Contatos **ativos** desta contratante que recebem ocorrências; o resto não é achado. */
   findOccurrenceContacts(params: {
     readonly companyId: string

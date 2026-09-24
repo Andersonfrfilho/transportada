@@ -30,6 +30,7 @@ const TARGET: OccurrenceMailTarget = {
   contractorId: CONTRACTOR_ID,
   contractorName: 'Contratante Alfa',
   kind: 'document',
+  stage: 'delivery',
 }
 
 type FakeState = {
@@ -55,6 +56,9 @@ function createFake(
     threadId: undefined,
   }
   const transaction: OccurrenceMailTransactionPort = {
+    async listOccurrenceRecipients() {
+      return []
+    },
     async findCarrierName() {
       return 'Transportadora Sintética'
     },
@@ -277,13 +281,37 @@ describe('o envio do e-mail da conversa (spec 183 T403)', () => {
   })
 })
 
+/** Spec 183 T407: os contatos que o diálogo oferece como destinatários. */
+const RECIPIENTS = [
+  {
+    email: 'compras@alfa.example.test',
+    id: 'contact-delivery',
+    name: 'Maria Souza',
+    occurrenceStages: ['separation', 'delivery', 'stop'],
+    roleLabel: 'Compras',
+    types: ['occurrences', 'approves_charges'],
+  },
+  {
+    email: 'expedicao@alfa.example.test',
+    id: 'contact-separation',
+    name: '',
+    occurrenceStages: ['separation'],
+    roleLabel: '',
+    types: ['occurrences'],
+  },
+] as const
+
 describe('a prévia do e-mail (RF7)', () => {
-  function createPreview(suggested: { bodyText: string; subject: string } | null) {
+  function createPreview(
+    suggested: { bodyText: string; subject: string } | null,
+    target: OccurrenceMailTarget = TARGET,
+  ) {
     return createPreviewOccurrenceMailUseCase({
       reader: {
         findCarrierName: async () => 'Transportadora Sintética',
         findOperatorName: async () => 'Operadora Lima',
-        findOccurrenceTarget: async () => TARGET,
+        findOccurrenceTarget: async () => target,
+        listOccurrenceRecipients: async () => RECIPIENTS,
       },
       suggestedMail: { readSuggestedMail: async () => suggested },
     })
@@ -303,8 +331,38 @@ describe('a prévia do e-mail (RF7)', () => {
         subject: 'Ocorrência — NF 4512',
       }),
       bodyText: 'Ocorrência na NF 4512: cobrança de descarga.',
+      contractorName: 'Contratante Alfa',
+      /** Spec 183 T407: marcado de saída quem recebe ocorrências do grupo desta (RF5). */
+      recipients: [
+        {
+          approvesCharges: true,
+          contactId: 'contact-delivery',
+          email: 'compras@alfa.example.test',
+          name: 'Maria Souza',
+          preselected: true,
+          roleLabel: 'Compras',
+        },
+        {
+          approvesCharges: false,
+          contactId: 'contact-separation',
+          email: 'expedicao@alfa.example.test',
+          name: '',
+          preselected: false,
+          roleLabel: '',
+        },
+      ],
       suggested: true,
     })
+  })
+
+  test('ocorrência sem contratante casada não oferece destinatário (o envio responde 422)', async () => {
+    const preview = await createPreview(null, {
+      ...TARGET,
+      contractorId: null,
+      contractorName: '',
+    }).preview({ actorUserId: ACTOR_ID, companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID })
+
+    expect(preview.recipients).toEqual([])
   })
 
   test('com o texto do operador, é o mesmo e-mail que o envio grava', async () => {

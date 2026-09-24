@@ -6,7 +6,7 @@
  * só acrescenta a linha que aponta para a mensagem de lá.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import {
   CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES,
@@ -35,6 +35,7 @@ import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.ty
 import type {
   OccurrenceMailContact,
   OccurrenceMailIdempotencyRecord,
+  OccurrenceMailRecipientCandidate,
   OccurrenceMailSettings,
   OccurrenceMailTarget,
   OccurrenceMailTransactionPort,
@@ -76,7 +77,33 @@ async function findOccurrenceTarget(
     contractorId: item.document?.contractor?.contractorId ?? null,
     contractorName: item.document?.contractor?.name ?? '',
     kind: item.source,
+    stage: item.stage ?? 'stop',
   }
+}
+
+async function listOccurrenceRecipients(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly contractorId: string },
+): Promise<readonly OccurrenceMailRecipientCandidate[]> {
+  return queryable
+    .select({
+      email: contractorContacts.email,
+      id: contractorContacts.id,
+      name: contractorContacts.name,
+      occurrenceStages: contractorContacts.occurrenceStages,
+      roleLabel: contractorContacts.roleLabel,
+      types: contractorContacts.types,
+    })
+    .from(contractorContacts)
+    .where(
+      and(
+        eq(contractorContacts.companyId, params.companyId),
+        eq(contractorContacts.contractorId, params.contractorId),
+        eq(contractorContacts.status, ACTIVE_CONTACT_STATUS),
+        eq(contractorContacts.receivesOccurrences, true),
+      ),
+    )
+    .orderBy(asc(contractorContacts.createdAt), asc(contractorContacts.email))
 }
 
 async function findCarrierName(
@@ -122,12 +149,13 @@ export function createOccurrenceMailReader(
   database: TripQueryable,
 ): Pick<
   OccurrenceMailTransactionPort,
-  'findCarrierName' | 'findOccurrenceTarget' | 'findOperatorName'
+  'findCarrierName' | 'findOccurrenceTarget' | 'findOperatorName' | 'listOccurrenceRecipients'
 > {
   return {
     findCarrierName: (params) => findCarrierName(database, params),
     findOccurrenceTarget: (params) => findOccurrenceTarget(database, params),
     findOperatorName: (params) => findOperatorName(database, params),
+    listOccurrenceRecipients: (params) => listOccurrenceRecipients(database, params),
   }
 }
 
@@ -211,6 +239,13 @@ export class DrizzleOccurrenceMailRepository implements OccurrenceMailUnitOfWork
 
 class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort {
   public constructor(private readonly transaction: Transaction) {}
+
+  public listOccurrenceRecipients(params: {
+    readonly companyId: string
+    readonly contractorId: string
+  }): Promise<readonly OccurrenceMailRecipientCandidate[]> {
+    return listOccurrenceRecipients(this.transaction, params)
+  }
 
   public findOccurrenceTarget(params: {
     readonly companyId: string

@@ -6,6 +6,7 @@ import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { OccurrenceConversations } from '@/modules/occurrence-conversation/components/OccurrenceConversations.component'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { formatStoredPhone } from '@/modules/shared/phone.service'
@@ -32,6 +33,8 @@ import styles from '../styles/trip.module.css'
 const TRIP_READ_PERMISSION = 'fleet.read'
 /** Spec 164 D7: validar a tratativa é `occurrences.resolve`, nunca `trip.manage`. */
 const OCCURRENCE_CASE_RESOLVE_PERMISSION = 'occurrences.resolve'
+/** Spec 183 T407: "Adicionar aos contatos" grava contato, e contato é configuração da empresa. */
+const CONTACTS_MANAGE_PERMISSION = 'settings.manage'
 
 function TripOccurrenceDetailSkeleton() {
   const { t } = useTranslation('trip')
@@ -330,6 +333,7 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
   const companyId = authQuery.data?.data.company.id
   const canRead = companyId !== undefined && permissions.includes(TRIP_READ_PERMISSION)
   const canResolveOccurrenceCases = permissions.includes(OCCURRENCE_CASE_RESOLVE_PERMISSION)
+  const canManageContacts = permissions.includes(CONTACTS_MANAGE_PERMISSION)
 
   const detailQuery = useTripOccurrenceDetailQuery({
     ...(companyId === undefined ? {} : { companyId }),
@@ -391,6 +395,22 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
                 />
               </section>
             ) : null}
+            <section aria-labelledby="occurrence-conversations-title" className={styles.panel}>
+              <div className={styles.panelHead}>
+                <h2 id="occurrence-conversations-title">
+                  {t('occurrenceDetail.conversations.title')}
+                </h2>
+              </div>
+              <OccurrenceConversations
+                canManageContacts={canManageContacts}
+                canSend={canResolveOccurrenceCases}
+                {...(companyId === undefined ? {} : { companyId })}
+                contractorId={occurrence.document?.contractor?.contractorId ?? null}
+                contractorName={occurrence.document?.contractor?.name ?? ''}
+                hasDocument={occurrence.document !== null}
+                occurrenceId={occurrence.id}
+              />
+            </section>
             <OccurrenceTimelinePanel
               {...(companyId === undefined ? {} : { companyId })}
               occurrenceId={occurrence.id}

@@ -1,0 +1,81 @@
+{
+  "tabs": {
+    "ariaLabel": "Occurrence conversations",
+    "contractor": "Contractor"
+  },
+  "contractor": {
+    "title": "Conversation with the contractor",
+    "withName": "Conversation with {{name}}",
+    "empty": "No messages yet. The email sent from here reaches the contractor's contacts, and the reply comes back to this conversation.",
+    "noContractor": "This occurrence has no contractor identified by the invoice; there is no one to write to.",
+    "noDocument": "A stop occurrence has no invoice, so there is no contractor to write to.",
+    "send": "Send to contractor",
+    "loading": "Loading the conversation",
+    "error": "Could not load the conversation. Try again shortly.",
+    "unread_one": "{{count}} new",
+    "unread_other": "{{count}} new"
+  },
+  "author": {
+    "operation": "Operations",
+    "operationNamed": "{{name}} · Operations",
+    "driver": "Driver",
+    "contractorUser": "Contractor user",
+    "approvesCharges": "Approves charges",
+    "inactive": "Inactive",
+    "outside": "Not in contacts",
+    "addContact": "Add to contacts",
+    "showCard": "Show {{name}}'s card",
+    "arrivedAs": "Arrived from",
+    "email": "Email",
+    "phone": "Phone",
+    "role": "Department",
+    "preferredChannel": "Preferred channel",
+    "optIn": "WhatsApp opt-in",
+    "optInYes": "Recorded on {{date}}",
+    "optInNo": "No opt-in",
+    "channel": {
+      "email": "Email",
+      "whatsapp": "WhatsApp"
+    }
+  },
+  "status": {
+    "queued": "Queued",
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "read": "Read",
+    "failed": "Failed",
+    "bounced": "Bounced",
+    "at": "{{status}} at {{time}}"
+  },
+  "dialog": {
+    "title": "Send to contractor",
+    "close": "Close",
+    "loading": "Preparing the email",
+    "recipients": "Recipients",
+    "recipientsEmpty": "No contact of this contractor receives occurrences. Register one in the contractor contacts.",
+    "recipientsRequired": "Choose at least one recipient.",
+    "subject": "Subject",
+    "subjectRequired": "Write the subject.",
+    "body": "Message",
+    "bodyRequired": "Write the message.",
+    "suggested": "Text suggested by the occurrence type. Review before sending.",
+    "preview": "Preview",
+    "previewTitle": "The email that goes out, with the signature",
+    "send": "Send email",
+    "sending": "Sending…",
+    "cancel": "Cancel",
+    "error": {
+      "generic": "Could not send. Try again shortly.",
+      "CONTRACTOR_MAIL_NOT_CONFIGURED": "The contractor email is not configured yet. Ask whoever manages the settings.",
+      "CONTRACTOR_MAIL_SENDING_NOT_VERIFIED": "The email sender is not verified yet. Ask whoever manages the settings.",
+      "OCCURRENCE_CONVERSATION_NO_RECIPIENT": "None of the chosen contacts receives occurrences now. Check the contacts and try again.",
+      "OCCURRENCE_CONVERSATION_CONTRACTOR_UNKNOWN": "The invoice of this occurrence has no registered contractor.",
+      "OCCURRENCE_CONVERSATION_MAIL_INVALID": "Subject or message is blank or too long.",
+      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "This send was already made with another text. Close and reopen the dialog."
+    }
+  },
+  "addContact": {
+    "title": "Add to contacts",
+    "close": "Close"
+  }
+}

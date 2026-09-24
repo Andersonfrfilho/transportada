@@ -747,3 +747,75 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
       descartáveis ao mesmo tempo.
     - Rodados de novo, sozinhos, os quatro arquivos de conversa deram **8 pass, 0 fail**.
     - Lição registrada: não rodar integração em paralelo com a suíte completa.
+
+## T407 — A aba Contratante e o diálogo "Enviar à contratante" (verde)
+
+- **Pacote:** `@adatechnology/conversations-ui@0.3.1` entrou no frontend. É o bump que a T101
+  mandou fazer na primeira task que usasse o pacote. Pela decisão da T101, as peças vêm do pacote e
+  a composição e o estilo são nossos:
+  - `DateDivider` com `classNames`;
+  - `MessageText` e `StatusTicks` dentro de um balão nosso, pintado pelos tokens da T704
+    (`--color-bubble-out`, `-contractor`, `-driver`; texto `--color-fog`).
+- **Divergências técnicas (aplicadas):**
+  1. O `MessageBubble` do pacote não foi usado. Ele pinta tudo com utilitárias do Tailwind (cor,
+     cantos, largura), e a classe interna não aceita `className`. Sem Tailwind no app, sairia sem
+     forma. O balão é nosso, com as peças menores dentro.
+  2. O `@adatechnology/conversations-ui/styles.css` **não** foi importado, ao contrário da
+     ADR-0051 §1. Ele traz regras globais: `:where(*) { border-color: var(--cv-border-color) }` e
+     `:root`, que trocariam a cor de borda do app inteiro. Nenhuma das peças usadas lê classe `.cv-*`.
+  3. A prévia (`POST …/contractor/mail-preview`, `occurrences.resolve`) passou a devolver
+     `contractorName` e `recipients`. São os contatos **ativos** da contratante que recebem
+     ocorrências, com `preselected` para quem recebe o grupo desta ocorrência (RF5) e
+     `approvesCharges`. Listar contatos pela rota da T302 exige `settings.manage`, que quem conduz a
+     tratativa pode não ter. O envio continua conferindo os contatos de novo.
+- **Tela (módulo novo `modules/occurrence-conversation/`, namespace `occurrenceConversation`):**
+  - O detalhe `/ocorrencias/:id` ganhou o painel "Conversas", com abas por participante montadas do
+    nosso lado (o pacote não tem abas). Hoje só "Contratante"; a do motorista é a T603.
+  - A aba mostra a conversa por dia e o balão por tom.
+  - O remetente vem do cadastro (T406): nome, setor, "Aprova cobranças", "Inativo". O toque abre o
+    cartão (e-mail, telefone com a máscara da casa, canal preferido, aceite) com o endereço como
+    chegou.
+  - Remetente fora dos contatos sai com o nome do `From`, "Fora dos contatos" e "Adicionar aos
+    contatos". Esse botão aparece só com `settings.manage` e abre o `ContactForm` da T303
+    (exportado) já preenchido.
+  - O selo do e-mail mostra o tique do pacote (enviado, entregue, falhou) e o rótulo sempre visível
+    (na fila, enviado, entregue, falhou, devolvido); o horário fica no título. Nunca "lido" (D7).
+  - Abrir a aba com mensagem nova marca como lida (RF15); a coluna Conversa da listagem volta a ser
+    buscada.
+  - "Enviar à contratante" (só com `occurrences.resolve`, só em ocorrência com nota e contratante)
+    abre o diálogo:
+    - o texto do tipo (079) e os destinatários do grupo vêm marcados;
+    - "Ver prévia" mostra o e-mail com a assinatura;
+    - há uma `Idempotency-Key` por abertura;
+    - cada erro da API tem texto próprio.
+- **Testes, todos escritos antes e vistos falhando:**
+  - API: prévia com destinatários (`occurrence-mail.contract.ts`); na integração da T403, a prévia
+    contra Postgres só com quem recebe ocorrências. Uma rodada vermelha mostrou ordem instável no
+    empate de `created_at`, e o desempate passou a ser o e-mail.
+  - Frontend: `test/occurrence-conversation/conversation-view.contract.ts` (lado, tom, autor do
+    cadastro e de fora, selo, dias, rascunho e pedido, chave) e `conversation-client.contract.ts`
+    (leitura tolerante, envio com a chave, prévia, lida, erro pelo código). O entrypoint
+    `test/occurrence-conversation.contract.test.ts` entrou no `package.json`.
+  - Smoke do envio `test/spec-183-conversation.smoke.spec.ts`, 5 testes: o diálogo abre preenchido,
+    a prévia aparece, o corpo e a chave são conferidos, a mensagem entra "Na fila" e a falta de
+    destinatário aparece. Duas rodadas vermelhas por erro do próprio teste (`getByText` sem caixa,
+    `getByDisplayValue` inexistente).
+  - Os contratos de design reprovaram o primeiro CSS: diálogo fora da lista de tela cheia, `padding`
+    do overlay e altura de campo inventada. Foram corrigidos, e o par entrou em
+    `modal-dialog-fullscreen.contract.ts`.
+- **Revisão de design** (prints `conversa-contratante-{desktop,celular}.png`,
+  `enviar-contratante-{desktop,celular}.png`, `adicionar-contato-desktop.png`). Corrigidos:
+  - o risco sobre o rodapé do balão (o `footer` global vazava);
+  - balões colados;
+  - telefone cru no cartão;
+  - "Texto sugerido" que ficava depois de o operador editar.
+
+  Fica o título duplicado no "Adicionar aos contatos" ("Novo contato" do formulário da T303), menor.
+
+- **Rodado:**
+  - API, contrato: **7332 pass, 0 fail**;
+  - frontend: **5217 + 44 pass, 0 fail**, e o build passou;
+  - worker: **1432 pass**;
+  - lint e typecheck limpos;
+  - API, integração completa, rodada sozinha: **588 pass, 7 skip, 8 fail**. As 8 são as de MinIO de
+    sempre.
