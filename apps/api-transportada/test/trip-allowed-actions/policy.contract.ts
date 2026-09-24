@@ -153,12 +153,18 @@ describe('allowedActions — por parada e por viagem', () => {
     }
   })
 
-  it('os dois toques só quando a máquina aplicaria (confirmLoad some em in_transit)', () => {
+  /**
+   * CA07/RF7 (spec 185, ADR-0074 §5): "Conferir carga" deixa de ser oferecido em qualquer estado —
+   * mesmo `dispatched`, onde a máquina (`checkTripTransition`) aplicaria a transição. `startRoute`
+   * continua, porque "Iniciar rota" segue sendo o "saí" do motorista.
+   */
+  it('CA07: confirmLoad nunca é oferecido, mesmo quando a máquina aplicaria (dispatched)', () => {
     const dispatched = resolveTripAllowedActions({
       capabilities: FINANCE,
       trip: snapshot({ status: 'dispatched' }),
     })
-    expect(dispatched.trip).toEqual(['confirmLoad', 'startRoute'])
+    expect(dispatched.trip).toEqual(['startRoute'])
+    expect(dispatched.trip).not.toContain('confirmLoad')
 
     const inTransit = resolveTripAllowedActions({
       capabilities: FINANCE,
