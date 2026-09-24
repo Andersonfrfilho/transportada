@@ -1021,6 +1021,34 @@
   font-size: 0.78rem;
 }
 
+/**
+ * O que aconteceu na parada saía com a mesma classe da contagem de notas: "Concluída às 17:32" e
+ * "1 nota" eram tipograficamente a mesma coisa, e o fato mais importante da linha — a parada
+ * fechou — se perdia no meio do ruído. Ganha corpo de etiqueta, com a cor do estado: verde quando
+ * concluiu, cobre quando o motorista chegou e a parada ainda está aberta.
+ */
+.stopExecution {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin-left: auto;
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 10%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  line-height: 1.9;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stopExecutionDone {
+  border-color: color-mix(in srgb, var(--color-ready) 55%, transparent);
+  background: color-mix(in srgb, var(--color-ready) 12%, transparent);
+  color: var(--color-ready);
+}
+
 .stopDocumentList {
   min-width: 0;
   display: grid;

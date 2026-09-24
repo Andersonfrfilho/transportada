@@ -361,11 +361,14 @@ function StopExecution({ stop }: Readonly<{ stop: TripStopDetail }>) {
   const { t } = useTranslation('trip')
   if (stop.arrivedAt === null) return null
 
+  const isDone = stop.completedAt !== null
+
   return (
-    <span className={styles.stopCounter}>
-      {stop.completedAt === null
-        ? t('stops.arrivedAt', { time: formatStopTime(stop.arrivedAt) })
-        : t('stops.completedAt', { time: formatStopTime(stop.completedAt) })}
+    <span className={cn(styles.stopExecution, isDone ? styles.stopExecutionDone : undefined)}>
+      <Icon name={isDone ? 'check' : 'clock'} size="sm" />
+      {isDone
+        ? t('stops.completedAt', { time: formatStopTime(stop.completedAt) })
+        : t('stops.arrivedAt', { time: formatStopTime(stop.arrivedAt) })}
     </span>
   )
 }
