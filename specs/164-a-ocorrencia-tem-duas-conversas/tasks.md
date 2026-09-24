@@ -8,8 +8,8 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `opus` (decisão) · a T002 é do usuário
 
-- [ ] **T001** Fechar as três `[NEEDS CLARIFICATION]` do `spec.md` e passar a ADR-0071 para
-      `aceito`. Evidência: `spec.md` sem marcador e a ADR com status e data.
+- [ ] **T001** Passar a ADR-0071 para `aceito` e confirmar que a única `[NEEDS CLARIFICATION]` que
+      resta (provedor de transcrição) só bloqueia a T706. Evidência: a ADR com status e data.
 - [ ] **T002** 🙋 O usuário submete à Meta os modelos de WhatsApp da contratante (abertura de
       ocorrência; pedido de aprovação de taxa com botões "✅ Aprovar" / "❌ Recusar") e do motorista
       (aviso de mensagem nova). **Pare e pergunte** — é conta da empresa na Meta. Evidência: nomes e
@@ -106,6 +106,10 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
       Evidência: contratos de serviço puro.
 - [ ] **T604** Tela da conversa no PWA do motorista, com status `delivered`/`read` gravados ao
       baixar/abrir. Evidência: contrato de serviço + smoke.
+- [ ] **T605** Expiração da janela (RF20): política por tabela, job agendado idempotente, aviso
+      automático, troca do canal padrão (app para o motorista, e-mail para a contratante), aviso na
+      caixa de envio e configuração por empresa. Evidência: suíte da política + integração (o aviso
+      sai uma vez com o job rodando duas vezes; resposta antes cancela).
 
 ## Fase 7 — Status, áudio, respostas rápidas e anexos (P7, P8, P9)
 

@@ -88,6 +88,11 @@ Fora da janela de atendimento de 24h aberta pela última mensagem do contato, a 
 estado da janela e, fechada, oferece só os modelos aprovados da empresa. Vale para a contratante e
 para o motorista: iniciar conversa pelo WhatsApp é sempre por modelo.
 
+Quando a janela está para fechar, o produto **avisa e troca de canal** em vez de deixar a conversa
+morrer (RF20): com o motorista, a conversa segue pelo **app (PWA)**; com a contratante, pelo
+**e-mail** do contato. O operador vê o aviso antes, e a pessoa do outro lado recebe, ainda dentro da
+janela, uma mensagem dizendo por onde a conversa continua.
+
 ### D6 — O WhatsApp da contratante é de quem aceitou
 
 Só recebe WhatsApp o contato com telefone e **aceite registrado** (`whatsapp_opt_in_at`, com quem
@@ -230,7 +235,7 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   envio (PDF, imagem, planilha; limite por canal validado no gateway). Anexo que chega: extraído do
   MIME bruto (e-mail, já gravado pela 143 RF4) ou baixado da Meta (WhatsApp) pelo worker, gravado com
   `sha256`, servido por URL temporária.
-- **RF11** O canal `app` do motorista: a mensagem do operador vira aviso na inbox (`notification.v1`,
+- **RF11** O canal `app` do motorista (o PWA): a mensagem do operador vira aviso na inbox (`notification.v1`,
   `dedupeKey` = id da mensagem) e aparece na tela da conversa do PWA; a resposta do motorista é
   `POST /me/trips/current/occurrences/:id/messages`, com foto.
 - **RF12** Respostas rápidas por empresa e público (`contractor` | `driver`), ordenáveis, ativáveis,
@@ -284,6 +289,21 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   para responder e quanto o motorista levou para ser liberado. Filtros: Tudo, Contratante e
   Motorista.
 
+- **RF20** Expiração da janela do WhatsApp, por conversa:
+  - **fechando** é a última hora da janela: a caixa de envio mostra "a janela fecha em N min (HH:MM)"
+    e para onde a conversa vai depois, com as ações "Avisar agora" e "Mudar agora";
+  - **aviso automático:** 30 minutos antes de fechar (antecedência configurável por empresa), o
+    sistema manda pelo WhatsApp, ainda dentro da janela, um texto fixo dizendo que a conversa
+    continua pelo app (motorista) ou por e-mail (contratante). Sai **uma vez por janela** (chave
+    idempotente: conversa + início da janela), só se houve mensagem pelo WhatsApp naquela janela, e é
+    cancelado se a pessoa responder antes (a janela reabre). Ligado por padrão para o motorista e
+    desligado por padrão para a contratante; a empresa muda os dois;
+  - **fechou:** o canal padrão da conversa passa para o app (motorista) ou para o e-mail (contratante,
+    se o contato tiver e-mail; sem e-mail, só modelo aprovado). Entra um evento de sistema na conversa
+    e na linha do tempo; o rascunho não se perde;
+  - o motorista sem PWA instalado continua recebendo pela inbox (RF11); a troca nunca deixa a
+    mensagem sem destino.
+
 ## Requisitos não funcionais
 
 - Nenhum log leva e-mail, telefone, corpo, assunto, nome de arquivo ou segredo — só ids, canal e
@@ -309,8 +329,10 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 - **Contratante sem contato do tipo Ocorrências:** o diálogo explica e leva à aba Contatos.
 - **Contato perde o aceite de WhatsApp:** envios por WhatsApp a ele param na hora; o histórico fica.
   Mensagem que chegar depois dele é recusada como número desconhecido.
-- **Janela de 24h fecha com a mensagem escrita:** o envio devolve `window_closed` e a tela oferece o
-  modelo; o rascunho fica.
+- **Janela de 24h fecha com a mensagem escrita:** o envio devolve `window_closed`, a tela oferece o
+  canal seguinte (RF20) ou o modelo, e o rascunho fica.
+- **A pessoa responde depois do aviso automático:** a janela reabre, o canal volta a ser WhatsApp, e
+  o próximo aviso só sai no fim da nova janela.
 - **Modelo não aprovado ou recusado pela Meta:** o envio falha como `template_rejected`, a mensagem
   fica `failed` na conversa com o motivo.
 - **Mesmo telefone em contatos de duas contratantes da mesma empresa:** a atribuição por `context.id`
@@ -330,6 +352,10 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   sem `trip.manage` não há envio; o separador não alcança as rotas de envio
   (`test/separator-role.contract.test.ts`).
 - Política da janela de 24h com teste por tabela (aberta, fechando, fechada, sem mensagem recebida).
+- Política de expiração (RF20) com teste por tabela: aviso sai uma vez por janela; não sai sem
+  mensagem de WhatsApp na janela; resposta antes do aviso cancela; depois de fechar, o canal padrão é
+  app (motorista), e-mail (contratante com e-mail) ou modelo (contratante sem e-mail).
+- Integração: o aviso agendado sai uma vez só mesmo com o job rodando duas vezes.
 - Política de atribuição do webhook (RF9) com teste para cada ramo, incluindo o do motorista: sem
   `context.id` de mensagem da conversa, a mensagem segue para os fluxos da spec 144.
 - Política de decisão do WhatsApp (D4): botão de contato com `can_decide` decide; botão de contato sem
@@ -354,14 +380,14 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: respostas rápidas são cadastradas por empresa (proposta, RF12) ou uma lista
-  fixa no código?]
-- [NEEDS CLARIFICATION: os cinco tipos de contato do RF5 cobrem o que a operação usa, ou falta
-  algum?]
+Resolvidas em 2026-09-24 pelo dono do projeto: respostas rápidas são **cadastradas por empresa**
+(RF12), e os **cinco tipos** de contato do RF5 são os da operação.
+
 - [NEEDS CLARIFICATION: qual provedor transcreve o áudio (RF18), e se a voz de contratante e de
   motorista pode sair para ele (LGPD: base legal, retenção no provedor, região)? Decidido, vira
   ADR. Enquanto isso, o áudio funciona sem transcrição.]
 
 O pacote não é mais dúvida: ele chega pronto (D3), e a Fase 1 só confere o contrato.
 
-Enquanto essas três estiverem abertas, só a Fase 0 anda (regra do `AGENTS.md`).
+A dúvida que resta bloqueia **só a T706** (transcrição), que já nasce marcada como bloqueada; o
+restante da spec pode andar depois da T001.

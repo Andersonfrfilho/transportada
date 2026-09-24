@@ -47,6 +47,9 @@
 - Anexos que chegam: extração do MIME já gravado (e-mail) e download da mídia da Meta (WhatsApp),
   com `sha256`, para o bucket privado.
 - Status: eventos do Resend e da Meta aplicados pela política RF14.
+- Expiração da janela (RF20): job agendado por conversa para "fim da janela − antecedência", com
+  chave idempotente (conversa + início da janela); reagendado quando uma mensagem recebida reabre a
+  janela.
 - Áudio recebido: gravado como anexo; depois, transcrito pela porta `speech-to-text.port.ts`
   (RF18) — provedor em ADR própria, desligável por empresa, falha sem derrubar a mensagem.
 
@@ -111,6 +114,10 @@ Migration **aditiva**, sem apagar coluna nem dado:
   ler o MIME) — é o que o RF16 mostra para remetente fora dos contatos. Nenhum log leva esse campo.
 - `occurrence_conversation_unassigned` — mensagem recebida sem conversa certa (RF9).
 - `company_quick_replies` — `company_id`, `audience`, `text` (≤ 500), `position`, `active`.
+- `occurrence_conversation_settings` (por empresa) — `whatsapp_expiry_notice_minutes` (padrão 30),
+  `notify_driver_on_expiry` (padrão `true`), `notify_contractor_on_expiry` (padrão `false`).
+- `occurrence_conversations` + `default_channel` e `window_expiry_notice_sent_for` (início da janela
+  cujo aviso já saiu).
 
 Rollback: `rollback.sql` que dropa as tabelas novas e as colunas novas de `contractor_contacts` e
 de `contractor_mail_messages`, nessa ordem. Nenhum dado anterior à 164 se perde, porque nenhuma coluna existente muda de sentido.
