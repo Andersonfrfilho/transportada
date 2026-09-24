@@ -19,6 +19,18 @@ export type FieldDeliveryDraft = Readonly<{
   receiverName?: string
 }>
 
+/**
+ * Achado de revisão (spec 182): antes vivia como `useState` local de `FieldDeliveryReviewStep` —
+ * "Tirar outra foto" desmontava o passo e apagava as fotos de carga já adicionadas em silêncio.
+ * Mora aqui, no mesmo estado do rascunho da nota, para sobreviver ao retake (que só troca `step`,
+ * nunca `currentIndex`) e reaparecer ao reabrir a conferência.
+ */
+export type FieldDeliveryCargoPhotoDraft = Readonly<{
+  id: string
+  imageBlob: Blob
+  previewUrl: string
+}>
+
 export type FieldDeliveryCapturedPhoto = Readonly<{
   identification: CanhotoIdentificationResult
   imageBlob: Blob
@@ -44,6 +56,9 @@ export type FieldDeliveryWizardStep =
   | Readonly<{ kind: 'finished' }>
 
 export type FieldDeliveryWizardState = Readonly<{
+  /** Achado de revisão (spec 182): fotos de carga ainda não confirmadas, por `documentId` da nota
+   * em revisão — sobrevivem ao "Tirar outra foto" (`retakeRequested`). */
+  cargoPhotosByDocumentId: Readonly<Record<string, readonly FieldDeliveryCargoPhotoDraft[]>>
   currentIndex: number
   documents: readonly FieldDeliveryWizardDocument[]
   drafts: Readonly<Record<string, FieldDeliveryDraft>>
@@ -52,6 +67,12 @@ export type FieldDeliveryWizardState = Readonly<{
 }>
 
 export type FieldDeliveryWizardAction =
+  | Readonly<{ documentId: string; kind: 'cargoPhotoRemoved'; photoId: string }>
+  | Readonly<{
+      documentId: string
+      kind: 'cargoPhotosAdded'
+      photos: readonly FieldDeliveryCargoPhotoDraft[]
+    }>
   | Readonly<{ capture: FieldDeliveryCapturedPhoto; kind: 'photoCaptured' }>
   | Readonly<{ draft: FieldDeliveryDraft; kind: 'confirmRequested' }>
   | Readonly<{ kind: 'previousRequested' }>
@@ -94,6 +115,7 @@ export function createInitialFieldDeliveryWizardState(
   documents: readonly FieldDeliveryWizardDocument[],
 ): FieldDeliveryWizardState {
   return {
+    cargoPhotosByDocumentId: {},
     currentIndex: 0,
     documents,
     drafts: {},
@@ -139,6 +161,28 @@ export function fieldDeliveryWizardReducer(
   action: FieldDeliveryWizardAction,
 ): FieldDeliveryWizardState {
   switch (action.kind) {
+    case 'cargoPhotosAdded': {
+      const existing = state.cargoPhotosByDocumentId[action.documentId] ?? []
+      return {
+        ...state,
+        cargoPhotosByDocumentId: {
+          ...state.cargoPhotosByDocumentId,
+          [action.documentId]: [...existing, ...action.photos],
+        },
+      }
+    }
+
+    case 'cargoPhotoRemoved': {
+      const existing = state.cargoPhotosByDocumentId[action.documentId] ?? []
+      return {
+        ...state,
+        cargoPhotosByDocumentId: {
+          ...state.cargoPhotosByDocumentId,
+          [action.documentId]: existing.filter((photo) => photo.id !== action.photoId),
+        },
+      }
+    }
+
     case 'photoCaptured': {
       const { identification } = action.capture
       if (isBlockedIdentification(identification)) {
@@ -181,7 +225,11 @@ export function fieldDeliveryWizardReducer(
         isSwap && current !== undefined && !state.skippedDocumentIds.includes(current.documentId)
           ? [...state.skippedDocumentIds, current.documentId]
           : state.skippedDocumentIds
-      const partial = { ...state, drafts, skippedDocumentIds }
+      /** Achado de revisão (spec 182): as fotos de carga já foram para `draft.cargoImageBlobs` —
+       * a entrada do rascunho local não serve mais (quem revoga os object URLs é o componente). */
+      const cargoPhotosByDocumentId = { ...state.cargoPhotosByDocumentId }
+      if (current !== undefined) delete cargoPhotosByDocumentId[current.documentId]
+      const partial = { ...state, cargoPhotosByDocumentId, drafts, skippedDocumentIds }
       const currentIndex = firstUndoneIndex(partial, state.currentIndex + 1)
       return { ...partial, currentIndex, step: stepAtIndex(state.documents, currentIndex) }
     }
