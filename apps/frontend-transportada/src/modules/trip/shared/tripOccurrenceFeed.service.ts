@@ -9,6 +9,8 @@ import {
   writeTableColumnPreferences,
 } from '@/modules/shared/tableColumnPreferences.service'
 
+import type { OccurrenceAttachment } from './trip.types'
+
 /**
  * A listagem de ocorrências do escritório (leitura pura): une o que houve com a nota e o que houve
  * na parada, servida por `GET /trip-occurrences` com cursor keyset. Cópia por valor do vocabulário
@@ -17,7 +19,93 @@ import {
 export const TRIP_OCCURRENCE_STAGES = ['separation', 'delivery', 'stop'] as const
 export type TripOccurrenceFeedStage = (typeof TRIP_OCCURRENCE_STAGES)[number]
 
+/**
+ * Spec 164 D3/RF4: a máquina da tratativa. Cópia por valor do vocabulário da API
+ * (`occurrence-case-state.policy.ts`) — o bundle não carrega código do servidor.
+ */
+export const TRIP_OCCURRENCE_CASE_STATUSES = [
+  'recorded',
+  'under_review',
+  'returned_to_warehouse',
+  'awaiting_contractor',
+  'decided',
+  'closed',
+  'cancelled',
+] as const
+export type TripOccurrenceCaseStatus = (typeof TRIP_OCCURRENCE_CASE_STATUSES)[number]
+
+/** `none` é "sem tratativa aberta" — RF11 exige o filtro incluir esta opção. */
+export const TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES = [
+  'none',
+  ...TRIP_OCCURRENCE_CASE_STATUSES,
+] as const
+export type TripOccurrenceCaseStatusFilterValue =
+  (typeof TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES)[number]
+
+export const TRIP_OCCURRENCE_CASE_DECISION_KINDS = [
+  'redelivery_authorized',
+  'goods_paid',
+  'other',
+] as const
+export type TripOccurrenceCaseDecisionKind = (typeof TRIP_OCCURRENCE_CASE_DECISION_KINDS)[number]
+
+/** RF10: o que a API devolve por ocorrência — `null` quando ela não abriu tratativa. */
+export type TripOccurrenceCaseView = Readonly<{
+  decision: null | Readonly<{
+    decidedAt: null | string
+    kind: TripOccurrenceCaseDecisionKind
+    note: string
+  }>
+  redeliveryPolicy: 'allowed' | 'blocked'
+  /**
+   * A API só devolve `null` hoje (T8) — o total por acerto chega numa spec futura. Achado B6 da
+   * revisão: o tipo já aceita o valor (`string`, dinheiro) para o dia em que a API o preencher —
+   * um guard que continuasse exigindo `null` literal reprovaria o feed inteiro nesse dia.
+   */
+  settlementTotal: null | string
+  status: TripOccurrenceCaseStatus
+  updatedAt: string
+}>
+
+/** Spec 164 T23 (RF22): quem pagou o item — só `driver` carrega `payerId`. */
+export const OCCURRENCE_SETTLEMENT_PAYER_KINDS = [
+  'driver',
+  'carrier',
+  'contractor',
+  'insurer',
+] as const
+export type OccurrenceSettlementPayerKind = (typeof OCCURRENCE_SETTLEMENT_PAYER_KINDS)[number]
+
+export const OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES = ['nfe', 'manual'] as const
+export type OccurrenceSettlementAmountSource = (typeof OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES)[number]
+
+export type OccurrenceSettlementItem = Readonly<{
+  amount: string
+  amountSource: OccurrenceSettlementAmountSource
+  payerId?: string
+  payerKind: OccurrenceSettlementPayerKind
+  productCode: string
+}>
+
+export type OccurrenceSettlementResult = Readonly<{
+  items: readonly OccurrenceSettlementItem[]
+  total: string
+}>
+
+/**
+ * `GET /trip-occurrences/:id/case/settlement`: mesmo formato do item que o `PUT` aceita, com
+ * `reimbursedAt` a mais — a marca de ressarcido que só a leitura carrega.
+ */
+export type OccurrenceSettlementItemView = OccurrenceSettlementItem &
+  Readonly<{ reimbursedAt: null | string }>
+
+export type OccurrenceSettlementView = Readonly<{
+  items: readonly OccurrenceSettlementItemView[]
+  total: string
+}>
+
 export type TripOccurrenceFeedItem = Readonly<{
+  case: null | TripOccurrenceCaseView
   createdAt: string
   description: string
   driverName: string
@@ -39,16 +127,15 @@ export type TripOccurrenceFeedPage = Readonly<{
   nextCursor: null | string
 }>
 
-export type TripOccurrenceAttachment = Readonly<{
-  downloadUrl: string
-  expiresAt: string
-  id: string
-  mimeType: string
-}>
+/** Spec 161 T24: mesmo formato de `OccurrenceAttachment` (RF8) — o feed lê a mesma forma que o
+ * painel da nota, sem uma segunda definição para divergir dela. */
+export type TripOccurrenceAttachment = OccurrenceAttachment
 
 export type TripOccurrenceFeedOrder = 'asc' | 'desc'
 
 export type TripOccurrenceFeedFilters = Readonly<{
+  /** RF11: estado da tratativa, incluindo `none` ("sem tratativa"). Todos selecionados = sem filtro. */
+  caseStatuses: readonly TripOccurrenceCaseStatusFilterValue[]
   createdFrom: string
   createdUntil: string
   /** Placas digitadas, separadas por vírgula — multi-valor por campo. */
@@ -59,6 +146,7 @@ export type TripOccurrenceFeedFilters = Readonly<{
 }>
 
 export const EMPTY_TRIP_OCCURRENCE_FILTERS: TripOccurrenceFeedFilters = {
+  caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
   createdFrom: '',
   createdUntil: '',
   platesQuery: '',
@@ -132,6 +220,18 @@ export function toggleTripOccurrenceStage(
   }
 }
 
+export function setTripOccurrenceCaseStatuses(
+  filters: TripOccurrenceFeedFilters,
+  statuses: readonly TripOccurrenceCaseStatusFilterValue[],
+): TripOccurrenceFeedFilters {
+  return {
+    ...filters,
+    caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.filter((value) =>
+      statuses.includes(value),
+    ),
+  }
+}
+
 function parseListQuery(raw: string): readonly string[] {
   return raw
     .split(',')
@@ -180,6 +280,12 @@ export function serializeTripOccurrenceQuery(
   ) {
     search.set('stageIn', input.filters.stages.join(','))
   }
+  if (
+    input.filters.caseStatuses.length > 0 &&
+    input.filters.caseStatuses.length < TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length
+  ) {
+    search.set('caseStatusIn', input.filters.caseStatuses.join(','))
+  }
   return search.toString()
 }
 
@@ -211,5 +317,11 @@ export function countActiveTripOccurrenceFilters(filters: TripOccurrenceFeedFilt
     filters.typesQuery,
   ]
   const stagesChanged = filters.stages.length === TRIP_OCCURRENCE_STAGES.length ? 0 : 1
-  return scalarFields.filter((field) => field.trim().length > 0).length + stagesChanged
+  const caseStatusesChanged =
+    filters.caseStatuses.length === TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES.length ? 0 : 1
+  return (
+    scalarFields.filter((field) => field.trim().length > 0).length +
+    stagesChanged +
+    caseStatusesChanged
+  )
 }

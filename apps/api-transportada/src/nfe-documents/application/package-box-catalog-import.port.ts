@@ -24,12 +24,29 @@ export type PackageBoxCatalogImportGroup = {
   readonly promoted: boolean
 }
 
+/**
+ * Spec 163 (RF05): a medida da unidade de um `cartonGtin`, já aprovada pela sanidade da unidade.
+ * `source` é `catalog` ou `manual:<domínio>` — nunca `typed`, que é decisão humana.
+ */
+export type PackageBoxCatalogImportUnit = {
+  readonly cartonGtin: string
+  readonly grossWeightGrams?: number
+  readonly heightMm: number
+  readonly lengthMm: number
+  readonly source: string
+  readonly widthMm: number
+}
+
 export const PACKAGE_BOX_CATALOG_IMPORT_OUTCOMES = [
   'proposed',
   'promoted',
   'skipped_measured',
   'duplicate',
   'no_matching_box',
+  /** Spec 163: unidade gravada (e estimativa recalculada, se a caixa não tem medida real). */
+  'unit_recorded',
+  /** Spec 163: a caixa já tem unidade digitada pelo conferente — catálogo nunca a sobrescreve. */
+  'unit_skipped_typed',
 ] as const
 export type PackageBoxCatalogImportOutcome = (typeof PACKAGE_BOX_CATALOG_IMPORT_OUTCOMES)[number]
 
@@ -49,5 +66,6 @@ export interface PackageBoxCatalogImportRepositoryPort {
   importCandidates(input: {
     readonly apply: boolean
     readonly groups: readonly PackageBoxCatalogImportGroup[]
+    readonly units: readonly PackageBoxCatalogImportUnit[]
   }): Promise<readonly PackageBoxCatalogImportWriteResult[]>
 }

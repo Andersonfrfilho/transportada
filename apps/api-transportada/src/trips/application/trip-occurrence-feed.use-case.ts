@@ -6,9 +6,18 @@
  * não existe "tratar" ocorrência nesta versão, e a lista não muda estado nenhum.
  */
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type {
+  TripOccurrenceCaseDecisionKind,
+  TripOccurrenceCaseStatus,
+} from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 import type { DeliveryProofDownloadPort } from './read-delivery-proof.use-case.js'
+import { buildOccurrenceAttachmentViews } from './occurrence-attachment.service.js'
+import type {
+  OccurrenceAttachmentRecord,
+  OccurrenceAttachmentView,
+} from './occurrence-attachment.service.js'
 
 /**
  * O grupo do filtro tem três valores, não dois: as ocorrências de parada não têm tipo cadastrado
@@ -18,15 +27,40 @@ import type { DeliveryProofDownloadPort } from './read-delivery-proof.use-case.j
 export const TRIP_OCCURRENCE_FEED_STAGES = ['separation', 'delivery', 'stop'] as const
 export type TripOccurrenceFeedStage = (typeof TRIP_OCCURRENCE_FEED_STAGES)[number]
 
+/**
+ * Spec 164 T8 (RF10): a tratativa desta ocorrência, ou `null` quando não há uma aberta — nunca um
+ * estado inventado. Só a ocorrência de nota tem tratativa; a de parada é sempre `null` (a tabela
+ * `trip_occurrence_cases` referencia `trip_document_occurrences`, não `trip_stop_occurrences`).
+ * `settlementTotal` é sempre `null` nesta fase: o item do acerto (`trip_occurrence_item_settlements`)
+ * é da Fase 5 (T16/T17), que ainda não existe nesta árvore.
+ */
+export type TripOccurrenceFeedCaseView = {
+  readonly decision: {
+    readonly decidedAt: null | string
+    readonly kind: TripOccurrenceCaseDecisionKind
+    readonly note: string
+  } | null
+  readonly redeliveryPolicy: 'allowed' | 'blocked'
+  readonly settlementTotal: null
+  readonly status: TripOccurrenceCaseStatus
+  readonly updatedAt: string
+}
+
 export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): nome de quem clicou, `null` sem vínculo ativo na empresa. */
   readonly actorName: string | null
+  /** Spec 164 T8 (RF10): `null` quando a ocorrência não tem tratativa aberta. */
+  readonly case: TripOccurrenceFeedCaseView | null
   readonly channel: TripFieldChannel
   readonly createdAt: string
   readonly description: string
   /** Primeiro condutor da viagem. Vazio quando a viagem nasceu sem motorista pareado. */
   readonly driverName: string
-  /** A ocorrência de parada carrega no máximo um anexo; a de nota não carrega nenhum. */
+  /**
+   * Spec 161 T10 (RF10): a ocorrência de parada carrega no máximo um anexo (coluna antiga); a de
+   * nota reflete a existência real na tabela nova (D2) ou na coluna antiga (D6, rua) — deixou de
+   * ser `false` fixo.
+   */
   readonly hasAttachment: boolean
   readonly id: string
   readonly invoiceNumber: null | string
@@ -44,7 +78,11 @@ export type TripOccurrenceFeedItem = {
   readonly vehiclePlate: string
 }
 
+/** RF11: `'none'` é "sem tratativa" — a ocorrência não tem `trip_occurrence_cases`. */
+export type TripOccurrenceFeedCaseStatusFilter = 'none' | TripOccurrenceCaseStatus
+
 export type TripOccurrenceFeedFilters = {
+  readonly caseStatusIn?: readonly TripOccurrenceFeedCaseStatusFilter[]
   readonly createdFrom?: string
   readonly createdUntil?: string
   readonly plateIn?: readonly string[]
@@ -70,14 +108,7 @@ export type TripOccurrenceFeedReaderPort = {
   listAttachmentLocations(input: {
     readonly companyId: string
     readonly occurrenceId: string
-  }): Promise<
-    readonly {
-      readonly bucket: string
-      readonly id: string
-      readonly mimeType: string
-      readonly objectKey: string
-    }[]
-  >
+  }): Promise<readonly OccurrenceAttachmentRecord[]>
 }
 
 export type ListTripOccurrenceFeedInput = {
@@ -104,13 +135,14 @@ export function createListTripOccurrenceFeedUseCase(dependencies: {
   }
 }
 
-/** O que a rota de anexos publica: URL assinada de vida curta, nunca bucket nem chave. */
-export type TripOccurrenceAttachmentView = {
-  readonly downloadUrl: string
-  readonly expiresAt: string
-  readonly id: string
-  readonly mimeType: string
-}
+/**
+ * Spec 161 T10 (RF8/RF10/CA6): o que a rota de anexos publica — o mesmo formato de RF8
+ * (`OccurrenceAttachmentView`, ver `occurrence-attachment.service.ts`), com `thumbnailUrl` quando
+ * há miniatura e `expired`/sem URL nenhuma para retenção vencida. `TripOccurrenceAttachmentView` é
+ * o nome antigo, mantido como alias para não obrigar os dois chamadores (feed e painel) a
+ * importarem de dois lugares diferentes o mesmo formato.
+ */
+export type TripOccurrenceAttachmentView = OccurrenceAttachmentView
 
 export type ReadTripOccurrenceAttachmentsInput = {
   readonly context: { readonly companyId: string }
@@ -133,27 +165,12 @@ export function createReadTripOccurrenceAttachmentsUseCase(dependencies: {
     async execute(
       input: ReadTripOccurrenceAttachmentsInput,
     ): Promise<readonly TripOccurrenceAttachmentView[]> {
-      const locations = await dependencies.reader.listAttachmentLocations({
+      const records = await dependencies.reader.listAttachmentLocations({
         companyId: input.context.companyId,
         occurrenceId: input.occurrenceId,
       })
 
-      return Promise.all(
-        locations.map(async (location) => {
-          const download = await dependencies.downloads.createDownloadUrl({
-            bucket: location.bucket,
-            fileName: `ocorrencia-${location.id}`,
-            objectKey: location.objectKey,
-          })
-
-          return {
-            downloadUrl: download.url,
-            expiresAt: download.expiresAt,
-            id: location.id,
-            mimeType: location.mimeType,
-          }
-        }),
-      )
+      return buildOccurrenceAttachmentViews({ downloads: dependencies.downloads, records })
     },
   }
 }

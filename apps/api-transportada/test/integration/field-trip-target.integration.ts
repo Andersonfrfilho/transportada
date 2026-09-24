@@ -124,7 +124,7 @@ describe('o alvo trip do escritório contra o Postgres (spec 156 T3)', () => {
       const company = await seedCompany(database, 1)
       const targetTrip = await seedTrip(database, company, { driverIds: [...company.driverIds] })
       const otherTrip = await seedTrip(database, company, { driverIds: [...company.driverIds] })
-      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
       const target = await resolveOn(database, company, targetTrip.tripId)
 
       /** A parada é 404, a nota é 409: os códigos de hoje, iguais nos dois canais (R5). */
@@ -181,22 +181,24 @@ describe('o alvo trip do escritório contra o Postgres (spec 156 T3)', () => {
       const foreignTrip = await seedTrip(database, second, { driverIds: [...second.driverIds] })
       const foreignTarget = { kind: 'trip', tripId: foreignTrip.tripId } as const
 
-      await new DrizzleDriverFieldReportUnitOfWork(database.db).execute(async (transaction) => {
-        expect(
-          await transaction.findStopForDriver({
-            companyId: first.companyId,
-            stopId: foreignTrip.stopId,
-            target: foreignTarget,
-          }),
-        ).toBeNull()
-        expect(
-          await transaction.findDocumentForDriver({
-            companyId: first.companyId,
-            documentId: foreignTrip.documentId,
-            target: foreignTarget,
-          }),
-        ).toBeNull()
-      })
+      await new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket').execute(
+        async (transaction) => {
+          expect(
+            await transaction.findStopForDriver({
+              companyId: first.companyId,
+              stopId: foreignTrip.stopId,
+              target: foreignTarget,
+            }),
+          ).toBeNull()
+          expect(
+            await transaction.findDocumentForDriver({
+              companyId: first.companyId,
+              documentId: foreignTrip.documentId,
+              target: foreignTarget,
+            }),
+          ).toBeNull()
+        },
+      )
       expect(
         await findDriverReachableDocument(database.db, {
           companyId: first.companyId,
@@ -205,7 +207,7 @@ describe('o alvo trip do escritório contra o Postgres (spec 156 T3)', () => {
         }),
       ).toBeNull()
       expect(
-        await new DrizzleDeliveryProofRepository(database.db).findDeliveryEventId({
+        await new DrizzleDeliveryProofRepository(database.db, 'test-bucket').findDeliveryEventId({
           companyId: first.companyId,
           documentId: foreignTrip.documentId,
           target: foreignTarget,
@@ -219,7 +221,7 @@ describe('o alvo trip do escritório contra o Postgres (spec 156 T3)', () => {
       const company = await seedCompany(database, 1)
       const targetTrip = await seedTrip(database, company, { driverIds: [...company.driverIds] })
       const otherTrip = await seedTrip(database, company, { driverIds: [...company.driverIds] })
-      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
 
       /** A entrega foi do motorista, pelo PWA; o canhoto chega depois, pelo escritório. */
       await reportStopArrival({
@@ -247,7 +249,7 @@ describe('o alvo trip do escritório contra o Postgres (spec 156 T3)', () => {
         .set({ status: 'completed' })
         .where(eq(trips.id, targetTrip.tripId))
 
-      const proofs = new DrizzleDeliveryProofRepository(database.db)
+      const proofs = new DrizzleDeliveryProofRepository(database.db, 'test-bucket')
       const tripTarget = { kind: 'trip', tripId: targetTrip.tripId } as const
       expect(
         await proofs.findDeliveryEventId({

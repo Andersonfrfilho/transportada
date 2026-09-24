@@ -88,16 +88,23 @@ describe('autoria de campo por canal (spec 158 D7)', () => {
     expect(text).toBe('por Marina Alves')
   })
 
-  it('ator removido (actorName: null) em backoffice: "por usuário removido", nunca id/null/undefined', () => {
+  /**
+   * Spec 180 RF3/CA03: `actorName: null` sozinho não prova que o ator foi removido — só prova que o
+   * nome não chegou. "Usuário removido" afirmaria uma remoção que pode não ter ocorrido; a frase
+   * genérica diz só o que se sabe.
+   */
+  it('ator sem nome (actorName: null) em backoffice: "autor não identificado", nunca "removido"', () => {
     const text = resolveFieldAuthorshipText({ actorName: null, channel: 'backoffice' }, translate)
-    expect(text).toBe('por usuário removido')
+    expect(text).toBe('por autor não identificado')
+    expect(text).not.toContain('removido')
     expect(text).not.toContain('null')
     expect(text).not.toContain('undefined')
   })
 
-  it('ator removido (actorName: null) em canal não registrado: "por usuário removido"', () => {
+  it('ator sem nome (actorName: null) em canal não registrado: "autor não identificado"', () => {
     const text = resolveFieldAuthorshipText({ actorName: null, channel: null }, translate)
-    expect(text).toBe('por usuário removido')
+    expect(text).toBe('por autor não identificado')
+    expect(text).not.toContain('removido')
   })
 
   it('a frase de "pelo sistema" não existe (ADR-0068): nenhum canal produz esse texto', () => {
@@ -118,6 +125,7 @@ describe('autoria de campo por canal (spec 158 D7)', () => {
       'backoffice',
       'notRegistered',
       'removedActor',
+      'unidentifiedActor',
       'unknownDriver',
     ]
     for (const key of keys) {

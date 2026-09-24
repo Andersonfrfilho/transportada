@@ -17,7 +17,7 @@ import {
 } from '../../shared/api.constant.js'
 import {
   DELIVERY_CHARGE_STATUSES,
-  DELIVERY_CHARGE_TYPES,
+  MANUAL_DELIVERY_CHARGE_TYPES,
 } from '../../database/delivery-client.schema.js'
 import type {
   DeliveryCharge,
@@ -44,12 +44,12 @@ const DATE_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 
-const recordSchema = z
+export const deliveryChargeRecordSchema = z
   .object({
     amount: z.string().regex(AMOUNT_PATTERN),
     /** Retroativa é o caso normal: o comprovante em papel volta com o motorista no fim do dia. */
     chargedOn: z.string().regex(DATE_PATTERN),
-    chargeType: z.enum(DELIVERY_CHARGE_TYPES),
+    chargeType: z.enum(MANUAL_DELIVERY_CHARGE_TYPES),
     notes: z.string().trim().max(500).default(''),
   })
   .strict()
@@ -69,9 +69,9 @@ const confirmSchema = z
 
 const dismissSchema = z.object({ reason: z.string().trim().min(1).max(500) }).strict()
 
-const ruleSchema = z
+export const deliveryChargeRuleSchema = z
   .object({
-    chargeType: z.enum(DELIVERY_CHARGE_TYPES),
+    chargeType: z.enum(MANUAL_DELIVERY_CHARGE_TYPES),
     expectedAmount: z.string().regex(AMOUNT_PATTERN),
   })
   .strict()
@@ -153,7 +153,7 @@ export function createDeliveryChargeRoutes(
       method: 'POST',
       async parse({ pathParameters, request }) {
         return {
-          ...(await parseBody(recordSchema, request)),
+          ...(await parseBody(deliveryChargeRecordSchema, request)),
           tripDocumentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
         }
       },
@@ -224,7 +224,7 @@ export function createDeliveryChargeRoutes(
       pathname: CLIENT_CHARGE_RULES_PATH,
       policy: CHARGE_READ_POLICY,
     }),
-    defineRoute<z.infer<typeof ruleSchema> & { readonly deliveryClientId: string }>({
+    defineRoute<z.infer<typeof deliveryChargeRuleSchema> & { readonly deliveryClientId: string }>({
       async handle({ context, input }): Promise<Response> {
         const rule = await dependencies.upsertRule.execute({
           chargeType: input.chargeType,
@@ -238,7 +238,7 @@ export function createDeliveryChargeRoutes(
       method: 'PUT',
       async parse({ pathParameters, request }) {
         return {
-          ...(await parseBody(ruleSchema, request)),
+          ...(await parseBody(deliveryChargeRuleSchema, request)),
           deliveryClientId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },

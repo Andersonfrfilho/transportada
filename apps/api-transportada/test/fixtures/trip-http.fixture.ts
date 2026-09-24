@@ -112,7 +112,18 @@ type CreateFixtureParams = {
 
 export const COMPANY_CONTEXT: CompanyContext = {
   ...NFE_COMPANY_CONTEXT,
-  permissions: new Set(['fleet.manage', 'fleet.read', 'mdfe.manage', 'trip.manage']),
+  /**
+   * Spec 156 T8c (ADR-0067): `POST /trips/:id/close` deixou de ser `trip.manage` e passou a
+   * `trip.report-on-behalf` — a permissão entra aqui para os contratos genéricos de viagem
+   * continuarem fechando a viagem sem precisar de um contexto próprio só para essa rota.
+   */
+  permissions: new Set([
+    'fleet.manage',
+    'fleet.read',
+    'mdfe.manage',
+    'trip.manage',
+    'trip.report-on-behalf',
+  ]),
 }
 
 export const NO_PERMISSIONS: CompanyContext['permissions'] = new Set([])
@@ -556,6 +567,12 @@ function createTestRouter(input: {
       },
       migrationStatus: appliedMigrations(),
     }),
+    /**
+     * Spec 161 T6: `POST .../occurrences` ganhou `rateLimit: { store: 'postgres' }` — o roteador
+     * recusa subir com uma rota assim sem um `rateLimitWindows`. O dublê sempre permite; o teto de
+     * verdade é provado em `test/rate-limited-routes.contract.test.ts`.
+     */
+    rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: input.routes,
     tenantContext: {
       async resolveCompany() {

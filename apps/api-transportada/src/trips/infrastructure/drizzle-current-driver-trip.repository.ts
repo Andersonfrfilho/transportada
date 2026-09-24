@@ -3,6 +3,7 @@
  */
 import { and, asc, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 
+import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import {
   companyDeliveryProofSettings,
   deliveryProofSettingOverrides,
@@ -431,7 +432,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
           gte(
             sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`,
-            input.windowStart,
+            timestamptzParameter(input.windowStart),
           ),
           inArray(trips.status, [...TRIP_DISPATCHED_STATUSES]),
           fieldTripTargetCondition({

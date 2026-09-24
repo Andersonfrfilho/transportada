@@ -39,6 +39,17 @@ export const WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF = 2
 /** Salto entre fluxos por mensagem; acima disto o grafo tem ciclo de `flow:` e a conversa para. */
 export const WHATSAPP_MAX_CROSS_FLOW_HOPS = 5
 
+/**
+ * Spec 161 T14 (RF17/D16): o descritor da imagem recebida (`media-id` + `mime_type`), escrito pelo
+ * despachante no contexto ao montar o cursor — nunca pela assinatura de `extractWhatsAppAnswer`,
+ * que o `FlowInterpreter` tipa `string | undefined`. É a única forma de um `FlowActionHandler`
+ * (o router de foto, T15) alcançar a mídia sem a instalação injetar `providers.objectStorage`
+ * (D7). O `media-id` resgata a mídia com o token da empresa — é credencial de curta duração:
+ * nunca em log, e o driver apaga a chave do contexto persistido ao fim de todo turno, consumida
+ * ou não.
+ */
+export const WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY = 'whatsappIncomingImage'
+
 export const WHATSAPP_COMMAND_LOG = {
   denied: 'whatsapp.command.denied',
   failed: 'whatsapp.command.failed',

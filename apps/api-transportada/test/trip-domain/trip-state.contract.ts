@@ -303,7 +303,25 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         }
       }
     }
-    expect(cells).toBe(90)
+    expect(cells).toBe(108)
+  })
+
+  // spec 158 T12 (PERGUNTAS-ABERTAS #28): `close` sai da máquina de estados, não de um `if` solto —
+  // sempre rumo a `completed`, exceto a viagem cancelada, que fica fora do alcance do botão.
+  test('closes toward completed from any status, except a cancelled trip', () => {
+    for (const tripStatus of ['draft', ...WAREHOUSE_STATUSES, ...DISPATCHED_STATUSES] as const) {
+      expect(
+        checkTripTransition({ action: TRIP_ACTION.close, hasRoute: false, tripStatus }),
+      ).toEqual({ outcome: 'applied', nextStatus: 'completed' })
+    }
+
+    expect(
+      checkTripTransition({ action: TRIP_ACTION.close, hasRoute: false, tripStatus: 'cancelled' }),
+    ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled })
+
+    expect(
+      checkTripTransition({ action: TRIP_ACTION.close, hasRoute: false, tripStatus: 'completed' }),
+    ).toEqual({ outcome: 'unchanged' })
   })
 })
 

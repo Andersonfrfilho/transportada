@@ -33,6 +33,13 @@ export type SignedDownloadInput = ObjectLocation & {
   readonly filename?: string
 }
 
+/** ⚠️ Sem `contentType` na assinatura — ele viaja no `PUT`, mas o servidor não pode confiar nele. */
+export type SignedUploadInput = ObjectLocation & {
+  readonly contentLength: number
+  readonly contentType: string
+  readonly expiresInSeconds: number
+}
+
 export type NfeStorageGateway = {
   readonly storeObject: (input: PutInput) => ReturnType<ObjectStorageProvider['put']>
   readonly storeImportSource: (
@@ -61,6 +68,12 @@ export type NfeStorageGateway = {
   /** Spec 156 T15: a limpeza do objeto que subiu numa transação desfeita (sem órfão no bucket). */
   readonly deleteObject: (input: ObjectLocation) => Promise<void>
   readonly createSignedDownload: (input: SignedDownloadInput) => Promise<URL>
+  /**
+   * Spec 179 T202 (RF2): o app sobe o arquivo direto ao bucket — a API nunca vê os bytes. ⚠️ O
+   * `Content-Type` não entra na assinatura (o SDK o marca não-assinável); esta URL só garante
+   * `Content-Length`. A garantia de tipo é a confirmação, depois do upload, sobre o objeto real.
+   */
+  readonly createSignedUpload: (input: SignedUploadInput) => Promise<URL>
   readonly health: () => Promise<{ readonly status: 'up' | 'down' }>
   readonly close: () => Promise<void>
 }
@@ -161,6 +174,9 @@ export function createNfeStorageGateway(input: {
     },
     async createSignedDownload(location) {
       return provider.createSignedDownload(location)
+    },
+    async createSignedUpload(upload) {
+      return provider.createSignedUpload(upload)
     },
     health: provider.health,
     close: provider.close,

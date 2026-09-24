@@ -1,15 +1,26 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useEffect, useState } from 'react'
 
-import { openCameraStream, stopCameraStream, type MediaStreamLike } from './barcodeScanner.service'
+import {
+  countVideoInputDevices,
+  DEFAULT_CAMERA_FACING_MODE,
+  openCameraStream,
+  stopCameraStream,
+  type CameraFacingMode,
+  type MediaStreamLike,
+} from './barcodeScanner.service'
 
 export type CameraStreamStatus = 'denied' | 'idle' | 'ready' | 'starting' | 'unavailable'
 
 export type UseCameraStreamParams = Readonly<{
+  /** Qual câmera abrir. Trocar o valor reabre a sessão na outra câmera. */
+  facingMode?: CameraFacingMode
   isActive: boolean
 }>
 
 export type CameraStreamController = Readonly<{
+  /** `true` só quando o aparelho tem mais de uma câmera — o botão de virar não aparece sem isso. */
+  hasMultipleCameras: boolean
   /** `true` só quando a trilha ativa expõe `torch` em `getCapabilities()` (spec 152, caso extremo). */
   hasTorch: boolean
   status: CameraStreamStatus
@@ -39,11 +50,15 @@ function firstTrack(stream: MediaStreamLike | undefined): TorchCapableTrack | un
  * A lanterna (spec 152, "casos extremos") é do mesmo dono: só a etapa Medida a usa, mas ligar e
  * apagar a trilha certa exige saber qual trilha é a ativa agora.
  */
-export function useCameraStream({ isActive }: UseCameraStreamParams): CameraStreamController {
+export function useCameraStream({
+  facingMode = DEFAULT_CAMERA_FACING_MODE,
+  isActive,
+}: UseCameraStreamParams): CameraStreamController {
   const [status, setStatus] = useState<CameraStreamStatus>('idle')
   const [stream, setStream] = useState<MediaStreamLike | undefined>(undefined)
   const [hasTorch, setHasTorch] = useState(false)
   const [torchOn, setTorchOn] = useState(false)
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false)
 
   useEffect(() => {
     if (!isActive) {
@@ -59,7 +74,7 @@ export function useCameraStream({ isActive }: UseCameraStreamParams): CameraStre
 
     async function start(): Promise<void> {
       setStatus('starting')
-      const result = await openCameraStream(globalThis.navigator)
+      const result = await openCameraStream(globalThis.navigator, facingMode)
       if (isCancelled) {
         if (result.status === 'ready') stopCameraStream(result.stream)
         return
@@ -72,6 +87,9 @@ export function useCameraStream({ isActive }: UseCameraStreamParams): CameraStre
       setStream(result.stream)
       setStatus('ready')
       setHasTorch(firstTrack(result.stream)?.getCapabilities?.()?.torch === true)
+      // A contagem vem depois de a permissão existir: antes dela o Safari esconde as entradas.
+      const cameras = await countVideoInputDevices(globalThis.navigator)
+      if (!isCancelled) setHasMultipleCameras(cameras > 1)
     }
 
     void start()
@@ -83,7 +101,7 @@ export function useCameraStream({ isActive }: UseCameraStreamParams): CameraStre
       setHasTorch(false)
       setTorchOn(false)
     }
-  }, [isActive])
+  }, [facingMode, isActive])
 
   function toggleTorch(): void {
     const track = firstTrack(stream)
@@ -95,5 +113,5 @@ export function useCameraStream({ isActive }: UseCameraStreamParams): CameraStre
     )
   }
 
-  return { hasTorch, status, stream, toggleTorch, torchOn }
+  return { hasMultipleCameras, hasTorch, status, stream, toggleTorch, torchOn }
 }

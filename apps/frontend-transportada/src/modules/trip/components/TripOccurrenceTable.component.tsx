@@ -1,5 +1,4 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +13,8 @@ import {
   type TripOccurrenceColumnKey,
   type TripOccurrenceFeedItem,
 } from '../shared/tripOccurrenceFeed.service'
+import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
+import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
 import styles from '../styles/trip.module.css'
 
 const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -26,7 +27,11 @@ function formatMoment(value: string): string {
   return Number.isNaN(moment.getTime()) ? value : momentFormatter.format(moment)
 }
 
-type TripOccurrenceTableProps = Readonly<{ table: TripOccurrenceTableController }>
+type TripOccurrenceTableProps = Readonly<{
+  /** Spec 164 T22: `occurrences.resolve` — quem valida a tratativa, nunca `trip.manage` (D7). */
+  canResolveOccurrenceCases: boolean
+  table: TripOccurrenceTableController
+}>
 
 function OccurrenceCell({
   column,
@@ -63,58 +68,40 @@ function OccurrenceCell({
   )
 }
 
-/** As fotos abrem em tela cheia ao tocar — fechar volta ao detalhe, nunca a outra tela. */
+/**
+ * Spec 161 T24 (RF10, CA6b): busca as miniaturas só ao abrir o detalhe — nunca na carga da
+ * lista — e delega a grade (esqueleto, `loading="lazy"`, selo de expirada/erro) ao componente
+ * compartilhado com o painel da nota e o detalhe da ocorrência.
+ */
 function OccurrenceAttachments({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
-  const { t } = useTranslation('trip')
-  const [fullscreenUrl, setFullscreenUrl] = useState<null | string>(null)
   const attachmentsQuery = useTripOccurrenceAttachmentsQuery({
     enabled: item.hasAttachment,
     occurrenceId: item.id,
   })
 
   if (!item.hasAttachment) return null
-  if (attachmentsQuery.isLoading) return <Skeleton height="8rem" width="8rem" />
+  if (attachmentsQuery.isLoading) return <Skeleton height="6rem" width="8rem" />
   const attachments = attachmentsQuery.data ?? []
   if (attachments.length === 0) return null
 
   return (
-    <div className={styles.occurrencePhotoGrid}>
-      {attachments.map((attachment) => (
-        <button
-          className={styles.occurrencePhotoButton}
-          key={attachment.id}
-          onClick={() => setFullscreenUrl(attachment.downloadUrl)}
-          type="button"
-        >
-          <img
-            alt={t('occurrenceFeed.detail.photoAlt')}
-            className={styles.occurrencePhotoThumb}
-            src={attachment.downloadUrl}
-          />
-        </button>
-      ))}
-      {fullscreenUrl === null ? null : (
-        <button
-          aria-label={t('occurrenceFeed.detail.closePhoto')}
-          className={styles.occurrencePhotoOverlay}
-          onClick={() => setFullscreenUrl(null)}
-          type="button"
-        >
-          <img
-            alt={t('occurrenceFeed.detail.photoAlt')}
-            className={styles.occurrencePhotoFull}
-            src={fullscreenUrl}
-          />
-        </button>
-      )}
-    </div>
+    <OccurrenceAttachmentGrid
+      attachments={attachments}
+      occurrenceCreatedAt={item.createdAt}
+      onRefresh={async () => (await attachmentsQuery.refetch()).data ?? []}
+    />
   )
 }
 
 function OccurrenceDetailRow({
+  canResolveOccurrenceCases,
   columnCount,
   item,
-}: Readonly<{ columnCount: number; item: TripOccurrenceFeedItem }>) {
+}: Readonly<{
+  canResolveOccurrenceCases: boolean
+  columnCount: number
+  item: TripOccurrenceFeedItem
+}>) {
   const { t } = useTranslation('trip')
 
   return (
@@ -126,6 +113,13 @@ function OccurrenceDetailRow({
             : item.description}
         </p>
         <OccurrenceAttachments item={item} />
+        {item.source === 'document' ? (
+          <OccurrenceCasePanel
+            canResolve={canResolveOccurrenceCases}
+            occurrenceCase={item.case}
+            occurrenceId={item.id}
+          />
+        ) : null}
       </td>
     </tr>
   )
@@ -164,7 +158,10 @@ export function TripOccurrenceTableSkeleton() {
   )
 }
 
-export function TripOccurrenceTable({ table }: TripOccurrenceTableProps) {
+export function TripOccurrenceTable({
+  canResolveOccurrenceCases,
+  table,
+}: TripOccurrenceTableProps) {
   const { t } = useTranslation('trip')
 
   if (table.isLoading) return <TripOccurrenceTableSkeleton />
@@ -231,6 +228,7 @@ export function TripOccurrenceTable({ table }: TripOccurrenceTableProps) {
               if (table.expandedId === item.id) {
                 rows.push(
                   <OccurrenceDetailRow
+                    canResolveOccurrenceCases={canResolveOccurrenceCases}
                     columnCount={columnCount}
                     item={item}
                     key={`${item.id}-detail`}

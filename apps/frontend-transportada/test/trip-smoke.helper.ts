@@ -16,6 +16,19 @@ export const PENDING_DOCUMENT_ID = '00000000-0000-4000-8000-000000000604'
 export const AUTHORIZED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000605'
 const NFE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000606'
 
+/**
+ * Spec 181 T502: a parada e as notas que provam o card redesenhado — carregada com as três ações
+ * de campo, devolvida com motivo, e a nota que carrega tratativa de ocorrência aberta e "sem perfil
+ * de emissão" ao mesmo tempo (os dois eixos de selo que a T502 ainda não tinha dublê para mostrar).
+ */
+export const STOP_CARD_STOP_ID = '00000000-0000-4000-8000-000000000608'
+export const STOP_CARD_LOADED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000609'
+export const STOP_CARD_RETURNED_DOCUMENT_ID = '00000000-0000-4000-8000-00000000060a'
+export const STOP_CARD_OCCURRENCE_DOCUMENT_ID = '00000000-0000-4000-8000-00000000060b'
+/** T502: a parada **concluída** e a nota de destinatário longo — os dois elementos que vazavam. */
+export const STOP_CARD_DONE_STOP_ID = '00000000-0000-4000-8000-00000000061a'
+export const STOP_CARD_LONG_RECIPIENT_DOCUMENT_ID = '00000000-0000-4000-8000-00000000061b'
+
 const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
   driverNames: [],
@@ -29,7 +42,7 @@ const BASE_TRIP = {
   vehicleId: VEHICLE_ID,
 } as const
 
-type DocumentsMode = 'all-authorized' | 'has-pending' | 'measured-bed'
+type DocumentsMode = 'all-authorized' | 'has-pending' | 'measured-bed' | 'stop-card-states'
 
 function measuredBox(
   input: Readonly<{ label: string; layer: number; stopSequence: number; xM: number; zM: number }>,
@@ -198,6 +211,120 @@ function tripDocument(input: Readonly<{ cteAuthorized: boolean; id: string }>) {
 }
 
 /**
+ * Spec 181 T502: a nota "carregada" simples — sem devolução, sem ocorrência, sem detalhe extra —
+ * mas com as três ações de campo liberadas (`registerStopCardAllowedActionsMock` abaixo), que é o
+ * caso feliz do card redesenhado ("Marcar entregue" / "Devolver" / "Ocorrência").
+ */
+const STOP_CARD_LOADED_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: STOP_CARD_LOADED_DOCUMENT_ID }),
+  freightAmount: '850.0000',
+  freightSource: 'measured',
+  nfeIssuedAt: '2026-08-10T09:00:00.000Z',
+  nfeNumber: '901',
+  nfeSeries: '1',
+  nfeTotalValue: '4200.0000',
+  separationStatus: 'loaded',
+  stopId: STOP_CARD_STOP_ID,
+} as const
+
+/**
+ * Spec 181 RF3/CA03: devolvida com motivo — o selo compõe "Devolvida · Ausente" a partir de
+ * `separationStatus` + `returnReason`, sem repetir o motivo numa frase à parte.
+ */
+const STOP_CARD_RETURNED_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: STOP_CARD_RETURNED_DOCUMENT_ID }),
+  nfeNumber: '902',
+  nfeSeries: '1',
+  returnedAt: '2026-08-10T15:00:00.000Z',
+  returnReason: 'recipient_absent',
+  separationStatus: 'returned',
+  stopId: STOP_CARD_STOP_ID,
+} as const
+
+/**
+ * Spec 181 RF2/CA02 + prontidão `no_profile`: os outros dois eixos de selo na mesma nota, com
+ * contato e regra de frete para a expansão "Detalhes da nota" (T304) aparecer, e mercadoria para o
+ * grupo "Carga" da linha.
+ */
+const STOP_CARD_OCCURRENCE_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: false, id: STOP_CARD_OCCURRENCE_DOCUMENT_ID }),
+  contact: {
+    contractorName: 'Contratante Sintético LTDA',
+    name: 'Cliente Sintético',
+    phone: '16999990002',
+    taxId: '12345678000199',
+  },
+  freightRuleName: 'Tabela padrão',
+  nfeNumber: '903',
+  nfeSeries: '1',
+  nfeTotalValue: '1800.0000',
+  openOccurrenceCase: true,
+  stopId: STOP_CARD_STOP_ID,
+} as const
+
+/**
+ * T502: o destinatário de nome longo. A revisão de design encontrou "Recebe: <razão social>" saindo
+ * pela borda direita do card sem reticências nem quebra — sem uma razão social de verdade na
+ * fixture, o print mostrava um nome curto e o vazamento não aparecia na foto.
+ */
+const STOP_CARD_LONG_RECIPIENT_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: STOP_CARD_LONG_RECIPIENT_DOCUMENT_ID }),
+  contact: {
+    contractorName: 'DISTRIBUIDORA CENTRO OESTE DE MEDICAMENTOS LTDA',
+    name: 'ALMEIDA COMERCIO DE PRODUTOS DE FARMACIA E PERFUMARIA LTDA',
+    phone: '16999990003',
+    taxId: '12345678000190',
+  },
+  freightAmount: '90.5600',
+  freightSource: 'estimated',
+  nfeIssuedAt: '2026-08-10T09:12:00.000Z',
+  nfeNumber: '904',
+  nfeSeries: '1',
+  nfeTotalValue: '754.6300',
+  returnedAt: '2026-08-10T17:31:00.000Z',
+  returnReason: 'recipient_absent',
+  separationStatus: 'returned',
+  stopId: STOP_CARD_DONE_STOP_ID,
+} as const
+
+/**
+ * T502: a parada **concluída**. Ela existe pelo cabeçalho, não pela nota: parada visitada ganha o
+ * selo de execução e o botão "Registrar ocorrência" ao lado, e era essa combinação que espremia o
+ * botão até o rótulo quebrar dentro da própria caixa. Parada só de galpão nunca fotografa o defeito.
+ */
+const STOP_CARD_DONE_STOP = {
+  addressKey: 'stop-card-done',
+  arrivedAt: '2026-08-10T17:05:00.000Z',
+  completedAt: '2026-08-10T17:31:00.000Z',
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: [STOP_CARD_LONG_RECIPIENT_DOCUMENT],
+  hasOpenOccurrence: false,
+  id: STOP_CARD_DONE_STOP_ID,
+  label: 'AVENIDA 21, 610, BARRETOS, SP',
+  sequence: 2,
+} as const
+
+/** Spec 181 T502: uma parada só, com as três notas acima — a mesma lista entra em `documents` (nível
+ * da viagem) e aqui aninhada (ADR-0043 §3), nunca uma cópia divergente. */
+const STOP_CARD_STOP = {
+  addressKey: 'stop-card-states',
+  arrivedAt: null,
+  completedAt: null,
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: [
+    STOP_CARD_LOADED_DOCUMENT,
+    STOP_CARD_RETURNED_DOCUMENT,
+    STOP_CARD_OCCURRENCE_DOCUMENT,
+  ],
+  hasOpenOccurrence: true,
+  id: STOP_CARD_STOP_ID,
+  label: 'Barracão Sintético',
+  sequence: 1,
+} as const
+
+/**
  * ⚠️ **Anotado de propósito.** O guard do detalhe usa `hasExactKeys`: campo do corpo ausente aqui
  * reprova a validação inteira em tempo de execução, o detalhe não carrega, e a tela fica sem botão
  * nenhum — o smoke quebra em quatro casos e nenhum contrato de unidade acusa. Sem o tipo, só o
@@ -210,11 +337,22 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
           tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID }),
           tripDocument({ cteAuthorized: false, id: PENDING_DOCUMENT_ID }),
         ]
-      : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
+      : mode === 'stop-card-states'
+        ? [
+            STOP_CARD_LOADED_DOCUMENT,
+            STOP_CARD_RETURNED_DOCUMENT,
+            STOP_CARD_OCCURRENCE_DOCUMENT,
+            STOP_CARD_LONG_RECIPIENT_DOCUMENT,
+          ]
+        : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
 
   return {
     ...BASE_TRIP,
     amounts: null,
+    /** Spec 156 T8d: `null` nos três — a viagem do smoke nunca foi encerrada à mão. */
+    closeReason: null,
+    closedAt: null,
+    closedByName: null,
     documents,
     /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
     estimatedArrivalFrozenAt: null,
@@ -232,7 +370,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       : { cargoLayout: null, occupancy: null }),
     cargoWeight: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
-    stops: [],
+    stops: mode === 'stop-card-states' ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP] : [],
   }
 }
 
@@ -378,6 +516,28 @@ function fiscalReadiness(mode: DocumentsMode) {
     rejectionMessage: null,
     tripDocumentId: PENDING_DOCUMENT_ID,
   } as const
+  /** Spec 181 T502: o eixo "sem perfil de emissão" do card da nota — reason `no_profile`. */
+  const noProfile = {
+    cteAccessKey: null,
+    cteFiscalDocumentId: null,
+    expectedDocument: 'no_profile',
+    nfeDocumentId: NFE_DOCUMENT_ID,
+    reason: 'no_profile',
+    rejectionCode: null,
+    rejectionMessage: null,
+    tripDocumentId: STOP_CARD_OCCURRENCE_DOCUMENT_ID,
+  } as const
+
+  if (mode === 'stop-card-states') {
+    return {
+      documents: [noProfile],
+      manifestableCount: 0,
+      nfseCount: 0,
+      readyCount: 0,
+      state: 'incomplete',
+      totalCount: 1,
+    } as const
+  }
 
   const documents = mode === 'has-pending' ? [authorized, pending] : [authorized]
 
@@ -457,13 +617,30 @@ async function registerTripMocks(
    * como a estrada, senão o padrão `/trips/{id}` o engoliria; sem ele o pedido escapa para a API
    * real, que não sobe no smoke, e o `requestfailed` reprova seis telas de viagem de uma vez.
    * Listas vazias: o smoke mede layout, e nenhum botão de ação da viagem entra nas asserções.
+   *
+   * Spec 181 T502: `stop-card-states` é a exceção — a nota "carregada" só prova o caso feliz do
+   * card ("Marcar entregue"/"Devolver"/"Ocorrência") se a capacidade vier liberada daqui.
    */
   await input.page.route(/\/trips\/[^/]+\/allowed-actions$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)
       return
     }
-    await fulfillJson(route, { data: { documents: {}, stops: {}, trip: [] } })
+    const isStopCard = input.mode === 'stop-card-states'
+    const documents = isStopCard
+      ? {
+          [STOP_CARD_LOADED_DOCUMENT_ID]: ['fieldDelivery', 'fieldOccurrence', 'fieldReturn'],
+          [STOP_CARD_LONG_RECIPIENT_DOCUMENT_ID]: ['fieldOccurrence', 'fieldProof'],
+        }
+      : {}
+    /** T502: sem a capacidade da parada o botão "Registrar ocorrência" do cabeçalho nem existe. */
+    const stops = isStopCard
+      ? {
+          [STOP_CARD_DONE_STOP_ID]: ['occurrence'],
+          [STOP_CARD_STOP_ID]: ['arrive', 'occurrence'],
+        }
+      : {}
+    await fulfillJson(route, { data: { documents, stops, trip: [] } })
   })
   /**
    * O catálogo de tipos de ocorrência é consultado pelo detalhe da viagem. Sem este dublê o pedido
@@ -471,6 +648,18 @@ async function registerTripMocks(
    * têm a ver com ocorrência — foi o que aconteceu quando a tela passou a consultá-lo.
    */
   await input.page.route(/\/company-settings\/occurrence-types$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
+  /**
+   * Spec 169: a conta da viagem lê as espécies ativas de despesa e de receita assim que abre. Sem
+   * este dublê os dois pedidos escapam para a API real e o `requestfailed` derruba oito smokes que
+   * nada têm a ver com lançamento — exatamente o que o catálogo de ocorrências já tinha causado.
+   */
+  await input.page.route(/\/company-settings\/entry-kinds\/active(?:\?.*)?$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)
       return

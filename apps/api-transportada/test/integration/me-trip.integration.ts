@@ -89,7 +89,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedDispatchedTrip(database)
       const reads = new DrizzleCurrentDriverTripRepository(database.db)
-      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
       const context = {
         actorUserId: world.userId,
         companyId: world.companyId,
@@ -296,7 +296,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   testWithPostgres('o reenvio da fila offline não duplica o que já foi reportado', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedDispatchedTrip(database)
-      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
       const input = {
         actorUserId: world.userId,
         companyId: world.companyId,
@@ -343,8 +343,11 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         await database.db
           .insert(companyDeliveryProofSettings)
           .values({ companyId: world.companyId, photo: 'required' })
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
-        const deliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+        const deliveryProofRepository = new DrizzleDeliveryProofRepository(
+          database.db,
+          'test-bucket',
+        )
         let objectCounter = 0
         const storage = {
           store: async () => ({ sha256: `${(objectCounter += 1)}`.padStart(64, '0') }),
@@ -463,8 +466,11 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
             photo: 'required',
             scoreEffectiveSince: new Date(NOW.getTime() - 24 * 60 * 60 * 1000),
           })
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
-        const deliveryProofRepository = new DrizzleDeliveryProofRepository(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+        const deliveryProofRepository = new DrizzleDeliveryProofRepository(
+          database.db,
+          'test-bucket',
+        )
         const reads = new DrizzleCurrentDriverTripRepository(database.db)
         const context = {
           actorUserId: world.userId,
@@ -570,7 +576,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         await database.db
           .insert(companyDeliveryProofSettings)
           .values({ companyId: world.companyId, photo: 'required' })
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
         const reads = new DrizzleCurrentDriverTripRepository(database.db)
         const context = {
           actorUserId: world.userId,
@@ -647,7 +653,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
           newObjectId: () => crypto.randomUUID(),
           newProofId: () => crypto.randomUUID(),
           now: new Date(),
-          repository: new DrizzleDeliveryProofRepository(database.db),
+          repository: new DrizzleDeliveryProofRepository(database.db, 'test-bucket'),
           sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
           storage: { store: async () => ({ sha256: 'f'.repeat(64) }) },
           upload: {
@@ -687,7 +693,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const world = await seedDispatchedTrip(database)
       const stranger = await seedDriverOnly(database)
       const reads = new DrizzleCurrentDriverTripRepository(database.db)
-      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+      const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
 
       const opened = await findCurrentDriverTrip({
         companyId: stranger.companyId,

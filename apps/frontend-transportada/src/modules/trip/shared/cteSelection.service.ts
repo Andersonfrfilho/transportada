@@ -28,3 +28,26 @@ export function selectPendingCteDocumentIds(input: SelectPendingCteInput): reado
     )
     .map((document) => document.tripDocumentId)
 }
+
+export type SelectPendingNfseInput = Readonly<{
+  documents: readonly TripDocumentReadiness[] | undefined
+  selectedIds: ReadonlySet<string>
+}>
+
+/**
+ * O que da seleção espera NFS-e, em ids de **nota** — é o que a emissão de NFS-e recebe, ao
+ * contrário do lote de CT-e, que trabalha com o id do documento da viagem. Nota sem id de nota fica
+ * de fora: mandar o id do outro espaço emitiria contra a nota errada, ou contra nenhuma.
+ */
+export function selectPendingNfseDocumentIds(input: SelectPendingNfseInput): readonly string[] {
+  return (input.documents ?? [])
+    .filter(
+      (document) =>
+        input.selectedIds.has(document.tripDocumentId) &&
+        document.expectedDocument === 'nfse' &&
+        document.reason === 'nfse_expected' &&
+        document.nfeDocumentId !== null,
+    )
+    .map((document) => document.nfeDocumentId)
+    .filter((id): id is string => id !== null)
+}

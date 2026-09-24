@@ -18,6 +18,8 @@ import styles from '../styles/trip.module.css'
 
 /** A leitura de ocorrência é leitura de viagem — e leitura de viagem segue em `fleet.read`. */
 const TRIP_READ_PERMISSION = 'fleet.read'
+/** Spec 164 D7: validar a própria tratativa é `occurrences.resolve`, nunca `trip.manage`. */
+const OCCURRENCE_CASE_RESOLVE_PERMISSION = 'occurrences.resolve'
 
 function TripOccurrencesPageSkeleton() {
   const { t } = useTranslation('trip')
@@ -49,6 +51,7 @@ export function TripOccurrencesWorkspacePage() {
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
   const canReadOccurrences = companyId !== undefined && permissions.includes(TRIP_READ_PERMISSION)
+  const canResolveOccurrenceCases = permissions.includes(OCCURRENCE_CASE_RESOLVE_PERMISSION)
 
   const table = useTripOccurrenceTable({
     ...(companyId === undefined ? {} : { companyId }),
@@ -93,7 +96,10 @@ export function TripOccurrencesWorkspacePage() {
               </Button>
             </div>
             {isColumnsMenuOpen ? <TripOccurrenceColumnsMenu table={table} /> : null}
-            <TripOccurrenceTable table={table} />
+            <TripOccurrenceTable
+              canResolveOccurrenceCases={canResolveOccurrenceCases}
+              table={table}
+            />
           </section>
         </div>
       ) : null}

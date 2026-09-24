@@ -17,10 +17,14 @@ import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettin
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
-import { selectPendingCteDocumentIds } from '../shared/cteSelection.service'
+import {
+  selectPendingCteDocumentIds,
+  selectPendingNfseDocumentIds,
+} from '../shared/cteSelection.service'
 import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey, resolveTripFeedbackKey } from '../shared/tripFeedback.service'
+import { countOpenTripDocumentsForClose } from '../shared/tripClose.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
 import { canIssueMdfe, selectPendingCteDocuments } from '../shared/tripMdfeGate.service'
 import {
@@ -30,6 +34,7 @@ import {
 } from '../shared/tripNavigation.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus.service'
+import { resolveSeparationOccurrenceButtonVisibility } from '../shared/separationOccurrenceButton.service'
 import {
   hasMultipleDrivers,
   resolveDefaultOnBehalfDriverId,
@@ -43,14 +48,17 @@ import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
 import { TripOccurrences } from './TripOccurrences.component'
+import { SeparationOccurrenceDialog } from './SeparationOccurrenceDialog.component'
 import { TripRouteMap } from './TripRouteMap.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
+import { TripCloseDialog } from './TripCloseDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
+import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 
@@ -58,9 +66,10 @@ import { describeTripVehicle } from '../shared/vehicleSummary.service'
 import { buildFieldDeliveryWizardDocuments } from '../shared/fieldDeliveryDocument.service'
 import { FieldDeliveryWizard } from './FieldDeliveryWizard.component'
 import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
-import { TripFieldActions } from './TripFieldActions.component'
+import { TripHeaderActions } from './TripHeaderActions.component'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
+import type { TripStopOccurrenceSubmission } from './TripStopOccurrenceDialog.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
 import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 
@@ -101,10 +110,68 @@ function describeVehicle(
   })
 }
 
+/**
+ * O quadro do veículo (pedido do usuário: "add isso tbm em um quadrado") reaproveita
+ * `VehicleIdentityBand` — a mesma faixa que a proposta e a criação manual já usam (D8 do
+ * componente): marca/modelo em destaque, placa ao lado, ano e cor como fichas. `null` quando o
+ * veículo saiu da frota — a linha de texto com o identificador bruto continua sendo o fallback,
+ * porque o quadro não tem o que desenhar sem marca, modelo ou tipo.
+ */
+function resolveVehicleIdentityBandProps(
+  vehicles: readonly FleetVehicleDetail[],
+  vehicleId: string,
+  translateFleet: (key: string) => string,
+): null | {
+  facts: readonly { label: string; value: string }[]
+  label: null | string
+  plate: string
+  vehicleType: FleetVehicleDetail['vehicleType']
+} {
+  const vehicle = vehicles.find((entry) => entry.id === vehicleId)
+  if (vehicle === undefined) return null
+
+  const name = [vehicle.brand, vehicle.model]
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .join(' ')
+  const label = name === '' ? null : name
+  const colorLabel =
+    resolveVehicleColorSwatch(vehicle.color) === undefined
+      ? ''
+      : translateFleet(`colorOption.${vehicle.color}`)
+
+  return {
+    facts: [
+      ...(vehicle.modelYear > 0
+        ? [{ label: translateFleet('identityBand.year'), value: String(vehicle.modelYear) }]
+        : []),
+      ...(colorLabel === ''
+        ? []
+        : [{ label: translateFleet('identityBand.color'), value: colorLabel }]),
+    ],
+    label,
+    plate: vehicle.plate,
+    vehicleType: vehicle.vehicleType,
+  }
+}
+
 function statusClassName(status: TripStatus): string {
   return status === 'completed' || status === 'cancelled'
     ? `${styles.statusBadge} ${styles.statusReady}`
     : `${styles.statusBadge}`
+}
+
+const closedAtFormatter = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+
+function formatClosedAt(value: string): string {
+  const moment = new Date(value)
+  return Number.isNaN(moment.getTime()) ? value : closedAtFormatter.format(moment)
 }
 
 type TripDetailSkeletonProps = Readonly<{
@@ -189,6 +256,11 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    * trilha, e o diálogo é onde o motivo é digitado antes de o servidor recusá-la sem ele.
    */
   const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false)
+  /**
+   * Spec 156 T8c (ADR-0067): encerrar passou a confirmar antes — quantas notas ficam sem baixa e,
+   * quando há alguma em aberto, o motivo. `false` fecha o diálogo sem chamar a mutation.
+   */
+  const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false)
   const selection = useTripDocumentSelection()
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
@@ -270,6 +342,9 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   }
 
   const canManage = workspace.controller.canManageTrips
+  /** Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` — é o escritório que confirma. */
+  const canCloseTrip = workspace.controller.canReportOnBehalf
+  const openTripDocumentCount = countOpenTripDocumentsForClose(trip.documents)
   /**
    * Spec 156 D11/T8: geometria, agendamento, prontidão fiscal e produtos continuam só em
    * `fleet.read` — o `finance` (`trip.report-on-behalf`) recebe 403 nessas rotas. O painel fica
@@ -277,6 +352,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    * botão de configurar isso.
    */
   const canReadFleetDetails = workspace.controller.canReadTripFleetDetails
+  const vehicleIdentity = resolveVehicleIdentityBandProps(vehicles, trip.vehicleId, tFleet)
   const isEditable = isTripEditable(trip.status)
   const canSeparateOrLoad = canSeparateOrLoadDocuments(trip.status)
   const isCompleted = trip.status === 'completed'
@@ -305,16 +381,47 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     [...selection.selectedIds].some((documentId) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldDelivery'),
     )
+  const canSeparationOccurrence = resolveSeparationOccurrenceButtonVisibility({
+    canManage,
+    isEditable,
+    types: workspace.occurrenceTypesQuery.data ?? [],
+  })
+  /**
+   * Spec 174 RF1: a prontidão por nota, indexada por `tripDocumentId` — é o que a linha da parada
+   * lê para mostrar o próprio estado fiscal, sem repetir a lista que o painel de prontidão tinha.
+   */
+  const fiscalReadinessByDocumentId = new Map(
+    (workspace.fiscalReadiness?.documents ?? []).map((entry) => [entry.tripDocumentId, entry]),
+  )
   const documentActions = {
     canManage,
+    canReportOnBehalf: workspace.controller.canReportOnBehalf,
     canSeparateOrLoad,
+    canSeparationOccurrence,
+    canIssueNfse: workspace.controller.canIssueNfse,
+    canSubmitCte: workspace.controller.canSubmitCte,
     canFieldDelivery: (documentId: string) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldDelivery'),
     canFieldOccurrence: (documentId: string) =>
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldOccurrence'),
     capabilities: workspace.fieldActionCapabilities,
+    fiscalReadinessByDocumentId,
+    isArrivePending: workspace.reportStopArrivalMutation.isPending,
+    isGeneratingCte: workspace.createCteBatchMutation.isPending,
+    isOccurrencePending: workspace.reportStopOccurrenceMutation.isPending,
+    /**
+     * O par que a ação de NFS-e do módulo dono exige. A emissão pede `profileId`, e quem o escolhe
+     * é o operador dentro do diálogo — a linha só oferece a abertura.
+     */
+    companyId: workspace.companyId,
+    permissions: workspace.permissions,
+    onNfseEmitted: () => workspace.refetchFiscalReadiness(),
+    onGenerateCte: (documentId: string) =>
+      workspace.createCteBatchMutation.mutate({ tripDocumentIds: [documentId], tripId: trip.id }),
     onOpenFieldDelivery: (documentId: string) => setFieldDeliveryDocumentIds([documentId]),
     onOpenFieldOccurrence: (documentId: string) => setFieldOccurrenceDocumentIds([documentId]),
+    onOpenSeparationOccurrence: (documentId: string) =>
+      workspace.setOpenSeparationOccurrenceDocumentId(documentId),
     onToggleProof: (documentId: string) =>
       workspace.setOpenProofDocumentId(
         workspace.openProofDocumentId === documentId ? null : documentId,
@@ -327,15 +434,13 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         workspace={workspace}
       />
     ),
-    isDeliverPending: workspace.fieldDeliverDocumentMutation.isPending,
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
     isReturnPending: workspace.fieldReturnDocumentMutation.isPending,
     isTransitionPending: workspace.transitionDocumentMutation.isPending,
-    onFieldDeliver: (documentId: string) =>
-      workspace.fieldDeliverDocumentMutation.mutate({
-        deliveredAt: new Date().toISOString(),
-        documentId,
+    onArrive: (input: { arrivedAt: string; stopId: string }) =>
+      workspace.reportStopArrivalMutation.mutate({
+        ...input,
         ...officeDriverIdInput,
         tripId: trip.id,
       }),
@@ -343,6 +448,12 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     onLoad: (documentId: string) =>
       workspace.transitionDocumentMutation.mutate({ action: 'load', documentId, tripId: trip.id }),
     onOverrideAddress: (documentId: string) => setOverrideDocumentId(documentId),
+    onRegisterStopOccurrence: (input: TripStopOccurrenceSubmission & { stopId: string }) =>
+      workspace.reportStopOccurrenceMutation.mutate({
+        ...input,
+        ...officeDriverIdInput,
+        tripId: trip.id,
+      }),
     onRelease: (documentId: string) =>
       workspace.releaseDocumentMutation.mutate({ documentId, tripId: trip.id }),
     onSeparate: (documentId: string) =>
@@ -460,8 +571,19 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   }
 
   function handleCloseTrip(): void {
+    setIsCloseDialogOpen(true)
+  }
+
+  /**
+   * Fecha o diálogo só **depois** do sucesso (achado do code-reviewer): fechar antes do `mutate`
+   * responder perdia o motivo digitado assim que o 422 chegava — o diálogo reabria vazio.
+   */
+  function handleCloseTripSubmit(reason: null | string): void {
     if (trip === undefined) return
-    workspace.closeMutation.mutate({ tripId: trip.id })
+    workspace.closeMutation.mutate(
+      { reason, tripId: trip.id },
+      { onSuccess: () => setIsCloseDialogOpen(false) },
+    )
   }
 
   function handleReorderStops(stopIds: readonly string[]): void {
@@ -488,7 +610,58 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       <div className={styles.panelHead}>
         <h2 id="trip-detail-title">{t('detail.title')}</h2>
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
+        {/*
+         * Spec 170: as ações de estado ficam **aqui**, junto do status, com o resumo do que barra o
+         * próximo passo. Elas viviam numa seção no meio da página, e a decisão exigia rolar.
+         */}
+        <TripHeaderActions
+          canManage={canManage}
+          canReportOnBehalf={workspace.controller.canReportOnBehalf}
+          capabilities={workspace.fieldActionCapabilities}
+          fiscalReadiness={workspace.fiscalReadiness}
+          isCancelPending={workspace.cancelMutation.isPending}
+          isConfirmLoadPending={workspace.confirmLoadTripMutation.isPending}
+          isDispatchPending={workspace.dispatchMutation.isPending}
+          isFiscalReadinessPanelVisible={canReadFleetDetails}
+          isPlanRoutePending={workspace.planRouteMutation.isPending}
+          isStartRoutePending={workspace.startFieldTripMutation.isPending}
+          onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
+          onConfirmLoad={() =>
+            workspace.confirmLoadTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
+          }
+          onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
+          onOpenOccurrenceDocument={(documentId) =>
+            workspace.setOpenSeparationOccurrenceDocumentId(documentId)
+          }
+          onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
+          onSelectDriverId={setSelectedOfficeDriverId}
+          onStartRoute={() =>
+            workspace.startFieldTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
+          }
+          selectedDriverId={officeDriverId ?? ''}
+          trip={trip}
+        />
       </div>
+
+      {/*
+       * Spec 156 T8d: só aparece no encerramento manual (`closedAt` preenchido) — a derivação
+       * automática que também leva a viagem a `completed` nunca grava as três colunas.
+       */}
+      {trip.closedAt === null || trip.closedAt === undefined ? null : (
+        <p className={styles.hint}>
+          {trip.closedByName === null || trip.closedByName === undefined
+            ? t('detail.closedManually', { moment: formatClosedAt(trip.closedAt) })
+            : t('detail.closedManuallyBy', {
+                moment: formatClosedAt(trip.closedAt),
+                name: trip.closedByName,
+              })}
+          {trip.closeReason === null ||
+          trip.closeReason === undefined ||
+          trip.closeReason === '' ? null : (
+            <> — {t('eventTimeline.closeReason', { reason: trip.closeReason })}</>
+          )}
+        </p>
+      )}
 
       {feedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
@@ -514,9 +687,19 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
        * mostrá-lo vazaria o identificador interno em vez de omitir a linha (t7-design §2.6).
        */}
       {canReadFleetDetails ? (
-        <p className={styles.summaryLine}>
-          {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
-        </p>
+        vehicleIdentity === null ? (
+          <p className={styles.summaryLine}>
+            {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
+          </p>
+        ) : (
+          <VehicleIdentityBand
+            facts={vehicleIdentity.facts}
+            label={vehicleIdentity.label}
+            plate={vehicleIdentity.plate}
+            specification={null}
+            vehicleType={vehicleIdentity.vehicleType}
+          />
+        )
       ) : null}
 
       <fieldset className={styles.driverChecklist}>
@@ -569,201 +752,6 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           now: new Date().toISOString(),
           status: trip.status,
           stops: trip.stops,
-        })}
-      />
-
-      {/*
-        ⚠️ O tipo do veículo vem da frota carregada, não da viagem: o corpo do detalhe traz o
-        `vehicleId` e nada mais. Sem ele a silhueta cai no contorno genérico — e quem abre o detalhe
-        de um truck via um desenho de VUC, com a escala errada entre os tipos.
-      */}
-      <TripCargoPanel
-        cargoWeight={trip.cargoWeight ?? null}
-        layout={trip.cargoLayout}
-        layoutView={workspace.cargoLayoutView}
-        occupancy={trip.occupancy}
-        reviewQueue={
-          <TripReviewQueue
-            canManage={canManage}
-            isEditable={isEditable}
-            layoutId={trip.cargoLayoutId ?? null}
-            target={{ kind: 'trip', tripId: trip.id, vehicles }}
-            unplaced={
-              (workspace.cargoLayoutView?.layout ?? trip.cargoLayout)?.placement?.unplaced ?? []
-            }
-          />
-        }
-        vehicleType={vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType ?? ''}
-      />
-
-      {/* Spec 156 D11: geometria é `fleet.read` — sem ela, oculta em vez de bater 403 sozinha. */}
-      {canReadFleetDetails ? (
-        <TripRouteMap
-          canAdjustTollBooth={canAdjustTollBooth}
-          canCorrect={canManage}
-          geometry={workspace.routeGeometryQuery.data ?? null}
-          stops={trip.stops}
-          isCorrecting={workspace.correctAddressMutation.isPending}
-          isGeometryError={workspace.routeGeometryQuery.isError}
-          isGeometryPending={workspace.routeGeometryQuery.isPending}
-          onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
-          onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
-        />
-      ) : null}
-
-      {selection.selectedIds.size > 0 ? (
-        <div className={styles.selectionBar} role="status">
-          <span>{t('stops.selectionCount', { count: selection.selectedIds.size })}</span>
-          <Button onClick={selection.clear} size="sm" type="button" variant="ghost">
-            <Icon name="close" />
-            {t('stops.selectionClear')}
-          </Button>
-        </div>
-      ) : null}
-
-      {/*
-       * Spec 079 T021: **vincular e agir vêm antes da lista.** Numa viagem com doze paradas os dois
-       * ficavam abaixo de tudo, e quem abria a tela para despachar rolava a viagem inteira para
-       * achar o botão. O que se **lê** — progresso, ocupação, mapa de carga — continua acima: mover
-       * os botões para o topo de tudo trocaria um problema de ordem por outro.
-       */}
-      <TripStateActions
-        canManage={canManage}
-        canFieldDeliveryBatch={canFieldDeliveryBatch}
-        canFieldOccurrenceBatch={canFieldOccurrenceBatch}
-        canSeparateOrLoad={canSeparateOrLoad}
-        capabilities={workspace.fieldActionCapabilities}
-        isBatchPending={workspace.batchStatusMutation.isPending}
-        isBatchReturnPending={workspace.batchFieldReturnMutation.isPending}
-        isCancelPending={workspace.cancelMutation.isPending}
-        isDispatchPending={workspace.dispatchMutation.isPending}
-        isPlanRoutePending={workspace.planRouteMutation.isPending}
-        onBatch={handleBatch}
-        onBatchReturn={handleBatchReturn}
-        onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
-        onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
-        onOpenFieldDeliveryBatch={(documentIds) => setFieldDeliveryDocumentIds([...documentIds])}
-        onOpenFieldOccurrenceBatch={(documentIds) =>
-          setFieldOccurrenceDocumentIds([...documentIds])
-        }
-        onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
-        isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
-        pendingCteSelection={
-          workspace.controller.canSubmitCte
-            ? selectPendingCteDocumentIds({
-                documents: workspace.fiscalReadiness?.documents,
-                selectedIds: selection.selectedIds,
-              })
-            : []
-        }
-        onGenerateCteSelection={(tripDocumentIds) =>
-          workspace.createCteBatchMutation.mutate({ tripDocumentIds, tripId: trip.id })
-        }
-        selection={selection}
-        trip={trip}
-      />
-
-      <TripFieldActions
-        canReportOnBehalf={workspace.controller.canReportOnBehalf}
-        capabilities={workspace.fieldActionCapabilities}
-        isArrivePending={workspace.reportStopArrivalMutation.isPending}
-        isConfirmLoadPending={workspace.confirmLoadTripMutation.isPending}
-        isOccurrencePending={workspace.reportStopOccurrenceMutation.isPending}
-        isStartRoutePending={workspace.startFieldTripMutation.isPending}
-        onArrive={(input) =>
-          workspace.reportStopArrivalMutation.mutate({ ...input, tripId: trip.id })
-        }
-        onConfirmLoad={(input) =>
-          workspace.confirmLoadTripMutation.mutate({ ...input, tripId: trip.id })
-        }
-        onRegisterStopOccurrence={(input) =>
-          workspace.reportStopOccurrenceMutation.mutate({ ...input, tripId: trip.id })
-        }
-        onSelectDriverId={setSelectedOfficeDriverId}
-        onStartRoute={(input) =>
-          workspace.startFieldTripMutation.mutate({ ...input, tripId: trip.id })
-        }
-        selectedDriverId={officeDriverId ?? ''}
-        trip={trip}
-      />
-
-      <FieldOccurrenceDialog
-        defaultDriverId={officeDriverId ?? ''}
-        documentIds={fieldOccurrenceDocumentIds ?? []}
-        drivers={trip.drivers}
-        hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}
-        isOpen={fieldOccurrenceDocumentIds !== null}
-        isSubmitting={workspace.registerFieldOccurrencesMutation.isPending}
-        onClose={() => {
-          /** M13h: fechar encerra o lote — a próxima abertura para as mesmas notas não reusa a
-           * `Idempotency-Key` de um envio que não terminou em sucesso. */
-          workspace.resetFieldOccurrenceIdempotency(fieldOccurrenceDocumentIds ?? [])
-          setFieldOccurrenceDocumentIds(null)
-        }}
-        onSubmit={(input) => {
-          if (fieldOccurrenceDocumentIds === null) return
-          workspace.registerFieldOccurrencesMutation.mutate(
-            { ...input, documentIds: fieldOccurrenceDocumentIds, tripId: trip.id },
-            { onSuccess: () => setFieldOccurrenceDocumentIds(null) },
-          )
-        }}
-        types={workspace.fieldOccurrenceTypesQuery.data ?? []}
-      />
-
-      {/*
-       * Spec 156 T12: o envio de verdade (`useFieldDelivery`, instanciado acima — concorrência
-       * limitada, retentativa só das falhas). `dispatchedAt` é `null` porque `GET /trips/:id`
-       * ainda não expõe `trip_dispatch_snapshots.dispatched_at` (pendência registrada no
-       * `evidence.md` da T11); a régua do futuro continua valendo, e a API segue sendo quem
-       * decide de fato.
-       */}
-      <FieldDeliveryWizard
-        /** M13c: só considera a chave "disponível" com a consulta resolvida com sucesso — pendente
-         * ou com erro não pode se passar por "nenhuma nota tem chave". */
-        accessKeyDataAvailable={fieldDeliveryDocumentsQuery.isSuccess}
-        canhotoOcrEnabled={canhotoOcrSettingsQuery.data?.canhotoOcrEnabled ?? false}
-        defaultDriverId={officeDriverId ?? ''}
-        dispatchedAt={null}
-        documents={buildFieldDeliveryWizardDocuments({
-          documentIds: fieldDeliveryDocumentIds ?? [],
-          documents: trip.documents,
-          stops: trip.stops,
-        })}
-        drivers={trip.drivers}
-        fieldDelivery={fieldDelivery}
-        hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}
-        isOpen={fieldDeliveryDocumentIds !== null}
-        /**
-         * Spec 156 T12, achado ao ligar o envio de verdade: `useReducer` só roda o inicializador
-         * (`createInitialFieldDeliveryWizardState`) uma vez, na primeira montagem — e o assistente
-         * fica sempre montado (só `isOpen` esconde). Sem a `key`, a primeira nota marcada nesta
-         * sessão via a lista vazia com que o componente nasceu (a viagem ainda nem tinha
-         * carregado), e todo "Dar baixa" seguinte reabria o **mesmo** estado congelado: "Enviar 0
-         * nota" mesmo com 5 notas marcadas. Trocar a `key` a cada lote força o React a desmontar e
-         * remontar — o único jeito de o inicializador rodar de novo com a lista certa.
-         */
-        key={
-          fieldDeliveryDocumentIds === null
-            ? 'field-delivery-closed'
-            : fieldDeliveryDocumentIds.join(',')
-        }
-        onClose={() => setFieldDeliveryDocumentIds(null)}
-        tripDocuments={trip.documents.map((document) => {
-          /**
-           * Spec 156 T14, ADR-0069 §3: a chave inteira decide o casamento (fix `b1653f25`, T13) —
-           * `GET /trips/:id` não a traz (M1), então ela vem da rota estreita da T14. Sem resposta
-           * ainda (rota, permissão), a nota segue só por número/série, como sempre foi.
-           */
-          const ocrDocument = fieldDeliveryDocumentsQuery.data?.find(
-            (candidate) => candidate.id === document.id,
-          )
-          return {
-            id: document.id,
-            ...(ocrDocument?.accessKey == null ? {} : { accessKey: ocrDocument.accessKey }),
-            ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
-            ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
-            ...(ocrDocument?.releasedAt == null ? {} : { releasedAt: ocrDocument.releasedAt }),
-          }
         })}
       />
 
@@ -835,12 +823,211 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       ) : null}
 
       {/*
+        ⚠️ O tipo do veículo vem da frota carregada, não da viagem: o corpo do detalhe traz o
+        `vehicleId` e nada mais. Sem ele a silhueta cai no contorno genérico — e quem abre o detalhe
+        de um truck via um desenho de VUC, com a escala errada entre os tipos.
+      */}
+      <TripCargoPanel
+        cargoWeight={trip.cargoWeight ?? null}
+        layout={trip.cargoLayout}
+        layoutView={workspace.cargoLayoutView}
+        occupancy={trip.occupancy}
+        reviewQueue={
+          <TripReviewQueue
+            canManage={canManage}
+            isEditable={isEditable}
+            layoutId={trip.cargoLayoutId ?? null}
+            target={{ kind: 'trip', tripId: trip.id, vehicles }}
+            unplaced={
+              (workspace.cargoLayoutView?.layout ?? trip.cargoLayout)?.placement?.unplaced ?? []
+            }
+          />
+        }
+        vehicleType={vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType ?? ''}
+      />
+
+      {/* Spec 156 D11: geometria é `fleet.read` — sem ela, oculta em vez de bater 403 sozinha. */}
+      {canReadFleetDetails ? (
+        <TripRouteMap
+          canAdjustTollBooth={canAdjustTollBooth}
+          canCorrect={canManage}
+          canManage={canManage}
+          geometry={workspace.routeGeometryQuery.data ?? null}
+          stops={trip.stops}
+          isCorrecting={workspace.correctAddressMutation.isPending}
+          isGeometryError={workspace.routeGeometryQuery.isError}
+          isGeometryPending={workspace.routeGeometryQuery.isPending}
+          isPlanRoutePending={workspace.planRouteMutation.isPending}
+          onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+          onPlanRoute={(routeChoice) =>
+            workspace.planRouteMutation.mutate({
+              ...(routeChoice === undefined ? {} : { routeChoice }),
+              tripId: trip.id,
+            })
+          }
+          onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
+          tripStatus={trip.status}
+          vehicleId={trip.vehicleId === '' ? null : trip.vehicleId}
+        />
+      ) : null}
+
+      {selection.selectedIds.size > 0 ? (
+        <div className={styles.selectionBar} role="status">
+          <span>{t('stops.selectionCount', { count: selection.selectedIds.size })}</span>
+          <Button onClick={selection.clear} size="sm" type="button" variant="ghost">
+            <Icon name="close" />
+            {t('stops.selectionClear')}
+          </Button>
+        </div>
+      ) : null}
+
+      {/*
+       * Spec 079 T021: **vincular e agir vêm antes da lista.** Numa viagem com doze paradas os dois
+       * ficavam abaixo de tudo, e quem abria a tela para despachar rolava a viagem inteira para
+       * achar o botão. O que se **lê** — progresso, ocupação, mapa de carga — continua acima: mover
+       * os botões para o topo de tudo trocaria um problema de ordem por outro.
+       */}
+      <TripStateActions
+        canManage={canManage}
+        canFieldDeliveryBatch={canFieldDeliveryBatch}
+        canFieldOccurrenceBatch={canFieldOccurrenceBatch}
+        canSeparateOrLoad={canSeparateOrLoad}
+        capabilities={workspace.fieldActionCapabilities}
+        isBatchPending={workspace.batchStatusMutation.isPending}
+        isBatchReturnPending={workspace.batchFieldReturnMutation.isPending}
+        onBatch={handleBatch}
+        onBatchReturn={handleBatchReturn}
+        onOpenFieldDeliveryBatch={(documentIds) => setFieldDeliveryDocumentIds([...documentIds])}
+        onOpenFieldOccurrenceBatch={(documentIds) =>
+          setFieldOccurrenceDocumentIds([...documentIds])
+        }
+        isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
+        pendingCteSelection={
+          workspace.controller.canSubmitCte
+            ? selectPendingCteDocumentIds({
+                documents: workspace.fiscalReadiness?.documents,
+                selectedIds: selection.selectedIds,
+              })
+            : []
+        }
+        onGenerateCteSelection={(tripDocumentIds) =>
+          workspace.createCteBatchMutation.mutate({ tripDocumentIds, tripId: trip.id })
+        }
+        pendingNfseSelection={
+          workspace.controller.canIssueNfse
+            ? selectPendingNfseDocumentIds({
+                documents: workspace.fiscalReadiness?.documents,
+                selectedIds: selection.selectedIds,
+              })
+            : []
+        }
+        companyId={workspace.companyId}
+        permissions={workspace.permissions}
+        onNfseEmitted={() => workspace.refetchFiscalReadiness()}
+        selection={selection}
+      />
+
+      <FieldOccurrenceDialog
+        defaultDriverId={officeDriverId ?? ''}
+        documentIds={fieldOccurrenceDocumentIds ?? []}
+        drivers={trip.drivers}
+        hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}
+        isOpen={fieldOccurrenceDocumentIds !== null}
+        isSubmitting={workspace.registerFieldOccurrencesMutation.isPending}
+        onClose={() => {
+          /** M13h: fechar encerra o lote — a próxima abertura para as mesmas notas não reusa a
+           * `Idempotency-Key` de um envio que não terminou em sucesso. */
+          workspace.resetFieldOccurrenceIdempotency(fieldOccurrenceDocumentIds ?? [])
+          setFieldOccurrenceDocumentIds(null)
+        }}
+        onSubmit={(input) => {
+          if (fieldOccurrenceDocumentIds === null) return
+          workspace.registerFieldOccurrencesMutation.mutate(
+            { ...input, documentIds: fieldOccurrenceDocumentIds, tripId: trip.id },
+            { onSuccess: () => setFieldOccurrenceDocumentIds(null) },
+          )
+        }}
+        types={workspace.fieldOccurrenceTypesQuery.data ?? []}
+      />
+
+      <SeparationOccurrenceDialogLoader
+        documentId={workspace.openSeparationOccurrenceDocumentId}
+        documents={trip.documents}
+        onClose={() => workspace.setOpenSeparationOccurrenceDocumentId(null)}
+        workspace={workspace}
+      />
+
+      {/*
+       * Spec 156 T12: o envio de verdade (`useFieldDelivery`, instanciado acima — concorrência
+       * limitada, retentativa só das falhas). `dispatchedAt` é `null` porque `GET /trips/:id`
+       * ainda não expõe `trip_dispatch_snapshots.dispatched_at` (pendência registrada no
+       * `evidence.md` da T11); a régua do futuro continua valendo, e a API segue sendo quem
+       * decide de fato.
+       */}
+      <FieldDeliveryWizard
+        /** M13c: só considera a chave "disponível" com a consulta resolvida com sucesso — pendente
+         * ou com erro não pode se passar por "nenhuma nota tem chave". */
+        accessKeyDataAvailable={fieldDeliveryDocumentsQuery.isSuccess}
+        canhotoOcrEnabled={canhotoOcrSettingsQuery.data?.canhotoOcrEnabled ?? false}
+        defaultDriverId={officeDriverId ?? ''}
+        dispatchedAt={null}
+        documents={buildFieldDeliveryWizardDocuments({
+          documentIds: fieldDeliveryDocumentIds ?? [],
+          documents: trip.documents,
+          stops: trip.stops,
+        })}
+        drivers={trip.drivers}
+        fieldDelivery={fieldDelivery}
+        hasMultipleDrivers={hasMultipleDrivers(trip.drivers)}
+        isOpen={fieldDeliveryDocumentIds !== null}
+        /**
+         * Spec 156 T12, achado ao ligar o envio de verdade: `useReducer` só roda o inicializador
+         * (`createInitialFieldDeliveryWizardState`) uma vez, na primeira montagem — e o assistente
+         * fica sempre montado (só `isOpen` esconde). Sem a `key`, a primeira nota marcada nesta
+         * sessão via a lista vazia com que o componente nasceu (a viagem ainda nem tinha
+         * carregado), e todo "Dar baixa" seguinte reabria o **mesmo** estado congelado: "Enviar 0
+         * nota" mesmo com 5 notas marcadas. Trocar a `key` a cada lote força o React a desmontar e
+         * remontar — o único jeito de o inicializador rodar de novo com a lista certa.
+         */
+        key={
+          fieldDeliveryDocumentIds === null
+            ? 'field-delivery-closed'
+            : fieldDeliveryDocumentIds.join(',')
+        }
+        onClose={() => setFieldDeliveryDocumentIds(null)}
+        tripDocuments={trip.documents.map((document) => {
+          /**
+           * Spec 156 T14, ADR-0069 §3: a chave inteira decide o casamento (fix `b1653f25`, T13) —
+           * `GET /trips/:id` não a traz (M1), então ela vem da rota estreita da T14. Sem resposta
+           * ainda (rota, permissão), a nota segue só por número/série, como sempre foi.
+           */
+          const ocrDocument = fieldDeliveryDocumentsQuery.data?.find(
+            (candidate) => candidate.id === document.id,
+          )
+          return {
+            id: document.id,
+            ...(ocrDocument?.accessKey == null ? {} : { accessKey: ocrDocument.accessKey }),
+            ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
+            ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
+            ...(ocrDocument?.releasedAt == null ? {} : { releasedAt: ocrDocument.releasedAt }),
+          }
+        })}
+      />
+
+      {/*
        * A lista de cargas é leitura antes de ser ação: ela fica fora do formulário de vínculo. Dentro
        * dele caía na fileira flexível dos botões, embaralhada com eles, e sumia de vez quando a
        * viagem saía do barracão — justamente quando o escritório acompanha as entregas.
        */}
       <section className={styles.stopSection}>
-        <h3>{t('stops.title')}</h3>
+        {/*
+         * `tabIndex={-1}` deixa o título focável só por script: o link do cabeçalho (spec 173, mais
+         * de uma nota com ocorrência) rola até aqui e move o foco para o leitor de tela anunciar
+         * onde a rolagem parou, sem entrar na ordem normal do Tab.
+         */}
+        <h3 id="trip-stops-title" tabIndex={-1}>
+          {t('stops.title')}
+        </h3>
         <TripStopList
           actions={documentActions}
           canReorder={canManage && isEditable}
@@ -851,11 +1038,18 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
 
         {unassignedDocuments.length === 0 ? null : (
           <div className={styles.stopCard}>
+            {/*
+              `stopCardIdentity` dentro do `stopCardHead`: o cabeçalho virou uma pilha de fileiras
+              (spec 181 T502), e rótulo e contador são a fileira de identidade — soltos aqui eles viravam
+              duas linhas empilhadas em vez da linha única que sempre foram.
+            */}
             <div className={styles.stopCardHead}>
-              <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
-              <span className={styles.stopCounter}>
-                {t('stops.documentCount', { count: unassignedDocuments.length })}
-              </span>
+              <div className={styles.stopCardIdentity}>
+                <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
+                <span className={styles.stopCounter}>
+                  {t('stops.documentCount', { count: unassignedDocuments.length })}
+                </span>
+              </div>
             </div>
             <TripStopDocumentGroup
               actions={documentActions}
@@ -882,7 +1076,6 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         <TripFiscalReadinessPanel
           canManageMdfe={workspace.controller.canManageMdfe}
           canSubmitCte={workspace.controller.canSubmitCte}
-          documents={trip.documents}
           isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
           isSavingRequirement={workspace.setMdfeRequirementMutation.isPending}
           readiness={workspace.fiscalReadiness}
@@ -900,7 +1093,8 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
             {t('actions.issueMdfe')}
           </Button>
         ) : null}
-        {canManage && !isCompleted ? (
+        {/* Viagem cancelada não encerra (spec 158 T12): oferecer o botão daria um 409 sem saída */}
+        {canCloseTrip && !isCompleted && trip.status !== 'cancelled' ? (
           <Button
             disabled={workspace.closeMutation.isPending}
             onClick={handleCloseTrip}
@@ -934,6 +1128,15 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         onClose={() => setOverrideDocumentId(null)}
         onOverride={(body) => workspace.overrideDeliveryAddressMutation.mutateAsync(body)}
         tripId={trip.id}
+      />
+
+      <TripCloseDialog
+        feedbackKey={resolveTripFeedbackKey(workspace.closeMutation.error) ?? null}
+        isOpen={isCloseDialogOpen}
+        isSubmitting={workspace.closeMutation.isPending}
+        onClose={() => setIsCloseDialogOpen(false)}
+        onSubmit={handleCloseTripSubmit}
+        openDocumentCount={openTripDocumentCount}
       />
 
       <TripReasonDialog
@@ -973,6 +1176,55 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
 }
 
 /**
+ * O carregador do diálogo de ocorrência de separação (botão da linha da nota, spec do galpão sem
+ * comprovante). `documentId` nulo fecha — mesmo padrão de `TripDeliveryProofLoader` abaixo, sem
+ * consulta nenhuma disparada até o operador clicar.
+ */
+function SeparationOccurrenceDialogLoader({
+  documentId,
+  documents,
+  onClose,
+  workspace,
+}: Readonly<{
+  documentId: null | string
+  documents: readonly TripDocumentDetail[]
+  onClose: () => void
+  workspace: TripWorkspaceController
+}>) {
+  if (documentId === null) return null
+  const document = documents.find((candidate) => candidate.id === documentId)
+  if (document === undefined) return null
+
+  return (
+    <SeparationOccurrenceDialog
+      canRegister={workspace.controller.canManageTrips}
+      document={document}
+      email={workspace.lastOccurrenceEmail}
+      isOpen
+      isRegistering={workspace.isSendingOccurrencePhotos}
+      occurrences={workspace.occurrencesQuery.data ?? []}
+      onClose={onClose}
+      onRegister={(occurrence) =>
+        workspace.sendSeparationOccurrencePhotos({
+          documentId,
+          note: occurrence.note,
+          occurrenceTypeId: occurrence.occurrenceTypeId,
+          photos: occurrence.photos,
+          productCodes: occurrence.productCodes,
+          productQuantities: occurrence.productQuantities,
+          productQuantityUnits: occurrence.productQuantityUnits,
+          tripId: document.tripId,
+        })
+      }
+      onReset={workspace.resetSeparationOccurrencePhotoSend}
+      photoSendState={workspace.occurrencePhotoSendState}
+      products={workspace.documentProductsQuery.data ?? []}
+      types={workspace.occurrenceTypesQuery.data ?? []}
+    />
+  )
+}
+
+/**
  * O carregador do comprovante. Ele existe para o painel **não** guardar a URL assinada em estado
  * próprio: o que a consulta trouxe é o que a tela mostra, e reabrir o painel busca de novo — a URL
  * expira em cinco minutos, e uma cópia guardada viraria imagem quebrada sem explicação.
@@ -993,21 +1245,27 @@ function TripDeliveryProofLoader({
 
   return (
     <TripDeliveryProof
+      documentId={documentId}
       occurrences={
         <TripOccurrences
           canRegister={workspace.controller.canManageTrips}
-          email={workspace.registerOccurrenceMutation.data?.email ?? null}
-          isRegistering={workspace.registerOccurrenceMutation.isPending}
+          email={workspace.lastOccurrenceEmail}
+          isRegistering={workspace.isSendingOccurrencePhotos}
           occurrences={workspace.occurrencesQuery.data ?? []}
           onRegister={(occurrence) =>
-            workspace.registerOccurrenceMutation.mutate({
+            workspace.sendSeparationOccurrencePhotos({
               documentId,
               note: occurrence.note,
               occurrenceTypeId: occurrence.occurrenceTypeId,
-              productCode: occurrence.productCode,
+              photos: occurrence.photos,
+              productCodes: occurrence.productCodes,
+              productQuantities: occurrence.productQuantities,
+              productQuantityUnits: occurrence.productQuantityUnits,
               tripId: document.tripId,
             })
           }
+          onReset={workspace.resetSeparationOccurrencePhotoSend}
+          photoSendState={workspace.occurrencePhotoSendState}
           products={workspace.documentProductsQuery.data ?? []}
           types={workspace.occurrenceTypesQuery.data ?? []}
         />

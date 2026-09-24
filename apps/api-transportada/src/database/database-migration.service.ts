@@ -8,8 +8,8 @@ import { runMetaWhatsAppSchemaMigrations } from './meta-whatsapp-migration.servi
 import { runNotificationSchemaMigrations } from './notification-migration.service.js'
 import { runUserSchemaMigrations } from './user-migration.service.js'
 
-const DEFAULT_MIGRATIONS_DIRECTORY = new URL('../../drizzle/', import.meta.url).pathname
-const MIGRATIONS_SCHEMA = 'drizzle'
+export const DEFAULT_MIGRATIONS_DIRECTORY = new URL('../../drizzle/', import.meta.url).pathname
+export const MIGRATIONS_SCHEMA = 'drizzle'
 
 type RunDatabaseMigrationsParams = {
   readonly connectionString: string

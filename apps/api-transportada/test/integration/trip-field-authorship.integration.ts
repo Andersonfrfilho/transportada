@@ -28,21 +28,27 @@ import {
   tripDocuments,
   tripDrivers,
   tripFieldReports,
+  tripOccurrenceUploads,
   tripStopEvents,
   tripStops,
   trips,
 } from '../../src/database/trip.schema.js'
+import type { DriverOccurrenceReadPort } from '../../src/trips/application/register-driver-occurrence.use-case.js'
 import { registerDriverOccurrence } from '../../src/trips/application/register-driver-occurrence.use-case.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { resolveFieldTripTarget } from '../../src/trips/application/resolve-field-trip-target.use-case.js'
 import {
+  TripOccurrenceAttachmentRequiredError,
+  TripOccurrenceNoteRequiredError,
+} from '../../src/trips/domain/trip.error.js'
+import {
   findDriverReachableDocument,
   findOccurrenceType,
   listDocumentProducts,
-  saveTripOccurrence,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleFieldTripTargetRepository } from '../../src/trips/infrastructure/drizzle-field-trip-target.repository.js'
+import { DrizzleOccurrenceUploadRepository } from '../../src/trips/infrastructure/drizzle-occurrence-upload.repository.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -74,7 +80,7 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
         const trip = await seedTrip(database, company)
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
 
         await reportDocumentDelivery({
           actorUserId: company.userId,
@@ -116,7 +122,7 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
         const trip = await seedTrip(database, company)
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
 
         await reportDocumentDelivery({
           actorUserId: company.userId,
@@ -148,7 +154,7 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
         const trip = await seedTrip(database, company)
-        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
         const target = await resolveFieldTripTarget({
           companyId: company.companyId,
           repository: new DrizzleFieldTripTargetRepository(database.db),
@@ -203,15 +209,17 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
           companyId: company.companyId,
           documentId: trip.documentId,
           driverId: company.driverId,
+          idempotencyKey: crypto.randomUUID(),
           note: 'cliente recusou a carga',
           occurrenceTypeId,
           productCode: '',
           repository: {
+            findConfirmedUpload: async () => null,
             findOccurrenceType: (query) => findOccurrenceType(database.db, query),
             findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
             listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-            saveOccurrence: (query) => saveTripOccurrence(database.db, query),
           },
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
         })
 
         const [occurrence] = await database.db
@@ -222,6 +230,119 @@ describe('a autoria do registro de campo contra o Postgres (spec 156 T4, ADR-006
           .from(tripDocumentOccurrences)
           .where(eq(tripDocumentOccurrences.tripDocumentId, trip.documentId))
         expect(occurrence).toEqual({ channel: 'whatsapp', onBehalfOfDriverId: null })
+      })
+    },
+  )
+})
+
+/**
+ * Spec 179 T203 (RF3/RF2b) contra o Postgres de verdade: o arquiteto (23/09) marcou como não
+ * confirmado se o repositório Drizzle do motorista aceita `attachmentObjectId` — esta prova fecha a
+ * pendência, contra o banco real, não um dublê.
+ */
+describe('a exigência de comprovante no registro do motorista contra o Postgres (spec 179 T203)', () => {
+  testWithPostgres(
+    'tipo required recusa sem anexo e sem motivo, e aceita com o upload confirmado desta viagem',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company)
+        const occurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          attachmentMode: 'required',
+          companyId: company.companyId,
+          id: occurrenceTypeId,
+          name: 'Recusa total',
+          stage: 'delivery',
+        })
+
+        const occurrenceUploadRepository = new DrizzleOccurrenceUploadRepository(database.db)
+        const repository: DriverOccurrenceReadPort = {
+          findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
+          findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
+          listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+        }
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+
+        await expect(
+          registerDriverOccurrence({
+            actorUserId: company.userId,
+            companyId: company.companyId,
+            documentId: trip.documentId,
+            driverId: company.driverId,
+            idempotencyKey: crypto.randomUUID(),
+            note: '',
+            occurrenceTypeId,
+            productCode: '',
+            repository,
+            unitOfWork,
+          }),
+        ).rejects.toBeInstanceOf(TripOccurrenceNoteRequiredError)
+
+        await expect(
+          registerDriverOccurrence({
+            actorUserId: company.userId,
+            companyId: company.companyId,
+            documentId: trip.documentId,
+            driverId: company.driverId,
+            idempotencyKey: crypto.randomUUID(),
+            note: 'cliente recusou o volume',
+            occurrenceTypeId,
+            productCode: '',
+            repository,
+            unitOfWork,
+          }),
+        ).rejects.toBeInstanceOf(TripOccurrenceAttachmentRequiredError)
+
+        const objectId = crypto.randomUUID()
+        const objectKey = `tenants/${company.companyId}/trip-occurrence-uploads/${trip.tripId}/${objectId}`
+        await database.db.insert(storedObjects).values({
+          bucket: 'test-bucket',
+          companyId: company.companyId,
+          id: objectId,
+          mimeType: 'image/jpeg',
+          objectKey,
+          provider: 's3',
+          purpose: 'trip_occurrence_attachment',
+          retentionUntil: new Date('2031-09-21T00:00:00.000Z'),
+          sha256: '0'.repeat(64),
+          sizeBytes: 10n,
+          status: 'final',
+        })
+        await database.db.insert(tripOccurrenceUploads).values({
+          bucket: 'test-bucket',
+          companyId: company.companyId,
+          confirmedAt: NOW,
+          declaredSizeBytes: 10n,
+          driverId: company.driverId,
+          expiresAt: new Date('2026-09-19T00:00:00.000Z'),
+          id: objectId,
+          mimeType: 'image/jpeg',
+          objectKey,
+          status: 'confirmed',
+          tripId: trip.tripId,
+        })
+
+        const saved = await registerDriverOccurrence({
+          actorUserId: company.userId,
+          attachmentObjectId: objectId,
+          companyId: company.companyId,
+          documentId: trip.documentId,
+          driverId: company.driverId,
+          idempotencyKey: crypto.randomUUID(),
+          note: 'cliente recusou o volume',
+          occurrenceTypeId,
+          productCode: '',
+          repository,
+          unitOfWork,
+        })
+
+        const [occurrence] = await database.db
+          .select({ attachmentObjectId: tripDocumentOccurrences.attachmentObjectId })
+          .from(tripDocumentOccurrences)
+          .where(eq(tripDocumentOccurrences.id, saved.id))
+        expect(occurrence).toEqual({ attachmentObjectId: objectId })
       })
     },
   )

@@ -5,7 +5,7 @@ import { parsePageSize } from '@/modules/shared/rowPagination.service'
 import {
   NFSE_INVOICE_ERROR,
   NFSE_INVOICE_FEEDBACK_KEY_BY_ERROR,
-  NFSE_MANAGE_PERMISSION,
+  NFSE_ISSUE_PERMISSION,
 } from './nfseInvoice.constant'
 import type {
   NfseInvoicePreview,
@@ -98,7 +98,7 @@ export type NfseEmissionSummary = Readonly<{
 export type NfseEmissionSelectOption = Readonly<{ label: string; value: string }>
 
 export function canOpenNfseEmission(permissions: readonly string[]): boolean {
-  return permissions.includes(NFSE_MANAGE_PERMISSION)
+  return permissions.includes(NFSE_ISSUE_PERMISSION)
 }
 
 function uniqueDocumentIds(documentIds: readonly string[]): readonly string[] {

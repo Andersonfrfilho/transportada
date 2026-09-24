@@ -8,7 +8,12 @@
 import { and, eq } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
-import { tripDispatchSnapshots, tripStatusEvents } from '../../database/trip.schema.js'
+import {
+  TRIP_STATUS_EVENT_KINDS,
+  trips,
+  tripDispatchSnapshots,
+  tripStatusEvents,
+} from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { resolveRecordedAt } from '../application/trip-timeline-merge.service.js'
 import type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
@@ -76,6 +81,7 @@ export async function listDispatchedRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: null,
+    closeReason: null,
     document: null,
     fromStatus: null,
     id: row.id,
@@ -99,6 +105,9 @@ export async function listStatusChangedRows(
   const conditions: SQL[] = [
     eq(tripStatusEvents.companyId, params.companyId),
     eq(tripStatusEvents.tripId, params.tripId),
+    // Spec 171: `event_kind = 'created'` é a linha de `trip.created` (`listCreatedRows`) — nunca
+    // uma transição real.
+    eq(tripStatusEvents.eventKind, TRIP_STATUS_EVENT_KINDS.transition),
   ]
   if (params.cursor !== null) {
     conditions.push(
@@ -116,6 +125,7 @@ export async function listStatusChangedRows(
     .select({
       actorName: timelineActorProfile.name,
       channel: tripStatusEvents.channel,
+      closeReason: trips.closeReason,
       fromStatus: tripStatusEvents.fromStatus,
       id: tripStatusEvents.id,
       occurredAt: tripStatusEvents.occurredAt,
@@ -125,6 +135,10 @@ export async function listStatusChangedRows(
       toStatus: tripStatusEvents.toStatus,
     })
     .from(tripStatusEvents)
+    .innerJoin(
+      trips,
+      and(eq(trips.companyId, tripStatusEvents.companyId), eq(trips.id, tripStatusEvents.tripId)),
+    )
     .leftJoin(
       timelineActorMembership,
       and(
@@ -150,6 +164,11 @@ export async function listStatusChangedRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
+    /**
+     * Spec 158 T12: `trips.close_reason` só descreve o encerramento manual — em qualquer outro
+     * `toStatus` ele é ruído da mesma viagem, nunca o motivo daquele evento.
+     */
+    closeReason: row.toStatus === 'completed' ? row.closeReason : null,
     document: null,
     fromStatus: row.fromStatus,
     id: row.id,
@@ -162,5 +181,78 @@ export async function listStatusChangedRows(
     returnReason: null,
     stop: null,
     toStatus: row.toStatus,
+  }))
+}
+
+/**
+ * Spec 171 RF1/RF2: o nascimento da viagem — mesma tabela de `listStatusChangedRows`, mas só as
+ * linhas que `recordTripCreation` grava (`event_kind = 'created'`, uma coluna própria — não a
+ * igualdade de `fromStatus`/`toStatus`, que o banco impede de significar qualquer coisa numa
+ * transição real via `trip_status_events_transition_check`). `fromStatus`/`toStatus` saem nulos na
+ * leitura — não são dado de tela aqui, no mesmo molde de `trip.dispatched`.
+ */
+export async function listCreatedRows(
+  queryable: TripQueryable,
+  params: ReadTripTimelineParams,
+): Promise<readonly TripTimelineRow[]> {
+  const priorityExpr = constantPriority('trip.created')
+  const conditions: SQL[] = [
+    eq(tripStatusEvents.companyId, params.companyId),
+    eq(tripStatusEvents.tripId, params.tripId),
+    eq(tripStatusEvents.eventKind, TRIP_STATUS_EVENT_KINDS.created),
+  ]
+  if (params.cursor !== null) {
+    conditions.push(
+      timelineKeysetCondition(
+        tripStatusEvents.occurredAt,
+        priorityExpr,
+        tripStatusEvents.id,
+        params.cursor,
+      ),
+      timelineIndexablePredicate(tripStatusEvents.occurredAt, params.cursor),
+    )
+  }
+
+  const rows = await queryable
+    .select({
+      actorName: timelineActorProfile.name,
+      channel: tripStatusEvents.channel,
+      id: tripStatusEvents.id,
+      occurredAt: tripStatusEvents.occurredAt,
+      occurredAtKey: formatTimelineTimestampKey(tripStatusEvents.occurredAt),
+      recordedAt: tripStatusEvents.recordedAt,
+    })
+    .from(tripStatusEvents)
+    .leftJoin(
+      timelineActorMembership,
+      and(
+        eq(timelineActorMembership.companyId, tripStatusEvents.companyId),
+        eq(timelineActorMembership.userId, tripStatusEvents.actorUserId),
+        eq(timelineActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .leftJoin(timelineActorProfile, eq(timelineActorProfile.userId, timelineActorMembership.userId))
+    .where(and(...conditions))
+    .orderBy(
+      ...timelineOrderExpression(tripStatusEvents.occurredAt, priorityExpr, tripStatusEvents.id),
+    )
+    .limit(params.limit + 1)
+
+  return rows.map((row) => ({
+    actorName: row.actorName ?? null,
+    channel: row.channel,
+    closeReason: null,
+    document: null,
+    fromStatus: null,
+    id: row.id,
+    kind: 'trip.created' as const,
+    occurrence: null,
+    occurredAt: row.occurredAt,
+    occurredAtKey: row.occurredAtKey,
+    onBehalfOfDriverName: null,
+    recordedAt: resolveRecordedAt(row.channel, row.occurredAt, row.recordedAt),
+    returnReason: null,
+    stop: null,
+    toStatus: null,
   }))
 }

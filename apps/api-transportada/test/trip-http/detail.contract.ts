@@ -208,6 +208,54 @@ describe('GET /trips/:id', () => {
     expect(fixture.requestCargoLayoutCalls).toEqual([])
   })
 
+  /**
+   * Spec 168: `trip.cargoLayout` vem do pacote `@adatechnology/cargo-placement`, que nunca teve
+   * `packageBoxId`/`grossWeightGrams`/`unitsPerBox` — só a rota dedicada `/cargo-layouts/:layoutId`
+   * os enriquece. Sem normalizar aqui, a chave simplesmente não existe no JSON, e o frontend lê
+   * `undefined` em vez de `null`: a tabela "o que falta medir" confunde todas as linhas no mesmo
+   * rascunho e nunca grava.
+   */
+  test('normalizes packageBoxId/grossWeightGrams/unitsPerBox to null in the trip detail layout', async () => {
+    const pendingMeasurementWithoutPackageBoxKeys = {
+      boxCount: 6,
+      documentNumber: '111',
+      estimateSource: 'note',
+      label: 'Caneta',
+      productCode: 'P1',
+      sequence: 1,
+      stopLabel: 'Barrinha',
+    }
+    const fixture = await createTripHttpFixture({
+      getTripResult: {
+        ...TRIP_DETAIL,
+        cargoLayout: {
+          freeRows: 6,
+          occupancyKnown: true,
+          orderIsBinding: true,
+          overflowM3: '0.000000',
+          pendingMeasurements: [pendingMeasurementWithoutPackageBoxKeys],
+          rows: [],
+          slices: [],
+          stopsWithoutVolume: [],
+        },
+      },
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: tripDetailPath() }))
+    const data = (await responseData(response)) as {
+      cargoLayout: { pendingMeasurements: readonly Record<string, unknown>[] }
+    }
+
+    expect(data.cargoLayout.pendingMeasurements).toEqual([
+      {
+        ...pendingMeasurementWithoutPackageBoxKeys,
+        grossWeightGrams: null,
+        packageBoxId: null,
+        unitsPerBox: null,
+      },
+    ])
+  })
+
   test('denies who has neither fleet.read nor fleet.manage', async () => {
     const fixture = await createTripHttpFixture({ permissions: new Set([]) })
 

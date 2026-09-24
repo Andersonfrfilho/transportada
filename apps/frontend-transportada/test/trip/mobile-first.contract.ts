@@ -135,15 +135,25 @@ describe('trip mobile-first contract', () => {
       expect(rule).toBeDefined()
       // `width: 100%` é largura relativa e passa; `width: 42rem` é o que quebra.
       expect(rule?.body).not.toMatch(/width:\s*\d+(\.\d+)?(rem|px|em)\b/)
-      expect(rule?.body).not.toMatch(/min-width:\s*\d/)
+      /**
+       * `min-width: 0` é o zeramento do mínimo automático de item de grid/flex (revisão spec 161,
+       * `.mdfeGateHeader`) — o oposto de um piso fixo que force rolagem. O que a regra proíbe é
+       * `min-width: 20rem` e afins; `0` passa porque não impõe piso nenhum.
+       */
+      expect(rule?.body).not.toMatch(/min-width:\s*(?!0\b)\d/)
     }
   })
 
-  /** O formulário de ocorrência quebra em vez de empurrar: `flex-wrap` é o que segura os 375px. */
+  /**
+   * Revisão de design (spec 161): o formulário virou grid de uma coluna — cada campo (os dois
+   * `Select`, o textarea, o seletor de foto) ocupa a largura inteira, sem depender de `flex-wrap`
+   * para não empurrar a tela em 375px. `display: grid` sem `grid-template-columns` já garante isso.
+   */
   test('o formulário de ocorrência quebra linha', async () => {
     const stylesheet = await readApplicationFile(TRIP_STYLESHEET_PATH)
     const rule = findRule(listRules(stylesheet), '.occurrenceForm')
 
-    expect(rule?.body).toInclude('flex-wrap')
+    expect(rule?.body).toInclude('display: grid')
+    expect(rule?.body).not.toMatch(/grid-template-columns:\s*(?!none)/)
   })
 })

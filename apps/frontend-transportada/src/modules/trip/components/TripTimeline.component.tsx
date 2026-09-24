@@ -9,16 +9,27 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
-import { resolveFieldAuthorshipText } from '../shared/fieldAuthorship.service'
+import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
+import { resolveTripTimelineAvatar } from '../shared/tripTimelineAvatar.service'
+import { hasTripTimelineExpandableDetail } from '../shared/tripTimelineDetail.service'
 import {
-  filterTripTimelineItemsByDocumentId,
+  collectTripTimelineDocuments,
+  filterTripTimelineItemsByDocumentIds,
+  formatTripTimelineDocumentFilterLabel,
+  groupTripTimelineItemsByDay,
   removeDuplicateDispatchEvents,
+  resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
   resolveTripTimelineTone,
   type TripTimelineTone,
 } from '../shared/tripTimeline.service'
+import {
+  resolveTripTimelineDocumentHref,
+  resolveTripTimelineStopHref,
+} from '../shared/tripTimelineLink.service'
 import styles from '../styles/tripTimeline.module.css'
+import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 
 const SKELETON_ROWS = 3
 
@@ -35,6 +46,42 @@ const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
   month: '2-digit',
   year: 'numeric',
 })
+
+const timeFormatter = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+const dayFormatter = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: 'long',
+  weekday: 'long',
+  year: 'numeric',
+})
+
+const MILLISECONDS_PER_DAY = 86_400_000
+
+function midnightOf(moment: Date): number {
+  return new Date(moment.getFullYear(), moment.getMonth(), moment.getDate()).getTime()
+}
+
+/** `dayKey` é data local (`YYYY-MM-DD`); `new Date('2026-09-23')` seria UTC e voltaria um dia. */
+function parseDayKey(dayKey: string): Date | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey)
+  if (parts === null) return null
+  return new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]))
+}
+
+function resolveDayLabel(dayKey: string, t: Translate): string {
+  const day = parseDayKey(dayKey)
+  if (day === null) return dayKey
+  const distance = Math.round((midnightOf(new Date()) - day.getTime()) / MILLISECONDS_PER_DAY)
+  if (distance === 0) return t('eventTimeline.day.today')
+  if (distance === 1) return t('eventTimeline.day.yesterday')
+  return dayFormatter.format(day)
+}
+
+function formatTime(value: string): string {
+  const moment = new Date(value)
+  return Number.isNaN(moment.getTime()) ? value : timeFormatter.format(moment)
+}
 
 function formatMoment(value: string): string {
   const moment = new Date(value)
@@ -65,28 +112,53 @@ type TripTimelineProps = Readonly<{
  */
 export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
   const { t } = useTranslation('trip')
-  const [onlyOpenDocument, setOnlyOpenDocument] = useState(false)
+  const translate = t as Translate
+  /**
+   * Spec 180 RF12: começa filtrando pela nota que a navegação abriu, quando houve uma — era o que o
+   * checkbox de uma nota só fazia —, e daí o operador escolhe outras.
+   */
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<ReadonlySet<string>>(
+    () => new Set(openDocumentId === null ? [] : [openDocumentId]),
+  )
 
-  const items = useMemo(() => {
+  const loadedItems = useMemo(() => {
     const pages = query.data?.pages ?? []
-    const merged = pages.flatMap((page) => page.items)
-    const withoutDuplicateDispatch = removeDuplicateDispatchEvents(merged)
-    return filterTripTimelineItemsByDocumentId(
-      withoutDuplicateDispatch,
-      onlyOpenDocument ? openDocumentId : null,
-    )
-  }, [onlyOpenDocument, openDocumentId, query.data])
+    return removeDuplicateDispatchEvents(pages.flatMap((page) => page.items))
+  }, [query.data])
+
+  const documents = useMemo(() => collectTripTimelineDocuments(loadedItems), [loadedItems])
+  const items = useMemo(
+    () => filterTripTimelineItemsByDocumentIds(loadedItems, selectedDocumentIds),
+    [loadedItems, selectedDocumentIds],
+  )
+
+  function handleDocumentToggle(documentId: string, checked: boolean) {
+    setSelectedDocumentIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(documentId)
+      else next.delete(documentId)
+      return next
+    })
+  }
 
   return (
     <section aria-labelledby="trip-timeline-title" className={styles.section}>
       <div className={styles.head}>
         <h3 id="trip-timeline-title">{t('eventTimeline.title')}</h3>
-        {openDocumentId === null ? null : (
-          <Checkbox
-            checked={onlyOpenDocument}
-            label={t('eventTimeline.onlyOpenDocument')}
-            onChange={setOnlyOpenDocument}
-          />
+        {documents.length === 0 ? null : (
+          <fieldset className={styles.documentFilter}>
+            <legend className={styles.documentFilterLegend}>
+              {t('eventTimeline.filterByDocument')}
+            </legend>
+            {documents.map((document) => (
+              <Checkbox
+                checked={selectedDocumentIds.has(document.id)}
+                key={document.id}
+                label={formatTripTimelineDocumentFilterLabel(document, t as Translate)}
+                onChange={(checked) => handleDocumentToggle(document.id, checked)}
+              />
+            ))}
+          </fieldset>
         )}
       </div>
 
@@ -116,11 +188,33 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
       ) : items.length === 0 ? (
         <p className={styles.hint}>{t('eventTimeline.empty')}</p>
       ) : (
-        <ol aria-busy={query.isFetchingNextPage} className={styles.list}>
-          {items.map((item) => (
-            <TripTimelineEntry item={item} key={item.id} />
+        <div aria-busy={query.isFetchingNextPage} className={styles.days}>
+          {groupTripTimelineItemsByDay(items).map((group) => (
+            <section className={styles.day} key={group.dayKey}>
+              <h4 className={styles.dayLabel}>
+                {resolveDayLabel(group.dayKey, translate)}
+                <span className={styles.dayCount}>
+                  {t('eventTimeline.day.count', { count: group.items.length })}
+                </span>
+              </h4>
+              <ol className={styles.list}>
+                {group.items.map((item, index) => (
+                  <TripTimelineEntry
+                    item={item}
+                    key={item.id}
+                    repeatsAuthorship={
+                      index > 0 &&
+                      resolveTripTimelineAuthorshipText(
+                        group.items[index - 1] as TripTimelineItem,
+                        translate,
+                      ) === resolveTripTimelineAuthorshipText(item, translate)
+                    }
+                  />
+                ))}
+              </ol>
+            </section>
           ))}
-        </ol>
+        </div>
       )}
 
       {query.hasNextPage ? (
@@ -140,42 +234,192 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
   )
 }
 
-function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
+function TripTimelineEntry({
+  item,
+  repeatsAuthorship,
+}: Readonly<{ item: TripTimelineItem; repeatsAuthorship: boolean }>) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
+  const [isExpanded, setIsExpanded] = useState(false)
+  const hasDetail = hasTripTimelineExpandableDetail(item)
+  const detailId = `trip-timeline-detail-${item.id}`
   const title = resolveTripTimelineTitle(item, translate)
-  const authorship = resolveFieldAuthorshipText(item, translate)
+  const authorship = resolveTripTimelineAuthorshipText(item, translate)
+  const avatar = resolveTripTimelineAvatar(item)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
     item.occurrence !== null &&
     item.occurrence.note !== ''
       ? item.occurrence.note
       : null
-  const returnReason =
+  /** RF12: só marca e conta — nenhuma URL assinada nasce na listagem. Quem quer ver abre a
+   * ocorrência. */
+  const attachmentCount =
+    (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
+    item.occurrence !== null &&
+    item.occurrence.attachmentCount !== undefined &&
+    item.occurrence.attachmentCount > 0
+      ? item.occurrence.attachmentCount
+      : null
+  /**
+   * `returnReason` é código (`recipient_refused`), não texto: o dicionário vive em
+   * `fieldActions.returnReason` e a tela do motorista já o usa. A linha do tempo mostrava o código
+   * cru em inglês. Código sem tradução — há `'migration'` legado no banco — cai no próprio código,
+   * que é feio mas verdadeiro; some-lo esconderia o motivo da devolução.
+   */
+  /**
+   * Spec 180 RF15: a nota manda sobre a parada — o evento fala de uma nota específica, e a parada é
+   * onde ela estava. Sem nenhuma das duas, não há link: título que não leva a lugar nenhum é pior
+   * que título simples.
+   */
+  const titleHref =
+    item.document !== null
+      ? resolveTripTimelineDocumentHref(item.document.id)
+      : item.stop !== null
+        ? resolveTripTimelineStopHref(item.stop.id)
+        : null
+  const returnReasonCode =
     item.kind === 'document.returned' && item.returnReason !== null && item.returnReason !== ''
       ? item.returnReason
       : null
+  const returnReason =
+    returnReasonCode === null
+      ? null
+      : t(`fieldActions.returnReason.${returnReasonCode}`, { defaultValue: returnReasonCode })
+  const closeReason =
+    item.kind === 'trip.status_changed' &&
+    item.toStatus === 'completed' &&
+    item.closeReason !== null &&
+    item.closeReason !== ''
+      ? item.closeReason
+      : null
 
   return (
-    <li className={cn(styles.item, TONE_CLASS[resolveTripTimelineTone(item)])}>
-      <p className={styles.itemTitle}>{title}</p>
-      <p className={styles.itemMeta}>
-        <time className={styles.itemTime} dateTime={item.occurredAt}>
-          {formatMoment(item.occurredAt)}
-        </time>
-        {authorship === null ? null : <span className={styles.itemAuthorship}>{authorship}</span>}
-        {item.recordedAt === null ? null : (
-          <span className={styles.itemRecorded}>
-            {t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })}
+    <li className={cn(styles.item, styles.itemEnter, TONE_CLASS[resolveTripTimelineTone(item)])}>
+      <div className={styles.itemHead}>
+        {/**
+         * Spec 180 RF9-RF11 (CA08/CA09): o avatar é o próprio selo visual de autoria — nasce do
+         * `actorName` que o item já publica, nunca de uma foto ou id. `aria-hidden`: o texto de
+         * autoria ao lado já diz o nome por extenso, e repeti-lo para leitor de tela seria ruído.
+         */}
+        {avatar === null ? null : (
+          <span
+            aria-hidden="true"
+            className={cn(styles.avatar, styles[`avatarPalette${avatar.paletteIndex}`])}
+          >
+            {avatar.initials}
           </span>
         )}
-      </p>
-      {returnReason === null ? null : (
-        <p className={styles.itemDetail}>
-          {t('eventTimeline.returnReason', { reason: returnReason })}
-        </p>
-      )}
-      {occurrenceNote === null ? null : <p className={styles.itemDetail}>{occurrenceNote}</p>}
+        <div className={styles.itemHeadText}>
+          {/*
+           * Spec 180 RF15: o **título** leva à coisa citada, em vez de uma linha de "Ver nota · Ver
+           * parada" repetida em todo evento — oito pares idênticos empilhados competiam com os
+           * títulos, que é o que se lê. A nota manda; sem nota, a parada. Evento que não cita nem
+           * uma nem outra continua texto puro, sem link morto.
+           */}
+          <p className={styles.itemTitle}>
+            {titleHref === null ? (
+              title
+            ) : (
+              <a className={styles.itemTitleLink} href={titleHref}>
+                {title}
+              </a>
+            )}
+          </p>
+          <p className={styles.itemMeta}>
+            <time
+              className={styles.itemTime}
+              dateTime={item.occurredAt}
+              title={formatMoment(item.occurredAt)}
+            >
+              {formatTime(item.occurredAt)}
+            </time>
+            {/*
+             * A autoria se repete evento após evento — numa viagem tocada pelo mesmo operador ela
+             * aparecia oito vezes, quase tão longa quanto o título, competindo com ele. Só aparece
+             * quando **muda** em relação ao evento anterior; igual, o leitor já sabe de quem é.
+             */}
+            {authorship === null || repeatsAuthorship ? null : (
+              <span className={styles.itemAuthorship}>{authorship}</span>
+            )}
+            {item.recordedAt === null ? null : (
+              <span className={styles.itemRecorded}>
+                {t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+      {/**
+       * Spec 180 RF16/CA14/CA16: só oferece expandir quando `hasTripTimelineExpandableDetail`
+       * confirma que há algo a mostrar — o controle nunca abre o vazio.
+       */}
+      {hasDetail ? (
+        <Button
+          aria-controls={detailId}
+          aria-expanded={isExpanded}
+          className={styles.itemToggle}
+          onClick={() => setIsExpanded((current) => !current)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
+          {isExpanded ? t('eventTimeline.collapse') : t('eventTimeline.expand')}
+        </Button>
+      ) : null}
+      {hasDetail && isExpanded ? (
+        <div className={styles.itemDetailGroup} id={detailId}>
+          {returnReason === null ? null : (
+            <p className={styles.itemDetail}>
+              {t('eventTimeline.returnReason', { reason: returnReason })}
+            </p>
+          )}
+          {closeReason === null ? null : (
+            <p className={styles.itemDetail}>
+              {t('eventTimeline.closeReason', { reason: closeReason })}
+            </p>
+          )}
+          {occurrenceNote === null ? null : (
+            <p className={styles.itemDetail}>
+              {t('eventTimeline.occurrenceNote', { note: occurrenceNote })}
+            </p>
+          )}
+          {attachmentCount === null ? null : (
+            <TripTimelineOccurrenceAttachments
+              occurrenceCreatedAt={item.occurredAt}
+              occurrenceId={item.id}
+            />
+          )}
+        </div>
+      ) : null}
     </li>
+  )
+}
+
+/**
+ * Spec 180 RF5/RF6/RF18 (CA05/CA15): busca os anexos só quando o item expande — o `item.id` do
+ * evento de ocorrência **é** o id da própria ocorrência (D6), então não há join novo para achar a
+ * rota. Mesmo padrão de `OccurrenceAttachments` em `TripOccurrenceTable.component.tsx`: esqueleto
+ * até a resposta chegar, grade silenciosa quando o resultado vem vazio (CA05, "sem anexo não
+ * mostra grade vazia") — a retenção expirada é assunto da própria grade, que já marca a foto
+ * vencida sem gerar URL.
+ */
+function TripTimelineOccurrenceAttachments({
+  occurrenceCreatedAt,
+  occurrenceId,
+}: Readonly<{ occurrenceCreatedAt: string; occurrenceId: string }>) {
+  const attachmentsQuery = useTripOccurrenceAttachmentsQuery({ enabled: true, occurrenceId })
+
+  if (attachmentsQuery.isLoading) return <Skeleton height="5rem" width="7rem" />
+  const attachments = attachmentsQuery.data ?? []
+  if (attachments.length === 0) return null
+
+  return (
+    <OccurrenceAttachmentGrid
+      attachments={attachments}
+      occurrenceCreatedAt={occurrenceCreatedAt}
+      onRefresh={async () => (await attachmentsQuery.refetch()).data ?? []}
+    />
   )
 }

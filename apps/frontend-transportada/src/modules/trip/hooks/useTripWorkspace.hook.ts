@@ -3,14 +3,27 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
-import type { RouteGeometry } from '../shared/routeGeometry.service'
-import type { OccurrenceType } from '../shared/occurrence.constant'
+import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
+import type { OccurrenceRedeliveryPolicy, OccurrenceType } from '../shared/occurrence.constant'
+import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
   RegisteredOccurrence,
   TripDocumentProduct,
   TripOccurrence,
 } from '../shared/trip.types'
 import { reduceImageFileToJpeg } from '../shared/fieldDeliveryImage.service'
+import {
+  buildOccurrencePhotoSendState,
+  hasOccurrencePhotoSendFailure,
+  isSameOccurrencePhotoQueue,
+  markOccurrencePhotoFailed,
+  markOccurrencePhotoSending,
+  markOccurrencePhotoSent,
+  type OccurrencePhotoSendItem,
+  resolveOccurrencePhotoIdempotencyKey,
+  resolveOccurrencePhotoSendQueue,
+  sendOccurrencePhotosSequentially,
+} from '../shared/occurrencePhotoSend.service'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 import {
   type CargoLayoutPendingEpisode,
@@ -29,6 +42,7 @@ import {
   canReadTrip,
   CTE_SUBMIT_PERMISSION,
   MDFE_MANAGE_PERMISSION,
+  NFSE_ISSUE_PERMISSION,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
   TRIP_QUERY_KEY,
@@ -94,7 +108,9 @@ export type TripController = Readonly<{
   canReportOnBehalf: boolean
   canManageMdfe: boolean
   canSubmitCte: boolean
-  closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  /** Spec 175 RF7: gate próprio da linha — `nfse.issue`, a mesma que a rota de emissão exige. */
+  canIssueNfse: boolean
+  closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
   confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
@@ -128,20 +144,43 @@ export type TripController = Readonly<{
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
+      /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
+      allowsMultipleItems: boolean
       emailTemplateKey: null | string
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
+      /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
+      redeliveryPolicy: OccurrenceRedeliveryPolicy
       stage: 'delivery' | 'separation'
     }>,
   ) => Promise<OccurrenceType>
+  /** Spec 161 T22 (RF29/RF31): multipart — `file` é sempre exigido, `thumbnail` é opcional. */
   registerTripOccurrence: (
     input: TripDocumentActionInput & {
+      readonly file: Blob
+      readonly idempotencyKey: string
       readonly note: string
       readonly occurrenceTypeId: string
-      readonly productCode: string
+      readonly productCodes: readonly string[]
+      /**
+       * Spec 166 RF4/RF7: alinhadas por índice a `productCodes`. Ausente ou item vazio é "sem
+       * contagem" — a quantidade nunca é obrigatória.
+       */
+      readonly productQuantities?: readonly (null | string)[]
+      readonly productQuantityUnits?: readonly (null | OccurrenceQuantityUnit)[]
+      readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
+  /** Spec 161 T22 (RF6/RF31): a 2ª a 5ª foto de uma ocorrência já registrada. */
+  attachOccurrencePhoto: (
+    input: TripDocumentActionInput & {
+      readonly file: Blob
+      readonly idempotencyKey: string
+      readonly occurrenceId: string
+      readonly thumbnail?: Blob
+    },
+  ) => Promise<Readonly<{ id: string; position: number }>>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
   ) => Promise<readonly TripDocumentProduct[]>
@@ -157,7 +196,10 @@ export type TripController = Readonly<{
     input: DeliveryAddressHistoryInput,
   ) => Promise<readonly DeliveryAddressOverride[]>
   overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
-  planTripRoute: (input: Readonly<{ tripId: string }>) => Promise<PlanTripRouteResult>
+  /** Spec 178 RF2: a troca de critério manda `routeChoice` — ausente segue o default do servidor. */
+  planTripRoute: (
+    input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
+  ) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
   transitionTripDocument: (
@@ -180,17 +222,20 @@ export function createTripController(
   const canManageSettings = input.permissions.includes('settings.manage')
   const canSubmitCte = input.permissions.includes(CTE_SUBMIT_PERMISSION)
   const canManageMdfe = input.permissions.includes(MDFE_MANAGE_PERMISSION)
+  const canIssueNfse = input.permissions.includes(NFSE_ISSUE_PERMISSION)
 
   return {
     batchStatus: (body) => (canManageTrips ? input.client.batchStatus(body) : forbidden()),
     cancelTrip: (body) => (canManageTrips ? input.client.cancelTrip(body) : forbidden()),
+    canIssueNfse,
     canManageMdfe,
     canManageTrips,
     canReadTripFleetDetails,
     canReadTrips,
     canReportOnBehalf,
     canSubmitCte,
-    closeTrip: (body) => (canManageTrips ? input.client.closeTrip(body) : forbidden()),
+    // Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` — é o escritório que confirma.
+    closeTrip: (body) => (canReportOnBehalf ? input.client.closeTrip(body) : forbidden()),
     confirmLoadTrip: (body) =>
       canReportOnBehalf ? input.client.confirmLoadTrip(body) : forbidden(),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
@@ -226,6 +271,8 @@ export function createTripController(
       canManageSettings ? input.client.saveOccurrenceType(body) : forbidden(),
     registerTripOccurrence: (body) =>
       canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
+    attachOccurrencePhoto: (body) =>
+      canManageTrips ? input.client.attachOccurrencePhoto(body) : forbidden(),
     readTripDocumentProducts: (body) =>
       canReadTripFleetDetails ? input.client.readTripDocumentProducts(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
@@ -288,6 +335,15 @@ export function useTripWorkspace(
 
   /** Qual nota está com o comprovante aberto — `null` fecha a consulta e não busca nada. */
   const [openProofDocumentId, setOpenProofDocumentId] = useState<null | string>(null)
+  /**
+   * Qual nota está com o diálogo de ocorrência de separação aberto (botão da linha, sem passar
+   * pelo comprovante). Mesmo padrão de `openProofDocumentId` — as consultas de ocorrência abaixo
+   * usam `activeOccurrenceDocumentId`, que resolve para qualquer um dos dois painéis abertos.
+   */
+  const [openSeparationOccurrenceDocumentId, setOpenSeparationOccurrenceDocumentId] = useState<
+    null | string
+  >(null)
+  const activeOccurrenceDocumentId = openProofDocumentId ?? openSeparationOccurrenceDocumentId
 
   /** Spec 145 D16: quando começou o `pending` atual da planta — o teto de 10 min conta daqui. */
   const [cargoLayoutEpisode, setCargoLayoutEpisode] = useState<
@@ -372,19 +428,22 @@ export function useTripWorkspace(
     queryKey: [...tripKey, 'delivery-proofs', openProofDocumentId] as const,
   })
 
-  /** Os itens seguem o mesmo painel do comprovante: uma abertura, duas consultas, nenhuma antes. */
+  /**
+   * Os itens seguem o mesmo painel: comprovante **ou** ocorrência de separação, uma abertura, duas
+   * consultas, nenhuma antes.
+   */
   const documentProductsQuery = useQuery({
     enabled:
       controller.canReadTripFleetDetails &&
-      openProofDocumentId !== null &&
+      activeOccurrenceDocumentId !== null &&
       input.tripId !== undefined &&
       input.tripId !== '',
     queryFn: () =>
       controller.readTripDocumentProducts({
-        documentId: openProofDocumentId ?? '',
+        documentId: activeOccurrenceDocumentId ?? '',
         tripId: input.tripId ?? '',
       }),
-    queryKey: [...tripKey, 'document-products', openProofDocumentId] as const,
+    queryKey: [...tripKey, 'document-products', activeOccurrenceDocumentId] as const,
   })
 
   /** Os tipos cadastrados: o painel da nota precisa deles para oferecer a escolha. */
@@ -395,13 +454,14 @@ export function useTripWorkspace(
   })
 
   const occurrencesQuery = useQuery({
-    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    enabled:
+      activeOccurrenceDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
     queryFn: () =>
       controller.readTripOccurrences({
-        documentId: openProofDocumentId ?? '',
+        documentId: activeOccurrenceDocumentId ?? '',
         tripId: input.tripId ?? '',
       }),
-    queryKey: [...tripKey, 'occurrences', openProofDocumentId] as const,
+    queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId] as const,
   })
 
   const fiscalReadinessQuery = useQuery({
@@ -448,10 +508,15 @@ export function useTripWorkspace(
     ]).then(() => undefined)
   }
 
-  /** Prender e soltar a nota numa viagem mexe no vínculo dela: o alcance mora no registro. */
+  /**
+   * Prender e soltar a nota numa viagem mexe no vínculo dela (efeito compartilhado com NFS-e e
+   * lote de CT-e) e recongela rota, pedágio, planta de carga e valuation no servidor — só esta
+   * tela produz o segundo efeito.
+   */
   async function invalidateDocumentLink(): Promise<void> {
     await invalidate()
     await invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
+    await invalidateMutationEffect({ effect: MUTATION_EFFECT.tripCargoLink, queryClient })
   }
 
   /**
@@ -474,17 +539,138 @@ export function useTripWorkspace(
     onSuccess: invalidateDocumentLink,
   })
   /**
-   * A ocorrência **só anota**: nada de invalidar a viagem inteira, porque o estado da nota não
-   * mudou. Invalidar a chave da viagem aqui daria a impressão de que ela muda alguma coisa.
+   * Spec 161 T22 (RF31, CA16): a foto do galpão vai **uma requisição por foto**, nunca o lote
+   * inteiro — a primeira cria a ocorrência (`registerTripOccurrence`), a segunda em diante anexa
+   * (`attachOccurrencePhoto`). `occurrencePhotoOccurrenceIdRef` é o que faz o reenvio depois de uma
+   * falha continuar anexando à mesma ocorrência, em vez de criar uma segunda; a chave de
+   * idempotência por foto (`occurrencePhotoKeysRef`) segue o mesmo molde de `resolveFieldReportKey`
+   * acima — nasce na primeira tentativa e é reusada em todo reenvio da mesma foto.
    */
-  const registerOccurrenceMutation = useMutation({
-    mutationFn: controller.registerTripOccurrence,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: [...tripKey, 'occurrences', openProofDocumentId],
+  const [occurrencePhotoSendState, setOccurrencePhotoSendState] = useState<
+    readonly OccurrencePhotoSendItem[]
+  >([])
+  const [isSendingOccurrencePhotos, setIsSendingOccurrencePhotos] = useState(false)
+  const [lastOccurrenceEmail, setLastOccurrenceEmail] = useState<null | Readonly<{
+    body: string
+    subject: string
+  }>>(null)
+  const occurrencePhotoKeysRef = useRef<Record<string, string>>({})
+  const occurrencePhotoOccurrenceIdRef = useRef<string | undefined>(undefined)
+
+  function resetSeparationOccurrencePhotoSend(): void {
+    occurrencePhotoKeysRef.current = {}
+    occurrencePhotoOccurrenceIdRef.current = undefined
+    setOccurrencePhotoSendState([])
+    setLastOccurrenceEmail(null)
+  }
+
+  async function sendSeparationOccurrencePhotos(
+    input_: TripDocumentActionInput &
+      Readonly<{
+        note: string
+        occurrenceTypeId: string
+        photos: readonly Readonly<{
+          original: Blob
+          photoId: string
+          thumbnail: Blob | undefined
+        }>[]
+        productCodes: readonly string[]
+        productQuantities?: readonly (null | string)[]
+        productQuantityUnits?: readonly (null | OccurrenceQuantityUnit)[]
+      }>,
+  ): Promise<Readonly<{ hasFailure: boolean }>> {
+    const photoById = new Map(input_.photos.map((photo) => [photo.photoId, photo] as const))
+    const photoIds = input_.photos.map((photo) => photo.photoId)
+    /**
+     * B2 (revisão spec 161): a identidade certa da fila é o **conjunto de `photoId`**, nunca o
+     * comprimento — um segundo registro com o mesmo número de fotos (mas fotos diferentes) herdava
+     * a fila anterior e, se ela já tinha item `sent`, o envio virava no-op silencioso.
+     */
+    let state = isSameOccurrencePhotoQueue(occurrencePhotoSendState, photoIds)
+      ? occurrencePhotoSendState
+      : buildOccurrencePhotoSendState(photoIds)
+    setOccurrencePhotoSendState(state)
+
+    function resolveKey(photoId: string): string {
+      const resolved = resolveOccurrencePhotoIdempotencyKey(
+        occurrencePhotoKeysRef.current,
+        photoId,
+        () => crypto.randomUUID(),
+      )
+      occurrencePhotoKeysRef.current = resolved.keys
+      return resolved.key
+    }
+
+    setIsSendingOccurrencePhotos(true)
+    try {
+      await sendOccurrencePhotosSequentially({
+        occurrenceId: occurrencePhotoOccurrenceIdRef.current,
+        onFailed: (photoId, error) => {
+          state = markOccurrencePhotoFailed(
+            state,
+            photoId,
+            error instanceof Error ? error.message : String(error),
+          )
+          setOccurrencePhotoSendState(state)
+        },
+        onSending: (photoId) => {
+          state = markOccurrencePhotoSending(state, photoId)
+          setOccurrencePhotoSendState(state)
+        },
+        onSent: (photoId, occurrenceId) => {
+          occurrencePhotoOccurrenceIdRef.current = occurrenceId
+          state = markOccurrencePhotoSent(state, photoId)
+          setOccurrencePhotoSendState(state)
+        },
+        photoIds: resolveOccurrencePhotoSendQueue(state),
+        port: {
+          attach: async ({ occurrenceId, photoId }) => {
+            const photo = photoById.get(photoId)
+            if (photo === undefined) throw new Error('OCCURRENCE_PHOTO_MISSING')
+            await controller.attachOccurrencePhoto({
+              documentId: input_.documentId,
+              file: photo.original,
+              idempotencyKey: resolveKey(photoId),
+              occurrenceId,
+              tripId: input_.tripId,
+              ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
+            })
+          },
+          registerFirst: async ({ photoId }) => {
+            const photo = photoById.get(photoId)
+            if (photo === undefined) throw new Error('OCCURRENCE_PHOTO_MISSING')
+            const registered = await controller.registerTripOccurrence({
+              documentId: input_.documentId,
+              file: photo.original,
+              idempotencyKey: resolveKey(photoId),
+              note: input_.note,
+              occurrenceTypeId: input_.occurrenceTypeId,
+              productCodes: input_.productCodes,
+              tripId: input_.tripId,
+              ...(input_.productQuantities === undefined
+                ? {}
+                : { productQuantities: input_.productQuantities }),
+              ...(input_.productQuantityUnits === undefined
+                ? {}
+                : { productQuantityUnits: input_.productQuantityUnits }),
+              ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
+            })
+            setLastOccurrenceEmail(registered.email)
+            return { occurrenceId: registered.id }
+          },
+        },
       })
-    },
-  })
+    } finally {
+      setIsSendingOccurrencePhotos(false)
+    }
+
+    void queryClient.invalidateQueries({
+      queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId],
+    })
+    void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, 'occurrence-feed'] })
+
+    return { hasFailure: hasOccurrencePhotoSendFailure(state) }
+  }
 
   /**
    * ⚠️ Corrigir o ponto muda o **endereço**, não a viagem — mas a viagem lê a coordenada dele para
@@ -711,10 +897,20 @@ export function useTripWorkspace(
     documentProductsQuery,
     occurrenceTypesQuery,
     occurrencesQuery,
-    registerOccurrenceMutation,
+    isSendingOccurrencePhotos,
+    lastOccurrenceEmail,
+    occurrencePhotoSendState,
+    resetSeparationOccurrencePhotoSend,
+    sendSeparationOccurrencePhotos,
     openProofDocumentId,
     setOpenProofDocumentId,
+    openSeparationOccurrenceDocumentId,
+    setOpenSeparationOccurrenceDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,
+    refetchFiscalReadiness: () => void fiscalReadinessQuery.refetch(),
+    /** O par que o componente de ação de outro módulo exige; `permissions` já vem vazio sem empresa. */
+    companyId: input.companyId,
+    permissions,
     setMdfeRequirementMutation,
     dispatchMutation,
     linkDocumentMutation,

@@ -20,6 +20,12 @@ export type TripDocumentAction = (typeof TRIP_DOCUMENT_ACTION)[keyof typeof TRIP
 
 export const TRIP_ACTION = {
   cancel: 'cancel',
+  /**
+   * Spec 158 T12 (PERGUNTAS-ABERTAS #28): o encerramento manual (`close`). Só existe para bloquear
+   * `cancelled → completed` com o mesmo código de transição proibida das demais — `completed` já é
+   * idempotente por fora, no próprio caso de uso.
+   */
+  close: 'close',
   /** ADR-0058: o motorista afirma que o que está no caminhão é o que esta viagem diz. */
   confirmLoad: 'confirmLoad',
   dispatch: 'dispatch',
@@ -233,11 +239,26 @@ export function checkTripTransition({
   tripStatus,
 }: CheckTripTransitionParams): TripTransition<TripStatus> {
   if (action === TRIP_ACTION.cancel) return checkCancel(tripStatus)
+  if (action === TRIP_ACTION.close) return checkClose(tripStatus)
   if (action === TRIP_ACTION.planRoute) return checkPlanRoute({ hasRoute, tripStatus })
   if (action === TRIP_ACTION.confirmLoad) return checkFieldStart(tripStatus, 'in_transit')
   if (action === TRIP_ACTION.startRoute) return checkFieldStart(tripStatus, 'on_delivery_route')
 
   return checkDispatch({ hasRoute, tripStatus })
+}
+
+/**
+ * Spec 158 T12: encerrar é sempre rumo a `completed`, exceto a viagem cancelada — sair de
+ * `cancelled` é reabrir o que o incidente já fechou, e a máquina não tem aresta para isso.
+ * `completed` devolve `unchanged`: o próprio `close` já responde 200 sem gravar de novo.
+ */
+function checkClose(tripStatus: TripStatus): TripTransition<TripStatus> {
+  if (tripStatus === 'completed') return { outcome: 'unchanged' }
+  if (tripStatus === 'cancelled') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled }
+  }
+
+  return { outcome: 'applied', nextStatus: 'completed' }
 }
 
 /**

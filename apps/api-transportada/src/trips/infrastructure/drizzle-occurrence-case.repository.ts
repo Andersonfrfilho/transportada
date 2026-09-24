@@ -1,0 +1,335 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 164 T4: escritor único de `trip_occurrence_cases` / `trip_occurrence_case_events`.
+ *
+ * `openOccurrenceCase` é chamada de **dentro** da transação que já grava a ocorrência
+ * (`saveTripOccurrence`, `delivery-proof-read.support.ts`) — nunca uma segunda transação. Tipo
+ * `unset` não abre (RF3): é a mesma `resolveOccurrenceCaseOpening` da T2.
+ *
+ * `DrizzleOccurrenceCaseRepository.transition` é o molde de `DrizzleTripRepository.close`
+ * (`drizzle-trip.repository.ts`): `select … for no key update` imediatamente antes do `update`, e
+ * **nunca** `for update` — a inserção do evento pega `FOR KEY SHARE` pela FK composta
+ * (`trip_occurrence_case_events_company_case_fk`), e `FOR UPDATE` deadlocka contra isso (CLAUDE.md
+ * da app). A máquina (`checkOccurrenceCaseTransition`) roda de novo **depois** do lock, porque a
+ * precondição do caso de uso (T5) foi lida fora da transação; a escrita é compare-and-set pelo
+ * status travado — zero linhas afetadas é 409 (`OccurrenceCaseTransitionNotAllowedError`), nunca
+ * 404 e nunca silêncio. Evento só quando o status muda de fato — o CHECK
+ * `trip_occurrence_case_events_transition_check` reprova o contrário de qualquer forma.
+ */
+import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { and, eq } from 'drizzle-orm'
+
+import {
+  tripDocumentOccurrences,
+  tripOccurrenceCaseEvents,
+  tripOccurrenceCases,
+  tripOccurrenceItemSettlements,
+} from '../../database/trip.schema.js'
+import type {
+  RedeliveryPolicy,
+  TripOccurrenceCaseActorKind,
+  TripOccurrenceCaseDecisionKind,
+  TripOccurrenceCaseStatus,
+} from '../../database/trip.schema.js'
+import {
+  checkOccurrenceCaseTransition,
+  OCCURRENCE_CASE_TERMINAL_STATUSES,
+  OCCURRENCE_CASE_TRANSITION_REFUSALS,
+} from '../domain/occurrence-case-state.policy.js'
+import type {
+  OccurrenceCaseAction,
+  OccurrenceCaseTransitionRefusalCode,
+} from '../domain/occurrence-case-state.policy.js'
+import { resolveOccurrenceCaseOpening } from '../domain/occurrence-case.policy.js'
+import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy.js'
+import { listOccurrenceProductCodes } from './drizzle-occurrence-product.repository.js'
+import {
+  OccurrenceCaseDecisionConflictError,
+  OccurrenceCaseNotFoundError,
+  OccurrenceCaseRedeliveryNotAllowedError,
+  OccurrenceCaseSettlementWithoutItemsError,
+  OccurrenceCaseTransitionNotAllowedError,
+} from '../domain/trip.error.js'
+import type { TripQueryable, TripTransaction } from './trip-queryable.type.js'
+import type { OccurrenceCaseRepositoryPort } from '../application/occurrence-case.port.js'
+
+type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+const TERMINAL_STATUSES = new Set<TripOccurrenceCaseStatus>(OCCURRENCE_CASE_TERMINAL_STATUSES)
+
+/**
+ * Chamada de dentro da transação de `saveTripOccurrence`: `unset` não abre (T2, RF3); `allowed`/
+ * `blocked` abrem em `recorded` com o evento de abertura (`from_status` nulo, `actor_kind:
+ * 'internal'` — quem abre é sempre quem registrou a ocorrência, nunca o contratante).
+ */
+export async function openOccurrenceCase(
+  queryable: TripQueryable,
+  input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly redeliveryPolicy: RedeliveryPolicy
+  },
+): Promise<void> {
+  const opening = resolveOccurrenceCaseOpening(input.redeliveryPolicy)
+  if (!opening.opens) return
+
+  const [created] = await queryable
+    .insert(tripOccurrenceCases)
+    .values({
+      companyId: input.companyId,
+      occurrenceId: input.occurrenceId,
+      redeliveryPolicy: input.redeliveryPolicy,
+      status: opening.status,
+    })
+    .returning({ id: tripOccurrenceCases.id })
+  if (created === undefined) throw new Error('OCCURRENCE_CASE_OPEN_FAILED')
+
+  await queryable.insert(tripOccurrenceCaseEvents).values({
+    actorKind: 'internal',
+    actorUserId: input.actorUserId,
+    caseId: created.id,
+    companyId: input.companyId,
+    toStatus: opening.status,
+  })
+}
+
+export type OccurrenceCaseTransitionInput = {
+  readonly action: OccurrenceCaseAction
+  readonly actorKind: TripOccurrenceCaseActorKind
+  /** Spec 164 T9: obrigatória para os dois atores — interno ou contratante. */
+  readonly actorUserId: string
+  readonly caseId: string
+  readonly companyId: string
+  /** Só em `decide`: a decisão sendo aplicada agora (T5/T9-T10) — `null` nas demais ações. */
+  readonly decisionKind?: TripOccurrenceCaseDecisionKind
+  readonly decisionNote?: string
+  readonly note: string
+}
+
+export type OccurrenceCaseTransitionResult = {
+  readonly kind: 'changed' | 'unchanged'
+  readonly status: TripOccurrenceCaseStatus
+}
+
+/**
+ * Escritor único das transições da tratativa — usado pelas quatro ações internas (T5) e pela
+ * decisão do contratante (T9/T10). Nenhuma outra camada faz `update` em `trip_occurrence_cases`.
+ */
+export class DrizzleOccurrenceCaseRepository implements OccurrenceCaseRepositoryPort {
+  public constructor(private readonly database: Database) {}
+
+  public async transition(
+    input: OccurrenceCaseTransitionInput,
+  ): Promise<OccurrenceCaseTransitionResult> {
+    return this.database.transaction((transaction) => applyTransition(transaction, input))
+  }
+
+  /**
+   * Spec 164 T7: `:id` na rota é o id da **ocorrência** (`trip_document_occurrences.id`), não o
+   * `caseId` que o escritor de transição espera — a rota resolve um pelo outro aqui. `null` quando
+   * a ocorrência não tem tratativa aberta (tipo `unset`) ou não é desta empresa.
+   */
+  public async findIdByOccurrenceId(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<string | null> {
+    const [found] = await this.database
+      .select({ id: tripOccurrenceCases.id })
+      .from(tripOccurrenceCases)
+      .where(
+        and(
+          eq(tripOccurrenceCases.companyId, input.companyId),
+          eq(tripOccurrenceCases.occurrenceId, input.occurrenceId),
+        ),
+      )
+      .limit(1)
+    return found?.id ?? null
+  }
+}
+
+async function applyTransition(
+  transaction: TripTransaction,
+  input: OccurrenceCaseTransitionInput,
+): Promise<OccurrenceCaseTransitionResult> {
+  const [locked] = await transaction
+    .select({
+      decisionKind: tripOccurrenceCases.decisionKind,
+      decisionNote: tripOccurrenceCases.decisionNote,
+      occurrenceId: tripOccurrenceCases.occurrenceId,
+      redeliveryPolicy: tripOccurrenceCases.redeliveryPolicy,
+      status: tripOccurrenceCases.status,
+    })
+    .from(tripOccurrenceCases)
+    .where(
+      and(
+        eq(tripOccurrenceCases.companyId, input.companyId),
+        eq(tripOccurrenceCases.id, input.caseId),
+      ),
+    )
+    .for('no key update')
+    .limit(1)
+  if (locked === undefined) throw new OccurrenceCaseNotFoundError()
+
+  /** Só o fechamento pergunta pelos itens acertados — as demais ações não pagam a consulta. */
+  const hasSettlementItems =
+    input.action === 'closure'
+      ? await countsSettlementItems(transaction, {
+          caseId: input.caseId,
+          companyId: input.companyId,
+        })
+      : false
+
+  /** Só o envio à contratante pergunta pelos itens declarados (RF7). */
+  const hasOccurrenceItems =
+    input.action === 'contractor_submission'
+      ? await countsOccurrenceItems(transaction, {
+          companyId: input.companyId,
+          occurrenceId: locked.occurrenceId,
+        })
+      : false
+
+  const transition = checkOccurrenceCaseTransition({
+    action: input.action,
+    decisionKind: input.decisionKind ?? locked.decisionKind,
+    hasOccurrenceItems,
+    hasSettlementItems,
+    redeliveryPolicy: locked.redeliveryPolicy,
+    status: locked.status,
+  })
+
+  if (transition.kind === 'refused') throw refusalError(transition.code)
+  if (transition.kind === 'unchanged') {
+    /**
+     * ⚠️ Convergir é para a **mesma** decisão. Duas abas decidindo coisas diferentes chegam as duas
+     * aqui — a máquina só sabe que `decided` já foi alcançado —, e devolver `unchanged` faria a
+     * segunda sumir com 200, deixando gravada a decisão da primeira sem ninguém saber. A comparação
+     * é contra a linha **travada**, nunca contra leitura feita fora da transação.
+     */
+    if (
+      input.action === 'decide' &&
+      (locked.decisionKind !== (input.decisionKind ?? null) ||
+        locked.decisionNote !== (input.decisionNote ?? ''))
+    ) {
+      throw new OccurrenceCaseDecisionConflictError()
+    }
+    return { kind: 'unchanged', status: transition.to }
+  }
+
+  const isDecide = input.action === 'decide'
+  const resolvesNow = TERMINAL_STATUSES.has(transition.to)
+
+  const updated = await transaction
+    .update(tripOccurrenceCases)
+    .set({
+      status: transition.to,
+      updatedAt: new Date(),
+      ...(isDecide
+        ? {
+            decidedAt: new Date(),
+            decidedByUserId: input.actorUserId,
+            decisionKind: input.decisionKind ?? null,
+            decisionNote: input.decisionNote ?? '',
+          }
+        : {}),
+      ...(resolvesNow ? { resolvedAt: new Date() } : {}),
+    })
+    .where(
+      and(
+        eq(tripOccurrenceCases.companyId, input.companyId),
+        eq(tripOccurrenceCases.id, input.caseId),
+        eq(tripOccurrenceCases.status, locked.status),
+      ),
+    )
+    .returning({ id: tripOccurrenceCases.id })
+
+  /** Corrida perdida entre o lock e o CAS: outra transação já mudou o status. Nunca 404, nunca silêncio. */
+  if (updated.length === 0) throw new OccurrenceCaseTransitionNotAllowedError()
+
+  await transaction.insert(tripOccurrenceCaseEvents).values({
+    actorKind: input.actorKind,
+    actorUserId: input.actorUserId,
+    caseId: input.caseId,
+    companyId: input.companyId,
+    fromStatus: locked.status,
+    note: input.note,
+    toStatus: transition.to,
+  })
+
+  return { kind: 'changed', status: transition.to }
+}
+
+/**
+ * A contagem que decide o fechamento de `goods_paid` (RF23) — lida **depois** do lock e dentro da
+ * mesma transação do `update`. Contar fora dela é a mesma classe de defeito que a spec 158 fechou:
+ * a pré-condição do caso de uso envelhece entre a leitura e a escrita, e aqui ela envelhecia para
+ * sempre — os três chamadores passavam o literal `false`.
+ */
+async function countsSettlementItems(
+  transaction: TripTransaction,
+  input: { readonly caseId: string; readonly companyId: string },
+): Promise<boolean> {
+  const [found] = await transaction
+    .select({ id: tripOccurrenceItemSettlements.id })
+    .from(tripOccurrenceItemSettlements)
+    .where(
+      and(
+        eq(tripOccurrenceItemSettlements.companyId, input.companyId),
+        eq(tripOccurrenceItemSettlements.caseId, input.caseId),
+      ),
+    )
+    .limit(1)
+  return found !== undefined
+}
+
+/**
+ * RF7: a ocorrência aponta produto? `trip_document_occurrence_products` é a lista nova e
+ * `trip_document_occurrences.product_code` é a coluna antiga — `resolveOccurrenceProductCodes`
+ * concilia as duas, e a nota inteira (`''`, sem linha nenhuma) devolve lista vazia.
+ */
+async function countsOccurrenceItems(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<boolean> {
+  const [occurrence] = await transaction
+    .select({ productCode: tripDocumentOccurrences.productCode })
+    .from(tripDocumentOccurrences)
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (occurrence === undefined) throw new OccurrenceCaseNotFoundError()
+
+  const productCodes = await listOccurrenceProductCodes(transaction, {
+    companyId: input.companyId,
+    occurrenceIds: [input.occurrenceId],
+  })
+
+  return (
+    resolveOccurrenceProductCodes({
+      productCode: occurrence.productCode,
+      productCodes: productCodes.get(input.occurrenceId) ?? [],
+    }).length > 0
+  )
+}
+
+function refusalError(code: OccurrenceCaseTransitionRefusalCode): Error {
+  if (code === OCCURRENCE_CASE_TRANSITION_REFUSALS.settlementWithoutItems) {
+    return new OccurrenceCaseSettlementWithoutItemsError()
+  }
+  if (
+    code === OCCURRENCE_CASE_TRANSITION_REFUSALS.redeliveryNotAllowed ||
+    code === OCCURRENCE_CASE_TRANSITION_REFUSALS.redeliveryBlockedHasNoQuestion
+  ) {
+    return new OccurrenceCaseRedeliveryNotAllowedError(
+      code === OCCURRENCE_CASE_TRANSITION_REFUSALS.redeliveryNotAllowed
+        ? 'redeliveryNotAllowed'
+        : 'redeliveryBlockedHasNoQuestion',
+    )
+  }
+  return new OccurrenceCaseTransitionNotAllowedError()
+}

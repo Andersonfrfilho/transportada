@@ -9,8 +9,8 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
+import { AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY } from '../shared/trip.constant'
 import type { RouteChoice } from '../shared/routeGeometry.service'
-import { TRIP_QUERY_KEY } from '../shared/trip.constant'
 import {
   buildManualAssemblyDraft,
   isManualAssemblyDraftEmpty,
@@ -27,12 +27,6 @@ import {
 } from '../shared/tripAssemblyDraftStorage.service'
 import type { TripQuickCreateQueue } from '../shared/tripQuickCreate.service'
 import { useTripAssemblyDraftLifecycle } from './useTripAssemblyDraftLifecycle.hook'
-
-export const QUICK_CREATE_DOCUMENTS_QUERY_KEY = [
-  TRIP_QUERY_KEY,
-  'quick-create',
-  'documents',
-] as const
 
 type QuickCreateDraftInput = Readonly<{
   /** A montagem como está na tela — é ela que vira rascunho. */
@@ -78,7 +72,7 @@ export function useQuickCreateDraft(input: QuickCreateDraftInput) {
         loadDocuments: () =>
           queryClient.fetchQuery({
             queryFn: loadAvailableTripDocuments,
-            queryKey: QUICK_CREATE_DOCUMENTS_QUERY_KEY,
+            queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
           }),
         selectableDriverIds: input.selectableDriverIds,
         selectableVehicleIds: input.selectableVehicleIds,

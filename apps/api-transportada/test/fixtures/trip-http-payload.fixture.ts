@@ -163,14 +163,21 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   },
   cteAuthorized: true,
   fiscalStatus: 'authorized',
+  freightAmount: null,
+  freightRuleName: null,
+  freightSource: 'missing',
   nfeIssuedAt: '2026-08-01T09:00:00.000Z',
   nfeNumber: '883658',
   nfeSeries: '1',
   nfeTotalValue: '1500.0000',
+  openOccurrenceCase: false,
 }
 
 export const TRIP_DETAIL: TripDetail = {
   ...TRIP,
+  closeReason: null,
+  closedAt: null,
+  closedByName: null,
   cargoLayout: null,
   cargoLayoutState: {
     computedAt: null,

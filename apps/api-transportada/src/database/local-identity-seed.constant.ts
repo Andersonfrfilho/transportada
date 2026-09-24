@@ -29,8 +29,16 @@ export const LOCAL_SERVICE_EXTERNAL_IDENTITY_ID = '00000000-0000-4000-8000-00000
 export const LOCAL_SERVICE_MEMBERSHIP_ID = '00000000-0000-4000-8000-000000000008'
 
 export type LocalSeedActor = {
+  readonly contactAddress: string
   readonly externalIdentityId: string
   readonly membershipId: string
+  /**
+   * Sem perfil, `identity_user_profiles` fica vazio e a linha do tempo mostra "por usuário removido"
+   * — porque a autoria resolve o nome por ali, e o front trata ausência como remoção. Produção nunca
+   * chega nesse estado: os três caminhos de criação de usuário gravam usuário e perfil na mesma
+   * transação. Só a bancada chegava, porque o seed parava no usuário.
+   */
+  readonly name: string
   readonly roles: readonly CompanyRole[]
   readonly subject: string
   readonly userId: string
@@ -43,15 +51,19 @@ export type LocalSeedActor = {
  */
 export const LOCAL_SEED_ACTORS: readonly LocalSeedActor[] = [
   {
+    contactAddress: 'operador@local.test',
     externalIdentityId: LOCAL_EXTERNAL_IDENTITY_ID,
     membershipId: LOCAL_MEMBERSHIP_ID,
+    name: 'Operador local',
     roles: LOCAL_IDENTITY_ROLES,
     subject: LOCAL_KEYCLOAK_SUBJECT,
     userId: LOCAL_IDENTITY_USER_ID,
   },
   {
+    contactAddress: 'automacao@local.test',
     externalIdentityId: LOCAL_SERVICE_EXTERNAL_IDENTITY_ID,
     membershipId: LOCAL_SERVICE_MEMBERSHIP_ID,
+    name: 'Automação local',
     roles: ['automation'],
     subject: LOCAL_SERVICE_KEYCLOAK_SUBJECT,
     userId: LOCAL_SERVICE_IDENTITY_USER_ID,

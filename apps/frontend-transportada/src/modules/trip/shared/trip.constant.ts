@@ -35,6 +35,14 @@ export function canReadTrip(permissions: readonly string[]): boolean {
 export const CTE_SUBMIT_PERMISSION = 'cte.submit'
 
 /**
+ * Spec 175 RF7: a permissão de cada documento é conferida separadamente — `nfse.issue` é a mesma
+ * que a rota `POST /nfse-service-invoices` exige (`nfse-invoices.routes.ts:172`). Mesmo valor de
+ * `NFSE_ISSUE_PERMISSION` em `modules/nfse-invoice/shared/nfseInvoice.constant.ts`; cópia por valor
+ * para não fazer `trip` depender de `nfse-invoice` só por uma string.
+ */
+export const NFSE_ISSUE_PERMISSION = 'nfse.issue'
+
+/**
  * Spec 065 D4c: dispensar manifesto é decisão fiscal com multa do outro lado — a mesma permissão
  * de quem emite, nunca a de quem monta a viagem.
  */
@@ -62,11 +70,25 @@ export const TRIP_PAGE_SIZE = 25
 export const TRIP_QUERY_KEY = 'trips'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 
+/**
+ * Um carregador, **uma chave**. As duas montagens — a manual do "Nova viagem" e a automática do
+ * roteiro — nasceram com chaves próprias sobre esta mesma função, e isso custava duas varreduras
+ * paginadas da base de notas por abertura da tela de viagens, para guardar duas cópias do mesmo
+ * recorte.
+ *
+ * ⚠️ Chave separada nunca serviu para invalidar uma sem a outra: as duas sempre penderam de
+ * `[TRIP_QUERY_KEY]`, e é o prefixo que as derruba juntas. Quem for separá-las de novo precisa
+ * primeiro de um motivo que o cache saiba distinguir.
+ */
+export const AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY = [TRIP_QUERY_KEY, 'available-documents'] as const
+
 export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   DRIVER_NOT_ON_TRIP: 'driverNotOnTrip',
   /** Spec 156 T7.3/T9 (L4): tipo de separação, aposentado ou inexistente no lote de ocorrência. */
   OCCURRENCE_TYPE_NOT_FIELD: 'occurrenceTypeNotField',
   STATE_TRANSITION_NOT_ALLOWED: 'stateTransitionNotAllowed',
+  /** Spec 156 T8c: encerrar com nota em aberto exige motivo, e o aviso sai dentro do diálogo. */
+  TRIP_CLOSE_REASON_REQUIRED: 'closeReasonRequired',
   TRIP_CLOSED: 'closed',
   TRIP_DOCUMENT_ALREADY_DELIVERED: 'documentAlreadyDelivered',
   TRIP_DOCUMENT_ALREADY_LINKED: 'documentAlreadyLinked',
@@ -84,7 +106,12 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_HAS_UNLOADED_DOCUMENTS: 'hasUnloadedDocuments',
   TRIP_NOT_FOUND: 'notFound',
   TRIP_REQUEST_FAILED: 'requestFailed',
+  /** Mesmo fato, nome sem prefixo — vem das telas de rua. Falha de rede de verdade fala em internet. */
+  REQUEST_FAILED: 'requestFailed',
   TRIP_RESPONSE_INVALID: 'responseInvalid',
+  /** Spec 178 RF6: a troca de critério pediu uma rota nova e o roteirizador não devolveu — a
+   *  anterior continua valendo. */
+  TRIP_ROUTE_UNAVAILABLE: 'routeUnavailable',
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
   /** Spec 158 T6: `GET /trips/:id/timeline` com `cursor` malformado. */
   TRIP_TIMELINE_CURSOR_INVALID: 'timelineCursorInvalid',
@@ -114,6 +141,11 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   /** Spec 156 T15: canhoto do escritório maior que o teto, ou bytes que não batem com uma imagem. */
   TRIP_DELIVERY_PROOF_TOO_LARGE: 'deliveryProofTooLarge',
   TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE: 'deliveryProofUnsupportedType',
+  /** Spec 164, achado 1: decisão divergente da transportadora sobre tratativa já `decided`. */
+  OCCURRENCE_CASE_DECISION_CONFLICT: 'occurrenceCaseDecisionConflict',
+  /** Spec 164, achado 1: reentrega escolhida sobre política `blocked` da tratativa. */
+  OCCURRENCE_CASE_REDELIVERY_NOT_ALLOWED: 'occurrenceCaseRedeliveryNotAllowed',
+  OCCURRENCE_CASE_NOTE_REQUIRED: 'occurrenceCaseNoteRequired',
 }
 
 /** Spec 156 T6: `POST .../field-delivery` (T11 consome; T8 só mapeia o texto). */
@@ -176,15 +208,32 @@ export const TRIP_DOCUMENT_DETAIL_KEYS = [
  * corretamente, mas quebrando a tela inteira por um rótulo.
  */
 export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
+  /**
+   * Spec 164 T15 (RF21): a nota tem tratativa de ocorrência aberta. Opcional porque a API vai à
+   * frente do bundle — e porque exigi-lo derrubaria a viagem inteira em instalação de API antiga,
+   * que é exatamente a quebra que este campo causou em staging em 22/09 ao chegar sem estar aqui.
+   */
+  'openOccurrenceCase',
   'contact',
   'nfeIssuedAt',
   'nfeNumber',
   'nfeSeries',
   'nfeTotalValue',
+  /** Spec 176: mesmo motivo — API vai à frente do bundle, e ausente é API anterior à feature. */
+  'freightAmount',
+  'freightRuleName',
+  'freightSource',
 ] as const
 
 /** Spec 078 D2: campo novo nasce opcional até a API que o serve estar garantidamente no ar. */
-export const TRIP_STOP_OPTIONAL_KEYS = ['cityCode', 'latitude', 'longitude', 'state'] as const
+export const TRIP_STOP_OPTIONAL_KEYS = [
+  /** Spec 164 T15 (RF21): alguma nota desta parada tem tratativa aberta. Mesmo motivo do de cima. */
+  'hasOpenOccurrence',
+  'cityCode',
+  'latitude',
+  'longitude',
+  'state',
+] as const
 
 export const TRIP_STOP_KEYS = [
   'addressKey',
@@ -220,6 +269,9 @@ export const TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTot
  */
 export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period'] as const
 
+/** Spec 176: o frete **da nota**, mesmo vocabulário de `TRIP_REVENUE_SOURCES` sem `period` — não há período por nota. */
+export const TRIP_DOCUMENT_FREIGHT_SOURCES = ['measured', 'estimated', 'missing'] as const
+
 /**
  * Spec 078 D2: **campo novo nasce opcional**, e sai desta lista até a API que o serve estar
  * garantidamente no ar.
@@ -242,6 +294,10 @@ export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period
  */
 export const TRIP_DETAIL_OPTIONAL_KEYS = [
   ...TRIP_OPTIONAL_KEYS,
+  /** Spec 156 T8d: nascem juntos — encerramento manual traz os três, derivação automática nenhum. */
+  'closeReason',
+  'closedAt',
+  'closedByName',
   'cargoLayout',
   /** Spec 145 D17: aceito antes de a API servir (T10), para o detalhe não cair na janela de deploy. */
   'cargoLayoutState',
@@ -292,6 +348,54 @@ export const TRIP_OCCURRENCE_OPTIONAL_KEYS = [
   'actorName',
   'channel',
   'onBehalfOfDriverName',
+  /**
+   * Spec 161 T6/T22/T24: nasce opcional aqui só para não derrubar o parse do registro
+   * (RF29/RF31) — as fotos gravadas, no formato completo de RF8 (T24).
+   */
+  'attachments',
+  /**
+   * Os itens da nota apontados pela ocorrência. Opcional porque a API vai à frente do bundle, e
+   * porque a resposta antiga só tem `productCode`; lista vazia é a nota inteira.
+   */
+  'productCodes',
+  /**
+   * Spec 166 RF6: os itens **com quantidade** (`{ code, quantity, unit }`). Entra opcional aqui
+   * antes de a API mandá-lo, e a ordem não é zelo: a lista é fechada, então chave desconhecida
+   * derruba a resposta inteira — 201 gravado, tela dizendo que falhou (medido em 22/09).
+   */
+  'products',
+  /**
+   * Spec 167 RF9: o histórico da ocorrência. `corrections` guarda o conjunto que valia **antes** de
+   * cada correção; `cancellation` é o cancelamento com motivo e autor, ou `null`. Opcionais aqui
+   * antes de a API mandá-las, pela mesma razão de `products`.
+   */
+  'corrections',
+  'cancellation',
+] as const
+
+/**
+ * Spec 166 RF1: o par de fallback — peça solta ou volume fechado — para quando o item não trouxe
+ * unidade comercial da nota (spec 172 RF3).
+ */
+export const OCCURRENCE_QUANTITY_UNITS = ['box', 'unit'] as const
+export type OccurrenceFallbackQuantityUnit = (typeof OCCURRENCE_QUANTITY_UNITS)[number]
+
+/**
+ * Spec 172 (RF1/RF2): a unidade real é **aberta** — a unidade comercial que o item traz da nota
+ * (`KG`, `L`, `CX`...), mais o par de fallback acima. Fechar num union faria toda sigla de XML
+ * virar erro de tipo; a API é quem confere o valor contra o item, não o tipo.
+ */
+export type OccurrenceQuantityUnit = string
+
+/** Spec 161 T24 (RF8): campos sempre presentes no anexo. */
+export const TRIP_OCCURRENCE_ATTACHMENT_KEYS = ['expired', 'id', 'mimeType', 'position'] as const
+
+/** Spec 161 T24 (RF8): ausentes quando não há URL a oferecer — miniatura sem gerar, ou anexo
+ * expirado (D11, sem nenhuma das duas). */
+export const TRIP_OCCURRENCE_ATTACHMENT_OPTIONAL_KEYS = [
+  'downloadUrl',
+  'expiresAt',
+  'thumbnailUrl',
 ] as const
 
 /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences` lista os tipos de rua do escritório. */
@@ -303,6 +407,7 @@ export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/
 export const TRIP_TIMELINE_ITEM_KEYS = [
   'actorName',
   'channel',
+  'closeReason',
   'document',
   'fromStatus',
   'id',
@@ -319,6 +424,8 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
 export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const
+/** Spec 161 T24 (RF12): a contagem só existe quando a ocorrência tem foto. */
+export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS = ['attachmentCount'] as const
 
 export const TRIP_TIMELINE_DEFAULT_LIMIT = 100
 

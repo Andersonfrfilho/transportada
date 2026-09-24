@@ -11,36 +11,46 @@
  * caberem na mesma projeção — e elas não cabem: uma tem tipo cadastrado, a outra tem anexo.
  */
 import { alias } from 'drizzle-orm/pg-core'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { SQL, SQLWrapper } from 'drizzle-orm'
 
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocuments } from '../../database/nfe.schema.js'
+import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   companyOccurrenceTypes,
   TRIP_STOP_OCCURRENCE_KINDS,
+  tripDocumentOccurrenceAttachments,
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
+  tripOccurrenceCases,
   tripStopOccurrences,
   tripStops,
   trips,
 } from '../../database/trip.schema.js'
-import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import type {
+  RedeliveryPolicy,
+  TripOccurrenceCaseDecisionKind,
+  TripOccurrenceCaseStatus,
+  TripStopOccurrenceKind,
+} from '../../database/trip.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import type { KeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { mergeOccurrenceFeed } from '../domain/occurrence-feed.policy.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
 import type {
+  TripOccurrenceFeedCaseView,
   TripOccurrenceFeedFilters,
   TripOccurrenceFeedItem,
   TripOccurrenceFeedPage,
   TripOccurrenceFeedQuery,
 } from '../application/trip-occurrence-feed.use-case.js'
+import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type FeedRow = Omit<TripOccurrenceFeedItem, 'createdAt'> & { readonly createdAt: Date }
@@ -78,10 +88,14 @@ function periodConditions(
 ): readonly SQL[] {
   const conditions: SQL[] = []
   if (filters?.createdFrom !== undefined) {
-    conditions.push(sql`${createdAtColumn} >= ${new Date(filters.createdFrom)}`)
+    conditions.push(
+      sql`${createdAtColumn} >= ${timestamptzParameter(new Date(filters.createdFrom))}`,
+    )
   }
   if (filters?.createdUntil !== undefined) {
-    conditions.push(sql`${createdAtColumn} <= ${new Date(filters.createdUntil)}`)
+    conditions.push(
+      sql`${createdAtColumn} <= ${timestamptzParameter(new Date(filters.createdUntil))}`,
+    )
   }
   return conditions
 }
@@ -103,6 +117,25 @@ function stageSelects(filters: TripOccurrenceFeedFilters | undefined): {
     includeDocuments: documentStages.length > 0,
     includeStops: filters.stageIn.includes('stop'),
   }
+}
+
+/**
+ * RF11: `caseStatusIn` mistura estados reais da tratativa com `'none'` (sem tratativa aberta).
+ * `null` quando o filtro não foi pedido — a query inteira segue sem restrição de tratativa.
+ */
+function caseStatusCondition(filters: TripOccurrenceFeedFilters | undefined): SQL | null {
+  if (filters?.caseStatusIn === undefined || filters.caseStatusIn.length === 0) return null
+  const wantsNone = filters.caseStatusIn.includes('none')
+  const statuses = filters.caseStatusIn.filter(
+    (value): value is TripOccurrenceCaseStatus => value !== 'none',
+  )
+
+  if (wantsNone && statuses.length === 0) return sql`${tripOccurrenceCases.id} is null`
+  if (!wantsNone && statuses.length > 0) return inArray(tripOccurrenceCases.status, statuses)
+  if (wantsNone && statuses.length > 0) {
+    return sql`(${tripOccurrenceCases.id} is null or ${inArray(tripOccurrenceCases.status, statuses)})`
+  }
+  return null
 }
 
 async function listDocumentOccurrenceRows(
@@ -133,14 +166,36 @@ async function listDocumentOccurrenceRows(
   if (query.filters?.plateIn !== undefined && query.filters.plateIn.length > 0) {
     conditions.push(inArray(fleetVehicles.plate, query.filters.plateIn))
   }
+  const caseCondition = caseStatusCondition(query.filters)
+  if (caseCondition !== null) conditions.push(caseCondition)
 
   const rows = await queryable
     .select({
       actorName: feedActorProfile.name,
+      caseDecidedAt: tripOccurrenceCases.decidedAt,
+      caseDecisionKind: tripOccurrenceCases.decisionKind,
+      caseDecisionNote: tripOccurrenceCases.decisionNote,
+      caseId: tripOccurrenceCases.id,
+      caseRedeliveryPolicy: tripOccurrenceCases.redeliveryPolicy,
+      caseStatus: tripOccurrenceCases.status,
+      caseUpdatedAt: tripOccurrenceCases.updatedAt,
       channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
       driverName: tripDrivers.driverName,
+      /**
+       * Spec 161 T10 (RF10): sai o `false` fixo — a nota de galpão grava na tabela nova (D2), a de
+       * rua na coluna antiga (D6); `hasAttachment` real é a união das duas, sem trazer o anexo
+       * inteiro para a listagem (RNF2, nunca URL assinada no cursor).
+       */
+      hasAttachment: sql<boolean>`(
+        exists (
+          select 1 from trip_document_occurrence_attachments
+          where company_id = ${tripDocumentOccurrences.companyId}
+            and occurrence_id = ${tripDocumentOccurrences.id}
+        )
+        or ${tripDocumentOccurrences.attachmentObjectId} is not null
+      )`,
       id: tripDocumentOccurrences.id,
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
@@ -194,6 +249,14 @@ async function listDocumentOccurrenceRows(
         eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
       ),
     )
+    /** RF10: tratativa desta ocorrência, `null` quando ela nunca foi aberta (tipo `unset`, T2/RF3). */
+    .leftJoin(
+      tripOccurrenceCases,
+      and(
+        eq(tripOccurrenceCases.companyId, tripDocumentOccurrences.companyId),
+        eq(tripOccurrenceCases.occurrenceId, tripDocumentOccurrences.id),
+      ),
+    )
     .leftJoin(
       feedActorMembership,
       and(
@@ -222,11 +285,12 @@ async function listDocumentOccurrenceRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    case: buildCaseView(row),
     channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
     driverName: row.driverName ?? '',
-    hasAttachment: false,
+    hasAttachment: Boolean(row.hasAttachment),
     id: row.id,
     invoiceNumber: row.invoiceNumber,
     invoiceSeries: row.invoiceSeries,
@@ -241,11 +305,56 @@ async function listDocumentOccurrenceRows(
   }))
 }
 
+/**
+ * RF10: `null` quando o `left join` não achou tratativa. `settlementTotal` é sempre `null` até a
+ * Fase 5 (T16/T17) existir — `trip_occurrence_cases` não tem coluna de valor hoje.
+ */
+function buildCaseView(row: {
+  readonly caseDecidedAt: Date | null
+  readonly caseDecisionKind: TripOccurrenceCaseDecisionKind | null
+  readonly caseDecisionNote: string | null
+  readonly caseId: string | null
+  readonly caseRedeliveryPolicy: RedeliveryPolicy | null
+  readonly caseStatus: TripOccurrenceCaseStatus | null
+  readonly caseUpdatedAt: Date | null
+}): TripOccurrenceFeedCaseView | null {
+  if (row.caseId === null || row.caseStatus === null || row.caseRedeliveryPolicy === null) {
+    return null
+  }
+  return {
+    decision:
+      row.caseDecisionKind === null
+        ? null
+        : {
+            decidedAt: row.caseDecidedAt?.toISOString() ?? null,
+            kind: row.caseDecisionKind,
+            note: row.caseDecisionNote ?? '',
+          },
+    redeliveryPolicy: row.caseRedeliveryPolicy === 'blocked' ? 'blocked' : 'allowed',
+    settlementTotal: null,
+    status: row.caseStatus,
+    updatedAt: row.caseUpdatedAt?.toISOString() ?? new Date(0).toISOString(),
+  }
+}
+
+/**
+ * RF10/RF11: a ocorrência de parada nunca tem tratativa — `trip_occurrence_cases.occurrence_id`
+ * aponta só para `trip_document_occurrences`. Filtro por estado da tratativa que **não** pediu
+ * `'none'` exclui a parada inteira; sem esse filtro (ou com `'none'` entre os valores), ela entra
+ * normalmente, sempre com `case: null`.
+ */
+function stopOccurrencesMatchCaseFilter(filters: TripOccurrenceFeedFilters | undefined): boolean {
+  if (filters?.caseStatusIn === undefined || filters.caseStatusIn.length === 0) return true
+  return filters.caseStatusIn.includes('none')
+}
+
 async function listStopOccurrenceRows(
   queryable: TripQueryable,
   query: TripOccurrenceFeedQuery,
   cursor: KeysetCursor | null,
 ): Promise<readonly FeedRow[]> {
+  if (!stopOccurrencesMatchCaseFilter(query.filters)) return []
+
   const conditions: SQL[] = [
     eq(tripStopOccurrences.companyId, query.companyId),
     ...periodConditions(tripStopOccurrences.createdAt, query.filters),
@@ -341,6 +450,8 @@ async function listStopOccurrenceRows(
 
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
+    /** RF10: a ocorrência de parada nunca tem tratativa (ver o comentário acima do filtro). */
+    case: null,
     channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
@@ -392,27 +503,26 @@ export async function listTripOccurrenceFeed(
   }
 }
 
-type OccurrenceAttachmentLocationRow = {
-  readonly bucket: string
-  readonly id: string
-  readonly mimeType: string
-  readonly objectKey: string
-}
+const feedAttachmentOriginals = alias(storedObjects, 'trip_occurrence_feed_attachment_original')
+const feedAttachmentThumbnails = alias(storedObjects, 'trip_occurrence_feed_attachment_thumbnail')
 
 /**
  * Os anexos de uma ocorrência de parada, para a rota de presign. Id que não é desta empresa, ou que
- * não tem anexo, devolve lista vazia — nunca 404, para não confirmar existência.
+ * não tem anexo, devolve lista vazia — nunca 404, para não confirmar existência. Fora do escopo da
+ * spec 161 (D2/D12): sempre `position: 1`, sem miniatura — a coluna de anexo da parada é sempre a
+ * única fonte, e permanece intocada por esta feature.
  */
 async function listStopOccurrenceAttachmentLocations(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<readonly OccurrenceAttachmentLocationRow[]> {
-  return queryable
+): Promise<readonly OccurrenceAttachmentRecord[]> {
+  const rows = await queryable
     .select({
       bucket: storedObjects.bucket,
       id: tripStopOccurrences.id,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      retentionUntil: storedObjects.retentionUntil,
     })
     .from(tripStopOccurrences)
     .innerJoin(
@@ -428,19 +538,94 @@ async function listStopOccurrenceAttachmentLocations(
         eq(tripStopOccurrences.id, input.occurrenceId),
       ),
     )
+
+  return rows.map((row) => ({
+    id: row.id,
+    original: {
+      bucket: row.bucket,
+      mimeType: row.mimeType,
+      objectKey: row.objectKey,
+      retentionUntil: row.retentionUntil?.toISOString() ?? null,
+    },
+    position: 1,
+    thumbnail: null,
+  }))
 }
 
-/** Spec 156 T7b (D7 §3.5): a mesma leitura, para a foto opcional da ocorrência de nota (lote). */
+/**
+ * Spec 161 T10 (RF10/RF15): a ocorrência de nota lê pelo mesmo ponto único de `occurrence-attachment.
+ * service.ts` (T3) — tabela nova (D2/D12, com miniatura) quando existem linhas, senão a coluna
+ * antiga (D6, ocorrência de rua, sempre `position: 1` sem miniatura).
+ */
 async function listDocumentOccurrenceAttachmentLocations(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<readonly OccurrenceAttachmentLocationRow[]> {
-  return queryable
+): Promise<readonly OccurrenceAttachmentRecord[]> {
+  const newRows = await queryable
+    .select({
+      id: tripDocumentOccurrenceAttachments.id,
+      originalBucket: feedAttachmentOriginals.bucket,
+      originalMimeType: feedAttachmentOriginals.mimeType,
+      originalObjectKey: feedAttachmentOriginals.objectKey,
+      originalRetentionUntil: feedAttachmentOriginals.retentionUntil,
+      position: tripDocumentOccurrenceAttachments.position,
+      thumbnailBucket: feedAttachmentThumbnails.bucket,
+      thumbnailMimeType: feedAttachmentThumbnails.mimeType,
+      thumbnailObjectKey: feedAttachmentThumbnails.objectKey,
+      thumbnailRetentionUntil: feedAttachmentThumbnails.retentionUntil,
+    })
+    .from(tripDocumentOccurrenceAttachments)
+    .innerJoin(
+      feedAttachmentOriginals,
+      and(
+        eq(feedAttachmentOriginals.companyId, tripDocumentOccurrenceAttachments.companyId),
+        eq(feedAttachmentOriginals.id, tripDocumentOccurrenceAttachments.storedObjectId),
+      ),
+    )
+    .leftJoin(
+      feedAttachmentThumbnails,
+      and(
+        eq(feedAttachmentThumbnails.companyId, tripDocumentOccurrenceAttachments.companyId),
+        eq(feedAttachmentThumbnails.id, tripDocumentOccurrenceAttachments.thumbnailObjectId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrenceAttachments.companyId, input.companyId),
+        eq(tripDocumentOccurrenceAttachments.occurrenceId, input.occurrenceId),
+      ),
+    )
+    .orderBy(asc(tripDocumentOccurrenceAttachments.position))
+
+  if (newRows.length > 0) {
+    return newRows.map((row) => ({
+      id: row.id,
+      original: {
+        bucket: row.originalBucket,
+        mimeType: row.originalMimeType,
+        objectKey: row.originalObjectKey,
+        retentionUntil: row.originalRetentionUntil?.toISOString() ?? null,
+      },
+      position: row.position,
+      thumbnail:
+        row.thumbnailBucket === null || row.thumbnailObjectKey === null
+          ? null
+          : {
+              bucket: row.thumbnailBucket,
+              mimeType: row.thumbnailMimeType ?? '',
+              objectKey: row.thumbnailObjectKey,
+              retentionUntil: row.thumbnailRetentionUntil?.toISOString() ?? null,
+            },
+    }))
+  }
+
+  const legacyRows = await queryable
     .select({
       bucket: storedObjects.bucket,
       id: tripDocumentOccurrences.id,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      retentionUntil: storedObjects.retentionUntil,
     })
     .from(tripDocumentOccurrences)
     .innerJoin(
@@ -456,6 +641,18 @@ async function listDocumentOccurrenceAttachmentLocations(
         eq(tripDocumentOccurrences.id, input.occurrenceId),
       ),
     )
+
+  return legacyRows.map((row) => ({
+    id: row.id,
+    original: {
+      bucket: row.bucket,
+      mimeType: row.mimeType,
+      objectKey: row.objectKey,
+      retentionUntil: row.retentionUntil?.toISOString() ?? null,
+    },
+    position: 1,
+    thumbnail: null,
+  }))
 }
 
 /**
@@ -465,7 +662,7 @@ async function listDocumentOccurrenceAttachmentLocations(
 export async function listTripOccurrenceAttachmentLocations(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<readonly OccurrenceAttachmentLocationRow[]> {
+): Promise<readonly OccurrenceAttachmentRecord[]> {
   const [stopRows, documentRows] = await Promise.all([
     listStopOccurrenceAttachmentLocations(queryable, input),
     listDocumentOccurrenceAttachmentLocations(queryable, input),

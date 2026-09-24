@@ -10,6 +10,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
+import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import {
   companyDeliveryProofSettings,
   deliveryProofSettingOverrides,
@@ -215,7 +216,10 @@ function buildLastDeliverySubquery(input: ReadScoresInput & { readonly database:
       and(
         eq(tripStopEvents.companyId, input.companyId),
         eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
-        gte(sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`, windowStart),
+        gte(
+          sql`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`,
+          timestamptzParameter(windowStart),
+        ),
         inArray(
           tripStopEvents.tripDocumentId,
           buildRequestedDriverDocuments({ ...input, windowStart }),
@@ -255,7 +259,10 @@ function buildRequestedDriverDocuments(
       and(
         eq(driverEvent.companyId, input.companyId),
         eq(driverEvent.kind, DELIVERED_EVENT_KIND),
-        gte(sql`coalesce(${driverEvent.capturedAt}, ${driverEvent.recordedAt})`, input.windowStart),
+        gte(
+          sql`coalesce(${driverEvent.capturedAt}, ${driverEvent.recordedAt})`,
+          timestamptzParameter(input.windowStart),
+        ),
         or(
           inArray(driverEvent.onBehalfOfDriverId, driverIds),
           inArray(driverEvent.reportedByDriverId, driverIds),

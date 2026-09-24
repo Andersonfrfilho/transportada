@@ -6,7 +6,24 @@
     "site": "Site",
     "certificates": "Certificates",
     "taxes": "Taxes",
-    "driverAllowance": "Driver allowance"
+    "driverAllowance": "Driver allowance",
+    "occurrenceTypes": "Occurrence types",
+    "entryKinds": "Entry kinds"
+  },
+  "entryKinds": {
+    "title": "Entry kinds",
+    "subtitle": "The kinds that show up in the trip's expense and revenue selectors. Toll and Other already exist, on the expense side.",
+    "side": {
+      "label": "Side",
+      "expense": "Expense",
+      "revenue": "Revenue"
+    },
+    "empty": "No entry kind registered.",
+    "name": "Name",
+    "save": "Register",
+    "saving": "Registering…",
+    "deactivate": "Deactivate",
+    "inactive": "inactive"
   },
   "driverAllowance": {
     "kicker": "Trip cost",
@@ -260,5 +277,27 @@
     "networkYoutube": "YouTube",
     "networkTiktok": "TikTok",
     "networkX": "X"
+  },
+  "occurrenceTypeCatalog": {
+    "title": "Occurrence types",
+    "hint": "Register the types the operation uses. The alert goes to whoever dispatched the trip, and only for checked types — the default is not to notify.",
+    "empty": "No type registered yet. Register the first one to be able to log occurrences.",
+    "add": "Register type",
+    "name": "Type name",
+    "stage": "Where it happens",
+    "stageSeparation": "At the yard",
+    "stageDelivery": "On the road",
+    "notifies": "Notify when it happens",
+    "active": "In use",
+    "emailTemplate": "Email template",
+    "emailTemplateNone": "No email",
+    "editTemplates": "Edit email templates",
+    "legacyTemplate": "{{subject}} — own template (legacy)",
+    "withoutTemplate": "No email: this type is only logged on the trip.",
+    "allowsMultipleItems": "Allows multiple items",
+    "redeliveryPolicy": "Allows redelivery",
+    "redeliveryPolicyUnset": "Unset (no case opens)",
+    "redeliveryPolicyAllowed": "Allows redelivery",
+    "redeliveryPolicyBlocked": "Blocks redelivery"
   }
 }

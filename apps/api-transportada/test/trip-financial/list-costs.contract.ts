@@ -25,6 +25,7 @@ function entry(overrides: Partial<TripCostEntryView> = {}): TripCostEntryView {
     amount: '44.6000',
     createdAt: '2026-08-05T09:00:00.000Z',
     description: 'Pedágio da BR-101',
+    entryKind: null,
     id: crypto.randomUUID(),
     kind: 'toll',
     ...overrides,

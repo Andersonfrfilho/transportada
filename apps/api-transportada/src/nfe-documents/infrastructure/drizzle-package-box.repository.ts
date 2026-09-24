@@ -19,6 +19,7 @@ import type {
   PackageBoxSiblings,
   PackageBoxSiblingView,
   PackageBoxView,
+  PendingMeasurementBoxMatch,
 } from '../application/package-box.port.js'
 import {
   buildPackagingKey,
@@ -33,6 +34,11 @@ import {
   PackageBoxReplicationTargetOutsideFamilyError,
 } from '../domain/package-box-measurement.error.js'
 import { countBoxFamilies, countPackagingSiblings } from '../domain/package-box-queue.policy.js'
+import {
+  buildPendingMeasurementBoxKey,
+  resolveUniquePackageBoxId,
+} from '../domain/pending-measurement-box.policy.js'
+import { toPackageBoxUnitFields } from './package-box-unit.mapper.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -41,6 +47,89 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
 
   constructor(database: Database) {
     this.#database = database
+  }
+
+  /**
+   * Spec 168: um `inArray` só por número de nota — o produto e a ambiguidade se resolvem em memória,
+   * do mesmo jeito que `resolveUniquePackageBoxId` já decide (uma consulta, nunca uma por linha).
+   * `unitsPerBox`/`grossWeightGrams` viajam junto: a gravação inline reusa o caso de uso da fila, que
+   * os exige no corpo, e a linha da tabela não tem de onde tirá-los sem outra consulta por item.
+   */
+  async findBoxIdsForPendingMeasurements(input: {
+    readonly companyId: string
+    readonly items: readonly {
+      readonly documentNumber: string | null
+      readonly productCode: string | null
+    }[]
+  }): Promise<ReadonlyMap<string, PendingMeasurementBoxMatch>> {
+    const documentNumbers = [
+      ...new Set(input.items.map((item) => item.documentNumber).filter((value) => value !== null)),
+    ]
+    if (documentNumbers.length === 0) return new Map()
+
+    const rows = await this.#database
+      .select({
+        boxId: nfePackageBoxes.id,
+        documentNumber: nfeDocuments.number,
+        grossWeightGrams: nfePackageBoxes.grossWeightGrams,
+        /** A planta guardada pode ser mais velha que esta medida — é isto que a filtra da pendência. */
+        measuredAt: nfePackageBoxes.measuredAt,
+        productCode: nfeProducts.code,
+        unitsPerBox: nfePackageBoxes.unitsPerBox,
+      })
+      .from(nfeProducts)
+      .innerJoin(
+        nfeDocuments,
+        and(
+          eq(nfeDocuments.id, nfeProducts.documentId),
+          eq(nfeDocuments.companyId, nfeProducts.companyId),
+        ),
+      )
+      .innerJoin(
+        nfeParticipants,
+        and(
+          eq(nfeParticipants.documentId, nfeDocuments.id),
+          eq(nfeParticipants.companyId, nfeDocuments.companyId),
+          eq(nfeParticipants.role, 'emitter'),
+        ),
+      )
+      .innerJoin(
+        nfePackageBoxes,
+        and(
+          eq(nfePackageBoxes.companyId, nfeProducts.companyId),
+          eq(nfePackageBoxes.emitterTaxId, nfeParticipants.taxId),
+          eq(nfePackageBoxes.productCode, nfeProducts.code),
+          eq(nfePackageBoxes.commercialUnit, nfeProducts.commercialUnit),
+        ),
+      )
+      .where(
+        and(
+          eq(nfeProducts.companyId, input.companyId),
+          inArray(nfeDocuments.number, documentNumbers),
+        ),
+      )
+
+    const rowsByKey = new Map<string, typeof rows>()
+    for (const row of rows) {
+      const key = buildPendingMeasurementBoxKey(row)
+      if (key === null) continue
+      rowsByKey.set(key, [...(rowsByKey.get(key) ?? []), row])
+    }
+
+    const resolved = new Map<string, PendingMeasurementBoxMatch>()
+    for (const [key, matchingRows] of rowsByKey) {
+      const boxId = resolveUniquePackageBoxId(matchingRows.map((row) => row.boxId))
+      if (boxId === null) continue
+      const box = matchingRows.find((row) => row.boxId === boxId)
+      if (box === undefined) continue
+      resolved.set(key, {
+        boxId,
+        grossWeightGrams: box.grossWeightGrams,
+        isMeasured: box.measuredAt !== null,
+        unitsPerBox: box.unitsPerBox,
+      })
+    }
+    return resolved
   }
 
   /**
@@ -130,6 +219,7 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
         commercialUnit: nfePackageBoxes.commercialUnit,
         description: nfePackageBoxes.description,
         emitterTaxId: nfePackageBoxes.emitterTaxId,
+        ...PACKAGE_BOX_UNIT_COLUMNS,
         grossWeightGrams: nfePackageBoxes.grossWeightGrams,
         heightMm: nfePackageBoxes.heightMm,
         id: nfePackageBoxes.id,
@@ -200,12 +290,42 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
     )
     const packagingCounts = countPackagingSiblings(companyBoxes)
 
-    return rows.map((row) => {
+    return rows.map((fullRow) => {
+      const {
+        estimatedArrangement,
+        estimatedAt,
+        estimatedGrossWeightGrams,
+        estimatedHeightMm,
+        estimatedLengthMm,
+        estimatedVolumeCm3,
+        estimatedWidthMm,
+        unitGrossWeightGrams,
+        unitHeightMm,
+        unitLengthMm,
+        unitMeasurementSource,
+        unitWidthMm,
+        ...row
+      } = fullRow
       const family = familyCounts.get(row.id)
       const packaging = packagingCounts.get(row.id)
 
       return {
         ...row,
+        ...toPackageBoxUnitFields({
+          estimatedArrangement,
+          estimatedAt,
+          estimatedGrossWeightGrams,
+          estimatedHeightMm,
+          estimatedLengthMm,
+          estimatedVolumeCm3,
+          estimatedWidthMm,
+          lengthMm: row.lengthMm,
+          unitGrossWeightGrams,
+          unitHeightMm,
+          unitLengthMm,
+          unitMeasurementSource,
+          unitWidthMm,
+        }),
         familyKey: family?.familyKey,
         familyMeasuredCount: family?.familyMeasuredCount ?? 0,
         familyPendingCount: family?.familyPendingCount ?? 0,
@@ -401,6 +521,22 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
     })
   }
 }
+
+/** Spec 163 (RF08): as colunas da unidade e da caixa estimada, lidas para a fila. */
+const PACKAGE_BOX_UNIT_COLUMNS = {
+  estimatedArrangement: nfePackageBoxes.estimatedArrangement,
+  estimatedAt: nfePackageBoxes.estimatedAt,
+  estimatedGrossWeightGrams: nfePackageBoxes.estimatedGrossWeightGrams,
+  estimatedHeightMm: nfePackageBoxes.estimatedHeightMm,
+  estimatedLengthMm: nfePackageBoxes.estimatedLengthMm,
+  estimatedVolumeCm3: nfePackageBoxes.estimatedVolumeCm3,
+  estimatedWidthMm: nfePackageBoxes.estimatedWidthMm,
+  unitGrossWeightGrams: nfePackageBoxes.unitGrossWeightGrams,
+  unitHeightMm: nfePackageBoxes.unitHeightMm,
+  unitLengthMm: nfePackageBoxes.unitLengthMm,
+  unitMeasurementSource: nfePackageBoxes.unitMeasurementSource,
+  unitWidthMm: nfePackageBoxes.unitWidthMm,
+} as const
 
 const SIBLING_COLUMNS = {
   commercialUnit: nfePackageBoxes.commercialUnit,

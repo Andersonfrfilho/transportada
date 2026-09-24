@@ -1,5 +1,11 @@
 import { hasExactKeys } from '@/modules/shared/objectKeys.service'
 
+import {
+  TRIP_OCCURRENCE_ATTACHMENT_KEYS,
+  TRIP_OCCURRENCE_ATTACHMENT_OPTIONAL_KEYS,
+} from './trip.constant'
+import type { OccurrenceAttachment } from './trip.types'
+
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -60,4 +66,29 @@ export function hasKeys(
   input: Readonly<{ allowed: readonly string[]; required: readonly string[] }>,
 ): value is Record<string, unknown> {
   return isRecord(value) && hasOnlyKeys(value, input.allowed) && hasEveryKey(value, input.required)
+}
+
+/**
+ * Spec 161 T24 (RF8): a guarda do anexo — usada pelo registro da ocorrência (painel da nota) e
+ * pelo feed (`GET /trip-occurrences/:id/attachments`), um lugar só para as duas fontes não
+ * divergirem no formato.
+ */
+export function isOccurrenceAttachment(value: unknown): value is OccurrenceAttachment {
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_OCCURRENCE_ATTACHMENT_KEYS, ...TRIP_OCCURRENCE_ATTACHMENT_OPTIONAL_KEYS],
+      required: TRIP_OCCURRENCE_ATTACHMENT_KEYS,
+    })
+  ) {
+    return false
+  }
+  return (
+    isBoolean(value.expired) &&
+    isString(value.id) &&
+    isString(value.mimeType) &&
+    isUnsignedInteger(value.position) &&
+    (value.downloadUrl === undefined || isString(value.downloadUrl)) &&
+    (value.expiresAt === undefined || isString(value.expiresAt)) &&
+    (value.thumbnailUrl === undefined || isString(value.thumbnailUrl))
+  )
 }

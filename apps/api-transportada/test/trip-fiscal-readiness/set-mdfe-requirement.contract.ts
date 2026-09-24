@@ -14,12 +14,15 @@ const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const TRIP_ID = '00000000-0000-4000-8000-000000000a11'
 const ACTOR_ID = '00000000-0000-4000-8000-000000000002'
 
-function document(expectedDocument: 'cte' | 'nfse' | null): TripDocumentReadiness {
+function document(
+  expectedDocument: TripDocumentReadiness['expectedDocument'],
+): TripDocumentReadiness {
   return {
     cteAccessKey: null,
     cteFiscalDocumentId: null,
     expectedDocument,
     nfeDocumentId: null,
+    nfseProfileId: null,
     reason: 'ok',
     rejectionCode: null,
     rejectionMessage: null,

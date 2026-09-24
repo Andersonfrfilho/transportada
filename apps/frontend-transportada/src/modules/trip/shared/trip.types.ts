@@ -5,6 +5,8 @@ import type {
   CoverableSuggestionStop,
   LeftoverStop,
 } from '@/modules/routing/shared/suggestionLeftover.service'
+
+import type { OccurrenceQuantityUnit } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
@@ -130,18 +132,52 @@ export type TripDocument = Readonly<{
 export const TRIP_FIELD_CHANNELS = ['driver_app', 'office', 'whatsapp', 'backoffice'] as const
 export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[number]
 
+/**
+ * Spec 161 T24 (RF8): o anexo de foto lido pelas três telas — painel da nota, feed e detalhe.
+ * `downloadUrl` é o original, `thumbnailUrl` a miniatura — os dois presigned de 5 min, e a lista
+ * usa a miniatura, nunca o original, até o usuário abrir a foto (CA6b). `thumbnailUrl` ausente
+ * (foto de WhatsApp, D14) cai para o original (RF32b). `expired: true` vem **sem** nenhuma das
+ * duas URLs (D11) — a tela mostra o selo de foto expirada, nunca `<img>`.
+ */
+export type OccurrenceAttachment = Readonly<{
+  downloadUrl?: string
+  expired: boolean
+  expiresAt?: string
+  id: string
+  mimeType: string
+  position: number
+  thumbnailUrl?: string
+}>
+
 /** Spec 079 T020: o que houve com um item da carga. Só anota — não muda o estado da nota. */
 export type TripOccurrence = Readonly<{
   /** Spec 156 T9 (D3, M1): nasce opcional — API na frente do bundle não pode servir sem ele. */
   actorName?: null | string
+  /** Spec 161 T6/T22/T24: fotos gravadas, ordenadas por `position` (RF9) — a grade de miniaturas
+   * consome o conteúdo; ausente vira `[]` sem derrubar a tela. */
+  attachments?: readonly OccurrenceAttachment[]
   channel?: TripFieldChannel
   createdAt: string
   id: string
   note: string
   occurrenceTypeId: string
   onBehalfOfDriverName?: null | string
-  /** Vazio é a nota inteira: recusa total não tem item a apontar. */
+  /** Vazio é a nota inteira: recusa total não tem item a apontar. Legado — ver `productCodes`. */
   productCode: string
+  /**
+   * Os itens apontados pela ocorrência; lista vazia é a nota inteira. Ausente é resposta de uma
+   * API anterior ao campo, e aí quem responde é `productCode`.
+   */
+  productCodes?: readonly string[]
+  /**
+   * Spec 166: o mesmo item com a contagem. `quantity` é string decimal — a quantidade é `numeric`
+   * no banco e nunca vira float binário no caminho. Nulo é item sem contagem, que continua válido.
+   */
+  products?: readonly OccurrenceProduct[]
+  /** Spec 167: uma entrada por correção, com o conjunto de itens que valia antes dela. */
+  corrections?: readonly OccurrenceCorrection[]
+  /** Spec 167: `null` é "não foi cancelada" — ausente é "esta API ainda não publica o campo". */
+  cancellation?: null | OccurrenceCancellation
   stage: 'delivery' | 'separation'
   /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
   typeName: string
@@ -156,8 +192,37 @@ export type FieldOccurrenceType = Readonly<{ id: string; name: string }>
  * ⚠️ O texto volta **para o operador conferir e enviar**, não para o sistema enviar — o
  * destinatário é externo. `null` quando o tipo não tem modelo.
  */
-export type RegisteredOccurrence = TripOccurrence &
-  Readonly<{ email: null | Readonly<{ body: string; subject: string }> }>
+/**
+ * Spec 166 RF1/RF5: o item da nota apontado pela ocorrência, com a contagem. Os dois campos andam
+ * juntos — quantidade sem unidade é número sem significado, e o banco recusa o par quebrado.
+ */
+export type OccurrenceProduct = Readonly<{
+  code: string
+  quantity: null | string
+  unit: null | OccurrenceQuantityUnit
+}>
+
+/** Spec 167 RF1: o que a ocorrência dizia antes de uma correção, com quem corrigiu e quando. */
+export type OccurrenceCorrection = Readonly<{
+  correctedAt: string
+  correctedByName: string
+  previousItems: readonly OccurrenceProduct[]
+}>
+
+/** Spec 167 RF6: a ocorrência cancelada continua visível — com motivo e autor, nunca apagada. */
+export type OccurrenceCancellation = Readonly<{
+  cancelledAt: string
+  cancelledByName: string
+  reason: string
+}>
+
+export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
+  Readonly<{
+    /** ⚠️ O registro devolve o formato **estreito** do anexo (`{ id, position }`, sem URL — RF6/D5),
+     * diferente do `attachments` completo da leitura. */
+    attachments: readonly Readonly<{ id: string; position: number }>[]
+    email: null | Readonly<{ body: string; subject: string }>
+  }>
 
 /**
  * Spec 158 D5: ⚠️ Cópia por valor de `TRIP_TIMELINE_KINDS` da API
@@ -173,6 +238,7 @@ export const TRIP_TIMELINE_KINDS = [
   'stop.occurrence',
   'document.occurrence',
   'document.status_changed',
+  'trip.created',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -185,13 +251,20 @@ export type TripTimelineDocumentReference = Readonly<{
   series: null | string
 }>
 
-export type TripTimelineOccurrenceReference = Readonly<{ note: string; typeName: string }>
+/** Spec 161 T24 (RF12): a contagem de fotos, sem URL nenhuma — quem quer ver abre a ocorrência. */
+export type TripTimelineOccurrenceReference = Readonly<{
+  attachmentCount?: number
+  note: string
+  typeName: string
+}>
 
 /** Spec 158 D6: o formato do item da linha do tempo. Nunca id de usuário, imagem ou coordenada. */
 export type TripTimelineItem = Readonly<{
   actorName: null | string
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   channel: null | TripFieldChannel
+  /** Spec 158 T12: só em `trip.status_changed` para `completed` manual (encerramento pelo botão). */
+  closeReason: null | string
   document: null | TripTimelineDocumentReference
   /** Só em `*.status_changed`. */
   fromStatus: null | string
@@ -228,6 +301,8 @@ export type TripDocumentDetail = TripDocument &
   Readonly<{
     cteAuthorized: boolean
     fiscalStatus: string
+    /** Spec 164 T15 (RF21): esta nota tem tratativa de ocorrência aberta. Ausente é API anterior. */
+    openOccurrenceCase?: boolean
     /**
      * Spec 079 P2: quem recebe e como falar com ele. O telefone vem do `<enderDest><fone>` que a
      * nota já traz — nada é coletado.
@@ -243,11 +318,27 @@ export type TripDocumentDetail = TripDocument &
     nfeNumber?: null | string
     nfeSeries?: null | string
     nfeTotalValue?: null | string
+    /**
+     * Spec 176: quanto esta nota rende de frete — nunca a mercadoria. `null`/ausente é "não há como
+     * dizer" (`freightSource: 'missing'`/ausente), nunca `R$ 0,00`. Opcional: API anterior não manda.
+     */
+    freightAmount?: null | string
+    /**
+     * O nome da regra que produziu `freightAmount`. `null` com `freightAmount` preenchido é lacuna
+     * real do caminho `measured` — o cálculo guardado não congela o nome da regra.
+     */
+    freightRuleName?: null | string
+    freightSource?: TripDocumentFreightSource
   }>
+
+/** O mesmo vocabulário de `TripAmounts.revenueSource` (spec 065 D7). */
+export type TripDocumentFreightSource = 'estimated' | 'measured' | 'missing'
 
 /** ADR-0043 §3, T014: as mesmas notas de `TripDetail.documents`, aninhadas sob a parada que as
  * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */
 export type TripStopDetail = Readonly<{
+  /** Spec 164 T15 (RF21): alguma nota desta parada tem tratativa aberta. Ausente é API anterior. */
+  hasOpenOccurrence?: boolean
   /**
    * Onde a parada fica, no vocabulário do IBGE — a UF diz qual malha o mapa busca, o código do
    * município diz qual polígono desenhar. Opcionais: campo novo nasce assim (spec 078 D2).
@@ -374,15 +465,22 @@ export type TripCargoPlacement = Readonly<{
  * Spec 144 (D4): uma linha da lista do que falta medir — um produto sem ficha, numa parada.
  * `label`/`productCode` vêm da caixa; `stopLabel`/`sequence` são da parada, para o conferente
  * saber **onde** procurar antes de abrir a fila da 085.
+ *
+ * Spec 168: `packageBoxId` diz qual caixa do catálogo medir direto na linha — `null` sem par único
+ * (produto sem código, ou mais de uma caixa possível). `unitsPerBox`/`grossWeightGrams` vêm junto
+ * porque a gravação reusa o corpo da fila de medição, que os exige.
  */
 export type TripPendingMeasurement = Readonly<{
   boxCount: number
   documentNumber: null | string
   estimateSource: 'median' | 'none' | 'note'
+  grossWeightGrams: null | number
   label: null | string
+  packageBoxId: null | string
   productCode: null | string
   sequence: number
   stopLabel: string
+  unitsPerBox: null | number
 }>
 
 export type TripCargoLayout = Readonly<{
@@ -544,6 +642,14 @@ export type TripCargoLayoutPoll = Readonly<{
 
 export type TripDetail = Trip &
   Readonly<{
+    /**
+     * Spec 156 T8d: os três nascem juntos e só do encerramento manual pelo botão — viagem
+     * concluída pela derivação automática traz os três `null`. Opcionais como todo campo novo
+     * (spec 078 D2), até o deploy que os serve estar garantido.
+     */
+    closeReason?: string | null
+    closedAt?: null | string
+    closedByName?: null | string
     documents: readonly TripDocumentDetail[]
     drivers: readonly TripDriverLine[]
     cargoLayout: TripCargoLayout | null
@@ -571,6 +677,10 @@ export const TRIP_DOCUMENT_READINESS_REASONS = [
   'nfse_expected',
   /** Sem município de destino não se decide o documento — pendência explícita, nunca um chute. */
   'city_unknown',
+  /** O perfil que rege a nota manda emitir, mas alguma condição da nota impede — informa, não age. */
+  'blocked',
+  /** Nenhum perfil de emissão rege a nota: escolher o documento por omissão seria inventar regra. */
+  'no_profile',
 ] as const
 export type TripDocumentReadinessReason = (typeof TRIP_DOCUMENT_READINESS_REASONS)[number]
 
@@ -587,8 +697,10 @@ export type TripFiscalReadinessState = (typeof TRIP_FISCAL_READINESS_STATES)[num
 export type TripDocumentReadiness = Readonly<{
   cteAccessKey: null | string
   cteFiscalDocumentId: null | string
-  expectedDocument: 'cte' | 'nfse' | null
+  expectedDocument: 'blocked' | 'cte' | 'nfse' | 'no_profile' | null
   nfeDocumentId: null | string
+  /** O perfil que a emissão de NFS-e vai usar; `null` fora do caminho da NFS-e. */
+  nfseProfileId: null | string
   reason: TripDocumentReadinessReason
   rejectionCode: null | string
   rejectionMessage: null | string

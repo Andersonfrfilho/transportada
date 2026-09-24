@@ -2,13 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { aliasedTable, and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
-import { companyFiscalProfiles } from '../../database/company-fiscal-profile.schema.js'
 import { cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments, cteIssuanceAttempts } from '../../database/cte-issuance.schema.js'
 import { freightCalculations } from '../../database/freight.schema.js'
-import { nfeAddresses, nfeParticipants } from '../../database/nfe.schema.js'
 import { mdfeManifests } from '../../database/mdfe.schema.js'
 import { tripDocuments, tripStops, trips } from '../../database/trip.schema.js'
 import type {
@@ -16,19 +14,13 @@ import type {
   TripDocumentReadinessReason,
   TripFiscalReadinessPort,
 } from '../application/read-trip-fiscal-readiness.use-case.js'
-import {
-  resolveFiscalDocumentKind,
-  type FiscalDocumentKind,
-} from '../domain/fiscal-document-kind.policy.js'
+import type { DocumentOutputClassification } from '../../cte-profiles/domain/document-output.policy.js'
+import type { NfeDocumentOutputClassifierPort } from '../../nfe-documents/application/nfe-document.types.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 /** Manifesto que ainda vale. Depois de cancelado ou rejeitado a viagem pode manifestar de novo. */
 const LIVE_MANIFEST_STATUSES = ['draft', 'issuing', 'authorized', 'closed'] as const
-
-/** Os dois papéis que decidem o trajeto: de onde a mercadoria saiu e para onde ela vai. */
-const SENDER_ROLE = 'sender'
-const RECIPIENT_ROLE = 'recipient'
 
 /** Tentativa que ainda pode virar autorização — nenhuma delas é bloqueio, todas são espera. */
 const IN_PROGRESS_ATTEMPT_STATUSES = [
@@ -38,14 +30,11 @@ const IN_PROGRESS_ATTEMPT_STATUSES = [
   'reconciliation_required',
 ] as const
 
-/** Aliases: a mesma tabela entra duas vezes, uma por papel do participante. */
-const recipientParticipant = aliasedTable(nfeParticipants, 'readiness_recipient_participant')
-const recipientAddress = aliasedTable(nfeAddresses, 'readiness_recipient_address')
-const senderParticipant = aliasedTable(nfeParticipants, 'readiness_sender_participant')
-const senderAddress = aliasedTable(nfeAddresses, 'readiness_sender_address')
-
 export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly classifier: NfeDocumentOutputClassifierPort,
+  ) {}
 
   /**
    * **Uma consulta para as N notas.** Com 200 notas numa viagem, o `left join` é a diferença entre
@@ -67,17 +56,6 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
       .limit(1)
     if (trip === undefined) return null
 
-    /**
-     * Sem o município da empresa não há regra: toda nota ficaria indecisa. Ler uma vez, fora do
-     * laço, é o que mantém a promessa de "uma consulta para as N notas".
-     */
-    const [profile] = await this.database
-      .select({ cityIbgeCode: companyFiscalProfiles.cityIbgeCode })
-      .from(companyFiscalProfiles)
-      .where(eq(companyFiscalProfiles.companyId, input.companyId))
-      .limit(1)
-    const companyCityCode = profile?.cityIbgeCode ?? null
-
     const rows = await this.database
       .select({
         attemptStatus: cteIssuanceAttempts.status,
@@ -85,47 +63,15 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
         cteFiscalDocumentId: cteFiscalDocuments.id,
         cteStatus: cteFiscalDocuments.status,
         rejectionCode: cteIssuanceAttempts.lastErrorCode,
-        destinationCityCode: recipientAddress.cityCode,
         nfeDocumentId: tripDocuments.nfeDocumentId,
-        originCityCode: senderAddress.cityCode,
+        /** Os dois caminhos de vínculo colapsados: é esta nota que o perfil de emissão classifica. */
+        classifiedNfeDocumentId: sql<
+          string | null
+        >`coalesce(${tripDocuments.nfeDocumentId}, ${freightCalculations.nfeDocumentId})`,
         rejectionMessage: cteIssuanceAttempts.lastErrorCause,
         tripDocumentId: tripDocuments.id,
       })
       .from(tripDocuments)
-      /**
-       * O município vem do endereço do participante da **própria nota** — é o trajeto real, não o
-       * cadastro do cliente. Os dois `left join` são por papel: quem mandou e quem recebe.
-       */
-      .leftJoin(
-        recipientParticipant,
-        and(
-          eq(recipientParticipant.companyId, tripDocuments.companyId),
-          eq(recipientParticipant.documentId, tripDocuments.nfeDocumentId),
-          eq(recipientParticipant.role, RECIPIENT_ROLE),
-        ),
-      )
-      .leftJoin(
-        recipientAddress,
-        and(
-          eq(recipientAddress.companyId, recipientParticipant.companyId),
-          eq(recipientAddress.participantId, recipientParticipant.id),
-        ),
-      )
-      .leftJoin(
-        senderParticipant,
-        and(
-          eq(senderParticipant.companyId, tripDocuments.companyId),
-          eq(senderParticipant.documentId, tripDocuments.nfeDocumentId),
-          eq(senderParticipant.role, SENDER_ROLE),
-        ),
-      )
-      .leftJoin(
-        senderAddress,
-        and(
-          eq(senderAddress.companyId, senderParticipant.companyId),
-          eq(senderAddress.participantId, senderParticipant.id),
-        ),
-      )
       .leftJoin(
         freightCalculations,
         and(
@@ -163,7 +109,20 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
       )
       .orderBy(desc(cteFiscalDocuments.authorizedAt))
 
-    return collapseByDocument({ companyCityCode, rows })
+    /**
+     * Uma chamada para as N notas, pela mesma razão que a consulta acima é uma só. A classificação
+     * é a da tela de notas: uma segunda conta aqui faria as duas telas discordarem da mesma nota.
+     */
+    const classified = await this.classifier.classifyDocumentOutputs({
+      companyId: input.companyId,
+      documentIds: [
+        ...new Set(
+          rows.map((row) => row.classifiedNfeDocumentId).filter((id): id is string => id !== null),
+        ),
+      ],
+    })
+
+    return collapseByDocument({ classified, rows })
   }
 
   /**
@@ -231,11 +190,10 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
 
 type ReadinessRow = {
   readonly attemptStatus: string | null
+  readonly classifiedNfeDocumentId: string | null
   readonly cteAccessKey: string | null
   readonly cteFiscalDocumentId: string | null
-  readonly destinationCityCode: string | null
   readonly nfeDocumentId: string | null
-  readonly originCityCode: string | null
   readonly cteStatus: string | null
   readonly rejectionCode: string | null
   readonly rejectionMessage: string | null
@@ -249,14 +207,14 @@ type ReadinessRow = {
  * nenhum dos outros.
  */
 function collapseByDocument(input: {
-  readonly companyCityCode: string | null
+  readonly classified: ReadonlyMap<string, DocumentOutputClassification>
   readonly rows: readonly ReadinessRow[]
 }): readonly TripDocumentReadiness[] {
   const byDocument = new Map<string, TripDocumentReadiness>()
 
   for (const row of input.rows) {
     const current = byDocument.get(row.tripDocumentId)
-    const candidate = toReadiness({ companyCityCode: input.companyCityCode, row })
+    const candidate = toReadiness({ classified: input.classified, row })
     if (current === undefined || rankReason(candidate.reason) > rankReason(current.reason)) {
       byDocument.set(row.tripDocumentId, candidate)
     }
@@ -266,9 +224,9 @@ function collapseByDocument(input: {
 }
 
 /**
- * O desfecho mais avançado vence quando uma nota tem várias tentativas. `nfse_expected` e
- * `city_unknown` ficam no topo porque não são desfecho de tentativa: eles são a classificação, e ela
- * manda sobre qualquer CT-e que por acaso exista — nota urbana com CT-e é divergência, não prontidão.
+ * O desfecho mais avançado vence quando uma nota tem várias tentativas. Os motivos de classificação
+ * ficam no topo porque não são desfecho de tentativa: eles **são** a classificação, e ela manda
+ * sobre qualquer CT-e que por acaso exista — nota de NFS-e com CT-e é divergência, não prontidão.
  */
 const REASON_RANK: Readonly<Record<TripDocumentReadinessReason, number>> = {
   no_cte: 0,
@@ -277,24 +235,44 @@ const REASON_RANK: Readonly<Record<TripDocumentReadinessReason, number>> = {
   cte_cancelled: 3,
   ok: 4,
   nfse_expected: 5,
-  city_unknown: 6,
+  blocked: 6,
+  no_profile: 7,
+  city_unknown: 8,
 }
 
 function rankReason(reason: TripDocumentReadinessReason): number {
   return REASON_RANK[reason]
 }
 
+export type DocumentClassificationRead = {
+  readonly expectedDocument: TripDocumentReadiness['expectedDocument']
+  readonly nfseProfileId: string | null
+}
+
+/**
+ * O veredito do perfil de emissão chega inteiro à viagem. Achatar `blocked` e `no_profile` em
+ * "sem CT-e" ofereceria ao operador uma emissão que terminaria em erro.
+ */
+export function readDocumentClassification(
+  classification: DocumentOutputClassification | undefined,
+): DocumentClassificationRead {
+  if (classification === undefined) return { expectedDocument: 'no_profile', nfseProfileId: null }
+  if (classification.output === 'nfse') {
+    return { expectedDocument: 'nfse', nfseProfileId: classification.nfseProfileId }
+  }
+
+  return { expectedDocument: classification.output, nfseProfileId: null }
+}
+
 function toReadiness(input: {
-  readonly companyCityCode: string | null
+  readonly classified: ReadonlyMap<string, DocumentOutputClassification>
   readonly row: ReadinessRow
 }): TripDocumentReadiness {
-  const { companyCityCode, row } = input
-  const expectedDocument = resolveFiscalDocumentKind({
-    companyCityCode,
-    destinationCityCode: row.destinationCityCode,
-    originCityCode: row.originCityCode,
-  })
-  const reason = toReason({ expectedDocument, row })
+  const { classified, row } = input
+  const { expectedDocument, nfseProfileId } = readDocumentClassification(
+    row.classifiedNfeDocumentId === null ? undefined : classified.get(row.classifiedNfeDocumentId),
+  )
+  const reason = readDocumentReason({ expectedDocument, row })
   /**
    * O erro da tentativa só é informação quando ele **é** o motivo. Uma nota autorizada depois de um
    * retry carrega o `lastErrorCode` da tentativa que falhou, e mostrá-lo ao lado de "ok" faria o
@@ -306,7 +284,13 @@ function toReadiness(input: {
     cteAccessKey: reason === 'ok' ? row.cteAccessKey : null,
     cteFiscalDocumentId: reason === 'ok' ? row.cteFiscalDocumentId : null,
     expectedDocument,
-    nfeDocumentId: row.nfeDocumentId,
+    /**
+     * O mesmo id que a classificação usou, e não só o vínculo direto: a nota que chega pelo cálculo
+     * de frete era classificada como NFS-e e viajava com `nfeDocumentId` nulo, e a tela tinha de
+     * inventar um id para oferecer a emissão.
+     */
+    nfeDocumentId: row.classifiedNfeDocumentId,
+    nfseProfileId,
     reason,
     rejectionCode: isRejection ? row.rejectionCode : null,
     rejectionMessage: isRejection ? row.rejectionMessage : null,
@@ -314,16 +298,17 @@ function toReadiness(input: {
   }
 }
 
-function toReason(input: {
-  readonly expectedDocument: FiscalDocumentKind | null
-  readonly row: ReadinessRow
+export function readDocumentReason(input: {
+  readonly expectedDocument: TripDocumentReadiness['expectedDocument']
+  readonly row: Pick<ReadinessRow, 'attemptStatus' | 'cteStatus'>
 }): TripDocumentReadinessReason {
   const { expectedDocument, row } = input
   /**
-   * A classificação vem **antes** do estado do CT-e, e é decisão: sem município não se decide nada, e
-   * entrega urbana não espera CT-e por mais que uma tentativa exista para ela.
+   * A classificação vem **antes** do estado do CT-e, e é decisão: sem perfil não se decide nada, e a
+   * nota que vai para NFS-e não espera CT-e por mais que uma tentativa exista para ela.
    */
-  if (expectedDocument === null) return 'city_unknown'
+  if (expectedDocument === 'no_profile') return 'no_profile'
+  if (expectedDocument === 'blocked') return 'blocked'
   if (expectedDocument === 'nfse') return 'nfse_expected'
 
   if (row.cteStatus === 'authorized') return 'ok'

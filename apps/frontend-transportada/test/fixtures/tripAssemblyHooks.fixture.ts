@@ -57,15 +57,21 @@ export function createDeferred<TValue>(): Deferred<TValue> {
 
 export type FakeTripClient = Pick<
   TripClient,
-  'createMultiVehicleSuggestion' | 'readMultiVehicleProposal' | 'readMultiVehicleSuggestion'
+  | 'attachOccurrencePhoto'
+  | 'createMultiVehicleSuggestion'
+  | 'readMultiVehicleProposal'
+  | 'readMultiVehicleSuggestion'
+  | 'registerTripOccurrence'
 >
 
 /** Toda chamada não combinada falha alto: um teste que a dispara está medindo outra coisa. */
 export function createUnexpectedTripClient(): FakeTripClient {
   return {
+    attachOccurrencePhoto: () => Promise.reject(new Error('UNEXPECTED_ATTACH_OCCURRENCE_PHOTO')),
     createMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_CREATE')),
     readMultiVehicleProposal: () => Promise.reject(new Error('UNEXPECTED_PROPOSAL_READ')),
     readMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_SUGGESTION_READ')),
+    registerTripOccurrence: () => Promise.reject(new Error('UNEXPECTED_REGISTER_TRIP_OCCURRENCE')),
   }
 }
 

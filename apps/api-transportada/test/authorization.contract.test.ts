@@ -76,6 +76,10 @@ describe('authorization contract', () => {
       'deliveries.track',
       // ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega
       'charges.decide',
+      // Spec 164 T6: tratar a tratativa da ocorrência é do escritório — nunca separador/driver/aggregate
+      'occurrences.resolve',
+      // Spec 164 T9: o contratante decide a tratativa que chegou até ele — só o papel contractor
+      'occurrences.decide',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -108,6 +112,7 @@ describe('authorization contract', () => {
         'trip.report-on-behalf',
         'trip.financials',
         'cargo.measure',
+        'occurrences.resolve',
       ],
       finance: [
         'cte.read',
@@ -119,6 +124,7 @@ describe('authorization contract', () => {
         'operations.read',
         'view-preferences.manage',
         'nfse.read',
+        'occurrences.resolve',
       ],
       fiscal: [
         'invoices.import',
@@ -167,6 +173,7 @@ describe('authorization contract', () => {
         /** ADR-0049 §6, emendada: quem escolhe a carga vê o que ela custa. */
         'trip.financials',
         'cargo.measure',
+        'occurrences.resolve',
       ],
       viewer: [
         'invoices.read',
@@ -180,9 +187,31 @@ describe('authorization contract', () => {
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
-      contractor: ['deliveries.track', 'charges.decide'],
+      contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide'],
       automation: ['mdfe.auto-issue', 'whatsapp.settle'],
     })
+  })
+
+  /**
+   * Spec 164 T6: tratar a tratativa da ocorrência (revisar, devolver ao galpão, enviar ao
+   * contratante, fechar, cancelar) é decisão do escritório. O separador monta a viagem no galpão,
+   * mas não decide o desfecho da ocorrência; motorista e agregado só reportam campo.
+   */
+  test('grants occurrences.resolve only to the office roles', () => {
+    for (const role of ['company-admin', 'finance', 'operator'] as const) {
+      expect(resolveCompanyPermissions([role]).has('occurrences.resolve')).toBe(true)
+    }
+    for (const role of [
+      'fiscal',
+      'viewer',
+      'driver',
+      'aggregate',
+      'separator',
+      'contractor',
+      'automation',
+    ] as const) {
+      expect(resolveCompanyPermissions([role]).has('occurrences.resolve')).toBe(false)
+    }
   })
 
   // Os dois papéis de campo são o menor conjunto do sistema — nota, CT-e, faturamento e frota
@@ -374,7 +403,8 @@ describe('authorization contract', () => {
         permission !== 'mdfe.auto-issue' &&
         permission !== 'whatsapp.settle' &&
         permission !== 'deliveries.track' &&
-        permission !== 'charges.decide',
+        permission !== 'charges.decide' &&
+        permission !== 'occurrences.decide',
     )
 
     expect([...permissions]).toEqual(companyPermissions)

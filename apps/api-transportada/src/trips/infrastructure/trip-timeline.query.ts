@@ -24,7 +24,11 @@ import {
   listDocumentOccurrenceRows,
   listDocumentStatusChangedRows,
 } from './trip-timeline-document.query.js'
-import { listDispatchedRows, listStatusChangedRows } from './trip-timeline-status.query.js'
+import {
+  listCreatedRows,
+  listDispatchedRows,
+  listStatusChangedRows,
+} from './trip-timeline-status.query.js'
 import { listStopEventRows, listStopOccurrenceRows } from './trip-timeline-stop.query.js'
 
 export {
@@ -33,6 +37,15 @@ export {
 } from '../application/trip-timeline-cursor.service.js'
 export { mergeTripTimeline } from '../application/trip-timeline-merge.service.js'
 export type { TripTimelineRow } from '../application/trip-timeline-merge.service.js'
+
+/** Tira a chave de ordenação da linha antes de ela virar resposta — ver o comentário no `map`. */
+function withoutOrderingKey<TRow extends { occurredAtKey: string }>(
+  row: TRow,
+): Omit<TRow, 'occurredAtKey'> {
+  const copy: Partial<TRow> = { ...row }
+  delete copy.occurredAtKey
+  return copy as Omit<TRow, 'occurredAtKey'>
+}
 
 /**
  * Spec 158 T6: existência da viagem **nesta empresa**, antes de ler qualquer fonte da linha do
@@ -53,15 +66,16 @@ export async function findTripCompanyScope(
 }
 
 /**
- * A linha do tempo de uma viagem: seis consultas (D5 — `trip_stop_events` cobre três `kind`s),
- * escopadas por `companyId` e `tripId`, unidas em memória por `mergeTripTimeline`. RNF: uma consulta
- * por fonte, `Promise.all`, sem N+1.
+ * A linha do tempo de uma viagem: sete consultas (D5 — `trip_stop_events` cobre três `kind`s; spec
+ * 171 acrescenta `trip.created`), escopadas por `companyId` e `tripId`, unidas em memória por
+ * `mergeTripTimeline`. RNF: uma consulta por fonte, `Promise.all`, sem N+1.
  */
 export async function listTripTimeline(
   queryable: TripQueryable,
   params: ReadTripTimelineParams,
 ): Promise<ReadTripTimelineResult> {
   const [
+    created,
     dispatched,
     statusChanged,
     stopEvents,
@@ -69,6 +83,7 @@ export async function listTripTimeline(
     documentOccurrences,
     documentStatusChanged,
   ] = await Promise.all([
+    listCreatedRows(queryable, params),
     listDispatchedRows(queryable, params),
     listStatusChangedRows(queryable, params),
     listStopEventRows(queryable, params),
@@ -80,6 +95,7 @@ export async function listTripTimeline(
   const merged = mergeTripTimeline({
     limit: params.limit,
     sources: [
+      created,
       dispatched,
       statusChanged,
       stopEvents,
@@ -91,10 +107,17 @@ export async function listTripTimeline(
   const last = merged.items[merged.items.length - 1]
 
   return {
-    items: merged.items.map((row) => ({
-      ...row,
-      occurredAt: row.occurredAt.toISOString(),
-      recordedAt: row.recordedAt === null ? null : row.recordedAt.toISOString(),
+    /**
+     * ⚠️ `occurredAtKey` é **ordenação interna**, não dado de tela: ele existe para a mesclagem das
+     * seis fontes comparar microssegundos. Espalhar a linha inteira o publicava junto, e o guard do
+     * bundle — que é de chave exata — recusava a lista toda: a tela dizia "não foi possível carregar
+     * a linha do tempo" sobre uma resposta 200 completa (medido em 22/09 em staging e reproduzido
+     * na bancada local).
+     */
+    items: merged.items.map((item) => ({
+      ...withoutOrderingKey(item),
+      occurredAt: item.occurredAt.toISOString(),
+      recordedAt: item.recordedAt === null ? null : item.recordedAt.toISOString(),
     })),
     nextCursor:
       merged.hasMore && last !== undefined

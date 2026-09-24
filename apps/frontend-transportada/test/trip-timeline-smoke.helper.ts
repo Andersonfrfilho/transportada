@@ -17,6 +17,7 @@ function timelineItem(input: {
   return {
     actorName: 'Marina Alves',
     channel: 'office',
+    closeReason: null,
     document: { id: DOCUMENT_ID, number: '456', series: '1' },
     fromStatus: input.kind === 'trip.status_changed' ? 'in_transit' : null,
     id: input.id,
@@ -44,7 +45,7 @@ function timelineItem(input: {
  * devolve (D4). Spec 158 T10: o mock estava em ordem crescente e o print de T8 mostrava 08:00 no
  * topo; o componente não reordena, então o mock é que tem de refletir a API.
  */
-const FIRST_PAGE_ITEMS = [
+export const FIRST_PAGE_ITEMS = [
   timelineItem({
     id: 'evt-8',
     kind: 'document.status_changed',
@@ -60,7 +61,7 @@ const FIRST_PAGE_ITEMS = [
 ]
 
 /** A segunda página (mais antiga), servida quando o cliente manda `cursor=page-2`. */
-const SECOND_PAGE_ITEMS = [
+export const SECOND_PAGE_ITEMS = [
   timelineItem({
     id: 'evt-4',
     kind: 'document.delivered',

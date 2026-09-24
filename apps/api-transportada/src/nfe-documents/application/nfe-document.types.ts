@@ -132,9 +132,14 @@ export type NfeDocumentRepositoryPort = {
  * A classificação da listagem para notas escolhidas por id — a porta que o bot consome (spec 144
  * D3). Nota de outra empresa ou inexistente fica fora do mapa, sem erro.
  */
+/**
+ * `companyId`, não `CompanyContext`: a classificação nunca lê permissão, papel ou membership — só o
+ * tenant. Exigir o contexto inteiro obrigaria todo consumidor interno (como a prontidão fiscal da
+ * viagem, que só tem `companyId`) a fabricar um contexto de mentira para chamar a porta.
+ */
 export type NfeDocumentOutputClassifierPort = {
   classifyDocumentOutputs(input: {
-    readonly context: CompanyContext
+    readonly companyId: string
     readonly documentIds: readonly string[]
   }): Promise<ReadonlyMap<string, DocumentOutputClassification>>
   /**
@@ -143,7 +148,7 @@ export type NfeDocumentOutputClassifierPort = {
    * **mesmo** `mapSummary` da página — uma segunda conta discordaria da tela.
    */
   describeDocumentOutputs(input: {
-    readonly context: CompanyContext
+    readonly companyId: string
     readonly documentIds: readonly string[]
   }): Promise<ReadonlyMap<string, DocumentOutputDescription>>
 }

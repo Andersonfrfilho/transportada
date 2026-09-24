@@ -15,7 +15,9 @@
     "view": "View",
     "viewTrip": "Open the trip for {{vehicle}}",
     "fieldOccurrence": "Occurrence",
-    "fieldDelivery": "Deliver"
+    "generateCte": "Issue CT-e",
+    "fieldDelivery": "Deliver",
+    "separationOccurrence": "Separation occurrence"
   },
   "authorship": {
     "backoffice": "by {{actor}}",
@@ -25,6 +27,7 @@
     "office": "by {{actor}} (office) on behalf of driver {{driver}}",
     "officeWithoutActor": "by the office on behalf of driver {{driver}}",
     "removedActor": "removed user",
+    "unidentifiedActor": "unidentified author",
     "unknownDriver": "unidentified",
     "whatsapp": "(WhatsApp)",
     "whatsappWithActor": "by {{actor}} via WhatsApp"
@@ -95,6 +98,7 @@
     "title": "Assembly map",
     "toll": {
       "adjustBooth": "Adjust this booth's tariff",
+      "avoided": "This route avoids the toll booths.",
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "unnamed booth",
       "catalogEmpty": "Toll not calculated: the toll booth catalog has not been loaded in this environment.",
@@ -128,7 +132,8 @@
     "unmapped": "No shape in the IBGE mesh: {{cities}}.",
     "withoutBasemap": "Street map unavailable — points and order are still valid",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "depotLabel": "Starting point"
   },
   "cancelDialog": {
     "cancelling": "Cancelling…",
@@ -139,6 +144,15 @@
     "subtitle": "The trip stays on record, marked Cancelled.",
     "title_one": "Cancel {{count}} trip?",
     "title_other": "Cancel {{count}} trips?"
+  },
+  "closeDialog": {
+    "confirm": "Close trip",
+    "noOpenDocuments": "Every document is already delivered, returned or released. The reason is optional.",
+    "openDocumentsWarning_one": "{{count}} document will be left without a recorded settlement.",
+    "openDocumentsWarning_other": "{{count}} documents will be left without a recorded settlement.",
+    "reasonLabel": "Reason for closing",
+    "reasonLabelOptional": "Reason for closing (optional)",
+    "title": "Close this trip?"
   },
   "cargoLayers": {
     "bedFromReference": "The scale comes from the vehicle type catalogue, not from the fiche: this truck has no bed measurements, and the same type varies by up to double.",
@@ -361,6 +375,8 @@
     "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
   },
   "detail": {
+    "closedManually": "Closed manually on {{moment}}",
+    "closedManuallyBy": "Closed manually by {{name}} on {{moment}}",
     "deliveredColumn": "Delivery",
     "documentColumn": "Document",
     "documentsEmpty": "No document linked to this trip",
@@ -394,8 +410,21 @@
   "empty": "No trip found",
   "error": "Could not load trips",
   "eventTimeline": {
+    "attachmentCount_one": "{{count}} photo attached",
+    "attachmentCount_other": "{{count}} photos attached",
+    "closeReason": "Close reason: {{reason}}",
+    "collapse": "Collapse",
+    "documentFilterOption": "Invoice {{invoice}}",
+    "day": {
+      "count_one": "{{count}} event",
+      "count_other": "{{count}} events",
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "empty": "Nothing recorded on this trip yet",
     "error": "Could not load the timeline",
+    "expand": "View more",
+    "filterByDocument": "Filter by invoice",
     "itemTitle": {
       "dispatched": "Trip dispatched",
       "documentDelivered": "{{document}} delivered",
@@ -429,16 +458,19 @@
       "unknownOccurrenceType": "unspecified",
       "unknownStatus": "unspecified"
     },
+    "loadMore": "Load more",
     "loading": "Loading the timeline",
     "loadingMore": "Loading more",
-    "loadMore": "Load more",
-    "onlyOpenDocument": "Only this invoice",
+    "occurrenceNote": "Note: {{note}}",
     "recordedAt": "recorded at {{moment}}",
     "retry": "Try again",
     "returnReason": "Return reason: {{reason}}",
-    "title": "Timeline"
+    "title": "Timeline",
+    "viewDocument": "View invoice",
+    "viewStop": "View stop"
   },
   "feedback": {
+    "closeReasonRequired": "Provide the reason to close a trip with open invoices.",
     "closed": "This trip is already closed.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",
     "documentAlreadyLinked": "This document is already linked to a trip.",
@@ -454,7 +486,9 @@
     "notFound": "Trip not found.",
     "readOnly": "Your current access does not allow this action.",
     "requestFailed": "Could not reach the server. Check the connection and try again.",
+    "serverRefused": "The server refused this operation. Nothing was saved — try again and, if it repeats, tell support the time.",
     "responseInvalid": "The API responded in an unexpected format.",
+    "routeUnavailable": "The route planner did not return a new route right now. The previous route still applies — try again shortly.",
     "scannedDocumentNotFound": "No note with this access key in this company.",
     "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
@@ -514,10 +548,49 @@
     "title": "Pending CT-e"
   },
   "occurrence": {
-    "editTemplates": "Edit email templates",
-    "emailTemplate": "Email template",
-    "emailTemplateNone": "No email",
-    "legacyTemplate": "{{subject}} — own template (legacy)"
+    "openCase": "Occurrence under case",
+    "openCaseHint": "This document has an open destination occurrence case. It stays released — the badge only signals.",
+    "stopOpenCase": "Stop with a document under case",
+    "cancelConfirmBody": "Cancelling discards the photo and the note you filled in.",
+    "cancelConfirmContinue": "Keep filling in",
+    "cancelConfirmDiscard": "Discard",
+    "closeConfirmBody": "Closing now discards the photo and the note you filled in. Continue anyway?",
+    "closeConfirmContinue": "Keep filling in",
+    "closeConfirmDiscard": "Discard and close",
+    "dialogTitle": "Separation occurrence — {{document}}",
+    "dialogTitleFixed": "Separation occurrence",
+    "notePresetsToggle": "Ready-made phrases ({{count}})",
+    "photoPicker": {
+      "captureFailed": "Could not process the photo — try again.",
+      "cameraDenied": "Camera denied — send the photo through the file field below.",
+      "cameraLabel": "Camera for the occurrence photo",
+      "cameraUnavailable": "Camera unavailable on this device — send the photo through the file field below.",
+      "capture": "Take photo",
+      "empty": "No photo added yet.",
+      "limitReached": "Limit of {{limit}} photos reached.",
+      "noPhoto": "Add at least one photo to register the occurrence.",
+      "remove": "Remove photo",
+      "removeConfirm": "Confirm photo removal",
+      "sectionLabel": "Occurrence photo",
+      "thumbAlt": "Occurrence photo",
+      "uploadChoose": "Choose file",
+      "uploadEmpty": "No file chosen",
+      "uploadLabel": "Upload photo or PDF",
+      "documentAlt": "Attached PDF document"
+    },
+    "typeLabel": "Occurrence type",
+    "productClear": "Clear chosen items",
+    "productEmpty": "No item found",
+    "productRemove": "Remove this item",
+    "productSearch": "Search invoice item",
+    "productSummary": "{{count}} items chosen",
+    "quantityLabel": "Quantity",
+    "quantityUnitLabel": "Unit",
+    "quantityUnits": {
+      "box": "Box",
+      "unit": "Piece"
+    },
+    "singleItemHint": "This type only accepts one item — choosing another replaces it."
   },
   "occurrenceFeed": {
     "columns": {
@@ -541,7 +614,11 @@
       "noDescription": "No description recorded.",
       "open": "Details",
       "photoAlt": "Photo attached to the occurrence",
-      "title": "Detail"
+      "photoExpired": "Expired photo (5-year retention)",
+      "photoLoadError": "Could not load the photo",
+      "title": "Detail",
+      "photoRetry": "Try again",
+      "documentLabel": "Document {{position}} (PDF)"
     },
     "empty": "No occurrence found for the applied filter.",
     "filters": {
@@ -555,7 +632,12 @@
       "stageSummary": "{{count}} selected",
       "title": "Filters",
       "types": "Types",
-      "typesPlaceholder": "Comma-separated names"
+      "typesPlaceholder": "Comma-separated names",
+      "caseStatus": "Case",
+      "caseStatusEmpty": "No status found",
+      "removeCaseStatus": "Remove case status",
+      "caseStatusSearch": "Search status",
+      "caseStatusSummary": "{{count}} selected"
     },
     "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
     "kicker": "Operations",
@@ -575,7 +657,17 @@
       "stop": "Stop"
     },
     "tableTitle": "Recorded occurrences",
-    "title": "Occurrences"
+    "title": "Occurrences",
+    "caseStatus": {
+      "none": "No case",
+      "recorded": "Recorded",
+      "under_review": "Under review",
+      "returned_to_warehouse": "Returned to warehouse",
+      "awaiting_contractor": "Awaiting contractor",
+      "decided": "Decided",
+      "closed": "Closed",
+      "cancelled": "Cancelled"
+    }
   },
   "pendingMeasurement": {
     "columns": {
@@ -596,6 +688,22 @@
     "export": {
       "csv": "Download CSV",
       "xlsx": "Download Excel"
+    },
+    "inline": {
+      "length": "Length (cm)",
+      "width": "Width",
+      "height": "Height",
+      "outOfRange": "Above {{max}} cm — check the measurement.",
+      "saveFailed": "Could not save. The value is still here — try again.",
+      "noBoxReason": "No catalog box matches this product.",
+      "saved": "Measurement saved",
+      "saveRow": "Save measurement",
+      "saveSelected_one": "Save 1 measurement",
+      "saveSelected_other": "Save {{count}} measurements",
+      "selectAll": "Select all",
+      "selectRow": "Select this row",
+      "selectionExcluded_one": "1 selected row was left out — missing a box or a value.",
+      "selectionExcluded_other": "{{count}} selected rows were left out — missing a box or a value."
     }
   },
   "pagination": {
@@ -693,6 +801,7 @@
     "resolving": "Looking the invoice up…",
     "scan": "Scan with the camera",
     "search": "Search invoices",
+    "searchLoading": "Loading available invoices…",
     "searchResult": "{{count}} invoice found.",
     "searchResult_other": "{{count}} invoices found.",
     "searchTerm": "Search",
@@ -716,10 +825,16 @@
     "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e.",
     "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
     "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
+    "nfsePending_one": "{{count}} invoice awaiting NFS-e",
+    "nfsePending_other": "{{count}} invoices awaiting NFS-e",
     "reason": {
+      "blocked": "issuing blocked for this invoice",
+      "no_profile": "no emission profile",
+      "city_unknown": "destination city unknown",
       "cte_cancelled": "CT-e cancelled",
       "cte_in_progress": "CT-e in progress",
       "cte_rejected": "CT-e rejected",
+      "nfse_expected": "NFS-e expected",
       "no_cte": "no CT-e"
     },
     "state": {
@@ -814,6 +929,25 @@
     "vehiclesSummary": "{{count}} vehicle chosen",
     "vehiclesSummary_other": "{{count}} vehicles chosen"
   },
+  "routeMap": {
+    "criterion": {
+      "alternative": "Route chosen manually by the operator.",
+      "cheapest": "Criterion: cheapest (fuel + toll).",
+      "fastest": "Criterion: fastest.",
+      "noToll": "Criterion: toll-free — avoids a booth on purpose.",
+      "title": "Route criterion"
+    },
+    "trade": {
+      "cancel": "Cancel change",
+      "confirm": "Use this route",
+      "loading": "Fetching alternatives…",
+      "open": "Change route",
+      "pending": "Replanning…",
+      "singleOption": "There is only this route for the current stops — nothing to compare.",
+      "title": "Choose another route",
+      "unavailable": "Could not fetch the alternatives right now."
+    }
+  },
   "selection": {
     "barLabel": "Bulk actions",
     "cancelTrips": "Cancel selected",
@@ -855,7 +989,6 @@
     },
     "occurrenceKindLabel": "Occurrence type",
     "occurrenceKindPlaceholder": "Select the type",
-    "occurrencePhotoHint": "Need a photo? Register the occurrence on the document (the row's \"Occurrence\" button) — it accepts a photo.",
     "occurrenceSubmit": "Report occurrence",
     "occurrenceTitle": "Stop occurrence",
     "returnReason": {
@@ -868,8 +1001,7 @@
     "startRoute": "Start route",
     "startRouteConfirm": "Start route anyway",
     "startRouteMessage": "The trip moves to \"on delivery route\" and this cannot be undone. Confirm the start?",
-    "startRouteTitle": "Start route",
-    "title": "Field actions (on behalf of the driver)"
+    "startRouteTitle": "Start route"
   },
   "fieldDelivery": {
     "blockedNotOnTrip": "This proof is from document {{document}}, which is not on this trip.",
@@ -947,6 +1079,8 @@
     "generateCteSelection": "Issue CT-e for {{count}} selected invoice",
     "generateCteSelection_other": "Issue CT-e for {{count}} selected invoices",
     "planRoute": "Plan route",
+    "readinessSummary": "{{ready}} of {{total}} invoices ready",
+    "readinessSummaryWithNfse": "{{ready}} of {{total}} invoices ready ({{nfsePending}} awaiting NFS-e)",
     "returnReasonLabel": "Return reason",
     "returnSubmit": "Confirm return",
     "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
@@ -954,12 +1088,12 @@
     "title": "Trip actions",
     "batchFieldOccurrence": "Occurrence on {{count}} document",
     "batchFieldOccurrence_other": "Occurrence on {{count}} documents",
-    "batchFieldOccurrenceExcluded": "{{count}} document without that action was left out. ",
-    "batchFieldOccurrenceExcluded_other": "{{count}} documents without that action were left out. ",
+    "batchFieldOccurrenceExcluded": "{{count}} selected invoice does not accept occurrence logging. ",
+    "batchFieldOccurrenceExcluded_other": "{{count}} selected invoices do not accept occurrence logging. ",
     "batchFieldDelivery": "Deliver {{count}} document",
     "batchFieldDelivery_other": "Deliver {{count}} documents",
-    "batchFieldDeliveryExcluded": "{{count}} document without that action was left out.",
-    "batchFieldDeliveryExcluded_other": "{{count}} documents without that action were left out."
+    "batchFieldDeliveryExcluded": "{{count}} selected invoice does not accept delivery confirmation.",
+    "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation."
   },
   "status": {
     "cancelled": "Cancelled",
@@ -974,10 +1108,25 @@
   },
   "stops": {
     "arrivedAt": "Arrived at {{time}}",
+    "cargoValue": "Cargo: {{amount}}",
     "completedAt": "Completed at {{time}}",
+    "detailCollapse": "Collapse details",
+    "detailExpand": "Invoice details",
     "documentCount": "{{count}} document",
     "documentCount_other": "{{count}} documents",
     "empty": "No stop on this trip yet",
+    "freight": {
+      "amount": "Freight: {{amount}}",
+      "estimated": "estimated",
+      "missing": "No freight calculated",
+      "rule": "Rule: {{name}}"
+    },
+    "freightGroupLabel": "Freight",
+    "issuedGroupLabel": "Issued",
+    "moneyGroupLabel": "Cargo",
+    "openOccurrence_one": "1 invoice with an occurrence",
+    "openOccurrence_other": "{{count}} invoices with occurrences",
+    "peopleGroupLabel": "Recipient",
     "processCount": "{{reached}} of {{total}}",
     "processReturned": "{{count}} invoice returned — outside the flow",
     "processReturned_other": "{{count}} invoices returned — outside the flow",
@@ -988,6 +1137,7 @@
     "selectionClear": "Clear selection",
     "selectionCount": "{{count}} document selected",
     "selectionCount_other": "{{count}} documents selected",
+    "separationStatusWithReason": "{{status}} · {{reason}}",
     "title": "Trip cargo",
     "unassigned": "No stop"
   },
@@ -1120,5 +1270,66 @@
     "unreachableDocuments": "Documents outside this trip's reach: {{documents}}.",
     "photoChoose": "Choose photo",
     "photoEmpty": "No photo chosen"
+  },
+  "occurrenceCase": {
+    "none": "No case opened for this occurrence.",
+    "statusLabel": "Current step",
+    "redeliveryPolicyLabel": "Redelivery",
+    "redeliveryPolicy": {
+      "allowed": "Allows redelivery",
+      "blocked": "Blocks redelivery"
+    },
+    "decisionKind": {
+      "redelivery_authorized": "The contractor authorized redelivery",
+      "goods_paid": "The contractor decided to pay for the goods",
+      "other": "The contractor recorded another solution"
+    },
+    "awaitingContractor": "Waiting for the contractor decision on the portal.",
+    "noteLabel": {
+      "cancel": "Cancellation reason (required)",
+      "warehouse-return": "Warehouse return reason (required)"
+    },
+    "confirm": "Confirm",
+    "dismiss": "Dismiss",
+    "action": {
+      "review": "Start internal review",
+      "warehouseReturn": "Return to warehouse",
+      "submitToContractor": "Send to contractor",
+      "close": "Close case",
+      "cancel": "Cancel case"
+    },
+    "closeBlockedByDraft": "Save the settlement before closing — there is a typed item that has not been saved."
+  },
+  "occurrenceSettlement": {
+    "title": "Goods settlement",
+    "productCode": "Product code",
+    "amount": "Amount",
+    "amountPlaceholder": "0.00",
+    "payerKind": "Paid by",
+    "payerId": "Driver who paid",
+    "payerIdPlaceholder": "Choose the driver",
+    "payer": {
+      "driver": "Driver",
+      "carrier": "Carrier",
+      "contractor": "Contractor",
+      "insurer": "Insurer"
+    },
+    "addRow": "Add item",
+    "removeRow": "Remove",
+    "total": "Screen total",
+    "save": "Save settlement",
+    "savedTotal": "Saved total",
+    "markReimbursed": "Mark as reimbursed",
+    "payerSearch": "Search the driver by name",
+    "payerEmpty": "No active driver found",
+    "payerNotApplicable": "Not applicable",
+    "payerManualHint": "No fleet permission on this account: the driver name cannot be checked here.",
+    "payerResolved": "Driver: {{name}}",
+    "payerUnresolved": "No driver matches this id",
+    "amountRequired": "Enter an amount greater than zero.",
+    "productCodeRequired": "Enter the product code.",
+    "invalidRows": "There is an incomplete item in the settlement — check the marked fields. Nothing was saved.",
+    "reimbursedOn": "Reimbursed on {{date}}",
+    "savedItemsTitle": "Saved items"
   }
 }

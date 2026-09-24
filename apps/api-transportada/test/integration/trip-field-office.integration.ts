@@ -358,7 +358,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           .values({ companyId: company.companyId, photo: 'required' })
         const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
         const [, , , , deliverRoute] = wireRoutes(database)
-        const deliveryProofs = new DrizzleDeliveryProofRepository(database.db)
+        const deliveryProofs = new DrizzleDeliveryProofRepository(database.db, 'test-bucket')
 
         const officeResponse = await deliverRoute!.execute({
           context: fakeContext(company),
@@ -382,7 +382,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           location: null,
           now: new Date('2026-09-18T11:00:00.000Z'),
           resolveProofSettings: (settings) => deliveryProofs.resolveProofFieldSettings(settings),
-          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db),
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
         })
 
         expect(replay).toMatchObject({
@@ -428,7 +428,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           .values({ companyId: company.companyId, photo: 'required' })
         const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
         const [, , , , , , proofRoute] = wireRoutes(database)
-        const deliveryProofs = new DrizzleDeliveryProofRepository(database.db)
+        const deliveryProofs = new DrizzleDeliveryProofRepository(database.db, 'test-bucket')
         const driver = {
           actorUserId: driverUserId,
           companyId: company.companyId,
@@ -441,7 +441,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           idempotencyKey: 'motorista-entrega-antes-do-canhoto',
           location: null,
           now: new Date(),
-          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db),
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
         })
         const threeHoursLater = new Date(Date.now() + 3 * 60 * 60 * 1000)
         const driverPhoto = await attachDeliveryProof({
@@ -511,7 +511,7 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           idempotencyKey: 'motorista-entrega-sem-foto',
           location: null,
           now: new Date(),
-          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db),
+          unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
         })
         const response = await proofRoute!.execute({
           context: fakeContext(company),

@@ -417,7 +417,9 @@
   "hasAutomaticTollPayment": "Automatic toll payment (tag)",
   "hasAutomaticTollPaymentHint": "With the tag, tolls use the booth's automatic rate when it is known. Without a known automatic rate, the total falls back to the manual one.",
   "identityBand": {
-    "withoutModel": "Vehicle without a registered model"
+    "color": "Color",
+    "withoutModel": "Vehicle without a registered model",
+    "year": "Year"
   },
   "identityDocumentIssuerOption": {
     "CTPS": "CTPS — Work permit",

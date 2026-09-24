@@ -8,6 +8,7 @@ import {
   TRIP_CARGO_LAYOUTS_PATH,
   TRIP_DOCUMENT_REVIEWS_PATH,
   TRIP_FIELD_OCCURRENCE_TYPES_PATH,
+  type OccurrenceQuantityUnit,
 } from './trip.constant'
 import {
   isFieldDeliveryOcrDocumentsResponse,
@@ -98,7 +99,7 @@ import {
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
-import type { OccurrenceType } from './occurrence.constant'
+import type { OccurrenceRedeliveryPolicy, OccurrenceType } from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
@@ -114,7 +115,8 @@ type ClientDependencies = Readonly<{
 export type TripClient = Readonly<{
   batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
-  closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  /** Spec 156 T8c: `reason` é obrigatório só quando a viagem tem nota em aberto (a tela decide). */
+  closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
   /** Spec 156 T5: `POST /trips/:id/confirm-load` — o mesmo caso de uso do motorista, com o alvo. */
   confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
@@ -231,23 +233,50 @@ export type TripClient = Readonly<{
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
+      /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
+      allowsMultipleItems: boolean
       emailTemplateKey: null | string
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
+      /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
+      redeliveryPolicy: OccurrenceRedeliveryPolicy
       stage: 'delivery' | 'separation'
     }>,
   ) => Promise<OccurrenceType>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
+  /**
+   * Spec 161 T6/T22 (RF29/RF31): registro multipart — `file` é sempre exigido (uma foto por
+   * ocorrência), `thumbnail` é opcional (RF29b: falha na miniatura não impede o original).
+   */
   registerTripOccurrence: (
     input: TripDocumentActionInput & {
+      readonly file: Blob
+      readonly idempotencyKey: string
       readonly note: string
       readonly occurrenceTypeId: string
-      readonly productCode: string
+      /** Lista vazia é a nota inteira. O `productCode` legado sai junto, ver o cliente. */
+      readonly productCodes: readonly string[]
+      /**
+       * Spec 166 RF4/RF7: alinhadas por índice a `productCodes`. Ausente ou item vazio é "sem
+       * contagem" — a quantidade nunca é obrigatória.
+       */
+      readonly productQuantities?: readonly (null | string)[]
+      readonly productQuantityUnits?: readonly (null | OccurrenceQuantityUnit)[]
+      readonly thumbnail?: Blob
     },
   ) => Promise<RegisteredOccurrence>
+  /** Spec 161 T7/T22 (RF6/RF31): a 2ª a 5ª foto de uma ocorrência já registrada. */
+  attachOccurrencePhoto: (
+    input: TripDocumentActionInput & {
+      readonly file: Blob
+      readonly idempotencyKey: string
+      readonly occurrenceId: string
+      readonly thumbnail?: Blob
+    },
+  ) => Promise<Readonly<{ id: string; position: number }>>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
   ) => Promise<readonly TripDocumentProduct[]>
@@ -466,6 +495,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async closeTrip(input) {
       const response = await authorizedRequest({
+        body: JSON.stringify({ reason: input.reason }),
         dependencies,
         method: 'POST',
         path: `${TRIPS_PATH}/${input.tripId}/close`,
@@ -706,10 +736,12 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const response = await authorizedRequest({
         body: JSON.stringify({
           active: input.active,
+          allowsMultipleItems: input.allowsMultipleItems,
           emailTemplateKey: input.emailTemplateKey,
           name: input.name,
           notifies: input.notifies,
           occurrenceTypeId: input.occurrenceTypeId,
+          redeliveryPolicy: input.redeliveryPolicy,
           stage: input.stage,
         }),
         dependencies,
@@ -831,17 +863,56 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       return adapters.tripTimelineFromApi(readEnvelopeData(response))
     },
     async registerTripOccurrence(input) {
+      const form = new FormData()
+      form.set('occurrenceTypeId', input.occurrenceTypeId)
+      form.set('note', input.note)
+      /**
+       * Os dois campos saem juntos: `productCodes` é o contrato novo (repetido, um por item), e
+       * `productCode` legado continua indo com o primeiro item para o bundle não quebrar contra
+       * uma API que ainda não subiu — a API nova ignora o legado quando a lista vem.
+       */
+      /**
+       * ⚠️ **Só a lista.** Mandar também o `productCode` antigo fazia a API responder `422`
+       * (`OccurrenceProductSelectionConflictError`): com os dois preenchidos ninguém sabe qual
+       * vale, e ela recusa em vez de escolher. Medido em staging em 23/09 com três itens marcados,
+       * e a tela ainda traduzia o 422 para "sem conexão com o servidor".
+       *
+       * A linha do legado existia para sobreviver a uma API sem a lista; essa API não existe mais.
+       */
+      for (const productCode of input.productCodes) form.append('productCodes', productCode)
+      /**
+       * Spec 166 RF4/RF7: alinhadas por índice a `productCodes` — posição vazia é item sem
+       * contagem. Sem a lista (chamador que não passa quantidade), cada posição sai em branco.
+       */
+      for (let index = 0; index < input.productCodes.length; index += 1) {
+        form.append('productQuantities', input.productQuantities?.[index] ?? '')
+        form.append('productQuantityUnits', input.productQuantityUnits?.[index] ?? '')
+      }
+      form.set('file', input.file)
+      if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
+
       const response = await authorizedRequest({
-        body: JSON.stringify({
-          note: input.note,
-          occurrenceTypeId: input.occurrenceTypeId,
-          productCode: input.productCode,
-        }),
         dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
         method: 'POST',
         path: `${documentPath(input)}/occurrences`,
       })
       return adapters.registeredOccurrenceFromApi(readEnvelopeData(response))
+    },
+    async attachOccurrencePhoto(input) {
+      const form = new FormData()
+      form.set('file', input.file)
+      if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
+
+      const response = await authorizedRequest({
+        dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/occurrences/${input.occurrenceId}/attachments`,
+      })
+      return adapters.occurrenceAttachmentPositionFromApi(readEnvelopeData(response))
     },
     async readDeliveryProofs(input) {
       const response = await authorizedRequest({

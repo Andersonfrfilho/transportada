@@ -194,6 +194,7 @@ function buildDriverTrip(input: {
 function buildOccurrenceType(overrides: Partial<OccurrenceTypeRecord> = {}): OccurrenceTypeRecord {
   return {
     active: true,
+    allowsMultipleItems: true,
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,
@@ -714,6 +715,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         companyId: COMPANY_ID,
         documentId: DOCUMENT_ID,
         driverId: DRIVER_ID,
+        idempotencyKey: expect.any(String),
         note: '',
         occurrenceTypeId: OCCURRENCE_TYPE_ID,
         productCode: '',

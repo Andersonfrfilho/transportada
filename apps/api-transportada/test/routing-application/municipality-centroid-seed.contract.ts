@@ -18,6 +18,9 @@ const RIBEIRAO_PRETO: MunicipalityCentroid = {
 
 function repositoryRecording(batches: MunicipalityCentroid[][]): MunicipalityCentroidRepository {
   return {
+    async findByCityCode() {
+      return null
+    },
     async saveMany(centroids) {
       batches.push([...centroids])
 

@@ -93,9 +93,17 @@ export type FreezeTripPlannedRouteInput = {
   readonly tripId: string
 }
 
-export async function freezeTripPlannedRoute(input: FreezeTripPlannedRouteInput): Promise<void> {
+/**
+ * `routeFrozen: false` cobre os dois jeitos de sair sem roteiro: a viagem sumiu antes de ler o
+ * veículo, ou o roteirizador não devolveu uma rota que sustente `route_planned` (D5) — em ambos,
+ * quem congelou por cima da transição de status (`plan-trip-route.use-case.ts`) precisa saber que
+ * não há o que status afirmar.
+ */
+export async function freezeTripPlannedRoute(
+  input: FreezeTripPlannedRouteInput,
+): Promise<{ readonly routeFrozen: boolean }> {
   const vehicle = await input.repository.readVehicleContext(input)
-  if (vehicle === null) return
+  if (vehicle === null) return { routeFrozen: false }
 
   const stops = await input.repository.readStopCoordinates(input)
 
@@ -111,15 +119,19 @@ export async function freezeTripPlannedRoute(input: FreezeTripPlannedRouteInput)
     tollBooths: input.tollBooths,
   })
 
+  const route = toFrozenRoute({
+    criterion: input.choice?.criterion ?? DEFAULT_ROUTE_CHOICE_CRITERION,
+    road,
+  })
+
   await input.repository.writePlannedRoute({
     companyId: input.companyId,
-    route: toFrozenRoute({
-      criterion: input.choice?.criterion ?? DEFAULT_ROUTE_CHOICE_CRITERION,
-      road,
-    }),
+    route,
     toll: toFrozenToll(road.toll),
     tripId: input.tripId,
   })
+
+  return { routeFrozen: route !== null }
 }
 
 /**

@@ -153,6 +153,27 @@
   white-space: nowrap;
 }
 
+.estimate {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 6%, transparent);
+}
+
+.estimateHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.estimateBadge {
+  white-space: nowrap;
+}
+
 .tail {
   color: var(--color-copper);
 }

@@ -25,8 +25,9 @@ function document(input: {
   return {
     cteAccessKey: null,
     cteFiscalDocumentId: null,
-    expectedDocument: input.reason === 'city_unknown' ? null : expected,
+    expectedDocument: input.reason === 'no_profile' ? 'no_profile' : expected,
     nfeDocumentId: input.nfeDocumentId,
+    nfseProfileId: null,
     reason: input.reason,
     rejectionCode: null,
     rejectionMessage: null,
@@ -141,11 +142,11 @@ describe('o lote urgente da viagem', () => {
     expect(world.calls).toHaveLength(0)
   })
 
-  /** Nota sem município não se classifica, então ela não entra num lote de CT-e por engano. */
+  /** Nota sem perfil não se classifica, então ela não entra num lote de CT-e por engano. */
   it('deixa de fora a nota que não se decidiu', async () => {
     const world = buildWorld([
       document({ nfeDocumentId: 'nfe-1', reason: 'no_cte' }),
-      document({ nfeDocumentId: 'nfe-2', reason: 'city_unknown' }),
+      document({ nfeDocumentId: 'nfe-2', reason: 'no_profile' }),
     ])
 
     await world.run()

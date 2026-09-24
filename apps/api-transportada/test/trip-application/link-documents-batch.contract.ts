@@ -113,6 +113,7 @@ describe('link trip documents batch route recalculation (D6)', () => {
       async freeze(input) {
         freezeCalls.push(input)
         if (options.shouldFail === true) throw new Error('OSRM indisponível')
+        return { routeFrozen: true }
       },
     }
   }

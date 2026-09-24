@@ -20,7 +20,7 @@ function routeOf(method: string, pathname: string) {
 }
 
 describe('as rotas da medição de caixa (spec 085 G005, spec 155 G003/G004)', () => {
-  test('publica a fila, a exportação, o interruptor, a gravação da medida, as irmãs e a réplica', () => {
+  test('publica a fila, a exportação, o interruptor, a gravação da medida e da unidade, as irmãs e a réplica', () => {
     expect(ROUTES.map((route) => `${route.method} ${route.pathname}`).sort()).toEqual([
       'GET /nfe-package-boxes',
       'GET /nfe-package-boxes/:id/siblings',
@@ -28,6 +28,7 @@ describe('as rotas da medição de caixa (spec 085 G005, spec 155 G003/G004)', (
       'GET /nfe-package-boxes/pending-export',
       'POST /nfe-package-boxes/:id/replicate',
       'PUT /nfe-package-boxes/:id',
+      'PUT /nfe-package-boxes/:id/unit',
     ])
   })
 
@@ -37,7 +38,7 @@ describe('as rotas da medição de caixa (spec 085 G005, spec 155 G003/G004)', (
    * do interruptor (spec 152 D14) e para as duas rotas novas da spec 155: é o conferente que decide
    * a família e replica, não quem administra configurações.
    */
-  test('as seis pedem cargo.measure no escopo da empresa', () => {
+  test('as sete pedem cargo.measure no escopo da empresa (spec 163: a unidade também)', () => {
     for (const route of ROUTES) {
       expect(route.policy).toEqual({ permission: 'cargo.measure', scope: 'company' })
     }

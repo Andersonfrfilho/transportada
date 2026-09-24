@@ -22,6 +22,10 @@ export const OPERATOR_FLOW_ACTION_KIND = {
   notePrompt: 'operator.note_prompt',
   noteRouter: 'operator.note_router',
   occurrenceTypeRouter: 'operator.occurrence_type_router',
+  /** Spec 161 T15 (RF18): pede a foto — sai no lugar de `noteRouter` completar direto. */
+  photoPrompt: 'operator.photo_prompt',
+  /** Spec 161 T15 (RF18b/RF18c/RF19/RF20): baixa, valida, grava e decide o próximo passo. */
+  photoRouter: 'operator.photo_router',
   tripActionMenu: 'operator.trip_action_menu',
   tripRouter: 'operator.trip_router',
 } as const
@@ -41,6 +45,9 @@ export const OPERATOR_FLOW_NODE = {
   noteRouter: 'operator_note_router',
   occurrenceTypeEntry: 'operator_occurrence_type_entry',
   occurrenceTypeRouter: 'operator_occurrence_type_router',
+  photoEntry: 'operator_occurrence_photo_entry',
+  photoPrompt: 'operator_occurrence_photo_prompt',
+  photoRouter: 'operator_occurrence_photo_router',
   tripActionMenu: 'operator_trip_action_menu',
   tripEntry: 'operator_trip_entry',
   tripRouter: 'operator_trip_router',
@@ -58,8 +65,27 @@ export const OPERATOR_FLOW_CONTEXT_KEY = {
   noteAnswer: 'operatorNoteAnswer',
   occurrenceTypeAnswer: 'operatorOccurrenceTypeAnswer',
   occurrenceTypeId: 'operatorOccurrenceTypeId',
+  /** Spec 161 T15 (RF19): a ocorrência já registrada pela primeira foto — presente só a partir
+   * daí, nunca gravada com id `undefined`/vazio (D6, nunca placa/nome, só o id opaco). */
+  occurrenceId: 'operatorOccurrenceId',
+  /** Spec 161 T15 (RF18c): quantas fotos já foram anexadas nesta ocorrência — a mensagem do passo
+   * usa este número; o teto de verdade continua no banco (T1/T7). */
+  photoCount: 'operatorOccurrencePhotoCount',
+  /** Spec 161 T15 (RF18b): resposta que não é imagem nem um dos dois botões — conta para o
+   * handoff (D8), separado do contador genérico do despachante (que o driver zera a cada turno
+   * antes de qualquer `FlowActionHandler` rodar, e por isso não serve para um passo com mais de
+   * um turno). */
+  photoInvalidAttempts: 'operatorOccurrencePhotoInvalidAttempts',
+  /** A resposta crua do passo de foto — texto ou id de botão; a imagem em si nunca passa por
+   * aqui (T14: viaja por `WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY`, não pelo `userAnswer`). */
+  photoAnswer: 'operatorOccurrencePhotoAnswer',
   tripAnswer: 'operatorTripAnswer',
   tripId: 'operatorTripId',
+} as const
+
+export const OPERATOR_OCCURRENCE_PHOTO_ANSWER = {
+  cancel: 'occurrence_photo_cancel',
+  done: 'occurrence_photo_done',
 } as const
 
 /** Id da linha "Todas as pendentes" do lote — nunca digitável por coincidência (D8). */

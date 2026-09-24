@@ -11,6 +11,7 @@ import {
   serializeTripOccurrenceQuery,
   toggleTripOccurrenceOrder,
   toggleTripOccurrenceStage,
+  TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
   TRIP_OCCURRENCE_COLUMN_KEYS,
   TRIP_OCCURRENCE_COLUMNS_STORAGE_KEY,
   TRIP_OCCURRENCE_STAGES,
@@ -88,6 +89,7 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
   test('cada filtro ativo vira uma pílula, na ordem declarada', () => {
     const pills = describeTripOccurrenceFilterPills({
       filters: {
+        caseStatuses: ['recorded'],
         createdFrom: '2026-09-01',
         createdUntil: '2026-09-02',
         platesQuery: 'ABC1D23',
@@ -109,6 +111,7 @@ describe('listagem de ocorrências — pílulas de filtro', () => {
 
   test('limpar a faixa zera as duas pontas; limpar o grupo restaura o default, nunca []', () => {
     const filters = {
+      caseStatuses: TRIP_OCCURRENCE_CASE_STATUS_FILTER_VALUES,
       createdFrom: '2026-09-01',
       createdUntil: '2026-09-02',
       platesQuery: '',

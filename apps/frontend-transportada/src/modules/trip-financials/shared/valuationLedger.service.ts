@@ -45,6 +45,29 @@ export const ADVISORY_GAPS: readonly string[] = [
   'DRIVER_ROUTE_TIE_HIGHEST_RATE',
 ]
 
+/**
+ * O **remédio** da lacuna, não a tela onde ele se resolve. `ValuationLedger` é o mesmo
+ * componente na viagem, na prévia e na proposta — amarrar a lacuna a uma tela quebraria a proposta,
+ * que não tem (e não deve ter) as ações de viagem. Quem monta a tela decide, por `gapActions`, se o
+ * remédio existe ali; o serviço só nomeia qual remédio é o certo para cada lacuna.
+ */
+export const GapRemedy = {
+  EMISSION_PROFILE: 'emissionProfile',
+  FEDERAL_REGIME: 'federalRegime',
+  PLAN_ROUTE: 'planRoute',
+  RECORD_COST: 'recordCost',
+} as const
+export type GapRemedy = (typeof GapRemedy)[keyof typeof GapRemedy]
+
+/** Lacuna fora deste mapa não tem remédio — o motivo continua texto puro. */
+export const GAP_REMEDY: Readonly<Record<string, GapRemedy>> = {
+  NO_EMISSION_PROFILE: GapRemedy.EMISSION_PROFILE,
+  NO_FEDERAL_REGIME: GapRemedy.FEDERAL_REGIME,
+  NO_PLANNED_DISTANCE: GapRemedy.PLAN_ROUTE,
+  NO_PLANNED_DURATION: GapRemedy.PLAN_ROUTE,
+  NOT_RECORDED: GapRemedy.RECORD_COST,
+}
+
 export type ValuationLedgerLine = Readonly<{
   /**
    * `null` **quando há lacuna**: ali o motivo ocupa o lugar do número, e zero seria mentira. A
@@ -61,6 +84,8 @@ export type ValuationLedgerLine = Readonly<{
   /** Spec 122: `true` só quando `gap` está em `STRUCK_THROUGH_GAPS` — a tela risca a linha. */
   isGapStruckThrough: boolean
   kind: string
+  /** `null` sem lacuna acionável — aviso não pede ação, o número já está lá. */
+  remedy: null | GapRemedy
 }>
 
 export type ValuationLedger = Readonly<{
@@ -88,6 +113,7 @@ function toLine(parcel: TripValuationCostParcel): ValuationLedgerLine {
     isEstimated: showsAmount && parcel.source === 'estimated',
     isGapStruckThrough: parcel.gap !== null && STRUCK_THROUGH_GAPS.includes(parcel.gap),
     kind: parcel.kind,
+    remedy: parcel.gap === null || isAdvisory ? null : (GAP_REMEDY[parcel.gap] ?? null),
   }
 }
 

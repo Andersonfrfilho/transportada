@@ -544,6 +544,27 @@ export const nfePackageBoxes = pgTable(
     }).$type<PackageBoxMeasurementSource>(),
     /** A maior das tres margens da ultima medida por camera (D17). `null` em medida `typed`. */
     measurementMarginMm: integer('measurement_margin_mm'),
+    /**
+     * Spec 163: medida da unidade (o produto na prateleira), opcional. Nunca é medida da caixa —
+     * só alimenta a caixa estimada e confere a caixa medida.
+     */
+    unitLengthMm: integer('unit_length_mm'),
+    unitWidthMm: integer('unit_width_mm'),
+    unitHeightMm: integer('unit_height_mm'),
+    unitGrossWeightGrams: integer('unit_gross_weight_grams'),
+    /** `typed` | `catalog` | `manual:<domínio>`. */
+    unitMeasurementSource: varchar('unit_measurement_source', { length: 32 }),
+    /**
+     * Spec 163, RNF02: caixa **estimada** pela unidade. ⚠️ Nunca preenche `length_mm` & cia. nem
+     * `measurement_source` — a cubagem só lê isto na falta de medida real.
+     */
+    estimatedLengthMm: integer('estimated_length_mm'),
+    estimatedWidthMm: integer('estimated_width_mm'),
+    estimatedHeightMm: integer('estimated_height_mm'),
+    estimatedVolumeCm3: integer('estimated_volume_cm3'),
+    estimatedGrossWeightGrams: integer('estimated_gross_weight_grams'),
+    estimatedArrangement: varchar('estimated_arrangement', { length: 16 }),
+    estimatedAt: timestamp('estimated_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -590,6 +611,23 @@ export const nfePackageBoxes = pgTable(
     check(
       'nfe_package_boxes_measurement_margin_check',
       sql`${table.measurementMarginMm} is null or (${table.measurementMarginMm} >= 0 and ${table.measurementMarginMm} <= 3000)`,
+    ),
+    check(
+      'nfe_package_boxes_unit_dimensions_check',
+      sql`(${table.unitLengthMm} is null or ${table.unitLengthMm} between 5 and 1500) and (${table.unitWidthMm} is null or ${table.unitWidthMm} between 5 and 1500) and (${table.unitHeightMm} is null or ${table.unitHeightMm} between 5 and 1500) and (${table.unitGrossWeightGrams} is null or ${table.unitGrossWeightGrams} > 0)`,
+    ),
+    check(
+      'nfe_package_boxes_unit_measurement_source_check',
+      sql`${table.unitMeasurementSource} is null or ${table.unitMeasurementSource} in ('typed', 'catalog') or ${table.unitMeasurementSource} like 'manual:%'`,
+    ),
+    check(
+      'nfe_package_boxes_estimated_dimensions_check',
+      sql`(${table.estimatedLengthMm} is null or ${table.estimatedLengthMm} between 20 and 2500) and (${table.estimatedWidthMm} is null or ${table.estimatedWidthMm} between 20 and 2500) and (${table.estimatedHeightMm} is null or ${table.estimatedHeightMm} between 20 and 2500) and (${table.estimatedVolumeCm3} is null or ${table.estimatedVolumeCm3} > 0) and (${table.estimatedGrossWeightGrams} is null or ${table.estimatedGrossWeightGrams} > 0)`,
+    ),
+    /** Estimativa pela metade não estima nada: ou as três arestas com data, ou nenhuma. */
+    check(
+      'nfe_package_boxes_estimated_together_check',
+      sql`(${table.estimatedLengthMm} is null and ${table.estimatedWidthMm} is null and ${table.estimatedHeightMm} is null and ${table.estimatedAt} is null) or (${table.estimatedLengthMm} is not null and ${table.estimatedWidthMm} is not null and ${table.estimatedHeightMm} is not null and ${table.estimatedAt} is not null)`,
     ),
     /** Origem gravada sem medida seria uma proveniência que não descreve nada. */
     check(

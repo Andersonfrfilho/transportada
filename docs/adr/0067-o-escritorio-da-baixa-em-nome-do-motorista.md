@@ -11,7 +11,8 @@
 - **Emendada:** 2026-09-18, depois da validação do architect (baixa repetida, vários motoristas,
   idempotência, isolamento, exceção à ADR-0057 e leitura do `finance`), e de novo em 2026-09-18
   pela revisão de código e segurança da T15 (prefixo `office.`, auditoria na transação, canhoto do
-  motorista preservado, documento selado, hora da chegada, piso da janela e limites do upload).
+  motorista preservado, documento selado, hora da chegada, piso da janela e limites do upload). E de
+  novo em 2026-09-20 (T8c, achado da T8b): `POST /trips/:id/close` também é do escritório.
 
 ## Contexto
 
@@ -274,6 +275,44 @@ nota errada custa uma cobrança contestada.
   ele muda para as viagens com baixa retroativa, e a mudança é registrada no `evidence.md` da spec.
 - Nenhum log leva a imagem do canhoto, o documento de quem recebeu ou o nome do destinatário
   (`security.md` §1).
+
+## Emenda 2026-09-20 (T8c) — encerrar também é do escritório, e com motivo
+
+Achado da revisão da T8b: `POST /trips/:id/close` pedia `trip.manage`. Isso deixava o `separator`
+encerrar a viagem — o mesmo galpão que este ADR já tira de perto da baixa — sem confirmação e sem
+olhar as notas em aberto. Pior: `completed` trava toda baixa (`checkTripDocumentTransition` →
+`tripCompleted`), então um toque sem querer congelava nota sem entrega nem devolução, sem nenhum
+registro de quem fez isso nem por quê.
+
+**Decisão do usuário: "escritório, com motivo".** A rota passa a exigir `trip.report-on-behalf`, a
+mesma permissão do resto deste ADR — nada de papel novo. Encerrar com nota em aberto (nem
+`delivered`, nem `returned`, nem liberada) exige um motivo em texto; com todas as notas fechadas, o
+motivo é opcional. Sem ele quando exigido, `422 TRIP_CLOSE_REASON_REQUIRED`
+(`trip-close.policy.ts`, pura — só decide se o motivo é obrigatório, olhando as notas já carregadas).
+
+**Trilha.** `trips` ganha `closed_at`, `closed_by_user_id` (FK composta por empresa, como
+`requires_mdfe_actor_user_id`) e `close_reason`, todas aditivas. ⚠️ **As três colunas registram o
+encerramento manual pelo escritório — nunca "quando a viagem terminou".** `trips.status` também
+chega a `completed` sozinho, derivado (`deriveTripStatus`, quando todas as notas fecham), sem passar
+por `POST /trips/:id/close`; nesse caminho as três colunas continuam `null`. Ler `closed_at` como
+data de fim da viagem erra em silêncio para toda viagem que nunca precisou do botão. Uma linha em
+`audit_logs` nasce na
+mesma transação do fechamento (`office.trip.close`), com a contagem de notas que ficaram em aberto e
+os ids opacos delas em `metadata` — nunca o motivo, que é dado de negócio, não trilha de segurança.
+**Este registro não é "em nome do motorista"**: encerrar a viagem não é uma ação atribuída a um
+motorista específico, então `insertTripFieldOfficeAudit` (que exige `onBehalfOfDriverId` como alvo)
+não se aplica aqui — o alvo da auditoria é a própria viagem (`targetId = targetType = tripId`),
+seguindo o mesmo desenho que rotinas sem "em nome de alguém" já usam neste código (ex.: recarga do
+catálogo de pedágio).
+
+**Código morto removido junto.** `deliverDocument` (porta, caso de uso e repositório) gravava
+`delivered_at` sem tocar em `separation_status` e sem autoria, e não tinha mais chamador desde que a
+entrega passou para `field-delivery`/`field-return` (spec 156 T8b). Ver
+`test/trip-delivery-proof/orphan-deliver.contract.ts`.
+
+**Frontend.** O botão "Encerrar viagem" só aparece para quem tem `trip.report-on-behalf`. O clique
+abre um diálogo que diz quantas notas ficarão sem baixa e pede o motivo (obrigatório só quando há
+nota em aberto), no mesmo padrão visual dos outros diálogos de confirmação do escritório.
 
 ## O que reabriria esta decisão
 

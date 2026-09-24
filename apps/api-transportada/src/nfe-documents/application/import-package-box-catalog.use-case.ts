@@ -17,7 +17,9 @@
  */
 import {
   mapPackageBoxCatalogCaptureLine,
+  mapPackageBoxCatalogCaptureUnit,
   type PackageBoxCatalogCaptureCandidate,
+  type PackageBoxCatalogCaptureUnit,
 } from '../domain/package-box-catalog-capture.mapper.js'
 import { packageBoxCatalogCaptureLineSchema } from '../domain/package-box-catalog-capture.schema.js'
 import {
@@ -26,10 +28,12 @@ import {
 } from '../domain/package-box-catalog-import.constant.js'
 import { evaluatePackageBoxCatalogConsensus } from '../domain/package-box-catalog-consensus.policy.js'
 import { evaluatePackageBoxCatalogSanity } from '../domain/package-box-catalog-sanity.policy.js'
+import { evaluatePackageBoxUnitSanity } from '../domain/package-box-unit-sanity.policy.js'
 import type {
   PackageBoxCatalogImportGroup,
   PackageBoxCatalogImportOutcome,
   PackageBoxCatalogImportRepositoryPort,
+  PackageBoxCatalogImportUnit,
 } from './package-box-catalog-import.port.js'
 
 export type ImportPackageBoxCatalogRejection = {
@@ -47,6 +51,8 @@ export type ImportPackageBoxCatalogReport = {
   readonly parseRejected: Record<PackageBoxCatalogCaptureRejectionCode, number>
   readonly rejections: readonly ImportPackageBoxCatalogRejection[]
   readonly sanityRejected: number
+  /** Spec 163 (RF03): unidades recusadas pela sanidade da unidade (`UNIT_EDGE_OUT_OF_RANGE`…). */
+  readonly unitRejected: number
 }
 
 export type ImportPackageBoxCatalog = {
@@ -122,7 +128,38 @@ function emptyOutcomeCounts(): Record<PackageBoxCatalogImportOutcome, number> {
     promoted: 0,
     proposed: 0,
     skipped_measured: 0,
+    unit_recorded: 0,
+    unit_skipped_typed: 0,
   }
+}
+
+/** Spec 163 (RF03): a unidade passa pela sanidade antes de qualquer gravação, nunca corrigida. */
+function decidePackageBoxCatalogUnits(units: readonly PackageBoxCatalogCaptureUnit[]): {
+  readonly accepted: readonly PackageBoxCatalogImportUnit[]
+  readonly rejections: readonly ImportPackageBoxCatalogRejection[]
+} {
+  const accepted: PackageBoxCatalogImportUnit[] = []
+  const rejections: ImportPackageBoxCatalogRejection[] = []
+  for (const unit of units) {
+    const sanity = evaluatePackageBoxUnitSanity(unit)
+    if (!sanity.accepted) {
+      rejections.push({
+        cartonGtin: unit.cartonGtin,
+        codes: sanity.reasons,
+        unitGtin: unit.unitGtin,
+      })
+      continue
+    }
+    accepted.push({
+      cartonGtin: unit.cartonGtin,
+      ...(unit.grossWeightGrams === undefined ? {} : { grossWeightGrams: unit.grossWeightGrams }),
+      heightMm: unit.heightMm,
+      lengthMm: unit.lengthMm,
+      source: unit.source,
+      widthMm: unit.widthMm,
+    })
+  }
+  return { accepted, rejections }
 }
 
 function emptyParseRejectedCounts(): Record<PackageBoxCatalogCaptureRejectionCode, number> {
@@ -140,6 +177,7 @@ export function createImportPackageBoxCatalog(dependencies: {
       let ignoredStatus = 0
       let invalidLines = 0
       const mapped: MappedLine[] = []
+      const mappedUnits: PackageBoxCatalogCaptureUnit[] = []
 
       for (const rawLine of input.lines) {
         const trimmed = rawLine.trim()
@@ -158,8 +196,14 @@ export function createImportPackageBoxCatalog(dependencies: {
           continue
         }
 
+        const unitResult = mapPackageBoxCatalogCaptureUnit(parsed.data)
+        if (unitResult?.accepted === true) mappedUnits.push(unitResult.unit)
+        else if (unitResult !== undefined) parseRejected[unitResult.code] += 1
+
         const result = mapPackageBoxCatalogCaptureLine(parsed.data)
         if (!result.accepted) {
+          // Spec 163 (RF05): linha que só trouxe a unidade é válida — nem ignorada, nem rejeitada.
+          if (unitResult !== undefined) continue
           if (result.code === 'IGNORED_STATUS') ignoredStatus += 1
           else parseRejected[result.code] += 1
           continue
@@ -169,12 +213,14 @@ export function createImportPackageBoxCatalog(dependencies: {
       }
 
       const { groups, rejections } = decidePackageBoxCatalogGroups(mapped)
+      const units = decidePackageBoxCatalogUnits(mappedUnits)
       const outcomes = emptyOutcomeCounts()
 
-      if (groups.length > 0) {
+      if (groups.length > 0 || units.accepted.length > 0) {
         const results = await dependencies.repository.importCandidates({
           apply: input.apply,
           groups,
+          units: units.accepted,
         })
         for (const result of results) outcomes[result.outcome] += 1
       }
@@ -186,8 +232,9 @@ export function createImportPackageBoxCatalog(dependencies: {
         linesRead: input.lines.length,
         outcomes,
         parseRejected,
-        rejections,
+        rejections: [...rejections, ...units.rejections],
         sanityRejected: rejections.length,
+        unitRejected: units.rejections.length,
       }
     },
   }

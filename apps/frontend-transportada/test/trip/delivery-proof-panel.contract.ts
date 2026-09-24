@@ -88,10 +88,10 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
   })
 
   /**
-   * Spec 079 T019. ⚠️ A lista de itens aparece **em todos os estados**, inclusive antes da entrega:
-   * é justamente antes que alguém confere se a carga está completa. Amarrá-la à entrega esconderia
-   * a informação de quem mais precisa dela — e é o erro fácil de cometer, porque o painel nasceu
-   * sendo "o comprovante".
+   * Spec 079 T019 / spec 181 RF7 (T303). ⚠️ A lista de itens continua **alcançável** em todos os
+   * estados, inclusive antes da entrega: é justamente antes que alguém confere se a carga está
+   * completa. Amarrá-la à entrega esconderia a informação de quem mais precisa dela. RF7 mudou
+   * **como** ela aparece (por trás de uma expansão, não despejada) — nunca **onde** ela existe.
    */
   it('lista os itens da nota mesmo antes de ela ser entregue', () => {
     const naoEntregue = source.slice(
@@ -99,7 +99,7 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
       source.indexOf("view.state === 'returned'"),
     )
 
-    expect(naoEntregue).toInclude('<TripDocumentProducts')
+    expect(naoEntregue).toMatch(/<TripDeliveryProofDetail[\s/>]/u)
   })
 
   /** Classificação fiscal é ruído para quem confere carga — e a API não a publica. */

@@ -336,9 +336,26 @@ function buildOperatorTripFlowNodes(): FlowGraphData['nodes'] {
       question: 'Digite o texto, ou toque em Pular.',
       type: 'entrada_choice',
     },
+    /**
+     * Spec 161 T15 (RF18): a observação não completa mais a ocorrência direto — passa pelo passo
+     * de foto, porque D1/RF4 exige a foto antes de qualquer ocorrência de galpão nascer, e o
+     * WhatsApp não é exceção (T13).
+     */
     [OPERATOR_FLOW_NODE.noteRouter]: {
-      actionKind: OPERATOR_FLOW_ACTION_KIND.completeOccurrence,
+      actionKind: OPERATOR_FLOW_ACTION_KIND.photoPrompt,
       id: OPERATOR_FLOW_NODE.noteRouter,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.photoEntry]: {
+      contextKey: OPERATOR_FLOW_CONTEXT_KEY.photoAnswer,
+      id: OPERATOR_FLOW_NODE.photoEntry,
+      next: OPERATOR_FLOW_NODE.photoRouter,
+      question: 'Envie a foto, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
+      type: 'entrada_choice',
+    },
+    [OPERATOR_FLOW_NODE.photoRouter]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+      id: OPERATOR_FLOW_NODE.photoRouter,
       type: 'action',
     },
   }

@@ -1393,9 +1393,15 @@
  * Spec 110 D3: a faixa de identidade do veículo — o caminhão na frente, antes de qualquer número.
  * Compartilhada pela proposta multi-veículo e pela criação manual (D8).
  */
+/**
+ * Ícone · placa · tudo o mais. A placa tem coluna própria, e nome, especificação e chips (Ano, Cor)
+ * ficam juntos à direita dela: identifica-se pela placa, confirma-se pelo resto, num gesto só.
+ * Abaixo de 40rem a placa desce para a própria linha — medido em 375px, ao lado do texto ela
+ * espremia "FIAT FIORINO 1.4 FURGAO" numa coluna de letras.
+ */
 .identityBand {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: center;
   grid-template-columns: auto minmax(0, 1fr);
   padding: var(--space-3);
@@ -1419,12 +1425,28 @@
   align-content: start;
 }
 
+/**
+ * A placa vem **antes** do modelo, à esquerda e centrada na altura do nome: ela é o que identifica
+ * o veículo de relance, e o nome comercial é a confirmação, lido à direita no mesmo gesto. Duas
+ * colunas de grid, e não um flex que quebra — era a quebra que desalinhava a placa do nome quando
+ * não cabia. `minmax(0, 1fr)` no texto porque modelo longo em 375px precisa poder quebrar em vez
+ * de empurrar a placa para fora.
+ */
 .identityTitle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
   font-size: 0.95rem;
+}
+
+/**
+ * Lado a lado só quando há largura para isso. Medido em 375px: com a placa fixa em 10rem, a coluna
+ * do texto caía para 39px e "FIAT FIORINO 1.4 FURGAO" virava uma coluna de letras de 82px de
+ * altura. Abaixo de 40rem — o primeiro dos pontos de quebra do sistema — a placa fica em cima e o
+ * nome embaixo, os dois à esquerda.
+ */
+@media (min-width: 40rem) {
+  .identityBand {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: var(--space-4);
+  }
 }
 
 .identitySpecification {

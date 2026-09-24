@@ -28,6 +28,8 @@ import {
   companyFiscalProfiles,
   cteBatchItems,
   cteBatches,
+  cteEmissionProfileMatchers,
+  cteEmissionProfiles,
   cteFiscalDocuments,
   cteIssuanceAttempts,
   fiscalSequenceReservations,
@@ -45,6 +47,7 @@ import {
   nfeImports,
   nfeParticipants,
   nfeVolumes,
+  nfseEmissionProfiles,
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
@@ -65,6 +68,8 @@ import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/dri
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { DrizzleTripDocumentRepository } from '../../src/trips/infrastructure/drizzle-trip-document.repository.js'
 import { DrizzleTripFiscalReadinessQuery } from '../../src/trips/infrastructure/trip-fiscal-readiness.query.js'
+import { DrizzleNfeDocumentRepository } from '../../src/nfe-documents/infrastructure/drizzle-nfe-document.repository.js'
+import type { NfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 
@@ -74,11 +79,18 @@ const databaseUrl =
   process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
+/** A classificação do documento não toca o armazenamento — o dublê existe só pelo construtor. */
+const NOT_STORAGE = {} as NfeStorageGateway
+
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 const COMPANY_CITY_CODE = '3543402'
 const OTHER_CITY_CODE = '3551702'
 const DRIVER_TAX_ID = '11111111111'
+/** O documento de saída sai do perfil que casa com o CNPJ do destinatário — um perfil por desfecho. */
+const SENDER_TAX_ID = '33333333000191'
+const CTE_RECIPIENT_TAX_ID = '11111111000191'
+const NFSE_RECIPIENT_TAX_ID = '22222222000191'
 const SHA = '1'.repeat(64)
 
 describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
@@ -92,9 +104,14 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
         const tripRepository = new DrizzleTripRepository(database.db)
         const routeRepository = new DrizzleTripRouteRepository(database.db)
         const documentRepository = new DrizzleTripDocumentRepository(database.db)
-        const readinessQuery = new DrizzleTripFiscalReadinessQuery(database.db)
+        const readinessQuery = new DrizzleTripFiscalReadinessQuery(
+          database.db,
+          new DrizzleNfeDocumentRepository(database.db, NOT_STORAGE),
+        )
 
         const trip = await tripRepository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           crew: [
             { driverId, driverName: 'Motorista Misto', driverTaxId: DRIVER_TAX_ID, position: 1 },
@@ -265,6 +282,8 @@ type World = {
   readonly batchId: string
   readonly companyId: string
   readonly driverId: string
+  readonly freightRuleId: string
+  readonly freightRuleVersionId: string
   readonly interstateNfeDocumentIds: readonly string[]
   readonly membershipId: string
   readonly nfeDocumentIds: readonly string[]
@@ -347,6 +366,83 @@ async function seedWarehouse(database: TestDatabase): Promise<World> {
     version: 1n,
   })
 
+  const freightRuleId = crypto.randomUUID()
+  const freightRuleVersionId = crypto.randomUUID()
+
+  // O item do lote nasce de um cálculo de frete — a coluna é obrigatória, e é assim na produção.
+  await database.db.insert(freightRules).values({
+    companyId: companyId,
+    createdByUserId: userId,
+    currentVersion: 1n,
+    id: freightRuleId,
+    name: 'Frete carga mista',
+    priority: 1n,
+    status: 'active',
+    type: 'percentage_of_invoice_total',
+  })
+  await database.db.insert(freightRuleVersions).values({
+    companyId: companyId,
+    createdByUserId: userId,
+    filters: {},
+    freightRuleId,
+    id: freightRuleVersionId,
+    percentage: '0.045000',
+    snapshot: {},
+    status: 'active',
+    validFrom: new Date('2026-01-01T00:00:00.000Z'),
+    version: 1n,
+  })
+
+  const nfseProfileId = crypto.randomUUID()
+  await database.db.insert(nfseEmissionProfiles).values({
+    chargeComponentLabel: 'Frete',
+    cnaeCode: '4930202',
+    companyId: companyId,
+    createdByUserId: userId,
+    descriptionTemplate: 'Transporte {{periodo}}',
+    freightRuleId,
+    id: nfseProfileId,
+    municipalityIbgeCode: COMPANY_CITY_CODE,
+    municipalityName: 'Ribeirao Preto',
+    name: 'NFS-e carga mista',
+    serviceListItem: '1602',
+    status: 'active',
+    taker: '0',
+  })
+  for (const [recipientTaxId, nfseEmissionProfileId] of [
+    [CTE_RECIPIENT_TAX_ID, null],
+    [NFSE_RECIPIENT_TAX_ID, nfseProfileId],
+  ] as const) {
+    const profileId = crypto.randomUUID()
+    await database.db.insert(cteEmissionProfiles).values({
+      cfopInternal: '5353',
+      cfopInterstate: '6353',
+      chargeComponentLabel: 'FRETE PESO',
+      companyId: companyId,
+      createdByUserId: userId,
+      freightRuleId,
+      groupingMode: 'per_invoice',
+      icmsCst: '00',
+      icmsRate: '0.120000',
+      id: profileId,
+      matchMode: 'sender_tax_id',
+      name: `Perfil ${recipientTaxId}`,
+      nfseEmissionProfileId,
+      operationNature: 'PRESTACAO DE SERVICO DE TRANSPORTE',
+      outputDocument: nfseEmissionProfileId === null ? 'cte' : 'nfse',
+      predominantProductMode: 'highest_value',
+      receiverIeIndicator: '1',
+      status: 'active',
+      taker: '0',
+    })
+    await database.db.insert(cteEmissionProfileMatchers).values({
+      companyId: companyId,
+      matchRole: 'recipient',
+      profileId,
+      taxId: recipientTaxId,
+    })
+  }
+
   const nfeDocumentIds: string[] = []
   const interstateNfeDocumentIds: string[] = []
   for (const [index, destination] of ['interstate', 'interstate', 'urban'].entries()) {
@@ -365,6 +461,8 @@ async function seedWarehouse(database: TestDatabase): Promise<World> {
     batchId,
     companyId,
     driverId,
+    freightRuleId,
+    freightRuleVersionId,
     interstateNfeDocumentIds,
     membershipId,
     nfeDocumentIds,
@@ -426,6 +524,7 @@ async function seedNote(
    * MDF-e usa como município de carregamento. Sem o emitente o manifesto recusa por cidade de
    * carregamento ausente, que foi o que este teste pegou na primeira execução.
    */
+  const recipientTaxId = input.isUrban ? NFSE_RECIPIENT_TAX_ID : CTE_RECIPIENT_TAX_ID
   for (const [role, cityCode] of [
     ['emitter', COMPANY_CITY_CODE],
     ['sender', COMPANY_CITY_CODE],
@@ -438,6 +537,7 @@ async function seedNote(
       id: participantId,
       legalName: `Participante ${role} ${input.index}`,
       role,
+      taxId: role === 'recipient' ? recipientTaxId : SENDER_TAX_ID,
     })
     await database.db.insert(nfeAddresses).values({
       city: cityCode === COMPANY_CITY_CODE ? 'Ribeirao Preto' : 'Sertaozinho',
@@ -470,32 +570,7 @@ async function seedNote(
 async function authorizeCteDocuments(database: TestDatabase, world: World): Promise<void> {
   const fiscalSequenceId = crypto.randomUUID()
   const xmlObjectId = crypto.randomUUID()
-  const freightRuleId = crypto.randomUUID()
-  const freightRuleVersionId = crypto.randomUUID()
-
-  // O item do lote nasce de um cálculo de frete — a coluna é obrigatória, e é assim na produção.
-  await database.db.insert(freightRules).values({
-    companyId: world.companyId,
-    createdByUserId: world.userId,
-    currentVersion: 1n,
-    id: freightRuleId,
-    name: 'Frete carga mista',
-    priority: 1n,
-    status: 'active',
-    type: 'percentage_of_invoice_total',
-  })
-  await database.db.insert(freightRuleVersions).values({
-    companyId: world.companyId,
-    createdByUserId: world.userId,
-    filters: {},
-    freightRuleId,
-    id: freightRuleVersionId,
-    percentage: '0.045000',
-    snapshot: {},
-    status: 'active',
-    validFrom: new Date('2026-01-01T00:00:00.000Z'),
-    version: 1n,
-  })
+  const { freightRuleId, freightRuleVersionId } = world
 
   await database.db.insert(fiscalSequences).values({
     companyId: world.companyId,

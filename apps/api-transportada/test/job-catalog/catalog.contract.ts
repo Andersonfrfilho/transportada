@@ -109,6 +109,18 @@ const CATALOG = [
     job: 'rate-limit.window.purge',
     minimumIntervalSeconds: 3600,
   },
+  {
+    /** Spec 161 RF21: a foto de ocorrência vencida só toca o próprio banco e o bucket. */
+    failureOutcomes: [],
+    job: 'trip.occurrence-attachment.purge',
+    minimumIntervalSeconds: 86_400,
+  },
+  {
+    /** Achado [3] da revisão de 23/09 (spec 179): o pedido de upload vencido só toca o próprio banco e o bucket. */
+    failureOutcomes: [],
+    job: 'trip.occurrence-upload.expire',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -126,6 +138,8 @@ const SEED_MIGRATIONS = [
   '20260912153407_whatsapp_command_settlement',
   '20260913210300_trip_cargo_layout_purge_job',
   '20260915233000_rate_limit_windows',
+  '20260922112706_trip_occurrence_attachment_purge_job',
+  '20260924033423_lumpy_scalphunter',
 ] as const
 
 describe('job catalog', () => {

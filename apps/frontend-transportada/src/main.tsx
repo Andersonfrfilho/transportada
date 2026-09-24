@@ -47,12 +47,11 @@ import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notifi
 import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
+import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
 import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
-})
+const queryClient = new QueryClient({ defaultOptions: QUERY_CLIENT_DEFAULT_OPTIONS })
 
 const deploymentEnvironment = getDeploymentEnvironment()
 
@@ -85,6 +84,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'delivery-clients'
     | 'driver-trip'
     | 'extra-charges'
+    | 'reimbursements'
     | 'trip-financials'
     | 'fleet'
     | 'freight'
@@ -123,6 +123,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/fleet', key: 'fleet', label: 'Frota' },
   { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
   { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
+  { href: '/ressarcimentos', key: 'reimbursements', label: 'Ressarcimentos' },
   { href: '/resultados', key: 'trip-financials', label: 'Resultados' },
   // Fora dos grupos: quem é do campo não navega por menu — ele abre o produto e já está na viagem.
   { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
@@ -144,6 +145,7 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
         'mdfe-manifest',
         'billing',
         'extra-charges',
+        'reimbursements',
         'trip-financials',
         'nfse-invoice',
       ].includes(key),
@@ -203,6 +205,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === DRIVER_TRIP_PATH) return 'driver-trip'
   if (window.location.pathname === '/clientes') return 'delivery-clients'
   if (window.location.pathname === '/repasses') return 'extra-charges'
+  if (window.location.pathname === '/ressarcimentos') return 'reimbursements'
   if (window.location.pathname === '/resultados') return 'trip-financials'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
@@ -223,6 +226,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'delivery-clients' ||
     storedWorkspace === 'driver-trip' ||
     storedWorkspace === 'extra-charges' ||
+    storedWorkspace === 'reimbursements' ||
     storedWorkspace === 'trip-financials' ||
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
@@ -282,6 +286,10 @@ const DriverTripWorkspacePage = lazy(async () => ({
 const ExtraChargeWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/extra-charges/pages/ExtraChargeWorkspace.page'))
     .ExtraChargeWorkspacePage,
+}))
+const OccurrenceReimbursementsWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/extra-charges/pages/OccurrenceReimbursementsWorkspace.page'))
+    .OccurrenceReimbursementsWorkspacePage,
 }))
 const FinancialResultsWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/trip-financials/pages/FinancialResultsWorkspace.page'))
@@ -355,6 +363,8 @@ function resolvePage(
       return <DriverTripWorkspacePage />
     case 'extra-charges':
       return <ExtraChargeWorkspacePage />
+    case 'reimbursements':
+      return <OccurrenceReimbursementsWorkspacePage />
     case 'trip-financials':
       return <FinancialResultsWorkspacePage />
     case 'fleet':

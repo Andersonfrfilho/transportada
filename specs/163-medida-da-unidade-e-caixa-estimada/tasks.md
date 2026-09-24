@@ -6,39 +6,39 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T001 Contrato + `package-box-estimate.policy.ts` (CA01, CA02)
-- [ ] T002 Contrato + `package-box-unit-sanity.policy.ts` (CA03) e conferência caixa × unidade (CA04, reusando códigos da 160)
-- [ ] T003 Contrato + `package-box-cubage-dimensions.policy.ts` (real > estimada > nada)
+- [x] T001 Contrato + `package-box-estimate.policy.ts` (CA01, CA02)
+- [x] T002 Contrato + `package-box-unit-sanity.policy.ts` (CA03) e conferência caixa × unidade (CA04, reusando códigos da 160)
+- [x] T003 Contrato + `package-box-cubage-dimensions.policy.ts` (real > estimada > nada)
 
 ## Fase 2 — Banco e caso de uso
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T004 Migration aditiva RF01 + schema TS — `make migration-test` verde; `db:generate` sem diferença
-- [ ] T005 `record-package-box-unit.use-case.ts` + repositório (grava unidade, recalcula estimativa, nunca toca medida real)
-- [ ] T006 Integração CA05, CA06 — `bun --env-file=../../.env.test run test:integration`
+- [x] T004 Migration aditiva RF01 + schema TS — `make migration-test` verde; `db:generate` sem diferença
+- [x] T005 `record-package-box-unit.use-case.ts` + repositório (grava unidade, recalcula estimativa, nunca toca medida real)
+- [x] T006 Integração CA05, CA06 — `bun --env-file=../../.env.test run test:integration`
 
 ## Fase 3 — Consumo e API
 
 > 🤖 Modelo: `sonnet` (T007 🧠)
 
-- [ ] T007 🧠 Mapear leitores de `length_mm` e trocar por `resolveBoxDimensionsForCubage`; marcar "contém caixa estimada"
-- [ ] T008 Rota para informar a unidade + API da fila/detalhe com `unit`, `estimate`, `isEstimated` (contrato)
+- [x] T007 🧠 Mapear leitores de `length_mm` e trocar por `resolveBoxDimensionsForCubage`; marcar "contém caixa estimada"
+- [x] T008 Rota para informar a unidade + API da fila/detalhe com `unit`, `estimate`, `isEstimated` (contrato)
 
 ## Fase 4 — Captura e importação
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T009 Importador da 162 aceita linha "Unidade" e `unitEdges` (RF05) — contrato
-- [ ] T010 Userscript Alt+U + servidor local `found_unit_manual` (RF06)
+- [x] T009 Importador da 162 aceita linha "Unidade" e `unitEdges` (RF05) — contrato
+- [x] T010 Userscript Alt+U + servidor local `found_unit_manual` (RF06)
 
 ## Fase 5 — Tela e fechamento
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T011 UI da fila: selo "Estimada", arranjo, medir/confirmar (RF09)
-- [ ] T012 🧠 Revisão de design e usabilidade da fila, com print (CA08)
-- [ ] T013 `make check` + `evidence.md`
+- [x] T011 UI da fila: selo "Estimada", arranjo, medir/confirmar (RF09)
+- [ ] T012 🧠 Revisão de design e usabilidade da fila, com print (CA08) — revisão por código feita; print BLOQUEADO (sem Keycloak/frontend local, ver evidence.md)
+- [x] T013 `make check` + `evidence.md`
 
 ## Prompt de execução
 

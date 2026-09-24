@@ -279,17 +279,21 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
   })
 
   it('ocorrência da nota (spec 079): a nota alcançável é buscada pela viagem do alvo', async () => {
+    const office = buildFieldWorld()
     const lookups: unknown[] = []
     await registerDriverOccurrence({
       actorUserId: ACTOR_USER_ID,
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
+      idempotencyKey: 'office-document-occurrence',
       note: '',
       occurrenceTypeId: 'type-1',
       productCode: '',
       repository: {
+        findConfirmedUpload: async () => null,
         findOccurrenceType: async () => ({
           active: true,
+          allowsMultipleItems: true,
           emailBody: '',
           emailSubject: '',
           emailTemplateKey: null,
@@ -303,17 +307,9 @@ describe('o alvo que chega às portas de campo (spec 156 T3)', () => {
           return { tripId: TRIP_ID }
         },
         listDocumentProducts: async () => [],
-        saveOccurrence: async () => ({
-          createdAt: '2026-09-18T13:00:00.000Z',
-          id: 'occurrence-1',
-          note: '',
-          occurrenceTypeId: 'type-1',
-          productCode: '',
-          stage: 'delivery',
-          typeName: 'Recusa',
-        }),
       },
       target: await resolveTarget('in_transit'),
+      unitOfWork: office.unitOfWork,
     })
 
     expect(lookups).toEqual([

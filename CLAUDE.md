@@ -94,6 +94,11 @@ Use cases e rotas são factories `create*`; classes de repositório são `Pascal
 
 - Uma task por vez, tirada do `tasks.md` da feature. Nada de implementar com `[NEEDS CLARIFICATION]`
   aberto. Task só fecha com evidência de teste em `evidence.md`.
+- **Spec nova começa lendo as specs do mesmo assunto** (`ls specs/ | grep -i <assunto>`), com
+  `tasks.md` e `evidence.md` de cada uma conferidos contra o código. O assunto volta: ocorrência já
+  tem oito specs. A 179 foi escrita sem isso e recriou `redelivery_policy` (164) e
+  `thumbnail_object_id` (161) — revisão de código não pega duplicação de decisão, porque ela só
+  aparece em `specs/`. Caso em `specs/179-a-recusa-sai-com-foto/duplicacao.md`.
 - Teste de aceite/contrato **antes** da implementação.
 - API HTTP usa `Bun.serve`. Importar o addon V8 `uWebSockets.js` é proibido.
 - Dinheiro é `Decimal`/`numeric` — nunca float binário.

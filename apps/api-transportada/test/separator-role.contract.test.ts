@@ -100,7 +100,10 @@ describe('separator role contract', () => {
     // cancel) e a leitura de paradas entram sob a mesma trip.manage/fleet.read que já valiam; o
     // separador ganha acesso a elas de graça, sem mudar nenhuma outra permissão.
     expect(reachableRoutes(['separator'])).toEqual([
+      /** Spec 169 RF12: remover gasto/receita é a mesma permissão de lançar (trip.manage). */
+      'DELETE /trips/:id/costs/:entryId',
       'DELETE /trips/:id/documents/:documentId',
+      'DELETE /trips/:id/revenues/:entryId',
       'GET /fleet/capabilities',
       // spec 081: o vínculo motorista↔veículo é leitura de `fleet.read`, e o separador a alcança de
       // propósito — é ele quem escolhe veículo e motorista ao montar a viagem. O par não carrega
@@ -259,7 +262,12 @@ describe('separator role contract', () => {
       'POST /trips',
       'POST /trips/:id/cancel',
       'POST /trips/:id/cargo-layouts/:layoutId/release-unplaced',
-      'POST /trips/:id/close',
+      /**
+       * Spec 156 T8c (ADR-0067, achado da T8b): `POST /trips/:id/close` deixou de ser
+       * `trip.manage`. Encerrar é do escritório — confirma quantas notas ficam sem baixa e exige
+       * motivo quando alguma está em aberto — e passou para `trip.report-on-behalf`. O separador
+       * monta a viagem; ele não é quem confirma o fim da entrega.
+       */
       /**
        * Spec 061: pedágio e avulso são lançamento de **operação**, não de dinheiro sensível — quem
        * monta a viagem lança, e o resultado (que mostra margem e o que se paga ao agregado) continua
@@ -285,6 +293,8 @@ describe('separator role contract', () => {
        * que muda é que o motorista tem a rota dele em `/me`, com o escopo da viagem ativa.
        */
       'POST /trips/:id/documents/:documentId/occurrences',
+      /** Spec 161 T7 (RF6): mesma permissão do registro — a segunda foto em diante. */
+      'POST /trips/:id/documents/:documentId/occurrences/:occurrenceId/attachments',
       'POST /trips/:id/documents/:documentId/separate',
       /**
        * Decisão escrita (spec 075): **o separador alcança o vínculo em lote.** Ele já alcançava o
@@ -296,6 +306,8 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/batch',
       'POST /trips/:id/documents/batch-status',
       'POST /trips/:id/plan-route',
+      /** Spec 169: receita lançada é a mesma trilha do gasto — mesma permissão, quem monta a viagem lança. */
+      'POST /trips/:id/revenues',
       'POST /trips/:id/stops/:stopId/schedule',
       /**
        * ⚠️ **Decisão escrita (spec 085 G002/G003):** o separador **alcança** a prévia de carga. Ela
@@ -305,6 +317,8 @@ describe('separator role contract', () => {
        */
       'POST /trips/cargo-preview',
       'PUT /nfe-package-boxes/:id',
+      // Spec 163 (P1): a medida da unidade é a mesma cargo.measure de quem mede a caixa.
+      'PUT /nfe-package-boxes/:id/unit',
     ])
   })
 

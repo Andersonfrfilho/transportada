@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
-  filterTripTimelineItemsByDocumentId,
+  collectTripTimelineDocuments,
+  filterTripTimelineItemsByDocumentIds,
   removeDuplicateDispatchEvents,
+  resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
   resolveTripTimelineTone,
 } from '../../src/modules/trip/shared/tripTimeline.service'
@@ -11,6 +13,7 @@ import type { TripTimelineItem } from '../../src/modules/trip/shared/trip.types'
 const BASE_ITEM: TripTimelineItem = {
   actorName: 'Marina Alves',
   channel: 'office',
+  closeReason: null,
   document: { id: 'doc-1', number: '123', series: '1' },
   fromStatus: null,
   id: 'item-1',
@@ -109,30 +112,74 @@ describe('remoção do par de despacho duplicado (spec 158 T8)', () => {
   })
 })
 
-/** Spec 158 RF6/T8: a nota aberta no detalhe filtra os itens no cliente. */
-describe('filtro pela nota aberta (spec 158 T8)', () => {
-  it('sem nota aberta (null), devolve todos os itens', () => {
-    const other: TripTimelineItem = { ...BASE_ITEM, document: null, id: 'item-2' }
-    expect(filterTripTimelineItemsByDocumentId([BASE_ITEM, other], null)).toHaveLength(2)
+/**
+ * Spec 180 RF12/RF13: o filtro deixa de ser "a nota aberta, sim ou não" e passa a aceitar várias
+ * notas — e os eventos da viagem (sem documento) continuam visíveis, porque comparar duas notas sem
+ * saber quando a viagem saiu tira o sentido da linha do tempo.
+ */
+describe('filtro por notas escolhidas (spec 180)', () => {
+  const otherDocument: TripTimelineItem = {
+    ...BASE_ITEM,
+    document: { id: 'doc-2', number: '456', series: null },
+    id: 'item-2',
+  }
+  const tripEvent: TripTimelineItem = { ...BASE_ITEM, document: null, id: 'item-3' }
+
+  it('sem nota escolhida, devolve todos os itens', () => {
+    const result = filterTripTimelineItemsByDocumentIds(
+      [BASE_ITEM, otherDocument, tripEvent],
+      new Set(),
+    )
+
+    expect(result).toHaveLength(3)
   })
 
-  it('com nota aberta, mantém só os itens daquela nota', () => {
-    const other: TripTimelineItem = {
-      ...BASE_ITEM,
-      document: { id: 'doc-2', number: '456', series: null },
-      id: 'item-2',
-    }
-    const withoutDocument: TripTimelineItem = { ...BASE_ITEM, document: null, id: 'item-3' }
+  it('com uma nota escolhida, mantém a nota e os eventos da viagem', () => {
+    const result = filterTripTimelineItemsByDocumentIds(
+      [BASE_ITEM, otherDocument, tripEvent],
+      new Set(['doc-1']),
+    )
 
-    const result = filterTripTimelineItemsByDocumentId([BASE_ITEM, other, withoutDocument], 'doc-1')
+    expect(result.map((item) => item.id)).toEqual(['item-1', 'item-3'])
+  })
 
-    expect(result).toHaveLength(1)
-    expect(result[0]?.id).toBe('item-1')
+  it('com duas notas escolhidas, mantém as duas', () => {
+    const result = filterTripTimelineItemsByDocumentIds(
+      [BASE_ITEM, otherDocument, tripEvent],
+      new Set(['doc-1', 'doc-2']),
+    )
+
+    expect(result.map((item) => item.id)).toEqual(['item-1', 'item-2', 'item-3'])
+  })
+
+  it('lista as notas presentes nos itens, sem repetir, para montar o seletor', () => {
+    const repeated: TripTimelineItem = { ...BASE_ITEM, id: 'item-4' }
+
+    const result = collectTripTimelineDocuments([BASE_ITEM, otherDocument, tripEvent, repeated])
+
+    expect(result.map((document) => document.id)).toEqual(['doc-1', 'doc-2'])
+  })
+
+  it('sem nenhuma nota nos itens, não oferece seletor', () => {
+    expect(collectTripTimelineDocuments([tripEvent])).toHaveLength(0)
   })
 })
 
-/** Spec 158 D6/T8/T10: o título por `kind` e, nas mudanças de situação, por transição. */
 describe('título do item por kind (spec 158 T8)', () => {
+  it('trip.created (spec 171 RF3/CA02)', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      document: null,
+      fromStatus: null,
+      kind: 'trip.created',
+      stop: null,
+      toStatus: null,
+    }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.tripCreated',
+    )
+  })
+
   it('trip.dispatched', () => {
     const item: TripTimelineItem = { ...BASE_ITEM, kind: 'trip.dispatched', toStatus: null }
     expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe('eventTimeline.itemTitle.dispatched')
@@ -273,6 +320,61 @@ describe('tom do marcador por kind (spec 158 T10)', () => {
     expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'stop.arrived' })).toBe('progress')
     expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'document.status_changed' })).toBe(
       'progress',
+    )
+  })
+})
+
+/**
+ * Spec 171 (caso extremo): viagem criada por semeadura ou importação sem ator humano diz "pelo
+ * sistema", frase diferente de "usuário removido" — as duas leituras têm `actorName: null`, mas
+ * significam coisas diferentes.
+ */
+describe('autoria de trip.created sem ator (spec 171)', () => {
+  it('trip.created sem actorName vira "pelo sistema"', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      actorName: null,
+      channel: 'backoffice',
+      kind: 'trip.created',
+    }
+    expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe('authorship.system')
+  })
+
+  it('trip.created com actorName segue a autoria comum por canal', () => {
+    const item: TripTimelineItem = { ...BASE_ITEM, channel: 'backoffice', kind: 'trip.created' }
+    expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe(
+      'authorship.backoffice(actor=Marina Alves)',
+    )
+  })
+
+  /**
+   * Spec 180 RF3/CA03: sem sinal de vínculo perdido, `actorName: null` não pode virar "usuário
+   * removido" — a frase fica reservada a essa causa específica (D6). O resto diz que o autor não
+   * está identificado.
+   */
+  it('outro kind sem actorName vira "autor não identificado", nunca "usuário removido"', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      actorName: null,
+      channel: 'backoffice',
+      kind: 'trip.status_changed',
+    }
+    expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe(
+      'authorship.backoffice(actor=authorship.unidentifiedActor)',
+    )
+  })
+})
+
+/** Spec 171 RF5/CA05: a animação de entrada é CSS puro e desliga sob prefers-reduced-motion. */
+describe('animação de entrada da linha do tempo (spec 171)', () => {
+  it('a classe .itemEnter tem keyframe e respeita prefers-reduced-motion', async () => {
+    const source = new URL('../../src/modules/trip/styles/tripTimeline.module.css', import.meta.url)
+    const css = await Bun.file(source).text()
+
+    expect(css).toContain('@keyframes tripTimelineItemEnter')
+    expect(css).toMatch(/\.itemEnter\s*{[^}]*animation:\s*tripTimelineItemEnter/)
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*{\s*\.itemEnter\s*{\s*animation:\s*none/,
     )
   })
 })

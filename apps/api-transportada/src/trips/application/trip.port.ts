@@ -1,18 +1,19 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
+import type { CargoLayoutPendingMeasurement } from './read-cargo-layout.types.js'
 import type {
   TripDriverCandidate,
   TripDriverLine,
   TripVehicleCandidate,
 } from '../domain/trip.policy.js'
+import type { TripDocumentFreightSource } from '../domain/trip-document-freight.policy.js'
 
 /**
  * A tripulação **na leitura**: o retrato fiscal (`TripDriverLine`, congelado quando a viagem foi
@@ -98,6 +99,13 @@ export type TripDocumentDetail = TripDocument & {
   readonly cteAuthorized: boolean
   readonly fiscalStatus: string
   /**
+   * Spec 164 T15 (RF20): derivado na leitura de `trip_occurrence_cases` — existe tratativa ainda
+   * não terminal para alguma ocorrência desta nota. **Nenhuma ação some por causa dele** — a nota
+   * não é presa; é só o marcador que a tela usa para não oferecer de novo as mesmas ações como se
+   * nada estivesse pendente. `GET /trips/:id/allowed-actions` não lê este campo.
+   */
+  readonly openOccurrenceCase: boolean
+  /**
    * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
    * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
    * ser o caminho normal.
@@ -116,6 +124,18 @@ export type TripDocumentDetail = TripDocument & {
   readonly nfeNumber: null | string
   readonly nfeSeries: null | string
   readonly nfeTotalValue: null | string
+  /**
+   * Spec 176: quanto esta nota rende de frete — nunca a mercadoria, RF1. `null` é "não há como
+   * dizer" (`freightSource: 'missing'`), nunca `R$ 0,00`.
+   */
+  readonly freightAmount: null | string
+  /**
+   * O nome da regra que produziu `freightAmount`. `null` com `freightAmount` preenchido é lacuna
+   * real no caminho `measured`: `freight_calculations.rule_snapshot` não congela o nome — só o
+   * percentual e os limites. A tela não inventa rótulo para cobrir o buraco.
+   */
+  readonly freightRuleName: null | string
+  readonly freightSource: TripDocumentFreightSource
 }
 
 /**
@@ -127,6 +147,12 @@ export type TripDocumentDetail = TripDocument & {
  */
 export type TripStopDetail = {
   readonly addressKey: string
+  /**
+   * Spec 164 T15 (RF21): `true` quando alguma nota da parada tem `openOccurrenceCase` — o sinal que
+   * o mapa usa para desenhar o ícone de problema sem uma segunda chamada. Derivado das próprias
+   * `documents` da parada, nunca gravado.
+   */
+  readonly hasOpenOccurrence: boolean
   /**
    * Spec 079 T012: onde a parada fica, para o mapa. Sai de `geocoded_addresses` pela `address_key`
    * — **não** de `trip_stops.latitude/longitude`, que existem e nunca são escritos (achado da T009).
@@ -218,7 +244,7 @@ export type TripCargoLayoutView = {
   readonly occupancyKnown: boolean
   readonly overflowM3: string
   /** Spec 144 (D4): a lista do que falta medir, ordenada por `boxCount` decrescente. */
-  readonly pendingMeasurements: readonly PendingMeasurement[]
+  readonly pendingMeasurements: readonly CargoLayoutPendingMeasurement[]
   readonly slices: readonly {
     readonly label: string
     /** `1` é o fundo, e o fundo é da **última** entrega. */
@@ -234,6 +260,16 @@ export type TripCargoLayoutView = {
 }
 
 export type TripDetail = Trip & {
+  /**
+   * Spec 156 T8d: os três nascem juntos e só do encerramento **manual** pelo botão (`close`) — a
+   * derivação automática (`deriveTripStatus`) também leva `status` a `completed` sozinha, e nesse
+   * caminho os três continuam `null`. `closedByName` é resolvido por membership ativa escopada pela
+   * empresa (mesmo molde da junção de ator da linha do tempo); pessoa sem membership ativa aparece
+   * sem nome, nunca com erro.
+   */
+  readonly closeReason: string | null
+  readonly closedAt: string | null
+  readonly closedByName: string | null
   readonly cargoLayout: TripCargoLayoutView | null
   /** Spec 145 D10: de onde veio a planta servida — pronta, antiga (`stale`), pendente ou impossível. */
   readonly cargoLayoutState: TripCargoLayoutState
@@ -253,6 +289,9 @@ export type TripDetail = Trip & {
 }
 
 export type CreateTripRecord = {
+  /** Spec 171 RF1: quem criou e por qual canal. */
+  readonly actorUserId: string
+  readonly channel: TripFieldChannel
   readonly companyId: string
   readonly crew: readonly TripDriverLine[]
   readonly dailyAllowanceDays?: number
@@ -280,21 +319,22 @@ export type TripPage = {
 }
 
 export type TripRepositoryPort = {
-  /** Idempotente (ADR-0017): fechar uma viagem já fechada devolve a mesma viagem, sem erro. */
+  /**
+   * Idempotente (ADR-0017): fechar uma viagem já fechada devolve a mesma viagem, sem erro. Spec
+   * 156 T8c: a linha de `audit_logs` nasce na mesma transação, com o IP e a contagem de notas que
+   * ficaram em aberto — nunca o motivo, que é dado de negócio.
+   */
   close(input: {
     readonly actorUserId: string
     readonly channel: TripFieldChannel
+    readonly closeReason: string | null
     readonly companyId: string
+    readonly correlationId: string
+    readonly ipAddress: string
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripDetail | null>
   create(input: CreateTripRecord): Promise<TripDetail>
-  /** Idempotente: marcar como entregue um documento já entregue devolve o mesmo registro. */
-  deliverDocument(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly tripId: string
-  }): Promise<TripDocument | null>
   findById(input: {
     readonly companyId: string
     readonly tripId: string

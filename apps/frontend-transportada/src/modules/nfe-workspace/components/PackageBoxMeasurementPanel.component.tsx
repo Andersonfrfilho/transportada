@@ -14,6 +14,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { MeasurementCardPrint } from './MeasurementCardPrint.component'
 import { PackageBoxCameraFlow } from './PackageBoxCameraFlow.component'
+import { PackageBoxEstimateNotice } from './PackageBoxEstimateNotice.component'
 import { PackageBoxFamilyApplyButton } from './PackageBoxFamilyApplyButton.component'
 import { PackageBoxMeasurementForm } from './PackageBoxMeasurementForm.component'
 import { PackageBoxReplicateDialog } from './PackageBoxReplicateDialog.component'
@@ -27,10 +28,13 @@ import {
 import {
   formatMeasuredAtDate,
   measurementSourceLabel,
+  packageBoxMeasureFailureMessage,
   type Translate,
 } from '../shared/packageBoxMeasurementLabel.service'
+import { buildPackageBoxEstimateConfirmation } from '../shared/packageBoxEstimate.service'
 import { toCentimetres } from '../shared/packageBoxMeasurementUnits.service'
 import { groupPackageBoxesByPackaging } from '../shared/packageBoxPackagingGroup.service'
+import { resolveInitialUnitsPerBox } from '../shared/packageBoxUnitsPerBox.service'
 import {
   buildPackageBoxPendingExportCsv,
   buildPackageBoxPendingExportSheetData,
@@ -585,22 +589,34 @@ export function PackageBoxMeasurementPanel({
                         isEditing={editingId === box.id}
                         key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
                         onApplyFamilyMeasure={openReplicateDialogFromFamilyApply}
-                        onCancel={() => setEditingId(null)}
-                        onMeasure={(measurement) => {
-                          onMeasure({ ...measurement, id: box.id }, () =>
-                            openReplicateDialogIfEligible(box, measurement),
-                          )
+                        onCancel={() => {
+                          onResetSaveError()
                           setEditingId(null)
-                          if (cameFromScan) setIsScannerOpen(true)
-                          if (cameFromKeyboardScan) {
-                            setCameFromKeyboardScan(false)
-                            searchInputRef.current?.focus()
-                          }
+                        }}
+                        onMeasure={(measurement) => {
+                          /**
+                           * A1: os desdobramentos do bipe só valem quando a gravação teve sucesso —
+                           * antes eles rodavam incondicionalmente e fechavam a edição mesmo com o
+                           * `PUT` recusado, sem nenhuma mensagem na linha (a recusa silenciosa).
+                           */
+                          onMeasure({ ...measurement, id: box.id }, () => {
+                            openReplicateDialogIfEligible(box, measurement)
+                            setEditingId(null)
+                            if (cameFromScan) setIsScannerOpen(true)
+                            if (cameFromKeyboardScan) {
+                              setCameFromKeyboardScan(false)
+                              searchInputRef.current?.focus()
+                            }
+                          })
                         }}
                         onMeasureWithCamera={
                           cameraMeasurementEnabled ? () => openCameraFlow(box) : undefined
                         }
-                        onOpen={() => setEditingId(box.id)}
+                        onOpen={() => {
+                          onResetSaveError()
+                          setEditingId(box.id)
+                        }}
+                        saveErrorCode={saveErrorCode}
                         saving={saving}
                       />
                     ))}
@@ -868,6 +884,8 @@ type PackageBoxRowProps = Readonly<{
   /** `undefined` com a medida pela câmera desligada na empresa — o botão nem aparece. */
   onMeasureWithCamera: (() => void) | undefined
   onOpen: () => void
+  /** A1: o código da recusa do último `PUT` de medida — a linha aberta mostra a mensagem. */
+  saveErrorCode: string | undefined
   saving: boolean
 }>
 
@@ -879,6 +897,7 @@ function PackageBoxRow({
   onMeasure,
   onMeasureWithCamera,
   onOpen,
+  saveErrorCode,
   saving,
 }: PackageBoxRowProps) {
   const { t } = useTranslation('nfeWorkspace')
@@ -905,6 +924,8 @@ function PackageBoxRow({
    */
   const canApplyFamilyMeasure =
     box.familyKey !== undefined && box.familyMeasuredCount >= 1 && box.familyPendingCount >= 1
+  /** Spec 163 (P5): confirmar a estimativa grava como `typed` — decisão humana, não estimativa. */
+  const estimateConfirmation = buildPackageBoxEstimateConfirmation(box)
 
   return (
     <li className={styles.item} data-within-coverage={box.withinCoverage}>
@@ -945,6 +966,8 @@ function PackageBoxRow({
         )}
       </p>
 
+      {isEditing ? null : <PackageBoxEstimateNotice box={box} />}
+
       {box.measuredAt === null || isEditing ? null : (
         <p className={styles.hint}>
           {t('packageBoxes.measured', {
@@ -959,20 +982,29 @@ function PackageBoxRow({
       )}
 
       {isEditing ? (
-        <PackageBoxMeasurementForm
-          boxId={box.id}
-          /** D7/G009: só pendente e com irmã já medida ganha o botão — os contadores vêm da API (D9). */
-          canQuickFillFromFamily={box.measuredAt === null && box.familyMeasuredCount > 0}
-          grossWeightGrams={box.grossWeightGrams}
-          heightMm={box.heightMm}
-          lengthMm={box.lengthMm}
-          onCancel={onCancel}
-          onSubmit={(submission) => onMeasure({ ...submission, id: box.id })}
-          proposal={undefined}
-          saving={saving}
-          unitsPerBox={box.unitsPerBox}
-          widthMm={box.widthMm}
-        />
+        <>
+          {/* A1: a recusa do `PUT` digitado aparece na própria linha — antes ela fechava calada. */}
+          {saveErrorCode === undefined ? null : (
+            <p className={styles.fieldError} role="alert">
+              <Icon name="alert" size="sm" />
+              {packageBoxMeasureFailureMessage(t as Translate, saveErrorCode)}
+            </p>
+          )}
+          <PackageBoxMeasurementForm
+            boxId={box.id}
+            /** D7/G009: só pendente e com irmã já medida ganha o botão — os contadores vêm da API (D9). */
+            canQuickFillFromFamily={box.measuredAt === null && box.familyMeasuredCount > 0}
+            grossWeightGrams={box.grossWeightGrams}
+            heightMm={box.heightMm}
+            lengthMm={box.lengthMm}
+            onCancel={onCancel}
+            onSubmit={(submission) => onMeasure({ ...submission, id: box.id })}
+            proposal={undefined}
+            saving={saving}
+            unitsPerBox={resolveInitialUnitsPerBox(box)}
+            widthMm={box.widthMm}
+          />
+        </>
       ) : (
         <div className={styles.actions}>
           <Button onClick={onOpen} size="sm" type="button" variant="secondary">
@@ -983,6 +1015,18 @@ function PackageBoxRow({
             <Button onClick={onMeasureWithCamera} size="sm" type="button" variant="secondary">
               <Icon name="camera" />
               {t('packageBoxes.measureWithCamera')}
+            </Button>
+          )}
+          {estimateConfirmation === undefined ? null : (
+            <Button
+              disabled={saving}
+              onClick={() => onMeasure(estimateConfirmation)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="check" />
+              {t('packageBoxes.estimate.confirm')}
             </Button>
           )}
           {!canApplyFamilyMeasure ? null : (

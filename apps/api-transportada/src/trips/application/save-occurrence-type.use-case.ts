@@ -6,6 +6,8 @@
  * antiga, e o cadastro com chave os zera de propósito, porque o template manda.
  */
 import { OccurrenceEmailTemplateNotFoundError } from '../domain/trip.error.js'
+import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 
@@ -19,12 +21,22 @@ export type OccurrenceEmailTemplateCatalogPort = {
 
 export type SaveOccurrenceTypeValues = {
   readonly active: boolean
+  /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
+  readonly allowsMultipleItems: boolean
+  /**
+   * Spec 179 (RF1): se o registro do motorista exige comprovante. **Opcional de propósito**:
+   * ausente quer dizer "não mexa", e não `'off'` — o editor do painel ainda não manda o campo, e
+   * zerá-lo aqui desligaria a exigência de foto de um tipo `required` a cada edição de e-mail.
+   */
+  readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly emailBody: string
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
+  /** Ausente é `'unset'` — nenhum caso de tratativa abre para este tipo. */
+  readonly redeliveryPolicy?: RedeliveryPolicy
   readonly stage: TripOccurrenceStage
 }
 

@@ -39,6 +39,7 @@ function contentSecurityPolicyPlugin(): Plugin {
       const origins = {
         apiBaseUrl: readEnvironment('VITE_API_URL'),
         keycloakUrl: readEnvironment('VITE_KEYCLOAK_URL'),
+        storageBaseUrl: readEnvironment('VITE_STORAGE_URL'),
       }
       servedPolicy = buildContentSecurityPolicy({ ...origins, allowsInlineScript: false })
       developmentPolicy = buildContentSecurityPolicy({ ...origins, allowsInlineScript: true })

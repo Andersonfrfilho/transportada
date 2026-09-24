@@ -7,8 +7,34 @@ import type {
   PackageBoxMeasurementWarning,
 } from '../domain/package-box-measurement.constant.js'
 
+/** Spec 163 (RF08): a medida da unidade, opcional — nunca é medida da caixa. */
+export type PackageBoxUnitView = {
+  readonly grossWeightGrams: number | null
+  readonly heightMm: number
+  readonly lengthMm: number
+  /** `typed` | `catalog` | `manual:<domínio>`. */
+  readonly source: string | null
+  readonly widthMm: number
+}
+
+/** Spec 163 (RF08): a caixa estimada pela unidade — rotulada, nunca confundida com medida. */
+export type PackageBoxEstimateView = {
+  readonly arrangement: string | null
+  readonly estimatedAt: string | null
+  readonly grossWeightGrams: number | null
+  readonly heightMm: number
+  readonly lengthMm: number
+  readonly volumeCm3: number | null
+  readonly widthMm: number
+}
+
 export type PackageBoxView = {
   readonly cartonGtin: string | null
+  /** Spec 163 (RF08): `null` sem unidade informada ou sem estimativa possível. */
+  readonly estimate: PackageBoxEstimateView | null
+  /** Spec 163 (RF08): `true` quando a cubagem usa a estimativa (sem medida real). */
+  readonly isEstimated: boolean
+  readonly unit: PackageBoxUnitView | null
   readonly commercialUnit: string
   readonly description: string
   readonly emitterTaxId: string
@@ -121,6 +147,22 @@ export type PackageBoxSiblings = {
 export type ListPackageBoxSiblingsResult = PackageBoxSiblings & {
   /** D11/G011: a tela abre o diálogo com os alvos desmarcados e diz por quê. */
   readonly isLowConfidenceFamily: boolean
+}
+
+/**
+ * Spec 168: a caixa do catálogo que resolve uma pendência de medição, com o que a gravação inline
+ * precisa além do id — `unitsPerBox`/`grossWeightGrams` já existem na caixa, e a linha da tabela não
+ * tem de onde tirá-los sem outra consulta por item.
+ *
+ * `isMeasured` diz se essa caixa já tem as três dimensões gravadas: a planta guardada pode ser mais
+ * velha que a última medida (fica `stale` enquanto o worker recalcula), e sem isto a pendência de uma
+ * caixa já medida continuava na lista até o recálculo acontecer.
+ */
+export type PendingMeasurementBoxMatch = {
+  readonly boxId: string
+  readonly grossWeightGrams: number | null
+  readonly isMeasured: boolean
+  readonly unitsPerBox: number
 }
 
 export type PackageBoxRepositoryPort = {

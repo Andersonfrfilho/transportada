@@ -315,7 +315,7 @@ export class DrizzleNfeDocumentRepository
    * duas contas discordariam sobre a mesma nota, e o contrato de paridade cobra isso.
    */
   public async classifyDocumentOutputs(input: {
-    readonly context: CompanyContext
+    readonly companyId: string
     readonly documentIds: readonly string[]
   }): Promise<ReadonlyMap<string, DocumentOutputClassification>> {
     const described = await this.describeDocumentOutputs(input)
@@ -326,12 +326,12 @@ export class DrizzleNfeDocumentRepository
 
   /** O que a prévia do bot congela, tirado do mesmo `mapSummary` da página (spec 144 D5). */
   public async describeDocumentOutputs(input: {
-    readonly context: CompanyContext
+    readonly companyId: string
     readonly documentIds: readonly string[]
   }): Promise<ReadonlyMap<string, DocumentOutputDescription>> {
     const described = new Map<string, DocumentOutputDescription>()
     if (input.documentIds.length === 0) return described
-    const companyId = input.context.companyId
+    const companyId = input.companyId
     const records = await this.database
       .select()
       .from(nfeDocuments)

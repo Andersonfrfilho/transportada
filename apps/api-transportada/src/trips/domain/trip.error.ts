@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { OCCURRENCE_CASE_TRANSITION_REFUSALS } from './occurrence-case-state.policy.js'
 import type { TripTransitionBlock } from './trip-state.policy.js'
 
 export class TripVehicleNotFoundError extends ApiError {
@@ -108,6 +109,20 @@ export class TripCargoLayoutNotFoundError extends ApiError {
   }
 }
 
+/**
+ * Spec 156 T8c: o escritório encerra a viagem com nota ainda em aberto (nem entregue, nem
+ * devolvida, nem liberada) sem dizer por quê. Com todas as notas fechadas, o motivo é opcional.
+ */
+export class TripCloseReasonRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CLOSE_REASON_REQUIRED',
+      message: 'Closing a trip with open documents requires a reason.',
+      status: 422,
+    })
+  }
+}
+
 /** ADR-0023: encerrar é terminal — repetir o encerramento é idempotente, mas nenhum outro comando muda uma viagem fechada. */
 export class TripClosedError extends ApiError {
   public constructor() {
@@ -209,6 +224,21 @@ export class TripDocumentTransitionConflictError extends ApiError {
       code: 'TRIP_DOCUMENT_TRANSITION_CONFLICT',
       message: 'The document changed concurrently; retry with fresh state.',
       status: 409,
+    })
+  }
+}
+
+/**
+ * O roteirizador não devolveu rota (serviço fora do ar, tempo esgotado, praças indisponíveis) —
+ * `planned-route.use-case.ts` grava `null` em vez de lançar (D5), então esta é a forma de a
+ * transição de planejamento recusar um `route_planned` sem `planned_route` para sustentá-lo.
+ */
+export class TripRouteUnavailableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_ROUTE_UNAVAILABLE',
+      message: 'The route planner did not return a route; the trip stays unplanned.',
+      status: 422,
     })
   }
 }
@@ -368,6 +398,17 @@ export class OccurrenceTypeNotSeparationError extends ApiError {
     super({
       code: 'OCCURRENCE_TYPE_NOT_SEPARATION',
       message: 'The occurrence type is not a separation occurrence type.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 166 (RF8/CA08): tipo com `allowsMultipleItems` desligado aceita só um item marcado. */
+export class OccurrenceTypeSingleItemError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_SINGLE_ITEM',
+      message: 'This occurrence type accepts a single item.',
       status: 422,
     })
   }
@@ -556,6 +597,369 @@ export class TripDeliveryProofPhotoRequiredError extends ApiError {
     super({
       code: 'TRIP_DELIVERY_PROOF_PHOTO_REQUIRED',
       message: 'This company requires a photo of the delivery receipt.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 161 D1/RF4: a ocorrência de galpão passou a exigir foto — a recusa é do **caso de uso**
+ * (`register-trip-occurrence.use-case.ts`), antes de gravar, do storage e da auditoria, nunca da
+ * rota. O motivo mora ali: a fase 4 desta spec faz o WhatsApp mandar foto pelo mesmo caso de uso, e
+ * a regra na rota HTTP deixaria o outro canal passar por fora.
+ */
+export class OccurrencePhotoRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PHOTO_REQUIRED',
+      message: 'A photo is required to register this occurrence.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 161 T1/T6: o teto de cinco anexos por ocorrência, travado no banco por dois caminhos —
+ * `trip_document_occurrence_attachments_unique_position` (`23505`) e
+ * `trip_document_occurrence_attachments_position_check` (`23514`). Os dois convergem para este erro
+ * no caso de uso que insere o anexo (T6/T7); cobrir só o `23505` faz a sexta foto virar 500.
+ */
+export class TripOccurrenceAttachmentLimitError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ATTACHMENT_LIMIT',
+      message: 'This occurrence already has the maximum number of photos.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * `productCode` e `productCodes` no mesmo registro: qual deles vale? Escolher um em silêncio
+ * gravaria a ocorrência sobre um item que quem registrou não marcou, e nada no registro denunciaria
+ * o engano.
+ */
+export class OccurrenceProductSelectionConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PRODUCT_SELECTION_CONFLICT',
+      message: 'Send either productCode or productCodes, never both.',
+      status: 422,
+    })
+  }
+}
+
+/** Item repetido na mesma ocorrência é engano de quem marcou — o unique do banco também o recusa. */
+export class OccurrenceProductDuplicateError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PRODUCT_DUPLICATE',
+      message: 'The same product cannot be listed twice in one occurrence.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * ⚠️ Produto fora da nota é **recusado, nunca convertido** em "a nota inteira": apontar para um
+ * item que a nota não tem é engano de quem registrou, e silenciá-lo gravaria uma ocorrência sobre
+ * carga que nunca esteve ali.
+ */
+export class OccurrenceProductNotInDocumentError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PRODUCT_NOT_IN_DOCUMENT',
+      message: 'The product is not part of this document.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 166 (RF4/CA05): as quantidades enviadas não alinham por índice com os itens marcados —
+ * `400`, nunca alinhamento por adivinhação.
+ */
+export class OccurrenceItemQuantityLengthMismatchError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_LENGTH_MISMATCH',
+      message: 'productQuantities and productQuantityUnits must align with productCodes.',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 166 (RF1): quantidade sem unidade, ou o contrário, é número/escolha sem significado. */
+export class OccurrenceItemQuantityUnitPairingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_UNIT_PAIRING',
+      message: 'An item quantity must come with its unit, and a unit with its quantity.',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 166 (RF2/CA04): zero é "não aconteceu" — isso se diz não marcando o item, nunca com zero. */
+export class OccurrenceItemQuantityNotPositiveError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_NOT_POSITIVE',
+      message: 'An item quantity must be a positive number.',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * Spec 166/172: a unidade tem que ser `unit`, `box`, ou a unidade comercial *daquele item* na
+ * nota — nunca cai em `unit` por padrão, e nunca aceita a unidade de outro item da mesma nota.
+ */
+export class OccurrenceItemQuantityUnitUnknownError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_ITEM_QUANTITY_UNIT_UNKNOWN',
+      message: 'The item quantity unit must be "unit", "box", or the item’s own commercial unit.',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * RF29b/RF32b: a miniatura é **cache, nunca prova**, e PDF não tem miniatura. Guardar um retrato de
+ * um PDF na lista mostraria uma imagem que ninguém reconhece como o documento que ela representa —
+ * e, pior, uma miniatura sobrevivendo por engano viraria a única coisa visível do anexo. Recusar
+ * com código próprio diz à tela exatamente o que tirar do envio.
+ */
+export class OccurrencePdfThumbnailError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_PDF_HAS_NO_THUMBNAIL',
+      message: 'A PDF attachment cannot carry a thumbnail.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 161 RF6: a rota de anexo adicional (`attach-occurrence-photo.use-case.ts`) resolve a
+ * ocorrência pela empresa do contexto — de outra empresa, ou inexistente, respondem igual, porque
+ * distinguir os dois diria a quem tenta se aquele identificador existe em algum lugar.
+ */
+export class TripOccurrenceNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_NOT_FOUND',
+      message: 'The occurrence was not found for this trip.',
+      status: 404,
+    })
+  }
+}
+
+/**
+ * Spec 164 T3: a tratativa (`trip_occurrence_cases`) não existe nesta empresa — de outra empresa
+ * ou inexistente respondem igual, no mesmo desenho de `TripOccurrenceNotFoundError`.
+ */
+export class OccurrenceCaseNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CASE_NOT_FOUND',
+      message: 'The occurrence case is not registered in this company.',
+      status: 404,
+    })
+  }
+}
+
+/**
+ * Espelha `OCCURRENCE_CASE_TRANSITION_REFUSALS.transitionNotAllowed`
+ * (`occurrence-case-state.policy.ts`): o estado atual da tratativa não admite a ação pedida. 409,
+ * não 422 — é o mesmo motivo de `TripStateTransitionNotAllowedError`, um recado idempotente para
+ * quem repetiu a chamada de rede.
+ */
+export class OccurrenceCaseTransitionNotAllowedError extends ApiError {
+  public constructor() {
+    super({
+      code: OCCURRENCE_CASE_TRANSITION_REFUSALS.transitionNotAllowed,
+      message: 'The occurrence case does not accept this action from its current status.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 164 (revisão 🧠 da Fase 4): decisão **diferente** sobre uma tratativa já decidida. A máquina
+ * de estados não distingue "mesma decisão" de "outra decisão" — para ela o destino já foi
+ * alcançado, e o resultado é `unchanged`. Sem este erro, a segunda decisão sumia em silêncio com
+ * 200: o contratante via a tela responder com sucesso e o que ficou gravado era a decisão do outro.
+ * A comparação vale dentro da transação, sobre a linha travada, nunca sobre leitura anterior.
+ */
+export class OccurrenceCaseDecisionConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CASE_DECISION_CONFLICT',
+      message: 'This occurrence case was already decided with a different outcome.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Espelha as duas recusas de reentrega da política: `redeliveryNotAllowed` (o tipo do dano não
+ * admite segunda tentativa, RF16) e `redeliveryBlockedHasNoQuestion` (tratativa `blocked` sem item
+ * acertado não tem pergunta a fazer ao contratante, RF7). Um código por chamada, nunca os dois.
+ */
+export class OccurrenceCaseRedeliveryNotAllowedError extends ApiError {
+  public constructor(
+    code: Extract<
+      keyof typeof OCCURRENCE_CASE_TRANSITION_REFUSALS,
+      'redeliveryBlockedHasNoQuestion' | 'redeliveryNotAllowed'
+    > = 'redeliveryNotAllowed',
+  ) {
+    super({
+      code: OCCURRENCE_CASE_TRANSITION_REFUSALS[code],
+      message: 'The occurrence type does not allow a redelivery decision here.',
+      status: 422,
+    })
+  }
+}
+
+/** Espelha `OCCURRENCE_CASE_TRANSITION_REFUSALS.settlementWithoutItems`: fechar `goods_paid` sem nenhum item acertado é fechar sem cobrar o que foi decidido. */
+export class OccurrenceCaseSettlementWithoutItemsError extends ApiError {
+  public constructor() {
+    super({
+      code: OCCURRENCE_CASE_TRANSITION_REFUSALS.settlementWithoutItems,
+      message: 'Closing this decision requires at least one settled item.',
+      status: 422,
+    })
+  }
+}
+
+/** T13: o item do acerto aponta para algo que não está entre os itens desta ocorrência. */
+export class OccurrenceSettlementItemUnknownError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_ITEM_UNKNOWN',
+      message: 'The settlement item is not part of this occurrence.',
+      status: 422,
+    })
+  }
+}
+
+/** T13: valor de acerto que não é maior que zero — dinheiro é `Decimal`, nunca float, nunca negativo. */
+export class OccurrenceSettlementAmountInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_AMOUNT_INVALID',
+      message: 'A settlement amount must be greater than zero.',
+      status: 422,
+    })
+  }
+}
+
+/** T13 (RF23): `driver` sem `payerId`, ou qualquer outro tipo com `payerId` — o mesmo par que o CHECK do banco reprova. */
+export class OccurrenceSettlementPayerInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_PAYER_INVALID',
+      message: 'The payer kind and payer id pair is invalid for this settlement item.',
+      status: 422,
+    })
+  }
+}
+
+/** T18: o ressarcimento aponta um item que não está acertado para esta tratativa. */
+export class OccurrenceSettlementItemNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_ITEM_NOT_FOUND',
+      message: 'The settlement item was not found for this occurrence case.',
+      status: 404,
+    })
+  }
+}
+
+/** T18 (RF31): a transportadora não se ressarce de si mesma — `payer_kind = 'carrier'` recusa. */
+export class OccurrenceSettlementNotReimbursableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_SETTLEMENT_NOT_REIMBURSABLE',
+      message: 'A settlement item paid by the carrier itself cannot be reimbursed.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * T17 (RF25, validação 🧠 da Fase 5, achado 2): `findChargeParties` devolve nulo com `return`
+ * silencioso na sugestão recorrente — perder uma sugestão não pode derrubar a entrega do motorista.
+ * Aqui é o oposto: o acerto é dinheiro que a tratativa já decidiu cobrar, e gravar o acerto sem
+ * conseguir gravar a cobrança é o defeito mais caro desta spec. Nulo aqui desfaz a transação inteira.
+ */
+export class OccurrenceChargePartiesUnresolvedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERY_CLIENT_NOT_RESOLVED',
+      message: 'The delivery client and contractor for this occurrence could not be resolved.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Revisão final (R2): `select … for no key update` não trava a linha que ainda não existe. Duas
+ * requisições concorrentes sobre a mesma ocorrência inserem as duas, e quem perde bate no índice
+ * único `delivery_charges_occurrence_unique`. 409, para quem repetir a chamada de rede reler o que
+ * ficou gravado — a violação crua virava 500, sem nada dizer que a cobrança já existe.
+ */
+export class OccurrenceChargeConcurrentWriteError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CHARGE_CONCURRENT_WRITE',
+      message: 'Another request is already recording the charge for this occurrence.',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 179 T201 (RF2b): objeto inexistente, de outra empresa, de outra viagem, expirado ou ainda
+ * não confirmado respondem **igual** — o motorista não escolhe qual objeto anexar. Distinguir os
+ * casos contaria algo sobre o cadastro de outra empresa.
+ */
+export class TripOccurrenceUploadNotReachableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_UPLOAD_NOT_REACHABLE',
+      message: 'The upload does not belong to an active trip of this driver.',
+      status: 404,
+    })
+  }
+}
+
+/**
+ * Spec 179 T203 (RF3/CA02): o tipo marcou `attachmentMode = 'required'` e o motorista registrou sem
+ * referenciar um upload confirmado. Código estável — a tela usa para dizer qual dos dois falta.
+ */
+export class TripOccurrenceAttachmentRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ATTACHMENT_REQUIRED',
+      message: 'This occurrence type requires an attached photo or document.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 179 T203 (RF3/CA03): o tipo marcou `attachmentMode = 'required'` e o motorista registrou sem
+ * escrever o motivo. Código estável, distinto do anterior — a tela precisa dizer qual dos dois
+ * falta, não só que algo falta.
+ */
+export class TripOccurrenceNoteRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_NOTE_REQUIRED',
+      message: 'This occurrence type requires a written note.',
       status: 422,
     })
   }

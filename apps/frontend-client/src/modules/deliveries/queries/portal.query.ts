@@ -2,10 +2,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { PortalClient } from '@/modules/shared/portalClient.service'
-import type { ChargeDecision, ScheduleInput } from '@/modules/shared/portal.types'
+import type {
+  ChargeDecision,
+  OccurrenceDecisionInput,
+  ScheduleInput,
+} from '@/modules/shared/portal.types'
 
 export const DELIVERIES_KEY = ['client', 'deliveries'] as const
 export const BATCHES_KEY = ['client', 'extra-charge-batches'] as const
+export const OCCURRENCES_KEY = ['client', 'occurrences'] as const
 const LOCATION_REFRESH_MS = 60_000
 
 export function useDeliveries(client: PortalClient) {
@@ -54,6 +59,21 @@ export function useDecideBatch(client: PortalClient) {
     }) => client.decideBatch(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: BATCHES_KEY })
+    },
+  })
+}
+
+export function useOccurrences(client: PortalClient) {
+  return useQuery({ queryFn: () => client.listOccurrences(), queryKey: OCCURRENCES_KEY })
+}
+
+export function useDecideOccurrence(client: PortalClient) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: OccurrenceDecisionInput) => client.decideOccurrence(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: OCCURRENCES_KEY })
     },
   })
 }

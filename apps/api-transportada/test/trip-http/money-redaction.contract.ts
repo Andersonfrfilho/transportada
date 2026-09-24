@@ -19,6 +19,13 @@ import {
   READ_ONLY_PERMISSIONS,
 } from '../fixtures/trip-http.fixture'
 
+const DOCUMENT_WITH_FREIGHT = {
+  ...TRIP_DOCUMENT_DETAIL,
+  freightAmount: '680.5480',
+  freightRuleName: 'Sudeste padrão',
+  freightSource: 'estimated' as const,
+}
+
 const STOP_WITH_DOCUMENT = {
   addressKey: 'stop-address-key',
   arrivedAt: null,
@@ -54,6 +61,37 @@ describe('GET /trips/:id cuts nfeTotalValue without trip.financials (spec 153 D1
     // Nem tudo é dinheiro: o status fiscal e o número da nota continuam.
     expect(document?.fiscalStatus).toBe(TRIP_DOCUMENT_DETAIL.fiscalStatus)
     expect(document?.nfeNumber).toBe(TRIP_DOCUMENT_DETAIL.nfeNumber)
+  })
+
+  /** Spec 176: o mesmo corte de `nfeTotalValue` vale para `freightAmount` — é dinheiro também. */
+  test('cuts freightAmount but keeps freightRuleName without trip.financials', async () => {
+    const fixture = await createTripHttpFixture({
+      getTripResult: { ...TRIP_DETAIL, documents: [DOCUMENT_WITH_FREIGHT] },
+      permissions: READ_ONLY_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: tripDetailPath() }))
+    const data = (await responseData(response)) as unknown as Record<string, unknown>
+
+    expect(response.status).toBe(200)
+    const [document] = data.documents as readonly Record<string, unknown>[]
+    expect(Object.hasOwn(document ?? {}, 'freightAmount')).toBe(false)
+    expect(document?.freightRuleName).toBe(DOCUMENT_WITH_FREIGHT.freightRuleName)
+    expect(document?.freightSource).toBe(DOCUMENT_WITH_FREIGHT.freightSource)
+  })
+
+  test('answers with freightAmount when the caller has trip.financials', async () => {
+    const fixture = await createTripHttpFixture({
+      getTripResult: { ...TRIP_DETAIL, documents: [DOCUMENT_WITH_FREIGHT] },
+      permissions: FINANCIALS_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: tripDetailPath() }))
+    const data = (await responseData(response)) as unknown as Record<string, unknown>
+
+    expect(response.status).toBe(200)
+    const [document] = data.documents as readonly Record<string, unknown>[]
+    expect(document?.freightAmount).toBe(DOCUMENT_WITH_FREIGHT.freightAmount)
   })
 
   test('answers with nfeTotalValue when the caller has trip.financials', async () => {

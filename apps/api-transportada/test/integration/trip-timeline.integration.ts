@@ -10,6 +10,7 @@
  */
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
+import { eq } from 'drizzle-orm'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
@@ -322,6 +323,111 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
         const item = result.items.find((entry) => entry.kind === 'document.status_changed')
         expect(item?.channel).toBe('backoffice')
         expect(item?.onBehalfOfDriverName).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'spec 171 CA02/CA04: trip.created é o item mais antigo, mesmo empatado no mesmo instante',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const bornAt = new Date('2026-09-18T08:00:00.000Z')
+
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          eventKind: 'created',
+          fromStatus: 'draft',
+          id: crypto.randomUUID(),
+          occurredAt: bornAt,
+          toStatus: 'draft',
+          tripId,
+        })
+        // Mesmo instante da criação: CA04 exige a criação abaixo (mais antiga) no desempate.
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          fromStatus: 'draft',
+          id: crypto.randomUUID(),
+          occurredAt: bornAt,
+          toStatus: 'route_planned',
+          tripId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+
+        expect(result.items.map((item) => item.kind)).toEqual([
+          'trip.status_changed',
+          'trip.created',
+        ])
+        const created = result.items[1]
+        expect(created?.actorName).toBe('Usuária Escritório')
+        expect(created?.channel).toBe('backoffice')
+        expect(created?.fromStatus).toBeNull()
+        expect(created?.toStatus).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'spec 171: o banco recusa transição degenerada — event_kind = transition exige from <> to',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+
+        const insertDegenerateTransition = async () => {
+          await database.db.insert(tripStatusEvents).values({
+            actorUserId: company.userId,
+            channel: 'backoffice',
+            companyId: company.companyId,
+            // eventKind ausente cai no default 'transition' — a mesma linha que hoje descreve o
+            // nascimento (`created`) vira degenerada aqui, e o CHECK barra sem depender de nada na
+            // aplicação.
+            fromStatus: 'draft',
+            id: crypto.randomUUID(),
+            toStatus: 'draft',
+            tripId,
+          })
+        }
+        await expect(insertDegenerateTransition()).rejects.toThrow()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'spec 171 CA03: viagem sem o evento de criação não inventa trip.created',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          fromStatus: 'draft',
+          id: crypto.randomUUID(),
+          toStatus: 'route_planned',
+          tripId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+
+        expect(result.items.map((item) => item.kind)).toEqual(['trip.status_changed'])
       })
     },
   )
@@ -794,6 +900,117 @@ describe('trip-timeline.query (spec 158 T5) contra o Postgres', () => {
 
         console.log(`trip-timeline p95 (50 notas / 200 eventos, 20 amostras): ${p95.toFixed(2)}ms`)
         expect(p95).toBeLessThanOrEqual(300)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T12: encerramento manual (completed) traz closeReason de trips.close_reason',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        const closedAt = new Date('2026-09-19T12:00:00.000Z')
+        await database.db
+          .update(trips)
+          .set({
+            closeReason: 'Canhotos recebidos no escritório',
+            closedAt,
+            closedByUserId: company.userId,
+          })
+          .where(eq(trips.id, tripId))
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          fromStatus: 'on_delivery_route',
+          id: crypto.randomUUID(),
+          occurredAt: closedAt,
+          toStatus: 'completed',
+          tripId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+
+        const item = result.items.find((entry) => entry.kind === 'trip.status_changed')
+        expect(item?.toStatus).toBe('completed')
+        expect(item?.closeReason).toBe('Canhotos recebidos no escritório')
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T12: completed derivado (sem close_reason) sai com closeReason nulo',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        // Sem `close_reason`: molda a viagem que chegou a `completed` pela derivação automática,
+        // nunca pelo botão de encerrar (T12: as três colunas só existem no encerramento manual).
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'driver_app',
+          companyId: company.companyId,
+          fromStatus: 'on_delivery_route',
+          id: crypto.randomUUID(),
+          toStatus: 'completed',
+          tripId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+
+        const item = result.items.find((entry) => entry.kind === 'trip.status_changed')
+        expect(item?.toStatus).toBe('completed')
+        expect(item?.closeReason).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'T12: closeReason não vaza para trip.status_changed que não seja completed',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const tripId = await seedTrip(database, company)
+        // A viagem já guarda um `close_reason` de um encerramento anterior — não é do evento abaixo.
+        await database.db
+          .update(trips)
+          .set({
+            closeReason: 'Motivo de um encerramento anterior',
+            closedAt: new Date('2026-09-10T12:00:00.000Z'),
+            closedByUserId: company.userId,
+          })
+          .where(eq(trips.id, tripId))
+        await database.db.insert(tripStatusEvents).values({
+          actorUserId: company.userId,
+          channel: 'backoffice',
+          companyId: company.companyId,
+          fromStatus: 'route_planned',
+          id: crypto.randomUUID(),
+          toStatus: 'separating',
+          tripId,
+        })
+
+        const result = await listTripTimeline(database.db, {
+          companyId: company.companyId,
+          cursor: null,
+          limit: 100,
+          tripId,
+        })
+
+        const item = result.items.find((entry) => entry.kind === 'trip.status_changed')
+        expect(item?.toStatus).toBe('separating')
+        expect(item?.closeReason).toBeNull()
       })
     },
   )

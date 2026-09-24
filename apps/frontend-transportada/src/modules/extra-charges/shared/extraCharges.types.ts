@@ -7,6 +7,13 @@ export const DELIVERY_CHARGE_TYPES = [
   'platform',
   'parking',
   'other',
+  /**
+   * Spec 164 T16 (RF25/RF26): a mercadoria devolvida que a tratativa de ocorrência cobra. Ela nunca
+   * é lançada à mão — nasce da ponte da tratativa —, mas **é** o único tipo que a tela de
+   * ressarcimentos lista, e sem ela aqui o filtro não oferecia o que a página mostrava e a linha
+   * saía com a chave de tradução crua.
+   */
+  'returned_goods',
 ] as const
 export type DeliveryChargeType = (typeof DELIVERY_CHARGE_TYPES)[number]
 
@@ -74,3 +81,53 @@ export type Contractor = Readonly<{
 export const EXTRA_CHARGES_PATH = '/delivery-charges'
 export const EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
 export const CONTRACTORS_PATH = '/contractors'
+
+/**
+ * Spec 164 T26 (RF28): a linha do relatório de cobranças de ocorrência — `trip.financials`,
+ * `GET /occurrence-charges/report`. Recorte de elegibilidade é `batchId is null` (spec 164
+ * plan.md § "O fechamento é por seleção, com filtros"), nunca "do mês corrente".
+ */
+export type OccurrenceChargeReportRow = Readonly<{
+  accessKey: string | null
+  amount: string
+  chargeType: DeliveryChargeType
+  chargedOn: string
+  contractorId: string | null
+  hasSettlement: boolean
+  id: string
+  noteNumber: string | null
+  noteSeries: string | null
+  occurrenceId: string | null
+  status: DeliveryChargeStatus
+  tripDocumentId: string | null
+}>
+
+export type OccurrenceChargeReportTotals = Readonly<{
+  byChargeType: readonly Readonly<{
+    amount: string
+    chargeType: DeliveryChargeType
+    count: number
+  }>[]
+  totalAmount: string
+  totalCount: number
+}>
+
+export type OccurrenceChargeReportFilters = Readonly<{
+  chargeType?: DeliveryChargeType
+  contractorId?: string
+  cursor?: string
+  from?: string
+  hasSettlement?: boolean
+  limit?: number
+  search?: string
+  status?: DeliveryChargeStatus
+  to?: string
+}>
+
+export type OccurrenceChargeReportPage = Readonly<{
+  items: readonly OccurrenceChargeReportRow[]
+  nextCursor: string | null
+  totals: OccurrenceChargeReportTotals
+}>
+
+export const OCCURRENCE_CHARGES_REPORT_PATH = '/occurrence-charges/report'

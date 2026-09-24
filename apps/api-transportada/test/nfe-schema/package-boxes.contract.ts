@@ -43,6 +43,22 @@ describe('a caixa de papelão e a medida dela (spec 085 G004)', () => {
        */
       'measurement_source',
       'measurement_margin_mm',
+      /**
+       * Spec 163: a medida da unidade (opcional) e a caixa **estimada** por ela. A estimativa nunca
+       * escreve nas colunas de medida acima (RNF02).
+       */
+      'unit_length_mm',
+      'unit_width_mm',
+      'unit_height_mm',
+      'unit_gross_weight_grams',
+      'unit_measurement_source',
+      'estimated_length_mm',
+      'estimated_width_mm',
+      'estimated_height_mm',
+      'estimated_volume_cm3',
+      'estimated_gross_weight_grams',
+      'estimated_arrangement',
+      'estimated_at',
       'created_at',
       'updated_at',
     ])
@@ -92,7 +108,11 @@ describe('a caixa de papelão e a medida dela (spec 085 G004)', () => {
     for (const name of measures) {
       expect(config.columns.find((column) => column.name === name)?.columnType).toBe('PgInteger')
     }
-    expect(columnNames.some((name) => name.includes('volume') || name.includes('m3'))).toBe(false)
+    // Spec 163: só a caixa estimada guarda volume; a medida real continua derivando o m³.
+    const measuredColumns = columnNames.filter((name) => !name.startsWith('estimated_'))
+    expect(measuredColumns.some((name) => name.includes('volume') || name.includes('m3'))).toBe(
+      false,
+    )
   })
 
   /** A fila de medição pergunta "o que falta nesta empresa" — e o índice parcial é para ela. */

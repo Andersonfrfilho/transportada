@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import { resolveFieldAuthorshipText } from './fieldAuthorship.service'
 import { formatOccurrenceInvoice } from './tripOccurrenceFeed.service'
 import {
   TRIP_DOCUMENT_SEPARATION_STATUS,
@@ -34,13 +35,49 @@ export function removeDuplicateDispatchEvents(
   )
 }
 
-/** RF6: a nota aberta no detalhe filtra os itens que se referem a ela — sem nota aberta, tudo passa. */
-export function filterTripTimelineItemsByDocumentId(
+/**
+ * Spec 180 RF12/RF13: filtra por **várias** notas, e mantém os eventos da viagem (sem documento).
+ * A versão anterior exigia `document.id` igual, então filtrar por uma nota escondia junto viagem
+ * criada, despachada e chegada em parada — comparar notas sem saber quando a viagem saiu tira o
+ * sentido da linha do tempo. Conjunto vazio é "nenhum filtro", não "nada".
+ */
+export function filterTripTimelineItemsByDocumentIds(
   items: readonly TripTimelineItem[],
-  documentId: null | string,
+  documentIds: ReadonlySet<string>,
 ): readonly TripTimelineItem[] {
-  if (documentId === null) return items
-  return items.filter((item) => item.document?.id === documentId)
+  if (documentIds.size === 0) return items
+  return items.filter((item) => item.document === null || documentIds.has(item.document.id))
+}
+
+/**
+ * Spec 180 RF12: as notas que o seletor oferece são as que **aparecem nos itens carregados** — o
+ * filtro é em memória (RF14), e oferecer nota sem evento carregado prometeria um resultado vazio.
+ * A ordem é a de primeira aparição, que é a da própria lista.
+ */
+export function collectTripTimelineDocuments(
+  items: readonly TripTimelineItem[],
+): readonly TripTimelineDocumentReference[] {
+  const byId = new Map<string, TripTimelineDocumentReference>()
+  for (const item of items) {
+    if (item.document !== null && !byId.has(item.document.id)) {
+      byId.set(item.document.id, item.document)
+    }
+  }
+  return [...byId.values()]
+}
+
+/**
+ * Spec 180 RF12: o rótulo da nota no seletor. Nota sem número legível cai no id curto — o operador
+ * precisa conseguir distinguir duas linhas, e "nota desconhecida" repetida não distingue nada.
+ */
+export function formatTripTimelineDocumentFilterLabel(
+  document: TripTimelineDocumentReference,
+  t: Translate,
+): string {
+  const invoice = formatOccurrenceInvoice(document.number, document.series)
+  return invoice === ''
+    ? document.id.slice(0, 8)
+    : t('eventTimeline.documentFilterOption', { invoice })
 }
 
 function formatTripTimelineDocumentLabel(
@@ -61,6 +98,8 @@ function formatTripTimelineDocumentLabel(
  */
 export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): string {
   switch (item.kind) {
+    case 'trip.created':
+      return t('eventTimeline.itemTitle.tripCreated')
     case 'trip.dispatched':
       return t('eventTimeline.itemTitle.dispatched')
     case 'trip.status_changed':
@@ -129,4 +168,53 @@ export function resolveTripTimelineTone(item: TripTimelineItem): TripTimelineTon
   if (DONE_STATUSES.has(item.toStatus)) return 'done'
   if (PROBLEM_STATUSES.has(item.toStatus)) return 'problem'
   return 'progress'
+}
+
+/**
+ * Spec 171 (caso extremo): `trip.created` semeada/importada sem ator humano diz "pelo sistema" —
+ * frase diferente de `authorship.unidentifiedActor` ("autor não identificado", spec 180 RF3), que é
+ * o texto genérico para `actorName: null` sem causa confirmada. As duas leituras têm
+ * `actorName: null`; só `trip.created` pode não ter tido ator nenhum, então só ela ganha o desvio.
+ * Toda a autoria por `channel` continua em `resolveFieldAuthorshipText` — este wrapper não duplica
+ * aquela regra.
+ */
+export function resolveTripTimelineAuthorshipText(
+  item: TripTimelineItem,
+  t: Translate,
+): null | string {
+  if (item.kind === 'trip.created' && item.actorName === null) return t('authorship.system')
+  return resolveFieldAuthorshipText(item, t)
+}
+export type TripTimelineDayGroup = Readonly<{
+  dayKey: string
+  items: readonly TripTimelineItem[]
+}>
+
+function resolveDayKey(occurredAt: string): string {
+  const moment = new Date(occurredAt)
+  if (Number.isNaN(moment.getTime())) return occurredAt
+  const month = String(moment.getMonth() + 1).padStart(2, '0')
+  const day = String(moment.getDate()).padStart(2, '0')
+  return `${moment.getFullYear()}-${month}-${day}`
+}
+
+/**
+ * Agrupa em faixas de dia sem reordenar: a ordem da API (D4, do mais recente para o mais antigo) é
+ * a ordem da tela, e um dia que reaparecesse depois de outro abriria faixa nova em vez de mentir
+ * sobre a sequência.
+ */
+export function groupTripTimelineItemsByDay(
+  items: readonly TripTimelineItem[],
+): readonly TripTimelineDayGroup[] {
+  const groups: { dayKey: string; items: TripTimelineItem[] }[] = []
+  for (const item of items) {
+    const dayKey = resolveDayKey(item.occurredAt)
+    const current = groups.at(-1)
+    if (current !== undefined && current.dayKey === dayKey) {
+      current.items.push(item)
+      continue
+    }
+    groups.push({ dayKey, items: [item] })
+  }
+  return groups
 }

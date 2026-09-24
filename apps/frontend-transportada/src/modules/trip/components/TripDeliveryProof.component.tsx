@@ -2,13 +2,19 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type React from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import type { DeliveryProof, DeliveryProofView } from '../shared/deliveryProof.service'
 import type { TripDocumentProduct } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripDeliveryProofProps = Readonly<{
+  /** Spec 181 RF7: as duas expansões abaixo precisam de um id estável por nota. */
+  documentId: string
   /** Spec 079 T020: o que houve com a carga. Só anota — ver `TripOccurrences`. */
   occurrences: React.ReactNode
   /** Spec 079 T019: o que vai dentro da nota, conferido de pé no galpão. */
@@ -26,20 +32,29 @@ type TripDeliveryProofProps = Readonly<{
  * Os quatro estados chegam inteiros aqui: "entregue sem comprovante" e "não entregue" têm textos
  * diferentes de propósito, porque são fatos diferentes (ver `deliveryProof.service.ts`).
  */
-export function TripDeliveryProof({ occurrences, products, view }: TripDeliveryProofProps) {
+export function TripDeliveryProof({
+  documentId,
+  occurrences,
+  products,
+  view,
+}: TripDeliveryProofProps) {
   const { t } = useTranslation('trip')
 
   /**
-   * ⚠️ A lista de itens aparece **em todos os estados**, inclusive antes de a nota ser entregue: é
-   * justamente antes que alguém confere se a carga está completa. Amarrá-la à entrega esconderia a
-   * informação de quem mais precisa dela.
+   * ⚠️ **A lista de itens continua alcançável em todos os estados**, inclusive antes de a nota ser
+   * entregue: é justamente antes que alguém confere se a carga está completa. Amarrá-la à entrega
+   * esconderia a informação de quem mais precisa dela — RF7 pede que ela pare de ser despejada
+   * **incondicionalmente**, não que ela suma de algum estado.
    */
   if (view.state === 'not-delivered') {
     return (
       <>
         <p className={styles.hint}>{t('deliveryProof.notDelivered')}</p>
-        <TripDocumentProducts products={products} />
-        {occurrences}
+        <TripDeliveryProofDetail
+          documentId={documentId}
+          occurrences={occurrences}
+          products={products}
+        />
       </>
     )
   }
@@ -50,10 +65,23 @@ export function TripDeliveryProof({ occurrences, products, view }: TripDeliveryP
         <p className={styles.hint}>
           {view.returnReason === null || view.returnReason === ''
             ? t('deliveryProof.returnedWithoutReason')
-            : t('deliveryProof.returned', { reason: view.returnReason })}
+            : t('deliveryProof.returned', {
+                /**
+                 * `returnReason` é código (`recipient_absent`), não texto: o dicionário vive em
+                 * `fieldActions.returnReason`. A linha do tempo já traduzia; aqui o código cru saía
+                 * em inglês na cara do operador. Código sem tradução cai nele mesmo — feio, mas
+                 * some-lo esconderia o motivo da devolução.
+                 */
+                reason: t(`fieldActions.returnReason.${view.returnReason}`, {
+                  defaultValue: view.returnReason,
+                }),
+              })}
         </p>
-        <TripDocumentProducts products={products} />
-        {occurrences}
+        <TripDeliveryProofDetail
+          documentId={documentId}
+          occurrences={occurrences}
+          products={products}
+        />
       </>
     )
   }
@@ -78,8 +106,11 @@ export function TripDeliveryProof({ occurrences, products, view }: TripDeliveryP
       {view.photos.map((proof) => (
         <ProofImage alt={t('deliveryProof.photoAlt')} key={proof.id} proof={proof} />
       ))}
-      <TripDocumentProducts products={products} />
-      {occurrences}
+      <TripDeliveryProofDetail
+        documentId={documentId}
+        occurrences={occurrences}
+        products={products}
+      />
     </section>
   )
 }
@@ -103,6 +134,73 @@ const quantityFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 4,
   minimumFractionDigits: 0,
 })
+
+/**
+ * Spec 181 RF7/T303: produtos e ocorrências paravam de ser despejados **incondicionalmente** nos
+ * três estados do comprovante — cada um vira a própria expansão, reusando o padrão da spec 180
+ * (`aria-expanded`/`aria-controls`, chevron). Nota sem produto não oferece a expansão vazia; ela só
+ * imprime o aviso de que não há item (mesma regra da CA07/CA16). As ocorrências são o formulário
+ * inteiro de `TripOccurrences` (registrar + histórico) — o conteúdo delas é da spec 164/166/167,
+ * fora do escopo desta feature, então a expansão de ocorrências fica sempre oferecida.
+ */
+function TripDeliveryProofDetail({
+  documentId,
+  occurrences,
+  products,
+}: Readonly<{
+  documentId: string
+  occurrences: React.ReactNode
+  products: readonly TripDocumentProduct[]
+}>) {
+  const { t } = useTranslation('trip')
+  const [isProductsExpanded, setIsProductsExpanded] = useState(false)
+  const [isOccurrencesExpanded, setIsOccurrencesExpanded] = useState(false)
+  const productsId = `trip-delivery-proof-products-${documentId}`
+  const occurrencesId = `trip-delivery-proof-occurrences-${documentId}`
+
+  return (
+    <>
+      {products.length === 0 ? (
+        <p className={styles.hint}>{t('deliveryProof.withoutProducts')}</p>
+      ) : (
+        <>
+          <Button
+            aria-controls={productsId}
+            aria-expanded={isProductsExpanded}
+            className={styles.stopDocumentToggle}
+            onClick={() => setIsProductsExpanded((current) => !current)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name={isProductsExpanded ? 'chevron-up' : 'chevron-down'} />
+            {t('deliveryProof.productsToggle', { count: products.length })}
+          </Button>
+          {isProductsExpanded ? (
+            <div id={productsId}>
+              <TripDocumentProducts products={products} />
+            </div>
+          ) : null}
+        </>
+      )}
+      <Button
+        aria-controls={occurrencesId}
+        aria-expanded={isOccurrencesExpanded}
+        className={styles.stopDocumentToggle}
+        onClick={() => setIsOccurrencesExpanded((current) => !current)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name={isOccurrencesExpanded ? 'chevron-up' : 'chevron-down'} />
+        {isOccurrencesExpanded
+          ? t('deliveryProof.occurrencesCollapse')
+          : t('deliveryProof.occurrencesToggle')}
+      </Button>
+      {isOccurrencesExpanded ? <div id={occurrencesId}>{occurrences}</div> : null}
+    </>
+  )
+}
 
 /**
  * A lista que se lê com a caixa na mão: quantidade, unidade e descrição. **Sem NCM e sem CFOP** —

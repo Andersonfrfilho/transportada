@@ -24,7 +24,11 @@ import {
   ROUTE_ASSEMBLY_TIMEOUT_CODE,
   RouteSuggestionSettledError,
 } from '../shared/routeAssemblyFailure.service'
-import { TRIP_ERROR, TRIP_QUERY_KEY } from '../shared/trip.constant'
+import {
+  AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
+  TRIP_ERROR,
+  TRIP_QUERY_KEY,
+} from '../shared/trip.constant'
 import type {
   AcceptedMultiVehicleTrip,
   MultiVehicleLeftoverStop,
@@ -51,10 +55,7 @@ import {
   type AutomaticProposalState,
 } from '../shared/tripAssemblyDraft.service'
 import type { TripAssemblyDraftScope } from '../shared/tripAssemblyDraftStorage.service'
-import {
-  ROUTE_ASSEMBLY_DOCUMENTS_QUERY_KEY,
-  useRouteAssemblyDraft,
-} from './useRouteAssemblyDraft.hook'
+import { useRouteAssemblyDraft } from './useRouteAssemblyDraft.hook'
 
 const SUGGESTION_POLL_MS = 2_000
 const SUGGESTION_POLL_CAP = 60
@@ -186,7 +187,7 @@ export function useTripRouteAssembly(
   const documentsQuery = useQuery({
     enabled: input.canManageTrips,
     queryFn: loadAvailableTripDocuments,
-    queryKey: ROUTE_ASSEMBLY_DOCUMENTS_QUERY_KEY,
+    queryKey: AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY,
   })
 
   /**

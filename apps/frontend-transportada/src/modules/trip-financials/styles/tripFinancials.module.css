@@ -156,6 +156,8 @@
   justify-content: space-between;
   padding: var(--space-1) 0;
   font-size: 0.85rem;
+  /* Sem isto o texto de lacuna mede a frase inteira e empurra a página para fora da tela. */
+  min-width: 0;
 }
 
 .ledgerRow dt {
@@ -187,9 +189,49 @@
 }
 
 /* A parcela sem valor fica na lista: o motivo ocupa o lugar do número. */
-.ledgerGap {
+/*
+ * `.ledgerRow dd` é mais específico que uma classe sozinha, então o seletor precisa do elemento
+ * junto: o `nowrap` de lá existe para o número não partir no meio, e a lacuna é frase — frase que
+ * não quebra estoura a tela estreita.
+ */
+.ledgerRow dd.ledgerGap {
   color: var(--color-copper);
   font-size: 0.8rem;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+/**
+ * O motivo que vira ação: continua **lendo como o motivo**, não como um botão avulso. O `ghost` do
+ * design system traz borda, fundo e altura de controle — dentro de uma linha do razão alinhada por
+ * baseline, ele viraria uma caixa cinza e trocaria o cobre da lacuna pela cor neutra do botão,
+ * apagando justamente o sinal de que aquela parcela não tem número.
+ */
+.ledgerGapAction {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  /* O `<dd>` é `nowrap`: com o rótulo da ação junto, a frase da diária estouraria em tela estreita. */
+  white-space: normal;
+  background: none;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-copper) 45%, transparent);
+  text-underline-offset: 0.2em;
+}
+
+.ledgerGapAction:hover:not(:disabled) {
+  color: var(--color-copper);
+  text-decoration-color: var(--color-copper);
+}
+
+.ledgerGapAction:disabled {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 /**
@@ -260,48 +302,168 @@
   line-height: 1.45;
 }
 
+/**
+ * Spec 169 RF11: cada bloco de lançamento é um cartão dentro do painel. Antes eram quatro `span`
+ * numa grade de três colunas — valor, espécie, descrição, autor e o botão de remover caíam colados
+ * na mesma linha ("R$ 100,00Avulsoasdasd…") e o `h3` cru abria com o tamanho do navegador.
+ */
 .costEntries {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  border-radius: var(--space-2);
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--color-graphite) 55%, transparent);
+}
+
+.costEntriesHeader {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
-  padding-top: 1rem;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+/* Mesmo rótulo de grupo do razão (`.ledgerGroup`): os dois blocos são irmãos na mesma conta. */
+.costEntriesTitle {
+  margin: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* O total do bloco: a soma do que está na lista, na cor do sentido (entra verde, sai vermelho). */
+.costEntriesTotal {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.costEntriesTotalLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.costEntriesTotalAmount {
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lista vazia com moldura tracejada: o espaço do lançamento existe antes de haver lançamento. */
+.costEntriesEmpty {
+  margin: 0;
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 30%, transparent);
+  border-radius: var(--space-1);
+  padding: var(--space-3);
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  text-align: center;
 }
 
 .costEntryList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  display: grid;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/**
+ * Uma linha é uma faixa: valor à esquerda, o que foi lançado no meio, a ação à direita. Em telas
+ * estreitas as três empilham — `min-width: 0` vive no corpo porque a descrição chega com até 200
+ * caracteres e sem isso ela empurra a linha para fora da tela.
+ */
 .costEntryList li {
   display: grid;
-  grid-template-columns: auto auto 1fr;
-  align-items: baseline;
-  gap: 0.25rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: var(--space-1) var(--space-3);
+  border-radius: var(--space-1);
+  padding: var(--space-2);
+  background: color-mix(in srgb, var(--color-asphalt) 60%, transparent);
+}
+
+@media (min-width: 40rem) {
+  .costEntryList li {
+    grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+    align-items: start;
+  }
+}
+
+.costEntryAmount {
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.costEntryBody {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* A espécie é selo, não frase: ela se distingue da descrição antes de ser lida. */
+.costEntryKind {
+  justify-self: start;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--space-4);
+  padding: 0 var(--space-2);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /** A descrição chega com até 200 caracteres: sem quebra ela empurra a lista para fora da tela. */
 .costEntryDescription {
   overflow-wrap: anywhere;
   min-width: 0;
+  color: var(--color-fog);
 }
 
+.costEntryMeta {
+  color: var(--color-slate);
+  font-size: 0.74rem;
+}
+
+.costEntryAction {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Remover é destrutivo: o vermelho aparece na intenção, não no repouso da lista. */
+.costEntryRemove:hover:not(:disabled) {
+  color: var(--color-alert);
+}
+
+/* ⚠️ `min-width: 0` na fileira e nos campos: item de grid/flex não encolhe abaixo do conteúdo sem
+   isso, e o campo de descrição empurraria a fileira para fora do cartão. */
 .costEntryForm {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
   align-items: flex-end;
   gap: var(--space-3);
+  border-top: 1px dashed color-mix(in srgb, var(--color-slate) 22%, transparent);
+  padding-top: var(--space-3);
 }
 
 .costEntryForm > .field {
   flex: 1 1 10rem;
+  min-width: 0;
 }
 
 /* A descrição é o campo de texto livre: fica com a largura que sobrar na fileira. */
 .costEntryForm > .costEntryDescriptionField {
   flex: 3 1 16rem;
+  min-width: 0;
 }

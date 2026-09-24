@@ -9,6 +9,8 @@ export type MunicipalityCentroid = Readonly<{
 }>
 
 export type MunicipalityCentroidRepository = Readonly<{
+  /** `null` quando o município não está na base — a bancada local não semeou, ou o código não existe. */
+  findByCityCode: (cityCode: string) => Promise<MunicipalityCentroid | null>
   /** Idempotente por `city_code`: reexecutar o seed não duplica linha nem multiplica município. */
   saveMany: (centroids: readonly MunicipalityCentroid[]) => Promise<number>
 }>

@@ -237,15 +237,28 @@ function collectKeys(value: unknown, prefix: string): readonly string[] {
 }
 
 describe('nfse emission action permission contract', () => {
-  test('opens the bulk action only for who manages service invoices', async () => {
+  test('opens the action only for who can issue service invoices', async () => {
     const { canOpenNfseEmission } = await loadEmissionModule()
 
-    expect(canOpenNfseEmission(['nfse.manage'])).toBe(true)
+    expect(canOpenNfseEmission(['nfse.issue'])).toBe(true)
     expect(canOpenNfseEmission(['nfse.manage', 'nfse.issue'])).toBe(true)
     expect(canOpenNfseEmission([])).toBe(false)
     expect(canOpenNfseEmission(['cte.manage', 'nfe.read'])).toBe(false)
+    // Gerenciar é outra permissão: quem só administra o cadastro não emite.
+    expect(canOpenNfseEmission(['nfse.manage'])).toBe(false)
     // Emitir é outra permissão: quem só lê a nota vê a prévia, não o botão.
     expect(canOpenNfseEmission(['nfse.read'])).toBe(false)
+  })
+
+  test('gates the same permission the POST /nfse-service-invoices route requires', async () => {
+    const { canOpenNfseEmission } = await loadEmissionModule()
+    const routes = await readApplicationFile(
+      '../api-transportada/src/nfse-invoices/presentation/nfse-invoices.routes.ts',
+    )
+
+    // A rota de criação usa `NFSE_ISSUE_POLICY` — o gate do frontend tem de casar com `nfse.issue`.
+    expect(routes).toContain('policy: NFSE_ISSUE_POLICY')
+    expect(canOpenNfseEmission(['nfse.issue'])).toBe(true)
   })
 
   test('hides the button instead of rendering a dead control', async () => {

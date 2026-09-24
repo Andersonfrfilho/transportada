@@ -54,7 +54,9 @@ function renderWithUnknownBooths(unknownCount: number): string {
     tariffObservedOn: null,
     total: '24.6800',
   }
-  return renderToStaticMarkup(<RouteTollSummary canAdjustTollBooth={false} toll={toll} />)
+  return renderToStaticMarkup(
+    <RouteTollSummary canAdjustTollBooth={false} isNoTollRoute={false} toll={toll} />,
+  )
 }
 
 describe('plural de "praças sem tarifa conhecida" no resumo da rota (spec 154 T507, item 4)', () => {
@@ -103,7 +105,9 @@ describe('plural de "praças" no total do resumo e na opção de rota (spec 154 
       tariffObservedOn: null,
       total: '24.6800',
     }
-    return renderToStaticMarkup(<RouteTollSummary canAdjustTollBooth={false} toll={toll} />)
+    return renderToStaticMarkup(
+      <RouteTollSummary canAdjustTollBooth={false} isNoTollRoute={false} toll={toll} />,
+    )
   }
 
   it('o total do resumo diz "1 praça" com uma praça e "2 praças" com duas', () => {

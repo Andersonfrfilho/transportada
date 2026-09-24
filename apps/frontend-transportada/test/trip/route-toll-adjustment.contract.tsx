@@ -65,6 +65,7 @@ function renderSummary(
   return renderToStaticMarkup(
     <RouteTollSummary
       canAdjustTollBooth={input.canAdjustTollBooth}
+      isNoTollRoute={false}
       toll={buildToll([input.booth])}
     />,
   )

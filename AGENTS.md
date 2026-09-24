@@ -8,6 +8,24 @@
 4. a pasta da feature em `specs/<id>-<nome>/`;
 5. contratos reais de `@adatechnology/fiscal-provider` antes de trabalho fiscal.
 
+## Antes de escrever spec nova
+
+**Leia as specs que já existem sobre o mesmo assunto.** `specs/` é versionado e o repositório é
+grande: um assunto volta muitas vezes (ocorrência, por exemplo, aparece em 157, 159, 161, 164, 166,
+167, 172 e 173). Escrever spec sem ler o histórico recria decisão já tomada.
+
+```bash
+ls specs/ | grep -i <assunto>
+```
+
+Para cada spec encontrada, confira `tasks.md` e `evidence.md` para saber o que foi de fato fechado —
+e **confirme no código**, porque spec descreve intenção, não estado.
+
+⚠️ Revisão de código não pega isto. Em 23/09 a spec 179 passou por revisão de arquitetura e por três
+executores; todos acharam defeitos reais no código, e nenhum viu que ela recriava `redelivery_policy`
+(spec 164) e `thumbnail_object_id` (spec 161), porque duplicação de **decisão** só aparece lendo
+`specs/`. O caso está em `specs/179-a-recusa-sai-com-foto/duplicacao.md`.
+
 ## Processo obrigatório
 
 - Trabalhe em uma única task identificada em `tasks.md`.

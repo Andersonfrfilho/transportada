@@ -114,6 +114,7 @@ describe('rascunho da montagem automática no hook', () => {
     const statusRead = createDeferred<ReturnType<typeof buildSuggestion>>()
     let proposalReads = 0
     fakes.tripClient = {
+      ...fakes.tripClient,
       createMultiVehicleSuggestion: () =>
         Promise.resolve(buildSuggestion({ id: 'suggestion-1', status: 'queued' })),
       readMultiVehicleProposal: () => {

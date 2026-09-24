@@ -15,9 +15,35 @@
     "loading": "Loading the expenses…",
     "record": "Record",
     "recording": "Recording…",
+    "remove": "Remove",
     "retry": "Try again",
     "title": "Recorded expenses",
+    "total": "Recorded total",
     "unknownActor": "removed user"
+  },
+  "revenueEntries": {
+    "amount": "Amount",
+    "amountPlaceholder": "0.00",
+    "by": "{{actor}} · {{moment}}",
+    "description": "Description",
+    "descriptionPlaceholder": "Loading assistance, redelivery fee, daily rate…",
+    "empty": "No revenue recorded on this trip yet.",
+    "error": "The recorded revenue of this trip could not be loaded.",
+    "kind": "Kind",
+    "loading": "Loading the revenue entries…",
+    "record": "Record",
+    "recording": "Recording…",
+    "remove": "Remove",
+    "retry": "Try again",
+    "title": "Recorded revenue",
+    "total": "Recorded total",
+    "unknownActor": "removed user"
+  },
+  "gapAction": {
+    "emissionProfile": "open emission profiles",
+    "federalRegime": "declare regime",
+    "planRoute": "calculate route",
+    "recordCost": "record now"
   },
   "gap": {
     "CITY_WITHOUT_REGION": "destination without a registered freight zone",

@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-import { AMOUNT_MAX_SCALE, maskTypedAmount } from '@/modules/shared/decimalAmount.service'
+import { maskTypedAmount, TYPED_MONEY_SCALE } from '@/modules/shared/decimalAmount.service'
 
 import {
   EMPTY_TRIP_COST_ENTRY_FORM,
@@ -15,10 +15,18 @@ import {
   validateTripCostEntryForm,
   type TripCostEntryFormFields,
 } from '../shared/tripCostEntryForm.service'
-import { TRIP_COST_ENTRY_KINDS, isTripCostEntryKind } from '../shared/tripFinancials.types'
+import type { CompanyEntryKind } from '../shared/tripFinancials.types'
 import styles from '../styles/tripFinancials.module.css'
 
+/**
+ * O motivo `NOT_RECORDED` do razão leva o foco até aqui (`document.getElementById` +
+ * `scrollIntoView`) — id estável em vez de `ref`, porque o formulário nasce numa árvore distante
+ * do razão que dispara a ação.
+ */
+export const TRIP_COST_ENTRY_AMOUNT_FIELD_ID = 'trip-cost-entry-amount'
+
 type TripCostEntryFormProps = Readonly<{
+  entryKinds: readonly CompanyEntryKind[]
   isRecording: boolean
   onRecord: (fields: TripCostEntryFormFields) => Promise<boolean>
 }>
@@ -26,10 +34,13 @@ type TripCostEntryFormProps = Readonly<{
 /**
  * Spec 143 D6: o campo que lança um gasto avulso da viagem.
  *
+ * Spec 169 RF5: o seletor de espécie migrou do enum fixo (`toll`/`other`) para o cadastro da
+ * empresa, do lado "expense" — a mesma tela que alimenta o seletor de receita.
+ *
  * ⚠️ O arquivo é a fronteira da permissão: quem não tem `trip.manage` não monta este componente —
  * campo desabilitado seria promessa de que basta pedir, e aviso de permissão seria ruído.
  */
-export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormProps) {
+export function TripCostEntryForm({ entryKinds, isRecording, onRecord }: TripCostEntryFormProps) {
   const { t } = useTranslation('tripFinancials')
   const [fields, setFields] = useState<TripCostEntryFormFields>(EMPTY_TRIP_COST_ENTRY_FORM)
   const issues = validateTripCostEntryForm(fields)
@@ -45,11 +56,12 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
       <label className={styles.field}>
         {t('costEntries.amount')}
         <input
+          id={TRIP_COST_ENTRY_AMOUNT_FIELD_ID}
           inputMode="decimal"
           onChange={(event) =>
             setFields({
               ...fields,
-              amount: maskTypedAmount({ scale: AMOUNT_MAX_SCALE, value: event.target.value }),
+              amount: maskTypedAmount({ scale: TYPED_MONEY_SCALE, value: event.target.value }),
             })
           }
           placeholder={t('costEntries.amountPlaceholder')}
@@ -59,14 +71,9 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
       <label className={styles.field}>
         {t('costEntries.kind')}
         <Select
-          onChange={(value) => {
-            if (isTripCostEntryKind(value)) setFields({ ...fields, kind: value })
-          }}
-          options={TRIP_COST_ENTRY_KINDS.map((kind) => ({
-            label: t(`costEntries.kinds.${kind}`),
-            value: kind,
-          }))}
-          value={fields.kind}
+          onChange={(value) => setFields({ ...fields, entryKindId: value })}
+          options={entryKinds.map((kind) => ({ label: kind.name, value: kind.id }))}
+          value={fields.entryKindId}
         />
       </label>
       <label className={cn(styles.field, styles.costEntryDescriptionField)}>
@@ -79,7 +86,7 @@ export function TripCostEntryForm({ isRecording, onRecord }: TripCostEntryFormPr
         />
       </label>
       <Button
-        disabled={issues.length > 0 || isRecording}
+        disabled={issues.length > 0 || isRecording || entryKinds.length === 0}
         onClick={() => void handleRecord()}
         type="button"
         variant="ghost"

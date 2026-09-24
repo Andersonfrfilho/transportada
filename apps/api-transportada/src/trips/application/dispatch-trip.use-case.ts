@@ -31,6 +31,12 @@ export type DispatchTripWriteInput = {
   /** `true` só quando havia pendência real — despachar sem pendência nunca é "forçado". */
   readonly forced: boolean
   readonly forceReason: string | null
+  /**
+   * Spec 158 T13: o que a transação reconfere sob o lock é o **status**. Este `hasRoute` é o valor
+   * da decisão do caso de uso, ainda lido fora dela — roteiro apagado na janela fica fora do
+   * escopo da T13, e o eixo protegido é `trips.status`.
+   */
+  readonly hasRoute: boolean
   readonly onBehalfOfDriverId: string | null
   readonly tripId: string
   readonly unloadedDocumentIds: readonly string[]
@@ -108,6 +114,7 @@ export async function dispatchTrip(input: DispatchTripInput): Promise<DispatchTr
     companyId: input.companyId,
     forced,
     forceReason: forced ? (input.forceReason ?? null) : null,
+    hasRoute: state.hasRoute,
     onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
     tripId: input.tripId,
     unloadedDocumentIds: state.unloadedDocumentIds,

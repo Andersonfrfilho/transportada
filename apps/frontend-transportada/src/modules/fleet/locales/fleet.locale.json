@@ -449,7 +449,9 @@
   "hasAutomaticTollPayment": "Cobrança automática de pedágio (tag)",
   "hasAutomaticTollPaymentHint": "Com a tag, o pedágio usa a tarifa automática da praça quando ela é conhecida. Sem a tarifa automática, a conta cai para a manual.",
   "identityBand": {
-    "withoutModel": "Veículo sem modelo cadastrado"
+    "color": "Cor",
+    "withoutModel": "Veículo sem modelo cadastrado",
+    "year": "Ano"
   },
   "identityDocumentIssuerOption": {
     "CTPS": "CTPS — Carteira de Trabalho",

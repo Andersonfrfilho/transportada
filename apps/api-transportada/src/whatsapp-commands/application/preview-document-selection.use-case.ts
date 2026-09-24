@@ -128,7 +128,7 @@ export async function classifySelectedDocuments(input: {
 }): Promise<readonly PreviewEntry[]> {
   const { companyId, userId } = input.context
   const described = await input.deps.classifier.describeDocumentOutputs({
-    context: input.context,
+    companyId: input.context.companyId,
     documentIds: input.documentIds,
   })
   const entries = toEntries(input.documentIds, described)
