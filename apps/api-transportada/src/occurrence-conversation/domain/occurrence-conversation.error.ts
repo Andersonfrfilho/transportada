@@ -70,3 +70,36 @@ export class OccurrenceConversationChannelUnavailableError extends ApiError {
     })
   }
 }
+
+/** T505: a mensagem da fila não existe nesta empresa (ou é de outra — a resposta é a mesma). */
+export class OccurrenceConversationUnassignedNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND',
+      message: 'Unassigned message not found',
+      status: 404,
+    })
+  }
+}
+
+/** T505: atribuir é uma vez só; a segunda tentativa não move a mensagem. */
+export class OccurrenceConversationAlreadyAssignedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED',
+      message: 'The message was already assigned to a conversation',
+      status: 409,
+    })
+  }
+}
+
+/** T505 (RF9): só as conversas abertas da contratante daquele remetente são escolha válida. */
+export class OccurrenceConversationAssignmentInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID',
+      message: 'The conversation is not a candidate for this message',
+      status: 422,
+    })
+  }
+}

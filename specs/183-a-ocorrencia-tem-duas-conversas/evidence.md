@@ -927,3 +927,72 @@ Volta quando os modelos estiverem aprovados e com o nome cadastrado.
   `decide-occurrence-case.use-case` foi posta de propósito na política de atribuição: o contrato
   reprovou com os dois ofensores, e a linha foi tirada.
 - Rodado: a suíte `occurrence-conversation`, **84 pass**, com lint e typecheck limpos.
+
+## T505 — A fila de mensagens sem conversa (verde)
+
+- **Rotas** (`presentation/occurrence-conversation-unassigned.routes.ts`, `no-store`):
+  - `GET /occurrence-conversations/unassigned` (`fleet.read`): as pendentes da empresa, as mais
+    novas primeiro, até 100, cada uma com as **candidatas**;
+  - `POST /occurrence-conversations/unassigned/:id/assign` (`occurrences.resolve`), corpo estrito
+    `{ conversationId }`.
+- **Correção ao plano (técnica):** o plano dava `trip.manage` às duas. O separador tem
+  `trip.manage`, e escolher para qual conversa vai a mensagem da contratante é conduzir a tratativa
+  (mesma correção da T404). Ler fica com `fleet.read`, como as conversas.
+  `test/separator-role.contract.test.ts` ganhou a leitura e as rotas da fila.
+- **Candidatas:** as conversas **abertas** com a contratante das contratantes do remetente. São do
+  contato gravado na fila quando é um só; senão, de todo contato ativo com aquele número (chave do
+  WhatsApp) ou e-mail. Calculadas pelo servidor, dentro da empresa, e conferidas de novo na
+  atribuição, sob `FOR UPDATE` da linha da fila. Cada candidata leva a última mensagem da operação
+  (horário e 140 caracteres), para escolher sem abrir.
+- **Atribuir:**
+  - grava a mensagem na conversa com o horário em que **chegou**, e marca quem e quando;
+  - já atribuída: 409 `OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED`;
+  - conversa fora das candidatas: 422 `OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID`;
+  - inexistente ou de outra empresa: 404.
+- **Tela:** `UnassignedMessages` no topo de `/ocorrencias`, só quando há mensagem na fila. Mostra:
+  - o remetente (contato ou telefone com a máscara da casa), o canal, a hora e o texto;
+  - as candidatas por radio, na cor da casa (`accent-color`; o design system não tem radio), com a
+    última mensagem nossa e o link para a ocorrência;
+  - "Atribuir" só com `occurrences.resolve`, e cada erro com texto próprio.
+- **Correção de infraestrutura de teste (commit próprio `539a9e84`):** as integrações da conversa
+  davam `PostgresError: Failed to read data` de forma intermitente, inclusive rodando sozinhas.
+  - Causa: o banco descartável usava `createDrizzleProvider` cru (instruções preparadas), e as
+    leituras da conversa fazem consultas em paralelo. É a mesma causa da spec 137 e da 148 T7.
+  - Produção já usa `createDatabaseProvider` (`prepare: false`). As integrações da conversa passaram
+    a usar `withConversationDatabase` com ele: **3 rodadas seguidas, 30 pass**.
+  - Isto corrige a leitura das falhas "por concorrência" registradas na T406: eram esta causa, que a
+    concorrência só tornava mais frequente.
+- **Testes:**
+  - Escritos **antes** e vistos falhando (módulos inexistentes):
+    - caso de uso (`unassigned-assignment.contract.ts`): atribui com o horário de chegada, marca,
+      candidata inválida, já atribuída, inexistente, nada gravado nos erros;
+    - rotas (`unassigned-routes.contract.ts`): leitura por `fleet.read`, atribuir por
+      `occurrences.resolve`, o separador lê e não atribui, corpo estrito, erro pelo código;
+    - cliente do frontend (`unassigned-client.contract.ts`): item e candidata malformados saem,
+      atribuir manda só a conversa.
+  - O contrato do separador reprovou duas vezes antes de passar: a rota fora da lista de fábricas, e
+    depois a ordem da lista esperada.
+  - Integração `test/integration/occurrence-conversation-unassigned.integration.ts` (no
+    `package.json`), escrita depois do adaptador. Cobre:
+    - a fila com as duas candidatas e a última mensagem nossa;
+    - outra empresa sem fila e sem atribuição;
+    - conversa inválida;
+    - atribui uma vez, com o horário de chegada, e a fila fica vazia.
+  - Smoke `test/spec-183-unassigned.smoke.spec.ts`, 3 pass: prints desktop e 390 px, e a escolha da
+    segunda conversa, que tira a mensagem da fila.
+- **Revisão de design:** corrigidos o print de celular cortado (tirado sem refazer o layout), o
+  telefone cru e o radio azul do navegador.
+
+- **Rodado:**
+  - API, contrato: **7367 pass, 0 fail**;
+  - frontend: **5219 + 44 pass, 0 fail**;
+  - lint e typecheck limpos;
+  - API, integração completa, sozinha: **592 pass, 7 skip, 8 fail**, só as 8 de MinIO, e nenhuma
+    da conversa com o banco de produção.
+
+## T506 — ⏭️ aberta: depende do envio por WhatsApp (T503, que depende da T002)
+
+O seletor "E-mail / WhatsApp / Os dois" escolhe por onde a mensagem **sai**. Sem a T503 não há envio
+por WhatsApp: a rota de envio responde 422 `OCCURRENCE_CONVERSATION_CHANNEL_UNAVAILABLE` para o
+canal. Um seletor com uma opção que sempre falha é pior que não ter o seletor. Volta junto com a
+T503.

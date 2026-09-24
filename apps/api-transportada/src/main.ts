@@ -372,6 +372,7 @@ import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
+import { createOccurrenceConversationUnassignedRoutes } from './occurrence-conversation/presentation/occurrence-conversation-unassigned.routes.js'
 import { createOccurrenceConversationRoutes } from './occurrence-conversation/presentation/occurrence-conversation.routes.js'
 import {
   createListOccurrenceConversationsUseCase,
@@ -379,6 +380,10 @@ import {
 } from './occurrence-conversation/application/read-occurrence-conversations.use-case.js'
 import { createOccurrenceConversationWhatsAppHook } from './occurrence-conversation/application/whatsapp-conversation-inbound.service.js'
 import { createOccurrenceConversationWhatsAppStatusHook } from './occurrence-conversation/application/whatsapp-conversation-status.service.js'
+import {
+  createAssignUnassignedMessageUseCase,
+  createListUnassignedMessagesUseCase,
+} from './occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createSendOccurrenceMailUseCase } from './occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import {
@@ -386,6 +391,10 @@ import {
   createOccurrenceSuggestedMailReader,
   DrizzleOccurrenceMailRepository,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
+import {
+  createDrizzleOccurrenceConversationUnassignedReader,
+  createDrizzleOccurrenceConversationUnassignedUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
 import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
 import { applyProviderMessageStatus } from './occurrence-conversation/infrastructure/drizzle-occurrence-message-status.repository.js'
 import { createDrizzleWhatsAppConversationInboundRepository } from './occurrence-conversation/infrastructure/drizzle-whatsapp-conversation-inbound.repository.js'
@@ -2816,6 +2825,15 @@ function createApplicationRoutes({
         fingerprintService,
         secretService: contractorMailCredentialSecretService,
         unitOfWork: new DrizzleOccurrenceMailRepository(database),
+      }),
+    }),
+    ...createOccurrenceConversationUnassignedRoutes({
+      assign: createAssignUnassignedMessageUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleOccurrenceConversationUnassignedUnitOfWork(database),
+      }),
+      list: createListUnassignedMessagesUseCase({
+        reader: createDrizzleOccurrenceConversationUnassignedReader(database),
       }),
     }),
     ...createOccurrenceCaseRoutes({

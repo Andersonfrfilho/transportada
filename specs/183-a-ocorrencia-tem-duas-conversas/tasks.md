@@ -104,7 +104,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       janela, texto e mídia dentro. Evidência: teste de caso de uso com o provider falso.
 - [x] **T504** Contrato de que nada que chega pelo WhatsApp (texto, botão, áudio, transcrição) muda a
       tratativa, a taxa ou o acerto (D4). Evidência: o contrato.
-- [ ] **T505** Fila de não atribuídas (rota + tela simples). Evidência: contratos.
+- [x] **T505** Fila de não atribuídas (rota + tela simples). Evidência: contratos.
 - [ ] **T506** Canal WhatsApp na aba Contratante e no diálogo (E-mail / WhatsApp / Os dois).
       Evidência: contratos de serviço puro.
 

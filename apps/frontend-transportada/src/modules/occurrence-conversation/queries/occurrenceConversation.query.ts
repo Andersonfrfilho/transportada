@@ -68,3 +68,31 @@ export function useSendContractorMailMutation(occurrenceId: string) {
     },
   })
 }
+
+export const OCCURRENCE_UNASSIGNED_QUERY_KEY = 'occurrence-conversation-unassigned'
+
+export function useUnassignedMessagesQuery(
+  input: Readonly<{ companyId?: string; enabled: boolean }>,
+) {
+  const client = getOccurrenceConversationClient()
+  return useQuery({
+    enabled: input.enabled,
+    queryFn: () => client.listUnassigned(),
+    queryKey: [OCCURRENCE_UNASSIGNED_QUERY_KEY, input.companyId],
+  })
+}
+
+/** Atribuir tira da fila e põe na conversa: as duas leituras (e a coluna Conversa) voltam. */
+export function useAssignUnassignedMutation() {
+  const queryClient = useQueryClient()
+  const client = getOccurrenceConversationClient()
+  return useMutation({
+    mutationFn: (input: Readonly<{ conversationId: string; unassignedId: string }>) =>
+      client.assignUnassigned(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_UNASSIGNED_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}

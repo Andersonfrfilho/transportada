@@ -11,6 +11,7 @@ import { resolveCompanyPermissions } from '../src/identity/domain/authorization.
 import type { AuthenticatedContext, CompanyContext } from '../src/identity/domain/tenant-context'
 import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-documents.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
+import { createOccurrenceConversationUnassignedRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation-unassigned.routes'
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
 import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
 import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
@@ -81,6 +82,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // Spec 183 T404 (143 T016): o separador lê a conversa (`fleet.read`, como a listagem) e marca
     // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
     ...createOccurrenceConversationRoutes(dependencies),
+    ...createOccurrenceConversationUnassignedRoutes(dependencies),
   ]
 
   return routes
@@ -147,6 +149,11 @@ describe('separator role contract', () => {
       'GET /nfe-package-boxes/measurement-settings',
       // A exportação do que falta medir é a mesma fila, inteira — a mesma cargo.measure.
       'GET /nfe-package-boxes/pending-export',
+      /**
+       * Spec 183 T505 (RF9): a fila de mensagens sem conversa é leitura da listagem (`fleet.read`),
+       * como as conversas; atribuir é `occurrences.resolve`, e ele não alcança.
+       */
+      'GET /occurrence-conversations/unassigned',
       /**
        * Spec 148 T7: a fila das notas que não couberam é lida sob `fleet.read`, como a viagem. O
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela

@@ -77,5 +77,26 @@
   "addContact": {
     "title": "Add to contacts",
     "close": "Close"
+  },
+  "unassigned": {
+    "title_one": "{{count}} message without a conversation",
+    "title_other": "{{count}} messages without a conversation",
+    "hint": "They came from a contractor contact without saying which occurrence they answer. Choose the conversation; the message goes there with the time it arrived.",
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "email": "Email"
+    },
+    "noText": "(message without text)",
+    "noCandidates": "No open conversation with this contractor. Open the conversation from the occurrence and come back.",
+    "choose": "Which conversation does it go to?",
+    "lastOutbound": "Our last message ({{at}}): {{preview}}",
+    "openOccurrence": "Open the occurrence",
+    "assign": "Assign",
+    "error": {
+      "generic": "Could not assign. Try again shortly.",
+      "OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED": "Someone else already assigned this message.",
+      "OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID": "This conversation is no longer a valid choice. Refresh the page.",
+      "OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND": "The message is no longer in the queue."
+    }
   }
 }

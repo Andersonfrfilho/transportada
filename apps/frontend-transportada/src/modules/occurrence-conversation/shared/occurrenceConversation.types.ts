@@ -117,3 +117,22 @@ export type ContractorMailRequest = Readonly<{
   contactIds: readonly string[]
   subject: string
 }>
+
+/** Spec 183 T505 (RF9): uma conversa em que a mensagem sem dono pode entrar. */
+export type UnassignedCandidate = Readonly<{
+  contractorName: string
+  conversationId: string
+  lastOutbound: null | Readonly<{ at: string; preview: string }>
+  occurrenceId: string
+  occurrenceKind: 'document' | 'stop'
+}>
+
+export type UnassignedMessage = Readonly<{
+  bodyText: string
+  candidates: readonly UnassignedCandidate[]
+  channel: 'email' | 'whatsapp'
+  contact: null | Readonly<{ contactId: string; name: string }>
+  id: string
+  receivedAt: string
+  senderAddress: string
+}>

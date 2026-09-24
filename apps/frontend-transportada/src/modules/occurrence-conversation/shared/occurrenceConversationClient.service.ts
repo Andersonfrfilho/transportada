@@ -14,6 +14,8 @@ import {
   type OccurrenceConversationMessage,
   type OccurrenceMailPreview,
   type OccurrenceMailRecipient,
+  type UnassignedCandidate,
+  type UnassignedMessage,
 } from './occurrenceConversation.types'
 
 export const OCCURRENCE_CONVERSATION_ERROR = {
@@ -37,6 +39,8 @@ type ClientDependencies = Readonly<{
 }>
 
 export type OccurrenceConversationClient = Readonly<{
+  assignUnassigned: (input: { conversationId: string; unassignedId: string }) => Promise<void>
+  listUnassigned: () => Promise<readonly UnassignedMessage[]>
   listConversations: (input: { occurrenceId: string }) => Promise<readonly OccurrenceConversation[]>
   markConversationRead: (input: { conversationId: string }) => Promise<void>
   previewContractorMail: (input: {
@@ -138,6 +142,56 @@ function toConversation(value: unknown): null | OccurrenceConversation {
   }
 }
 
+function toCandidate(value: unknown): null | UnassignedCandidate {
+  if (
+    !isRecord(value) ||
+    !isString(value.contractorName) ||
+    !isString(value.conversationId) ||
+    !isString(value.occurrenceId) ||
+    (value.occurrenceKind !== 'document' && value.occurrenceKind !== 'stop')
+  ) {
+    return null
+  }
+  const last = value.lastOutbound
+  return {
+    contractorName: value.contractorName,
+    conversationId: value.conversationId,
+    lastOutbound:
+      isRecord(last) && isString(last.at) && isString(last.preview)
+        ? { at: last.at, preview: last.preview }
+        : null,
+    occurrenceId: value.occurrenceId,
+    occurrenceKind: value.occurrenceKind,
+  }
+}
+
+function toUnassigned(value: unknown): null | UnassignedMessage {
+  if (
+    !isRecord(value) ||
+    !isString(value.bodyText) ||
+    (value.channel !== 'email' && value.channel !== 'whatsapp') ||
+    !isString(value.id) ||
+    !isString(value.receivedAt) ||
+    !isString(value.senderAddress) ||
+    !Array.isArray(value.candidates)
+  ) {
+    return null
+  }
+  const contact = value.contact
+  return {
+    bodyText: value.bodyText,
+    candidates: value.candidates.flatMap((candidate) => toCandidate(candidate) ?? []),
+    channel: value.channel,
+    contact:
+      isRecord(contact) && isString(contact.contactId) && isString(contact.name)
+        ? { contactId: contact.contactId, name: contact.name }
+        : null,
+    id: value.id,
+    receivedAt: value.receivedAt,
+    senderAddress: value.senderAddress,
+  }
+}
+
 function isRecipient(value: unknown): value is OccurrenceMailRecipient {
   return (
     isRecord(value) &&
@@ -223,6 +277,21 @@ export function createOccurrenceConversationClient(
   dependencies: ClientDependencies,
 ): OccurrenceConversationClient {
   return {
+    async assignUnassigned({ conversationId, unassignedId }) {
+      await requestJson(
+        dependencies,
+        `/occurrence-conversations/unassigned/${encodeURIComponent(unassignedId)}/assign`,
+        { body: { conversationId }, method: 'POST' },
+      )
+    },
+    async listUnassigned() {
+      const payload = await requestJson(dependencies, '/occurrence-conversations/unassigned')
+      const data = isRecord(payload) ? payload.data : undefined
+      if (!Array.isArray(data)) {
+        throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.RESPONSE_INVALID)
+      }
+      return data.flatMap((item) => toUnassigned(item) ?? [])
+    },
     async listConversations({ occurrenceId }) {
       const payload = await requestJson(dependencies, occurrencePath(occurrenceId))
       const data = isRecord(payload) ? payload.data : undefined

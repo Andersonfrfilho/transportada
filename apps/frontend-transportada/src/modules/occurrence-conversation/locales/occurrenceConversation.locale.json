@@ -77,5 +77,26 @@
   "addContact": {
     "title": "Adicionar aos contatos",
     "close": "Fechar"
+  },
+  "unassigned": {
+    "title_one": "{{count}} mensagem sem conversa",
+    "title_other": "{{count}} mensagens sem conversa",
+    "hint": "Chegaram de um contato da contratante sem dizer a qual ocorrência respondem. Escolha a conversa; a mensagem entra lá com o horário em que chegou.",
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "email": "E-mail"
+    },
+    "noText": "(mensagem sem texto)",
+    "noCandidates": "Nenhuma conversa aberta com esta contratante. Abra a conversa pela ocorrência e volte aqui.",
+    "choose": "Em qual conversa ela entra?",
+    "lastOutbound": "Nossa última mensagem ({{at}}): {{preview}}",
+    "openOccurrence": "Abrir a ocorrência",
+    "assign": "Atribuir",
+    "error": {
+      "generic": "Não foi possível atribuir. Tente de novo em instantes.",
+      "OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED": "Outra pessoa já atribuiu esta mensagem.",
+      "OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID": "Esta conversa não é mais uma escolha válida. Atualize a página.",
+      "OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND": "A mensagem não está mais na fila."
+    }
   }
 }

@@ -291,3 +291,50 @@
   justify-content: flex-end;
   gap: var(--space-3);
 }
+
+/* Spec 183 T505: a fila das mensagens sem conversa, no topo da lista de ocorrências. */
+.unassigned {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: var(--color-graphite);
+}
+
+.unassigned h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.unassignedList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.unassignedItem {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: var(--color-bubble-contractor);
+  color: var(--color-fog);
+}
+
+.candidate {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+}
+
+.candidate input {
+  accent-color: var(--color-copper);
+}
+
+.candidate > span {
+  display: grid;
+  gap: var(--space-1);
+}
