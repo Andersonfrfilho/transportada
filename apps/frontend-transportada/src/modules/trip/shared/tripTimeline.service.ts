@@ -172,10 +172,11 @@ export function resolveTripTimelineTone(item: TripTimelineItem): TripTimelineTon
 
 /**
  * Spec 171 (caso extremo): `trip.created` semeada/importada sem ator humano diz "pelo sistema" —
- * frase diferente de `authorship.removedActor` ("usuário removido"), que é para um ator que
- * existiu e perdeu o vínculo. As duas leituras têm `actorName: null`; só `trip.created` pode não
- * ter tido ator nenhum, então só ela ganha o desvio. Toda a autoria por `channel` continua em
- * `resolveFieldAuthorshipText` — este wrapper não duplica aquela regra.
+ * frase diferente de `authorship.unidentifiedActor` ("autor não identificado", spec 180 RF3), que é
+ * o texto genérico para `actorName: null` sem causa confirmada. As duas leituras têm
+ * `actorName: null`; só `trip.created` pode não ter tido ator nenhum, então só ela ganha o desvio.
+ * Toda a autoria por `channel` continua em `resolveFieldAuthorshipText` — este wrapper não duplica
+ * aquela regra.
  */
 export function resolveTripTimelineAuthorshipText(
   item: TripTimelineItem,

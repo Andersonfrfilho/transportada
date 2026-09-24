@@ -27,6 +27,7 @@
     "office": "by {{actor}} (office) on behalf of driver {{driver}}",
     "officeWithoutActor": "by the office on behalf of driver {{driver}}",
     "removedActor": "removed user",
+    "unidentifiedActor": "unidentified author",
     "unknownDriver": "unidentified",
     "whatsapp": "(WhatsApp)",
     "whatsappWithActor": "by {{actor}} via WhatsApp"

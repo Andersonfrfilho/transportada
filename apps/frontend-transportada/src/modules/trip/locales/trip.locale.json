@@ -29,6 +29,7 @@
     "officeWithoutActor": "pelo escritório pelo motorista {{driver}}",
     "removedActor": "usuário removido",
     "system": "pelo sistema",
+    "unidentifiedActor": "autor não identificado",
     "unknownDriver": "não identificado",
     "whatsapp": "(WhatsApp)",
     "whatsappWithActor": "por {{actor}} pelo WhatsApp"

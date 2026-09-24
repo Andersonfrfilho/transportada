@@ -347,7 +347,12 @@ describe('autoria de trip.created sem ator (spec 171)', () => {
     )
   })
 
-  it('outro kind sem actorName continua "usuário removido", nunca "pelo sistema"', () => {
+  /**
+   * Spec 180 RF3/CA03: sem sinal de vínculo perdido, `actorName: null` não pode virar "usuário
+   * removido" — a frase fica reservada a essa causa específica (D6). O resto diz que o autor não
+   * está identificado.
+   */
+  it('outro kind sem actorName vira "autor não identificado", nunca "usuário removido"', () => {
     const item: TripTimelineItem = {
       ...BASE_ITEM,
       actorName: null,
@@ -355,7 +360,7 @@ describe('autoria de trip.created sem ator (spec 171)', () => {
       kind: 'trip.status_changed',
     }
     expect(resolveTripTimelineAuthorshipText(item, fakeTranslate)).toBe(
-      'authorship.backoffice(actor=authorship.removedActor)',
+      'authorship.backoffice(actor=authorship.unidentifiedActor)',
     )
   })
 })
