@@ -8,10 +8,10 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T1.1** Teste de domínio de `resolveDispatchReadiness` (D1): vivas × liberadas × devolvidas;
+- [x] **T1.1** Teste de domínio de `resolveDispatchReadiness` (D1): vivas × liberadas × devolvidas;
       ocorrência total de tipo "segue sem" tira da conta; parcial não; `loaded` com ocorrência
       continua carga; zero `loaded` não fecha — `test/trips/dispatch-readiness.contract.ts`.
-- [ ] **T1.2** `trips/domain/dispatch-readiness.policy.ts` até o T1.1 passar.
+- [x] **T1.2** `trips/domain/dispatch-readiness.policy.ts` até o T1.1 passar.
 
 ## Fase 2 — O catálogo aprende "segue sem a nota"
 
