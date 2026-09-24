@@ -3,13 +3,10 @@
  */
 import { z } from 'zod'
 
-import {
-  TRIP_DELIVERY_PROOF_KINDS,
-  type TripDeliveryProofKind,
-} from '../../database/trip.schema.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
+import { DRIVER_PROOF_KINDS, type DriverProofKind } from '../domain/delivery-event.constant.js'
 import type { ProofPosition } from '../domain/delivery-proof-punctuality.policy.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 
@@ -102,10 +99,8 @@ function parseProofLocation(form: Awaited<ReturnType<Request['formData']>>): Pro
   return { capturedAt: capturedAt === undefined ? undefined : new Date(capturedAt), position }
 }
 
-function isProofKind(value: unknown): value is TripDeliveryProofKind {
-  return (
-    typeof value === 'string' && (TRIP_DELIVERY_PROOF_KINDS as readonly string[]).includes(value)
-  )
+function isProofKind(value: unknown): value is DriverProofKind {
+  return typeof value === 'string' && (DRIVER_PROOF_KINDS as readonly string[]).includes(value)
 }
 
 /**

@@ -21,6 +21,14 @@ export const CARGO_PROOF_KIND = 'cargo' satisfies TripDeliveryProofKind
 /** Os únicos dois `kind` que o canal `office` aceita em `field-proof` — nunca `signature` (ADR-0067 §5). */
 export const OFFICE_PROOF_KINDS = [PHOTO_PROOF_KIND, CARGO_PROOF_KIND] as const
 export type OfficeProofKind = (typeof OFFICE_PROOF_KINDS)[number]
+export const SIGNATURE_PROOF_KIND = 'signature' satisfies TripDeliveryProofKind
+/**
+ * Os `kind` que o app do motorista envia em `/me/.../proof`. Lista própria, e não a do banco: a do
+ * banco ganhou `cargo` na spec 182, e validar contra ela abria a rota do motorista para foto de carga
+ * sem o teto de cinco e sem a deduplicação do escritório — um retry em laço gravaria sem fim.
+ */
+export const DRIVER_PROOF_KINDS = [PHOTO_PROOF_KIND, SIGNATURE_PROOF_KIND] as const
+export type DriverProofKind = (typeof DRIVER_PROOF_KINDS)[number]
 /** Spec 182 D3: teto de partida, ajustável sem migration — cobre a avaria sem virar álbum. */
 export const TRIP_DELIVERY_PROOF_CARGO_LIMIT = 5
 /** A parte da NF-e que recebe a entrega — é o CNPJ dela que resolve a exceção do comprovante. */
