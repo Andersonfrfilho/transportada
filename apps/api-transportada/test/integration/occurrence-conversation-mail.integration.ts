@@ -21,15 +21,12 @@ import {
   occurrenceConversationMessages,
   occurrenceConversations,
 } from '../../src/database/database.schema.js'
-import {
-  seedCompany,
-  testWithPostgres,
-  withDisposableDatabase,
-} from '../fixtures/trip-field-office-database.fixture.js'
+import { seedCompany, testWithPostgres } from '../fixtures/trip-field-office-database.fixture.js'
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 import {
   createOccurrenceMailUseCase,
   seedMailScenario,
+  withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
 
 async function count(database: TestDatabase, companyId: string) {
@@ -68,7 +65,7 @@ describe('o e-mail da conversa contra Postgres (spec 183 T403)', () => {
   testWithPostgres(
     'envio, resposta e repetição: uma conversa, uma thread, as mensagens ligadas',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const useCase = createOccurrenceMailUseCase(database)
         const base = {
@@ -146,7 +143,7 @@ describe('o e-mail da conversa contra Postgres (spec 183 T403)', () => {
   testWithPostgres(
     'contato que não recebe ocorrências e outra empresa são recusados, sem gravar nada',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const other = await seedCompany(database)
         const useCase = createOccurrenceMailUseCase(database)
@@ -182,7 +179,7 @@ describe('o e-mail da conversa contra Postgres (spec 183 T403)', () => {
   testWithPostgres(
     'a prévia parte do modelo do tipo, com os valores da nota',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const preview = await createPreviewOccurrenceMailUseCase({
           reader: createOccurrenceMailReader(database.db),

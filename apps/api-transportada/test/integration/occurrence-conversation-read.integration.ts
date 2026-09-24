@@ -26,12 +26,9 @@ import {
 import {
   createOccurrenceMailUseCase,
   seedMailScenario,
+  withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
-import {
-  seedCompany,
-  testWithPostgres,
-  withDisposableDatabase,
-} from '../fixtures/trip-field-office-database.fixture.js'
+import { seedCompany, testWithPostgres } from '../fixtures/trip-field-office-database.fixture.js'
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 
 async function seedOtherUser(database: TestDatabase, companyId: string): Promise<string> {
@@ -47,7 +44,7 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
   testWithPostgres(
     'mensagens em ordem com autor, não lidas por usuário e o estado na listagem',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const { companyId, userId } = seeded.company
         const otherUserId = await seedOtherUser(database, companyId)
@@ -201,7 +198,7 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
   testWithPostgres(
     'outra empresa não acha as conversas nem marca como lida',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const other = await seedCompany(database)
         const sent = await createOccurrenceMailUseCase(database).send({

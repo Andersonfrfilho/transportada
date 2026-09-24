@@ -5,7 +5,11 @@
  * verificado, a nota cujo emitente é contratante, três contatos (o terceiro não recebe ocorrências)
  * e a ocorrência de nota registrada pelo caminho de produção.
  */
+import { SQL } from 'bun'
 import { eq } from 'drizzle-orm'
+
+import { createDatabaseProvider } from '../../src/database/database-client.service.js'
+import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 
 import { createSendOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import { DrizzleOccurrenceMailRepository } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
@@ -21,6 +25,7 @@ import { TRIP_OCCURRENCE_STAGE } from '../../src/shared/trip-occurrence.constant
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import {
+  databaseUrl,
   fakeAttachmentStorage,
   JPEG_BYTES,
   seedCompany,
@@ -143,4 +148,42 @@ export function createOccurrenceMailUseCase(database: TestDatabase) {
     } as never,
     unitOfWork: new DrizzleOccurrenceMailRepository(database.db),
   })
+}
+
+/**
+ * O banco descartável com a configuração de **produção** (`createDatabaseProvider`, `prepare:
+ * false`). As leituras da conversa fazem consultas em paralelo (`Promise.all`), e com as instruções
+ * preparadas do `createDrizzleProvider` cru o Bun SQL 1.3.14 perdia a conexão no meio do teste
+ * (`PostgresError: Failed to read data`) — a mesma causa medida na spec 137 e na 148 T7.
+ */
+export async function withConversationDatabase(
+  operation: (database: TestDatabase) => Promise<void>,
+): Promise<void> {
+  if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
+  const admin = new SQL(databaseUrl, { max: 1 })
+  const databaseName = `transportada_183_${crypto.randomUUID().replaceAll('-', '')}`
+  const disposableUrl = new URL(databaseUrl)
+  disposableUrl.pathname = `/${databaseName}`
+  disposableUrl.search = ''
+  let database: ReturnType<typeof createDatabaseProvider> | undefined
+  try {
+    // Disposable database identifiers cannot be parameterized.
+    await admin.unsafe(`create database "${databaseName}"`)
+    await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
+    database = createDatabaseProvider({
+      pool: { connectTimeoutSeconds: 10, max: 10, queryTimeoutMs: 20_000 },
+      url: disposableUrl.toString(),
+    })
+    await operation(database as unknown as TestDatabase)
+  } finally {
+    try {
+      await database?.close()
+    } finally {
+      try {
+        await admin.unsafe(`drop database if exists "${databaseName}" with (force)`)
+      } finally {
+        await admin.close({ timeout: 0 })
+      }
+    }
+  }
 }

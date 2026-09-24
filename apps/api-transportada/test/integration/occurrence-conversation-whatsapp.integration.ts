@@ -25,12 +25,9 @@ import { createDrizzleWhatsAppConversationInboundRepository } from '../../src/oc
 import {
   createOccurrenceMailUseCase,
   seedMailScenario,
+  withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
-import {
-  seedCompany,
-  testWithPostgres,
-  withDisposableDatabase,
-} from '../fixtures/trip-field-office-database.fixture.js'
+import { seedCompany, testWithPostgres } from '../fixtures/trip-field-office-database.fixture.js'
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
 
 const PHONE = '5511987654321'
@@ -93,7 +90,7 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
   testWithPostgres(
     'contato com aceite entra na conversa, uma vez só, pelas duas grafias do número',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedWhatsAppContact(database)
         const { companyId } = seeded.company
         const forwarded: unknown[] = []
@@ -137,7 +134,7 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
   testWithPostgres(
     'duas conversas abertas: não atribuída; sem aceite: segue para o despachante',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedWhatsAppContact(database)
         const { companyId } = seeded.company
         const [conversation] = await database.db
@@ -185,7 +182,7 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
   testWithPostgres(
     'o status da Meta leva a enviada de sent a read, idempotente, e outra empresa não toca',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedWhatsAppContact(database)
         const other = await seedCompany(database)
         const { companyId, userId } = seeded.company

@@ -13,18 +13,15 @@ import { createDrizzleOccurrenceMailStatusRepository } from '../../src/occurrenc
 import {
   createOccurrenceMailUseCase,
   seedMailScenario,
+  withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
-import {
-  seedCompany,
-  testWithPostgres,
-  withDisposableDatabase,
-} from '../fixtures/trip-field-office-database.fixture.js'
+import { seedCompany, testWithPostgres } from '../fixtures/trip-field-office-database.fixture.js'
 
 describe('status do Resend na mensagem da conversa (spec 183 T405)', () => {
   testWithPostgres(
     'entregue avança, devolvido depois não desfaz, e outra empresa não toca',
     async () => {
-      await withDisposableDatabase(async (database) => {
+      await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const other = await seedCompany(database)
         const { companyId, userId } = seeded.company
