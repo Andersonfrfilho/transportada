@@ -149,6 +149,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         readonly context: CompanyContext
         readonly force?: boolean
         readonly forceReason?: string | null
+        readonly loadRemaining?: boolean
         readonly tripId: string
       }) {
         return dispatchTrip({
@@ -159,6 +160,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           tripId: input.tripId,
           ...(input.force === undefined ? {} : { force: input.force }),
           ...(input.forceReason === undefined ? {} : { forceReason: input.forceReason }),
+          ...(input.loadRemaining === undefined ? {} : { loadRemaining: input.loadRemaining }),
         })
       },
     },

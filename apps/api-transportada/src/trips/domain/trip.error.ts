@@ -296,6 +296,20 @@ export class TripHasUnscheduledStopsError extends ApiError {
   public readonly stopIds: readonly string[]
 }
 
+/**
+ * Spec 185 (RF4, ADR-0074 §3): `force` libera o que falta e `loadRemaining` carrega o que falta —
+ * respostas opostas à mesma pergunta. Juntas, escolher uma em silêncio faria o que ninguém pediu.
+ */
+export class TripDispatchLoadRemainingWithForceError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DISPATCH_LOAD_REMAINING_WITH_FORCE',
+      message: 'Dispatch either loads the remaining documents or forces them out, never both.',
+      status: 400,
+    })
+  }
+}
+
 /** Espelha `trip_dispatch_snapshots_force_reason_check`: forçado exige motivo, e só ele. */
 export class TripDispatchForceReasonRequiredError extends ApiError {
   public constructor() {

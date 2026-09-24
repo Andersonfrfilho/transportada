@@ -379,6 +379,7 @@ type BatchStatusInput = {
 type DispatchInput = {
   readonly force: boolean
   readonly forceReason: string | null
+  readonly loadRemaining: boolean
   readonly tripId: string
 }
 type TripIdInput = { readonly tripId: string }
@@ -1578,6 +1579,7 @@ export function createTripRoutes(
         return {
           force: body.force,
           forceReason: body.forceReason,
+          loadRemaining: body.loadRemaining,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },

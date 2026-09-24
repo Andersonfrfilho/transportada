@@ -142,6 +142,9 @@ describe('guarda de origem nos escritores de trips.status (spec 158 T13, defeito
                 async readPreconditions() {
                   return {
                     hasRoute: true,
+                    isCargoClosed: true,
+                    leftBehind: [],
+                    toLoad: [],
                     tripStatus: 'route_planned',
                     unloadedDocumentIds: [],
                     unscheduledStopIds: [],
