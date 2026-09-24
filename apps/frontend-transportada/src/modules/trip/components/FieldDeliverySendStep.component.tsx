@@ -35,12 +35,19 @@ function statusStyle(kind: string): string {
   return styles.sendStatusNeutral ?? ''
 }
 
-/** Spec 182 D5: só `delivered`/`alreadySettled` carregam `cargoPending` — a baixa nunca falha por
- * causa de uma foto de carga. */
+/** Spec 182 D5: só `delivered`/`alreadySettled` carregam `cargoPending`/`cargoRejected` — a baixa
+ * nunca falha por causa de uma foto de carga. */
 function resolveCargoPendingCount(status: FieldDeliverySendStatus | undefined): number {
   if (status === undefined) return 0
   if (status.kind !== 'delivered' && status.kind !== 'alreadySettled') return 0
   return status.cargoPending ?? 0
+}
+
+/** Achado de revisão (spec 182): recusa terminal (400/422) — nunca some no "tentar de novo". */
+function resolveCargoRejectedCount(status: FieldDeliverySendStatus | undefined): number {
+  if (status === undefined) return 0
+  if (status.kind !== 'delivered' && status.kind !== 'alreadySettled') return 0
+  return status.cargoRejected ?? 0
 }
 
 /**
@@ -122,6 +129,11 @@ export function FieldDeliverySendStep({
               {resolveCargoPendingCount(status) > 0 ? (
                 <span className={styles.summaryFailed ?? ''} role="alert">
                   {t('fieldDelivery.cargoPending', { count: resolveCargoPendingCount(status) })}
+                </span>
+              ) : null}
+              {resolveCargoRejectedCount(status) > 0 ? (
+                <span className={styles.summaryFailed ?? ''} role="alert">
+                  {t('fieldDelivery.cargoRejected', { count: resolveCargoRejectedCount(status) })}
                 </span>
               ) : null}
             </li>
