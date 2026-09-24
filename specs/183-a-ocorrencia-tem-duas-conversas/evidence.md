@@ -819,3 +819,30 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   - lint e typecheck limpos;
   - API, integração completa, rodada sozinha: **588 pass, 7 skip, 8 fail**. As 8 são as de MinIO de
     sempre.
+
+## T501 — A política de atribuição do WhatsApp (verde)
+
+- `resolveWhatsAppAttribution` (`occurrence-conversation/domain/whatsapp-attribution.policy.ts`),
+  pura.
+  - A resposta (`context.id`) a uma mensagem da conversa vai para ela, se quem responde é parte da
+    conversa: o motorista dela, ou contato com aceite da contratante dela.
+  - Motorista fora disso: fluxos de comando da spec 144, como hoje. Número de motorista que também é
+    de contato fica no comando.
+  - Contratante sem resposta: vai para a **única** conversa aberta das contratantes do contato; duas
+    ou nenhuma vão para "não atribuída".
+  - Sem aceite, ou número que não é de contato: recusado (D6).
+- **Leitura do RF9 (registrada):** a spec diz "à conversa aberta mais recente daquele contato" e
+  também "com mais de uma candidata aberta, vai para não atribuída… nunca por palpite". As duas só
+  se conciliam com uma candidata: com uma, vai para ela; com mais de uma, o operador escolhe. Se a
+  intenção era "a mais recente vence", é uma linha na política.
+- Contrato por tabela `test/occurrence-conversation/whatsapp-attribution-policy.contract.ts`, 13
+  ramos, escrito **antes** e visto falhando (módulo inexistente). Cobre, entre outros:
+  - resposta da contratante;
+  - uma conversa aberta, duas, nenhuma;
+  - mesmo número em duas contratantes;
+  - conversa de outra contratante;
+  - resposta à conversa de outra contratante;
+  - sem aceite e desconhecido;
+  - motorista respondendo, sem resposta e respondendo à de outro motorista;
+  - número de motorista e contato ao mesmo tempo.
+- Rodado: a suíte `occurrence-conversation`, **70 pass**, com lint e typecheck limpos.
