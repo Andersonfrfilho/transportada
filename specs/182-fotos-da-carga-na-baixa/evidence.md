@@ -135,3 +135,74 @@ passam com `cargo` na lista.
 assinado) tem prioridade sobre canhoto com nome digitado; cargo nunca fornece nome. Prova: testes 
 verificam que com assinatura e canhoto ambos com nome, o retorno é o da assinatura; sem assinatura, 
 usa nome do canhoto; sem ambos, retorna `null`.
+
+## T3.1–T3.2 — Assistente
+
+**Mudança.** `FieldDeliveryDraft` ganha `cargoImageBlobs: readonly Blob[]` (sempre presente, `[]`
+quando a nota não tem foto de carga). No passo de revisão (D4), ao lado de quem recebeu, o bloco
+"Fotos da carga (opcional)" oferece `FileField` com `accept="image/*"`, `multiple` e
+`capture="environment"` (câmera traseira no celular; seletor de arquivo sempre disponível no
+computador) — cada arquivo escolhido passa por `loadImageFromFile` + `reduceFieldDeliveryImageToJpeg`
+(mesma redução do canhoto) antes de virar miniatura local; miniaturas em grid (`repeat(auto-fill,
+minmax(4.5rem, 1fr))`, sem `border-radius`) com botão "Remover foto N da carga" por posição; contador
+"N de 5"; ao chegar em cinco, o `FileField` cede lugar ao aviso `cargoLimitReached`; escolher mais
+arquivos do que cabe aceita só os que cabem e mostra `cargoOverflowNotice`. O Blob reduzido só entra
+no rascunho (`cargoImageBlobs`) ao confirmar o passo — nunca antes. Limite `FIELD_DELIVERY_CARGO_PHOTO_LIMIT
+= 5` (D3) em `fieldDeliveryCargoPhoto.service.ts`, junto com `canAddFieldDeliveryCargoPhoto` e
+`splitFieldDeliveryCargoPhotoSelection`, puras e testadas sem DOM.
+
+**Cliente HTTP.** `attachFieldProof` (`tripClient.service.ts`) — `POST
+.../documents/:documentId/field-proof`, multipart (`file`, `kind`, `driverId` opcional),
+`Idempotency-Key` no cabeçalho, mesmo molde de `attachOccurrencePhoto`/`reportFieldDelivery`. Tipos
+novos `FieldProofKind`/`AttachFieldProofInput` em `trip.types.ts`; resposta reaproveita
+`FieldReportIdResult` (`{ id }`, mesmo formato de `field-proof` na API). Exposto no controller
+(`useTripWorkspace.hook.ts`) atrás de `trip.report-on-behalf` (mesmo gate de `reportFieldDelivery`) e
+passado ao `useFieldDelivery` em `TripDetail.component.tsx`.
+
+**Envio (D5).** `useFieldDelivery.hook.ts`: depois que `reportFieldDelivery` resolve para uma nota
+(`delivered` ou `alreadySettled`), `sendCargoPhotos` sobe cada `cargoImageBlobs[i]` **em sequência**
+(`for` com `await`, nunca `Promise.all`) via `attachFieldProof({ kind: 'cargo', ... })`. Cada foto usa
+uma `Idempotency-Key` própria, estável por `(documentId, índice)`, guardada em
+`cargoIdempotencyKeysRef` (mesmo padrão de `idempotencyKeysRef` da baixa) — nunca regenerada, nem no
+retry. Foto que falha não lança: só soma em `cargoPending`, e a nota continua `delivered`/
+`alreadySettled` — a baixa nunca é desfeita por causa de upload de foto. `FieldDeliverySendOutcome`
+ganha `cargoPending?: number` nos dois casos de sucesso (`fieldDeliverySend.service.ts`).
+`retryFailed` passou a incluir, além das notas `failed` retryable, as notas já entregues com
+`cargoPending > 0` — o reenvio inteiro (baixa + fotos) é seguro porque as duas pontas são idempotentes
+pela mesma chave. `reset` limpa `cargoIdempotencyKeysRef` junto com o resto.
+
+**Tela de envio.** `FieldDeliverySendStep.component.tsx` mostra, na linha da nota, um aviso
+(`role="alert"`) com `cargoPending` fotos que não subiram quando `cargoPending > 0`; o botão "Tentar
+de novo" agora conta também as notas com foto de carga pendente, não só as `failed`.
+
+**Locale.** `fieldDelivery.*` ganhou nove chaves (pt-BR e en, ordem alfabética dentro do bloco):
+`cargoAdd`, `cargoCount`, `cargoLimitReached`, `cargoOverflowNotice`, `cargoPending`/`cargoPending_other`
+(sufixo i18next 25), `cargoPhotosLabel`, `cargoPhotosRemove`, `cargoPhotosThumbAlt`.
+
+**Decisões não 100% especificadas no prompt:**
+- Nome do campo de pendência: `cargoPending?: number` (ausente/zero = nenhuma pendente), em vez de um
+  terceiro `kind` — a nota nunca deixa de ser `delivered`/`alreadySettled` por causa da foto de carga
+  (RF/D5), só o aviso muda.
+- Formato do aviso na tela de envio: linha própria, `role="alert"`, junto do status da nota — mesma
+  posição de `finishedRecipient`, sem criar uma seção separada.
+- Retry de foto pendente sem falha de nota: em vez de um caminho novo, o retry reenvia o `sendDraft`
+  inteiro para a nota (baixa + fotos) — seguro pela idempotência das duas chamadas, e reusa a mesma
+  função de envio em vez de duplicar lógica de reenvio só de foto.
+- Ordem "em sequência, nunca em paralelo": provada travando a primeira chamada de `attachFieldProof`
+  (promise controlada) e confirmando que a segunda só dispara depois de liberar a primeira — mais
+  forte que comparar `idempotencyKey`.
+
+**Gates.**
+
+| Comando | Resultado |
+|---|---|
+| `bun run typecheck` | limpo (`tsc --noEmit`) |
+| `bun run lint` | limpo (`eslint .`) |
+| `bun --env-file=../../.env.test run test` | 5166 pass, 0 fail (`bun test`, 29 arquivos) + 48 pass, 0 fail (`test:hooks`, 1 arquivo) |
+
+**T3.1 (CA07 parcial — a revisão visual completa é T5.1):** os quatro casos pedidos e o teste de
+limite (item 5) estão em `test/trip-hooks/field-delivery.contract.ts` (descrição "fotos da carga") e
+`test/trip/field-delivery-review.contract.ts` (descrição "limite de fotos da carga") — duas fotos →
+baixa e depois duas chamadas `cargo` em sequência; falha numa foto → `delivered` com `cargoPending: 1`;
+`retryFailed` reenvia com a mesma `Idempotency-Key`; nota sem foto de carga nunca chama
+`attachFieldProof`; teto de cinco como função pura.
