@@ -30,7 +30,8 @@ Nas duas: respostas rápidas, anexos nos dois sentidos, e o mesmo desenho no cel
 
 - Decidir por WhatsApp qualquer coisa além do que a 143 já decide por e-mail (a taxa de entrega).
   Ocorrência sem taxa só conversa.
-- Interpretar texto livre, inclusive com IA. Texto livre nunca muda estado (spec 062 D4).
+- Interpretar texto livre, inclusive com IA. Texto livre nunca muda estado (spec 062 D4). A
+  transcrição de áudio (RF18) só converte fala em texto para leitura; ela não interpreta nem decide.
 - Push nativo para o motorista: o PWA não tem service worker de push (143, fora do escopo). O canal
   "app" chega pela inbox do `notification-module` e pela tela da conversa no PWA.
 - Conversa com o **destinatário** (o recebedor da carga). A contratante é o emitente (143 RF3).
@@ -95,6 +96,14 @@ fica em entregue, e a tela não finge). O app do motorista é nosso e sabe as du
 de rastreio, que é impreciso (clientes de e-mail carregam imagens sozinhos ou bloqueiam) e é
 rastrear a contratante sem ela saber. Então no e-mail não existe "lida" — o selo para em "entregue".
 
+### D8 — Áudio é mensagem, transcrição é ajuda de leitura
+
+Áudio entra e sai pelo WhatsApp (contratante e motorista) e pelo app do motorista. Ele é guardado
+como anexo, com `sha256`, como qualquer outro (RF10). A transcrição é gerada por máquina e aparece
+**marcada como tal**, embaixo do player. Ela nunca decide nada, nunca vira sugestão de decisão e
+nunca substitui o áudio, que continua sendo o registro. Transcrever manda a voz de terceiros a um
+provedor, e isso exige ADR própria antes de entrar no produto (RF18).
+
 ## Histórias priorizadas
 
 ### P1 — A linha abre o detalhe, e a tabela mostra a nota
@@ -147,6 +156,13 @@ pode ser anexada à ocorrência ou encaminhada à conversa da contratante com um
 **Given** uma mensagem enviada, **Then** o selo dela mostra enviada, entregue ou lida conforme o
 canal (RF14), e muda sozinho quando o status chega. **And** a mensagem que falhou ou voltou aparece
 em destaque, com o motivo e a ação "Reenviar por outro canal".
+
+### P6c — Áudio e transcrição
+
+**Given** um áudio recebido pelo WhatsApp ou pelo app, **Then** a conversa mostra um player (tocar,
+posição, duração, velocidade 1×/1,5×/2×) e, quando a transcrição estiver pronta, o texto embaixo com
+o aviso "gerada por máquina". **And** o operador grava um áudio na caixa de envio, ouve antes e envia
+ou descarta.
 
 ### P7 — Respostas rápidas
 
@@ -221,6 +237,35 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   daquela conversa; é isso que alimenta o contador da aba e a coluna Conversa da listagem (RF4). O
   registro é por usuário, e abrir a aba não manda nenhuma confirmação de volta à contratante nem ao
   motorista.
+- **RF16** Toda mensagem recebida da contratante mostra **quem respondeu**, puxado do cadastro:
+  - o remetente (e-mail sem diferença de caixa; telefone em E.164) é casado com os contatos **daquela
+    contratante**; achando, a mensagem mostra nome, setor, tipos (destaque para "Aprova cobranças") e
+    o canal, e o toque no nome abre o cartão do contato (e-mail, telefone, canais, aceite);
+  - o casamento é feito na leitura, então editar o contato atualiza as mensagens antigas; o endereço
+    ou número **como chegou** fica gravado e aparece no cartão (histórico imutável);
+  - no e-mail, remetente fora dos contatos aparece com o nome do cabeçalho `From` e o endereço,
+    marcado "Fora dos contatos", com a ação "Adicionar aos contatos" já preenchida (nome, e-mail).
+    O contato nunca é criado sozinho, e mensagem de fora dos contatos continua sem decidir nada
+    (143: `sender_not_listed`);
+  - no WhatsApp o remetente sempre é contato (D6); se o nome do perfil do WhatsApp for diferente do
+    cadastrado, o cartão mostra os dois;
+  - o cabeçalho da aba Contratante lista quem já participou da conversa.
+
+- **RF17** Áudio: recebido do WhatsApp (mensagem de voz ou arquivo de áudio) e do app do motorista;
+  enviado pelo WhatsApp (pelo método de mídia do provider, ADR-0071) e pelo app. O navegador grava
+  com `MediaRecorder` num formato que o canal aceita. A duração máxima e o tamanho são conferidos
+  antes de subir. No e-mail, áudio só vai como anexo comum.
+- **RF18** Transcrição: o worker transcreve o áudio recebido **depois** de gravá-lo, por uma porta de
+  aplicação (`speech-to-text.port.ts`) com um provedor ainda a decidir. O texto fica ligado ao anexo,
+  com o provedor, o idioma e o horário, e **nunca** passa pela política de decisão (D4) nem pela de
+  interpretação da 143. Falha de transcrição não falha a mensagem: o player aparece sem o texto.
+  Uma empresa pode desligar a transcrição.
+- **RF19** A linha do tempo da ocorrência junta os eventos da ocorrência e das duas conversas em
+  ordem, cada um com o ator (motorista, operação, contratante, sistema) em cor própria, as mesmas dos
+  balões. Mostra o intervalo desde o evento anterior e marca os eventos-chave (registro, decisão).
+  No topo ficam três tempos: há quanto tempo a ocorrência está aberta, quanto a contratante levou
+  para responder e quanto o motorista levou para ser liberado. Filtros: Tudo, Contratante e
+  Motorista.
 
 ## Requisitos não funcionais
 
@@ -232,6 +277,13 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   usa `src/components/ui/` e `*.module.css`, sem Tailwind.
 - PWA: as telas novas funcionam de 360 px de largura para cima, com alvos de toque de pelo menos
   `--touch-target`.
+- Os balões se distinguem **pela cor e pela posição**, não só pela posição: operação (enviada, à
+  direita) em cobre; contratante (recebida) em azul; motorista (recebida) em verde; evento de sistema
+  sem balão, tracejado e centralizado. As cores entram como tokens novos em `src/styles/index.css`
+  (`--color-bubble-out`, `--color-bubble-contractor`, `--color-bubble-driver`, com versão para o tema
+  claro) e chegam ao pacote pelo `bubbleSent`/`bubbleReceived` do tema de cada aba (ADR-0051). A
+  enviada difere das recebidas também em luminosidade, e todo texto dentro do balão fica em 4,5:1 ou
+  mais.
 
 ## Casos extremos e falhas
 
@@ -264,6 +316,9 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 - Política de atribuição do webhook (RF9) com teste para cada ramo.
 - Política de decisão do WhatsApp (D4): botão de contato com `can_decide` decide; botão de contato sem
   `can_decide`, texto livre e número sem aceite não decidem.
+- Política de identificação do remetente (RF16) com teste por tabela: e-mail com caixa diferente
+  casa; contato de **outra** contratante da mesma empresa não casa; contato inativo casa e aparece
+  como inativo; fora dos contatos devolve o nome do `From` e a sugestão de cadastro.
 - Política de status (RF14) com teste por tabela: só avança, evento repetido não muda nada,
   `delivered` depois de `read` não regride, e-mail nunca chega a `read`.
 - Integração: um webhook de status da Meta leva a mensagem de `sent` a `read`, e o mesmo webhook
@@ -273,6 +328,8 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 - Contrato de listagem: os campos novos vêm numa consulta, com o valor como string decimal.
 - Contrato por texto de fonte: nenhum log em `occurrence-conversation/**` recebe telefone, e-mail,
   corpo ou nome de arquivo.
+- Política de transcrição: texto transcrito passado à política de decisão não decide nada (teste
+  explícito), e falha do provedor deixa a mensagem `received` com o áudio.
 - Smoke Playwright: clicar na linha abre o detalhe; enviar pela aba Contratante mostra a mensagem na
   conversa; a mesma página em viewport de celular mostra as abas.
 - Tabela: evidência exigida por `docs/frontend/data-tables.md` § 6 para as colunas novas.
@@ -283,8 +340,11 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   fixa no código?]
 - [NEEDS CLARIFICATION: os cinco tipos de contato do RF5 cobrem o que a operação usa, ou falta
   algum?]
+- [NEEDS CLARIFICATION: qual provedor transcreve o áudio (RF18), e se a voz de contratante e de
+  motorista pode sair para ele (LGPD: base legal, retenção no provedor, região)? Decidido, vira
+  ADR. Enquanto isso, o áudio funciona sem transcrição.]
 - [NEEDS CLARIFICATION: o repositório `adatechnology-packages` fica acessível para esta execução
   (GitHub), ou o trabalho do pacote (Fase 1) é feito à parte e esta spec só consome a versão
   publicada?]
 
-Enquanto essas três estiverem abertas, só a Fase 0 anda (regra do `AGENTS.md`).
+Enquanto essas quatro estiverem abertas, só a Fase 0 anda (regra do `AGENTS.md`).

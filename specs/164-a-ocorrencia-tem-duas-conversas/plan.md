@@ -43,6 +43,9 @@
 - Anexos que chegam: extração do MIME já gravado (e-mail) e download da mídia da Meta (WhatsApp),
   com `sha256`, para o bucket privado.
 - Status: eventos do Resend e da Meta aplicados pela política RF14.
+- Áudio recebido: gravado como anexo; depois, transcrito pela porta `speech-to-text.port.ts`
+  (RF18) — provedor em ADR própria, desligável por empresa, falha sem derrubar a mensagem.
+- Linha do tempo (RF19): uma query que une eventos da ocorrência e das duas conversas, com o ator.
 
 **Frontend (`apps/frontend-transportada`):**
 
@@ -101,6 +104,8 @@ Migration **aditiva**, sem apagar coluna nem dado:
 - `occurrence_conversation_attachments` — objeto no bucket privado, `sha256`, `size_bytes`,
   `content_type`, `direction`, `message_id`.
 - `occurrence_conversation_reads` — `(company_id, conversation_id, user_id, last_read_message_id)`.
+- `contractor_mail_messages` + `from_display_name` (nome do cabeçalho `From`, gravado pelo worker ao
+  ler o MIME) — é o que o RF16 mostra para remetente fora dos contatos. Nenhum log leva esse campo.
 - `occurrence_conversation_unassigned` — mensagem recebida sem conversa certa (RF9).
 - `company_quick_replies` — `company_id`, `audience`, `text` (≤ 500), `position`, `active`.
 

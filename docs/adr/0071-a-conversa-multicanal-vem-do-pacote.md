@@ -29,10 +29,11 @@ rápidas, os anexos.
 1. `conversations-ui`: a conversa com **abas por participante**, **selo de canal** por mensagem,
    **seletor de canal** com estado (inclui "janela de 24h aberta/fechada"), **respostas rápidas**
    (lista recebida por prop; tocar preenche, nunca envia), **anexos** (lista, remover, limite) e o
+   **player e gravador de áudio**, a **transcrição** embaixo do player quando o produto a fornecer, e o
    **selo de status** por mensagem (enviada, entregue, lida, falhou — o produto diz quais o canal
    suporta; o componente não mostra "lida" onde não recebeu esse estado). Tudo
    pela camada `.cv-*` da ADR-0051, capacidade opcional por ausência de prop.
-2. `meta-whatsapp-provider`: **envio de mídia** (documento e imagem), que hoje não existe; e
+2. `meta-whatsapp-provider`: **envio de mídia** (documento, imagem e áudio), que hoje não existe; e
    `meta-whatsapp-module`: entregar ao produto os **eventos de status** (`sent`, `delivered`, `read`,
    `failed`) do webhook, com o id da mensagem, se ainda não entrega.
 3. Uma política pura de **janela de atendimento** (dada a última mensagem recebida e o relógio, diz
@@ -47,6 +48,7 @@ rápidas, os anexos.
   `companyId`;
 - a regra que decide a taxa (143 RF5/RF6, e no WhatsApp só botão — spec 164 D4);
 - a atribuição da mensagem recebida à conversa (spec 164 RF9);
+- a transcrição de áudio (porta no produto; provedor em ADR própria — spec 164 RF18);
 - permissões, LGPD e o que entra em log.
 
 O e-mail da 143 **não** muda de lugar: ele vira o transporte do canal e-mail. A conversa que o

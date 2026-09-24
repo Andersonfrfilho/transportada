@@ -8,7 +8,7 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `opus` (decisão) · a T002 é do usuário
 
-- [ ] **T001** Fechar as três `[NEEDS CLARIFICATION]` do `spec.md` e passar a ADR-0071 para
+- [ ] **T001** Fechar as quatro `[NEEDS CLARIFICATION]` do `spec.md` e passar a ADR-0071 para
       `aceito`. Evidência: `spec.md` sem marcador e a ADR com status e data.
 - [ ] **T002** 🙋 O usuário submete à Meta os modelos de WhatsApp da contratante (abertura de
       ocorrência; pedido de aprovação de taxa com botões "✅ Aprovar" / "❌ Recusar") e do motorista
@@ -48,6 +48,10 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 - [ ] **T205** Colunas Contratante, Endereço de entrega, Valor NF-e e Conversa na tabela, no menu de
       colunas e na persistência. Evidência: a da `docs/frontend/data-tables.md` § 6.
 
+- [ ] **T206** Linha do tempo (RF19) com os eventos que já existem (registro, fotos, avisos),
+      tempos no topo e filtros; os eventos de conversa entram nas Fases 4–6 pela mesma fonte.
+      Evidência: contrato da query de eventos (ordem, intervalo) e do mapeamento ator → cor.
+
 ## Fase 3 — Contatos com tipos e canais (P3)
 
 > 🤖 Modelo: `sonnet` · T301 é 🧠 (migration) — revisar com `architect` em `opus`
@@ -72,6 +76,9 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
       separador. Evidência: contratos de rota.
 - [ ] **T405** Recebida por e-mail vira mensagem da conversa; status do Resend aplicado pela
       política. Evidência: integração no worker.
+- [ ] **T407** Política de identificação do remetente (RF16), `from_display_name` gravado pelo
+      worker, cartão do contato e "Adicionar aos contatos" preenchido. Evidência: suíte da política +
+      contrato do payload da conversa (nome e tipos vêm do contato; o endereço como chegou também).
 - [ ] **T406** Aba Contratante (canal e-mail) sobre o `conversations-ui` e o diálogo "Enviar à
       contratante" com prévia. Evidência: contratos de serviço puro + smoke do envio.
 
@@ -107,7 +114,7 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 
 ## Fase 7 — Respostas rápidas, anexos e status (P6b, P7)
 
-> 🤖 Modelo: `haiku` (T701) · `sonnet` (T702, T703)
+> 🤖 Modelo: `haiku` (T701, T704) · `sonnet` (T702, T703)
 
 - [ ] **T701** [P] `company_quick_replies` + rotas `settings.manage` + tela em Configurações.
       Evidência: contratos.
@@ -115,6 +122,15 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
       extração das recebidas no worker. Evidência: contratos + integração.
 - [ ] **T703** Selo de status na UI com os horários, destaque de falha e "Reenviar por outro canal".
       Evidência: contrato de mapeamento status → selo (e-mail nunca mostra "lida").
+- [ ] **T704** [P] Tokens `--color-bubble-out`, `--color-bubble-contractor`, `--color-bubble-driver`
+      (tema escuro e claro) passados ao tema de cada aba. Evidência: contrato de contraste 4,5:1 do
+      texto sobre cada balão, nos dois temas.
+- [ ] **T705** Áudio (RF17): player (tocar, posição, velocidade) e gravação no navegador, envio
+      pelo WhatsApp e pelo app, recebido pelos dois. Evidência: contratos (formato, duração e tamanho
+      máximos) + integração do recebido até o anexo com `sha256`.
+- [ ] **T706** 🔒 Transcrição (RF18): porta `speech-to-text.port.ts`, transcrição no worker depois
+      de gravar, texto ligado ao anexo, interruptor por empresa. **Bloqueada** até a dúvida do
+      provedor virar ADR. Evidência: teste de que transcrição nunca decide + provider falso.
 
 ## Fase 8 — PWA e fumaça
 
