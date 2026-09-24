@@ -11,6 +11,7 @@
 import { createHash } from 'node:crypto'
 
 import { hashReplyToken } from '../domain/reply-token.policy.js'
+import { parseSenderMailbox } from '../domain/sender-mailbox.policy.js'
 import { extractReplyTokenCandidates } from '../domain/recipient-reply-token.policy.js'
 import { ContractorMailInboundSettingsMissingError } from '../domain/contractor-mail-inbound.error.js'
 import type { DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
@@ -131,12 +132,15 @@ export async function recordContractorMailInboundMessage(
   })
 
   const dkimResult = await dependencies.dkimVerifier.verify(rawMessage)
+  /** Spec 183 T406 (RF16): endereço para casar com os contatos, nome para quem está fora deles. */
+  const sender = parseSenderMailbox(received.from)
 
   await dependencies.repository.recordInboundMessage({
     bodyText: normalizeNonEmpty(received.text, FALLBACK_BODY_TEXT),
     companyId,
     dkimResult,
-    fromAddress: received.from,
+    fromAddress: sender.address,
+    fromDisplayName: sender.displayName,
     inReplyTo: extractInReplyToHeader(received),
     providerEmailId,
     raw: {

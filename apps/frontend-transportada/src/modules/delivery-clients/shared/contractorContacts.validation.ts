@@ -128,6 +128,28 @@ export function contractorContactDraftFromContact(
   }
 }
 
+/** Spec 183 RF16: o que a conversa sugere para o cadastro de quem está fora dos contatos. */
+export type ContractorSenderSuggestion = Readonly<{
+  email: null | string
+  name: string
+  phone: null | string
+}>
+
+/**
+ * Spec 183 T406: "Adicionar aos contatos" abre o cadastro com o que a mensagem trouxe; o resto fica
+ * no padrão, e o aceite do WhatsApp nunca vem marcado (D6) — quem marca é o operador.
+ */
+export function contractorContactDraftFromSenderSuggestion(
+  suggestion: ContractorSenderSuggestion,
+): ContractorContactDraft {
+  return {
+    ...EMPTY_CONTRACTOR_CONTACT_DRAFT,
+    email: suggestion.email ?? '',
+    name: suggestion.name,
+    phone: formatContractorContactPhone(suggestion.phone),
+  }
+}
+
 /** Marca ou desmarca uma opção, devolvendo a lista na ordem canônica e sem repetição. */
 export function toggleContractorContactOption<TOption extends string>(
   selected: readonly TOption[],

@@ -38,6 +38,8 @@ export type RecordContractorMailInboundMessageInput = {
   readonly companyId: string
   readonly dkimResult: string
   readonly fromAddress: string
+  /** Spec 183 T406 (RF16): o nome do `From`, `null` quando o e-mail não traz nome. */
+  readonly fromDisplayName: string | null
   readonly inReplyTo: string | undefined
   readonly providerEmailId: string
   readonly raw: {
@@ -182,6 +184,7 @@ export function createDrizzleContractorMailInboundWorkerRepository(
             direction: 'inbound',
             dkimResult: input.dkimResult,
             fromAddress: input.fromAddress,
+            fromDisplayName: input.fromDisplayName,
             inReplyTo: input.inReplyTo,
             interpretation: null,
             providerEmailId: input.providerEmailId,

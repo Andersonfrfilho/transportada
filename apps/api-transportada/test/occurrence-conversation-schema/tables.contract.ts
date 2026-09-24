@@ -10,8 +10,10 @@
 import { readdirSync, readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
+import { getTableConfig } from 'drizzle-orm/pg-core'
 
 import {
+  contractorMailMessages,
   occurrenceConversationAttachments,
   occurrenceConversationMessages,
   occurrenceConversationReads,
@@ -198,5 +200,44 @@ describe('as tabelas da conversa da ocorrência (spec 183 T401)', () => {
     ].map((table) => rollback.indexOf(`DROP TABLE "${table}"`))
     expect(order.every((position) => position >= 0)).toBe(true)
     expect([...order].sort((left, right) => left - right)).toEqual(order)
+  })
+})
+
+/**
+ * Spec 183 T406 (RF16): o nome do cabeçalho `From` do e-mail recebido, gravado pelo worker — é o que
+ * aparece para remetente fora dos contatos. Opcional (o e-mail pode chegar sem nome) e aditivo.
+ */
+describe('o nome do remetente do e-mail (spec 183 T406)', () => {
+  const directory = () => {
+    const name = readdirSync(MIGRATIONS).find((entry) =>
+      entry.endsWith('_contractor_mail_from_display_name'),
+    )
+    if (name === undefined) throw new Error('migration do from_display_name não encontrada')
+    return new URL(`${name}/`, MIGRATIONS)
+  }
+
+  test('contractor_mail_messages ganha from_display_name opcional, com teto', () => {
+    const columns = getTableConfig(contractorMailMessages).columns
+    const column = columns.find((candidate) => candidate.name === 'from_display_name')
+    expect(column?.notNull).toBe(false)
+    expect(
+      checkSqlByName(contractorMailMessages)[
+        'contractor_mail_messages_from_display_name_length_check'
+      ],
+    ).toContain('200')
+  })
+
+  test('a migration é aditiva, com rollback que só derruba o que criou', () => {
+    expect(readdirSync(directory()).sort()).toEqual([
+      'migration.sql',
+      'rollback.sql',
+      'snapshot.json',
+    ])
+    const migration = readFileSync(new URL('migration.sql', directory()), 'utf8')
+    expect(migration).not.toMatch(/DROP\s+(TABLE|COLUMN)/iu)
+    expect(migration).toContain('"from_display_name"')
+    const rollback = readFileSync(new URL('rollback.sql', directory()), 'utf8')
+    expect(rollback).toContain('DROP COLUMN "from_display_name"')
+    expect(rollback).not.toMatch(/DROP\s+TABLE/iu)
   })
 })

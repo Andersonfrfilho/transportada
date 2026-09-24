@@ -10,6 +10,8 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
+  contractorContacts,
+  contractorMailMessages,
   identityUserProfiles,
   occurrenceConversationMessages,
   occurrenceConversationReads,
@@ -18,6 +20,10 @@ import {
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 import { countUnread, readLastReads } from './occurrence-conversation-summary.query.js'
+import {
+  identifyContractorSender,
+  type ContractorSenderContact,
+} from '../domain/contractor-sender.policy.js'
 import type {
   OccurrenceConversationMessageAuthor,
   OccurrenceConversationMessageView,
@@ -41,26 +47,68 @@ type MessageRow = {
   readonly direction: OccurrenceConversationMessageView['direction']
   readonly driverName: null | string
   readonly driverUserId: null | string
+  readonly fromDisplayName: null | string
   readonly id: string
   readonly senderAddress: null | string
   readonly status: OccurrenceConversationMessageView['status']
   readonly statusTimes: Record<string, string>
 }
 
-function toAuthor(row: MessageRow): OccurrenceConversationMessageAuthor {
+function toAuthor(
+  row: MessageRow,
+  contractorId: null | string,
+  contacts: readonly ContractorSenderContact[],
+): OccurrenceConversationMessageAuthor {
   if (row.direction === 'outbound') {
     return { kind: 'operation', name: row.authorName, userId: row.authorUserId ?? '' }
   }
   if (row.driverUserId !== null) {
     return { kind: 'driver', name: row.driverName, userId: row.driverUserId }
   }
-  return {
-    contactId: row.contractorContactId,
-    kind: 'contractor',
-    name: row.authorName,
-    senderAddress: row.senderAddress,
-    userId: row.authorUserId,
-  }
+  const identity =
+    row.senderAddress === null || contractorId === null || row.channel === 'portal'
+      ? null
+      : identifyContractorSender({
+          address: row.senderAddress,
+          channel: row.channel === 'whatsapp' ? 'whatsapp' : 'email',
+          contacts,
+          contractorId,
+          displayName: row.fromDisplayName,
+        })
+  return { identity, kind: 'contractor', userId: row.authorUserId }
+}
+
+/** RF16: os contatos das contratantes das conversas, numa leitura só — ativos e inativos. */
+async function readContractorContacts(
+  queryable: TripQueryable,
+  companyId: string,
+  contractorIds: readonly string[],
+): Promise<readonly ContractorSenderContact[]> {
+  if (contractorIds.length === 0) return []
+  const rows = await queryable
+    .select({
+      contractorId: contractorContacts.contractorId,
+      email: contractorContacts.email,
+      id: contractorContacts.id,
+      name: contractorContacts.name,
+      phone: contractorContacts.phone,
+      preferredChannel: contractorContacts.preferredChannel,
+      roleLabel: contractorContacts.roleLabel,
+      status: contractorContacts.status,
+      types: contractorContacts.types,
+      whatsappOptInAt: contractorContacts.whatsappOptInAt,
+    })
+    .from(contractorContacts)
+    .where(
+      and(
+        eq(contractorContacts.companyId, companyId),
+        inArray(contractorContacts.contractorId, [...contractorIds]),
+      ),
+    )
+  return rows.map((row) => ({
+    ...row,
+    whatsappOptInAt: row.whatsappOptInAt?.toISOString() ?? null,
+  }))
 }
 
 async function readMessages(
@@ -81,6 +129,7 @@ async function readMessages(
       direction: occurrenceConversationMessages.direction,
       driverName: driverProfile.name,
       driverUserId: occurrenceConversationMessages.driverUserId,
+      fromDisplayName: contractorMailMessages.fromDisplayName,
       id: occurrenceConversationMessages.id,
       senderAddress: occurrenceConversationMessages.senderAddress,
       status: occurrenceConversationMessages.status,
@@ -89,6 +138,13 @@ async function readMessages(
     .from(occurrenceConversationMessages)
     .leftJoin(authorProfile, eq(authorProfile.userId, occurrenceConversationMessages.authorUserId))
     .leftJoin(driverProfile, eq(driverProfile.userId, occurrenceConversationMessages.driverUserId))
+    .leftJoin(
+      contractorMailMessages,
+      and(
+        eq(contractorMailMessages.companyId, occurrenceConversationMessages.companyId),
+        eq(contractorMailMessages.id, occurrenceConversationMessages.mailMessageId),
+      ),
+    )
     .where(
       and(
         eq(occurrenceConversationMessages.companyId, companyId),
@@ -108,6 +164,7 @@ export async function findOccurrenceConversations(
 
   const conversations = await queryable
     .select({
+      contractorId: occurrenceConversations.contractorId,
       id: occurrenceConversations.id,
       participant: occurrenceConversations.participant,
       status: occurrenceConversations.status,
@@ -122,9 +179,13 @@ export async function findOccurrenceConversations(
     )
     .orderBy(asc(occurrenceConversations.participant))
   const conversationIds = conversations.map((conversation) => conversation.id)
-  const [messages, lastReads] = await Promise.all([
+  const contractorIds = [
+    ...new Set(conversations.flatMap((conversation) => conversation.contractorId ?? [])),
+  ]
+  const [messages, lastReads, contacts] = await Promise.all([
     readMessages(queryable, input.companyId, conversationIds),
     readLastReads(queryable, { ...input, conversationIds }),
+    readContractorContacts(queryable, input.companyId, contractorIds),
   ])
 
   return {
@@ -133,7 +194,7 @@ export async function findOccurrenceConversations(
       return {
         id: conversation.id,
         messages: own.map((row) => ({
-          author: toAuthor(row),
+          author: toAuthor(row, conversation.contractorId, contacts),
           bodyText: row.bodyText,
           channel: row.channel,
           createdAt: row.createdAt.toISOString(),

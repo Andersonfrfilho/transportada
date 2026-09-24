@@ -85,7 +85,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       Evidência: contratos de rota e o da `docs/frontend/data-tables.md` § 6.
 - [x] **T405** Recebida por e-mail vira mensagem da conversa; status do Resend aplicado pela
       política. Evidência: integração no worker.
-- [ ] **T406** Política de identificação do remetente (RF16), `from_display_name` gravado pelo
+- [x] **T406** Política de identificação do remetente (RF16), `from_display_name` gravado pelo
       worker, cartão do contato e "Adicionar aos contatos" preenchido. Evidência: suíte da política +
       contrato do payload da conversa (nome e tipos vêm do contato; o endereço como chegou também).
 - [ ] **T407** Aba Contratante (canal e-mail) sobre o `conversations-ui` e o diálogo "Enviar à

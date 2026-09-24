@@ -455,6 +455,11 @@ export const contractorMailMessages = pgTable(
     actorUserId: uuid('actor_user_id'),
     fromAddress: text('from_address').notNull(),
     /**
+     * Spec 183 T406 (RF16): o nome do cabeçalho `From` do e-mail recebido, como chegou — é o que
+     * mostra o remetente fora dos contatos. Só o worker grava; nenhum log leva este campo.
+     */
+    fromDisplayName: text('from_display_name'),
+    /**
      * Correção pós-entrega da T009 (spec 143): o `subject_type` da conversa não basta mais para
      * derivar o assunto no worker — cada mensagem grava o dela, porque a fila deixou de carregar
      * qualquer coisa além de `messageId` (§6 do baseline de segurança: job carrega referência, não
@@ -569,6 +574,10 @@ export const contractorMailMessages = pgTable(
       sql`(${table.direction} = 'outbound') = (${table.deliveryStatus} is not null)`,
     ),
     check('contractor_mail_messages_body_text_check', sql`length(${table.bodyText}) > 0`),
+    check(
+      'contractor_mail_messages_from_display_name_length_check',
+      sql`${table.fromDisplayName} is null or length(${table.fromDisplayName}) <= 200`,
+    ),
     check(
       'contractor_mail_messages_from_address_check',
       sql`length(btrim(${table.fromAddress})) > 0`,

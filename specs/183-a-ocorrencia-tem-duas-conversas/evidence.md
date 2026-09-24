@@ -682,3 +682,68 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   - API, integração completa, lançada durante a T404 e terminada aqui: **587 pass, 7 skip, 8 fail**.
     As 8 são as mesmas de object storage (MinIO: arquivo de CT-e e extrato/recarga de pedágio da
     154); nenhuma da 183. É o número final que a T404 deixou pendente.
+
+## T406 — Quem respondeu, puxado do cadastro (verde)
+
+- **Migration aditiva `20260924213126_contractor_mail_from_display_name`:**
+  - `contractor_mail_messages.from_display_name` (opcional, CHECK ≤ 200), com `rollback.sql` que
+    só derruba a coluna, o CHECK e a linha do journal, e com `snapshot.json`;
+  - na lista de `static-migration.contract.ts`;
+  - `make migration-test`: **110 pass** (o Docker caiu antes da primeira tentativa e foi religado);
+    `db:check` limpo.
+- **Worker:** `parseSenderMailbox` (`contractor-mail/domain/sender-mailbox.policy.ts`) separa o
+  `From` em endereço e nome:
+  - o endereço fica como chegou;
+  - o nome perde controle de linha, colapsa espaços e cabe em 200;
+  - nome igual ao endereço não é nome.
+
+  O caso de uso grava `from_address` só com o endereço, antes a string crua do `From`. Nada lia esse
+  campo da recebida, conferido por grep na API e no cron. Grava também `from_display_name`, e a
+  mensagem da conversa (T405) leva o endereço limpo.
+
+- **API:** `identifyContractorSender` (`occurrence-conversation/domain/contractor-sender.policy.ts`)
+  casa o remetente **na leitura** com os contatos da contratante da conversa: e-mail sem diferença de
+  caixa, WhatsApp pelos dígitos.
+  - Contato ativo vence inativo do mesmo endereço; contato inativo casa e sai `inactive: true`.
+  - Fora dos contatos, sai o nome do `From` e a sugestão de cadastro (e-mail minúsculo, ou telefone
+    no WhatsApp).
+  - No WhatsApp, o nome do perfil diferente do cadastrado sai em `profileName`.
+  - `arrivedAs` guarda sempre o endereço como chegou.
+- **Payload** de `GET /trip-occurrences/:id/conversations`: o autor `contractor` virou
+  `{ identity, kind, userId }`. A identidade é `null` no portal, onde o autor é o usuário. Os
+  contatos das contratantes saem numa leitura só por página, e o `from_display_name` sai por join
+  pela empresa. Sem consumidor no frontend ainda (a aba é a T407), então a troca de forma não quebra
+  nada.
+- **Frontend:** `contractorContactDraftFromSenderSuggestion` preenche "Adicionar aos contatos" (nome,
+  e-mail ou telefone), com o resto no padrão e o aceite do WhatsApp nunca marcado (D6).
+  - **Correção ao plano:** o cartão do contato e o botão aparecem na aba Contratante, que é a T407;
+    aqui fica a função pura com contrato, e a T407 os renderiza.
+- **Testes, todos escritos antes e vistos falhando:**
+  - schema e migration (`test/occurrence-conversation-schema/tables.contract.ts`), com uma rodada
+    vermelha por erro do próprio teste (`Record` lido como `Map`);
+  - política do `From` no worker (`test/contractor-mail/sender-mailbox-policy.contract.ts`);
+  - `inbound-message.contract.ts`, com o `From` separado;
+  - integração do worker, com `from_display_name` gravado;
+  - política de identificação por tabela (`test/occurrence-conversation/contractor-sender-policy.contract.ts`),
+    cobrindo:
+    - caixa diferente casa;
+    - outra contratante da mesma empresa não casa;
+    - inativo casa como inativo;
+    - fora dos contatos traz nome e sugestão;
+    - WhatsApp pelos dígitos, com o nome do perfil;
+  - integração da leitura com contato casado e remetente fora dos contatos;
+  - contrato do preenchimento no frontend.
+- **Rodado:**
+  - API, contrato: **7331 pass, 0 fail**;
+  - worker, contrato: **1432 pass**;
+  - worker, integrações de e-mail contra banco novo migrado: **11 pass**;
+  - frontend: **5201 + 44 pass**;
+  - lint e typecheck limpos;
+  - API, integração completa: **586 pass, 7 skip, 10 fail**.
+    - 8 são as de MinIO de sempre.
+    - As outras 2 (`occurrence-conversation-mail`, `occurrence-conversation-read`) deram
+      `PostgresError: Failed to read data` no mesmo momento em que eu rodava outros arquivos de
+      integração em paralelo contra o mesmo Postgres. Os dois processos criam e derrubam bancos
+      descartáveis ao mesmo tempo.
+    - Rodados de novo, sozinhos, os quatro arquivos de conversa deram **8 pass, 0 fail**.
+    - Lição registrada: não rodar integração em paralelo com a suíte completa.

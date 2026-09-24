@@ -14,13 +14,17 @@ import type {
   OccurrenceConversationStatus,
 } from '../../database/occurrence-conversation.schema.js'
 
+import type { ContractorSenderIdentity } from '../domain/contractor-sender.policy.js'
+
 export type OccurrenceConversationMessageAuthor =
   | { readonly kind: 'operation'; readonly name: string | null; readonly userId: string }
   | {
-      readonly contactId: string | null
+      /**
+       * RF16: quem respondeu, casado com os contatos da contratante na leitura. `null` quando a
+       * mensagem veio pelo portal, onde o autor é o usuário da contratante (`userId`).
+       */
+      readonly identity: ContractorSenderIdentity | null
       readonly kind: 'contractor'
-      readonly name: string | null
-      readonly senderAddress: string | null
       readonly userId: string | null
     }
   | { readonly kind: 'driver'; readonly name: string | null; readonly userId: string }

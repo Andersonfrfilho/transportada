@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   buildContractorContactPayload,
   contractorContactDraftFromContact,
+  contractorContactDraftFromSenderSuggestion,
   CONTRACTOR_CONTACT_VALIDATION_ERROR,
   EMPTY_CONTRACTOR_CONTACT_DRAFT,
   formatContractorContactPhone,
@@ -190,5 +191,37 @@ describe('o rascunho do contato com tipos e canais (spec 183 T303)', () => {
     expect(
       buildContractorContactPayload({ ...EMPTY_CONTRACTOR_CONTACT_DRAFT, email: 'x' }),
     ).toBeUndefined()
+  })
+})
+
+/**
+ * Spec 183 T406 (RF16): "Adicionar aos contatos" abre o cadastro já preenchido com o que a mensagem
+ * trouxe (nome do `From`, e-mail ou telefone). O resto fica no padrão, e o aceite do WhatsApp nunca
+ * vem marcado — quem marca é o operador (D6). O contato nunca é criado sozinho.
+ */
+describe('o cadastro preenchido a partir do remetente (spec 183 T406)', () => {
+  test('e-mail: nome e endereço preenchidos, o resto no padrão', () => {
+    expect(
+      contractorContactDraftFromSenderSuggestion({
+        email: 'joao@alfa.example.test',
+        name: 'João Lima',
+        phone: null,
+      }),
+    ).toEqual({
+      ...EMPTY_CONTRACTOR_CONTACT_DRAFT,
+      email: 'joao@alfa.example.test',
+      name: 'João Lima',
+    })
+  })
+
+  test('WhatsApp: o telefone vem com a máscara da casa, sem aceite marcado', () => {
+    const draft = contractorContactDraftFromSenderSuggestion({
+      email: null,
+      name: 'Alguém',
+      phone: '5511987654321',
+    })
+    expect(draft.phone).toBe(formatContractorContactPhone('5511987654321'))
+    expect(draft.email).toBe('')
+    expect(draft.whatsappOptIn).toBe(false)
   })
 })

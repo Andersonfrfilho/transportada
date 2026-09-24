@@ -9,6 +9,7 @@
 import { describe, expect } from 'bun:test'
 
 import {
+  contractorMailMessages,
   identityUsers,
   occurrenceConversationMessages,
   occurrenceConversations,
@@ -100,14 +101,63 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
         expect(conversation?.messages.map((message) => message.author)).toEqual([
           /** O seed não grava perfil: o nome sai nulo, e a tela cai no e-mail do usuário. */
           { kind: 'operation', name: null, userId },
+          /** Spec 183 T406 (RF16): o remetente casa com o contato daquela contratante, na leitura. */
           {
-            contactId: null,
+            identity: {
+              arrivedAs: 'compras@alfa.example.test',
+              contact: expect.objectContaining({
+                email: 'compras@alfa.example.test',
+                id: seeded.contactIds[0],
+                status: 'active',
+              }),
+              inactive: false,
+              kind: 'contact',
+              profileName: null,
+            },
             kind: 'contractor',
-            name: null,
-            senderAddress: 'compras@alfa.example.test',
             userId: null,
           },
         ])
+
+        /** Fora dos contatos: o nome do `From` gravado pelo worker e a sugestão de cadastro. */
+        const [unknownMail] = await database.db
+          .insert(contractorMailMessages)
+          .values({
+            bodyText: 'Quem fala é o João.',
+            companyId,
+            direction: 'inbound',
+            fromAddress: 'Joao@Alfa.example.test',
+            fromDisplayName: 'João Lima',
+            subject: 'Re: Ocorrência',
+            threadId: sent.threadId,
+            toAddresses: ['resposta@reply.example.test'],
+          })
+          .returning({ id: contractorMailMessages.id })
+        await database.db.insert(occurrenceConversationMessages).values({
+          bodyText: 'Quem fala é o João.',
+          channel: 'email',
+          companyId,
+          conversationId: sent.conversationId,
+          createdAt: new Date(Date.now() + 2000),
+          direction: 'inbound',
+          mailMessageId: unknownMail?.id ?? null,
+          senderAddress: 'Joao@Alfa.example.test',
+        })
+        const withUnknown = await findOccurrenceConversations(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+          userId,
+        })
+        expect(withUnknown?.conversations[0]?.messages.at(-1)?.author).toEqual({
+          identity: {
+            arrivedAs: 'Joao@Alfa.example.test',
+            displayName: 'João Lima',
+            kind: 'unknown',
+            suggestion: { email: 'joao@alfa.example.test', name: 'João Lima', phone: null },
+          },
+          kind: 'contractor',
+          userId: null,
+        })
 
         const driverConversationId = crypto.randomUUID()
         await database.db.insert(occurrenceConversations).values({

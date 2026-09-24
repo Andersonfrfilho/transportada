@@ -14,6 +14,7 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import { createDrizzleContractorMailInboundWorkerRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createDrizzleContractorMailOutboundWorkerRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
+import { contractorMailMessages } from '../../src/database/contractor-mail.schema.js'
 import { occurrenceConversationMessages } from '../../src/database/occurrence-conversation.schema.js'
 
 const databaseUrl = process.env.DATABASE_URL
@@ -76,6 +77,7 @@ describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183
       companyId: seeded.companyId,
       dkimResult: 'aligned',
       fromAddress: 'compras@alfa.example.test',
+      fromDisplayName: 'Compras Alfa',
       inReplyTo: undefined,
       providerEmailId,
       raw: {
@@ -120,6 +122,12 @@ describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183
     const received = (await conversationMessages(seeded.companyId)).filter(
       (message) => message.direction === 'inbound',
     )
+    /** Spec 183 T406 (RF16): o nome do `From` fica gravado na mensagem da 143. */
+    const [mail] = await database
+      .select({ fromDisplayName: contractorMailMessages.fromDisplayName })
+      .from(contractorMailMessages)
+      .where(eq(contractorMailMessages.id, recorded.id))
+    expect(mail?.fromDisplayName).toBe('Compras Alfa')
     expect(received).toEqual([
       {
         bodyText: 'Podem descarregar.',

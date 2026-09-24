@@ -207,6 +207,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
       companyId: COMPANY_ID,
       dkimResult: 'aligned',
       fromAddress: `financeiro@${fromDomain}`,
+      fromDisplayName: null,
       inReplyTo: 'previous@example.com.br',
       providerEmailId: PROVIDER_EMAIL_ID,
       rfcMessageId: '<abc@contratante.com.br>',
@@ -232,7 +233,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
       mailGateway: {
         downloadRawEmail: async () => Buffer.from('conteudo'),
         fetchReceivedEmail: async () => ({
-          from: 'financeiro@contratante.com.br',
+          from: 'Financeiro Alfa <financeiro@contratante.com.br>',
           headers: {},
           message_id: '<own-message-id@contratante.com.br>',
           raw: { download_url: 'https://cdn.resend.com/raw/9', expires_at: '2099-01-01T00:00:00Z' },
@@ -268,6 +269,9 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
     expect(recordCalls).toHaveLength(1)
     expect(recordCalls[0]?.inReplyTo).toBeUndefined()
     expect(recordCalls[0]?.rfcMessageId).toBe('<own-message-id@contratante.com.br>')
+    /** Spec 183 T406 (RF16): o `From` chega separado em endereço e nome. */
+    expect(recordCalls[0]?.fromAddress).toBe('financeiro@contratante.com.br')
+    expect(recordCalls[0]?.fromDisplayName).toBe('Financeiro Alfa')
   })
 
   test('discards without recording when the token is unknown', async () => {
