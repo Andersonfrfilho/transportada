@@ -894,6 +894,7 @@ export function useTripWorkspace(
     registerFieldOccurrencesMutation,
     resetFieldOccurrenceIdempotency,
     invalidateFieldDeliveryEffects,
+    invalidateTrip: invalidate,
     reportStopArrivalMutation,
     reportStopOccurrenceMutation,
     routeGeometryQuery,

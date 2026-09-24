@@ -1167,6 +1167,7 @@
     "progressLabel": "Trip separation progress",
     "reorderHandle": "Drag to reorder stop {{label}}",
     "selectAll": "Select every document at stop {{label}}",
+    "selectAllTrip": "Select every document in the trip",
     "selectDocument": "Select document {{document}}",
     "selectionClear": "Clear selection",
     "selectionCount": "{{count}} document selected",

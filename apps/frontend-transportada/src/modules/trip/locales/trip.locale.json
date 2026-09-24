@@ -1361,6 +1361,7 @@
     "progressLabel": "Progresso da separação da viagem",
     "reorderHandle": "Arrastar para reordenar a parada {{label}}",
     "selectAll": "Selecionar todas as notas da parada {{label}}",
+    "selectAllTrip": "Selecionar todas as notas da viagem",
     "selectDocument": "Selecionar a nota {{document}}",
     "selectionClear": "Limpar seleção",
     "selectionCount": "{{count}} nota selecionada",
