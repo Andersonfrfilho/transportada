@@ -73,7 +73,9 @@ onde o recebedor está: no app do motorista.
   `kind`, e é por ele que a tela agrupa.
 - **D2** — A unicidade vira **índice único parcial** `where kind <> 'cargo'`. Relaxa a regra sem
   apagar linha; o `rollback.sql` recria o índice total e **falha**, sem apagar nada, se já houver
-  duas fotos de carga no mesmo evento — o mesmo molde da emenda 1 da ADR-0067.
+  **qualquer** foto de carga — o `check` antigo recusaria a linha de qualquer jeito. Mesmo molde da
+  emenda 1 da ADR-0067. ⚠️ Consequência operacional: depois da primeira foto de carga em produção, o
+  rollback só roda com um passo manual antes (decidir o destino dessas fotos).
 - **D3** — Limite de **cinco** fotos de carga por entrega, no caso de uso. Número de partida: cobre
   a avaria e o contexto sem transformar a baixa em álbum. Ajustável sem migration.
 - **D4** — A foto de carga entra no **passo de revisão**, ao lado do nome de quem recebeu, e não no
@@ -97,7 +99,7 @@ onde o recebedor está: no app do motorista.
 - **CA06** — A tela de comprovante mostra o canhoto e as fotos de carga em grupos separados.
 - **CA07** — O assistente, com canhoto e duas fotos de carga, é operável em 375px.
 - **CA08** — `make migration-test` sobe e desce a migration; o rollback falha, sem apagar nada,
-  quando existem duas fotos de carga no mesmo evento.
+  quando existe qualquer foto de carga.
 
 ## Pendências
 

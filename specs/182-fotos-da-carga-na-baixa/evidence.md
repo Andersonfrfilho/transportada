@@ -247,3 +247,33 @@ do diálogo inteiro mostra só o topo) e `send-desktop.png`.
 
 **Gates finais do frontend:** `bun run typecheck` limpo · `bun run lint` limpo ·
 `bun --env-file=../../.env.test run test` → 5166 pass / 0 fail + 48 pass / 0 fail.
+
+## Revisão de código independente (2026-09-24, `code-reviewer` em `opus`)
+
+Veredito inicial: **REQUEST CHANGES** — 0 crítico, 1 alto, 2 médios, 4 baixos. A migration, o
+`ON CONFLICT` com `targetWhere` e o isolamento de tenant foram conferidos e estão corretos.
+
+| Achado | Sev. | Correção | Prova |
+|---|---|---|---|
+| A rota do **motorista** (`/me/.../proof`) validava `kind` contra `TRIP_DELIVERY_PROOF_KINDS`, que ganhou `cargo` — aceitava foto de carga sem teto e sem deduplicação; retry em laço gravaria sem fim | ALTO | `DRIVER_PROOF_KINDS = [photo, signature]` própria; `cargo` → 400 (`bb0d9b0a4`) | contrato novo em `proof-location-parse.contract.ts`, vermelho antes |
+| Teto de cinco furável: contar e inserir sem trava, em READ COMMITTED | MÉDIO | `countProofsForEvent` trava a linha do evento `FOR NO KEY UPDATE` (`874518d41`) | integração dispara duas fotos à quinta vaga, exige um 201 e um 422; **sem a trava falha 3/3** (mutação só nesta trava, as duas antigas do arquivo intactas) |
+| Foto recusada (422/400) virava "tentar de novo" em laço, e o retry refazia a baixa | MÉDIO | foto classificada `pending`/`rejected` pelo critério da nota; retry de nota entregue reenvia só as fotos pendentes (`8f5499304`) | contratos em `field-delivery.contract.ts` |
+| Imagem ilegível derrubava o lote sem aviso | BAIXO | processamento por arquivo + aviso (`9b0245357`) | contrato |
+| Object URL vazava ao desmontar no meio | BAIXO | ref de montado, revoga na hora (`9b0245357`) | contrato |
+| "Tirar outra foto" apagava as fotos da carga | BAIXO | fotos no estado do assistente (`3f95846b9`) | contrato em `field-delivery-review.contract.ts` |
+| Spec dizia que o rollback falha com "duas" fotos; ele recusa com qualquer uma | BAIXO | texto de D2 e CA08 corrigido, com a consequência operacional | — |
+
+O ALTO foi introduzido nesta própria spec, ao alargar uma lista que a rota do motorista também usava,
+e nenhum teste existente mandava `cargo` pelo app do motorista.
+
+**Gates depois das correções:**
+
+| Comando | Resultado |
+|---|---|
+| API — contrato | 7229 pass, 0 fail |
+| API — integração do escritório e do motorista (3 arquivos) | 36 pass, 0 fail, 0 skip |
+| Frontend — `bun --env-file=../../.env.test run test` | 5175 + 51 pass, 0 fail |
+| Smoke `field-delivery*.smoke.spec.ts` (inclui o da baixa em massa, sem regressão) | 6 passed |
+| typecheck e lint das duas apps | limpos |
+
+Prints regenerados depois das correções.
