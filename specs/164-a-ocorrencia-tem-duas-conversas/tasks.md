@@ -181,12 +181,59 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 ## Prompt de execução
 
 ```text
-Execute a spec specs/164-a-ocorrencia-tem-duas-conversas/ (leia spec.md, plan.md, tasks.md,
-docs/adr/0071-a-conversa-multicanal-vem-do-pacote.md, docs/adr/0051-a-conversa-vem-do-pacote-o-tailwind-nao.md
-e specs/143-a-contratante-responde-por-e-mail/ antes de começar).
-Uma task por vez, na ordem do tasks.md, no worktree work/spec-164. Nada antes da T001 fechar.
-Cada task fecha com typecheck + lint + testes da app (contrato E integração, os dois comandos do
-CLAUDE.md) + commit isolado, evidência em evidence.md; teste novo entra na lista do package.json.
-Pare e pergunte antes de: a T002 (conta Meta), qualquer segredo, deploy, migration destrutiva, a
-T706 (transcrição, até existir a ADR do provedor), e se a T101 achar algo faltando no pacote.
+/oh-my-claudecode:autopilot Execute a spec specs/164-a-ocorrencia-tem-duas-conversas/.
+
+ANTES DE COMEÇAR, leia nesta ordem: CLAUDE.md, AGENTS.md, docs/spec/constitution.md, spec.md,
+plan.md e tasks.md da 164, docs/adr/0071-a-conversa-multicanal-vem-do-pacote.md,
+docs/adr/0072-o-portal-ganha-a-conversa-da-ocorrencia.md, docs/adr/0051-a-conversa-vem-do-pacote-o-tailwind-nao.md,
+docs/adr/0050-o-cliente-tem-portal.md, specs/143-a-contratante-responde-por-e-mail/ (spec, plan,
+tasks) e os CLAUDE.md de cada app que a task tocar. Protótipo das telas (referência visual):
+https://claude.ai/artifact/WnJBKYDc3eRt2QJGxizh7h
+
+ONDE: crie o worktree com `make worktree NAME=spec-164` e trabalhe só nele (branch work/spec-164).
+Não publique em staging nem em lugar nenhum sem me perguntar.
+
+ORDEM: uma task por vez, na ordem do tasks.md: Fase 0 → 1 → 2 → 3 → 4 → 5 → 6 → 6b → 7 → 8 → 9.
+Se a Fase 1 parar por falta no pacote, siga pelas Fases 2 e 3 (não dependem dele) e pare antes da 4.
+
+MODELOS: o que cada fase indica no tasks.md. Tasks marcadas 🧠 (T301, T401, T502, T504, T602,
+T651, T902) são validadas com architect model=opus antes de fechar. Revisão final (T901) com
+code-reviewer + security-reviewer model=opus.
+
+CADA TASK:
+1. escreva primeiro o teste de contrato/aceite e mostre-o falhando;
+2. implemente o mínimo para ele passar;
+3. rode, da app tocada: `bun run typecheck` e `bun run lint` na raiz; na API, OS DOIS comandos,
+   `bun --env-file=../../.env.test test --timeout 120000` e
+   `bun --env-file=../../.env.test run test:integration` (sem o --env-file a integração PULA, e
+   pular não é passar); `make migration-test` quando houver migration; `bun run --cwd apps/<app>
+   test` no frontend e no portal;
+4. teste novo entra na lista explícita do package.json da app, senão não roda;
+5. se a task mexe em tela: revisão rápida da página contra a checklist da spec (§ "Revisão total de
+   design e usabilidade") com captura;
+6. registre a evidência em evidence.md (comando, saída resumida, capturas quando houver);
+7. marque a task [x] e faça um commit isolado com a task no título (ex.: `feat(trips): T202 …`).
+
+REGRAS QUE NÃO SE NEGOCIAM: companyId só do contexto autenticado (no webhook, do canal); teste
+negativo entre empresas; dinheiro em numeric/Decimal, serializado como string; nenhum log com
+telefone, e-mail, corpo, assunto, nome de arquivo ou segredo; migration só aditiva, com
+rollback.sql; nenhuma rota do portal recebe id interno; portal sem câmera/microfone; o motorista
+nunca aparece no portal; texto livre e transcrição nunca decidem; UI do painel só com
+src/components/ui/ e tokens; a conversa vem do @adatechnology/conversations-ui, sem Tailwind e sem
+remontar o grid.
+
+PARE E PERGUNTE ANTES DE:
+- marcar as ADR-0071 e ADR-0072 como aceitas (T001, T650);
+- a T002 (modelos na conta Meta da empresa — é comigo);
+- a T101, se a versão instalada do pacote não tiver algum item da lista;
+- a T706 (transcrição): fica bloqueada até existir a ADR do provedor;
+- qualquer segredo, variável de ambiente nova, deploy, push para staging, migration destrutiva;
+- qualquer [NEEDS CLARIFICATION] novo que surgir, ou divergência entre a spec e o código real
+  (registre a divergência e proponha a correção da spec antes de seguir).
+
+NÃO FAÇA: pular ou desligar teste para ficar verde; marcar task sem evidência; implementar mais de
+uma task no mesmo commit; alterar a spec 143 além da anotação da T003.
+
+AO FIM DE CADA FASE: me mande um resumo curto (tasks fechadas, o que ficou de fora e por quê,
+próximos passos).
 ```
