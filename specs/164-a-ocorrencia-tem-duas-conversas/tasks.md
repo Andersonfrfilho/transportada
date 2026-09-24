@@ -93,7 +93,7 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 - [ ] **T506** Canal WhatsApp na aba Contratante e no diálogo (E-mail / WhatsApp / Os dois).
       Evidência: contratos de serviço puro.
 
-## Fase 6 — Conversa com o motorista (P6)
+## Fase 6 — Conversa com o motorista (P7)
 
 > 🤖 Modelo: `sonnet`
 
@@ -111,7 +111,25 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
       caixa de envio e configuração por empresa. Evidência: suíte da política + integração (o aviso
       sai uma vez com o job rodando duas vezes; resposta antes cancela).
 
-## Fase 7 — Status, áudio, respostas rápidas e anexos (P7, P8, P9)
+## Fase 6b — A contratante conversa pelo portal (P6)
+
+> 🤖 Modelo: `sonnet` · T651 é 🧠 (superfície externa)
+
+- [ ] **T650** Aceitar a ADR-0072 (o portal ganha a conversa da ocorrência) e atualizar
+      `apps/frontend-client/CLAUDE.md` com a decisão de crescer a app. Evidência: ADR aceita.
+- [ ] **T651** 🧠 Rotas `/client/me/occurrences` e `/client/me/deliveries/:accessKey/occurrences/:ref`
+      (detalhe, mensagens, lida, anexo) com `resolveContractorScope`. Evidência: contratos (id
+      interno recusado por texto de fonte; outra contratante responde igual a inexistente; nenhum
+      campo do motorista na resposta).
+- [ ] **T652** Decisão da taxa pelo portal com `charges.decide`, pela transição da 143, recusando
+      taxa em lote pendente. Evidência: integração até `approved` com o usuário do portal como ator +
+      contrato do 409 do lote.
+- [ ] **T653** Tela "Ocorrências" e a conversa no portal (anexo por arquivo, player de áudio, sem
+      gravação). Evidência: contratos de serviço puro e de texto de fonte (a app não tem Playwright) + `Permissions-Policy` inalterada.
+- [ ] **T654** Canal Portal do lado do operador e o aviso por e-mail sem corpo aos usuários do
+      portal. Evidência: contrato do template (sem corpo) + teste de caso de uso.
+
+## Fase 7 — Status, áudio, respostas rápidas e anexos (P8, P9, P10)
 
 > 🤖 Modelo: `haiku` (T701, T704) · `sonnet` (T702, T703)
 
@@ -131,7 +149,7 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
       de gravar, texto ligado ao anexo, interruptor por empresa. **Bloqueada** até a dúvida do
       provedor virar ADR. Evidência: teste de que transcrição nunca decide + provider falso.
 
-## Fase 8 — PWA e fumaça (P10)
+## Fase 8 — PWA e fumaça (P11)
 
 > 🤖 Modelo: `sonnet`
 

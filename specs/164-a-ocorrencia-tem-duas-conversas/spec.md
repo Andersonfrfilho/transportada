@@ -1,6 +1,7 @@
 # Feature 164 — A ocorrência tem duas conversas
 
-> Decisão de arquitetura: **ADR-0071** (a conversa multicanal vem do pacote). Continua a spec 143 e
+> Decisões de arquitetura: **ADR-0071** (a conversa multicanal vem do pacote) e **ADR-0072** (o
+> portal ganha a conversa da ocorrência). Continua a spec 143 e
 > absorve dela a parte de ocorrência (T014, T015, T016, T018, T024, T025 — ver `tasks.md` da 143).
 > Prévia das telas (protótipo navegável, privado do dono do projeto):
 > https://claude.ai/artifact/WnJBKYDc3eRt2QJGxizh7h
@@ -21,7 +22,8 @@ usuário interno verificado.
 entrega, valor), o contato do motorista, as fotos e a linha do tempo. Nela ficam **duas conversas**,
 cada uma com os próprios canais:
 
-- **Contratante** — por **e-mail** e por **WhatsApp**, com os contatos dela cadastrados por tipo;
+- **Contratante** — por **e-mail**, por **WhatsApp** e pelo **portal da contratante**
+  (`apps/frontend-client`), com os contatos dela cadastrados por tipo;
 - **Motorista** — pelo **app do motorista** e por **WhatsApp**.
 
 Nas duas: respostas rápidas, anexos nos dois sentidos, e o mesmo desenho no celular (PWA).
@@ -118,6 +120,26 @@ como anexo, com `sha256`, como qualquer outro (RF10). A transcrição é gerada 
 nunca substitui o áudio, que continua sendo o registro. Transcrever manda a voz de terceiros a um
 provedor, e isso exige ADR própria antes de entrar no produto (RF18).
 
+### D9 — A contratante também conversa pelo portal
+
+O portal (ADR-0050) ganha a tela da ocorrência com a conversa, e `portal` vira o terceiro canal da
+conversa com a contratante. Decisão de crescer o portal registrada na **ADR-0072**. O que vale lá:
+
+- a contratante vê **toda** a conversa dela, por qualquer canal (o que um colega respondeu por e-mail
+  ou WhatsApp aparece no portal), e **nunca** a conversa com o motorista (D1);
+- o motorista não aparece no portal: nem nome, nem telefone, nem foto (ADR-0050: o cliente vê onde a
+  carga está, nunca quem dirige). Eventos de sistema que citariam o motorista saem neutros;
+- a transportadora aparece como a empresa, não como o funcionário que escreveu;
+- a cor segue o **participante**, não o lado: transportadora sempre cobre, contratante sempre azul.
+  No portal a contratante fica à direita, porque é ela quem está lendo;
+- câmera e microfone continuam **negados** na `Permissions-Policy` do portal: dá para anexar arquivo
+  e ouvir áudio, mas não gravar áudio nem tirar foto por lá;
+- nenhuma rota do portal recebe id interno: a ocorrência é nomeada pela chave de acesso da nota e por
+  uma referência opaca da conversa, e o recorte vem de `resolveContractorScope`;
+- decidir a taxa pelo portal exige `charges.decide` e usa a mesma transição da 143 (RF6), com o
+  usuário do portal como ator. Taxa que já está num lote de repasse pendente se decide **no lote**
+  (tela Repasses), não na ocorrência — o portal mostra o link, não os botões.
+
 ## Histórias priorizadas
 
 ### P1 — A linha abre o detalhe, e a tabela mostra a nota
@@ -158,33 +180,41 @@ do contato aparece na mesma aba, com selo WhatsApp, inclusive mídia; e dentro d
 operador responde em texto livre com anexos. **And** o botão "Aprovar" respondido por contato com
 `can_decide` decide a taxa (D4).
 
-### P6 — O operador fala com o motorista
+### P6 — A contratante conversa pelo portal
+
+**Given** um usuário do portal com `deliveries.track` e vínculo com a contratante da nota, **When** ele
+abre "Ocorrências", **Then** vê as ocorrências das notas dele, com a conversa inteira (todos os
+canais), anexos e áudios para ouvir, e responde com texto e arquivo. **And** com `charges.decide`,
+aprova ou recusa ali a taxa pedida, se ela não estiver num lote pendente. **And** a mensagem que ele
+envia aparece para o operador com o selo Portal e o nome da conta dele.
+
+### P7 — O operador fala com o motorista
 
 **Given** uma ocorrência de uma viagem com motorista, **When** o operador abre a aba Motorista,
 **Then** conversa pelo **app** (a mensagem chega na inbox e na tela da conversa no PWA do motorista,
 que responde de lá, com foto) ou pelo **WhatsApp** do telefone verificado. **And** uma foto recebida
 pode ser anexada à ocorrência ou encaminhada à conversa da contratante com um toque.
 
-### P7 — O operador vê se chegou e se leram
+### P8 — O operador vê se chegou e se leram
 
 **Given** uma mensagem enviada, **Then** o selo dela mostra enviada, entregue ou lida conforme o
 canal (RF14), e muda sozinho quando o status chega. **And** a mensagem que falhou ou voltou aparece
 em destaque, com o motivo e a ação "Reenviar por outro canal".
 
-### P8 — Áudio e transcrição
+### P9 — Áudio e transcrição
 
 **Given** um áudio recebido pelo WhatsApp ou pelo app, **Then** a conversa mostra um player (tocar,
 posição, duração, velocidade 1×/1,5×/2×) e, quando a transcrição estiver pronta, o texto embaixo com
 o aviso "gerada por máquina". **And** o operador grava um áudio na caixa de envio, ouve antes e envia
 ou descarta.
 
-### P9 — Respostas rápidas
+### P10 — Respostas rápidas
 
 **Given** respostas rápidas cadastradas pela empresa para cada público (contratante, motorista),
 **When** o operador toca numa, **Then** o texto entra na caixa de mensagem para ser revisado antes
 de enviar — nunca sai sozinho.
 
-### P10 — Tudo isso cabe no celular
+### P11 — Tudo isso cabe no celular
 
 **Given** o PWA num celular, **Then** a lista vira cartões com contratante, valor, endereço e
 motorista; o detalhe vira abas Resumo, Contratante e Motorista, com a caixa de envio fixa no rodapé,
@@ -216,7 +246,8 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 - **RF6** Existe **uma** conversa por (ocorrência, participante), com participante `contractor` ou
   `driver`. Toda mensagem tem `channel` (`email`, `whatsapp`, `app`), direção, autor, corpo, anexos,
   estado de entrega e a referência ao registro do transporte (mensagem da 143, mensagem do
-  `meta_whatsapp`).
+  `meta_whatsapp`). Na conversa com a contratante vale também `portal` (D9), cujo autor, quando é a
+  contratante, é o usuário do portal.
 - **RF7** O envio por e-mail usa os casos de uso da 143 (thread por objeto, token derivado,
   outbox na mesma transação, `Idempotency-Key`). O corpo tem texto e HTML, e a prévia do diálogo é
   renderizada **pelo mesmo** template que o envio usa.
@@ -244,11 +275,12 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   nunca com o corpo da mensagem da outra parte.
 - **RF14** Toda mensagem que sai mostra a **confirmação** que o canal consegue dar — e só ela (D7):
 
-  | Canal    | Estados                                                | De onde vem                                              |
-  | -------- | ------------------------------------------------------ | -------------------------------------------------------- |
-  | WhatsApp | `queued` → `sent` → `delivered` → `read`, ou `failed`  | webhook de status da Meta, pelo id da mensagem           |
-  | E-mail   | `queued` → `sent` → `delivered`, ou `bounced`/`failed` | eventos de entrega do Resend (`delivery_status` da 143)  |
-  | App      | `queued` → `delivered` → `read`                        | o PWA do motorista: baixou a mensagem / abriu a conversa |
+  | Canal    | Estados                                                | De onde vem                                                 |
+  | -------- | ------------------------------------------------------ | ----------------------------------------------------------- |
+  | WhatsApp | `queued` → `sent` → `delivered` → `read`, ou `failed`  | webhook de status da Meta, pelo id da mensagem              |
+  | E-mail   | `queued` → `sent` → `delivered`, ou `bounced`/`failed` | eventos de entrega do Resend (`delivery_status` da 143)     |
+  | App      | `queued` → `delivered` → `read`                        | o PWA do motorista: baixou a mensagem / abriu a conversa    |
+  | Portal   | `delivered` → `read`                                   | gravada = disponível; lida quando um usuário do portal abre |
 
   O estado só avança (um `delivered` atrasado não desfaz um `read`), cada transição guarda o horário,
   e o toque no selo mostra os horários. O evento de status é idempotente pelo id do provedor.
@@ -298,11 +330,20 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
     idempotente: conversa + início da janela), só se houve mensagem pelo WhatsApp naquela janela, e é
     cancelado se a pessoa responder antes (a janela reabre). Ligado por padrão para o motorista e
     desligado por padrão para a contratante; a empresa muda os dois;
-  - **fechou:** o canal padrão da conversa passa para o app (motorista) ou para o e-mail (contratante,
-    se o contato tiver e-mail; sem e-mail, só modelo aprovado). Entra um evento de sistema na conversa
+  - **fechou:** o canal padrão da conversa passa para o app (motorista) ou, na contratante, para o
+    **portal** se ela tiver usuário ativo no portal, senão para o **e-mail** do contato, e sem e-mail
+    só modelo aprovado. O aviso automático diz o canal escolhido. Entra um evento de sistema na conversa
     e na linha do tempo; o rascunho não se perde;
   - o motorista sem PWA instalado continua recebendo pela inbox (RF11); a troca nunca deixa a
     mensagem sem destino.
+
+- **RF21** Portal (D9): rotas `/client/me/occurrences` (lista das ocorrências das notas do recorte) e
+  `/client/me/deliveries/:accessKey/occurrences/:conversationRef` (detalhe, mensagens, envio, lida,
+  anexo, decisão), com `deliveries.track` e o recorte de `resolveContractorScope`. `conversationRef`
+  é opaco e aleatório, nunca o id da conversa. Chave de outra contratante, referência inexistente e
+  ocorrência sem conversa respondem igual. Mensagem enviada pelo operador no canal Portal avisa os
+  usuários do portal daquela contratante por e-mail (`notification-module`), **sem** o corpo — só
+  que há mensagem nova e o link.
 
 ## Requisitos não funcionais
 
@@ -377,6 +418,10 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 - Smoke Playwright: clicar na linha abre o detalhe; enviar pela aba Contratante mostra a mensagem na
   conversa; a mesma página em viewport de celular mostra as abas.
 - Tabela: evidência exigida por `docs/frontend/data-tables.md` § 6 para as colunas novas.
+- Portal: contrato por texto de fonte de que nenhuma rota `/client/**` nova aceita id interno e de que
+  o recorte só vem de `resolveContractorScope`; contrato de resposta sem nenhum campo do motorista;
+  chave de outra contratante responde igual a inexistente; taxa em lote pendente não aceita decisão
+  pela ocorrência (409 tipado).
 
 ## Dúvidas
 

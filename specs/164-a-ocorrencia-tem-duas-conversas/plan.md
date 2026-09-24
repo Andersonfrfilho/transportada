@@ -65,20 +65,32 @@
 - Configurações — respostas rápidas (RF12).
 - PWA do motorista — tela da conversa da ocorrência e resposta com foto (RF11).
 
+**Portal (`apps/frontend-client`, ADR-0072):**
+
+- `modules/occurrences/` — lista "Ocorrências" (com contador de novas) e a tela da ocorrência com a
+  conversa sobre o `conversations-ui`, anexo por seletor de arquivo, player de áudio e a decisão da
+  taxa quando cabe (D9). Tokens de balão copiados por valor do painel, como os outros.
+- Sem gravação de áudio e sem câmera: a `Permissions-Policy` não muda.
+
 ## Contratos/API/eventos
 
-| Método  | Rota                                                        | Permissão           |
-| ------- | ----------------------------------------------------------- | ------------------- |
-| GET     | `/trip-occurrences/:id`                                     | `trip.read`         |
-| GET     | `/trip-occurrences/:id/conversations`                       | `trip.read`         |
-| POST    | `/trip-occurrences/:id/conversations/:participant/messages` | `trip.manage`       |
-| POST    | `/occurrence-conversations/:id/read`                        | `trip.read`         |
-| GET     | `/occurrence-conversations/:id/mail-preview`                | `trip.manage`       |
-| GET     | `/occurrence-conversations/unassigned`                      | `trip.manage`       |
-| POST    | `/occurrence-conversations/unassigned/:messageId/assign`    | `trip.manage`       |
-| GET/PUT | `/company-settings/quick-replies`                           | `settings.manage`   |
-| GET     | `/me/trips/current/occurrences/:id/messages`                | motorista da viagem |
-| POST    | `/me/trips/current/occurrences/:id/messages`                | motorista da viagem |
+| Método  | Rota                                                         | Permissão           |
+| ------- | ------------------------------------------------------------ | ------------------- |
+| GET     | `/trip-occurrences/:id`                                      | `trip.read`         |
+| GET     | `/trip-occurrences/:id/conversations`                        | `trip.read`         |
+| POST    | `/trip-occurrences/:id/conversations/:participant/messages`  | `trip.manage`       |
+| POST    | `/occurrence-conversations/:id/read`                         | `trip.read`         |
+| GET     | `/occurrence-conversations/:id/mail-preview`                 | `trip.manage`       |
+| GET     | `/occurrence-conversations/unassigned`                       | `trip.manage`       |
+| POST    | `/occurrence-conversations/unassigned/:messageId/assign`     | `trip.manage`       |
+| GET/PUT | `/company-settings/quick-replies`                            | `settings.manage`   |
+| GET     | `/client/me/occurrences`                                     | `deliveries.track`  |
+| GET     | `/client/me/deliveries/:accessKey/occurrences/:ref`          | `deliveries.track`  |
+| POST    | `/client/me/deliveries/:accessKey/occurrences/:ref/messages` | `deliveries.track`  |
+| POST    | `/client/me/deliveries/:accessKey/occurrences/:ref/read`     | `deliveries.track`  |
+| POST    | `/client/me/deliveries/:accessKey/occurrences/:ref/decision` | `charges.decide`    |
+| GET     | `/me/trips/current/occurrences/:id/messages`                 | motorista da viagem |
+| POST    | `/me/trips/current/occurrences/:id/messages`                 | motorista da viagem |
 
 - `:participant` é `contractor` ou `driver`. O corpo do envio leva `channel`, `body`, `attachmentIds`
   e, no WhatsApp fora da janela, `templateKey`. Resposta de campo do motorista sem `fleet.read` omite
@@ -99,11 +111,12 @@ Migration **aditiva**, sem apagar coluna nem dado:
   três grupos. Índice por `(company_id, phone)` para o webhook.
 - `occurrence_conversations` — `id`, `company_id`, `occurrence_kind` (`stop` | `document`),
   `occurrence_id`, `participant` (`contractor` | `driver`), `contractor_id` / `driver_user_id`,
-  `status`, timestamps. `unique(company_id, occurrence_kind, occurrence_id, participant)`. FK composta
+  `public_ref` (aleatório, único, só para o portal — RF21), `status`, timestamps. `unique(company_id, occurrence_kind, occurrence_id, participant)`. FK composta
   com `company_id`, como o resto do schema.
-- `occurrence_conversation_messages` — `id`, `company_id`, `conversation_id`, `channel`,
-  `direction`, `author_user_id` | `contractor_contact_id` | `driver_user_id` (CHECK: exatamente um
-  conforme a direção), `body_text`, `status`, `status_times jsonb`, `mail_message_id` (FK para
+- `occurrence_conversation_messages` — `id`, `company_id`, `conversation_id`, `channel`
+  (`email` | `whatsapp` | `app` | `portal`), `direction`, `author_user_id` | `contractor_contact_id` |
+  `driver_user_id` (CHECK: exatamente um conforme a direção; mensagem da contratante pelo portal usa
+  `author_user_id` com a conta do portal), `body_text`, `status`, `status_times jsonb`, `mail_message_id` (FK para
   `contractor_mail_messages`), `provider_message_id` (id opaco da Meta, sem FK para o schema
   `meta_whatsapp`), `created_at`. `unique(company_id, channel, provider_message_id)` para o status
   idempotente.
@@ -137,6 +150,8 @@ para não criar coluna de uma decisão que ainda não existe.
 - Nenhum log com telefone, e-mail, corpo, assunto ou nome de arquivo (contrato por texto de fonte).
 - Webhook do WhatsApp: a porta nova aceita **só** número de contato com aceite da empresa do canal;
   todo o resto segue `unknown_phone`.
+- Portal: o serializador das rotas `/client/**` é outro, sem nenhum campo do motorista nem do
+  funcionário, e o aviso por e-mail ao usuário do portal não leva o corpo da mensagem (RF21).
 
 ## Idempotência e concorrência
 
