@@ -103,3 +103,25 @@ export class OccurrenceConversationAssignmentInvalidError extends ApiError {
     })
   }
 }
+
+/** T601: a viagem da ocorrência não tem motorista com vínculo ativo — não há a quem escrever. */
+export class OccurrenceConversationDriverUnknownError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_DRIVER_UNKNOWN',
+      message: 'The occurrence trip has no active driver to talk to',
+      status: 422,
+    })
+  }
+}
+
+/** Mensagem em branco ou acima do teto da conversa. */
+export class OccurrenceConversationMessageInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_MESSAGE_INVALID',
+      message: 'The message is required and within its limit',
+      status: 422,
+    })
+  }
+}

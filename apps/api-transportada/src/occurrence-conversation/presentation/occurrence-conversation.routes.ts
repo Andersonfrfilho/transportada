@@ -32,6 +32,7 @@ import type {
   ListOccurrenceConversationsUseCase,
   MarkOccurrenceConversationReadUseCase,
 } from '../application/read-occurrence-conversations.use-case.js'
+import type { createSendDriverAppMessageUseCase } from '../application/driver-conversation.use-case.js'
 import type { SendOccurrenceMailUseCase } from '../application/send-occurrence-mail.use-case.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
 import { OccurrenceConversationChannelUnavailableError } from '../domain/occurrence-conversation.error.js'
@@ -53,12 +54,23 @@ const READ_PATH = '/occurrence-conversations/:id/read'
 /** O teto de destinatários do worker da 143 (`to_addresses`, até 50). */
 const MAX_RECIPIENTS = 50
 
-const sendMessageSchema = z
+/** O canal decide o corpo: lido primeiro, e o corpo do canal é conferido estrito depois. */
+const channelSchema = z.object({ channel: z.enum(OCCURRENCE_CONVERSATION_CHANNELS) }).passthrough()
+
+const mailMessageSchema = z
   .object({
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
-    channel: z.enum(OCCURRENCE_CONVERSATION_CHANNELS),
+    channel: z.literal('email'),
     contactIds: z.array(z.string().uuid()).min(1).max(MAX_RECIPIENTS),
     subject: z.string().max(OCCURRENCE_MAIL_LIMITS.subject),
+  })
+  .strict()
+
+/** Spec 183 T601 (RF11): ao motorista pelo app, só o texto. */
+const appMessageSchema = z
+  .object({
+    body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
+    channel: z.literal('app'),
   })
   .strict()
 
@@ -74,6 +86,8 @@ export type OccurrenceConversationRoutesDependencies = {
   readonly markRead: MarkOccurrenceConversationReadUseCase
   readonly previewMail: PreviewOccurrenceMailUseCase
   readonly sendMail: SendOccurrenceMailUseCase
+  /** Spec 183 T601: ao motorista pelo app. */
+  readonly sendDriverApp: Pick<ReturnType<typeof createSendDriverAppMessageUseCase>, 'send'>
 }
 
 function jsonResponse(body: object, status = 200): Response {
@@ -89,14 +103,22 @@ function parseParticipant(value: string | undefined): OccurrenceConversationPart
   return participant
 }
 
-type SendInput = {
-  readonly bodyText: string
-  readonly contactIds: readonly string[]
-  readonly correlationId: string
-  readonly idempotencyKey: string
-  readonly occurrenceId: string
-  readonly subject: string
-}
+type SendInput =
+  | {
+      readonly bodyText: string
+      readonly contactIds: readonly string[]
+      readonly correlationId: string
+      readonly idempotencyKey: string
+      readonly kind: 'mail'
+      readonly occurrenceId: string
+      readonly subject: string
+    }
+  | {
+      readonly bodyText: string
+      readonly idempotencyKey: string
+      readonly kind: 'app'
+      readonly occurrenceId: string
+    }
 
 export function createOccurrenceConversationRoutes(
   dependencies: OccurrenceConversationRoutesDependencies,
@@ -120,6 +142,16 @@ export function createOccurrenceConversationRoutes(
     }),
     defineRoute<SendInput>({
       async handle({ context, input }): Promise<Response> {
+        if (input.kind === 'app') {
+          const result = await dependencies.sendDriverApp.send({
+            actorUserId: context.scope.userId,
+            bodyText: input.bodyText,
+            companyId: context.scope.companyId,
+            idempotencyKey: input.idempotencyKey,
+            occurrenceId: input.occurrenceId,
+          })
+          return jsonResponse({ data: result }, 202)
+        }
         const result = await dependencies.sendMail.send({
           actorUserId: context.scope.userId,
           bodyText: input.bodyText,
@@ -137,19 +169,30 @@ export function createOccurrenceConversationRoutes(
         const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
         const participant = parseParticipant(pathParameters.participant)
         const idempotencyKey = parseIdempotencyKey(request.headers.get('idempotency-key'))
-        const body = await parseBody(sendMessageSchema, request)
-        /** Hoje só a contratante por e-mail envia; WhatsApp, app e portal chegam nas Fases 5–6b. */
-        if (participant !== 'contractor' || body.channel !== 'email') {
-          throw new OccurrenceConversationChannelUnavailableError()
+        const raw = await parseBody(channelSchema, request)
+        /**
+         * Hoje: a contratante por e-mail (T404) e o motorista pelo app (T601). WhatsApp espera os
+         * modelos da Meta (T503) e o portal é a Fase 6b.
+         */
+        if (participant === 'contractor' && raw.channel === 'email') {
+          const body = mailMessageSchema.safeParse(raw)
+          if (!body.success) throw invalidRequest()
+          return {
+            bodyText: body.data.body,
+            contactIds: body.data.contactIds,
+            correlationId,
+            idempotencyKey,
+            kind: 'mail' as const,
+            occurrenceId,
+            subject: body.data.subject,
+          }
         }
-        return {
-          bodyText: body.body,
-          contactIds: body.contactIds,
-          correlationId,
-          idempotencyKey,
-          occurrenceId,
-          subject: body.subject,
+        if (participant === 'driver' && raw.channel === 'app') {
+          const body = appMessageSchema.safeParse(raw)
+          if (!body.success) throw invalidRequest()
+          return { bodyText: body.data.body, idempotencyKey, kind: 'app' as const, occurrenceId }
         }
+        throw new OccurrenceConversationChannelUnavailableError()
       },
       /** `:participant` é `contractor`/`driver`, não UUID; o `:id` é conferido como UUID no `parse`. */
       pathParameterFormat: 'raw',

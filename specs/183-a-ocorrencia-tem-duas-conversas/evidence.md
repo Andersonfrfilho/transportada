@@ -996,3 +996,59 @@ O seletor "E-mail / WhatsApp / Os dois" escolhe por onde a mensagem **sai**. Sem
 por WhatsApp: a rota de envio responde 422 `OCCURRENCE_CONVERSATION_CHANNEL_UNAVAILABLE` para o
 canal. Um seletor com uma opção que sempre falha é pior que não ter o seletor. Volta junto com a
 T503.
+
+## T601 — A conversa com o motorista pelo app (verde, com a foto na T702)
+
+- **Operador → motorista:** a rota de envio da T404 passou a aceitar `participant = driver` com
+  `channel = app` (corpo estrito `{ body, channel }`), pela mesma `occurrences.resolve`. O `parse`
+  lê o canal primeiro e confere o corpo estrito do canal; qualquer outra combinação continua 422
+  `OCCURRENCE_CONVERSATION_CHANNEL_UNAVAILABLE`. O caso de uso `createSendDriverAppMessageUseCase`:
+  - o motorista é o **usuário** (vínculo ativo) do primeiro condutor da viagem; sem ele, 422
+    `OCCURRENCE_CONVERSATION_DRIVER_UNKNOWN`;
+  - idempotência com trava consultiva (`occurrence-conversation.app.send`), e a mesma chave com
+    outro texto é 409;
+  - a mensagem nasce `queued` (política da T402, canal `app`) na conversa do motorista;
+  - depois da transação, e só na primeira vez, o aviso na caixa (`notification.v1`) com
+    `dedupeKey` = id da mensagem. O template novo `trip.occurrence-conversation-message` é só
+    caixa de entrada e **sem o corpo** (o texto fica na conversa). Aviso que falha é registrado
+    pelo nome do erro e não desfaz a mensagem.
+- **Motorista:** `GET` (`trip.read`) e `POST` (`trip.report`, com `Idempotency-Key`)
+  `/me/trips/current/occurrences/:id/messages`.
+  - O motorista é a ficha do vínculo do contexto; sem ficha, a mesma recusa 409
+    `DRIVER_NOT_REGISTERED` das outras rotas `/me`.
+  - Só a ocorrência de viagem com a ficha dele na tripulação é alcançada; a outra é 404.
+  - Lê só a conversa **dele**: a da contratante nunca aparece.
+- **Correção ao plano (técnica):** a resposta com **foto** entra com os anexos da **T702**, como a
+  mídia do WhatsApp na T502. É um caminho de anexo só para os três canais: bucket privado, tipo
+  conferido pelo conteúdo, URL temporária. Aqui a resposta é texto.
+- **Leitura do caminho `/me/trips/current/...`:** vale a ocorrência de qualquer viagem em que a ficha
+  está na tripulação, não só a "atual". A conversa sobrevive ao fim da viagem, e restringir à atual
+  cortaria a resposta do motorista no fim do dia.
+- **Testes, escritos antes e vistos falhando (módulos inexistentes):**
+  - `driver-conversation.contract.ts`: fila e aviso, a chave repetida sem outra mensagem nem outro
+    aviso, 409 com outro texto, sem motorista 422, outra empresa 404, texto vazio 422, aviso que
+    falha, leitura com o nome, resposta idempotente, motorista de outra viagem 404;
+  - `me-conversation-routes.contract.ts`: `trip.read`/`trip.report`, a chave e o corpo estrito,
+    sem ficha 409, fora da tripulação 404;
+  - `conversation-routes.contract.ts` ganhou o app ao motorista (202), o app à contratante (422) e
+    campo a mais (400).
+- **Integração** `test/integration/occurrence-conversation-driver.integration.ts` (no
+  `package.json`), escrita **depois** do adaptador, **1 pass** na primeira rodada. Cobre:
+  - sem vínculo, 422;
+  - a mensagem `app`/`queued` na conversa do usuário do motorista, com o aviso e a mesma chave sem
+    duplicar;
+  - leitura e resposta do motorista;
+  - ficha fora da tripulação e outra empresa, 404.
+- **Rodado:**
+  - API, contrato: **7380 pass, 0 fail** (inclui o catálogo de avisos, 16);
+  - lint, formatação e typecheck limpos.
+  - API, integração completa, sozinha: **593 pass, 7 skip, 8 fail**, só as 8 de MinIO.
+
+## T602 — ⏭️ aberta: faltam os modelos da Meta (T002)
+
+Mandar mensagem ao motorista pelo WhatsApp fora da janela de 24h exige modelo aprovado (T002).
+Pela regra da execução, a T602 fica aberta. O **ramo de entrada** já existe desde a T502: a resposta
+do motorista pelo WhatsApp só entra na conversa quando responde (`context.id`) a uma mensagem dela, e
+o resto segue para os fluxos de comando da spec 144. É o contrato de "número sem `context.id` da
+conversa continua chegando aos comandos" (`whatsapp-inbound-hook.contract.ts` e a tabela da T501).
+Falta o envio.

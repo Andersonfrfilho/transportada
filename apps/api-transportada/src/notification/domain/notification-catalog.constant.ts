@@ -37,6 +37,11 @@ export const NOTIFICATION_TEMPLATE_KEY = {
   NFSE_INVOICE_REJECTED: 'nfse.invoice-rejected',
   TRIP_DELIVERY_OCCURRENCE: 'trip.delivery-occurrence',
   /**
+   * Spec 183 T601 (RF11): a operação escreveu ao motorista na conversa da ocorrência. Só caixa de
+   * entrada — o motorista vive no app — e **sem o corpo**: o texto fica na conversa, atrás do login.
+   */
+  TRIP_OCCURRENCE_CONVERSATION_MESSAGE: 'trip.occurrence-conversation-message',
+  /**
    * Spec 082 D8: a ocorrência de **parada** que o motorista relata do celular, uma chave por
    * motivo do catálogo (`TRIP_STOP_OCCURRENCE_KINDS`). O motorista nunca escreve o aviso — o
    * texto é o template da transportadora, e a tela dele só mostra a prévia.
@@ -71,6 +76,21 @@ export type NotificationCatalogEntry = {
  * e-mail dizem o que aconteceu e onde olhar, e o detalhe fica na tela.
  */
 export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
+  /**
+   * Spec 183 T601 (RF11): a mensagem da operação ao motorista vira aviso na caixa dele. O texto diz
+   * a ocorrência e onde responder; o que a operação escreveu fica na conversa.
+   */
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.INBOX],
+    placeholders: ['occurrenceLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_CONVERSATION_MESSAGE,
+    templates: {
+      inbox: {
+        body: 'A operação mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Abra a ocorrência no app para ler e responder.',
+      },
+    },
+  },
   /**
    * Spec 079: a ocorrência que a empresa escolheu ser avisada.
    *

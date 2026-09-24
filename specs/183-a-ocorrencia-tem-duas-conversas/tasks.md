@@ -112,7 +112,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T601** Rotas `/me/trips/current/occurrences/:id/messages` (listar, responder com foto) e o
+- [x] **T601** Rotas `/me/trips/current/occurrences/:id/messages` (listar, responder com foto) e o
       aviso na inbox com `dedupeKey`. Evidência: contratos (motorista de outra viagem não alcança).
 - [ ] **T602** 🧠 Canal WhatsApp do motorista pelo telefone verificado (ADR-0063), com o desvio dos
       fluxos de comando só por `context.id` (RF9). Evidência: teste de caso de uso + contrato de que

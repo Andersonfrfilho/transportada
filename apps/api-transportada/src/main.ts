@@ -372,6 +372,7 @@ import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
+import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
 import { createOccurrenceConversationUnassignedRoutes } from './occurrence-conversation/presentation/occurrence-conversation-unassigned.routes.js'
 import { createOccurrenceConversationRoutes } from './occurrence-conversation/presentation/occurrence-conversation.routes.js'
 import {
@@ -384,6 +385,11 @@ import {
   createAssignUnassignedMessageUseCase,
   createListUnassignedMessagesUseCase,
 } from './occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
+import {
+  createListMyOccurrenceConversationUseCase,
+  createReplyMyOccurrenceConversationUseCase,
+  createSendDriverAppMessageUseCase,
+} from './occurrence-conversation/application/driver-conversation.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createSendOccurrenceMailUseCase } from './occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import {
@@ -395,6 +401,8 @@ import {
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
+import { createDriverConversationNotifier } from './occurrence-conversation/infrastructure/driver-conversation-notifier.gateway.js'
+import { createDrizzleDriverConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
 import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
 import { applyProviderMessageStatus } from './occurrence-conversation/infrastructure/drizzle-occurrence-message-status.repository.js'
 import { createDrizzleWhatsAppConversationInboundRepository } from './occurrence-conversation/infrastructure/drizzle-whatsapp-conversation-inbound.repository.js'
@@ -2826,6 +2834,31 @@ function createApplicationRoutes({
         secretService: contractorMailCredentialSecretService,
         unitOfWork: new DrizzleOccurrenceMailRepository(database),
       }),
+      sendDriverApp: createSendDriverAppMessageUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        notifier: createDriverConversationNotifier({
+          logger,
+          send: (params) =>
+            notifications.useCases.sendNotification.execute({
+              ...params,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            } as never),
+        }),
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+    }),
+    /** Spec 183 T601 (RF11): a conversa da ocorrência no `/me` do motorista. */
+    ...createMeOccurrenceConversationRoutes({
+      list: createListMyOccurrenceConversationUseCase({
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      reply: createReplyMyOccurrenceConversationUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     ...createOccurrenceConversationUnassignedRoutes({
       assign: createAssignUnassignedMessageUseCase({

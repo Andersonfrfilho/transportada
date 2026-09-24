@@ -65,9 +65,11 @@ function createFixture(params: {
             recipientCount: 2,
             threadId: 'thread-1',
           }
-        : name === 'preview'
-          ? { bodyText: 'x', html: '<p>x</p>', subject: 's', suggested: false, text: 'x' }
-          : { unreadCount: 0 }
+        : name === 'sendDriverApp'
+          ? { conversationId: CONVERSATION_ID, conversationMessageId: 'message-app' }
+          : name === 'preview'
+            ? { bodyText: 'x', html: '<p>x</p>', subject: 's', suggested: false, text: 'x' }
+            : { unreadCount: 0 }
   }
   const context: AuthenticatedContext<CompanyContext> = {
     identity: {
@@ -98,6 +100,7 @@ function createFixture(params: {
     routes: createOccurrenceConversationRoutes({
       listConversations: { list: record('list') as never },
       markRead: { markRead: record('read') as never },
+      sendDriverApp: { send: record('sendDriverApp') as never },
       previewMail: { preview: record('preview') as never },
       sendMail: { send: record('send') as never },
     }),
@@ -247,6 +250,46 @@ describe('POST /trip-occurrences/:id/conversations/:participant/messages (spec 1
     })
     driver.headers.set('idempotency-key', 'conversation-key-0002')
     expect((await fixture.handle(driver)).status).toBe(422)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('ao motorista pelo app: só corpo e canal, com a chave, e responde 202 (spec 183 T601)', async () => {
+    const fixture = createFixture({})
+    const request = jsonRequest({
+      body: { body: 'Pode aguardar na doca?', channel: 'app' },
+      method: 'POST',
+      path: `/trip-occurrences/${OCCURRENCE_ID}/conversations/driver/messages`,
+    })
+    request.headers.set('idempotency-key', 'conversation-key-0003')
+
+    const response = await fixture.handle(request)
+
+    expect(response.status).toBe(202)
+    expect(fixture.calls).toEqual([
+      {
+        input: {
+          actorUserId: COMPANY_CONTEXT.userId,
+          bodyText: 'Pode aguardar na doca?',
+          companyId: COMPANY_CONTEXT.companyId,
+          idempotencyKey: 'conversation-key-0003',
+          occurrenceId: OCCURRENCE_ID,
+        },
+        name: 'sendDriverApp',
+      },
+    ])
+  })
+
+  test('app para a contratante e campo a mais no app não passam (spec 183 T601)', async () => {
+    const fixture = createFixture({})
+    const toContractor = sendRequest({ body: 'Oi', channel: 'app' })
+    expect((await fixture.handle(toContractor)).status).toBe(422)
+    const extra = jsonRequest({
+      body: { body: 'Oi', channel: 'app', subject: 'x' },
+      method: 'POST',
+      path: `/trip-occurrences/${OCCURRENCE_ID}/conversations/driver/messages`,
+    })
+    extra.headers.set('idempotency-key', 'conversation-key-0004')
+    expect((await fixture.handle(extra)).status).toBe(400)
     expect(fixture.calls).toEqual([])
   })
 
