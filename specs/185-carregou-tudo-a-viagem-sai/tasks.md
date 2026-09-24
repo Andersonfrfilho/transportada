@@ -55,11 +55,11 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T6.1** Contratos: `dispatchReadiness.service.ts` espelha D1; frases de
+- [x] **T6.1** Contratos: `dispatchReadiness.service.ts` espelha D1; frases de
       `TRIP_HAS_UNSCHEDULED_STOPS`/`TRIP_HAS_NO_ROUTE`; diálogo "leva todas" com contagem; sem
       "Conferir carga" (escritório e motorista); `autoDispatch` lido nas mutations; caixa do
       catálogo só em separação; fase "Despachada" no `TripProcessFlow`.
-- [ ] **T6.2** Implementação até os contratos passarem; locales pt-BR (acentuado) e en.
+- [x] **T6.2** Implementação até os contratos passarem; locales pt-BR (acentuado) e en.
 
 ## Fase 7 — Revisão
 

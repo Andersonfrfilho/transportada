@@ -351,3 +351,183 @@ Gates (de `apps/api-transportada`, banco nativo descartável 127.0.0.1:65433, PG
   vir da API — como esperado, a Fase 6 é quem mexe na tela.
 
 Commit: `923fe31f8` — feat(trips): allowed-actions para de oferecer "Conferir carga" (spec 185 T5.2).
+
+## T6.1 — contratos da tela (dispatchReadiness, frases de recusa, autoDispatch, catálogo, TripProcessFlow, campo novo da API)
+
+**API — `leavesBehindOnDispatch` no detalhe da viagem:**
+
+- `test/integration/trip-detail-leaves-behind.integration.ts` (novo, registrado em `test:integration`):
+  viagem com 3 notas — uma com ocorrência "segue sem a nota" ainda pendente (`leftBehindId`), uma
+  sem ocorrência (`untouchedId`), uma carregada com a mesma ocorrência (`loadedId`, D1: carregada
+  continua carga). Antes da implementação, de `apps/api-transportada`
+  (banco nativo 127.0.0.1:65433): `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test
+  test --timeout 120000 ./test/integration/trip-detail-leaves-behind.integration.ts` → 0 pass,
+  1 fail (`leavesBehindOnDispatch` `undefined`, campo ainda não existe no tipo/serializador).
+
+**Frontend — contratos novos/alterados** (`test/trip.contract.test.ts` ganhou os seis imports):
+
+- `test/trip/dispatch-readiness.contract.ts` (novo): a mesma tabela de casos de D1
+  (`dispatch-readiness.contract.ts` da API), restatada sobre `dispatchReadiness.service.ts`
+  (ainda inexistente) — vivas × liberadas × devolvidas, ocorrência tira da conta só quando não
+  carregada, zero carregada não fecha, campo ausente (API anterior) degrada para "conta como carga
+  a levar".
+- `test/trip/dispatch-feedback.contract.ts` (novo): `resolveDispatchBlockedFeedback`/
+  `resolveDispatchErrorFeedback`/`resolveAutoDispatchFeedback` (`tripDispatchFeedback.service.ts`,
+  ainda inexistente) — resolução do rótulo da parada a partir de `trip.stops`, o motivo "sem rota"
+  batendo com `TRIP_TRANSITION_BLOCK_MESSAGES.TRIP_HAS_NO_ROUTE` da API, e o caminho `null` para
+  erro sem relação com despacho.
+- `test/trip/dispatch-confirm-dialog.contract.ts` (novo, leitura de fonte): `TripHeaderActions`
+  conta pela regra pura de D1, confirma com `TripConfirmDialog` (nunca mais o `TripReasonDialog` de
+  forçar), manda `loadRemaining` — e não oferece mais `confirmLoad`; `TripDetail`/`useTripWorkspace`
+  sem `confirmLoadTripMutation`; `tripClient.service.ts` sem `confirmLoadTrip`, com `loadRemaining`
+  no corpo do despacho.
+- `test/trip/auto-dispatch-response.contract.ts` (novo) + `registered-occurrence-shape.contract.ts`
+  (ganhou 3 casos): `transitionTripDocumentResultFromApi`/`batchStatusResultFromApi`/
+  `registeredOccurrenceFromApi` aceitam `autoDispatch` ausente/`dispatched`/`blocked`, e recusam
+  código fora do vocabulário.
+- `test/trip/auto-dispatch-notice.contract.ts` (novo, leitura de fonte): `useTripWorkspace` captura
+  `autoDispatch` nas três escritas (linha, lote, ocorrência) e expõe `autoDispatchOutcome`;
+  `TripDetail` lê `resolveAutoDispatchFeedback`/`resolveDispatchErrorFeedback` e usa uma classe de
+  sucesso (`successNotice`) diferente do alerta de erro.
+- `test/trip/occurrence-catalog-leaves-behind.contract.ts` (novo): `OccurrenceTypeCatalogPanel` usa
+  `Checkbox` (nunca `<input type=checkbox>`), condicionado a `TRIP_OCCURRENCE_STAGE.separation`, com
+  `Tooltip` de dica; `tripClient.saveOccurrenceType` manda `leavesDocumentBehind`.
+- `test/trip/process-flow.contract.ts` (reescrito): `TRIP_PROCESS_STAGES` ganha `dispatched` entre
+  `loaded` e `delivered`; `buildTripProcessFlow` passa a receber `tripStatus` — a fase não vem de
+  `separationStatus` nenhum (não existe `'dispatched'` ali), é a viagem inteira que a alcança
+  (`total − returned`) quando o status chega a `dispatched|in_transit|on_delivery_route|completed`.
+- `test/trip/client-and-controller.contract.ts` (ajuste de expectativa, não critério novo):
+  `dispatchTrip({ tripId })` sem `force`/`loadRemaining` explícitos agora manda corpo vazio (`{}`),
+  não mais `{ force: false, forceReason: null }` — efeito do `dispatchTrip` parar de inventar valor
+  para o que não foi pedido (T6.2).
+- `test/trip/separation-occurrence-button.contract.ts` (fixture): `leavesDocumentBehind: false`
+  acrescentado ao `OccurrenceType` de teste — campo passou a obrigatório no tipo.
+
+Antes da implementação (de `apps/frontend-transportada`): `bun run typecheck` falha em 4 arquivos
+(`leavesBehindOnDispatch`/`leavesDocumentBehind` inexistentes nos tipos,
+`dispatchReadiness.service`/`tripDispatchFeedback.service` inexistentes) e `bun run test` falha ao
+resolver os módulos novos — falha esperada, T6.1 é só o contrato.
+
+Commits: `00309b634` — test(trips): contratos da tela de despacho (spec 185 T6.1).
+
+## T6.2 — implementação até os contratos passarem
+
+**API (`leavesBehindOnDispatch`):** `trip.port.ts` (`TripDocumentDetail.leavesBehindOnDispatch:
+boolean`, comentado como D1/RF9), `trip.mapper.ts` (`mapTripDocumentDetail` ganha o parâmetro
+opcional, padrão `false`), `drizzle-trip.repository.ts` (`readTripDetail` chama
+`readDispatchReadinessDocuments` + `resolveDispatchReadiness` — **uma consulta a mais, fixa para a
+viagem inteira**, nunca por nota — e monta o `Set` de `leftBehind` para marcar cada documento),
+`trip.routes.ts` (`serializeTripDocumentDetail` inclui o campo). Fixtures HTTP e do caso de uso
+(`trip-http-payload.fixture.ts`, `trip-use-case.contract.ts`) ganharam `leavesBehindOnDispatch:
+false` para compilar.
+
+**Frontend — os sete pontos do plano:**
+
+1. `dispatchReadiness.service.ts` (novo): cópia por valor de `resolveDispatchReadiness` da API —
+   `{ isCargoClosed, leftBehindCount, toLoadCount }` a partir de `trip.documents`.
+2. `TripHeaderActions.component.tsx`: `handleDispatchClick` sempre abre `TripConfirmDialog` (nunca
+   mais `TripReasonDialog`/motivo); a mensagem é composta de três chaves i18n
+   (`dispatchConfirmSimple`/`dispatchConfirmLoadRemaining`/`dispatchConfirmLeftBehind`, cada uma com
+   pluralização própria do i18next — duas contagens independentes não cabem numa chave só);
+   confirma com `onDispatch({ loadRemaining: readiness.toLoadCount > 0 })`. `tripClient.dispatchTrip`
+   reescrito para só mandar `force`/`forceReason`/`loadRemaining` quando presentes (antes sempre
+   mandava `force: false, forceReason: null`) — o tipo `DispatchTripInput` mantém os três campos.
+3. "Conferir carga" removido de `TripHeaderActions` (botão, `canConfirmLoad`, seletor de motorista
+   condicionado só a `canStartRoute` agora), `TripDetail.component.tsx`, `useTripWorkspace.hook.ts`
+   (`confirmLoadTrip`/`confirmLoadTripMutation` inteiros) e `tripClient.service.ts`
+   (`confirmLoadTrip`); locales sem `fieldActions.confirmLoad`.
+   `rg -n "confirmLoad" apps/frontend-transportada/src` não acha nada em `modules/driver-trip` —
+   conferido, o app do motorista nunca ofereceu o botão nesta base (só o enum/rota da API, que RF7
+   mantém). `tripAllowedActions.validation.ts` **não mudou**: `'confirmLoad'` continua em
+   `TRIP_ALLOWED_ACTIONS` de propósito (tolerância a API antiga), só que nada mais chama
+   `canTrip('confirmLoad')`.
+4. Frases de recusa: `tripDispatchFeedback.service.ts` (novo) —
+   `resolveDispatchBlockedFeedback({code, stopIds?, stops})` resolve o rótulo de cada parada por
+   `trip.stops.find(stop => stop.id === stopId)?.label ?? stopId`; `TRIP_HAS_NO_ROUTE` vira a frase
+   fixa. Para o **botão manual**, `resolveDispatchErrorFeedback` lê `TripRequestError.details`
+   (capturado agora em `tripClient.service.ts`: `readErrorDetails` extrai `error.details[]` da
+   resposta) — `TRIP_HAS_UNSCHEDULED_STOPS` pelos `details[].field === 'stopId'`,
+   `STATE_TRANSITION_NOT_ALLOWED` casando o texto de `details[].message` com a cópia por valor de
+   `TRIP_TRANSITION_BLOCK_MESSAGES.TRIP_HAS_NO_ROUTE` (é o único sinal que a API expõe para esse
+   motivo específico — `code` sozinho não distingue os motivos de transição bloqueada).
+5. `autoDispatch`: `trip.types.ts` ganha `AutoDispatchOutcome`/`TripDispatchBlockedCode` (cópia de
+   `TryAutoDispatchTripResult`) e o campo opcional em `TransitionTripDocumentResult`/
+   `BatchStatusResult`/`RegisteredOccurrence`; `tripResponse.validation.ts` ganha
+   `isAutoDispatchOutcome` e os três guards passam a aceitar a chave opcional (`hasKeys` em vez de
+   `hasExactKeys`). `useTripWorkspace.hook.ts`: `autoDispatchOutcome` (estado) capturado no
+   `onSuccess` de `transitionDocumentMutation`/`batchStatusMutation` e dentro de
+   `registerFirst` (fluxo de foto da ocorrência de separação); invalidação da viagem acrescida ao
+   fim do envio de fotos (o gatilho pode ter despachado). `TripDetail.component.tsx` renderiza
+   `resolveAutoDispatchFeedback` num `<p>` com `styles.successNotice` (`--color-ready`) quando
+   `dispatched`, `styles.alert` quando `blocked` — e a recusa do botão "Despachar" ganhou o próprio
+   `<p>` com `resolveDispatchErrorFeedback` (com fallback para a tradução genérica quando o motivo
+   não é um dos dois específicos).
+6. `OccurrenceTypeCatalogPanel.component.tsx`: `Checkbox` "A viagem segue sem a nota" +
+   `Tooltip` de dica, só quando `stage === TRIP_OCCURRENCE_STAGE.separation` (linhas existentes e no
+   formulário de cadastro); `leavesDocumentBehind` sempre enviado no `onSave` (molde de
+   `active`/`notifies`, nunca omitido). `occurrence.constant.ts`/`tripClient.service.ts`/
+   `useTripWorkspace.hook.ts` ganharam o campo no tipo `OccurrenceType`/`saveOccurrenceType`.
+7. `tripProcessFlow.service.ts`: `TRIP_PROCESS_STAGES` com `dispatched`; `buildTripProcessFlow`
+   recebe `tripStatus`, calcula `reachedByDocumentStage` só para as 4 fases de nota
+   (`DOCUMENT_STAGES`) e `dispatchedReached = isDispatched ? total − returned : 0` separado —
+   `dispatched|in_transit|on_delivery_route|completed` marcam a fase. `TripProcessFlow.component.tsx`
+   recebe `tripStatus` (de `trip.status`, `TripDetail.component.tsx`) e ganhou ícone próprio
+   (`target`) para a fase nova.
+8. Locales pt-BR (acentuado) e en: `feedback.hasUnscheduledStops`/`hasNoRoute`/`autoDispatched`,
+   `stateActions.dispatchConfirm*` (título + 3 mensagens), `separationStatus.dispatched`,
+   `occurrenceTypeCatalog.leavesDocumentBehind`/`leavesDocumentBehindHint` — e remoção de
+   `stateActions.forceTitle`/`forceSubtitle`/`forceSubmit`/`forceReasonLabel` e
+   `fieldActions.confirmLoad` (mortos com a remoção do diálogo/botão).
+
+**Gates (de `apps/api-transportada`, banco nativo descartável 127.0.0.1:65433, PG 18.4):**
+
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test test --timeout 120000
+  ./test/integration/trip-detail-leaves-behind.integration.ts
+  ./test/integration/trip-detail-query-count.integration.ts` → 5 pass, 0 fail, 54 expect() —
+  a prova de "sem N+1" (contagem igual entre 1 e 40 paradas) continua batendo com a query nova.
+- contrato inteiro `bun --env-file=../../.env.test test --timeout 120000` → 7257 pass, 23 skip,
+  0 fail, 24396 expect() em 183 arquivos (a suíte `.integration.ts` não roda aqui, por desenho —
+  `test/integration/trip-detail-leaves-behind.integration.ts` não casa `*.test.*`).
+- integração inteira `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres
+  bun --env-file=../../.env.test run test:integration` → 604 pass, 0 fail, 4104 expect() em
+  111 arquivos (338,58 s).
+
+**Gates (de `apps/frontend-transportada`):**
+
+- `bun run test` (contratos + `test:hooks`) → 5240 pass em 29 arquivos de contrato + 51 pass em
+  hooks (30 arquivos ao todo), 0 fail, exit 0.
+- `bun run typecheck` → limpo.
+- `bun run lint` (eslint) → limpo (dois achados de asserção redundante corrigidos:
+  `readErrorDetails` sem cast e `DOCUMENT_STAGES.indexOf(stage)` sem cast — o narrowing do
+  `stage === 'dispatched' ? ... : ...` já exclui `'dispatched'` no ramo `else`).
+- `bun run build` → build de produção completo, sem erro (avisos de chunk grande são pré-existentes,
+  não desta mudança).
+
+**Gates (raiz):** `bun run typecheck` limpo nas seis apps (api, worker, cron, frontend,
+frontend-client, frontend-landing); `bunx prettier --check` nos 34 arquivos tocados/criados
+(API + frontend) → limpo, exit 0 (7 arquivos precisaram de `--write` uma vez — quebras de linha do
+Prettier em código recém-escrito — e o `--check` seguinte confirmou limpo).
+
+**Decisões registradas aqui por não caberem em comentário:**
+
+- **Rótulo da parada**: `resolveStopLabel` usa `trip.stops.find(...)?.label`, o mesmo rótulo
+  derivado que a própria tela já usa em toda parte (`buildStopLabel`/endereço resolvido) — nunca uma
+  segunda formatação. Parada que sumiu de `trip.stops` (não deveria acontecer, mas a resposta é
+  externa) cai para o próprio `stopId`, nunca quebra a tela.
+- **Motivo "sem rota"**: a API não expõe um código específico para `TRIP_HAS_NO_ROUTE` na resposta
+  HTTP de erro de `STATE_TRANSITION_NOT_ALLOWED` (só `autoDispatch.code` tem esse luxo, porque nasce
+  direto no caso de uso) — o cliente casa `details[].message` com a cópia por valor da frase fixa da
+  API. É o único sinal disponível sem mudar o contrato da API, e a mudança de API desta fase foi
+  proposital e pequena (só `leavesBehindOnDispatch`).
+- **`autoDispatched` como aviso, não erro**: classe `successNotice` nova (`--color-ready`, mesmo
+  corpo do `.alert`) e `role="status"` em vez de `role="alert"` — o leitor de tela não trata sucesso
+  como interrupção.
+- **`dispatchTrip` para de inventar valor**: o corpo passou a omitir `force`/`forceReason`/
+  `loadRemaining` quando `undefined`, em vez de sempre mandar `force: false, forceReason: null`. Não
+  muda o efeito (a API tem `.default(false)` para os dois), só o dado na rede — e é consistente com
+  o resto do arquivo (`acceptMultiVehicleSuggestion` já fazia isso).
+
+Prints (revisão de design, `web.md` §15) ficam para T7.1 — fora do escopo desta fase, como o brief
+já registrava.
+
+Commits: `b4d8e4385` — feat(trips): a tela do escritório despacha "leva todas" (spec 185 T6.2).
