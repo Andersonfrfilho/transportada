@@ -330,13 +330,21 @@
   white-space: nowrap;
 }
 
-/* Spec 164 RF36: marca — não substitui nenhuma ação da linha, só acrescenta o aviso. */
-.occurrenceCaseBadge {
+/*
+ * Spec 164 RF36: marca — não substitui nenhuma ação da linha, só acrescenta o aviso. É um `<Button>`
+ * (abre o diálogo da ocorrência), então herda `.ui-button`/`.ui-button-size-sm`/`.ui-button-ghost` —
+ * cujo padding e background competiam com os deste selo e o deixavam com altura/respiro diferentes
+ * de `.separationStatusBadge`/`.fiscalStatusBadge` ao lado (spec 181 T502). Seletor com o elemento
+ * (`button.occurrenceCaseBadge`) para vencer a especificidade das classes utilitárias sem depender
+ * da ordem de import das folhas de estilo.
+ */
+button.occurrenceCaseBadge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   height: var(--control-height-compact);
   padding: 0 var(--space-2);
+  background: transparent;
   /*
    * ⚠️ Cobre, **não** a cor de erro: `--color-alert` é a do impedimento fiscal, e vestir a mesma cor
    * fazia a marca ler como bloqueio. A nota em tratativa não é presa — ela segue liberada (CA5), e
@@ -353,6 +361,13 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Mesma técnica de `.headerActions`/`.stopCardMeta`: o botão inteiro pula para a linha seguinte em
+   vez de espremer o próprio rótulo em duas linhas dentro da caixa. */
+.rowActions :global(.ui-button) {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .driverChecklist {
@@ -969,12 +984,55 @@
   background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
 }
 
+/*
+ * Spec 181 T502 (revisão de layout): duas fileiras empilhadas, nunca uma só. Identidade (sequência +
+ * título + contador) e metadados (selos + execução + ações de campo) competiam pelo mesmo espaço
+ * num único `flex-wrap`, e a largura que sobrava para o título variava conforme quantos selos a
+ * parada tinha — a mesma parada quebrava em 2 ou 4 linhas sem relação com o próprio texto. Cada
+ * fileira agora tem sua própria disputa de espaço, e o título nunca compete com um selo de outra
+ * parada.
+ */
 .stopCardHead {
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--space-2);
+}
+
+.stopCardIdentity {
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
+  gap: var(--space-2);
+}
+
+/* Selos, execução e ações de campo — largura estável da identidade acima libera esta fileira para
+   quebrar por conta própria, sem puxar o título junto. */
+.stopCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * Sem isto o botão que sobra sem espaço quebra o próprio rótulo em duas linhas dentro da caixa em
+ * vez de descer inteiro para a linha seguinte — mesma técnica de `.headerActions :global(.ui-button)`
+ * (spec 170), aplicada aqui porque esta fileira ganhou o mesmo formato.
+ */
+.stopCardMeta :global(.ui-button) {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Estado à esquerda, ação à direita — a mesma leitura em parada de galpão, em rota e concluída. */
+.stopCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 
 /* Alvo de toque do arraste: é o gesto mais repetido do separador com viagem grande, e o dedo
@@ -999,6 +1057,7 @@
 
 .stopSequence {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   min-width: var(--control-height-compact);
@@ -1010,11 +1069,17 @@
   font-size: 0.78rem;
 }
 
+/* Único item flexível da identidade: absorve o aperto de espaço em vez do número ou do contador
+   (`.stopCardIdentity`), e quebra por palavra — nunca ultrapassa a borda do card. */
 .stopLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 600;
 }
 
 .stopCounter {
+  flex-shrink: 0;
   margin-left: auto;
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   font-family: var(--font-utility);
@@ -1027,11 +1092,16 @@
  * fechou — se perdia no meio do ruído. Ganha corpo de etiqueta, com a cor do estado: verde quando
  * concluiu, cobre quando o motorista chegou e a parada ainda está aberta.
  */
+/**
+ * ⚠️ Sem `margin-left: auto`. Era **este selo** que empurrava a fileira para a direita, e ele só
+ * existe depois que a parada foi visitada: parada no galpão deixava os botões colados à esquerda e
+ * parada concluída os jogava para a direita, na mesma tela. Quem empurra agora é
+ * `.stopCardActions` — que existe sempre que há botão, em qualquer estado da parada (spec 181 T502).
+ */
 .stopExecution {
   display: inline-flex;
   gap: var(--space-1);
   align-items: center;
-  margin-left: auto;
   padding: 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
   background: color-mix(in srgb, var(--color-copper) 10%, transparent);
@@ -1090,14 +1160,28 @@
   justify-content: center;
 }
 
-/** Spec 181 RF5/CA05: mesma âncora tipográfica do rótulo da parada (`.stopLabel`). */
+/**
+ * Spec 181 RF5/CA05: mesma âncora tipográfica do rótulo da parada (`.stopLabel`). Não encolhe: quem
+ * cede espaço para os selos é a fileira de selos ao lado, não este rótulo (spec 181 T502, evita o card
+ * mudar de forma conforme quantos selos a nota tem).
+ *
+ * ⚠️ **Sem `white-space: nowrap`**, e com teto de largura. O rótulo não é sempre o número curto: nota
+ * sem `nfeNumber` — o vínculo que só calcula frete — cai no id do documento, e um UUID de 36 dígitos
+ * com `nowrap` + `flex-shrink: 0` não encolhe nem quebra, e sai 11px para fora da janela de 375px.
+ * Deu barra horizontal na página e reprovou `responsive.smoke.spec.ts`.
+ */
 .stopDocumentLabel {
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-family: var(--font-utility);
   font-size: 0.95rem;
   font-weight: 600;
 }
 
 .stopDocumentBadgeRow {
+  min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -1105,8 +1189,12 @@
 }
 
 /**
- * Spec 181 RF1/RF4: dinheiro e pessoas em blocos rotulados — `auto-fit` porque quantos blocos
- * cabem lado a lado depende do espaço disponível, não de um breakpoint fixo.
+ * Spec 181 RF1/RF4/T202: dinheiro e pessoas em blocos rotulados — `auto-fit` porque quantos blocos
+ * cabem lado a lado depende do espaço disponível, não de um breakpoint fixo (contrato:
+ * `test/trip/document-row-structure.contract.ts`). Efeito colateral aceito: como cada nota tem sua
+ * própria grade (sem subgrid), a coluna direita não cai no mesmo x entre notas com número diferente
+ * de blocos populados — alinhar isso exigiria uma grade compartilhada por parada, mudança maior que
+ * o escopo desta revisão de layout (spec 181 T502).
  */
 .stopDocumentGrid {
   min-width: 0;
@@ -1133,8 +1221,9 @@
  * Spec 180 RF16/T302: o mesmo botão fora do fluxo do texto, com a mesma área de toque — reusado
  * aqui pelas duas expansões da nota (comprovante e detalhes), nunca um terceiro jeito de expandir.
  */
+/* Spec 181 T502: entrou para dentro de `.rowActions` (flex) — `justify-self` era resquício de quando
+   era item de grid, sem efeito nenhum ali. */
 .stopDocumentToggle {
-  justify-self: start;
   min-height: var(--touch-target);
   padding-inline: var(--space-2);
 }
@@ -1357,12 +1446,6 @@
   background: color-mix(in srgb, var(--color-graphite) 92%, transparent);
 }
 
-@media (min-width: 40rem) {
-  .stopCardHead {
-    flex-wrap: nowrap;
-  }
-}
-
 /* Spec 059: a prontidão fica acima das ações — quem rola até "emitir" já sabe se dá para emitir. */
 .readinessPanel {
   border: 1px solid var(--color-slate);
@@ -1469,13 +1552,18 @@
   margin-block: var(--space-2);
 }
 
-/* Valor e data acompanham o número sem competir com ele: é referência, não o nome da nota. */
+/*
+ * Valor e data acompanham o número sem competir com ele: é referência, não o nome da nota.
+ * `white-space: nowrap` chegou a estar aqui, pensado para valor/data curtos — mas a mesma classe
+ * carrega o nome de quem recebe (`contact.recipient`), texto livre e longo, que ficava cortado na
+ * borda do card em vez de quebrar (spec 181 T502). `overflow-wrap: anywhere` já cobre o caso de um token
+ * sem espaço; o resto quebra normalmente.
+ */
 .stopDocumentMeta {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--color-slate);
   font-size: 0.8rem;
-  white-space: nowrap;
 }
 
 /* Lista lida de pé: uma linha por item, sem marcador competindo com a quantidade. */

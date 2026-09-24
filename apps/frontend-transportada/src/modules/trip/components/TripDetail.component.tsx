@@ -1038,11 +1038,18 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
 
         {unassignedDocuments.length === 0 ? null : (
           <div className={styles.stopCard}>
+            {/*
+              `stopCardIdentity` dentro do `stopCardHead`: o cabeçalho virou uma pilha de fileiras
+              (spec 181 T502), e rótulo e contador são a fileira de identidade — soltos aqui eles viravam
+              duas linhas empilhadas em vez da linha única que sempre foram.
+            */}
             <div className={styles.stopCardHead}>
-              <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
-              <span className={styles.stopCounter}>
-                {t('stops.documentCount', { count: unassignedDocuments.length })}
-              </span>
+              <div className={styles.stopCardIdentity}>
+                <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
+                <span className={styles.stopCounter}>
+                  {t('stops.documentCount', { count: unassignedDocuments.length })}
+                </span>
+              </div>
             </div>
             <TripStopDocumentGroup
               actions={documentActions}

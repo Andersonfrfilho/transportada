@@ -282,6 +282,13 @@ function TripStopCard({
     capabilities: actions.capabilities,
     stopId: stop.id,
   })
+  /**
+   * A fileira de selos/execução/ações só existe quando há algo a mostrar nela — caso contrário o
+   * `gap` da coluna abriria um respiro vazio entre o título e a lista de notas (`web.md` §10, sem
+   * elemento fantasma ocupando ritmo vertical).
+   */
+  const hasCardMeta =
+    stop.hasOpenOccurrence === true || stop.arrivedAt !== null || canArrive || canRegisterOccurrence
 
   return (
     <li
@@ -292,69 +299,92 @@ function TripStopCard({
       style={style}
     >
       <div className={styles.stopCardHead}>
-        {canReorder ? (
-          <button
-            aria-label={t('stops.reorderHandle', { label: stop.label })}
-            className={styles.stopDragHandle}
-            type="button"
-            {...sortable.attributes}
-            {...sortable.listeners}
-          >
-            <Icon name="grip" />
-          </button>
-        ) : null}
         {/*
-          ⚠️ Parada de uma nota só não ganha a caixa da parada: ela marcaria exatamente a mesma coisa
-          que a caixa da linha logo abaixo, e duas seleções coladas para o mesmo item confundiam.
-        */}
-        {documentIds.length > 1 ? (
-          <Checkbox
-            ariaLabel={t('stops.selectAll', { label: stop.label })}
-            checked={allSelected}
-            indeterminate={someSelected && !allSelected}
-            onChange={(checked) => selection.toggleMany(documentIds, checked)}
-          />
-        ) : null}
-        <span className={styles.stopSequence}>{stop.sequence}</span>
-        <span className={styles.stopLabel}>{stop.label}</span>
-        <span className={styles.stopCounter}>
-          {t('stops.documentCount', { count: stop.documents.length })}
-        </span>
-        {/*
-         * Spec 173: a parada marca quando alguma nota dela tem tratativa aberta. O dado chega da
-         * API desde a spec 164 T15 e a tela o ignorava — era preciso abrir nota por nota.
+         * Spec 181 T502 (revisão de layout): identidade da parada — sequência, título e contador — numa
+         * fileira própria, de largura estável, para o título nunca competir por espaço com selos ou
+         * ações que variam de parada para parada (era a causa da quebra instável em 2/4 linhas).
          */}
-        {stop.hasOpenOccurrence === true ? (
-          <span className={styles.openOccurrenceBadge}>
-            <Icon name="alert" size="sm" />
-            {t('stops.openOccurrence', {
-              count: countDocumentsWithOpenOccurrence(stop.documents),
-            })}
+        <div className={styles.stopCardIdentity}>
+          {canReorder ? (
+            <button
+              aria-label={t('stops.reorderHandle', { label: stop.label })}
+              className={styles.stopDragHandle}
+              type="button"
+              {...sortable.attributes}
+              {...sortable.listeners}
+            >
+              <Icon name="grip" />
+            </button>
+          ) : null}
+          {/*
+            ⚠️ Parada de uma nota só não ganha a caixa da parada: ela marcaria exatamente a mesma
+            coisa que a caixa da linha logo abaixo, e duas seleções coladas para o mesmo item
+            confundiam.
+          */}
+          {documentIds.length > 1 ? (
+            <span className={styles.stopDocumentCheckboxColumn}>
+              <Checkbox
+                ariaLabel={t('stops.selectAll', { label: stop.label })}
+                checked={allSelected}
+                indeterminate={someSelected && !allSelected}
+                onChange={(checked) => selection.toggleMany(documentIds, checked)}
+              />
+            </span>
+          ) : null}
+          <span className={styles.stopSequence}>{stop.sequence}</span>
+          <span className={styles.stopLabel}>{stop.label}</span>
+          <span className={styles.stopCounter}>
+            {t('stops.documentCount', { count: stop.documents.length })}
           </span>
-        ) : null}
-        <StopExecution stop={stop} />
-        {/*
-         * Spec 180: as duas ações de campo por parada — vieram de `TripFieldActions`, que existia só
-         * para elas. Mesmo gate de lá (`canReportOnBehalf` + capacidade da parada), só que na linha
-         * que o escritório já olha para tudo o mais desta parada.
-         */}
-        {canArrive ? (
-          <Button
-            disabled={actions.isArrivePending}
-            onClick={() => onOpenArrival(stop.id)}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            <Icon name="check" />
-            {t('fieldActions.arrive')}
-          </Button>
-        ) : null}
-        {canRegisterOccurrence ? (
-          <Button onClick={() => onOpenOccurrence(stop.id)} size="sm" type="button" variant="ghost">
-            <Icon name="alert" />
-            {t('fieldActions.occurrence')}
-          </Button>
+        </div>
+        {hasCardMeta ? (
+          <div className={styles.stopCardMeta}>
+            {/*
+             * Spec 173: a parada marca quando alguma nota dela tem tratativa aberta. O dado chega da
+             * API desde a spec 164 T15 e a tela o ignorava — era preciso abrir nota por nota.
+             */}
+            {stop.hasOpenOccurrence === true ? (
+              <span className={styles.openOccurrenceBadge}>
+                <Icon name="alert" size="sm" />
+                {t('stops.openOccurrence', {
+                  count: countDocumentsWithOpenOccurrence(stop.documents),
+                })}
+              </span>
+            ) : null}
+            <StopExecution stop={stop} />
+            {/*
+             * Spec 180: as duas ações de campo por parada — vieram de `TripFieldActions`, que
+             * existia só para elas. Mesmo gate de lá (`canReportOnBehalf` + capacidade da parada),
+             * só que na linha que o escritório já olha para tudo o mais desta parada.
+             */}
+            {canArrive || canRegisterOccurrence ? (
+              <div className={styles.stopCardActions}>
+                {canArrive ? (
+                  <Button
+                    disabled={actions.isArrivePending}
+                    onClick={() => onOpenArrival(stop.id)}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    <Icon name="check" />
+                    {t('fieldActions.arrive')}
+                  </Button>
+                ) : null}
+                {canRegisterOccurrence ? (
+                  <Button
+                    onClick={() => onOpenOccurrence(stop.id)}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Icon name="alert" />
+                    {t('fieldActions.occurrence')}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -383,9 +413,20 @@ function StopExecution({ stop }: Readonly<{ stop: TripStopDetail }>) {
   )
 }
 
-/** Hora e minuto: o dia é o da viagem, e a data por extenso só rouba espaço da linha. */
+/**
+ * Hora e minuto: o dia é o da viagem, e a data por extenso só rouba espaço da linha.
+ *
+ * ⚠️ Locale fixo, como `amountFormatter` e `dayFormatter` logo abaixo. Com `undefined` a hora seguia
+ * o idioma do navegador: em `en-US` o selo virava `CONCLUÍDA ÀS 02:31 PM` — seis caracteres a mais
+ * num selo de altura fixa, num texto que o resto da linha escreve em português.
+ */
+const stopTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
 function formatStopTime(value: string): string {
-  return new Date(value).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  return stopTimeFormatter.format(new Date(value))
 }
 
 export function TripStopDocumentGroup({
@@ -719,44 +760,46 @@ function TripStopDocumentRow({
             {t('actions.fieldDelivery')}
           </Button>
         ) : null}
+        {/*
+         * Spec 181 RF1/T302: as duas expansões da nota reusam o padrão da spec 180 (`aria-expanded`/
+         * `aria-controls`, chevron, teclado, 44px) — nunca um segundo jeito de expandir. Spec 181 T502
+         * (revisão de layout): entram na mesma faixa de `.rowActions` das demais ações da nota — cada
+         * uma na própria linha do grid desperdiçava a largura inteira do card.
+         */}
+        {document.deliveredAt === null && document.returnedAt === null ? null : (
+          <Button
+            aria-controls={proofId}
+            aria-expanded={isProofOpen}
+            className={styles.stopDocumentToggle}
+            onClick={() => actions.onToggleProof(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name={isProofOpen ? 'chevron-up' : 'chevron-down'} />
+            {t('actions.viewProof')}
+          </Button>
+        )}
+        {/*
+         * Spec 181 T304: contratante, regra fiscal e telefone são dado de confirmação — ficam na
+         * expansão, e a ausência de telefone não ocupa espaço na frente do card.
+         */}
+        {hasNoteDetail ? (
+          <Button
+            aria-controls={detailId}
+            aria-expanded={isDetailExpanded}
+            className={styles.stopDocumentToggle}
+            onClick={() => setIsDetailExpanded((current) => !current)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name={isDetailExpanded ? 'chevron-up' : 'chevron-down'} />
+            {isDetailExpanded ? t('stops.detailCollapse') : t('stops.detailExpand')}
+          </Button>
+        ) : null}
       </div>
-      {/*
-       * Spec 181 RF1/T302: as duas expansões da nota reusam o padrão da spec 180 (`aria-expanded`/
-       * `aria-controls`, chevron, teclado, 44px) — nunca um segundo jeito de expandir.
-       */}
-      {document.deliveredAt === null && document.returnedAt === null ? null : (
-        <Button
-          aria-controls={proofId}
-          aria-expanded={isProofOpen}
-          className={styles.stopDocumentToggle}
-          onClick={() => actions.onToggleProof(document.id)}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Icon name={isProofOpen ? 'chevron-up' : 'chevron-down'} />
-          {t('actions.viewProof')}
-        </Button>
-      )}
       {isProofOpen ? <div id={proofId}>{actions.renderProof(document.id)}</div> : null}
-      {/*
-       * Spec 181 T304: contratante, regra fiscal e telefone são dado de confirmação — ficam na
-       * expansão, e a ausência de telefone não ocupa espaço na frente do card.
-       */}
-      {hasNoteDetail ? (
-        <Button
-          aria-controls={detailId}
-          aria-expanded={isDetailExpanded}
-          className={styles.stopDocumentToggle}
-          onClick={() => setIsDetailExpanded((current) => !current)}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Icon name={isDetailExpanded ? 'chevron-up' : 'chevron-down'} />
-          {isDetailExpanded ? t('stops.detailCollapse') : t('stops.detailExpand')}
-        </Button>
-      ) : null}
       {hasNoteDetail && isDetailExpanded ? (
         <div className={styles.stopDocumentDetailGroup} id={detailId}>
           {document.contact === null || document.contact === undefined ? null : (

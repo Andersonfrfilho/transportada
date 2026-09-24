@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { resolve } from 'node:path'
 
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, test } from '@playwright/test'
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
 import { mockTripWorkspaceApi } from './trip-smoke.helper'
@@ -66,7 +66,38 @@ for (const theme of THEMES) {
        */
       const stops = page.locator('#trip-stops-title').locator('xpath=ancestor::section[1]')
       await expect(stops.getByText('Barracão Sintético', { exact: true })).toBeVisible()
+      /** A parada concluída e o destinatário longo: sem os dois o print não cobre o que vazava. */
+      await expect(stops.getByText('AVENIDA 21, 610, BARRETOS, SP')).toBeVisible()
+      await expect(stops.getByText(/ALMEIDA COMERCIO/u)).toBeVisible()
+      await expect(
+        stops.getByRole('button', { name: 'Registrar ocorrência' }).first(),
+      ).toBeVisible()
+      await expectNothingEscapesTheCard(stops)
       await stops.screenshot({ path: printPath(`card-parada-${label}`, theme) })
     })
   }
+}
+
+/**
+ * O print prova o que está desenhado, não o que **não** está: elemento que sai pela borda direita
+ * some da foto recortada e passa por layout correto — foi assim que o botão "Registrar ocorrência"
+ * com o rótulo atravessando a própria caixa sobreviveu a uma revisão. Esta asserção mede a
+ * geometria de cada descendente contra a caixa da seção, que é o que a vista humana chamou de
+ * "elementos saindo dos limites".
+ *
+ * Tolerância de 1px: `getBoundingClientRect` devolve fração, e sub-pixel de borda não é vazamento.
+ */
+async function expectNothingEscapesTheCard(section: Locator): Promise<void> {
+  const escapees = await section.evaluate((element) => {
+    const limit = element.getBoundingClientRect().right
+    return Array.from(element.querySelectorAll('*'))
+      .map((child) => ({ box: child.getBoundingClientRect(), child }))
+      .filter(({ box }) => box.width > 0 && box.right > limit + 1)
+      .map(
+        ({ box, child }) =>
+          `${child.tagName}.${child.className} escapa ${Math.round(box.right - limit)}px — "${(child.textContent ?? '').slice(0, 40)}"`,
+      )
+  })
+
+  expect(escapees, 'elementos ultrapassando a borda do card').toEqual([])
 }

@@ -25,6 +25,9 @@ export const STOP_CARD_STOP_ID = '00000000-0000-4000-8000-000000000608'
 export const STOP_CARD_LOADED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000609'
 export const STOP_CARD_RETURNED_DOCUMENT_ID = '00000000-0000-4000-8000-00000000060a'
 export const STOP_CARD_OCCURRENCE_DOCUMENT_ID = '00000000-0000-4000-8000-00000000060b'
+/** T502: a parada **concluída** e a nota de destinatário longo — os dois elementos que vazavam. */
+export const STOP_CARD_DONE_STOP_ID = '00000000-0000-4000-8000-00000000061a'
+export const STOP_CARD_LONG_RECIPIENT_DOCUMENT_ID = '00000000-0000-4000-8000-00000000061b'
 
 const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
@@ -259,6 +262,49 @@ const STOP_CARD_OCCURRENCE_DOCUMENT = {
   stopId: STOP_CARD_STOP_ID,
 } as const
 
+/**
+ * T502: o destinatário de nome longo. A revisão de design encontrou "Recebe: <razão social>" saindo
+ * pela borda direita do card sem reticências nem quebra — sem uma razão social de verdade na
+ * fixture, o print mostrava um nome curto e o vazamento não aparecia na foto.
+ */
+const STOP_CARD_LONG_RECIPIENT_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: STOP_CARD_LONG_RECIPIENT_DOCUMENT_ID }),
+  contact: {
+    contractorName: 'DISTRIBUIDORA CENTRO OESTE DE MEDICAMENTOS LTDA',
+    name: 'ALMEIDA COMERCIO DE PRODUTOS DE FARMACIA E PERFUMARIA LTDA',
+    phone: '16999990003',
+    taxId: '12345678000190',
+  },
+  freightAmount: '90.5600',
+  freightSource: 'estimated',
+  nfeIssuedAt: '2026-08-10T09:12:00.000Z',
+  nfeNumber: '904',
+  nfeSeries: '1',
+  nfeTotalValue: '754.6300',
+  returnedAt: '2026-08-10T17:31:00.000Z',
+  returnReason: 'recipient_absent',
+  separationStatus: 'returned',
+  stopId: STOP_CARD_DONE_STOP_ID,
+} as const
+
+/**
+ * T502: a parada **concluída**. Ela existe pelo cabeçalho, não pela nota: parada visitada ganha o
+ * selo de execução e o botão "Registrar ocorrência" ao lado, e era essa combinação que espremia o
+ * botão até o rótulo quebrar dentro da própria caixa. Parada só de galpão nunca fotografa o defeito.
+ */
+const STOP_CARD_DONE_STOP = {
+  addressKey: 'stop-card-done',
+  arrivedAt: '2026-08-10T17:05:00.000Z',
+  completedAt: '2026-08-10T17:31:00.000Z',
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: [STOP_CARD_LONG_RECIPIENT_DOCUMENT],
+  hasOpenOccurrence: false,
+  id: STOP_CARD_DONE_STOP_ID,
+  label: 'AVENIDA 21, 610, BARRETOS, SP',
+  sequence: 2,
+} as const
+
 /** Spec 181 T502: uma parada só, com as três notas acima — a mesma lista entra em `documents` (nível
  * da viagem) e aqui aninhada (ADR-0043 §3), nunca uma cópia divergente. */
 const STOP_CARD_STOP = {
@@ -292,7 +338,12 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
           tripDocument({ cteAuthorized: false, id: PENDING_DOCUMENT_ID }),
         ]
       : mode === 'stop-card-states'
-        ? [STOP_CARD_LOADED_DOCUMENT, STOP_CARD_RETURNED_DOCUMENT, STOP_CARD_OCCURRENCE_DOCUMENT]
+        ? [
+            STOP_CARD_LOADED_DOCUMENT,
+            STOP_CARD_RETURNED_DOCUMENT,
+            STOP_CARD_OCCURRENCE_DOCUMENT,
+            STOP_CARD_LONG_RECIPIENT_DOCUMENT,
+          ]
         : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
 
   return {
@@ -319,7 +370,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       : { cargoLayout: null, occupancy: null }),
     cargoWeight: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
-    stops: mode === 'stop-card-states' ? [STOP_CARD_STOP] : [],
+    stops: mode === 'stop-card-states' ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP] : [],
   }
 }
 
@@ -575,11 +626,21 @@ async function registerTripMocks(
       await fulfillOptions(route)
       return
     }
-    const documents =
-      input.mode === 'stop-card-states'
-        ? { [STOP_CARD_LOADED_DOCUMENT_ID]: ['fieldDelivery', 'fieldOccurrence', 'fieldReturn'] }
-        : {}
-    await fulfillJson(route, { data: { documents, stops: {}, trip: [] } })
+    const isStopCard = input.mode === 'stop-card-states'
+    const documents = isStopCard
+      ? {
+          [STOP_CARD_LOADED_DOCUMENT_ID]: ['fieldDelivery', 'fieldOccurrence', 'fieldReturn'],
+          [STOP_CARD_LONG_RECIPIENT_DOCUMENT_ID]: ['fieldOccurrence', 'fieldProof'],
+        }
+      : {}
+    /** T502: sem a capacidade da parada o botão "Registrar ocorrência" do cabeçalho nem existe. */
+    const stops = isStopCard
+      ? {
+          [STOP_CARD_DONE_STOP_ID]: ['occurrence'],
+          [STOP_CARD_STOP_ID]: ['arrive', 'occurrence'],
+        }
+      : {}
+    await fulfillJson(route, { data: { documents, stops, trip: [] } })
   })
   /**
    * O catálogo de tipos de ocorrência é consultado pelo detalhe da viagem. Sem este dublê o pedido

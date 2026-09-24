@@ -218,3 +218,46 @@ Prints em `specs/181-o-card-da-parada-se-le/prints/`: `card-parada-mobile-light.
 ⚠️ Continua registrado o caminho que **não** funciona: servir o build em porta alternativa e
 fotografar pelo navegador. O app redireciona para a URL do `.env` (53000), então o que aparece é a
 árvore de outra sessão. Três tentativas em 23/09 antes de conferir `window.location.href`.
+
+---
+
+## T502 — segunda passada: o layout que o print não cobria
+
+O print anterior fechava a task, mas fotografava uma parada só, ainda no galpão. Faltavam na foto
+justamente os dois elementos que um olhar humano sobre a tela real pegou vazando: o botão
+"Registrar ocorrência" do cabeçalho — que **só existe em parada já visitada** — e o destinatário de
+razão social longa. A fixture ganhou `STOP_CARD_DONE_STOP` (concluída, sequência 2) com
+`STOP_CARD_LONG_RECIPIENT_DOCUMENT`, e `allowed-actions` passou a liberar capacidade de parada.
+
+Correções de layout aplicadas em `TripStopList`, `TripDetail` e `trip.module.css`:
+
+- O cabeçalho da parada era um flex `nowrap` com nove itens. Sem `flex-shrink: 0` o botão era
+  espremido até o rótulo quebrar **dentro** da caixa, e a largura restante para o título dependia de
+  quantos selos aquela parada tinha — a mesma parada quebrava em 2 ou 4 linhas. Virou duas fileiras.
+- `.stopDocumentMeta` tinha `white-space: nowrap` junto de `overflow-wrap: anywhere`; a segunda
+  regra só quebra token sem espaço, então "Recebe: <razão social>" nunca tinha onde quebrar.
+- "Comprovante" e "Detalhes da nota" eram filhos diretos de `.stopDocumentRow` (`display: grid`) —
+  todo filho direto ganha linha própria. Foram para dentro de `.rowActions`.
+- `.occurrenceCaseBadge` é um `<Button>` e empatava em especificidade com `.ui-button-size-sm`: qual
+  vencia dependia da ordem de import das folhas de estilo.
+- `formatStopTime` seguia o idioma do navegador; em `en-US` o selo virava `CONCLUÍDA ÀS 02:31 PM`.
+
+⚠️ Duas correções **reprovaram** antes de passar, e as duas só apareceram por medição:
+
+- `.stopDocumentLabel` ganhou `flex-shrink: 0` + `white-space: nowrap`. Nota sem `nfeNumber` cai no
+  id do documento, e um UUID de 36 dígitos com essas regras não encolhe nem quebra: saiu 11px para
+  fora da janela de 375px e derrubou `responsive.smoke.spec.ts`. Medido contra o código original
+  para confirmar que a regressão era nossa antes de tratá-la como tal.
+- `.stopExecution` tinha `margin-left: auto`, e o selo só existe depois da visita: parada no galpão
+  deixava os botões à esquerda e parada concluída os jogava para a direita, na mesma tela. A âncora
+  passou para `.stopCardActions`, que existe em qualquer estado.
+
+O spec de prints ganhou `expectNothingEscapesTheCard`: mede a geometria de cada descendente contra a
+borda da seção. **Print recortado esconde exatamente este defeito** — elemento que sai pela direita
+some da foto e passa por layout correto, que foi como o botão sobreviveu à primeira revisão.
+
+**Segue aberto:** a coluna direita da grade CARGA/FRETE/EMISSÃO/DESTINATÁRIO não alinha entre notas.
+Cada nota tem grade própria com `repeat(auto-fit, minmax(12rem, 1fr))`, travado por contrato em
+`test/trip/document-row-structure.contract.ts` (T202) — nota com 2 blocos divide em meios, com 4 em
+quartos. Alinhar exige subgrid por parada ou reverter a T202: é decisão de design, e não foi tomada
+aqui.
