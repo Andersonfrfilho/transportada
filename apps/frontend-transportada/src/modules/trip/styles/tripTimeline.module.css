@@ -134,6 +134,62 @@
   --timeline-marker-color: var(--color-alert);
 }
 
+/** Spec 180 RF9/T401: o avatar fica ao lado de título+meta, nunca empurrando o texto para baixo. */
+.itemHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.itemHeadText {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+/**
+ * Spec 180 RF9/RF10 (CA08): iniciais sobre cor fixa, a mesma em claro e escuro — como
+ * `--vehicle-color-*`, é identidade, não tema. Texto claro fixo porque as seis cores da paleta são
+ * todas de tom médio/escuro por desenho.
+ */
+.avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  color: #f7f5f1;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.avatarPalette0 {
+  background: #4a86b8;
+}
+
+.avatarPalette1 {
+  background: #4aa8a0;
+}
+
+.avatarPalette2 {
+  background: #7bb85a;
+}
+
+.avatarPalette3 {
+  background: #a3591f;
+}
+
+.avatarPalette4 {
+  background: #6f42a5;
+}
+
+.avatarPalette5 {
+  background: #cc3333;
+}
+
 .itemTitle {
   margin: 0;
   font-size: 0.95rem;

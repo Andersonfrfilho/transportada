@@ -455,6 +455,7 @@
     "loadMore": "Load more",
     "loading": "Loading the timeline",
     "loadingMore": "Loading more",
+    "occurrenceNote": "Note: {{note}}",
     "recordedAt": "recorded at {{moment}}",
     "retry": "Try again",
     "returnReason": "Return reason: {{reason}}",

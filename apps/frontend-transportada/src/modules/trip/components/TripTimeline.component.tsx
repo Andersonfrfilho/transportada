@@ -11,6 +11,7 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
+import { resolveTripTimelineAvatar } from '../shared/tripTimelineAvatar.service'
 import { hasTripTimelineExpandableDetail } from '../shared/tripTimelineDetail.service'
 import {
   collectTripTimelineDocuments,
@@ -181,6 +182,7 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
   const detailId = `trip-timeline-detail-${item.id}`
   const title = resolveTripTimelineTitle(item, translate)
   const authorship = resolveTripTimelineAuthorshipText(item, translate)
+  const avatar = resolveTripTimelineAvatar(item)
   const occurrenceNote =
     (item.kind === 'stop.occurrence' || item.kind === 'document.occurrence') &&
     item.occurrence !== null &&
@@ -220,18 +222,37 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
 
   return (
     <li className={cn(styles.item, styles.itemEnter, TONE_CLASS[resolveTripTimelineTone(item)])}>
-      <p className={styles.itemTitle}>{title}</p>
-      <p className={styles.itemMeta}>
-        <time className={styles.itemTime} dateTime={item.occurredAt}>
-          {formatMoment(item.occurredAt)}
-        </time>
-        {authorship === null ? null : <span className={styles.itemAuthorship}>{authorship}</span>}
-        {item.recordedAt === null ? null : (
-          <span className={styles.itemRecorded}>
-            {t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })}
+      <div className={styles.itemHead}>
+        {/**
+         * Spec 180 RF9-RF11 (CA08/CA09): o avatar é o próprio selo visual de autoria — nasce do
+         * `actorName` que o item já publica, nunca de uma foto ou id. `aria-hidden`: o texto de
+         * autoria ao lado já diz o nome por extenso, e repeti-lo para leitor de tela seria ruído.
+         */}
+        {avatar === null ? null : (
+          <span
+            aria-hidden="true"
+            className={cn(styles.avatar, styles[`avatarPalette${avatar.paletteIndex}`])}
+          >
+            {avatar.initials}
           </span>
         )}
-      </p>
+        <div className={styles.itemHeadText}>
+          <p className={styles.itemTitle}>{title}</p>
+          <p className={styles.itemMeta}>
+            <time className={styles.itemTime} dateTime={item.occurredAt}>
+              {formatMoment(item.occurredAt)}
+            </time>
+            {authorship === null ? null : (
+              <span className={styles.itemAuthorship}>{authorship}</span>
+            )}
+            {item.recordedAt === null ? null : (
+              <span className={styles.itemRecorded}>
+                {t('eventTimeline.recordedAt', { moment: formatMoment(item.recordedAt) })}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
       {/*
        * RF15/RF18 (CA13): a nota e a parada citadas levam até elas — por âncora de página, sem
        * requisição nova (o app não tem router; ver `tripTimelineLink.service.ts`).
@@ -280,7 +301,11 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
               {t('eventTimeline.closeReason', { reason: closeReason })}
             </p>
           )}
-          {occurrenceNote === null ? null : <p className={styles.itemDetail}>{occurrenceNote}</p>}
+          {occurrenceNote === null ? null : (
+            <p className={styles.itemDetail}>
+              {t('eventTimeline.occurrenceNote', { note: occurrenceNote })}
+            </p>
+          )}
           {attachmentCount === null ? null : (
             <TripTimelineOccurrenceAttachments
               occurrenceCreatedAt={item.occurredAt}

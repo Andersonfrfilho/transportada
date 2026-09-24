@@ -580,6 +580,7 @@
     "loadMore": "Carregar mais",
     "loading": "Carregando a linha do tempo",
     "loadingMore": "Carregando mais",
+    "occurrenceNote": "Observação: {{note}}",
     "recordedAt": "registrado em {{moment}}",
     "retry": "Tentar de novo",
     "returnReason": "Motivo da devolução: {{reason}}",
