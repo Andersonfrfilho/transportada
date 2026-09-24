@@ -74,7 +74,9 @@ describe('resolveDispatchReadiness — a conta da carga fechada', () => {
     })
 
     expect(result.isCargoClosed).toBe(true)
-    expect(result.leftBehind).toEqual([{ tripDocumentId: 'doc-2', occurrenceTypeName: 'Item faltante' }])
+    expect(result.leftBehind).toEqual([
+      { tripDocumentId: 'doc-2', occurrenceTypeName: 'Item faltante' },
+    ])
     expect(result.toLoad).toEqual([])
   })
 
@@ -106,7 +108,9 @@ describe('resolveDispatchReadiness — a conta da carga fechada', () => {
     })
 
     expect(result.isCargoClosed).toBe(false)
-    expect(result.leftBehind).toEqual([{ tripDocumentId: 'doc-1', occurrenceTypeName: 'Item faltante' }])
+    expect(result.leftBehind).toEqual([
+      { tripDocumentId: 'doc-1', occurrenceTypeName: 'Item faltante' },
+    ])
     expect(result.toLoad).toEqual([])
   })
 
@@ -135,6 +139,8 @@ describe('resolveDispatchReadiness — a conta da carga fechada', () => {
       { tripDocumentId: 'doc-3', separationStatus: 'separated' },
       { tripDocumentId: 'doc-1', separationStatus: 'pending' },
     ])
-    expect(result.leftBehind).toEqual([{ tripDocumentId: 'doc-2', occurrenceTypeName: 'Item faltante' }])
+    expect(result.leftBehind).toEqual([
+      { tripDocumentId: 'doc-2', occurrenceTypeName: 'Item faltante' },
+    ])
   })
 })
