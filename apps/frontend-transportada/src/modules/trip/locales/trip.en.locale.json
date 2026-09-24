@@ -413,9 +413,11 @@
     "attachmentCount_one": "{{count}} photo attached",
     "attachmentCount_other": "{{count}} photos attached",
     "closeReason": "Close reason: {{reason}}",
+    "collapse": "Collapse",
     "documentFilterOption": "Invoice {{invoice}}",
     "empty": "Nothing recorded on this trip yet",
     "error": "Could not load the timeline",
+    "expand": "View more",
     "filterByDocument": "Filter by invoice",
     "itemTitle": {
       "dispatched": "Trip dispatched",

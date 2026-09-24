@@ -194,6 +194,23 @@
   text-decoration: underline;
 }
 
+/**
+ * Spec 180 RF16/T304: o botão que expande/recolhe o detalhe — nunca menor que a área de toque, e
+ * fora do fluxo do texto para não parecer mais um dado da linha.
+ */
+.itemToggle {
+  justify-self: start;
+  min-height: var(--touch-target);
+  padding-inline: var(--space-2);
+}
+
+.itemDetailGroup {
+  display: grid;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
+}
+
 .itemDetail {
   margin: 0;
   font-size: 0.85rem;

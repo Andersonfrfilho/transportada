@@ -537,9 +537,11 @@
     "attachmentCount_one": "{{count}} foto anexada",
     "attachmentCount_other": "{{count}} fotos anexadas",
     "closeReason": "Motivo do encerramento: {{reason}}",
+    "collapse": "Recolher",
     "documentFilterOption": "Nota {{invoice}}",
     "empty": "Nada registrado ainda nesta viagem",
     "error": "Não foi possível carregar a linha do tempo",
+    "expand": "Ver mais",
     "filterByDocument": "Filtrar por nota",
     "itemTitle": {
       "dispatched": "Viagem despachada",

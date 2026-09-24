@@ -9,7 +9,9 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
+import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
+import { hasTripTimelineExpandableDetail } from '../shared/tripTimelineDetail.service'
 import {
   collectTripTimelineDocuments,
   filterTripTimelineItemsByDocumentIds,
@@ -25,6 +27,7 @@ import {
   resolveTripTimelineStopHref,
 } from '../shared/tripTimelineLink.service'
 import styles from '../styles/tripTimeline.module.css'
+import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 
 const SKELETON_ROWS = 3
 
@@ -173,6 +176,9 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
 function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
+  const [isExpanded, setIsExpanded] = useState(false)
+  const hasDetail = hasTripTimelineExpandableDetail(item)
+  const detailId = `trip-timeline-detail-${item.id}`
   const title = resolveTripTimelineTitle(item, translate)
   const authorship = resolveTripTimelineAuthorshipText(item, translate)
   const occurrenceNote =
@@ -244,23 +250,72 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
           )}
         </p>
       )}
-      {returnReason === null ? null : (
-        <p className={styles.itemDetail}>
-          {t('eventTimeline.returnReason', { reason: returnReason })}
-        </p>
-      )}
-      {closeReason === null ? null : (
-        <p className={styles.itemDetail}>
-          {t('eventTimeline.closeReason', { reason: closeReason })}
-        </p>
-      )}
-      {occurrenceNote === null ? null : <p className={styles.itemDetail}>{occurrenceNote}</p>}
-      {attachmentCount === null ? null : (
-        <p className={styles.itemDetail}>
-          <Icon name="camera" />
-          {t('eventTimeline.attachmentCount', { count: attachmentCount })}
-        </p>
-      )}
+      {/**
+       * Spec 180 RF16/CA14/CA16: só oferece expandir quando `hasTripTimelineExpandableDetail`
+       * confirma que há algo a mostrar — o controle nunca abre o vazio.
+       */}
+      {hasDetail ? (
+        <Button
+          aria-controls={detailId}
+          aria-expanded={isExpanded}
+          className={styles.itemToggle}
+          onClick={() => setIsExpanded((current) => !current)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
+          {isExpanded ? t('eventTimeline.collapse') : t('eventTimeline.expand')}
+        </Button>
+      ) : null}
+      {hasDetail && isExpanded ? (
+        <div className={styles.itemDetailGroup} id={detailId}>
+          {returnReason === null ? null : (
+            <p className={styles.itemDetail}>
+              {t('eventTimeline.returnReason', { reason: returnReason })}
+            </p>
+          )}
+          {closeReason === null ? null : (
+            <p className={styles.itemDetail}>
+              {t('eventTimeline.closeReason', { reason: closeReason })}
+            </p>
+          )}
+          {occurrenceNote === null ? null : <p className={styles.itemDetail}>{occurrenceNote}</p>}
+          {attachmentCount === null ? null : (
+            <TripTimelineOccurrenceAttachments
+              occurrenceCreatedAt={item.occurredAt}
+              occurrenceId={item.id}
+            />
+          )}
+        </div>
+      ) : null}
     </li>
+  )
+}
+
+/**
+ * Spec 180 RF5/RF6/RF18 (CA05/CA15): busca os anexos só quando o item expande — o `item.id` do
+ * evento de ocorrência **é** o id da própria ocorrência (D6), então não há join novo para achar a
+ * rota. Mesmo padrão de `OccurrenceAttachments` em `TripOccurrenceTable.component.tsx`: esqueleto
+ * até a resposta chegar, grade silenciosa quando o resultado vem vazio (CA05, "sem anexo não
+ * mostra grade vazia") — a retenção expirada é assunto da própria grade, que já marca a foto
+ * vencida sem gerar URL.
+ */
+function TripTimelineOccurrenceAttachments({
+  occurrenceCreatedAt,
+  occurrenceId,
+}: Readonly<{ occurrenceCreatedAt: string; occurrenceId: string }>) {
+  const attachmentsQuery = useTripOccurrenceAttachmentsQuery({ enabled: true, occurrenceId })
+
+  if (attachmentsQuery.isLoading) return <Skeleton height="5rem" width="7rem" />
+  const attachments = attachmentsQuery.data ?? []
+  if (attachments.length === 0) return null
+
+  return (
+    <OccurrenceAttachmentGrid
+      attachments={attachments}
+      occurrenceCreatedAt={occurrenceCreatedAt}
+      onRefresh={async () => (await attachmentsQuery.refetch()).data ?? []}
+    />
   )
 }
