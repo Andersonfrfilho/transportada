@@ -9,16 +9,22 @@
  *
  * ⚠️ O tipo não tem FK para a ocorrência: a junção carrega `company_id` em todo degrau, senão o
  * cadastro de outra empresa decidiria o destino da nota desta.
+ *
+ * "Ocorrência aberta" (ADR-0074 §4, RF1) é a que não tem tratativa em `trip_occurrence_cases` ou
+ * cuja tratativa ainda não chegou a um terminal (`OCCURRENCE_CASE_TERMINAL_STATUSES`, a mesma lista
+ * de `occurrence-case-marker.query.ts`). O detalhe da viagem lê por esta mesma consulta.
  */
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypes,
   tripDocumentOccurrenceProducts,
   tripDocumentOccurrences,
   tripDocuments,
+  tripOccurrenceCases,
 } from '../../database/trip.schema.js'
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_CASE_TERMINAL_STATUSES } from '../domain/occurrence-case-state.policy.js'
 import type { DispatchReadinessDocument } from '../domain/dispatch-readiness.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -48,6 +54,12 @@ export async function readDispatchReadinessDocuments(
           select 1 from ${tripDocumentOccurrenceProducts}
           where ${tripDocumentOccurrenceProducts.companyId} = ${tripDocumentOccurrences.companyId}
             and ${tripDocumentOccurrenceProducts.occurrenceId} = ${tripDocumentOccurrences.id}
+        )`,
+        sql`not exists (
+          select 1 from ${tripOccurrenceCases}
+          where ${tripOccurrenceCases.companyId} = ${tripDocumentOccurrences.companyId}
+            and ${tripOccurrenceCases.occurrenceId} = ${tripDocumentOccurrences.id}
+            and ${inArray(tripOccurrenceCases.status, [...OCCURRENCE_CASE_TERMINAL_STATUSES])}
         )`,
       ),
     )

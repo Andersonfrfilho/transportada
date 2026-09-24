@@ -35,11 +35,14 @@ import {
   tripDocumentOccurrenceProducts,
   tripDocumentOccurrences,
   tripDocuments,
+  tripOccurrenceCases,
   trips,
   tripStatusEvents,
+  type TripOccurrenceCaseStatus,
   type TripStatus,
 } from '../../src/database/trip.schema.js'
 import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
+import { OCCURRENCE_CASE_TERMINAL_STATUSES } from '../../src/trips/domain/occurrence-case-state.policy.js'
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
@@ -182,6 +185,81 @@ describe('despachar leva todas e deixa para trás o que a ocorrência tira (spec
         expect((snapshot?.snapshot as { leftBehind?: unknown }).leftBehind).toEqual([
           { documentId: leftBehindId, reason: `Ocorrência: ${LEAVES_BEHIND_TYPE_NAME}` },
         ])
+      })
+    },
+    30_000,
+  )
+
+  /**
+   * Revisão da spec 185 (ADR-0074 §4, RF1): "ocorrência aberta" é a que não tem tratativa ou cuja
+   * tratativa não chegou a um terminal (`OCCURRENCE_CASE_TERMINAL_STATUSES`). Tratativa encerrada
+   * não tira mais a nota da conta: ela volta a ser carga a levar, e o despacho sem `force` recusa.
+   */
+  testWithPostgres(
+    'revisão: tratativa terminal (cancelada, fechada, devolvida ao barracão) não deixa a nota para trás',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        for (const status of OCCURRENCE_CASE_TERMINAL_STATUSES) {
+          const trip = await seedPlannedTrip(database, { documentCount: 2 })
+          const [closedCaseId, loadedId] = trip.tripDocumentIds as [string, string]
+          await moveDocument(database, trip, loadedId, ['separate', 'load'])
+          const occurrenceId = await seedSeparationOccurrence(database, trip, {
+            leavesDocumentBehind: true,
+            productCodes: [],
+            tripDocumentId: closedCaseId,
+          })
+          await seedOccurrenceCase(database, trip, { occurrenceId, status })
+
+          const routeRepository = new DrizzleTripRouteRepository(database.db)
+          const preconditions = await routeRepository.readPreconditions(trip)
+          expect({ status, leftBehind: preconditions?.leftBehind }).toEqual({
+            leftBehind: [],
+            status,
+          })
+          expect(preconditions?.toLoad.map((document) => document.tripDocumentId)).toEqual([
+            closedCaseId,
+          ])
+
+          const refused = await dispatchTrip({
+            actorUserId: trip.userId,
+            channel: TRIP_FIELD_CHANNELS.backoffice,
+            companyId: trip.companyId,
+            repository: routeRepository,
+            tripId: trip.tripId,
+          }).catch((caught: unknown) => caught)
+          expect(refused).toMatchObject({ code: 'TRIP_HAS_UNLOADED_DOCUMENTS', status: 409 })
+          expect((await readDocumentStates(database, [closedCaseId])).get(closedCaseId)).toEqual({
+            isReleased: false,
+            separationStatus: 'pending',
+          })
+        }
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'revisão: tratativa ainda aberta (recorded) mantém a nota deixada para trás',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, { documentCount: 2 })
+        const [openCaseId, loadedId] = trip.tripDocumentIds as [string, string]
+        await moveDocument(database, trip, loadedId, ['separate', 'load'])
+        const occurrenceId = await seedSeparationOccurrence(database, trip, {
+          leavesDocumentBehind: true,
+          productCodes: [],
+          tripDocumentId: openCaseId,
+        })
+        await seedOccurrenceCase(database, trip, { occurrenceId, status: 'recorded' })
+
+        const preconditions = await new DrizzleTripRouteRepository(database.db).readPreconditions(
+          trip,
+        )
+
+        expect(preconditions?.leftBehind).toEqual([
+          { occurrenceTypeName: LEAVES_BEHIND_TYPE_NAME, tripDocumentId: openCaseId },
+        ])
+        expect(preconditions?.toLoad).toEqual([])
       })
     },
     30_000,
@@ -441,7 +519,7 @@ async function seedSeparationOccurrence(
     readonly productCodes: readonly string[]
     readonly tripDocumentId: string
   },
-): Promise<void> {
+): Promise<string> {
   const occurrenceTypeId = crypto.randomUUID()
   await database.db.insert(companyOccurrenceTypes).values({
     companyId: trip.companyId,
@@ -462,7 +540,7 @@ async function seedSeparationOccurrence(
     stage: 'separation',
     tripDocumentId: input.tripDocumentId,
   })
-  if (input.productCodes.length === 0) return
+  if (input.productCodes.length === 0) return occurrenceId
 
   await database.db.insert(tripDocumentOccurrenceProducts).values(
     input.productCodes.map((productCode, position) => ({
@@ -472,6 +550,33 @@ async function seedSeparationOccurrence(
       productCode,
     })),
   )
+  return occurrenceId
+}
+
+/** A tratativa da ocorrência (spec 164), já no status pedido — com o que as CHECKs exigem dele. */
+async function seedOccurrenceCase(
+  database: TestDatabase,
+  trip: SeededTrip,
+  input: { readonly occurrenceId: string; readonly status: TripOccurrenceCaseStatus },
+): Promise<void> {
+  const isDecided = input.status === 'decided' || input.status === 'closed'
+  const isResolved = (OCCURRENCE_CASE_TERMINAL_STATUSES as readonly string[]).includes(input.status)
+  const now = new Date()
+  await database.db.insert(tripOccurrenceCases).values({
+    companyId: trip.companyId,
+    occurrenceId: input.occurrenceId,
+    redeliveryPolicy: 'allowed',
+    status: input.status,
+    ...(isDecided
+      ? {
+          decidedAt: now,
+          decidedByUserId: trip.userId,
+          decisionKind: 'other',
+          decisionNote: 'Decidido no teste.',
+        }
+      : {}),
+    ...(isResolved ? { resolvedAt: now } : {}),
+  })
 }
 
 async function readDocumentStates(

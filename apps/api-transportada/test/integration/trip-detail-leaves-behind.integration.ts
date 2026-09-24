@@ -24,7 +24,7 @@ import {
   storedObjects,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { companyOccurrenceTypes } from '../../src/database/trip.schema.js'
+import { companyOccurrenceTypes, tripOccurrenceCases } from '../../src/database/trip.schema.js'
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
@@ -87,6 +87,51 @@ describe('leavesBehindOnDispatch no detalhe da viagem (spec 185 T6.1)', () => {
         expect(byId.get(leftBehindId)?.leavesBehindOnDispatch).toBe(true)
         expect(byId.get(untouchedId)?.leavesBehindOnDispatch).toBe(false)
         expect(byId.get(loadedId)?.leavesBehindOnDispatch).toBe(false)
+      })
+    },
+    30_000,
+  )
+
+  /**
+   * Revisão da spec 185 (RF1): o detalhe lê a mesma consulta do despacho — ocorrência cuja tratativa
+   * foi cancelada não é mais "aberta", e a nota volta a contar como carga a levar.
+   */
+  testWithPostgres(
+    'tratativa cancelada: a nota deixa de ser marcada para ficar para trás',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, { documentCount: 2 })
+        const [cancelledCaseId] = trip.tripDocumentIds as [string, string]
+
+        const occurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          companyId: trip.companyId,
+          id: occurrenceTypeId,
+          leavesDocumentBehind: true,
+          name: LEAVES_BEHIND_TYPE_NAME,
+          stage: 'separation',
+        })
+        const occurrenceId = await registerOccurrence(
+          database,
+          trip,
+          cancelledCaseId,
+          occurrenceTypeId,
+        )
+        await database.db.insert(tripOccurrenceCases).values({
+          companyId: trip.companyId,
+          occurrenceId,
+          redeliveryPolicy: 'allowed',
+          resolvedAt: new Date(),
+          status: 'cancelled',
+        })
+
+        const detail = await new DrizzleTripRepository(database.db).findById({
+          companyId: trip.companyId,
+          tripId: trip.tripId,
+        })
+        const document = detail?.documents.find((candidate) => candidate.id === cancelledCaseId)
+
+        expect(document?.leavesBehindOnDispatch).toBe(false)
       })
     },
     30_000,
@@ -194,7 +239,7 @@ async function registerOccurrence(
   trip: SeededTrip,
   documentId: string,
   occurrenceTypeId: string,
-): Promise<void> {
+): Promise<string> {
   const registered = await registerTripOccurrence({
     actorUserId: trip.userId,
     attachment: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
@@ -238,6 +283,7 @@ async function registerOccurrence(
     tripId: trip.tripId,
   })
   if (registered === null) throw new Error('EXPECTED_OCCURRENCE')
+  return registered.id
 }
 
 async function seedNfeDocument(
