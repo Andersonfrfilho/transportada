@@ -12,8 +12,10 @@ import { and, eq } from 'drizzle-orm'
 import { fleetDrivers } from '../../src/database/fleet.schema.js'
 import { identityUserPictures } from '../../src/database/identity-user-picture.schema.js'
 import { userCompanyMemberships } from '../../src/database/identity.schema.js'
+import { nfeProducts } from '../../src/database/nfe.schema.js'
 import {
   companyOccurrenceTypes,
+  tripDocumentOccurrenceProducts,
   tripDrivers,
   tripStopOccurrences,
 } from '../../src/database/trip.schema.js'
@@ -148,8 +150,9 @@ describe('o detalhe da ocorrência (spec 183 T202)', () => {
         const feedItem = page.items.find((item) => item.id === occurrenceId)
         if (detail === null || feedItem === undefined) throw new Error('EXPECTED_DETAIL')
 
-        const { driver, ...line } = detail
+        const { driver, items, ...line } = detail
         expect(line).toEqual(feedItem)
+        expect(items).toEqual([])
         expect(detail.source).toBe('document')
         expect(detail.case).toMatchObject({ status: 'recorded' })
         expect(driver).toEqual({
@@ -270,5 +273,77 @@ describe('o detalhe da ocorrência (spec 183 T202)', () => {
         })
       })
     },
+  )
+
+  /**
+   * Spec 183 T207: o item, a quantidade e a unidade da ocorrência (specs 166/172), com a descrição
+   * da própria nota. Sem item marcado (a nota inteira), a lista é vazia; a parada nunca tem item.
+   */
+  testWithPostgres(
+    'itens da ocorrência: código, descrição da nota, quantidade como string decimal e unidade',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        const occurrenceId = await registerDocumentOccurrence(database, company, trip)
+        const stopOccurrenceId = await registerStopOccurrence(database, company, trip)
+
+        const whole = await findTripOccurrenceDetail(database.db, {
+          companyId: company.companyId,
+          occurrenceId,
+        })
+        expect(whole?.items).toEqual([])
+        const nfeDocumentId = whole?.document?.nfeDocumentId
+        if (nfeDocumentId === undefined) throw new Error('EXPECTED_NFE_DOCUMENT')
+
+        await database.db.insert(nfeProducts).values({
+          cfop: '5102',
+          code: 'ZG-4410',
+          commercialUnit: 'CX',
+          companyId: company.companyId,
+          description: 'Azulejo 30x30 caixa',
+          documentId: nfeDocumentId,
+          ncm: '69089000',
+          ordinal: 1n,
+          quantity: '10',
+          totalValue: '500',
+          unitValue: '50',
+        })
+        await database.db.insert(tripDocumentOccurrenceProducts).values([
+          {
+            companyId: company.companyId,
+            occurrenceId,
+            position: 1,
+            productCode: 'ZG-4410',
+            quantity: '3.5',
+            quantityUnit: 'CX',
+          },
+          {
+            companyId: company.companyId,
+            occurrenceId,
+            position: 2,
+            productCode: 'ZG-9999',
+            quantity: null,
+            quantityUnit: null,
+          },
+        ])
+
+        const detail = await findTripOccurrenceDetail(database.db, {
+          companyId: company.companyId,
+          occurrenceId,
+        })
+        expect(detail?.items).toEqual([
+          { code: 'ZG-4410', description: 'Azulejo 30x30 caixa', quantity: '3.500', unit: 'CX' },
+          { code: 'ZG-9999', description: '', quantity: null, unit: null },
+        ])
+
+        const stop = await findTripOccurrenceDetail(database.db, {
+          companyId: company.companyId,
+          occurrenceId: stopOccurrenceId,
+        })
+        expect(stop?.items).toEqual([])
+      })
+    },
+    30_000,
   )
 })

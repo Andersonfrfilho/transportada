@@ -1381,6 +1381,10 @@
     },
     "case": {
       "title": "Case"
+    },
+    "items": {
+      "title": "Affected items",
+      "noDescription": "Item not in the invoice"
     }
   },
   "occurrenceTimeline": {

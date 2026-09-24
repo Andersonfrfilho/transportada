@@ -36,6 +36,7 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
     picturePath: null,
     whatsappPhone: '5511999990001',
   },
+  items: [{ code: 'ZG-4410', description: 'Azulejo 30x30 caixa', quantity: '3.500', unit: 'CX' }],
   driverName: 'Motorista A',
   hasAttachment: true,
   id: '00000000-0000-4000-8000-00000000d001',

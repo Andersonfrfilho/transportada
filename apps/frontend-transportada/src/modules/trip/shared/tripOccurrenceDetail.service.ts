@@ -48,3 +48,16 @@ export function buildOccurrenceDriverContact(
         : `https://wa.me/${driver.whatsappPhone.replace(/\D/gu, '')}`,
   }
 }
+
+/**
+ * Spec 183 T207: a quantidade atingida com a unidade da nota (specs 166/172). Sem quantidade, nada —
+ * o item continua na lista pelo código e pela descrição.
+ */
+export function formatOccurrenceItemQuantity(
+  item: Readonly<{ quantity: null | string; unit: null | string }>,
+  formatNumber: (value: string) => string,
+): string {
+  if (item.quantity === null) return ''
+  const quantity = formatNumber(item.quantity)
+  return item.unit === null ? quantity : `${quantity} ${item.unit}`
+}

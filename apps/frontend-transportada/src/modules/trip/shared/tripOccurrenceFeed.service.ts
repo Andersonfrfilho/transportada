@@ -154,12 +154,21 @@ export type TripOccurrenceDetailDriver = Readonly<{
   whatsappPhone: null | string
 }>
 
+/** Spec 183 T207: o item atingido (specs 166/172); quantidade é string decimal. */
+export type TripOccurrenceDetailItem = Readonly<{
+  code: string
+  description: string
+  quantity: null | string
+  unit: null | string
+}>
+
 /** Spec 183 RF1: a linha da listagem, com autoria, nota e o motorista. */
 export type TripOccurrenceDetail = TripOccurrenceFeedItem &
   Readonly<{
     actorName: null | string
     channel: string
     driver: null | TripOccurrenceDetailDriver
+    items: readonly TripOccurrenceDetailItem[]
     onBehalfOfDriverName: null | string
   }>
 

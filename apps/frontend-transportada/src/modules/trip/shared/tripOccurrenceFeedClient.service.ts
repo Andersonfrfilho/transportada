@@ -16,6 +16,7 @@ import {
   type TripOccurrenceFeedFilters,
   type TripOccurrenceDetail,
   type TripOccurrenceDetailDriver,
+  type TripOccurrenceDetailItem,
   type TripOccurrenceDocument,
   type TripOccurrenceFeedItem,
   type TripOccurrenceFeedOrder,
@@ -224,6 +225,19 @@ function isDetailDriver(value: unknown): value is TripOccurrenceDetailDriver {
   )
 }
 
+const DECIMAL_STRING = /^-?\d+(\.\d+)?$/u
+
+function isDetailItem(value: unknown): value is TripOccurrenceDetailItem {
+  return (
+    isRecord(value) &&
+    isString(value.code) &&
+    isString(value.description) &&
+    (value.quantity === null ||
+      (isString(value.quantity) && DECIMAL_STRING.test(value.quantity))) &&
+    isNullableString(value.unit)
+  )
+}
+
 function readDetail(payload: unknown): TripOccurrenceDetail {
   if (!isRecord(payload) || !isFeedItem(payload.data)) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
@@ -231,18 +245,20 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   const raw = payload.data
   /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
   const fields: Readonly<Record<string, unknown>> = raw
-  const { actorName, channel, document, driver, onBehalfOfDriverName } = fields
+  const { actorName, channel, document, driver, items, onBehalfOfDriverName } = fields
   /** O detalhe nasceu com a 183: aqui `document` ausente é resposta inválida, não API antiga. */
   if (
     document === undefined ||
     !(driver === null || isDetailDriver(driver)) ||
+    !Array.isArray(items) ||
+    !items.every(isDetailItem) ||
     !isNullableString(actorName) ||
     !isString(channel) ||
     !isNullableString(onBehalfOfDriverName)
   ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  return { ...toFeedItem(raw), actorName, channel, driver, onBehalfOfDriverName }
+  return { ...toFeedItem(raw), actorName, channel, driver, items, onBehalfOfDriverName }
 }
 
 function readPage(payload: unknown): TripOccurrenceFeedPage {

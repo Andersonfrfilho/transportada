@@ -77,6 +77,7 @@ test('print: detalhe de ocorrência de nota (desktop)', async ({ page }) => {
     'https://wa.me/5511999990001',
   )
   await expect(page.getByText('R$ 48.320,00')).toBeVisible()
+  await expect(page.getByText('3,5 CX')).toBeVisible()
   await page.screenshot({
     fullPage: true,
     path: resolve(PRINTS_DIRECTORY, 'detalhe-nota-desktop.png'),

@@ -15,7 +15,10 @@ import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { formatMoment, OccurrenceAttachments } from '../components/TripOccurrenceTable.component'
 import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.query'
-import { buildOccurrenceDriverContact } from '../shared/tripOccurrenceDetail.service'
+import {
+  buildOccurrenceDriverContact,
+  formatOccurrenceItemQuantity,
+} from '../shared/tripOccurrenceDetail.service'
 import {
   formatOccurrenceInvoice,
   resolveOccurrenceTypeLabel,
@@ -231,6 +234,43 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
   )
 }
 
+const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 })
+
+/** Quantidade é string decimal de três casas; a tela só a mostra, nunca faz conta com ela. */
+function formatQuantity(value: string): string {
+  return quantityFormatter.format(Number(value))
+}
+
+/** Spec 183 T207: os itens atingidos (specs 166/172). A nota inteira não lista item nenhum. */
+function OccurrenceItems({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
+  const { t } = useTranslation('trip')
+  if (occurrence.items.length === 0) return null
+
+  return (
+    <div>
+      <h3 className={styles.occurrenceItemsTitle}>{t('occurrenceDetail.items.title')}</h3>
+      <ul className={styles.occurrenceItems}>
+        {occurrence.items.map((item) => {
+          const quantity = formatOccurrenceItemQuantity(item, formatQuantity)
+          return (
+            <li key={item.code}>
+              <span className={styles.occurrenceItemCode}>{item.code}</span>
+              <span>
+                {item.description === ''
+                  ? t('occurrenceDetail.items.noDescription')
+                  : item.description}
+              </span>
+              {quantity === '' ? null : (
+                <span className={styles.occurrenceItemQuantity}>{quantity}</span>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 function OccurrenceSummaryPanel({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
   const { t } = useTranslation('trip')
 
@@ -277,6 +317,7 @@ function OccurrenceSummaryPanel({ occurrence }: Readonly<{ occurrence: TripOccur
           </dd>
         </div>
       </dl>
+      <OccurrenceItems occurrence={occurrence} />
       <OccurrenceAttachments item={occurrence} />
     </section>
   )

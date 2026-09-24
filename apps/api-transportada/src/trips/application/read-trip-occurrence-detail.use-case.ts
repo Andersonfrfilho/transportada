@@ -28,8 +28,18 @@ export type TripOccurrenceDetailDriver = {
   readonly whatsappPhone: null | string
 }
 
+/** Spec 183 T207: o item atingido (specs 166/172). Quantidade é string decimal, nunca `number`. */
+export type TripOccurrenceDetailItem = {
+  readonly code: string
+  readonly description: string
+  readonly quantity: string | null
+  readonly unit: string | null
+}
+
 export type TripOccurrenceDetail = TripOccurrenceFeedItem & {
   readonly driver: TripOccurrenceDetailDriver | null
+  /** Vazia na ocorrência da nota inteira e na de parada, que não aponta item. */
+  readonly items: readonly TripOccurrenceDetailItem[]
 }
 
 export type TripOccurrenceDetailReaderPort = {

@@ -11,13 +11,16 @@ import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { identityUserPictures } from '../../database/identity-user-picture.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
-import { tripDrivers } from '../../database/trip.schema.js'
+import { tripDocumentOccurrences, tripDrivers } from '../../database/trip.schema.js'
 import { userWhatsAppPhones } from '../../database/user-whatsapp-phone.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type {
   TripOccurrenceDetail,
   TripOccurrenceDetailDriver,
+  TripOccurrenceDetailItem,
 } from '../application/read-trip-occurrence-detail.use-case.js'
+import type { TripOccurrenceFeedItem } from '../application/trip-occurrence-feed.use-case.js'
+import { resolveOccurrenceItems } from './occurrence-items.support.js'
 import { findTripOccurrenceFeedItem } from './trip-occurrence-feed.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -88,15 +91,43 @@ async function findTripDriver(
   }
 }
 
+/**
+ * Spec 183 T207: os itens da ocorrência de nota, pelo mesmo leitor do portal do contratante. A
+ * parada não aponta item; a nota inteira não grava linha nenhuma (lista vazia).
+ */
+async function findOccurrenceItems(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly item: TripOccurrenceFeedItem },
+): Promise<readonly TripOccurrenceDetailItem[]> {
+  const nfeDocumentId = input.item.document?.nfeDocumentId
+  if (input.item.source !== 'document' || nfeDocumentId === undefined) return []
+  const [row] = await queryable
+    .select({ productCode: tripDocumentOccurrences.productCode })
+    .from(tripDocumentOccurrences)
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.item.id),
+      ),
+    )
+    .limit(1)
+  if (row === undefined) return []
+  const items = await resolveOccurrenceItems(queryable, {
+    companyId: input.companyId,
+    rows: [{ nfeDocumentId, occurrenceId: input.item.id, productCode: row.productCode }],
+  })
+  return items.get(input.item.id) ?? []
+}
+
 export async function findTripOccurrenceDetail(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
 ): Promise<TripOccurrenceDetail | null> {
   const item = await findTripOccurrenceFeedItem(queryable, input)
   if (item === null) return null
-  const driver = await findTripDriver(queryable, {
-    companyId: input.companyId,
-    tripId: item.tripId,
-  })
-  return { ...item, driver }
+  const [driver, items] = await Promise.all([
+    findTripDriver(queryable, { companyId: input.companyId, tripId: item.tripId }),
+    findOccurrenceItems(queryable, { companyId: input.companyId, item }),
+  ])
+  return { ...item, driver, items }
 }

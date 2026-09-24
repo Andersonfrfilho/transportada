@@ -283,3 +283,29 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   nenhum dado grava liberação. Definido no RF19, igual à política: **liberado** é a tratativa sair do
   caminho dele (`decided` ou terminal). Os outros dois tempos também ficaram escritos. Se o dono do
   projeto quiser outra régua, ela muda num conjunto só (`RELEASING_STATUSES`).
+
+## T207 — Item, quantidade e unidade no detalhe (verde)
+
+- Contratos escritos antes:
+  - `test/integration/trip-occurrence-detail.integration.ts` ganhou o caso dos itens e reprovou
+    (**5 pass, 1 fail**, `items` ausente). Cobre: nota inteira → `[]`; item com quantidade
+    `'3.500'` (string decimal) e unidade `CX`, com a descrição da própria nota; item fora do
+    cadastro da nota → descrição `''`; parada → `[]`. Verde: **6 pass**.
+  - No frontend, `test/trip/occurrence-detail.contract.ts` ganhou a quantidade como `number` →
+    resposta inválida, e `formatOccurrenceItemQuantity`. Vermelho na importação.
+- **Sem segunda cópia da regra.** O portal do contratante já montava esses itens (código legado
+  `product_code` + tabela da 166 + descrição em `nfe_products`, em lote). A função saiu de
+  `contractor-portal/infrastructure/contractor-occurrence.query.ts` para
+  `trips/infrastructure/occurrence-items.support.ts` (`resolveOccurrenceItems`), e o portal e o
+  detalhe chamam a mesma; `ContractorOccurrenceItem` virou alias de `OccurrenceItemView`.
+  `contractor-portal.integration.ts` e `contractor-portal-end-to-end.integration.ts` seguem verdes.
+- Tela: "Itens atingidos" no Resumo, com código, descrição e quantidade + unidade, só quando há
+  item. A quantidade só é exibida, nunca entra em conta.
+- Rodado:
+  - Frontend: `bun run --cwd apps/frontend-transportada test` → **5185 pass, 0 fail** + **44 pass**.
+  - API, contrato: **7235 pass, 0 fail**.
+  - `bun run lint` e `bun run typecheck` limpos.
+  - API, integração: **577 pass, 7 skip, 8 fail**. As 8 são as mesmas de object storage da T206
+    (MinIO fora do alcance desta sessão).
+- Revisão de design: `detalhe-nota-desktop.png` e `detalhe-nota-celular.png` refeitos, com asserção
+  de "3,5 CX" visível no smoke (**8 pass**). A lista segue o rótulo pequeno dos fatos vizinhos.

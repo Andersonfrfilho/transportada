@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
 
-import { buildOccurrenceDriverContact } from '@/modules/trip/shared/tripOccurrenceDetail.service'
+import {
+  buildOccurrenceDriverContact,
+  formatOccurrenceItemQuantity,
+} from '@/modules/trip/shared/tripOccurrenceDetail.service'
 import { createTripOccurrenceFeedClient } from '@/modules/trip/shared/tripOccurrenceFeedClient.service'
 import {
   buildTripOccurrenceRoute,
@@ -50,6 +53,10 @@ const DETAIL = {
   id: OCCURRENCE_ID,
   invoiceNumber: '4512',
   invoiceSeries: '1',
+  items: [
+    { code: 'ZG-4410', description: 'Azulejo 30x30 caixa', quantity: '3.500', unit: 'CX' },
+    { code: 'ZG-9999', description: '', quantity: null, unit: null },
+  ],
   notifies: false,
   onBehalfOfDriverName: null,
   source: 'document',
@@ -147,6 +154,23 @@ describe('cliente: GET /trip-occurrences/:id', () => {
     expect(failure).toBeInstanceOf(Error)
   })
 
+  test('quantidade do item que não é string decimal é resposta inválida (T207)', async () => {
+    const client = createClient({
+      payload: {
+        data: { ...DETAIL, items: [{ code: 'A', description: '', quantity: 3.5, unit: 'CX' }] },
+      },
+      requests: [],
+    })
+
+    let failure: unknown = null
+    try {
+      await client.readOccurrence({ occurrenceId: OCCURRENCE_ID })
+    } catch (caught) {
+      failure = caught
+    }
+    expect(failure).toBeInstanceOf(Error)
+  })
+
   test('motorista sem o formato combinado é resposta inválida', async () => {
     const client = createClient({
       payload: { data: { ...DETAIL, driver: { ...DRIVER, phone: undefined } } },
@@ -192,5 +216,14 @@ describe('o contato do motorista no detalhe (P2)', () => {
 
   test('sem motorista não há bloco de contato', () => {
     expect(buildOccurrenceDriverContact({ apiUrl: API_URL, driver: null })).toBeNull()
+  })
+})
+
+describe('os itens da ocorrência no detalhe (T207)', () => {
+  test('quantidade formatada com a unidade da nota; sem quantidade, só o item', () => {
+    expect(
+      formatOccurrenceItemQuantity({ quantity: '3.500', unit: 'CX' }, (value) => `n:${value}`),
+    ).toBe('n:3.500 CX')
+    expect(formatOccurrenceItemQuantity({ quantity: null, unit: null }, (value) => value)).toBe('')
   })
 })

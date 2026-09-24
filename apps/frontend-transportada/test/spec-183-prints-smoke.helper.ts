@@ -54,6 +54,10 @@ const DOCUMENT_OCCURRENCE = {
   id: DOCUMENT_OCCURRENCE_ID,
   invoiceNumber: '4512',
   invoiceSeries: '1',
+  items: [
+    { code: 'ZG-4410', description: 'Azulejo 30x30 caixa', quantity: '3.500', unit: 'CX' },
+    { code: 'ZG-4411', description: 'Rejunte cinza 5 kg', quantity: null, unit: null },
+  ],
   notifies: false,
   onBehalfOfDriverName: null,
   source: 'document',
@@ -77,6 +81,7 @@ const STOP_OCCURRENCE = {
   id: STOP_OCCURRENCE_ID,
   invoiceNumber: null,
   invoiceSeries: null,
+  items: [],
   onBehalfOfDriverName: 'Motorista Sintético Alves',
   source: 'stop',
   stage: null,

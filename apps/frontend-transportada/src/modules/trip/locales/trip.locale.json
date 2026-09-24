@@ -1609,6 +1609,10 @@
     },
     "case": {
       "title": "Tratativa"
+    },
+    "items": {
+      "title": "Itens atingidos",
+      "noDescription": "Item fora do cadastro da nota"
     }
   },
   "occurrenceTimeline": {

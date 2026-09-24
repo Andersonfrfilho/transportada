@@ -15,7 +15,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, exists, inArray } from 'drizzle-orm'
 
-import { nfeDocuments, nfeParticipants, nfeProducts } from '../../database/nfe.schema.js'
+import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import {
   companyOccurrenceTypes,
   tripDocumentOccurrences,
@@ -27,9 +27,8 @@ import type {
   TripOccurrenceCaseStatus,
 } from '../../database/trip.schema.js'
 import { CONTRACTOR_VISIBLE_CASE_STATUSES } from '../../trips/domain/occurrence-case.policy.js'
-import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
-import { listOccurrenceProducts } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
-import type { OccurrenceItemQuantityUnit } from '../../shared/trip-occurrence.constant.js'
+import { resolveOccurrenceItems } from '../../trips/infrastructure/occurrence-items.support.js'
+import type { OccurrenceItemView } from '../../trips/infrastructure/occurrence-items.support.js'
 import type { ContractorScope } from '../domain/contractor-scope.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -37,12 +36,8 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 const CONTRACTOR_ROLES = ['emitter', 'recipient'] as const
 
 /** Spec 164 RF13: o item apontado — código e descrição vêm da nota, quantidade/unidade da marcação. */
-export type ContractorOccurrenceItem = {
-  readonly code: string
-  readonly description: string
-  readonly quantity: string | null
-  readonly unit: OccurrenceItemQuantityUnit | null
-}
+/** O mesmo item do detalhe do escritório (spec 183 T207): um formato, um leitor. */
+export type ContractorOccurrenceItem = OccurrenceItemView
 
 export type ContractorOccurrenceListItem = {
   readonly caseStatus: TripOccurrenceCaseStatus
@@ -141,7 +136,7 @@ export async function listContractorOccurrences(
     .orderBy(desc(tripOccurrenceCases.openedAt))
     .limit(input.limit)
 
-  const itemsByOccurrence = await resolveContractorOccurrenceItems(database, {
+  const itemsByOccurrence = await resolveOccurrenceItems(database, {
     companyId: input.companyId,
     rows,
   })
@@ -160,71 +155,6 @@ export async function listContractorOccurrences(
     openedAt: row.openedAt.toISOString(),
     stage: row.stage,
   }))
-}
-
-/**
- * Junta o código legado (`productCode`) com a tabela nova (spec 166) para chegar à lista de itens, e
- * resolve a descrição de cada um na `nfe_products` da própria nota — uma consulta em lote para todas
- * as ocorrências da página, nunca uma por linha.
- */
-async function resolveContractorOccurrenceItems(
-  database: Database,
-  input: {
-    readonly companyId: string
-    readonly rows: readonly {
-      readonly nfeDocumentId: string
-      readonly occurrenceId: string
-      readonly productCode: string
-    }[]
-  },
-): Promise<ReadonlyMap<string, readonly ContractorOccurrenceItem[]>> {
-  const result = new Map<string, readonly ContractorOccurrenceItem[]>()
-  if (input.rows.length === 0) return result
-
-  const storedByOccurrence = await listOccurrenceProducts(database, {
-    companyId: input.companyId,
-    occurrenceIds: input.rows.map((row) => row.occurrenceId),
-  })
-
-  const documentIds = [...new Set(input.rows.map((row) => row.nfeDocumentId))]
-  const descriptionRows = await database
-    .select({
-      code: nfeProducts.code,
-      description: nfeProducts.description,
-      documentId: nfeProducts.documentId,
-    })
-    .from(nfeProducts)
-    .where(
-      and(eq(nfeProducts.companyId, input.companyId), inArray(nfeProducts.documentId, documentIds)),
-    )
-
-  const descriptionByDocumentAndCode = new Map<string, string>()
-  for (const row of descriptionRows) {
-    descriptionByDocumentAndCode.set(`${row.documentId}:${row.code}`, row.description)
-  }
-
-  for (const row of input.rows) {
-    const storedProducts = storedByOccurrence.get(row.occurrenceId) ?? []
-    const codes = resolveOccurrenceProductCodes({
-      productCode: row.productCode,
-      productCodes: storedProducts.map((product) => product.code),
-    })
-
-    result.set(
-      row.occurrenceId,
-      codes.map((code) => {
-        const stored = storedProducts.find((product) => product.code === code)
-        return {
-          code,
-          description: descriptionByDocumentAndCode.get(`${row.nfeDocumentId}:${code}`) ?? '',
-          quantity: stored?.quantity ?? null,
-          unit: stored?.unit ?? null,
-        }
-      }),
-    )
-  }
-
-  return result
 }
 
 /**
@@ -300,7 +230,7 @@ export async function findContractorOccurrenceDetail(
 
   if (row === undefined) return null
 
-  const itemsByOccurrence = await resolveContractorOccurrenceItems(database, {
+  const itemsByOccurrence = await resolveOccurrenceItems(database, {
     companyId: input.companyId,
     rows: [row],
   })
