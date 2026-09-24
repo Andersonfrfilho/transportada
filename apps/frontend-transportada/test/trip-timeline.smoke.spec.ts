@@ -78,6 +78,21 @@ test('a linha do tempo mostra os oito tipos de evento, do mais recente, e carreg
   await expect(section.getByText('Rota iniciada')).toBeVisible()
   await expect(section.getByText('Viagem despachada')).toBeVisible()
   await expect(section.getByRole('button', { name: 'Carregar mais' })).toHaveCount(0)
+
+  /*
+   * Spec 180 RF16: fechado, o evento mostra só título, hora e autoria — motivo da devolução e
+   * observação da ocorrência vivem na expansão. O smoke nasceu quando tudo era sempre visível.
+   */
+  await expect(section.getByText('Motivo da devolução: Cliente ausente')).toHaveCount(0)
+
+  /*
+   * Sempre o primeiro ainda fechado, re-consultando: uma lista capturada de uma vez fica obsoleta
+   * no primeiro clique, porque `aria-expanded` muda e os índices andam.
+   */
+  const collapsed = section.getByRole('button', { expanded: false })
+  for (let remaining = await collapsed.count(); remaining > 0; remaining -= 1) {
+    await collapsed.first().click()
+  }
   await expect(section.getByText('Motivo da devolução: Cliente ausente')).toBeVisible()
   await expect(section.getByText('Caixa amassada')).toHaveCount(2)
 
