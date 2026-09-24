@@ -26,6 +26,10 @@ import {
   countDocumentsWithOpenOccurrence,
   hasOpenOccurrenceMarker,
 } from '../shared/occurrenceMarker.service'
+import {
+  buildTripTimelineDocumentAnchorId,
+  buildTripTimelineStopAnchorId,
+} from '../shared/tripTimelineLink.service'
 import styles from '../styles/trip.module.css'
 
 /** Spec 174 RF6: recusa e cancelamento são o que muda de cor — o resto é aviso neutro. */
@@ -174,7 +178,13 @@ function TripStopCard({ actions, canReorder, selection, stop }: TripStopCardProp
   const someSelected = documentIds.some((documentId) => selection.selectedIds.has(documentId))
 
   return (
-    <li className={styles.stopCard} ref={sortable.setNodeRef} style={style}>
+    <li
+      className={styles.stopCard}
+      data-revealed-panel
+      id={buildTripTimelineStopAnchorId(stop.id)}
+      ref={sortable.setNodeRef}
+      style={style}
+    >
       <div className={styles.stopCardHead}>
         {canReorder ? (
           <button
@@ -292,6 +302,8 @@ function TripStopDocumentRow({
           ? `${styles.stopDocumentRow} ${styles.warningRow}`
           : styles.stopDocumentRow
       }
+      data-revealed-panel
+      id={buildTripTimelineDocumentAnchorId(document.id)}
     >
       <Checkbox
         ariaLabel={t('stops.selectDocument', { document: tripDocumentLabel(document) })}

@@ -177,6 +177,23 @@
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
 }
 
+/**
+ * Spec 180 RF15: o link para a nota/parada fica visível fechado — é navegação, não detalhe a
+ * esconder (RF16 recolhe o que sobra, não o caminho para a coisa citada).
+ */
+.itemLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.itemLink {
+  color: var(--color-copper);
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
 .itemDetail {
   margin: 0;
   font-size: 0.85rem;

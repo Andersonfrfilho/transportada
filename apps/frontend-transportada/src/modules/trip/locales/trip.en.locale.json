@@ -456,7 +456,9 @@
     "recordedAt": "recorded at {{moment}}",
     "retry": "Try again",
     "returnReason": "Return reason: {{reason}}",
-    "title": "Timeline"
+    "title": "Timeline",
+    "viewDocument": "View invoice",
+    "viewStop": "View stop"
   },
   "feedback": {
     "closeReasonRequired": "Provide the reason to close a trip with open invoices.",

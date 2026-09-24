@@ -20,6 +20,10 @@ import {
   resolveTripTimelineTone,
   type TripTimelineTone,
 } from '../shared/tripTimeline.service'
+import {
+  resolveTripTimelineDocumentHref,
+  resolveTripTimelineStopHref,
+} from '../shared/tripTimelineLink.service'
 import styles from '../styles/tripTimeline.module.css'
 
 const SKELETON_ROWS = 3
@@ -222,6 +226,24 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
           </span>
         )}
       </p>
+      {/*
+       * RF15/RF18 (CA13): a nota e a parada citadas levam até elas — por âncora de página, sem
+       * requisição nova (o app não tem router; ver `tripTimelineLink.service.ts`).
+       */}
+      {item.document === null && item.stop === null ? null : (
+        <p className={styles.itemLinks}>
+          {item.document === null ? null : (
+            <a className={styles.itemLink} href={resolveTripTimelineDocumentHref(item.document.id)}>
+              {t('eventTimeline.viewDocument')}
+            </a>
+          )}
+          {item.stop === null ? null : (
+            <a className={styles.itemLink} href={resolveTripTimelineStopHref(item.stop.id)}>
+              {t('eventTimeline.viewStop')}
+            </a>
+          )}
+        </p>
+      )}
       {returnReason === null ? null : (
         <p className={styles.itemDetail}>
           {t('eventTimeline.returnReason', { reason: returnReason })}

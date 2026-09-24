@@ -581,7 +581,9 @@
     "recordedAt": "registrado em {{moment}}",
     "retry": "Tentar de novo",
     "returnReason": "Motivo da devolução: {{reason}}",
-    "title": "Linha do tempo"
+    "title": "Linha do tempo",
+    "viewDocument": "Ver nota",
+    "viewStop": "Ver parada"
   },
   "feedback": {
     "closeReasonRequired": "Informe o motivo para encerrar a viagem com nota em aberto.",
