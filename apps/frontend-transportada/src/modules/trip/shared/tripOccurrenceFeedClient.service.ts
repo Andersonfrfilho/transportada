@@ -141,12 +141,16 @@ function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
   return { ...rest, settlementTotal: isString(settlementTotal) ? settlementTotal : null }
 }
 
-type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case'> & Readonly<{ case?: unknown }>
+type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case' | 'document'> &
+  Readonly<{ case?: unknown; document?: unknown }>
 
 function isFeedItem(value: unknown): value is RawFeedItem {
   if (!isRecord(value)) return false
   return (
     (value.case === undefined || value.case === null || isCaseView(value.case)) &&
+    (value.document === undefined ||
+      value.document === null ||
+      isOccurrenceDocument(value.document)) &&
     isString(value.createdAt) &&
     isString(value.description) &&
     isString(value.driverName) &&
@@ -165,8 +169,12 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 }
 
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
-  const { case: rawCase, ...rest } = raw
-  return { ...rest, case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null }
+  const { case: rawCase, document, ...rest } = raw
+  return {
+    ...rest,
+    case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null,
+    document: isOccurrenceDocument(document) ? document : null,
+  }
 }
 
 /**
@@ -220,8 +228,9 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
   const fields: Readonly<Record<string, unknown>> = raw
   const { actorName, channel, document, driver, onBehalfOfDriverName } = fields
+  /** O detalhe nasceu com a 183: aqui `document` ausente é resposta inválida, não API antiga. */
   if (
-    !(document === null || isOccurrenceDocument(document)) ||
+    document === undefined ||
     !(driver === null || isDetailDriver(driver)) ||
     !isNullableString(actorName) ||
     !isString(channel) ||
@@ -229,7 +238,7 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
-  return { ...toFeedItem(raw), actorName, channel, document, driver, onBehalfOfDriverName }
+  return { ...toFeedItem(raw), actorName, channel, driver, onBehalfOfDriverName }
 }
 
 function readPage(payload: unknown): TripOccurrenceFeedPage {

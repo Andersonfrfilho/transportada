@@ -4025,3 +4025,30 @@ button.occurrenceCaseBadge {
   text-decoration-color: color-mix(in srgb, var(--color-copper) 50%, transparent);
   text-underline-offset: 0.2em;
 }
+
+/* Spec 183 T205: CNPJ abaixo do nome da contratante, e valor alinhado à direita em fonte de dado. */
+.occurrenceCellNote {
+  display: block;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.8rem;
+}
+
+.occurrenceMoneyCell {
+  font-family: var(--font-utility);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Nome e endereço são as células longas: quebram em até duas linhas em vez de empurrar o valor para fora. */
+.occurrenceWrapCell {
+  min-width: 11rem;
+  max-width: 16rem;
+  white-space: normal;
+}
+
+/* O cabeçalho do valor só alinha com a coluna; a fonte continua a dos outros cabeçalhos. */
+.occurrenceMoneyHeader {
+  text-align: right;
+}

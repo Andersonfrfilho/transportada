@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   countActiveTripOccurrenceFilters,
+  describeOccurrenceDocumentCells,
   EMPTY_TRIP_OCCURRENCE_FILTERS,
   formatOccurrenceInvoice,
   readTripOccurrenceColumnPreferences,
@@ -161,6 +162,94 @@ describe('listagem de ocorrências — colunas persistidas', () => {
     expect(reorderTripOccurrenceColumns(TRIP_OCCURRENCE_COLUMN_KEYS, 'createdAt', 'up')).toEqual(
       TRIP_OCCURRENCE_COLUMN_KEYS,
     )
+  })
+})
+
+/**
+ * Spec 183 T205 (P1): contratante, destino físico e valor da nota viram colunas. A coluna Conversa
+ * espera o estado da conversa na listagem (RF4, T404).
+ */
+describe('listagem de ocorrências — colunas da nota', () => {
+  const DOCUMENT = {
+    contractor: { contractorId: 'c-1', name: 'Contratante Alfa', taxId: '11222333000181' },
+    destination: {
+      city: 'Guarulhos',
+      label: 'Avenida da Doca, 500 - Guarulhos/SP',
+      origin: 'delivery',
+      postalCode: '07000000',
+      recipientName: 'Galpão Beta',
+      state: 'SP',
+    },
+    nfeDocumentId: 'nfe-1',
+    totalValue: '48320.0000',
+  } as const
+
+  test('as três colunas novas entram depois da nota, e o aviso continua por último', () => {
+    expect(TRIP_OCCURRENCE_COLUMN_KEYS).toEqual([
+      'createdAt',
+      'stage',
+      'typeName',
+      'vehiclePlate',
+      'driverName',
+      'stopLabel',
+      'invoice',
+      'contractor',
+      'destination',
+      'invoiceValue',
+      'notified',
+    ])
+  })
+
+  test('preferência gravada antes das colunas novas as ganha visíveis, no fim, sem perder a ordem', () => {
+    const storage = {
+      getItem: () =>
+        JSON.stringify({
+          order: [
+            'stage',
+            'createdAt',
+            'typeName',
+            'vehiclePlate',
+            'driverName',
+            'stopLabel',
+            'invoice',
+            'notified',
+          ],
+          visibility: { driverName: false },
+        }),
+      setItem: () => undefined,
+    }
+    const preferences = readTripOccurrenceColumnPreferences(storage)
+    expect(preferences.order.slice(0, 2)).toEqual(['stage', 'createdAt'])
+    expect(preferences.order.slice(-3)).toEqual(['contractor', 'destination', 'invoiceValue'])
+    expect(preferences.visibility.driverName).toBe(false)
+    expect(preferences.visibility.contractor).toBe(true)
+    expect(preferences.visibility.invoiceValue).toBe(true)
+  })
+
+  test('com nota: nome e CNPJ da contratante, destino físico e valor como string decimal', () => {
+    expect(describeOccurrenceDocumentCells(DOCUMENT)).toEqual({
+      contractorName: 'Contratante Alfa',
+      contractorTaxId: '11222333000181',
+      destination: 'Avenida da Doca, 500 - Guarulhos/SP',
+      totalValue: '48320.0000',
+    })
+  })
+
+  test('sem nota, sem contratante casada ou sem destino, a célula fica vazia — nunca "null"', () => {
+    expect(describeOccurrenceDocumentCells(null)).toEqual({
+      contractorName: '',
+      contractorTaxId: '',
+      destination: '',
+      totalValue: null,
+    })
+    expect(
+      describeOccurrenceDocumentCells({ ...DOCUMENT, contractor: null, destination: null }),
+    ).toEqual({
+      contractorName: '',
+      contractorTaxId: '',
+      destination: '',
+      totalValue: '48320.0000',
+    })
   })
 })
 

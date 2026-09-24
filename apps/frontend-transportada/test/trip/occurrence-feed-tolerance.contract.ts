@@ -132,3 +132,49 @@ describe('tolerância a case/settlementTotal ausentes no feed (achados B5/B6)', 
     expect(caught).toEqual(expect.objectContaining({ message: 'TRIP_RESPONSE_INVALID' }))
   })
 })
+
+/** Spec 183 T205: o bloco da nota na linha segue a mesma regra — ausente degrada, errado reprova. */
+describe('o bloco da nota no feed (spec 183 RF2)', () => {
+  const DOCUMENT = {
+    contractor: { contractorId: null, name: 'Emitente Sem Cadastro', taxId: '11222333000181' },
+    destination: null,
+    nfeDocumentId: 'nfe-1',
+    totalValue: '1250.5000',
+  } as const
+
+  test('traz contratante e valor da nota como string decimal', async () => {
+    const client = createClient(
+      Response.json({
+        data: [buildFeedItem({ document: DOCUMENT })],
+        pagination: { nextCursor: null },
+      }),
+    )
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items[0]?.document).toEqual(DOCUMENT)
+  })
+
+  test('document ausente (API anterior à 183) degrada para null', async () => {
+    const client = createClient(
+      Response.json({ data: [buildFeedItem()], pagination: { nextCursor: null } }),
+    )
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items[0]?.document).toBeNull()
+  })
+
+  test('valor da nota como number reprova — dinheiro nunca vira number', async () => {
+    const client = createClient(
+      Response.json({
+        data: [buildFeedItem({ document: { ...DOCUMENT, totalValue: 1250.5 } })],
+        pagination: { nextCursor: null },
+      }),
+    )
+
+    const caught = await client.listOccurrences(LIST_INPUT).catch((error: unknown) => error)
+
+    expect(caught).toEqual(expect.objectContaining({ message: 'TRIP_RESPONSE_INVALID' }))
+  })
+})

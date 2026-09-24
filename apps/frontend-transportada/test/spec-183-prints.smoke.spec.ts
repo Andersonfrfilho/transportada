@@ -45,6 +45,19 @@ test('print: a lista, com o tipo como link para o detalhe', async ({ page }) => 
   await page.screenshot({ fullPage: true, path: resolve(PRINTS_DIRECTORY, 'lista-desktop.png') })
 })
 
+test('print: a lista rolada até o valor da nota (T205)', async ({ page }) => {
+  await page.setViewportSize(DESKTOP)
+  await open(page, '/ocorrencias')
+  const table = page.getByRole('table')
+  await expect(table.getByRole('columnheader', { name: 'Valor NF-e' })).toBeAttached()
+  const value = table.getByText('R$ 48.320,00')
+  await value.scrollIntoViewIfNeeded()
+  await expect(value).toBeInViewport()
+  await page
+    .locator('section', { has: page.getByRole('heading', { name: 'Ocorrências registradas' }) })
+    .screenshot({ path: resolve(PRINTS_DIRECTORY, 'lista-colunas-da-nota.png') })
+})
+
 test('a linha abre o detalhe sem recarregar o app', async ({ page }) => {
   await page.setViewportSize(DESKTOP)
   await open(page, '/ocorrencias')

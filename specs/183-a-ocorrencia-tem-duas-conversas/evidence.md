@@ -170,3 +170,28 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
     (`test/shared/content-security-policy.contract.ts` reprovava a origem nova).
   - **Item/quantidade/unidade** (166/172) não vêm na API do detalhe: saíram da T204 para a **T207**,
     em vez de crescer esta task com mudança de API.
+
+## T205 — As colunas da nota na listagem (verde)
+
+- Contratos escritos antes, ambos vermelhos antes da implementação:
+  - `test/trip/occurrence-table.contract.ts`: ordem das chaves (as três depois de Nota, Aviso por
+    último), preferência gravada **antes** das colunas novas (a chave continua `v1`: as novas entram
+    visíveis no fim, sem perder a ordem nem o que a pessoa escondeu), e
+    `describeOccurrenceDocumentCells` (com nota; sem nota; sem contratante e sem destino → célula
+    vazia, nunca "null"). Falhou na importação.
+  - `test/trip/occurrence-feed-tolerance.contract.ts`: o bloco `document` na linha do feed segue a
+    regra B5/B6. **Ausente degrada para `null`** (bundle novo contra API anterior à 183); presente com
+    valor `number` reprova a resposta. O detalhe segue estrito: nasceu com a 183.
+- Implementação: `document` passou de `TripOccurrenceDetail` para `TripOccurrenceFeedItem`. A célula
+  do contratante leva o CNPJ abaixo; o valor sai por `formatAmount`, em fonte de dado e alinhado à
+  direita; nome e endereço quebram em até ~16rem.
+- Rodado: `bun run --cwd apps/frontend-transportada test` → **5171 pass, 0 fail** e **44 pass, 0
+  fail** (hooks); `bun run lint` e `bun run typecheck` na raiz limpos.
+- Revisão de design, prints em `prints/`: `lista-desktop.png` (1440 px: a tabela ganha rolagem
+  horizontal, como toda tabela da base, `min-content`) e `lista-colunas-da-nota.png` (rolada até o
+  valor, com asserção `toBeInViewport`). Smoke com **6 pass**. Achados corrigidos na task:
+  - nome e endereço empurravam o valor para fora: agora quebram em duas linhas;
+  - o cabeçalho "Valor NF-e" herdava a fonte de dado da célula: ganhou classe própria, só com o
+    alinhamento.
+- Divergência aplicada: a coluna **Conversa** depende do RF4, que já tinha ido para a T404. Ela saiu
+  da T205 e entrou na T404.

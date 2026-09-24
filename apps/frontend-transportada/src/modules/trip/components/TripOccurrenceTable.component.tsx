@@ -4,11 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
 import {
+  describeOccurrenceDocumentCells,
   formatOccurrenceInvoice,
   resolveOccurrenceTypeLabel,
   type TripOccurrenceColumnKey,
@@ -37,6 +39,36 @@ type TripOccurrenceTableProps = Readonly<{
   canResolveOccurrenceCases: boolean
   table: TripOccurrenceTableController
 }>
+
+/** Spec 183 T205: contratante (com CNPJ), destino físico e valor — vazios sem nota. */
+function OccurrenceDocumentCell({
+  column,
+  item,
+}: Readonly<{
+  column: 'contractor' | 'destination' | 'invoiceValue'
+  item: TripOccurrenceFeedItem
+}>) {
+  const cells = describeOccurrenceDocumentCells(item.document)
+
+  if (column === 'contractor') {
+    return (
+      <td className={styles.occurrenceWrapCell}>
+        {cells.contractorName}
+        {cells.contractorTaxId === '' ? null : (
+          <span className={styles.occurrenceCellNote}>{cells.contractorTaxId}</span>
+        )}
+      </td>
+    )
+  }
+  if (column === 'destination') {
+    return <td className={styles.occurrenceWrapCell}>{cells.destination}</td>
+  }
+  return (
+    <td className={styles.occurrenceMoneyCell}>
+      {cells.totalValue === null ? '' : formatAmount(cells.totalValue)}
+    </td>
+  )
+}
 
 /** Sem router: a troca de página é `pushState`, sem recarregar o app (spec 183 P1). */
 function openOccurrence(occurrenceId: string): void {
@@ -81,6 +113,9 @@ function OccurrenceCell({
   if (column === 'stopLabel') return <td>{item.stopLabel ?? ''}</td>
   if (column === 'invoice') {
     return <td>{formatOccurrenceInvoice(item.invoiceNumber, item.invoiceSeries)}</td>
+  }
+  if (column === 'contractor' || column === 'destination' || column === 'invoiceValue') {
+    return <OccurrenceDocumentCell column={column} item={item} />
   }
   /** A marca de aviso enviado: o tipo cadastrado que notifica o embarcador. */
   return (
@@ -212,7 +247,11 @@ export function TripOccurrenceTable({
                   </button>
                 </th>
               ) : (
-                <th key={column} scope="col">
+                <th
+                  className={column === 'invoiceValue' ? styles.occurrenceMoneyHeader : undefined}
+                  key={column}
+                  scope="col"
+                >
                   {t(`occurrenceFeed.columns.${column}`)}
                 </th>
               ),

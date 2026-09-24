@@ -48,8 +48,9 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       `OccurrenceCasePanel` e o painel do acerto da 164 reaproveitados, com as permissões de lá; e o
       link da linha do tempo da viagem para o detalhe (180 RF15). Evidência: contratos de serviço puro
       da rota, do mapeamento e do link.
-- [ ] **T205** Colunas Contratante, Endereço de entrega, Valor NF-e e Conversa na tabela, no menu de
-      colunas e na persistência. Evidência: a da `docs/frontend/data-tables.md` § 6.
+- [x] **T205** Colunas Contratante, Endereço de entrega e Valor NF-e na tabela, no menu de colunas e
+      na persistência. A coluna Conversa lê o RF4 e vai com a T404. Evidência: a da
+      `docs/frontend/data-tables.md` § 6.
 - [ ] **T206** Linha do tempo (RF19) com os eventos que já existem (registro, fotos, avisos e os da
       tratativa em `trip_occurrence_case_events`), tempos no topo e filtros; os eventos de conversa entram nas Fases 4–6 pela mesma fonte.
       Evidência: contrato da query de eventos (ordem, intervalo) e do mapeamento ator → cor.
@@ -80,7 +81,8 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       aqui): enviar, responder, prévia pelo mesmo template. Evidência: teste de caso de uso.
 - [ ] **T404** Rotas de conversa (listar, enviar, marcar lida, prévia) e o estado da conversa na
       listagem (RF4, vindo da T203) com tenant, permissão e o
-      separador. Evidência: contratos de rota.
+      separador, e a coluna Conversa da tabela (vinda da T205), no menu e na persistência.
+      Evidência: contratos de rota e o da `docs/frontend/data-tables.md` § 6.
 - [ ] **T405** Recebida por e-mail vira mensagem da conversa; status do Resend aplicado pela
       política. Evidência: integração no worker.
 - [ ] **T406** Política de identificação do remetente (RF16), `from_display_name` gravado pelo

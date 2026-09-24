@@ -108,6 +108,8 @@ export type TripOccurrenceFeedItem = Readonly<{
   case: null | TripOccurrenceCaseView
   createdAt: string
   description: string
+  /** Spec 183 RF2: `null` na ocorrência de parada sem nota e na API anterior à 183. */
+  document: null | TripOccurrenceDocument
   driverName: string
   hasAttachment: boolean
   id: string
@@ -157,7 +159,6 @@ export type TripOccurrenceDetail = TripOccurrenceFeedItem &
   Readonly<{
     actorName: null | string
     channel: string
-    document: null | TripOccurrenceDocument
     driver: null | TripOccurrenceDetailDriver
     onBehalfOfDriverName: null | string
   }>
@@ -202,6 +203,9 @@ export const TRIP_OCCURRENCE_COLUMN_KEYS = [
   'driverName',
   'stopLabel',
   'invoice',
+  'contractor',
+  'destination',
+  'invoiceValue',
   'notified',
 ] as const
 
@@ -327,6 +331,29 @@ export function serializeTripOccurrenceQuery(
     search.set('caseStatusIn', input.filters.caseStatuses.join(','))
   }
   return search.toString()
+}
+
+export type OccurrenceDocumentCells = Readonly<{
+  contractorName: string
+  contractorTaxId: string
+  destination: string
+  /** String decimal, formatada na célula por `formatAmount`; `null` sem nota. */
+  totalValue: null | string
+}>
+
+/**
+ * Spec 183 T205: as três colunas da nota. Ausência vira célula vazia, nunca "null" — a ocorrência de
+ * parada não tem nota, e o emitente pode não ter destino físico lido.
+ */
+export function describeOccurrenceDocumentCells(
+  document: null | TripOccurrenceDocument,
+): OccurrenceDocumentCells {
+  return {
+    contractorName: document?.contractor?.name ?? '',
+    contractorTaxId: document?.contractor?.taxId ?? '',
+    destination: document?.destination?.label ?? '',
+    totalValue: document?.totalValue ?? null,
+  }
 }
 
 /** Nota sem número (ocorrência de parada sem nota vinculada) imprime ausência, nunca "null/null". */

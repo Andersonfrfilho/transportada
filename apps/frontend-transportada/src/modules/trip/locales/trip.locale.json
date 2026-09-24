@@ -777,6 +777,9 @@
   },
   "occurrenceFeed": {
     "columns": {
+      "contractor": "Contratante",
+      "destination": "Endereço de entrega",
+      "invoiceValue": "Valor NF-e",
       "createdAt": "Hora",
       "driverName": "Motorista",
       "invoice": "Nota",

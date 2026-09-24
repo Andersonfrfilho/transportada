@@ -594,6 +594,9 @@
   },
   "occurrenceFeed": {
     "columns": {
+      "contractor": "Contracting party",
+      "destination": "Delivery address",
+      "invoiceValue": "Invoice value",
       "createdAt": "Time",
       "driverName": "Driver",
       "invoice": "Invoice",
