@@ -32,3 +32,36 @@ export function splitFieldDeliveryCargoPhotoSelection(
   const accepted = Math.min(remaining, input.selectedCount)
   return { accepted, overflow: input.selectedCount - accepted }
 }
+
+export type FieldDeliveryCargoPhotoProcessInput<TPhoto> = Readonly<{
+  files: readonly File[]
+  processFile: (file: File) => Promise<TPhoto>
+}>
+
+export type FieldDeliveryCargoPhotoProcessResult<TPhoto> = Readonly<{
+  /** Quantos arquivos do lote rejeitaram `processFile` (ex.: HEIC/arquivo corrompido que a imagem
+   * não decodifica) — nunca derruba os que deram certo. */
+  unreadableCount: number
+  photos: readonly TPhoto[]
+}>
+
+/**
+ * Achado de revisão (spec 182): processa cada arquivo da seleção isoladamente — um arquivo que
+ * `processFile` rejeita (imagem que não decodifica) não descarta os que já deram certo no mesmo
+ * lote. `processFile` é injetado para esta função rodar pura no teste, sem `Image`/canvas (que
+ * exigem DOM real).
+ */
+export async function processFieldDeliveryCargoPhotoFiles<TPhoto>(
+  input: FieldDeliveryCargoPhotoProcessInput<TPhoto>,
+): Promise<FieldDeliveryCargoPhotoProcessResult<TPhoto>> {
+  const photos: TPhoto[] = []
+  let unreadableCount = 0
+  for (const file of input.files) {
+    try {
+      photos.push(await input.processFile(file))
+    } catch {
+      unreadableCount += 1
+    }
+  }
+  return { photos, unreadableCount }
+}

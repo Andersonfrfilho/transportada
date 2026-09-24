@@ -12,6 +12,7 @@ import { formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 import {
   canAddFieldDeliveryCargoPhoto,
   FIELD_DELIVERY_CARGO_PHOTO_LIMIT,
+  processFieldDeliveryCargoPhotoFiles,
   splitFieldDeliveryCargoPhotoSelection,
 } from '../shared/fieldDeliveryCargoPhoto.service'
 import {
@@ -32,21 +33,24 @@ import {
 import { FIELD_DELIVERY_FOCUS_ATTRIBUTE } from '../shared/fieldDeliveryWizardFocus.service'
 import type {
   FieldDeliveryCapturedPhoto,
+  FieldDeliveryCargoPhotoDraft,
   FieldDeliveryDraft,
   FieldDeliveryWizardDocument,
 } from '../shared/fieldDeliveryWizard.service'
 import styles from '../styles/fieldDeliveryWizard.module.css'
 
-/** Miniatura local de uma foto de carga já reduzida — a `previewUrl` é revogada ao remover/desmontar. */
-type CargoPhotoDraft = Readonly<{ id: string; imageBlob: Blob; previewUrl: string }>
-
 export type FieldDeliveryReviewStepProps = Readonly<{
   capture: FieldDeliveryCapturedPhoto
+  /** Achado de revisão (spec 182): controlado pelo assistente (`cargoPhotosByDocumentId`), para
+   * sobreviver ao "Tirar outra foto" — este componente só cria/revoga o que ele mesmo adiciona. */
+  cargoPhotos: readonly FieldDeliveryCargoPhotoDraft[]
   currentDocument: FieldDeliveryWizardDocument
   documents: readonly FieldDeliveryWizardDocument[]
   driverId?: string
   dispatchedAt: null | string
+  onCargoPhotosAdded: (photos: readonly FieldDeliveryCargoPhotoDraft[]) => void
   onConfirm: (draft: FieldDeliveryDraft) => void
+  onRemoveCargoPhoto: (photoId: string) => void
   onRetake: () => void
 }>
 
@@ -62,11 +66,14 @@ function toDatetimeLocalValue(date: Date): string {
  */
 export function FieldDeliveryReviewStep({
   capture,
+  cargoPhotos,
   currentDocument,
   documents,
   dispatchedAt,
   driverId,
+  onCargoPhotosAdded,
   onConfirm,
+  onRemoveCargoPhoto,
   onRetake,
 }: FieldDeliveryReviewStepProps) {
   const { t } = useTranslation('trip')
@@ -84,17 +91,20 @@ export function FieldDeliveryReviewStep({
   useEffect(() => () => URL.revokeObjectURL(imageUrl), [imageUrl])
 
   /** RF7/D4: até cinco fotos da carga, reduzidas do mesmo jeito que o canhoto — entram no rascunho
-   * só ao confirmar o passo (aceite CA07: 375px sem rolagem horizontal, ver o CSS do grid). */
-  const [cargoPhotos, setCargoPhotos] = useState<readonly CargoPhotoDraft[]>([])
+   * só ao confirmar o passo (aceite CA07: 375px sem rolagem horizontal, ver o CSS do grid).
+   * Achado de revisão (spec 182): a lista em si vive no assistente (`cargoPhotos` prop) — este
+   * componente só cuida do que só existe montado (processamento em curso, desmontagem no meio
+   * dele). */
   const [isProcessingCargoPhotos, setIsProcessingCargoPhotos] = useState(false)
   const [cargoOverflow, setCargoOverflow] = useState(false)
-  const cargoPhotosRef = useRef(cargoPhotos)
-  cargoPhotosRef.current = cargoPhotos
-
-  // As URLs locais das miniaturas são deste componente — revoga ao desmontar (troca de nota).
+  const [cargoUnreadableCount, setCargoUnreadableCount] = useState(0)
+  /** Achado de revisão (spec 182): se o componente desmonta (troca de nota, fecha o assistente)
+   * enquanto `handleCargoPhotosSelected` ainda está processando, as fotos que terminarem depois
+   * disso não podem ser entregues ao estado do pai — o URL já criado para elas é revogado na hora. */
+  const isMountedRef = useRef(true)
   useEffect(() => {
     return () => {
-      for (const photo of cargoPhotosRef.current) URL.revokeObjectURL(photo.previewUrl)
+      isMountedRef.current = false
     }
   }, [])
 
@@ -108,29 +118,36 @@ export function FieldDeliveryReviewStep({
     setIsProcessingCargoPhotos(true)
     try {
       const acceptedFiles = files.slice(0, accepted)
-      const processed: CargoPhotoDraft[] = []
-      for (const file of acceptedFiles) {
-        const image = await loadImageFromFile(file)
-        const imageBlob = await reduceFieldDeliveryImageToJpeg(image, {
-          height: image.naturalHeight,
-          width: image.naturalWidth,
-        })
-        processed.push({
-          id: crypto.randomUUID(),
-          imageBlob,
-          previewUrl: URL.createObjectURL(imageBlob),
-        })
+      const { photos, unreadableCount } = await processFieldDeliveryCargoPhotoFiles({
+        files: acceptedFiles,
+        processFile: async (file) => {
+          const image = await loadImageFromFile(file)
+          const imageBlob = await reduceFieldDeliveryImageToJpeg(image, {
+            height: image.naturalHeight,
+            width: image.naturalWidth,
+          })
+          return {
+            id: crypto.randomUUID(),
+            imageBlob,
+            previewUrl: URL.createObjectURL(imageBlob),
+          }
+        },
+      })
+      if (isMountedRef.current) {
+        setCargoUnreadableCount(unreadableCount)
+        if (photos.length > 0) onCargoPhotosAdded(photos)
+      } else {
+        for (const photo of photos) URL.revokeObjectURL(photo.previewUrl)
       }
-      setCargoPhotos((previous) => [...previous, ...processed])
     } finally {
-      setIsProcessingCargoPhotos(false)
+      if (isMountedRef.current) setIsProcessingCargoPhotos(false)
     }
   }
 
   function handleRemoveCargoPhoto(photoId: string): void {
     const removed = cargoPhotos.find((photo) => photo.id === photoId)
     if (removed !== undefined) URL.revokeObjectURL(removed.previewUrl)
-    setCargoPhotos((previous) => previous.filter((photo) => photo.id !== photoId))
+    onRemoveCargoPhoto(photoId)
     setCargoOverflow(false)
   }
 
@@ -294,6 +311,12 @@ export function FieldDeliveryReviewStep({
             {t('fieldDelivery.cargoOverflowNotice')}
           </p>
         ) : null}
+
+        {cargoUnreadableCount === 0 ? null : (
+          <p className={styles.notice} role="alert">
+            {t('fieldDelivery.cargoUnreadableNotice', { count: cargoUnreadableCount })}
+          </p>
+        )}
 
         {canAddCargoPhoto ? (
           <FileField
