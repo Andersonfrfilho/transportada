@@ -135,9 +135,8 @@ function resolveTripLevelActions(input: {
   const managed: readonly TripAction[] = input.capabilities.canManage
     ? [TRIP_ACTION.planRoute, TRIP_ACTION.dispatch, TRIP_ACTION.cancel]
     : []
-  const field: readonly TripAction[] = canReportInField(input)
-    ? [TRIP_ACTION.confirmLoad, TRIP_ACTION.startRoute]
-    : []
+  /** ADR-0074 §5: "Conferir carga" some da lista — o carregamento já é a conferência. */
+  const field: readonly TripAction[] = canReportInField(input) ? [TRIP_ACTION.startRoute] : []
 
   return [...managed, ...field].filter(
     (action) =>
