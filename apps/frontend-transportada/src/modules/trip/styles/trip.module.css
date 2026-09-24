@@ -1030,19 +1030,92 @@
   list-style: none;
 }
 
+/**
+ * Spec 181 RF1: a fileira da nota deixou de ser um `flex-wrap` sem segundo eixo
+ * (`proposta-ux.md` item 1) — vira cabeçalho, grade rotulada, ações e expansões, cada um sua
+ * própria linha da grade.
+ */
 .stopDocumentRow {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+}
+
+.stopDocumentHead {
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
-  padding: var(--space-2);
-  border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
 }
 
+/**
+ * Spec 181 RF10/CA09: coluna de largura fixa para a caixa de seleção — é a âncora de varredura
+ * vertical que o operador segue nota a nota, em vez de procurar a caixa no meio do texto.
+ */
+.stopDocumentCheckboxColumn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: var(--control-height-compact);
+  justify-content: center;
+}
+
+/** Spec 181 RF5/CA05: mesma âncora tipográfica do rótulo da parada (`.stopLabel`). */
 .stopDocumentLabel {
   font-family: var(--font-utility);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.stopDocumentBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/**
+ * Spec 181 RF1/RF4: dinheiro e pessoas em blocos rotulados — `auto-fit` porque quantos blocos
+ * cabem lado a lado depende do espaço disponível, não de um breakpoint fixo.
+ */
+.stopDocumentGrid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+.stopDocumentGroup {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.stopDocumentGroupLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+/**
+ * Spec 180 RF16/T302: o mesmo botão fora do fluxo do texto, com a mesma área de toque — reusado
+ * aqui pelas duas expansões da nota (comprovante e detalhes), nunca um terceiro jeito de expandir.
+ */
+.stopDocumentToggle {
+  justify-self: start;
+  min-height: var(--touch-target);
+  padding-inline: var(--space-2);
+}
+
+.stopDocumentDetailGroup {
+  display: grid;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
 }
 
 /* Spec 073 CA10: a nota que vai para o `<entrega>`, e não para o cadastro do cliente. */

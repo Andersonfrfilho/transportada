@@ -432,6 +432,18 @@ function TripStopDocumentRow({
           }),
           status: t(`separationStatus.${document.separationStatus}`),
         })
+  /**
+   * Spec 181 RF4/T304: contratante, regra fiscal e telefone são dado de confirmação, não de
+   * triagem — vão para a expansão da nota. `hasNoteDetail` decide **se** existe o quê: sem contato
+   * e sem regra de frete, a nota não oferece o disclosure vazio (mesma regra da CA07/CA16).
+   */
+  const hasNoteDetail =
+    (document.contact !== null && document.contact !== undefined) ||
+    (document.freightRuleName !== null && document.freightRuleName !== undefined)
+  const [isDetailExpanded, setIsDetailExpanded] = useState(false)
+  const detailId = `trip-stop-document-detail-${document.id}`
+  const proofId = `trip-stop-document-proof-${document.id}`
+  const isProofOpen = actions.openProofDocumentId === document.id
 
   return (
     <li
@@ -443,119 +455,117 @@ function TripStopDocumentRow({
       data-revealed-panel
       id={buildTripTimelineDocumentAnchorId(document.id)}
     >
-      <Checkbox
-        ariaLabel={t('stops.selectDocument', { document: tripDocumentLabel(document) })}
-        checked={selection.selectedIds.has(document.id)}
-        onChange={() => selection.toggle(document.id)}
-      />
-      <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
-      {/*
-       * Valor e data ao lado do número: é o que o operador confere para saber que é a nota certa
-       * sem abrir outra tela. Ausentes quando o vínculo é só cálculo de frete — e aí não se imprime
-       * traço nem zero, que seriam afirmações sobre uma nota que não existe.
-       */}
-      {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
-        <span className={styles.stopDocumentMeta}>
-          {t('stops.cargoValue', { amount: formatAmount(document.nfeTotalValue) })}
+      <div className={styles.stopDocumentHead}>
+        <span className={styles.stopDocumentCheckboxColumn}>
+          <Checkbox
+            ariaLabel={t('stops.selectDocument', { document: tripDocumentLabel(document) })}
+            checked={selection.selectedIds.has(document.id)}
+            onChange={() => selection.toggle(document.id)}
+          />
         </span>
-      )}
-      {/*
-       * Spec 176: o frete **da nota**, nunca a mercadoria — os dois rótulos ficam lado a lado para
-       * não se confundirem. `estimated` marca a previsão; `measured` não precisa de selo. Sem valor
-       * e sem regra, a ausência é dita em texto — nunca `R$ 0,00`.
-       */}
-      {document.freightAmount === null || document.freightAmount === undefined ? (
-        document.freightSource === 'missing' ? (
-          <span className={styles.stopDocumentMeta}>{t('stops.freight.missing')}</span>
-        ) : null
-      ) : (
-        <span className={styles.stopDocumentMeta}>
-          {t('stops.freight.amount', { amount: formatAmount(document.freightAmount) })}
-          {document.freightSource === 'estimated' ? ` (${t('stops.freight.estimated')})` : ''}
-        </span>
-      )}
-      {document.freightRuleName === null || document.freightRuleName === undefined ? null : (
-        <span className={styles.stopDocumentMeta}>
-          {t('stops.freight.rule', { name: document.freightRuleName })}
-        </span>
-      )}
-      {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
-        <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
-      )}
-      {/*
-       * Spec 079 P2: quem recebe, o telefone que a nota trouxe e o contratante. ⚠️ Nota sem
-       * telefone **diz** que não tem: esconder a linha faria o operador procurar o número em outra
-       * tela, e imprimir vazio faria ele tentar ligar para o nada.
-       */}
-      {document.contact === null || document.contact === undefined ? null : (
-        <>
-          <span className={styles.stopDocumentMeta}>
-            {t('contact.recipient', { name: document.contact.name })}
-          </span>
-          <span className={styles.stopDocumentMeta}>
-            {document.contact.phone === null
-              ? t('contact.withoutPhone')
-              : t('contact.phone', { phone: document.contact.phone })}
-          </span>
-          {document.contact.contractorName === null ? null : (
-            <span className={styles.stopDocumentMeta}>
-              {t('contact.contractor', { name: document.contact.contractorName })}
+        <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
+        <div className={styles.stopDocumentBadgeRow}>
+          <span className={styles.separationStatusBadge}>{separationStatusLabel}</span>
+          {/*
+           * Spec 181 RF2/CA02: o marcador de ocorrência aberta e `openOccurrenceCase === true` são
+           * a mesma condição booleana (proposta-ux.md item 4) — um selo só, clicável, leva direto
+           * ao diálogo da ocorrência. Dois selos aqui voltariam a dizer o mesmo fato duas vezes.
+           */}
+          {hasOpenOccurrenceMarker(document) ? (
+            <Tooltip label={t('occurrence.openCaseHint')}>
+              <Button
+                className={styles.occurrenceCaseBadge}
+                onClick={() => actions.onOpenSeparationOccurrence(document.id)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="alert" size="sm" />
+                {t('occurrence.openCase')}
+              </Button>
+            </Tooltip>
+          ) : null}
+          {/*
+           * Spec 174 RF1/RF2/RF6: o estado fiscal é **da nota** — ícone e texto na linha dela,
+           * nunca só a cor, com a explicação pelo tooltip do design system. Nota pronta ou que não
+           * espera documento fiscal não ganha selo (ausência é silêncio, não "nada a fazer").
+           */}
+          {fiscalReadiness !== undefined && fiscalReadiness.reason !== 'ok' ? (
+            <Tooltip label={fiscalStatusLabel(fiscalReadiness, t)}>
+              <span
+                className={
+                  FISCAL_ALERT_REASONS.has(fiscalReadiness.reason)
+                    ? `${styles.fiscalStatusBadge} ${styles.fiscalStatusBadgeAlert}`
+                    : styles.fiscalStatusBadge
+                }
+              >
+                <Icon name={readinessReasonIcon(fiscalReadiness.reason)} size="sm" />
+                <span className={styles.fiscalStatusText}>
+                  {fiscalStatusLabel(fiscalReadiness, t)}
+                </span>
+              </span>
+            </Tooltip>
+          ) : null}
+          {hasTripDocumentFiscalWarning(document) ? (
+            <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
+          ) : null}
+          {/*
+           * Spec 073 CA10: a marca aparece **só** no endereço de entrega. Em 345 de 345 notas
+           * reais o endereço é o do cadastro — imprimir "Cadastro" em todas seria ruído que apaga
+           * justamente a linha que explica por que o motorista foi a outro portão.
+           */}
+          {document.destinationOrigin === 'delivery' ? (
+            <span
+              className={styles.destinationOriginBadge}
+              title={t('destinationOrigin.deliveryHint')}
+            >
+              {t('destinationOrigin.delivery')}
             </span>
-          )}
-        </>
-      )}
-      <span className={styles.separationStatusBadge}>{separationStatusLabel}</span>
+          ) : null}
+        </div>
+      </div>
       {/*
-       * Spec 181 RF2/CA02: o marcador de ocorrência aberta e `openOccurrenceCase === true` são a
-       * mesma condição booleana (proposta-ux.md item 4) — um selo só, clicável, leva direto ao
-       * diálogo da ocorrência. Dois selos aqui voltariam a dizer o mesmo fato duas vezes.
+       * Spec 181 RF1/RF4: dinheiro e pessoas em blocos rotulados — `repeat(auto-fit, minmax(...))`
+       * porque quantos blocos cabem lado a lado depende do espaço disponível, não de um breakpoint
+       * fixo. Só o nome de quem recebe fica à frente; telefone/contratante/regra vão para a
+       * expansão (T304) — são dado de confirmação, não de triagem.
        */}
-      {hasOpenOccurrenceMarker(document) ? (
-        <Tooltip label={t('occurrence.openCaseHint')}>
-          <Button
-            className={styles.occurrenceCaseBadge}
-            onClick={() => actions.onOpenSeparationOccurrence(document.id)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="alert" size="sm" />
-            {t('occurrence.openCase')}
-          </Button>
-        </Tooltip>
-      ) : null}
-      {/*
-       * Spec 073 CA10: a marca aparece **só** no endereço de entrega. Em 345 de 345 notas reais o
-       * endereço é o do cadastro — imprimir "Cadastro" em todas seria ruído que apaga justamente a
-       * linha que explica por que o motorista foi a outro portão.
-       */}
-      {document.destinationOrigin === 'delivery' ? (
-        <span className={styles.destinationOriginBadge} title={t('destinationOrigin.deliveryHint')}>
-          {t('destinationOrigin.delivery')}
-        </span>
-      ) : null}
-      {hasTripDocumentFiscalWarning(document) ? (
-        <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
-      ) : null}
-      {/*
-       * Spec 174 RF1/RF2/RF6: o estado fiscal é **da nota** — ícone e texto na linha dela, nunca só
-       * a cor, com a explicação pelo tooltip do design system. Nota pronta ou que não espera
-       * documento fiscal não ganha selo (ausência é silêncio, não "nada a fazer").
-       */}
-      {fiscalReadiness !== undefined && fiscalReadiness.reason !== 'ok' ? (
-        <Tooltip label={fiscalStatusLabel(fiscalReadiness, t)}>
-          <span
-            className={
-              FISCAL_ALERT_REASONS.has(fiscalReadiness.reason)
-                ? `${styles.fiscalStatusBadge} ${styles.fiscalStatusBadgeAlert}`
-                : styles.fiscalStatusBadge
-            }
-          >
-            <Icon name={readinessReasonIcon(fiscalReadiness.reason)} size="sm" />
-            <span className={styles.fiscalStatusText}>{fiscalStatusLabel(fiscalReadiness, t)}</span>
-          </span>
-        </Tooltip>
-      ) : null}
+      <div className={styles.stopDocumentGrid}>
+        {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
+          <div className={styles.stopDocumentGroup}>
+            <span className={styles.stopDocumentGroupLabel}>{t('stops.moneyGroupLabel')}</span>
+            <span className={styles.stopDocumentMeta}>
+              {t('stops.cargoValue', { amount: formatAmount(document.nfeTotalValue) })}
+            </span>
+            {/*
+             * Spec 176: o frete **da nota**, nunca a mercadoria. `estimated` marca a previsão;
+             * `measured` não precisa de selo. Sem valor e sem regra, a ausência é dita em texto —
+             * nunca `R$ 0,00`.
+             */}
+            {document.freightAmount === null || document.freightAmount === undefined ? (
+              document.freightSource === 'missing' ? (
+                <span className={styles.stopDocumentMeta}>{t('stops.freight.missing')}</span>
+              ) : null
+            ) : (
+              <span className={styles.stopDocumentMeta}>
+                {t('stops.freight.amount', { amount: formatAmount(document.freightAmount) })}
+                {document.freightSource === 'estimated' ? ` (${t('stops.freight.estimated')})` : ''}
+              </span>
+            )}
+            {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
+              <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
+            )}
+          </div>
+        )}
+        {document.contact === null || document.contact === undefined ? null : (
+          <div className={styles.stopDocumentGroup}>
+            <span className={styles.stopDocumentGroupLabel}>{t('stops.peopleGroupLabel')}</span>
+            <span className={styles.stopDocumentMeta}>
+              {t('contact.recipient', { name: document.contact.name })}
+            </span>
+          </div>
+        )}
+      </div>
       <div className={styles.rowActions}>
         {/*
          * Spec 175 RF1/RF2/RF4/RF7: uma ação só, e o rótulo sai do documento que a nota espera —
@@ -590,22 +600,6 @@ function TripStopDocumentRow({
             permissions={actions.permissions}
           />
         ) : null}
-        {/*
-         * O comprovante é do escritório, e ler não é administrar: quem acompanha a operação abre o
-         * canhoto sem `trip.manage`. O botão só aparece quando há entrega ou devolução para
-         * comprovar — numa nota que ainda está no galpão não há o que mostrar.
-         */}
-        {document.deliveredAt === null && document.returnedAt === null ? null : (
-          <Button
-            onClick={() => actions.onToggleProof(document.id)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="image" />
-            {t('actions.viewProof')}
-          </Button>
-        )}
         {actions.canManage &&
         actions.canSeparateOrLoad &&
         document.separationStatus === 'pending' ? (
@@ -632,6 +626,21 @@ function TripStopDocumentRow({
             {t('actions.load')}
           </Button>
         ) : null}
+        {/*
+         * Spec 181 T203: a ação mais provável primeiro — numa nota carregada, "marcar entregue" é
+         * o acerto fácil, e "devolver" não deve ocupar essa posição.
+         */}
+        {actions.capabilities.canDocument(document.id, 'fieldDelivery') ? (
+          <Button
+            disabled={actions.isDeliverPending}
+            onClick={() => actions.onFieldDeliver(document.id)}
+            size="sm"
+            type="button"
+          >
+            <Icon name="check" />
+            {t('actions.deliver')}
+          </Button>
+        ) : null}
         {actions.capabilities.canDocument(document.id, 'fieldReturn') ? (
           <Button
             disabled={actions.isReturnPending}
@@ -642,17 +651,6 @@ function TripStopDocumentRow({
           >
             <Icon name="arrow-up" />
             {t('actions.return')}
-          </Button>
-        ) : null}
-        {actions.capabilities.canDocument(document.id, 'fieldDelivery') ? (
-          <Button
-            disabled={actions.isDeliverPending}
-            onClick={() => actions.onFieldDeliver(document.id)}
-            size="sm"
-            type="button"
-          >
-            <Icon name="check" />
-            {t('actions.deliver')}
           </Button>
         ) : null}
         {actions.canManage && actions.isEditable ? (
@@ -712,7 +710,66 @@ function TripStopDocumentRow({
           </Button>
         ) : null}
       </div>
-      {actions.openProofDocumentId === document.id ? actions.renderProof(document.id) : null}
+      {/*
+       * Spec 181 RF1/T302: as duas expansões da nota reusam o padrão da spec 180 (`aria-expanded`/
+       * `aria-controls`, chevron, teclado, 44px) — nunca um segundo jeito de expandir.
+       */}
+      {document.deliveredAt === null && document.returnedAt === null ? null : (
+        <Button
+          aria-controls={proofId}
+          aria-expanded={isProofOpen}
+          className={styles.stopDocumentToggle}
+          onClick={() => actions.onToggleProof(document.id)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name={isProofOpen ? 'chevron-up' : 'chevron-down'} />
+          {t('actions.viewProof')}
+        </Button>
+      )}
+      {isProofOpen ? <div id={proofId}>{actions.renderProof(document.id)}</div> : null}
+      {/*
+       * Spec 181 T304: contratante, regra fiscal e telefone são dado de confirmação — ficam na
+       * expansão, e a ausência de telefone não ocupa espaço na frente do card.
+       */}
+      {hasNoteDetail ? (
+        <Button
+          aria-controls={detailId}
+          aria-expanded={isDetailExpanded}
+          className={styles.stopDocumentToggle}
+          onClick={() => setIsDetailExpanded((current) => !current)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name={isDetailExpanded ? 'chevron-up' : 'chevron-down'} />
+          {isDetailExpanded ? t('stops.detailCollapse') : t('stops.detailExpand')}
+        </Button>
+      ) : null}
+      {hasNoteDetail && isDetailExpanded ? (
+        <div className={styles.stopDocumentDetailGroup} id={detailId}>
+          {document.contact === null || document.contact === undefined ? null : (
+            <>
+              <span className={styles.stopDocumentMeta}>
+                {document.contact.phone === null
+                  ? t('contact.withoutPhone')
+                  : t('contact.phone', { phone: document.contact.phone })}
+              </span>
+              {document.contact.contractorName === null ? null : (
+                <span className={styles.stopDocumentMeta}>
+                  {t('contact.contractor', { name: document.contact.contractorName })}
+                </span>
+              )}
+            </>
+          )}
+          {document.freightRuleName === null || document.freightRuleName === undefined ? null : (
+            <span className={styles.stopDocumentMeta}>
+              {t('stops.freight.rule', { name: document.freightRuleName })}
+            </span>
+          )}
+        </div>
+      ) : null}
     </li>
   )
 }
