@@ -78,9 +78,14 @@
   overflow-wrap: anywhere;
 }
 
+/**
+ * Spec 180: o marcador fica no meio do item, qualquer que seja a altura dele — evento de uma linha
+ * e evento de quatro têm o ponto centralizado do mesmo jeito. Antes era `top` fixo calculado para a
+ * primeira linha do título, que deixava o ponto no alto em item longo.
+ */
 .item::before {
   position: absolute;
-  top: calc(var(--space-2) + 0.3rem);
+  top: 50%;
   left: 0;
   width: var(--timeline-marker-size);
   height: var(--timeline-marker-size);
@@ -88,7 +93,7 @@
   border-radius: 50%;
   background: var(--timeline-marker-color);
   box-sizing: content-box;
-  transform: translateX(-2px);
+  transform: translate(-2px, -50%);
   content: '';
 }
 

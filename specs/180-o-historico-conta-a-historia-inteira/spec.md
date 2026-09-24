@@ -113,7 +113,18 @@ ocorreu.
   não aparece, e a lista parece completa quando não está. O RF13 ameniza (a lista nunca fica vazia),
   mas não corrige. A correção real é o filtro virar parâmetro da consulta, e fica registrada aqui
   para quando a viagem grande cobrar.
-- **RF15** Textos em pt-BR e en.
+- **RF15** **O evento leva à coisa.** Nota vira link para a nota; parada, para a parada; ocorrência,
+  para a ocorrência. Hoje o histórico diz que algo aconteceu com a nota 879795/2 e deixa o operador
+  procurá-la sozinho — o que é o oposto do que um histórico serve para fazer.
+- **RF16** **O evento expande.** Um evento com mais a dizer — ocorrência com observação e fotos,
+  devolução com motivo, carregamento com veículo e posição da carga — abre no lugar, sem sair da
+  tela. Fechado, mostra só título, hora e autoria, para a lista continuar varrível de cima a baixo.
+- **RF17** **O evento é formatado, não um parágrafo.** Título, autoria e detalhes têm hierarquia
+  visual distinta; o que é dado (veículo, motivo, quantidade) aparece rotulado, não embutido no meio
+  da frase.
+- **RF18** Nada disso pode custar requisição na lista: link é `href`, e o conteúdo caro — anexos —
+  só é buscado quando o operador expande (RF5, RF6).
+- **RF19** Textos em pt-BR e en.
 
 ## Requisitos não funcionais
 
@@ -147,7 +158,14 @@ ocorreu.
 - **CA10** É possível escolher mais de uma nota, e a lista mostra os eventos de todas elas.
 - **CA11** Com filtro ativo, os eventos da viagem continuam visíveis.
 - **CA12** Sem nenhuma nota escolhida, a lista é a completa — não vazia.
-- **CA13** Revisão de design com print, em 375px e no desktop (web.md §15).
+- **CA13** A nota citada no evento leva à nota; a parada, à parada.
+- **CA14** Evento com mais a dizer expande no lugar e recolhe; fechado mostra só título, hora e
+  autoria.
+- **CA15** A lista não dispara requisição de anexo enquanto nada é expandido.
+- **CA16** Evento sem nada a acrescentar não oferece expansão — um controle que abre o vazio é pior
+  que controle nenhum.
+- **CA17** O marcador do trilho fica centralizado no item, com uma ou com várias linhas.
+- **CA18** Revisão de design com print, em 375px e no desktop (web.md §15).
 
 ## Dúvidas
 
