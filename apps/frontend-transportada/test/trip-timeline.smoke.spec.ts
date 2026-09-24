@@ -66,7 +66,12 @@ test('a linha do tempo mostra os oito tipos de evento, do mais recente, e carreg
   await expect(section.getByText('Ocorrência em Nota 456/1: Avaria')).toBeVisible()
   await expect(section.getByText('Ocorrência: Avaria')).toBeVisible()
   await expect(section.getByText('Nota 456/1 devolvida')).toBeVisible()
-  await expect(section.getByText(AUTHORSHIP, { exact: true })).toHaveCount(4)
+  /*
+   * A autoria só aparece quando **muda**: quatro eventos seguidos do mesmo autor mostram a frase
+   * uma vez. Numa viagem tocada pelo mesmo operador ela vinha em todos os eventos, quase tão longa
+   * quanto o título e competindo com ele.
+   */
+  await expect(section.getByText(AUTHORSHIP, { exact: true })).toHaveCount(1)
 
   const loadMore = section.getByRole('button', { name: 'Carregar mais' })
   const loadMoreBox = await loadMore.boundingBox()

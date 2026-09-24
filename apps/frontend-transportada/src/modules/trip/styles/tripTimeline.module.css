@@ -49,6 +49,8 @@
 
 .list {
   --timeline-marker-size: 0.625rem;
+  --timeline-title-font-size: 0.95rem;
+  --timeline-title-line-height: 1.35;
   --timeline-rail-inset: calc(var(--timeline-marker-size) / 2);
 
   position: relative;
@@ -79,13 +81,19 @@
 }
 
 /**
- * Spec 180: o marcador fica no meio do item, qualquer que seja a altura dele — evento de uma linha
- * e evento de quatro têm o ponto centralizado do mesmo jeito. Antes era `top` fixo calculado para a
- * primeira linha do título, que deixava o ponto no alto em item longo.
+ * O marcador acompanha a **primeira linha do título** — é o título que nomeia o fato, e o ponto
+ * marca o fato. Centralizá-lo no item inteiro (tentativa anterior) jogava o ponto na altura dos
+ * links em evento alto, longe do que ele marca.
+ *
+ * A posição é derivada da tipografia do título, não um valor mágico: meia linha do título, menos
+ * meio marcador, menos a borda que o `content-box` acrescenta.
  */
 .item::before {
   position: absolute;
-  top: 50%;
+  top: calc(
+    var(--space-2) + (var(--timeline-title-font-size) * var(--timeline-title-line-height) / 2) -
+      (var(--timeline-marker-size) / 2) - 2px
+  );
   left: 0;
   width: var(--timeline-marker-size);
   height: var(--timeline-marker-size);
@@ -93,7 +101,7 @@
   border-radius: 50%;
   background: var(--timeline-marker-color);
   box-sizing: content-box;
-  transform: translate(-2px, -50%);
+  transform: translateX(-2px);
   content: '';
 }
 
@@ -192,9 +200,21 @@
 
 .itemTitle {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--timeline-title-font-size);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: var(--timeline-title-line-height);
+}
+
+/** O título leva à nota (RF15). Sublinhado só no toque: oito sublinhados empilhados viram cerca. */
+.itemTitleLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.itemTitleLink:hover,
+.itemTitleLink:focus-visible {
+  color: var(--color-copper);
+  text-decoration: underline;
 }
 
 /* No celular horário e autoria empilham: com o separador "·" a quebra de linha o deixava órfão. */

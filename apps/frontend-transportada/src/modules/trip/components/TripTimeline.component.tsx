@@ -75,6 +75,7 @@ type TripTimelineProps = Readonly<{
  */
 export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
   const { t } = useTranslation('trip')
+  const translate = t as Translate
   /**
    * Spec 180 RF12: começa filtrando pela nota que a navegação abriu, quando houve uma — era o que o
    * checkbox de uma nota só fazia —, e daí o operador escolhe outras.
@@ -151,8 +152,18 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
         <p className={styles.hint}>{t('eventTimeline.empty')}</p>
       ) : (
         <ol aria-busy={query.isFetchingNextPage} className={styles.list}>
-          {items.map((item) => (
-            <TripTimelineEntry item={item} key={item.id} />
+          {items.map((item, index) => (
+            <TripTimelineEntry
+              item={item}
+              key={item.id}
+              repeatsAuthorship={
+                index > 0 &&
+                resolveTripTimelineAuthorshipText(
+                  items[index - 1] as TripTimelineItem,
+                  translate,
+                ) === resolveTripTimelineAuthorshipText(item, translate)
+              }
+            />
           ))}
         </ol>
       )}
@@ -174,7 +185,10 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
   )
 }
 
-function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
+function TripTimelineEntry({
+  item,
+  repeatsAuthorship,
+}: Readonly<{ item: TripTimelineItem; repeatsAuthorship: boolean }>) {
   const { t } = useTranslation('trip')
   const translate = t as Translate
   const [isExpanded, setIsExpanded] = useState(false)
@@ -204,6 +218,17 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
    * cru em inglês. Código sem tradução — há `'migration'` legado no banco — cai no próprio código,
    * que é feio mas verdadeiro; some-lo esconderia o motivo da devolução.
    */
+  /**
+   * Spec 180 RF15: a nota manda sobre a parada — o evento fala de uma nota específica, e a parada é
+   * onde ela estava. Sem nenhuma das duas, não há link: título que não leva a lugar nenhum é pior
+   * que título simples.
+   */
+  const titleHref =
+    item.document !== null
+      ? resolveTripTimelineDocumentHref(item.document.id)
+      : item.stop !== null
+        ? resolveTripTimelineStopHref(item.stop.id)
+        : null
   const returnReasonCode =
     item.kind === 'document.returned' && item.returnReason !== null && item.returnReason !== ''
       ? item.returnReason
@@ -237,12 +262,31 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
           </span>
         )}
         <div className={styles.itemHeadText}>
-          <p className={styles.itemTitle}>{title}</p>
+          {/*
+           * Spec 180 RF15: o **título** leva à coisa citada, em vez de uma linha de "Ver nota · Ver
+           * parada" repetida em todo evento — oito pares idênticos empilhados competiam com os
+           * títulos, que é o que se lê. A nota manda; sem nota, a parada. Evento que não cita nem
+           * uma nem outra continua texto puro, sem link morto.
+           */}
+          <p className={styles.itemTitle}>
+            {titleHref === null ? (
+              title
+            ) : (
+              <a className={styles.itemTitleLink} href={titleHref}>
+                {title}
+              </a>
+            )}
+          </p>
           <p className={styles.itemMeta}>
             <time className={styles.itemTime} dateTime={item.occurredAt}>
               {formatMoment(item.occurredAt)}
             </time>
-            {authorship === null ? null : (
+            {/*
+             * A autoria se repete evento após evento — numa viagem tocada pelo mesmo operador ela
+             * aparecia oito vezes, quase tão longa quanto o título, competindo com ele. Só aparece
+             * quando **muda** em relação ao evento anterior; igual, o leitor já sabe de quem é.
+             */}
+            {authorship === null || repeatsAuthorship ? null : (
               <span className={styles.itemAuthorship}>{authorship}</span>
             )}
             {item.recordedAt === null ? null : (
@@ -253,24 +297,6 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
           </p>
         </div>
       </div>
-      {/*
-       * RF15/RF18 (CA13): a nota e a parada citadas levam até elas — por âncora de página, sem
-       * requisição nova (o app não tem router; ver `tripTimelineLink.service.ts`).
-       */}
-      {item.document === null && item.stop === null ? null : (
-        <p className={styles.itemLinks}>
-          {item.document === null ? null : (
-            <a className={styles.itemLink} href={resolveTripTimelineDocumentHref(item.document.id)}>
-              {t('eventTimeline.viewDocument')}
-            </a>
-          )}
-          {item.stop === null ? null : (
-            <a className={styles.itemLink} href={resolveTripTimelineStopHref(item.stop.id)}>
-              {t('eventTimeline.viewStop')}
-            </a>
-          )}
-        </p>
-      )}
       {/**
        * Spec 180 RF16/CA14/CA16: só oferece expandir quando `hasTripTimelineExpandableDetail`
        * confirma que há algo a mostrar — o controle nunca abre o vazio.
