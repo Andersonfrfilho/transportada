@@ -11,10 +11,14 @@ export const FIELD_DELIVERY_SEND_CONCURRENCY = 3
  * Spec 182 D5: `cargoPending` conta fotos de carga que não subiram depois da baixa — a nota
  * continua `delivered`/`alreadySettled` (a foto de carga nunca desfaz a baixa), só o aviso muda.
  * Ausente ou `0` é "nenhuma pendente"; nunca um terceiro estado.
+ *
+ * `cargoRejected` (achado de revisão da spec 182): foto de carga recusada de forma terminal
+ * (400/422, mesmo critério M13a de `isRetryableFieldDeliveryFailure`) — nunca reenviada pelo
+ * "tentar de novo", diferente de `cargoPending` (transitória, reenviável).
  */
 export type FieldDeliverySendOutcome =
-  | Readonly<{ cargoPending?: number; kind: 'alreadySettled' }>
-  | Readonly<{ cargoPending?: number; kind: 'delivered' }>
+  | Readonly<{ cargoPending?: number; cargoRejected?: number; kind: 'alreadySettled' }>
+  | Readonly<{ cargoPending?: number; cargoRejected?: number; kind: 'delivered' }>
   | Readonly<{ code: string; kind: 'failed'; retryable: boolean }>
 
 /**

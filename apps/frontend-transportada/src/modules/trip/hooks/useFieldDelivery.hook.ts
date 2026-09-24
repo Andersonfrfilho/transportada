@@ -58,6 +58,18 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
    */
   const cargoIdempotencyKeysRef = useRef<Record<string, string>>({})
   /**
+   * Achado de revisão (spec 182): status por foto de carga (`documentId` → índice → resultado),
+   * o que permite ao retry reenviar só a que ainda está `pending` — nunca a `rejected` (terminal) e
+   * nunca a `sent` de novo (idempotência por índice, mesma chave de `cargoIdempotencyKeysRef`).
+   */
+  const cargoPhotoOutcomesRef = useRef<Record<string, ('pending' | 'rejected' | 'sent')[]>>({})
+  /**
+   * Achado de revisão (spec 182): nota cuja baixa (`reportFieldDelivery`) já foi confirmada
+   * (`delivered`/`alreadySettled`) — o retry dela nunca chama `reportFieldDelivery` de novo, só
+   * reenvia as fotos de carga que ainda faltam.
+   */
+  const deliveryResultRef = useRef<Record<string, 'alreadySettled' | 'delivered'>>({})
+  /**
    * A4a (spec 156 T15): fechar o assistente no meio do envio não pode deixar o lote antigo
    * terminando por trás — as chamadas em voo são canceladas (`AbortController`) e qualquer
    * `onStart`/`onSettle` que ainda chegue depois do cancelamento é ignorado, para o próximo
@@ -83,18 +95,23 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
   }
 
   /**
-   * Spec 182 D5: sobe uma foto de carga de cada vez, em ordem — nunca em paralelo, e só depois que
-   * a baixa da nota já foi confirmada. Uma foto que falha não interrompe as seguintes nem desfaz a
-   * baixa: o que volta é a contagem do que ainda falta subir (retry reenvia com a mesma chave).
+   * Spec 182 D5 (achado de revisão): sobe uma foto de carga de cada vez, em ordem — nunca em
+   * paralelo, e só depois que a baixa da nota já foi confirmada. Cada foto é classificada pelo
+   * mesmo critério M13a da nota (`isRetryableFieldDeliveryFailure`): falha transitória vira
+   * `pending` (o retry reenvia), falha terminal (400/422) vira `rejected` (nunca reenviada). O
+   * status por foto fica em `cargoPhotoOutcomesRef` — chamado de novo (retry), esta função só
+   * tenta de novo o que ainda está `pending`, pulando `sent`/`rejected`.
    */
   async function sendCargoPhotos(
     draft: FieldDeliveryDraft,
     signal: AbortSignal,
-  ): Promise<number> {
-    let cargoPending = 0
+  ): Promise<Readonly<{ cargoPending: number; cargoRejected: number }>> {
+    const outcomes = [...(cargoPhotoOutcomesRef.current[draft.documentId] ?? [])]
     for (let photoIndex = 0; photoIndex < draft.cargoImageBlobs.length; photoIndex += 1) {
       const imageBlob = draft.cargoImageBlobs[photoIndex]
       if (imageBlob === undefined) continue
+      const previousOutcome = outcomes[photoIndex]
+      if (previousOutcome === 'sent' || previousOutcome === 'rejected') continue
       try {
         await input.attachFieldProof({
           documentId: draft.documentId,
@@ -105,17 +122,45 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
           tripId: input.tripId,
           ...(draft.driverId === undefined ? {} : { driverId: draft.driverId }),
         })
-      } catch {
-        cargoPending += 1
+        outcomes[photoIndex] = 'sent'
+      } catch (error) {
+        const code = error instanceof Error ? error.message : 'REQUEST_FAILED'
+        const retryable = isRetryableFieldDeliveryFailure({
+          code,
+          status: readTripRequestErrorStatus(error),
+        })
+        outcomes[photoIndex] = retryable ? 'pending' : 'rejected'
       }
     }
-    return cargoPending
+    cargoPhotoOutcomesRef.current[draft.documentId] = outcomes
+    return {
+      cargoPending: outcomes.filter((outcome) => outcome === 'pending').length,
+      cargoRejected: outcomes.filter((outcome) => outcome === 'rejected').length,
+    }
+  }
+
+  function buildDeliveredOutcome(
+    kind: 'alreadySettled' | 'delivered',
+    cargo: Readonly<{ cargoPending: number; cargoRejected: number }>,
+  ): FieldDeliverySendOutcome {
+    return {
+      kind,
+      ...(cargo.cargoPending === 0 ? {} : { cargoPending: cargo.cargoPending }),
+      ...(cargo.cargoRejected === 0 ? {} : { cargoRejected: cargo.cargoRejected }),
+    }
   }
 
   async function sendDraft(
     draft: FieldDeliveryDraft,
     signal: AbortSignal,
   ): Promise<FieldDeliverySendOutcome> {
+    /** Achado de revisão (spec 182): a nota já teve a baixa confirmada numa tentativa anterior —
+     * o retry aqui é só de foto de carga, nunca repete `reportFieldDelivery`. */
+    const previousDeliveryKind = deliveryResultRef.current[draft.documentId]
+    if (previousDeliveryKind !== undefined) {
+      const cargo = await sendCargoPhotos(draft, signal)
+      return buildDeliveredOutcome(previousDeliveryKind, cargo)
+    }
     try {
       const result = await input.reportFieldDelivery({
         deliveredAt: draft.deliveredAt,
@@ -130,9 +175,10 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
           : { receiverDocument: draft.receiverDocument }),
         ...(draft.receiverName === undefined ? {} : { receiverName: draft.receiverName }),
       })
-      const cargoPending = await sendCargoPhotos(draft, signal)
       const kind = result.alreadySettled ? 'alreadySettled' : 'delivered'
-      return cargoPending === 0 ? { kind } : { cargoPending, kind }
+      deliveryResultRef.current[draft.documentId] = kind
+      const cargo = await sendCargoPhotos(draft, signal)
+      return buildDeliveredOutcome(kind, cargo)
     } catch (error) {
       const code = error instanceof Error ? error.message : 'REQUEST_FAILED'
       /** M13a: só erro transitório (rede/5xx/429, ou TRIP_STATUS_WRITE_CONFLICT) é reenviável —
@@ -205,6 +251,8 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
     draftsRef.current = {}
     idempotencyKeysRef.current = {}
     cargoIdempotencyKeysRef.current = {}
+    cargoPhotoOutcomesRef.current = {}
+    deliveryResultRef.current = {}
   }
 
   return { isSubmitting, reset, retryFailed, statusByDocumentId, submit }
