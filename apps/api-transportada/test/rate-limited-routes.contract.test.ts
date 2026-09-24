@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { createAddressCorrectionRoutes } from '../src/address-correction/presentation/address-correction.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
+import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
 import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
@@ -239,6 +240,34 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
+  /**
+   * Spec 183 T404: a mensagem da conversa dispara e-mail (RF18 da 150), então conta no Postgres —
+   * num balde próprio, porque a conversa manda mais que o e-mail de correção e dividir o balde
+   * travaria um pelo outro.
+   */
+  test('a mensagem da conversa da ocorrência conta no Postgres, no balde dela', () => {
+    const routes = createOccurrenceConversationRoutes(unusedDependencies() as never)
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'occurrence-conversation',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trip-occurrences/:id/conversations/:participant/messages',
+      },
+    ])
+  })
+
   test('nenhum outro arquivo da API declara teto no Postgres', async () => {
     const files = await listSourceFiles(SOURCE_DIRECTORY)
     const declaring: string[] = []
@@ -251,6 +280,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'address-correction/presentation/address-correction.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
       'contractor-portal/presentation/contractor-occurrence.routes.ts',
+      'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
       'trips/presentation/occurrence-case.routes.ts',
       'trips/presentation/occurrence-settlement.routes.ts',
       'trips/presentation/redelivery-application.routes.ts',

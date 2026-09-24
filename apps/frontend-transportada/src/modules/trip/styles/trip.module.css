@@ -4041,6 +4041,15 @@ button.occurrenceCaseBadge {
   white-space: nowrap;
 }
 
+/* Spec 183 T404: o estado da conversa e, abaixo, as mensagens do motorista ainda não lidas. */
+.occurrenceConversationCell {
+  white-space: nowrap;
+}
+
+.occurrenceConversationCell .occurrenceCellNote {
+  margin-top: var(--space-1);
+}
+
 /* Nome e endereço são as células longas: quebram em até duas linhas em vez de empurrar o valor para fora. */
 .occurrenceWrapCell {
   min-width: 11rem;

@@ -558,3 +558,72 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
 
 - Sem rota nesta task (as rotas são a T404), então nenhum endpoint novo.
 - Rodado: API, contrato: **7316 pass, 0 fail**; `bun run lint` e `bun run typecheck` limpos. API, integração: **585 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).
+
+## T404 — As rotas da conversa e a coluna Conversa (verde)
+
+- **Rotas** (`occurrence-conversation/presentation/occurrence-conversation.routes.ts`, todas
+  `no-store`):
+  - `GET /trip-occurrences/:id/conversations` (`fleet.read`): as conversas da ocorrência, com as
+    mensagens em ordem, o autor de cada uma e as não lidas **de quem pede**;
+  - `POST /trip-occurrences/:id/conversations/:participant/messages` (`occurrences.resolve`):
+    - exige `Idempotency-Key` e corpo estrito;
+    - hoje só a contratante por e-mail; outro canal ou participante é 422
+      `OCCURRENCE_CONVERSATION_CHANNEL_UNAVAILABLE`, sem chegar ao caso de uso;
+    - rate limit no Postgres (`occurrence-conversation`, 30/300 s), listado em
+      `test/rate-limited-routes.contract.test.ts`;
+    - responde 202;
+  - `POST /trip-occurrences/:id/conversations/contractor/mail-preview` (`occurrences.resolve`);
+  - `POST /occurrence-conversations/:id/read` (`fleet.read`): marca até a última mensagem, por
+    usuário.
+- **Correções ao plano** (técnicas, sem mudança de produto):
+  1. O envio pede `occurrences.resolve`, e não `trip.manage`. O separador tem `trip.manage`, e a
+     143 T016 manda que ele **não** alcance o envio; a permissão da tratativa cumpre as duas coisas.
+     `test/separator-role.contract.test.ts` ganhou só as duas leituras.
+  2. A prévia é `POST` sob `/trip-occurrences/:id/…`, e não sob a conversa: antes da primeira
+     mensagem, a conversa ainda não existe.
+- **Na listagem (RF4)**, cada item do feed e do detalhe ganha
+  `conversation: { contractorState: 'none' | 'awaiting' | 'replied', driverUnreadCount }`:
+  - lido em leituras fixas por página, sem N+1, em `occurrence-conversation-summary.query.ts`;
+  - a query ficou separada para não criar ciclo de import com o feed;
+  - `awaiting` quer dizer que a última mensagem é nossa; `replied`, que é da contratante;
+  - as não lidas do motorista são de quem está vendo.
+- **Frontend:**
+  - o guard do feed é **tolerante**: `conversation` ausente (API anterior) ou malformado vira "sem
+    conversa", sem reprovar o item;
+  - a coluna Conversa entra antes de Aviso, no menu de colunas e na persistência
+    (`docs/frontend/data-tables.md` § 6): preferência antiga a ganha visível no fim;
+  - pelo RF4, com decisão da tratativa a célula mostra a **decisão** (de `case`), nunca o estado da
+    conversa;
+  - as não lidas do motorista vão abaixo, em texto ("2 mensagens do motorista"), e não só em número
+    ou cor.
+- **Testes e ordem honesta:**
+  - Contratos do frontend (`test/trip/occurrence-table.contract.ts`, coluna e célula;
+    `test/trip/occurrence-feed-tolerance.contract.ts`, guard) escritos **antes** e vistos falhando:
+    a exportação não existia, e o item malformado não degradava. Depois, verdes.
+  - Contrato das rotas (`test/occurrence-conversation/conversation-routes.contract.ts`) escrito
+    junto com as rotas, sem rodada vermelha registrada. Cobre:
+    - permissão, com o separador em 403 antes do caso de uso;
+    - 404 de outra empresa;
+    - chave, campo desconhecido e assunto ausente em 400;
+    - canal indisponível em 422;
+    - nenhum log com assunto ou corpo;
+    - marcar como lida por usuário.
+  - Integração nova `test/integration/occurrence-conversation-read.integration.ts` (no
+    `package.json`), escrita depois da implementação. Contra Postgres, cobre:
+    - o autor de cada mensagem;
+    - `awaiting` virando `replied`;
+    - a não lida do motorista zerando só para quem marcou;
+    - outra empresa sem acesso: `null`, e marcar como lida dá `false`.
+
+    **2 pass**. A fixture de banco da T403 foi extraída para
+    `test/fixtures/occurrence-conversation-database.fixture.ts` e é compartilhada pelas duas.
+
+- **Prints** (desktop e 390 px): `prints/lista-coluna-conversa.png` e
+  `prints/lista-coluna-conversa-celular.png`. Revisão de design sem achado: o estado usa o mesmo selo
+  da coluna Etapa, e no celular a tabela rola dentro do cartão, como as outras colunas.
+- **Rodado:**
+  - API, contrato: **7326 pass, 0 fail**;
+  - frontend (`bun run test`): **5199 + 44 pass, 0 fail**;
+  - `bun run lint` e `bun run typecheck` limpos na raiz.
+  - API, integração completa: no momento do commit ainda rodava, só com as 8 falhas conhecidas de
+    object storage (MinIO) até ali. O número final fica registrado na T405.

@@ -32,6 +32,7 @@ const DETAIL = {
   actorName: 'Operador',
   case: null,
   channel: 'driver_app',
+  conversation: { contractorState: 'awaiting', driverUnreadCount: 0 },
   createdAt: '2026-09-24T14:12:00.000Z',
   description: 'Recebedor cobrando descarga.',
   document: {

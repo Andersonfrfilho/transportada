@@ -10,158 +10,27 @@ import { describe, expect } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
 import { createPreviewOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/preview-occurrence-mail.use-case.js'
-import { createSendOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import {
   createOccurrenceMailReader,
   createOccurrenceSuggestedMailReader,
-  DrizzleOccurrenceMailRepository,
 } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
 import {
-  companyOccurrenceTypes,
-  contractorContacts,
   contractorMailMessages,
   contractorMailOutbox,
-  contractorMailSettings,
   contractorMailThreads,
-  contractors,
-  nfeParticipants,
   occurrenceConversationMessages,
   occurrenceConversations,
-  tripDocuments,
 } from '../../src/database/database.schema.js'
-import { TRIP_OCCURRENCE_STAGE } from '../../src/shared/trip-occurrence.constant.js'
-import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
-import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import {
-  fakeAttachmentStorage,
-  JPEG_BYTES,
   seedCompany,
-  seedTrip,
   testWithPostgres,
   withDisposableDatabase,
 } from '../fixtures/trip-field-office-database.fixture.js'
-import type {
-  Company,
-  SeededTrip,
-  TestDatabase,
-} from '../fixtures/trip-field-office-database.fixture.js'
-
-const EMITTER_TAX_ID = '11222333000181'
-
-type Seeded = {
-  readonly company: Company
-  readonly contactIds: readonly string[]
-  readonly occurrenceId: string
-}
-
-async function nfeDocumentIdOf(database: TestDatabase, trip: SeededTrip): Promise<string> {
-  const [row] = await database.db
-    .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
-    .from(tripDocuments)
-    .where(eq(tripDocuments.id, trip.documentId))
-  if (row?.nfeDocumentId === null || row?.nfeDocumentId === undefined) {
-    throw new Error('EXPECTED_NFE_DOCUMENT')
-  }
-  return row.nfeDocumentId
-}
-
-/** Empresa com e-mail verificado, a nota cujo emitente é contratante, dois contatos e a ocorrência. */
-async function seedMailScenario(database: TestDatabase): Promise<Seeded> {
-  const company = await seedCompany(database)
-  const trip = await seedTrip(database, company, 'in_transit')
-  const nfeDocumentId = await nfeDocumentIdOf(database, trip)
-  const contractorId = crypto.randomUUID()
-  await database.db.insert(contractors).values({
-    companyId: company.companyId,
-    displayName: 'Contratante Alfa',
-    id: contractorId,
-    taxId: EMITTER_TAX_ID,
-  })
-  await database.db.insert(nfeParticipants).values({
-    companyId: company.companyId,
-    documentId: nfeDocumentId,
-    id: crypto.randomUUID(),
-    legalName: 'Contratante Alfa Indústria Ltda',
-    role: 'emitter',
-    taxId: EMITTER_TAX_ID,
-    tradeName: 'Contratante Alfa',
-  })
-  const contacts = await database.db
-    .insert(contractorContacts)
-    .values([
-      { companyId: company.companyId, contractorId, email: 'compras@alfa.example.test' },
-      { companyId: company.companyId, contractorId, email: 'fiscal@alfa.example.test' },
-      {
-        companyId: company.companyId,
-        contractorId,
-        email: 'sem-ocorrencia@alfa.example.test',
-        receivesOccurrences: false,
-      },
-    ])
-    .returning({ id: contractorContacts.id })
-  await database.db.insert(contractorMailSettings).values({
-    companyId: company.companyId,
-    replyDomain: 'resposta.example.test',
-    secretEnvelope: {},
-    senderAddress: 'ocorrencias@transportadora.example.test',
-    senderName: 'Transportadora Sintética',
-    sendingVerifiedAt: new Date('2026-09-01T00:00:00.000Z'),
-  })
-
-  const occurrenceTypeId = crypto.randomUUID()
-  await database.db.insert(companyOccurrenceTypes).values({
-    active: true,
-    companyId: company.companyId,
-    emailBody: 'Ocorrência na nota {{numeroNota}}: {{observacao}}',
-    emailSubject: 'Ocorrência — NF {{numeroNota}}',
-    id: occurrenceTypeId,
-    name: 'Caixa violada',
-    notifies: false,
-    redeliveryPolicy: 'blocked',
-    stage: 'separation',
-  })
-  const occurrence = await persistSeparationOccurrenceWithAttachment({
-    attachment: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
-    input: {
-      actorUserId: company.userId,
-      companyId: company.companyId,
-      documentId: trip.documentId,
-      items: [],
-      note: 'caixa com avaria visível',
-      occurrenceTypeId,
-      productCode: '',
-      productCodes: [],
-      redeliveryPolicy: 'blocked',
-      stage: TRIP_OCCURRENCE_STAGE.separation,
-      tripId: trip.tripId,
-      typeName: 'Caixa violada',
-    },
-    newObjectId: () => crypto.randomUUID(),
-    now: () => new Date('2026-09-22T12:00:00.000Z'),
-    storage: fakeAttachmentStorage([]),
-    unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db, 'test-bucket'),
-  })
-  if (occurrence === null) throw new Error('EXPECTED_OCCURRENCE')
-  return {
-    company,
-    contactIds: contacts.map((contact) => contact.id),
-    occurrenceId: occurrence.id,
-  }
-}
-
-function createUseCase(database: TestDatabase) {
-  return createSendOccurrenceMailUseCase({
-    fingerprintService: {
-      create: async ({ fields }) =>
-        fields.map((field) => new TextDecoder().decode(field)).join('|'),
-    },
-    now: () => new Date('2026-09-24T18:00:00.000Z'),
-    secretService: {
-      decrypt: async () => ({ apiKey: 're_test', replyTokenSecret: 'b'.repeat(64) }),
-    } as never,
-    unitOfWork: new DrizzleOccurrenceMailRepository(database.db),
-  })
-}
+import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
+import {
+  createOccurrenceMailUseCase,
+  seedMailScenario,
+} from '../fixtures/occurrence-conversation-database.fixture.js'
 
 async function count(database: TestDatabase, companyId: string) {
   const [threads, mails, outbox, conversations, messages] = await Promise.all([
@@ -201,7 +70,7 @@ describe('o e-mail da conversa contra Postgres (spec 183 T403)', () => {
     async () => {
       await withDisposableDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
-        const useCase = createUseCase(database)
+        const useCase = createOccurrenceMailUseCase(database)
         const base = {
           actorUserId: seeded.company.userId,
           bodyText: 'Recebedor cobrando descarga. Autorizam?',
@@ -280,7 +149,7 @@ describe('o e-mail da conversa contra Postgres (spec 183 T403)', () => {
       await withDisposableDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
         const other = await seedCompany(database)
-        const useCase = createUseCase(database)
+        const useCase = createOccurrenceMailUseCase(database)
         const base = {
           actorUserId: seeded.company.userId,
           bodyText: 'Texto',

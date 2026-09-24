@@ -2,10 +2,13 @@
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isRecord, isString } from './tripGuards.validation'
 import {
+  EMPTY_OCCURRENCE_CONVERSATION,
+  OCCURRENCE_CONTRACTOR_CONVERSATION_STATES,
   OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES,
   OCCURRENCE_SETTLEMENT_PAYER_KINDS,
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
   TRIP_OCCURRENCE_CASE_STATUSES,
+  type OccurrenceContractorConversationState,
   type OccurrenceSettlementItem,
   type OccurrenceSettlementItemView,
   type OccurrenceSettlementResult,
@@ -13,6 +16,7 @@ import {
   type TripOccurrenceAttachment,
   type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseView,
+  type TripOccurrenceConversationSummary,
   type TripOccurrenceFeedFilters,
   type TripOccurrenceDetail,
   type TripOccurrenceDetailDriver,
@@ -146,8 +150,26 @@ function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
   return { ...rest, settlementTotal: isString(settlementTotal) ? settlementTotal : null }
 }
 
-type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case' | 'document'> &
-  Readonly<{ case?: unknown; document?: unknown }>
+type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case' | 'conversation' | 'document'> &
+  Readonly<{ case?: unknown; conversation?: unknown; document?: unknown }>
+
+/** Spec 183 RF4: ausente ou malformado é "sem conversa" — o campo nunca reprova o item. */
+function toConversationSummary(value: unknown): TripOccurrenceConversationSummary {
+  if (!isRecord(value)) return EMPTY_OCCURRENCE_CONVERSATION
+  const contractorState = OCCURRENCE_CONTRACTOR_CONVERSATION_STATES.find(
+    (state: OccurrenceContractorConversationState) => state === value.contractorState,
+  )
+  const driverUnreadCount = value.driverUnreadCount
+  if (
+    contractorState === undefined ||
+    typeof driverUnreadCount !== 'number' ||
+    !Number.isInteger(driverUnreadCount) ||
+    driverUnreadCount < 0
+  ) {
+    return EMPTY_OCCURRENCE_CONVERSATION
+  }
+  return { contractorState, driverUnreadCount }
+}
 
 function isFeedItem(value: unknown): value is RawFeedItem {
   if (!isRecord(value)) return false
@@ -174,10 +196,11 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 }
 
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
-  const { case: rawCase, document, ...rest } = raw
+  const { case: rawCase, conversation, document, ...rest } = raw
   return {
     ...rest,
     case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null,
+    conversation: toConversationSummary(conversation),
     document: isOccurrenceDocument(document) ? document : null,
   }
 }

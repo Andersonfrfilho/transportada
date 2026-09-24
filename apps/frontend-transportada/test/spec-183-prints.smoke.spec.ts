@@ -58,6 +58,31 @@ test('print: a lista rolada até o valor da nota (T205)', async ({ page }) => {
     .screenshot({ path: resolve(PRINTS_DIRECTORY, 'lista-colunas-da-nota.png') })
 })
 
+test('print: a coluna Conversa, com o estado e as mensagens do motorista (T404)', async ({
+  page,
+}) => {
+  await page.setViewportSize(DESKTOP)
+  await open(page, '/ocorrencias')
+  const table = page.getByRole('table')
+  await expect(table.getByRole('columnheader', { name: 'Conversa' })).toBeAttached()
+  const state = table.getByText('Contratante respondeu')
+  await state.scrollIntoViewIfNeeded()
+  await expect(state).toBeInViewport()
+  await expect(table.getByText('2 mensagens do motorista')).toBeVisible()
+  await page
+    .locator('section', { has: page.getByRole('heading', { name: 'Ocorrências registradas' }) })
+    .screenshot({ path: resolve(PRINTS_DIRECTORY, 'lista-coluna-conversa.png') })
+})
+
+test('print: a coluna Conversa no celular (T404)', async ({ page }) => {
+  await page.setViewportSize(PHONE)
+  await open(page, '/ocorrencias')
+  const state = page.getByRole('table').getByText('Contratante respondeu')
+  await state.scrollIntoViewIfNeeded()
+  await expect(state).toBeInViewport()
+  await page.screenshot({ path: resolve(PRINTS_DIRECTORY, 'lista-coluna-conversa-celular.png') })
+})
+
 test('a linha abre o detalhe sem recarregar o app', async ({ page }) => {
   await page.setViewportSize(DESKTOP)
   await open(page, '/ocorrencias')

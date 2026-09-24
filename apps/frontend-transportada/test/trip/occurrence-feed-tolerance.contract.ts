@@ -178,3 +178,49 @@ describe('o bloco da nota no feed (spec 183 RF2)', () => {
     expect(caught).toEqual(expect.objectContaining({ message: 'TRIP_RESPONSE_INVALID' }))
   })
 })
+
+/**
+ * Spec 183 T404 (RF4): `conversation` chegou depois do feed. Ausente (API anterior) ou malformado
+ * degrada para "sem conversa", nunca derruba a página.
+ */
+describe('tolerância ao estado da conversa no feed (spec 183 T404)', () => {
+  test('lê o estado da conversa e as não lidas do motorista', async () => {
+    const client = createClient(
+      Response.json({
+        data: [
+          buildFeedItem({ conversation: { contractorState: 'replied', driverUnreadCount: 2 } }),
+        ],
+        pagination: { nextCursor: null },
+      }),
+    )
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items[0]?.conversation).toEqual({
+      contractorState: 'replied',
+      driverUnreadCount: 2,
+    })
+  })
+
+  test('ausente ou malformado vira "sem conversa", sem reprovar o item', async () => {
+    const client = createClient(
+      Response.json({
+        data: [
+          buildFeedItem(),
+          buildFeedItem({
+            conversation: { contractorState: 'decided', driverUnreadCount: -1 },
+            id: 'other',
+          }),
+        ],
+        pagination: { nextCursor: null },
+      }),
+    )
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items.map((item) => item.conversation)).toEqual([
+      { contractorState: 'none', driverUnreadCount: 0 },
+      { contractorState: 'none', driverUnreadCount: 0 },
+    ])
+  })
+})

@@ -10,6 +10,7 @@ import { AuthorizationService } from '../src/identity/application/authorization.
 import { resolveCompanyPermissions } from '../src/identity/domain/authorization.policy'
 import type { AuthenticatedContext, CompanyContext } from '../src/identity/domain/tenant-context'
 import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-documents.routes'
+import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
 import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
 import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
@@ -77,6 +78,9 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // não porque a permissão as barrasse.
     ...createTripFieldOfficeRoutes(dependencies),
     ...createTripFieldOfficeOccurrenceRoutes(dependencies),
+    // Spec 183 T404 (143 T016): o separador lê a conversa (`fleet.read`, como a listagem) e marca
+    // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
+    ...createOccurrenceConversationRoutes(dependencies),
   ]
 
   return routes
@@ -170,6 +174,8 @@ describe('separator role contract', () => {
        */
       'GET /trip-occurrences',
       'GET /trip-occurrences/:id/attachments',
+      // Spec 183 T404: ler a conversa é da listagem; escrever à contratante não (occurrences.resolve).
+      'GET /trip-occurrences/:id/conversations',
       'GET /trips',
       'GET /trips/:id',
       /**
@@ -244,6 +250,8 @@ describe('separator role contract', () => {
       'PATCH /trips/:id/stops/order',
       // Spec 155 (G004): a mesma cargo.measure de GET .../:id/siblings, acima.
       'POST /nfe-package-boxes/:id/replicate',
+      // Spec 183 T404 (RF15): marcar a conversa como lida é registro do próprio usuário (`fleet.read`).
+      'POST /occurrence-conversations/:id/read',
       /**
        * A mesma linha da estrada da rota irmã, para pontos que **ainda não são viagem**: é o mapa
        * do formulário, onde o separador confere a ordem antes de criar a viagem. Alcança pelo mesmo

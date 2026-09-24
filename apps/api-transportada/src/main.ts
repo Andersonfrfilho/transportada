@@ -372,6 +372,22 @@ import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
+import { createOccurrenceConversationRoutes } from './occurrence-conversation/presentation/occurrence-conversation.routes.js'
+import {
+  createListOccurrenceConversationsUseCase,
+  createMarkOccurrenceConversationReadUseCase,
+} from './occurrence-conversation/application/read-occurrence-conversations.use-case.js'
+import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
+import { createSendOccurrenceMailUseCase } from './occurrence-conversation/application/send-occurrence-mail.use-case.js'
+import {
+  createOccurrenceMailReader,
+  createOccurrenceSuggestedMailReader,
+  DrizzleOccurrenceMailRepository,
+} from './occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
+import {
+  findOccurrenceConversations,
+  markOccurrenceConversationRead,
+} from './occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import { createReadTripOccurrenceTimelineUseCase } from './trips/application/read-trip-occurrence-timeline.use-case.js'
 import { findTripOccurrenceTimelineSources } from './trips/infrastructure/trip-occurrence-timeline.query.js'
 import { createOccurrenceCaseUseCase } from './trips/application/occurrence-case.use-case.js'
@@ -2753,6 +2769,27 @@ function createApplicationRoutes({
       }),
       readTripOccurrenceTimeline: createReadTripOccurrenceTimelineUseCase({
         reader: { findSources: (input) => findTripOccurrenceTimelineSources(database, input) },
+      }),
+    }),
+    /**
+     * Spec 183 T404: a conversa da ocorrência. Ler é `fleet.read`; escrever à contratante é
+     * `occurrences.resolve` (o separador não alcança), com teto próprio no Postgres.
+     */
+    ...createOccurrenceConversationRoutes({
+      listConversations: createListOccurrenceConversationsUseCase({
+        reader: { findConversations: (input) => findOccurrenceConversations(database, input) },
+      }),
+      markRead: createMarkOccurrenceConversationReadUseCase({
+        writer: { markRead: (input) => markOccurrenceConversationRead(database, input) },
+      }),
+      previewMail: createPreviewOccurrenceMailUseCase({
+        reader: createOccurrenceMailReader(database),
+        suggestedMail: createOccurrenceSuggestedMailReader(database),
+      }),
+      sendMail: createSendOccurrenceMailUseCase({
+        fingerprintService,
+        secretService: contractorMailCredentialSecretService,
+        unitOfWork: new DrizzleOccurrenceMailRepository(database),
       }),
     }),
     ...createOccurrenceCaseRoutes({

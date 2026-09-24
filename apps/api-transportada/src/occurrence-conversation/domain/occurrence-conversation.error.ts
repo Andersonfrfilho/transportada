@@ -48,3 +48,25 @@ export class OccurrenceConversationIdempotencyKeyReusedError extends ApiError {
     })
   }
 }
+
+/** Conversa inexistente ou de outra empresa respondem igual: a diferença confirmaria a existência. */
+export class OccurrenceConversationNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_NOT_FOUND',
+      message: 'Occurrence conversation not found',
+      status: 404,
+    })
+  }
+}
+
+/** O canal ou o participante que ainda não tem envio nesta instalação (Fases 5–6b). */
+export class OccurrenceConversationChannelUnavailableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_CHANNEL_UNAVAILABLE',
+      message: 'This channel cannot send messages in this conversation yet',
+      status: 422,
+    })
+  }
+}

@@ -8,6 +8,7 @@ import type { TripOccurrenceDetail } from '../../src/trips/application/read-trip
 export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   actorName: 'Operador de campo',
   case: null,
+  conversation: { contractorState: 'none', driverUnreadCount: 0 },
   channel: 'driver_app',
   createdAt: '2026-09-24T14:12:00.000Z',
   description: 'Recebedor cobrando descarga.',

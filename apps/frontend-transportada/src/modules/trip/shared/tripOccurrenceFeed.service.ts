@@ -106,6 +106,8 @@ export type OccurrenceSettlementView = Readonly<{
 
 export type TripOccurrenceFeedItem = Readonly<{
   case: null | TripOccurrenceCaseView
+  /** Spec 183 RF4: estado da conversa; ausente na API anterior vira `EMPTY_OCCURRENCE_CONVERSATION`. */
+  conversation: TripOccurrenceConversationSummary
   createdAt: string
   description: string
   /** Spec 183 RF2: `null` na ocorrência de parada sem nota e na API anterior à 183. */
@@ -123,6 +125,25 @@ export type TripOccurrenceFeedItem = Readonly<{
   typeName: string
   vehiclePlate: string
 }>
+
+export const OCCURRENCE_CONTRACTOR_CONVERSATION_STATES = ['none', 'awaiting', 'replied'] as const
+
+export type OccurrenceContractorConversationState =
+  (typeof OCCURRENCE_CONTRACTOR_CONVERSATION_STATES)[number]
+
+/**
+ * Spec 183 RF4: a conversa com a contratante (`awaiting` = a última mensagem é nossa; `replied` = é
+ * dela) e as mensagens do motorista ainda não lidas **por quem está vendo**.
+ */
+export type TripOccurrenceConversationSummary = Readonly<{
+  contractorState: OccurrenceContractorConversationState
+  driverUnreadCount: number
+}>
+
+export const EMPTY_OCCURRENCE_CONVERSATION: TripOccurrenceConversationSummary = {
+  contractorState: 'none',
+  driverUnreadCount: 0,
+}
 
 /**
  * Spec 183 RF2: de quem é a carga, para onde ia e quanto vale. `totalValue` é string decimal —
@@ -215,6 +236,7 @@ export const TRIP_OCCURRENCE_COLUMN_KEYS = [
   'contractor',
   'destination',
   'invoiceValue',
+  'conversation',
   'notified',
 ] as const
 
@@ -362,6 +384,33 @@ export function describeOccurrenceDocumentCells(
     contractorTaxId: document?.contractor?.taxId ?? '',
     destination: document?.destination?.label ?? '',
     totalValue: document?.totalValue ?? null,
+  }
+}
+
+export type OccurrenceConversationCell = Readonly<{
+  driverUnreadCount: number
+  state:
+    | null
+    | Readonly<{ kind: 'conversation'; value: 'awaiting' | 'replied' }>
+    | Readonly<{ kind: 'decision'; value: TripOccurrenceCaseDecisionKind }>
+}>
+
+/**
+ * Spec 183 T404 (RF4): a decisão da tratativa não é estado de conversa — com decisão, a célula mostra
+ * a decisão (de `case`); sem ela, o estado da conversa com a contratante. As não lidas do motorista
+ * vão ao lado em qualquer caso.
+ */
+export function describeOccurrenceConversationCell(
+  item: Pick<TripOccurrenceFeedItem, 'case' | 'conversation'>,
+): OccurrenceConversationCell {
+  const decision = item.case?.decision ?? null
+  const { contractorState, driverUnreadCount } = item.conversation
+  if (decision !== null) {
+    return { driverUnreadCount, state: { kind: 'decision', value: decision.kind } }
+  }
+  return {
+    driverUnreadCount,
+    state: contractorState === 'none' ? null : { kind: 'conversation', value: contractorState },
   }
 }
 

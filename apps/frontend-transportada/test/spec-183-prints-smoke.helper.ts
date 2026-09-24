@@ -22,6 +22,7 @@ const DOCUMENT_OCCURRENCE = {
     updatedAt: '2026-09-24T14:12:00.000Z',
   },
   channel: 'driver_app',
+  conversation: { contractorState: 'replied', driverUnreadCount: 2 },
   createdAt: '2026-09-24T14:12:00.000Z',
   description: 'Recebedor está cobrando taxa de descarga para liberar a doca.',
   document: {
@@ -73,6 +74,7 @@ const STOP_OCCURRENCE = {
   actorName: 'Escritório Sintético',
   case: null,
   channel: 'office',
+  conversation: { contractorState: 'none', driverUnreadCount: 0 },
   createdAt: '2026-09-24T13:47:00.000Z',
   description: 'Doca fechada no horário combinado.',
   document: null,

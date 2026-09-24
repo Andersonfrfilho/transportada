@@ -780,6 +780,7 @@
       "contractor": "Contratante",
       "destination": "Endereço de entrega",
       "invoiceValue": "Valor NF-e",
+      "conversation": "Conversa",
       "createdAt": "Hora",
       "driverName": "Motorista",
       "invoice": "Nota",
@@ -836,6 +837,19 @@
     },
     "loadMore": "Carregar mais",
     "loadingMore": "Carregando…",
+    "conversation": {
+      "conversation": {
+        "awaiting": "Aguardando contratante",
+        "replied": "Contratante respondeu"
+      },
+      "decision": {
+        "redelivery_authorized": "Reentrega autorizada",
+        "goods_paid": "Produtos pagos",
+        "other": "Outra solução"
+      },
+      "driverUnread_one": "{{count}} mensagem do motorista",
+      "driverUnread_other": "{{count}} mensagens do motorista"
+    },
     "notified": "Aviso enviado",
     "stage": {
       "delivery": "Entrega",

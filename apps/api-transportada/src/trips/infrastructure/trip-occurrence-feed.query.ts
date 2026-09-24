@@ -55,6 +55,10 @@ import type { OccurrenceAttachmentRecord } from '../application/occurrence-attac
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import {
+  EMPTY_CONVERSATION_SUMMARY,
+  listOccurrenceConversationSummaries,
+} from '../../occurrence-conversation/infrastructure/occurrence-conversation-summary.query.js'
 
 /** O papel do emitente em `nfe_participants` — o mesmo literal de `findChargeParties`. */
 const EMITTER_ROLE = 'emitter'
@@ -63,7 +67,7 @@ const EMITTER_ROLE = 'emitter'
  * A linha antes do enriquecimento: o bloco `document` (spec 183 RF2) nasce **depois** da fusão das
  * duas fontes, numa leitura em lote por página — nunca uma consulta por linha.
  */
-type FeedRow = Omit<TripOccurrenceFeedItem, 'createdAt' | 'document'> & {
+type FeedRow = Omit<TripOccurrenceFeedItem, 'conversation' | 'createdAt' | 'document'> & {
   readonly createdAt: Date
   readonly nfeDocumentId: null | string
   readonly totalValue: null | string
@@ -518,6 +522,7 @@ async function toFeedItems(
   queryable: TripQueryable,
   companyId: string,
   rows: readonly FeedRow[],
+  viewerUserId?: string,
 ): Promise<TripOccurrenceFeedItem[]> {
   const nfeDocumentIds = [
     ...new Set(rows.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId]))),
@@ -569,10 +574,18 @@ async function toFeedItems(
     destinations = stopAddresses
   }
 
+  /** Spec 183 RF4: o resumo das conversas da página inteira, em leituras fixas — nunca por linha. */
+  const conversations = await listOccurrenceConversationSummaries(queryable, {
+    companyId,
+    occurrences: rows.map((row) => ({ id: row.id, kind: row.source })),
+    ...(viewerUserId === undefined ? {} : { viewerUserId }),
+  })
+
   return rows.map(({ nfeDocumentId, totalValue, ...row }) => {
     const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)
     return {
       ...row,
+      conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
       createdAt: row.createdAt.toISOString(),
       document:
         nfeDocumentId === null || totalValue === null
@@ -621,7 +634,7 @@ export async function listTripOccurrenceFeed(
   const last = merged.items[merged.items.length - 1]
 
   return {
-    items: await toFeedItems(queryable, query.companyId, merged.items),
+    items: await toFeedItems(queryable, query.companyId, merged.items, query.viewerUserId),
     nextCursor:
       merged.hasMore && last !== undefined
         ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })

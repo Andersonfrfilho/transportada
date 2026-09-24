@@ -597,6 +597,7 @@
       "contractor": "Contracting party",
       "destination": "Delivery address",
       "invoiceValue": "Invoice value",
+      "conversation": "Conversation",
       "createdAt": "Time",
       "driverName": "Driver",
       "invoice": "Invoice",
@@ -653,6 +654,19 @@
     },
     "loadMore": "Load more",
     "loadingMore": "Loading…",
+    "conversation": {
+      "conversation": {
+        "awaiting": "Awaiting contractor",
+        "replied": "Contractor replied"
+      },
+      "decision": {
+        "redelivery_authorized": "Redelivery authorized",
+        "goods_paid": "Goods paid",
+        "other": "Other solution"
+      },
+      "driverUnread_one": "{{count}} message from the driver",
+      "driverUnread_other": "{{count}} messages from the driver"
+    },
     "notified": "Notice sent",
     "stage": {
       "delivery": "Delivery",

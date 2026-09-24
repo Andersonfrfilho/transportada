@@ -10,6 +10,7 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
 import {
+  describeOccurrenceConversationCell,
   describeOccurrenceDocumentCells,
   formatOccurrenceInvoice,
   resolveOccurrenceTypeLabel,
@@ -70,6 +71,30 @@ function OccurrenceDocumentCell({
   )
 }
 
+/**
+ * Spec 183 T404 (RF4): a decisão da tratativa vence o estado da conversa; as mensagens do motorista
+ * ainda não lidas por quem está vendo vão ao lado, em texto — nunca só um número ou uma cor.
+ */
+function OccurrenceConversationCell({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
+  const { t } = useTranslation('trip')
+  const cell = describeOccurrenceConversationCell(item)
+
+  return (
+    <td className={styles.occurrenceConversationCell}>
+      {cell.state === null ? null : (
+        <span className={styles.statusBadge}>
+          {t(`occurrenceFeed.conversation.${cell.state.kind}.${cell.state.value}`)}
+        </span>
+      )}
+      {cell.driverUnreadCount === 0 ? null : (
+        <span className={styles.occurrenceCellNote}>
+          {t('occurrenceFeed.conversation.driverUnread', { count: cell.driverUnreadCount })}
+        </span>
+      )}
+    </td>
+  )
+}
+
 /** Sem router: a troca de página é `pushState`, sem recarregar o app (spec 183 P1). */
 function openOccurrence(occurrenceId: string): void {
   navigateToTripOccurrence({ navigator: createBrowserWorkspaceNavigator(), occurrenceId })
@@ -117,6 +142,7 @@ function OccurrenceCell({
   if (column === 'contractor' || column === 'destination' || column === 'invoiceValue') {
     return <OccurrenceDocumentCell column={column} item={item} />
   }
+  if (column === 'conversation') return <OccurrenceConversationCell item={item} />
   /** A marca de aviso enviado: o tipo cadastrado que notifica o embarcador. */
   return (
     <td>

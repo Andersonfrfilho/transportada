@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   countActiveTripOccurrenceFilters,
+  describeOccurrenceConversationCell,
   describeOccurrenceDocumentCells,
   EMPTY_TRIP_OCCURRENCE_FILTERS,
   formatOccurrenceInvoice,
@@ -184,7 +185,7 @@ describe('listagem de ocorrências — colunas da nota', () => {
     totalValue: '48320.0000',
   } as const
 
-  test('as três colunas novas entram depois da nota, e o aviso continua por último', () => {
+  test('as colunas novas entram depois da nota, e o aviso continua por último', () => {
     expect(TRIP_OCCURRENCE_COLUMN_KEYS).toEqual([
       'createdAt',
       'stage',
@@ -196,6 +197,7 @@ describe('listagem de ocorrências — colunas da nota', () => {
       'contractor',
       'destination',
       'invoiceValue',
+      'conversation',
       'notified',
     ])
   })
@@ -220,10 +222,16 @@ describe('listagem de ocorrências — colunas da nota', () => {
     }
     const preferences = readTripOccurrenceColumnPreferences(storage)
     expect(preferences.order.slice(0, 2)).toEqual(['stage', 'createdAt'])
-    expect(preferences.order.slice(-3)).toEqual(['contractor', 'destination', 'invoiceValue'])
+    expect(preferences.order.slice(-4)).toEqual([
+      'contractor',
+      'destination',
+      'invoiceValue',
+      'conversation',
+    ])
     expect(preferences.visibility.driverName).toBe(false)
     expect(preferences.visibility.contractor).toBe(true)
     expect(preferences.visibility.invoiceValue).toBe(true)
+    expect(preferences.visibility.conversation).toBe(true)
   })
 
   test('com nota: nome e CNPJ da contratante, destino físico e valor como string decimal', () => {
@@ -250,6 +258,54 @@ describe('listagem de ocorrências — colunas da nota', () => {
       destination: '',
       totalValue: '48320.0000',
     })
+  })
+})
+
+/**
+ * Spec 183 T404 (RF4): a coluna Conversa. A decisão da tratativa **não** é estado de conversa — com
+ * decisão, a célula mostra a decisão (vinda de `case`); sem ela, o estado da conversa com a
+ * contratante. As não lidas do motorista são de quem está vendo e vão ao lado, em qualquer caso.
+ */
+describe('listagem de ocorrências — coluna Conversa', () => {
+  const DECIDED_CASE = {
+    decision: { decidedAt: '2026-09-24T12:00:00.000Z', kind: 'goods_paid', note: 'Pagou' },
+    redeliveryPolicy: 'allowed',
+    settlementTotal: null,
+    status: 'decided',
+    updatedAt: '2026-09-24T12:00:00.000Z',
+  } as const
+
+  test('sem conversa, sem decisão e sem não lidas, a célula fica vazia', () => {
+    expect(
+      describeOccurrenceConversationCell({
+        case: null,
+        conversation: { contractorState: 'none', driverUnreadCount: 0 },
+      }),
+    ).toEqual({ driverUnreadCount: 0, state: null })
+  })
+
+  test('aguardando e respondida saem do estado da conversa com a contratante', () => {
+    expect(
+      describeOccurrenceConversationCell({
+        case: null,
+        conversation: { contractorState: 'awaiting', driverUnreadCount: 0 },
+      }).state,
+    ).toEqual({ kind: 'conversation', value: 'awaiting' })
+    expect(
+      describeOccurrenceConversationCell({
+        case: null,
+        conversation: { contractorState: 'replied', driverUnreadCount: 3 },
+      }),
+    ).toEqual({ driverUnreadCount: 3, state: { kind: 'conversation', value: 'replied' } })
+  })
+
+  test('com decisão, a célula mostra a decisão da tratativa, nunca o estado da conversa', () => {
+    expect(
+      describeOccurrenceConversationCell({
+        case: DECIDED_CASE,
+        conversation: { contractorState: 'replied', driverUnreadCount: 1 },
+      }),
+    ).toEqual({ driverUnreadCount: 1, state: { kind: 'decision', value: 'goods_paid' } })
   })
 })
 

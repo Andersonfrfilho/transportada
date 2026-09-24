@@ -5,6 +5,7 @@
  * e o que houve na parada (`trip_stop_occurrences`) numa lista só, por empresa. **Leitura pura** —
  * não existe "tratar" ocorrência nesta versão, e a lista não muda estado nenhum.
  */
+import type { OccurrenceConversationSummary } from '../../occurrence-conversation/infrastructure/occurrence-conversation-summary.query.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import type {
   TripOccurrenceCaseDecisionKind,
@@ -78,6 +79,11 @@ export type TripOccurrenceFeedDocument = {
 export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): nome de quem clicou, `null` sem vínculo ativo na empresa. */
   readonly actorName: string | null
+  /**
+   * Spec 183 RF4: o estado da conversa com a contratante e quantas mensagens do motorista quem está
+   * vendo ainda não leu. A decisão (aprovada, recusada) **não** é estado de conversa: é `case`.
+   */
+  readonly conversation: OccurrenceConversationSummary
   /** Spec 164 T8 (RF10): `null` quando a ocorrência não tem tratativa aberta. */
   readonly case: TripOccurrenceFeedCaseView | null
   readonly channel: TripFieldChannel
@@ -128,6 +134,8 @@ export type TripOccurrenceFeedPage = {
 
 export type TripOccurrenceFeedQuery = {
   readonly companyId: string
+  /** Spec 183 RF4/RF15: as não lidas são de **quem está vendo**. */
+  readonly viewerUserId?: string
   readonly cursor: null | string
   readonly filters?: TripOccurrenceFeedFilters
   readonly limit: number
@@ -143,7 +151,7 @@ export type TripOccurrenceFeedReaderPort = {
 }
 
 export type ListTripOccurrenceFeedInput = {
-  readonly context: { readonly companyId: string }
+  readonly context: { readonly companyId: string; readonly userId?: string }
   readonly cursor: null | string
   readonly filters?: TripOccurrenceFeedFilters
   readonly limit: number
@@ -157,6 +165,7 @@ export function createListTripOccurrenceFeedUseCase(dependencies: {
     async execute(input: ListTripOccurrenceFeedInput): Promise<TripOccurrenceFeedPage> {
       return dependencies.reader.listFeed({
         companyId: input.context.companyId,
+        ...(input.context.userId === undefined ? {} : { viewerUserId: input.context.userId }),
         cursor: input.cursor,
         limit: input.limit,
         order: input.order,
