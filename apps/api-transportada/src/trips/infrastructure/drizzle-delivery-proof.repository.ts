@@ -3,13 +3,14 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
 import {
   companyDeliveryProofSettings,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
+import { inList } from '../../database/schema-check.constant.js'
 import { nfeParticipants } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
@@ -17,6 +18,7 @@ import {
   tripDocuments,
   tripStopEvents,
   tripStops,
+  TRIP_DELIVERY_PROOF_CARGO_KIND,
   trips,
   type TripDeliveryProofKind,
 } from '../../database/trip.schema.js'
@@ -335,6 +337,11 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
             tripDeliveryProofs.stopEventId,
             tripDeliveryProofs.kind,
           ],
+          /**
+   * Repete o predicado do índice parcial (spec 182): sem ele o Postgres não acha o árbitro. Literal,
+   * não parâmetro — com `$1` a inferência do índice falha do mesmo jeito.
+   */
+          targetWhere: sql`${tripDeliveryProofs.kind} <> ${sql.raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))}`,
         })
         .returning({ id: tripDeliveryProofs.id })
 

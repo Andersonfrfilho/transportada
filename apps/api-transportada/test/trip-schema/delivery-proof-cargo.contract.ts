@@ -16,10 +16,10 @@ const UNIQUE_NAME = 'trip_delivery_proofs_company_event_kind_unique'
  * `ON CONFLICT` precisa repetir o predicado, ou o Postgres não acha o árbitro e recusa o INSERT —
  * a baixa do motorista quebraria junto.
  */
-const UPSERT_SOURCES = [
+const UPSERT_SOURCES: string[] = [
   '../../src/trips/infrastructure/drizzle-delivery-proof.repository.ts',
   '../../src/trips/infrastructure/drizzle-driver-field-report.repository.ts',
-] as const
+]
 
 /**
  * Spec 182: a foto da carga é `kind` próprio, e ela **soma** — ao contrário do canhoto e da

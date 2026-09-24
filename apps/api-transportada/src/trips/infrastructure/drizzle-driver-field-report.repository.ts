@@ -4,10 +4,12 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 
+import { inList } from '../../database/schema-check.constant.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   companyOccurrenceTypes,
+  TRIP_DELIVERY_PROOF_CARGO_KIND,
   tripDeliveryProofs,
   tripDispatchSnapshots,
   tripDocumentOccurrences,
@@ -640,6 +642,11 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
           tripDeliveryProofs.stopEventId,
           tripDeliveryProofs.kind,
         ],
+        /**
+   * Repete o predicado do índice parcial (spec 182): sem ele o Postgres não acha o árbitro. Literal,
+   * não parâmetro — com `$1` a inferência do índice falha do mesmo jeito.
+   */
+        targetWhere: sql`${tripDeliveryProofs.kind} <> ${sql.raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))}`,
       })
       .returning({ id: tripDeliveryProofs.id })
 

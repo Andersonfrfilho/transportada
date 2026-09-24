@@ -534,6 +534,56 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
     },
   )
 
+  /**
+   * Spec 182 (CA02): a unicidade `(company, stop_event, kind)` virou índice parcial, sem `cargo`, e o
+   * `ON CONFLICT` passou a repetir o predicado. Este é o único teste que força o `DO UPDATE`: o
+   * escritório sobe o canhoto duas vezes, e o segundo substitui o primeiro. Sem o `targetWhere`, o
+   * Postgres recusaria a escrita por não achar o árbitro — e a baixa quebraria em produção.
+   */
+  testWithPostgres(
+    'spec 182: o segundo canhoto do escritório substitui o primeiro pelo índice parcial',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-deliver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-182-delivery',
+          }),
+        })
+        for (const [receiverName, idempotencyKey] of [
+          ['Ana Paula', 'office-182-proof-first'],
+          ['Bruno Lima', 'office-182-proof-second'],
+        ] as const) {
+          const response = await proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: `integration-correlation-${idempotencyKey}`,
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { receiverName },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey,
+            }),
+          })
+          expect(response.status).toBe(201)
+        }
+
+        const proofRows = await database.db
+          .select({ kind: tripDeliveryProofs.kind, receiverName: tripDeliveryProofs.receiverName })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.companyId, company.companyId))
+        expect(proofRows).toEqual([{ kind: 'photo', receiverName: 'Bruno Lima' }])
+      })
+    },
+  )
+
   testWithPostgres(
     'field-proof anexa ao evento delivered sem mudar delivered_at nem criar evento',
     async () => {
