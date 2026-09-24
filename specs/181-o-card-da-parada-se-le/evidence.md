@@ -124,3 +124,33 @@ bunx eslint src/modules/trip test/trip --max-warnings=0                → 0 pro
 bun test ./test/trip.contract.test.ts --timeout 120000                → 1583 pass, 0 fail
   (1578 da fase anterior + 5 testes novos = 1583; nenhuma regressão)
 ```
+
+## Fase 4 — A seleção em massa deixa de se esconder (T401 + T402)
+
+O mecanismo (`TripDocumentSelectionController`, devolução em lote com a nota que falha
+permanecendo marcada, `TripStateActions`) **já funcionava** e não foi tocado — a task pede achá-lo,
+não reescrevê-lo. A parte de T402 sobre "a caixa ganha lugar próprio no card reorganizado" já saiu
+pronta da Fase 2: `.stopDocumentCheckboxColumn` (largura fixa `var(--control-height-compact)`,
+sempre a primeira coisa no cabeçalho da nota, antes do número e dos selos) é exatamente a âncora de
+varredura vertical que RF10 pede. A barra que diz quantas notas estão marcadas
+(`.selectionBar`/`stops.selectionCount`) e o bloco que diz o que fazer com elas
+(`<TripStateActions>`) já nascem lado a lado, assim que `selection.selectedIds.size > 0` — não havia
+o que reescrever aí também. Esta fase fecha com o teste que prova as três garantias (RF10/RF11/RF12)
+em conjunto, sem alterar comportamento.
+
+### O que mudou
+
+- `test/trip/document-selection-anchor.contract.ts` (novo): prova que a caixa da nota vem sempre
+  antes do número e dos selos dentro de uma coluna de largura fixa (RF10/CA09); que a caixa da
+  parada continua usando `allSelected`/`someSelected`/`indeterminate` sobre as notas dela (RF12/
+  CA11, regressão — nada mudou aqui, só ficou provado); e que a contagem e as ações em massa
+  aparecem juntas assim que há seleção (RF11/CA10).
+
+### Gates
+
+```
+bunx tsc --noEmit                                                     → 0 erros
+bunx eslint src/modules/trip test/trip --max-warnings=0                → 0 problemas
+bun test ./test/trip.contract.test.ts --timeout 120000                → 1587 pass, 0 fail
+  (1583 da fase anterior + 4 testes novos = 1587; nenhuma regressão)
+```
