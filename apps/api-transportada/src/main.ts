@@ -2969,6 +2969,7 @@ function createApplicationRoutes({
           now: new Date(),
           repository: {
             confirmUpload: (query) => occurrenceUploadRepository.confirmUpload(query),
+            findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
             findPendingUpload: (query) => occurrenceUploadRepository.findPendingUpload(query),
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
           },

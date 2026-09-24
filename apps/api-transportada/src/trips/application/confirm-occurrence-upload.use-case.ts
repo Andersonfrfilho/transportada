@@ -23,6 +23,13 @@ export type PendingOccurrenceUpload = {
 }
 
 export type OccurrenceUploadConfirmationPort = {
+  /**
+   * Achado [2] da revisão de 23/09: a linha só é gravada quando o `UPDATE` interno confirma **esta**
+   * chamada como dona do `pending → confirmed` (condicionado a `status = 'pending'`). `confirmed:
+   * false` é a perdedora de uma corrida — outra chamada já fechou a mesma confirmação entre a
+   * leitura e a escrita — e não é erro: é o mesmo reenvio idempotente do achado [1], só que
+   * concorrente em vez de sequencial.
+   */
   confirmUpload(input: {
     readonly bucket: string
     readonly companyId: string
@@ -32,7 +39,17 @@ export type OccurrenceUploadConfirmationPort = {
     readonly objectKey: string
     readonly sha256: string
     readonly sizeBytes: number
-  }): Promise<void>
+  }): Promise<{ readonly confirmed: boolean }>
+  /**
+   * Achado [1] da revisão de 23/09: o recall do reenvio idempotente. `null` quando o objeto nunca
+   * foi confirmado, não é desta empresa, ou não é desta viagem — os mesmos três motivos de
+   * `findPendingUpload` devolver `null` por outro caminho.
+   */
+  findConfirmedUpload(input: {
+    readonly companyId: string
+    readonly id: string
+    readonly tripId: string
+  }): Promise<null | { readonly id: string }>
   /** `null` quando o pedido não existe, não é desta empresa/viagem, ou já não está `pending`. */
   findPendingUpload(input: {
     readonly companyId: string
@@ -76,7 +93,21 @@ export async function confirmOccurrenceUpload(
     id: input.id,
     tripId: input.tripId,
   })
-  if (pending === null) throw new TripOccurrenceUploadNotReachableError()
+  if (pending === null) {
+    /**
+     * Achado [1]: `findPendingUpload` só acha `status = 'pending'`. Sem pendência, o motivo mais
+     * comum não é "nunca existiu" — é a fila offline reenviando uma confirmação que já venceu. O
+     * reenvio devolve o mesmo resultado em vez de 404; só quando nem confirmado ele é, o objeto é
+     * mesmo inalcançável (nunca existiu, ou é de outra empresa/viagem).
+     */
+    const alreadyConfirmed = await input.repository.findConfirmedUpload({
+      companyId: input.companyId,
+      id: input.id,
+      tripId: input.tripId,
+    })
+    if (alreadyConfirmed !== null) return alreadyConfirmed
+    throw new TripOccurrenceUploadNotReachableError()
+  }
   if (pending.expiresAt.getTime() <= input.now.getTime()) {
     throw new TripOccurrenceUploadNotReachableError()
   }
@@ -108,7 +139,7 @@ export async function confirmOccurrenceUpload(
     mimeType: pending.mimeType,
   })
 
-  await input.repository.confirmUpload({
+  const outcome = await input.repository.confirmUpload({
     bucket: pending.bucket,
     companyId: input.companyId,
     id: input.id,
@@ -118,6 +149,18 @@ export async function confirmOccurrenceUpload(
     sha256: sha256Hex(bytes),
     sizeBytes: bytes.byteLength,
   })
+  if (outcome.confirmed) return { id: input.id }
 
-  return { id: input.id }
+  /**
+   * Achado [2]: perdeu a corrida — outra confirmação concorrente já fechou `pending → confirmed`
+   * entre a leitura acima e este `UPDATE`. O mesmo recall do achado [1] devolve o resultado da
+   * vencedora em vez de um 500 de violação de chave única.
+   */
+  const wonByConcurrentCall = await input.repository.findConfirmedUpload({
+    companyId: input.companyId,
+    id: input.id,
+    tripId: input.tripId,
+  })
+  if (wonByConcurrentCall !== null) return wonByConcurrentCall
+  throw new TripOccurrenceUploadNotReachableError()
 }

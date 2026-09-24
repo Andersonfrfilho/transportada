@@ -79,7 +79,14 @@ export class DrizzleOccurrenceUploadRepository
     return row ?? null
   }
 
-  /** A linha final em `stored_objects` e a marca de confirmado, na mesma transação. */
+  /**
+   * Achado [2] da revisão de 23/09: o `UPDATE` roda **primeiro** e condicionado a `status =
+   * 'pending'` — é ele quem decide qual das duas chamadas concorrentes é a dona da confirmação.
+   * Quando ele não afeta nenhuma linha (outra transação já venceu a corrida entre a leitura em
+   * `findPendingUpload` e este `UPDATE`), a transação some sem tentar o `INSERT`: as duas
+   * concorrentes inserindo `stored_objects` com o mesmo `id` (PK) era a violação de unicidade que
+   * virava 500. Só a vencedora chega ao `INSERT`.
+   */
   public async confirmUpload(input: {
     readonly bucket: string
     readonly companyId: string
@@ -89,8 +96,22 @@ export class DrizzleOccurrenceUploadRepository
     readonly objectKey: string
     readonly sha256: string
     readonly sizeBytes: number
-  }): Promise<void> {
-    await this.database.transaction(async (transaction) => {
+  }): Promise<{ readonly confirmed: boolean }> {
+    return this.database.transaction(async (transaction) => {
+      const updated = await transaction
+        .update(tripOccurrenceUploads)
+        .set({ confirmedAt: input.now, status: 'confirmed' })
+        .where(
+          and(
+            eq(tripOccurrenceUploads.companyId, input.companyId),
+            eq(tripOccurrenceUploads.id, input.id),
+            eq(tripOccurrenceUploads.status, 'pending'),
+          ),
+        )
+        .returning({ id: tripOccurrenceUploads.id })
+
+      if (updated.length === 0) return { confirmed: false }
+
       await transaction.insert(storedObjects).values({
         bucket: input.bucket,
         companyId: input.companyId,
@@ -105,15 +126,7 @@ export class DrizzleOccurrenceUploadRepository
         status: 'final',
       })
 
-      await transaction
-        .update(tripOccurrenceUploads)
-        .set({ confirmedAt: input.now, status: 'confirmed' })
-        .where(
-          and(
-            eq(tripOccurrenceUploads.companyId, input.companyId),
-            eq(tripOccurrenceUploads.id, input.id),
-          ),
-        )
+      return { confirmed: true }
     })
   }
 

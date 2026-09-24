@@ -12,6 +12,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   confirmOccurrenceUpload,
   type OccurrenceUploadConfirmationPort,
+  type OccurrenceUploadReadStoragePort,
   type PendingOccurrenceUpload,
 } from '../../src/trips/application/confirm-occurrence-upload.use-case.js'
 import {
@@ -164,10 +165,16 @@ describe('confirmar o upload (spec 179 T201, RF2a)', () => {
   function repository(
     pending: null | Partial<PendingOccurrenceUpload> = {},
     confirmed: object[] = [],
+    confirmedUpload: null | { readonly id: string } = null,
+    confirmOutcome: { readonly confirmed: boolean } = { confirmed: true },
   ): OccurrenceUploadConfirmationPort {
     return {
       async confirmUpload(input) {
         confirmed.push(input)
+        return confirmOutcome
+      },
+      async findConfirmedUpload() {
+        return confirmedUpload
       },
       async findPendingUpload() {
         if (pending === null) return null
@@ -178,6 +185,18 @@ describe('confirmar o upload (spec 179 T201, RF2a)', () => {
           objectKey: `tenants/${COMPANY}/trip-occurrence-uploads/${TRIP}/${OBJECT_ID}`,
           ...pending,
         }
+      },
+    }
+  }
+
+  /** Prova que o reenvio idempotente não toca o storage: nem `head()`, nem baixar os bytes. */
+  function unreachableStorage(): OccurrenceUploadReadStoragePort {
+    return {
+      async getObjectStream() {
+        throw new Error('não deveria baixar bytes no reenvio idempotente')
+      },
+      async headObject() {
+        throw new Error('não deveria checar o objeto no reenvio idempotente')
       },
     }
   }
@@ -197,6 +216,26 @@ describe('confirmar o upload (spec 179 T201, RF2a)', () => {
     expect(confirmed).toHaveLength(1)
     expect((confirmed[0] as { sizeBytes: number }).sizeBytes).toBe(JPEG_BYTES.byteLength)
     expect((confirmed[0] as { sha256: string }).sha256).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  /**
+   * Achado [2] da revisão de 23/09: quando o `UPDATE` condicionado a `status = 'pending'` não afeta
+   * nenhuma linha — outra confirmação concorrente já venceu a corrida entre a leitura e a escrita —,
+   * o repositório devolve `confirmed: false` em vez de inserir `stored_objects` de novo. O caso de
+   * uso recorre ao mesmo recall do achado [1] e devolve o resultado da vencedora, não um 500.
+   */
+  test('perde a corrida (UPDATE não afetou linha): devolve o resultado da vencedora, sem inserir de novo', async () => {
+    const confirmed: object[] = []
+    const result = await confirmOccurrenceUpload({
+      companyId: COMPANY,
+      id: OBJECT_ID,
+      now: NOW,
+      repository: repository({}, confirmed, { id: OBJECT_ID }, { confirmed: false }),
+      storage: storage({ bytes: JPEG_BYTES }),
+      tripId: TRIP,
+    })
+
+    expect(result.id).toBe(OBJECT_ID)
   })
 
   /**
@@ -226,6 +265,41 @@ describe('confirmar o upload (spec 179 T201, RF2a)', () => {
       now: NOW,
       repository: repository(null),
       storage: storage({}),
+      tripId: TRIP,
+    }).catch((error: unknown) => error)
+
+    expect(rejected).toBeInstanceOf(TripOccurrenceUploadNotReachableError)
+  })
+
+  /**
+   * Achado [1] da revisão de 23/09: `findPendingUpload` filtra `status = 'pending'`, e a segunda
+   * confirmação (reenvio da fila offline) já não acha nada — sem esta checagem, ela levaria 404 em
+   * vez do mesmo resultado da primeira.
+   */
+  test('reenvio da confirmação já concluída devolve o mesmo resultado, sem tocar o storage', async () => {
+    const confirmed: object[] = []
+    const result = await confirmOccurrenceUpload({
+      companyId: COMPANY,
+      id: OBJECT_ID,
+      now: NOW,
+      repository: repository(null, confirmed, { id: OBJECT_ID }),
+      storage: unreachableStorage(),
+      tripId: TRIP,
+    })
+
+    expect(result.id).toBe(OBJECT_ID)
+    expect(confirmed).toHaveLength(0)
+  })
+
+  test('objeto confirmado só é devolvido a quem é dono: outra empresa/viagem continua 404', async () => {
+    const rejected = await confirmOccurrenceUpload({
+      companyId: COMPANY,
+      id: OBJECT_ID,
+      now: NOW,
+      // `findPendingUpload` já escopa por empresa/viagem; `findConfirmedUpload` faz o mesmo no
+      // recall — nenhum dos dois acha nada quando o objeto é de outro contexto.
+      repository: repository(null, [], null),
+      storage: unreachableStorage(),
       tripId: TRIP,
     }).catch((error: unknown) => error)
 
@@ -349,6 +423,10 @@ describe('pedir e confirmar o upload amarrados à nota (spec 179 T202)', () => {
     return {
       async confirmUpload(record: object) {
         input.confirmed?.push(record)
+        return { confirmed: true }
+      },
+      async findConfirmedUpload() {
+        return null
       },
       async findPendingUpload() {
         return {
