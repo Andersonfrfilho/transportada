@@ -97,7 +97,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 > 🤖 Modelo: `sonnet` · T502 é 🧠 (segurança do webhook)
 
 - [x] **T501** Política de atribuição (RF9, com o ramo do motorista). Evidência: suíte por tabela.
-- [ ] **T502** 🧠 Webhook: ramo "contato de contratante com aceite" (D6), status da Meta e
+- [x] **T502** 🧠 Webhook: ramo "contato de contratante com aceite" (D6), status da Meta e
       recebidas com mídia. Evidência: contratos (número sem aceite segue recusado) + integração do
       status até `read`, idempotente.
 - [ ] **T503** Envio por WhatsApp no worker pelo `SendMessageUseCase` do módulo (RF8): modelo fora da

@@ -377,6 +377,8 @@ import {
   createListOccurrenceConversationsUseCase,
   createMarkOccurrenceConversationReadUseCase,
 } from './occurrence-conversation/application/read-occurrence-conversations.use-case.js'
+import { createOccurrenceConversationWhatsAppHook } from './occurrence-conversation/application/whatsapp-conversation-inbound.service.js'
+import { createOccurrenceConversationWhatsAppStatusHook } from './occurrence-conversation/application/whatsapp-conversation-status.service.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createSendOccurrenceMailUseCase } from './occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import {
@@ -385,6 +387,8 @@ import {
   DrizzleOccurrenceMailRepository,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
 import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
+import { applyProviderMessageStatus } from './occurrence-conversation/infrastructure/drizzle-occurrence-message-status.repository.js'
+import { createDrizzleWhatsAppConversationInboundRepository } from './occurrence-conversation/infrastructure/drizzle-whatsapp-conversation-inbound.repository.js'
 import {
   findOccurrenceConversations,
   markOccurrenceConversationRead,
@@ -1435,6 +1439,8 @@ function createAnonymousRoutes({
    * `phone_number_id` do corpo **já assinado**, e sem os dois segredos do app a rota não é
    * registrada.
    */
+  /** Um teto para a instalação, como o do despachante: refazer a instância não zera o balde. */
+  const occurrenceConversationWhatsAppRateLimiter = createRateLimiter()
   const whatsappWebhookRoutes = createWhatsAppWebhookRoutes({
     appSecret: config.whatsapp.webhook?.appSecret,
     logger,
@@ -1442,7 +1448,25 @@ function createAnonymousRoutes({
       apiVersion: config.whatsapp.apiVersion,
       appSecret: config.whatsapp.webhook?.appSecret ?? '',
       baseUrl: config.whatsapp.baseUrl,
-      buildMessageHook: whatsappCommandHook,
+      /**
+       * Spec 183 T502 — a conversa da ocorrência fica na frente do despachante: contato com aceite
+       * vai para a conversa (ou para "não atribuída"); o resto segue para o comando, como antes.
+       */
+      buildMessageHook: (instance) =>
+        createOccurrenceConversationWhatsAppHook({
+          clock: () => new Date(),
+          inbound: createDrizzleWhatsAppConversationInboundRepository(database),
+          logger,
+          next: whatsappCommandHook(instance),
+          rateLimiter: occurrenceConversationWhatsAppRateLimiter,
+        }),
+      buildStatusHook: ({ companyId }) =>
+        createOccurrenceConversationWhatsAppStatusHook({
+          apply: (input) => applyProviderMessageStatus(database, { ...input, channel: 'whatsapp' }),
+          clock: () => new Date(),
+          companyId,
+          logger,
+        }),
       database,
       nonceStore: createDrizzleWebhookNonceStore(database),
       repository: new DrizzleWhatsAppChannelRepository(database),

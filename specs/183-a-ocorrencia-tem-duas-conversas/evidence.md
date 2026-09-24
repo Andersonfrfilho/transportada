@@ -846,3 +846,53 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   - motorista respondendo, sem resposta e respondendo à de outro motorista;
   - número de motorista e contato ao mesmo tempo.
 - Rodado: a suíte `occurrence-conversation`, **70 pass**, com lint e typecheck limpos.
+
+## T502 — O webhook do WhatsApp: a conversa, a fila e o status da Meta (verde, com a mídia na T702)
+
+- **Hook de mensagem:** `createOccurrenceConversationWhatsAppHook`
+  (`application/whatsapp-conversation-inbound.service.ts`) fica **na frente** do despachante de
+  comandos da 144, montado por empresa no resolvedor do módulo (`main.ts`).
+  - Teto por número num balde próprio, e só depois o banco. Lê quem é o número (contatos ativos pela
+    chave do WhatsApp, com as duas grafias do nono dígito; motorista pelo WhatsApp verificado com
+    vínculo ativo), a conversa da referência de resposta e as candidatas abertas.
+  - Aplica a política da T501. Conversa ou "não atribuída": grava e para ali (idempotente pelo id da
+    Meta, `onConflictDoNothing` no `unique` da T401).
+  - Número sem aceite, desconhecido e o motorista fora de resposta seguem para o despachante, que
+    continua recusando quem não é vinculado: **nada muda na 144**.
+  - Falha não sobe para o webhook, e o log leva só `companyId` e o nome do erro.
+- **Status da Meta:** o resolvedor ganhou `buildStatusHook` com a empresa do canal, porque o gancho
+  de status pode chegar sem sessão.
+  - `createOccurrenceConversationWhatsAppStatusHook` aplica `sent`, `delivered`, `read` e `failed`
+    com o horário da Meta, pela política (RF14).
+  - O escritor ficou um só para os canais (`applyProviderMessageStatus`), e o do e-mail (T405) passou
+    a delegar a ele.
+  - No `meta-whatsapp-module@0.1.0` da instalação, o gancho só dispara para mensagem que o módulo
+    enviou. É o caso do envio da T503.
+- **Correção ao plano (técnica):** a mídia recebida (baixar da Meta, bucket, `sha256`) fica com os
+  anexos da **T702**. Aqui a conversa guarda a legenda, ou o título do botão ou da lista. O caminho
+  de anexo (bucket, tipo pelo conteúdo, URL temporária) é um só para os três canais, e fazê-lo
+  primeiro no WhatsApp duplicaria a T702.
+- **Testes:**
+  - `test/occurrence-conversation/whatsapp-inbound-hook.contract.ts`, **antes** e visto falhando,
+    cobrindo:
+    - conversa e para ali;
+    - motorista respondendo;
+    - não atribuída com o contato;
+    - sem aceite, desconhecido e motorista fora de resposta seguem sem gravar;
+    - texto de botão e legenda;
+    - falha sem telefone nem corpo no log;
+    - teto por número.
+  - `whatsapp-status-hook.contract.ts`, **antes** e visto falhando: mapeamento, horário da Meta ou
+    relógio, sem id nada, falha só pelo nome do erro.
+  - Integração `test/integration/occurrence-conversation-whatsapp.integration.ts` (no
+    `package.json`), escrita **depois** da implementação, **3 pass** na primeira rodada. Cobre:
+    - a mensagem entra na conversa uma vez só, pelas duas grafias do número;
+    - duas conversas abertas vão para a fila, com o contato;
+    - sem aceite segue para o despachante sem gravar;
+    - o status vai de `sent` a `read`, e `read` e `delivered` repetidos não mudam nada;
+    - outra empresa não toca.
+- **Rodado:**
+  - API, contrato: **7357 pass, 0 fail**;
+  - integrações do WhatsApp da 144 (comando, verificação, ações do motorista): **10 pass**, depois
+    de mexer no resolvedor;
+  - lint e typecheck limpos.
