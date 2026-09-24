@@ -58,7 +58,29 @@ export type TripDocumentContract = Readonly<{
 }>
 
 export type TripDocumentDetailContract = TripDocumentContract &
-  Readonly<{ cteAuthorized: boolean; fiscalStatus: string }>
+  Readonly<{
+    cteAuthorized: boolean
+    fiscalStatus: string
+    /**
+     * Spec 181 (helper de smoke da T502): os mesmos campos opcionais do `TripDocumentDetail` do
+     * app (`trip.types.ts`) — nenhum é novo no domínio, só faltava aqui porque nenhum dublê antes
+     * desta spec precisava montar uma nota com contato, frete ou tratativa de ocorrência.
+     */
+    contact?: Readonly<{
+      contractorName: null | string
+      name: string
+      phone: null | string
+      taxId: string
+    }> | null
+    freightAmount?: null | string
+    freightRuleName?: null | string
+    freightSource?: 'estimated' | 'measured' | 'missing'
+    nfeIssuedAt?: null | string
+    nfeNumber?: null | string
+    nfeSeries?: null | string
+    nfeTotalValue?: null | string
+    openOccurrenceCase?: boolean
+  }>
 
 export type TripStopDetailContract = Readonly<{
   addressKey: string
@@ -67,6 +89,8 @@ export type TripStopDetailContract = Readonly<{
   deliveryWindowEnd: null | string
   deliveryWindowStart: null | string
   documents: readonly TripDocumentDetailContract[]
+  /** Spec 181 (T502): mesmo campo opcional do `TripStopDetail` do app — alguma nota tem tratativa aberta. */
+  hasOpenOccurrence?: boolean
   id: string
   label: string
   sequence: number

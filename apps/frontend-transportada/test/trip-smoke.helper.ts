@@ -16,6 +16,16 @@ export const PENDING_DOCUMENT_ID = '00000000-0000-4000-8000-000000000604'
 export const AUTHORIZED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000605'
 const NFE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000606'
 
+/**
+ * Spec 181 T502: a parada e as notas que provam o card redesenhado — carregada com as três ações
+ * de campo, devolvida com motivo, e a nota que carrega tratativa de ocorrência aberta e "sem perfil
+ * de emissão" ao mesmo tempo (os dois eixos de selo que a T502 ainda não tinha dublê para mostrar).
+ */
+export const STOP_CARD_STOP_ID = '00000000-0000-4000-8000-000000000608'
+export const STOP_CARD_LOADED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000609'
+export const STOP_CARD_RETURNED_DOCUMENT_ID = '00000000-0000-4000-8000-00000000060a'
+export const STOP_CARD_OCCURRENCE_DOCUMENT_ID = '00000000-0000-4000-8000-00000000060b'
+
 const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
   driverNames: [],
@@ -29,7 +39,7 @@ const BASE_TRIP = {
   vehicleId: VEHICLE_ID,
 } as const
 
-type DocumentsMode = 'all-authorized' | 'has-pending' | 'measured-bed'
+type DocumentsMode = 'all-authorized' | 'has-pending' | 'measured-bed' | 'stop-card-states'
 
 function measuredBox(
   input: Readonly<{ label: string; layer: number; stopSequence: number; xM: number; zM: number }>,
@@ -198,6 +208,73 @@ function tripDocument(input: Readonly<{ cteAuthorized: boolean; id: string }>) {
 }
 
 /**
+ * Spec 181 T502: a nota "carregada" simples — sem devolução, sem ocorrência, sem detalhe extra —
+ * mas com as três ações de campo liberadas (`registerStopCardAllowedActionsMock` abaixo), que é o
+ * caso feliz do card redesenhado ("Marcar entregue" / "Devolver" / "Ocorrência").
+ */
+const STOP_CARD_LOADED_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: STOP_CARD_LOADED_DOCUMENT_ID }),
+  freightAmount: '850.0000',
+  freightSource: 'measured',
+  nfeIssuedAt: '2026-08-10T09:00:00.000Z',
+  nfeNumber: '901',
+  nfeSeries: '1',
+  nfeTotalValue: '4200.0000',
+  separationStatus: 'loaded',
+  stopId: STOP_CARD_STOP_ID,
+} as const
+
+/**
+ * Spec 181 RF3/CA03: devolvida com motivo — o selo compõe "Devolvida · Ausente" a partir de
+ * `separationStatus` + `returnReason`, sem repetir o motivo numa frase à parte.
+ */
+const STOP_CARD_RETURNED_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: STOP_CARD_RETURNED_DOCUMENT_ID }),
+  nfeNumber: '902',
+  nfeSeries: '1',
+  returnedAt: '2026-08-10T15:00:00.000Z',
+  returnReason: 'recipient_absent',
+  separationStatus: 'returned',
+  stopId: STOP_CARD_STOP_ID,
+} as const
+
+/**
+ * Spec 181 RF2/CA02 + prontidão `no_profile`: os outros dois eixos de selo na mesma nota, com
+ * contato e regra de frete para a expansão "Detalhes da nota" (T304) aparecer, e mercadoria para o
+ * grupo "Carga" da linha.
+ */
+const STOP_CARD_OCCURRENCE_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: false, id: STOP_CARD_OCCURRENCE_DOCUMENT_ID }),
+  contact: {
+    contractorName: 'Contratante Sintético LTDA',
+    name: 'Cliente Sintético',
+    phone: '16999990002',
+    taxId: '12345678000199',
+  },
+  freightRuleName: 'Tabela padrão',
+  nfeNumber: '903',
+  nfeSeries: '1',
+  nfeTotalValue: '1800.0000',
+  openOccurrenceCase: true,
+  stopId: STOP_CARD_STOP_ID,
+} as const
+
+/** Spec 181 T502: uma parada só, com as três notas acima — a mesma lista entra em `documents` (nível
+ * da viagem) e aqui aninhada (ADR-0043 §3), nunca uma cópia divergente. */
+const STOP_CARD_STOP = {
+  addressKey: 'stop-card-states',
+  arrivedAt: null,
+  completedAt: null,
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: [STOP_CARD_LOADED_DOCUMENT, STOP_CARD_RETURNED_DOCUMENT, STOP_CARD_OCCURRENCE_DOCUMENT],
+  hasOpenOccurrence: true,
+  id: STOP_CARD_STOP_ID,
+  label: 'Barracão Sintético',
+  sequence: 1,
+} as const
+
+/**
  * ⚠️ **Anotado de propósito.** O guard do detalhe usa `hasExactKeys`: campo do corpo ausente aqui
  * reprova a validação inteira em tempo de execução, o detalhe não carrega, e a tela fica sem botão
  * nenhum — o smoke quebra em quatro casos e nenhum contrato de unidade acusa. Sem o tipo, só o
@@ -210,7 +287,9 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
           tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID }),
           tripDocument({ cteAuthorized: false, id: PENDING_DOCUMENT_ID }),
         ]
-      : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
+      : mode === 'stop-card-states'
+        ? [STOP_CARD_LOADED_DOCUMENT, STOP_CARD_RETURNED_DOCUMENT, STOP_CARD_OCCURRENCE_DOCUMENT]
+        : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
 
   return {
     ...BASE_TRIP,
@@ -236,7 +315,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       : { cargoLayout: null, occupancy: null }),
     cargoWeight: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
-    stops: [],
+    stops: mode === 'stop-card-states' ? [STOP_CARD_STOP] : [],
   }
 }
 
@@ -382,6 +461,28 @@ function fiscalReadiness(mode: DocumentsMode) {
     rejectionMessage: null,
     tripDocumentId: PENDING_DOCUMENT_ID,
   } as const
+  /** Spec 181 T502: o eixo "sem perfil de emissão" do card da nota — reason `no_profile`. */
+  const noProfile = {
+    cteAccessKey: null,
+    cteFiscalDocumentId: null,
+    expectedDocument: 'no_profile',
+    nfeDocumentId: NFE_DOCUMENT_ID,
+    reason: 'no_profile',
+    rejectionCode: null,
+    rejectionMessage: null,
+    tripDocumentId: STOP_CARD_OCCURRENCE_DOCUMENT_ID,
+  } as const
+
+  if (mode === 'stop-card-states') {
+    return {
+      documents: [noProfile],
+      manifestableCount: 0,
+      nfseCount: 0,
+      readyCount: 0,
+      state: 'incomplete',
+      totalCount: 1,
+    } as const
+  }
 
   const documents = mode === 'has-pending' ? [authorized, pending] : [authorized]
 
@@ -461,13 +562,20 @@ async function registerTripMocks(
    * como a estrada, senão o padrão `/trips/{id}` o engoliria; sem ele o pedido escapa para a API
    * real, que não sobe no smoke, e o `requestfailed` reprova seis telas de viagem de uma vez.
    * Listas vazias: o smoke mede layout, e nenhum botão de ação da viagem entra nas asserções.
+   *
+   * Spec 181 T502: `stop-card-states` é a exceção — a nota "carregada" só prova o caso feliz do
+   * card ("Marcar entregue"/"Devolver"/"Ocorrência") se a capacidade vier liberada daqui.
    */
   await input.page.route(/\/trips\/[^/]+\/allowed-actions$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)
       return
     }
-    await fulfillJson(route, { data: { documents: {}, stops: {}, trip: [] } })
+    const documents =
+      input.mode === 'stop-card-states'
+        ? { [STOP_CARD_LOADED_DOCUMENT_ID]: ['fieldDelivery', 'fieldOccurrence', 'fieldReturn'] }
+        : {}
+    await fulfillJson(route, { data: { documents, stops: {}, trip: [] } })
   })
   /**
    * O catálogo de tipos de ocorrência é consultado pelo detalhe da viagem. Sem este dublê o pedido

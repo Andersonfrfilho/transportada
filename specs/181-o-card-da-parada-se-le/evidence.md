@@ -155,23 +155,66 @@ bun test ./test/trip.contract.test.ts --timeout 120000                → 1587 p
   (1583 da fase anterior + 4 testes novos = 1587; nenhuma regressão)
 ```
 
-## T502 — revisão de design com print: **não fechada**
+## T502 — revisão de design com print: **fechada**
 
-O spec de prints existe (`apps/frontend-transportada/test/spec-181-prints.smoke.spec.ts`) e roda
-verde nos quatro cenários (375px e desktop, claro e escuro). **Os prints foram descartados**: eles
-não mostram o card.
+A causa registrada na tentativa anterior era dupla, e as duas foram corrigidas.
 
-Causa: `mockTripWorkspaceApi` monta a viagem com `stops: []` — o dublê da tela do escritório nunca
-teve paradas. Sem parada não há card de nota, e o seletor caiu no bloco de "Sugerir roteiro". Print
-verde de conteúdo errado é pior que print nenhum, porque passa por evidência.
+**1) O dublê não tinha parada.** `mockTripWorkspaceApi` (`trip-smoke.helper.ts`) só sabia montar
+viagem com `stops: []` — sem parada não há card de nota nenhum para fotografar. Ganhou um quarto
+modo, `'stop-card-states'`, com uma parada (`Barracão Sintético`) e três notas cobrindo os quatro
+eixos de selo que a spec 181 reorganizou:
 
-O único dublê com paradas é `driver-trip-smoke.helper.ts`, que é o app do **motorista** — outra tela,
-não serve.
+- `901/1` — **carregada**, simples, com as três ações de campo liberadas via `allowed-actions`
+  (`fieldDelivery`/`fieldOccurrence`/`fieldReturn`) e `trip.report-on-behalf` na lista de permissões
+  da spec de prints: é o botão "Marcar entregue" que só aparece com a capacidade **e** a permissão
+  juntas.
+- `902/1` — **devolvida com motivo** (`separationStatus: 'returned'`, `returnReason:
+  'recipient_absent'`): o selo compõe "Devolvida · Ausente" (RF3/CA03), e por ter `returnedAt`
+  também expõe o toggle "Comprovante" (a outra expansão do card).
+- `903/1` — **ocorrência em tratativa** (`openOccurrenceCase: true`) e **sem perfil de emissão**
+  (`fiscalReadiness.reason: 'no_profile'`) ao mesmo tempo — os outros dois eixos de selo (RF2/CA02 e
+  a prontidão fiscal) — mais contato e regra de frete para o toggle "Detalhes da nota" (T304) e
+  mercadoria (`nfeTotalValue`) para o grupo "Carga" da linha.
 
-**Para fechar:** estender `trip-smoke.helper.ts` com uma viagem que tenha ao menos uma parada e uma
-nota, cobrindo os estados que a spec reorganizou (carregada, devolvida com motivo, com ocorrência em
-tratativa, sem perfil de emissão). Aí os quatro prints passam a valer.
+Os tipos `TripDocumentDetailContract`/`TripStopDetailContract` (`test/trip/trip.fixture.ts`) só
+tinham `cteAuthorized`/`fiscalStatus` além dos campos de sempre — ganharam, de forma aditiva, os
+mesmos campos opcionais que `TripDocumentDetail`/`TripStopDetail` do app já tinham (`contact`,
+`freightAmount`, `freightRuleName`, `freightSource`, `nfeIssuedAt`, `nfeNumber`, `nfeSeries`,
+`nfeTotalValue`, `openOccurrenceCase`, `hasOpenOccurrence`). Nenhum uso existente desses tipos
+(`occupancy-optional.contract.ts`, o próprio `trip-smoke.helper.ts`) preenchia esses campos, então a
+extensão não muda nenhum teste que já passava.
 
-⚠️ Registrado também o caminho que **não** funciona: servir o build em porta alternativa e
+**2) O seletor caiu no bloco errado.** `page.locator('section', { hasText: 'Paradas' })` não mirava
+no rótulo de verdade da seção (`stops.title` = "Cargas da viagem" — "Paradas" não aparece ali).
+Substituído por `page.locator('#trip-stops-title').locator('xpath=ancestor::section[1]')`, que sobe
+do título ao `<section>` mais próximo. A primeira tentativa de correção, `section:has(#trip-stops-
+title)`, ainda errava: `:has()` também casava a `<section>` externa que envolve a página inteira
+(ela também "tem" o título como descendente), trazendo junto o aviso de geocodificação do mapa da
+rota logo abaixo ("Sem localização no mapa: Barracão Sintético") — só apareceu ao rodar o smoke, não
+no code review.
+
+Os quatro prints foram abertos e conferidos um a um (não só "smoke verde"): todos mostram a parada
+com as três notas, os selos de pipeline (`CARREGADA`/`DEVOLVIDA · AUSENTE`/`PENDENTE`), o selo de
+ocorrência em tratativa, o selo "sem perfil de emissão", o resumo "1 nota com ocorrência" no
+cabeçalho da parada, os grupos "Carga"/"Frete"/"Emissão"/"Destinatário" e os dois toggles de
+expansão ("Comprovante"/"Detalhes da nota") — nas duas larguras e nos dois temas.
+
+```
+bunx tsc --noEmit                                                              → 0 erros
+bunx eslint test --max-warnings=0                                              → 0 problemas
+bun test ./test/trip.contract.test.ts                                         → 1587 pass, 0 fail
+PLAYWRIGHT_TEST_MATCH=spec-181-prints.smoke.spec.ts bun run smoke              → 4 passed
+bun run smoke (suíte inteira, sem PLAYWRIGHT_TEST_MATCH)                       → 59 passed, 1 failed*
+```
+
+\* A falha (`responsive.smoke.spec.ts:1449` — distribuição multi-veículo) não tem nada a ver com
+esta mudança: não usa `trip-smoke.helper.ts` nem a viagem de `stops`. Isolada com
+`-g "distribuição multi-veículo"`, passou (1 passed) — instabilidade da suíte sob carga (já
+registrada em memória de sessão), não regressão desta task.
+
+Prints em `specs/181-o-card-da-parada-se-le/prints/`: `card-parada-mobile-light.png`,
+`card-parada-mobile-dark.png`, `card-parada-desktop-light.png`, `card-parada-desktop-dark.png`.
+
+⚠️ Continua registrado o caminho que **não** funciona: servir o build em porta alternativa e
 fotografar pelo navegador. O app redireciona para a URL do `.env` (53000), então o que aparece é a
 árvore de outra sessão. Três tentativas em 23/09 antes de conferir `window.location.href`.

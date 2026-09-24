@@ -21,7 +21,17 @@ const DESKTOP = { height: 900, width: 1440 } as const
 const THEMES = ['dark', 'light'] as const
 type Theme = (typeof THEMES)[number]
 
-const TRIP_PERMISSIONS = ['trip.read', 'trip.manage', 'fleet.read'] as const
+/**
+ * `trip.report-on-behalf` liga as ações de campo da nota ("Marcar entregue"/"Devolver"/"Ocorrência")
+ * — sem ela o card carregado imprimiria vazio, mesmo com a capacidade liberada no mock de
+ * `allowed-actions` (`mockTripWorkspaceApi` com `mode: 'stop-card-states'`).
+ */
+const TRIP_PERMISSIONS = [
+  'trip.read',
+  'trip.manage',
+  'trip.report-on-behalf',
+  'fleet.read',
+] as const
 
 function printPath(name: string, theme: Theme): string {
   return resolve(PRINTS_DIRECTORY, `${name}-${theme}.png`)
@@ -37,7 +47,7 @@ for (const theme of THEMES) {
       await page.emulateMedia({ colorScheme: theme })
       await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
       await mockTripWorkspaceApi({
-        mode: 'all-authorized',
+        mode: 'stop-card-states',
         page,
         permissions: [...TRIP_PERMISSIONS],
       })
@@ -46,7 +56,16 @@ for (const theme of THEMES) {
       await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
       await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
-      const stops = page.locator('section', { hasText: 'Paradas' }).last()
+      /**
+       * ⚠️ **Não** `hasText: 'Paradas'` nem `section:has(#trip-stops-title)`: o rótulo da seção é
+       * "Cargas da viagem" (`stops.title`), e o texto "Paradas" só aparece noutro lugar da página —
+       * foi o que fotografou o bloco errado na primeira tentativa (`evidence.md`). `:has()` também
+       * casa a `<section>` externa que envolve a página inteira (ela também "tem" o título como
+       * descendente), pegando junto o aviso de geocodificação do mapa da rota logo abaixo. O eixo
+       * `ancestor::section[1]` do XPath sobe só até a seção mais próxima — a do card mesmo.
+       */
+      const stops = page.locator('#trip-stops-title').locator('xpath=ancestor::section[1]')
+      await expect(stops.getByText('Barracão Sintético', { exact: true })).toBeVisible()
       await stops.screenshot({ path: printPath(`card-parada-${label}`, theme) })
     })
   }
