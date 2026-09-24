@@ -40,6 +40,22 @@ e 3 (que não dependem do pacote) e para antes da Fase 4. O bloqueante é o conf
 velocidade do áudio, tema aplicado, status de mensagem enviada fora do módulo) precisam de versão
 nova do pacote ou de decisão de montar no produto — decisão do dono do projeto.
 
+**Decisão (2026-09-24, dono do projeto):** "o SDK é genérico; tudo que for de estilo customizável
+nosso fica do nosso lado". Com isso a T101 fecha: o produto usa as peças que existem, compõe o que é
+dele (abas, selo de canal por mensagem, seletor de canal) e aplica o estilo por `classNames` e CSS
+sobre `.cv-*`, sem Tailwind. Registrado na ADR-0072 § "Revisão na aceitação". Velocidade do áudio
+(ausente no `AudioPlayer`) fica como melhoria do pacote; a P9 aceita o player sem ela até lá.
+
+## T001 — ADRs aceitas
+
+ADR-0072 e ADR-0073 com `Status: aceito (2026-09-24)` e a seção "Revisão na aceitação". A única
+`[NEEDS CLARIFICATION]` que resta na spec é o provedor de transcrição, e ela só bloqueia a T706.
+
+## T003 — Anotação na 143
+
+`specs/143-a-contratante-responde-por-e-mail/tasks.md`: notas em T014, T015, T016, T018, T024 e T025
+(commit `6229baac`). Nada da 143 foi apagado.
+
 ## Divergências entre a spec e o código de staging — ⛔ parada antes da Fase 2
 
 A spec foi escrita sobre o `main`, 371 commits atrás de `staging`. Auditoria de 2026-09-24 contra
@@ -58,4 +74,5 @@ A spec foi escrita sobre o `main`, 371 commits atrás de `staging`. Auditoria de
 | 9   | Mídia do WhatsApp é trabalho novo                                     | A spec 161 já baixa mídia da Meta (`fetchMediaAsBase64`, `register-operator-trip-flow-actions.ts:808`)                                                                                                                          | RF10/RF17 reaproveitam esse caminho.                                                                                                                                                                                                                     |
 | 10  | 143 T014 aberta                                                       | `reply-token.policy.ts` já existe                                                                                                                                                                                               | T003/T403: a T014 da 143 está meio feita; só falta o teste.                                                                                                                                                                                              |
 
-Nada disso foi implementado. As correções da spec esperam a resposta do dono do projeto.
+Nada disso foi implementado. **Todas as correções foram aplicadas à spec** (commit `26441ff7`) por
+decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.

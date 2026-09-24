@@ -26,7 +26,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `sonnet` · nada se constrói no pacote a partir daqui
 
-- [ ] **T101** Conferência do contrato publicado (`conversations-ui@0.3.1`, `meta-whatsapp-*`) item a
+- [x] **T101** Conferência do contrato publicado (`conversations-ui@0.3.1`, `meta-whatsapp-*`) item a
       item, e a decisão do dono do projeto sobre o que falta (SDK genérico; composição e estilo do
       nosso lado). O bump das versões entra na primeira task que usar o pacote (T401). Evidência: a
       tabela da conferência e a decisão no `evidence.md`.

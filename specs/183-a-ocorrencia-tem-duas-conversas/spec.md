@@ -234,7 +234,7 @@ em destaque, com o motivo e a ação "Reenviar por outro canal".
 ### P9 — Áudio e transcrição
 
 **Given** um áudio recebido pelo WhatsApp ou pelo app, **Then** a conversa mostra um player (tocar,
-posição, duração, velocidade 1×/1,5×/2×) e, quando a transcrição estiver pronta, o texto embaixo com
+posição, duração; velocidade 1×/1,5×/2× quando o `AudioPlayer` do pacote tiver — T101) e, quando a transcrição estiver pronta, o texto embaixo com
 o aviso "gerada por máquina". **And** o operador grava um áudio na caixa de envio, ouve antes e envia
 ou descarta.
 
