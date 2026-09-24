@@ -1684,10 +1684,7 @@ export const tripOccurrenceUploads = pgTable(
       'trip_occurrence_uploads_status_check',
       sql`${table.status} in (${raw(inList(TRIP_OCCURRENCE_UPLOAD_STATUSES))})`,
     ),
-    check(
-      'trip_occurrence_uploads_declared_size_check',
-      sql`${table.declaredSizeBytes} > 0`,
-    ),
+    check('trip_occurrence_uploads_declared_size_check', sql`${table.declaredSizeBytes} > 0`),
     check(
       'trip_occurrence_uploads_confirmed_check',
       sql`(${table.status} = 'confirmed') = (${table.confirmedAt} is not null)`,

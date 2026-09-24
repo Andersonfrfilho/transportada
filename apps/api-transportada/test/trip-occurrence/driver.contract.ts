@@ -11,7 +11,10 @@ import {
   TripOccurrenceNoteRequiredError,
   TripOccurrenceUploadNotReachableError,
 } from '../../src/trips/domain/trip.error.js'
-import { createFieldReportState, createFieldReportUnitOfWork } from '../driver-trip/field-report.double.js'
+import {
+  createFieldReportState,
+  createFieldReportUnitOfWork,
+} from '../driver-trip/field-report.double.js'
 
 const COMPANY = '00000000-0000-4000-8000-000000000001'
 const DOCUMENT = '00000000-0000-4000-8000-000000000017'
@@ -78,7 +81,10 @@ function registrar(
 ) {
   const state = createFieldReportState({
     documents: new Map([
-      [DOCUMENT, { separationStatus: 'pending', stopId: null, tripId: '', tripStatus: 'on_delivery_route' }],
+      [
+        DOCUMENT,
+        { separationStatus: 'pending', stopId: null, tripId: '', tripStatus: 'on_delivery_route' },
+      ],
     ]),
   })
   const unitOfWork = createFieldReportUnitOfWork(state)
@@ -121,15 +127,15 @@ describe('o motorista registra ocorrência pelo celular (spec 079)', () => {
 
   /** O motorista não separou a carga: tipo de galpão não é dele, mesmo cadastrado e ativo. */
   test('tipo de galpão é inalcançável', async () => {
-    expect(
-      await registrar({ stage: 'separation' }).result.catch((e: unknown) => e),
-    ).toBeInstanceOf(TripDocumentNotReachableError)
+    expect(await registrar({ stage: 'separation' }).result.catch((e: unknown) => e)).toBeInstanceOf(
+      TripDocumentNotReachableError,
+    )
   })
 
   test('nota fora da viagem dele é inalcançável', async () => {
-    expect(
-      await registrar({ reachable: false }).result.catch((e: unknown) => e),
-    ).toBeInstanceOf(TripDocumentNotReachableError)
+    expect(await registrar({ reachable: false }).result.catch((e: unknown) => e)).toBeInstanceOf(
+      TripDocumentNotReachableError,
+    )
   })
 
   test('registra o tipo de rua na nota que ele está levando', async () => {
@@ -225,10 +231,9 @@ describe('a recusa não sai sem prova quando o tipo exige (spec 179 T203)', () =
 
   test('tipo required sem motivo escrito é recusado, mesmo com o anexo', async () => {
     expect(
-      await registrar(
-        { attachmentMode: 'required' },
-        { attachmentObjectId: UPLOAD },
-      ).result.catch((e: unknown) => e),
+      await registrar({ attachmentMode: 'required' }, { attachmentObjectId: UPLOAD }).result.catch(
+        (e: unknown) => e,
+      ),
     ).toBeInstanceOf(TripOccurrenceNoteRequiredError)
   })
 
@@ -270,7 +275,10 @@ describe('a recusa não sai sem prova quando o tipo exige (spec 179 T203)', () =
   })
 
   test('tipo optional grava o anexo quando o motorista manda um, mesmo sem exigir', async () => {
-    const { result, state } = registrar({ attachmentMode: 'optional' }, { attachmentObjectId: UPLOAD })
+    const { result, state } = registrar(
+      { attachmentMode: 'optional' },
+      { attachmentObjectId: UPLOAD },
+    )
     await result
 
     expect(state.calls).toContain(`saveDocumentOccurrence:${DOCUMENT}:${UPLOAD}`)

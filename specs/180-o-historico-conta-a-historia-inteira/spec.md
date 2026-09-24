@@ -2,7 +2,7 @@
 
 ## Problema e resultado
 
-A linha do tempo da viagem (spec 158) responde *quando* e *quem*, e para no resto. Quatro coisas
+A linha do tempo da viagem (spec 158) responde _quando_ e _quem_, e para no resto. Quatro coisas
 vistas na mesma tela, na bancada, em 23/09:
 
 ```

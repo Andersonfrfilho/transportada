@@ -440,7 +440,11 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     isReturnPending: workspace.fieldReturnDocumentMutation.isPending,
     isTransitionPending: workspace.transitionDocumentMutation.isPending,
     onArrive: (input: { arrivedAt: string; stopId: string }) =>
-      workspace.reportStopArrivalMutation.mutate({ ...input, ...officeDriverIdInput, tripId: trip.id }),
+      workspace.reportStopArrivalMutation.mutate({
+        ...input,
+        ...officeDriverIdInput,
+        tripId: trip.id,
+      }),
     onFieldDeliver: (documentId: string) =>
       workspace.fieldDeliverDocumentMutation.mutate({
         deliveredAt: new Date().toISOString(),

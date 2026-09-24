@@ -43,8 +43,8 @@
 
 .documentFilterLegend {
   padding: 0;
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-sm);
+  color: var(--color-slate);
+  font-size: 0.8rem;
 }
 
 .list {
@@ -157,8 +157,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  block-size: 1.75rem;
+  inline-size: 1.75rem;
   border-radius: 50%;
   color: #f7f5f1;
   font-size: 0.7rem;

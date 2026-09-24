@@ -27,8 +27,8 @@ describe('produtos e ocorrências do comprovante abrem sob demanda (spec 181 RF6
      * estado — três chamadas. Agora só a própria expansão (`TripDeliveryProofDetail`) chama, uma
      * vez só, e os três estados chamam a expansão no lugar.
      */
-    const chamadasDiretas = (source.match(/<TripDocumentProducts /gu) ?? []).length
-    const chamadasDaExpansao = (source.match(/<TripDeliveryProofDetail /gu) ?? []).length
+    const chamadasDiretas = (source.match(/<TripDocumentProducts[\s/>]/gu) ?? []).length
+    const chamadasDaExpansao = (source.match(/<TripDeliveryProofDetail[\s/>]/gu) ?? []).length
 
     expect(chamadasDiretas).toBe(1)
     expect(chamadasDaExpansao).toBe(3)

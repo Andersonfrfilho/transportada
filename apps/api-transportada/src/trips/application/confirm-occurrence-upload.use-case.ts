@@ -89,7 +89,9 @@ export async function confirmOccurrenceUpload(
    * Confere o tamanho pelo `head()` **antes** de baixar os bytes — um upload maior que o teto não
    * precisa ser lido inteiro para ser recusado.
    */
-  const maxBytes = isOccurrencePdf(pending.mimeType) ? OCCURRENCE_PDF_MAX_BYTES : OCCURRENCE_PHOTO_MAX_BYTES
+  const maxBytes = isOccurrencePdf(pending.mimeType)
+    ? OCCURRENCE_PDF_MAX_BYTES
+    : OCCURRENCE_PHOTO_MAX_BYTES
   if (head.contentLength > maxBytes) {
     throw new TripOccurrenceUploadNotReachableError()
   }

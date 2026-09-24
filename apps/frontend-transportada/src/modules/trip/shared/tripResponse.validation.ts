@@ -1395,12 +1395,23 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  * padrão de hoje, em `toOccurrenceType`; presente continua validado como antes.
  */
 type RawOccurrenceType = Omit<OccurrenceType, 'allowsMultipleItems' | 'redeliveryPolicy'> &
-  Readonly<{ allowsMultipleItems?: unknown; redeliveryPolicy?: unknown }>
+  Readonly<{ allowsMultipleItems?: unknown; attachmentMode?: unknown; redeliveryPolicy?: unknown }>
 
 function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
     !hasKeys(value, {
-      allowed: [...OCCURRENCE_TYPE_REQUIRED_KEYS, 'allowsMultipleItems', 'redeliveryPolicy'],
+      /**
+       * Spec 179: `attachmentMode` já sai da API (`/company-settings/occurrence-types`) e o editor
+       * ainda não o consome. Sem ele aqui, o guard de chave exata reprova a resposta inteira e a aba
+       * de tipos de ocorrência para de carregar — frontend tolerante primeiro, como a spec 180 RF8
+       * exige e esta spec esqueceu.
+       */
+      allowed: [
+        ...OCCURRENCE_TYPE_REQUIRED_KEYS,
+        'allowsMultipleItems',
+        'attachmentMode',
+        'redeliveryPolicy',
+      ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
     })
   ) {

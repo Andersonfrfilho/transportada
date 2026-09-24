@@ -14,7 +14,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 const ROW = new URL('../../src/modules/trip/components/TripStopList.component.tsx', import.meta.url)
-const DETAIL = new URL('../../src/modules/trip/components/TripDetail.component.tsx', import.meta.url)
+const DETAIL = new URL(
+  '../../src/modules/trip/components/TripDetail.component.tsx',
+  import.meta.url,
+)
 const STYLESHEET = new URL('../../src/modules/trip/styles/trip.module.css', import.meta.url)
 
 describe('a caixa de seleção da nota tem lugar fixo e previsível (spec 181 RF10/CA09)', () => {

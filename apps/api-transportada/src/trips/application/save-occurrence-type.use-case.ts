@@ -23,8 +23,12 @@ export type SaveOccurrenceTypeValues = {
   readonly active: boolean
   /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
   readonly allowsMultipleItems: boolean
-  /** Spec 179 (RF1): se o registro do motorista exige comprovante. */
-  readonly attachmentMode: DeliveryProofFieldMode
+  /**
+   * Spec 179 (RF1): se o registro do motorista exige comprovante. **Opcional de propósito**:
+   * ausente quer dizer "não mexa", e não `'off'` — o editor do painel ainda não manda o campo, e
+   * zerá-lo aqui desligaria a exigência de foto de um tipo `required` a cada edição de e-mail.
+   */
+  readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly emailBody: string
   readonly emailSubject: string
   readonly emailTemplateKey: null | string

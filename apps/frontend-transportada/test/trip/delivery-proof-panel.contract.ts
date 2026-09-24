@@ -99,7 +99,7 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
       source.indexOf("view.state === 'returned'"),
     )
 
-    expect(naoEntregue).toInclude('<TripDeliveryProofDetail ')
+    expect(naoEntregue).toMatch(/<TripDeliveryProofDetail[\s/>]/u)
   })
 
   /** Classificação fiscal é ruído para quem confere carga — e a API não a publica. */

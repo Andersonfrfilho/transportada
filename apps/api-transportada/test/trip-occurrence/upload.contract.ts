@@ -273,7 +273,9 @@ describe('confirmar o upload (spec 179 T201, RF2a)', () => {
 })
 
 describe('referenciar o objeto na ocorrência (spec 179 T201, RF2b)', () => {
-  function repository(confirmedFor: null | { readonly companyId: string; readonly tripId: string }) {
+  function repository(
+    confirmedFor: null | { readonly companyId: string; readonly tripId: string },
+  ) {
     return {
       async findConfirmedUpload(input: { companyId: string; id: string; tripId: string }) {
         if (confirmedFor === null) return null

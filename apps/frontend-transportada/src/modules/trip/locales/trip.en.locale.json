@@ -1115,6 +1115,8 @@
       "missing": "No freight calculated",
       "rule": "Rule: {{name}}"
     },
+    "freightGroupLabel": "Freight",
+    "issuedGroupLabel": "Issued",
     "moneyGroupLabel": "Cargo",
     "openOccurrence_one": "1 invoice with an occurrence",
     "openOccurrence_other": "{{count}} invoices with occurrences",

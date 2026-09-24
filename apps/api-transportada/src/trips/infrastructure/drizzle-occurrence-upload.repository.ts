@@ -21,7 +21,10 @@ import type { OccurrenceUploadRequestPort } from '../application/create-occurren
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 export class DrizzleOccurrenceUploadRepository
-  implements OccurrenceUploadRequestPort, OccurrenceUploadConfirmationPort, OccurrenceUploadAttachmentPort
+  implements
+    OccurrenceUploadRequestPort,
+    OccurrenceUploadConfirmationPort,
+    OccurrenceUploadAttachmentPort
 {
   public constructor(private readonly database: Database) {}
 

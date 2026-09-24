@@ -9,6 +9,7 @@ foram apagadas nesta base por um replace amplo.
 ⚠️ Árvore compartilhada: `git add` com caminhos explícitos, nunca `-A`.
 
 ## Fase 1 — Os selos dizem coisas diferentes
+
 > 🤖 Modelo: `sonnet`
 
 - **T101** Teste de contrato: uma nota com ocorrência em tratativa produz **um** selo de ocorrência,
@@ -19,6 +20,7 @@ foram apagadas nesta base por um replace amplo.
   (RF2, RF3, CA03)
 
 ## Fase 2 — O card ganha estrutura
+
 > 🤖 Modelo: `sonnet`
 
 - **T201** Teste de contrato: o número da nota tem âncora tipográfica própria; dinheiro e pessoas
@@ -29,6 +31,7 @@ foram apagadas nesta base por um replace amplo.
   devolver não ocupa a posição de acerto fácil.
 
 ## Fase 3 — O detalhe abre sob demanda
+
 > 🤖 Modelo: `sonnet`
 
 - **T301** Teste de contrato: produtos e ocorrências vêm recolhidos com contagem no rótulo; nota sem
@@ -41,6 +44,7 @@ foram apagadas nesta base por um replace amplo.
   espaço na frente. (RF4)
 
 ## Fase 4 — A seleção em massa deixa de se esconder
+
 > 🤖 Modelo: `sonnet`
 
 - **T401** Teste de contrato: a caixa de seleção ocupa posição fixa na nota, e a marcação por parada
@@ -52,6 +56,7 @@ foram apagadas nesta base por um replace amplo.
   é sobre encontrá-lo, não sobre reescrevê-lo.
 
 ## Fase 5 — Fechamento
+
 > 🤖 Modelo: `sonnet` (T502 é 🧠 — revisão de design com print)
 
 - **T501** 375px: blocos em largura inteira, empilhados, sem nada fora da tela. (RF9, CA08)

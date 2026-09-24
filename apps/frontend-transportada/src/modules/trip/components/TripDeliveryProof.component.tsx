@@ -32,7 +32,12 @@ type TripDeliveryProofProps = Readonly<{
  * Os quatro estados chegam inteiros aqui: "entregue sem comprovante" e "não entregue" têm textos
  * diferentes de propósito, porque são fatos diferentes (ver `deliveryProof.service.ts`).
  */
-export function TripDeliveryProof({ documentId, occurrences, products, view }: TripDeliveryProofProps) {
+export function TripDeliveryProof({
+  documentId,
+  occurrences,
+  products,
+  view,
+}: TripDeliveryProofProps) {
   const { t } = useTranslation('trip')
 
   /**
@@ -45,7 +50,11 @@ export function TripDeliveryProof({ documentId, occurrences, products, view }: T
     return (
       <>
         <p className={styles.hint}>{t('deliveryProof.notDelivered')}</p>
-        <TripDeliveryProofDetail documentId={documentId} occurrences={occurrences} products={products} />
+        <TripDeliveryProofDetail
+          documentId={documentId}
+          occurrences={occurrences}
+          products={products}
+        />
       </>
     )
   }
@@ -68,7 +77,11 @@ export function TripDeliveryProof({ documentId, occurrences, products, view }: T
                 }),
               })}
         </p>
-        <TripDeliveryProofDetail documentId={documentId} occurrences={occurrences} products={products} />
+        <TripDeliveryProofDetail
+          documentId={documentId}
+          occurrences={occurrences}
+          products={products}
+        />
       </>
     )
   }
@@ -93,7 +106,11 @@ export function TripDeliveryProof({ documentId, occurrences, products, view }: T
       {view.photos.map((proof) => (
         <ProofImage alt={t('deliveryProof.photoAlt')} key={proof.id} proof={proof} />
       ))}
-      <TripDeliveryProofDetail documentId={documentId} occurrences={occurrences} products={products} />
+      <TripDeliveryProofDetail
+        documentId={documentId}
+        occurrences={occurrences}
+        products={products}
+      />
     </section>
   )
 }

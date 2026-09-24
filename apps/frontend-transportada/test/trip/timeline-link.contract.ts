@@ -24,6 +24,8 @@ describe('link do evento para a nota e para a parada (spec 180 RF15)', () => {
   })
 
   it('ids diferentes produzem hrefs diferentes — sem colisão entre notas', () => {
-    expect(resolveTripTimelineDocumentHref('doc-1')).not.toBe(resolveTripTimelineDocumentHref('doc-2'))
+    expect(resolveTripTimelineDocumentHref('doc-1')).not.toBe(
+      resolveTripTimelineDocumentHref('doc-2'),
+    )
   })
 })

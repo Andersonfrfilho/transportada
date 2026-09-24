@@ -276,9 +276,15 @@ const occurrenceTypeSchema = z
     allowsMultipleItems: z.boolean().default(true),
     /**
      * Spec 179 (RF1): se o registro do motorista exige comprovante — o mesmo vocabulário do
-     * comprovante de entrega. Padrão `'off'` preserva o comportamento de hoje.
+     * comprovante de entrega.
+     *
+     * ⚠️ **Opcional sem `default`, de propósito.** O UPDATE deste cadastro sobrescreve o registro
+     * inteiro, e o editor do painel ainda não manda este campo: com `default('off')`, quem editasse
+     * o texto do e-mail de um tipo marcado como `required` **desligaria a exigência de foto sem
+     * erro nenhum** — o controle de compliance da spec caindo por uma edição que nada tem a ver com
+     * ele. Ausente significa "não mexa", e quem grava resolve mantendo o valor atual.
      */
-    attachmentMode: z.enum(DELIVERY_PROOF_FIELD_MODES).default('off'),
+    attachmentMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**
      * ⚠️ **Marcador desconhecido é recusado aqui, no cadastro.** Deixar passar faria o e-mail sair
      * com `{{numeroNF}}` cru para o cliente, e quem escreveu o modelo só descobriria pelo SAC dele.

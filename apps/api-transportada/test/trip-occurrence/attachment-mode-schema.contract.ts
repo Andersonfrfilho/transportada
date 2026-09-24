@@ -31,10 +31,17 @@ function putRequest(body: unknown): Request {
 }
 
 describe('o cadastro do tipo aceita a exigência de comprovante (spec 179 RF1)', () => {
-  test('sem o campo, o padrão é off', async () => {
+  /**
+   * ⚠️ Ausente é **"não mexa"**, não `'off'`. O UPDATE sobrescreve o registro inteiro e o editor do
+   * painel ainda não manda o campo: com padrão `'off'`, editar o texto do e-mail de um tipo marcado
+   * como `required` desligaria a exigência de foto sem erro nenhum — o controle de compliance da
+   * spec caindo por uma edição que nada tem a ver com ele. Quem grava mantém o valor atual, e o
+   * padrão da coluna cobre o INSERT.
+   */
+  test('sem o campo, não decide nada — quem grava preserva o valor atual', async () => {
     const parsed = await parseOccurrenceTypeRequest(putRequest(JSON.parse(baseBody())))
 
-    expect(parsed.attachmentMode).toBe('off')
+    expect(parsed.attachmentMode).toBeUndefined()
   })
 
   test('aceita optional e required', async () => {

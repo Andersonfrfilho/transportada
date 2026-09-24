@@ -1,4 +1,3 @@
-
 ## T103 — schema, repositório e use-case leem e gravam os dois campos
 
 ```
@@ -143,9 +142,9 @@ isso está errado para a ocorrência do motorista (`stage = 'delivery'`):
 1. `attach-occurrence-photo.use-case.ts:99-101` recusa com `OccurrenceTypeNotSeparationError` toda
    ocorrência cujo `stage` não seja `'separation'` — a ocorrência do motorista nunca passaria por
    ali.
-2. O comentário de `trip.schema.ts:1699-1702` já registra a divisão: *"`attachment_object_id` de
+2. O comentário de `trip.schema.ts:1699-1702` já registra a divisão: _"`attachment_object_id` de
    `trip_document_occurrences` continua servindo a ocorrência de rua (D6) — esta tabela nunca é
-   escrita por aquele canal."* `trip_document_occurrence_attachments` é do galpão (spec 161,
+   escrita por aquele canal."_ `trip_document_occurrence_attachments` é do galpão (spec 161,
    múltiplas fotos com miniatura); a coluna direta é da rua.
 
 A coluna direta (`trip_document_occurrences.attachment_object_id`) já é exatamente o "caminho de
@@ -167,8 +166,7 @@ minha; sinalizo mesmo assim para quem revisar decidir se quer o caminho diferent
 
 ### Implementação
 
-- `src/trips/domain/trip.error.ts`: `TripOccurrenceAttachmentRequiredError` (`TRIP_OCCURRENCE_ATTACHMENT_REQUIRED`,
-  422) e `TripOccurrenceNoteRequiredError` (`TRIP_OCCURRENCE_NOTE_REQUIRED`, 422) — códigos estáveis e
+- `src/trips/domain/trip.error.ts`: `TripOccurrenceAttachmentRequiredError` (`TRIP_OCCURRENCE_ATTACHMENT_REQUIRED`, 422) e `TripOccurrenceNoteRequiredError` (`TRIP_OCCURRENCE_NOTE_REQUIRED`, 422) — códigos estáveis e
   distintos, para a tela dizer qual dos dois falta (CA04, fora do escopo desta task).
 - `src/trips/application/register-driver-occurrence.use-case.ts`: `DriverOccurrenceReadPort` ganhou
   `findConfirmedUpload` (de `OccurrenceUploadAttachmentPort`, já existente). Depois de confirmar tipo,

@@ -6,6 +6,7 @@ evidência em `evidence.md`.
 ⚠️ `bun test` não acha `*.integration.ts` sem `./` no caminho.
 
 ## Fase 1 — O que já foi feito
+
 > 🤖 Modelo: `sonnet`
 
 - **T101** ✅ Motivo da devolução traduzido; filtro por várias notas, mantendo os eventos da viagem;
@@ -15,6 +16,7 @@ evidência em `evidence.md`.
   spec 179 em curso).
 
 ## Fase 2 — O histórico deixa de mentir
+
 > 🤖 Modelo: `sonnet`
 
 - **T201** Teste de contrato: autoria ausente **não** vira "usuário removido" quando não se sabe o
@@ -26,6 +28,7 @@ evidência em `evidence.md`.
   sabe — vale em produção, onde o nome pode faltar por outro motivo.
 
 ## Fase 3 — O evento leva à coisa e abre
+
 > 🤖 Modelo: `sonnet`
 
 - **T301** Teste de contrato: a nota do evento leva à nota; a parada, à parada. (RF15, CA13)
@@ -39,6 +42,7 @@ evidência em `evidence.md`.
   evento de ocorrência **é** o id da ocorrência. (RF5, RF6, CA05, CA15)
 
 ## Fase 4 — O evento é formatado
+
 > 🤖 Modelo: `sonnet`
 
 - **T401** Hierarquia visual do item: título, meta e detalhes distintos; dado rotulado, não embutido
@@ -47,6 +51,7 @@ evidência em `evidence.md`.
   quando não há autor identificado. Só frontend — não toca a API nem a D6. (RF9–RF11, CA08, CA09)
 
 ## Fase 5 — O que a API precisa entregar
+
 > 🤖 Modelo: `sonnet` (T501 é 🧠 — mexe no contrato da timeline)
 
 - **T501** 🧠 Veículo e motorista no evento de carregamento. Campo novo no item obriga

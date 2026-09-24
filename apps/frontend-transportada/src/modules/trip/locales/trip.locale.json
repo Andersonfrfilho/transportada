@@ -1328,6 +1328,8 @@
       "missing": "Sem frete calculado",
       "rule": "Regra: {{name}}"
     },
+    "freightGroupLabel": "Frete",
+    "issuedGroupLabel": "Emissão",
     "moneyGroupLabel": "Carga",
     "openOccurrence_one": "1 nota com ocorrência",
     "openOccurrence_other": "{{count}} notas com ocorrência",

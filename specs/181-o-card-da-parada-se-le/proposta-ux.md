@@ -65,6 +65,7 @@ nível: hoje `[Comprovante]` já expande/recolhe o card inteiro, mas o conteúdo
 próprio disclosure.
 
 **Primário — sempre visível, nunca atrás de um clique:**
+
 - Identidade da parada: sequência + endereço (já é o padrão hoje, `.stopSequence` + `.stopLabel`).
 - Identidade da nota: número do documento, promovido a âncora visual própria (peso/tamanho
   equivalente ao `.stopLabel` da parada, não ao texto de metadado).
@@ -75,6 +76,7 @@ próprio disclosure.
   disperso dentro do selo de status de separação.
 
 **Secundário — visível ao rolar/olhar o card aberto, mas fisicamente agrupado, não plano:**
+
 - Bloco de dinheiro: mercadoria + frete + regra, num único agrupamento visual (mesmo contêiner,
   mesmo bloco tipográfico), não três `<span>` soltos competindo por linha no flex-wrap.
 - Bloco de pessoas: destinatário + telefone numa linha só ("ALMEIDA COMÉRCIO... · (17) 3322-3777"),
@@ -87,6 +89,7 @@ próprio disclosure.
   em vez de espalhados na mesma linha dos dados de pessoa/dinheiro.
 
 **Terciário — só sob demanda, dentro do disclosure que hoje é `[Comprovante]`:**
+
 - Imagem/assinatura do comprovante.
 - Lista de produtos ("O que vai na nota") — hoje incondicional, passa a ter o próprio resumo
   fechado ("7 itens · ver todos") em vez de despejar a lista inteira assim que o card abre.
@@ -125,12 +128,12 @@ Esboço de hierarquia (pseudo-marcação, não implementação):
 
 ## 3. Agrupamento
 
-| Grupo | Conteúdo hoje disperso | Tratamento proposto |
-|---|---|---|
-| **Dinheiro** | `nfeTotalValue`, `freightAmount`(+selo `estimated`), `freightRuleName` — 3 `<span>` soltos | Um único bloco/linha com separador visual próprio (não o mesmo `gap` genérico da linha toda); a regra de frete pode virar texto auxiliar menor dentro do mesmo bloco, não uma quarta linha |
-| **Pessoas** | `contact.name`, `contact.phone`, `contact.contractorName` — 3 `<span>` com prefixo textual repetido | Destinatário + telefone numa linha (é quem se contata pra resolver a entrega); contratante em linha própria, tipograficamente mais discreta, dentro do mesmo bloco |
+| Grupo        | Conteúdo hoje disperso                                                                                                                           | Tratamento proposto                                                                                                                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dinheiro** | `nfeTotalValue`, `freightAmount`(+selo `estimated`), `freightRuleName` — 3 `<span>` soltos                                                       | Um único bloco/linha com separador visual próprio (não o mesmo `gap` genérico da linha toda); a regra de frete pode virar texto auxiliar menor dentro do mesmo bloco, não uma quarta linha                    |
+| **Pessoas**  | `contact.name`, `contact.phone`, `contact.contractorName` — 3 `<span>` com prefixo textual repetido                                              | Destinatário + telefone numa linha (é quem se contata pra resolver a entrega); contratante em linha própria, tipograficamente mais discreta, dentro do mesmo bloco                                            |
 | **Situação** | `separationStatus`, `openOccurrenceBadge`, `occurrenceCaseBadge`, `fiscalStatusBadge`/`fiscalWarning` — 4 badges soltos na mesma linha dos dados | Um selo primário (o de maior severidade) sempre visível junto ao número da nota; os demais colapsam para um único agrupamento secundário "situação" (ver item 4 — dois hoje são a mesma informação duplicada) |
-| **Conteúdo** | Produtos e ocorrências — hoje incondicionais dentro do comprovante aberto | Cada um vira seu próprio disclosure dentro do disclosure do comprovante, com contagem no rótulo fechado |
+| **Conteúdo** | Produtos e ocorrências — hoje incondicionais dentro do comprovante aberto                                                                        | Cada um vira seu próprio disclosure dentro do disclosure do comprovante, com contagem no rótulo fechado                                                                                                       |
 
 O ganho não é só cosmético: hoje "Devolvida" (situação), "R$ 754,63" (dinheiro) e "(17) 3322-3777"
 (pessoa) estão a um `gap` de distância um do outro, na mesma fonte, na mesma cor quase — o
@@ -195,6 +198,7 @@ mesmo problema, agravado: menos largura por linha significa mais quebras de `fle
 quebra hoje é arbitrária (corta no meio de "Recebe: Nome" só porque o telefone não coube).
 
 O que muda com a proposta:
+
 - Os **agrupamentos** (dinheiro, pessoas, situação) resolvem isso por construção: um bloco vira uma
   coluna de largura total em vez de fragmentos que quebram sem aviso — é o mesmo raciocínio que já
   existe em `.occurrenceForm` (`trip.module.css:1372-1378`, "uma coluna só", comentário explícito
@@ -245,8 +249,8 @@ O curioso é que o mesmo defeito **já foi corrigido em outro componente da mesm
 > [...]
 
 e resolve com `t(\`fieldActions.returnReason.${returnReasonCode}\`, { defaultValue: returnReasonCode })`.
-`TripDeliveryProof.component.tsx` é o mesmo defeito, num componente irmão, não corrigido — a
-correção precisa do mesmo padrão de lookup com `defaultValue` (para não quebrar se algum código
+`TripDeliveryProof.component.tsx`é o mesmo defeito, num componente irmão, não corrigido — a
+correção precisa do mesmo padrão de lookup com`defaultValue` (para não quebrar se algum código
 novo chegar sem entrada no dicionário).
 
 ## O que eu não consegui verificar

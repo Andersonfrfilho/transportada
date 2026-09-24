@@ -222,8 +222,11 @@ type SaveOccurrenceTypeInput = {
   readonly active: boolean
   /** Spec 166 (RF3/RF9): se este tipo aceita mais de um item marcado. */
   readonly allowsMultipleItems: boolean
-  /** Spec 179 (RF1): se o registro do motorista exige comprovante. */
-  readonly attachmentMode: DeliveryProofFieldMode
+  /**
+   * Spec 179 (RF1): se o registro do motorista exige comprovante. Ausente é "não mexa", nunca
+   * `'off'` — ver `save-occurrence-type.use-case.ts`.
+   */
+  readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
   readonly emailBody: string
   readonly emailSubject: string

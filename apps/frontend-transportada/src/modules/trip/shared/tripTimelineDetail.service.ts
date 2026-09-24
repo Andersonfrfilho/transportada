@@ -9,11 +9,7 @@ import type { TripTimelineItem } from './trip.types'
  * reaproveitável para decidir se o botão de expandir aparece.
  */
 export function hasTripTimelineExpandableDetail(item: TripTimelineItem): boolean {
-  if (
-    item.kind === 'document.returned' &&
-    item.returnReason !== null &&
-    item.returnReason !== ''
-  ) {
+  if (item.kind === 'document.returned' && item.returnReason !== null && item.returnReason !== '') {
     return true
   }
 

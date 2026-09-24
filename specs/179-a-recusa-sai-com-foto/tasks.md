@@ -11,16 +11,18 @@ T204/T205/T206 recriavam devolução ao barracão (já resolvida pela spec 164,
 direto ao storage.
 
 ## Fase 1 — O tipo declara a exigência ✅ concluída
+
 > 🤖 Modelo: `sonnet`
 
 - **T101** ✅ Teste de contrato: `company_occurrence_types` aceita `attachmentMode`, e o valor
   omitido vira `off`. (CA07, CA08)
 - **T102** ✅ Migration aditiva: coluna `attachment_mode varchar(16) not null default 'off'` com
   CHECK `in ('off','optional','required')`, mais `rollback.sql` com chave própria e `GET
-  DIAGNOSTICS ROW_COUNT`. `make migration-test` verde.
+DIAGNOSTICS ROW_COUNT`. `make migration-test` verde.
 - **T103** ✅ Schema, repositório e use-case de salvar tipo passam a ler e gravar o campo. (CA01)
 
 ## Fase 2 — A API aceita e exige
+
 > 🤖 Modelo: `sonnet` (T203 é 🧠 — o parecer do `architect` está em `architecture-review.md`)
 
 - **T200** ✅ A rota de ocorrência do motorista ganha **chave de idempotência**, que hoje ela não
@@ -50,6 +52,7 @@ direto ao storage.
   — não precisou de unit of work nova. (CA02, CA03, RF3)
 
 ## Fase 3 — O motorista tira a foto
+
 > 🤖 Modelo: `sonnet`
 
 - **T301** Teste de contrato da tela: tipo `required` sem foto ou sem motivo não habilita o envio, e
@@ -60,6 +63,7 @@ direto ao storage.
   Smoke cobrindo o caminho sem sinal. (CA05, RF5)
 
 ## Fase 4 — O painel e o fechamento
+
 > 🤖 Modelo: `sonnet` (T402 é 🧠 — revisão de design com print)
 
 - **T401** O editor de tipos de ocorrência oferece a marca de comprovante obrigatório, em pt-BR e

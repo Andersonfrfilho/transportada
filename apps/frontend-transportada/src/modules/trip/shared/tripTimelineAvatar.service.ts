@@ -13,7 +13,10 @@ export type TripTimelineAvatar = Readonly<{ initials: string; paletteIndex: numb
  * para justificar extrair um pacote compartilhado só por isso.
  */
 export function resolveTripTimelineAvatarInitials(actorName: string): string {
-  const parts = actorName.trim().split(/\s+/u).filter((part) => part.length > 0)
+  const parts = actorName
+    .trim()
+    .split(/\s+/u)
+    .filter((part) => part.length > 0)
   if (parts.length === 0) return ''
   const first = parts[0]?.[0] ?? ''
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''

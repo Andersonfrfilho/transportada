@@ -110,8 +110,7 @@ export function TripHeaderActions({
       )
     : []
   const canPlanRoute = canManage && trip.status === 'draft'
-  const canDispatch =
-    canManage && ['loading', 'route_planned', 'separating'].includes(trip.status)
+  const canDispatch = canManage && ['loading', 'route_planned', 'separating'].includes(trip.status)
   const canCancel = canManage && trip.status !== 'completed' && trip.status !== 'cancelled'
 
   function handleDispatchClick(): void {

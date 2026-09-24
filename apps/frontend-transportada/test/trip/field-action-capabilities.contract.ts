@@ -188,7 +188,12 @@ describe('canOfferStopFieldAction (spec 180)', () => {
     const capabilities = resolveFieldActionCapabilities(actions)
 
     expect(
-      canOfferStopFieldAction({ action: 'arrive', canReportOnBehalf: true, capabilities, stopId: STOP_ID }),
+      canOfferStopFieldAction({
+        action: 'arrive',
+        canReportOnBehalf: true,
+        capabilities,
+        stopId: STOP_ID,
+      }),
     ).toBe(true)
     expect(
       canOfferStopFieldAction({

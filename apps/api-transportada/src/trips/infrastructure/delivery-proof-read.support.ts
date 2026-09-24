@@ -773,7 +773,7 @@ export async function saveOccurrenceType(
      * Spec 179 (RF1): ausente é `'off'` — o padrão da coluna. Opcional só para os chamadores que
      * ainda não conhecem a exigência (seeder da bancada, dublês de teste); a rota HTTP sempre grava.
      */
-    readonly attachmentMode?: DeliveryProofFieldMode
+    readonly attachmentMode?: DeliveryProofFieldMode | undefined
     readonly companyId: string
     readonly emailBody: string
     readonly emailSubject: string
@@ -790,10 +790,16 @@ export async function saveOccurrenceType(
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
+  /**
+   * Spec 179: o UPDATE sobrescreve o registro inteiro, e o editor do painel ainda não manda
+   * `attachmentMode`. Mandar `'off'` no lugar do ausente desligaria a exigência de foto de um tipo
+   * marcado como `required` quando alguém editasse o texto do e-mail — controle de compliance caindo
+   * por uma edição que nada tem a ver com ele. Ausente é "não mexa": o INSERT usa o padrão da coluna
+   * e o UPDATE omite a coluna.
+   */
   const values = {
     active: input.active,
     allowsMultipleItems: input.allowsMultipleItems,
-    attachmentMode: input.attachmentMode ?? 'off',
     companyId: input.companyId,
     emailBody: input.emailBody,
     emailSubject: input.emailSubject,
@@ -804,12 +810,18 @@ export async function saveOccurrenceType(
     stage: input.stage,
   }
 
+  const attachmentModeChange =
+    input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }
+
   const [saved] =
     input.occurrenceTypeId === null
-      ? await queryable.insert(companyOccurrenceTypes).values(values).returning()
+      ? await queryable
+          .insert(companyOccurrenceTypes)
+          .values({ ...values, ...attachmentModeChange })
+          .returning()
       : await queryable
           .update(companyOccurrenceTypes)
-          .set({ ...values, updatedAt: sql`now()` })
+          .set({ ...values, ...attachmentModeChange, updatedAt: sql`now()` })
           .where(
             and(
               eq(companyOccurrenceTypes.companyId, input.companyId),
