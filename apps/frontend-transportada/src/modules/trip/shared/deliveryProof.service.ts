@@ -49,12 +49,14 @@ export type DeliveryProofView = Readonly<{
  * Devolvida é o quarto fato, e **não é entrega**: chamá-la de "entregue sem comprovante" seria
  * mentira sobre o que aconteceu na rua.
  *
- * O nome de quem recebeu segue **ADR-0067 §5**: o escritório dá baixa dias depois, com o maço de
- * canhotos na mesa, e o recebedor não está lá. Uma assinatura colhida no balcão seria o operador
- * assinando pelo cliente; a assinatura digital só existe no app do motorista, onde o recebedor está.
- * No escritório, o nome sai **em ordem de prioridade**: 1º assinatura (imagem do canhoto assinado),
- * 2º canhoto com nome digitado pelo escritório (CHECK `trip_delivery_proofs_receiver_check`),
- * 3º nada. Foto de carga **nunca** fornece nome — ela é apenas registro visual.
+ * O nome de quem recebeu sai, nesta ordem, da **assinatura digital** (app do motorista, onde o
+ * recebedor está) e do **canhoto do escritório**. O escritório não colhe assinatura (ADR-0067 §5):
+ * cumpre a exigência com a foto do canhoto assinado e o nome que o operador digita — e o CHECK
+ * `trip_delivery_proofs_receiver_check` garante que `photo` só carrega nome quando o canal é
+ * `office`, então ler o nome dali não inventa a identidade de ninguém. Foto de carga **nunca**
+ * fornece nome: é registro da mercadoria, não de quem a recebeu.
+ *
+ * Pelo mesmo motivo, foto de carga sozinha não faz a entrega contar como "com comprovante".
  */
 export function resolveDeliveryProofView(input: {
   readonly document: DeliveryProofDocument
@@ -99,6 +101,7 @@ export function resolveDeliveryProofView(input: {
     photos,
     receiverName,
     signatures,
-    state: input.proofs.length === 0 ? 'delivered-without-proof' : 'delivered-with-proof',
+    state:
+      photos.length + signatures.length === 0 ? 'delivered-without-proof' : 'delivered-with-proof',
   }
 }

@@ -39,6 +39,18 @@ describe('prova da entrega (spec 079 T005)', () => {
     expect(naoEntregue.state).not.toBe(semComprovante.state)
   })
 
+  /** Spec 182: foto da mercadoria não prova quem recebeu — sozinha, a entrega segue sem comprovante. */
+  it('foto de carga sozinha não conta como comprovante', () => {
+    const view = resolveDeliveryProofView({
+      document: ENTREGUE,
+      proofs: [{ ...ASSINATURA, id: 'cargo-1', kind: 'cargo', receiverName: '' }],
+    })
+
+    expect(view.state).toBe('delivered-without-proof')
+    expect(view.cargoPhotos).toHaveLength(1)
+    expect(view.receiverName).toBeNull()
+  })
+
   it('entrega com comprovante traz a hora real e quem recebeu', () => {
     const view = resolveDeliveryProofView({ document: ENTREGUE, proofs: [ASSINATURA] })
 
@@ -109,7 +121,8 @@ describe('fotos da carga (spec 182)', () => {
       proofs: [FOTO_CARGA_1, FOTO_CARGA_2],
     })
 
-    expect(view.state).toBe('delivered-with-proof')
+    // Sem canhoto nem assinatura, o aviso de "sem comprovante" continua cobrando o que falta
+    expect(view.state).toBe('delivered-without-proof')
     expect(view.cargoPhotos).toHaveLength(2)
     expect(view.photos).toHaveLength(0)
     expect(view.signatures).toHaveLength(0)

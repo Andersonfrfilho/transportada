@@ -56,8 +56,8 @@ onde o recebedor está: no app do motorista.
   checagem de cabeçalho de imagem (JPEG, PNG ou WebP) que o canhoto do escritório — sem exceção.
 - **RF6** — Idempotência por `attachmentKey`, como o canhoto: reenviar o mesmo arquivo da mesma
   entrega devolve o comprovante já gravado.
-- **RF7** — O assistente de baixa oferece, no passo de captura, "adicionar foto da carga", com o
-  mesmo caminho câmera → upload do canhoto, até cinco por nota.
+- **RF7** — O assistente de baixa oferece, no passo de revisão, "adicionar foto da carga" — câmera
+  no celular, arquivo no computador —, até cinco por nota, com a mesma redução de imagem do canhoto.
 - **RF8** — A tela de comprovante (`TripDeliveryProof`) mostra as fotos de carga em grupo próprio,
   separado do canhoto e da assinatura.
 
@@ -76,8 +76,11 @@ onde o recebedor está: no app do motorista.
   duas fotos de carga no mesmo evento — o mesmo molde da emenda 1 da ADR-0067.
 - **D3** — Limite de **cinco** fotos de carga por entrega, no caso de uso. Número de partida: cobre
   a avaria e o contexto sem transformar a baixa em álbum. Ajustável sem migration.
-- **D4** — A foto de carga entra no passo de captura do canhoto, como "adicionar mais", e não num
-  passo próprio: é o mesmo gesto, e um passo a mais por nota cansaria quem tem o maço inteiro.
+- **D4** — A foto de carga entra no **passo de revisão**, ao lado do nome de quem recebeu, e não no
+  de captura nem num passo próprio. O passo de captura é o preview da câmera dedicado ao canhoto,
+  com código de barras e OCR lendo o quadro — misturar a carga ali confundiria o que a leitura
+  procura. A revisão já é onde o operador completa a entrega; um passo a mais por nota cansaria
+  quem tem o maço inteiro. (Revisado na execução, depois de ler `FieldDeliveryCaptureStep`.)
 - **D5** — O envio da foto de carga vai **depois** da baixa da nota e reusa a rota de anexar a
   entrega já feita. A baixa não fica refém de uma foto de carga que falhou no upload.
 

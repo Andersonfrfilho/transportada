@@ -30,8 +30,8 @@ Uma task por vez. Cada uma fecha com typecheck + testes + commit isolado, e evid
 
 - [ ] **T3.1** Teste: com duas fotos de carga, o envio faz a baixa e depois duas chamadas `cargo`;
   falha numa foto não desfaz a baixa.
-- [ ] **T3.2** "Adicionar foto da carga" no `FieldDeliveryCaptureStep`, até cinco, com miniatura e
-  remover. Locale pt-BR e en.
+- [ ] **T3.2** "Adicionar foto da carga" no `FieldDeliveryReviewStep` (D4), até cinco, com
+  miniatura e remover, reduzida por `reduceFieldDeliveryImageToJpeg`. Locale pt-BR e en.
 
 ## Fase 4 — O comprovante separa documento de mercadoria
 > 🤖 Modelo: `haiku`
