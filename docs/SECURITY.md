@@ -5,36 +5,6 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
-### 2026-09-23 — objeto do upload de ocorrência sem dono no bucket, sem expurgo (spec 179)
-
-**Onde:** `api-transportada`, `trips/infrastructure/drizzle-occurrence-upload.repository.ts`,
-`database/trip.schema.ts` (`trip_occurrence_uploads`); a correção mora em `worker-transportada`, fora
-do escopo desta sessão (achado [3] da revisão de código de 23/09 do lote da spec 179 —
-`specs/179-a-recusa-sai-com-foto/evidence.md`).
-
-**O que é:** `TRIP_OCCURRENCE_UPLOAD_STATUSES` inclui `'expired'`, mas nada no código escreve esse
-status e não existe varredura de `trip_occurrence_uploads` nem do objeto correspondente no bucket.
-Dois vazamentos, contra §1/§7 deste documento:
-
-1. Motorista pede a URL assinada, sobe a foto, perde sinal antes de chamar `confirm`: bytes ficam no
-   bucket, a linha em `trip_occurrence_uploads` fica `pending` para sempre, e **não existe**
-   `stored_objects` para essa foto — invisível para `trip.occurrence-attachment.purge`, o expurgo de
-   retenção que já existe (spec 161 RF21), porque ele só varre `stored_objects`. Foto de carga (dado
-   pessoal de terceiro, endereço/mercadoria) sem prazo de descarte.
-2. `confirm` roda e nunca é seguido do registro da ocorrência: `stored_objects` nasce com
-   `retentionUntil` de cinco anos e nenhuma `trip_document_occurrences` aponta para ele — ninguém acha
-   para revisar antes do prazo (pode já estar coberto pela retenção de 5 anos existente; a confirmar
-   junto com a correção).
-
-**Por que continua aberto:** a correção segue o mesmo padrão dos outros dez jobs de
-`JOB_CATALOG` — a rotina de verdade mora em `apps/worker-transportada`
-(`trip-occurrence-attachment-purge/` é o exemplo mais próximo), nunca em `apps/cron-transportada`
-(que só agenda e publica, `tick/application/run-tick.ts`). A sessão que investigou este achado estava
-restrita a `apps/api-transportada`, `apps/cron-transportada`, `docs/` e `specs/179-*/` — publicar a
-entrada em `job_schedules` sem o `JobRoutine` correspondente no worker deixaria a execução presa
-(mensagem sem consumidor). Detalhe completo, incluindo o que falta implementar e onde, em
-`specs/179-a-recusa-sai-com-foto/evidence.md` (seção "[3] Objeto sem dono no bucket").
-
 **Onde:** `api-transportada`, `contractor-portal/presentation/contractor-occurrence.routes.ts`
 (`GET /client/me/occurrences`, `POST /client/me/occurrences/:id/decision`); `identity/domain/
 authorization.policy.ts` (`occurrences.decide` no papel `contractor`, `occurrences.resolve` em
@@ -1320,6 +1290,55 @@ substitui o conjunto inteiro de atributos.
 cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
 ## Fechados
+
+### 2026-09-24 — objeto do upload de ocorrência sem dono no bucket, sem expurgo (spec 179)
+
+**Onde:** `api-transportada` (`shared/job-catalog.constant.ts`, migration
+`20260924033423_lumpy_scalphunter`); `worker-transportada`
+(`trip-occurrence-upload-expire/`); `cron-transportada` e
+`frontend-transportada/src/modules/shared/jobCatalog.constant.ts` (cópia do catálogo). Achado [3] da
+revisão de código de 23/09 do lote da spec 179, registrado aberto em 23/09, fechado em 24/09 com
+escopo ampliado para o worker.
+
+**O que era:** `TRIP_OCCURRENCE_UPLOAD_STATUSES` incluía `'expired'`, mas nada escrevia esse status e
+não havia varredura de `trip_occurrence_uploads` nem do objeto correspondente no bucket. Dois
+vazamentos, contra §1/§7 deste documento:
+
+1. Motorista pede a URL assinada, sobe a foto, perde sinal antes de chamar `confirm`: bytes ficavam
+   no bucket, a linha em `trip_occurrence_uploads` ficava `pending` para sempre, e **não existia**
+   `stored_objects` para essa foto — invisível para `trip.occurrence-attachment.purge` (spec 161
+   RF21), que só varre `stored_objects`.
+2. `confirm` roda e nunca é seguido do registro da ocorrência: `stored_objects` nasce com
+   `retentionUntil` de cinco anos e nenhuma `trip_document_occurrences` aponta para ele.
+
+**Corrigido (1):** nova rotina `trip.occurrence-upload.expire`
+(`worker-transportada/src/trip-occurrence-upload-expire/`), registrada em `JOB_CATALOG` nas quatro
+apps e agendada a cada `JOB_TICK_INTERVAL_SECONDS` (300s) via `job_schedules`
+(migration `20260924033423_lumpy_scalphunter`). A cada batida: acha `trip_occurrence_uploads`
+`pending` com `expires_at` vencido há mais de `TRIP_OCCURRENCE_UPLOAD_EXPIRE_GRACE_SECONDS` (900s —
+a folga soma aos 900s da própria URL, para relógio/latência entre API e worker nunca apagarem um
+objeto no instante em que um `confirm` legítimo ainda pode fechar `pending → confirmed`); trava a
+linha com `for update skip locked` reconferindo `status = 'pending'` no momento do lock (perde a
+corrida para um `confirm` concorrente com naturalidade); apaga o objeto do bucket **antes** de marcar
+`expired` — a exclusão é idempotente do lado do storage (S3/MinIO aceitam apagar uma chave que já não
+existe, cobrindo o caso do motorista que nunca chegou a subir nada), então rodar de novo sobre a
+mesma linha nunca falha por "objeto já removido". Prova contra Postgres e MinIO reais em
+`worker-transportada/test/integration/trip-occurrence-upload-expire.integration.ts`: o pendente
+vencido (com e sem objeto de fato subido) vira `expired` e o objeto some do bucket; o pendente dentro
+da janela continua intocado; o segundo ciclo não encontra mais nada.
+
+**(2) já estava coberto, sem código novo:** a linha `stored_objects` que o `confirm` grava
+(`drizzle-occurrence-upload.repository.ts`, achados [1]/[2] deste mesmo lote) usa
+`resolveOccurrenceAttachmentRetentionUntil`, a mesma função e o mesmo prazo de cinco anos que
+`trip.occurrence-attachment.purge` já aplica. Essa rotina resolve a unidade por
+`findAttachmentByObjectId` em `trip_document_occurrence_attachments` (o anexo múltiplo do escritório,
+spec 161) — a ocorrência do motorista (T203, spec 179) referencia o objeto por uma coluna diferente,
+`trip_document_occurrences.attachment_object_id`, que essa consulta não conhece. Um objeto confirmado
+por este caminho e nunca vinculado a uma ocorrência entra, portanto, no ramo "objeto órfão"
+(`purgeOrphanObject`) da rotina existente assim que os cinco anos de retenção vencerem — mesmo se a
+ocorrência **for** registrada depois, o objeto já legitimamente referenciado seria apagado só ao fim
+dos mesmos cinco anos, que é exatamente a retenção pretendida (RF21) para toda foto de ocorrência,
+não um vazamento paralelo. Não há um segundo vazamento aqui, só o mesmo prazo de sempre.
 
 ### 2026-09-12 — o ator da liquidação por procuração podia ser conta de serviço (B2)
 

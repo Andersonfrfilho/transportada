@@ -358,3 +358,125 @@ Registrado o achado em `docs/SECURITY.md` (2026-09-23), como "Aberto" — não "
 correção não foi escrita. Reportado ao orquestrador da sessão para decidir entre ampliar o escopo
 desta sessão ou abrir uma sessão dedicada a `apps/worker-transportada` (+ `frontend-transportada` para
 a paridade do catálogo).
+
+## 24/09 — [3] fechado: escopo ampliado para o worker
+
+O orquestrador ampliou o escopo desta sessão para `apps/worker-transportada/**`,
+`apps/cron-transportada/**`, `apps/api-transportada/**`,
+`apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts`, `docs/**` e
+`specs/179-*/**`, com a ordem: rotina no worker seguindo `trip-occurrence-attachment-purge/`,
+catálogo nas quatro apps, migration/seed, teste de integração — e resolver o segundo vazamento junto
+"se der", sem inventar desenho novo.
+
+### Rotina nova: `trip.occurrence-upload.expire`
+
+`apps/worker-transportada/src/trip-occurrence-upload-expire/` — mesmo desenho de
+`trip-occurrence-attachment-purge/`, simplificado porque a unidade aqui é uma linha só (sem tabela de
+anexo para juntar):
+
+- `domain/trip-occurrence-upload-expire.constant.ts`: nome do job, folga de 900s
+  (`TRIP_OCCURRENCE_UPLOAD_EXPIRE_GRACE_SECONDS`) e os mesmos tetos de lote/falha/timeout da rotina
+  irmã.
+- `application/trip-occurrence-upload-expire-unit.port.ts` + `-unit.service.ts`: a unidade —
+  `lockExpiredPendingUpload` (`for update skip locked`, reconferindo `status = 'pending'` e
+  `expires_at` vencido **no momento do lock**, não na leitura que escolheu o candidato — é isto que
+  faz a corrida com um `confirm` concorrente convergir para "missing" em vez de apagar um objeto que
+  acabou de ser confirmado), depois `deleteObject` (com timeout, igual à rotina irmã) e só então
+  `markExpired`.
+- `application/trip-occurrence-upload-expire.port.ts` + `.routine.ts`: o lote e o laço de batidas —
+  cópia estrutural de `trip-occurrence-attachment-purge.port.ts`/`.routine.ts`, com `before = now -
+  grace` (a folga desloca o corte para trás de `now`, nunca esconde um upload que ainda não venceu).
+- `infrastructure/drizzle-trip-occurrence-upload-expire-gateway.ts` + `.repository.ts`: candidatos por
+  `status = 'pending' and expires_at < before`, uma transação por unidade.
+- `apps/worker-transportada/src/database/trip-occurrence-upload.schema.ts`: cópia por valor de
+  `trip_occurrence_uploads` (mesmo padrão de `stored-object.schema.ts`/
+  `trip-occurrence-attachment.schema.ts` — sem constraint, quem migra é a API), com
+  `schema-parity.contract.ts` conferindo as colunas linha a linha contra `trip.schema.ts`.
+- `apps/worker-transportada/src/main.ts`: registrada sempre (como as outras varreduras de retenção),
+  com `deleteObject` vindo do mesmo `storageGateway` da rotina irmã.
+
+**Idempotência (pedida explicitamente):** a exclusão é idempotente do **lado do storage** — S3/MinIO
+devolvem sucesso apagando uma chave que já não existe, que é exatamente o caso do motorista que perdeu
+sinal antes de sequer enviar o arquivo. Rodar a rotina de novo sobre a mesma linha nunca falha por
+"objeto já removido"; e o `for update skip locked` cobre a concorrência entre execuções da própria
+rotina e contra um `confirm` em voo.
+
+### Catálogo e migration
+
+`JOB_CATALOG` ganhou a entrada `trip.occurrence-upload.expire` (`failureOutcomes: []`,
+`minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS`) nas cópias de `api-transportada`,
+`cron-transportada`, `worker-transportada` e `frontend-transportada/src/modules/shared/
+jobCatalog.constant.ts` — a quarta estava fora do escopo original, liberada nesta ampliação.
+`bun run db:generate` (dentro de `apps/api-transportada`) gerou a migration
+`20260924033423_lumpy_scalphunter`; reescrevi o `migration.sql` para o padrão `NOT VALID` + `VALIDATE
+CONSTRAINT` que `20260922112706_trip_occurrence_attachment_purge_job` já usa (evita segurar lock de
+validação nas duas tabelas de uma vez) e acrescentei o `INSERT INTO job_schedules` com intervalo 300.
+`rollback.sql` escrito à mão no mesmo molde do anterior. `bun run db:generate` rodado de novo depois:
+`no_changes` — o schema bate com a migration.
+
+⚠️ Descoberta no caminho: `apps/frontend-transportada/test/shared/job-catalog.contract.ts` **não**
+mantém uma lista literal própria — ele lê o arquivo-fonte de `api-transportada` direto do disco
+(`readFileSync` + regex) e compara. Achei que precisaria editar esse teste (fora do escopo liberado,
+`test/**` do frontend é de outra sessão) e travar — mas não precisei: atualizando só o `.constant.ts`
+do frontend, os 6 testes desse arquivo continuam passando (`bun test
+./test/shared/job-catalog.contract.ts` → 6 pass), porque o teste deriva o esperado da própria API. Sem
+conflito com a outra frente.
+
+O `test/job-catalog/catalog.contract.ts` de `api-transportada`, `cron-transportada` e
+`worker-transportada` (cada um com sua própria lista literal, ao contrário do frontend) ganhou a
+entrada correspondente. O de `api-transportada` também tem `SEED_MIGRATIONS`, que lê o `INSERT` de
+cada migration para conferir o intervalo semeado contra o piso — acrescentei
+`'20260924033423_lumpy_scalphunter'` à lista.
+
+`test/database-migration/static-migration.contract.ts` mantém a lista literal e ordenada de **todos**
+os diretórios de migration da API — acrescentei `'20260924033423_lumpy_scalphunter'` ao fim. Sem essa
+linha o teste reprovava (`toEqual` comparando array com um item a mais), não por regressão, só por a
+lista não ter sido atualizada.
+
+### O segundo vazamento — já coberto, sem código novo
+
+Confirmei, sem inventar desenho: o `stored_objects` que `confirm-occurrence-upload` grava usa
+`resolveOccurrenceAttachmentRetentionUntil`, a **mesma** função e o mesmo prazo de cinco anos que
+`trip.occurrence-attachment.purge` (spec 161) já aplica
+(`drizzle-occurrence-upload.repository.ts:102`, achados [1]/[2] deste lote). Essa rotina resolve a
+unidade por `findAttachmentByObjectId` contra `trip_document_occurrence_attachments` — a tabela do
+anexo múltiplo do escritório (spec 161). A ocorrência do motorista (T203, spec 179) referencia o
+objeto por uma coluna **diferente**, `trip_document_occurrences.attachment_object_id`, que essa
+consulta nunca olha. Consequência: um objeto confirmado por este caminho e nunca vinculado a uma
+ocorrência cai no ramo "objeto órfão" (`purgeOrphanObject`,
+`trip-occurrence-attachment-purge-unit.service.ts:48-61`) da rotina existente assim que os cinco anos
+de retenção vencerem — já coberto pelos testes que provam esse ramo
+(`purge-unit.contract.ts`, "objeto órfão sai sozinho").
+
+O caso limite — a ocorrência **é** registrada depois, meses ou anos mais tarde — não é um vazamento
+paralelo: o objeto já legitimamente referenciado só seria apagado ao fim dos mesmos cinco anos, que é
+exatamente a retenção pretendida pela RF21 para toda foto de ocorrência, não um prazo mais curto que
+alguém esqueceu de escrever. Não escrevi rotina nova nem mudei a existente para este caso — não havia
+lacuna a fechar.
+
+### Gates
+
+```
+$ bunx tsc --noEmit                                              # api, cron, worker: sem saída
+$ bunx eslint src test [scripts] eslint.config.js --max-warnings=0   # api, cron, worker: sem saída
+$ bunx tsc --noEmit (frontend-transportada)                       # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000            # api: 7215 pass · 23 skip · 0 fail (183 arquivos)
+$ bun --env-file=../../.env.test run test                         # worker: 1421 pass · 0 fail (92 arquivos)
+$ bun --env-file=../../.env.test run test                         # cron: 101 pass · 0 fail (8 arquivos)
+$ bun test ./test/shared/job-catalog.contract.ts                  # frontend: 6 pass · 0 fail
+$ bun run db:generate                                              # api: no_changes
+$ make migration-test                                              # 110 pass · 0 fail (migration + rollback reais)
+$ bun --env-file=../../.env.test test ./test/integration/trip-occurrence-upload-expire.integration.ts --timeout 60000
+                                                                    # worker: 2 pass · 0 fail, Postgres + MinIO reais
+```
+
+Não rodei a suíte inteira de `test:integration` de novo (106 arquivos): a passada anterior deste
+mesmo dia já mostrou o padrão de flakiness sob carga concorrente de outras sessões (60 falhas,
+timeouts de 5s/30s em arquivos que não tocam upload de ocorrência), documentado acima. O arquivo que
+esta parte tocou, isolado contra Postgres e MinIO reais, é limpo.
+
+### O que não mexi
+
+O resíduo `apps/cron-transportada/src/nfe-distribution-pull/nfe-distribution-pull.job.ts`
+(`runNfeDistributionPullJob`, nunca chamado de `main.ts`) continua como estava — fora do escopo desta
+correção, e o orquestrador pediu explicitamente para não tocar.
