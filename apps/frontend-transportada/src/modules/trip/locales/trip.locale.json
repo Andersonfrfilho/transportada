@@ -543,6 +543,12 @@
     "closeReason": "Motivo do encerramento: {{reason}}",
     "collapse": "Recolher",
     "documentFilterOption": "Nota {{invoice}}",
+    "day": {
+      "count_one": "{{count}} evento",
+      "count_other": "{{count}} eventos",
+      "today": "Hoje",
+      "yesterday": "Ontem"
+    },
     "empty": "Nada registrado ainda nesta viagem",
     "error": "Não foi possível carregar a linha do tempo",
     "expand": "Ver mais",

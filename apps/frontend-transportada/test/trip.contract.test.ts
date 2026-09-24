@@ -1,6 +1,7 @@
 import './trip/client-and-controller.contract.js'
 import './trip/timeline.contract.js'
 import './trip/timeline-view.contract.js'
+import './trip/timeline-day-groups.contract.js'
 import './trip/timeline-link.contract.js'
 import './trip/timeline-detail.contract.js'
 import './trip/timeline-avatar.contract.js'

@@ -1160,6 +1160,22 @@
 }
 
 /* Ela divide a fileira com o botão de devolver, que não encolhe: quem alinha é a etiqueta. */
+/**
+ * Devolvida é a nota que saiu do fluxo e cobra uma decisão; sair com a mesma borda cinza de
+ * "SEPARADA" a escondia na lista da parada. Entregue acende do outro lado, para o olho separar o
+ * que fechou do que travou sem precisar ler as duas palavras.
+ */
+.separationStatusBadgeProblem {
+  border-color: color-mix(in srgb, var(--color-alert) 70%, transparent);
+  background: color-mix(in srgb, var(--color-alert) 12%, transparent);
+  color: var(--color-alert);
+}
+
+.separationStatusBadgeDone {
+  border-color: color-mix(in srgb, var(--color-ready) 60%, transparent);
+  color: var(--color-ready);
+}
+
 .separationStatusBadge {
   display: inline-flex;
   align-items: center;

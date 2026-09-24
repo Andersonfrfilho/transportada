@@ -17,6 +17,7 @@ import {
   collectTripTimelineDocuments,
   filterTripTimelineItemsByDocumentIds,
   formatTripTimelineDocumentFilterLabel,
+  groupTripTimelineItemsByDay,
   removeDuplicateDispatchEvents,
   resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
@@ -45,6 +46,42 @@ const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
   month: '2-digit',
   year: 'numeric',
 })
+
+const timeFormatter = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+const dayFormatter = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: 'long',
+  weekday: 'long',
+  year: 'numeric',
+})
+
+const MILLISECONDS_PER_DAY = 86_400_000
+
+function midnightOf(moment: Date): number {
+  return new Date(moment.getFullYear(), moment.getMonth(), moment.getDate()).getTime()
+}
+
+/** `dayKey` é data local (`YYYY-MM-DD`); `new Date('2026-09-23')` seria UTC e voltaria um dia. */
+function parseDayKey(dayKey: string): Date | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey)
+  if (parts === null) return null
+  return new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]))
+}
+
+function resolveDayLabel(dayKey: string, t: Translate): string {
+  const day = parseDayKey(dayKey)
+  if (day === null) return dayKey
+  const distance = Math.round((midnightOf(new Date()) - day.getTime()) / MILLISECONDS_PER_DAY)
+  if (distance === 0) return t('eventTimeline.day.today')
+  if (distance === 1) return t('eventTimeline.day.yesterday')
+  return dayFormatter.format(day)
+}
+
+function formatTime(value: string): string {
+  const moment = new Date(value)
+  return Number.isNaN(moment.getTime()) ? value : timeFormatter.format(moment)
+}
 
 function formatMoment(value: string): string {
   const moment = new Date(value)
@@ -151,21 +188,33 @@ export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
       ) : items.length === 0 ? (
         <p className={styles.hint}>{t('eventTimeline.empty')}</p>
       ) : (
-        <ol aria-busy={query.isFetchingNextPage} className={styles.list}>
-          {items.map((item, index) => (
-            <TripTimelineEntry
-              item={item}
-              key={item.id}
-              repeatsAuthorship={
-                index > 0 &&
-                resolveTripTimelineAuthorshipText(
-                  items[index - 1] as TripTimelineItem,
-                  translate,
-                ) === resolveTripTimelineAuthorshipText(item, translate)
-              }
-            />
+        <div aria-busy={query.isFetchingNextPage} className={styles.days}>
+          {groupTripTimelineItemsByDay(items).map((group) => (
+            <section className={styles.day} key={group.dayKey}>
+              <h4 className={styles.dayLabel}>
+                {resolveDayLabel(group.dayKey, translate)}
+                <span className={styles.dayCount}>
+                  {t('eventTimeline.day.count', { count: group.items.length })}
+                </span>
+              </h4>
+              <ol className={styles.list}>
+                {group.items.map((item, index) => (
+                  <TripTimelineEntry
+                    item={item}
+                    key={item.id}
+                    repeatsAuthorship={
+                      index > 0 &&
+                      resolveTripTimelineAuthorshipText(
+                        group.items[index - 1] as TripTimelineItem,
+                        translate,
+                      ) === resolveTripTimelineAuthorshipText(item, translate)
+                    }
+                  />
+                ))}
+              </ol>
+            </section>
           ))}
-        </ol>
+        </div>
       )}
 
       {query.hasNextPage ? (
@@ -278,8 +327,12 @@ function TripTimelineEntry({
             )}
           </p>
           <p className={styles.itemMeta}>
-            <time className={styles.itemTime} dateTime={item.occurredAt}>
-              {formatMoment(item.occurredAt)}
+            <time
+              className={styles.itemTime}
+              dateTime={item.occurredAt}
+              title={formatMoment(item.occurredAt)}
+            >
+              {formatTime(item.occurredAt)}
             </time>
             {/*
              * A autoria se repete evento após evento — numa viagem tocada pelo mesmo operador ela

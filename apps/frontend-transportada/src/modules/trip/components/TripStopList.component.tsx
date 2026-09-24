@@ -27,6 +27,7 @@ import {
 import type {
   TripDocumentDetail,
   TripDocumentReadiness,
+  TripDocumentSeparationStatus,
   TripStopDetail,
 } from '../shared/trip.types'
 import {
@@ -43,6 +44,16 @@ import {
   type TripStopOccurrenceSubmission,
 } from './TripStopOccurrenceDialog.component'
 import styles from '../styles/trip.module.css'
+
+const SEPARATION_STATUS_BADGE_TONE_CLASS: Readonly<
+  Record<TripDocumentSeparationStatus, string | undefined>
+> = {
+  delivered: styles.separationStatusBadgeDone,
+  loaded: undefined,
+  pending: undefined,
+  returned: styles.separationStatusBadgeProblem,
+  separated: undefined,
+}
 
 /** Spec 174 RF6: recusa e cancelamento são o que muda de cor — o resto é aviso neutro. */
 const FISCAL_ALERT_REASONS = new Set(['cte_cancelled', 'cte_rejected'])
@@ -462,7 +473,14 @@ function TripStopDocumentRow({
         </span>
         <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
         <div className={styles.stopDocumentBadgeRow}>
-          <span className={styles.separationStatusBadge}>{separationStatusLabel}</span>
+          <span
+            className={cn(
+              styles.separationStatusBadge,
+              SEPARATION_STATUS_BADGE_TONE_CLASS[document.separationStatus],
+            )}
+          >
+            {separationStatusLabel}
+          </span>
           {/*
            * Spec 181 RF2/CA02: o marcador de ocorrência aberta e `openOccurrenceCase === true` são
            * a mesma condição booleana (proposta-ux.md item 4) — um selo só, clicável, leva direto

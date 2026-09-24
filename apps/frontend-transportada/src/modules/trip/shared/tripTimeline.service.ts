@@ -185,3 +185,36 @@ export function resolveTripTimelineAuthorshipText(
   if (item.kind === 'trip.created' && item.actorName === null) return t('authorship.system')
   return resolveFieldAuthorshipText(item, t)
 }
+export type TripTimelineDayGroup = Readonly<{
+  dayKey: string
+  items: readonly TripTimelineItem[]
+}>
+
+function resolveDayKey(occurredAt: string): string {
+  const moment = new Date(occurredAt)
+  if (Number.isNaN(moment.getTime())) return occurredAt
+  const month = String(moment.getMonth() + 1).padStart(2, '0')
+  const day = String(moment.getDate()).padStart(2, '0')
+  return `${moment.getFullYear()}-${month}-${day}`
+}
+
+/**
+ * Agrupa em faixas de dia sem reordenar: a ordem da API (D4, do mais recente para o mais antigo) é
+ * a ordem da tela, e um dia que reaparecesse depois de outro abriria faixa nova em vez de mentir
+ * sobre a sequência.
+ */
+export function groupTripTimelineItemsByDay(
+  items: readonly TripTimelineItem[],
+): readonly TripTimelineDayGroup[] {
+  const groups: { dayKey: string; items: TripTimelineItem[] }[] = []
+  for (const item of items) {
+    const dayKey = resolveDayKey(item.occurredAt)
+    const current = groups.at(-1)
+    if (current !== undefined && current.dayKey === dayKey) {
+      current.items.push(item)
+      continue
+    }
+    groups.push({ dayKey, items: [item] })
+  }
+  return groups
+}

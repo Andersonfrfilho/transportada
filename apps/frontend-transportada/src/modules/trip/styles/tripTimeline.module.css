@@ -47,6 +47,46 @@
   font-size: 0.8rem;
 }
 
+.days {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.day {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* A faixa de dia acompanha a rolagem: numa viagem longa o cabeçalho sai de vista antes da lista. */
+.dayLabel {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  align-items: baseline;
+  margin: 0;
+  padding: var(--space-1) 0;
+  background: linear-gradient(
+    to bottom,
+    var(--color-graphite) 70%,
+    color-mix(in srgb, var(--color-graphite) 0%, transparent)
+  );
+  color: var(--color-slate);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dayCount {
+  color: color-mix(in srgb, var(--color-slate) 75%, transparent);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
 .list {
   --timeline-marker-size: 0.625rem;
   --timeline-title-font-size: 0.95rem;

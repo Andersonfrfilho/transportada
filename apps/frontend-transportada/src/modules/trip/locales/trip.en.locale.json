@@ -415,6 +415,12 @@
     "closeReason": "Close reason: {{reason}}",
     "collapse": "Collapse",
     "documentFilterOption": "Invoice {{invoice}}",
+    "day": {
+      "count_one": "{{count}} event",
+      "count_other": "{{count}} events",
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "empty": "Nothing recorded on this trip yet",
     "error": "Could not load the timeline",
     "expand": "View more",
