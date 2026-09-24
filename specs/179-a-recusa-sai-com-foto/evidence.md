@@ -220,3 +220,141 @@ $ bun --env-file=../../.env.test test ./test/integration/trip-field-authorship.i
 
 Confirma timeout de carga, não regressão desta task; o arquivo que a T203 tocou (`trip-field-
 authorship.integration.ts`) passa limpo, incluindo o teste novo contra Postgres real.
+
+## Revisão de código de 23/09 — achados [1] e [2] fechados, [3] bloqueado por escopo
+
+Revisão do `code-reviewer` (opus) sobre o lote publicado da spec: três achados na API do upload de
+comprovante. O bloqueante e dois importantes do lote original já tinham sido corrigidos antes desta
+passada; ficaram três — dois fechados aqui, um aberto por depender de diretório fora do escopo desta
+sessão (`apps/api-transportada/**`, `apps/cron-transportada/**`, `docs/**`,
+`specs/179-*/**` — outra frente estava no frontend ao mesmo tempo).
+
+### [1] `confirm` não era idempotente — reenvio recebia 404
+
+`findPendingUpload` filtra `status = 'pending'`; na segunda chamada (fila offline reenviando depois
+que a primeira já confirmou) o status já é `confirmed`, a busca devolve `null`, e o caso de uso
+lançava `TripOccurrenceUploadNotReachableError` (404) — o app tinha confirmado, a resposta se perdeu
+na rede do caminhão, e o cliente levava 404 sem saber se já tinha confirmado ou se o objeto não era
+seu.
+
+**Corrigido:** `OccurrenceUploadConfirmationPort` ganhou `findConfirmedUpload` (mesma forma que
+`OccurrenceUploadAttachmentPort` já tinha, e que `DrizzleOccurrenceUploadRepository` já implementava
+para outro port — nenhuma classe nova). `confirmOccurrenceUpload` (`confirm-occurrence-upload.use-
+case.ts:89-103`), quando `findPendingUpload` devolve `null`, tenta o recall por
+`findConfirmedUpload` antes de lançar: achou (mesma empresa/viagem), devolve o mesmo resultado sem
+tocar o storage; não achou, seguem os três motivos válidos de 404 (nunca existiu, outra empresa,
+outra viagem).
+
+### [2] Corrida em dois `confirm` simultâneos virava 500
+
+`DrizzleOccurrenceUploadRepository.confirmUpload` inseria `stored_objects` **antes** de atualizar
+`trip_occurrence_uploads`, sem condicionar o `UPDATE` a `status = 'pending'`. Duas confirmações
+concorrentes para o mesmo pedido passavam as duas pela leitura (`findPendingUpload`, sem lock) e
+tentavam o mesmo `INSERT` com o mesmo `id` (PK de `stored_objects`) — violação de unicidade, 500
+genérico.
+
+**Corrigido:** o `UPDATE` agora roda **primeiro**, dentro da transação, condicionado a `status =
+'pending'`, com `.returning()`. Zero linhas afetadas quer dizer que outra transação já fechou a
+mesma confirmação entre a leitura e esta escrita — a transação termina sem tentar o `INSERT`, e
+`confirmUpload` devolve `{ confirmed: false }` em vez de deixar o banco recusar por chave duplicada.
+`confirmOccurrenceUpload` trata `confirmed: false` com o mesmo recall do achado [1]
+(`findConfirmedUpload`): a chamada perdedora devolve o resultado da vencedora, nunca um 500.
+
+### Implementação
+
+- `src/trips/application/confirm-occurrence-upload.use-case.ts`: `OccurrenceUploadConfirmationPort`
+  ganha `findConfirmedUpload`; `confirmUpload` passa a devolver `{ confirmed: boolean }`. Dois pontos
+  de recall (pendência não encontrada, e `UPDATE` que não afetou linha) convergem para o mesmo
+  `findConfirmedUpload` — um único conceito, "devolver o resultado que já existe", para os dois
+  achados.
+- `src/trips/infrastructure/drizzle-occurrence-upload.repository.ts`: `confirmUpload` reordenado —
+  `UPDATE ... WHERE status = 'pending' RETURNING id` primeiro; `INSERT` em `stored_objects` só quando
+  o `UPDATE` afetou uma linha, dentro da mesma transação.
+- `src/main.ts`: as duas composições de `confirmOccurrenceUpload` (só existe uma, do PWA — a rota do
+  motorista) ganham `findConfirmedUpload` na injeção do repositório.
+- `test/trip-occurrence/upload.contract.ts`: `unreachableStorage()` prova que o recall não toca
+  `head()`/bytes; testes novos para reenvio pós-confirmação, objeto de outra empresa/viagem
+  continuando 404 mesmo com a checagem extra, e a corrida (repositório devolvendo `confirmed:
+  false`) resolvida pelo recall. Os dois dublês existentes (`repository()` e `reachableRepository()`)
+  ganharam `findConfirmedUpload`.
+- `test/integration/trip-occurrence-upload-confirm.integration.ts` (novo): três provas contra
+  Postgres real — reenvio depois de confirmado devolve o mesmo `id` e grava um único `stored_objects`
+  (achado [1]); objeto de outra viagem continua 404 mesmo já confirmado noutra (achado [1], borda);
+  `Promise.all` com dois `confirmOccurrenceUpload` concorrentes para o mesmo pedido não lança, os
+  dois devolvem o mesmo `id`, e só um `stored_objects`/`trip_occurrence_uploads.status = 'confirmed'`
+  fica gravado (achado [2]). Adicionado à lista explícita de `test:integration` do
+  `package.json` (a suíte não descobre arquivo novo sozinha).
+
+### Gates
+
+```
+$ bunx tsc --noEmit                                                    # sem saída
+$ bunx eslint src test eslint.config.js --max-warnings=0               # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7215 pass · 23 skip · 0 fail · 24304 expect() · 183 arquivos [44.68s]
+$ bun --env-file=../../.env.test test ./test/integration/trip-occurrence-upload-confirm.integration.ts --timeout 120000
+ 3 pass · 0 fail · 8 expect() [58.82s]
+```
+
+A suíte inteira de integração (`test:integration`, 106 arquivos) rodou sob carga concorrente de
+outras sessões no mesmo Postgres local e reproduziu o mesmo padrão de flakiness já registrado acima
+neste arquivo (timeouts de 5s/30s em arquivos que não tocam upload de ocorrência —
+`cte-export-selection`, `company-user-fleet-link`, `trip-repository`, `route-depot-query` etc.). O
+arquivo desta correção, isolado, é limpo (3/3 acima); é a evidência que conta para este achado, pelo
+mesmo raciocínio já registrado nas passadas anteriores desta spec.
+
+### [3] Objeto sem dono no bucket — bloqueado por escopo, não implementado
+
+**Achado confirmado, código não escrito.** `TRIP_OCCURRENCE_UPLOAD_STATUSES` inclui `'expired'`
+(`trip.schema.ts:1641`) e nada escreve esse status; não há varredura de `trip_occurrence_uploads`
+pendente vencido nem do objeto correspondente no bucket. Os dois vazamentos que a missão descreveu
+são reais e verificados nesta sessão:
+
+- Upload confirmado no storage mas nunca chega ao `confirm` (motorista perde sinal): bytes no bucket,
+  linha `pending` para sempre, **sem** `stored_objects` — invisível para `trip.occurrence-
+  attachment.purge` (o expurgo de retenção existente só varre `stored_objects`).
+- `confirm` roda mas a ocorrência nunca é registrada: `stored_objects` fica com `retentionUntil` de
+  cinco anos e nenhuma ocorrência aponta para ele — ninguém encontra para revisar antes do prazo.
+
+**Por que não foi implementado nesta sessão.** O padrão que os outros dez jobs de `JOB_CATALOG`
+seguem (`shared/job-catalog.constant.ts`, cópia por valor em quatro apps) não executa a rotina em
+`apps/cron-transportada` — o comentário de `tick/application/run-tick.ts:5-6` é explícito: _"[a
+batida] não sabe o que rotina nenhuma faz — quem executa é o worker, e é isso que mantém os clientes
+de terceiro num app só."_ `cron-transportada` só lê `job_schedules`, abre a execução e publica no
+RabbitMQ (`JOB_RUN_QUEUE_ROUTE`); todo `JobRoutine` de verdade — inclusive o que mais se parece com
+esta necessidade, `trip.occurrence-attachment.purge`
+(`apps/worker-transportada/src/trip-occurrence-attachment-purge/`) — mora em
+`apps/worker-transportada`, que está **fora** do escopo desta sessão
+(`apps/api-transportada/**`, `apps/cron-transportada/**`, `docs/**`, `specs/179-*/**`; a instrução
+que abriu esta sessão citou "outra frente no frontend", mas o worker também não está entre os
+diretórios liberados). Publicar a rotina em `job_schedules` sem o consumidor correspondente no worker
+deixaria a execução presa (mensagem sem rota tratando, ou `unexpected_error` a cada batida) — pior do
+que não publicar.
+
+Achei ainda um resíduo não relacionado enquanto explorava o padrão: `apps/cron-
+transportada/src/nfe-distribution-pull/nfe-distribution-pull.job.ts` define `runNfeDistributionPullJob`
+mas não é chamado de `main.ts` nem de nenhum outro lugar em `src` — parece sobra da consolidação "os
+quatro serviços de cron viram um" (`95c711def`). Não mexi nisso; fica registrado para quem revisar.
+
+**O que falta para fechar, e onde:**
+1. `apps/worker-transportada`: `JobRoutine` nova (padrão de
+   `trip-occurrence-attachment-purge.routine.ts`) que varre `trip_occurrence_uploads` com `status =
+   'pending'` e `expires_at` vencido, apaga o objeto do bucket quando existir e marca `status =
+   'expired'` — e, no caso "confirmado sem ocorrência", decide se cabe na mesma rotina ou é uma
+   segunda (a spec não distingue as duas, e a retenção de 5 anos do achado 2 (`docs/SECURITY.md`,
+   2026-09-22) pode já cobrir o segundo caso via `trip.occurrence-attachment.purge`, a confirmar).
+2. `JOB_CATALOG`: entrada nova nas **quatro** cópias (`api-transportada`, `worker-transportada`,
+   `cron-transportada`, `frontend-transportada/src/modules/shared/jobCatalog.constant.ts`) e nos
+   quatro `test/job-catalog/catalog.contract.ts` — só os dois primeiros estão dentro do escopo desta
+   sessão.
+3. Migration/seed de `job_schedules` com o `job` novo, `enabled: true` e o intervalo (a foto some
+   depois da URL assinada vencer — o mesmo prazo curto de vida da própria URL, não os cinco anos da
+   retenção — então o intervalo pode ser o mais fino do catálogo, `JOB_TICK_INTERVAL_SECONDS`).
+4. Teste de integração provando que o pendente vencido é expirado (bucket + linha) e o recente não —
+   pode morar em `apps/worker-transportada/test`, seguindo o molde de
+   `trip-occurrence-attachment-purge`.
+
+Registrado o achado em `docs/SECURITY.md` (2026-09-23), como "Aberto" — não "Fechado", porque a
+correção não foi escrita. Reportado ao orquestrador da sessão para decidir entre ampliar o escopo
+desta sessão ou abrir uma sessão dedicada a `apps/worker-transportada` (+ `frontend-transportada` para
+a paridade do catálogo).

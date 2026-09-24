@@ -5,7 +5,35 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
-### 2026-09-22 — a tratativa da ocorrência abre superfície externa nova, duas permissões novas, e a evidência em PDF fica com quem baixou (spec 164)
+### 2026-09-23 — objeto do upload de ocorrência sem dono no bucket, sem expurgo (spec 179)
+
+**Onde:** `api-transportada`, `trips/infrastructure/drizzle-occurrence-upload.repository.ts`,
+`database/trip.schema.ts` (`trip_occurrence_uploads`); a correção mora em `worker-transportada`, fora
+do escopo desta sessão (achado [3] da revisão de código de 23/09 do lote da spec 179 —
+`specs/179-a-recusa-sai-com-foto/evidence.md`).
+
+**O que é:** `TRIP_OCCURRENCE_UPLOAD_STATUSES` inclui `'expired'`, mas nada no código escreve esse
+status e não existe varredura de `trip_occurrence_uploads` nem do objeto correspondente no bucket.
+Dois vazamentos, contra §1/§7 deste documento:
+
+1. Motorista pede a URL assinada, sobe a foto, perde sinal antes de chamar `confirm`: bytes ficam no
+   bucket, a linha em `trip_occurrence_uploads` fica `pending` para sempre, e **não existe**
+   `stored_objects` para essa foto — invisível para `trip.occurrence-attachment.purge`, o expurgo de
+   retenção que já existe (spec 161 RF21), porque ele só varre `stored_objects`. Foto de carga (dado
+   pessoal de terceiro, endereço/mercadoria) sem prazo de descarte.
+2. `confirm` roda e nunca é seguido do registro da ocorrência: `stored_objects` nasce com
+   `retentionUntil` de cinco anos e nenhuma `trip_document_occurrences` aponta para ele — ninguém acha
+   para revisar antes do prazo (pode já estar coberto pela retenção de 5 anos existente; a confirmar
+   junto com a correção).
+
+**Por que continua aberto:** a correção segue o mesmo padrão dos outros dez jobs de
+`JOB_CATALOG` — a rotina de verdade mora em `apps/worker-transportada`
+(`trip-occurrence-attachment-purge/` é o exemplo mais próximo), nunca em `apps/cron-transportada`
+(que só agenda e publica, `tick/application/run-tick.ts`). A sessão que investigou este achado estava
+restrita a `apps/api-transportada`, `apps/cron-transportada`, `docs/` e `specs/179-*/` — publicar a
+entrada em `job_schedules` sem o `JobRoutine` correspondente no worker deixaria a execução presa
+(mensagem sem consumidor). Detalhe completo, incluindo o que falta implementar e onde, em
+`specs/179-a-recusa-sai-com-foto/evidence.md` (seção "[3] Objeto sem dono no bucket").
 
 **Onde:** `api-transportada`, `contractor-portal/presentation/contractor-occurrence.routes.ts`
 (`GET /client/me/occurrences`, `POST /client/me/occurrences/:id/decision`); `identity/domain/
