@@ -123,3 +123,87 @@ Gates (de `apps/api-transportada`, banco nativo 127.0.0.1:65433, PG 18.4):
 
 Commit: `4354c77fa` — feat(trips): despachar leva todas e libera o que a ocorrência deixa
 (spec 185 T3.2).
+
+## T4.1 — teste de integração do gatilho automático (CA01, CA02, CA03)
+
+Suítes novas: `test/integration/trip-auto-dispatch.integration.ts` (Postgres, registrada em
+`test:integration`) cobrindo CA01 (linha), CA02 (lote), CA03 (parada sem agendamento bloqueia com
+`stopIds`), "carregar sem fechar a carga" (sem `autoDispatch`) e a ocorrência de nota inteira
+"segue sem a nota" na última pendente. `test/whatsapp-commands/operator-flow-actions.contract.ts`
+ganhou 4 casos por dublê (carregar sem gatilho, carregar despachando, carregar com gate recusado,
+"Todas as pendentes" despachando) provando a segunda mensagem ao operador. Atualizado também
+`test/integration/whatsapp-operator-flow-actions.integration.ts`: wiring de `autoDispatchRepository`/
+`autoDispatch` nas dependências compostas (mesmo molde de `main.ts`) e o cenário ponta a ponta de
+uma nota só, que agora despacha sozinho ao carregar (ADR-0074 §1) — sem passar pelo botão manual.
+
+Falha antes da implementação — de `apps/api-transportada`, com os arquivos de produção
+temporariamente revertidos ao estado anterior (`try-auto-dispatch-trip.use-case.ts` inexistente,
+`autoDispatchRepository`/`autoDispatch` não lidos pelos use cases), banco nativo 127.0.0.1:65433:
+
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-auto-dispatch.integration.ts`
+  → 1 pass, 4 fail (CA01/CA02/CA03/ocorrência: `autoDispatch` sempre `undefined`).
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test test --timeout 120000 ./test/integration/whatsapp-operator-flow-actions.integration.ts`
+  → 6 pass, 1 fail (o cenário ponta a ponta esperava "Carregamento registrado." na posição nova e
+  recebia a mensagem de um turno anterior — sem o gatilho a viagem não despacha ao carregar).
+- `bun test --timeout 120000 ./test/whatsapp-commands/operator-flow-actions.contract.ts`
+  → 45 pass, 3 fail (as 3 mensagens de desfecho do gatilho nunca chegavam).
+
+Commit: `69121c8c5` — test(trips): o gatilho automático despacha ao fechar a carga (spec 185 T4.1).
+
+## T4.2 — `try-auto-dispatch-trip.use-case.ts` e a ligação nos chamadores
+
+- `trips/application/try-auto-dispatch-trip.use-case.ts` (novo): `tryAutoDispatchTrip` lê
+  `readPreconditions` do mesmo `DispatchTripPort` do despacho; fora de
+  `route_planned|separating|loading`, ou com `!isCargoClosed`, devolve `undefined`; senão chama
+  `dispatchTrip` sem `force`/`loadRemaining` — sucesso (inclusive `unchanged`, viagem já
+  despachada) vira `{ outcome: 'dispatched' }`; `TripHasUnscheduledStopsError` vira
+  `{ outcome: 'blocked', code: 'TRIP_HAS_UNSCHEDULED_STOPS', details: { stopIds } }`;
+  `TripStateTransitionNotAllowedError` com `reason === 'TRIP_HAS_NO_ROUTE'` vira
+  `{ outcome: 'blocked', code: 'TRIP_HAS_NO_ROUTE' }` (fallback gracioso, code-standart §7);
+  qualquer outro erro propaga.
+- Chamadores ligados (todos com o repositório de despacho já injetado — nunca `new` no use case):
+  - `transition-trip-document.use-case.ts`: campo opcional `autoDispatchRepository`; só tenta
+    quando `action === 'load'` e a escrita não foi `raced`/`unchanged` — idempotente e corrida
+    perdida não disparam (quem venceu já tenta o próprio gatilho).
+  - `transition-trip-documents-batch.use-case.ts`: mesmo campo; só quando `action === 'load'` e
+    ao menos uma nota foi de fato `applied` (não só `unchanged`/`raced`/`blocked`).
+  - `register-trip-occurrence.use-case.ts`: campo opcional `autoDispatch: { channel,
+    onBehalfOfDriverId?, repository }` — este caso de uso só registra ocorrência de separação
+    (`OccurrenceTypeNotSeparationError` já barra o resto antes), por isso não há filtro extra de
+    `stage`.
+  - `trip-lifecycle.use-case.ts`: `document('load'|'separate')` e `batchStatus.execute` passam
+    `dependencies.routeRepository` (já injetado, já `DispatchTripPort`) — `separate` recebe o
+    parâmetro sem efeito, porque o use case só age em `load`.
+  - `main.ts`: WhatsApp `loadDocument`/`batchTransition` (composição do operador) ganham
+    `autoDispatchRepository: whatsappTripRouteRepository`; WhatsApp e painel `registerOccurrence`/
+    `registerTripOccurrence` ganham `autoDispatch: { channel: whatsapp|backoffice, repository }`.
+  - `register-operator-trip-flow-actions.ts`: `documentRouter` manda a confirmação da escrita e,
+    numa segunda mensagem (`conversation-flow.md` §5, uma ideia por mensagem), o desfecho do
+    gatilho — "Viagem despachada. 🚚" ou a frase de bloqueio
+    (`OPERATOR_AUTO_DISPATCH_BLOCKED_MESSAGES`, `whatsapp-operator-flow.constant.ts`), tanto para
+    carregar uma nota quanto para "Todas as pendentes".
+- Resposta HTTP: `serializeTransitionResult`/`serializeBatchResult` (`trip.routes.ts`) acrescentam
+  `autoDispatch` quando presente, sem tocar no formato existente; a rota de ocorrência já devolve o
+  objeto inteiro do caso de uso, então `autoDispatch` chega de graça.
+- Efeito colateral necessário: `test/integration/whatsapp-operator-flow-actions.integration.ts`
+  tinha um cenário ponta a ponta (viagem de uma nota só) que despachava pelo botão manual depois de
+  carregar — com o gatilho automático, a viagem já sai ao carregar, e a viagem some do menu de
+  ações (`listWarehouseTrips` não lista `dispatched`); o teste foi ajustado para refletir a ordem
+  nova (confirmação → "Viagem despachada." → "Esta viagem não está mais disponível." → menu raiz),
+  sem o clique manual em "Despachar" (achado ao rodar o teste, não suposição).
+
+Gates (de `apps/api-transportada`, banco nativo descartável 127.0.0.1:65433, PG 18.4):
+
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-auto-dispatch.integration.ts`
+  → 5 pass, 0 fail
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test test --timeout 120000 ./test/integration/whatsapp-operator-flow-actions.integration.ts`
+  → 7 pass, 0 fail
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato inteiro) →
+  7257 pass, 23 skip, 0 fail, 24395 expect() em 183 arquivos
+- `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test run test:integration` (sem a
+  variável, pula) → 598 pass, 0 fail, 109 arquivos (327 s)
+- `bun run typecheck` (raiz) limpo nas seis apps; `bunx eslint` e `bunx prettier --check` nos
+  arquivos tocados limpos.
+
+Commit: `eb0240a24` — feat(trips): o gatilho automático despacha a viagem que fecha a carga
+(spec 185 T4.2).

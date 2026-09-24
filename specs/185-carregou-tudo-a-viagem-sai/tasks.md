@@ -36,10 +36,10 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
 
 > 🤖 Modelo: 🧠 `opus` (T4.3 concorrência); T4.1/T4.2 `sonnet`
 
-- [ ] **T4.1** Teste de integração (CA01, CA02, CA03): carregar a última nota (linha, lote,
+- [x] **T4.1** Teste de integração (CA01, CA02, CA03): carregar a última nota (linha, lote,
       WhatsApp) despacha com ator e canal; gate de agendamento devolve `autoDispatch.blocked` com
       `stopIds` e a nota fica `loaded`.
-- [ ] **T4.2** `try-auto-dispatch-trip.use-case.ts` e a ligação nos quatro chamadores (D4); campo
+- [x] **T4.2** `try-auto-dispatch-trip.use-case.ts` e a ligação nos quatro chamadores (D4); campo
       `autoDispatch` nas respostas; frase no retorno do WhatsApp.
 - [ ] **T4.3** 🧠 Teste de integração (CA09): duas cargas concorrentes das duas últimas notas
       despacham uma vez, sem erro.
