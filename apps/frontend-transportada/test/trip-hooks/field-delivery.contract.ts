@@ -336,6 +336,145 @@ describe('useFieldDelivery — fotos da carga (spec 182 D5)', () => {
     rendered.unmount()
   })
 
+  test('M13a espelhado na foto de carga: 422 vira cargoRejected — terminal, fora do retry, e o retry não chama attachFieldProof de novo para ela', async () => {
+    const cargoCalls: AttachFieldProofInput[] = []
+    let reportFieldDeliveryCalls = 0
+
+    const rendered = await renderHook(() =>
+      useFieldDelivery({
+        attachFieldProof: (input) => {
+          cargoCalls.push(input)
+          return Promise.reject(
+            Object.assign(new Error('TRIP_DELIVERY_PROOF_CARGO_LIMIT'), { status: 422 }),
+          )
+        },
+        invalidate: () => Promise.resolve(),
+        reportFieldDelivery: () => {
+          reportFieldDeliveryCalls += 1
+          return Promise.resolve(settledResult())
+        },
+        tripId: 'trip-1',
+      }),
+    )
+
+    rendered.result().submit([draftWithCargo('doc-1', 1)])
+    await waitFor(() =>
+      expect(rendered.result().statusByDocumentId['doc-1']).toEqual({
+        cargoRejected: 1,
+        kind: 'delivered',
+      }),
+    )
+    expect(cargoCalls).toHaveLength(1)
+    expect(reportFieldDeliveryCalls).toBe(1)
+
+    // Recusa terminal não entra no "tentar de novo": nem attachFieldProof nem reportFieldDelivery
+    // são chamados outra vez.
+    rendered.result().retryFailed()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(cargoCalls).toHaveLength(1)
+    expect(reportFieldDeliveryCalls).toBe(1)
+    expect(rendered.result().statusByDocumentId['doc-1']).toEqual({
+      cargoRejected: 1,
+      kind: 'delivered',
+    })
+
+    rendered.unmount()
+  })
+
+  test('erro transitório na foto de carga vira cargoPending, e o retry reenvia só a foto — sem chamar reportFieldDelivery de novo', async () => {
+    const cargoCalls: AttachFieldProofInput[] = []
+    let failFirstCargoUpload = true
+    let reportFieldDeliveryCalls = 0
+
+    const rendered = await renderHook(() =>
+      useFieldDelivery({
+        attachFieldProof: (input) => {
+          cargoCalls.push(input)
+          if (failFirstCargoUpload) {
+            failFirstCargoUpload = false
+            return Promise.reject(new Error('REQUEST_FAILED'))
+          }
+          return Promise.resolve({ id: 'cargo-1' })
+        },
+        invalidate: () => Promise.resolve(),
+        reportFieldDelivery: () => {
+          reportFieldDeliveryCalls += 1
+          return Promise.resolve(settledResult())
+        },
+        tripId: 'trip-1',
+      }),
+    )
+
+    rendered.result().submit([draftWithCargo('doc-1', 1)])
+    await waitFor(() =>
+      expect(rendered.result().statusByDocumentId['doc-1']).toEqual({
+        cargoPending: 1,
+        kind: 'delivered',
+      }),
+    )
+    expect(reportFieldDeliveryCalls).toBe(1)
+
+    rendered.result().retryFailed()
+    await waitFor(() =>
+      expect(rendered.result().statusByDocumentId['doc-1']).toEqual({ kind: 'delivered' }),
+    )
+
+    expect(cargoCalls).toHaveLength(2)
+    expect(cargoCalls[0]?.idempotencyKey).toBe(cargoCalls[1]?.idempotencyKey)
+    // A nota já estava `delivered` — o retry de foto de carga nunca repete a baixa.
+    expect(reportFieldDeliveryCalls).toBe(1)
+
+    rendered.unmount()
+  })
+
+  test('mistura: uma foto recusada (terminal) e outra pendente (transitória) — só a pendente entra no retry', async () => {
+    const cargoCalls: AttachFieldProofInput[] = []
+    let callCount = 0
+
+    const rendered = await renderHook(() =>
+      useFieldDelivery({
+        attachFieldProof: (input) => {
+          cargoCalls.push(input)
+          callCount += 1
+          // sendCargoPhotos nunca roda em paralelo (D5): a 1ª chamada é sempre a foto 0 (recusa
+          // terminal), a 2ª é sempre a foto 1 (falha transitória) e a 3ª (só existe no retry) é a
+          // foto 1 de novo.
+          if (callCount === 1) {
+            return Promise.reject(
+              Object.assign(new Error('TRIP_DELIVERY_PROOF_CARGO_LIMIT'), { status: 422 }),
+            )
+          }
+          if (callCount === 2) return Promise.reject(new Error('REQUEST_FAILED'))
+          return Promise.resolve({ id: 'cargo-ok' })
+        },
+        invalidate: () => Promise.resolve(),
+        reportFieldDelivery: () => Promise.resolve(settledResult()),
+        tripId: 'trip-1',
+      }),
+    )
+
+    rendered.result().submit([draftWithCargo('doc-1', 2)])
+    await waitFor(() =>
+      expect(rendered.result().statusByDocumentId['doc-1']).toEqual({
+        cargoPending: 1,
+        cargoRejected: 1,
+        kind: 'delivered',
+      }),
+    )
+
+    rendered.result().retryFailed()
+    await waitFor(() =>
+      expect(rendered.result().statusByDocumentId['doc-1']).toEqual({
+        cargoRejected: 1,
+        kind: 'delivered',
+      }),
+    )
+    // A foto recusada nunca volta a ser tentada — só a pendente reentrou no retry.
+    expect(cargoCalls).toHaveLength(3)
+
+    rendered.unmount()
+  })
+
   test('nota sem foto de carga nunca chama attachFieldProof', async () => {
     let cargoCallCount = 0
 
