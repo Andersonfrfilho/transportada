@@ -92,6 +92,9 @@ jobs:
   # lado a lado: o gate só passa se ambos passarem, e o tempo de parede vira o do mais lento.
   integration:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     # Medido em 2026-09-22: 13 → 16 → 18 min nos últimos runs verdes, e dois cortes exatos em 20 min
     # passando teste. O teto acompanha a suíte; se passar de 30, é hora de dividir o job.
     timeout-minutes: 30
@@ -116,6 +119,10 @@ jobs:
       - name: Install Playwright Chromium
         run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
       - run: make migration-test
+      # O MinIO do compose é pacote privado do GHCR desde 2026-09-24: a MinIO tirou as imagens do
+      # Docker Hub e do quay.io, e a nossa é compilada do código-fonte em `infra/minio/Dockerfile`.
+      - name: Entrar no GHCR para baixar o MinIO
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - run: make up
       - name: API and worker integrations
         run: |
