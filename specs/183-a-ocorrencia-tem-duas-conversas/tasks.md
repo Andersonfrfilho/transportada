@@ -89,7 +89,8 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       worker, cartão do contato e "Adicionar aos contatos" preenchido. Evidência: suíte da política +
       contrato do payload da conversa (nome e tipos vêm do contato; o endereço como chegou também).
 - [ ] **T407** Aba Contratante (canal e-mail) sobre o `conversations-ui` e o diálogo "Enviar à
-      contratante" com prévia. Evidência: contratos de serviço puro + smoke do envio.
+      contratante" com prévia; os tokens de balão da T704 chegam às peças pelos `classNames`.
+      Evidência: contratos de serviço puro + smoke do envio.
 
 ## Fase 5 — Conversa com a contratante por WhatsApp (P5)
 
@@ -153,9 +154,10 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       extração das recebidas no worker. Evidência: contratos + integração.
 - [ ] **T703** Selo de status na UI com os horários, destaque de falha e "Reenviar por outro canal".
       Evidência: contrato de mapeamento status → selo (e-mail nunca mostra "lida").
-- [ ] **T704** [P] Tokens `--color-bubble-out`, `--color-bubble-contractor`, `--color-bubble-driver`
-      (tema escuro e claro) passados ao tema de cada aba. Evidência: contrato de contraste 4,5:1 do
-      texto sobre cada balão, nos dois temas.
+- [x] **T704** [P] Tokens `--color-bubble-out`, `--color-bubble-contractor`, `--color-bubble-driver`
+      (tema escuro e claro). Evidência: contrato de contraste 4,5:1 do texto sobre cada balão, nos
+      dois temas. Feita antes da T206, que usa as mesmas cores na linha do tempo (RF19); passar os
+      tokens às peças de cada aba foi para a T407, que cria a primeira aba.
 - [ ] **T705** Áudio (RF17): player (tocar, posição, velocidade) e gravação no navegador, envio
       pelo WhatsApp e pelo app, recebido pelos dois. Evidência: contratos (formato, duração e tamanho
       máximos) + integração do recebido até o anexo com `sha256`.

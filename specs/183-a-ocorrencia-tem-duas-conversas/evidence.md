@@ -195,3 +195,25 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
     alinhamento.
 - Divergência aplicada: a coluna **Conversa** depende do RF4, que já tinha ido para a T404. Ela saiu
   da T205 e entrou na T404.
+
+## T704 — As cores dos balões (verde, antecipada)
+
+- **Por que antes da hora:** a T206 (linha do tempo, RF19) pinta cada ator "com as mesmas cores dos
+  balões". Sem os tokens, a T206 teria de escrever cor literal (proibido: só tokens) ou misturar duas
+  tasks num commit. A T704 é `[P]`, então foi antecipada inteira, em commit próprio. A parte "passados
+  ao tema de cada aba" depende de a aba existir e foi para a T407, que cria a primeira.
+- Contrato escrito antes: `test/design-system/bubble-tokens.contract.ts` (entra por
+  `test/design-system.contract.test.ts`) deu **3 fail** antes dos tokens.
+- Tokens em `src/styles/index.css`, no bloco escuro e nos dois blocos claros (o contrato de tema já
+  exige os claros idênticos):
+
+  | token                       | escuro    | claro     | texto (escuro / claro) |
+  | --------------------------- | --------- | --------- | ---------------------- |
+  | `--color-bubble-out`        | `#8c5527` | `#eec59c` | 5,41 / 9,06            |
+  | `--color-bubble-contractor` | `#1d4468` | `#d6e7f8` | 8,97 / 11,51           |
+  | `--color-bubble-driver`     | `#1d4d35` | `#d6f0e1` | 8,61 / 12,04           |
+
+  O texto é o `--color-fog` de cada tema. A enviada fica a 1,59–1,66 (escuro) e 1,27–1,33 (claro) de
+  razão de luminância das recebidas; o piso do contrato é 1,25.
+
+- Rodado: `bun test test/design-system.contract.test.ts` → **393 pass, 0 fail**.
