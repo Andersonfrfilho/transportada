@@ -1420,16 +1420,14 @@
 }
 
 /**
- * A placa fica ao lado do modelo e cai para a linha de baixo quando não cabe. Ali ela ficava
- * encostada à esquerda, desalinhada do nome que vinha acima — centralizar o conjunto mantém os dois
- * sobre o mesmo eixo, quebrando ou não.
+ * A placa vem **antes** do modelo e ocupa a própria linha, centralizada na largura inteira do
+ * quadro: ela é o que identifica o veículo de relance, e o nome comercial é a confirmação. Lado a
+ * lado, num flex que quebra, a placa caía desalinhada do nome quando não cabia.
  */
 .identityTitle {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: var(--space-2);
-  align-items: center;
-  justify-content: center;
+  justify-items: center;
   font-size: 0.95rem;
   text-align: center;
 }

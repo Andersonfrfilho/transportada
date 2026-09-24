@@ -52,8 +52,8 @@ export function VehicleIdentityBand({
       </span>
       <div className={styles.identityFacts}>
         <div className={styles.identityTitle}>
-          <strong>{label ?? t('identityBand.withoutModel')}</strong>
           {plate === null ? null : <PlateThumbnail plate={plate} />}
+          <strong>{label ?? t('identityBand.withoutModel')}</strong>
         </div>
         {specification === null ? null : (
           <p className={styles.identitySpecification}>{specification}</p>
