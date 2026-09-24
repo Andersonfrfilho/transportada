@@ -108,6 +108,11 @@ const CATALOG = [
     job: 'trip.occurrence-attachment.purge',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    failureOutcomes: [],
+    job: 'trip.occurrence-upload.expire',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 describe('cron job catalog', () => {

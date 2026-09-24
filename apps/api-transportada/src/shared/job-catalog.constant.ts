@@ -214,6 +214,20 @@ export const JOB_CATALOG = [
     /** Um dia: o corte é de cinco anos, e correr mais fino não muda a retenção real. */
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /**
+     * Achado [3] da revisão de código de 23/09 (spec 179): o pedido de upload da recusa/foto de
+     * ocorrência vive `OCCURRENCE_UPLOAD_EXPIRES_IN_SECONDS` (900s) e, sem esta rotina, o `pending`
+     * cujo motorista perdeu sinal antes do `confirm` ficava para sempre — e o objeto que ele chegou a
+     * subir não tinha dono no bucket. Vocabulário de falha vazio: o que pode dar errado é o
+     * imprevisto, e o invólucro já tem nome para ele.
+     */
+    failureOutcomes: [],
+    job: 'trip.occurrence-upload.expire',
+    /** A batida: a janela é de minutos (900s + folga), não dias — correr mais devagar deixaria o
+     * objeto sem dono no bucket por mais tempo do que a própria janela de upload. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

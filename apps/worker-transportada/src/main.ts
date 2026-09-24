@@ -230,6 +230,9 @@ import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-p
 import { createTripOccurrenceAttachmentPurgeRoutine } from './trip-occurrence-attachment-purge/application/trip-occurrence-attachment-purge.routine.js'
 import { TRIP_OCCURRENCE_ATTACHMENT_PURGE_JOB } from './trip-occurrence-attachment-purge/domain/trip-occurrence-attachment-purge.constant.js'
 import { createDrizzlePurgeOccurrenceAttachmentBatch } from './trip-occurrence-attachment-purge/infrastructure/drizzle-trip-occurrence-attachment-purge.repository.js'
+import { createTripOccurrenceUploadExpireRoutine } from './trip-occurrence-upload-expire/application/trip-occurrence-upload-expire.routine.js'
+import { TRIP_OCCURRENCE_UPLOAD_EXPIRE_JOB } from './trip-occurrence-upload-expire/domain/trip-occurrence-upload-expire.constant.js'
+import { createDrizzleExpireOccurrenceUploadBatch } from './trip-occurrence-upload-expire/infrastructure/drizzle-trip-occurrence-upload-expire.repository.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
 import { createNfeImportConsumer } from './nfe-imports/application/nfe-import-consumer.service.js'
 import type {
@@ -1228,6 +1231,19 @@ export async function startWorkerRuntime(
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
               deleteObject: (objectLocation) => storageGateway.deleteObject(objectLocation),
             }),
+          }),
+          /**
+           * Achado [3] da revisão de código de 23/09 (spec 179): sempre registrada, como as outras
+           * varreduras de retenção — sem ela o upload `pending` cujo motorista perdeu sinal antes do
+           * `confirm` ficava para sempre, e o objeto que ele chegou a subir não tinha dono no bucket.
+           */
+          [TRIP_OCCURRENCE_UPLOAD_EXPIRE_JOB]: createTripOccurrenceUploadExpireRoutine({
+            expire: createDrizzleExpireOccurrenceUploadBatch({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              deleteObject: (objectLocation) => storageGateway.deleteObject(objectLocation),
+            }),
+            logger,
+            now: () => new Date(),
           }),
           /**
            * Ausente quando a instalação não declara credencial de administração do realm: sem
