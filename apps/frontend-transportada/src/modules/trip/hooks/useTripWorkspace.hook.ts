@@ -51,10 +51,10 @@ import {
 } from '../shared/trip.constant'
 import type {
   AttachFieldProofInput,
+  AutoDispatchOutcome,
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
-  ConfirmLoadTripInput,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
@@ -112,7 +112,6 @@ export type TripController = Readonly<{
   /** Spec 175 RF7: gate próprio da linha — `nfse.issue`, a mesma que a rota de emissão exige. */
   canIssueNfse: boolean
   closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
-  confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
     input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
@@ -150,6 +149,8 @@ export type TripController = Readonly<{
       /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
       allowsMultipleItems: boolean
       emailTemplateKey: null | string
+      /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
+      leavesDocumentBehind: boolean
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
@@ -239,8 +240,6 @@ export function createTripController(
     canSubmitCte,
     // Spec 156 T8c (ADR-0067): encerrar deixou de ser `trip.manage` — é o escritório que confirma.
     closeTrip: (body) => (canReportOnBehalf ? input.client.closeTrip(body) : forbidden()),
-    confirmLoadTrip: (body) =>
-      canReportOnBehalf ? input.client.confirmLoadTrip(body) : forbidden(),
     createTrip: (body) => (canManageTrips ? input.client.createTrip(body) : forbidden()),
     createTripCteBatch: (body) =>
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
@@ -551,6 +550,14 @@ export function useTripWorkspace(
    * idempotência por foto (`occurrencePhotoKeysRef`) segue o mesmo molde de `resolveFieldReportKey`
    * acima — nasce na primeira tentativa e é reusada em todo reenvio da mesma foto.
    */
+  /**
+   * Spec 185 T6.1 (RF2/RF3): o desfecho da última escrita que tentou fechar a carga — carregar a
+   * nota (linha ou lote) ou registrar a ocorrência de separação. `undefined` é o caso comum (carga
+   * ainda não fechou); a tela lê isto para o aviso "Viagem despachada." ou o bloqueio (RF8).
+   */
+  const [autoDispatchOutcome, setAutoDispatchOutcome] = useState<AutoDispatchOutcome | undefined>(
+    undefined,
+  )
   const [occurrencePhotoSendState, setOccurrencePhotoSendState] = useState<
     readonly OccurrencePhotoSendItem[]
   >([])
@@ -661,6 +668,8 @@ export function useTripWorkspace(
               ...(photo.thumbnail === undefined ? {} : { thumbnail: photo.thumbnail }),
             })
             setLastOccurrenceEmail(registered.email)
+            /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o gatilho automático. */
+            setAutoDispatchOutcome(registered.autoDispatch)
             return { occurrenceId: registered.id }
           },
         },
@@ -673,6 +682,8 @@ export function useTripWorkspace(
       queryKey: [...tripKey, 'occurrences', activeOccurrenceDocumentId],
     })
     void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY, 'occurrence-feed'] })
+    /** Spec 185 T6.1: o gatilho automático pode ter despachado a viagem — a viagem invalida também. */
+    void invalidate()
 
     return { hasFailure: hasOccurrencePhotoSendFailure(state) }
   }
@@ -715,10 +726,6 @@ export function useTripWorkspace(
     clearFieldReportKey(`field-occurrence:${[...documentIds].toSorted().join(',')}`)
   }
 
-  const confirmLoadTripMutation = useMutation({
-    mutationFn: controller.confirmLoadTrip,
-    onSuccess: invalidate,
-  })
   const startFieldTripMutation = useMutation({
     mutationFn: controller.startFieldTrip,
     onSuccess: invalidate,
@@ -843,11 +850,17 @@ export function useTripWorkspace(
   })
   const transitionDocumentMutation = useMutation({
     mutationFn: controller.transitionTripDocument,
-    onSuccess: invalidate,
+    onSuccess: (result) => {
+      setAutoDispatchOutcome(result.autoDispatch)
+      return invalidate()
+    },
   })
   const batchStatusMutation = useMutation({
     mutationFn: controller.batchStatus,
-    onSuccess: invalidate,
+    onSuccess: (result) => {
+      setAutoDispatchOutcome(result.autoDispatch)
+      return invalidate()
+    },
   })
   const dispatchMutation = useMutation({
     mutationFn: controller.dispatchTrip,
@@ -876,12 +889,12 @@ export function useTripWorkspace(
   })
 
   return {
+    autoDispatchOutcome,
     batchFieldReturnMutation,
     batchStatusMutation,
     cancelMutation,
     cargoLayoutView,
     closeMutation,
-    confirmLoadTripMutation,
     controller,
     createCteBatchMutation,
     createMutation,

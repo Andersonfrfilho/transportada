@@ -157,6 +157,13 @@
   font-size: 0.82rem;
 }
 
+/** Spec 185 T6.1: o mesmo corpo do `.alert`, com a cor de sucesso — "Viagem despachada." não é erro. */
+.successNotice {
+  margin: 0;
+  color: var(--color-ready);
+  font-size: 0.82rem;
+}
+
 /** Spec 156 T14: o interruptor ligado — mesmo verde de sucesso do resto do módulo. */
 .settingsStatusOn {
   margin: 0;

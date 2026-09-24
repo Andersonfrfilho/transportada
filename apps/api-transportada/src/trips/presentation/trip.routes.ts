@@ -1922,6 +1922,7 @@ function serializeTripDocumentDetail(input: {
     freightAmount: document.freightAmount,
     freightRuleName: document.freightRuleName,
     freightSource: document.freightSource,
+    leavesBehindOnDispatch: document.leavesBehindOnDispatch,
     nfeIssuedAt: document.nfeIssuedAt,
     nfeNumber: document.nfeNumber,
     nfeSeries: document.nfeSeries,

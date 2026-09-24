@@ -28,6 +28,10 @@ import {
 import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey, resolveTripFeedbackKey } from '../shared/tripFeedback.service'
+import {
+  resolveAutoDispatchFeedback,
+  resolveDispatchErrorFeedback,
+} from '../shared/tripDispatchFeedback.service'
 import { countOpenTripDocumentsForClose } from '../shared/tripClose.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
 import { canIssueMdfe, selectPendingCteDocuments } from '../shared/tripMdfeGate.service'
@@ -483,15 +487,33 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     workspace.reorderStopsMutation.error,
     workspace.transitionDocumentMutation.error,
     workspace.batchStatusMutation.error,
-    workspace.dispatchMutation.error,
     workspace.cancelMutation.error,
     workspace.planRouteMutation.error,
-    workspace.confirmLoadTripMutation.error,
     workspace.startFieldTripMutation.error,
     workspace.reportStopArrivalMutation.error,
     workspace.reportStopOccurrenceMutation.error,
     workspace.registerFieldOccurrencesMutation.error,
   ])
+  /**
+   * Spec 185 RF8: a recusa do botão "Despachar" ganha frase própria (parada nomeada, ou "sem
+   * rota") — nunca o genérico "serverRefused" que o `feedbackKey` de cima daria a ela. Sem motivo
+   * específico (ex.: `TRIP_HAS_UNLOADED_DOCUMENTS`), cai na mesma tradução genérica de sempre.
+   */
+  const dispatchErrorFeedback = resolveDispatchErrorFeedback({
+    error: workspace.dispatchMutation.error,
+    stops: trip.stops,
+  })
+  const dispatchFeedbackKey =
+    dispatchErrorFeedback ??
+    (workspace.dispatchMutation.error === null
+      ? null
+      : { key: resolveTripFeedbackKey(workspace.dispatchMutation.error) ?? 'serverRefused' })
+  /** Spec 185 RF2/RF3: carregar a nota (linha/lote) ou registrar a ocorrência de separação também
+   * tenta fechar a viagem sozinha — `dispatched` é aviso de sucesso, `blocked` é a mesma frase acima. */
+  const autoDispatchFeedback = resolveAutoDispatchFeedback({
+    autoDispatch: workspace.autoDispatchOutcome,
+    stops: trip.stops,
+  })
 
   /**
    * A dispensa de viagem com nota de CT-e passa pelo diálogo do motivo; os outros dois estados vão
@@ -635,15 +657,11 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           capabilities={workspace.fieldActionCapabilities}
           fiscalReadiness={workspace.fiscalReadiness}
           isCancelPending={workspace.cancelMutation.isPending}
-          isConfirmLoadPending={workspace.confirmLoadTripMutation.isPending}
           isDispatchPending={workspace.dispatchMutation.isPending}
           isFiscalReadinessPanelVisible={canReadFleetDetails}
           isPlanRoutePending={workspace.planRouteMutation.isPending}
           isStartRoutePending={workspace.startFieldTripMutation.isPending}
           onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
-          onConfirmLoad={() =>
-            workspace.confirmLoadTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
-          }
           onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
           onOpenOccurrenceDocument={(documentId) =>
             workspace.setOpenSeparationOccurrenceDocumentId(documentId)
@@ -681,6 +699,25 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       {feedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
           {t(`feedback.${feedbackKey}`)}
+        </p>
+      )}
+
+      {/* Spec 185 RF8: a recusa do botão "Despachar" — parada nomeada, ou "sem rota". */}
+      {dispatchFeedbackKey === null ? null : (
+        <p className={styles.alert} role="alert">
+          {t(`feedback.${dispatchFeedbackKey.key}`, dispatchFeedbackKey.params ?? {})}
+        </p>
+      )}
+
+      {/* Spec 185 RF2/RF3: o desfecho do gatilho automático — sucesso muda de cor, bloqueio não. */}
+      {autoDispatchFeedback === null ? null : (
+        <p
+          className={
+            autoDispatchFeedback.key === 'autoDispatched' ? styles.successNotice : styles.alert
+          }
+          role={autoDispatchFeedback.key === 'autoDispatched' ? 'status' : 'alert'}
+        >
+          {t(`feedback.${autoDispatchFeedback.key}`, autoDispatchFeedback.params ?? {})}
         </p>
       )}
 
@@ -768,6 +805,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           status: trip.status,
           stops: trip.stops,
         })}
+        tripStatus={trip.status}
       />
 
       {canManage && isEditable ? (

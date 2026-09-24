@@ -214,6 +214,11 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
    * que é exatamente a quebra que este campo causou em staging em 22/09 ao chegar sem estar aqui.
    */
   'openOccurrenceCase',
+  /**
+   * Spec 185 T6.1 (D1): ausente é API anterior ao campo — `dispatchReadiness.service.ts` trata
+   * ausência como "não deixa a nota para trás", nunca como bloqueio de resposta.
+   */
+  'leavesBehindOnDispatch',
   'contact',
   'nfeIssuedAt',
   'nfeNumber',
@@ -489,10 +494,14 @@ export const DELIVERY_ADDRESS_OVERRIDE_KEYS = [
 ] as const
 
 export const TRANSITION_RESULT_KEYS = ['document', 'tripStatus'] as const
+/** Spec 185 T6.1 (RF2/RF3): presente só quando a escrita fechou a carga. */
+export const TRANSITION_RESULT_OPTIONAL_KEYS = ['autoDispatch'] as const
 
 export const TRIP_STATUS_RESULT_KEYS = ['tripStatus'] as const
 
 export const BATCH_STATUS_RESULT_KEYS = ['items', 'tripStatus'] as const
+/** Spec 185 T6.1 (RF2/RF3): presente só quando o lote fechou a carga. */
+export const BATCH_STATUS_RESULT_OPTIONAL_KEYS = ['autoDispatch'] as const
 
 /**
  * Spec 057 P2: o intervalo em que a tela do escritório repete a consulta enquanto a viagem está na
