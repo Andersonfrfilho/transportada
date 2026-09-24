@@ -1,4 +1,4 @@
-# Tasks — 164
+# Tasks — 183
 
 `[P]` = pode rodar em paralelo sem editar os mesmos arquivos. Task só fecha com evidência de teste em
 `evidence.md` (que nasce com a primeira task verificada). Teste de contrato/aceite **antes** da
@@ -12,16 +12,16 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `opus` (decisão) · a T002 é do usuário
 
-- [ ] **T001** Passar a ADR-0071 para `aceito` e confirmar que a única `[NEEDS CLARIFICATION]` que
+- [ ] **T001** Passar a ADR-0072 para `aceito` e confirmar que a única `[NEEDS CLARIFICATION]` que
       resta (provedor de transcrição) só bloqueia a T706. Evidência: a ADR com status e data.
 - [ ] **T002** 🙋 O usuário submete à Meta os modelos de WhatsApp da contratante (abertura de
       ocorrência; pedido de aprovação de taxa com botões "✅ Aprovar" / "❌ Recusar") e do motorista
       (aviso de mensagem nova). **Pare e pergunte** — é conta da empresa na Meta. Evidência: nomes e
       estado dos modelos no `evidence.md`.
 - [ ] **T003** Anotar no `specs/143-a-contratante-responde-por-e-mail/tasks.md` que T014, T015,
-      T016, T018, T024 e T025 seguem pela 164 (sem apagar nada da 143). Evidência: o diff.
+      T016, T018, T024 e T025 seguem pela 183 (sem apagar nada da 143). Evidência: o diff.
 
-## Fase 1 — Conferir o pacote (ADR-0071; o SDK chega pronto)
+## Fase 1 — Conferir o pacote (ADR-0072; o SDK chega pronto)
 
 > 🤖 Modelo: `sonnet` · nada se constrói no pacote a partir daqui
 
@@ -119,7 +119,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `sonnet` · T651 é 🧠 (superfície externa)
 
-- [ ] **T650** Aceitar a ADR-0072 (o portal ganha a conversa da ocorrência) e atualizar
+- [ ] **T650** Aceitar a ADR-0073 (o portal ganha a conversa da ocorrência) e atualizar
       `apps/frontend-client/CLAUDE.md` com a decisão de crescer a app. Evidência: ADR aceita.
 - [ ] **T651** 🧠 Rotas `/client/me/occurrences` e `/client/me/deliveries/:accessKey/occurrences/:ref`
       (detalhe, mensagens, lida, anexo) com `resolveContractorScope`. Evidência: contratos (id
@@ -181,16 +181,16 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/164-a-ocorrencia-tem-duas-conversas/.
+/oh-my-claudecode:autopilot Execute a spec specs/183-a-ocorrencia-tem-duas-conversas/.
 
 ANTES DE COMEÇAR, leia nesta ordem: CLAUDE.md, AGENTS.md, docs/spec/constitution.md, spec.md,
-plan.md e tasks.md da 164, docs/adr/0071-a-conversa-multicanal-vem-do-pacote.md,
-docs/adr/0072-o-portal-ganha-a-conversa-da-ocorrencia.md, docs/adr/0051-a-conversa-vem-do-pacote-o-tailwind-nao.md,
+plan.md e tasks.md da 183, docs/adr/0072-a-conversa-multicanal-vem-do-pacote.md,
+docs/adr/0073-o-portal-ganha-a-conversa-da-ocorrencia.md, docs/adr/0051-a-conversa-vem-do-pacote-o-tailwind-nao.md,
 docs/adr/0050-o-cliente-tem-portal.md, specs/143-a-contratante-responde-por-e-mail/ (spec, plan,
 tasks) e os CLAUDE.md de cada app que a task tocar. Protótipo das telas (referência visual):
 https://claude.ai/artifact/WnJBKYDc3eRt2QJGxizh7h
 
-ONDE: crie o worktree com `make worktree NAME=spec-164` e trabalhe só nele (branch work/spec-164).
+ONDE: crie o worktree com `make worktree NAME=spec-183` e trabalhe só nele (branch work/spec-183).
 Não publique em staging nem em lugar nenhum sem me perguntar.
 
 ORDEM: uma task por vez, na ordem do tasks.md: Fase 0 → 1 → 2 → 3 → 4 → 5 → 6 → 6b → 7 → 8 → 9.
@@ -223,7 +223,7 @@ src/components/ui/ e tokens; a conversa vem do @adatechnology/conversations-ui, 
 remontar o grid.
 
 PARE E PERGUNTE ANTES DE:
-- marcar as ADR-0071 e ADR-0072 como aceitas (T001, T650);
+- marcar as ADR-0072 e ADR-0073 como aceitas (T001, T650);
 - a T002 (modelos na conta Meta da empresa — é comigo);
 - a T101, se a versão instalada do pacote não tiver algum item da lista;
 - a T706 (transcrição): fica bloqueada até existir a ADR do provedor;

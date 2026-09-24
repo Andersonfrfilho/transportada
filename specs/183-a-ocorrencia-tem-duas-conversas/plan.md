@@ -1,4 +1,4 @@
-# Plano técnico — 164
+# Plano técnico — 183
 
 ## Contexto e premissas
 
@@ -11,13 +11,13 @@
   telefone, e-mail e CNH na ficha; telefone de usuário já pode ser WhatsApp verificado (ADR-0063).
 - Não existe `GET /trip-occurrences/:id`. As ocorrências vivem em `trip_stop_occurrences` e
   `trip_document_occurrences`, unidas na listagem por `trip-occurrence-feed.query.ts`.
-- O SDK chega pronto com o que a ADR-0071 lista (spec D3). Antes de usar, a Fase 1 confere o
+- O SDK chega pronto com o que a ADR-0072 lista (spec D3). Antes de usar, a Fase 1 confere o
   contrato da versão instalada nos `.d.ts` e para se faltar alguma coisa; a Fase 2 e a Fase 3 não
   dependem do pacote.
 
 ## Arquitetura e arquivos afetados
 
-**Pacote (`adatechnology-packages`, entregue pronto — ADR-0071; aqui só se consome):**
+**Pacote (`adatechnology-packages`, entregue pronto — ADR-0072; aqui só se consome):**
 
 - `conversations-ui`: abas por participante, selo de canal, seletor de canal com estado da janela,
   respostas rápidas, anexos, player e gravador de áudio, transcrição exibida, selo de status.
@@ -65,7 +65,7 @@
 - Configurações — respostas rápidas (RF12).
 - PWA do motorista — tela da conversa da ocorrência e resposta com foto (RF11).
 
-**Portal (`apps/frontend-client`, ADR-0072):**
+**Portal (`apps/frontend-client`, ADR-0073):**
 
 - `modules/occurrences/` — lista "Ocorrências" (com contador de novas) e a tela da ocorrência com a
   conversa sobre o `conversations-ui`, anexo por seletor de arquivo, player de áudio e a decisão da
@@ -133,7 +133,7 @@ Migration **aditiva**, sem apagar coluna nem dado:
   cujo aviso já saiu).
 
 Rollback: `rollback.sql` que dropa as tabelas novas e as colunas novas de `contractor_contacts` e
-de `contractor_mail_messages`, nessa ordem. Nenhum dado anterior à 164 se perde, porque nenhuma coluna existente muda de sentido.
+de `contractor_mail_messages`, nessa ordem. Nenhum dado anterior à 183 se perde, porque nenhuma coluna existente muda de sentido.
 `make migration-test` roda migration e rollback.
 
 A transcrição (T706) tem migration própria, depois da ADR do provedor: texto, provedor, idioma e
@@ -184,7 +184,7 @@ para não criar coluna de uma decisão que ainda não existe.
 
 ## Riscos
 
-- **A versão do pacote não traz algo que a ADR-0071 lista:** a T101 para e pergunta, em vez de
+- **A versão do pacote não traz algo que a ADR-0072 lista:** a T101 para e pergunta, em vez de
   contornar no produto (ADR-0051). Fases 2 e 3 entregam valor sozinhas enquanto isso.
 - **Fluxos de comando do motorista (spec 144):** uma regra de desvio errada tiraria mensagens dos
   fluxos. Mitigação: só desvia com `context.id` de mensagem da conversa, com teste por ramo.

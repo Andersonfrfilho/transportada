@@ -1,6 +1,6 @@
-# Feature 164 — A ocorrência tem duas conversas
+# Feature 183 — A ocorrência tem duas conversas
 
-> Decisões de arquitetura: **ADR-0071** (a conversa multicanal vem do pacote) e **ADR-0072** (o
+> Decisões de arquitetura: **ADR-0072** (a conversa multicanal vem do pacote) e **ADR-0073** (o
 > portal ganha a conversa da ocorrência). Continua a spec 143 e
 > absorve dela a parte de ocorrência (T014, T015, T016, T018, T024, T025 — ver `tasks.md` da 143).
 > Prévia das telas (protótipo navegável, privado do dono do projeto):
@@ -71,7 +71,7 @@ com tudo isso** (decisão do dono do projeto, 2026-09-24): esta spec não constr
 confere o contrato da versão instalada antes de usar (Fase 1), como o `AGENTS.md` manda fazer com o
 pacote fiscal. Fica no TransportAdA: quem é a contratante, os contatos e os tipos
 deles, o motorista da viagem, a ligação com a ocorrência, a regra que decide a taxa, permissões,
-`companyId` e LGPD. Detalhe na ADR-0071.
+`companyId` e LGPD. Detalhe na ADR-0072.
 
 ### D4 — No WhatsApp, só botão decide
 
@@ -123,7 +123,7 @@ provedor, e isso exige ADR própria antes de entrar no produto (RF18).
 ### D9 — A contratante também conversa pelo portal
 
 O portal (ADR-0050) ganha a tela da ocorrência com a conversa, e `portal` vira o terceiro canal da
-conversa com a contratante. Decisão de crescer o portal registrada na **ADR-0072**. O que vale lá:
+conversa com a contratante. Decisão de crescer o portal registrada na **ADR-0073**. O que vale lá:
 
 - a contratante vê **toda** a conversa dela, por qualquer canal (o que um colega respondeu por e-mail
   ou WhatsApp aparece no portal), e **nunca** a conversa com o motorista (D1);
@@ -252,7 +252,7 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   outbox na mesma transação, `Idempotency-Key`). O corpo tem texto e HTML, e a prévia do diálogo é
   renderizada **pelo mesmo** template que o envio usa.
 - **RF8** O envio por WhatsApp usa o canal da empresa: modelo aprovado fora da janela, texto livre
-  dentro, mídia pelo método novo do provider (ADR-0071). A janela é calculada da última mensagem
+  dentro, mídia pelo método novo do provider (ADR-0072). A janela é calculada da última mensagem
   **recebida** daquele número na conversa.
 - **RF9** O webhook do WhatsApp aceita mensagem de número que seja telefone de contato de contratante
   com aceite (D6). A mensagem é atribuída à conversa pela referência de resposta (`context.id`)
@@ -304,7 +304,7 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   - o cabeçalho da aba Contratante lista quem já participou da conversa.
 
 - **RF17** Áudio: recebido do WhatsApp (mensagem de voz ou arquivo de áudio) e do app do motorista;
-  enviado pelo WhatsApp (pelo método de mídia do provider, ADR-0071) e pelo app. O navegador grava
+  enviado pelo WhatsApp (pelo método de mídia do provider, ADR-0072) e pelo app. O navegador grava
   com `MediaRecorder`; o formato que cada navegador grava nem sempre é um que o WhatsApp aceita, então
   o worker converte quando precisar, e a lista de formatos aceitos se confere na versão da API em uso
   (T705) — não se presume. A duração máxima e o tamanho são conferidos antes de subir. No e-mail, áudio
@@ -351,7 +351,7 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   resultado (143 RNF; 062 D5).
 - A listagem continua em uma consulta por página (keyset de 25) com os campos novos.
 - O webhook do WhatsApp continua respondendo sem esperar o worker (assinatura, nonce, outbox).
-- A tela da conversa vem do `@adatechnology/conversations-ui` (ADR-0051, ADR-0071); o resto da página
+- A tela da conversa vem do `@adatechnology/conversations-ui` (ADR-0051, ADR-0072); o resto da página
   usa `src/components/ui/` e `*.module.css`, sem Tailwind.
 - PWA: as telas novas funcionam de 360 px de largura para cima, com alvos de toque de pelo menos
   `--touch-target`.

@@ -6,6 +6,9 @@
 - Bun `1.3.14` (o `package.json` exige esta versão; a sessão começou com a `1.3.11`).
 - `make migration-test`: **110 pass, 0 fail** (8 arquivos, Postgres descartável), antes de qualquer
   mudança. Serve de linha de base.
+- Contratos da API (`bun --env-file=../../.env.test test --timeout 120000`): **7206 pass, 23 skip, 9
+  fail** em 183 arquivos, antes de qualquer mudança. As 9 falhas são todas de
+  `toll booth catalog repository (spec 154, T201)` — preexistentes em staging e sem relação com a 183.
 
 ## T101 — Conferir o pacote — ⛔ parada: a versão publicada não tem tudo
 

@@ -1,14 +1,14 @@
-# ADR-0071 — A conversa multicanal vem do pacote; quem conversa com quem fica no produto
+# ADR-0072 — A conversa multicanal vem do pacote; quem conversa com quem fica no produto
 
 - **Status:** proposto
 - **Data:** 2026-09-24
-- **Contexto:** spec 164. Depende da ADR-0051 (a tela de conversa vem do pacote) e de duas ADRs que
+- **Contexto:** spec 183. Depende da ADR-0051 (a tela de conversa vem do pacote) e de duas ADRs que
   dividem o número 0063: `0063-a-resposta-por-e-mail-decide-a-taxa.md` e
   `0063-o-telefone-vira-credencial-so-verificado.md`.
 
 ## Contexto
 
-A spec 164 põe duas conversas na ocorrência — com a contratante (e-mail e WhatsApp) e com o motorista
+A spec 183 põe duas conversas na ocorrência — com a contratante (e-mail e WhatsApp) e com o motorista
 (app e WhatsApp). Hoje o produto tem dois trilhos que não se conhecem:
 
 | Trilho   | Onde mora                                                                    | O que tem                                                             |
@@ -46,9 +46,9 @@ rápidas, os anexos.
 - quem é o motorista da ocorrência e o telefone verificado dele (ADR-0063);
 - a conversa por (ocorrência, participante) e as mensagens com canal — tabelas do produto, com
   `companyId`;
-- a regra que decide a taxa (143 RF5/RF6, e no WhatsApp só botão — spec 164 D4);
-- a atribuição da mensagem recebida à conversa (spec 164 RF9);
-- a transcrição de áudio (porta no produto; provedor em ADR própria — spec 164 RF18);
+- a regra que decide a taxa (143 RF5/RF6, e no WhatsApp só botão — spec 183 D4);
+- a atribuição da mensagem recebida à conversa (spec 183 RF9);
+- a transcrição de áudio (porta no produto; provedor em ADR própria — spec 183 RF18);
 - permissões, LGPD e o que entra em log.
 
 O e-mail da 143 **não** muda de lugar: ele vira o transporte do canal e-mail. A conversa que o
@@ -56,7 +56,7 @@ operador vê é a do produto, que referencia a mensagem de transporte.
 
 ## Consequências
 
-- O SDK chega pronto com esta lista (decisão do dono do projeto, 2026-09-24). A spec 164 não constrói
+- O SDK chega pronto com esta lista (decisão do dono do projeto, 2026-09-24). A spec 183 não constrói
   nada no pacote: confere o contrato da versão instalada antes de usar (T101) e para se faltar algo,
   em vez de contornar no produto.
 - `conversations-ui` ganha superfície de API (abas, canal, respostas rápidas, anexos). Como os `.cv-*`
@@ -68,7 +68,7 @@ operador vê é a do produto, que referencia a mensagem de transporte.
 
 ## Alternativas descartadas
 
-**Tudo no produto.** Mais rápido para a 164, mas é biblioteca reutilizável dentro do repositório, o
+**Tudo no produto.** Mais rápido para a 183, mas é biblioteca reutilizável dentro do repositório, o
 que o `AGENTS.md` proíbe, e repete o que a ADR-0051 recusou: tela de conversa remontada à mão
 divergindo entre produtos.
 

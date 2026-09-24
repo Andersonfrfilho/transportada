@@ -1,14 +1,14 @@
-# ADR-0072 — O portal ganha a conversa da ocorrência, e continua sem câmera, microfone nem id interno
+# ADR-0073 — O portal ganha a conversa da ocorrência, e continua sem câmera, microfone nem id interno
 
 - **Status:** proposto
 - **Data:** 2026-09-24
-- **Contexto:** spec 164 (D9, RF21). Cresce o portal da ADR-0050; usa a tela de conversa da ADR-0051
-  pela ADR-0071.
+- **Contexto:** spec 183 (D9, RF21). Cresce o portal da ADR-0050; usa a tela de conversa da ADR-0051
+  pela ADR-0072.
 
 ## Contexto
 
 O `apps/frontend-client/CLAUDE.md` registra que o portal tem cinco telas, nenhum design system, nenhum
-Playwright, e que **crescer a app é decidir isso de novo, por escrito**. A spec 164 põe no portal a
+Playwright, e que **crescer a app é decidir isso de novo, por escrito**. A spec 183 põe no portal a
 conversa da contratante sobre as ocorrências das notas dela, com anexos, áudio e a decisão da taxa.
 É a primeira tela do portal em que a contratante **escreve** para a transportadora, e não só lê ou
 decide.
@@ -34,7 +34,7 @@ decide.
 
 - O bundle do portal cresce com o pacote de conversa. Isso fica medido na T653, com o tamanho antes e
   depois no `evidence.md`.
-- A contratante passa a ter três canais para a mesma conversa. Por isso a conversa é uma só (spec 164
+- A contratante passa a ter três canais para a mesma conversa. Por isso a conversa é uma só (spec 183
   D2): o operador não precisa saber por onde ela preferiu responder.
 - O aviso de mensagem nova no portal sai por e-mail **sem o corpo**. Quem lê a mensagem é quem entra
   no portal, e o corpo não fica em mais uma caixa de e-mail além das que já o recebem pelo canal
