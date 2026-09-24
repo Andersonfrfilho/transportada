@@ -114,3 +114,17 @@ export const OPERATOR_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionB
   TRIP_NOT_DISPATCHED: 'A viagem ainda não foi despachada.',
   TRIP_ROUTE_NOT_PLANNED: 'O roteiro da viagem ainda não foi planejado.',
 } as const
+
+/**
+ * Spec 185 (D4, ADR-0074 §1/§2): o desfecho do gatilho automático depois de carregar (linha, lote)
+ * ou de registrar a ocorrência que libera a última pendente — sempre uma mensagem à parte, depois
+ * da confirmação da própria escrita (§5 de `conversation-flow.md`, uma ideia por mensagem).
+ */
+export const OPERATOR_AUTO_DISPATCH_DISPATCHED_MESSAGE = 'Viagem despachada. 🚚'
+
+export const OPERATOR_AUTO_DISPATCH_BLOCKED_MESSAGES: Readonly<
+  Record<'TRIP_HAS_NO_ROUTE' | 'TRIP_HAS_UNSCHEDULED_STOPS', string>
+> = {
+  TRIP_HAS_NO_ROUTE: 'A viagem não saiu: há nota sem parada.',
+  TRIP_HAS_UNSCHEDULED_STOPS: 'A viagem não saiu: parada aguardando agendamento.',
+} as const

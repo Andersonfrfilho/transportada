@@ -1957,11 +1957,19 @@ function serializeReturnedWithActiveCteEntry(
 }
 
 function serializeTransitionResult(result: TransitionTripDocumentResult): object {
-  return { document: serializeTripDocument(result.document), tripStatus: result.tripStatus }
+  return {
+    ...(result.autoDispatch === undefined ? {} : { autoDispatch: result.autoDispatch }),
+    document: serializeTripDocument(result.document),
+    tripStatus: result.tripStatus,
+  }
 }
 
 function serializeBatchResult(result: TransitionTripDocumentsBatchResult): object {
-  return { items: result.items.map(serializeBatchItem), tripStatus: result.tripStatus }
+  return {
+    ...(result.autoDispatch === undefined ? {} : { autoDispatch: result.autoDispatch }),
+    items: result.items.map(serializeBatchItem),
+    tripStatus: result.tripStatus,
+  }
 }
 
 function serializeBatchItem(item: TripDocumentBatchItemOutcome): object {

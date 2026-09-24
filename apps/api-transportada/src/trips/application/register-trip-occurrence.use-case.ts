@@ -25,6 +25,11 @@ import type {
   OccurrenceNotificationParameters,
   OccurrenceNotificationSetting,
 } from '../domain/occurrence-notification.policy.js'
+import type { DispatchTripPort } from './dispatch-trip.use-case.js'
+import {
+  tryAutoDispatchTrip,
+  type TryAutoDispatchTripResult,
+} from './try-auto-dispatch-trip.use-case.js'
 
 export type TripOccurrence = {
   readonly createdAt: string
@@ -78,6 +83,12 @@ export type TripOccurrenceWithAttachment = TripOccurrence &
  * o texto pronto já tira o retrabalho de escrever à mão.
  */
 export type RegisteredOccurrence = TripOccurrence & {
+  /**
+   * Spec 185 (RF2, D4): ausente sem o gatilho ligado, ou quando a carga ainda não fechou. Uma
+   * ocorrência de nota inteira, de tipo "segue sem a nota", sobre a última pendente pode fechar a
+   * carga sozinha — o mesmo gatilho de carregar a última nota (ADR-0074 §1/§4).
+   */
+  readonly autoDispatch?: TryAutoDispatchTripResult
   /**
    * Todos os itens marcados, na ordem em que foram marcados. Vazia é a nota inteira. Vem ao lado
    * de `productCode` (o primeiro deles), que continua existindo para quem já lia dele.
@@ -224,6 +235,17 @@ export type RegisterTripOccurrenceInput = {
     readonly mimeType: string
     readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
   }
+  /**
+   * Spec 185 (D4, RF2): ausente é instalação sem o gatilho automático ligado — o registro funciona
+   * igual, só não tenta despachar. `channel` é o mesmo canal desta escrita (RF2/ADR-0074 §1); este
+   * caso de uso já só grava ocorrência de separação (`OccurrenceTypeNotSeparationError` acima), por
+   * isso não há filtro de `stage` aqui.
+   */
+  readonly autoDispatch?: {
+    readonly channel: TripFieldChannel
+    readonly onBehalfOfDriverId?: string | null
+    readonly repository: DispatchTripPort
+  }
   readonly companyId: string
   readonly documentId: string
   readonly note: string
@@ -349,8 +371,25 @@ export async function registerTripOccurrence(
     occurrenceType,
   })
 
+  /**
+   * Spec 185 (D4, ADR-0074 §1/§4): a ocorrência que tira a última nota pendente da conta pode
+   * fechar a carga sozinha — sempre **depois** de `saveOccurrence` ter comitado (transação própria).
+   */
+  const autoDispatch =
+    input.autoDispatch === undefined
+      ? undefined
+      : await tryAutoDispatchTrip({
+          actorUserId,
+          channel: input.autoDispatch.channel,
+          companyId,
+          onBehalfOfDriverId: input.autoDispatch.onBehalfOfDriverId ?? null,
+          repository: input.autoDispatch.repository,
+          tripId,
+        })
+
   return {
     ...saved,
+    ...(autoDispatch === undefined ? {} : { autoDispatch }),
     attachments: saved.attachments ?? [],
     email: await renderEmail({ input, occurrenceType, scope }),
     productCodes: scope.productCodes,

@@ -938,6 +938,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocumentsBatch({
         action: input.action,
         actorUserId: input.context.userId,
+        autoDispatchRepository: whatsappTripRouteRepository,
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentIds: input.documentIds,
@@ -963,6 +964,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocument({
         action: 'load',
         actorUserId: input.context.userId,
+        autoDispatchRepository: whatsappTripRouteRepository,
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
@@ -987,6 +989,10 @@ export function bootstrap(): Bun.Server<undefined> {
         registerTripOccurrence({
           actorUserId: input.actorUserId,
           ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
+          autoDispatch: {
+            channel: TRIP_FIELD_CHANNELS.whatsapp,
+            repository: whatsappTripRouteRepository,
+          },
           companyId: input.companyId,
           documentId: input.documentId,
           note: input.note,
@@ -3249,6 +3255,10 @@ function createApplicationRoutes({
               registerTripOccurrence({
                 actorUserId: input.context.userId,
                 attachment: input.attachment,
+                autoDispatch: {
+                  channel: TRIP_FIELD_CHANNELS.backoffice,
+                  repository: tripRouteRepository,
+                },
                 companyId: input.context.companyId,
                 documentId: input.documentId,
                 note: input.note,

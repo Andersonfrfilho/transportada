@@ -79,6 +79,12 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       return transitionTripDocument({
         action,
         actorUserId: input.context.userId,
+        /**
+         * Spec 185 (D4): reusa o repositório de rota já injetado — o gatilho só age quando
+         * `action === 'load'` (a própria `transitionTripDocument` filtra), por isso passá-lo
+         * também para `separate` é inofensivo.
+         */
+        autoDispatchRepository: dependencies.routeRepository,
         channel: TRIP_FIELD_CHANNELS.backoffice,
         ...(dependencies.suggestCharges === undefined
           ? {}
@@ -108,6 +114,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         return transitionTripDocumentsBatch({
           action: input.action,
           actorUserId: input.context.userId,
+          autoDispatchRepository: dependencies.routeRepository,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           documentIds: input.documentIds,
