@@ -102,7 +102,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       status até `read`, idempotente.
 - [ ] **T503** Envio por WhatsApp no worker pelo `SendMessageUseCase` do módulo (RF8): modelo fora da
       janela, texto e mídia dentro. Evidência: teste de caso de uso com o provider falso.
-- [ ] **T504** Contrato de que nada que chega pelo WhatsApp (texto, botão, áudio, transcrição) muda a
+- [x] **T504** Contrato de que nada que chega pelo WhatsApp (texto, botão, áudio, transcrição) muda a
       tratativa, a taxa ou o acerto (D4). Evidência: o contrato.
 - [ ] **T505** Fila de não atribuídas (rota + tela simples). Evidência: contratos.
 - [ ] **T506** Canal WhatsApp na aba Contratante e no diálogo (E-mail / WhatsApp / Os dois).

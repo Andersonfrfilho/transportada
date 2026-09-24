@@ -896,3 +896,34 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   - integrações do WhatsApp da 144 (comando, verificação, ações do motorista): **10 pass**, depois
     de mexer no resolvedor;
   - lint e typecheck limpos.
+
+## T503 — ⏭️ pulada: faltam os modelos da Meta (T002)
+
+O envio por WhatsApp fora da janela de 24h só sai por **modelo aprovado pela Meta**, e a T002 (o
+usuário submete os modelos de abertura e de aviso) não foi feita. Pela regra da execução, a T503 fica
+**aberta** e a execução segue. Tudo o que ela precisa do lado de dentro já existe:
+
+- a conversa;
+- o status da Meta pela política (T502, gancho do módulo, que dispara para mensagem enviada por ele);
+- a atribuição da resposta pelo `context.id` (T501).
+
+Volta quando os modelos estiverem aprovados e com o nome cadastrado.
+
+## T504 — A conversa nunca decide (D4) (verde)
+
+- Contrato `test/occurrence-conversation/conversation-never-decides.contract.ts`, no entrypoint.
+  - **Por texto de fonte:** o código da conversa nas duas apps (`api/src/occurrence-conversation`,
+    `worker/src/occurrence-conversation`, `worker/src/contractor-mail` e o caso de uso do webhook do
+    Resend) não escreve nem importa as tabelas e os casos de uso da tratativa, da cobrança e do
+    acerto da 164 (`trip_occurrence_cases`, eventos, `trip_occurrence_item_settlements`,
+    `delivery_charges`, eventos, lotes, decidir, acertar, ressarcir, reentrega).
+  - **Por comportamento:** um botão "Aprovado" e um texto "APROVADO" pelo WhatsApp só viram mensagem
+    da conversa. A porta do hook só sabe gravar mensagem.
+  - A resposta de e-mail com "APROVADO" é gravada com `interpretation` nula pelo worker (143), e a
+    transcrição (T706) ainda não existe. Os dois entram na prova por texto de fonte assim que tiverem
+    código.
+- **Ordem honesta:** o contrato passou na primeira rodada, porque não havia nada a implementar; a
+  garantia é de estrutura. Para provar que ele pega a violação, uma linha importando
+  `decide-occurrence-case.use-case` foi posta de propósito na política de atribuição: o contrato
+  reprovou com os dois ofensores, e a linha foi tirada.
+- Rodado: a suíte `occurrence-conversation`, **84 pass**, com lint e typecheck limpos.
