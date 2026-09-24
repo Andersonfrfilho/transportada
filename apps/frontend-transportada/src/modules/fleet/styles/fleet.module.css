@@ -1419,12 +1419,19 @@
   align-content: start;
 }
 
+/**
+ * A placa fica ao lado do modelo e cai para a linha de baixo quando não cabe. Ali ela ficava
+ * encostada à esquerda, desalinhada do nome que vinha acima — centralizar o conjunto mantém os dois
+ * sobre o mesmo eixo, quebrando ou não.
+ */
 .identityTitle {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
+  justify-content: center;
   font-size: 0.95rem;
+  text-align: center;
 }
 
 .identitySpecification {
