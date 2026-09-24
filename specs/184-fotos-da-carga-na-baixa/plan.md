@@ -2,13 +2,13 @@
 
 ## O que já existe
 
-| Peça | Onde | Uso nesta spec |
-|---|---|---|
-| Rota do escritório que anexa comprovante a entrega feita | `trip-field-office-document.routes.ts`, `createProofRoute` | ganha `kind` opcional |
-| Persistência do canhoto do escritório, com idempotência e substituição | `office-delivery-proof.service.ts`, `persistOfficeProof` | ganha o ramo `cargo`, que soma |
-| Teto de 960 KiB e checagem de cabeçalho | `assertOfficeUploadAccepted` | vale igual para `cargo` |
-| Captura câmera → upload do canhoto | `FieldDeliveryCaptureStep` | reusada para "adicionar foto da carga" |
-| Agrupamento `photos` / `signatures` | `deliveryProof.service.ts:59` | ganha `cargo` |
+| Peça                                                                   | Onde                                                       | Uso nesta spec                         |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------- |
+| Rota do escritório que anexa comprovante a entrega feita               | `trip-field-office-document.routes.ts`, `createProofRoute` | ganha `kind` opcional                  |
+| Persistência do canhoto do escritório, com idempotência e substituição | `office-delivery-proof.service.ts`, `persistOfficeProof`   | ganha o ramo `cargo`, que soma         |
+| Teto de 960 KiB e checagem de cabeçalho                                | `assertOfficeUploadAccepted`                               | vale igual para `cargo`                |
+| Captura câmera → upload do canhoto                                     | `FieldDeliveryCaptureStep`                                 | reusada para "adicionar foto da carga" |
+| Agrupamento `photos` / `signatures`                                    | `deliveryProof.service.ts:59`                              | ganha `cargo`                          |
 
 Não há rota nova nem tabela nova. Há **uma migration**, que só relaxa regra.
 
@@ -45,10 +45,10 @@ Não há rota nova nem tabela nova. Há **uma migration**, que só relaxa regra.
 
 ## Modelo por fase
 
-| Fase | Modelo | Por quê |
-|---|---|---|
-| 1 — banco | 🧠 `opus` | troca de constraint única com `ON CONFLICT` dependente — erro aqui quebra a baixa em produção |
-| 2 — API | `sonnet` | ramo novo num serviço com molde claro |
-| 3 — assistente | `sonnet` | reuso do passo de captura |
-| 4 — comprovante | `haiku` | um grupo a mais numa tela que já agrupa |
-| 5 — revisão de design | 🧠 `opus` | print em 375px e 1280, claro e escuro |
+| Fase                  | Modelo    | Por quê                                                                                       |
+| --------------------- | --------- | --------------------------------------------------------------------------------------------- |
+| 1 — banco             | 🧠 `opus` | troca de constraint única com `ON CONFLICT` dependente — erro aqui quebra a baixa em produção |
+| 2 — API               | `sonnet`  | ramo novo num serviço com molde claro                                                         |
+| 3 — assistente        | `sonnet`  | reuso do passo de captura                                                                     |
+| 4 — comprovante       | `haiku`   | um grupo a mais numa tela que já agrupa                                                       |
+| 5 — revisão de design | 🧠 `opus` | print em 375px e 1280, claro e escuro                                                         |

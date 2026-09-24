@@ -338,9 +338,9 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
             tripDeliveryProofs.kind,
           ],
           /**
-   * Repete o predicado do índice parcial (spec 184): sem ele o Postgres não acha o árbitro. Literal,
-   * não parâmetro — com `$1` a inferência do índice falha do mesmo jeito.
-   */
+           * Repete o predicado do índice parcial (spec 184): sem ele o Postgres não acha o árbitro. Literal,
+           * não parâmetro — com `$1` a inferência do índice falha do mesmo jeito.
+           */
           targetWhere: sql`${tripDeliveryProofs.kind} <> ${sql.raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))}`,
         })
         .returning({ id: tripDeliveryProofs.id })

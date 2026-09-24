@@ -21,7 +21,12 @@ import { renderHook, waitFor } from './renderHook.helper'
 const { useFieldDelivery } = await import('@/modules/trip/hooks/useFieldDelivery.hook')
 
 function draftFor(documentId: string): FieldDeliveryDraft {
-  return { cargoImageBlobs: [], deliveredAt: '2026-09-18T12:00:00.000Z', documentId, imageBlob: new Blob() }
+  return {
+    cargoImageBlobs: [],
+    deliveredAt: '2026-09-18T12:00:00.000Z',
+    documentId,
+    imageBlob: new Blob(),
+  }
 }
 
 function draftWithCargo(documentId: string, cargoPhotoCount: number): FieldDeliveryDraft {
@@ -491,7 +496,9 @@ describe('useFieldDelivery — fotos da carga (spec 184 D5)', () => {
     )
 
     rendered.result().submit([draftFor('doc-1')])
-    await waitFor(() => expect(rendered.result().statusByDocumentId['doc-1']?.kind).toBe('delivered'))
+    await waitFor(() =>
+      expect(rendered.result().statusByDocumentId['doc-1']?.kind).toBe('delivered'),
+    )
 
     expect(cargoCallCount).toBe(0)
     expect(rendered.result().statusByDocumentId['doc-1']).toEqual({ kind: 'delivered' })

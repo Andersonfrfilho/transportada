@@ -11,7 +11,10 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
 import { writeFieldDeliveryBarcodeVideo } from './fixtures/fieldDeliveryBarcodeVideo.helper'
-import { FIELD_DELIVERY_DOCUMENT_IDS, mockFieldDeliverySmokeApi } from './field-delivery-smoke.helper'
+import {
+  FIELD_DELIVERY_DOCUMENT_IDS,
+  mockFieldDeliverySmokeApi,
+} from './field-delivery-smoke.helper'
 import { TRIP_ID } from './trip-smoke.helper'
 
 const SAMPLE_ACCESS_KEY = '35260700000000000000550010000000019000000010'
@@ -53,7 +56,10 @@ async function mockCargoProofRoute(page: Page): Promise<() => readonly CargoProo
     }
     const body = request.postDataBuffer()?.toString('latin1') ?? ''
     const kind = /name="kind"\r\n\r\n([^\r]+)/u.exec(body)?.[1]
-    calls.push({ idempotencyKey: (await request.headerValue('idempotency-key')) ?? undefined, kind })
+    calls.push({
+      idempotencyKey: (await request.headerValue('idempotency-key')) ?? undefined,
+      kind,
+    })
     await route.fulfill({
       body: JSON.stringify({ data: { id: crypto.randomUUID() } }),
       contentType: 'application/json',
@@ -93,7 +99,10 @@ async function openReviewWithCargoPhotos(page: Page): Promise<ReturnType<Page['g
   await expect(dialog.getByRole('button', { name: 'Confirmar' })).toBeEnabled()
 
   // Uma imagem real, tirada da própria tela: o redutor do canhoto precisa decodificá-la
-  const sample = await page.screenshot({ clip: { height: 300, width: 400, x: 0, y: 0 }, type: 'jpeg' })
+  const sample = await page.screenshot({
+    clip: { height: 300, width: 400, x: 0, y: 0 },
+    type: 'jpeg',
+  })
   await dialog.locator('input[type="file"]').setInputFiles([
     { buffer: sample, mimeType: 'image/jpeg', name: 'carga-1.jpg' },
     { buffer: sample, mimeType: 'image/jpeg', name: 'carga-2.jpg' },
@@ -128,7 +137,9 @@ for (const [viewport, size] of Object.entries(VIEWPORTS)) {
   }
 }
 
-test('spec 184: a baixa sobe e depois envia as duas fotos da carga, uma por vez', async ({ page }) => {
+test('spec 184: a baixa sobe e depois envia as duas fotos da carga, uma por vez', async ({
+  page,
+}) => {
   await page.setViewportSize(VIEWPORTS.desktop)
   await mockFieldDeliverySmokeApi(page)
   const cargoCalls = await mockCargoProofRoute(page)

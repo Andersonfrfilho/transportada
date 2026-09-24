@@ -783,7 +783,10 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           .select({ id: tripDeliveryProofs.id })
           .from(tripDeliveryProofs)
           .where(
-            and(eq(tripDeliveryProofs.companyId, company.companyId), eq(tripDeliveryProofs.kind, 'cargo')),
+            and(
+              eq(tripDeliveryProofs.companyId, company.companyId),
+              eq(tripDeliveryProofs.kind, 'cargo'),
+            ),
           )
         expect(cargoCount).toHaveLength(5)
       })

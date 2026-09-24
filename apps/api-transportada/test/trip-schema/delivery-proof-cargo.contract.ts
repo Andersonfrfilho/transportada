@@ -6,7 +6,10 @@ import { readFileSync } from 'node:fs'
 
 import { getTableConfig } from 'drizzle-orm/pg-core'
 
-import { TRIP_DELIVERY_PROOF_KINDS, tripDeliveryProofs } from '../../src/database/database.schema.js'
+import {
+  TRIP_DELIVERY_PROOF_KINDS,
+  tripDeliveryProofs,
+} from '../../src/database/database.schema.js'
 
 const UNIQUE_NAME = 'trip_delivery_proofs_company_event_kind_unique'
 

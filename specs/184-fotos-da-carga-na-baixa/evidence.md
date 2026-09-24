@@ -5,10 +5,10 @@
 Mapeado em 2026-09-24 com `grep -rn "insert(tripDeliveryProofs)"` em `apps/api-transportada/src`.
 Duas escritas, e as duas são `onConflictDoUpdate` com esse alvo exato:
 
-| Arquivo | Linha | Caminho |
-|---|---|---|
-| `trips/infrastructure/drizzle-delivery-proof.repository.ts` | 331 | anexo do motorista pela rota própria |
-| `trips/infrastructure/drizzle-driver-field-report.repository.ts` | 634 | `saveDeliveryProofWithinTransaction` — motorista **e** escritório (`office-delivery-proof.service.ts:146`) |
+| Arquivo                                                          | Linha | Caminho                                                                                                    |
+| ---------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------- |
+| `trips/infrastructure/drizzle-delivery-proof.repository.ts`      | 331   | anexo do motorista pela rota própria                                                                       |
+| `trips/infrastructure/drizzle-driver-field-report.repository.ts` | 634   | `saveDeliveryProofWithinTransaction` — motorista **e** escritório (`office-delivery-proof.service.ts:146`) |
 
 **Consequência para a T1.3:** trocar a constraint por índice único parcial sem tocar nesses dois
 faz o Postgres recusar o `ON CONFLICT` ("there is no unique or exclusion constraint matching the ON
@@ -29,20 +29,20 @@ conferindo `ROW_COUNT`.
 
 **Gates.**
 
-| Comando | Resultado |
-|---|---|
-| `make migration-test` | 110 pass, 0 fail, 0 skip — sobe, desce, sobe, desce |
-| contrato da API (`bun --env-file=../../.env.test test`) | 7220 pass, 0 fail (23 skip pré-existentes, `testWithPostgres` sem banco) |
-| integração da API (`bun --env-file=../../.env.test run test:integration`) | 571 pass, 0 fail, 7 skip pré-existentes — 106 arquivos, 502 s |
-| `bun run typecheck` | limpo |
+| Comando                                                                   | Resultado                                                                |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `make migration-test`                                                     | 110 pass, 0 fail, 0 skip — sobe, desce, sobe, desce                      |
+| contrato da API (`bun --env-file=../../.env.test test`)                   | 7220 pass, 0 fail (23 skip pré-existentes, `testWithPostgres` sem banco) |
+| integração da API (`bun --env-file=../../.env.test run test:integration`) | 571 pass, 0 fail, 7 skip pré-existentes — 106 arquivos, 502 s            |
+| `bun run typecheck`                                                       | limpo                                                                    |
 
 **Mutações — o teste falha sem a correção:**
 
-| Mutação | Resultado |
-|---|---|
-| mensagem do `RAISE` do rollback trocada | `migration-test` 109/1: a sonda do CA08 roda de verdade |
+| Mutação                                                          | Resultado                                                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| mensagem do `RAISE` do rollback trocada                          | `migration-test` 109/1: a sonda do CA08 roda de verdade                                          |
 | `targetWhere` removido do repositório compartilhado (escritório) | 3 falhas com `there is no unique or exclusion constraint matching the ON CONFLICT specification` |
-| `targetWhere` removido do repositório do motorista | 4 falhas no app do motorista |
+| `targetWhere` removido do repositório do motorista               | 4 falhas no app do motorista                                                                     |
 
 Sem o `targetWhere`, **toda baixa com foto quebraria em produção** — do escritório e do motorista.
 O risco que o plano apontou era real, e agora tem teste.
@@ -80,12 +80,12 @@ cabeçalho), `test/driver-trip/field-report.double.ts` e `test/driver-trip/offic
 
 **Gates.**
 
-| Comando | Resultado |
-|---|---|
-| `bun run typecheck` | limpo |
-| `bun run lint` | limpo (`eslint src test drizzle.config.ts eslint.config.js --max-warnings=0`) |
-| contrato da API (`bun --env-file=../../.env.test test --timeout 120000`) | 7226 pass, 0 fail, 23 skip pré-existentes |
-| integração afetada (`bun --env-file=../../.env.test test ./test/integration/trip-field-office.integration.ts ./test/integration/trip-field-office-router.integration.ts --timeout 120000`) | 26 pass, 0 fail, 0 skip |
+| Comando                                                                                                                                                                                    | Resultado                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `bun run typecheck`                                                                                                                                                                        | limpo                                                                         |
+| `bun run lint`                                                                                                                                                                             | limpo (`eslint src test drizzle.config.ts eslint.config.js --max-warnings=0`) |
+| contrato da API (`bun --env-file=../../.env.test test --timeout 120000`)                                                                                                                   | 7226 pass, 0 fail, 23 skip pré-existentes                                     |
+| integração afetada (`bun --env-file=../../.env.test test ./test/integration/trip-field-office.integration.ts ./test/integration/trip-field-office-router.integration.ts --timeout 120000`) | 26 pass, 0 fail, 0 skip                                                       |
 
 **CA01, CA03, CA04, CA05, RF3, RF4, RF5, RF6:** `trip-field-office.integration.ts` ganhou quatro
 testes contra Postgres real — `kind: cargo` soma duas linhas sem mexer no canhoto e a mesma
@@ -101,39 +101,39 @@ manda o campo.
 
 ## T4.1–T4.2 — Comprovante (Frontend)
 
-**Mudança.** `DeliveryProofKind` ganha `'cargo'`; `DeliveryProofView` ganha campo `cargoPhotos`; 
-`resolveDeliveryProofView` filtra `cargoPhotos` com `kind === 'cargo'` e atualiza lógica de 
-`receiverName` (assinatura > photo > nada; cargo nunca fornece nome — ADR-0067 §5); validação em 
-`tripResponse.validation.ts` aceita `'cargo'` em `isDeliveryProof`; 
-`TripDeliveryProof.component.tsx` renderiza grupo com fotos de carga após assinaturas e canhotos, 
-reusando `ProofImage` com `alt` próprio; strings de localização em português e inglês 
+**Mudança.** `DeliveryProofKind` ganha `'cargo'`; `DeliveryProofView` ganha campo `cargoPhotos`;
+`resolveDeliveryProofView` filtra `cargoPhotos` com `kind === 'cargo'` e atualiza lógica de
+`receiverName` (assinatura > photo > nada; cargo nunca fornece nome — ADR-0067 §5); validação em
+`tripResponse.validation.ts` aceita `'cargo'` em `isDeliveryProof`;
+`TripDeliveryProof.component.tsx` renderiza grupo com fotos de carga após assinaturas e canhotos,
+reusando `ProofImage` com `alt` próprio; strings de localização em português e inglês
 (`cargoPhotoAlt`, `cargoPhotosTitle`) adicionadas em ordem alfabética.
 
-**Arquivos.** `src/modules/trip/shared/deliveryProof.service.ts`, 
-`src/modules/trip/shared/tripResponse.validation.ts`, 
-`src/modules/trip/components/TripDeliveryProof.component.tsx`, 
-`src/modules/trip/locales/trip.locale.json`, `src/modules/trip/locales/trip.en.locale.json`, 
+**Arquivos.** `src/modules/trip/shared/deliveryProof.service.ts`,
+`src/modules/trip/shared/tripResponse.validation.ts`,
+`src/modules/trip/components/TripDeliveryProof.component.tsx`,
+`src/modules/trip/locales/trip.locale.json`, `src/modules/trip/locales/trip.en.locale.json`,
 `test/trip/delivery-proof.contract.ts`.
 
 **Gates.**
 
-| Comando | Resultado |
-|---|---|
-| `bun run typecheck` | limpo |
-| `bun run lint` | limpo |
+| Comando                                   | Resultado                                     |
+| ----------------------------------------- | --------------------------------------------- |
+| `bun run typecheck`                       | limpo                                         |
+| `bun run lint`                            | limpo                                         |
 | `bun --env-file=../../.env.test run test` | 5160 pass, 0 fail; test:hooks 44 pass, 0 fail |
 
-**CA06, RF8:** `TripDeliveryProof.component.tsx` exibe grupo "Fotos da carga" após assinaturas e 
-canhotos; renderização condicional (só exibe se `cargoPhotos.length > 0`). Prova: título e `alt` 
+**CA06, RF8:** `TripDeliveryProof.component.tsx` exibe grupo "Fotos da carga" após assinaturas e
+canhotos; renderização condicional (só exibe se `cargoPhotos.length > 0`). Prova: título e `alt`
 aparecem apenas quando há fotos de carga; grupo vazio não ocupa espaço.
 
-**RF1, CA06:** Validação em `isDeliveryProof` aceita `kind: 'cargo'`; `deliveryProofsFromApi` 
-processa lista com múltiplas fotos `cargo` do mesmo evento sem rejeição. Prova: testes de contrato 
+**RF1, CA06:** Validação em `isDeliveryProof` aceita `kind: 'cargo'`; `deliveryProofsFromApi`
+processa lista com múltiplas fotos `cargo` do mesmo evento sem rejeição. Prova: testes de contrato
 passam com `cargo` na lista.
 
-**Prioridade de nome (ADR-0067 §5):** `receiverName` segue ordem — assinatura (imagem do canhoto 
-assinado) tem prioridade sobre canhoto com nome digitado; cargo nunca fornece nome. Prova: testes 
-verificam que com assinatura e canhoto ambos com nome, o retorno é o da assinatura; sem assinatura, 
+**Prioridade de nome (ADR-0067 §5):** `receiverName` segue ordem — assinatura (imagem do canhoto
+assinado) tem prioridade sobre canhoto com nome digitado; cargo nunca fornece nome. Prova: testes
+verificam que com assinatura e canhoto ambos com nome, o retorno é o da assinatura; sem assinatura,
 usa nome do canhoto; sem ambos, retorna `null`.
 
 ## T3.1–T3.2 — Assistente
@@ -180,6 +180,7 @@ de novo" agora conta também as notas com foto de carga pendente, não só as `f
 (sufixo i18next 25), `cargoPhotosLabel`, `cargoPhotosRemove`, `cargoPhotosThumbAlt`.
 
 **Decisões não 100% especificadas no prompt:**
+
 - Nome do campo de pendência: `cargoPending?: number` (ausente/zero = nenhuma pendente), em vez de um
   terceiro `kind` — a nota nunca deixa de ser `delivered`/`alreadySettled` por causa da foto de carga
   (RF/D5), só o aviso muda.
@@ -194,10 +195,10 @@ de novo" agora conta também as notas com foto de carga pendente, não só as `f
 
 **Gates.**
 
-| Comando | Resultado |
-|---|---|
-| `bun run typecheck` | limpo (`tsc --noEmit`) |
-| `bun run lint` | limpo (`eslint .`) |
+| Comando                                   | Resultado                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `bun run typecheck`                       | limpo (`tsc --noEmit`)                                                                  |
+| `bun run lint`                            | limpo (`eslint .`)                                                                      |
 | `bun --env-file=../../.env.test run test` | 5166 pass, 0 fail (`bun test`, 29 arquivos) + 48 pass, 0 fail (`test:hooks`, 1 arquivo) |
 
 **T3.1 (CA07 parcial — a revisão visual completa é T5.1):** os quatro casos pedidos e o teste de
@@ -213,9 +214,9 @@ baixa e depois duas chamadas `cargo` em sequência; falha numa foto → `deliver
 canhoto capturado, duas fotos de carga reduzidas pelo `reduceFieldDeliveryImageToJpeg`, envio. Registrado
 no `testMatch` do `playwright.config.ts`, ao lado do `field-delivery.smoke.spec.ts`.
 
-| Execução | Resultado |
-|---|---|
-| `VITE_SMOKE_AUTH_BYPASS=true … PLAYWRIGHT_TEST_MATCH='field-delivery-cargo.smoke.spec.ts' bunx playwright test` | 5 passed |
+| Execução                                                                                                        | Resultado |
+| --------------------------------------------------------------------------------------------------------------- | --------- |
+| `VITE_SMOKE_AUTH_BYPASS=true … PLAYWRIGHT_TEST_MATCH='field-delivery-cargo.smoke.spec.ts' bunx playwright test` | 5 passed  |
 
 O teste de comportamento confirma, contra a rota interceptada: a baixa sobe, **depois** duas chamadas
 `field-proof` com `kind=cargo`, com `Idempotency-Key` distintas. Em 375px, sem rolagem horizontal.
@@ -226,11 +227,11 @@ do diálogo inteiro mostra só o topo) e `send-desktop.png`.
 
 **Achados da revisão de design:**
 
-| Achado | Veredito |
-|---|---|
-| Botão de remover sobre a miniatura — 38px de controle sobre 72px de foto, no meio da imagem | **Corrigido**: embaixo da foto, largura toda, altura de toque do sistema |
-| Rótulo "Fotos da carga (opcional)" duplicado | Não é defeito: o segundo `<label>` do `FileField` fica escondido, e o nome acessível do input vem do `aria-label` (comentário em `file-field.tsx`) |
-| Barra fixa cobrindo o botão de adicionar | Não é defeito: a barra está no fluxo, no fim do formulário; rolando até o fim, o bloco fica acima dela — o print é que rolou só o mínimo |
+| Achado                                                                                      | Veredito                                                                                                                                           |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Botão de remover sobre a miniatura — 38px de controle sobre 72px de foto, no meio da imagem | **Corrigido**: embaixo da foto, largura toda, altura de toque do sistema                                                                           |
+| Rótulo "Fotos da carga (opcional)" duplicado                                                | Não é defeito: o segundo `<label>` do `FileField` fica escondido, e o nome acessível do input vem do `aria-label` (comentário em `file-field.tsx`) |
+| Barra fixa cobrindo o botão de adicionar                                                    | Não é defeito: a barra está no fluxo, no fim do formulário; rolando até o fim, o bloco fica acima dela — o print é que rolou só o mínimo           |
 
 **Auditoria §15:**
 
@@ -253,28 +254,28 @@ do diálogo inteiro mostra só o topo) e `send-desktop.png`.
 Veredito inicial: **REQUEST CHANGES** — 0 crítico, 1 alto, 2 médios, 4 baixos. A migration, o
 `ON CONFLICT` com `targetWhere` e o isolamento de tenant foram conferidos e estão corretos.
 
-| Achado | Sev. | Correção | Prova |
-|---|---|---|---|
-| A rota do **motorista** (`/me/.../proof`) validava `kind` contra `TRIP_DELIVERY_PROOF_KINDS`, que ganhou `cargo` — aceitava foto de carga sem teto e sem deduplicação; retry em laço gravaria sem fim | ALTO | `DRIVER_PROOF_KINDS = [photo, signature]` própria; `cargo` → 400 (`bb0d9b0a4`) | contrato novo em `proof-location-parse.contract.ts`, vermelho antes |
-| Teto de cinco furável: contar e inserir sem trava, em READ COMMITTED | MÉDIO | `countProofsForEvent` trava a linha do evento `FOR NO KEY UPDATE` (`874518d41`) | integração dispara duas fotos à quinta vaga, exige um 201 e um 422; **sem a trava falha 3/3** (mutação só nesta trava, as duas antigas do arquivo intactas) |
-| Foto recusada (422/400) virava "tentar de novo" em laço, e o retry refazia a baixa | MÉDIO | foto classificada `pending`/`rejected` pelo critério da nota; retry de nota entregue reenvia só as fotos pendentes (`8f5499304`) | contratos em `field-delivery.contract.ts` |
-| Imagem ilegível derrubava o lote sem aviso | BAIXO | processamento por arquivo + aviso (`9b0245357`) | contrato |
-| Object URL vazava ao desmontar no meio | BAIXO | ref de montado, revoga na hora (`9b0245357`) | contrato |
-| "Tirar outra foto" apagava as fotos da carga | BAIXO | fotos no estado do assistente (`3f95846b9`) | contrato em `field-delivery-review.contract.ts` |
-| Spec dizia que o rollback falha com "duas" fotos; ele recusa com qualquer uma | BAIXO | texto de D2 e CA08 corrigido, com a consequência operacional | — |
+| Achado                                                                                                                                                                                                | Sev.  | Correção                                                                                                                         | Prova                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A rota do **motorista** (`/me/.../proof`) validava `kind` contra `TRIP_DELIVERY_PROOF_KINDS`, que ganhou `cargo` — aceitava foto de carga sem teto e sem deduplicação; retry em laço gravaria sem fim | ALTO  | `DRIVER_PROOF_KINDS = [photo, signature]` própria; `cargo` → 400 (`bb0d9b0a4`)                                                   | contrato novo em `proof-location-parse.contract.ts`, vermelho antes                                                                                         |
+| Teto de cinco furável: contar e inserir sem trava, em READ COMMITTED                                                                                                                                  | MÉDIO | `countProofsForEvent` trava a linha do evento `FOR NO KEY UPDATE` (`874518d41`)                                                  | integração dispara duas fotos à quinta vaga, exige um 201 e um 422; **sem a trava falha 3/3** (mutação só nesta trava, as duas antigas do arquivo intactas) |
+| Foto recusada (422/400) virava "tentar de novo" em laço, e o retry refazia a baixa                                                                                                                    | MÉDIO | foto classificada `pending`/`rejected` pelo critério da nota; retry de nota entregue reenvia só as fotos pendentes (`8f5499304`) | contratos em `field-delivery.contract.ts`                                                                                                                   |
+| Imagem ilegível derrubava o lote sem aviso                                                                                                                                                            | BAIXO | processamento por arquivo + aviso (`9b0245357`)                                                                                  | contrato                                                                                                                                                    |
+| Object URL vazava ao desmontar no meio                                                                                                                                                                | BAIXO | ref de montado, revoga na hora (`9b0245357`)                                                                                     | contrato                                                                                                                                                    |
+| "Tirar outra foto" apagava as fotos da carga                                                                                                                                                          | BAIXO | fotos no estado do assistente (`3f95846b9`)                                                                                      | contrato em `field-delivery-review.contract.ts`                                                                                                             |
+| Spec dizia que o rollback falha com "duas" fotos; ele recusa com qualquer uma                                                                                                                         | BAIXO | texto de D2 e CA08 corrigido, com a consequência operacional                                                                     | —                                                                                                                                                           |
 
 O ALTO foi introduzido nesta própria spec, ao alargar uma lista que a rota do motorista também usava,
 e nenhum teste existente mandava `cargo` pelo app do motorista.
 
 **Gates depois das correções:**
 
-| Comando | Resultado |
-|---|---|
-| API — contrato | 7229 pass, 0 fail |
-| API — integração do escritório e do motorista (3 arquivos) | 36 pass, 0 fail, 0 skip |
-| Frontend — `bun --env-file=../../.env.test run test` | 5175 + 51 pass, 0 fail |
-| Smoke `field-delivery*.smoke.spec.ts` (inclui o da baixa em massa, sem regressão) | 6 passed |
-| typecheck e lint das duas apps | limpos |
+| Comando                                                                           | Resultado               |
+| --------------------------------------------------------------------------------- | ----------------------- |
+| API — contrato                                                                    | 7229 pass, 0 fail       |
+| API — integração do escritório e do motorista (3 arquivos)                        | 36 pass, 0 fail, 0 skip |
+| Frontend — `bun --env-file=../../.env.test run test`                              | 5175 + 51 pass, 0 fail  |
+| Smoke `field-delivery*.smoke.spec.ts` (inclui o da baixa em massa, sem regressão) | 6 passed                |
+| typecheck e lint das duas apps                                                    | limpos                  |
 
 Prints regenerados depois das correções.
 

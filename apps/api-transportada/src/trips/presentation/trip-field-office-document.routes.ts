@@ -62,7 +62,10 @@ type OfficeDocumentInput = OfficeContextInput & {
 
 export type TripFieldOfficeDocumentDependencies = {
   readonly attachProof: (
-    input: OfficeDocumentInput & { readonly kind: OfficeProofKind; readonly proof: OfficeDeliveryProofUpload },
+    input: OfficeDocumentInput & {
+      readonly kind: OfficeProofKind
+      readonly proof: OfficeDeliveryProofUpload
+    },
   ) => Promise<OfficeProofPersistResult>
   readonly reportDelivery: (
     input: OfficeDocumentInput & {
@@ -241,7 +244,10 @@ function createProofRoute(
   dependencies: TripFieldOfficeDocumentDependencies,
 ): ReturnType<typeof defineRoute> {
   return defineRoute<
-    OfficeDocumentRequest & { readonly kind: OfficeProofKind; readonly proof: OfficeDeliveryProofUpload }
+    OfficeDocumentRequest & {
+      readonly kind: OfficeProofKind
+      readonly proof: OfficeDeliveryProofUpload
+    }
   >({
     async handle({ context, input }): Promise<Response> {
       const result = await dependencies.attachProof({

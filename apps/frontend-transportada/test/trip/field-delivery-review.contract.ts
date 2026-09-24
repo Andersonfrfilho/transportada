@@ -144,21 +144,24 @@ describe('limite de fotos da carga (spec 184 D3, T3.2)', () => {
   })
 
   test('seleção que cabe inteira: nada sobra', () => {
-    expect(
-      splitFieldDeliveryCargoPhotoSelection({ currentCount: 2, selectedCount: 3 }),
-    ).toEqual({ accepted: 3, overflow: 0 })
+    expect(splitFieldDeliveryCargoPhotoSelection({ currentCount: 2, selectedCount: 3 })).toEqual({
+      accepted: 3,
+      overflow: 0,
+    })
   })
 
   test('escolher mais do que cabe: só entra o que cabe, o resto vira aviso', () => {
-    expect(
-      splitFieldDeliveryCargoPhotoSelection({ currentCount: 3, selectedCount: 4 }),
-    ).toEqual({ accepted: 2, overflow: 2 })
+    expect(splitFieldDeliveryCargoPhotoSelection({ currentCount: 3, selectedCount: 4 })).toEqual({
+      accepted: 2,
+      overflow: 2,
+    })
   })
 
   test('já no teto: a seleção inteira é overflow', () => {
-    expect(
-      splitFieldDeliveryCargoPhotoSelection({ currentCount: 5, selectedCount: 1 }),
-    ).toEqual({ accepted: 0, overflow: 1 })
+    expect(splitFieldDeliveryCargoPhotoSelection({ currentCount: 5, selectedCount: 1 })).toEqual({
+      accepted: 0,
+      overflow: 1,
+    })
   })
 })
 

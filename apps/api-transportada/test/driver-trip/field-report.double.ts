@@ -159,7 +159,10 @@ export function createFieldReportUnitOfWork(
         objectId: input.objectId,
       })
       const countKey = `${input.eventId}:${input.kind}`
-      state.proofCountByEventKind.set(countKey, (state.proofCountByEventKind.get(countKey) ?? 0) + 1)
+      state.proofCountByEventKind.set(
+        countKey,
+        (state.proofCountByEventKind.get(countKey) ?? 0) + 1,
+      )
       if (input.attachmentKey.length > 0) {
         state.proofsByAttachmentKey.set(
           `${input.eventId}:${input.kind}:${input.attachmentKey}`,
