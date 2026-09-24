@@ -706,6 +706,113 @@ describe('FlowActions do operador — Viagens do armazém (spec 144 T016)', () =
     expect(sent).toEqual([{ body: '1 de 1 notas atualizadas. ✅', kind: 'text' }])
   })
 
+  /**
+   * Spec 185 T4.1/T4.2 (CA01, ADR-0074 §1): carregar a última nota pode fechar a carga sozinha —
+   * a confirmação da carga vem primeiro, e o desfecho do gatilho automático é uma mensagem à parte
+   * (conversation-flow.md §5, uma ideia por mensagem).
+   */
+  test('carregar chama loadDocument e, sem autoDispatch, manda só a confirmação da carga', async () => {
+    const { channel, sent } = buildChannel()
+    await callAction({
+      channel,
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      deps: buildDeps(),
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(sent).toEqual([{ body: 'Carregamento registrado. ✅', kind: 'text' }])
+  })
+
+  test('carregar a última nota despacha: "Viagem despachada." chega numa segunda mensagem', async () => {
+    const { channel, sent } = buildChannel()
+    await callAction({
+      channel,
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      deps: buildDeps({
+        loadDocument: async () => ({
+          autoDispatch: { outcome: 'dispatched' },
+          document: { id: DOCUMENT_ID } as never,
+          tripStatus: 'dispatched',
+        }),
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(sent).toEqual([
+      { body: 'Carregamento registrado. ✅', kind: 'text' },
+      { body: 'Viagem despachada. 🚚', kind: 'text' },
+    ])
+  })
+
+  test('carregar a última nota com gate recusado: a frase de bloqueio chega numa segunda mensagem', async () => {
+    const { channel, sent } = buildChannel()
+    await callAction({
+      channel,
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      deps: buildDeps({
+        loadDocument: async () => ({
+          autoDispatch: {
+            code: 'TRIP_HAS_UNSCHEDULED_STOPS',
+            details: { stopIds: ['stop-1'] },
+            outcome: 'blocked',
+          },
+          document: { id: DOCUMENT_ID } as never,
+          tripStatus: 'loading',
+        }),
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(sent).toEqual([
+      { body: 'Carregamento registrado. ✅', kind: 'text' },
+      { body: 'A viagem não saiu: parada aguardando agendamento.', kind: 'text' },
+    ])
+  })
+
+  test('"Todas as pendentes" para carregar e despachar: a segunda mensagem é "Viagem despachada."', async () => {
+    const { channel, sent } = buildChannel()
+    await callAction({
+      channel,
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: 'all_pending',
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      deps: buildDeps({
+        batchTransition: async () => ({
+          autoDispatch: { outcome: 'dispatched' },
+          items: [{ documentId: DOCUMENT_ID, outcome: 'applied' }],
+          tripStatus: 'dispatched',
+        }),
+        listWarehouseTrips: async () => [
+          buildTrip({
+            documents: [
+              { id: DOCUMENT_ID, number: '1', recipientName: 'X', separationStatus: 'separated' },
+            ],
+          }),
+        ],
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(sent).toEqual([
+      { body: '1 de 1 notas atualizadas. ✅', kind: 'text' },
+      { body: 'Viagem despachada. 🚚', kind: 'text' },
+    ])
+  })
+
   test('escolher "ocorrência" para uma nota segue para o catálogo de tipos de estágio "separation"', async () => {
     const { channel, sent } = buildChannel()
     const result = await callAction({
