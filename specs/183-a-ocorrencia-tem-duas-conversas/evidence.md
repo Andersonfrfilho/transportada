@@ -1044,6 +1044,13 @@ T503.
   - lint, formatação e typecheck limpos.
   - API, integração completa, sozinha: **593 pass, 7 skip, 8 fail**, só as 8 de MinIO.
 
+- **Correção depois do commit (achada pelos portões da T603):** a chave do template era
+  `trip.occurrence-conversation-message`, e o prefixo `trip.occurrence-` é a família dos avisos de
+  **parada** que o PWA do motorista copia (`test/driver-trip/occurrence-preview.contract.ts`
+  reprovou). A chave virou `trip.conversation-message` (`TRIP_CONVERSATION_MESSAGE`); nunca foi
+  publicada. O preview de avisos ganhou o exemplo de `occurrenceLabel`
+  (`test/notification/preview-payload.contract.ts` reprovou). Frontend: **5223 + 44 pass**.
+
 ## T602 — ⏭️ aberta: faltam os modelos da Meta (T002)
 
 Mandar mensagem ao motorista pelo WhatsApp fora da janela de 24h exige modelo aprovado (T002).

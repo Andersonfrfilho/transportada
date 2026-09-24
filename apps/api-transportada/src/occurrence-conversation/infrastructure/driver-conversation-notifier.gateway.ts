@@ -35,10 +35,10 @@ export function createDriverConversationNotifier(input: {
         await input.send({
           category: NOTIFICATION_CATEGORY.TRIP,
           companyId,
-          dedupeKey: `${NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_CONVERSATION_MESSAGE}:${dedupeKey}`,
+          dedupeKey: `${NOTIFICATION_TEMPLATE_KEY.TRIP_CONVERSATION_MESSAGE}:${dedupeKey}`,
           payload: { occurrenceLabel },
           recipientUserId,
-          templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_CONVERSATION_MESSAGE,
+          templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_CONVERSATION_MESSAGE,
         })
       } catch (error) {
         input.logger.warn(DRIVER_CONVERSATION_NOTIFIER_LOG.failed, {
