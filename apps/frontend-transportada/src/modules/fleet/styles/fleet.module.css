@@ -1393,9 +1393,15 @@
  * Spec 110 D3: a faixa de identidade do veículo — o caminhão na frente, antes de qualquer número.
  * Compartilhada pela proposta multi-veículo e pela criação manual (D8).
  */
+/**
+ * Ícone · placa · tudo o mais. A placa tem coluna própria, e nome, especificação e chips (Ano, Cor)
+ * ficam juntos à direita dela: identifica-se pela placa, confirma-se pelo resto, num gesto só.
+ * Abaixo de 40rem a placa desce para a própria linha — medido em 375px, ao lado do texto ela
+ * espremia "FIAT FIORINO 1.4 FURGAO" numa coluna de letras.
+ */
 .identityBand {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: center;
   grid-template-columns: auto minmax(0, 1fr);
   padding: var(--space-3);
@@ -1427,11 +1433,7 @@
  * de empurrar a placa para fora.
  */
 .identityTitle {
-  display: grid;
-  gap: var(--space-2);
-  justify-items: start;
   font-size: 0.95rem;
-  text-align: start;
 }
 
 /**
@@ -1441,10 +1443,9 @@
  * nome embaixo, os dois à esquerda.
  */
 @media (min-width: 40rem) {
-  .identityTitle {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--space-3);
-    align-items: center;
+  .identityBand {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: var(--space-4);
   }
 }
 

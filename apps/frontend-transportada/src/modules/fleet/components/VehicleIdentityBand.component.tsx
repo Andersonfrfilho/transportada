@@ -50,11 +50,9 @@ export function VehicleIdentityBand({
           <Icon name={VEHICLE_TYPE_ICONS[vehicleType]} />
         )}
       </span>
+      {plate === null ? null : <PlateThumbnail plate={plate} />}
       <div className={styles.identityFacts}>
-        <div className={styles.identityTitle}>
-          {plate === null ? null : <PlateThumbnail plate={plate} />}
-          <strong>{label ?? t('identityBand.withoutModel')}</strong>
-        </div>
+        <strong className={styles.identityTitle}>{label ?? t('identityBand.withoutModel')}</strong>
         {specification === null ? null : (
           <p className={styles.identitySpecification}>{specification}</p>
         )}
