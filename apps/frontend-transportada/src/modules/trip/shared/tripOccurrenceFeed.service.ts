@@ -122,6 +122,46 @@ export type TripOccurrenceFeedItem = Readonly<{
   vehiclePlate: string
 }>
 
+/**
+ * Spec 183 RF2: de quem é a carga, para onde ia e quanto vale. `totalValue` é string decimal —
+ * dinheiro nunca vira `number` na tela. `destination` é o destino físico (onde o caminhão para).
+ */
+export type TripOccurrenceDocument = Readonly<{
+  contractor: Readonly<{ contractorId: null | string; name: string; taxId: null | string }> | null
+  destination: Readonly<{
+    city: string
+    label: string
+    origin: 'delivery' | 'recipient'
+    postalCode: null | string
+    recipientName: string
+    state: string
+  }> | null
+  nfeDocumentId: string
+  totalValue: string
+}>
+
+/** Spec 183 RF3: o motorista da viagem, para o escritório falar com ele. */
+export type TripOccurrenceDetailDriver = Readonly<{
+  driverId: string
+  email: string
+  name: string
+  phone: string
+  /** Caminho público da foto na API (`/public/company-users/:token/picture`), ou `null`. */
+  picturePath: null | string
+  /** Só o telefone **verificado** do WhatsApp (ADR-0063). */
+  whatsappPhone: null | string
+}>
+
+/** Spec 183 RF1: a linha da listagem, com autoria, nota e o motorista. */
+export type TripOccurrenceDetail = TripOccurrenceFeedItem &
+  Readonly<{
+    actorName: null | string
+    channel: string
+    document: null | TripOccurrenceDocument
+    driver: null | TripOccurrenceDetailDriver
+    onBehalfOfDriverName: null | string
+  }>
+
 export type TripOccurrenceFeedPage = Readonly<{
   items: readonly TripOccurrenceFeedItem[]
   nextCursor: null | string

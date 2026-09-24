@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
+import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
 import type { TripOccurrenceTableController } from '../hooks/useTripOccurrenceTable.hook'
@@ -15,6 +16,10 @@ import {
 } from '../shared/tripOccurrenceFeed.service'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCasePanel } from './OccurrenceCasePanel.component'
+import {
+  buildTripOccurrenceRoute,
+  navigateToTripOccurrence,
+} from '../shared/tripOccurrenceRoute.service'
 import styles from '../styles/trip.module.css'
 
 const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -22,7 +27,7 @@ const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeStyle: 'short',
 })
 
-function formatMoment(value: string): string {
+export function formatMoment(value: string): string {
   const moment = new Date(value)
   return Number.isNaN(moment.getTime()) ? value : momentFormatter.format(moment)
 }
@@ -32,6 +37,11 @@ type TripOccurrenceTableProps = Readonly<{
   canResolveOccurrenceCases: boolean
   table: TripOccurrenceTableController
 }>
+
+/** Sem router: a troca de página é `pushState`, sem recarregar o app (spec 183 P1). */
+function openOccurrence(occurrenceId: string): void {
+  navigateToTripOccurrence({ navigator: createBrowserWorkspaceNavigator(), occurrenceId })
+}
 
 function OccurrenceCell({
   column,
@@ -50,7 +60,21 @@ function OccurrenceCell({
   }
   if (column === 'typeName') {
     const label = resolveOccurrenceTypeLabel(item)
-    return <td>{label.labelKey === null ? label.value : t(label.labelKey)}</td>
+    /** Spec 183 P1: o tipo é o link da linha — teclado e leitor de tela chegam ao detalhe por ele. */
+    return (
+      <td>
+        <a
+          className={styles.occurrenceRowLink}
+          href={buildTripOccurrenceRoute(item.id)}
+          onClick={(event) => {
+            event.preventDefault()
+            openOccurrence(item.id)
+          }}
+        >
+          {label.labelKey === null ? label.value : t(label.labelKey)}
+        </a>
+      </td>
+    )
   }
   if (column === 'vehiclePlate') return <td>{item.vehiclePlate}</td>
   if (column === 'driverName') return <td>{item.driverName}</td>
@@ -73,7 +97,7 @@ function OccurrenceCell({
  * lista — e delega a grade (esqueleto, `loading="lazy"`, selo de expirada/erro) ao componente
  * compartilhado com o painel da nota e o detalhe da ocorrência.
  */
-function OccurrenceAttachments({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
+export function OccurrenceAttachments({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
   const attachmentsQuery = useTripOccurrenceAttachmentsQuery({
     enabled: item.hasAttachment,
     occurrenceId: item.id,
@@ -206,7 +230,19 @@ export function TripOccurrenceTable({
           ) : (
             table.items.flatMap((item) => {
               const rows = [
-                <tr key={item.id}>
+                <tr
+                  className={styles.occurrenceRow}
+                  key={item.id}
+                  onClick={(event) => {
+                    /** A linha inteira abre o detalhe; botão e link dentro dela fazem só o deles. */
+                    if (
+                      event.target instanceof Element &&
+                      event.target.closest('a, button') !== null
+                    )
+                      return
+                    openOccurrence(item.id)
+                  }}
+                >
                   {table.visibleColumns.map((column) => (
                     <OccurrenceCell column={column} item={item} key={column} />
                   ))}

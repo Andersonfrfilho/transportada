@@ -14,6 +14,9 @@ import {
   type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseView,
   type TripOccurrenceFeedFilters,
+  type TripOccurrenceDetail,
+  type TripOccurrenceDetailDriver,
+  type TripOccurrenceDocument,
   type TripOccurrenceFeedItem,
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedPage,
@@ -48,6 +51,8 @@ export type TripOccurrenceFeedClient = Readonly<{
     input: Readonly<{ occurrenceId: string }>,
   ) => Promise<readonly TripOccurrenceAttachment[]>
   listOccurrences: (input: ListTripOccurrencesInput) => Promise<TripOccurrenceFeedPage>
+  /** Spec 183 RF1: `GET /trip-occurrences/:id` — a linha, a nota e o motorista. */
+  readOccurrence: (input: Readonly<{ occurrenceId: string }>) => Promise<TripOccurrenceDetail>
   /** Spec 164 T7/RF8b: motivo obrigatório — ocorrência aberta por engano, só de `recorded`/`under_review`. */
   cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<TripOccurrenceCaseView>
   /** RF8: só sai de `decided`. */
@@ -162,6 +167,69 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
   const { case: rawCase, ...rest } = raw
   return { ...rest, case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null }
+}
+
+/**
+ * Spec 183 RF2: o bloco da nota é **estrito** — valor que não é string decimal é resposta
+ * inválida, porque dinheiro nunca vira `number` na tela.
+ */
+function isOccurrenceDocument(value: unknown): value is TripOccurrenceDocument {
+  if (!isRecord(value)) return false
+  const { contractor, destination } = value
+  const isContractor =
+    contractor === null ||
+    (isRecord(contractor) &&
+      isNullableString(contractor.contractorId) &&
+      isString(contractor.name) &&
+      isNullableString(contractor.taxId))
+  const isDestination =
+    destination === null ||
+    (isRecord(destination) &&
+      isString(destination.city) &&
+      isString(destination.label) &&
+      (destination.origin === 'delivery' || destination.origin === 'recipient') &&
+      isNullableString(destination.postalCode) &&
+      isString(destination.recipientName) &&
+      isString(destination.state))
+  return (
+    isContractor &&
+    isDestination &&
+    isString(value.nfeDocumentId) &&
+    isString(value.totalValue) &&
+    /^-?\d+(\.\d+)?$/u.test(value.totalValue)
+  )
+}
+
+function isDetailDriver(value: unknown): value is TripOccurrenceDetailDriver {
+  return (
+    isRecord(value) &&
+    isString(value.driverId) &&
+    isString(value.email) &&
+    isString(value.name) &&
+    isString(value.phone) &&
+    isNullableString(value.picturePath) &&
+    isNullableString(value.whatsappPhone)
+  )
+}
+
+function readDetail(payload: unknown): TripOccurrenceDetail {
+  if (!isRecord(payload) || !isFeedItem(payload.data)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  const raw = payload.data
+  /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
+  const fields: Readonly<Record<string, unknown>> = raw
+  const { actorName, channel, document, driver, onBehalfOfDriverName } = fields
+  if (
+    !(document === null || isOccurrenceDocument(document)) ||
+    !(driver === null || isDetailDriver(driver)) ||
+    !isNullableString(actorName) ||
+    !isString(channel) ||
+    !isNullableString(onBehalfOfDriverName)
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return { ...toFeedItem(raw), actorName, channel, document, driver, onBehalfOfDriverName }
 }
 
 function readPage(payload: unknown): TripOccurrenceFeedPage {
@@ -293,6 +361,13 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/attachments`,
       )
       return readAttachments(payload)
+    },
+    async readOccurrence(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${encodeURIComponent(input.occurrenceId)}`,
+      )
+      return readDetail(payload)
     },
     async listOccurrences(input) {
       const search = serializeTripOccurrenceQuery(input)

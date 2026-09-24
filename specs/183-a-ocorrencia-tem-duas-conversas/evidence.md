@@ -137,3 +137,36 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
 - Correções da spec: RF2 lia "endereço do destinatário"; o código segue o destino físico, como o
   `CLAUDE.md` da API exige para quem decide **lugar**. O RF4 foi para a T404.
 - O frontend não quebra com o campo novo: o guard da linha é tolerante a chave a mais (B5/B6).
+
+## T204 — O detalhe da ocorrência no frontend (verde)
+
+- Contrato escrito antes: `test/trip/occurrence-detail.contract.ts` (entra por `test/trip.contract.test.ts`)
+  falhou na importação antes da implementação (`tripOccurrenceRoute.service` inexistente). Cobre: rota
+  `/ocorrencias/:id` (build/parse, barra final, id codificado, caminho alheio → `null`), o shell
+  (`main.tsx` resolve o detalhe para o item de menu Ocorrências e renderiza a página), o link da linha
+  do tempo da viagem (180 RF15), o cliente `GET /trip-occurrences/:id` (autenticado, `no-store`, valor
+  da nota **só** como string decimal, motorista fora do formato = resposta inválida) e o contato do
+  motorista (`tel:`, `mailto:`, `wa.me` só com WhatsApp verificado, foto pela URL pública da API).
+- Implementação: `TripOccurrenceDetail.page.tsx` (voltar, esqueleto na forma do conteúdo, cabeçalho
+  com autoria e "em nome de", Resumo com fotos, Nota com contratante/valor/destino físico, Contato do
+  motorista, Tratativa com `OccurrenceCasePanel` — que já traz o painel do acerto da 164 e as
+  permissões de lá). Na tabela, o tipo virou link e a linha inteira abre o detalhe (clique em botão ou
+  link da própria linha não conta). O evento de ocorrência da linha do tempo da viagem aponta para o
+  detalhe.
+- Rodado: `bun run --cwd apps/frontend-transportada test` → **5164 pass, 0 fail** (contratos) e
+  **44 pass, 0 fail** (hooks); `bun run lint` e `bun run typecheck` na raiz limpos.
+- Revisão de design (`web.md` §15), prints em `prints/`: `lista-desktop.png`,
+  `detalhe-nota-desktop.png`, `detalhe-nota-celular.png` (390 px, sem rolagem horizontal — asserção no
+  smoke), `detalhe-parada-desktop.png` (sem nota, sem motorista). Smoke
+  `test/spec-183-prints.smoke.spec.ts`, fora da lista da CI como os prints da 159/164: **5 pass**.
+  Achados corrigidos na própria task:
+  - "Descrição" era `h3` ao lado de `dt` — virou fato largo do mesmo `dl`, em peso normal;
+  - "Escrever e-mail" era `ghost` ao lado de dois `secondary` — mesma variante e com ícone; "Ligar"
+    usava o ícone de enviar, trocado;
+  - o `h1` global tem `max-width: 12ch` (título de vitrine) e quebrava o nome do tipo palavra a
+    palavra ("DOCA / FECHADA") — `.occurrenceTitle` com 40ch só nesta página.
+- Divergências achadas e aplicadas:
+  - **CSP**: `https://wa.me` é navegação, não fetch — entrou em `NON_FETCH_ORIGIN`
+    (`test/shared/content-security-policy.contract.ts` reprovava a origem nova).
+  - **Item/quantidade/unidade** (166/172) não vêm na API do detalhe: saíram da T204 para a **T207**,
+    em vez de crescer esta task com mudança de API.

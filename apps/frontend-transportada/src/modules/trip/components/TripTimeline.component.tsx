@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { useTripOccurrenceAttachmentsQuery } from '../queries/tripOccurrenceFeed.query'
@@ -26,8 +27,10 @@ import {
 } from '../shared/tripTimeline.service'
 import {
   resolveTripTimelineDocumentHref,
+  resolveTripTimelineOccurrenceHref,
   resolveTripTimelineStopHref,
 } from '../shared/tripTimelineLink.service'
+import { navigateToTripOccurrence } from '../shared/tripOccurrenceRoute.service'
 import styles from '../styles/tripTimeline.module.css'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 
@@ -272,8 +275,14 @@ function TripTimelineEntry({
    * onde ela estava. Sem nenhuma das duas, não há link: título que não leva a lugar nenhum é pior
    * que título simples.
    */
-  const titleHref =
-    item.document !== null
+  /**
+   * Spec 183 T204: a ocorrência ganhou página própria — o evento de ocorrência leva a ela (o id do
+   * evento **é** o da ocorrência nas duas fontes), e não mais à nota ou à parada.
+   */
+  const isOccurrenceEvent = item.kind === 'stop.occurrence' || item.kind === 'document.occurrence'
+  const titleHref = isOccurrenceEvent
+    ? resolveTripTimelineOccurrenceHref(item.id)
+    : item.document !== null
       ? resolveTripTimelineDocumentHref(item.document.id)
       : item.stop !== null
         ? resolveTripTimelineStopHref(item.stop.id)
@@ -321,7 +330,22 @@ function TripTimelineEntry({
             {titleHref === null ? (
               title
             ) : (
-              <a className={styles.itemTitleLink} href={titleHref}>
+              <a
+                className={styles.itemTitleLink}
+                href={titleHref}
+                onClick={
+                  isOccurrenceEvent
+                    ? (event) => {
+                        /** Sem router: a troca de página é `pushState`, sem recarregar o app. */
+                        event.preventDefault()
+                        navigateToTripOccurrence({
+                          navigator: createBrowserWorkspaceNavigator(),
+                          occurrenceId: item.id,
+                        })
+                      }
+                    : undefined
+                }
+              >
                 {title}
               </a>
             )}

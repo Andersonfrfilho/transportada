@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { buildTripOccurrenceRoute } from './tripOccurrenceRoute.service'
 
 /**
  * Spec 180 RF15/RF18 (CA13): o evento leva à coisa — nota vira link para a nota, parada para a
@@ -25,4 +26,12 @@ export function resolveTripTimelineDocumentHref(documentId: string): string {
 
 export function resolveTripTimelineStopHref(stopId: string): string {
   return `#${buildTripTimelineStopAnchorId(stopId)}`
+}
+
+/**
+ * Spec 183 T204 (180 RF15): a ocorrência ganhou página própria — o evento leva a ela, não a uma
+ * âncora do detalhe da viagem.
+ */
+export function resolveTripTimelineOccurrenceHref(occurrenceId: string): string {
+  return buildTripOccurrenceRoute(occurrenceId)
 }

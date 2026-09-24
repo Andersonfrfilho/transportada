@@ -1559,5 +1559,53 @@
     "invalidRows": "Há item incompleto no acerto — confira os campos marcados. Nada foi gravado.",
     "reimbursedOn": "Ressarcido em {{date}}",
     "savedItemsTitle": "Itens gravados"
+  },
+  "occurrenceDetail": {
+    "back": "Voltar para ocorrências",
+    "breadcrumb": "Navegação da ocorrência",
+    "kicker": "Ocorrência · {{stage}}",
+    "recordedBy": "Registrada em {{moment}} por {{actor}} ({{channel}})",
+    "recordedOnBehalf": "Registrada em {{moment}} por {{actor}}, em nome de {{driver}}",
+    "unknownActor": "quem registrou não está mais na empresa",
+    "noDriver": "Sem motorista na viagem",
+    "notFound": "Ocorrência não encontrada nesta empresa.",
+    "channel": {
+      "driver_app": "app do motorista",
+      "office": "escritório",
+      "whatsapp": "WhatsApp"
+    },
+    "summary": {
+      "title": "Resumo",
+      "openTrip": "Abrir viagem",
+      "description": "Descrição"
+    },
+    "document": {
+      "title": "Nota",
+      "none": "Sem nota nesta ocorrência. Parada: {{stop}}",
+      "invoice": "NF-e",
+      "contractor": "Contratante (emitente)",
+      "contractorUnknown": "Emitente não registrado na nota",
+      "totalValue": "Valor da nota",
+      "destination": "Endereço de entrega",
+      "destinationOf": "Endereço de entrega · {{recipient}}",
+      "destinationUnknown": "Endereço não registrado na nota"
+    },
+    "driver": {
+      "title": "Contato do motorista",
+      "name": "Nome",
+      "phone": "Telefone",
+      "email": "E-mail",
+      "none": "—",
+      "whatsapp": "WhatsApp",
+      "call": "Ligar",
+      "openWhatsapp": "WhatsApp",
+      "writeEmail": "Escrever e-mail",
+      "copyPhone": "Copiar telefone",
+      "copied": "Telefone copiado",
+      "pictureAlt": "Foto de {{name}}"
+    },
+    "case": {
+      "title": "Tratativa"
+    }
   }
 }

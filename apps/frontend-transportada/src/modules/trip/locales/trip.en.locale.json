@@ -1331,5 +1331,53 @@
     "invalidRows": "There is an incomplete item in the settlement — check the marked fields. Nothing was saved.",
     "reimbursedOn": "Reimbursed on {{date}}",
     "savedItemsTitle": "Saved items"
+  },
+  "occurrenceDetail": {
+    "back": "Back to occurrences",
+    "breadcrumb": "Occurrence navigation",
+    "kicker": "Occurrence · {{stage}}",
+    "recordedBy": "Recorded at {{moment}} by {{actor}} ({{channel}})",
+    "recordedOnBehalf": "Recorded at {{moment}} by {{actor}}, on behalf of {{driver}}",
+    "unknownActor": "the author is no longer in the company",
+    "noDriver": "No driver on this trip",
+    "notFound": "Occurrence not found in this company.",
+    "channel": {
+      "driver_app": "driver app",
+      "office": "office",
+      "whatsapp": "WhatsApp"
+    },
+    "summary": {
+      "title": "Summary",
+      "openTrip": "Open trip",
+      "description": "Description"
+    },
+    "document": {
+      "title": "Invoice",
+      "none": "No invoice on this occurrence. Stop: {{stop}}",
+      "invoice": "NF-e",
+      "contractor": "Contractor (issuer)",
+      "contractorUnknown": "Issuer not recorded on the invoice",
+      "totalValue": "Invoice value",
+      "destination": "Delivery address",
+      "destinationOf": "Delivery address · {{recipient}}",
+      "destinationUnknown": "Address not recorded on the invoice"
+    },
+    "driver": {
+      "title": "Driver contact",
+      "name": "Name",
+      "phone": "Phone",
+      "email": "E-mail",
+      "none": "—",
+      "whatsapp": "WhatsApp",
+      "call": "Call",
+      "openWhatsapp": "WhatsApp",
+      "writeEmail": "Write e-mail",
+      "copyPhone": "Copy phone",
+      "copied": "Phone copied",
+      "pictureAlt": "Photo of {{name}}"
+    },
+    "case": {
+      "title": "Case"
+    }
   }
 }

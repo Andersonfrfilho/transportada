@@ -3933,3 +3933,95 @@ button.occurrenceCaseBadge {
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* Spec 183 T204: o detalhe da ocorrência (`/ocorrencias/:id`). */
+.occurrenceFacts {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3) var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+
+.occurrenceFacts dt {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.occurrenceFacts dd {
+  margin: var(--space-1) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-weight: 600;
+}
+
+.occurrenceFactWide {
+  grid-column: 1 / -1;
+}
+
+/* O `h1` global tem 12ch, medido para o título de vitrine; o nome do tipo é frase e quebraria palavra a palavra. */
+.header h1.occurrenceTitle {
+  max-width: 40ch;
+}
+
+/* O texto livre do motorista é leitura, não dado: peso normal, como na linha da tabela. */
+.occurrenceFacts dd.occurrenceDescription {
+  display: block;
+  margin-bottom: 0;
+  font-weight: 400;
+}
+
+.occurrenceFactNote {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-weight: 400;
+}
+
+.occurrenceMoney {
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+}
+
+.occurrenceDriver {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.occurrenceAvatar {
+  width: var(--touch-target);
+  height: var(--touch-target);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  border-radius: 50%;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--color-graphite) 70%, var(--color-asphalt));
+  font-weight: 700;
+}
+
+.occurrenceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Spec 183 P1: a linha da ocorrência abre o detalhe. */
+.occurrenceRow {
+  cursor: pointer;
+}
+
+.occurrenceRow:hover {
+  background: color-mix(in srgb, var(--color-copper) 8%, transparent);
+}
+
+.occurrenceRowLink {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-copper) 50%, transparent);
+  text-underline-offset: 0.2em;
+}

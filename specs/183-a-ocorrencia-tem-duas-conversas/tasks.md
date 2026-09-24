@@ -43,9 +43,8 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [x] **T203** Bloco `document` na listagem e no detalhe (RF2), valor como string decimal, sem
       N+1. O RF4 (estado da conversa na listagem) vai com a T404, porque depende das tabelas da T401.
       Evidência: integração conferindo o número de consultas e o formato.
-- [ ] **T204** Rota `/ocorrencias/:id` no frontend (parse/build/navigate), linha clicável e
-      `TripOccurrenceDetail.page.tsx` sem a conversa: resumo com autoria, nota, item/quantidade/unidade
-      quando houver, motorista com foto/iniciais e contato (ou "sem motorista"), fotos, e o
+- [x] **T204** Rota `/ocorrencias/:id` no frontend (parse/build/navigate), linha clicável e
+      `TripOccurrenceDetail.page.tsx` sem a conversa: resumo com autoria, nota, motorista com foto/iniciais e contato (ou "sem motorista"), fotos, e o
       `OccurrenceCasePanel` e o painel do acerto da 164 reaproveitados, com as permissões de lá; e o
       link da linha do tempo da viagem para o detalhe (180 RF15). Evidência: contratos de serviço puro
       da rota, do mapeamento e do link.
@@ -54,6 +53,10 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [ ] **T206** Linha do tempo (RF19) com os eventos que já existem (registro, fotos, avisos e os da
       tratativa em `trip_occurrence_case_events`), tempos no topo e filtros; os eventos de conversa entram nas Fases 4–6 pela mesma fonte.
       Evidência: contrato da query de eventos (ordem, intervalo) e do mapeamento ator → cor.
+- [ ] **T207** Item, quantidade e unidade da ocorrência (specs 166/172) no detalhe: saíram da T204
+      porque `GET /trip-occurrences/:id` não os devolve — a listagem nunca precisou. Contrato da API
+      (campo novo no detalhe, `numeric` como string, empresa do contexto) antes da tela. Evidência:
+      integração do detalhe com item e sem item, e contrato do cliente.
 
 ## Fase 3 — Contatos com tipos e canais (P3)
 

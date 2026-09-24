@@ -48,6 +48,11 @@ export const NON_FETCH_ORIGIN = [
    * endereço. É texto de `placeholder` — o bundle nomeia a origem e nunca a busca.
    */
   'https://instagram.com',
+  /**
+   * Spec 183 P2: o botão "WhatsApp" do contato do motorista **abre** a conversa no app do aparelho
+   * (`<a href target="_blank">`). É navegação, nunca `fetch` — não entra em `connect-src`.
+   */
+  'https://wa.me',
 ] as const
 
 type ContentSecurityPolicyParams = {
