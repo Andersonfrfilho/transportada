@@ -15,9 +15,28 @@ export const TRIP_OCCURRENCE_STAGE = {
 
 export type TripOccurrenceStage = (typeof TRIP_OCCURRENCE_STAGE)[keyof typeof TRIP_OCCURRENCE_STAGE]
 
+/**
+ * Spec 164 D1/RF1: `unset` é o padrão e é o que o produto faz hoje — anota e para. A transportadora
+ * decide tipo a tipo, quando quiser; ocorrência de tipo `unset` não abre tratativa.
+ */
+export const OCCURRENCE_REDELIVERY_POLICY = {
+  allowed: 'allowed',
+  blocked: 'blocked',
+  unset: 'unset',
+} as const
+
+export type OccurrenceRedeliveryPolicy =
+  (typeof OCCURRENCE_REDELIVERY_POLICY)[keyof typeof OCCURRENCE_REDELIVERY_POLICY]
+
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
   active: boolean
+  /**
+   * Spec 166 RF3/RF8/RF9: tipo com o interruptor desligado só aceita **um** item por ocorrência —
+   * o campo de item vira seleção única, e trocar a escolha substitui em vez de somar. Padrão
+   * `true` preserva o comportamento de hoje.
+   */
+  allowsMultipleItems: boolean
   /** Legado: o e-mail digitado no próprio tipo, antes de o texto morar no módulo de notificações. */
   emailBody: string
   emailSubject: string
@@ -26,5 +45,7 @@ export type OccurrenceType = Readonly<{
   id: string
   name: string
   notifies: boolean
+  /** Spec 164 D1/RF1: se aquele fato admite reentrega. Nasce `unset`, CHECK no banco. */
+  redeliveryPolicy: OccurrenceRedeliveryPolicy
   stage: TripOccurrenceStage
 }>

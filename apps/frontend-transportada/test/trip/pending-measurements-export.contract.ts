@@ -37,20 +37,26 @@ const WITH_LABEL: TripPendingMeasurement = {
   boxCount: 6,
   documentNumber: '111',
   estimateSource: 'note',
+  grossWeightGrams: null,
   label: 'Caneta',
+  packageBoxId: 'box-1',
   productCode: 'P1',
   sequence: 1,
   stopLabel: 'Barrinha',
+  unitsPerBox: 1,
 }
 
 const WITHOUT_LABEL: TripPendingMeasurement = {
   boxCount: 2,
   documentNumber: null,
   estimateSource: 'none',
+  grossWeightGrams: null,
   label: null,
+  packageBoxId: null,
   productCode: null,
   sequence: 2,
   stopLabel: 'Fazenda, "Boa Vista"',
+  unitsPerBox: null,
 }
 
 /**

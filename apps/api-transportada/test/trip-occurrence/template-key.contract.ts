@@ -18,6 +18,8 @@ const TIPO = '00000000-0000-4000-8000-0000000000e1'
 
 const BASE_VALUES = {
   active: true,
+  allowsMultipleItems: true,
+  attachmentMode: 'off' as const,
   emailBody: 'corpo digitado',
   emailSubject: 'assunto digitado',
   emailTemplateKey: null as null | string,
@@ -30,6 +32,7 @@ const BASE_VALUES = {
 function buildType(overrides: Partial<OccurrenceTypeRecord>): OccurrenceTypeRecord {
   return {
     active: true,
+    allowsMultipleItems: true,
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,
@@ -84,6 +87,7 @@ function buildRepository(type: OccurrenceTypeRecord) {
 async function registrar(type: OccurrenceTypeRecord, notify: (call: object) => void) {
   return registerTripOccurrence({
     actorUserId: '00000000-0000-4000-8000-00000000000f',
+    attachment: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
     companyId: COMPANY,
     documentId: '00000000-0000-4000-8000-000000000017',
     note: '',

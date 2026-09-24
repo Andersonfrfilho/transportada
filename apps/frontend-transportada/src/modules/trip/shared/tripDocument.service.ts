@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { TripDocumentDetail } from './trip.types'
+import type { TripDocumentDetail, TripDocumentSeparationStatus } from './trip.types'
 
 /**
  * Situação fiscal que invalida o documento sem impedir a viagem: a spec 027 pede aviso visível,
@@ -38,6 +38,24 @@ export function hasTripFiscalWarning(documents: readonly TripDocumentDetail[]): 
 export function tripFiscalStatusKey(fiscalStatus: string): string {
   return `fiscalStatus.${fiscalStatus}`
 }
+
+/**
+ * Spec 181 RF3/CA03: o código do motivo de devolução, só quando há um a mostrar — nota devolvida
+ * sem motivo, ou nota que não é devolução, não carrega sufixo nenhum no selo de pipeline. O
+ * selo compõe a tradução (`fieldActions.returnReason.*`); esta função só decide **se** há o quê.
+ */
+export function tripDocumentReturnReasonCode(
+  document: TripDocumentReturnReasonSource,
+): null | string {
+  if (document.separationStatus !== 'returned') return null
+  if (document.returnReason === null || document.returnReason === '') return null
+  return document.returnReason
+}
+
+export type TripDocumentReturnReasonSource = Readonly<{
+  returnReason: null | string
+  separationStatus: TripDocumentSeparationStatus
+}>
 
 /** Só o que nomeia a nota: assim o rótulo se prova sem montar um `TripDocumentDetail` inteiro. */
 export type TripDocumentLabelSource = Readonly<{

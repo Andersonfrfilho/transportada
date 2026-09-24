@@ -161,7 +161,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
   test('congela a rota junto — traçado, métricas e critério, na mesma escrita do pedágio', async () => {
     const repository = createFakeRepository({ vehicle: VEHICLE })
 
-    await freezeTripPlannedRoute({
+    const result = await freezeTripPlannedRoute({
       companyId: COMPANY_ID,
       geometry: createGeometryPort([1, 2, 3]),
       repository,
@@ -172,6 +172,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
       tripId: TRIP_ID,
     })
 
+    expect(result).toEqual({ routeFrozen: true })
     expect(repository.writeCalls).toHaveLength(1)
     const [written] = repository.writeCalls
     expect(written?.route).not.toBeNull()
@@ -206,10 +207,16 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
     expect(written?.toll).not.toHaveProperty('tariffObservedOn')
   })
 
-  test('D5: sem geometria disponível, grava rota e pedágio null juntos — nunca zero', async () => {
+  /**
+   * ⚠️ O defeito medido na bancada (viagem `route_planned` com `planned_route`/`planned_toll`
+   * nulos): o roteirizador indisponível não lança, grava `null` de propósito — e quem chama
+   * `freezeTripPlannedRoute` precisa de `routeFrozen: false` para saber que não há roteiro
+   * nenhum para sustentar a transição, já que o `catch` nunca dispara aqui.
+   */
+  test('D5: sem geometria disponível, grava rota e pedágio null juntos — nunca zero — e avisa que não congelou', async () => {
     const repository = createFakeRepository({ vehicle: VEHICLE })
 
-    await freezeTripPlannedRoute({
+    const result = await freezeTripPlannedRoute({
       companyId: COMPANY_ID,
       geometry: { readRouteGeometry: async () => null },
       repository,
@@ -224,6 +231,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
     const [written] = repository.writeCalls
     expect(written?.route).toBeNull()
     expect(written?.toll).toBeNull()
+    expect(result).toEqual({ routeFrozen: false })
   })
 
   test('viagem com menos de duas paradas também grava null, e regrava sobre o que já existia', async () => {
@@ -232,7 +240,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
       vehicle: VEHICLE,
     })
 
-    await freezeTripPlannedRoute({
+    const result = await freezeTripPlannedRoute({
       companyId: COMPANY_ID,
       geometry: createGeometryPort([1, 2, 3]),
       repository,
@@ -246,12 +254,13 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
     expect(repository.writeCalls).toEqual([
       { companyId: COMPANY_ID, route: null, toll: null, tripId: TRIP_ID },
     ])
+    expect(result).toEqual({ routeFrozen: false })
   })
 
-  test('viagem sumida entre o gate e o congelamento é no-op, sem escrever nada', async () => {
+  test('viagem sumida entre o gate e o congelamento é no-op, sem escrever nada, e avisa que não congelou', async () => {
     const repository = createFakeRepository({ vehicle: null })
 
-    await freezeTripPlannedRoute({
+    const result = await freezeTripPlannedRoute({
       companyId: COMPANY_ID,
       geometry: createGeometryPort([1, 2, 3]),
       repository,
@@ -263,6 +272,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
     })
 
     expect(repository.writeCalls).toHaveLength(0)
+    expect(result).toEqual({ routeFrozen: false })
   })
 
   test('D3: assinatura que não bate com nenhuma opção cai no critério, e avisa não reproduzida', async () => {

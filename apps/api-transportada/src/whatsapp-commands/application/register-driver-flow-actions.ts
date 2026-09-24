@@ -84,6 +84,7 @@ export type DriverFlowActionDependencies = {
     readonly companyId: string
     readonly documentId: string
     readonly driverId: string
+    readonly idempotencyKey: string
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
@@ -482,6 +483,7 @@ export function createDriverWhatsAppFlowActions(
         companyId: actor.scope.companyId,
         documentId,
         driverId,
+        idempotencyKey: randomUUID(),
         note,
         occurrenceTypeId,
         productCode: '',

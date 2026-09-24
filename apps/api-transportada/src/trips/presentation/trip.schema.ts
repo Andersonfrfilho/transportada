@@ -18,6 +18,7 @@ import { TRIP_STATUSES } from '../../database/trip.schema.js'
 import type { TripFilters } from '../application/trip.port.js'
 import {
   batchTransitionTripDocumentsSchema,
+  closeTripSchema,
   createTripCteBatchSchema,
   createTripSchema,
   dispatchTripSchema,
@@ -32,6 +33,7 @@ import {
   setTripMdfeRequirementSchema,
   transitionTripDocumentSchema,
   type BatchTransitionTripDocumentsBody,
+  type CloseTripBody,
   type CreateTripBody,
   type CreateTripCteBatchBody,
   type DispatchTripBody,
@@ -146,6 +148,10 @@ export async function parseSetTripMdfeRequirementRequest(
   request: Request,
 ): Promise<SetTripMdfeRequirementBody> {
   return parseBody(setTripMdfeRequirementSchema, request)
+}
+
+export async function parseCloseTripRequest(request: Request): Promise<CloseTripBody> {
+  return parseOptionalBody(closeTripSchema, request)
 }
 
 export function parseTripList(url: URL): TripListing {

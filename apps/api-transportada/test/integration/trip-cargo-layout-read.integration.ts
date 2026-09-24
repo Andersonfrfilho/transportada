@@ -220,7 +220,7 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
 
     expect(detail?.cargoLayoutState.status).toBe('ready')
     expect(drawnBefore).not.toEqual(resolveCargoLayout(current))
-    expect(detail?.cargoLayout).toEqual(resolveCargoLayout(current))
+    expect(detail?.cargoLayout as unknown).toEqual(resolveCargoLayout(current))
   })
 
   test('failed carries its code, keeps the last ready as stale, and asks again only past the wait (D18)', async () => {

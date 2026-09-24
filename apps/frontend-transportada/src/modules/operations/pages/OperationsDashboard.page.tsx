@@ -10,6 +10,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { useOperationsDashboard } from '../hooks/useOperationsDashboard.hook'
 import type {
   AuditEvent,
+  JobSchedule,
   OperationsJob,
   OperationsTimelineEvent,
 } from '../shared/operationsClient.service'
@@ -87,6 +88,7 @@ export function OperationsDashboardPage() {
   })
   const summaryModules = workspace.summaryQuery.data?.modules ?? []
   const jobs: readonly OperationsJob[] = workspace.jobsQuery.data?.items ?? []
+  const jobSchedules: readonly JobSchedule[] = workspace.jobSchedulesQuery.data ?? []
   const timelineEvents: readonly OperationsTimelineEvent[] =
     workspace.timelineQuery.data?.items ?? []
   const auditEvents: readonly AuditEvent[] = workspace.auditQuery.data?.items ?? []
@@ -262,6 +264,12 @@ export function OperationsDashboardPage() {
                 <ul className={styles.list}>
                   {SCHEDULED_JOBS.map((job) => (
                     <RunJobRow
+                      control={{
+                        onPause: workspace.controller.pauseJob,
+                        onResume: workspace.controller.resumeJob,
+                        onToggled: () => void workspace.jobSchedulesQuery.refetch(),
+                        schedule: jobSchedules.find((row) => row.job === job) ?? null,
+                      }}
                       job={job}
                       key={job}
                       onRun={workspace.controller.runJob}
@@ -317,18 +325,28 @@ export function OperationsDashboardPage() {
  * Spec 072. A resposta é impressa **sempre** — inclusive `already_running`, que é o freio da RNF1 e
  * não um erro: ler "já está rodando" é informação, e ler nada faria o operador apertar de novo.
  */
+type JobScheduleControl = Readonly<{
+  onPause: (job: string) => Promise<JobSchedule | null>
+  onResume: (job: string) => Promise<JobSchedule | null>
+  onToggled: () => void
+  schedule: JobSchedule | null
+}>
+
 function RunJobRow({
+  control,
   job,
   onRun,
   onStarted,
 }: Readonly<{
+  control: JobScheduleControl
   job: string
   onRun: (job: string) => Promise<RunJobOutcome>
   onStarted: () => void
 }>): JSX.Element {
-  const { t } = useTranslation('operations')
+  const { t } = useTranslation('operationsWorkspace')
   const [outcome, setOutcome] = useState<RunJobOutcome | null>(null)
   const [isRunning, setIsRunning] = useState(false)
+  const [isToggling, setIsToggling] = useState(false)
 
   async function handleRun(): Promise<void> {
     if (isRunning) return
@@ -343,26 +361,58 @@ function RunJobRow({
     }
   }
 
+  async function handleToggle(): Promise<void> {
+    if (isToggling) return
+    setIsToggling(true)
+    try {
+      const isEnabled = control.schedule?.enabled ?? true
+      const result = isEnabled ? await control.onPause(job) : await control.onResume(job)
+      if (result !== null) control.onToggled()
+    } finally {
+      setIsToggling(false)
+    }
+  }
+
+  const isEnabled = control.schedule?.enabled ?? true
+
   return (
     <li className={styles.listItem}>
       <div>
         <strong>{job}</strong>
+        <p data-schedule-state={isEnabled ? 'enabled' : 'disabled'}>
+          {t(isEnabled ? 'schedule.enabled' : 'schedule.disabled')}
+        </p>
+        {control.schedule?.pausedAt === null || control.schedule === null ? null : (
+          <small>{t('schedule.pausedAt', { pausedAt: control.schedule.pausedAt })}</small>
+        )}
         {outcome === null ? null : (
           <p data-run-outcome={outcome} role="status">
             {t(`run.outcome.${outcome}`)}
           </p>
         )}
       </div>
-      <Button
-        disabled={isRunning}
-        onClick={() => {
-          void handleRun()
-        }}
-        size="sm"
-        variant="secondary"
-      >
-        {isRunning ? t('run.running') : t('run.action')}
-      </Button>
+      <div>
+        <Button
+          disabled={isToggling}
+          onClick={() => {
+            void handleToggle()
+          }}
+          size="sm"
+          variant="secondary"
+        >
+          {t(isEnabled ? 'schedule.disable' : 'schedule.enable')}
+        </Button>
+        <Button
+          disabled={isRunning}
+          onClick={() => {
+            void handleRun()
+          }}
+          size="sm"
+          variant="secondary"
+        >
+          {isRunning ? t('run.running') : t('run.action')}
+        </Button>
+      </div>
     </li>
   )
 }

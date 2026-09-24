@@ -63,6 +63,14 @@ type ContentSecurityPolicyParams = {
    * não ganha origem nenhuma, e o mapa vem do mesmo domínio que serve a tela.
    */
   readonly mapTilesUrl: string | undefined
+  /**
+   * Origem do bucket que serve o anexo por URL assinada (foto da ocorrência, comprovante). Entra
+   * **só** em `img-src`: `connect-src` não governa `<img>`, e o caminho contrário — pedir a imagem
+   * por `fetch` para driblar a diretiva — trocaria uma permissão estreita por uma ampla.
+   *
+   * Ausente é a instalação que serve o anexo pelo próprio domínio; a diretiva não ganha nada.
+   */
+  readonly objectStorageUrl?: string | undefined
 }
 
 /**
@@ -80,6 +88,7 @@ export function buildContentSecurityPolicy({
   apiBaseUrl,
   keycloakUrl,
   mapTilesUrl,
+  objectStorageUrl,
 }: ContentSecurityPolicyParams): string {
   const configured = [toOrigin(apiBaseUrl), toOrigin(keycloakUrl), toOrigin(mapTilesUrl)].filter(
     (origin): origin is string => origin !== undefined,
@@ -88,7 +97,7 @@ export function buildContentSecurityPolicy({
    * Só a API, e não tudo o que está em `connect-src`: o provedor de identidade não serve imagem
    * nossa, e ampliar a diretiva com origem que ninguém usa é permissão dada de graça.
    */
-  const imageOrigin = [toOrigin(apiBaseUrl)].filter(
+  const imageOrigin = [toOrigin(apiBaseUrl), toOrigin(objectStorageUrl)].filter(
     (origin): origin is string => origin !== undefined,
   )
   const connectSource = [

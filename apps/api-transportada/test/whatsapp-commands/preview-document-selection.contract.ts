@@ -96,7 +96,7 @@ function buildHarness(
   const deps: PreviewDocumentSelectionDependencies = {
     classifier: {
       describeDocumentOutputs: async (input) => {
-        expect(input.context.companyId).toBe(COMPANY_ID)
+        expect(input.companyId).toBe(COMPANY_ID)
         described.push([...input.documentIds])
         return descriptions
       },

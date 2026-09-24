@@ -8,6 +8,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
+
 const WAIT_TIMEOUT_MS = 1_000
 const WAIT_STEP_MS = 5
 
@@ -19,7 +21,7 @@ export type RenderedHook<TResult> = Readonly<{
 
 export async function renderHook<TResult>(useHook: () => TResult): Promise<RenderedHook<TResult>> {
   const queryClient = new QueryClient({
-    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+    defaultOptions: { ...QUERY_CLIENT_DEFAULT_OPTIONS, mutations: { retry: false } },
   })
   const container = document.createElement('div')
   document.body.append(container)

@@ -31,7 +31,12 @@ describe('mapeamento de erro para a baixa do escritório (spec 156)', () => {
     expect(tripEn.feedback[key as keyof typeof tripEn.feedback]).toBeTruthy()
   })
 
-  it('código desconhecido cai no genérico', () => {
-    expect(resolveTripFeedbackKey(new Error('ALGO_NUNCA_VISTO'))).toBe('requestFailed')
+  /**
+   * ⚠️ Era `requestFailed` até 23/09, e essa era a frase de falha de rede: um `422` legítimo do
+   * servidor mandava o operador conferir a internet. Código desconhecido agora diz que o servidor
+   * recusou — o que se sabe — sem inventar a causa.
+   */
+  it('código desconhecido cai no genérico de recusa, não no de rede', () => {
+    expect(resolveTripFeedbackKey(new Error('ALGO_NUNCA_VISTO'))).toBe('serverRefused')
   })
 })

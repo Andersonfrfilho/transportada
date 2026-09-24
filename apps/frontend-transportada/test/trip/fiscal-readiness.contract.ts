@@ -96,6 +96,8 @@ describe('a prontidão fiscal que chega da API', () => {
       'cte_cancelled',
       'nfse_expected',
       'city_unknown',
+      'blocked',
+      'no_profile',
     ])
     expect([...TRIP_FISCAL_READINESS_STATES]).toEqual([
       'incomplete',
@@ -143,6 +145,61 @@ describe('a prontidão fiscal que chega da API', () => {
     )
 
     expect(readiness.documents[0]?.expectedDocument).toBeNull()
+  })
+
+  /**
+   * O bundle aceita as chaves novas **antes** de a API emiti-las: um campo que chega e derruba a
+   * resposta inteira apagaria a tela da viagem no dia do deploy da API.
+   */
+  it('aceita os estados que o perfil de emissão decide, sem derrubar a resposta', () => {
+    for (const expectedDocument of ['blocked', 'no_profile'] as const) {
+      const readiness = adapters.tripFiscalReadinessFromApi(
+        payload({
+          documents: [
+            {
+              ...READY_DOCUMENT,
+              cteAccessKey: null,
+              cteFiscalDocumentId: null,
+              expectedDocument,
+              reason: expectedDocument,
+            },
+          ],
+          manifestableCount: 0,
+          readyCount: 0,
+          state: 'incomplete',
+        }),
+      )
+
+      expect(readiness.documents[0]).toMatchObject({ expectedDocument, reason: expectedDocument })
+    }
+  })
+
+  it('carrega o perfil de NFS-e que viaja junto do documento esperado', () => {
+    const readiness = adapters.tripFiscalReadinessFromApi(
+      payload({
+        documents: [
+          {
+            ...READY_DOCUMENT,
+            cteAccessKey: null,
+            cteFiscalDocumentId: null,
+            expectedDocument: 'nfse',
+            nfseProfileId: '00000000-0000-4000-8000-0000000000aa',
+            reason: 'nfse_expected',
+          },
+        ],
+        manifestableCount: 0,
+        nfseCount: 1,
+        readyCount: 0,
+        state: 'not_applicable',
+      }),
+    )
+
+    expect(readiness.documents[0]?.nfseProfileId).toBe('00000000-0000-4000-8000-0000000000aa')
+  })
+
+  /** API anterior não manda a chave: ausência vira `null`, nunca uma emissão contra perfil chutado. */
+  it('perfil ausente vira nulo', () => {
+    expect(adapters.tripFiscalReadinessFromApi(payload()).documents[0]?.nfseProfileId).toBeNull()
   })
 })
 

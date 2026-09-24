@@ -208,6 +208,31 @@ export const JOB_CATALOG = [
     /** Uma hora: a tabela cresce a cada envio de e-mail, e a varredura é barata pelo índice. */
     minimumIntervalSeconds: 3_600,
   },
+  {
+    /**
+     * Spec 161 RF21: a foto de ocorrência de galpão tem cinco anos de vida
+     * (`stored_objects.retention_until`), e esta rotina apaga bytes e linha juntos quando o prazo
+     * vence. Vocabulário de falha vazio — falha de storage vira contador (`failed`), nunca exceção.
+     */
+    failureOutcomes: [],
+    job: 'trip.occurrence-attachment.purge',
+    /** Um dia: o corte é de cinco anos, e correr mais fino não muda a retenção real. */
+    minimumIntervalSeconds: 86_400,
+  },
+  {
+    /**
+     * Achado [3] da revisão de código de 23/09 (spec 179): o pedido de upload da recusa/foto de
+     * ocorrência vive `OCCURRENCE_UPLOAD_EXPIRES_IN_SECONDS` (900s) e, sem esta rotina, o `pending`
+     * cujo motorista perdeu sinal antes do `confirm` ficava para sempre — e o objeto que ele chegou a
+     * subir não tinha dono no bucket. Vocabulário de falha vazio: o que pode dar errado é o
+     * imprevisto, e o invólucro já tem nome para ele.
+     */
+    failureOutcomes: [],
+    job: 'trip.occurrence-upload.expire',
+    /** A batida: a janela é de minutos (900s + folga), não dias — correr mais devagar deixaria o
+     * objeto sem dono no bucket por mais tempo do que a própria janela de upload. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

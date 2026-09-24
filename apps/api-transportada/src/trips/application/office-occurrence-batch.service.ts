@@ -151,6 +151,9 @@ async function recordItem(input: {
         note: context.note,
         occurrenceTypeId: occurrenceType.id,
         productCode: '',
+        ...(occurrenceType.redeliveryPolicy === undefined
+          ? {}
+          : { redeliveryPolicy: occurrenceType.redeliveryPolicy }),
         stage: TRIP_OCCURRENCE_STAGE.delivery,
         tripId: context.target.tripId,
         typeName: occurrenceType.name,

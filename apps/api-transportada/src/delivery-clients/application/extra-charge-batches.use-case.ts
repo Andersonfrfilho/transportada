@@ -12,6 +12,13 @@ import type {
   ExtraChargeDecision,
 } from './extra-charge-batch.port.js'
 
+export type OccurrenceStatementGenerationPort = {
+  readonly generate: (input: {
+    readonly batchId: string
+    readonly companyId: string
+  }) => Promise<void>
+}
+
 export class ExtraChargeBatchEmptyError extends ApiError {
   public constructor() {
     super({
@@ -32,8 +39,20 @@ export class ExtraChargeBatchNotFoundError extends ApiError {
   }
 }
 
+/** Alguma linha selecionada não é do contratante, já tem lote, ou não está em `recorded`. */
+export class ExtraChargeBatchSelectionIneligibleError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE',
+      message: 'One or more selected charges are not eligible for this batch',
+      status: 422,
+    })
+  }
+}
+
 export type ExtraChargeBatchesUseCase = {
   close(input: {
+    readonly chargeIds?: readonly string[]
     readonly context: CompanyContext
     readonly contractorId: string
     readonly periodEnd: string
@@ -67,6 +86,12 @@ export function createExtraChargeBatchesUseCase(dependencies: {
   readonly batches: ExtraChargeBatchRepositoryPort
   readonly charges: DeliveryChargeRepositoryPort
   readonly createToken: () => string
+  /**
+   * Spec 164 T20: o demonstrativo é gerado **aqui**, no fechamento, e nunca recomputado na leitura.
+   * Opcional porque a página pública monta este caso de uso só para decidir lançamento — ela não
+   * fecha lote e não teria como montar o renderizador.
+   */
+  readonly statement?: OccurrenceStatementGenerationPort
 }): ExtraChargeBatchesUseCase & {
   decideByToken(input: DecideOnBehalfOfTokenInput): Promise<ExtraChargeBatchReport>
   readReportByToken(input: { readonly accessToken: string }): Promise<ExtraChargeBatchReport>
@@ -117,20 +142,41 @@ export function createExtraChargeBatchesUseCase(dependencies: {
   }
 
   return {
-    async close({ context, contractorId, periodEnd, periodStart }) {
-      const batch = await dependencies.batches.close({
+    async close({ chargeIds, context, contractorId, periodEnd, periodStart }) {
+      const outcome = await dependencies.batches.close({
         accessToken: dependencies.createToken(),
         actorUserId: context.userId,
+        ...(chargeIds === undefined ? {} : { chargeIds }),
         companyId: context.companyId,
         contractorId,
         periodEnd,
         periodStart,
       })
       /**
+       * Seleção com linha fora do contratante, já em lote, ou fora de `recorded`: a requisição
+       * inteira recua — fechamento parcial silencioso seria pior que erro.
+       */
+      if (outcome.kind === 'selection_ineligible') {
+        throw new ExtraChargeBatchSelectionIneligibleError()
+      }
+      /**
        * Lote vazio é recusa, não lote de zero: ele nasceria, seria enviado e voltaria sem nada — e o
        * contratante receberia um link que não diz nada.
        */
-      if (batch === null) throw new ExtraChargeBatchEmptyError()
+      if (outcome.kind === 'empty') throw new ExtraChargeBatchEmptyError()
+      const batch = outcome.batch
+
+      /**
+       * ⚠️ O dinheiro já está fechado quando isto roda — falha aqui **não** desfaz o lote. Quem
+       * decide o que fazer com ela é a composição (`main.ts`), que registra no log e deixa o
+       * fechamento responder: derrubar a resposta faria o operador fechar de novo e girar o token do
+       * link que a contratante já recebeu. O lote fica sem demonstrativo, e a leitura responde
+       * `EXTRA_CHARGE_BATCH_STATEMENT_NOT_FOUND` — nunca um PDF errado.
+       */
+      await dependencies.statement?.generate({
+        batchId: batch.id,
+        companyId: context.companyId,
+      })
 
       return batch
     },

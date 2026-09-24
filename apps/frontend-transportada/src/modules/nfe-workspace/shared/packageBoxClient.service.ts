@@ -7,12 +7,14 @@ import {
 /**
  * D8: cópia por valor de `PACKAGE_BOX_MEASUREMENT_SOURCES` (API) — origem gravada com a medida.
  * Spec 155 (D6): `replicated` — a caixa nunca foi medida, a dimensão veio de uma irmã da família.
+ * Spec 162: `catalog` — promovida do catálogo de GTIN por consenso de duas fontes, sem conferência.
  */
 export const PACKAGE_BOX_MEASUREMENT_SOURCES = [
   'typed',
   'camera',
   'camera_adjusted',
   'replicated',
+  'catalog',
 ] as const
 export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCES)[number]
 
@@ -24,8 +26,37 @@ export type PackageBoxMeasurementSource = (typeof PACKAGE_BOX_MEASUREMENT_SOURCE
 export const PACKAGE_BOX_MEASURED_SOURCES = ['typed', 'camera', 'camera_adjusted'] as const
 export type PackageBoxMeasuredSource = (typeof PACKAGE_BOX_MEASURED_SOURCES)[number]
 
+/** Spec 163 (RF08): a medida da unidade (o produto na prateleira), opcional. */
+export type PackageBoxUnit = Readonly<{
+  grossWeightGrams: null | number
+  heightMm: number
+  lengthMm: number
+  /** `typed` | `catalog` | `manual:<domínio>`. */
+  source: null | string
+  widthMm: number
+}>
+
+/** Spec 163 (RF08): a caixa **estimada** pela unidade — nunca é medida. */
+export type PackageBoxEstimate = Readonly<{
+  arrangement: null | string
+  estimatedAt: null | string
+  grossWeightGrams: null | number
+  heightMm: number
+  lengthMm: number
+  volumeCm3: null | number
+  widthMm: number
+}>
+
 export type PackageBox = Readonly<{
   cartonGtin: null | string
+  /**
+   * Spec 163 (RF08): opcionais no tipo de propósito — a API anterior não os manda, e a fila não
+   * pode cair por isso durante a troca de versão.
+   */
+  estimate?: null | PackageBoxEstimate
+  /** `true` quando a cubagem usa a estimativa (a caixa não tem medida real). */
+  isEstimated?: boolean
+  unit?: null | PackageBoxUnit
   commercialUnit: string
   cumulativeShare: number
   description: string
@@ -314,6 +345,41 @@ function packageBoxPendingExportFromApi(body: unknown): PackageBoxPendingExport 
   return { items: body.data.items, truncated: body.data.truncated }
 }
 
+function isPackageBoxUnit(value: unknown): value is PackageBoxUnit {
+  return (
+    isRecord(value) &&
+    isNumber(value.lengthMm) &&
+    isNumber(value.widthMm) &&
+    isNumber(value.heightMm) &&
+    isNullableNumber(value.grossWeightGrams) &&
+    isNullableString(value.source)
+  )
+}
+
+function isPackageBoxEstimate(value: unknown): value is PackageBoxEstimate {
+  return (
+    isRecord(value) &&
+    isNumber(value.lengthMm) &&
+    isNumber(value.widthMm) &&
+    isNumber(value.heightMm) &&
+    isNullableNumber(value.volumeCm3) &&
+    isNullableNumber(value.grossWeightGrams) &&
+    isNullableString(value.arrangement) &&
+    isNullableString(value.estimatedAt)
+  )
+}
+
+/** Spec 163: ausente (API anterior) passa; presente e torto derruba a fila, nunca some calado. */
+function hasValidEstimateFields(value: Record<string, unknown>): boolean {
+  return (
+    (value.unit === undefined || value.unit === null || isPackageBoxUnit(value.unit)) &&
+    (value.estimate === undefined ||
+      value.estimate === null ||
+      isPackageBoxEstimate(value.estimate)) &&
+    (value.isEstimated === undefined || typeof value.isEstimated === 'boolean')
+  )
+}
+
 function isPackageBox(value: unknown): value is PackageBox {
   return (
     isRecord(value) &&
@@ -340,7 +406,8 @@ function isPackageBox(value: unknown): value is PackageBox {
     isNumber(value.familyMeasuredCount) &&
     isNumber(value.packagingSiblingCount) &&
     isOptionalNumber(value.packagingUnitCount) &&
-    typeof value.variantLabel === 'string'
+    typeof value.variantLabel === 'string' &&
+    hasValidEstimateFields(value)
   )
 }
 

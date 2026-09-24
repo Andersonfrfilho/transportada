@@ -92,7 +92,9 @@ jobs:
   # lado a lado: o gate só passa se ambos passarem, e o tempo de parede vira o do mais lento.
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Medido em 2026-09-22: 13 → 16 → 18 min nos últimos runs verdes, e dois cortes exatos em 20 min
+    # passando teste. O teto acompanha a suíte; se passar de 30, é hora de dividir o job.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       # O runner do GitHub sorteia porta de origem em 32768-60999 e não reserva nenhuma

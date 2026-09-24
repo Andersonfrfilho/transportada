@@ -76,8 +76,15 @@ async function loadPendingGtins(): Promise<PendingGtin[]> {
   return selectPendingGtins(databaseUrl)
 }
 
+/** Spec 163 (RF06): `unit` é a medida do produto (Alt+U); `carton`, a da caixa (Alt+C). */
+const MANUAL_CAPTURE_STATUS_BY_KIND: ReadonlyMap<string, string> = new Map([
+  ['carton', 'found_manual'],
+  ['unit', 'found_unit_manual'],
+])
+
 type ManualCapturePayload = {
   readonly cartonGtin: string
+  readonly kind: string
   readonly pageUrl: string
   readonly extracted: Record<string, unknown>
   readonly snippet: string
@@ -85,33 +92,46 @@ type ManualCapturePayload = {
 
 function parseManualCapture(value: unknown): ManualCapturePayload | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const { cartonGtin, pageUrl, extracted, snippet } = value as Record<string, unknown>
+  const {
+    cartonGtin,
+    kind = 'carton',
+    pageUrl,
+    extracted,
+    snippet,
+  } = value as Record<string, unknown>
   if (typeof cartonGtin !== 'string' || !pendingByCartonGtin.has(cartonGtin)) return undefined
+  if (typeof kind !== 'string' || !MANUAL_CAPTURE_STATUS_BY_KIND.has(kind)) return undefined
   if (typeof pageUrl !== 'string' || !/^https?:\/\//.test(pageUrl)) return undefined
   if (typeof extracted !== 'object' || extracted === null) return undefined
   if (typeof snippet !== 'string' || snippet.length === 0) return undefined
   return {
     cartonGtin,
+    kind,
     pageUrl,
     extracted: extracted as Record<string, unknown>,
     snippet: snippet.slice(0, MAX_SNIPPET_LENGTH),
   }
 }
 
-/** Medida achada fora do Cosmos: a pessoa selecionou o texto e apertou Alt+C na página. */
+/**
+ * Medida achada fora do Cosmos: a pessoa selecionou o texto e apertou Alt+C (caixa,
+ * `found_manual`) ou Alt+U (unidade, `found_unit_manual`, spec 163) na página.
+ */
 async function handleManualCapture(request: Request): Promise<Response> {
   const capture = parseManualCapture(await request.json().catch(() => undefined))
   if (!capture) return Response.json({ error: 'INVALID_CAPTURE' }, { status: 400 })
   const item = pendingByCartonGtin.get(capture.cartonGtin)
   if (!item) return Response.json({ error: 'INVALID_CAPTURE' }, { status: 400 })
+  const { kind, ...record } = capture
+  const status = MANUAL_CAPTURE_STATUS_BY_KIND.get(kind) ?? 'found_manual'
   await appendCaptureRecord({
-    ...capture,
+    ...record,
     unitGtin: item.unitGtin,
-    status: 'found_manual',
+    status,
     source: new URL(capture.pageUrl).hostname,
     capturedAt: new Date().toISOString(),
   })
-  console.log(JSON.stringify({ level: 'info', gtin: item.cartonGtin, status: 'found_manual' }))
+  console.log(JSON.stringify({ level: 'info', gtin: item.cartonGtin, status }))
   return Response.json(describeNext(queue))
 }
 

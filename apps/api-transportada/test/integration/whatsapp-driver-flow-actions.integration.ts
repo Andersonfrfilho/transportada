@@ -48,7 +48,6 @@ import {
   findOccurrenceType,
   listDocumentProducts,
   listOccurrenceTypes,
-  saveTripOccurrence,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
@@ -424,7 +423,7 @@ async function buildScenario(db: Database, companyId: string) {
   const baseUrl = `http://127.0.0.1:${graphServer?.port}`
 
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(db)
-  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(db)
+  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(db, 'test-bucket')
   const driverFlowActions = createDriverWhatsAppFlowActions({
     findCurrentTrip: (input) =>
       findCurrentDriverTrip({
@@ -438,11 +437,12 @@ async function buildScenario(db: Database, companyId: string) {
       registerDriverOccurrence({
         ...input,
         repository: {
+          findConfirmedUpload: async () => null,
           findOccurrenceType: (query) => findOccurrenceType(db, query),
           findReachableDocument: (query) => findDriverReachableDocument(db, query),
           listDocumentProducts: (query) => listDocumentProducts(db, query),
-          saveOccurrence: (query) => saveTripOccurrence(db, query),
         },
+        unitOfWork: driverFieldReports,
       }),
     reportDelivery: (input) =>
       reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: driverFieldReports }),

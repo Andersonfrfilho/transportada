@@ -15,6 +15,13 @@ import { buildPasswordResetDeliveryRabbitMqTopology } from '../../src/messaging/
 import { passwordResetDeliveryEnvelopeV1Schema } from '../../src/messaging/password-reset-delivery-envelope.schema.js'
 import { buildPasswordResetCodeAad } from '../../src/identity/infrastructure/password-reset-code-secret.gateway.js'
 import { handlePasswordResetDelivery } from '../../src/identity/application/deliver-password-reset-code.service.js'
+import { InvitationChannelUnavailableError } from '../../src/identity/infrastructure/invitation-channel.gateway.js'
+import { startPasswordResetDeliveryConsumer } from '../../src/runtime/password-reset-delivery-consumer.service.js'
+import {
+  WhatsAppChannelNotConfiguredError,
+  WhatsAppRecipientInvalidError,
+} from '../../src/whatsapp/infrastructure/whatsapp-code-sender.gateway.js'
+import { createCapturedConsumer } from '../fixtures/captured-consumer.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const USER_ID = '00000000-0000-4000-8000-0000000000aa'
@@ -32,7 +39,9 @@ const MESSAGE = {
   version: 1,
 } as const
 
-function createHarness(overrides: { readonly sendFails?: boolean } = {}) {
+function createHarness(
+  overrides: { readonly sendFails?: boolean; readonly sendError?: Error } = {},
+) {
   const sent: { readonly address: string; readonly body: string; readonly channel: string }[] = []
   const writes: string[] = []
   const logged: string[] = []
@@ -40,6 +49,7 @@ function createHarness(overrides: { readonly sendFails?: boolean } = {}) {
   const dependencies = {
     channels: {
       async send(input: { address: string; body: string; channel: string }) {
+        if (overrides.sendError !== undefined) throw overrides.sendError
         if (overrides.sendFails === true) throw new Error('SMTP indisponível')
         sent.push(input)
       },
@@ -143,5 +153,48 @@ describe('consumidor entrega pelo canal da empresa', () => {
     ).rejects.toThrow()
 
     expect(harness.writes).toEqual([])
+  })
+})
+
+describe('disposição do consumidor quando a entrega falha', () => {
+  async function dispositionFor(sendError: Error) {
+    const harness = createHarness({ sendError })
+    const consumer = createCapturedConsumer()
+    await startPasswordResetDeliveryConsumer({
+      config: consumer.config,
+      dependencies: harness.dependencies as never,
+      logger: consumer.logger,
+      provider: consumer.provider,
+    })
+    return { disposition: await consumer.deliver(MESSAGE), logged: consumer.logged }
+  }
+
+  test('contato que não é telefone brasileiro vai direto para a dead queue', async () => {
+    const { disposition } = await dispositionFor(new WhatsAppRecipientInvalidError(COMPANY_ID))
+
+    expect(disposition).toEqual({ type: 'dead-letter' })
+  })
+
+  test('falha de transporte continua voltando para retry', async () => {
+    const { disposition } = await dispositionFor(new Error('SMTP indisponível'))
+
+    expect(disposition).toEqual({ type: 'retry' })
+  })
+
+  test('canal sem configuração continua em retry: a configuração pode chegar na janela', async () => {
+    const unavailable = await dispositionFor(new InvitationChannelUnavailableError('whatsapp'))
+    const notConfigured = await dispositionFor(new WhatsAppChannelNotConfiguredError(COMPANY_ID))
+
+    expect(unavailable.disposition).toEqual({ type: 'retry' })
+    expect(notConfigured.disposition).toEqual({ type: 'retry' })
+  })
+
+  test('a recusa permanente não escreve contato nem código em log', async () => {
+    const { logged } = await dispositionFor(new WhatsAppRecipientInvalidError(COMPANY_ID))
+
+    const everything = JSON.stringify(logged)
+    expect(everything).toContain('password_reset_delivery_consumer_failed')
+    expect(everything).not.toContain(ADDRESS)
+    expect(everything).not.toContain(CODE)
   })
 })

@@ -15,6 +15,7 @@ export const TRIP_OCCURRENCE_PILL_FIELDS = [
   'typesQuery',
   'platesQuery',
   'createdRange',
+  'caseStatuses',
 ] as const
 
 export type TripOccurrencePillField = (typeof TRIP_OCCURRENCE_PILL_FIELDS)[number]
@@ -27,6 +28,7 @@ export type TripOccurrenceFilterPill = Readonly<{
 }>
 
 const FIELD_LABEL_KEY: Readonly<Record<TripOccurrencePillField, string>> = {
+  caseStatuses: 'occurrenceFeed.filters.caseStatus',
   createdRange: 'occurrenceFeed.filters.createdRange',
   platesQuery: 'occurrenceFeed.filters.plates',
   stages: 'occurrenceFeed.filters.stage',
@@ -54,6 +56,19 @@ function describeField(
       labelKey: FIELD_LABEL_KEY[field],
       value: '',
       valueKeys: filters.stages.map((stage) => `occurrenceFeed.stage.${stage}`),
+    }
+  }
+  if (field === 'caseStatuses') {
+    const isApplied = selectionDiffersFromDefault({
+      defaults: EMPTY_TRIP_OCCURRENCE_FILTERS.caseStatuses,
+      values: filters.caseStatuses,
+    })
+    if (!isApplied) return null
+    return {
+      field,
+      labelKey: FIELD_LABEL_KEY[field],
+      value: '',
+      valueKeys: filters.caseStatuses.map((status) => `occurrenceFeed.caseStatus.${status}`),
     }
   }
   if (field === 'createdRange') {
@@ -88,6 +103,9 @@ export function clearTripOccurrenceFilterField(
   }
   if (input.field === 'stages') {
     return { ...input.filters, stages: EMPTY_TRIP_OCCURRENCE_FILTERS.stages }
+  }
+  if (input.field === 'caseStatuses') {
+    return { ...input.filters, caseStatuses: EMPTY_TRIP_OCCURRENCE_FILTERS.caseStatuses }
   }
   return { ...input.filters, [input.field]: '' }
 }

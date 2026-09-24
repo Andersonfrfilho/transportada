@@ -2,11 +2,13 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { LngLatBounds, Map as MapLibreMap, Marker, type GeoJSONSource } from 'maplibre-gl'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { Tooltip } from '@/components/ui/tooltip'
 
 /**
  * ⚠️ **Sem esta folha o marcador não fica preso ao mapa.** É ela que dá `position: absolute` ao
@@ -124,6 +126,12 @@ export function AssemblyVectorMap({
   const mapRef = useRef<MapLibreMap | null>(null)
   const markersRef = useRef<Marker[]>([])
   const [isReady, setIsReady] = useState(false)
+  /**
+   * Os nós vazios que cada pino com tratativa aberta hospeda. A marca é desenhada pelo React
+   * **dentro** deles (portal), e não à mão: assim ela usa o `Tooltip` e o `Icon` do design system —
+   * o `title` nativo que estava aqui é proibido, e o texto dele estava cravado em português.
+   */
+  const [occurrenceBadgeHosts, setOccurrenceBadgeHosts] = useState<readonly HTMLElement[]>([])
   /** O estilo do tema já veio pelo construtor; o efeito abaixo só vale da segunda vez em diante. */
   const themeApplied = useRef(false)
   /** O mapa já abriu ao menos uma vez — depois disso, erro é rede, não ausência do arquivo. */
@@ -403,15 +411,22 @@ export function AssemblyVectorMap({
     markersRef.current = []
 
     const markerOffsets = resolveMarkerOffsets(points)
+    const badgeHosts: HTMLElement[] = []
     for (const point of points) {
+      const element = stopElement({
+        approximate: point.isApproximate,
+        color: stopColor(point.sequence ?? 1),
+        outline: resolveBasemapOutline(readToken, theme),
+        sequence: point.sequence ?? 1,
+      })
+      if (point.hasOpenOccurrence === true) {
+        const host = occurrenceBadgeHostElement()
+        element.append(host)
+        badgeHosts.push(host)
+      }
       markersRef.current.push(
         new Marker({
-          element: stopElement({
-            approximate: point.isApproximate,
-            color: stopColor(point.sequence ?? 1),
-            outline: resolveBasemapOutline(readToken, theme),
-            sequence: point.sequence ?? 1,
-          }),
+          element,
           offset: (markerOffsets.get(point.stopKey) ?? [0, 0]) as [number, number],
         })
           .setLngLat([point.longitude, point.latitude])
@@ -422,10 +437,13 @@ export function AssemblyVectorMap({
     /**
      * Spec 097 D4: o barracão, marcado **uma vez** — ele abre e fecha o traçado, e é o mesmo lugar.
      */
+    setOccurrenceBadgeHosts(badgeHosts)
+
     if (depotOrigin !== null) {
       markersRef.current.push(
         new Marker({
           element: depotElement({
+            label: t('assemblyMap.depotLabel'),
             /** O trecho que parte do barracão leva à parada 1: a cor dele é a cor dela. */
             color: stopColor(1),
             outline: resolveBasemapOutline(readToken, theme),
@@ -580,6 +598,20 @@ export function AssemblyVectorMap({
   return (
     <div className={styles.vectorMap}>
       <div className={styles.vectorMapCanvas} ref={containerRef} />
+      {/*
+       * A marca da parada em tratativa é desenhada aqui, dentro do nó que o marcador hospeda: o
+       * pino é `HTMLElement` do MapLibre, fora da árvore do React, e o portal é o que deixa a dica
+       * e o glifo virem do design system em vez de serem montados à mão.
+       */}
+      {occurrenceBadgeHosts.map((host, index) =>
+        createPortal(
+          <Tooltip label={t('occurrence.stopOpenCase')}>
+            <Icon name="alert" />
+          </Tooltip>,
+          host,
+          `occurrence-badge-${String(index)}`,
+        ),
+      )}
       <div className={styles.vectorMapControls}>
         <Button
           aria-label={t('assemblyMap.zoomIn')}
@@ -649,7 +681,11 @@ export function AssemblyVectorMap({
  * lugar — por isso quem chama desenha **um** marcador. Dois idênticos sobrepostos sugeririam dois
  * pontos distintos, e a volta já está dita pela linha.
  */
-function depotElement(input: { readonly color: string; readonly outline: string }): HTMLElement {
+function depotElement(input: {
+  readonly color: string
+  readonly label: string
+  readonly outline: string
+}): HTMLElement {
   const element = document.createElement('span')
   element.className = `${styles.tilePin ?? ''} ${styles.tileDepot ?? ''}`
   /**
@@ -660,7 +696,9 @@ function depotElement(input: { readonly color: string; readonly outline: string 
    */
   element.style.background = input.color
   element.style.borderColor = input.outline
-  element.title = 'Ponto de partida'
+  /** `title` nativo é proibido pelo design system, e o texto dele estava cravado em português. */
+  element.setAttribute('role', 'img')
+  element.setAttribute('aria-label', input.label)
 
   /**
    * ⚠️ O losango dizia "não é parada" e mais nada — quem olhava o mapa via um quadrado girado e
@@ -707,6 +745,21 @@ function stopElement(input: {
   element.style.borderColor = input.outline
   element.textContent = String(input.sequence)
   return element
+}
+
+/**
+ * Spec 164 RF37: o glifo de problema, **sobreposto** ao pino — a cor de `stopColorOf` continua
+ * sendo a do fundo, nunca substituída. `position: absolute` no canto: dois desenhos no mesmo pino
+ * não podem disputar o centro, que já é o número da sequência.
+ *
+ * O nó nasce **vazio**: quem desenha a marca dentro dele é o React, por portal, com o `Tooltip` e o
+ * `Icon` do design system. O glifo montado à mão que morava aqui trazia `stroke-width` próprio e um
+ * `title` nativo com o texto em português cravado no código.
+ */
+function occurrenceBadgeHostElement(): HTMLElement {
+  const host = document.createElement('span')
+  host.className = styles.tilePinOccurrenceBadge ?? ''
+  return host
 }
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'

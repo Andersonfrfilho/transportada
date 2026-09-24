@@ -2,6 +2,14 @@
 
 /** Escala fiscal do repositório: dinheiro é `numeric(_, 4)` do backend ao topo da tela. */
 export const AMOUNT_MAX_SCALE = 4
+
+/**
+ * O que o operador **digita** em campo de dinheiro: duas casas, como o dinheiro do país. A escala de
+ * quatro acima é de **armazenamento** — a API guarda quatro para não perder centavo em conta
+ * intermediária —, e usá-la na máscara faz o campo mostrar `100,0000` para cem reais (medido em
+ * 23/09 no lançamento avulso; a ficha do veículo já digitava com duas).
+ */
+export const TYPED_MONEY_SCALE = 2
 export const AMOUNT_DISPLAY_SCALE = 2
 export const AMOUNT_ZERO = '0.00'
 

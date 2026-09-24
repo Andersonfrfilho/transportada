@@ -11,6 +11,7 @@ import {
 import {
   serializeTripOccurrenceQuery,
   TRIP_OCCURRENCE_PER_PAGE,
+  type TripOccurrenceAttachment,
   type TripOccurrenceFeedFilters,
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedPage,
@@ -18,6 +19,7 @@ import {
 
 export const TRIP_OCCURRENCE_FEED_QUERY_KEY = 'trip-occurrence-feed'
 export const TRIP_OCCURRENCE_ATTACHMENTS_QUERY_KEY = 'trip-occurrence-attachments'
+export const TRIP_OCCURRENCE_SETTLEMENT_QUERY_KEY = 'trip-occurrence-settlement'
 
 export function getTripOccurrenceFeedClient(): TripOccurrenceFeedClient {
   return createTripOccurrenceFeedClient({
@@ -59,6 +61,17 @@ export function useTripOccurrenceFeedQuery(input: UseTripOccurrenceFeedInput) {
   })
 }
 
+/**
+ * A releitura das URLs assinadas fora de uma consulta do TanStack: o painel da nota recebe os
+ * anexos embutidos no detalhe da ocorrência, sem consulta própria para invalidar — quando a URL
+ * vence, o que ele precisa é da rota de anexos, e só dela.
+ */
+export function loadTripOccurrenceAttachments(
+  occurrenceId: string,
+): Promise<readonly TripOccurrenceAttachment[]> {
+  return getTripOccurrenceFeedClient().listAttachments({ occurrenceId })
+}
+
 export type UseTripOccurrenceAttachmentsInput = Readonly<{
   enabled: boolean
   occurrenceId: string
@@ -73,6 +86,25 @@ export function useTripOccurrenceAttachmentsQuery(input: UseTripOccurrenceAttach
     gcTime: 0,
     queryFn: () => client.listAttachments({ occurrenceId: input.occurrenceId }),
     queryKey: [TRIP_OCCURRENCE_ATTACHMENTS_QUERY_KEY, input.occurrenceId],
+    staleTime: 0,
+  })
+}
+
+export type UseOccurrenceSettlementInput = Readonly<{ enabled: boolean; occurrenceId: string }>
+
+/**
+ * Achado 2 da revisão (spec 164): `GET .../case/settlement` — o painel abre com o acerto já
+ * gravado em vez de sempre vazio. `gcTime`/`staleTime` zerados: o valor gravado por outra sessão
+ * não deve sobreviver em cache além da abertura do painel.
+ */
+export function useOccurrenceSettlementQuery(input: UseOccurrenceSettlementInput) {
+  const client = getTripOccurrenceFeedClient()
+
+  return useQuery({
+    enabled: input.enabled,
+    gcTime: 0,
+    queryFn: () => client.findOccurrenceSettlement({ occurrenceId: input.occurrenceId }),
+    queryKey: [TRIP_OCCURRENCE_SETTLEMENT_QUERY_KEY, input.occurrenceId],
     staleTime: 0,
   })
 }

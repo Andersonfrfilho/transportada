@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { FreightCalculationStatus } from '../../database/freight.schema.js'
+import type { ResolvedTripDocumentFreight } from '../domain/trip-document-freight.policy.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
 import type { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
@@ -61,7 +62,7 @@ export function mapTripDocument(record: TripDocumentRecord): TripDocument {
 
 export function mapTripStop(
   record: TripStopRecord,
-): Omit<TripStopDetail, 'documents' | 'latitude' | 'longitude'> {
+): Omit<TripStopDetail, 'documents' | 'hasOpenOccurrence' | 'latitude' | 'longitude'> {
   return {
     addressKey: record.addressKey,
     arrivedAt: record.arrivedAt === null ? null : record.arrivedAt.toISOString(),
@@ -92,10 +93,14 @@ export function mapTripDocumentDetail(input: {
   readonly freightCalculationStatus: FreightCalculationStatus | null
   readonly nfeDocumentStatus: NfeDocumentStatus | null
   readonly contact?: TripDocumentDetail['contact']
+  /** Spec 176: já resolvido antes do map — a política não conhece linha de banco. */
+  readonly freight: ResolvedTripDocumentFreight
   readonly nfeIssuedAt?: Date | null
   readonly nfeNumber?: null | string
   readonly nfeSeries?: null | string
   readonly nfeTotalValue?: null | string
+  /** Spec 164 T15 (RF20): derivado fora daqui (`occurrence-case-marker.query.ts`) — padrão `false`. */
+  readonly openOccurrenceCase?: boolean
 }): TripDocumentDetail {
   const fiscalStatus = input.nfeDocumentStatus ?? input.freightCalculationStatus
   if (fiscalStatus === null) throw new Error('TRIP_DOCUMENT_FISCAL_STATUS_MISSING')
@@ -104,10 +109,14 @@ export function mapTripDocumentDetail(input: {
     contact: input.contact ?? null,
     cteAuthorized: input.cteAuthorized,
     fiscalStatus,
+    freightAmount: input.freight.amount,
+    freightRuleName: input.freight.ruleName,
+    freightSource: input.freight.source,
     nfeIssuedAt: input.nfeIssuedAt?.toISOString() ?? null,
     nfeNumber: input.nfeNumber ?? null,
     nfeSeries: input.nfeSeries ?? null,
     nfeTotalValue: input.nfeTotalValue ?? null,
+    openOccurrenceCase: input.openOccurrenceCase ?? false,
   }
 }
 

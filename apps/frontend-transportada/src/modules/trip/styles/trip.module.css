@@ -46,12 +46,20 @@
 }
 
 .deck {
+  min-width: 0;
   display: grid;
   gap: var(--space-5);
 }
 
 .panel {
+  min-width: 0;
   display: grid;
+  /*
+   * A coluna implícita é `auto`, que mede pelo conteúdo: o painel de dentro ficava mais largo que
+   * o espaço entre os paddings do de fora e fechava na borda errada, deixando a margem direita
+   * menor que a esquerda.
+   */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   padding: var(--space-5);
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
@@ -69,6 +77,13 @@
 }
 
 .panelHead {
+  /*
+   * Item de grid (filho de `.panel`) herda `min-content` do conteúdo mais largo como piso de
+   * largura — sem isto, quando `.headerActions` não cabia numa linha, o cabeçalho inteiro (e com
+   * ele `.panel`/`.tripShell`) crescia além da viewport em vez de quebrar (achado da revisão de
+   * design de 23/09: o rodapé de página encostava na borda direita em telas estreitas).
+   */
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
@@ -178,6 +193,38 @@
   gap: var(--space-2);
 }
 
+/** Spec 168: os três campos de medida direto na linha do que falta medir. */
+.measureField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.measureField input {
+  width: 4.5rem;
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.measureField input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.measureFieldError {
+  color: var(--color-alert);
+  font-size: 0.78rem;
+}
+
+.measureFieldReason {
+  color: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  font-size: 0.82rem;
+}
+
 .sortButton {
   display: inline-flex;
   gap: var(--space-1);
@@ -254,10 +301,73 @@
   font-size: 0.74rem;
 }
 
+/*
+ * Spec 174 RF1/RF6: o estado fiscal da nota, na própria linha. Neutro por padrão; recusa e
+ * cancelamento (`.fiscalStatusBadgeAlert`) usam a mesma cor de alerta do resto da tela.
+ */
+.fiscalStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+}
+
+.fiscalStatusBadgeAlert {
+  border-color: color-mix(in srgb, var(--color-alert) 55%, transparent);
+  color: var(--color-alert);
+}
+
+/* A mensagem da SEFAZ pode ser longa; a linha corta, e o tooltip carrega o texto inteiro. */
+.fiscalStatusText {
+  overflow: hidden;
+  max-width: 22rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Spec 164 RF36: marca — não substitui nenhuma ação da linha, só acrescenta o aviso. É um `<Button>`
+ * (abre o diálogo da ocorrência), então herda `.ui-button`/`.ui-button-size-sm`/`.ui-button-ghost` —
+ * cujo padding e background competiam com os deste selo e o deixavam com altura/respiro diferentes
+ * de `.separationStatusBadge`/`.fiscalStatusBadge` ao lado (spec 181 T502). Seletor com o elemento
+ * (`button.occurrenceCaseBadge`) para vencer a especificidade das classes utilitárias sem depender
+ * da ordem de import das folhas de estilo.
+ */
+button.occurrenceCaseBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-compact);
+  padding: 0 var(--space-2);
+  background: transparent;
+  /*
+   * ⚠️ Cobre, **não** a cor de erro: `--color-alert` é a do impedimento fiscal, e vestir a mesma cor
+   * fazia a marca ler como bloqueio. A nota em tratativa não é presa — ela segue liberada (CA5), e
+   * o marcador só sinaliza. Token de atenção intermediário da paleta, nunca hexadecimal de módulo.
+   */
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
 .rowActions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Mesma técnica de `.headerActions`/`.stopCardMeta`: o botão inteiro pula para a linha seguinte em
+   vez de espremer o próprio rótulo em duas linhas dentro da caixa. */
+.rowActions :global(.ui-button) {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .driverChecklist {
@@ -319,12 +429,34 @@
 .actionActions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
+}
+
+/*
+ * A destrutiva vai para a outra ponta e veste o tom de alerta (revisão de 23/09). `margin-left:auto`
+ * só empurra quando há espaço: no celular a linha quebra e ela desce, sem colar na principal.
+ */
+.actionDestructive {
+  margin-left: auto;
+  border-color: color-mix(in srgb, var(--color-alert) 45%, transparent);
+  color: var(--color-alert);
+}
+
+.actionDestructive:hover:not(:disabled) {
+  border-color: var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 12%, transparent);
 }
 
 .mdfeGateOverlay {
   /* Portal fora de `.tripShell`: sem isto o botão compacto do diálogo ficava com 38px no celular. */
   --control-height-compact: var(--touch-target);
+  /*
+   * Revisão de design (spec 161): o `FileField` do seletor de foto usa `--control-height` (não o
+   * `-compact`) — sem este espelho ele ficava em 48px ao lado de botões `sm` de 44px na mesma
+   * fileira de ações, quebrando a paridade de altura que `web.md` §10 exige no alvo de toque.
+   */
+  --control-height: var(--touch-target);
 
   position: fixed;
   z-index: 40;
@@ -352,11 +484,52 @@
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
 }
 
+/* Sticky no scrollport do próprio diálogo (`.mdfeGateDialog` rola, não o body) — o cabeçalho fica
+   à vista mesmo com o corpo do formulário mais alto que a tela do celular (revisão spec 161). */
 .mdfeGateHeader {
+  /*
+   * Grid item herda mínimo automático = min-content do conteúdo (`h2` com `white-space: nowrap`
+   * conta como uma palavra só, do tamanho do texto inteiro) — sem zerar aqui, o cabeçalho e a
+   * coluna única de `.mdfeGateDialog` esticavam para caber o título sem quebrar, empurrando tudo
+   * (inclusive o rodapé) para fora dos 390px do celular. Mesma pegadinha do `min-width: auto` em
+   * item de flex, só que em item de grid (revisão spec 161).
+   */
+  min-width: 0;
+  position: sticky;
+  z-index: 1;
+  top: calc(var(--space-5) * -1);
   display: flex;
   gap: var(--space-3);
   align-items: flex-start;
   justify-content: space-between;
+  padding-block: var(--space-5) var(--space-2);
+  margin-top: calc(var(--space-5) * -1);
+  background: var(--color-graphite);
+}
+
+/*
+ * Revisão de UX (spec 161): o `title` nativo é proibido pelo design system (`docs/frontend/
+ * tooltips.md` — o componente `Tooltip` existe exatamente para isto, e `title=` reprova o
+ * contrato). A correção anterior truncava o texto inteiro (que É o número da nota — o dado que a
+ * pessoa entrou no diálogo para conferir) atrás de reticências. Agora o `<h2>` é fixo, curto, nunca
+ * quebra; a nota vai numa segunda linha que quebra por `overflow-wrap: anywhere` em vez de sumir.
+ */
+.mdfeGateHeader .occurrenceDialogTitleWrap {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.mdfeGateHeader .occurrenceDialogTitleWrap h2 {
+  font-size: 1.1rem;
+}
+
+.occurrenceDialogSubtitle {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
 }
 
 /**
@@ -379,6 +552,7 @@
 
 /* "Chegou em" e a distância da ocorrência de parada saíam crus: 21px e o fundo do navegador. */
 .mdfeGateDialog label {
+  min-width: 0;
   display: grid;
   gap: var(--space-1);
   align-content: start;
@@ -441,11 +615,25 @@
   border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
 }
 
+/*
+ * Rodapé fixo do diálogo (revisão spec 161): as ações principais (registrar/reenviar/cancelar)
+ * ficam sempre alcançáveis mesmo com o corpo mais alto que a tela — quem preenche em pé, com uma
+ * mão, não pode depender de rolar até o fim para achar o botão que fecha a tarefa.
+ */
 .mdfeGateFooter {
+  /* Mesmo zeramento do `.mdfeGateHeader` acima. */
+  min-width: 0;
+  position: sticky;
+  bottom: calc(var(--space-5) * -1);
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
+  margin: var(--space-2) calc(var(--space-5) * -1) calc(var(--space-5) * -1);
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
+  background: var(--color-graphite);
 }
 
 .scanQueue {
@@ -475,6 +663,7 @@
 
   .mdfeGateOverlay {
     --control-height-compact: var(--field-height-compact);
+    --control-height: var(--field-height);
 
     padding: var(--space-4);
   }
@@ -771,6 +960,7 @@
 
 /* T015: a viagem lista por parada — cartão por parada, nota aninhada dentro. */
 .stopList {
+  min-width: 0;
   display: grid;
   gap: var(--space-3);
   margin: 0;
@@ -780,11 +970,13 @@
 
 /* A lista de cargas fica numa coluna própria, fora da fileira de botões do vínculo. */
 .stopSection {
+  min-width: 0;
   display: grid;
   gap: var(--space-2);
 }
 
 .stopCard {
+  min-width: 0;
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
@@ -792,11 +984,55 @@
   background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
 }
 
+/*
+ * Spec 181 T502 (revisão de layout): duas fileiras empilhadas, nunca uma só. Identidade (sequência +
+ * título + contador) e metadados (selos + execução + ações de campo) competiam pelo mesmo espaço
+ * num único `flex-wrap`, e a largura que sobrava para o título variava conforme quantos selos a
+ * parada tinha — a mesma parada quebrava em 2 ou 4 linhas sem relação com o próprio texto. Cada
+ * fileira agora tem sua própria disputa de espaço, e o título nunca compete com um selo de outra
+ * parada.
+ */
 .stopCardHead {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.stopCardIdentity {
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Selos, execução e ações de campo — largura estável da identidade acima libera esta fileira para
+   quebrar por conta própria, sem puxar o título junto. */
+.stopCardMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
   align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * Sem isto o botão que sobra sem espaço quebra o próprio rótulo em duas linhas dentro da caixa em
+ * vez de descer inteiro para a linha seguinte — mesma técnica de `.headerActions :global(.ui-button)`
+ * (spec 170), aplicada aqui porque esta fileira ganhou o mesmo formato.
+ */
+.stopCardMeta :global(.ui-button) {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Estado à esquerda, ação à direita — a mesma leitura em parada de galpão, em rota e concluída. */
+.stopCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 
 /* Alvo de toque do arraste: é o gesto mais repetido do separador com viagem grande, e o dedo
@@ -821,6 +1057,7 @@
 
 .stopSequence {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   min-width: var(--control-height-compact);
@@ -832,18 +1069,58 @@
   font-size: 0.78rem;
 }
 
+/* Único item flexível da identidade: absorve o aperto de espaço em vez do número ou do contador
+   (`.stopCardIdentity`), e quebra por palavra — nunca ultrapassa a borda do card. */
 .stopLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 600;
 }
 
 .stopCounter {
+  flex-shrink: 0;
   margin-left: auto;
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
 
+/**
+ * O que aconteceu na parada saía com a mesma classe da contagem de notas: "Concluída às 17:32" e
+ * "1 nota" eram tipograficamente a mesma coisa, e o fato mais importante da linha — a parada
+ * fechou — se perdia no meio do ruído. Ganha corpo de etiqueta, com a cor do estado: verde quando
+ * concluiu, cobre quando o motorista chegou e a parada ainda está aberta.
+ */
+/**
+ * ⚠️ Sem `margin-left: auto`. Era **este selo** que empurrava a fileira para a direita, e ele só
+ * existe depois que a parada foi visitada: parada no galpão deixava os botões colados à esquerda e
+ * parada concluída os jogava para a direita, na mesma tela. Quem empurra agora é
+ * `.stopCardActions` — que existe sempre que há botão, em qualquer estado da parada (spec 181 T502).
+ */
+.stopExecution {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 10%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  line-height: 1.9;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stopExecutionDone {
+  border-color: color-mix(in srgb, var(--color-ready) 55%, transparent);
+  background: color-mix(in srgb, var(--color-ready) 12%, transparent);
+  color: var(--color-ready);
+}
+
 .stopDocumentList {
+  min-width: 0;
   display: grid;
   gap: var(--space-1);
   margin: 0;
@@ -851,18 +1128,111 @@
   list-style: none;
 }
 
+/**
+ * Spec 181 RF1: a fileira da nota deixou de ser um `flex-wrap` sem segundo eixo
+ * (`proposta-ux.md` item 1) — vira cabeçalho, grade rotulada, ações e expansões, cada um sua
+ * própria linha da grade.
+ */
 .stopDocumentRow {
-  display: flex;
-  flex-wrap: wrap;
+  min-width: 0;
+  display: grid;
   gap: var(--space-2);
-  align-items: center;
   padding: var(--space-2);
   border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
 }
 
+.stopDocumentHead {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/**
+ * Spec 181 RF10/CA09: coluna de largura fixa para a caixa de seleção — é a âncora de varredura
+ * vertical que o operador segue nota a nota, em vez de procurar a caixa no meio do texto.
+ */
+.stopDocumentCheckboxColumn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: var(--control-height-compact);
+  justify-content: center;
+}
+
+/**
+ * Spec 181 RF5/CA05: mesma âncora tipográfica do rótulo da parada (`.stopLabel`). Não encolhe: quem
+ * cede espaço para os selos é a fileira de selos ao lado, não este rótulo (spec 181 T502, evita o card
+ * mudar de forma conforme quantos selos a nota tem).
+ *
+ * ⚠️ **Sem `white-space: nowrap`**, e com teto de largura. O rótulo não é sempre o número curto: nota
+ * sem `nfeNumber` — o vínculo que só calcula frete — cai no id do documento, e um UUID de 36 dígitos
+ * com `nowrap` + `flex-shrink: 0` não encolhe nem quebra, e sai 11px para fora da janela de 375px.
+ * Deu barra horizontal na página e reprovou `responsive.smoke.spec.ts`.
+ */
 .stopDocumentLabel {
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-family: var(--font-utility);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.stopDocumentBadgeRow {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/**
+ * Spec 181 RF1/RF4/T202: dinheiro e pessoas em blocos rotulados — `auto-fit` porque quantos blocos
+ * cabem lado a lado depende do espaço disponível, não de um breakpoint fixo (contrato:
+ * `test/trip/document-row-structure.contract.ts`). Efeito colateral aceito: como cada nota tem sua
+ * própria grade (sem subgrid), a coluna direita não cai no mesmo x entre notas com número diferente
+ * de blocos populados — alinhar isso exigiria uma grade compartilhada por parada, mudança maior que
+ * o escopo desta revisão de layout (spec 181 T502).
+ */
+.stopDocumentGrid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+.stopDocumentGroup {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.stopDocumentGroupLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+/**
+ * Spec 180 RF16/T302: o mesmo botão fora do fluxo do texto, com a mesma área de toque — reusado
+ * aqui pelas duas expansões da nota (comprovante e detalhes), nunca um terceiro jeito de expandir.
+ */
+/* Spec 181 T502: entrou para dentro de `.rowActions` (flex) — `justify-self` era resquício de quando
+   era item de grid, sem efeito nenhum ali. */
+.stopDocumentToggle {
+  min-height: var(--touch-target);
+  padding-inline: var(--space-2);
+}
+
+.stopDocumentDetailGroup {
+  display: grid;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
 }
 
 /* Spec 073 CA10: a nota que vai para o `<entrega>`, e não para o cadastro do cliente. */
@@ -879,6 +1249,22 @@
 }
 
 /* Ela divide a fileira com o botão de devolver, que não encolhe: quem alinha é a etiqueta. */
+/**
+ * Devolvida é a nota que saiu do fluxo e cobra uma decisão; sair com a mesma borda cinza de
+ * "SEPARADA" a escondia na lista da parada. Entregue acende do outro lado, para o olho separar o
+ * que fechou do que travou sem precisar ler as duas palavras.
+ */
+.separationStatusBadgeProblem {
+  border-color: color-mix(in srgb, var(--color-alert) 70%, transparent);
+  background: color-mix(in srgb, var(--color-alert) 12%, transparent);
+  color: var(--color-alert);
+}
+
+.separationStatusBadgeDone {
+  border-color: color-mix(in srgb, var(--color-ready) 60%, transparent);
+  color: var(--color-ready);
+}
+
 .separationStatusBadge {
   display: inline-flex;
   align-items: center;
@@ -1060,12 +1446,6 @@
   background: color-mix(in srgb, var(--color-graphite) 92%, transparent);
 }
 
-@media (min-width: 40rem) {
-  .stopCardHead {
-    flex-wrap: nowrap;
-  }
-}
-
 /* Spec 059: a prontidão fica acima das ações — quem rola até "emitir" já sabe se dá para emitir. */
 .readinessPanel {
   border: 1px solid var(--color-slate);
@@ -1172,11 +1552,18 @@
   margin-block: var(--space-2);
 }
 
-/* Valor e data acompanham o número sem competir com ele: é referência, não o nome da nota. */
+/*
+ * Valor e data acompanham o número sem competir com ele: é referência, não o nome da nota.
+ * `white-space: nowrap` chegou a estar aqui, pensado para valor/data curtos — mas a mesma classe
+ * carrega o nome de quem recebe (`contact.recipient`), texto livre e longo, que ficava cortado na
+ * borda do card em vez de quebrar (spec 181 T502). `overflow-wrap: anywhere` já cobre o caso de um token
+ * sem espaço; o resto quebra normalmente.
+ */
 .stopDocumentMeta {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--color-slate);
   font-size: 0.8rem;
-  white-space: nowrap;
 }
 
 /* Lista lida de pé: uma linha por item, sem marcador competindo com a quantidade. */
@@ -1187,12 +1574,61 @@
   font-size: 0.8rem;
 }
 
-/* O formulário de ocorrência quebra naturalmente no celular do galpão (web.md §10). */
+/*
+ * Uma coluna só (revisão spec 161): o `Select` do design system não ganhava `flex: 1 1 100%` (essa
+ * regra só alcança `input`/`textarea`) e ficava estreito, do tamanho do próprio texto, ao lado da
+ * observação de largura cheia — os dois selects e o textarea agora vêm da mesma largura e da mesma
+ * altura de campo (`--field-height`), porque todo filho de grid ocupa a coluna inteira por padrão.
+ */
 .occurrenceForm {
-  display: flex;
-  flex-wrap: wrap;
+  /* Mesmo zeramento do `.mdfeGateHeader` acima — item de grid sem isto herda o min-content do
+     conteúdo mais largo (nome de tipo de ocorrência sem quebra, por exemplo) como largura mínima. */
+  min-width: 0;
+  display: grid;
   gap: var(--space-2);
   margin-block: var(--space-2);
+}
+
+/*
+ * Tipo + item lado a lado do tablet para cima (revisão spec 161, item 11) — mesmo padrão de
+ * `.cargoMeasures`. `min-width: 0` pela mesma razão do `.mdfeGateHeader` acima: item de grid sem
+ * isto herda o min-content do nome mais longo do tipo de ocorrência como piso de largura.
+ */
+.occurrenceFormRow {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .occurrenceFormRow {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/*
+ * Um item por linha (pedido do usuário, 22/09): a lista de quantidades usava a linha de duas colunas
+ * do formulário, e no desktop dois itens ficavam lado a lado — com o nome do produto no rótulo, isso
+ * espreme o nome e obriga a ler em ziguezague para conferir item contra contagem.
+ */
+.occurrenceItemQuantityList {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Spec 166 RF7: o campo numérico de quantidade ao lado do seletor de unidade, por item marcado. */
+.occurrenceItemQuantityFields {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) minmax(7rem, 1fr);
+  gap: var(--space-2);
+}
+
+/* Revisão de design (web.md §15): o `Select` do design system tem canto reto, e o campo de texto do
+   formulário tem `--radius-sm`. Lado a lado na mesma linha a diferença vira defeito visível, e quem
+   manda no par é o primitivo — o número acompanha o seletor da unidade, não o contrário. */
+.occurrenceItemQuantityFields input {
+  border-radius: 0;
 }
 
 /* Os campos do tipo saem dos tokens (docs/frontend/fields.md) — nunca da altura default do browser. */
@@ -1201,7 +1637,7 @@
   min-height: var(--field-height);
   padding: var(--field-padding);
   font-size: var(--field-font-size);
-  flex: 1 1 100%;
+  width: 100%;
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
   border-radius: var(--radius-sm, 0.25rem);
   color: var(--color-fog);
@@ -1211,6 +1647,111 @@
 
 .occurrenceForm textarea {
   resize: vertical;
+}
+
+/* Rodapé das ações quando `TripOccurrences` nasce fora de diálogo (`TripDetail`,
+   `TripOccurrencesWorkspace`) — mesmo grupo de botões do `.mdfeGateFooter`, sem o sticky que só
+   faz sentido dentro do molde de diálogo (revisão spec 161). */
+/*
+ * Revisão de design da spec 164 (T30, A1): **uma** grade para o bloco do acerto. As linhas eram
+ * grades independentes com número variável de células (5 quando o pagador era motorista, 4 quando
+ * não), e "Remover" de uma linha caía na coluna do pagador da outra. As linhas são `display:
+ * contents` aqui: quem define as colunas é o bloco, e todas as linhas herdam as mesmas.
+ */
+.settlementGrid {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settlementRow {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-graphite);
+}
+
+/* O cabeçalho de colunas só existe onde a grade tem colunas — no celular o rótulo é do campo. */
+.settlementColumns {
+  display: none;
+}
+
+.settlementField {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: end;
+}
+
+.settlementFieldLabel {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.settlementFieldError {
+  color: var(--color-alert);
+  font-size: 0.8rem;
+}
+
+.settlementFieldHint {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+/* Alvo de toque de 44px no botão destrutivo (responsive.md § "O que a tela entrega no polegar"). */
+.settlementRemove {
+  display: flex;
+  align-items: flex-end;
+}
+
+.settlementRemove button {
+  min-height: var(--control-height);
+}
+
+.settlementReimbursedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-height-compact);
+  color: var(--color-ready);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.occurrenceInvalidRows {
+  margin: 0;
+  color: var(--color-alert);
+}
+
+@media (min-width: 40rem) {
+  .settlementGrid {
+    align-items: end;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr) auto;
+  }
+
+  .settlementColumns,
+  .settlementRow {
+    display: contents;
+  }
+
+  .settlementColumns > span {
+    color: var(--color-slate);
+    font-size: 0.8rem;
+  }
+
+  .settlementFieldLabel {
+    display: none;
+  }
+}
+
+.occurrenceFormActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
 }
 
 /* O mapa acompanha a largura do painel e não empurra a tela para o lado no celular (web.md §10). */
@@ -1297,6 +1838,7 @@
 .tilePin {
   display: grid;
   place-items: center;
+  position: relative;
   width: var(--space-6);
   height: var(--space-6);
   border-radius: 50%;
@@ -1310,6 +1852,39 @@
    * onde mais se tenta arrastar.
    */
   pointer-events: none;
+}
+
+/*
+ * Spec 164 RF37: o ícone de problema fica no canto do pino, sobre a cor de `stopColorOf` — nunca a
+ * substitui. `position: absolute` porque os dois desenhos (número da sequência + glifo) não cabem
+ * disputando o mesmo centro.
+ */
+.tilePinOccurrenceBadge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  display: grid;
+  place-items: center;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: 50%;
+  background: var(--color-copper);
+  color: var(--color-ink-on-accent);
+  /* `.tilePin` desliga o ponteiro para o arrasto do mapa; a marca precisa dele para abrir a dica. */
+  pointer-events: auto;
+}
+
+/* O gatilho do tooltip entra entre a marca e o glifo — ele veste a marca, não encolhe dentro dela. */
+.tilePinOccurrenceBadge > * {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.tilePinOccurrenceBadge svg {
+  width: 70%;
+  height: 70%;
 }
 
 /**
@@ -1862,12 +2437,6 @@
   max-width: 60ch;
 }
 
-.occurrencePhotoGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
 /*
  * O pino de posição aproximada: anel tracejado e um pouco apagado. Ele é o centroide do município,
  * não o endereço — e precisa ser lido como palpite antes de alguém dirigir até lá (ADR-0044 §1).
@@ -1881,21 +2450,6 @@
 .assemblyStopApproximate {
   color: var(--color-copper);
   font-size: 0.74rem;
-}
-
-.occurrencePhotoButton {
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
-  border-radius: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.occurrencePhotoThumb {
-  display: block;
-  width: 8rem;
-  height: 6rem;
-  object-fit: cover;
 }
 
 /* Foto em tela cheia ao tocar — fechar volta ao detalhe, nunca a outra tela. */
@@ -1922,6 +2476,89 @@
   display: flex;
   justify-content: center;
   padding-block: var(--space-3);
+}
+
+/* Spec 161 T24: grade de miniaturas compartilhada pelo painel da nota, pelo feed e pelo detalhe
+   da ocorrência (RF9/RF10/RF11). Nome próprio — `.occurrencePhotoGrid`/`Thumb` já pertencem ao
+   seletor de foto (T23, `OccurrencePhotoPicker`); o feed antigo que os definia primeiro foi
+   removido na revisão da T27 (era CSS morto). */
+.occurrenceAttachmentGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.occurrenceAttachmentButton {
+  position: relative;
+  width: 8rem;
+  height: 6rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  overflow: hidden;
+  background: var(--color-asphalt);
+  cursor: pointer;
+}
+
+.occurrenceAttachmentButton:disabled {
+  cursor: default;
+}
+
+.occurrenceAttachmentSkeleton {
+  position: absolute;
+  inset: 0;
+}
+
+.occurrenceAttachmentThumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Selo de foto expirada (D11) ou de falha de carregamento (RF13) — nunca ícone quebrado. */
+/*
+ * PDF não tem miniatura: o ladrilho é o ícone `document` do design system com o rótulo do anexo,
+ * na mesma caixa de 8rem × 6rem das miniaturas para a grade continuar fechando em linha.
+ */
+.occurrenceAttachmentDocument {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 8rem;
+  height: 6rem;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--color-slate);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.occurrenceAttachmentDocument:hover,
+.occurrenceAttachmentDocument:focus-visible {
+  border-color: var(--color-slate);
+  color: var(--color-fog);
+}
+
+.occurrenceAttachmentBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 8rem;
+  height: 6rem;
+  padding: var(--space-2);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 40%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--color-copper);
 }
 
 /* A coluna de dinheiro tabula o dígito: sem isso os milhares não empilham e a varredura não funciona. */
@@ -2908,4 +3545,391 @@
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-left: auto;
+}
+
+/* Spec 161 T23: o seletor de foto da ocorrência de galpão — mesma moldura de `.viewport`/`.video`
+   de `fieldDeliveryWizard.module.css`, copiada aqui porque o picker não pertence ao wizard de
+   entrega. */
+.occurrencePhotoPicker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+/*
+ * Teto de altura (revisão spec 161): em retrato 3/4 e sem teto, o visor chegava a ~480px no celular
+ * do galpão — metade da tela vazia antes de qualquer foto. 4/3 com `max-height` mantém o enquadramento
+ * usável para provar avaria sem dominar a dobra; o vídeo preenche por `object-fit: cover` de qualquer
+ * jeito, então encolher a caixa não recorta a prévia de um jeito que engane quem está fotografando.
+ */
+.occurrencePhotoViewport {
+  position: relative;
+  width: 100%;
+  max-width: 18rem;
+  max-height: 11rem;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-sm, 0.25rem);
+  background: var(--color-asphalt);
+}
+
+.occurrencePhotoVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/*
+ * Faixa de ações (revisão spec 161): Fotografar / lanterna / virar câmera / escolher arquivo saem
+ * da mesma altura — o botão `sm` já usa `--control-height-compact` (`.mdfeGateOverlay` o eleva a
+ * `--touch-target`, 44px) e o `FileField` agora lê `--control-height` no mesmo escopo, ver abaixo.
+ * `align-items: stretch` mantém as bordas alinhadas quando a fileira quebra em duas linhas no
+ * celular, sem depender de as caixas nascerem com a mesma altura intrínseca.
+ */
+.occurrencePhotoActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+/*
+ * O `FileField` traz um rótulo próprio acima da caixa (`occurrence.photoPicker.uploadLabel`), que
+ * duplicava o texto já visível dentro da caixa (`actionLabel` + nome do arquivo) e ficava sozinho,
+ * de altura maior, ao lado dos botões — daí o "rótulo centralizado fora do padrão" da revisão. O
+ * nome acessível do campo continua vindo do `aria-label` no input (`file-field.tsx`), então esconder
+ * só o texto redundante não tira nada do leitor de tela.
+ */
+.occurrencePhotoUpload {
+  flex: 1 1 12rem;
+  min-width: 12rem;
+}
+
+.occurrencePhotoUpload > label:first-child {
+  display: none;
+}
+
+.occurrencePhotoGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * Revisão de UX (spec 161): 4.5rem (72px) de miniatura com um botão de 44px encostado no canto
+ * cobria 61% dela — quase impossível ver a foto por trás do próprio botão de apagar. 6rem dá
+ * espaço para o alvo de toque recuado (`inset: var(--space-1)`) sem comer a imagem.
+ */
+.occurrencePhotoThumb {
+  position: relative;
+  width: 6rem;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm, 0.25rem);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.occurrencePhotoThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* O PDF escolhido ocupa o mesmo ladrilho da foto, com ícone e nome em vez de miniatura. */
+.occurrencePhotoDocument {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--color-slate);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.occurrencePhotoRemove {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact, 1.75rem);
+  height: var(--control-height-compact, 1.75rem);
+  border: none;
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
+  color: var(--color-fog);
+  cursor: pointer;
+}
+
+/*
+ * Estado armado (revisão spec 161): a `previewUrl` é revogada na hora da remoção — não existe
+ * desfazer depois. Foto de câmera pede este segundo toque; o botão muda de cor e de ícone
+ * (`trash` → `check`) para o estado ficar visível, não só no `aria-label`.
+ */
+.occurrencePhotoRemoveConfirming {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact, 1.75rem);
+  height: var(--control-height-compact, 1.75rem);
+  border: none;
+  border-radius: var(--radius-sm, 0.25rem);
+  background: var(--color-copper);
+  color: var(--color-ink-on-accent);
+  cursor: pointer;
+}
+
+.occurrencePhotoRemove:disabled,
+.occurrencePhotoRemoveConfirming:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/*
+ * Grid em vez de flex com `gap` de 4px (revisão spec 161): sete botões de alvo de toque cheio
+ * (44px) com `--space-1` (4px) entre eles formavam uma escada irregular — 1, depois 2, depois 1 —
+ * porque o texto de cada frase tem um comprimento diferente. `repeat(auto-fill, minmax(10rem,
+ * 1fr))` mantém colunas do mesmo tamanho no mesmo `gap` do resto do formulário (`--space-2`).
+ */
+.occurrenceNotePresets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-2);
+}
+
+/* Disclosure das frases prontas (revisão spec 161, item 1): fechado por padrão — a foto obrigatória
+   não devia competir com sete botões opcionais pela primeira dobra do celular. */
+.occurrenceNotePresetsDetails {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.occurrenceNotePresetsDetails summary {
+  cursor: pointer;
+  color: var(--color-copper);
+  font-size: 0.85rem;
+}
+
+/* Contador da observação perto do teto: alerta discreto, no token de aviso, nunca vermelho de erro
+   — o texto ainda é válido, só está acabando. */
+.occurrenceNoteCounterNear {
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--color-copper);
+}
+
+/*
+ * `rows={2}` só dá o ponto de partida — `field-sizing: content` (Chromium recente; navegador sem
+ * suporte fica com as duas linhas fixas, degradê aceitável) deixa o campo crescer com o texto em
+ * vez de nascer com quatro linhas fixas, a maioria vazia, empurrando a foto obrigatória para baixo
+ * dela (revisão spec 161, item 1).
+ */
+.occurrenceNoteField {
+  field-sizing: content;
+  max-height: 12rem;
+}
+
+/* Marcador de campo obrigatório (revisão spec 161, item 7) — a foto é a única seção que trava o
+   envio (CA17); o `*` segue o mesmo padrão do resto do produto para campo obrigatório. */
+.occurrencePhotoSectionLabel {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 0.85rem;
+}
+
+.occurrencePhotoSectionLabel span {
+  color: var(--color-copper);
+}
+
+/* Progresso de envio por foto: cada item já traz `.hint`/`.alert` conforme o status (revisão spec
+   161, item 8) — a lista só precisa não herdar cor própria por cima. */
+.occurrencePhotoSendStatus {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.occurrencePhotoSendStatus li {
+  margin: 0;
+}
+
+/* "Adicione ao menos uma foto…" ao lado das ações do rodapé (revisão spec 161, item 7) — perto do
+   botão que ela explica, não solto no meio do formulário que já rolou para fora de vista. */
+.occurrenceFooterHint {
+  margin: 0;
+  margin-inline-end: auto;
+  color: var(--color-copper);
+  /* Frase corrida, nunca caixa alta: no rodapé ela fica ao lado do botão que explica, e versal
+     com espaçamento vira grito de duas linhas que empurra as ações. */
+  font-family: inherit;
+  font-size: 0.82rem;
+  letter-spacing: normal;
+  text-transform: none;
+  align-self: center;
+}
+
+/*
+ * Confirmação em duas etapas antes de descartar (revisão spec 161, item 3) — mesmo molde do
+ * `.confirm` do `WhatsAppPhonePanel` (`role="alertdialog"`, ghost + secondary), só que no rótulo
+ * dos tokens deste módulo em vez de um novo `whatsappPhone.module.css`.
+ */
+.occurrenceDiscardConfirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+}
+
+.occurrenceDiscardConfirm p {
+  margin: 0;
+  flex: 1 1 100%;
+}
+
+/*
+ * Revisão de leitura (22/09): a ocorrência era uma linha corrida — tipo, hora, código do item e
+ * autoria separados por travessão. Com vários itens e a contagem da spec 166, virava parede de
+ * texto. Agora cada ocorrência é um bloco, e cada item tem sua linha.
+ */
+.documentProductList > li + li {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
+.occurrenceEntryHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.occurrenceEntryType {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.occurrenceEntryItems {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.occurrenceEntryItems > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/* O código é etiqueta, não texto: largura própria para os itens alinharem entre si. */
+.occurrenceEntryItemCode {
+  min-width: 3.5rem;
+  color: color-mix(in srgb, var(--color-fog) 78%, var(--color-slate) 22%);
+  font-family: var(--font-utility, monospace);
+  font-size: 0.78rem;
+}
+
+.occurrenceEntryItemName {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+/* A contagem é o número que decide a tratativa — ela não pode ler como detalhe secundário. */
+.occurrenceEntryItemQuantity {
+  border: 1px solid color-mix(in srgb, var(--color-fog) 26%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  padding: 0 var(--space-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.occurrenceEntryWhole {
+  margin: var(--space-1) 0 0;
+  font-style: italic;
+  color: color-mix(in srgb, var(--color-fog) 78%, var(--color-slate) 22%);
+}
+
+.occurrenceEntryNote {
+  margin: var(--space-1) 0 0;
+}
+
+/*
+ * Spec 170: as ações de estado no cabeçalho. `margin-left:auto` as empurra para a direita do título
+ * e do status quando há espaço; abaixo disso a linha quebra e elas descem inteiras, sem espremer o
+ * status — que é o que o operador lê primeiro.
+ */
+.headerActions {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /*
+   * Ao quebrar, a linha de baixo continua ancorada na mesma borda das de cima — sem isto os botões
+   * caíam alinhados pelo início do que sobrou e pareciam soltos no meio do cabeçalho.
+   */
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* O resumo cede a linha inteira antes de espremer os botões que ele acompanha. */
+.headerActions > .hint {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * Sem `flex-shrink: 0` o flexbox espreme o botão inteiro (ícone + rótulo) até o rótulo quebrar no
+ * meio da palavra antes de tentar descer para a linha de baixo — "Liberar para separação" e
+ * "Cancelar viagem" partiam em duas ou três linhas dentro do próprio botão em telas estreitas, em
+ * vez do botão inteiro pular de linha. Mesma técnica que `.openOccurrenceBadge` já usa com
+ * `white-space: nowrap`.
+ */
+.headerActions :global(.ui-button) {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/*
+ * Spec 173: o marcador de tratativa aberta. Alerta, não erro: ele diz que há algo a tratar naquela
+ * nota, e o tom `--color-alert` é o mesmo que o resto do produto usa para o que pede atenção.
+ */
+.openOccurrenceBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid color-mix(in srgb, var(--color-alert) 40%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  padding: 0 var(--space-2);
+  color: var(--color-alert);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }

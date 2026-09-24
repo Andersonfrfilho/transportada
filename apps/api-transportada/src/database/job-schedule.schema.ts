@@ -20,8 +20,11 @@ import {
   JOB_EXECUTION_ORIGIN_MAX_LENGTH,
   JOB_EXECUTION_ORIGINS,
   JOB_OUTCOME_MAX_LENGTH,
+  JOB_PAUSE_ORIGIN_MAX_LENGTH,
+  JOB_PAUSE_ORIGINS,
   JOB_TICK_INTERVAL_SECONDS,
   type JobOutcome,
+  type JobPauseOrigin,
   SCHEDULED_JOB_MAX_LENGTH,
   SCHEDULED_JOBS,
   type JobExecutionOrigin,
@@ -52,6 +55,16 @@ export const jobSchedules = pgTable(
       onDelete: 'restrict',
       onUpdate: 'cascade',
     }),
+    /**
+     * A pausa de fábrica (migration que faz a rotina nascer desligada) não tem a quem atribuir —
+     * `system`. A pausa feita por gente, pelo botão, sempre tem dono — `user`, e ela exige
+     * `paused_by`. "Rotina pausada é estado que se anuncia" continua valendo também para quem a
+     * desligou: sem essa nuance o CHECK só sabia recusar `paused_by` sem `paused_at`, e aceitava de
+     * volta uma pausa de origem humana sem autor.
+     */
+    pausedOrigin: varchar('paused_origin', {
+      length: JOB_PAUSE_ORIGIN_MAX_LENGTH,
+    }).$type<JobPauseOrigin>(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -60,10 +73,30 @@ export const jobSchedules = pgTable(
       'job_schedules_interval_check',
       sql`${table.intervalSeconds} >= ${sql.raw(String(JOB_SCHEDULE_MINIMUM_INTERVAL_SECONDS))}`,
     ),
+    check(
+      'job_schedules_paused_origin_check',
+      sql`${table.pausedOrigin} in (${sql.raw(inList(JOB_PAUSE_ORIGINS))})`,
+    ),
     // Rotina pausada é estado que se anuncia: sem desde quando e por quem, ela morre calada
+    /**
+     * Habilitada exige os três campos de pausa nulos. Pausada exige `paused_at` e `paused_origin`
+     * sempre; `paused_by` só quando a origem é `user` — origem `system` aceita `paused_by` nulo
+     * porque não há ator a quem atribuir a pausa de fábrica.
+     */
     check(
       'job_schedules_pause_check',
-      sql`${table.enabled} = (${table.pausedAt} is null) and (${table.pausedAt} is null) = (${table.pausedBy} is null)`,
+      sql`(
+        ${table.enabled} = true
+        and ${table.pausedAt} is null and ${table.pausedBy} is null
+        and ${table.pausedOrigin} is null
+      ) or (
+        ${table.enabled} = false
+        and ${table.pausedAt} is not null and ${table.pausedOrigin} is not null
+        and (
+          (${table.pausedOrigin} = 'user' and ${table.pausedBy} is not null) or
+          (${table.pausedOrigin} = 'system' and ${table.pausedBy} is null)
+        )
+      )`,
     ),
   ],
 )

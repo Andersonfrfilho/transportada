@@ -77,6 +77,7 @@ describe('a rota do galpão só grava tipo de galpão (spec 157)', () => {
     const calls = { notified: 0, saved: 0 }
     const promise = registerTripOccurrence({
       actorUserId: '00000000-0000-4000-8000-00000000000f',
+      attachment: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
       companyId: '00000000-0000-4000-8000-000000000001',
       documentId: '00000000-0000-4000-8000-000000000017',
       note: '',
@@ -99,6 +100,7 @@ describe('a rota do galpão só grava tipo de galpão (spec 157)', () => {
         async findOccurrenceType() {
           return {
             active: true,
+            allowsMultipleItems: true,
             emailBody: '',
             emailSubject: '',
             emailTemplateKey: null,

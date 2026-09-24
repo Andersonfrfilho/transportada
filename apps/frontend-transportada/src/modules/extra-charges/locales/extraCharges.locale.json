@@ -39,13 +39,72 @@
     "other": "Outra",
     "parking": "Estacionamento",
     "platform": "Plataforma",
+    "returned_goods": "Produtos devolvidos",
     "scheduling": "Agendamento",
     "unloading": "Descarga"
   },
   "errors": {
     "DELIVERY_CHARGE_AMOUNT_REQUIRED": "Esta sugestão veio do motorista sem valor. Preencha o valor do recibo antes de confirmar.",
     "EXTRA_CHARGE_BATCH_EMPTY": "Não há taxa conferida deste contratante neste período.",
+    "EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE": "Uma das linhas marcadas não está mais disponível para fechamento. Atualize a lista e marque de novo.",
     "REQUEST_FAILED": "Não foi possível concluir. Tente de novo."
+  },
+  "reimbursements": {
+    "title": "Ressarcimentos",
+    "subtitle": "Cobranças de ocorrência ainda sem lote — marque as linhas que entram no próximo demonstrativo.",
+    "forbidden": "Esta tela exige a permissão de dados financeiros da viagem.",
+    "loading": "Carregando o relatório…",
+    "empty": "Nenhuma cobrança de ocorrência em aberto neste filtro.",
+    "filters": {
+      "contractor": "Contratante",
+      "contractorAll": "Todos os contratantes",
+      "period": "Período",
+      "periodPlaceholder": "dd/mm/aaaa a dd/mm/aaaa",
+      "chargeType": "Tipo de cobrança",
+      "chargeTypeAll": "Todos os tipos",
+      "chargeTypeSummary": "{{count}} tipos selecionados",
+      "chargeTypeSearchPlaceholder": "Buscar tipo",
+      "chargeTypeClearAll": "Limpar tipos",
+      "chargeTypeRemove": "Remover tipo de cobrança",
+      "status": "Situação",
+      "statusAll": "Todas as situações",
+      "settlement": "Acerto",
+      "settlementAll": "Com ou sem acerto",
+      "settlementWith": "Já tem acerto",
+      "settlementWithout": "Ainda sem acerto",
+      "search": "Buscar nota"
+    },
+    "table": {
+      "select": "Selecionar a cobrança",
+      "selectAll": "Selecionar todas as cobranças da página",
+      "date": "Data",
+      "note": "Nota",
+      "type": "Tipo",
+      "amount": "Valor",
+      "status": "Situação",
+      "settlement": "Acerto",
+      "settlementDone": "Com acerto",
+      "settlementPending": "Sem acerto",
+      "ineligibleMissingContractor": "Sem contratante identificado — esta linha não entra num demonstrativo.",
+      "ineligibleOtherContractor": "É de outro contratante — o fechamento é de um contratante por vez."
+    },
+    "totals": {
+      "reportTotal": "Total do filtro: {{total}}",
+      "selectedTotal_one": "Total selecionado: {{total}} ({{count}} linha)",
+      "selectedTotal_other": "Total selecionado: {{total}} ({{count}} linhas)"
+    },
+    "close": {
+      "action": "Fechar o período da seleção",
+      "hint": "O fechamento pega exatamente as linhas marcadas. O intervalo mostrado é só o período que elas cobrem.",
+      "emptyError": "Marque ao menos uma linha antes de fechar.",
+      "mixedContractorError": "As linhas marcadas são de contratantes diferentes — feche um contratante por vez.",
+      "missingContractorError": "Uma das linhas marcadas não tem contratante identificado.",
+      "result": "Lote fechado: {{contractor}} · de {{periodStart}} a {{periodEnd}}."
+    },
+    "statement": {
+      "action": "Baixar demonstrativo",
+      "hint": "O demonstrativo é do lote que acabou de fechar. Quem manda para a contratante é a pessoa — esta tela não envia nada sozinha."
+    }
   },
   "queue": {
     "amount": "Valor",

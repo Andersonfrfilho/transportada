@@ -8,12 +8,17 @@ import { z } from 'zod'
 
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { TRIP_OCCURRENCE_CASE_STATUSES } from '../../database/trip.schema.js'
 import { TRIP_OCCURRENCE_FEED_STAGES } from '../application/trip-occurrence-feed.use-case.js'
 import type {
+  TripOccurrenceFeedCaseStatusFilter,
   TripOccurrenceFeedFilters,
   TripOccurrenceFeedStage,
 } from '../application/trip-occurrence-feed.use-case.js'
 import type { OccurrenceFeedOrder } from '../domain/occurrence-feed.policy.js'
+
+/** RF11: os estados reais da tratativa, mais `'none'` — "sem tratativa aberta". */
+const CASE_STATUS_FILTER_VALUES = new Set<string>([...TRIP_OCCURRENCE_CASE_STATUSES, 'none'])
 
 const UUID = z.string().uuid()
 
@@ -23,6 +28,7 @@ const CURSOR_SEPARATOR = '::'
 const MULTI_VALUE_SEPARATOR = ','
 
 const ALLOWED_KEYS = new Set([
+  'caseStatusIn',
   'createdFrom',
   'createdUntil',
   'cursor',
@@ -76,6 +82,15 @@ function parseStageIn(value: null | string): readonly TripOccurrenceFeedStage[] 
   return parts as readonly TripOccurrenceFeedStage[]
 }
 
+function parseCaseStatusIn(
+  value: null | string,
+): readonly TripOccurrenceFeedCaseStatusFilter[] | undefined {
+  const parts = parseMultiValue(value)
+  if (parts === undefined) return undefined
+  if (parts.some((part) => !CASE_STATUS_FILTER_VALUES.has(part))) throw invalidRequest()
+  return parts as readonly TripOccurrenceFeedCaseStatusFilter[]
+}
+
 function parsePerPage(value: null | string): number {
   if (value === null) return DEFAULT_PER_PAGE
   const parsed = Number(value)
@@ -109,8 +124,10 @@ export function parseTripOccurrenceFeedList(url: URL): {
   const plateIn = parseMultiValue(url.searchParams.get('plateIn'))
   const stageIn = parseStageIn(url.searchParams.get('stageIn'))
   const typeIn = parseMultiValue(url.searchParams.get('typeIn'))
+  const caseStatusIn = parseCaseStatusIn(url.searchParams.get('caseStatusIn'))
 
   const filters: TripOccurrenceFeedFilters = {
+    ...(caseStatusIn === undefined ? {} : { caseStatusIn }),
     ...(createdFrom === undefined ? {} : { createdFrom }),
     ...(createdUntil === undefined ? {} : { createdUntil }),
     ...(plateIn === undefined ? {} : { plateIn }),

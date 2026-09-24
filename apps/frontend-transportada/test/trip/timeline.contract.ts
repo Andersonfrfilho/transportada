@@ -9,6 +9,7 @@ const adapters = createTripResponseAdapters()
 const BASE_ITEM = {
   actorName: 'Marina Alves',
   channel: 'office' as const,
+  closeReason: null,
   document: { id: 'doc-1', number: '123', series: '1' },
   fromStatus: null,
   id: 'item-1',
@@ -52,6 +53,30 @@ describe('leitura da linha do tempo (spec 158 T7)', () => {
     expect(page.items[0]?.channel).toBeNull()
     expect(page.items[0]?.document).toBeNull()
     expect(page.nextCursor).toBeNull()
+  })
+
+  it('aceita closeReason no encerramento manual (spec 158 T12)', () => {
+    const page = adapters.tripTimelineFromApi({
+      items: [
+        {
+          ...BASE_ITEM,
+          closeReason: 'Canhotos recebidos no escritório',
+          kind: 'trip.status_changed',
+          toStatus: 'completed',
+        },
+      ],
+      nextCursor: null,
+    })
+    expect(page.items[0]?.closeReason).toBe('Canhotos recebidos no escritório')
+  })
+
+  it('recusa closeReason fora do vocabulário de tipo (número em vez de string)', () => {
+    expect(() =>
+      adapters.tripTimelineFromApi({
+        items: [{ ...BASE_ITEM, closeReason: 42 }],
+        nextCursor: null,
+      }),
+    ).toThrow()
   })
 
   it('recusa chave desconhecida no item', () => {

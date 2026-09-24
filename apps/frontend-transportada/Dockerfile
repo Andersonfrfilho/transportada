@@ -32,6 +32,10 @@ ARG VITE_IDENTIFIER_FIRST_LOGIN
 # o PMTiles: o mapa some e a tela cai na lista ordenada. Ela tambem alimenta o `connect-src` da CSP,
 # que nasce neste build.
 ARG VITE_MAP_TILES_URL
+# A origem do bucket que serve o anexo por URL assinada (foto da ocorrencia). Ela alimenta o
+# `img-src` da CSP, que nasce neste build: sem ela o navegador recusa a foto antes de pedi-la, e a
+# tela diz que nao conseguiu carregar um objeto que esta gravado e acessivel (medido em 22/09).
+ARG VITE_OBJECT_STORAGE_URL
 RUN bun run --cwd apps/frontend-transportada build
 
 FROM oven/bun:1.3.14-alpine AS runtime

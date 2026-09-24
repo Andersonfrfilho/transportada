@@ -31,6 +31,7 @@ function row(input: {
   return {
     actorName: null,
     channel: null,
+    closeReason: null,
     document: null,
     fromStatus: null,
     id: input.id,
@@ -85,6 +86,21 @@ describe('mergeTripTimeline (spec 158 T5, D8)', () => {
     })
 
     expect(result.items.map((item) => item.id)).toEqual(['completed', 'delivered'])
+  })
+
+  /** Spec 171 RF2: no mesmo instante, `trip.created` sempre vem por último — é o mais antigo. */
+  test('trip.created perde de qualquer outro kind no mesmo instante', () => {
+    const sameInstant = '2026-09-18T09:00:00.000Z'
+    const result = mergeTripTimeline({
+      limit: 10,
+      sources: [
+        [row({ id: 'created', kind: 'trip.created', occurredAt: sameInstant })],
+        [row({ id: 'status', kind: 'trip.status_changed', occurredAt: sameInstant })],
+        [row({ id: 'arrival', kind: 'stop.arrived', occurredAt: sameInstant })],
+      ],
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual(['status', 'arrival', 'created'])
   })
 
   test('id desempata quando occurredAt e prioridade do kind coincidem', () => {

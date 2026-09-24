@@ -145,6 +145,41 @@ describe('o traço do roteiro usa a paleta da listagem, um trecho por parada', (
   })
 
   /**
+   * ⚠️ **O barracão não é uma parada, mas responde por dois trechos.** Uma viagem de uma entrega só
+   * tem uma parada na lista — o barracão é uma perna à parte (spec 097) — e antes desta correção
+   * `stops.length < 2` descartava o traço inteiro mesmo com a rota congelada trazendo a polilinha
+   * completa: o mapa abria com as ruas e sem linha nenhuma, nem a saída, nem a chegada, nem a volta.
+   */
+  it('uma parada só, com barracão nas duas pontas, desenha ida e volta', () => {
+    const geometry: RouteGeometry = {
+      ...road([
+        [0, 0],
+        [1, 0],
+        [2, 0],
+        [1, 0],
+        [0, 0],
+      ]),
+      depot: {
+        absence: null,
+        description: null,
+        leadingLegs: 1,
+        origin: { latitude: '0', longitude: '0' },
+        trailingLegs: 1,
+      },
+    }
+
+    const legs = resolveRouteLegs({ geometry, project, stops: [{ x: 2, y: 0 }] })
+
+    expect(legs).toHaveLength(2)
+    expect(legs[0]?.points[0]).toEqual({ x: 0, y: 0 })
+    expect(legs[0]?.points.at(-1)).toEqual({ x: 2, y: 0 })
+    expect(legs[1]?.points[0]).toEqual({ x: 2, y: 0 })
+    expect(legs[1]?.points.at(-1)).toEqual({ x: 0, y: 0 })
+    /** A cor do trecho de saída é a da única parada — é para ela que ele leva. */
+    expect(legs[0]?.toSequence).toBe(1)
+  })
+
+  /**
    * ⚠️ `.line` declara `stroke` em CSS, e **classe vence atributo de apresentação**: o traço sairia
    * na cor do tema com o atributo ignorado, e o defeito seria invisível — a linha aparece, só que
    * na cor errada.

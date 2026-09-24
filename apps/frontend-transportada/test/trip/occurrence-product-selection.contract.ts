@@ -1,0 +1,376 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { describe, expect, it, test } from 'bun:test'
+
+import {
+  describeOccurrenceItems,
+  formatOccurrenceProductEntryLabel,
+  formatOccurrenceProductLabel,
+  formatOccurrenceProductsLine,
+  OCCURRENCE_WHOLE_DOCUMENT_VALUE,
+  resolveOccurrenceItemQuantityFields,
+  resolveOccurrenceProductCodes,
+  resolveOccurrenceProductEntries,
+  resolveOccurrenceProductSelection,
+  resolveOccurrenceProductSelectionValues,
+} from '@/modules/trip/shared/occurrenceProductSelection.service'
+import { isTripOccurrence } from '@/modules/trip/shared/tripResponse.validation'
+
+const WHOLE = OCCURRENCE_WHOLE_DOCUMENT_VALUE
+
+describe('"a nota inteira" é o padrão e é exclusiva', () => {
+  test('sem item escolhido, o campo mostra a nota inteira marcada', () => {
+    expect(resolveOccurrenceProductSelectionValues([])).toEqual([WHOLE])
+  })
+
+  test('com itens escolhidos, a nota inteira não aparece marcada', () => {
+    expect(resolveOccurrenceProductSelectionValues(['A1', 'B2'])).toEqual(['A1', 'B2'])
+  })
+
+  test('marcar a nota inteira desmarca os itens', () => {
+    expect(
+      resolveOccurrenceProductSelection({ next: ['A1', 'B2', WHOLE], previous: ['A1', 'B2'] }),
+    ).toEqual([])
+  })
+
+  test('marcar um item desmarca a nota inteira', () => {
+    expect(resolveOccurrenceProductSelection({ next: [WHOLE, 'A1'], previous: [WHOLE] })).toEqual([
+      'A1',
+    ])
+  })
+
+  test('desmarcar o último item volta sozinho para a nota inteira', () => {
+    const selecionados = resolveOccurrenceProductSelection({ next: [], previous: ['A1'] })
+
+    expect(selecionados).toEqual([])
+    expect(resolveOccurrenceProductSelectionValues(selecionados)).toEqual([WHOLE])
+  })
+})
+
+describe('vários itens na mesma ocorrência', () => {
+  test('marcar o segundo item mantém o primeiro', () => {
+    expect(resolveOccurrenceProductSelection({ next: ['A1', 'B2'], previous: ['A1'] })).toEqual([
+      'A1',
+      'B2',
+    ])
+  })
+
+  test('a listagem imprime todos os itens marcados, não só o primeiro', () => {
+    expect(
+      formatOccurrenceProductLabel({
+        codes: ['A1', 'B2', 'C3'],
+        wholeDocumentLabel: 'A nota inteira',
+      }),
+    ).toBe('A1, B2, C3')
+  })
+
+  test('lista vazia imprime a nota inteira', () => {
+    expect(formatOccurrenceProductLabel({ codes: [], wholeDocumentLabel: 'A nota inteira' })).toBe(
+      'A nota inteira',
+    )
+  })
+})
+
+describe('a leitura aceita o contrato novo e o antigo', () => {
+  const base = {
+    createdAt: '2026-09-22T12:00:00.000Z',
+    id: 'occurrence-1',
+    note: '',
+    occurrenceTypeId: 'type-1',
+    stage: 'separation' as const,
+    typeName: 'Item avariado',
+  }
+
+  test('`productCodes` é o que vale quando vem', () => {
+    expect(
+      resolveOccurrenceProductCodes({ productCode: 'A1', productCodes: ['A1', 'B2'] }),
+    ).toEqual(['A1', 'B2'])
+  })
+
+  test('sem `productCodes` (resposta antiga), o `productCode` continua sendo lido', () => {
+    expect(resolveOccurrenceProductCodes({ productCode: 'A1' })).toEqual(['A1'])
+  })
+
+  test('`productCode` vazio sem `productCodes` é a nota inteira', () => {
+    expect(resolveOccurrenceProductCodes({ productCode: '' })).toEqual([])
+  })
+
+  test('`productCodes` vazio é a nota inteira, mesmo com `productCode` preenchido', () => {
+    expect(resolveOccurrenceProductCodes({ productCode: 'A1', productCodes: [] })).toEqual([])
+  })
+
+  /**
+   * A guarda é de chave exata: campo novo na resposta é mudança de contrato, e foi assim que a
+   * grade de fotos quebrou antes.
+   */
+  test('a guarda aceita a ocorrência com `productCodes`', () => {
+    expect(isTripOccurrence({ ...base, productCode: 'A1', productCodes: ['A1', 'B2'] })).toBe(true)
+  })
+
+  test('a guarda continua aceitando a ocorrência sem `productCodes`', () => {
+    expect(isTripOccurrence({ ...base, productCode: 'A1' })).toBe(true)
+  })
+
+  test('`productCodes` que não é lista de texto é recusado', () => {
+    expect(isTripOccurrence({ ...base, productCode: '', productCodes: [1] })).toBe(false)
+    expect(isTripOccurrence({ ...base, productCode: '', productCodes: 'A1' })).toBe(false)
+  })
+})
+
+const UNIT_LABELS = { box: 'caixa(s)', unit: 'peça(s)' } as const
+
+describe('spec 166: quantidade por item no envio (RF4, RF7, CA05)', () => {
+  test('item com quantidade digitada viaja com a unidade, item em branco viaja nulo', () => {
+    const result = resolveOccurrenceItemQuantityFields({
+      codes: ['A1', 'B2'],
+      quantitiesByCode: new Map([['A1', { quantity: '3', unit: 'box' }]]),
+    })
+
+    expect(result.productQuantities).toEqual(['3', null])
+    expect(result.productQuantityUnits).toEqual(['box', null])
+  })
+
+  test('quantidade só com espaços conta como em branco', () => {
+    const result = resolveOccurrenceItemQuantityFields({
+      codes: ['A1'],
+      quantitiesByCode: new Map([['A1', { quantity: '  ', unit: 'box' }]]),
+    })
+
+    expect(result.productQuantities).toEqual([null])
+    expect(result.productQuantityUnits).toEqual([null])
+  })
+
+  test('sem nenhuma entrada, as duas listas saem alinhadas e nulas', () => {
+    const result = resolveOccurrenceItemQuantityFields({
+      codes: ['A1', 'B2'],
+      quantitiesByCode: new Map(),
+    })
+
+    expect(result.productQuantities).toEqual([null, null])
+    expect(result.productQuantityUnits).toEqual([null, null])
+  })
+})
+
+describe('spec 166: a leitura mostra a contagem, item sem ela some — nunca vira zero (P3)', () => {
+  const base = {
+    createdAt: '2026-09-22T12:00:00.000Z',
+    id: 'occurrence-1',
+    note: '',
+    occurrenceTypeId: 'type-1',
+    stage: 'separation' as const,
+    typeName: 'Item avariado',
+  }
+
+  test('item com contagem casa com o produto do `products`', () => {
+    const entries = resolveOccurrenceProductEntries({
+      ...base,
+      productCode: 'A1',
+      productCodes: ['A1', 'B2'],
+      products: [{ code: 'A1', quantity: '3.000', unit: 'unit' }],
+    })
+
+    expect(entries).toEqual([
+      { code: 'A1', quantity: '3.000', unit: 'unit' },
+      { code: 'B2', quantity: null, unit: null },
+    ])
+  })
+
+  test('sem `products` (ocorrência antiga), todo item sai sem contagem', () => {
+    const entries = resolveOccurrenceProductEntries({
+      ...base,
+      productCode: 'A1',
+      productCodes: ['A1'],
+    })
+
+    expect(entries).toEqual([{ code: 'A1', quantity: null, unit: null }])
+  })
+
+  test('item sem contagem aparece só com o código, nunca com "0"', () => {
+    expect(
+      formatOccurrenceProductEntryLabel({
+        entry: { code: 'A1', quantity: null, unit: null },
+        unitLabels: UNIT_LABELS,
+      }),
+    ).toBe('A1')
+  })
+
+  test('item com contagem aparece com a quantidade e a unidade por extenso', () => {
+    expect(
+      formatOccurrenceProductEntryLabel({
+        entry: { code: 'A1', quantity: '3.000', unit: 'unit' },
+        unitLabels: UNIT_LABELS,
+      }),
+    ).toBe('A1 (3 peça(s))')
+  })
+
+  test('a linha inteira mistura item com e sem contagem, e a nota inteira quando não há item', () => {
+    const line = formatOccurrenceProductsLine({
+      occurrence: {
+        ...base,
+        productCode: 'A1',
+        productCodes: ['A1', 'B2'],
+        products: [{ code: 'A1', quantity: '2.000', unit: 'box' }],
+      },
+      unitLabels: UNIT_LABELS,
+      wholeDocumentLabel: 'A nota inteira',
+    })
+    expect(line).toBe('A1 (2 caixa(s)), B2')
+
+    const wholeDocument = formatOccurrenceProductsLine({
+      occurrence: { ...base, productCode: '', productCodes: [] },
+      unitLabels: UNIT_LABELS,
+      wholeDocumentLabel: 'A nota inteira',
+    })
+    expect(wholeDocument).toBe('A nota inteira')
+  })
+})
+
+/**
+ * Revisão de leitura (22/09, pedido do usuário): a linha da ocorrência dizia só o **código** do item
+ * ("183"), e código não é item — quem lê a lista não sabe o que foi avariado sem abrir a nota. A
+ * descrição já está na tela (o formulário a usa no seletor); o que faltava era levá-la à leitura.
+ */
+describe('descrição do item na leitura da ocorrência', () => {
+  const PRODUCTS = [
+    {
+      code: '183',
+      commercialUnit: 'UN',
+      description: 'SHAMP MONANGE 325ML HIDR COM PODER',
+      ordinal: 1,
+      quantity: '12.0000',
+      totalValue: '120.0000',
+      unitValue: '10.0000',
+    },
+    {
+      code: '184',
+      commercialUnit: 'CX',
+      description: 'SAB LUX 85G',
+      ordinal: 2,
+      quantity: '3.0000',
+      totalValue: '30.0000',
+      unitValue: '10.0000',
+    },
+  ]
+  const UNIT_LABELS = { box: 'caixas', unit: 'peças' } as const
+
+  function build(
+    input: Readonly<{
+      codes: readonly string[]
+      products?: readonly Readonly<{
+        code: string
+        quantity: null | string
+        unit: 'box' | 'unit' | null
+      }>[]
+    }>,
+  ) {
+    return {
+      productCode: input.codes[0] ?? '',
+      productCodes: input.codes,
+      ...(input.products === undefined ? {} : { products: input.products }),
+    }
+  }
+
+  it('casa cada item com a descrição da nota e com a contagem', () => {
+    const itens = describeOccurrenceItems({
+      occurrence: build({
+        codes: ['183'],
+        products: [{ code: '183', quantity: '3.000', unit: 'unit' }],
+      }),
+      products: PRODUCTS,
+      unitLabels: UNIT_LABELS,
+    })
+
+    expect(itens).toEqual([
+      { code: '183', description: 'SHAMP MONANGE 325ML HIDR COM PODER', quantity: '3 peças' },
+    ])
+  })
+
+  it('mantém a ordem dos itens marcados, com vários', () => {
+    const itens = describeOccurrenceItems({
+      occurrence: build({ codes: ['184', '183'] }),
+      products: PRODUCTS,
+      unitLabels: UNIT_LABELS,
+    })
+
+    expect(itens.map((item) => item.code)).toEqual(['184', '183'])
+    expect(itens.map((item) => item.description)).toEqual([
+      'SAB LUX 85G',
+      'SHAMP MONANGE 325ML HIDR COM PODER',
+    ])
+  })
+
+  /** Item sem contagem aparece sem número — a leitura nunca inventa um zero (spec 166 P3). */
+  it('item sem contagem sai sem quantidade', () => {
+    const [item] = describeOccurrenceItems({
+      occurrence: build({ codes: ['183'] }),
+      products: PRODUCTS,
+      unitLabels: UNIT_LABELS,
+    })
+
+    expect(item?.quantity).toBeNull()
+  })
+
+  /**
+   * ⚠️ Nota antiga, item removido do cadastro, ou a lista da nota ainda carregando: o código
+   * continua sendo verdade, a descrição não. Inventar "item desconhecido" seria afirmar sobre o que
+   * não se sabe — a linha mostra o código sozinho.
+   */
+  it('item que não está na nota carregada sai só com o código', () => {
+    const [item] = describeOccurrenceItems({
+      occurrence: build({ codes: ['999'] }),
+      products: PRODUCTS,
+      unitLabels: UNIT_LABELS,
+    })
+
+    expect(item).toEqual({ code: '999', description: null, quantity: null })
+  })
+
+  /** Lista vazia é a nota inteira, e quem decide como dizer isso é a tela, não esta função. */
+  it('nota inteira devolve lista vazia', () => {
+    expect(
+      describeOccurrenceItems({
+        occurrence: build({ codes: [] }),
+        products: PRODUCTS,
+        unitLabels: UNIT_LABELS,
+      }),
+    ).toEqual([])
+  })
+})
+
+/**
+ * ⚠️ Pegado pelo usuário na bancada local, 23/09: a contagem aparecia como **"1.000 Caixa"**. A
+ * quantidade é `numeric(12,3)`, e a tela imprimia a string crua do banco — em português, "1.000" lê
+ * como **mil**. Uma caixa avariada virava mil caixas na leitura de quem confere.
+ *
+ * O formato é o brasileiro, sem zero à toa: `1`, `1,5`, `0,25`.
+ */
+describe('formato brasileiro da quantidade (defeito medido em 23/09)', () => {
+  const UNIT_LABELS = { box: 'caixas', unit: 'peças' } as const
+
+  function quantidadeDe(valor: string): null | string {
+    const [item] = describeOccurrenceItems({
+      occurrence: {
+        productCode: '696',
+        productCodes: ['696'],
+        products: [{ code: '696', quantity: valor, unit: 'box' }],
+      },
+      products: [],
+      unitLabels: UNIT_LABELS,
+    })
+    return item?.quantity ?? null
+  }
+
+  it('inteiro não ganha casa decimal nenhuma', () => {
+    expect(quantidadeDe('1.000')).toBe('1 caixas')
+    expect(quantidadeDe('12.000')).toBe('12 caixas')
+  })
+
+  it('fração usa vírgula, como todo número em português', () => {
+    expect(quantidadeDe('1.500')).toBe('1,5 caixas')
+    expect(quantidadeDe('0.250')).toBe('0,25 caixas')
+  })
+
+  /** Três casas existem no banco e têm de sobreviver à tela quando são significativas. */
+  it('mantém as casas que importam', () => {
+    expect(quantidadeDe('2.125')).toBe('2,125 caixas')
+  })
+})

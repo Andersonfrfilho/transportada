@@ -48,6 +48,13 @@ function readKind(value: unknown): TripCostEntryKind {
   return kind
 }
 
+function toEntryKind(value: unknown): TripCostEntry['entryKind'] {
+  if (value === null || value === undefined) return null
+  if (!isRecord(value)) throw new TripCostEntryResponseError()
+
+  return { id: readString(value.id), name: readText(value.name) }
+}
+
 function toEntry(value: unknown): TripCostEntry {
   if (!isRecord(value)) throw new TripCostEntryResponseError()
 
@@ -57,6 +64,7 @@ function toEntry(value: unknown): TripCostEntry {
     amount: readString(value.amount),
     createdAt: readString(value.createdAt),
     description: readText(value.description),
+    entryKind: toEntryKind(value.entryKind),
     id: readString(value.id),
     kind: readKind(value.kind),
   }

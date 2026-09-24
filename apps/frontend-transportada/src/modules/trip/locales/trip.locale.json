@@ -16,7 +16,9 @@
     "viewProof": "Comprovante",
     "viewTrip": "Abrir a viagem de {{vehicle}}",
     "fieldOccurrence": "Ocorrência",
-    "fieldDelivery": "Dar baixa"
+    "fieldDelivery": "Dar baixa",
+    "separationOccurrence": "Ocorrência de separação",
+    "generateCte": "Gerar CT-e"
   },
   "authorship": {
     "backoffice": "por {{actor}}",
@@ -26,6 +28,8 @@
     "office": "por {{actor}} (escritório) pelo motorista {{driver}}",
     "officeWithoutActor": "pelo escritório pelo motorista {{driver}}",
     "removedActor": "usuário removido",
+    "system": "pelo sistema",
+    "unidentifiedActor": "autor não identificado",
     "unknownDriver": "não identificado",
     "whatsapp": "(WhatsApp)",
     "whatsappWithActor": "por {{actor}} pelo WhatsApp"
@@ -91,6 +95,7 @@
       "cheapest": "mais barata",
       "fastest": "mais rápida",
       "fastestAndCheapest": "mais rápida e mais barata",
+      "noToll": "sem pedágio",
       "gap": {
         "NO_FUEL_BASELINE": "Sem consumo ou preço de combustível declarado para o veículo, não há como dizer qual rota é mais barata.",
         "TOLL_UNKNOWN": "O pedágio de alguma rota não pôde ser calculado — sem como comparar o custo total entre elas."
@@ -116,6 +121,7 @@
     "title": "Mapa da montagem",
     "toll": {
       "adjustBooth": "Ajustar tarifa desta praça",
+      "avoided": "Esta rota evita as praças de pedágio.",
       "axleSource": {
         "declared": "declarados na ficha do veículo",
         "estimated": "estimados pelo tipo do veículo"
@@ -174,7 +180,8 @@
     "unmapped": "Sem desenho na malha do IBGE: {{cities}}.",
     "withoutBasemap": "Mapa de rua indisponível — os pontos e a ordem continuam válidos",
     "zoomIn": "Aproximar o mapa",
-    "zoomOut": "Afastar o mapa"
+    "zoomOut": "Afastar o mapa",
+    "depotLabel": "Ponto de partida"
   },
   "cancelDialog": {
     "cancelling": "Cancelando…",
@@ -185,6 +192,15 @@
     "subtitle": "A viagem continua no registro, com a situação Cancelada.",
     "title_one": "Cancelar {{count}} viagem?",
     "title_other": "Cancelar {{count}} viagens?"
+  },
+  "closeDialog": {
+    "confirm": "Encerrar viagem",
+    "noOpenDocuments": "Todas as notas já estão entregues, devolvidas ou liberadas. O motivo é opcional.",
+    "openDocumentsWarning_one": "{{count}} nota ficará sem baixa registrada.",
+    "openDocumentsWarning_other": "{{count}} notas ficarão sem baixa registrada.",
+    "reasonLabel": "Motivo do encerramento",
+    "reasonLabelOptional": "Motivo do encerramento (opcional)",
+    "title": "Encerrar esta viagem?"
   },
   "cargo": {
     "title": "Carga da viagem"
@@ -416,10 +432,14 @@
   "deliveryProof": {
     "deliveredAt": "Entregue em {{moment}}",
     "notDelivered": "Esta nota ainda não foi entregue.",
+    "occurrencesCollapse": "Recolher ocorrências",
+    "occurrencesToggle": "Ver ocorrências",
     "open": "Abrir em tamanho real",
     "photoAlt": "Foto do comprovante de entrega",
     "productLine": "{{quantity}} {{unit}} · {{description}}",
     "products": "O que vai na nota",
+    "productsToggle": "{{count}} produto na nota",
+    "productsToggle_other": "{{count}} produtos na nota",
     "receiver": "Recebido por {{name}}",
     "returned": "Nota devolvida: {{reason}}",
     "returnedWithoutReason": "Nota devolvida.",
@@ -477,6 +497,8 @@
     "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
   },
   "detail": {
+    "closedManually": "Encerrada manualmente em {{moment}}",
+    "closedManuallyBy": "Encerrada manualmente por {{name}} em {{moment}}",
     "deliveredColumn": "Entrega",
     "documentColumn": "Nota",
     "documentsEmpty": "Nenhuma nota vinculada a esta viagem",
@@ -516,8 +538,21 @@
   "empty": "Nenhuma viagem encontrada",
   "error": "Não foi possível carregar as viagens",
   "eventTimeline": {
+    "attachmentCount_one": "{{count}} foto anexada",
+    "attachmentCount_other": "{{count}} fotos anexadas",
+    "closeReason": "Motivo do encerramento: {{reason}}",
+    "collapse": "Recolher",
+    "documentFilterOption": "Nota {{invoice}}",
+    "day": {
+      "count_one": "{{count}} evento",
+      "count_other": "{{count}} eventos",
+      "today": "Hoje",
+      "yesterday": "Ontem"
+    },
     "empty": "Nada registrado ainda nesta viagem",
     "error": "Não foi possível carregar a linha do tempo",
+    "expand": "Ver mais",
+    "filterByDocument": "Filtrar por nota",
     "itemTitle": {
       "dispatched": "Viagem despachada",
       "documentDelivered": "{{document}} entregue",
@@ -536,6 +571,7 @@
       "stopArrived": "Chegada na parada {{sequence}}",
       "stopArrivedUnknown": "Chegada em parada",
       "stopOccurrence": "Ocorrência: {{type}}",
+      "tripCreated": "Viagem criada",
       "tripStatus": {
         "cancelled": "Viagem cancelada",
         "completed": "Viagem concluída",
@@ -551,16 +587,19 @@
       "unknownOccurrenceType": "não informado",
       "unknownStatus": "não informada"
     },
+    "loadMore": "Carregar mais",
     "loading": "Carregando a linha do tempo",
     "loadingMore": "Carregando mais",
-    "loadMore": "Carregar mais",
-    "onlyOpenDocument": "Só esta nota",
+    "occurrenceNote": "Observação: {{note}}",
     "recordedAt": "registrado em {{moment}}",
     "retry": "Tentar de novo",
     "returnReason": "Motivo da devolução: {{reason}}",
-    "title": "Linha do tempo"
+    "title": "Linha do tempo",
+    "viewDocument": "Ver nota",
+    "viewStop": "Ver parada"
   },
   "feedback": {
+    "closeReasonRequired": "Informe o motivo para encerrar a viagem com nota em aberto.",
     "closed": "Esta viagem já está encerrada.",
     "documentAlreadyDelivered": "Esta nota já foi marcada como entregue.",
     "documentAlreadyLinked": "Esta nota já está vinculada a uma viagem.",
@@ -576,7 +615,9 @@
     "notFound": "Viagem não encontrada.",
     "readOnly": "Seu acesso atual não permite esta ação.",
     "requestFailed": "Sem conexão com o servidor. Confira a internet e tente de novo.",
+    "serverRefused": "O servidor recusou esta operação. Nada foi gravado — tente de novo e, se repetir, avise o suporte com o horário.",
     "responseInvalid": "A API respondeu em um formato inesperado.",
+    "routeUnavailable": "O roteirizador não devolveu uma rota nova agora. A rota anterior continua valendo — tente de novo em instantes.",
     "scannedDocumentNotFound": "Nenhuma nota com esta chave de acesso nesta empresa.",
     "stateTransitionNotAllowed": "Esta ação não é mais permitida no estado atual da viagem.",
     "stopSetMismatch": "A lista de paradas não corresponde às paradas atuais da viagem — recarregue a página.",
@@ -598,7 +639,10 @@
     "statusWriteConflict": "A viagem mudou enquanto você agia. Recarregue e tente de novo.",
     "deliveryProofTooLarge": "O arquivo é maior que o aceito pelo escritório.",
     "deliveryProofUnsupportedType": "O arquivo precisa ser uma imagem.",
-    "timelineCursorInvalid": "O cursor da linha do tempo é inválido."
+    "timelineCursorInvalid": "O cursor da linha do tempo é inválido.",
+    "occurrenceCaseDecisionConflict": "Outra decisão diferente já foi registrada para esta tratativa. Recarregue a página para ver o que ficou gravado.",
+    "occurrenceCaseRedeliveryNotAllowed": "Esta ocorrência não admite reentrega — escolha outra decisão.",
+    "occurrenceCaseNoteRequired": "Informe o motivo da decisão."
   },
   "filters": {
     "active": "{{count}} filtro(s) ativo(s)",
@@ -650,35 +694,86 @@
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta."
   },
   "occurrence": {
-    "active": "Em uso",
-    "add": "Cadastrar tipo",
+    "openCase": "Ocorrência em tratativa",
+    "openCaseHint": "Esta nota tem uma ocorrência de destino em tratativa. Ela continua liberada — o marcador só sinaliza.",
+    "stopOpenCase": "Parada com nota em tratativa",
     "cancel": "Cancelar",
+    "cancelConfirmBody": "Cancelar descarta a foto e a observação preenchidas.",
+    "cancelConfirmContinue": "Continuar preenchendo",
+    "cancelConfirmDiscard": "Descartar",
+    "closeConfirmBody": "Fechar agora descarta a foto e a observação preenchidas. Continuar mesmo assim?",
+    "closeConfirmContinue": "Continuar preenchendo",
+    "closeConfirmDiscard": "Descartar e fechar",
     "copyEmail": "Copiar e-mail",
-    "editTemplates": "Editar modelos de e-mail",
+    "dialogTitle": "Ocorrência de separação — {{document}}",
+    "dialogTitleFixed": "Ocorrência de separação",
     "emailBody": "Texto do e-mail",
     "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
     "emailSubject": "Assunto do e-mail",
-    "emailTemplate": "Modelo de e-mail",
-    "emailTemplateNone": "Sem e-mail",
-    "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
-    "legacyTemplate": "{{subject}} — modelo próprio (legado)",
     "line": "{{type}} — {{moment}}",
-    "name": "Nome do tipo",
     "none": "Nenhuma ocorrência registrada.",
+    "noteCounter": "{{used}} de {{limit}} caracteres",
     "noteLabel": "Observação",
-    "notificationsHint": "Cadastre os tipos que a operação usa. O aviso vai para quem despachou a viagem, e só nos tipos marcados — o padrão é não avisar.",
-    "notificationsTitle": "Tipos de ocorrência",
-    "notifies": "Avisar quando acontecer",
+    "notePresets": {
+      "damagedProduct": "Produto avariado",
+      "violatedPackaging": "Embalagem violada",
+      "missingQuantity": "Falta de produto",
+      "divergentQuantity": "Quantidade divergente da nota",
+      "wrongProduct": "Produto trocado",
+      "expiredProduct": "Produto com validade vencida",
+      "wetVolume": "Volume molhado"
+    },
+    "notePresetsHint": "Frases prontas — clique para acrescentar à observação.",
+    "notePresetsToggle": "Frases prontas ({{count}})",
+    "photoPicker": {
+      "cameraDenied": "Câmera negada — envie a foto pelo arquivo abaixo.",
+      "cameraLabel": "Câmera para foto da ocorrência",
+      "cameraUnavailable": "Câmera indisponível neste aparelho — envie a foto pelo arquivo abaixo.",
+      "capture": "Fotografar",
+      "captureFailed": "Não foi possível processar a foto — tente de novo.",
+      "empty": "Nenhuma foto adicionada ainda.",
+      "limitReached": "Teto de {{limit}} fotos atingido.",
+      "noPhoto": "Adicione ao menos uma foto para registrar a ocorrência.",
+      "remove": "Remover foto",
+      "removeConfirm": "Confirmar remoção da foto",
+      "sectionLabel": "Foto da ocorrência",
+      "switchToBack": "Usar câmera traseira",
+      "switchToFront": "Usar câmera frontal",
+      "thumbAlt": "Foto da ocorrência",
+      "torchOff": "Lanterna ligada — apagar",
+      "torchOn": "Ligar lanterna",
+      "uploadChoose": "Escolher arquivo",
+      "uploadEmpty": "Nenhum arquivo escolhido",
+      "uploadLabel": "Enviar foto ou PDF",
+      "documentAlt": "Documento PDF anexado"
+    },
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
     "product": "Item da nota",
     "register": "Registrar ocorrência",
-    "stage": "Onde acontece",
-    "stageDelivery": "Na rua",
-    "stageSeparation": "No galpão",
+    "sendStatus": {
+      "failed": "falhou",
+      "pending": "aguardando",
+      "photoLabel": "Foto {{position}}",
+      "retry": "Reenviar falhas",
+      "sending": "enviando",
+      "sent": "enviada"
+    },
     "submit": "Registrar",
     "title": "Ocorrências",
+    "typeLabel": "Tipo de ocorrência",
     "wholeDocument": "A nota inteira",
-    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem."
+    "productClear": "Limpar itens escolhidos",
+    "productEmpty": "Nenhum item encontrado",
+    "productRemove": "Tirar este item",
+    "productSearch": "Buscar item da nota",
+    "productSummary": "{{count}} itens escolhidos",
+    "quantityLabel": "Quantidade",
+    "quantityUnitLabel": "Unidade",
+    "quantityUnits": {
+      "box": "Caixa",
+      "unit": "Peça"
+    },
+    "singleItemHint": "Este tipo aceita só um item — escolher outro substitui o anterior."
   },
   "occurrenceFeed": {
     "columns": {
@@ -702,7 +797,11 @@
       "noDescription": "Sem descrição registrada.",
       "open": "Detalhar",
       "photoAlt": "Foto anexada à ocorrência",
-      "title": "Detalhe"
+      "photoExpired": "Foto expirada (retenção de 5 anos)",
+      "photoLoadError": "Não foi possível carregar a foto",
+      "title": "Detalhe",
+      "photoRetry": "Tentar de novo",
+      "documentLabel": "Documento {{position}} (PDF)"
     },
     "empty": "Nenhuma ocorrência encontrada para o filtro aplicado.",
     "filters": {
@@ -716,7 +815,12 @@
       "stageSummary": "{{count}} selecionados",
       "title": "Filtros",
       "types": "Tipos",
-      "typesPlaceholder": "Nomes separados por vírgula"
+      "typesPlaceholder": "Nomes separados por vírgula",
+      "caseStatus": "Tratativa",
+      "caseStatusEmpty": "Nenhum estado encontrado",
+      "removeCaseStatus": "Remover estado de tratativa",
+      "caseStatusSearch": "Buscar estado",
+      "caseStatusSummary": "{{count}} selecionados"
     },
     "intro": "Tudo o que aconteceu com as notas e as paradas das viagens da empresa, em uma lista só.",
     "kicker": "Operações",
@@ -736,7 +840,17 @@
       "stop": "Parada"
     },
     "tableTitle": "Ocorrências registradas",
-    "title": "Ocorrências"
+    "title": "Ocorrências",
+    "caseStatus": {
+      "none": "Sem tratativa",
+      "recorded": "Registrada",
+      "under_review": "Em validação",
+      "returned_to_warehouse": "Retornada ao barracão",
+      "awaiting_contractor": "Aguardando o contratante",
+      "decided": "Decidida",
+      "closed": "Encerrada",
+      "cancelled": "Cancelada"
+    }
   },
   "pendingMeasurement": {
     "columns": {
@@ -757,6 +871,22 @@
     "export": {
       "csv": "Baixar CSV",
       "xlsx": "Baixar Excel"
+    },
+    "inline": {
+      "length": "Comprimento (cm)",
+      "width": "Largura",
+      "height": "Altura",
+      "outOfRange": "Maior que {{max}} cm — confira a medida.",
+      "saveFailed": "Não foi possível gravar. A medida continua aqui — tente de novo.",
+      "noBoxReason": "Sem caixa do catálogo para casar com este produto.",
+      "saved": "Medida salva",
+      "saveRow": "Salvar medida",
+      "saveSelected_one": "Salvar 1 medida",
+      "saveSelected_other": "Salvar {{count}} medidas",
+      "selectAll": "Selecionar todas",
+      "selectRow": "Selecionar esta linha",
+      "selectionExcluded_one": "1 linha selecionada ficou de fora — falta caixa ou algum valor.",
+      "selectionExcluded_other": "{{count}} linhas selecionadas ficaram de fora — falta caixa ou algum valor."
     }
   },
   "pagination": {
@@ -773,6 +903,9 @@
     "discardOne": "Descartar esta viagem — as {{count}} notas voltam para o maço",
     "discardOrder": "Descartar alterações",
     "documentCount_one": "{{count}} nota",
+    "openOccurrence": "{{count}} nota com ocorrência",
+    "openOccurrence_other": "{{count}} notas com ocorrência",
+    "openOccurrenceDocument": "Ocorrência aberta",
     "documentCount_other": "{{count}} notas",
     "edited": "roteiro alterado",
     "editedBanner": "Proposta alterada. As paradas riscadas ainda não saíram: o aceite parte do que o servidor distribuiu, e ele não sabe da remoção até o recálculo.",
@@ -855,6 +988,7 @@
     "resolving": "Procurando a nota…",
     "scan": "Ler com a câmera",
     "search": "Buscar notas",
+    "searchLoading": "Carregando as notas disponíveis…",
     "searchResult": "{{count}} nota encontrada.",
     "searchResult_other": "{{count}} notas encontradas.",
     "searchTerm": "Busca",
@@ -878,10 +1012,16 @@
     "generateCteBatchHint": "Antecipa o lote que a contratante autorizaria. O faturamento continua alcançando esses CT-e.",
     "generateCteBatch_one": "Gerar CT-e desta viagem ({{count}} nota)",
     "generateCteBatch_other": "Gerar CT-e desta viagem ({{count}} notas)",
+    "nfsePending_one": "{{count}} nota aguarda NFS-e",
+    "nfsePending_other": "{{count}} notas aguardam NFS-e",
     "reason": {
+      "blocked": "emissão bloqueada para esta nota",
+      "no_profile": "sem perfil de emissão",
+      "city_unknown": "cidade de destino desconhecida",
       "cte_cancelled": "CT-e cancelado",
       "cte_in_progress": "CT-e em processamento",
       "cte_rejected": "CT-e rejeitado",
+      "nfse_expected": "NFS-e esperada",
       "no_cte": "sem CT-e"
     },
     "state": {
@@ -989,6 +1129,13 @@
       "toll": "Pedágio",
       "total": "Custo da rota"
     },
+    "criterion": {
+      "alternative": "Rota escolhida manualmente pelo operador.",
+      "cheapest": "Critério: mais barata (combustível + pedágio).",
+      "fastest": "Critério: mais rápida.",
+      "noToll": "Critério: sem pedágio — evita praça de propósito.",
+      "title": "Critério da rota"
+    },
     "geometryUnavailable": "Não foi possível traçar a estrada agora. A linha reta entre as paradas continua abaixo.",
     "latitude": "Latitude",
     "loadingGeometry": "Traçando a estrada entre as paradas…",
@@ -1000,6 +1147,16 @@
     "trace": {
       "road": "A linha segue a estrada, pela ordem das paradas.",
       "straight": "Linha reta entre as paradas — o traçado por estrada não está disponível agora."
+    },
+    "trade": {
+      "cancel": "Cancelar troca",
+      "confirm": "Usar esta rota",
+      "loading": "Buscando as alternativas…",
+      "open": "Trocar rota",
+      "pending": "Replanejando…",
+      "singleOption": "Só existe esta rota para as paradas atuais — não há outra para comparar.",
+      "title": "Escolher outra rota",
+      "unavailable": "Não foi possível buscar as alternativas agora."
     },
     "withoutLocation": "Sem localização no mapa: {{stops}}"
   },
@@ -1044,7 +1201,6 @@
     },
     "occurrenceKindLabel": "Tipo de ocorrência",
     "occurrenceKindPlaceholder": "Selecione o tipo",
-    "occurrencePhotoHint": "Precisa anexar foto? Registre a ocorrência na nota (botão \"Ocorrência\" da linha) — ela aceita foto.",
     "occurrenceSubmit": "Registrar ocorrência",
     "occurrenceTitle": "Ocorrência da parada",
     "returnReason": {
@@ -1057,8 +1213,7 @@
     "startRoute": "Iniciar rota",
     "startRouteConfirm": "Iniciar rota mesmo assim",
     "startRouteMessage": "A viagem passa a \"em rota de entrega\" e não é possível desfazer o toque. Confirma o início?",
-    "startRouteTitle": "Iniciar rota",
-    "title": "Ações de campo (pelo motorista)"
+    "startRouteTitle": "Iniciar rota"
   },
   "fieldDelivery": {
     "blockedNotOnTrip": "Este canhoto é da nota {{document}}, que não está nesta viagem.",
@@ -1135,7 +1290,9 @@
     "forceTitle": "Despachar com pendência",
     "generateCteSelection": "Gerar CT-e de {{count}} nota marcada",
     "generateCteSelection_other": "Gerar CT-e de {{count}} notas marcadas",
-    "planRoute": "Planejar rota",
+    "planRoute": "Liberar para separação",
+    "readinessSummary": "{{ready}} de {{total}} notas prontas",
+    "readinessSummaryWithNfse": "{{ready}} de {{total}} notas prontas ({{nfsePending}} aguardando NFS-e)",
     "returnReasonLabel": "Motivo da devolução",
     "returnSubmit": "Confirmar devolução",
     "returnSubtitle": "Nota {{document}} — o motivo entra na trilha da viagem.",
@@ -1143,12 +1300,12 @@
     "title": "Ações da viagem",
     "batchFieldOccurrence": "Ocorrência em {{count}} nota",
     "batchFieldOccurrence_other": "Ocorrência em {{count}} notas",
-    "batchFieldOccurrenceExcluded": "{{count}} nota sem essa ação ficou de fora. ",
-    "batchFieldOccurrenceExcluded_other": "{{count}} notas sem essa ação ficaram de fora. ",
+    "batchFieldOccurrenceExcluded": "{{count}} nota marcada não aceita registro de ocorrência. ",
+    "batchFieldOccurrenceExcluded_other": "{{count}} notas marcadas não aceitam registro de ocorrência. ",
     "batchFieldDelivery": "Dar baixa em {{count}} nota",
     "batchFieldDelivery_other": "Dar baixa em {{count}} notas",
-    "batchFieldDeliveryExcluded": "{{count}} nota sem essa ação ficou de fora.",
-    "batchFieldDeliveryExcluded_other": "{{count}} notas sem essa ação ficaram de fora."
+    "batchFieldDeliveryExcluded": "{{count}} nota marcada não aceita baixa de entrega.",
+    "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega."
   },
   "status": {
     "cancelled": "Cancelada",
@@ -1163,11 +1320,26 @@
   },
   "stops": {
     "arrivedAt": "Chegou às {{time}}",
+    "cargoValue": "Mercadoria: {{amount}}",
     "completedAt": "Concluída às {{time}}",
+    "detailCollapse": "Recolher detalhes",
+    "detailExpand": "Detalhes da nota",
     "documentCount": "{{count}} nota",
     "documentCount_other": "{{count}} notas",
     "empty": "Nenhuma parada nesta viagem ainda",
     "estimatedCompletion": "Previsão de término: {{moment}} (estimativa pelo ritmo das paradas já concluídas)",
+    "freight": {
+      "amount": "Frete: {{amount}}",
+      "estimated": "previsto",
+      "missing": "Sem frete calculado",
+      "rule": "Regra: {{name}}"
+    },
+    "freightGroupLabel": "Frete",
+    "issuedGroupLabel": "Emissão",
+    "moneyGroupLabel": "Carga",
+    "openOccurrence_one": "1 nota com ocorrência",
+    "openOccurrence_other": "{{count}} notas com ocorrência",
+    "peopleGroupLabel": "Destinatário",
     "processCount": "{{reached}} de {{total}}",
     "processReturned": "{{count}} nota devolvida — fora do fluxo",
     "processReturned_other": "{{count}} notas devolvidas — fora do fluxo",
@@ -1178,6 +1350,7 @@
     "selectionClear": "Limpar seleção",
     "selectionCount": "{{count}} nota selecionada",
     "selectionCount_other": "{{count}} notas selecionadas",
+    "separationStatusWithReason": "{{status}} · {{reason}}",
     "title": "Cargas da viagem",
     "unassigned": "Sem parada",
     "withoutEstimate": "Sem previsão de término: ainda não há paradas concluídas suficientes para medir o ritmo."
@@ -1191,7 +1364,6 @@
     "withoutDriver": "Sem motorista"
   },
   "tabs": {
-    "notifications": "Avisos",
     "proof": "Comprovante",
     "trips": "Viagens"
   },
@@ -1316,5 +1488,76 @@
     "unreachableDocuments": "Notas fora do alcance desta viagem: {{documents}}.",
     "photoChoose": "Escolher foto",
     "photoEmpty": "Nenhuma foto escolhida"
+  },
+  "occurrenceCase": {
+    "none": "Sem tratativa aberta para esta ocorrência.",
+    "statusLabel": "Passo atual",
+    "redeliveryPolicyLabel": "Reentrega",
+    "redeliveryPolicy": {
+      "allowed": "Admite reentrega",
+      "blocked": "Não admite reentrega"
+    },
+    "decisionKind": {
+      "redelivery_authorized": "O contratante autorizou a reentrega",
+      "goods_paid": "O contratante decidiu pagar os produtos",
+      "other": "O contratante registrou outra solução"
+    },
+    "awaitingContractor": "Aguardando a decisão do contratante no portal.",
+    "decisionOption": {
+      "redelivery_authorized": "Autorizar reentrega",
+      "goods_paid": "Registrar produtos pagos",
+      "other": "Outra solução"
+    },
+    "decisionKindLabel": "Decisão",
+    "decisionNoteLabel": "Motivo da decisão (obrigatório)",
+    "decisionWarning": "Esta decisão fica registrada como decisão da transportadora, não da contratante.",
+    "decisionRedeliveryBlocked": "Reentrega indisponível para esta ocorrência.",
+    "noteLabel": {
+      "cancel": "Motivo do cancelamento (obrigatório)",
+      "warehouse-return": "Motivo do retorno ao barracão (obrigatório)"
+    },
+    "confirm": "Confirmar",
+    "dismiss": "Desistir",
+    "action": {
+      "decide": "Decidir em nome da contratante",
+      "review": "Iniciar validação interna",
+      "warehouseReturn": "Retornar ao barracão",
+      "submitToContractor": "Enviar ao contratante",
+      "close": "Encerrar tratativa",
+      "cancel": "Cancelar tratativa"
+    },
+    "closeBlockedByDraft": "Salve o acerto antes de encerrar — há item digitado que ainda não foi gravado."
+  },
+  "occurrenceSettlement": {
+    "title": "Acerto dos produtos",
+    "productCode": "Código do produto",
+    "amount": "Valor",
+    "amountPlaceholder": "0,00",
+    "payerKind": "Quem pagou",
+    "payerId": "Motorista que pagou",
+    "payerIdPlaceholder": "Escolha o motorista",
+    "payer": {
+      "driver": "Motorista",
+      "carrier": "Transportadora",
+      "contractor": "Contratante",
+      "insurer": "Seguradora"
+    },
+    "addRow": "Adicionar item",
+    "removeRow": "Remover",
+    "total": "Total da tela",
+    "save": "Salvar acerto",
+    "savedTotal": "Total gravado",
+    "markReimbursed": "Marcar como ressarcido",
+    "payerSearch": "Buscar motorista pelo nome",
+    "payerEmpty": "Nenhum motorista ativo encontrado",
+    "payerNotApplicable": "Não se aplica",
+    "payerManualHint": "Sem permissão de frota nesta conta: o nome do motorista não pode ser conferido aqui.",
+    "payerResolved": "Motorista: {{name}}",
+    "payerUnresolved": "Motorista não identificado por este id",
+    "amountRequired": "Informe um valor maior que zero.",
+    "productCodeRequired": "Informe o código do produto.",
+    "invalidRows": "Há item incompleto no acerto — confira os campos marcados. Nada foi gravado.",
+    "reimbursedOn": "Ressarcido em {{date}}",
+    "savedItemsTitle": "Itens gravados"
   }
 }

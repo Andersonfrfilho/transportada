@@ -10,9 +10,13 @@ import {
   tripCargoLayouts,
   tripDeliveryProofs,
   tripDocumentEvents,
+  tripDocumentOccurrenceAttachments,
+  tripDocumentOccurrenceProducts,
   tripDocumentReviews,
   tripDocuments,
   tripDrivers,
+  tripOccurrenceCaseEvents,
+  tripOccurrenceCases,
   tripStopEvents,
   tripStops,
   trips,
@@ -36,6 +40,13 @@ const TRIP_TABLES = [
   { name: 'trip_cargo_layouts', table: tripCargoLayouts },
   /** Spec 148 T7: a fila de revisão guarda qual nota saiu de qual viagem, e quem decidiu. */
   { name: 'trip_document_reviews', table: tripDocumentReviews },
+  /** Spec 161 T1: a foto da ocorrência de galpão — original e miniatura, as duas por empresa. */
+  { name: 'trip_document_occurrence_attachments', table: tripDocumentOccurrenceAttachments },
+  /** Os itens da nota que uma ocorrência aponta — código de produto é dado do cliente. */
+  { name: 'trip_document_occurrence_products', table: tripDocumentOccurrenceProducts },
+  /** Spec 164 T1/T4: a tratativa da ocorrência e sua trilha append-only. */
+  { name: 'trip_occurrence_cases', table: tripOccurrenceCases },
+  { name: 'trip_occurrence_case_events', table: tripOccurrenceCaseEvents },
 ] as const
 
 describe('trip tenant safety', () => {
@@ -50,6 +61,45 @@ describe('trip tenant safety', () => {
         onUpdate: 'cascade',
       })
     }
+  })
+
+  /**
+   * A junção alcança a ocorrência por `(company_id, id)`, nunca pelo id sozinho — senão uma
+   * ocorrência de outro tenant ganharia itens gravados por este.
+   */
+  test('reaches the occurrence of an occurrence product through the tenant', () => {
+    expect(foreignKeys(tripDocumentOccurrenceProducts)).toContainEqual({
+      columns: ['company_id', 'occurrence_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_document_occurrences',
+      name: 'trip_document_occurrence_products_company_occurrence_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+  })
+
+  /**
+   * Spec 164 T4: a tratativa alcança a ocorrência, e o evento alcança a tratativa, sempre por
+   * `(company_id, id)` — nunca pelo id sozinho, senão uma tratativa de outro tenant ganharia
+   * eventos ou itens gravados por este.
+   */
+  test('reaches the occurrence of an occurrence case, and the case of a case event, through the tenant', () => {
+    expect(foreignKeys(tripOccurrenceCases)).toContainEqual({
+      columns: ['company_id', 'occurrence_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_document_occurrences',
+      name: 'trip_occurrence_cases_company_occurrence_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+    expect(foreignKeys(tripOccurrenceCaseEvents)).toContainEqual({
+      columns: ['company_id', 'case_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_occurrence_cases',
+      name: 'trip_occurrence_case_events_company_case_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
   })
 
   // Sem a chave composta, uma viagem poderia adotar um veículo, motorista ou nota de outro tenant
@@ -131,6 +181,34 @@ describe('trip tenant safety', () => {
   })
 
   // ADR-0023: o manifesto referencia a viagem pela tenant, e nunca é apagado quando a viagem some
+  /** Spec 161 T1: as três FKs compostas da foto — ocorrência, original e miniatura, todas via tenant. */
+  test('reaches the occurrence attachment, its original and its thumbnail through the tenant', () => {
+    expect(foreignKeys(tripDocumentOccurrenceAttachments)).toContainEqual({
+      columns: ['company_id', 'occurrence_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_document_occurrences',
+      name: 'trip_document_occurrence_attachments_company_occurrence_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+    expect(foreignKeys(tripDocumentOccurrenceAttachments)).toContainEqual({
+      columns: ['company_id', 'stored_object_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'stored_objects',
+      name: 'trip_document_occurrence_attachments_company_object_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    expect(foreignKeys(tripDocumentOccurrenceAttachments)).toContainEqual({
+      columns: ['company_id', 'thumbnail_object_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'stored_objects',
+      name: 'trip_document_occurrence_attachments_company_thumbnail_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
   test('links the mdfe manifest to its trip through the tenant, without cascading deletion', () => {
     expect(foreignKeys(mdfeManifests)).toContainEqual({
       columns: ['company_id', 'trip_id'],
@@ -183,5 +261,41 @@ describe('delivery proof query tenant safety (spec 079 T004)', () => {
 
     expect(where).toInclude('tripDocuments.tripId')
     expect(where).toInclude('companyId')
+  })
+})
+
+/**
+ * Spec 161 T3: a leitura do anexo da ocorrência de galpão junta duas tabelas de objeto (original e
+ * miniatura) e cai para a coluna antiga por outra junção — mesmo risco do comprovante acima, um
+ * degrau que perde `companyId` é o caminho para o anexo de uma empresa aparecer na de outra. Prova
+ * por texto de fonte, pelo mesmo motivo: o defeito compila e passa em todo caminho feliz.
+ */
+describe('occurrence attachment query tenant safety (spec 161 T3)', () => {
+  const source = readFileSync(
+    new URL(
+      '../../src/trips/infrastructure/drizzle-occurrence-attachment.repository.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  test('carries the company through every join, never only on the outermost table', () => {
+    const innerJoins = source.split('.innerJoin(').slice(1)
+    const leftJoins = source.split('.leftJoin(').slice(1)
+
+    expect(innerJoins.length + leftJoins.length).toBeGreaterThan(0)
+    for (const join of [...innerJoins, ...leftJoins]) {
+      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+    }
+  })
+
+  test('filters every select by the tenant of the context, never by id alone', () => {
+    const wheres = source.split('.where(').slice(1)
+
+    expect(wheres.length).toBeGreaterThan(0)
+    for (const where of wheres) {
+      const end = where.indexOf('.orderBy(')
+      expect(where.slice(0, end === -1 ? 400 : end)).toInclude('companyId')
+    }
   })
 })

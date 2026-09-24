@@ -7,7 +7,9 @@
  * unidade **declarada** na linha; ausência de unidade é rejeição (CA01), nunca suposição.
  */
 import {
+  PACKAGE_BOX_CATALOG_COSMOS_STATUSES,
   PACKAGE_BOX_CATALOG_IMPORTABLE_STATUSES,
+  PACKAGE_BOX_CATALOG_UNIT_STATUSES,
   type PackageBoxCatalogCaptureRejectionCode,
   type PackageBoxCatalogImportableStatus,
 } from './package-box-catalog-import.constant.js'
@@ -104,6 +106,84 @@ function resolveEngine(line: PackageBoxCatalogCaptureLine): string {
     }
   }
   return 'manual:unknown'
+}
+
+/** Spec 163 (RF05): a unidade da linha, em mm e g, com a origem que a caixa gravará. */
+export type PackageBoxCatalogCaptureUnit = {
+  readonly cartonGtin: string
+  readonly grossWeightGrams?: number
+  readonly heightMm: number
+  readonly lengthMm: number
+  /** `catalog` (Cosmos) ou `manual:<domínio da página>` — o `unit_measurement_source`. */
+  readonly source: string
+  readonly unitGtin: string
+  readonly widthMm: number
+}
+
+export type PackageBoxCatalogCaptureUnitResult =
+  | { readonly accepted: true; readonly unit: PackageBoxCatalogCaptureUnit }
+  | { readonly accepted: false; readonly code: PackageBoxCatalogCaptureRejectionCode }
+
+const UNIT_STATUSES: readonly string[] = PACKAGE_BOX_CATALOG_UNIT_STATUSES
+const COSMOS_STATUSES: readonly string[] = PACKAGE_BOX_CATALOG_COSMOS_STATUSES
+
+function resolveUnitSource(line: PackageBoxCatalogCaptureLine): string {
+  if (COSMOS_STATUSES.includes(line.status)) return 'catalog'
+  return resolveEngine(line)
+}
+
+/** Peso da unidade é opcional: ausente é `undefined`, nunca zero (o CHECK exige > 0). */
+function toUnitGrams(
+  edge: PackageBoxCatalogCaptureEdgeValue | undefined,
+): number | 'invalid' | undefined {
+  if (edge === undefined) return undefined
+  const grams = toGrams(edge)
+  if (grams === undefined) return 'invalid'
+  return grams > 0 ? grams : undefined
+}
+
+/**
+ * Spec 163 (RF05): a medida da **unidade** da linha. `undefined` quando a linha não traz
+ * `unitEdges` (ou o status não carrega unidade) — nada a importar, e a caixa decide sozinha como
+ * na 162. Nunca reinterpreta unidade: sem unidade declarada é `UNIT_MISSING`.
+ */
+export function mapPackageBoxCatalogCaptureUnit(
+  line: PackageBoxCatalogCaptureLine,
+): PackageBoxCatalogCaptureUnitResult | undefined {
+  const unitEdges = line.extracted.unitEdges
+  if (unitEdges === undefined || !UNIT_STATUSES.includes(line.status)) return undefined
+
+  const cartonGtin = line.cartonGtin
+  if (cartonGtin === undefined || cartonGtin.length === 0) {
+    return { accepted: false, code: 'CARTON_GTIN_MISSING' }
+  }
+  const triplet = pickEdgeTriplet(unitEdges)
+  if (triplet === undefined) return { accepted: false, code: 'EDGES_INCOMPLETE' }
+  for (const edge of [triplet.length, triplet.width, triplet.height]) {
+    if (edge.unit.trim().length === 0) return { accepted: false, code: 'UNIT_MISSING' }
+  }
+
+  const lengthMm = toMillimeters(triplet.length)
+  const widthMm = toMillimeters(triplet.width)
+  const heightMm = toMillimeters(triplet.height)
+  const grossWeightGrams = toUnitGrams(line.extracted.unitGrossWeight)
+  if (grossWeightGrams === 'invalid') return { accepted: false, code: 'UNIT_MISSING' }
+  if (lengthMm === undefined || widthMm === undefined || heightMm === undefined) {
+    return { accepted: false, code: 'EDGES_INCOMPLETE' }
+  }
+
+  return {
+    accepted: true,
+    unit: {
+      cartonGtin,
+      ...(grossWeightGrams === undefined ? {} : { grossWeightGrams }),
+      heightMm,
+      lengthMm,
+      source: resolveUnitSource(line),
+      unitGtin: line.unitGtin,
+      widthMm,
+    },
+  }
 }
 
 export function mapPackageBoxCatalogCaptureLine(

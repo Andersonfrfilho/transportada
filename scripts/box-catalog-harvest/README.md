@@ -45,8 +45,15 @@ O painel mostra **Buscar GTIN** e **Buscar ficha logística** (abrem o Google nu
 **Pular (Alt+N)**. Achou a medida em qualquer site (fabricante, distribuidor, PDF aberto no Chrome):
 **selecione o texto** e aperte **Alt+C**. Vale `47,4 x 24,7 x 24,0 cm` ou Comprimento/Largura/Altura.
 A linha entra como `found_manual`, com `source` = domínio da página, e o painel oferece
-**Voltar para a fila (Alt+N)**. O userscript roda em todo site, mas só age no Alt+C e só envia o
-texto selecionado.
+**Voltar para a fila (Alt+N)**. O userscript roda em todo site, mas só age no Alt+C/Alt+U e só envia
+o texto selecionado.
+
+**Só achou a medida do produto (a unidade na prateleira)?** Selecione o texto (ex.: `6 x 9 x 3 cm`,
+`85 g`) e aperte **Alt+U** (spec 163). A linha entra como `found_unit_manual`, com a medida em
+`extracted.unitEdges`/`unitGrossWeight` — nunca no lugar da caixa. O produto continua aguardando a
+caixa (Alt+C). Na importação, a unidade vira `unit_*` da caixa e alimenta a **caixa estimada**,
+rotulada como estimada — nunca vira medida. Como tudo aqui, é disparado por tecla sua: nada navega,
+clica ou avança sozinho.
 
 ## Comportamento
 

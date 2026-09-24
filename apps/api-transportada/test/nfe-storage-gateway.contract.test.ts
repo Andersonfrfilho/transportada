@@ -63,6 +63,13 @@ type FakeObjectStorageProvider = {
     readonly disposition?: 'inline' | 'attachment'
     readonly filename?: string
   }): Promise<URL>
+  createSignedUpload(input: {
+    readonly bucket: string
+    readonly key: string
+    readonly expiresInSeconds: number
+    readonly contentLength: number
+    readonly contentType: string
+  }): Promise<URL>
   health(): Promise<{ readonly status: 'up' | 'down' }>
   close(): Promise<void>
 }
@@ -146,6 +153,9 @@ function createFakeStorageProvider(): FakeObjectStorageProvider {
       signedDownloadInputs.push({ ...input })
       return new URL('https://example.test/download')
     },
+    async createSignedUpload() {
+      return new URL('https://example.test/upload')
+    },
     async health() {
       return { status: 'up' }
     },
@@ -164,9 +174,7 @@ describe('api nfe storage gateway contract', () => {
     ).json()) as {
       readonly dependencies?: Readonly<Record<string, string>>
     }
-    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe(
-      '0.2.0-rc.0',
-    )
+    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.3.0')
   })
 
   test('builds opaque tenant-safe keys for staging and final object flows', () => {
@@ -331,5 +339,30 @@ describe('api nfe storage gateway contract', () => {
       },
       { bucket: BUCKET, expiresInSeconds: 300, key: objectKey },
     ])
+  })
+
+  /** Spec 179 T202 (RF2): o gateway repassa direto ao provider, sem tocar em bytes. */
+  test('repassa o pedido de URL assinada de upload para o provider', async () => {
+    const provider = createFakeStorageProvider()
+    const gateway = createNfeStorageGateway({
+      provider,
+      stagingBucket: BUCKET,
+      finalBucket: BUCKET,
+    })
+    const objectKey = buildNfeDocumentObjectKey({
+      companyId: COMPANY_ID,
+      documentId: DOCUMENT_ID,
+      objectId: 'upload-1',
+    })
+
+    const url = await gateway.createSignedUpload({
+      bucket: BUCKET,
+      contentLength: 1024,
+      contentType: 'image/jpeg',
+      expiresInSeconds: 900,
+      key: objectKey,
+    })
+
+    expect(url.toString()).toBe('https://example.test/upload')
   })
 })

@@ -5,12 +5,19 @@
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
-import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
+import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
+import { resolveOccurrenceItemQuantities } from '../domain/occurrence-item-quantity.policy.js'
+import type { OccurrenceItemQuantity } from '../domain/occurrence-item-quantity.policy.js'
+import { resolveOccurrenceProductSelection } from '../domain/occurrence-scope.policy.js'
 import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import {
+  OccurrencePhotoRequiredError,
   OccurrenceTypeNotSeparationError,
+  OccurrenceTypeSingleItemError,
   TripDocumentNotFoundError,
 } from '../domain/trip.error.js'
 import { resolveOccurrenceNotification } from '../domain/occurrence-notification.policy.js'
@@ -24,21 +31,15 @@ export type TripOccurrence = {
   readonly id: string
   readonly note: string
   readonly occurrenceTypeId: string
-  /** Vazio é a nota inteira — ver `occurrence-scope.policy.ts`. */
+  /**
+   * Vazio é a nota inteira — ver `occurrence-scope.policy.ts`. Com vários itens marcados, é o
+   * **primeiro** deles: a coluna continua existindo e continua sendo escrita, porque ocorrência
+   * antiga e o fluxo do WhatsApp leem dela.
+   */
   readonly productCode: string
   readonly stage: TripOccurrenceStage
   /** O nome que a empresa deu ao tipo: é ele que a tela imprime, não um id. */
   readonly typeName: string
-}
-
-/**
- * Spec 156 T7b: o que a leitura de ocorrências publica para o anexo — URL assinada de vida curta,
- * pela mesma `anyPermission` da rota (D11), nunca bucket nem chave.
- */
-export type TripOccurrenceAttachmentSummary = {
-  readonly downloadUrl: string
-  readonly expiresAt: string
-  readonly mimeType: string
 }
 
 /**
@@ -52,9 +53,17 @@ export type TripOccurrenceAuthorship = {
   readonly onBehalfOfDriverName: string | null
 }
 
+/**
+ * Spec 161 T9 (RF8/RF9): sai o `attachment` singular — o painel da nota devolve `attachments[]`
+ * ordenado por `position`, no mesmo formato que a leitura unificada (`occurrence-attachment.service.ts`,
+ * T3) já publica para o feed e para a rota de anexos: `downloadUrl`/`thumbnailUrl` assinados,
+ * `expired`, nunca `objectKey`/`bucket`.
+ */
 export type TripOccurrenceWithAttachment = TripOccurrence &
   TripOccurrenceAuthorship & {
-    readonly attachment: TripOccurrenceAttachmentSummary | null
+    readonly attachments: readonly OccurrenceAttachmentView[]
+    /** Todos os itens apontados; `productCode` continua sendo o primeiro deles. */
+    readonly productCodes: readonly string[]
   }
 
 /**
@@ -69,12 +78,33 @@ export type TripOccurrenceWithAttachment = TripOccurrence &
  * o texto pronto já tira o retrabalho de escrever à mão.
  */
 export type RegisteredOccurrence = TripOccurrence & {
+  /**
+   * Todos os itens marcados, na ordem em que foram marcados. Vazia é a nota inteira. Vem ao lado
+   * de `productCode` (o primeiro deles), que continua existindo para quem já lia dele.
+   */
+  readonly productCodes: readonly string[]
+  /**
+   * Spec 166 (RF5): a mesma lista de `productCodes`, com a quantidade/unidade de cada item —
+   * `null` nos dois é item sem contagem. `productCodes` continua saindo, inalterado.
+   */
+  readonly products: readonly OccurrenceItemQuantity[]
+  /** Spec 161 T6 (RF5): `[]` quando `saveOccurrence` não devolveu anexo (não deveria acontecer
+   * para `separation`, já que D1 exige foto — mas a leitura fica defensiva, nunca `undefined`). */
+  readonly attachments: readonly TripOccurrenceAttachmentPosition[]
   readonly email: null | { readonly body: string; readonly subject: string }
 }
 
 /** O tipo cadastrado, como o caso de uso precisa vê-lo para decidir. */
 export type OccurrenceTypeRecord = {
   readonly active: boolean
+  /** Spec 166 (RF3/RF8): se este tipo aceita mais de um item marcado. Padrão `true`. */
+  readonly allowsMultipleItems: boolean
+  /**
+   * Spec 179 (RF1): se o registro do motorista exige comprovante. Ausente é tratado como `'off'`
+   * — existe como opcional só para os dublês de teste que ainda não conhecem a exigência; a
+   * implementação real (`findOccurrenceType`) sempre grava.
+   */
+  readonly attachmentMode?: DeliveryProofFieldMode
   /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
   readonly emailBody: string
   readonly emailSubject: string
@@ -83,6 +113,12 @@ export type OccurrenceTypeRecord = {
   readonly id: string
   readonly name: string
   readonly notifies: boolean
+  /**
+   * Spec 164 T4 (RF3): decide se o registro abre uma tratativa (`trip_occurrence_cases`).
+   * Ausente é tratado como `'unset'` — não abre; existe como opcional só para os dublês de teste
+   * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
+   */
+  readonly redeliveryPolicy?: RedeliveryPolicy
   readonly stage: TripOccurrenceStage
 }
 
@@ -102,26 +138,56 @@ export type TripOccurrencePort = {
     readonly companyId: string
     readonly documentId: string
     readonly tripId: string
-  }): Promise<readonly { readonly code: string; readonly description: string }[]>
+  }): Promise<
+    readonly {
+      readonly code: string
+      /** Spec 172 (RF2): a unidade comercial da nota — ausente em teste dublê antigo. */
+      readonly commercialUnit?: string
+      readonly description: string
+    }[]
+  >
   readTemplateValues(input: {
     readonly companyId: string
     readonly documentId: string
     readonly note: string
     readonly occurredOn: string
-    readonly productCode: string
+    readonly productCodes: readonly string[]
     readonly tripId: string
   }): Promise<OccurrenceTemplateValues>
   saveOccurrence(input: {
     readonly actorUserId: string
+    /**
+     * Spec 161 T6: já validado (teto/tipo/assinatura) — a implementação sobe o original e a
+     * miniatura opcional e grava a linha em `trip_document_occurrence_attachments`, tudo na mesma
+     * transação da ocorrência.
+     */
+    readonly attachment: {
+      readonly bytes: Uint8Array
+      readonly mimeType: string
+      readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+    }
     readonly companyId: string
     readonly documentId: string
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    readonly productCodes: readonly string[]
+    /** Spec 164 T4 (RF3): repassada ao escritor da ocorrência, que abre a tratativa dentro da mesma transação. */
+    readonly redeliveryPolicy?: RedeliveryPolicy
+    /** Spec 166: os mesmos itens de `productCodes`, com a quantidade/unidade já resolvidas. */
+    readonly items: readonly OccurrenceItemQuantity[]
     readonly stage: TripOccurrenceStage
     readonly tripId: string
     readonly typeName: string
-  }): Promise<null | TripOccurrence>
+  }): Promise<
+    null | (TripOccurrence & { readonly attachments?: readonly TripOccurrenceAttachmentPosition[] })
+  >
+}
+
+/** O que `saveOccurrence` devolve para a foto gravada — só `id`/`position`, sem URL (D5). */
+export type TripOccurrenceAttachmentPosition = {
+  readonly id: string
+  readonly position: number
 }
 
 /**
@@ -139,6 +205,19 @@ export type OccurrenceNotifierPort = {
 
 export type RegisterTripOccurrenceInput = {
   readonly actorUserId: string
+  /**
+   * Spec 161 D1/RF4: a foto da ocorrência de galpão. Ausente é aceitável para o **tipo**, mas não
+   * para a **etapa** — `separation` recusa sem ela (`OccurrencePhotoRequiredError`), antes de
+   * `saveOccurrence`, do storage e da auditoria. Spec 161 T6: o original e a miniatura opcional
+   * (D12/D14) só são validados (teto/tipo/assinatura) e persistidos dentro de `saveOccurrence` — a
+   * implementação da rota faz isso antes de abrir a transação (`persist-separation-occurrence-
+   * attachment.service.ts`); este caso de uso só confere presença, nunca bytes.
+   */
+  readonly attachment?: {
+    readonly bytes: Uint8Array
+    readonly mimeType: string
+    readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  }
   readonly companyId: string
   readonly documentId: string
   readonly note: string
@@ -149,6 +228,17 @@ export type RegisterTripOccurrenceInput = {
   readonly notificationParameters?: OccurrenceNotificationParameters
   readonly notificationSettings?: readonly OccurrenceNotificationSetting[]
   readonly productCode: string
+  /**
+   * Os itens que a tela marcou. Ausente ou vazia com `productCode` preenchido é o contrato antigo;
+   * os dois preenchidos é 422 — ver `resolveOccurrenceProductSelection`.
+   */
+  readonly productCodes?: readonly string[]
+  /**
+   * Spec 166 (RF4): alinhadas por índice à lista final de itens marcados — vazias é "ninguém
+   * mandou nada" (compatibilidade), e o alinhamento é conferido por `resolveOccurrenceItemQuantities`.
+   */
+  readonly productQuantities?: readonly string[]
+  readonly productQuantityUnits?: readonly string[]
   readonly repository: TripOccurrencePort
   readonly tripId: string
   readonly occurrenceTypeId: string
@@ -185,23 +275,61 @@ export async function registerTripOccurrence(
   }
 
   /**
+   * ⚠️ Spec 161 D1/RF4: a foto passa a ser obrigatória **aqui**, no caso de uso, e não na rota
+   * HTTP — a fase 4 desta spec faz o WhatsApp registrar pelo mesmo caminho, e a regra na rota
+   * deixaria o outro canal passar por fora. A recusa é **antes** de ler produtos, de
+   * `saveOccurrence`, do storage e da auditoria: nenhum efeito de borda acontece para uma
+   * ocorrência que não vai nascer.
+   */
+  if (input.attachment === undefined) throw new OccurrencePhotoRequiredError()
+  const attachment = input.attachment
+
+  /**
    * ⚠️ Produto fora da nota é **recusado**, nunca convertido em "nota inteira": apontar para item
    * que a nota não tem é engano de quem registrou, e silenciá-lo gravaria ocorrência sobre carga
-   * que nunca esteve ali.
+   * que nunca esteve ali. Item repetido e os dois campos juntos são recusados pelo mesmo caminho.
    */
-  const scope = resolveOccurrenceProductScope({
+  const documentProducts = await repository.listDocumentProducts({ companyId, documentId, tripId })
+
+  const scope = resolveOccurrenceProductSelection({
     productCode,
-    products: await repository.listDocumentProducts({ companyId, documentId, tripId }),
+    productCodes: input.productCodes,
+    products: documentProducts,
   })
-  if (scope === null) throw new TripDocumentNotFoundError()
+
+  /**
+   * Spec 166 (RF8/CA08): o cadastro decide se o tipo aceita mais de um item. A recusa é **antes**
+   * de `saveOccurrence`, pelo mesmo motivo da foto acima — nenhum efeito de borda para uma
+   * ocorrência que não vai nascer.
+   */
+  if (!occurrenceType.allowsMultipleItems && scope.productCodes.length > 1) {
+    throw new OccurrenceTypeSingleItemError()
+  }
+
+  /**
+   * Spec 166 (RF4)/172 (RF2): a quantidade/unidade por item, alinhada à lista final de itens
+   * marcados — `products` dá a cada item a própria unidade comercial da nota, além de unit/box.
+   */
+  const items = resolveOccurrenceItemQuantities({
+    productCodes: scope.productCodes,
+    products: documentProducts,
+    quantities: input.productQuantities ?? [],
+    units: input.productQuantityUnits ?? [],
+  })
 
   const saved = await repository.saveOccurrence({
     actorUserId,
+    attachment,
     companyId,
     documentId,
+    items,
     note,
     occurrenceTypeId: occurrenceType.id,
     productCode: scope.productCode,
+    productCodes: scope.productCodes,
+    ...(occurrenceType.redeliveryPolicy === undefined
+      ? {}
+      : { redeliveryPolicy: occurrenceType.redeliveryPolicy }),
     stage: occurrenceType.stage,
     tripId,
     typeName: occurrenceType.name,
@@ -215,7 +343,13 @@ export async function registerTripOccurrence(
     occurrenceType,
   })
 
-  return { ...saved, email: await renderEmail({ input, occurrenceType, scope }) }
+  return {
+    ...saved,
+    attachments: saved.attachments ?? [],
+    email: await renderEmail({ input, occurrenceType, scope }),
+    productCodes: scope.productCodes,
+    products: items,
+  }
 }
 
 /**
@@ -228,7 +362,7 @@ export async function registerTripOccurrence(
 async function renderEmail(params: {
   readonly input: RegisterTripOccurrenceInput
   readonly occurrenceType: OccurrenceTypeRecord
-  readonly scope: { readonly productCode: string }
+  readonly scope: { readonly productCodes: readonly string[] }
 }): Promise<null | { readonly body: string; readonly subject: string }> {
   /** Com template do módulo, o aviso sai pelo trilho de notificação — não há e-mail a montar aqui. */
   if (params.occurrenceType.emailTemplateKey !== null) return null
@@ -239,7 +373,7 @@ async function renderEmail(params: {
     documentId: params.input.documentId,
     note: params.input.note,
     occurredOn: params.input.occurredOn,
-    productCode: params.scope.productCode,
+    productCodes: params.scope.productCodes,
     tripId: params.input.tripId,
   })
 

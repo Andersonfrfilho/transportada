@@ -116,6 +116,46 @@ export function parsePackageBoxMeasurement(body: unknown): PackageBoxMeasurement
   return parsed.data
 }
 
+/**
+ * Spec 163 (P1): a unidade que o conferente informa. `.strict()`: `companyId`, `source` e a medida
+ * da caixa não entram por aqui — a empresa vem do token, a origem é `typed` pela rota, e a medida
+ * real tem rota própria. A faixa fina (5–1500 mm) é da sanidade do domínio, que responde o código.
+ */
+const packageBoxUnitSchema = z
+  .object({
+    grossWeightGrams: z.number().int().positive().max(2_000_000).optional(),
+    heightMm: z.number().int().positive().max(100_000),
+    lengthMm: z.number().int().positive().max(100_000),
+    unitsPerBox: z.number().int().positive().max(10_000).optional(),
+    widthMm: z.number().int().positive().max(100_000),
+  })
+  .strict()
+
+export type PackageBoxUnitInput = {
+  readonly unit: {
+    readonly grossWeightGrams?: number
+    readonly heightMm: number
+    readonly lengthMm: number
+    readonly widthMm: number
+  }
+  readonly unitsPerBox?: number
+}
+
+export function parsePackageBoxUnit(body: unknown): PackageBoxUnitInput {
+  const parsed = packageBoxUnitSchema.safeParse(body)
+  if (!parsed.success) throw invalidRequest()
+  const { grossWeightGrams, heightMm, lengthMm, unitsPerBox, widthMm } = parsed.data
+  return {
+    unit: {
+      ...(grossWeightGrams === undefined ? {} : { grossWeightGrams }),
+      heightMm,
+      lengthMm,
+      widthMm,
+    },
+    ...(unitsPerBox === undefined ? {} : { unitsPerBox }),
+  }
+}
+
 const MAX_REPLICATE_TARGETS = 200
 
 /** Spec 155 (G004): 1..200 UUIDs únicos — duplicata no corpo não é erro do domínio, é do cliente. */

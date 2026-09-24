@@ -208,6 +208,76 @@ describe('opção sem pedágio calculado (revisão de 2026-09-07)', () => {
 })
 
 /**
+ * Spec 165 CA01/CA03: de qual chamada a opção veio é o que a lista precisa para dizer "sem
+ * pedágio". Zero praça não basta — a rota comum que não passa por praça também tem zero, e as duas
+ * linhas seriam indistinguíveis.
+ */
+describe('opção que evita pedágio (spec 165)', () => {
+  it('marca a opção que veio da chamada sem pedágio, e só ela', () => {
+    const resumos = resolveRouteOptionSummaries({
+      cheapestIndex: null,
+      fastestIndex: null,
+      options: [
+        opcao({ boothCount: 3, distanceMeters: 376_500, durationSeconds: 18_000, totalCost: null }),
+        opcao({
+          boothCount: 0,
+          distanceMeters: 372_600,
+          durationSeconds: 18_600,
+          isNoToll: true,
+          totalCost: null,
+        }),
+      ],
+    })
+
+    expect(resumos.map((resumo) => resumo.isNoToll)).toEqual([false, true])
+  })
+
+  it('acumula com a marca de mais barata quando evitar pedágio também sai mais em conta', () => {
+    const [, semPedagio] = resolveRouteOptionSummaries({
+      cheapestIndex: 1,
+      fastestIndex: 0,
+      options: [
+        opcao({
+          boothCount: 3,
+          distanceMeters: 376_500,
+          durationSeconds: 18_000,
+          totalCost: '532.7000',
+        }),
+        opcao({
+          boothCount: 0,
+          distanceMeters: 372_600,
+          durationSeconds: 18_600,
+          isNoToll: true,
+          totalCost: '500.0000',
+        }),
+      ],
+    })
+
+    expect(semPedagio?.isNoToll).toBe(true)
+    expect(semPedagio?.isCheapest).toBe(true)
+    expect(semPedagio?.isFastest).toBe(false)
+  })
+
+  it('a opção sem pedágio calculado ainda diz de onde veio', () => {
+    const [semPedagio] = resolveRouteOptionSummaries({
+      cheapestIndex: null,
+      fastestIndex: null,
+      options: [
+        opcao({
+          distanceMeters: 372_600,
+          durationSeconds: 18_600,
+          isNoToll: true,
+          totalCost: null,
+        }),
+      ],
+    })
+
+    expect(semPedagio?.isNoToll).toBe(true)
+    expect(semPedagio?.boothCount).toBeNull()
+  })
+})
+
+/**
  * Spec 153 D2/D3: a rota que o operador viu na montagem vai junto ao planejar, pela **assinatura** —
  * o índice de agora é outra estrada quando a API pede as rotas de novo. O critério só vale quando a
  * assinatura não é reencontrada.

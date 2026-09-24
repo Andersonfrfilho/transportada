@@ -25,20 +25,24 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
  * transação, então o lote inteiro confirma ou desfaz junto.
  */
 export class DrizzleOfficeOccurrenceBatchUnitOfWork implements OfficeOccurrenceBatchUnitOfWork {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly bucket: string,
+  ) {}
 
   public execute<TResult>(
     operation: (transaction: OfficeOccurrenceBatchTransactionPort) => Promise<TResult>,
   ): Promise<TResult> {
     return this.database.transaction((transaction) => {
-      const fieldReports = new DrizzleDriverFieldReportTransaction(transaction)
+      const fieldReports = new DrizzleDriverFieldReportTransaction(transaction, this.bucket)
       return operation({
         claim: (input) => fieldReports.claim(input),
         findDocumentOccurrence: (input) => findDocumentOccurrence(transaction, input),
         findOccurrenceType: (input) => findOccurrenceType(transaction, input),
         findReachableDocumentIds: (input) => findReachableDocumentIds(transaction, input),
         recordOfficeAudit: (input) => fieldReports.recordOfficeAudit(input),
-        saveAttachmentObject: (input) => saveOccurrenceAttachmentObject(transaction, input),
+        saveAttachmentObject: (input) =>
+          saveOccurrenceAttachmentObject(transaction, input, this.bucket),
         saveDocumentOccurrence: (input) => saveTripOccurrence(transaction, input),
         settle: (input) => fieldReports.settle(input),
       })
@@ -111,9 +115,10 @@ export async function saveOccurrenceAttachmentObject(
     readonly sha256: string
     readonly sizeBytes: number
   },
+  bucket: string,
 ): Promise<void> {
   await queryable.insert(storedObjects).values({
-    bucket: 'fiscal',
+    bucket,
     companyId: input.companyId,
     id: input.objectId,
     mimeType: input.mimeType,

@@ -1098,3 +1098,152 @@ Registro de três defeitos encontrados durante T9–T10, fora do escopo desta sp
    transação e escrevem sem `WHERE status = :fromStatus`. Pergunta: acrescentar a guarda?
 
 Registrados em `specs/PERGUNTAS-ABERTAS.md` como itens 27, 28, 29 (data 2026-09-18, origem ADR-0068).
+
+## T12
+
+**Parte 1 — motivo do encerramento na linha do tempo.**
+
+- `trip-timeline.types.ts`: `TripTimelineItem.closeReason` (`string | null`), documentado como "só
+  em `trip.status_changed` para `completed` manual".
+- `trip-timeline-status.query.ts#listStatusChangedRows`: `innerJoin(trips, companyId + id)`,
+  `closeReason: row.toStatus === 'completed' ? row.closeReason : null` — mapeado na leitura, nunca
+  no banco, porque `trips.close_reason` sobrevive a qualquer transição seguinte da mesma viagem
+  (provado no teste "closeReason não vaza para trip.status_changed que não seja completed"). As
+  outras cinco fontes (`listDispatchedRows`, `listDocumentOccurrenceRows`,
+  `listDocumentStatusChangedRows`, `listStopEventRows`, `listStopOccurrenceRows`) ganharam
+  `closeReason: null` para fechar o tipo.
+- Prova de que "derivado nunca tem motivo": `trip-timeline.integration.ts` insere um
+  `trip_status_events` com `toStatus = 'completed'` **sem** tocar `trips.close_reason` (molda a
+  viagem que fechou pela última nota baixada) e confere `closeReason` nulo — ao lado do teste do
+  encerramento manual (com `close_reason` gravado) e do teste que prova que um `close_reason`
+  antigo não vaza para um evento `separating` da mesma viagem.
+- Frontend: `TripTimelineItem.closeReason`, `TRIP_TIMELINE_ITEM_KEYS`, `isTimelineItem` (validador
+  estrito), locale pt-BR/en (`eventTimeline.closeReason`) e o item da linha do tempo mostrando o
+  motivo — mesmo molde visual de `eventTimeline.returnReason`, condicionado a
+  `kind === 'trip.status_changed' && toStatus === 'completed'`.
+
+**Parte 2 — viagem cancelada recusa `close` (defeito (2) da T11 / PERGUNTAS-ABERTAS #28).**
+
+- `trip-state.policy.ts`: `TRIP_ACTION.close` novo, dispatch em `checkTripTransition` para
+  `checkClose` — bloqueia `cancelled` com `TRIP_TRANSITION_BLOCK.tripCancelled` (o mesmo código já
+  usado por `cancel`/`dispatch`/`planRoute`), `completed` responde `unchanged` e qualquer outro
+  status vai para `completed`.
+- `trip.use-case.ts#close`: troca o `if (trip.status === 'completed') return trip` solto por
+  `checkTripTransition({ action: TRIP_ACTION.close, ... })`, tratando `blocked` (lança
+  `TripStateTransitionNotAllowedError`) e `unchanged` (idempotente, sem gravar) antes da checagem de
+  motivo — viagem cancelada nunca chega a perguntar se precisa de motivo.
+- `specs/PERGUNTAS-ABERTAS.md` item 28 marcado como resolvido.
+
+**Gates**
+
+- `bun run typecheck` (raiz) — exit 0, seis apps (api, worker, cron, frontend-transportada,
+  frontend-client, frontend-landing).
+- `bun run lint` (raiz) — exit 0.
+- `bunx prettier --check .` — "All matched files use Prettier code style!".
+- `bun run --cwd apps/frontend-transportada test` (suíte principal + `test:hooks`) — 4699 + 40 pass,
+  0 fail.
+- API contrato, de dentro de `apps/api-transportada`:
+  `bun --env-file=../../.env.test test --timeout 120000` — 6728 pass, 0 fail. (O Postgres do Docker
+  em `65432` está fora do ar — rodado com `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL` apontando para
+  o Postgres nativo descartável em `127.0.0.1:65433`, role `postgres`.)
+- API integração:
+  `bun --env-file=../../.env.test run test:integration` — 484 pass, 8 fail (mesmo Postgres nativo).
+  As 8 falhas são `toll-booth-extract-storage.integration.ts`/`toll-booth-reload.integration.ts`
+  (`ObjectStorageError: Object storage is unavailable` — MinIO fora do ar neste ambiente, `make up`
+  não rodado nesta sessão), nada em `trip-timeline`/`trip-domain`/`trip-application`. Os 16 testes de
+  `trip-timeline.integration.ts` (13 pré-existentes + 3 novos da Parte 1) passaram.
+- `bun run --cwd apps/api-transportada db:generate --name t12-no-op` — `{"status":"no_changes"}`:
+  esta task não mexe em schema.
+
+### Revisão da T13 (`code-reviewer`, opus): aprovada, com quatro ajustes levados junto
+
+A revisão confirmou o principal, medindo: o teste de concorrência roda **vermelho no código
+anterior** (`0 pass · 4 fail`, um por escritor) e verde aqui; o `FOR NO KEY UPDATE` já serializa as
+transações, então o compare-and-set é defesa em profundidade, não redundância inútil; nenhum
+caminho grava `trip_status_events` sem o `UPDATE` ter afetado linha; e a repetição normal do usuário
+continua respondendo 200, porque o portão do caso de uso resolve antes de chegar ao repositório.
+
+Corrigido depois dela:
+
+- **`close` que perdia o compare-and-set respondia 404.** `return null` virava
+  `TripNotFoundError` — "viagem não encontrada" para uma viagem que existe. Agora relê o status
+  dentro da transação e deixa a própria `checkTripTransition` dar o motivo do conflito; se o status
+  novo ainda permitir encerrar (corrida benigna), devolve o detalhe em vez de inventar erro.
+  ⚠️ Caminho **sem teste**: com todos os escritores de hoje travando a linha, ele é inalcançável — é
+  defesa para o dia em que alguém escrever `trips.status` sem lock.
+- **ADR-0068** descrevia o defeito como aberto, e é o documento que os comentários do código citam.
+  As duas passagens ("Consequências" e "Achados registrados") agora dizem que T12 e T13 o
+  resolveram, e o que **continua** fora da transação (`hasRoute`).
+- **`apps/api-transportada/CLAUDE.md`**: o parágrafo da escrita de status passou a exigir a
+  reconferência e o compare-and-set de quem criar o próximo escritor.
+- **O comentário de `hasRoute`** em `dispatch-trip`/`plan-trip-route` dizia "reconferido dentro da
+  transação", o que não é verdade: o que se reconfere sob o lock é o status.
+
+Ficaram registrados, sem correção: o teste de tela `close-detail-line.contract.ts` compara texto do
+fonte com indentação literal (molde já existente no repo, paga juros num refactor); o
+`trip-detail-query-count` não exercita viagem encerrada, então ninguém afirma que a junção do nome é
++1 constante; e `raceAgainstBlocker` não espera o perdedor aparecer em `pg_locks` antes de liberar o
+bloqueador (passa nas duas ordens, não é instável).
+
+**Em aberto:** nenhum. `git fetch` sem avanço em `origin/staging` no momento da entrega.
+
+## T13 — guarda de origem nos quatro escritores de trips.status
+
+**Defeito 29 (`specs/PERGUNTAS-ABERTAS.md`, ADR-0068 "Consequências").** `dispatch`,
+`markRoutePlanned`, `markCancelled` (`drizzle-trip-route.repository.ts`) e `close`
+(`drizzle-trip.repository.ts`) liam `trips.status` sob `SELECT … FOR NO KEY UPDATE` mas escreviam o
+`UPDATE trips` sem reconferir que aquele status ainda permitia a transição — a checagem da máquina de
+estados (`checkTripTransition`) tinha acontecido só no caso de uso, **fora** da transação, e uma
+corrida entre duas requisições podia gravar `trip_status_events` com uma transição que a política já
+proibia.
+
+- Os quatro passam a chamar `checkTripTransition` de novo, logo depois do lock, com o `tripRow.status`
+  que acabou de sair do `SELECT … FOR NO KEY UPDATE` — nunca duplicando a regra em SQL à mão.
+  `outcome === 'blocked'` lança `TripStateTransitionNotAllowedError(reason)` (o mesmo erro/código
+  409 `STATE_TRANSITION_NOT_ALLOWED` que as demais transições proibidas já usam — **decisão do
+  usuário, 2026-09-21**: a corrida perdida passa a responder conflito, em vez de ser ignorada em
+  silêncio). `outcome === 'unchanged'` mantém a idempotência que cada caminho já tinha (ex.: fechar
+  uma viagem já `completed` continua devolvendo a viagem, sem gravar de novo).
+- O `UPDATE trips` de cada um ganhou `where status = tripRow.status` (compare-and-set), no molde de
+  `markTripInTransit`/`completeTripIfSettled`. É defesa em profundidade: o lock de linha já impede a
+  corrida sozinho, já que a checagem acontece dentro da mesma transação que segura o lock.
+- `dispatch` e `markRoutePlanned` reconferem também `hasRoute` — passou a viajar em
+  `DispatchTripWriteInput`/`PlanTripRoutePort.markRoutePlanned` (calculado no caso de uso, o mesmo
+  valor que já decidia a chamada; esta task não adiciona uma segunda leitura de `hasRoute` dentro da
+  transação, escopo é só o `from_status`).
+- `close`: quando a reconferência dá `unchanged` (viagem que virou `completed` por outra corrida),
+  devolve `readTripDetail` sem gravar; sem isso, o `close` duplicaria a auditoria e o evento de status
+  a cada corrida perdida.
+
+**Testes de concorrência de verdade** (`test/integration/trip-status-write-guard.integration.ts`,
+novo, listado em `test:integration` do `package.json`): quatro casos, um por escritor, cada um monta
+duas transações reais contra o Postgres descartável — uma "bloqueadora" segura o
+`SELECT … FOR NO KEY UPDATE` da viagem, o escritor real (via `dispatchTrip`/`planTripRoute` ou a
+chamada direta ao repositório) tenta a transição e fica genuinamente bloqueado no mesmo lock: só
+depois disso a bloqueadora muda o status para um que torna a transição do escritor inválida e libera.
+Nenhum `pg_sleep`, nenhum mock do banco — a exclusão é o lock de linha do próprio Postgres. Cada
+teste confere: o escritor perdedor lança `TripStateTransitionNotAllowedError` com o motivo certo
+(`TRIP_CANCELLED`/`TRIP_COMPLETED`), o status final da viagem é o da transação vencedora, e
+`trip_status_events` não ganhou linha nenhuma da transição proibida.
+
+`specs/PERGUNTAS-ABERTAS.md` item 29 marcado como resolvido (2026-09-21); a T11 desta mesma spec, que
+registrava o defeito (3), aponta para esta task.
+
+**Gates**
+
+- `bun run typecheck` (raiz) — exit 0.
+- `bun run lint` (raiz) — exit 0.
+- `bunx prettier --check` nos arquivos tocados — "All matched files use Prettier code style!".
+- API contrato, de dentro de `apps/api-transportada`, com `DATABASE_URL`/`DRIZZLE_TEST_DATABASE_URL`
+  apontando para o Postgres nativo descartável em `127.0.0.1:65433` (o Docker em `65432` está fora do
+  ar nesta sessão): `bun --env-file=../../.env.test test --timeout 120000` — 6728 pass, 0 fail.
+- API integração, mesmo Postgres: `bun --env-file=../../.env.test run test:integration` — 488 pass
+  (484 pré-existentes + 4 novos desta task), 8 fail. As 8 falhas são as mesmas de antes desta task
+  (`toll-booth-extract-storage.integration.ts`/`toll-booth-reload.integration.ts`,
+  `ObjectStorageError: Object storage is unavailable` — MinIO fora do ar neste ambiente), nenhuma em
+  `trip-*`.
+- `bun run --cwd apps/api-transportada db:generate` — `{"status":"no_changes"}`: task não mexe em
+  schema.
+- `git fetch`: `origin/staging` sem avanço (continua em `f9218483`).
+
+**Em aberto:** nenhum.

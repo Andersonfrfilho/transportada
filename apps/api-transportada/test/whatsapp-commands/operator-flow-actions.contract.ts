@@ -17,7 +17,11 @@ import type { CompanyPermission } from '../../src/identity/domain/authorization.
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import type { WarehouseTrip } from '../../src/trips/application/list-warehouse-trips.use-case.js'
 import { resolveOperatorTripActions } from '../../src/trips/domain/operator-trip-actions.policy.js'
-import { TripStateTransitionNotAllowedError } from '../../src/trips/domain/trip.error.js'
+import {
+  TripDeliveryProofRejectedError,
+  TripOccurrenceAttachmentLimitError,
+  TripStateTransitionNotAllowedError,
+} from '../../src/trips/domain/trip.error.js'
 import {
   createOperatorWhatsAppFlowActions,
   type OperatorFlowActionDependencies,
@@ -29,8 +33,10 @@ import {
   OPERATOR_FLOW_ACTION_KIND,
   OPERATOR_FLOW_CONTEXT_KEY,
   OPERATOR_FLOW_NODE,
+  OPERATOR_OCCURRENCE_PHOTO_ANSWER,
 } from '../../src/whatsapp-commands/domain/whatsapp-operator-flow.constant.js'
 import {
+  WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY,
   WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY,
   WHATSAPP_LIST_ANSWER_FALLBACK,
 } from '../../src/whatsapp-commands/domain/whatsapp-command.constant.js'
@@ -94,6 +100,7 @@ function buildDeps(
   overrides: Partial<OperatorFlowActionDependencies> = {},
 ): OperatorFlowActionDependencies {
   return {
+    attachOccurrencePhoto: async () => ({ id: crypto.randomUUID(), position: 2 }),
     batchTransition: async () => ({
       items: [{ documentId: DOCUMENT_ID, outcome: 'applied' }],
       tripStatus: 'separating',
@@ -166,6 +173,7 @@ function buildActor() {
 function buildOccurrenceType(overrides: Partial<OccurrenceTypeRecord> = {}): OccurrenceTypeRecord {
   return {
     active: true,
+    allowsMultipleItems: true,
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,
@@ -306,6 +314,44 @@ describe('resposta de lista conferida contra a lista relida (spec 144 T020, B5)'
       context: { [WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]: 1 },
       next: OPERATOR_FLOW_NODE.occurrenceTypeEntry,
     })
+  })
+
+  /**
+   * B1 (revisão da spec 161): registrar a ocorrência A e, na mesma sessão, começar outra sem
+   * recarregar o WhatsApp deixava `occurrenceId` da sessão apontando para A — `photoRouter` via o
+   * contexto com id preenchido e nunca chamava `registerOccurrence` de novo, então a foto da
+   * segunda ocorrência (B) era anexada à primeira (A) em silêncio. `occurrenceTypeRouter` começa
+   * uma ocorrência nova a cada tipo escolhido, então ele é quem tem de zerar o id da sessão
+   * anterior.
+   */
+  test('escolher o tipo de ocorrência de novo limpa o occurrenceId de um registro anterior na mesma sessão', async () => {
+    const { channel } = buildChannel()
+    const sessionContextBeforeThisTurn = {
+      [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: 'occurrence-1',
+    }
+
+    const result = await callAction({
+      channel,
+      context: {
+        ...sessionContextBeforeThisTurn,
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeAnswer]: OCCURRENCE_TYPE_ID,
+      },
+      deps: buildDeps({ listOccurrenceTypes: async () => [buildOccurrenceType()] }),
+      kind: OPERATOR_FLOW_ACTION_KIND.occurrenceTypeRouter,
+    })
+
+    /**
+     * `FlowInterpreter.step` (meta-whatsapp-module) funde o patch por `{ ...contextoAnterior,
+     * ...result.context }` — uma chave **ausente** do patch preserva o valor antigo da sessão;
+     * só uma chave presente com `undefined` sobrescreve. `toEqual` não distingue as duas formas
+     * (trata ausência e `undefined` como iguais), então a prova certa é `Object.hasOwn` no patch
+     * em si, e a simulação do merge que o pacote faz de verdade.
+     */
+    if (result === undefined) throw new Error('occurrenceTypeRouter não devolveu resultado')
+    expect(Object.hasOwn(result.context ?? {}, OPERATOR_FLOW_CONTEXT_KEY.occurrenceId)).toBe(true)
+
+    const mergedSessionContext = { ...sessionContextBeforeThisTurn, ...result.context }
+    expect(mergedSessionContext[OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]).toBeUndefined()
   })
 })
 
@@ -695,9 +741,11 @@ describe('FlowActions do operador — Viagens do armazém (spec 144 T016)', () =
     })
   })
 
-  test('ocorrência registrada grava actor_user_id do contexto, sem driverId', async () => {
-    const calls: unknown[] = []
-    await callAction({
+  test('observação válida oferece Concluir/Cancelar e segue para o passo de foto, sem gravar nada', async () => {
+    const { channel, sent } = buildChannel()
+    let registered = false
+    const result = await callAction({
+      channel,
       context: {
         [OPERATOR_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
         [OPERATOR_FLOW_CONTEXT_KEY.noteAnswer]: 'skip',
@@ -705,32 +753,21 @@ describe('FlowActions do operador — Viagens do armazém (spec 144 T016)', () =
         [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
       },
       deps: buildDeps({
-        registerOccurrence: async (input) => {
-          calls.push(input)
-          return {
-            createdAt: NOW.toISOString(),
-            id: crypto.randomUUID(),
-            note: '',
-            occurrenceTypeId: OCCURRENCE_TYPE_ID,
-            productCode: '',
-            stage: 'separation',
-            typeName: 'Avaria no barracão',
-          }
-        },
+        registerOccurrence: async () => (
+          (registered = true),
+          Promise.reject(new Error('não deveria gravar'))
+        ),
       }),
-      kind: OPERATOR_FLOW_ACTION_KIND.completeOccurrence,
+      kind: OPERATOR_FLOW_ACTION_KIND.photoPrompt,
     })
 
-    expect(calls).toEqual([
-      {
-        actorUserId: USER_ID,
-        companyId: COMPANY_ID,
-        documentId: DOCUMENT_ID,
-        note: '',
-        occurrenceTypeId: OCCURRENCE_TYPE_ID,
-        tripId: TRIP_ID,
-      },
-    ])
+    expect(registered).toBe(false)
+    expect(sent[0]?.kind).toBe('list')
+    expect(sent[0]?.body).toContain('Sem foto nada é registrado')
+    expect(result).toEqual({
+      context: { [OPERATOR_FLOW_CONTEXT_KEY.noteAnswer]: '' },
+      next: OPERATOR_FLOW_NODE.photoEntry,
+    })
   })
 
   test('observação em texto livre acima do limite pede de novo, sem gravar', async () => {
@@ -750,11 +787,309 @@ describe('FlowActions do operador — Viagens do armazém (spec 144 T016)', () =
           throw new Error('não deveria gravar')
         },
       }),
-      kind: OPERATOR_FLOW_ACTION_KIND.completeOccurrence,
+      kind: OPERATOR_FLOW_ACTION_KIND.photoPrompt,
     })
 
     expect(registered).toBe(false)
     expect(sent[0]?.body).toContain('Observação muito longa')
     expect(result).toEqual({ next: OPERATOR_FLOW_NODE.notePrompt })
+  })
+})
+
+/**
+ * Spec 161 T15 (RF18/RF18b/RF18c/RF19/RF20, CA10/CA11/CA11d): o passo de foto do operador —
+ * `photoRouter`. `handlePhotoUpload` (a foto de verdade) e as respostas texto (Concluir/Cancelar/
+ * inválida) do mesmo nó.
+ */
+describe('FlowAction do passo de foto do operador (spec 161 T15)', () => {
+  const PHOTO_CONTEXT = {
+    [OPERATOR_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+    [OPERATOR_FLOW_CONTEXT_KEY.noteAnswer]: '',
+    [OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+    [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+  } as const
+
+  function withImage(mimeType = 'image/jpeg') {
+    return { [WHATSAPP_INCOMING_IMAGE_CONTEXT_KEY]: { mediaId: 'wamid.1', mimeType } }
+  }
+
+  async function buildChannelWithMedia(bytesLength: number, mimeType = 'image/jpeg') {
+    const base = buildChannel()
+    const channel: ChannelAdapterInterface = {
+      ...base.channel,
+      fetchMediaAsBase64: async () => ({
+        data: Buffer.from(new Uint8Array(bytesLength)).toString('base64'),
+        mimeType,
+      }),
+    }
+    return { channel, sent: base.sent }
+  }
+
+  test('primeira foto (entre 512 KiB e 960 KiB) chega inteira a registerOccurrence — teto do WhatsApp, não o da web', async () => {
+    /**
+     * `deps.registerOccurrence` é a fronteira: a validação de bytes de verdade
+     * (`assertOccurrenceUploadAccepted` com `maxOriginalBytes`) mora dentro da implementação real
+     * (`persistSeparationOccurrenceWithAttachment`, T6/T15), fora do alcance de um FlowAction
+     * testado com dublê — provada em `test/trip-occurrence/separation-upload.contract.ts` e na
+     * fiação de `main.ts` (T13/T15). Aqui a prova é a que este nível pode dar: uma foto de 600 KiB
+     * — que a web (teto de 512 KiB) recusaria — chega **inteira e sem alteração** ao dep, sinal de
+     * que o router não trunca nem valida à revelia do teto parametrizado.
+     */
+    const { channel, sent } = await buildChannelWithMedia(600 * 1024)
+    const calls: unknown[] = []
+    const result = await callAction({
+      channel,
+      context: { ...PHOTO_CONTEXT, ...withImage() },
+      deps: buildDeps({
+        registerOccurrence: async (input) => {
+          calls.push(input)
+          return {
+            createdAt: NOW.toISOString(),
+            id: 'occurrence-1',
+            note: '',
+            occurrenceTypeId: OCCURRENCE_TYPE_ID,
+            productCode: '',
+            stage: 'separation',
+            typeName: 'Avaria no barracão',
+          }
+        },
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(calls).toHaveLength(1)
+    expect((calls[0] as { attachment: { bytes: Uint8Array } }).attachment.bytes.byteLength).toBe(
+      600 * 1024,
+    )
+    expect(sent[0]?.body).toContain('Foto 1 anexada')
+    expect(result).toEqual({
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: 'occurrence-1',
+        [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: 1,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: 0,
+      },
+      next: OPERATOR_FLOW_NODE.photoEntry,
+    })
+  })
+
+  test('foto grande demais: a recusa da persistência vira mensagem com o motivo e o limite, nada muda no fluxo', async () => {
+    const { channel, sent } = await buildChannelWithMedia(961 * 1024)
+    const result = await callAction({
+      channel,
+      context: { ...PHOTO_CONTEXT, ...withImage() },
+      deps: buildDeps({
+        registerOccurrence: async () => {
+          throw new TripDeliveryProofRejectedError('TOO_LARGE')
+        },
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(sent[0]?.body).toContain('maior que o tamanho aceito')
+    expect(sent[0]?.body).toContain('960')
+    expect(result).toEqual({ next: OPERATOR_FLOW_NODE.photoEntry })
+  })
+
+  test('tipo de arquivo não suportado é recusado com o motivo', async () => {
+    const { channel, sent } = await buildChannelWithMedia(10, 'application/pdf')
+    const result = await callAction({
+      channel,
+      context: { ...PHOTO_CONTEXT, ...withImage('application/pdf') },
+      deps: buildDeps({
+        registerOccurrence: async () => {
+          throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+        },
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(sent[0]?.body).toContain('precisa ser uma imagem')
+    expect(result).toEqual({ next: OPERATOR_FLOW_NODE.photoEntry })
+  })
+
+  test('segunda foto em diante usa attachOccurrencePhoto, não registerOccurrence de novo', async () => {
+    const { channel, sent } = await buildChannelWithMedia(10 * 1024)
+    let registerCalls = 0
+    const attachCalls: unknown[] = []
+    const result = await callAction({
+      channel,
+      context: {
+        ...PHOTO_CONTEXT,
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: 'occurrence-1',
+        [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: 1,
+        ...withImage(),
+      },
+      deps: buildDeps({
+        attachOccurrencePhoto: async (input) => {
+          attachCalls.push(input)
+          return { id: 'attachment-2', position: 2 }
+        },
+        registerOccurrence: async () => {
+          registerCalls += 1
+          throw new Error('não deveria registrar de novo')
+        },
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(registerCalls).toBe(0)
+    expect(attachCalls).toEqual([
+      {
+        actorUserId: USER_ID,
+        attachment: { bytes: expect.any(Uint8Array), mimeType: 'image/jpeg' },
+        companyId: COMPANY_ID,
+        occurrenceId: 'occurrence-1',
+      },
+    ])
+    expect(sent[0]?.body).toContain('Foto 2 anexada')
+    expect(result).toEqual({
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: 2,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: 0,
+      },
+      next: OPERATOR_FLOW_NODE.photoEntry,
+    })
+  })
+
+  test('sexta foto é recusada (TripOccurrenceAttachmentLimitError) e encerra o passo', async () => {
+    const { channel, sent } = await buildChannelWithMedia(10 * 1024)
+    const result = await callAction({
+      channel,
+      context: {
+        ...PHOTO_CONTEXT,
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: 'occurrence-1',
+        [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: 5,
+        ...withImage(),
+      },
+      deps: buildDeps({
+        attachOccurrencePhoto: async () => {
+          throw new TripOccurrenceAttachmentLimitError()
+        },
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(sent[0]?.body).toContain('Limite de 5 fotos')
+    expect(result).toEqual({
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined,
+        [OPERATOR_FLOW_CONTEXT_KEY.noteAnswer]: undefined,
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: undefined,
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeId]: undefined,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoAnswer]: undefined,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: undefined,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: undefined,
+      },
+      next: OPERATOR_FLOW_NODE.tripActionMenu,
+    })
+  })
+
+  test('falha de download não grava ocorrência nenhuma', async () => {
+    const base = buildChannel()
+    const channel: ChannelAdapterInterface = {
+      ...base.channel,
+      fetchMediaAsBase64: async () => {
+        throw new Error('graph api timeout')
+      },
+    }
+    let registered = false
+    const result = await callAction({
+      channel,
+      context: { ...PHOTO_CONTEXT, ...withImage() },
+      deps: buildDeps({
+        registerOccurrence: async () => ((registered = true), Promise.reject(new Error('x'))),
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(registered).toBe(false)
+    expect(base.sent[0]?.body).toContain('Não consegui baixar')
+    expect(result).toEqual({ next: OPERATOR_FLOW_NODE.photoEntry })
+  })
+
+  test('"Concluir" sem nenhuma foto ainda pede a foto de novo', async () => {
+    const { channel, sent } = buildChannel()
+    const result = await callAction({
+      channel,
+      context: {
+        ...PHOTO_CONTEXT,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoAnswer]: OPERATOR_OCCURRENCE_PHOTO_ANSWER.done,
+      },
+      deps: buildDeps(),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(sent[0]?.body).toContain('Envie ao menos uma')
+    expect(result).toEqual({ next: OPERATOR_FLOW_NODE.photoEntry })
+  })
+
+  test('"Concluir" com fotos anexadas encerra o passo e limpa o contexto', async () => {
+    const { channel, sent } = buildChannel()
+    const result = await callAction({
+      channel,
+      context: {
+        ...PHOTO_CONTEXT,
+        [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: 'occurrence-1',
+        [OPERATOR_FLOW_CONTEXT_KEY.photoAnswer]: OPERATOR_OCCURRENCE_PHOTO_ANSWER.done,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: 2,
+      },
+      deps: buildDeps(),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(sent[0]?.body).toContain('registrada com 2 foto(s)')
+    expect(result?.next).toBe(OPERATOR_FLOW_NODE.tripActionMenu)
+  })
+
+  test('"Cancelar" antes de qualquer foto não grava nada (D15)', async () => {
+    const { channel, sent } = buildChannel()
+    let registered = false
+    const result = await callAction({
+      channel,
+      context: {
+        ...PHOTO_CONTEXT,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoAnswer]: OPERATOR_OCCURRENCE_PHOTO_ANSWER.cancel,
+      },
+      deps: buildDeps({
+        registerOccurrence: async () => ((registered = true), Promise.reject(new Error('x'))),
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(registered).toBe(false)
+    expect(sent[0]?.body).toContain('Ocorrência cancelada')
+    expect(result?.next).toBe(OPERATOR_FLOW_NODE.tripActionMenu)
+  })
+
+  test('texto fora das opções incrementa o contador; na segunda vez chama uma pessoa (D8)', async () => {
+    const { channel, sent } = buildChannel()
+    const first = await callAction({
+      channel,
+      context: {
+        ...PHOTO_CONTEXT,
+        [OPERATOR_FLOW_CONTEXT_KEY.photoAnswer]: 'oi, tudo bem?',
+      },
+      deps: buildDeps(),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+    expect(first).toEqual({
+      context: { [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: 1 },
+      next: OPERATOR_FLOW_NODE.photoEntry,
+    })
+
+    await expect(
+      callAction({
+        channel,
+        context: {
+          ...PHOTO_CONTEXT,
+          [OPERATOR_FLOW_CONTEXT_KEY.photoAnswer]: 'ainda não entendi',
+          [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: 1,
+        },
+        deps: buildDeps(),
+        kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+      }),
+    ).rejects.toBeInstanceOf(WhatsAppCommandHandoffRequestedError)
+
+    expect(sent.filter((message) => message.kind === 'text').length).toBeGreaterThan(0)
   })
 })

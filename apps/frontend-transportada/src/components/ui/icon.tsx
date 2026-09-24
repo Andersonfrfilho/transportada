@@ -80,6 +80,7 @@ export type IconName =
   | 'workspace-delivery-clients'
   | 'workspace-driver-trip'
   | 'workspace-extra-charges'
+  | 'workspace-reimbursements'
   | 'workspace-trip-financials'
   | 'workspace-fleet'
   | 'workspace-freight'
@@ -322,6 +323,12 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   /** Spec 061: a conta da viagem — colunas de barra, que é como a margem se lê. */
   'workspace-trip-financials': ['M4 20h16', 'M7 20V11', 'M12 20V5', 'M17 20v-6'],
+  /** Spec 164: o demonstrativo que volta para o contratante — recibo com o cifrão de devolução. */
+  'workspace-reimbursements': [
+    'M6 3h12v18H6z',
+    'M9 3v18',
+    'M13 9.5c-.6-.8-1.4-1.2-2.4-1.2-1.4 0-2.4.8-.6 2.4 1.4 0 2.4.6 2.4 2s-1 2-2.4 2c-1 0-1.8-.4-2.4-1.2',
+  ],
   'workspace-fleet': [
     'M4 8h9v7H4z',
     'M13 10h4l3 3v2h-7z',

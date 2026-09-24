@@ -21,6 +21,8 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies } from './identity.schema.js'
+import { storedObjects } from './storage.schema.js'
+import { tripDocumentOccurrences } from './trip.schema.js'
 import { inList } from './schema-check.constant.js'
 
 /**
@@ -329,8 +331,26 @@ export const DELIVERY_CHARGE_TYPES = [
   'platform',
   'parking',
   'other',
+  /**
+   * Spec 164 T16 (RF25/RF26): a cobrança de mercadoria devolvida que a tratativa de ocorrência gera.
+   * ⚠️ **Nunca lançável à mão** — ver `MANUAL_DELIVERY_CHARGE_TYPES` abaixo. Ela só nasce pela ponte
+   * `occurrence-charge.policy.ts` (T17), amarrada a `origin: 'occurrence'` e `occurrence_id`
+   * preenchido pelo CHECK do banco.
+   */
+  'returned_goods',
 ] as const
 export type DeliveryChargeType = (typeof DELIVERY_CHARGE_TYPES)[number]
+
+/**
+ * Spec 164 T16 (validação 🧠 da Fase 5, achado 1): os tipos que uma pessoa pode lançar pelas rotas
+ * `POST .../charges` e `PUT .../charge-rules`. `returned_goods` fica de fora das duas — soltá-lo
+ * lançaria mercadoria devolvida com valor livre, fora de qualquer tratativa, e a regra recorrente o
+ * proporia de novo todo mês, o que não faz sentido para um prejuízo que não se repete.
+ */
+export const MANUAL_DELIVERY_CHARGE_TYPES = DELIVERY_CHARGE_TYPES.filter(
+  (type) => type !== 'returned_goods',
+)
+export type ManualDeliveryChargeType = (typeof MANUAL_DELIVERY_CHARGE_TYPES)[number]
 
 /**
  * ADR-0048 §5: o ciclo do repasse. `suggested` é alcançável **só** pelo que nasceu automático, e
@@ -372,6 +392,12 @@ export const deliveryCharges = pgTable(
     contractorId: uuid('contractor_id'),
     tripId: uuid('trip_id'),
     tripDocumentId: uuid('trip_document_id'),
+    /**
+     * Spec 164 T16/T17: preenchida só quando `charge_type = 'returned_goods'` — é o que liga a
+     * cobrança ao acerto e à foto da ocorrência. Nulável: nenhuma linha existente muda com a
+     * migration aditiva.
+     */
+    occurrenceId: uuid('occurrence_id'),
     batchId: uuid('batch_id'),
     chargeType: text('charge_type').$type<DeliveryChargeType>().notNull(),
     amount: numeric({ precision: 14, scale: 4 }).notNull(),
@@ -408,8 +434,35 @@ export const deliveryCharges = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'delivery_charges_company_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     unique('delivery_charges_company_id_id_unique').on(table.companyId, table.id),
     index('delivery_charges_status_idx').on(table.companyId, table.status),
+    index('delivery_charges_company_occurrence_idx')
+      .on(table.companyId, table.occurrenceId)
+      .where(sql`${table.occurrenceId} is not null`),
+    /**
+     * Spec 164 T16 (achado 3 da revisão): sem esta trava, duas requisições concorrentes gravando o
+     * mesmo acerto cobrariam o mesmo prejuízo duas vezes — o unique de `suggested` não alcança a
+     * cobrança de ocorrência, que nasce `recorded`.
+     */
+    uniqueIndex('delivery_charges_occurrence_unique')
+      .on(table.companyId, table.occurrenceId)
+      .where(sql`${table.occurrenceId} is not null`),
+    /**
+     * Spec 164 T16 (achado 7 da revisão): serve o relatório mensal novo (RF28) **e** conserta o
+     * fechamento de lote atual, que hoje varre a tabela inteira por contratante e período.
+     */
+    index('delivery_charges_contractor_period_idx').on(
+      table.companyId,
+      table.contractorId,
+      table.chargedOn,
+    ),
     /**
      * Spec 060 D4c: **uma sugestão por nota e tipo.** A regra recorrente e a ocorrência do motorista
      * propõem a mesma taxa pelo mesmo motivo, e sem esta trava a entrega com recibo fotografado
@@ -469,6 +522,20 @@ export const deliveryCharges = pgTable(
     check(
       'delivery_charges_batch_status_check',
       sql`${table.batchId} is null or ${table.status} in ('submitted', 'approved', 'rejected', 'reimbursed')`,
+    ),
+    /**
+     * Spec 164 T16 (achado 1 da revisão): `returned_goods` só existe amarrado à ocorrência que a
+     * gerou — o discriminador da cobrança de ocorrência é `charge_type` + `occurrence_id`, **nunca**
+     * `origin` (`origin: 'occurrence'` já é da ocorrência de parada, spec 060, fora de escopo aqui).
+     */
+    check(
+      'delivery_charges_returned_goods_origin_check',
+      sql`${table.chargeType} <> 'returned_goods' or (${table.origin} = 'occurrence' and ${table.occurrenceId} is not null)`,
+    ),
+    /** O simétrico: `occurrence_id` preenchido só faz sentido para a cobrança de mercadoria devolvida. */
+    check(
+      'delivery_charges_occurrence_type_check',
+      sql`${table.occurrenceId} is null or ${table.chargeType} = 'returned_goods'`,
     ),
   ],
 )
@@ -545,6 +612,12 @@ export const extraChargeBatches = pgTable(
     closedAt: timestamp('closed_at', { withTimezone: true }).notNull().defaultNow(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /**
+     * Spec 164 T20: o demonstrativo de ressarcimento em PDF, artefato **imutável** gerado no
+     * fechamento. Nulável porque todo lote fechado antes desta migration não tem um, e porque a
+     * geração falhando não pode derrubar o fechamento do dinheiro.
+     */
+    statementObjectId: uuid('statement_object_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -566,7 +639,18 @@ export const extraChargeBatches = pgTable(
     unique('extra_charge_batches_company_id_id_unique').on(table.companyId, table.id),
     /** O token é a credencial: colisão entre empresas abriria o lote de outra transportadora. */
     unique('extra_charge_batches_access_token_unique').on(table.accessToken),
+    foreignKey({
+      columns: [table.companyId, table.statementObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'extra_charge_batches_company_statement_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     index('extra_charge_batches_contractor_idx').on(table.companyId, table.contractorId),
+    /** FK parcial: só o lote que já tem demonstrativo, no molde do índice da miniatura (spec 161). */
+    index('extra_charge_batches_company_statement_object_idx')
+      .on(table.companyId, table.statementObjectId)
+      .where(sql`${table.statementObjectId} is not null`),
     check(
       'extra_charge_batches_status_check',
       sql`${table.status} in (${sql.raw(inList(EXTRA_CHARGE_BATCH_STATUSES))})`,

@@ -26,8 +26,71 @@
   margin: 0;
 }
 
+/**
+ * Spec 180 RF12: o seletor de notas. `min-width: 0` porque numa viagem de muitas notas ele é a
+ * parte que cresce, e sem isso empurrava o título para fora do painel em 375px.
+ */
+.documentFilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.documentFilterLegend {
+  padding: 0;
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.days {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.day {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* A faixa de dia acompanha a rolagem: numa viagem longa o cabeçalho sai de vista antes da lista. */
+.dayLabel {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  align-items: baseline;
+  margin: 0;
+  padding: var(--space-1) 0;
+  background: linear-gradient(
+    to bottom,
+    var(--color-graphite) 70%,
+    color-mix(in srgb, var(--color-graphite) 0%, transparent)
+  );
+  color: var(--color-slate);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dayCount {
+  color: color-mix(in srgb, var(--color-slate) 75%, transparent);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
 .list {
   --timeline-marker-size: 0.625rem;
+  --timeline-title-font-size: 0.95rem;
+  --timeline-title-line-height: 1.35;
   --timeline-rail-inset: calc(var(--timeline-marker-size) / 2);
 
   position: relative;
@@ -57,9 +120,20 @@
   overflow-wrap: anywhere;
 }
 
+/**
+ * O marcador acompanha a **primeira linha do título** — é o título que nomeia o fato, e o ponto
+ * marca o fato. Centralizá-lo no item inteiro (tentativa anterior) jogava o ponto na altura dos
+ * links em evento alto, longe do que ele marca.
+ *
+ * A posição é derivada da tipografia do título, não um valor mágico: meia linha do título, menos
+ * meio marcador, menos a borda que o `content-box` acrescenta.
+ */
 .item::before {
   position: absolute;
-  top: calc(var(--space-2) + 0.3rem);
+  top: calc(
+    var(--space-2) + (var(--timeline-title-font-size) * var(--timeline-title-line-height) / 2) -
+      (var(--timeline-marker-size) / 2) - 2px
+  );
   left: 0;
   width: var(--timeline-marker-size);
   height: var(--timeline-marker-size);
@@ -71,6 +145,35 @@
   content: '';
 }
 
+/**
+ * Spec 171 P2/RF5/CA05: entrada curta para quem chega novo na lista — recarga, "tentar de novo" ou
+ * paginação. Aplicada em todo `<li>` sem custo de estado: React mantém o nó de quem já estava (a
+ * `key` não muda), então só o item que acabou de montar no DOM roda a animação; o resto não
+ * remonta, e a keyframe não replay. `prefers-reduced-motion` desliga por completo — quem pediu
+ * menos movimento não recebe movimento nenhum, nem a versão curta.
+ */
+@keyframes tripTimelineItemEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.itemEnter {
+  animation: tripTimelineItemEnter 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .itemEnter {
+    animation: none;
+  }
+}
+
 .itemDone {
   --timeline-marker-color: var(--color-ready);
 }
@@ -79,11 +182,79 @@
   --timeline-marker-color: var(--color-alert);
 }
 
+/** Spec 180 RF9/T401: o avatar fica ao lado de título+meta, nunca empurrando o texto para baixo. */
+.itemHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.itemHeadText {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+/**
+ * Spec 180 RF9/RF10 (CA08): iniciais sobre cor fixa, a mesma em claro e escuro — como
+ * `--vehicle-color-*`, é identidade, não tema. Texto claro fixo porque as seis cores da paleta são
+ * todas de tom médio/escuro por desenho.
+ */
+.avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  block-size: 1.75rem;
+  inline-size: 1.75rem;
+  border-radius: 50%;
+  color: #f7f5f1;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.avatarPalette0 {
+  background: #4a86b8;
+}
+
+.avatarPalette1 {
+  background: #4aa8a0;
+}
+
+.avatarPalette2 {
+  background: #7bb85a;
+}
+
+.avatarPalette3 {
+  background: #a3591f;
+}
+
+.avatarPalette4 {
+  background: #6f42a5;
+}
+
+.avatarPalette5 {
+  background: #cc3333;
+}
+
 .itemTitle {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--timeline-title-font-size);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: var(--timeline-title-line-height);
+}
+
+/** O título leva à nota (RF15). Sublinhado só no toque: oito sublinhados empilhados viram cerca. */
+.itemTitleLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.itemTitleLink:hover,
+.itemTitleLink:focus-visible {
+  color: var(--color-copper);
+  text-decoration: underline;
 }
 
 /* No celular horário e autoria empilham: com o separador "·" a quebra de linha o deixava órfão. */
@@ -120,6 +291,40 @@
  */
 .itemAuthorship {
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+}
+
+/**
+ * Spec 180 RF15: o link para a nota/parada fica visível fechado — é navegação, não detalhe a
+ * esconder (RF16 recolhe o que sobra, não o caminho para a coisa citada).
+ */
+.itemLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.itemLink {
+  color: var(--color-copper);
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+/**
+ * Spec 180 RF16/T304: o botão que expande/recolhe o detalhe — nunca menor que a área de toque, e
+ * fora do fluxo do texto para não parecer mais um dado da linha.
+ */
+.itemToggle {
+  justify-self: start;
+  min-height: var(--touch-target);
+  padding-inline: var(--space-2);
+}
+
+.itemDetailGroup {
+  display: grid;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
 }
 
 .itemDetail {

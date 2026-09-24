@@ -576,6 +576,8 @@ export function TripAssemblyMap({
    * as duas coisas: sem `toll` ele não aparece; com `toll` zerado ele aparece dizendo isso.
    */
   const toll = activeGeometry?.toll ?? null
+  /** Spec 165 RF4: de qual chamada veio a rota que o bloco de pedágio abaixo está descrevendo. */
+  const isNoTollRoute = routeOptionSummaries[boundedOptionIndex]?.isNoToll ?? false
   const noteById = new Map([...selected, ...nearby].map((note) => [note.id, note]))
   const revenueOf = (nfeDocumentId: string) =>
     resolveNoteRevenue({
@@ -651,7 +653,11 @@ export function TripAssemblyMap({
         </p>
       )}
       {/* Spec 090 T7/T8: o pedágio vem na mesma resposta que desenhou o traço (D4). */}
-      <RouteTollSummary canAdjustTollBooth={canAdjustTollBooth} toll={toll} />
+      <RouteTollSummary
+        canAdjustTollBooth={canAdjustTollBooth}
+        isNoTollRoute={isNoTollRoute}
+        toll={toll}
+      />
       {/*
         Spec 096 T1/T2/T3: a rota mais rápida e a mais barata, com o custo total de cada uma —
         logo abaixo do bloco de pedágio da T7. `hasChoice` vem pronto da API: rota única (três de
@@ -705,6 +711,18 @@ export function TripAssemblyMap({
                         ) : null}
                       </>
                     )}
+                    {/*
+                      ⚠️ Spec 165: **acumula** com as marcas acima, nunca as substitui. Evitar
+                      pedágio é de onde a rota veio (`exclude=toll`), não uma conta vencida — e a
+                      rota que evita pedágio sendo também a mais barata é justamente quando o
+                      operador mais precisa ver as duas coisas.
+                    */}
+                    {summary.isNoToll ? (
+                      <span className={styles.routeOptionBadge}>
+                        <Icon name="invoice" size="sm" />
+                        {t('assemblyMap.routeOptions.noToll')}
+                      </span>
+                    ) : null}
                   </span>
                   {summary.totalCost === null ? null : (
                     <span className={styles.routeOptionTotal}>

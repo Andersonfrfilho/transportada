@@ -13,6 +13,7 @@ import type {
 } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
+import type { TripOccurrence } from './register-trip-occurrence.use-case.js'
 import type { TripFieldOfficeAuditInput } from './trip-field-office-audit.port.js'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
@@ -287,6 +288,30 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<{ readonly id: string } | null>
+  /**
+   * Spec 179 T200: a ocorrência de **nota** (`trip_document_occurrences`) que o motorista registra
+   * — espaço de id diferente de `recordOccurrence`/`findOccurrenceById`, que são a ocorrência de
+   * **parada** (`trip_stop_occurrences`). `null` só quando a nota não é desta viagem nesta empresa
+   * (a mesma condição de corrida que `saveTripOccurrence` já defende).
+   */
+  saveDocumentOccurrence(input: {
+    readonly actorUserId: string
+    readonly attachmentObjectId: string | null
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly documentId: string
+    readonly note: string
+    readonly occurrenceTypeId: string
+    readonly productCode: string
+    readonly stage: 'delivery'
+    readonly tripId: string
+    readonly typeName: string
+  }): Promise<null | TripOccurrence>
+  /** O reenvio da fila offline: a ocorrência de nota já gravada por esta chave. */
+  findDocumentOccurrenceById(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<null | TripOccurrence>
 }
 
 export type DriverFieldReportUnitOfWork = {

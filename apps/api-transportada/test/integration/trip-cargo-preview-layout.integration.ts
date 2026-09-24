@@ -20,6 +20,7 @@ import {
   type TripCargoPreviewContext,
 } from '../../src/trips/application/preview-trip-cargo.use-case.js'
 import { createReadCargoLayoutUseCase } from '../../src/trips/application/read-cargo-layout.use-case.js'
+import type { CargoLayoutWithPackageBoxIds } from '../../src/trips/application/read-cargo-layout.types.js'
 import { createRequestCargoLayoutUseCase } from '../../src/trips/application/request-cargo-layout.use-case.js'
 import { buildStoredCargoLayoutInput } from '../../src/trips/domain/cargo-layout-hash.policy.js'
 import type { BuildCargoLayoutInputParams } from '../../src/trips/domain/cargo-layout-hash.types.js'
@@ -268,7 +269,10 @@ describeWithPostgres('cargo preview asks for the layout by hash (spec 145 T11)',
 
     expect(polled.state.status).toBe('ready')
     expect(drawnBefore).not.toEqual(resolveCargoLayout(currentInput))
-    expect(polled.cargoLayout).toEqual(resolveCargoLayout(currentInput))
+    /** Spec 168: sem `packageBoxLookup` aqui, `pendingMeasurements` (vazio nesta fixture) não muda. */
+    expect(polled.cargoLayout).toEqual(
+      resolveCargoLayout(currentInput) as unknown as CargoLayoutWithPackageBoxIds,
+    )
   })
 
   async function failLayout(layoutId: string, options: { readonly old: boolean }) {

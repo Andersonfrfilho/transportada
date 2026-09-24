@@ -9,7 +9,13 @@
  */
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 
-/** Spec 158 D5. `TRIP_STOP_EVENT_KINDS.occurrence` nunca aparece aqui — não é escrito hoje. */
+/**
+ * Spec 158 D5. `TRIP_STOP_EVENT_KINDS.occurrence` nunca aparece aqui — não é escrito hoje.
+ *
+ * Spec 171: `trip.created` é o nono. Mesma fonte de `trip.status_changed` (`trip_status_events`,
+ * `listCreatedRows`) — a leitura separa pelas duas linhas que `fromStatus = toStatus` nunca produz
+ * numa transição real (`recordTripStatusChange` é no-op nesse caso; só `recordTripCreation` grava).
+ */
 export const TRIP_TIMELINE_KINDS = [
   'trip.dispatched',
   'trip.status_changed',
@@ -19,6 +25,7 @@ export const TRIP_TIMELINE_KINDS = [
   'stop.occurrence',
   'document.occurrence',
   'document.status_changed',
+  'trip.created',
 ] as const
 export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 
@@ -27,8 +34,12 @@ export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
  * aparece. Tudo é decrescente, como a tupla `(occurred_at, prioridade, id) < cursor` do SQL exige.
  * A troca de status usa o mesmo `now` da chegada ou da entrega que a provocou; lida de cima para
  * baixo, a lista mostra o efeito acima da causa, como em qualquer instante mais recente.
+ *
+ * Spec 171 RF2: `trip.created` leva a prioridade **menor que qualquer outra** — nascer é sempre o
+ * mais antigo de um empate, nunca o efeito de nada.
  */
 export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, number>> = {
+  'trip.created': -1,
   'stop.arrived': 0,
   'stop.occurrence': 1,
   'document.occurrence': 2,
@@ -54,7 +65,13 @@ export type TripTimelineDocumentReference = {
   readonly series: string | null
 }
 
+/**
+ * Spec 161 T11 (RF12/CA7): a contagem de fotos, **nunca** URL assinada — nem de original, nem de
+ * miniatura. Quem quer ver a foto abre a ocorrência (painel ou feed), que é onde RF8/RF9/RF10 já
+ * assinam.
+ */
 export type TripTimelineOccurrenceReference = {
+  readonly attachmentCount: number
   readonly note: string
   readonly typeName: string
 }
@@ -63,6 +80,12 @@ export type TripTimelineItem = {
   readonly actorName: string | null
   /** `null` = canal não registrado (D3/D6) — nunca um valor inventado. */
   readonly channel: TripFieldChannel | null
+  /**
+   * Spec 158 T12 (spec 156 T8c): `trips.close_reason`, só em `trip.status_changed` para
+   * `completed`. O `completed` derivado (`deriveTripStatus`, quando a última nota fecha) nunca tem
+   * motivo: `close_reason` só é escrito por `POST /trips/:id/close`.
+   */
+  readonly closeReason: string | null
   readonly document: TripTimelineDocumentReference | null
   /** Só em `*.status_changed`; os dois vocabulários (viagem, nota) cabem na mesma string. */
   readonly fromStatus: string | null

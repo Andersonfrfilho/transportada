@@ -8,6 +8,7 @@ import {
   createOperationsClient,
   createOperationsPollingState,
   type AuditEventFilters,
+  type JobSchedule,
   type OperationsClient as Client,
   type OperationsJobFilters,
   type OperationsSummaryFilters,
@@ -25,6 +26,7 @@ const OPERATIONS_SUMMARY_QUERY_KEY = 'operations-summary'
 const OPERATIONS_TIMELINE_QUERY_KEY = 'operations-timeline'
 const OPERATIONS_JOBS_QUERY_KEY = 'operations-jobs'
 const OPERATIONS_AUDIT_QUERY_KEY = 'operations-audit'
+const OPERATIONS_JOB_SCHEDULES_QUERY_KEY = 'operations-job-schedules'
 
 export type OperationsClient = Client
 
@@ -39,6 +41,12 @@ export type OperationsController = Readonly<{
    * classe — o freio da RNF1 —, e sem permissão a chamada nem sai.
    */
   runJob: (job: string) => Promise<RunJobOutcome>
+  /**
+   * Spec 161 T21. `null` sem permissão ou sem sucesso — a linha simplesmente não muda de estado, e
+   * quem chama decide se refaz a leitura.
+   */
+  pauseJob: (job: string) => Promise<JobSchedule | null>
+  resumeJob: (job: string) => Promise<JobSchedule | null>
 }>
 
 function forbidden(): Promise<never> {
@@ -57,6 +65,8 @@ export function createOperationsController(
     canReadOperations,
     canRunJobs,
     runJob: (job) => (canRunJobs ? input.client.runJob({ job }) : Promise.resolve('failed')),
+    pauseJob: (job) => (canRunJobs ? input.client.pauseJob({ job }) : Promise.resolve(null)),
+    resumeJob: (job) => (canRunJobs ? input.client.resumeJob({ job }) : Promise.resolve(null)),
     refresh: () =>
       canReadOperations
         ? Promise.all([
@@ -150,10 +160,16 @@ export function useOperationsDashboard(
     queryKey: [OPERATIONS_AUDIT_QUERY_KEY, input.companyId, input.auditFilters] as const,
     refetchInterval: polling.intervalMs ?? false,
   })
+  const jobSchedulesQuery = useQuery({
+    enabled: controller.canReadOperations,
+    queryFn: () => client.listJobSchedules(),
+    queryKey: [OPERATIONS_JOB_SCHEDULES_QUERY_KEY, input.companyId] as const,
+  })
 
   return {
     auditQuery,
     controller,
+    jobSchedulesQuery,
     jobsQuery,
     summaryQuery,
     timelineQuery,

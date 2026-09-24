@@ -244,3 +244,13 @@ export const setTripMdfeRequirementSchema = z
   .strict()
 
 export type SetTripMdfeRequirementBody = z.infer<typeof setTripMdfeRequirementSchema>
+
+/**
+ * Spec 156 T8c (ADR-0067): sem corpo, `reason` é `null` — obrigatório só quando a viagem tem nota
+ * em aberto, e a política que decide isso mora em `trip-close.policy.ts`, não aqui.
+ */
+export const closeTripSchema = z
+  .object({ reason: z.string().trim().min(1).max(500).nullable().default(null) })
+  .strict()
+
+export type CloseTripBody = z.infer<typeof closeTripSchema>

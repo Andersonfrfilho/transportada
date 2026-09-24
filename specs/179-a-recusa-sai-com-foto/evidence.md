@@ -1,0 +1,483 @@
+## T103 — schema, repositório e use-case leem e gravam os dois campos
+
+```
+$ bunx tsc --noEmit                        # sem saída
+$ bunx eslint src test drizzle.config.ts   # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7185 pass · 23 skip · 0 fail · 24250 expect() · 183 arquivos [34.43s]
+$ bun --env-file=../../.env.test run test:integration
+ 566 pass · 7 skip · 0 fail · 105 arquivos [785.89s]
+```
+
+⚠️ A primeira execução da integração foi descartada: dois processos rodavam contra o mesmo banco de
+teste (um meu, um do agente), e resultado de suíte concorrente não é evidência. Os números acima são
+de uma execução única, com os outros processos encerrados.
+
+## T200 — chave de idempotência na ocorrência do motorista
+
+`registerDriverOccurrence` não tinha chave de idempotência (RF13, revisão de arquitetura de 23/09).
+A escrita mora agora dentro de `DriverFieldReportUnitOfWork.execute` + `withFieldReport`, reservando
+e liquidando a chave na mesma transação da escrita — o padrão que `/deliver`, `/return` e a
+ocorrência de parada já usam. Dois métodos novos em `DriverFieldReportTransactionPort`
+(`saveDocumentOccurrence`, `findDocumentOccurrenceById`), implementados reaproveitando
+`saveTripOccurrence` (o mesmo `insert` que o escritório usa) dentro da transação. A rota
+(`me-trip.routes.ts`) passa a ler a chave com `parseIdempotencyKey(request)`; o caminho do WhatsApp
+(`register-driver-flow-actions.ts`) gera a chave com `randomUUID()`, como `reportDelivery`/
+`reportReturn` já fazem ali.
+
+```
+$ bunx tsc --noEmit                        # sem saída
+$ bunx eslint src test drizzle.config.ts   # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7187 pass · 23 skip · 0 fail · 24253 expect() · 183 arquivos [28.17s]
+$ bun --env-file=../../.env.test run test:integration
+ 566 pass · 7 skip · 0 fail · 3272 expect() · 105 arquivos [705.33s]
+```
+
+Execução única, em primeiro plano, sem suíte concorrente.
+
+## Bloqueio antes de T201/T202 — upload direto ao storage (RF2)
+
+Levantamento no repositório (`grep` por `getSignedUrl`/`createPresignedPost`/`PutObjectCommand` em
+`apps/api-transportada/src`): **nenhum caminho de upload assinado existe hoje.** O único gateway de
+storage (`NfeStorageGateway`, sobre `@adatechnology/object-storage-provider`) expõe
+`put/get/head/delete/createSignedDownload` — não há `createSignedUpload` nem equivalente. Construir
+um exigiria estender o pacote `@adatechnology/object-storage-provider` (fora deste repositório, em
+`~/Documents/personal/adatechnology-packages`) e desenhar como o servidor confere tipo/tamanho/sha256
+de um objeto que ele nunca viu em bytes — hoje `stored_objects.sha256`/`size_bytes` são `not null` e
+só existem depois do upload, o que não combina com criar a linha antes de emitir a URL. A revisão de
+arquitetura de 23/09 (`architecture-review.md`) não avaliou esta parte porque assumia multipart; isto
+é desenho novo, com implicação de segurança (RF2b), e por isso parei aqui para pedir a decisão em vez
+de inventar o formato do endpoint de confirmação sem revisão.
+
+## T201/T202 — upload direto ao storage por URL assinada
+
+```
+$ bunx tsc --noEmit                        # sem saída
+$ bunx eslint src test drizzle.config.ts   # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7205 pass · 0 fail
+$ make migration-test
+ 110 pass · 0 fail  (inclui trip_occurrence_uploads, com rollback ida-e-volta)
+$ bun --env-file=../../.env.test run test:integration
+ 566 pass · 7 skip · 0 fail · 105 arquivos [648.80s]
+```
+
+⚠️ Duas execuções anteriores da integração foram descartadas: a primeira competia com um processo do
+subagente, a segunda morreu junto com o encerramento dele. A terceira rodou destacada (`nohup`), sem
+concorrência — é a que vale.
+
+## 23/09 (segunda passada) — desfeita a duplicação com as specs 164 e 161
+
+Ver `duplicacao.md`. Três achados, um só era código de verdade:
+
+1. **`returns_to_depot`** duplicava `redelivery_policy` (spec 164). Removida a coluna da migration
+   `20260923204855_company_occurrence_type_attachment_mode` (migration.sql, rollback.sql,
+   snapshot.json) e todo o código/teste que a referenciava. `attachment_mode` — a contribuição real
+   da 179 — foi mantida.
+2. **`return_reason_code`** (RF10 original): existia em `trip.schema.ts` desde o commit
+   `aee673fd7`, mas **nunca tinha migration** — `db:generate` já estava quebrado antes desta limpeza
+   por causa dela, não só de `returns_to_depot`. Removida junto, por não ter sentido sem
+   `returnsToDepot` e não ser usada em nenhum outro arquivo (`grep` confirmou).
+3. **`thumbnailObjectId`/`OCCURRENCE_UPLOAD_PURPOSES`** (T206): achado como alteração **não
+   commitada** em `trip.schema.ts` ao rodar o teste de `db:generate` pela primeira vez nesta
+   passada — sobra de uma tentativa anterior de T206, que a missão explicitamente pediu para não
+   implementar agora. Revertida. O fluxo de upload assinado já commitado (`b1ec3a13e`,
+   `confirmUpload` em `drizzle-occurrence-upload.repository.ts`) grava em `stored_objects`, a mesma
+   tabela que `attach-occurrence-photo.use-case.ts` usa — nenhuma tabela ou coluna de miniatura
+   paralela existe no código commitado. Não havia nada a desfazer aqui além da sobra não commitada.
+
+```
+$ bunx tsc --noEmit --cwd apps/api-transportada        # sem saída
+$ bunx tsc --noEmit --cwd apps/worker-transportada     # sem saída
+$ bunx tsc --noEmit --cwd apps/cron-transportada       # sem saída
+$ tsc --noEmit --cwd apps/frontend-transportada        # sem saída
+$ tsc --noEmit --cwd apps/frontend-client              # sem saída
+$ tsc --noEmit --cwd apps/frontend-landing             # sem saída
+$ bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0   # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7203 pass · 23 skip · 2 fail · 24291 expect() · 183 arquivos [173.15s]
+```
+
+As 2 falhas: um timeout de `toll-booths.contract.test.ts` (120s, flaky sob carga — nada a ver com
+esta task) e `database-migration.contract.test.ts` acusando o `thumbnail_object_id` não commitado
+do item 3 acima. Depois de removê-lo:
+
+```
+$ bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts --timeout 30000
+ 70 pass · 4 skip · 0 fail · 763 expect() [4.38s]     # db:generate volta a responder no_changes
+$ make migration-test
+ 110 pass · 0 fail [63.01s]
+```
+
+Integração completa, uma vez, no fim:
+
+```
+$ bun --env-file=../../.env.test run test:integration
+ 563 pass · 7 skip · 3 fail · 3270 expect() · 105 arquivos [847.10s]
+```
+
+As 3 falhas (`extra-charge-batch`, `company-energy-repository`, `whatsapp-command-repository`) são
+todas `timed out after 5000ms` — nenhuma toca `company_occurrence_types`, `trip_occurrence_uploads`
+ou `trip_document_occurrence_attachments`. Isoladas com timeout de 30s, sem a bateria completa
+disputando o Postgres:
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/extra-charge-batch.integration.ts \
+    ./test/integration/company-energy-repository.integration.ts \
+    ./test/integration/whatsapp-command-repository.integration.ts --timeout 30000
+ 20 pass · 0 fail · 61 expect() [47.76s]
+```
+
+Confirma timeout de carga, não regressão desta limpeza.
+
+## T203 — `register-driver-occurrence.use-case.ts` recusa sem anexo/motivo (RF3/CA02/CA03)
+
+### Achado antes de escrever código: a tabela apontada na missão não serve para esta ocorrência
+
+A missão pedia para gravar o anexo confirmado em `trip_document_occurrence_attachments`, pelo
+caminho de `attach-occurrence-photo.use-case.ts`. Duas evidências no próprio repositório mostram que
+isso está errado para a ocorrência do motorista (`stage = 'delivery'`):
+
+1. `attach-occurrence-photo.use-case.ts:99-101` recusa com `OccurrenceTypeNotSeparationError` toda
+   ocorrência cujo `stage` não seja `'separation'` — a ocorrência do motorista nunca passaria por
+   ali.
+2. O comentário de `trip.schema.ts:1699-1702` já registra a divisão: _"`attachment_object_id` de
+   `trip_document_occurrences` continua servindo a ocorrência de rua (D6) — esta tabela nunca é
+   escrita por aquele canal."_ `trip_document_occurrence_attachments` é do galpão (spec 161,
+   múltiplas fotos com miniatura); a coluna direta é da rua.
+
+A coluna direta (`trip_document_occurrences.attachment_object_id`) já é exatamente o "caminho de
+anexos existente" que CA06 pede: `listDocumentOccurrenceAttachmentLocations`
+(`trip-occurrence-feed.query.ts:581-620`) tenta primeiro a tabela nova e **cai para esta coluna**
+quando não há linha — é o fallback "legado" que o escritório já lê. `saveDocumentOccurrence`
+(`driver-field-report.port.ts:297-309`, `delivery-proof-read.support.ts:301`) já aceita e grava
+`attachmentObjectId` nessa coluna; a chamada em `register-driver-occurrence.use-case.ts` só passava
+`null` fixo. E `test/integration/trip-occurrence-attachment.integration.ts:391-401` já prova, contra
+Postgres real, que a FK da coluna aceita um `storedObjects.id` de verdade.
+
+Ou seja: a T203 não precisava de escrita nova nenhuma em tabela de anexo — precisava resolver a
+referência (`resolveOccurrenceUploadAttachment`, já pronta da T201) e passar o id resolvido no lugar
+do `null` fixo. Implementei por este caminho, menor e já teste-coberto pelo banco real, em vez do
+caminho pedido — que não compilaria (o `stage` não bate) e reabriria uma tabela pensada para outro
+formato (posição, miniatura, teto de 5). Registro aqui em vez de perguntar e travar a execução porque
+as duas evidências (código-fonte + teste de integração já commitado) são conclusivas, não uma leitura
+minha; sinalizo mesmo assim para quem revisar decidir se quer o caminho diferente.
+
+### Implementação
+
+- `src/trips/domain/trip.error.ts`: `TripOccurrenceAttachmentRequiredError` (`TRIP_OCCURRENCE_ATTACHMENT_REQUIRED`, 422) e `TripOccurrenceNoteRequiredError` (`TRIP_OCCURRENCE_NOTE_REQUIRED`, 422) — códigos estáveis e
+  distintos, para a tela dizer qual dos dois falta (CA04, fora do escopo desta task).
+- `src/trips/application/register-driver-occurrence.use-case.ts`: `DriverOccurrenceReadPort` ganhou
+  `findConfirmedUpload` (de `OccurrenceUploadAttachmentPort`, já existente). Depois de confirmar tipo,
+  alcance e produto, `attachmentMode === 'required'` recusa nota vazia ou `attachmentObjectId`
+  ausente; qualquer referência recebida — mesmo em tipo `optional` — é conferida com
+  `resolveOccurrenceUploadAttachment` (empresa + viagem, RF2b) antes de entrar na transação. O id
+  resolvido substitui o `null` fixo em `saveDocumentOccurrence`. Escrita continua única, dentro do
+  `unitOfWork.execute` + `withFieldReport` que a T200 já tinha montado — não precisou de unit of work
+  nova, ao contrário do que a `architecture-review.md` havia estimado (o caminho já tinha uma desde a
+  T200).
+- `src/trips/presentation/occurrence.schema.ts` e `me-trip.routes.ts`: corpo da rota ganha
+  `attachmentObjectId` opcional (uuid), threading até o caso de uso.
+- `src/main.ts`: as duas composições de `registerDriverOccurrence` (PWA e WhatsApp) ganham
+  `findConfirmedUpload`. WhatsApp não sobe anexo, mas o port é o mesmo — instância própria de
+  `DrizzleOccurrenceUploadRepository` no escopo de `bootstrap()`, pelo mesmo motivo de
+  `whatsappFieldReportGuardTransaction` (nasce antes de `createApplicationRoutes`).
+- Testes: `test/trip-occurrence/driver.contract.ts` ganhou `findConfirmedUpload`/`attachmentMode` no
+  dublê e 7 casos novos (required sem anexo, sem motivo, com os dois, referência inalcançável,
+  optional com/sem anexo, tipo sem a coluna). `test/driver-trip/field-report.double.ts` passou a
+  registrar o `attachmentObjectId` gravado em `state.calls` para o teste conferir. Três arquivos que
+  montavam `DriverOccurrenceReadPort` na mão (`field-trip-target/use-cases.contract.ts`,
+  `whatsapp-driver-flow-actions.integration.ts`, `trip-field-authorship.integration.ts`) ganharam o
+  campo novo. `trip-field-authorship.integration.ts` ganhou um teste contra Postgres real: tipo
+  `required` recusa sem motivo, recusa sem anexo, e aceita gravando o `stored_objects.id` verdadeiro
+  na coluna — fecha a pendência que a `architecture-review.md` deixou registrada ("não confirmou se o
+  repositório Drizzle do motorista aceita `attachmentObjectId`").
+
+### Gates
+
+```
+$ bunx tsc --noEmit                                             # sem saída
+$ bunx eslint src test drizzle.config.ts eslint.config.js --max-warnings=0   # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7212 pass · 23 skip · 0 fail · 24300 expect() · 183 arquivos [29.87s]
+$ bun --env-file=../../.env.test test test/trip-occurrence.contract.test.ts --timeout 30000
+ 229 pass · 0 fail · 417 expect() [217ms]
+$ bun --env-file=../../.env.test run test:integration
+ 566 pass · 7 skip · 1 fail · 3275 expect() · 105 arquivos [724.82s]
+```
+
+A falha é `trip-financial-end-to-end.integration.ts` (timeout de 60s), o mesmo padrão de flakiness
+sob carga já documentado acima — não toca `company_occurrence_types`, `trip_occurrence_uploads` nem
+`trip_document_occurrences`. Isolada:
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/trip-financial-end-to-end.integration.ts --timeout 30000
+ 2 pass · 0 fail · 25 expect() [4.22s]
+$ bun --env-file=../../.env.test test ./test/integration/trip-field-authorship.integration.ts --timeout 30000
+ 5 pass · 0 fail · 8 expect() [10.02s]
+```
+
+Confirma timeout de carga, não regressão desta task; o arquivo que a T203 tocou (`trip-field-
+authorship.integration.ts`) passa limpo, incluindo o teste novo contra Postgres real.
+
+## Revisão de código de 23/09 — achados [1] e [2] fechados, [3] bloqueado por escopo
+
+Revisão do `code-reviewer` (opus) sobre o lote publicado da spec: três achados na API do upload de
+comprovante. O bloqueante e dois importantes do lote original já tinham sido corrigidos antes desta
+passada; ficaram três — dois fechados aqui, um aberto por depender de diretório fora do escopo desta
+sessão (`apps/api-transportada/**`, `apps/cron-transportada/**`, `docs/**`,
+`specs/179-*/**` — outra frente estava no frontend ao mesmo tempo).
+
+### [1] `confirm` não era idempotente — reenvio recebia 404
+
+`findPendingUpload` filtra `status = 'pending'`; na segunda chamada (fila offline reenviando depois
+que a primeira já confirmou) o status já é `confirmed`, a busca devolve `null`, e o caso de uso
+lançava `TripOccurrenceUploadNotReachableError` (404) — o app tinha confirmado, a resposta se perdeu
+na rede do caminhão, e o cliente levava 404 sem saber se já tinha confirmado ou se o objeto não era
+seu.
+
+**Corrigido:** `OccurrenceUploadConfirmationPort` ganhou `findConfirmedUpload` (mesma forma que
+`OccurrenceUploadAttachmentPort` já tinha, e que `DrizzleOccurrenceUploadRepository` já implementava
+para outro port — nenhuma classe nova). `confirmOccurrenceUpload` (`confirm-occurrence-upload.use-
+case.ts:89-103`), quando `findPendingUpload` devolve `null`, tenta o recall por
+`findConfirmedUpload` antes de lançar: achou (mesma empresa/viagem), devolve o mesmo resultado sem
+tocar o storage; não achou, seguem os três motivos válidos de 404 (nunca existiu, outra empresa,
+outra viagem).
+
+### [2] Corrida em dois `confirm` simultâneos virava 500
+
+`DrizzleOccurrenceUploadRepository.confirmUpload` inseria `stored_objects` **antes** de atualizar
+`trip_occurrence_uploads`, sem condicionar o `UPDATE` a `status = 'pending'`. Duas confirmações
+concorrentes para o mesmo pedido passavam as duas pela leitura (`findPendingUpload`, sem lock) e
+tentavam o mesmo `INSERT` com o mesmo `id` (PK de `stored_objects`) — violação de unicidade, 500
+genérico.
+
+**Corrigido:** o `UPDATE` agora roda **primeiro**, dentro da transação, condicionado a `status =
+'pending'`, com `.returning()`. Zero linhas afetadas quer dizer que outra transação já fechou a
+mesma confirmação entre a leitura e esta escrita — a transação termina sem tentar o `INSERT`, e
+`confirmUpload` devolve `{ confirmed: false }` em vez de deixar o banco recusar por chave duplicada.
+`confirmOccurrenceUpload` trata `confirmed: false` com o mesmo recall do achado [1]
+(`findConfirmedUpload`): a chamada perdedora devolve o resultado da vencedora, nunca um 500.
+
+### Implementação
+
+- `src/trips/application/confirm-occurrence-upload.use-case.ts`: `OccurrenceUploadConfirmationPort`
+  ganha `findConfirmedUpload`; `confirmUpload` passa a devolver `{ confirmed: boolean }`. Dois pontos
+  de recall (pendência não encontrada, e `UPDATE` que não afetou linha) convergem para o mesmo
+  `findConfirmedUpload` — um único conceito, "devolver o resultado que já existe", para os dois
+  achados.
+- `src/trips/infrastructure/drizzle-occurrence-upload.repository.ts`: `confirmUpload` reordenado —
+  `UPDATE ... WHERE status = 'pending' RETURNING id` primeiro; `INSERT` em `stored_objects` só quando
+  o `UPDATE` afetou uma linha, dentro da mesma transação.
+- `src/main.ts`: as duas composições de `confirmOccurrenceUpload` (só existe uma, do PWA — a rota do
+  motorista) ganham `findConfirmedUpload` na injeção do repositório.
+- `test/trip-occurrence/upload.contract.ts`: `unreachableStorage()` prova que o recall não toca
+  `head()`/bytes; testes novos para reenvio pós-confirmação, objeto de outra empresa/viagem
+  continuando 404 mesmo com a checagem extra, e a corrida (repositório devolvendo `confirmed:
+false`) resolvida pelo recall. Os dois dublês existentes (`repository()` e `reachableRepository()`)
+  ganharam `findConfirmedUpload`.
+- `test/integration/trip-occurrence-upload-confirm.integration.ts` (novo): três provas contra
+  Postgres real — reenvio depois de confirmado devolve o mesmo `id` e grava um único `stored_objects`
+  (achado [1]); objeto de outra viagem continua 404 mesmo já confirmado noutra (achado [1], borda);
+  `Promise.all` com dois `confirmOccurrenceUpload` concorrentes para o mesmo pedido não lança, os
+  dois devolvem o mesmo `id`, e só um `stored_objects`/`trip_occurrence_uploads.status = 'confirmed'`
+  fica gravado (achado [2]). Adicionado à lista explícita de `test:integration` do
+  `package.json` (a suíte não descobre arquivo novo sozinha).
+
+### Gates
+
+```
+$ bunx tsc --noEmit                                                    # sem saída
+$ bunx eslint src test eslint.config.js --max-warnings=0               # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000
+ 7215 pass · 23 skip · 0 fail · 24304 expect() · 183 arquivos [44.68s]
+$ bun --env-file=../../.env.test test ./test/integration/trip-occurrence-upload-confirm.integration.ts --timeout 120000
+ 3 pass · 0 fail · 8 expect() [58.82s]
+```
+
+A suíte inteira de integração (`test:integration`, 106 arquivos) rodou sob carga concorrente de
+outras sessões no mesmo Postgres local e reproduziu o mesmo padrão de flakiness já registrado acima
+neste arquivo (timeouts de 5s/30s em arquivos que não tocam upload de ocorrência —
+`cte-export-selection`, `company-user-fleet-link`, `trip-repository`, `route-depot-query` etc.). O
+arquivo desta correção, isolado, é limpo (3/3 acima); é a evidência que conta para este achado, pelo
+mesmo raciocínio já registrado nas passadas anteriores desta spec.
+
+### [3] Objeto sem dono no bucket — bloqueado por escopo, não implementado
+
+**Achado confirmado, código não escrito.** `TRIP_OCCURRENCE_UPLOAD_STATUSES` inclui `'expired'`
+(`trip.schema.ts:1641`) e nada escreve esse status; não há varredura de `trip_occurrence_uploads`
+pendente vencido nem do objeto correspondente no bucket. Os dois vazamentos que a missão descreveu
+são reais e verificados nesta sessão:
+
+- Upload confirmado no storage mas nunca chega ao `confirm` (motorista perde sinal): bytes no bucket,
+  linha `pending` para sempre, **sem** `stored_objects` — invisível para `trip.occurrence-
+attachment.purge` (o expurgo de retenção existente só varre `stored_objects`).
+- `confirm` roda mas a ocorrência nunca é registrada: `stored_objects` fica com `retentionUntil` de
+  cinco anos e nenhuma ocorrência aponta para ele — ninguém encontra para revisar antes do prazo.
+
+**Por que não foi implementado nesta sessão.** O padrão que os outros dez jobs de `JOB_CATALOG`
+seguem (`shared/job-catalog.constant.ts`, cópia por valor em quatro apps) não executa a rotina em
+`apps/cron-transportada` — o comentário de `tick/application/run-tick.ts:5-6` é explícito: _"[a
+batida] não sabe o que rotina nenhuma faz — quem executa é o worker, e é isso que mantém os clientes
+de terceiro num app só."_ `cron-transportada` só lê `job_schedules`, abre a execução e publica no
+RabbitMQ (`JOB_RUN_QUEUE_ROUTE`); todo `JobRoutine` de verdade — inclusive o que mais se parece com
+esta necessidade, `trip.occurrence-attachment.purge`
+(`apps/worker-transportada/src/trip-occurrence-attachment-purge/`) — mora em
+`apps/worker-transportada`, que está **fora** do escopo desta sessão
+(`apps/api-transportada/**`, `apps/cron-transportada/**`, `docs/**`, `specs/179-*/**`; a instrução
+que abriu esta sessão citou "outra frente no frontend", mas o worker também não está entre os
+diretórios liberados). Publicar a rotina em `job_schedules` sem o consumidor correspondente no worker
+deixaria a execução presa (mensagem sem rota tratando, ou `unexpected_error` a cada batida) — pior do
+que não publicar.
+
+Achei ainda um resíduo não relacionado enquanto explorava o padrão: `apps/cron-
+transportada/src/nfe-distribution-pull/nfe-distribution-pull.job.ts` define `runNfeDistributionPullJob`
+mas não é chamado de `main.ts` nem de nenhum outro lugar em `src` — parece sobra da consolidação "os
+quatro serviços de cron viram um" (`95c711def`). Não mexi nisso; fica registrado para quem revisar.
+
+**O que falta para fechar, e onde:**
+
+1. `apps/worker-transportada`: `JobRoutine` nova (padrão de
+   `trip-occurrence-attachment-purge.routine.ts`) que varre `trip_occurrence_uploads` com `status =
+'pending'` e `expires_at` vencido, apaga o objeto do bucket quando existir e marca `status =
+'expired'` — e, no caso "confirmado sem ocorrência", decide se cabe na mesma rotina ou é uma
+   segunda (a spec não distingue as duas, e a retenção de 5 anos do achado 2 (`docs/SECURITY.md`,
+   2026-09-22) pode já cobrir o segundo caso via `trip.occurrence-attachment.purge`, a confirmar).
+2. `JOB_CATALOG`: entrada nova nas **quatro** cópias (`api-transportada`, `worker-transportada`,
+   `cron-transportada`, `frontend-transportada/src/modules/shared/jobCatalog.constant.ts`) e nos
+   quatro `test/job-catalog/catalog.contract.ts` — só os dois primeiros estão dentro do escopo desta
+   sessão.
+3. Migration/seed de `job_schedules` com o `job` novo, `enabled: true` e o intervalo (a foto some
+   depois da URL assinada vencer — o mesmo prazo curto de vida da própria URL, não os cinco anos da
+   retenção — então o intervalo pode ser o mais fino do catálogo, `JOB_TICK_INTERVAL_SECONDS`).
+4. Teste de integração provando que o pendente vencido é expirado (bucket + linha) e o recente não —
+   pode morar em `apps/worker-transportada/test`, seguindo o molde de
+   `trip-occurrence-attachment-purge`.
+
+Registrado o achado em `docs/SECURITY.md` (2026-09-23), como "Aberto" — não "Fechado", porque a
+correção não foi escrita. Reportado ao orquestrador da sessão para decidir entre ampliar o escopo
+desta sessão ou abrir uma sessão dedicada a `apps/worker-transportada` (+ `frontend-transportada` para
+a paridade do catálogo).
+
+## 24/09 — [3] fechado: escopo ampliado para o worker
+
+O orquestrador ampliou o escopo desta sessão para `apps/worker-transportada/**`,
+`apps/cron-transportada/**`, `apps/api-transportada/**`,
+`apps/frontend-transportada/src/modules/shared/jobCatalog.constant.ts`, `docs/**` e
+`specs/179-*/**`, com a ordem: rotina no worker seguindo `trip-occurrence-attachment-purge/`,
+catálogo nas quatro apps, migration/seed, teste de integração — e resolver o segundo vazamento junto
+"se der", sem inventar desenho novo.
+
+### Rotina nova: `trip.occurrence-upload.expire`
+
+`apps/worker-transportada/src/trip-occurrence-upload-expire/` — mesmo desenho de
+`trip-occurrence-attachment-purge/`, simplificado porque a unidade aqui é uma linha só (sem tabela de
+anexo para juntar):
+
+- `domain/trip-occurrence-upload-expire.constant.ts`: nome do job, folga de 900s
+  (`TRIP_OCCURRENCE_UPLOAD_EXPIRE_GRACE_SECONDS`) e os mesmos tetos de lote/falha/timeout da rotina
+  irmã.
+- `application/trip-occurrence-upload-expire-unit.port.ts` + `-unit.service.ts`: a unidade —
+  `lockExpiredPendingUpload` (`for update skip locked`, reconferindo `status = 'pending'` e
+  `expires_at` vencido **no momento do lock**, não na leitura que escolheu o candidato — é isto que
+  faz a corrida com um `confirm` concorrente convergir para "missing" em vez de apagar um objeto que
+  acabou de ser confirmado), depois `deleteObject` (com timeout, igual à rotina irmã) e só então
+  `markExpired`.
+- `application/trip-occurrence-upload-expire.port.ts` + `.routine.ts`: o lote e o laço de batidas —
+  cópia estrutural de `trip-occurrence-attachment-purge.port.ts`/`.routine.ts`, com `before = now -
+grace` (a folga desloca o corte para trás de `now`, nunca esconde um upload que ainda não venceu).
+- `infrastructure/drizzle-trip-occurrence-upload-expire-gateway.ts` + `.repository.ts`: candidatos por
+  `status = 'pending' and expires_at < before`, uma transação por unidade.
+- `apps/worker-transportada/src/database/trip-occurrence-upload.schema.ts`: cópia por valor de
+  `trip_occurrence_uploads` (mesmo padrão de `stored-object.schema.ts`/
+  `trip-occurrence-attachment.schema.ts` — sem constraint, quem migra é a API), com
+  `schema-parity.contract.ts` conferindo as colunas linha a linha contra `trip.schema.ts`.
+- `apps/worker-transportada/src/main.ts`: registrada sempre (como as outras varreduras de retenção),
+  com `deleteObject` vindo do mesmo `storageGateway` da rotina irmã.
+
+**Idempotência (pedida explicitamente):** a exclusão é idempotente do **lado do storage** — S3/MinIO
+devolvem sucesso apagando uma chave que já não existe, que é exatamente o caso do motorista que perdeu
+sinal antes de sequer enviar o arquivo. Rodar a rotina de novo sobre a mesma linha nunca falha por
+"objeto já removido"; e o `for update skip locked` cobre a concorrência entre execuções da própria
+rotina e contra um `confirm` em voo.
+
+### Catálogo e migration
+
+`JOB_CATALOG` ganhou a entrada `trip.occurrence-upload.expire` (`failureOutcomes: []`,
+`minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS`) nas cópias de `api-transportada`,
+`cron-transportada`, `worker-transportada` e `frontend-transportada/src/modules/shared/
+jobCatalog.constant.ts` — a quarta estava fora do escopo original, liberada nesta ampliação.
+`bun run db:generate` (dentro de `apps/api-transportada`) gerou a migration
+`20260924033423_lumpy_scalphunter`; reescrevi o `migration.sql` para o padrão `NOT VALID` + `VALIDATE
+CONSTRAINT` que `20260922112706_trip_occurrence_attachment_purge_job` já usa (evita segurar lock de
+validação nas duas tabelas de uma vez) e acrescentei o `INSERT INTO job_schedules` com intervalo 300.
+`rollback.sql` escrito à mão no mesmo molde do anterior. `bun run db:generate` rodado de novo depois:
+`no_changes` — o schema bate com a migration.
+
+⚠️ Descoberta no caminho: `apps/frontend-transportada/test/shared/job-catalog.contract.ts` **não**
+mantém uma lista literal própria — ele lê o arquivo-fonte de `api-transportada` direto do disco
+(`readFileSync` + regex) e compara. Achei que precisaria editar esse teste (fora do escopo liberado,
+`test/**` do frontend é de outra sessão) e travar — mas não precisei: atualizando só o `.constant.ts`
+do frontend, os 6 testes desse arquivo continuam passando (`bun test
+./test/shared/job-catalog.contract.ts` → 6 pass), porque o teste deriva o esperado da própria API. Sem
+conflito com a outra frente.
+
+O `test/job-catalog/catalog.contract.ts` de `api-transportada`, `cron-transportada` e
+`worker-transportada` (cada um com sua própria lista literal, ao contrário do frontend) ganhou a
+entrada correspondente. O de `api-transportada` também tem `SEED_MIGRATIONS`, que lê o `INSERT` de
+cada migration para conferir o intervalo semeado contra o piso — acrescentei
+`'20260924033423_lumpy_scalphunter'` à lista.
+
+`test/database-migration/static-migration.contract.ts` mantém a lista literal e ordenada de **todos**
+os diretórios de migration da API — acrescentei `'20260924033423_lumpy_scalphunter'` ao fim. Sem essa
+linha o teste reprovava (`toEqual` comparando array com um item a mais), não por regressão, só por a
+lista não ter sido atualizada.
+
+### O segundo vazamento — já coberto, sem código novo
+
+Confirmei, sem inventar desenho: o `stored_objects` que `confirm-occurrence-upload` grava usa
+`resolveOccurrenceAttachmentRetentionUntil`, a **mesma** função e o mesmo prazo de cinco anos que
+`trip.occurrence-attachment.purge` (spec 161) já aplica
+(`drizzle-occurrence-upload.repository.ts:102`, achados [1]/[2] deste lote). Essa rotina resolve a
+unidade por `findAttachmentByObjectId` contra `trip_document_occurrence_attachments` — a tabela do
+anexo múltiplo do escritório (spec 161). A ocorrência do motorista (T203, spec 179) referencia o
+objeto por uma coluna **diferente**, `trip_document_occurrences.attachment_object_id`, que essa
+consulta nunca olha. Consequência: um objeto confirmado por este caminho e nunca vinculado a uma
+ocorrência cai no ramo "objeto órfão" (`purgeOrphanObject`,
+`trip-occurrence-attachment-purge-unit.service.ts:48-61`) da rotina existente assim que os cinco anos
+de retenção vencerem — já coberto pelos testes que provam esse ramo
+(`purge-unit.contract.ts`, "objeto órfão sai sozinho").
+
+O caso limite — a ocorrência **é** registrada depois, meses ou anos mais tarde — não é um vazamento
+paralelo: o objeto já legitimamente referenciado só seria apagado ao fim dos mesmos cinco anos, que é
+exatamente a retenção pretendida pela RF21 para toda foto de ocorrência, não um prazo mais curto que
+alguém esqueceu de escrever. Não escrevi rotina nova nem mudei a existente para este caso — não havia
+lacuna a fechar.
+
+### Gates
+
+```
+$ bunx tsc --noEmit                                              # api, cron, worker: sem saída
+$ bunx eslint src test [scripts] eslint.config.js --max-warnings=0   # api, cron, worker: sem saída
+$ bunx tsc --noEmit (frontend-transportada)                       # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000            # api: 7215 pass · 23 skip · 0 fail (183 arquivos)
+$ bun --env-file=../../.env.test run test                         # worker: 1421 pass · 0 fail (92 arquivos)
+$ bun --env-file=../../.env.test run test                         # cron: 101 pass · 0 fail (8 arquivos)
+$ bun test ./test/shared/job-catalog.contract.ts                  # frontend: 6 pass · 0 fail
+$ bun run db:generate                                              # api: no_changes
+$ make migration-test                                              # 110 pass · 0 fail (migration + rollback reais)
+$ bun --env-file=../../.env.test test ./test/integration/trip-occurrence-upload-expire.integration.ts --timeout 60000
+                                                                    # worker: 2 pass · 0 fail, Postgres + MinIO reais
+```
+
+Não rodei a suíte inteira de `test:integration` de novo (106 arquivos): a passada anterior deste
+mesmo dia já mostrou o padrão de flakiness sob carga concorrente de outras sessões (60 falhas,
+timeouts de 5s/30s em arquivos que não tocam upload de ocorrência), documentado acima. O arquivo que
+esta parte tocou, isolado contra Postgres e MinIO reais, é limpo.
+
+### O que não mexi
+
+O resíduo `apps/cron-transportada/src/nfe-distribution-pull/nfe-distribution-pull.job.ts`
+(`runNfeDistributionPullJob`, nunca chamado de `main.ts`) continua como estava — fora do escopo desta
+correção, e o orquestrador pediu explicitamente para não tocar.

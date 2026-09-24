@@ -43,19 +43,33 @@ export type ExtraChargeDecision = {
   readonly reason: string
 }
 
+/**
+ * O fechamento é por seleção (spec 164, plan.md "O fechamento é por seleção, com filtros"): quando
+ * `chargeIds` vem preenchido, só essas linhas entram, e o período gravado é o intervalo que cobre
+ * exatamente as linhas escolhidas — nunca o período pedido no corpo. `selection_ineligible` cobre
+ * qualquer id fora do contratante, já com lote, ou fora de `recorded`: a requisição inteira recua.
+ */
+export type ExtraChargeBatchCloseOutcome =
+  | { readonly kind: 'closed'; readonly batch: ExtraChargeBatch }
+  | { readonly kind: 'empty' }
+  | { readonly kind: 'selection_ineligible' }
+
 export type ExtraChargeBatchRepositoryPort = {
   /**
-   * Fecha o período numa transação: cria o lote, prende os lançamentos `recorded` do contratante
-   * naquela janela e soma o total no banco. `null` quando não havia nada a fechar.
+   * Fecha o período numa transação: cria o lote, prende os lançamentos elegíveis do contratante e
+   * soma o total no banco. Sem `chargeIds`, o recorte é a janela `periodStart..periodEnd` (o
+   * comportamento de sempre). Com `chargeIds`, o recorte é exatamente essa lista — validada,
+   * fechada e presa na mesma transação.
    */
   close(input: {
     readonly accessToken: string
     readonly actorUserId: string
+    readonly chargeIds?: readonly string[]
     readonly companyId: string
     readonly contractorId: string
     readonly periodEnd: string
     readonly periodStart: string
-  }): Promise<ExtraChargeBatch | null>
+  }): Promise<ExtraChargeBatchCloseOutcome>
   findByToken(input: {
     readonly accessToken: string
   }): Promise<{ readonly batchId: string; readonly companyId: string } | null>

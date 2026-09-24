@@ -51,6 +51,13 @@ fizeram o gerado recriar tabelas já aplicadas. O `db:check` **não** pega isso 
 `test/database-migration/schema-snapshot.contract.ts`. Receita e histórico: docs/ai-context §
 "Migration à mão é permitida".
 
+**O pre-deploy reprova quando sobra migration pendente** (19/09/2026): `migrate()` sozinho só sabe
+dizer "eu rodei", nunca "não sobrou nada" — em staging isso deixou 22 migrations da imagem sem
+aplicar por dias, com rotas de viagem/frota/caixa/webhook em 500 (SQLSTATE 42703). `runPreDeploy`
+agora chama `assertMigrationsAreComplete` (`migration-completeness.service.ts`) logo depois de
+`migrate()` e antes de provisionar/semear; migration pendente lança `MigrationsPendingError` e aborta
+o deploy inteiro. Detalhe completo: docs/ai-context § "O pre-deploy reprova quando sobra migration".
+
 **O banco falha rápido, e diz por quê** (spec 137, incidente 11/09/2026): `database-client.service.ts`
 monta o Bun SQL com pool e prazos explícitos (`DATABASE_POOL_MAX`, `DATABASE_CONNECT_TIMEOUT_SECONDS`,
 `DATABASE_QUERY_TIMEOUT_MS` abaixo do `REQUEST_TIMEOUT_SECONDS`); consulta que passa do prazo vira
@@ -58,6 +65,23 @@ monta o Bun SQL com pool e prazos explícitos (`DATABASE_POOL_MAX`, `DATABASE_CO
 correção de causa medida (instruções preparadas do Bun SQL travavam sob concorrência), não enfeite —
 religar exige medir de novo numa versão nova do Bun. Detalhe completo (armadilhas de `idleTimeout` e
 `cancel()`): docs/ai-context § "O banco falha rápido".
+
+**O catálogo de tipos de ocorrência nasce vazio no banco — o pre-deploy só faz bootstrap**
+(21/09/2026, revisão de idempotência no mesmo dia): `company_occurrence_types` estava vazia em
+staging e produção; a migration que criou a tabela
+(`drizzle/20260903140000_company_occurrence_types/migration.sql`) nunca teve `INSERT`, e o catálogo
+que existia fixo em `shared/trip-occurrence.constant.ts` nunca foi gravado — nenhuma instalação
+conseguia registrar ocorrência de galpão ou de rua, porque a tela não tinha tipo para oferecer (o
+`PUT /company-settings/occurrence-types` existe, mas não tem consumidor no frontend). `runPreDeploy`
+agora chama `seedOccurrenceTypeCatalog` (`database/occurrence-type-catalog-seed.service.ts`, catálogo
+em `shared/occurrence-type-catalog.constant.ts`) depois de migrar/provisionar/semear templates: para
+cada `companies` com catálogo **vazio**, grava os sete tipos pt-BR (três de `separation`, quatro de
+`delivery`), de uma vez. ⚠️ **Não é sincronização** — a primeira versão comparava por `(stage,
+name)` e "preenchia o que faltasse" a cada deploy, o que ressuscitava tipo renomeado pela
+transportadora (renomear é suportado pela tela de cadastro; o nome novo nunca batia com o catálogo,
+e o antigo voltava a cada deploy). Hoje **empresa com qualquer tipo cadastrado — ativo, aposentado,
+um só que seja — fica intocada para sempre**; só quem nunca cadastrou nada recebe o catálogo, e uma
+vez só. Prova viva contra Postgres: `test/integration/occurrence-type-catalog-seed.integration.ts`.
 
 **Perfil fiscal sem sequência de CT-e é leitura válida** (15/09/2026): o refresh de staging trunca
 `fiscal_sequences` e mantém `company_fiscal_profiles`. `GET /company-settings` respondia 500 com
@@ -183,6 +207,19 @@ opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-del
   tipo, lista fechada de campos e um `file` só. `audit_logs` na transação da ação (nunca no reenvio
   nem em `changed: false`). Rate limit no Postgres: lote 30/300 s, notas 300/300 s, viagem/parada
   120/300 s (`test/rate-limited-routes.contract.test.ts`).
+- **Encerrar a viagem também é `trip.report-on-behalf`** (spec 156 T8c, ADR-0067, emenda
+  2026-09-20): `POST /trips/:id/close` deixou de ser `trip.manage` — o separador monta a viagem, mas
+  não é quem confirma que a entrega acabou. Nota em aberto (nem `delivered`, nem `returned`, nem
+  liberada) exige `reason` no corpo; sem ele, 422 `TRIP_CLOSE_REASON_REQUIRED`
+  (`trip-close.policy.ts`). `trips` grava `closed_at`/`closed_by_user_id`/`close_reason`, e a
+  auditoria (`office.trip.close`) mira a própria viagem, não um motorista — encerrar não é "em nome
+  de" ninguém, então não usa `insertTripFieldOfficeAudit`. ⚠️ As três colunas registram o
+  **encerramento manual pelo botão**, nunca "fim da viagem": `deriveTripStatus` também leva `status`
+  a `completed` sozinho, quando todas as notas fecham, sem passar por `POST /trips/:id/close` — nesse
+  caminho as três ficam `null`. Viagem `cancelled` recusa o encerramento com 409
+  `STATE_TRANSITION_NOT_ALLOWED` (spec 158 T12: `close` passou a consultar `checkTripTransition`). `deliverDocument` (porta, caso de uso e
+  repositório) saiu junto: gravava `delivered_at` sem tocar em `separation_status` e sem chamador
+  desde a T8b.
 - `anyPermission` (`['fleet.read', 'trip.report-on-behalf']`) só em cinco `GET` de viagem e no
   `allowed-actions`; o roteador derruba o boot se ela aparecer fora de `GET`. Sem `fleet.read`,
   `driverTaxId`/`driverEmail`/`driverPhone` saem nulos.
@@ -196,7 +233,11 @@ opcional e ausente não mexe). O escritório lê **só** o interruptor em `GET
 **Toda troca de `trips.status` grava `trip_status_events`** (spec 158, ADR-0068): um só escritor,
 `recordTripStatusChange`, na mesma transação e só quando mudou; `SELECT … FOR NO KEY UPDATE`
 **imediatamente antes** do `UPDATE trips` (nunca `FOR UPDATE`: deadlock com o `FOR KEY SHARE` das
-inserções com FK para `trips`). Canal decidido na composição: web `backoffice`, WhatsApp do operador
+inserções com FK para `trips`). ⚠️ **Escritor novo de `trips.status` reconfere
+`checkTripTransition` depois do lock e escreve por compare-and-set** (`where status = <o status
+travado>`, spec 158 T13): a precondição do caso de uso foi lida fora da transação, e sem isso a
+corrida gravava em `trip_status_events` uma transição que a política proibia. Corrida perdida
+responde 409 `STATE_TRANSITION_NOT_ALLOWED` — nunca 404, e nunca silêncio. Canal decidido na composição: web `backoffice`, WhatsApp do operador
 `whatsapp`, motorista `driver_app`, escritório em nome do motorista `office`. Contrato estático
 `test/trip-schema/trip-status-writers.contract.ts` reprova `update(trips)` com `status` sem o evento.
 ⚠️ Em `trip_document_events`, `channel = 'driver_app'` é **canal não registrado** (histórico anterior,
@@ -268,6 +309,53 @@ endereço, e-mail é da parte) do destinatário existem para a viagem ligar ante
 sempre serve o cru, máscara/cópia é do frontend (`formatStoredPhone`). Detalhe completo: docs/ai-context
 § "O telefone do cliente" e § "O e-mail do destinatário".
 
+## Ocorrência da nota — tratativa e cobrança (spec 164)
+
+**A ocorrência é append-only; o estado mora ao lado.** `trip_document_occurrences` nunca ganha
+coluna de status — quem sabe onde aquele fato está é `trip_occurrence_cases` (uma linha por
+ocorrência), e cada mudança grava `trip_occurrence_case_events`, escritor único, na mesma transação,
+só quando mudou (molde de `trip_status_events`, ADR-0068). **A nota nunca é presa por isso**:
+`separation_status` segue com os cinco valores de sempre, nenhuma ação some da listagem, o despacho
+não é bloqueado — o que a leitura ganha é `openOccurrenceCase`/`hasOpenOccurrence`, marcador
+**derivado**, nunca uma escrita nova em `trip_documents`. Quem reintroduzir esse acoplamento quebra o
+contrato de regressão de `GET /trips/:id/allowed-actions` (tem de continuar byte a byte igual com
+tratativa aberta).
+
+**A tratativa tem dois escritores, e são papéis diferentes.** `occurrences.resolve`
+(`company-admin`/`operator`/`finance`, nunca `separator` nem `trip.manage` — validar a própria
+ocorrência seria autoaprovação, o mesmo erro que a ADR-0067 fechou) conduz `recorded → under_review →
+(returned_to_warehouse | awaiting_contractor)` e fecha `decided → closed`. `occurrences.decide`
+(só no papel `contractor`, nunca em papel interno) é do contratante no portal, e só alcança
+`awaiting_contractor → decided`.
+
+**A fronteira de visibilidade do portal é do SQL, não da tela.** `contractor-occurrence.query.ts` faz
+`inner join` com `trip_occurrence_cases` filtrando `status in ('awaiting_contractor', 'decided',
+'closed')` **dentro da consulta**, somado ao recorte de `ContractorScope` (ADR-0050 §4). Tratativa
+`recorded`/`under_review`/`returned_to_warehouse` não existe para o portal — não é escondida na
+serialização, não chega na query. Contrato negativo obrigatório em
+`test/*-schema/tenant-safety.contract.ts` para qualquer mudança nessa leitura.
+
+**A cobrança de ocorrência reusa `delivery_charges`, e o discriminador é `charge_type` +
+`occurrence_id`, nunca `origin`.** `origin = 'occurrence'` já existia antes desta spec (ocorrência de
+parada, spec 060 D4c) — o que distingue mercadoria devolvida de taxa de entrega é `charge_type =
+'returned_goods'` com `occurrence_id` preenchido (FK composta `(company_id, occurrence_id)`). A
+cobrança nasce `recorded` direto (nunca `suggested` — um operador com `occurrences.resolve` acabou de
+digitar valor por valor) e a ponte fica em `DrizzleOccurrenceSettlementChargeRepository`: regravar o
+acerto **atualiza a mesma linha** enquanto ela estiver `recorded`; a partir de `submitted` é imutável,
+409 `DELIVERY_CHARGE_TRANSITION_NOT_ALLOWED`. Prova ponta a ponta contra Postgres (acerto → cobrança →
+lote por seleção → demonstrativo, sobre as mesmas linhas):
+`test/integration/occurrence-charge.integration.ts`.
+
+**O demonstrativo de ressarcimento não é documento fiscal.** É um PDF (`pdfkit`, molde de
+`invoice-pdf.gateway.ts`) gerado **uma vez**, no fechamento do `extra_charge_batches` (nunca
+recomputado na leitura) — não entra em `billing_*`, não vira CT-e (`cte_*`), não vira NFS-e
+(`nfse_*`) e não toca `fiscal_sequences`. `occurrence-statement.use-case.ts` e o teste acima provam
+isso por **contagem de linhas antes e depois**, não por ausência de erro — é o jeito certo de provar
+"não escreveu nada" nesta base. A foto da ocorrência que ilustra o demonstrativo virou, por causa
+disso, um segundo motivo para os cinco anos de retenção da spec 161 D9: enquanto o demonstrativo for
+contestável, a foto que o sustenta precisa sobreviver ao mesmo prazo (`docs/SECURITY.md`, achado
+22/09/2026).
+
 ## Fleet — ficha do motorista e geocodificação
 
 **A ficha do motorista guarda dado de pessoa física que hoje ninguém lê** (`birth_date`,
@@ -316,6 +404,12 @@ Invariantes mais cotadas para não reimplementar por engano:
   ator. Interruptor por empresa (`company_cargo_settings.camera_measurement_enabled`, padrão `false`)
   desliga a câmera sem deploy; com a função desligada, `PUT` com `source: camera|camera_adjusted`
   retorna **422** `PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED` (spec 152, ADR-0065).
+- **A unidade estima a caixa, nunca a mede** (spec 163): `PUT /nfe-package-boxes/:id/unit`
+  (`cargo.measure`) grava `unit_*` e recalcula `estimated_*` (`estimatePackageBoxFromUnit`, menor
+  área, 4 mm por face, +5% de peso) só enquanto a caixa não tem medida real. ⚠️ A estimativa nunca
+  escreve `length_mm/width_mm/height_mm` nem `measurement_source`; a cubagem lê as duas por
+  `resolveBoxDimensionsForCubage` (real > estimada) e a nota com caixa estimada sai `partial`.
+  A fila expõe `unit`, `estimate` e `isEstimated`; mediana e formas medidas seguem só com medida real.
 - O desenho da carga é a vista em perspectiva por camada (`TripCargoLayers` sobre
   `cargo-isometric.tsx`, `<svg>` do design system, nunca cru), alimentada por `cargoLayout.placement`.
   A planta em escala (`scale-plan.tsx`) e a fileira da 085 saíram da tela em `453e0b1e`; sem as três

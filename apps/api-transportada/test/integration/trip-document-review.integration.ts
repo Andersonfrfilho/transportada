@@ -727,6 +727,7 @@ function createFreezer(
     async freeze(input) {
       freezeCalls.push({ companyId: input.companyId, tripId: input.tripId })
       if (options.shouldFail === true) throw new Error('OSRM indisponível')
+      return { routeFrozen: true }
     },
   }
 }

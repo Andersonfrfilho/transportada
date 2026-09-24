@@ -24,6 +24,16 @@ export const STORAGE_OBJECT_PURPOSES = [
   'aggregate_application_attachment',
   /** Spec 143 T010 (ADR-0063 §5): o MIME bruto de todo e-mail recebido da contratante, evidência. */
   'contractor_mail_raw',
+  /** Spec 161 D12: o original da foto da ocorrência de galpão — a prova, reencodada e sem EXIF. */
+  'trip_occurrence_attachment',
+  /** Spec 161 D12: a miniatura gerada do mesmo canvas do original, o que as listas carregam. */
+  'trip_occurrence_thumbnail',
+  /**
+   * Spec 164 T20: o demonstrativo de ressarcimento do lote de cobrança extra, gerado uma vez no
+   * fechamento e servido de lá. Guarda própria e mais longa que a da foto: o expurgo da 161 é cego
+   * à cobrança, e é este PDF que faz a prova sobreviver ao expurgo do original.
+   */
+  'extra_charge_batch_statement',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 
@@ -65,6 +75,14 @@ export const storedObjects = pgTable(
       table.status,
       table.leaseExpiresAt,
     ),
+    /**
+     * Spec 161 T18 (RF21): serve a varredura do expurgo sem varrer o bucket inteiro de todas as
+     * empresas — parcial por `status <> 'deleted'` e `retention_until is not null`, os únicos
+     * objetos que algum dia entram no corte.
+     */
+    index('stored_objects_purpose_retention_idx')
+      .on(table.purpose, table.retentionUntil)
+      .where(sql`${table.status} <> 'deleted' and ${table.retentionUntil} is not null`),
     check('stored_objects_size_check', sql`${table.sizeBytes} >= 0`),
     check('stored_objects_sha256_check', sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
     check('stored_objects_status_check', sql`${table.status} in ('staging', 'final', 'deleted')`),

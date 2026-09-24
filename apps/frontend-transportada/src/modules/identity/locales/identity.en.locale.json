@@ -460,6 +460,14 @@
       "operations.run": {
         "label": "Run routine now",
         "where": "Operations"
+      },
+      "occurrences.resolve": {
+        "label": "Handle occurrence",
+        "where": "Occurrences: review, return to the warehouse, send to the contractor, close and cancel the case."
+      },
+      "occurrences.decide": {
+        "label": "Decide occurrence (portal)",
+        "where": "Contractor portal: authorise redelivery or settle the occurrence items."
       }
     },
     "matrix": {
@@ -484,7 +492,8 @@
         "settings": "Settings",
         "operations": "Operations and audit",
         "portal": "Contractor portal",
-        "other": "Other"
+        "other": "Other",
+        "occurrences": "Occurrences"
       }
     },
     "fleet": {

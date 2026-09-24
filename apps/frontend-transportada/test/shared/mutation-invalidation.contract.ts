@@ -74,6 +74,11 @@ const EFFECT_PRODUCERS: Readonly<Record<string, readonly string[]>> = {
     'src/modules/trip/hooks/useQuickCreateDraft.hook.ts',
     'src/modules/trip/hooks/useRouteAssemblyDraft.hook.ts',
   ],
+  /**
+   * O vínculo entrava só pela lista de notas e pelas duas prévias de emissão (`nfeDocumentLink`).
+   * Planta de carga, prévia e valuation da viagem seguiam mostrando o número de antes de vincular.
+   */
+  [MUTATION_EFFECT.tripCargoLink]: ['src/modules/trip/hooks/useTripWorkspace.hook.ts'],
 }
 
 const CROSS_MODULE_IMPORT_PATTERN = /import (?:type )?\{([^}]*)\} from '@\/modules\/([a-z-]+)\//g
@@ -130,6 +135,19 @@ describe('contrato de invalidação entre módulos', () => {
   test('a medida da caixa alcança a fila, as plantas e as contas da montagem', () => {
     expect(MUTATION_EFFECT_QUERY_KEYS[MUTATION_EFFECT.packageBoxMeasurement]).toEqual([
       PACKAGE_BOX_QUERY_KEY,
+      SUGGESTION_VALUATION_QUERY_ROOT,
+      TRIP_CARGO_LAYOUT_QUERY_KEY,
+      TRIP_CARGO_PREVIEW_QUERY_KEY,
+      TRIP_VALUATION_PREVIEW_QUERY_KEY,
+    ])
+  })
+
+  /**
+   * Vincular ou soltar uma nota na viagem recongela rota e pedágio no servidor e recalcula planta e
+   * valuation — a mesma conta da montagem, disparada por outro produtor.
+   */
+  test('o vínculo de nota na viagem alcança a rota, as plantas e as contas da montagem', () => {
+    expect(MUTATION_EFFECT_QUERY_KEYS[MUTATION_EFFECT.tripCargoLink]).toEqual([
       SUGGESTION_VALUATION_QUERY_ROOT,
       TRIP_CARGO_LAYOUT_QUERY_KEY,
       TRIP_CARGO_PREVIEW_QUERY_KEY,

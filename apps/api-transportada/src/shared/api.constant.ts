@@ -46,6 +46,8 @@ export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
 export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federal-taxes'
 /** Spec 143 D3: o valor geral de diária que a empresa paga sem valor combinado com o motorista. */
 export const API_COMPANY_SETTINGS_DRIVER_ALLOWANCE_PATH = '/company-settings/driver-allowance'
+/** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
+export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
@@ -71,6 +73,7 @@ export const API_PUBLIC_INBOUND_EMAILS_PATH = '/public/inbound-emails/:webhookId
 export const API_MUNICIPAL_HOLIDAYS_PATH = '/municipal-holidays'
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
+export const API_OCCURRENCE_CHARGES_REPORT_PATH = '/occurrence-charges/report'
 /** Spec 061 D5: o acumulado dos resultados congelados, por período, veículo ou motorista. */
 export const API_FINANCIAL_RESULTS_PATH = '/financial-results'
 /**
@@ -136,6 +139,8 @@ export const API_ME_WHATSAPP_PHONE_PATH = '/me/whatsapp-phone'
 export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
+/** Spec 164 T9: a tratativa que chegou ao contratante — no molde das duas rotas acima. */
+export const API_CLIENT_OCCURRENCES_PATH = '/client/me/occurrences'
 export const API_CTE_BATCHES_PATH = '/cte-batches'
 export const API_CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
 export const API_CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'
@@ -151,6 +156,10 @@ export const API_OPERATIONS_TIMELINE_PATH = '/operations/timeline'
 export const API_OPERATIONS_JOBS_PATH = '/operations/jobs'
 /** Spec 072: o botão que o schema já previa — `origin: 'manual'` e o `409` do índice único. */
 export const API_OPERATIONS_JOB_RUN_PATH = '/operations/jobs/:job/run'
+/** Spec 161 T21: o relógio de cada rotina — habilitada ou não, e quem desligou. */
+export const API_OPERATIONS_JOB_SCHEDULES_PATH = '/operations/job-schedules'
+export const API_OPERATIONS_JOB_PAUSE_PATH = '/operations/jobs/:job/pause'
+export const API_OPERATIONS_JOB_RESUME_PATH = '/operations/jobs/:job/resume'
 export const API_AUDIT_EVENTS_PATH = '/audit/events'
 export const API_NFE_IMPORTS_PATH = '/nfe-imports'
 export const API_NFE_IMPORTS_XML_PATH = '/nfe-imports/xml'

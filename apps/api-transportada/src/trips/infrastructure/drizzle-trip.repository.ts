@@ -5,12 +5,23 @@ import { and, asc, desc, eq, inArray, notInArray, isNull, sql } from 'drizzle-or
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
+  auditLogs,
   fleetDrivers,
   fleetVehicles,
   freightCalculations,
+  freightRules,
+  freightRuleVersions,
+  nfeAddresses,
   nfeDocuments,
+  nfeParticipants,
 } from '../../database/database.schema.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
+import {
+  resolveTripDocumentFreight,
+  type DocumentFreightRule,
+} from '../domain/trip-document-freight.policy.js'
+import { normalizeFreightRuleFilters } from '../../freight-rules/domain/freight-rule-filters.policy.js'
+import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import {
   violatedForeignKeyConstraint,
@@ -33,7 +44,14 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
-import { TRIP_DISPATCHED_STATUSES, checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import {
+  TRIP_ACTION,
+  TRIP_DISPATCHED_STATUSES,
+  checkTripAcceptsLinkage,
+  checkTripTransition,
+} from '../domain/trip-state.policy.js'
+import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
+import { TRIP_CLOSE_SETTLED_SEPARATION_STATUSES } from '../domain/trip-close.policy.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
 import {
   reconcileStopOnLink,
@@ -59,6 +77,8 @@ import {
   cteAuthorizedExpression,
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
+import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
+import { timelineActorMembership, timelineActorProfile } from './trip-timeline-condition.helper.js'
 import {
   createRequestCargoLayoutForTrip,
   type RequestCargoLayoutForTrip,
@@ -73,10 +93,18 @@ import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { buildLayoutStop } from './trip-cargo-layout-input.support.js'
 import { readTripCargoLayout } from './stored-cargo-layout-read.support.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
+import { buildPendingMeasurementBoxKey } from '../../nfe-documents/domain/pending-measurement-box.policy.js'
+import type { PendingMeasurementBoxLookupPort } from '../application/pending-measurement-box-lookup.port.js'
+import type { CargoLayoutPendingMeasurement } from '../application/read-cargo-layout.types.js'
+import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
-import { recordTripStatusChange } from './trip-status-event.persistence.js'
+import { recordTripCreation, recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
+
+/** Spec 156 T8c: encerrar não é em nome de ninguém — o alvo da auditoria é a própria viagem. */
+const TRIP_CLOSE_AUDIT_ACTION = 'office.trip.close'
+const TRIP_CLOSE_AUDIT_ENTITY_TYPE = 'trip'
 
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
   'trip_documents_live_nfe_document_unique',
@@ -89,22 +117,34 @@ const MISSING_REFERENCE_CONSTRAINTS = new Set([
   'trip_documents_company_freight_calculation_fk',
 ])
 
+const noPendingMeasurementBoxLookup: PendingMeasurementBoxLookupPort = {
+  async findBoxIdsForPendingMeasurements() {
+    return new Map()
+  },
+}
+
 export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
   private readonly cargoLayoutLeaseMs: number
+  private readonly packageBoxLookup: PendingMeasurementBoxLookupPort
 
   public constructor(
     private readonly database: TripDatabase,
     options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
+    dependencies: { readonly packageBoxLookup?: PendingMeasurementBoxLookupPort } = {},
   ) {
     this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
     this.cargoLayoutLeaseMs = options.cargoLayoutLeaseMs
+    this.packageBoxLookup = dependencies.packageBoxLookup ?? noPendingMeasurementBoxLookup
   }
 
   public async close(input: {
     readonly actorUserId: string
     readonly channel: TripFieldChannel
+    readonly closeReason: string | null
     readonly companyId: string
+    readonly correlationId: string
+    readonly ipAddress: string
     readonly onBehalfOfDriverId: string | null
     readonly tripId: string
   }): Promise<TripDetail | null> {
@@ -117,12 +157,86 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .limit(1)
       if (tripRow === undefined) return null
 
+      /**
+       * ADR-0068 "Consequências", defeito 29 (spec 158 T13): `tripRow.status` acabou de sair do
+       * `SELECT … FOR NO KEY UPDATE` — é o único valor confiável, porque o portão do caso de uso
+       * (`checkTripTransition` em `trip.use-case.ts`) leu o status **fora** da transação. Uma
+       * corrida que cancele a viagem entre as duas leituras só é pega aqui, com o mesmo motivo que
+       * a máquina de estados já usa — nunca duplicado à mão.
+       */
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.close,
+        hasRoute: false,
+        tripStatus: tripRow.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+      if (transition.outcome === 'unchanged') {
+        return readTripDetail(transaction, {
+          companyId: input.companyId,
+          tripId: input.tripId,
+          cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+          packageBoxLookup: this.packageBoxLookup,
+        })
+      }
+
+      const openDocuments = await transaction
+        .select({ id: tripDocuments.id })
+        .from(tripDocuments)
+        .where(
+          and(
+            eq(tripDocuments.companyId, input.companyId),
+            eq(tripDocuments.tripId, input.tripId),
+            isNull(tripDocuments.releasedAt),
+            notInArray(tripDocuments.separationStatus, [...TRIP_CLOSE_SETTLED_SEPARATION_STATUSES]),
+          ),
+        )
+
       const [closed] = await transaction
         .update(trips)
-        .set({ status: 'completed', updatedAt: sql`now()` })
-        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .set({
+          closeReason: input.closeReason,
+          closedAt: sql`now()`,
+          closedByUserId: input.actorUserId,
+          status: transition.nextStatus,
+          updatedAt: sql`now()`,
+        })
+        .where(
+          and(
+            eq(trips.companyId, input.companyId),
+            eq(trips.id, input.tripId),
+            eq(trips.status, tripRow.status),
+          ),
+        )
         .returning({ id: trips.id })
-      if (closed === undefined) return null
+      /**
+       * Perder o compare-and-set não é "viagem não encontrada" — ela existe, e alguém mudou o
+       * status debaixo do lock. Devolver `null` aqui traduziria a corrida em 404 (revisão da T13);
+       * o motivo do conflito vem da própria máquina de estados, lida sobre o status novo.
+       */
+      if (closed === undefined) {
+        const [currentRow] = await transaction
+          .select({ status: trips.status })
+          .from(trips)
+          .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+          .limit(1)
+        if (currentRow === undefined) return null
+        const current = checkTripTransition({
+          action: TRIP_ACTION.close,
+          hasRoute: false,
+          tripStatus: currentRow.status,
+        })
+        if (current.outcome === 'blocked') {
+          throw new TripStateTransitionNotAllowedError(current.reason)
+        }
+        return readTripDetail(transaction, {
+          cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+          packageBoxLookup: this.packageBoxLookup,
+          companyId: input.companyId,
+          tripId: input.tripId,
+        })
+      }
 
       await recordTripStatusChange(transaction, {
         actorUserId: input.actorUserId,
@@ -134,10 +248,33 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         tripId: input.tripId,
       })
 
+      /**
+       * Spec 156 T8c, `security.md` §10: ação sensível — encerra entrega que outra pessoa fez. O
+       * motivo nunca entra em `metadata` (é dado de negócio); só a contagem e os ids opacos das
+       * notas que ficaram sem baixa.
+       */
+      await transaction.insert(auditLogs).values({
+        action: TRIP_CLOSE_AUDIT_ACTION,
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        entityId: input.tripId,
+        entityType: TRIP_CLOSE_AUDIT_ENTITY_TYPE,
+        metadata: {
+          documentIds: openDocuments.map((document) => document.id),
+          ipAddress: input.ipAddress,
+          openDocumentCount: openDocuments.length,
+        },
+        permission: TRIP_REPORT_ON_BEHALF_PERMISSION,
+        targetId: input.tripId,
+        targetType: TRIP_CLOSE_AUDIT_ENTITY_TYPE,
+      })
+
       return readTripDetail(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+        packageBoxLookup: this.packageBoxLookup,
       })
     })
   }
@@ -156,6 +293,19 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .returning({ id: trips.id })
       if (created === undefined) throw new Error('TRIP_CREATE_FAILED')
 
+      /**
+       * Spec 171 RF1: mesmo caminho das demais transições — grava na mesma transação do `INSERT
+       * trips`, direto em `trip_status_events`. `draft` é o `default` da coluna `trips.status`
+       * (spec 158 T3 nunca escreveu a criação; agora escreve).
+       */
+      await recordTripCreation(transaction, {
+        actorUserId: input.actorUserId,
+        channel: input.channel,
+        companyId: input.companyId,
+        status: 'draft',
+        tripId: created.id,
+      })
+
       if (input.crew.length > 0) {
         await transaction.insert(tripDrivers).values(
           input.crew.map((driver) => ({
@@ -171,6 +321,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
 
       const detail = await readTripDetail(transaction, {
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+        packageBoxLookup: this.packageBoxLookup,
         companyId: input.companyId,
         tripId: created.id,
       })
@@ -186,24 +337,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     })
   }
 
-  public async deliverDocument(input: {
-    readonly companyId: string
-    readonly documentId: string
-    readonly tripId: string
-  }): Promise<TripDocument | null> {
-    const [delivered] = await this.database
-      .update(tripDocuments)
-      .set({ deliveredAt: sql`now()`, updatedAt: sql`now()` })
-      .where(and(...buildTripDocumentFilters(input), tripStillOpen(input)))
-      .returning()
-    return delivered === undefined ? null : mapTripDocument(delivered)
-  }
-
   public async findById(input: {
     readonly companyId: string
     readonly tripId: string
   }): Promise<TripDetail | null> {
-    return readTripDetail(this.database, { ...input, cargoLayoutLeaseMs: this.cargoLayoutLeaseMs })
+    return readTripDetail(this.database, {
+      ...input,
+      cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+      packageBoxLookup: this.packageBoxLookup,
+    })
   }
 
   public async findDocumentById(input: {
@@ -680,11 +822,127 @@ function buildTripDocumentFilters(input: {
  */
 const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight')
 
+/**
+ * Spec 176: participantes da nota **direta** (`tripDocuments.nfeDocumentId`) — o caminho que precisa
+ * de previsão de frete. A nota que chega só por cálculo (`freightCalculationId`) já tem o valor
+ * congelado e não passa por aqui.
+ */
+const tripDocumentEmitter = alias(nfeParticipants, 'trip_document_freight_emitter')
+const tripDocumentRecipient = alias(nfeParticipants, 'trip_document_freight_recipient')
+const tripDocumentRecipientAddress = alias(nfeAddresses, 'trip_document_freight_recipient_address')
+
+/**
+ * Spec 156 T8d: mesmo molde da junção de ator da linha do tempo
+ * (`timelineActorMembership`/`timelineActorProfile`, `trip-timeline-status.query.ts`) — membership
+ * ativa escopada pela empresa. Pessoa sem membership ativa (removida) devolve `null`, nunca lança.
+ */
+async function resolveTripCloserName(
+  queryable: TripQueryable,
+  input: { readonly closedByUserId: string; readonly companyId: string },
+): Promise<string | null> {
+  const [row] = await queryable
+    .select({ name: timelineActorProfile.name })
+    .from(timelineActorMembership)
+    .innerJoin(
+      timelineActorProfile,
+      eq(timelineActorProfile.userId, timelineActorMembership.userId),
+    )
+    .where(
+      and(
+        eq(timelineActorMembership.companyId, input.companyId),
+        eq(timelineActorMembership.userId, input.closedByUserId),
+        eq(timelineActorMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .limit(1)
+  return row?.name ?? null
+}
+
+/**
+ * Spec 176: as regras ativas de percentual da empresa, **uma consulta por leitura da viagem** — o
+ * mesmo molde de `loadActiveFreightRules` em `drizzle-nfe-document.repository.ts`. `freight_rules`
+ * é configuração (poucas linhas), e resolvê-la por nota faria uma consulta a mais por documento.
+ */
+async function loadActiveFreightRules(
+  queryable: TripQueryable,
+  companyId: string,
+): Promise<readonly DocumentFreightRule[]> {
+  const rows = await queryable
+    .select({ rule: freightRules, version: freightRuleVersions })
+    .from(freightRuleVersions)
+    .innerJoin(
+      freightRules,
+      and(
+        eq(freightRules.companyId, freightRuleVersions.companyId),
+        eq(freightRules.id, freightRuleVersions.freightRuleId),
+      ),
+    )
+    .where(
+      and(
+        eq(freightRuleVersions.companyId, companyId),
+        eq(freightRules.type, 'percentage_of_invoice_total'),
+        eq(freightRules.status, 'active'),
+        eq(freightRuleVersions.status, 'active'),
+      ),
+    )
+
+  return rows.map((row) => ({
+    filters: normalizeFreightRuleFilters(
+      row.version.filters as Parameters<typeof normalizeFreightRuleFilters>[0],
+    ),
+    freightRuleId: row.rule.id,
+    maximumAmount: row.version.maximumAmount,
+    minimumAmount: row.version.minimumAmount,
+    name: row.rule.name,
+    percentage: row.version.percentage,
+    priority: row.rule.priority,
+    validFrom: row.version.validFrom,
+    validUntil: row.version.validUntil,
+  }))
+}
+
+/**
+ * Spec 168: mesma enriquecimento que `createReadCargoLayoutUseCase` faz — uma consulta para todas as
+ * pendências, casada por `buildPendingMeasurementBoxKey`. `null` nos três campos quando a pendência
+ * não casa nenhuma caixa (produto sem código, nota sem casamento, ou mais de uma caixa possível).
+ */
+async function enrichPendingMeasurementsWithBox(
+  pendingMeasurements: readonly PendingMeasurement[],
+  params: {
+    readonly companyId: string
+    readonly packageBoxLookup: PendingMeasurementBoxLookupPort
+  },
+): Promise<readonly CargoLayoutPendingMeasurement[]> {
+  const boxMatchesByKey = await params.packageBoxLookup.findBoxIdsForPendingMeasurements({
+    companyId: params.companyId,
+    items: pendingMeasurements,
+  })
+  /**
+   * Spec 168: a planta guardada pode ser mais velha que a última medida (fica `stale` enquanto o
+   * worker recalcula) — sem descartar aqui, uma caixa já medida ficava na tabela do que falta medir
+   * até o recálculo acontecer.
+   */
+  return pendingMeasurements.flatMap((item) => {
+    const key = buildPendingMeasurementBoxKey(item)
+    const match = key === null ? undefined : boxMatchesByKey.get(key)
+    if (match?.isMeasured === true) return []
+    return [
+      {
+        ...item,
+        grossWeightGrams: match?.grossWeightGrams ?? null,
+        packageBoxId: match?.boxId ?? null,
+        unitsPerBox: match?.unitsPerBox ?? null,
+      },
+    ]
+  })
+}
+
 async function readTripDetail(
   queryable: TripQueryable,
   input: {
     readonly cargoLayoutLeaseMs: number
     readonly companyId: string
+    readonly packageBoxLookup: PendingMeasurementBoxLookupPort
     readonly tripId: string
   },
 ): Promise<TripDetail | null> {
@@ -694,6 +952,19 @@ async function readTripDetail(
     .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     .limit(1)
   if (record === undefined) return null
+
+  /**
+   * Spec 156 T8d: só uma consulta a mais, e só quando a viagem foi encerrada à mão — a derivação
+   * automática nunca preenche `closed_by_user_id`, então o caminho comum (a maioria das viagens)
+   * não paga nada por este campo (`test/integration/trip-detail-query-count.integration.ts`).
+   */
+  const closedByName =
+    record.closedByUserId === null
+      ? null
+      : await resolveTripCloserName(queryable, {
+          closedByUserId: record.closedByUserId,
+          companyId: input.companyId,
+        })
 
   /**
    * O contato sai da **ficha**, não do retrato: `trip_drivers` guarda nome e CPF de quando a viagem
@@ -722,6 +993,7 @@ async function readTripDetail(
       cteAuthorized: sql<boolean>`${cteAuthorizedExpression()}`,
       document: tripDocuments,
       freightCalculationStatus: freightCalculations.status,
+      freightCalculationTotalAmount: freightCalculations.totalAmount,
       nfeDocumentStatus: nfeDocuments.status,
       /**
        * Spec 079 T017: o que identifica a nota na tela. Sai da junção que já existia — nenhuma
@@ -738,6 +1010,13 @@ async function readTripDetail(
       nfeTotalValue: sql<
         null | string
       >`coalesce(${nfeDocuments.totalValue}, ${nfeDocumentsViaFreight.totalValue})`,
+      /**
+       * Spec 176: só para o caminho direto (`nfeDocumentId`) — a nota que chega por cálculo já tem
+       * o valor de frete congelado em `freightCalculations`, e não precisa de participante nenhum.
+       */
+      freightDestinationCityCode: tripDocumentRecipientAddress.cityCode,
+      freightDestinationState: tripDocumentRecipientAddress.state,
+      freightSenderTaxId: tripDocumentEmitter.taxId,
     })
     .from(tripDocuments)
     .leftJoin(
@@ -761,8 +1040,38 @@ async function readTripDetail(
         eq(nfeDocumentsViaFreight.id, freightCalculations.nfeDocumentId),
       ),
     )
+    .leftJoin(
+      tripDocumentEmitter,
+      and(
+        eq(tripDocumentEmitter.companyId, nfeDocuments.companyId),
+        eq(tripDocumentEmitter.documentId, nfeDocuments.id),
+        eq(tripDocumentEmitter.role, 'emitter'),
+      ),
+    )
+    .leftJoin(
+      tripDocumentRecipient,
+      and(
+        eq(tripDocumentRecipient.companyId, nfeDocuments.companyId),
+        eq(tripDocumentRecipient.documentId, nfeDocuments.id),
+        eq(tripDocumentRecipient.role, 'recipient'),
+      ),
+    )
+    .leftJoin(
+      tripDocumentRecipientAddress,
+      and(
+        eq(tripDocumentRecipientAddress.companyId, tripDocumentRecipient.companyId),
+        eq(tripDocumentRecipientAddress.participantId, tripDocumentRecipient.id),
+      ),
+    )
     .where(and(...buildTripDocumentListFilters(input)))
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
+
+  /**
+   * Spec 176 (CA06): **uma consulta para as N notas** — as regras ativas da empresa são
+   * configuração (poucas linhas), carregadas uma vez e casadas em memória, o mesmo padrão de
+   * `loadActiveFreightRules` na listagem de notas (`drizzle-nfe-document.repository.ts`).
+   */
+  const activeFreightRules = await loadActiveFreightRules(queryable, input.companyId)
   /**
    * Spec 079 P2: o contato entra **aqui**, no mesmo map que monta a nota — depois seria tarde: as
    * paradas já agrupam `documents`, e um segundo objeto com contato produziria duas verdades sobre
@@ -774,6 +1083,15 @@ async function readTripDetail(
       row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
     ),
   })
+  /**
+   * Spec 164 T15 (RF20): uma leitura a mais, fixa — nunca por nota nem por parada — que devolve só
+   * os `trip_documents.id` com tratativa ainda não terminal. Sem escrita nenhuma em
+   * `trip_documents.separation_status`.
+   */
+  const openOccurrenceCaseDocumentIds = await loadTripDocumentIdsWithOpenOccurrenceCase(queryable, {
+    companyId: input.companyId,
+    tripDocumentIds: documentRecords.map((row) => row.document.id),
+  })
   const documents = documentRecords.map((row) =>
     mapTripDocumentDetail({
       ...row,
@@ -781,6 +1099,22 @@ async function readTripDetail(
         row.document.nfeDocumentId === null
           ? null
           : (contacts.get(row.document.nfeDocumentId) ?? null),
+      freight: resolveTripDocumentFreight({
+        freightCalculationStatus: row.freightCalculationStatus,
+        freightCalculationTotalAmount: row.freightCalculationTotalAmount,
+        note:
+          row.document.nfeDocumentId === null
+            ? null
+            : {
+                destinationCityCode: row.freightDestinationCityCode,
+                destinationState: row.freightDestinationState,
+                issuedAt: row.nfeIssuedAt,
+                senderTaxId: row.freightSenderTaxId,
+                totalAmount: row.nfeTotalValue,
+              },
+        rules: activeFreightRules,
+      }),
+      openOccurrenceCase: openOccurrenceCaseDocumentIds.has(row.document.id),
     }),
   )
 
@@ -906,10 +1240,29 @@ async function readTripDetail(
       tripId: input.tripId,
     },
   )
+  /**
+   * Spec 168: o mesmo enriquecimento que `createReadCargoLayoutUseCase` já faz na rota dedicada
+   * (`GET /trips/:id/cargo-layouts/:layoutId`) — uma consulta para todas as pendências, casada por
+   * `buildPendingMeasurementBoxKey`. Sem isso, `GET /trips/:id` (a rota que a tela usa de fato)
+   * nunca devolvia `packageBoxId`/`grossWeightGrams`/`unitsPerBox`.
+   */
+  const cargoLayout =
+    cargoLayoutReading.cargoLayout === null
+      ? null
+      : {
+          ...cargoLayoutReading.cargoLayout,
+          pendingMeasurements: await enrichPendingMeasurementsWithBox(
+            cargoLayoutReading.cargoLayout.pendingMeasurements,
+            { companyId: input.companyId, packageBoxLookup: input.packageBoxLookup },
+          ),
+        }
 
   return {
     ...mapTrip(record),
-    cargoLayout: cargoLayoutReading.cargoLayout,
+    closeReason: record.closeReason,
+    closedAt: record.closedAt === null ? null : record.closedAt.toISOString(),
+    closedByName,
+    cargoLayout,
     cargoLayoutState: cargoLayoutReading.cargoLayoutState,
     cargoLayoutId: layoutId,
     ...(pendingCargoLayoutInput === null ? {} : { pendingCargoLayoutInput }),
@@ -936,6 +1289,10 @@ async function readTripDetail(
       longitude: row.longitude,
       cityCode: addressOf(row.stop.id)?.components.cityCode ?? '',
       state: addressOf(row.stop.id)?.state ?? '',
+      /** Spec 164 T15 (RF21): o sinal do mapa — deriva das notas já agrupadas, sem consulta nova. */
+      hasOpenOccurrence: (documentsByStopId.get(row.stop.id) ?? []).some(
+        (document) => document.openOccurrenceCase,
+      ),
     })),
   }
 }

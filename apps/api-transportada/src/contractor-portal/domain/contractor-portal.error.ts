@@ -73,3 +73,20 @@ export class ContractorBatchNotFoundError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 164 T9/T10 (correção 3 do `architect`): ocorrência de outra empresa, ocorrência que não é do
+ * contratante, e ocorrência com tratativa em análise interna (`recorded`/`under_review`/
+ * `returned_to_warehouse`) respondem **byte a byte igual** — 409 "transição não permitida" já
+ * contaria que a ocorrência existe e está em análise, o que é a mesma classe de vazamento que
+ * `ContractorDeliveryNotFoundError` evita para a entrega.
+ */
+export class ContractorOccurrenceNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CASE_NOT_FOUND',
+      message: 'Occurrence was not found',
+      status: 404,
+    })
+  }
+}

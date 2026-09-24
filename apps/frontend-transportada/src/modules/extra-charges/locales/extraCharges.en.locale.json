@@ -39,13 +39,72 @@
     "other": "Other",
     "parking": "Parking",
     "platform": "Platform",
+    "returned_goods": "Returned goods",
     "scheduling": "Scheduling",
     "unloading": "Unloading"
   },
   "errors": {
     "DELIVERY_CHARGE_AMOUNT_REQUIRED": "This suggestion came from the driver without an amount. Fill in the receipt amount before confirming.",
     "EXTRA_CHARGE_BATCH_EMPTY": "There is no checked charge for this contractor in this period.",
+    "EXTRA_CHARGE_BATCH_SELECTION_INELIGIBLE": "One of the marked rows is no longer available for closing. Refresh the list and mark it again.",
     "REQUEST_FAILED": "Could not complete. Try again."
+  },
+  "reimbursements": {
+    "title": "Reimbursements",
+    "subtitle": "Occurrence charges still without a batch — mark the rows that enter the next statement.",
+    "forbidden": "This screen requires the trip financials permission.",
+    "loading": "Loading the report…",
+    "empty": "No occurrence charge open for this filter.",
+    "filters": {
+      "contractor": "Contractor",
+      "contractorAll": "All contractors",
+      "period": "Period",
+      "periodPlaceholder": "mm/dd/yyyy to mm/dd/yyyy",
+      "chargeType": "Charge type",
+      "chargeTypeAll": "All types",
+      "chargeTypeSummary": "{{count}} types selected",
+      "chargeTypeSearchPlaceholder": "Search type",
+      "chargeTypeClearAll": "Clear types",
+      "chargeTypeRemove": "Remove charge type",
+      "status": "Status",
+      "statusAll": "All statuses",
+      "settlement": "Settlement",
+      "settlementAll": "With or without settlement",
+      "settlementWith": "Already settled",
+      "settlementWithout": "Not settled yet",
+      "search": "Search note"
+    },
+    "table": {
+      "select": "Select the charge",
+      "selectAll": "Select all charges on the page",
+      "date": "Date",
+      "note": "Note",
+      "type": "Type",
+      "amount": "Amount",
+      "status": "Status",
+      "settlement": "Settlement",
+      "settlementDone": "Settled",
+      "settlementPending": "Not settled",
+      "ineligibleMissingContractor": "No identified contractor — this row cannot enter a statement.",
+      "ineligibleOtherContractor": "Belongs to another contractor — closing takes one contractor at a time."
+    },
+    "totals": {
+      "reportTotal": "Filter total: {{total}}",
+      "selectedTotal_one": "Selected total: {{total}} ({{count}} row)",
+      "selectedTotal_other": "Selected total: {{total}} ({{count}} rows)"
+    },
+    "close": {
+      "action": "Close the selection's period",
+      "hint": "Closing takes exactly the marked rows. The date range shown is only the period they cover.",
+      "emptyError": "Mark at least one row before closing.",
+      "mixedContractorError": "The marked rows belong to different contractors — close one contractor at a time.",
+      "missingContractorError": "One of the marked rows has no identified contractor.",
+      "result": "Batch closed: {{contractor}} · from {{periodStart}} to {{periodEnd}}."
+    },
+    "statement": {
+      "action": "Download statement",
+      "hint": "The statement belongs to the batch that just closed. Sending it to the contractor is a person's call — this screen never sends anything on its own."
+    }
   },
   "queue": {
     "amount": "Amount",

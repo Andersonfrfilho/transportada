@@ -16,11 +16,15 @@ import {
   identityUsers,
   nfeDocuments,
   nfeImports,
+  nfePackageBoxes,
+  nfeParticipants,
+  nfeProducts,
   storedObjects,
   tripCargoLayouts,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../src/database/trip.schema.js'
+import { DrizzlePackageBoxRepository } from '../../src/nfe-documents/infrastructure/drizzle-package-box.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 
 const databaseUrl =
@@ -177,6 +181,288 @@ describe('trip detail read has no N+1 across stops (spec 056 T014)', () => {
         expect(largeLayoutSelectCount).toBe(smallLayoutSelectCount)
         expect(smallLayoutSelectCount).toBeGreaterThan(0)
         expect(smallLayoutSelectCount).toBeLessThanOrEqual(2)
+      })
+    },
+    30_000,
+  )
+})
+
+/**
+ * Spec 168: `GET /trips/:id` é a rota que a tela de detalhe usa de fato, e até aqui nunca resolvia
+ * `packageBoxId`/`grossWeightGrams`/`unitsPerBox` das pendências — só a rota dedicada de
+ * `/cargo-layouts/:layoutId` o fazia. O fix reusa o mesmo `PendingMeasurementBoxLookupPort`
+ * (`DrizzlePackageBoxRepository.findBoxIdsForPendingMeasurements`), casado por
+ * `buildPendingMeasurementBoxKey`, direto em `readTripDetail`.
+ */
+describe('the trip detail resolves the box of each pending measurement (spec 168)', () => {
+  testWithPostgres(
+    'a pendência que casa (número da nota, código do produto) ganha os três campos do catálogo',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        const userId = crypto.randomUUID()
+        const vehicleId = crypto.randomUUID()
+        const emitterTaxId = '05868574001090'
+        /** `seedNfeDocument` grava sempre o número `9` — a busca do catálogo casa por ele. */
+        const documentNumber = '9'
+        const productCode = 'SKU-168'
+
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+        await database.db.insert(userCompanyMemberships).values({
+          companyId,
+          id: crypto.randomUUID(),
+          status: 'active',
+          userId,
+        })
+        await database.db.insert(fleetVehicles).values({
+          capacityM3: '48.000',
+          cargoHeightM: '2.500',
+          cargoLengthM: '8.000',
+          cargoWidthM: '2.400',
+          companyId,
+          id: vehicleId,
+          plate: 'ABC1D25',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'three_quarter',
+        })
+
+        const freightRule = await seedFreightRuleVersion(database, { companyId, userId })
+        const nfeDocumentId = await seedNfeDocument(database, { companyId, userId })
+        const tripId = await seedTripWithStops(database, {
+          companyId,
+          documentsPerStop: 1,
+          freightRule,
+          nfeDocumentId,
+          stopCount: 1,
+          userId,
+          vehicleId,
+        })
+
+        /** Casa a nota semeada por `seedNfeDocument` (número `9`) com o catálogo. */
+        await database.db.insert(nfeParticipants).values({
+          companyId,
+          documentId: nfeDocumentId,
+          legalName: 'Emitente de teste',
+          role: 'emitter',
+          taxId: emitterTaxId,
+        })
+        await database.db.insert(nfeProducts).values({
+          cfop: '5102',
+          code: productCode,
+          commercialUnit: 'CX',
+          companyId,
+          description: 'PRODUTO DE TESTE',
+          documentId: nfeDocumentId,
+          ncm: '84713012',
+          ordinal: 1n,
+          quantity: '1.0000',
+          totalValue: '10.0000',
+          unitValue: '10.0000',
+        })
+        /**
+         * Spec 168 (regressão): a caixa do catálogo casa a pendência, mas ainda **não tem** as três
+         * dimensões — só `grossWeightGrams`/`unitsPerBox`. Uma caixa já medida some da lista (é
+         * exatamente o defeito que o fix corrige), então este cenário precisa de uma caixa sem
+         * medida para continuar provando o enriquecimento (`packageBoxId`/`grossWeightGrams`/
+         * `unitsPerBox`) sem se confundir com o descarte.
+         */
+        const boxId = crypto.randomUUID()
+        await database.db.insert(nfePackageBoxes).values({
+          commercialUnit: 'CX',
+          companyId,
+          description: 'CAIXA DO CATÁLOGO',
+          emitterTaxId,
+          grossWeightGrams: 700,
+          id: boxId,
+          productCode,
+          unitsPerBox: 4,
+        })
+
+        /**
+         * `readPreviousReady` só filtra por `(companyId, tripId, status)` — sem casar hash —, então
+         * uma linha `ready` qualquer basta para servir esta planta fabricada, sem empacotar de fato.
+         */
+        await database.db.insert(tripCargoLayouts).values({
+          companyId,
+          computedAt: new Date('2026-09-20T10:00:00.000Z'),
+          input: {},
+          inputHash: 'fabricated-hash-168',
+          layout: {
+            freeRows: 0,
+            occupancyKnown: true,
+            orderIsBinding: true,
+            overflowM3: '0.000000',
+            placement: { layers: [], source: 'measured', unplaced: [] },
+            pendingMeasurements: [
+              {
+                boxCount: 2,
+                documentNumber,
+                estimateSource: 'none',
+                label: 'Caixa sem código',
+                productCode,
+                sequence: 1,
+                stopLabel: 'Parada 1',
+              },
+            ],
+            rows: [],
+            slices: [],
+            stopsWithoutVolume: [],
+          },
+          policyVersion: 'test-168',
+          status: 'ready',
+          tripId,
+        })
+
+        const repository = new DrizzleTripRepository(database.db, undefined, {
+          packageBoxLookup: new DrizzlePackageBoxRepository(database.db),
+        })
+
+        const detail = await repository.findById({ companyId, tripId })
+
+        expect(detail?.cargoLayout?.pendingMeasurements).toEqual([
+          {
+            boxCount: 2,
+            documentNumber,
+            estimateSource: 'none',
+            grossWeightGrams: 700,
+            label: 'Caixa sem código',
+            packageBoxId: boxId,
+            productCode,
+            sequence: 1,
+            stopLabel: 'Parada 1',
+            unitsPerBox: 4,
+          },
+        ])
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'a caixa casada já tem as três dimensões gravadas: a pendência some da lista (bug do spec 168)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        const userId = crypto.randomUUID()
+        const vehicleId = crypto.randomUUID()
+        const emitterTaxId = '05868574001090'
+        const documentNumber = '9'
+        const productCode = 'SKU-168-MEASURED'
+
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+        await database.db.insert(userCompanyMemberships).values({
+          companyId,
+          id: crypto.randomUUID(),
+          status: 'active',
+          userId,
+        })
+        await database.db.insert(fleetVehicles).values({
+          capacityM3: '48.000',
+          cargoHeightM: '2.500',
+          cargoLengthM: '8.000',
+          cargoWidthM: '2.400',
+          companyId,
+          id: vehicleId,
+          plate: 'ABC1D26',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'three_quarter',
+        })
+
+        const freightRule = await seedFreightRuleVersion(database, { companyId, userId })
+        const nfeDocumentId = await seedNfeDocument(database, { companyId, userId })
+        const tripId = await seedTripWithStops(database, {
+          companyId,
+          documentsPerStop: 1,
+          freightRule,
+          nfeDocumentId,
+          stopCount: 1,
+          userId,
+          vehicleId,
+        })
+
+        await database.db.insert(nfeParticipants).values({
+          companyId,
+          documentId: nfeDocumentId,
+          legalName: 'Emitente de teste',
+          role: 'emitter',
+          taxId: emitterTaxId,
+        })
+        await database.db.insert(nfeProducts).values({
+          cfop: '5102',
+          code: productCode,
+          commercialUnit: 'CX',
+          companyId,
+          description: 'PRODUTO DE TESTE',
+          documentId: nfeDocumentId,
+          ncm: '84713012',
+          ordinal: 1n,
+          quantity: '1.0000',
+          totalValue: '10.0000',
+          unitValue: '10.0000',
+        })
+        /** A caixa já foi medida — a mesma que o defeito medido na bancada reproduziu (spec 168). */
+        await database.db.insert(nfePackageBoxes).values({
+          commercialUnit: 'CX',
+          companyId,
+          description: 'CAIXA JÁ MEDIDA',
+          emitterTaxId,
+          grossWeightGrams: 700,
+          heightMm: 250,
+          id: crypto.randomUUID(),
+          lengthMm: 400,
+          measuredAt: new Date('2026-09-23T16:53:51.562Z'),
+          measurementSource: 'typed' as const,
+          productCode,
+          unitsPerBox: 4,
+          widthMm: 300,
+        })
+
+        /**
+         * Planta guardada **antes** da medida (`stale`, servida por `readPreviousReady`): a mesma
+         * situação que a bancada mediu — a planta pronta mais recente pode não ter recalculado ainda.
+         */
+        await database.db.insert(tripCargoLayouts).values({
+          companyId,
+          computedAt: new Date('2026-09-20T10:00:00.000Z'),
+          input: {},
+          inputHash: 'fabricated-hash-168-measured',
+          layout: {
+            freeRows: 0,
+            occupancyKnown: true,
+            orderIsBinding: true,
+            overflowM3: '0.000000',
+            placement: { layers: [], source: 'measured', unplaced: [] },
+            pendingMeasurements: [
+              {
+                boxCount: 2,
+                documentNumber,
+                estimateSource: 'none',
+                label: 'Caixa sem código',
+                productCode,
+                sequence: 1,
+                stopLabel: 'Parada 1',
+              },
+            ],
+            rows: [],
+            slices: [],
+            stopsWithoutVolume: [],
+          },
+          policyVersion: 'test-168',
+          status: 'ready',
+          tripId,
+        })
+
+        const repository = new DrizzleTripRepository(database.db, undefined, {
+          packageBoxLookup: new DrizzlePackageBoxRepository(database.db),
+        })
+
+        const detail = await repository.findById({ companyId, tripId })
+
+        expect(detail?.cargoLayout?.pendingMeasurements).toEqual([])
       })
     },
     30_000,

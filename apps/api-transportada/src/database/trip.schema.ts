@@ -2,7 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
-import type { TripOccurrenceStage } from '../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceItemQuantityUnit,
+  TripOccurrenceStage,
+} from '../shared/trip-occurrence.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -14,6 +17,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  smallint,
   text,
   timestamp,
   unique,
@@ -22,6 +26,10 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 
+import {
+  DELIVERY_PROOF_FIELD_MODES,
+  type DeliveryProofFieldMode,
+} from './company-delivery-proof-settings.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
@@ -107,6 +115,81 @@ export const TRIP_DOCUMENT_SEPARATION_STATUSES = [
 ] as const
 export type TripDocumentSeparationStatus = (typeof TRIP_DOCUMENT_SEPARATION_STATUSES)[number]
 
+/**
+ * Spec 164 T1/T2: os sete estados da tratativa de uma ocorrência de nota. Definida aqui, no schema,
+ * e não em `trips/domain` (T2), porque o CHECK precisa do vocabulário antes de a máquina existir;
+ * `occurrence-case-state.policy.ts` reexporta, no mesmo molde de `TripStatus` acima.
+ *
+ * ⚠️ **`cancelled` entrou na T2, decisão do usuário**: ocorrência aberta por engano. Sai só de
+ * `recorded` e `under_review` — nunca de `awaiting_contractor` em diante, pela mesma razão da D4
+ * (depois que o contratante viu, esconder é reescrever o que ele leu). É terminal, como
+ * `returned_to_warehouse` e `closed`.
+ */
+export const TRIP_OCCURRENCE_CASE_STATUSES = [
+  'recorded',
+  'under_review',
+  'returned_to_warehouse',
+  'awaiting_contractor',
+  'decided',
+  'closed',
+  'cancelled',
+] as const
+export type TripOccurrenceCaseStatus = (typeof TRIP_OCCURRENCE_CASE_STATUSES)[number]
+
+export const TRIP_OCCURRENCE_CASE_DECISION_KINDS = [
+  'redelivery_authorized',
+  'goods_paid',
+  'other',
+] as const
+export type TripOccurrenceCaseDecisionKind = (typeof TRIP_OCCURRENCE_CASE_DECISION_KINDS)[number]
+
+/**
+ * Spec 164 T2: o que aconteceu com a proposta de reentrega (T14, `redelivery-proposal.policy.ts`) —
+ * `reorder_stop` aplicada (`reordered`), `release_document` aplicada (`released`), ou a viagem
+ * despachada recusou a mudança de roteiro (`refused`, D9). `null` é "nunca chegou a propor" — a
+ * decisão não foi `redelivery_authorized`, ou a proposta ainda não foi confirmada por gente.
+ *
+ * ⚠️ **Coluna, não tabela nova** (correção da revisão): a RF18 pede registrar a recusa de
+ * reordenação, mas `trip_occurrence_case_events` só aceita evento quando o estado muda
+ * (`transition_check`) — aplicar/recusar a reentrega não move `status`. Decisão registrada em
+ * `plan.md`: uma tabela de eventos própria para isso duplicaria o histórico sem mudar estado
+ * nenhum, e afrouxar o CHECK do histórico deixaria `trip_occurrence_case_events` aceitar "evento"
+ * sem transição — a garantia que ele existe para dar.
+ */
+export const TRIP_OCCURRENCE_CASE_REDELIVERY_APPLICATIONS = [
+  'reordered',
+  'released',
+  'refused',
+] as const
+export type TripOccurrenceCaseRedeliveryApplication =
+  (typeof TRIP_OCCURRENCE_CASE_REDELIVERY_APPLICATIONS)[number]
+
+/** Quem gravou a transição: o time interno ou a decisão do contratante no portal (T9/T10). */
+export const TRIP_OCCURRENCE_CASE_ACTOR_KINDS = ['internal', 'contractor'] as const
+export type TripOccurrenceCaseActorKind = (typeof TRIP_OCCURRENCE_CASE_ACTOR_KINDS)[number]
+
+/** Spec 164 T16: de onde saiu o valor de cada item do acerto — da nota, ou digitado por gente. */
+export const TRIP_OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES = ['nfe', 'manual'] as const
+export type TripOccurrenceSettlementAmountSource =
+  (typeof TRIP_OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES)[number]
+
+/**
+ * Spec 164 T16 (RF22): quem paga o item acertado. Só `driver` carrega `payer_id` — carrier não se
+ * ressarce de si mesmo (é a transportadora), e `contractor`/`insurer` não têm cadastro nesta tabela.
+ */
+export const TRIP_OCCURRENCE_SETTLEMENT_PAYER_KINDS = [
+  'driver',
+  'carrier',
+  'contractor',
+  'insurer',
+] as const
+export type TripOccurrenceSettlementPayerKind =
+  (typeof TRIP_OCCURRENCE_SETTLEMENT_PAYER_KINDS)[number]
+
+/** `unset` nunca aparece em `trip_occurrence_cases.redelivery_policy` — só no tipo cadastrado. */
+export const REDELIVERY_POLICIES = ['unset', 'allowed', 'blocked'] as const
+export type RedeliveryPolicy = (typeof REDELIVERY_POLICIES)[number]
+
 const TAX_ID_PATTERN = '^[0-9]{11}$'
 
 /** Condutores por viagem: mesmo teto do manifesto (ADR-0016 §1, `MAX_DRIVERS_PER_MANIFEST`). */
@@ -169,6 +252,14 @@ export const trips = pgTable(
      * como estimada, em vez de fingir que alguém informou.
      */
     dailyAllowanceDays: integer('daily_allowance_days'),
+    /**
+     * Spec 156 T8c (ADR-0067): quem encerrou, quando e por quê. `closedAt`/`closedByUserId` nascem
+     * juntos, e `closeReason` é obrigatório só quando havia nota em aberto no momento do
+     * encerramento — a regra vive em `trip-close.policy.ts`, não aqui.
+     */
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closedByUserId: uuid('closed_by_user_id'),
+    closeReason: text('close_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -187,6 +278,19 @@ export const trips = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.closedByUserId],
+      foreignColumns: [userCompanyMemberships.companyId, userCompanyMemberships.userId],
+      name: 'trips_company_closed_by_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** O motivo só existe com o encerramento: as duas colunas nascem e morrem juntas. */
+    check(
+      'trips_close_check',
+      sql`(${table.closedAt} is null) = (${table.closedByUserId} is null)
+        and (${table.closeReason} is null or ${table.closedAt} is not null)`,
+    ),
     unique('trips_company_id_id_unique').on(table.companyId, table.id),
     index('trips_company_status_created_at_idx').on(table.companyId, table.status, table.createdAt),
     index('trips_company_vehicle_idx').on(table.companyId, table.vehicleId),
@@ -254,6 +358,17 @@ export const trips = pgTable(
 )
 
 /**
+ * Spec 171: o tipo de linha em `trip_status_events` — nascimento ou transição real. `transition` é
+ * o `default`: toda linha gravada antes desta spec é uma transição, sem reescrita de dado.
+ */
+export const TRIP_STATUS_EVENT_KINDS = {
+  created: 'created',
+  transition: 'transition',
+} as const
+export type TripStatusEventKind =
+  (typeof TRIP_STATUS_EVENT_KINDS)[keyof typeof TRIP_STATUS_EVENT_KINDS]
+
+/**
  * ADR-0068 §1: histórico de `trips.status`. `recordTripStatusChange` (`trip-status-event.persistence.ts`,
  * spec 158 T3) é o **único** escritor.
  *
@@ -266,8 +381,13 @@ export const trips = pgTable(
  * vínculo referencial. A leitura resolve o nome por membership escopado pela empresa; ator removido
  * aparece sem nome.
  *
- * `from_status`/`actor_user_id` são `not null`: não há escrita de sistema hoje (inventário da
- * ADR-0068), e nada grava a criação da viagem — ela já está em `trips.created_at`.
+ * `from_status`/`actor_user_id` são `not null` (spec 171 mantém: hoje só `POST /trips` autenticado
+ * cria viagem, sempre com ator). `recordTripCreation` (`trip-status-event.persistence.ts`) é o
+ * segundo escritor — grava `event_kind = 'created'` com `from_status = to_status` (o estado inicial
+ * da viagem repetido nas duas colunas, porque não há "de onde" ela veio). O banco, não só a
+ * aplicação, garante a diferença: `trip_status_events_transition_check` só exige `from_status <>
+ * to_status` quando `event_kind = 'transition'` — uma linha de transição degenerada continua
+ * impossível de gravar.
  */
 export const tripStatusEvents = pgTable(
   'trip_status_events',
@@ -282,6 +402,15 @@ export const tripStatusEvents = pgTable(
       .$type<TripFieldChannel>()
       .notNull()
       .default(TRIP_FIELD_CHANNELS.driverApp),
+    /**
+     * Spec 171: distingue o nascimento da viagem (`created`) de uma transição real
+     * (`transition`, o default — toda linha existente antes desta spec é uma). VARCHAR + CHECK,
+     * nunca ENUM nativo (`code-standart.md` §8).
+     */
+    eventKind: varchar('event_kind', { length: 16 })
+      .$type<TripStatusEventKind>()
+      .notNull()
+      .default(TRIP_STATUS_EVENT_KINDS.transition),
     /** ADR-0067 §2: só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
     onBehalfOfDriverId: uuid('on_behalf_of_driver_id'),
     /** A hora em que a transição aconteceu — não necessariamente a hora em que foi gravada. */
@@ -334,7 +463,20 @@ export const tripStatusEvents = pgTable(
       'trip_status_events_office_driver_check',
       sql`${table.channel} <> 'office' or ${table.onBehalfOfDriverId} is not null`,
     ),
-    check('trip_status_events_transition_check', sql`${table.fromStatus} <> ${table.toStatus}`),
+    check(
+      'trip_status_events_event_kind_check',
+      sql`${table.eventKind} in (${raw(inList(Object.values(TRIP_STATUS_EVENT_KINDS)))})`,
+    ),
+    /**
+     * Spec 171: volta a existir, mas só vale para `event_kind = 'transition'` — o banco, não só a
+     * aplicação, barra uma transição degenerada (`from_status = to_status`). `event_kind = 'created'`
+     * é a única exceção, e ela é gravada por um caminho próprio (`recordTripCreation`), nunca pelo
+     * caminho de transição (`recordTripStatusChange`).
+     */
+    check(
+      'trip_status_events_transition_check',
+      sql`${table.eventKind} <> 'transition' or ${table.fromStatus} <> ${table.toStatus}`,
+    ),
     check(
       'trip_status_events_from_status_check',
       sql`${table.fromStatus} in (${raw(inList(TRIP_STATUSES))})`,
@@ -1436,6 +1578,11 @@ export const tripDocumentOccurrences = pgTable(
     attachmentObjectId: uuid('attachment_object_id'),
   },
   (table) => [
+    /**
+     * Spec 161 T1: pré-requisito da FK composta de `trip_document_occurrence_attachments` — sem
+     * este unique, a tabela nova não consegue referenciar `(company_id, id)` desta.
+     */
+    unique('trip_document_occurrences_company_id_id_unique').on(table.companyId, table.id),
     foreignKey({
       columns: [table.companyId],
       foreignColumns: [companies.id],
@@ -1491,6 +1638,242 @@ export const tripDocumentOccurrences = pgTable(
   ],
 )
 
+export const TRIP_OCCURRENCE_UPLOAD_STATUSES = ['pending', 'confirmed', 'expired'] as const
+export type TripOccurrenceUploadStatus = (typeof TRIP_OCCURRENCE_UPLOAD_STATUSES)[number]
+
+/**
+ * Spec 179 T201 (RF2/RF2a/RF2b): o link entre a URL assinada que o app pediu e a viagem que pediu —
+ * o que `stored_objects` **não tem** (só `company_id`, nunca viagem). `id` é o próprio `objectId` da
+ * chave do objeto: nasce aqui, na emissão da URL, e vira `stored_objects.id` na confirmação, sem
+ * troca de identificador no meio do caminho.
+ *
+ * ⚠️ **O `Content-Type` não entra na assinatura da URL** (`@aws-sdk/s3-request-presigner` marca
+ * `content-type` como cabeçalho não-assinável). `mimeType`/`declaredSizeBytes` aqui são só a forma
+ * declarada na emissão — quem garante que o objeto de verdade bate com eles é a confirmação
+ * (`head()` + bytes reais), nunca esta linha sozinha.
+ */
+export const tripOccurrenceUploads = pgTable(
+  'trip_occurrence_uploads',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    tripId: uuid('trip_id').notNull(),
+    driverId: uuid('driver_id').notNull(),
+    bucket: text().notNull(),
+    objectKey: text('object_key').notNull(),
+    mimeType: text('mime_type').notNull(),
+    declaredSizeBytes: bigint('declared_size_bytes', { mode: 'bigint' }).notNull(),
+    status: text().$type<TripOccurrenceUploadStatus>().notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_occurrence_uploads_company_id_id_unique').on(table.companyId, table.id),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_occurrence_uploads_company_trip_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    index('trip_occurrence_uploads_company_trip_idx').on(table.companyId, table.tripId),
+    check(
+      'trip_occurrence_uploads_status_check',
+      sql`${table.status} in (${raw(inList(TRIP_OCCURRENCE_UPLOAD_STATUSES))})`,
+    ),
+    check('trip_occurrence_uploads_declared_size_check', sql`${table.declaredSizeBytes} > 0`),
+    check(
+      'trip_occurrence_uploads_confirmed_check',
+      sql`(${table.status} = 'confirmed') = (${table.confirmedAt} is not null)`,
+    ),
+  ],
+)
+
+/**
+ * Spec 161 (D2/D12): as fotos da ocorrência de galpão — até cinco por ocorrência, cada uma com um
+ * original (`stored_object_id`, prova) e uma miniatura opcional (`thumbnail_object_id`, o que as
+ * listas carregam). `attachment_object_id` de `trip_document_occurrences` continua servindo a
+ * ocorrência de rua (D6) — esta tabela nunca é escrita por aquele canal.
+ *
+ * ⚠️ O teto de cinco está **duplicado no banco**: o CHECK de `position` (1 a 5) e a política de
+ * aplicação (`OCCURRENCE_ATTACHMENT_LIMIT`, T2). Mudar o teto exige migration nos dois lugares.
+ *
+ * ⚠️ `position` é monotônica, nunca reciclada. É escolhida **dentro do `INSERT`**
+ * (`coalesce(max(position), 0) + 1`, T3), nunca por um `SELECT count(*)` antes — reciclar um buraco
+ * (ex.: a foto 3 falhou e a próxima reusa a posição 3) reintroduziria a corrida de duas abas
+ * disputando a mesma posição. O unique de `(company_id, occurrence_id, position)` é quem resolve a
+ * corrida da sexta foto: a violação vira 409, e o mapeamento para
+ * `TripOccurrenceAttachmentLimitError`/`TRIP_OCCURRENCE_ATTACHMENT_LIMIT` cobre os dois SQLSTATE por
+ * nome de constraint — `23505` (este unique) e `23514` (o CHECK de posição). Esse mapeamento é do
+ * caso de uso (T6/T7), fora do escopo desta task; fica registrado aqui para quem chegar antes.
+ */
+export const tripDocumentOccurrenceAttachments = pgTable(
+  'trip_document_occurrence_attachments',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    storedObjectId: uuid('stored_object_id').notNull(),
+    /** Nulo: foto do WhatsApp (D14), coluna antiga sem miniatura, ou falha de geração no cliente. */
+    thumbnailObjectId: uuid('thumbnail_object_id'),
+    position: smallint().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_document_occurrence_attachments_company_id_id_unique').on(
+      table.companyId,
+      table.id,
+    ),
+    unique('trip_document_occurrence_attachments_unique_position').on(
+      table.companyId,
+      table.occurrenceId,
+      table.position,
+    ),
+    check(
+      'trip_document_occurrence_attachments_position_check',
+      sql`${table.position} between 1 and 5`,
+    ),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_occurrence_attachments_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_document_occurrence_attachments_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.storedObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_document_occurrence_attachments_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.thumbnailObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_document_occurrence_attachments_company_thumbnail_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** FK não-parcial da coluna NOT NULL, RESTRICT — a mais cara de deixar sem índice. */
+    index('trip_document_occurrence_attachments_company_object_idx').on(
+      table.companyId,
+      table.storedObjectId,
+    ),
+    /** FK parcial: só a linha que tem miniatura, no molde do índice de `on_behalf_of_driver_id`. */
+    index('trip_document_occurrence_attachments_company_thumbnail_idx')
+      .on(table.companyId, table.thumbnailObjectId)
+      .where(sql`${table.thumbnailObjectId} is not null`),
+    index('trip_document_occurrence_attachments_company_occurrence_idx').on(
+      table.companyId,
+      table.occurrenceId,
+      table.position,
+    ),
+  ],
+)
+
+/**
+ * Os itens da nota que **uma mesma** ocorrência aponta. Uma caixa violada costuma levar mais de um
+ * item, e a foto, a observação e o tipo são os mesmos — repetir a ocorrência por item multiplicaria
+ * o mesmo fato e faria a estatística contar avarias que não aconteceram.
+ *
+ * ⚠️ **`trip_document_occurrences.product_code` continua existindo e continua sendo escrita** com o
+ * primeiro item (vazia na ocorrência da nota inteira). Ocorrência antiga não tem linha aqui, e o
+ * fluxo do WhatsApp grava só a coluna — a leitura deriva `productCodes` de uma ou de outra
+ * (`resolveOccurrenceProductCodes`). Migrar a coluna para cá seria reescrever histórico por
+ * conveniência de formato.
+ *
+ * `position` guarda a ordem em que o conferente marcou os itens: o e-mail os cita nessa ordem, e
+ * sem ela o texto mudaria de uma leitura para a outra.
+ */
+export const tripDocumentOccurrenceProducts = pgTable(
+  'trip_document_occurrence_products',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    /** O código do item em `nfe_products`, conferido contra a nota antes de gravar. */
+    productCode: text('product_code').notNull(),
+    position: smallint().notNull(),
+    /**
+     * Spec 166 (RF1/RF2): quanto do item foi atingido — opcional, e sempre ao lado da unidade
+     * (o CHECK abaixo casa os dois). Escala 3 para caber contagem de peça fracionada sem ficar
+     * larga demais para uma coisa que hoje só é digitada.
+     */
+    quantity: numeric('quantity', { precision: 12, scale: 3 }),
+    /**
+     * Spec 172 (RF1): deixou de caber só `unit`/`box` — a unidade comercial da nota (`KG`, `L`,
+     * `CX`...) grava como veio, inclusive sigla exótica fora do vocabulário conhecido. `20` cabe
+     * folgado a maior unidade comercial já vista em `nfe_products.commercial_unit` (texto livre do
+     * XML) sem virar `text` sem teto.
+     */
+    quantityUnit: varchar('quantity_unit', { length: 20 }).$type<OccurrenceItemQuantityUnit>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_document_occurrence_products_company_id_id_unique').on(table.companyId, table.id),
+    /** Item repetido na mesma ocorrência é engano de quem marcou — o banco também não o aceita. */
+    unique('trip_document_occurrence_products_unique_code').on(
+      table.companyId,
+      table.occurrenceId,
+      table.productCode,
+    ),
+    /** Serve de índice da leitura por ocorrência, em ordem — sem índice extra ao lado. */
+    unique('trip_document_occurrence_products_unique_position').on(
+      table.companyId,
+      table.occurrenceId,
+      table.position,
+    ),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_occurrence_products_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_document_occurrence_products_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    /**
+     * Os dois andam juntos (RF1): quantidade sem unidade é número sem significado, e unidade sem
+     * quantidade é escolha que não diz de quê.
+     */
+    check(
+      'trip_document_occurrence_products_quantity_presence_check',
+      sql`(${table.quantity} is null) = (${table.quantityUnit} is null)`,
+    ),
+    /** RF2: zero é "não aconteceu" — isso se diz não registrando o item, nunca com zero gravado. */
+    check(
+      'trip_document_occurrence_products_quantity_positive_check',
+      sql`${table.quantity} is null or ${table.quantity} > 0`,
+    ),
+    /**
+     * Spec 172 (RF1/CA01): deixou de ser a lista fechada `unit`/`box` — a unidade comercial da
+     * nota é aceita como veio, inclusive sigla exótica fora de qualquer vocabulário conhecido
+     * (spec 172 § Casos extremos). O CHECK só recusa o vazio/só-espaço; **quem confere valor
+     * contra o cadastro da nota é a política de domínio**, não o banco — o banco não teria como
+     * saber qual é o item para consultar a unidade dele.
+     */
+    check(
+      'trip_document_occurrence_products_quantity_unit_check',
+      sql`${table.quantityUnit} is null or length(btrim(${table.quantityUnit})) > 0`,
+    ),
+  ],
+)
+
 /**
  * Spec 079: os tipos de ocorrência que **a empresa cadastrou**.
  *
@@ -1531,6 +1914,30 @@ export const companyOccurrenceTypes = pgTable(
      * `false`: nenhuma instalação passa a mandar e-mail sozinha ao aplicar esta migration.
      */
     emailsContractor: boolean('emails_contractor').notNull().default(false),
+    /**
+     * Spec 164 T1: se a nota atingida por este tipo de ocorrência pode ser reentregue
+     * (`allowed`/`blocked`) ou se o tipo não decide isso (`unset`, o padrão — nenhuma instalação
+     * ganha tratativa nova ao aplicar esta migration). `unset` nunca abre `trip_occurrence_cases`
+     * (D1); é o CHECK da tabela nova, não deste, que proíbe o valor na tratativa em si.
+     */
+    redeliveryPolicy: text('redelivery_policy')
+      .notNull()
+      .$type<RedeliveryPolicy>()
+      .default('unset'),
+    /**
+     * Spec 166 (RF3): se este tipo aceita mais de um item marcado. Padrão `true` preserva o
+     * comportamento de hoje — nenhuma instalação muda de comportamento ao aplicar esta migration.
+     */
+    allowsMultipleItems: boolean('allows_multiple_items').notNull().default(true),
+    /**
+     * Spec 179 (RF1): se o registro do motorista exige comprovante — o mesmo vocabulário de
+     * `DELIVERY_PROOF_FIELD_MODES`, para "exigir foto" continuar sendo uma ideia só no produto.
+     * Padrão `'off'`: nenhuma instalação passa a exigir nada ao aplicar esta migration.
+     */
+    attachmentMode: varchar('attachment_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default('off'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1547,6 +1954,333 @@ export const companyOccurrenceTypes = pgTable(
       sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
     ),
     check('company_occurrence_types_name_check', sql`length(btrim(${table.name})) > 0`),
+    check(
+      'company_occurrence_types_redelivery_policy_check',
+      sql`${table.redeliveryPolicy} in (${raw(inList(REDELIVERY_POLICIES))})`,
+    ),
+    check(
+      'company_occurrence_types_attachment_mode_check',
+      sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
+  ],
+)
+
+/**
+ * Spec 164 T1: a tratativa da nota atingida por ocorrência — decisão sobre o que houve, em cima do
+ * registro append-only de `trip_document_occurrences`. Uma tratativa por ocorrência
+ * (`trip_occurrence_cases_occurrence_unique`); a ocorrência continua imutável e é esta tabela que
+ * muda de estado. O item do acerto (`trip_occurrence_item_settlements`) foi para a T16 (Fase 5),
+ * junto da migration de `delivery_charges` que ele alimenta — as duas mexem no mesmo dinheiro.
+ *
+ * ⚠️ **`redelivery_policy` nunca guarda `'unset'`** (correção do `architect`, D1): tipo `unset` não
+ * abre tratativa — aceitar o valor aqui deixaria a tabela guardar uma linha que a política diz não
+ * existir. O CHECK só aceita `allowed`/`blocked`; quem decide `unset` não abre é
+ * `occurrence-case.policy.ts` (T2), fora do escopo desta task.
+ *
+ * ⚠️ **`status` nasce sem `default`** (correção do `architect`): estado inicial escolhido pelo banco
+ * é estado que um escritor esquecido grava sem querer — precedente medido:
+ * `delivery_charges.status` (`delivery-client.schema.ts`). Quem abre a tratativa (T4) grava
+ * `'recorded'` explicitamente.
+ *
+ * ⚠️ **`resolved_at`, não `closed_at`** (decisão registrada por escrito, correção do `architect`): a
+ * coluna também é preenchida por `returned_to_warehouse` — devolvida ao barracão fecha o ciclo tanto
+ * quanto `closed` — e `closed_at` sugeriria só o fechamento formal. Renomeada em vez de só comentada,
+ * para a leitura do nome não mentir.
+ *
+ * ⚠️ **Sem FK composta para `trip_document_occurrence_products`** (tentação registrada e recusada,
+ * correção do `architect`): ocorrência antiga e a do WhatsApp gravam só `product_code` em
+ * `trip_document_occurrences`, e a nota inteira grava `''` — não há chave composta que sirva às três
+ * formas ao mesmo tempo. A leitura do item continua por `resolveOccurrenceProductCodes`.
+ *
+ * ⚠️ **`trip_document_occurrences.occurrence_type_id` continua sem FK para `company_occurrence_types`**
+ * (tentação registrada e recusada, correção do `architect`) — não é esta spec que conserta isso.
+ */
+export const tripOccurrenceCases = pgTable(
+  'trip_occurrence_cases',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    status: text().notNull().$type<TripOccurrenceCaseStatus>(),
+    redeliveryPolicy: text('redelivery_policy').notNull().$type<RedeliveryPolicy>(),
+    decisionKind: text('decision_kind').$type<TripOccurrenceCaseDecisionKind>(),
+    decisionNote: text('decision_note').notNull().default(''),
+    decidedByUserId: uuid('decided_by_user_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Fechamento **ou** devolução ao barracão — ver a nota acima sobre o nome da coluna. */
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    /** RF18 (T14): o que aconteceu com a proposta de reentrega — ver o comentário do tipo acima. */
+    redeliveryApplication:
+      text('redelivery_application').$type<TripOccurrenceCaseRedeliveryApplication>(),
+    /**
+     * Spec 164 T14b: quem aplicou a proposta e quando — sem isto a coluna acima registra o fato
+     * mas não a auditoria. Par obrigatório com `redeliveryApplication` (ver CHECK abaixo).
+     */
+    redeliveryAppliedAt: timestamp('redelivery_applied_at', { withTimezone: true }),
+    redeliveryAppliedByUserId: uuid('redelivery_applied_by_user_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_occurrence_cases_company_id_id_unique').on(table.companyId, table.id),
+    unique('trip_occurrence_cases_occurrence_unique').on(table.companyId, table.occurrenceId),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_occurrence_cases_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_occurrence_cases_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    check(
+      'trip_occurrence_cases_status_check',
+      sql`${table.status} in (${raw(inList(TRIP_OCCURRENCE_CASE_STATUSES))})`,
+    ),
+    check(
+      'trip_occurrence_cases_policy_check',
+      sql`${table.redeliveryPolicy} in ('allowed','blocked')`,
+    ),
+    check(
+      'trip_occurrence_cases_redelivery_application_check',
+      sql`${table.redeliveryApplication} is null or ${table.redeliveryApplication} in (${raw(inList(TRIP_OCCURRENCE_CASE_REDELIVERY_APPLICATIONS))})`,
+    ),
+    /** Spec 164 T14b: aplicar a proposta só faz sentido sobre uma decisão de reentrega autorizada. */
+    check(
+      'trip_occurrence_cases_redelivery_application_decision_check',
+      sql`${table.redeliveryApplication} is null or ${table.decisionKind} = 'redelivery_authorized'`,
+    ),
+    check(
+      'trip_occurrence_cases_redelivery_applied_by_check',
+      sql`(${table.redeliveryAppliedAt} is null) = (${table.redeliveryAppliedByUserId} is null)`,
+    ),
+    /** A auditoria só existe quando a proposta foi de fato aplicada/recusada. */
+    check(
+      'trip_occurrence_cases_redelivery_applied_check',
+      sql`(${table.redeliveryApplication} is null) = (${table.redeliveryAppliedAt} is null)`,
+    ),
+    check(
+      'trip_occurrence_cases_decision_check',
+      sql`(${table.decisionKind} is null) = (${table.decidedAt} is null)`,
+    ),
+    check(
+      'trip_occurrence_cases_decision_kind_check',
+      sql`${table.decisionKind} is null or ${table.decisionKind} in (${raw(inList(TRIP_OCCURRENCE_CASE_DECISION_KINDS))})`,
+    ),
+    /** `decided`/`closed` sem `decision_kind` é tratativa fechada sem motivo registrado. */
+    check(
+      'trip_occurrence_cases_decided_status_check',
+      sql`${table.status} not in ('decided','closed') or ${table.decisionKind} is not null`,
+    ),
+    /** O inverso: decisão gravada exige que o status já reflita isso. */
+    check(
+      'trip_occurrence_cases_decision_status_check',
+      sql`${table.decisionKind} is null or ${table.status} in ('decided','closed')`,
+    ),
+    check(
+      'trip_occurrence_cases_decided_by_check',
+      sql`(${table.decidedAt} is null) = (${table.decidedByUserId} is null)`,
+    ),
+    check(
+      'trip_occurrence_cases_decision_note_check',
+      sql`${table.decisionKind} <> 'other' or length(btrim(${table.decisionNote})) > 0`,
+    ),
+    check(
+      'trip_occurrence_cases_resolved_check',
+      sql`(${table.status} in ('closed','returned_to_warehouse','cancelled')) = (${table.resolvedAt} is not null)`,
+    ),
+    /**
+     * O feed lê por empresa e estado; nenhuma consulta da spec pagina por `updated_at` — o cursor do
+     * feed de ocorrências é `(created_at, id)` da própria ocorrência (correção do `architect`, que
+     * derrubou o índice original com `updated_at desc`).
+     */
+    index('trip_occurrence_cases_company_status_idx').on(table.companyId, table.status),
+  ],
+)
+
+/**
+ * Spec 164 T1: histórico append-only da tratativa — escritor único
+ * (`drizzle-occurrence-case.repository.ts`, T4), evento só quando o status muda de verdade. Molde de
+ * `trip_status_events` (ADR-0068).
+ *
+ * ⚠️ **Leva FK direta para `companies`** — ao contrário de `delivery_charge_events`, que é a exceção
+ * sem essa FK (histórico de cobrança herdado, fora do módulo `trip`). Todo módulo `trip` sempre tem a
+ * FK para `companies`; esta tabela segue a regra do módulo, não a exceção do outro módulo.
+ */
+export const tripOccurrenceCaseEvents = pgTable(
+  'trip_occurrence_case_events',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    caseId: uuid('case_id').notNull(),
+    /** Nulo é a abertura — a primeira linha da tratativa não tem "de onde veio". */
+    fromStatus: text('from_status').$type<TripOccurrenceCaseStatus>(),
+    toStatus: text('to_status').notNull().$type<TripOccurrenceCaseStatus>(),
+    actorKind: text('actor_kind').notNull().$type<TripOccurrenceCaseActorKind>(),
+    /**
+     * Spec 164 T9 (correção do `architect`, Fase 3): obrigatória para **os dois** atores — a
+     * decisão do contratante grava o `userId` da conta dele (RF14), e "só existe para ator
+     * interno" (redação original) mentia sobre o que a RF14 pede. Coluna de auditoria com
+     * comentário que mente é o pior modo de falha possível.
+     */
+    actorUserId: uuid('actor_user_id').notNull(),
+    note: text().notNull().default(''),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_occurrence_case_events_company_id_id_unique').on(table.companyId, table.id),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_occurrence_case_events_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.caseId],
+      foreignColumns: [tripOccurrenceCases.companyId, tripOccurrenceCases.id],
+      name: 'trip_occurrence_case_events_company_case_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    check(
+      'trip_occurrence_case_events_actor_kind_check',
+      sql`${table.actorKind} in (${raw(inList(TRIP_OCCURRENCE_CASE_ACTOR_KINDS))})`,
+    ),
+    check(
+      'trip_occurrence_case_events_from_status_check',
+      sql`${table.fromStatus} is null or ${table.fromStatus} in (${raw(inList(TRIP_OCCURRENCE_CASE_STATUSES))})`,
+    ),
+    check(
+      'trip_occurrence_case_events_to_status_check',
+      sql`${table.toStatus} in (${raw(inList(TRIP_OCCURRENCE_CASE_STATUSES))})`,
+    ),
+    check(
+      'trip_occurrence_case_events_transition_check',
+      sql`${table.fromStatus} is null or ${table.fromStatus} <> ${table.toStatus}`,
+    ),
+    /** `closed`, `returned_to_warehouse` e `cancelled` são terminais — nenhum evento parte deles de novo. */
+    check(
+      'trip_occurrence_case_events_terminal_check',
+      sql`${table.fromStatus} is null or ${table.fromStatus} not in ('closed','returned_to_warehouse','cancelled')`,
+    ),
+    /** Uma abertura por tratativa — uma segunda linha com `from_status` nulo é escritor duplicado. */
+    uniqueIndex('trip_occurrence_case_events_opening_unique')
+      .on(table.companyId, table.caseId)
+      .where(sql`${table.fromStatus} is null`),
+    check(
+      'trip_occurrence_case_events_warehouse_note_check',
+      sql`${table.toStatus} <> 'returned_to_warehouse' or length(btrim(${table.note})) > 0`,
+    ),
+    /** Decisão do usuário na T2: cancelar exige motivo — ocorrência aberta por engano se explica. */
+    check(
+      'trip_occurrence_case_events_cancel_note_check',
+      sql`${table.toStatus} <> 'cancelled' or length(btrim(${table.note})) > 0`,
+    ),
+    /** A linha do tempo lê por tratativa, ordenada — sem este índice ela varre a tabela inteira. */
+    index('trip_occurrence_case_events_company_case_occurred_at_idx').on(
+      table.companyId,
+      table.caseId,
+      table.occurredAt,
+      table.id,
+    ),
+  ],
+)
+
+/**
+ * Spec 164 T16 (RF22, movida da T1 pela revisão do `architect`): o acerto por item de uma tratativa
+ * decidida `goods_paid`. Chaveia pela **tratativa** (`case_id`), não pela ocorrência — o acerto não
+ * existe sem decisão, e a T17 lê esta tabela para somar a cobrança que alimenta `delivery_charges`.
+ *
+ * ⚠️ **Sem FK composta para `trip_document_occurrence_products`** (tentação recusada, mesma razão de
+ * `trip_occurrence_cases`): a ocorrência antiga e a do WhatsApp gravam só `product_code` solto, e a
+ * nota inteira grava `''` — nenhuma chave composta serve às três formas.
+ *
+ * `product_code = ''` é a linha da **nota inteira** (avaria total), e precisa ser aceita — um
+ * validador que exigisse casar contra a tabela de itens recusaria o caso mais comum.
+ */
+export const tripOccurrenceItemSettlements = pgTable(
+  'trip_occurrence_item_settlements',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    caseId: uuid('case_id').notNull(),
+    productCode: text('product_code').notNull().default(''),
+    amount: numeric({ precision: 14, scale: 4 }).notNull(),
+    amountSource: text('amount_source').notNull().$type<TripOccurrenceSettlementAmountSource>(),
+    payerKind: text('payer_kind').notNull().$type<TripOccurrenceSettlementPayerKind>(),
+    /** Só preenchido quando `payerKind = 'driver'` — ver o CHECK de par abaixo. */
+    payerId: uuid('payer_id'),
+    reimbursedAt: timestamp('reimbursed_at', { withTimezone: true }),
+    reimbursedByUserId: uuid('reimbursed_by_user_id'),
+    recordedByUserId: uuid('recorded_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_occurrence_item_settlements_company_id_id_unique').on(table.companyId, table.id),
+    /** Um acerto por item da ocorrência — substituir a lista é `delete` + `insert`, nunca duplicar. */
+    unique('trip_occurrence_item_settlements_company_case_product_unique').on(
+      table.companyId,
+      table.caseId,
+      table.productCode,
+    ),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_occurrence_item_settlements_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.caseId],
+      foreignColumns: [tripOccurrenceCases.companyId, tripOccurrenceCases.id],
+      name: 'trip_occurrence_item_settlements_company_case_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.payerId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'trip_occurrence_item_settlements_company_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /**
+     * Spec 156 T15 (achado repetido): FK sem índice faz renumerar/apagar motorista varrer a tabela.
+     * Parcial: só `driver` preenche a coluna.
+     */
+    index('trip_occurrence_item_settlements_company_driver_idx')
+      .on(table.companyId, table.payerId)
+      .where(sql`${table.payerId} is not null`),
+    check(
+      'trip_occurrence_item_settlements_amount_source_check',
+      sql`${table.amountSource} in (${raw(inList(TRIP_OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES))})`,
+    ),
+    check(
+      'trip_occurrence_item_settlements_payer_kind_check',
+      sql`${table.payerKind} in (${raw(inList(TRIP_OCCURRENCE_SETTLEMENT_PAYER_KINDS))})`,
+    ),
+    /** Só `driver` tem cadastro nesta tabela — `payer_id` é o par exato dele. */
+    check(
+      'trip_occurrence_item_settlements_payer_id_check',
+      sql`(${table.payerKind} = 'driver') = (${table.payerId} is not null)`,
+    ),
+    /** `carrier` é a própria transportadora — ela não se ressarce de si mesma. */
+    check(
+      'trip_occurrence_item_settlements_reimbursement_check',
+      sql`${table.payerKind} <> 'carrier' or ${table.reimbursedAt} is null`,
+    ),
+    check(
+      'trip_occurrence_item_settlements_reimbursed_by_check',
+      sql`(${table.reimbursedAt} is null) = (${table.reimbursedByUserId} is null)`,
+    ),
+    /** Dinheiro é `Decimal`: zero ou negativo é lançamento que ninguém precisava fazer. */
+    check('trip_occurrence_item_settlements_amount_check', sql`${table.amount} > 0`),
   ],
 )

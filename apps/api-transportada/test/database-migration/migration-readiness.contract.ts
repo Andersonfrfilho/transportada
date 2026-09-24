@@ -40,6 +40,51 @@ describe('Prontidão de migrations', () => {
     expect(pending).toEqual([])
   })
 
+  test('pendente no meio da lista local também é pendência, preservando a ordem local', () => {
+    const pending = listPendingMigrations({
+      appliedNames: ['20260718224814_baseline', '20260806161903_cte_fiscal_number_advanced_event'],
+      shippedNames: [
+        '20260718224814_baseline',
+        '20260719025322_tenant_identity',
+        '20260806161903_cte_fiscal_number_advanced_event',
+      ],
+    })
+
+    expect(pending).toEqual(['20260719025322_tenant_identity'])
+  })
+
+  test('nada pendente quando o banco tem toda a lista local aplicada', () => {
+    const pending = listPendingMigrations({
+      appliedNames: ['20260718224814_baseline', '20260719025322_tenant_identity'],
+      shippedNames: ['20260718224814_baseline', '20260719025322_tenant_identity'],
+    })
+
+    expect(pending).toEqual([])
+  })
+
+  // Rebase e histórico antigo deixam nome no journal que não existe mais na pasta local — não é erro.
+  test('nome aplicado no banco sem correspondente local é ignorado', () => {
+    const pending = listPendingMigrations({
+      appliedNames: [
+        '20260718224814_baseline',
+        '20260719025322_tenant_identity',
+        '20260601000000_renomeada_no_rebase',
+      ],
+      shippedNames: ['20260718224814_baseline', '20260719025322_tenant_identity'],
+    })
+
+    expect(pending).toEqual([])
+  })
+
+  test('lista local vazia não acusa pendência', () => {
+    const pending = listPendingMigrations({
+      appliedNames: ['20260718224814_baseline'],
+      shippedNames: [],
+    })
+
+    expect(pending).toEqual([])
+  })
+
   test('readiness fica degradada enquanto houver migration pendente', async () => {
     const health = createHealthService({ migrationStatus: pendingMigrations(6) })
 

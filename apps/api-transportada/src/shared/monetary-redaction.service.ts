@@ -102,14 +102,15 @@ export function redactNfeDocumentMoney<
   return omitFields(input.document, ['freightAmount', 'totalAmount'] as const)
 }
 
+/** Spec 176: `freightRuleName` fica — é regra aplicada, não valor; só `freightAmount` é dinheiro. */
 export function redactTripDocumentMoney<
-  TDocument extends Readonly<{ nfeTotalValue: unknown }>,
+  TDocument extends Readonly<{ freightAmount: unknown; nfeTotalValue: unknown }>,
 >(input: {
   readonly canReadFinancials: boolean
   readonly document: TDocument
-}): Omit<TDocument, 'nfeTotalValue'> | TDocument {
+}): Omit<TDocument, 'freightAmount' | 'nfeTotalValue'> | TDocument {
   if (input.canReadFinancials) return input.document
-  return omitFields(input.document, ['nfeTotalValue'] as const)
+  return omitFields(input.document, ['freightAmount', 'nfeTotalValue'] as const)
 }
 
 /** Spec 156 L6: `amounts` da listagem de viagens é receita e soma das notas — dinheiro inteiro. */

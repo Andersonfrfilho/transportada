@@ -58,7 +58,29 @@ export type TripDocumentContract = Readonly<{
 }>
 
 export type TripDocumentDetailContract = TripDocumentContract &
-  Readonly<{ cteAuthorized: boolean; fiscalStatus: string }>
+  Readonly<{
+    cteAuthorized: boolean
+    fiscalStatus: string
+    /**
+     * Spec 181 (helper de smoke da T502): os mesmos campos opcionais do `TripDocumentDetail` do
+     * app (`trip.types.ts`) — nenhum é novo no domínio, só faltava aqui porque nenhum dublê antes
+     * desta spec precisava montar uma nota com contato, frete ou tratativa de ocorrência.
+     */
+    contact?: Readonly<{
+      contractorName: null | string
+      name: string
+      phone: null | string
+      taxId: string
+    }> | null
+    freightAmount?: null | string
+    freightRuleName?: null | string
+    freightSource?: 'estimated' | 'measured' | 'missing'
+    nfeIssuedAt?: null | string
+    nfeNumber?: null | string
+    nfeSeries?: null | string
+    nfeTotalValue?: null | string
+    openOccurrenceCase?: boolean
+  }>
 
 export type TripStopDetailContract = Readonly<{
   addressKey: string
@@ -67,6 +89,8 @@ export type TripStopDetailContract = Readonly<{
   deliveryWindowEnd: null | string
   deliveryWindowStart: null | string
   documents: readonly TripDocumentDetailContract[]
+  /** Spec 181 (T502): mesmo campo opcional do `TripStopDetail` do app — alguma nota tem tratativa aberta. */
+  hasOpenOccurrence?: boolean
   id: string
   label: string
   sequence: number
@@ -88,6 +112,10 @@ export type TripDetailContract = TripContract &
     /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
     estimatedArrivalFrozenAt: null | string
     estimatedFinishAt: null | string
+    /** Spec 156 T8d: os três nascem juntos, só do encerramento manual pelo botão. */
+    closeReason: null | string
+    closedAt: null | string
+    closedByName: null | string
     drivers: readonly Readonly<{
       /** Contato nasce opcional (spec 078 D2): API anterior serve o motorista sem ele. */
       driverEmail?: string
@@ -184,6 +212,10 @@ export const TRIP_DOCUMENT_DETAIL = {
 export const TRIP_DETAIL = {
   ...TRIP,
   amounts: null,
+  /** Spec 156 T8d: `null` nos três — a viagem da fixture nunca foi encerrada à mão. */
+  closeReason: null,
+  closedAt: null,
+  closedByName: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   drivers: [
     {

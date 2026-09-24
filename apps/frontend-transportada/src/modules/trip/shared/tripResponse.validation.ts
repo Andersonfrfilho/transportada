@@ -6,6 +6,9 @@ import type {
   FieldOccurrenceType,
   RegisteredOccurrence,
   TripDocumentProduct,
+  OccurrenceCancellation,
+  OccurrenceCorrection,
+  OccurrenceProduct,
   TripOccurrence,
   TripCargoLayout,
   TripCargoLayoutPoll,
@@ -53,6 +56,7 @@ import {
   TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
   TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS,
+  TRIP_DOCUMENT_FREIGHT_SOURCES,
   TRIP_DOCUMENT_KEYS,
   TRIP_DRIVER_KEYS,
   TRIP_DRIVER_OPTIONAL_KEYS,
@@ -75,6 +79,7 @@ import {
   TRIP_TIMELINE_STOP_REFERENCE_KEYS,
   TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
+  TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -121,6 +126,7 @@ import {
   isBoolean,
   isEveryItem,
   isNullableString,
+  isOccurrenceAttachment,
   isOneOf,
   isRecord,
   isString,
@@ -316,7 +322,18 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
   ) {
     return false
   }
-  return isDocumentFields(value) && isBoolean(value.cteAuthorized) && isString(value.fiscalStatus)
+  return (
+    isDocumentFields(value) &&
+    isBoolean(value.cteAuthorized) &&
+    isString(value.fiscalStatus) &&
+    /** Spec 164 T15: ausente é API anterior ao marcador; presente tem de ser booleano. */
+    (value.openOccurrenceCase === undefined || isBoolean(value.openOccurrenceCase)) &&
+    /** Spec 176: ausente é API anterior à feature; presente segue a mesma regra de dinheiro/rótulo. */
+    isAbsentOrNullableString(value.freightAmount) &&
+    isAbsentOrNullableString(value.freightRuleName) &&
+    (value.freightSource === undefined ||
+      isOneOf(value.freightSource, TRIP_DOCUMENT_FREIGHT_SOURCES))
+  )
 }
 
 function isStopDetail(value: unknown): value is TripStopDetail {
@@ -337,7 +354,8 @@ function isStopDetail(value: unknown): value is TripStopDetail {
     isEveryItem(value.documents, isDocumentDetail) &&
     isString(value.id) &&
     isString(value.label) &&
-    isUnsignedInteger(value.sequence)
+    isUnsignedInteger(value.sequence) &&
+    (value.hasOpenOccurrence === undefined || isBoolean(value.hasOpenOccurrence))
   )
 }
 
@@ -353,6 +371,10 @@ function isDetail(value: unknown): value is TripDetail {
   return (
     isTripFields(value) &&
     isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts) &&
+    /** Spec 156 T8d: opcional (spec 078 D2), mas presente com tipo errado continua reprovando. */
+    isAbsentOrNullableString((value as { closeReason?: unknown }).closeReason) &&
+    isAbsentOrNullableString((value as { closedAt?: unknown }).closedAt) &&
+    isAbsentOrNullableString((value as { closedByName?: unknown }).closedByName) &&
     ((value as { cargoLayoutId?: unknown }).cargoLayoutId === undefined ||
       isNullableString((value as { cargoLayoutId?: unknown }).cargoLayoutId)) &&
     isEveryItem(value.documents, isDocumentDetail) &&
@@ -474,9 +496,11 @@ function isScannedDocument(value: unknown): value is ScannedNfeDocument {
   )
 }
 
-/** Documento fora do par conhecido vira `null`: é o mesmo que "não se decidiu", e não um chute. */
-function readExpectedDocument(value: unknown): 'cte' | 'nfse' | null {
-  return value === 'cte' || value === 'nfse' ? value : null
+const EXPECTED_DOCUMENTS = ['blocked', 'cte', 'nfse', 'no_profile'] as const
+
+/** Documento fora do vocabulário vira `null`: é o mesmo que "não se decidiu", e não um chute. */
+function readExpectedDocument(value: unknown): TripDocumentReadiness['expectedDocument'] {
+  return isOneOf(value, EXPECTED_DOCUMENTS) ? value : null
 }
 
 function toDocumentReadiness(value: unknown): TripDocumentReadiness {
@@ -493,6 +517,7 @@ function toDocumentReadiness(value: unknown): TripDocumentReadiness {
     cteFiscalDocumentId: isString(value.cteFiscalDocumentId) ? value.cteFiscalDocumentId : null,
     expectedDocument: readExpectedDocument(value.expectedDocument),
     nfeDocumentId: isString(value.nfeDocumentId) ? value.nfeDocumentId : null,
+    nfseProfileId: isString(value.nfseProfileId) ? value.nfseProfileId : null,
     reason: value.reason,
     rejectionCode: isString(value.rejectionCode) ? value.rejectionCode : null,
     rejectionMessage: isString(value.rejectionMessage) ? value.rejectionMessage : null,
@@ -813,14 +838,14 @@ export function createTripResponseAdapters() {
     },
     occurrenceTypesFromApi(input: unknown): readonly OccurrenceType[] {
       if (!Array.isArray(input) || !input.every(isOccurrenceType)) throw invalid()
-      return input
+      return input.map(toOccurrenceType)
     },
     occurrenceTypeFromApi(input: unknown): OccurrenceType {
       if (!isOccurrenceType(input)) throw invalid()
-      return input
+      return toOccurrenceType(input)
     },
     occurrencesFromApi(input: unknown): readonly TripOccurrence[] {
-      if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
+      if (!Array.isArray(input) || !input.every(isTripOccurrence)) throw invalid()
       return input
     },
     /** Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`. */
@@ -863,12 +888,29 @@ export function createTripResponseAdapters() {
      */
     registeredOccurrenceFromApi(input: unknown): RegisteredOccurrence {
       if (!isRecord(input)) throw invalid()
-      const { email, ...occurrence } = input
-      if (!isOccurrence(occurrence)) throw invalid()
+      const { attachments, email, ...occurrence } = input
+      if (!isTripOccurrence(occurrence)) throw invalid()
+      if (
+        attachments !== undefined &&
+        !(Array.isArray(attachments) && attachments.every(isOccurrenceAttachmentPosition))
+      ) {
+        throw invalid()
+      }
       if (email !== null && !(isRecord(email) && isString(email.body) && isString(email.subject))) {
         throw invalid()
       }
-      return { ...occurrence, email: email as RegisteredOccurrence['email'] }
+      return {
+        ...occurrence,
+        attachments: attachments ?? [],
+        email: email as RegisteredOccurrence['email'],
+      }
+    },
+    /** Spec 161 T7/T22: `POST .../occurrences/:occurrenceId/attachments` — `{ id, position }`. */
+    occurrenceAttachmentPositionFromApi(
+      input: unknown,
+    ): Readonly<{ id: string; position: number }> {
+      if (!isOccurrenceAttachmentPosition(input)) throw invalid()
+      return input
     },
     documentProductsFromApi(input: unknown): readonly TripDocumentProduct[] {
       if (!Array.isArray(input) || !input.every(isDocumentProduct)) throw invalid()
@@ -958,10 +1000,13 @@ function isPendingMeasurement(value: unknown): value is TripPendingMeasurement {
     isUnsignedInteger(value.boxCount) &&
     isNullableString(value.documentNumber) &&
     isOneOf(value.estimateSource, CARGO_ESTIMATE_SOURCES) &&
+    isNullableNumber(value.grossWeightGrams) &&
     isNullableString(value.label) &&
+    isNullableString(value.packageBoxId) &&
     isNullableString(value.productCode) &&
     isUnsignedInteger(value.sequence) &&
-    isString(value.stopLabel)
+    isString(value.stopLabel) &&
+    isNullableNumber(value.unitsPerBox)
   )
 }
 
@@ -1048,7 +1093,48 @@ function isDocumentProduct(value: unknown): value is TripDocumentProduct {
   )
 }
 
-function isOccurrence(value: unknown): value is TripOccurrence {
+/** Exportada para o contrato: a guarda é de chave exata, e campo novo é mudança de contrato. */
+/**
+ * Spec 166 RF1/RF6. Spec 172 RF1: a unidade deixou de ser fechada em `unit`/`box` — passa a
+ * aceitar também a unidade comercial da nota (`KG`, `L`, `CX`...), string livre validada pela API,
+ * não por uma lista fixa aqui. Item torto continua recusando a resposta, como qualquer outra forma
+ * inesperada — só o valor de `unit` deixou de ser enumerado.
+ */
+function isOccurrenceProduct(value: unknown): value is OccurrenceProduct {
+  return (
+    hasExactKeys(value, ['code', 'quantity', 'unit'] as const) &&
+    isString(value.code) &&
+    (value.quantity === null || isString(value.quantity)) &&
+    (value.unit === null || isString(value.unit)) &&
+    /** Os dois andam juntos, como no banco — meia contagem não chega à tela. */
+    (value.quantity === null) === (value.unit === null)
+  )
+}
+
+/**
+ * Spec 167 RF9: a correção sem o conjunto anterior chegaria à tela como histórico vazio — pior que
+ * histórico ausente, porque parece que ninguém mexeu na ocorrência.
+ */
+function isOccurrenceCorrection(value: unknown): value is OccurrenceCorrection {
+  return (
+    hasExactKeys(value, ['correctedAt', 'correctedByName', 'previousItems'] as const) &&
+    isString(value.correctedAt) &&
+    isString(value.correctedByName) &&
+    isEveryItem(value.previousItems, isOccurrenceProduct)
+  )
+}
+
+/** O motivo é o que justifica o cancelamento: cancelamento sem ele não chega à tela. */
+function isOccurrenceCancellation(value: unknown): value is OccurrenceCancellation {
+  return (
+    hasExactKeys(value, ['cancelledAt', 'cancelledByName', 'reason'] as const) &&
+    isString(value.cancelledAt) &&
+    isString(value.cancelledByName) &&
+    isString(value.reason)
+  )
+}
+
+export function isTripOccurrence(value: unknown): value is TripOccurrence {
   if (
     !hasKeys(value, {
       allowed: [...TRIP_OCCURRENCE_KEYS, ...TRIP_OCCURRENCE_OPTIONAL_KEYS],
@@ -1059,6 +1145,8 @@ function isOccurrence(value: unknown): value is TripOccurrence {
   }
   return (
     (value.actorName === undefined || isNullableString(value.actorName)) &&
+    (value.attachments === undefined ||
+      (Array.isArray(value.attachments) && value.attachments.every(isOccurrenceAttachment))) &&
     (value.channel === undefined || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isString(value.createdAt) &&
     isString(value.id) &&
@@ -1066,8 +1154,26 @@ function isOccurrence(value: unknown): value is TripOccurrence {
     (value.onBehalfOfDriverName === undefined || isNullableString(value.onBehalfOfDriverName)) &&
     isString(value.occurrenceTypeId) &&
     isString(value.productCode) &&
+    (value.productCodes === undefined || isEveryItem(value.productCodes, isString)) &&
+    (value.products === undefined || isEveryItem(value.products, isOccurrenceProduct)) &&
+    (value.corrections === undefined || isEveryItem(value.corrections, isOccurrenceCorrection)) &&
+    (value.cancellation === undefined ||
+      value.cancellation === null ||
+      isOccurrenceCancellation(value.cancellation)) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
     isString(value.typeName)
+  )
+}
+
+/** Spec 161 T6/T22: `{ id, position }` de uma foto gravada — sem URL (D5), resposta estreita da
+ * rota de anexo (RF6), diferente do formato completo de leitura (RF8, `isOccurrenceAttachment`). */
+function isOccurrenceAttachmentPosition(
+  value: unknown,
+): value is Readonly<{ id: string; position: number }> {
+  return (
+    hasExactKeys(value, ['id', 'position'] as const) &&
+    isString(value.id) &&
+    typeof value.position === 'number'
   )
 }
 
@@ -1095,10 +1201,21 @@ function isTimelineDocumentReference(value: unknown): value is TripTimelineDocum
 }
 
 function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOccurrenceReference {
+  if (
+    !hasKeys(value, {
+      allowed: [
+        ...TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
+        ...TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS,
+      ],
+      required: TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
-    hasExactKeys(value, TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS) &&
     isString(value.note) &&
-    isString(value.typeName)
+    isString(value.typeName) &&
+    (value.attachmentCount === undefined || isUnsignedInteger(value.attachmentCount))
   )
 }
 
@@ -1112,6 +1229,7 @@ function isTimelineItem(value: unknown): value is TripTimelineItem {
   return (
     isNullableString(value.actorName) &&
     (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
+    isNullableString(value.closeReason) &&
     (value.document === null || isTimelineDocumentReference(value.document)) &&
     isNullableString(value.fromStatus) &&
     isString(value.id) &&
@@ -1259,29 +1377,75 @@ function isNullableNumber(value: unknown): value is null | number {
   return value === null || (typeof value === 'number' && Number.isFinite(value))
 }
 
-function isOccurrenceType(value: unknown): value is OccurrenceType {
+const OCCURRENCE_TYPE_REQUIRED_KEYS = [
+  'active',
+  'emailBody',
+  'emailSubject',
+  'emailTemplateKey',
+  'id',
+  'name',
+  'notifies',
+  'stage',
+] as const
+
+/**
+ * Spec 166/164: `allowsMultipleItems` e `redeliveryPolicy` nasceram depois do tipo — API anterior
+ * ao marcador não os manda. Exigi-los em `hasExactKeys` derrubaria o catálogo inteiro e a consulta
+ * de tipos que alimenta o diálogo de registro (achado B7 da revisão). Ausente degrada para o
+ * padrão de hoje, em `toOccurrenceType`; presente continua validado como antes.
+ */
+type RawOccurrenceType = Omit<OccurrenceType, 'allowsMultipleItems' | 'redeliveryPolicy'> &
+  Readonly<{ allowsMultipleItems?: unknown; attachmentMode?: unknown; redeliveryPolicy?: unknown }>
+
+function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
-    !hasExactKeys(value, [
-      'active',
-      'emailBody',
-      'emailSubject',
-      'emailTemplateKey',
-      'id',
-      'name',
-      'notifies',
-      'stage',
-    ] as const)
+    !hasKeys(value, {
+      /**
+       * Spec 179: `attachmentMode` já sai da API (`/company-settings/occurrence-types`) e o editor
+       * ainda não o consome. Sem ele aqui, o guard de chave exata reprova a resposta inteira e a aba
+       * de tipos de ocorrência para de carregar — frontend tolerante primeiro, como a spec 180 RF8
+       * exige e esta spec esqueceu.
+       */
+      allowed: [
+        ...OCCURRENCE_TYPE_REQUIRED_KEYS,
+        'allowsMultipleItems',
+        'attachmentMode',
+        'redeliveryPolicy',
+      ],
+      required: OCCURRENCE_TYPE_REQUIRED_KEYS,
+    })
   ) {
     return false
   }
   return (
     isBoolean(value.active) &&
+    (value.allowsMultipleItems === undefined || isBoolean(value.allowsMultipleItems)) &&
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     isString(value.id) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
+    (value.redeliveryPolicy === undefined ||
+      value.redeliveryPolicy === 'unset' ||
+      value.redeliveryPolicy === 'allowed' ||
+      value.redeliveryPolicy === 'blocked') &&
     (value.stage === 'delivery' || value.stage === 'separation')
   )
+}
+
+/** Achado B7: `allowsMultipleItems` nasce `true` (comportamento de hoje) e `redeliveryPolicy`
+ * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`. */
+function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
+  const { allowsMultipleItems, redeliveryPolicy, ...rest } = raw
+  return {
+    ...rest,
+    allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
+    redeliveryPolicy:
+      redeliveryPolicy === 'allowed' ||
+      redeliveryPolicy === 'blocked' ||
+      redeliveryPolicy === 'unset'
+        ? redeliveryPolicy
+        : 'unset',
+  }
 }

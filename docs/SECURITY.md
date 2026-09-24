@@ -5,6 +5,122 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+**Onde:** `api-transportada`, `contractor-portal/presentation/contractor-occurrence.routes.ts`
+(`GET /client/me/occurrences`, `POST /client/me/occurrences/:id/decision`); `identity/domain/
+authorization.policy.ts` (`occurrences.decide` no papel `contractor`, `occurrences.resolve` em
+`company-admin`/`operator`/`finance`); `delivery-clients/application/occurrence-statement.use-case.ts`
+
+- `presentation/occurrence-statement.routes.ts` (`GET /extra-charge-batches/:id/statement`).
+
+**O que é:** três coisas novas no mesmo pacote de risco de sempre — superfície pública que decide
+dinheiro/logística, permissão nova cujo escopo precisa ser revisitado quando o produto crescer, e um
+artefato com dado pessoal que sai do controle do sistema assim que é baixado.
+
+1. **Superfície externa nova.** O portal ganha uma segunda decisão do contratante (a primeira é
+   `charges.decide`, spec 060): autorizar reentrega, marcar pagamento de produto ou registrar outra
+   solução, com nota livre de até 2000 caracteres. A rota lê o escopo da conta (`ContractorScope`,
+   ADR-0050 §4) e a listagem é `inner join` com `trip_occurrence_cases` filtrando por status
+   (`test/*-schema/tenant-safety.contract.ts` cobre o vazamento cruzado); o risco que fica é o mesmo
+   de toda superfície do portal — texto livre do contratante grava direto em `decision_note`, sem
+   sanitização de HTML/script, porque hoje ele só é lido de volta pela transportadora numa tela
+   interna (nunca renderizado para outro contratante). Se um dia esse texto for exibido a um terceiro,
+   sanitizar antes.
+2. **Duas permissões novas.** `occurrences.decide` (só no papel `contractor`, nunca em papel interno —
+   D6) e `occurrences.resolve` (`company-admin`, `operator`, `finance`; nunca `separator`, que registra
+   a própria ocorrência — D7, autoaprovação seria o mesmo modo de falha que a ADR-0067 fechou).
+   `test/separator-role.contract.test.ts` reprova se alguma rota de `occurrences.resolve` aparecer
+   como alcançável pelo separador. Nenhuma das duas herda de permissão existente — revisar de novo
+   quando o catálogo de papéis mudar.
+3. **A evidência sai em PDF e fica com quem baixou.** `GET /extra-charge-batches/:id/statement`
+   (`trip.financials`) devolve o demonstrativo com as fotos da ocorrência embutidas — depois do
+   download, o arquivo está fora do alcance do expurgo e de qualquer controle de acesso do produto.
+   O artefato em si é imutável e gerado uma vez (D14), mas **quem baixa vira dono de uma cópia sem
+   prazo de descarte**, exatamente como qualquer PDF de fatura hoje. Sem controle novo além do que já
+   existe para `invoice-pdf.gateway.ts`.
+
+**Segundo motivo da retenção de cinco anos (spec 161 D9, ampliado pela D15 desta spec):** a foto da
+ocorrência deixou de ser só guarda fiscal e janela de rediscussão — agora é **anexo de uma cobrança**
+(`delivery_charges.origin = 'occurrence'`). Enquanto o demonstrativo daquele período for contestável,
+a imagem que o sustenta precisa sobreviver ao mesmo prazo que a cobrança. Os cinco anos continuam
+cobrindo os dois motivos ao mesmo tempo — não há prazo próprio da cobrança correndo em paralelo — e o
+expurgo do worker segue apagando de verdade ao fim da janela; a leitura do demonstrativo já sai com o
+selo "foto expirada (retenção de 5 anos)" para a foto vencida, nunca com imagem quebrada nem
+escondendo a cobrança (`occurrence-statement-layout.policy.ts`, `resolveEvidence`).
+
+**Nenhum log carrega PII dos caminhos novos:** `grep -rn "logger\.\|console\." $(git diff
+main...HEAD --name-only -- 'src/**occurrence*' 'src/delivery-clients/**')` não bate em nenhum dos 77
+arquivos tocados pela spec — a rota, os casos de uso e os repositórios não logam nota, observação,
+nome de produto nem dado de motorista; erros de domínio (`occurrence-charge.policy.ts`,
+`occurrence-settlement.policy.ts` etc.) também não embutem esses campos na `message` do `ApiError`
+(mesma varredura, filtrando por `note|observ|driver|motorista|product|payer` em `message:`, zero
+resultado). O que chega ao `http_request_failed` é código e status, nunca o texto do contratante nem
+o valor do acerto.
+
+**Origem:** spec 164, T29 (revisão final da Fase 7). Registrado em 2026-09-22.
+
+### 2026-09-22 — foto de ocorrência vinda do WhatsApp entra sem reencode: EXIF/GPS preservado e sem miniatura (spec 161, risco aceito)
+
+**Onde:** `api-transportada`, `whatsapp-commands` (T13, `registerOccurrence` em `src/main.ts`), que
+chama `persistSeparationOccurrenceWithAttachment` com o **arquivo bruto** baixado da Meta; a mesma
+rota, pelo canal web (T21–T22), reencoda no navegador antes de subir (`occurrencePhotoImage.service.ts`
+— ≤ 1600 px / ≤ 400 KB, sem EXIF, com miniatura).
+
+**O que é (risco aceito):** a foto anexada pelo operador no canal web tem EXIF removido e miniatura
+gerada no cliente, mas a foto que chega pelo WhatsApp é o `mediaBytes` que a Meta entrega, sem
+nenhum reprocessamento no servidor — grava com `purpose = trip_occurrence_attachment` e **sem**
+`thumbnail_object_id` (D14). Dois efeitos: (1) metadado EXIF do aparelho do operador — que pode
+incluir GPS, data/hora e modelo do aparelho — é preservado e servido junto com a foto por quem tiver
+acesso ao presigned URL; (2) sem miniatura, as três telas (painel da nota, detalhe da ocorrência,
+feed) caem para o original em resolução cheia, pesando mais a listagem.
+
+**Por que foi aceito assim:** reencodar/stripar EXIF e gerar miniatura no servidor exigiria uma
+biblioteca de imagem nativa (`sharp` é a referência) — binário nativo por plataforma (risco de
+compatibilidade com Bun), superfície de CVE de decodificador de imagem exposta a arquivo de origem
+externa (a Meta, não o operador autenticado), e custo de CPU no caminho de um webhook que já processa
+mídia de terceiro. O produto optou por não acrescentar essa dependência nesta spec; o caminho do
+canal web (reencode no navegador, de quem já está autenticado e no dispositivo) cobre o caso mais
+comum.
+
+**O que limita o estrago:** o bucket é privado, presigned URL de 5 minutos (`security.md` §7); só
+quem tem `trip.manage`/`trip.report-on-behalf`/o próprio motorista vê a ocorrência. O expurgo de
+cinco anos (achado acima) se aplica igual às duas origens.
+
+**O que falta:** se o volume de uso do canal WhatsApp crescer, revisitar com `sharp` (ou equivalente
+sem binário nativo) atrás de um sandbox/timeout, ou mover o reencode para um passo assíncrono no
+worker em vez do caminho síncrono do webhook.
+
+**Origem:** spec 161, T13 e revisão de arquitetura da Fase 5 (`opus`, ajuste 6). Registrado em
+2026-09-22.
+
+### 2026-09-22 — retenção de cinco anos da foto de ocorrência de separação: rotina existe, prova ponta-a-ponta pendente (spec 161)
+
+**Onde:** `api-transportada`, `trips/domain/occurrence-attachment.policy.ts`
+(`OCCURRENCE_ATTACHMENT_RETENTION_YEARS = 5`, `resolveOccurrenceAttachmentRetentionUntil`);
+`worker-transportada`, `trip-occurrence-attachment-purge/` (rotina `trip.occurrence-attachment.purge`,
+T17/T18).
+
+**Atualizado em 22/09/2026 (Fase 5, T17/T18): a rotina de expurgo passou a existir.** A varredura
+consultada pelo índice parcial `stored_objects_purpose_retention_idx` apaga bytes (original e
+miniatura, na mesma unidade de trabalho) e marca `stored_objects.status = 'deleted'`/`deleted_at` no
+mesmo `UPDATE`, além de remover a linha de `trip_document_occurrence_attachments`; objeto órfão
+(sem linha de anexo) é apagado e marcado sozinho. Registrada nas quatro apps
+(`job-catalog.constant.ts`) e agendada por `drizzle/20260922112706_trip_occurrence_attachment_purge_job`
+(`minimumIntervalSeconds: 86_400`). Prova: `test/trip-occurrence-attachment-purge.contract.test.ts`
+(17 casos — ordem das operações com portas falsas, órfão, convergência com objeto ausente, laço,
+teto de lotes, teto de falhas de storage seguidas).
+
+**O que continua aberto:** a T19 (integração contra Postgres + RabbitMQ + MinIO reais, via `make
+worker-integration`) não rodou — o Docker está fora do ar na máquina onde a Fase 5 foi implementada.
+É o único gate que prova que os bytes **de fato** saem do bucket; os testes de contrato substituem o
+storage por porta falsa. Até a T19 rodar contra infraestrutura real, o comportamento fim-a-fim segue
+não verificado, embora a lógica esteja coberta por contrato.
+
+**Dado pessoal guardado:** a foto da ocorrência (galpão) pode conter placa, rosto, documento ou
+qualquer coisa que apareça no enquadramento — dado pessoal guardado além da finalidade declarada
+(LGPD, art. 6º, minimização e necessidade) até o expurgo confirmado rodar contra o ambiente real.
+
+**Origem:** spec 161, revisão final (achado I6, 2026-09-22) e Fase 5 (T17/T18, 22/09/2026).
+
 ### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)
 
 **Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart
@@ -166,9 +282,14 @@ identificadores opacos (`tenants/<empresa>/delivery-proofs/<evento>/<objeto>`) e
 objeto sem linha que o referencie. O custo é armazenamento e retenção de imagem de canhoto (dado
 pessoal: assinatura e, às vezes, nome) além do necessário.
 
-**O que falta:** uma varredura periódica (cron) que liste os objetos de `delivery-proofs/` e de
-`trip-occurrence-attachments/` sem linha viva que os referencie há mais de N horas e os apague, com
-contagem no log. Até lá, a remoção depende da limpeza por requisição.
+**O que falta:** uma varredura periódica (cron) que liste os objetos de `delivery-proofs/` sem linha
+viva que os referencie há mais de N horas e os apague, com contagem no log. Até lá, a remoção
+depende da limpeza por requisição.
+
+**Fechado parcialmente em 22/09/2026 (spec 161, T17):** para `trip-occurrence-attachments/`, a
+rotina `trip.occurrence-attachment.purge` agora cobre o objeto órfão (sem linha em
+`trip_document_occurrence_attachments`) — mas só depois que `retention_until` vence (cinco anos), não
+logo após a transação desfazer. `delivery-proofs/` continua sem varredura nenhuma.
 
 **Origem:** revisão de código da spec 156 (T15). Registrado em 2026-09-18.
 
@@ -1169,6 +1290,55 @@ substitui o conjunto inteiro de atributos.
 cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
 ## Fechados
+
+### 2026-09-24 — objeto do upload de ocorrência sem dono no bucket, sem expurgo (spec 179)
+
+**Onde:** `api-transportada` (`shared/job-catalog.constant.ts`, migration
+`20260924033423_lumpy_scalphunter`); `worker-transportada`
+(`trip-occurrence-upload-expire/`); `cron-transportada` e
+`frontend-transportada/src/modules/shared/jobCatalog.constant.ts` (cópia do catálogo). Achado [3] da
+revisão de código de 23/09 do lote da spec 179, registrado aberto em 23/09, fechado em 24/09 com
+escopo ampliado para o worker.
+
+**O que era:** `TRIP_OCCURRENCE_UPLOAD_STATUSES` incluía `'expired'`, mas nada escrevia esse status e
+não havia varredura de `trip_occurrence_uploads` nem do objeto correspondente no bucket. Dois
+vazamentos, contra §1/§7 deste documento:
+
+1. Motorista pede a URL assinada, sobe a foto, perde sinal antes de chamar `confirm`: bytes ficavam
+   no bucket, a linha em `trip_occurrence_uploads` ficava `pending` para sempre, e **não existia**
+   `stored_objects` para essa foto — invisível para `trip.occurrence-attachment.purge` (spec 161
+   RF21), que só varre `stored_objects`.
+2. `confirm` roda e nunca é seguido do registro da ocorrência: `stored_objects` nasce com
+   `retentionUntil` de cinco anos e nenhuma `trip_document_occurrences` aponta para ele.
+
+**Corrigido (1):** nova rotina `trip.occurrence-upload.expire`
+(`worker-transportada/src/trip-occurrence-upload-expire/`), registrada em `JOB_CATALOG` nas quatro
+apps e agendada a cada `JOB_TICK_INTERVAL_SECONDS` (300s) via `job_schedules`
+(migration `20260924033423_lumpy_scalphunter`). A cada batida: acha `trip_occurrence_uploads`
+`pending` com `expires_at` vencido há mais de `TRIP_OCCURRENCE_UPLOAD_EXPIRE_GRACE_SECONDS` (900s —
+a folga soma aos 900s da própria URL, para relógio/latência entre API e worker nunca apagarem um
+objeto no instante em que um `confirm` legítimo ainda pode fechar `pending → confirmed`); trava a
+linha com `for update skip locked` reconferindo `status = 'pending'` no momento do lock (perde a
+corrida para um `confirm` concorrente com naturalidade); apaga o objeto do bucket **antes** de marcar
+`expired` — a exclusão é idempotente do lado do storage (S3/MinIO aceitam apagar uma chave que já não
+existe, cobrindo o caso do motorista que nunca chegou a subir nada), então rodar de novo sobre a
+mesma linha nunca falha por "objeto já removido". Prova contra Postgres e MinIO reais em
+`worker-transportada/test/integration/trip-occurrence-upload-expire.integration.ts`: o pendente
+vencido (com e sem objeto de fato subido) vira `expired` e o objeto some do bucket; o pendente dentro
+da janela continua intocado; o segundo ciclo não encontra mais nada.
+
+**(2) já estava coberto, sem código novo:** a linha `stored_objects` que o `confirm` grava
+(`drizzle-occurrence-upload.repository.ts`, achados [1]/[2] deste mesmo lote) usa
+`resolveOccurrenceAttachmentRetentionUntil`, a mesma função e o mesmo prazo de cinco anos que
+`trip.occurrence-attachment.purge` já aplica. Essa rotina resolve a unidade por
+`findAttachmentByObjectId` em `trip_document_occurrence_attachments` (o anexo múltiplo do escritório,
+spec 161) — a ocorrência do motorista (T203, spec 179) referencia o objeto por uma coluna diferente,
+`trip_document_occurrences.attachment_object_id`, que essa consulta não conhece. Um objeto confirmado
+por este caminho e nunca vinculado a uma ocorrência entra, portanto, no ramo "objeto órfão"
+(`purgeOrphanObject`) da rotina existente assim que os cinco anos de retenção vencerem — mesmo se a
+ocorrência **for** registrada depois, o objeto já legitimamente referenciado seria apagado só ao fim
+dos mesmos cinco anos, que é exatamente a retenção pretendida (RF21) para toda foto de ocorrência,
+não um vazamento paralelo. Não há um segundo vazamento aqui, só o mesmo prazo de sempre.
 
 ### 2026-09-12 — o ator da liquidação por procuração podia ser conta de serviço (B2)
 

@@ -7,24 +7,76 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import type { TripCostEntriesController } from '../hooks/useTripCostEntries.hook'
+import type { TripRevenueEntriesController } from '../hooks/useTripRevenueEntries.hook'
 import type { TripFinancialResult } from '../shared/tripFinancials.types'
 import { summarizeTripValuation, type TripValuation } from '../shared/tripValuation.service'
 import { FrozenResultTable } from './FrozenResultTable.component'
 import { TripCostEntries } from './TripCostEntries.component'
-import { ValuationLedger } from './ValuationLedger.component'
+import { TripRevenueEntries } from './TripRevenueEntries.component'
+import { ValuationLedger, type GapActions } from './ValuationLedger.component'
 import styles from '../styles/tripFinancials.module.css'
 
 type TripFinancialPanelProps = Readonly<{
   /** Os lançamentos avulsos da viagem — a lista vive dentro do painel, e só dentro dele. */
   costEntries: TripCostEntriesController
+  gapActions?: GapActions
   isError: boolean
   isLoading: boolean
   onRecalculate: (reason: string) => Promise<void>
   onRetry: () => void
   result: TripFinancialResult | null
+  /**
+   * Spec 169 P1/RF4: a receita lançada, em linha separada do frete previsto — opcional para não
+   * quebrar quem ainda não monta o controller (spec 169 não altera `TripDetail.page.tsx`).
+   */
+  revenueEntries?: TripRevenueEntriesController
   /** A conta prevista da viagem aberta — é ela que aparece enquanto não há congelada. */
   valuation: TripValuation | null
 }>
+
+/**
+ * Spec 169 RF11: os dois blocos de lançamento, juntos — extraídos para caber no teto de 200
+ * linhas do repositório, e para nascer sempre **antes** do total (CA08): o total é a conclusão,
+ * e conclusão não vem antes do que a compõe.
+ */
+function LaunchedEntries({
+  costEntries,
+  revenueEntries,
+}: Readonly<{
+  costEntries: TripCostEntriesController
+  revenueEntries: TripRevenueEntriesController | undefined
+}>) {
+  return (
+    <>
+      <TripCostEntries
+        canRecord={costEntries.canRecord}
+        entries={costEntries.entries}
+        entryKinds={costEntries.entryKinds}
+        isError={costEntries.isError}
+        isLoading={costEntries.isLoading}
+        isRecording={costEntries.isRecording}
+        isRemoving={costEntries.isRemoving}
+        onRecord={costEntries.record}
+        onRemove={costEntries.remove}
+        onRetry={costEntries.retry}
+      />
+      {revenueEntries === undefined ? null : (
+        <TripRevenueEntries
+          canRecord={revenueEntries.canRecord}
+          entries={revenueEntries.entries}
+          entryKinds={revenueEntries.entryKinds}
+          isError={revenueEntries.isError}
+          isLoading={revenueEntries.isLoading}
+          isRecording={revenueEntries.isRecording}
+          isRemoving={revenueEntries.isRemoving}
+          onRecord={revenueEntries.record}
+          onRemove={revenueEntries.remove}
+          onRetry={revenueEntries.retry}
+        />
+      )}
+    </>
+  )
+}
 
 /**
  * Spec 061 P1: **a viagem mostra a conta** — receita, cada parcela com sua origem, o total e a
@@ -33,11 +85,13 @@ type TripFinancialPanelProps = Readonly<{
  */
 export function TripFinancialPanel({
   costEntries,
+  gapActions,
   isError,
   isLoading,
   onRecalculate,
   onRetry,
   result,
+  revenueEntries,
   valuation,
 }: TripFinancialPanelProps) {
   const { t } = useTranslation('tripFinancials')
@@ -67,11 +121,7 @@ export function TripFinancialPanel({
     )
   }
 
-  /**
-   * Viagem aberta não tem congelado — e o painel dizia isso **sem mostrar a prevista**, que é a
-   * única conta que existe até ela fechar. Zeros como conta fechada seriam pior; anunciar a
-   * previsão e não a mostrar é o que estava lá.
-   */
+  /** Viagem aberta não tem congelado — o painel mostra a prevista até ela fechar. */
   if (result === null) {
     const expected = summarizeTripValuation(valuation)
 
@@ -79,14 +129,11 @@ export function TripFinancialPanel({
       <section className={styles.panel}>
         <h2>{t('panel.title')}</h2>
         <p className={styles.hint}>{t('panel.notFrozen')}</p>
+        {/* RF11/CA08: os lançamentos vêm antes do total — aqui, a prévia (ValuationLedger). */}
+        <LaunchedEntries costEntries={costEntries} revenueEntries={revenueEntries} />
         {expected === null ? null : (
           <>
-            {/*
-              A viagem aberta mostra **a mesma conta da criação**: receita em verde, cada custo com
-              a derivação — combustível em km/l × preço, pedágio praça a praça — e despesas em
-              vermelho. Três totais sem cor e sem parcela não diziam de onde o custo vinha.
-            */}
-            <ValuationLedger valuation={valuation} />
+            <ValuationLedger gapActions={gapActions} valuation={valuation} />
             {/* A lacuna vai junto do número: total sem parcela sai menor do que a viagem custa. */}
             {expected.hasGaps ? (
               <p className={styles.hint}>
@@ -97,15 +144,6 @@ export function TripFinancialPanel({
             ) : null}
           </>
         )}
-        <TripCostEntries
-          canRecord={costEntries.canRecord}
-          entries={costEntries.entries}
-          isError={costEntries.isError}
-          isLoading={costEntries.isLoading}
-          isRecording={costEntries.isRecording}
-          onRecord={costEntries.record}
-          onRetry={costEntries.retry}
-        />
       </section>
     )
   }
@@ -131,6 +169,9 @@ export function TripFinancialPanel({
         <p className={styles.hint}>{t('panel.operationalNote')}</p>
       </header>
 
+      {/* RF11/CA08: os lançamentos vêm antes do total — aqui, o resultado congelado. */}
+      <LaunchedEntries costEntries={costEntries} revenueEntries={revenueEntries} />
+
       <FrozenResultTable result={result} />
 
       <div className={styles.recalculate}>
@@ -153,16 +194,6 @@ export function TripFinancialPanel({
           {isRecalculating ? t('panel.recalculating') : t('panel.recalculate')}
         </Button>
       </div>
-
-      <TripCostEntries
-        canRecord={costEntries.canRecord}
-        entries={costEntries.entries}
-        isError={costEntries.isError}
-        isLoading={costEntries.isLoading}
-        isRecording={costEntries.isRecording}
-        onRecord={costEntries.record}
-        onRetry={costEntries.retry}
-      />
     </section>
   )
 }

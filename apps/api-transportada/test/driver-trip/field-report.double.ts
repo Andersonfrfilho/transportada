@@ -9,10 +9,13 @@ import type {
   FieldReportClaim,
 } from '../../src/trips/application/driver-field-report.port.js'
 import type { TripFieldChannel } from '../../src/trips/domain/trip-field-channel.constant.js'
+import type { TripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 
 export type FieldReportState = {
   readonly calls: string[]
   readonly dispatchedAtByTripId: Map<string, Date>
+  /** Spec 179 T200: a ocorrência de nota (`trip_document_occurrences`), id à parte da de parada. */
+  readonly documentOccurrences: Map<string, TripOccurrence>
   readonly documents: Map<string, DriverDocumentReference>
   readonly events: Map<string, { readonly id: string }>
   /** Spec 159 T11: `documentId:kind` → o último evento gravado daquela nota e tipo. */
@@ -35,6 +38,7 @@ export function createFieldReportState(
   return {
     calls: [],
     dispatchedAtByTripId: new Map(),
+    documentOccurrences: new Map(),
     documents: new Map(),
     events: new Map(),
     latestEvents: new Map(),
@@ -168,6 +172,25 @@ export function createFieldReportUnitOfWork(
       state.proofDetailsByEventKind.get(`${input.eventId}:${input.kind}`) ?? null,
     findProofExistsForEvent: async (input) =>
       state.proofsByEventKind.has(`${input.eventId}:${input.kind}`),
+    saveDocumentOccurrence: async (input) => {
+      state.calls.push(
+        `saveDocumentOccurrence:${input.documentId}:${input.attachmentObjectId ?? 'none'}`,
+      )
+      if (!state.documents.has(input.documentId)) return null
+      const occurrence: TripOccurrence = {
+        createdAt: new Date().toISOString(),
+        id: nextIdentifier('document-occurrence'),
+        note: input.note,
+        occurrenceTypeId: input.occurrenceTypeId,
+        productCode: input.productCode,
+        stage: input.stage,
+        typeName: input.typeName,
+      }
+      state.documentOccurrences.set(occurrence.id, occurrence)
+      return occurrence
+    },
+    findDocumentOccurrenceById: async (input) =>
+      state.documentOccurrences.get(input.occurrenceId) ?? null,
   }
 
   return { execute: (operation) => operation(transaction), state }

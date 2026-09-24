@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { EnvironmentBanner } from '@/components/EnvironmentBanner.component'
 import { ChargeBatchListPage } from '@/modules/charges/ChargeBatchList.page'
 import { DeliveryListPage } from '@/modules/deliveries/DeliveryList.page'
+import { OccurrenceListPage } from '@/modules/occurrences/OccurrenceList.page'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
 import { getClientEnvironment } from '@/modules/shared/environment.config'
@@ -30,7 +31,7 @@ const deploymentEnvironment = getDeploymentEnvironment()
 
 applyEnvironmentBadge({ document, environment: deploymentEnvironment })
 
-type Tab = 'charges' | 'deliveries'
+type Tab = 'charges' | 'deliveries' | 'occurrences'
 
 type PageFrameProps = Readonly<{ children: ReactNode }>
 
@@ -75,6 +76,14 @@ function App() {
                 Repasses
               </button>
               <button
+                aria-current={tab === 'occurrences'}
+                className={tab === 'occurrences' ? '' : 'secondary'}
+                onClick={() => setTab('occurrences')}
+                type="button"
+              >
+                Ocorrências
+              </button>
+              <button
                 className="secondary"
                 onClick={() => void getKeycloakAuthProvider().logout()}
                 type="button"
@@ -83,11 +92,9 @@ function App() {
               </button>
             </nav>
           </div>
-          {tab === 'deliveries' ? (
-            <DeliveryListPage client={client} />
-          ) : (
-            <ChargeBatchListPage client={client} />
-          )}
+          {tab === 'deliveries' && <DeliveryListPage client={client} />}
+          {tab === 'charges' && <ChargeBatchListPage client={client} />}
+          {tab === 'occurrences' && <OccurrenceListPage client={client} />}
         </main>
       </PageFrame>
     </QueryClientProvider>

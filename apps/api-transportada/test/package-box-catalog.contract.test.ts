@@ -4,3 +4,4 @@
 import './package-box-catalog/capture-mapper.contract.js'
 import './package-box-catalog/consensus.contract.js'
 import './package-box-catalog/sanity.contract.js'
+import './package-box-catalog/capture-unit.contract.js'

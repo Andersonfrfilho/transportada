@@ -28,6 +28,12 @@ const DATE_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u
 
 const closeSchema = z
   .object({
+    /**
+     * O fechamento é por seleção (plan.md "O fechamento é por seleção, com filtros"): lista
+     * ausente mantém o comportamento de hoje (todo o período), para não quebrar o repasse de taxa
+     * que já roda em produção.
+     */
+    chargeIds: z.array(z.string().uuid()).min(1).max(500).optional(),
     contractorId: z.string().uuid(),
     periodEnd: z.string().regex(DATE_PATTERN),
     periodStart: z.string().regex(DATE_PATTERN),
@@ -63,6 +69,7 @@ export const extraChargeDecisionsSchema = z
 export type ExtraChargeBatchRoutesDependencies = {
   readonly closeBatch: {
     execute(input: {
+      readonly chargeIds?: readonly string[]
       readonly context: CompanyContext
       readonly contractorId: string
       readonly periodEnd: string
@@ -90,7 +97,12 @@ export function createExtraChargeBatchRoutes(
   return [
     defineRoute<z.infer<typeof closeSchema>>({
       async handle({ context, input }): Promise<Response> {
-        const batch = await dependencies.closeBatch.execute({ context: context.scope, ...input })
+        const { chargeIds, ...rest } = input
+        const batch = await dependencies.closeBatch.execute({
+          context: context.scope,
+          ...rest,
+          ...(chargeIds === undefined ? {} : { chargeIds }),
+        })
         return jsonResponse({ body: { data: batch }, status: 201 })
       },
       method: 'POST',

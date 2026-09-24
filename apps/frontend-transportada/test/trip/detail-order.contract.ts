@@ -28,11 +28,22 @@ describe('a ordem do detalhe da viagem (spec 079 T021)', () => {
     return posicao
   }
 
-  it('vincular nota e ações da viagem vêm antes da lista de paradas', () => {
+  it('vincular nota e ações em lote vêm antes da lista de paradas', () => {
     const paradas = posicaoDe('<TripStopList')
 
     expect(posicaoDe("t('detail.linkDocumentTitle')")).toBeLessThan(paradas)
     expect(posicaoDe('<TripStateActions')).toBeLessThan(paradas)
+  })
+
+  /**
+   * Spec 170: as ações de **estado** subiram para o cabeçalho, e por isso vêm antes até do que se
+   * lê — elas são a decisão, não a leitura. O que continua abaixo é a ação sobre o maço marcado.
+   */
+  it('as ações de estado ficam no cabeçalho, acima de tudo', () => {
+    const cabecalho = posicaoDe('<TripHeaderActions')
+
+    expect(cabecalho).toBeLessThan(posicaoDe('<TripProcessFlow'))
+    expect(cabecalho).toBeLessThan(posicaoDe('<TripStateActions'))
   })
 
   /**

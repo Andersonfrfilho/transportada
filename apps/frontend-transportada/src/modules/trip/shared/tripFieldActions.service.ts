@@ -50,6 +50,32 @@ export function hasMultipleDrivers(drivers: readonly unknown[]): boolean {
 }
 
 /**
+ * Spec 180: registrar chegada/ocorrência de uma parada exige as duas coisas — `trip.report-on-behalf`
+ * (`canReportOnBehalf`) e a capacidade da parada em `allowedActions.stops`. Extraída para função pura
+ * porque `TripStopList`, que hospeda o botão desde a spec 180, não tem suíte de render.
+ */
+export function canOfferStopFieldAction(input: {
+  readonly action: StopAllowedAction
+  readonly canReportOnBehalf: boolean
+  readonly capabilities: FieldActionCapabilities
+  readonly stopId: string
+}): boolean {
+  return input.canReportOnBehalf && input.capabilities.canStop(input.stopId, input.action)
+}
+
+/**
+ * Spec 180: mesma régua de `canOfferStopFieldAction`, para as ações da viagem inteira ("conferir
+ * carga"/"iniciar rota") que se mudaram de `TripFieldActions` para o bloco de ações da viagem.
+ */
+export function canOfferTripFieldAction(input: {
+  readonly action: TripAllowedAction
+  readonly canReportOnBehalf: boolean
+  readonly capabilities: FieldActionCapabilities
+}): boolean {
+  return input.canReportOnBehalf && input.capabilities.canTrip(input.action)
+}
+
+/**
  * Spec 156 T8b/T15 (A4d): base comum das ações de campo em massa — a seleção da tela mistura notas
  * de qualquer capacidade, e só quem tem a capacidade pedida (`fieldReturn`/`fieldOccurrence`/
  * `fieldDelivery`) entra no lote enviado à API. Extraída para função pura porque

@@ -216,3 +216,57 @@ describe('the policy reaches the served response', () => {
     expect(staticServer).toContain('FRONTEND_MISSING_CONTENT_SECURITY_POLICY')
   })
 })
+
+/**
+ * Spec 161 (revisão de 22/09): a foto da ocorrência desce por **URL assinada do bucket**, num
+ * domínio que não é o da API — e `connect-src` não governa `<img>`. Sem o bucket em `img-src` o
+ * navegador recusa a imagem antes de pedir, e a tela diz "Não foi possível carregar a foto" sobre
+ * um objeto que está gravado e acessível.
+ *
+ * ⚠️ Medido em staging às 20:45: a URL assinada era válida (assinatura presente, 300 s de vida) e o
+ * host respondia; quem barrava era a própria política que o bundle serve.
+ */
+describe('o bucket do anexo entra em img-src (revisão spec 161)', () => {
+  const BUCKET_URL = 'https://transportada-staging-zjeaet.t3.storageapi.dev'
+
+  test('a origem do bucket declarada entra na diretiva de imagem', () => {
+    const policy = buildContentSecurityPolicy({
+      allowsInlineScript: false,
+      apiBaseUrl: API_BASE_URL,
+      keycloakUrl: KEYCLOAK_URL,
+      mapTilesUrl: undefined,
+      objectStorageUrl: BUCKET_URL,
+    })
+
+    expect(directiveOf(policy, 'img-src')).toContain(BUCKET_URL)
+  })
+
+  /**
+   * O bucket serve imagem, não chamada de dado: ampliar `connect-src` com ele seria permissão dada
+   * de graça, do mesmo jeito que o provedor de identidade não entra em `img-src`.
+   */
+  test('o bucket não entra em connect-src', () => {
+    const policy = buildContentSecurityPolicy({
+      allowsInlineScript: false,
+      apiBaseUrl: API_BASE_URL,
+      keycloakUrl: KEYCLOAK_URL,
+      mapTilesUrl: undefined,
+      objectStorageUrl: BUCKET_URL,
+    })
+
+    expect(directiveOf(policy, 'connect-src')).not.toContain('storageapi.dev')
+  })
+
+  /** Sem a variável — instalação que serve o anexo pelo próprio domínio — nada é acrescentado. */
+  test('sem bucket declarado a diretiva não ganha origem nenhuma', () => {
+    const policy = buildContentSecurityPolicy({
+      allowsInlineScript: false,
+      apiBaseUrl: API_BASE_URL,
+      keycloakUrl: KEYCLOAK_URL,
+      mapTilesUrl: undefined,
+      objectStorageUrl: undefined,
+    })
+
+    expect(directiveOf(policy, 'img-src')).toBe(`img-src 'self' blob: ${API_BASE_URL}`)
+  })
+})

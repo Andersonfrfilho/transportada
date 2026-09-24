@@ -34,7 +34,7 @@ export function NfseEmissionAction({
     permissions,
   })
 
-  // `dialog.canOpen` é `canOpenNfseEmission(permissions)`: sem `nfse.manage` não há botão morto.
+  // `dialog.canOpen` é `canOpenNfseEmission(permissions)`: sem `nfse.issue` não há botão morto.
   if (!dialog.canOpen) return null
 
   return (

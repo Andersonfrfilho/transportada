@@ -5,6 +5,7 @@
  * pedido, a resposta e o que corre entre os passos do lote.
  */
 import type { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
 import type {
   FieldAuthorship,
@@ -42,6 +43,8 @@ export type OfficeOccurrenceBatchTransactionPort = Pick<
     readonly note: string
     readonly occurrenceTypeId: string
     readonly productCode: string
+    /** Spec 164 T4 (RF3): repassada ao escritor, que abre a tratativa na mesma transação. */
+    readonly redeliveryPolicy?: RedeliveryPolicy
     readonly stage: typeof TRIP_OCCURRENCE_STAGE.delivery
     readonly tripId: string
     readonly typeName: string

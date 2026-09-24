@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "15842339-d2dd-410c-b7fb-f7fc374782fb",
+  "id": "9a6923d7-fcbe-4b17-9b85-acdb40b2c96d",
   "prevIds": [
-    "97470061-dc77-4357-8b9c-234914f186fa"
+    "8ecdf492-e240-4fde-931f-ecf7b2e1bfba"
   ],
   "ddl": [
     {
@@ -999,6 +999,12 @@
     {
       "isRlsEnabled": false,
       "name": "trip_document_events",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "trip_document_occurrence_attachments",
       "entityType": "tables",
       "schema": "public"
     },
@@ -27626,6 +27632,97 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "occurrence_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stored_object_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "thumbnail_object_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "position",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "trip_document_occurrences"
     },
     {
@@ -29158,6 +29255,45 @@
       "generated": null,
       "identity": null,
       "name": "daily_allowance_days",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "closed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "closed_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "close_reason",
       "entityType": "columns",
       "schema": "public",
       "table": "trips"
@@ -34629,6 +34765,97 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "trip_document_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "stored_object_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_document_occurrence_attachments_company_object_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "thumbnail_object_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"thumbnail_object_id\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_document_occurrence_attachments_company_thumbnail_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "occurrence_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "position",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_document_occurrence_attachments_company_occurrence_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
     },
     {
       "nameExplicit": true,
@@ -41435,6 +41662,80 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_attachments_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "occurrence_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trip_document_occurrences",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "trip_document_occurrence_attachments_company_occurrence_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "stored_object_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "stored_objects",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_attachments_company_object_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "thumbnail_object_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "stored_objects",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_attachments_company_thumbnail_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "trip_document_occurrences_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -42047,6 +42348,25 @@
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trips_company_vehicle_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "closed_by_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "company_id",
+        "user_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trips_company_closed_by_user_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "trips"
@@ -44063,6 +44383,16 @@
       "name": "trip_document_events_pkey",
       "schema": "public",
       "table": "trip_document_events",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "trip_document_occurrence_attachments_pkey",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments",
       "entityType": "pks"
     },
     {
@@ -46803,6 +47133,43 @@
         "id"
       ],
       "nullsNotDistinct": false,
+      "name": "trip_document_occurrence_attachments_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "occurrence_id",
+        "position"
+      ],
+      "nullsNotDistinct": false,
+      "name": "trip_document_occurrence_attachments_unique_position",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "trip_document_occurrences_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
       "name": "trip_documents_company_id_id_unique",
       "entityType": "uniques",
       "schema": "public",
@@ -48435,7 +48802,7 @@
       "table": "stored_objects"
     },
     {
-      "value": "\"purpose\" in ('import_source', 'nfe_document', 'nfe_event', 'billing_document', 'cte_document', 'mdfe_document', 'nfse_document', 'aggregate_document', 'delivery_proof', 'aggregate_application_attachment', 'contractor_mail_raw')",
+      "value": "\"purpose\" in ('import_source', 'nfe_document', 'nfe_event', 'billing_document', 'cte_document', 'mdfe_document', 'nfse_document', 'aggregate_document', 'delivery_proof', 'aggregate_application_attachment', 'contractor_mail_raw', 'trip_occurrence_attachment', 'trip_occurrence_thumbnail')",
       "name": "stored_objects_purpose_check",
       "entityType": "checks",
       "schema": "public",
@@ -52096,6 +52463,13 @@
       "table": "trip_document_events"
     },
     {
+      "value": "\"position\" between 1 and 5",
+      "name": "trip_document_occurrence_attachments_position_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrence_attachments"
+    },
+    {
       "value": "\"stage\" in ('delivery', 'separation')",
       "name": "trip_document_occurrences_stage_check",
       "entityType": "checks",
@@ -52374,6 +52748,13 @@
       "entityType": "checks",
       "schema": "public",
       "table": "trip_stops"
+    },
+    {
+      "value": "(\"closed_at\" is null) = (\"closed_by_user_id\" is null)\n        and (\"close_reason\" is null or \"closed_at\" is not null)",
+      "name": "trips_close_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trips"
     },
     {
       "value": "\"status\" in ('draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'on_delivery_route', 'completed', 'cancelled')",

@@ -64,3 +64,37 @@ export type ChargeDecision = Readonly<{
   decision: 'approved' | 'rejected'
   reason: string
 }>
+
+export type OccurrenceDecisionKind = 'goods_paid' | 'other' | 'redelivery_authorized'
+
+/** A URL assinada (`thumbnailUrl`/`downloadUrl`) vence em 5 minutos — `expired` é outra coisa: a foto foi descartada por retenção e nunca mais tem URL nenhuma. */
+export type OccurrenceAttachment = Readonly<{
+  downloadUrl: string | null
+  expired: boolean
+  id: string
+  position: number
+  thumbnailUrl: string | null
+}>
+
+/** A API ainda não publica nota, itens da NF-e nem observação nesta lista — só o que está aqui. */
+export type Occurrence = Readonly<{
+  attachments: readonly OccurrenceAttachment[]
+  caseStatus: string
+  decidedAt: string | null
+  decisionKind: OccurrenceDecisionKind | null
+  occurrenceId: string
+  occurrenceTypeName: string
+  openedAt: string
+  stage: string
+}>
+
+export type OccurrenceDecisionInput = Readonly<{
+  kind: OccurrenceDecisionKind
+  note?: string
+  occurrenceId: string
+}>
+
+export type OccurrenceDecisionResult = Readonly<{
+  kind: 'changed' | 'unchanged'
+  status: string
+}>

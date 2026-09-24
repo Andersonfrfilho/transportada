@@ -33,6 +33,7 @@ export function measurementSourceLabel(t: Translate, input: MeasurementSourceLab
   if (input.measurementSource === 'typed') return t('packageBoxes.source.typed')
   /** Spec 155 (D6): replicada não é conferida — a tela precisa dizer a diferença, não só "digitada". */
   if (input.measurementSource === 'replicated') return t('packageBoxes.source.replicated')
+  if (input.measurementSource === 'catalog') return t('packageBoxes.source.catalog')
   if (input.measurementMarginMm === null) return t('packageBoxes.source.cameraNoMargin')
   return t('packageBoxes.source.camera', {
     margin: input.measurementMarginMm / MILLIMETRES_PER_CENTIMETRE,
@@ -49,4 +50,20 @@ const MEASURED_AT_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
 export function formatMeasuredAtDate(value: string): string {
   const moment = new Date(value)
   return Number.isNaN(moment.getTime()) ? value : MEASURED_AT_DATE_FORMATTER.format(moment)
+}
+
+/** A recusa do `PUT` de medida que a etapa Medida pela câmera já nomeia (`packageBoxClient.service.ts`). */
+export const PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED_CODE =
+  'PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED'
+
+/**
+ * A recusa da gravação, no caminho digitado da fila — antes só o fluxo da câmera mostrava algo, e a
+ * linha digitada fechava calada mesmo quando o `PUT` falhava. Código com chave própria ganha
+ * mensagem específica (hoje só a câmera desligada na empresa); os demais caem na mensagem genérica.
+ */
+export function packageBoxMeasureFailureMessage(t: Translate, errorCode: string): string {
+  if (errorCode === PACKAGE_BOX_CAMERA_MEASUREMENT_DISABLED_CODE) {
+    return t('packageBoxes.cameraMeasurementDisabledError')
+  }
+  return t('packageBoxes.saveFailed', { code: errorCode })
 }

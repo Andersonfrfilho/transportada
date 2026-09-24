@@ -13,10 +13,12 @@ import {
 } from '../messaging/invitation-delivery-envelope.schema.js'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service.js'
 import type { WorkerEnvironment, WorkerLogger } from '../shared/worker.types.js'
+import { resolveCodeDeliveryFailureDisposition } from './code-delivery-disposition.policy.js'
 
 /**
  * Idempotência é a própria linha do convite: `delivered_at` já preenchido faz a reentrega ser
- * inofensiva, e falha de transporte devolve `retry` sem tocar na validade do código.
+ * inofensiva, e falha de transporte devolve `retry` sem tocar na validade do código. Recusa
+ * permanente vai direto para a dead queue — `code-delivery-disposition.policy.ts` decide qual é.
  */
 export async function startInvitationDeliveryConsumer(params: {
   readonly config: WorkerEnvironment
@@ -40,17 +42,19 @@ export async function startInvitationDeliveryConsumer(params: {
       try {
         await handleInvitationDelivery(payload, params.dependencies)
         return { type: 'ack' }
-      } catch {
+      } catch (error) {
+        const disposition = resolveCodeDeliveryFailureDisposition(error)
         safeLogError({
           logger: params.logger,
           message: 'invitation_delivery_consumer_failed',
           metadata: {
             companyId: payload.companyId,
+            disposition: disposition.type,
             eventId: payload.eventId,
             invitationId: payload.payload.invitationId,
           },
         })
-        return { type: 'retry' }
+        return disposition
       }
     },
     prefetch: params.config.prefetch,

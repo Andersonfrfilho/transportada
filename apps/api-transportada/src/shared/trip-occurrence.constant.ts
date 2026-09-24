@@ -47,3 +47,21 @@ const STAGE_BY_TYPE = new Map<string, TripOccurrenceStage>(
 export function resolveOccurrenceStage(type: string): null | TripOccurrenceStage {
   return STAGE_BY_TYPE.get(type) ?? null
 }
+
+/**
+ * Spec 166 (RF1): o par de fallback — peça ou caixa fechada — para quando o item não trouxe
+ * unidade comercial da nota (spec 172 RF3). `VARCHAR` com CHECK, nunca ENUM nativo
+ * (code-standart §8). Cópia por valor no frontend, no mesmo molde de `TRIP_OCCURRENCE_STAGE` acima.
+ */
+export const OCCURRENCE_ITEM_QUANTITY_UNIT = {
+  box: 'box',
+  unit: 'unit',
+} as const
+
+/**
+ * Spec 172 (RF1): a unidade real da quantidade é **aberta** — a unidade comercial que o item traz
+ * da nota (`KG`, `L`, `CX`...), mais o par de fallback acima. Fechar num union de literais faria
+ * toda sigla exótica de XML virar erro de tipo; quem confere o valor é a política de domínio
+ * (`occurrence-item-quantity.policy.ts`), não o tipo.
+ */
+export type OccurrenceItemQuantityUnit = string

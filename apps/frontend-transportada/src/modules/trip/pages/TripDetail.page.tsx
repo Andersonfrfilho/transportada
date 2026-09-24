@@ -5,13 +5,19 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
 import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
+import { navigateToCompanySettings } from '@/modules/company-settings/shared/companySettingsNavigation.service'
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { navigateToCteProfiles } from '@/modules/nfe-workspace/shared/cteProfilesNavigation.service'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
+import { TRIP_COST_ENTRY_AMOUNT_FIELD_ID } from '@/modules/trip-financials/components/TripCostEntryForm.component'
 import { TripFinancialPanel } from '@/modules/trip-financials/components/TripFinancialPanel.component'
+import type { GapActions } from '@/modules/trip-financials/components/ValuationLedger.component'
 import { useTripCostEntries } from '@/modules/trip-financials/hooks/useTripCostEntries.hook'
 import { useTripFinancials } from '@/modules/trip-financials/hooks/useTripFinancials.hook'
+import { useTripRevenueEntries } from '@/modules/trip-financials/hooks/useTripRevenueEntries.hook'
+import { GapRemedy } from '@/modules/trip-financials/shared/valuationLedger.service'
 
 import { TripDetail, TripDetailSkeleton } from '../components/TripDetail.component'
 import { TripTimeline } from '../components/TripTimeline.component'
@@ -57,6 +63,8 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
    * proposital da rota, e expor a lista ao lado do painel vazaria o valor que ela protege.
    */
   const costEntries = useTripCostEntries({ permissions, tripId })
+  /** Spec 169 P1/RF4: a receita lançada — mesma trilha do gasto, dentro do mesmo painel. */
+  const revenueEntries = useTripRevenueEntries({ permissions, tripId })
 
   /**
    * Spec 158 T8 (RF6): a linha do tempo fica entre o detalhe (paradas/notas) e o razão financeiro —
@@ -65,6 +73,40 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
    * aparece.
    */
   const timeline = useTripTimeline({ permissions, tripId })
+
+  /**
+   * O motivo da lacuna vira ação **só onde ela existe**. `planRoute` exige a viagem em `draft` — a
+   * mesma condição de `TripStateActions.canPlanRoute` — porque fora dali `planRouteMutation`
+   * recusaria a chamada; fora da condição, a lacuna volta a ser texto puro.
+   *
+   * ⚠️ Navegar é `onAct` com o navegador do shell, nunca `href`: a troca de workspace aqui é manual
+   * e uma âncora recarregaria a app inteira.
+   */
+  const canPlanRoute = workspace.trip?.status === 'draft'
+  const gapActions: GapActions = {
+    [GapRemedy.EMISSION_PROFILE]: {
+      onAct: () => navigateToCteProfiles(createBrowserWorkspaceNavigator()),
+    },
+    [GapRemedy.FEDERAL_REGIME]: {
+      onAct: () =>
+        navigateToCompanySettings({ navigator: createBrowserWorkspaceNavigator(), tab: 'taxes' }),
+    },
+    [GapRemedy.RECORD_COST]: {
+      onAct: () => {
+        const field = document.getElementById(TRIP_COST_ENTRY_AMOUNT_FIELD_ID)
+        field?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        field?.focus()
+      },
+    },
+    ...(canPlanRoute
+      ? {
+          [GapRemedy.PLAN_ROUTE]: {
+            isPending: workspace.planRouteMutation.isPending,
+            onAct: () => workspace.planRouteMutation.mutate({ tripId }),
+          },
+        }
+      : {}),
+  }
 
   function handleBackToTrips(): void {
     navigateToTrips(createBrowserWorkspaceNavigator())
@@ -116,11 +158,13 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
           {financials.canReadFinancials ? (
             <TripFinancialPanel
               costEntries={costEntries}
+              gapActions={gapActions}
               isError={financials.isError}
               isLoading={financials.isLoading}
               onRecalculate={financials.recalculate}
               onRetry={financials.refetch}
               result={financials.result}
+              revenueEntries={revenueEntries}
               valuation={financials.valuation}
             />
           ) : null}

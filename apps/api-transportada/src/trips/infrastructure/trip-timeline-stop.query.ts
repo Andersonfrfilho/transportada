@@ -129,6 +129,7 @@ export async function listStopEventRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
+    closeReason: null,
     document:
       row.documentId === null
         ? null
@@ -173,6 +174,8 @@ export async function listStopOccurrenceRows(
   const rows = await queryable
     .select({
       actorName: timelineActorProfile.name,
+      /** Fora do escopo da spec 161 (D2/D12): a parada só tem a coluna antiga, no máximo um anexo. */
+      attachmentObjectId: tripStopOccurrences.attachmentObjectId,
       channel: tripStopOccurrences.channel,
       description: tripStopOccurrences.description,
       id: tripStopOccurrences.id,
@@ -220,11 +223,16 @@ export async function listStopOccurrenceRows(
   return rows.map((row) => ({
     actorName: row.actorName ?? null,
     channel: row.channel,
+    closeReason: null,
     document: null,
     fromStatus: null,
     id: row.id,
     kind: 'stop.occurrence' as const,
-    occurrence: { note: row.description, typeName: row.kind },
+    occurrence: {
+      attachmentCount: row.attachmentObjectId === null ? 0 : 1,
+      note: row.description,
+      typeName: row.kind,
+    },
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,
     onBehalfOfDriverName: row.onBehalfOfDriverName ?? null,

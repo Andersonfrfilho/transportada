@@ -269,6 +269,7 @@ export function TripQuickCreateDialog({
             documents: availableDocuments,
             queue: quickCreate.queue,
           })}
+          isLoading={quickCreate.documentsQuery.isLoading}
           onFilteredChange={setFilteredDocuments}
           onStage={quickCreate.stageDocuments}
         />

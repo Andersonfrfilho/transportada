@@ -31,6 +31,12 @@ type ContentSecurityPolicyParams = {
   readonly allowsInlineScript: boolean
   readonly apiBaseUrl: string | undefined
   readonly keycloakUrl: string | undefined
+  /**
+   * Spec 164 T9: a foto da ocorrência sai por URL assinada do armazenamento, que **não** é a origem
+   * do portal — com `img-src 'self'` sozinho a imagem é bloqueada pelo navegador e a tela mostra
+   * foto quebrada sem nenhum erro de rede. Origem só; nada de `data:`/`blob:` genérico.
+   */
+  readonly storageBaseUrl?: string | undefined
 }
 
 /**
@@ -46,6 +52,7 @@ export function buildContentSecurityPolicy({
   allowsInlineScript,
   apiBaseUrl,
   keycloakUrl,
+  storageBaseUrl,
 }: ContentSecurityPolicyParams): string {
   const configured = [toOrigin(apiBaseUrl), toOrigin(keycloakUrl)].filter(
     (origin): origin is string => origin !== undefined,
@@ -54,6 +61,8 @@ export function buildContentSecurityPolicy({
     SELF,
     ...[...new Set([...configured, ...EXTERNAL_CONNECT_ORIGIN])].sort(),
   ].join(' ')
+  const storageOrigin = toOrigin(storageBaseUrl)
+  const imageSource = [SELF, ...(storageOrigin === undefined ? [] : [storageOrigin])].join(' ')
   const scriptSource = allowsInlineScript ? `${SELF} ${UNSAFE_INLINE}` : SELF
 
   return [
@@ -64,7 +73,7 @@ export function buildContentSecurityPolicy({
     `form-action ${SELF}`,
     `frame-ancestors ${NONE}`,
     `frame-src ${NONE}`,
-    `img-src ${SELF}`,
+    `img-src ${imageSource}`,
     `manifest-src ${SELF}`,
     `object-src ${NONE}`,
     `script-src ${scriptSource}`,

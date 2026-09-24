@@ -17,6 +17,7 @@ function readiness(
     cteFiscalDocumentId: null,
     expectedDocument: 'cte',
     nfeDocumentId: '00000000-0000-4000-8000-00000000aa01',
+    nfseProfileId: null,
     reason: 'no_cte',
     rejectionCode: null,
     rejectionMessage: null,
