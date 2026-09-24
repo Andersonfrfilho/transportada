@@ -159,11 +159,6 @@ jobs:
     # `needs.changes.result == 'success'` importa: `always()` sozinho faria o gate rodar até quando
     # a detecção de mudanças falhou, e ele decidiria sobre uma lista de apps que ninguém apurou.
     if: always() && needs.changes.result == 'success'
-    # `packages: read`: o MinIO do `make up` vem de um pacote privado do GHCR (`infra/minio/`), e um
-    # workflow chamado nunca recebe permissão que quem o chama não concedeu.
-    permissions:
-      contents: read
-      packages: read
     uses: ./.github/workflows/ci.yml
     with:
       apps: ${{ needs.changes.outputs.apps }}

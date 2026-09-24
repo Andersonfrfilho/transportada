@@ -280,7 +280,9 @@ e2e-ps: e2e-bootstrap ## 🧪 Exibe os serviços do ambiente dedicado de E2E
 test-ps: e2e-ps ## 🧪 Alias compatível para exibir os serviços do ambiente dedicado de E2E
 
 worker-integration: bootstrap ## 🧪 Roda a integração comum do worker usando o ambiente local
-	@SERVICES="postgres rabbitmq minio" $(MAKE) up
+	@# Sem MinIO: nenhum teste do worker toca o storage, e o boot dele só cria o cliente, sem
+	@# conectar — o MinIO ficou fora da CI quando a MinIO tirou as imagens públicas (2026-09-24).
+	@SERVICES="postgres rabbitmq" $(MAKE) up
 	@# O OSRM é opt-in: sem `make routing-fixture` + `routing-up`, os testes dele **pulam** em vez de
 	@# falhar — a integração comum não pode exigir um dataset de centenas de MB (ver spec 058).
 	@set -a; . "./$(ENV_FILE)"; set +a; \
