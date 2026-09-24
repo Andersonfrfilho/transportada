@@ -207,3 +207,75 @@ Gates (de `apps/api-transportada`, banco nativo descartável 127.0.0.1:65433, PG
 
 Commit: `eb0240a24` — feat(trips): o gatilho automático despacha a viagem que fecha a carga
 (spec 185 T4.2).
+
+## T4.3 — concorrência do despacho (CA09)
+
+Suíte nova: `test/integration/trip-auto-dispatch-concurrency.integration.ts` (registrada em
+`test:integration`), com o banco, a viagem e os leitores em
+`test/fixtures/trip-dispatch-race.fixture.ts`. Postgres real, `createDatabaseProvider` com pool de
+**10 conexões** (`prepare: false` — com `createDrizzleProvider` cru a transação pode parar ociosa,
+spec 137) e uma conexão à parte para olhar `pg_stat_activity`. As duas chamadas saem juntas por
+`Promise.allSettled`, pelos casos de uso reais (`transitionTripDocument` com
+`autoDispatchRepository` ligado; `dispatchTrip` com `loadRemaining: true`). Cada cenário roda **10
+iterações**, uma viagem nova (empresa própria) por iteração, num banco descartável por cenário.
+
+Cenários e o que cada iteração confere (status da viagem, linhas em `trip_dispatch_snapshots`,
+eventos `→ dispatched` em `trip_status_events`, status das notas):
+
+1. **Duas cargas das duas últimas notas, forçadas na trava da viagem** — 3 notas (1 `loaded`, 2
+   `separated`). Ambas respondem sem erro, as duas com `autoDispatch = { outcome: 'dispatched' }`
+   (a perdedora recebe o `unchanged`); `dispatched`, 1 snapshot, 1 evento, 3 notas `loaded`.
+2. **Duas cargas, livres** — mesmo cenário sem costura: sem erro, ≥ 1 `dispatched` (a que lê a
+   precondição antes da outra comitar não fecha a carga e volta sem `autoDispatch`), 1 snapshot,
+   1 evento, notas `loaded`.
+3. **Dois "leva todas", forçados na trava da nota separada** — 2 notas (1 `loaded`, 1
+   `separated`). As duas transações param no `UPDATE` da nota; a perdedora acorda com 0 linhas,
+   passa pela reconferência e devolve `{ tripStatus: 'dispatched' }`. 1 snapshot, 1 evento, nota
+   `loaded`.
+4. **Dois "leva todas" com precondição velha** — o duplo clique: as duas leituras de precondição
+   antes de qualquer escrita, e a transação da segunda só começa depois que a primeira comitou.
+5. **Dois "leva todas", livres.**
+
+**Como a intercalação é garantida (sem `pg_sleep`, sem relógio):** nos cenários 1 e 3 uma
+transação bloqueadora segura a trava disputada (`FOR NO KEY UPDATE` na viagem; na nota, no
+cenário 3) e só solta depois que `pg_stat_activity` mostra **duas** conexões do banco com
+`wait_event_type = 'Lock'` — prova de que as duas escritas chegaram à mesma trava ao mesmo tempo
+(se não chegarem em 10 s, a iteração falha com `EXPECTED_2_LOCK_WAITERS`, nunca passa por sorte). No
+cenário 1 uma barreira no `readPreconditions` do port do gatilho segura as duas cargas depois de
+comitadas até as duas chegarem, para que ambas leiam a carga fechada. No cenário 4 a barreira é
+nas duas leituras de precondição, e o `dispatch` do segundo espera o do primeiro terminar. Os
+cenários 2 e 5 ficam sem costura, para as intercalações que o escalonador escolher.
+
+**Decisão sobre o perdedor do botão:** devolve o status sem erro (`{ tripStatus: 'dispatched' }`,
+200), não 409. É o que `dispatch()` já fazia na reconferência (`DispatchAlreadySettledSignal` →
+`unchanged`) e o que o RNF pede ("`unchanged` na outra"); 409 fica para viagem cancelada/concluída.
+
+**Defeito achado (cenário 4):** antes da correção, 4 pass / 1 fail — o segundo "leva todas"
+rejeitava com `TripStateTransitionNotAllowedError` (`TRIP_ALREADY_DISPATCHED`, "The cargo already
+left…", 409). Causa: `loadRemainingDocuments` lê o status da viagem **sem lock** e aplica a política
+da nota antes da reconferência; quando a transação começa depois do vencedor comitar, a política da
+nota via `dispatched` e recusava, enquanto a mesma corrida com transações sobrepostas (cenário 3)
+respondia `unchanged` — dois desfechos para o mesmo duplo clique. O cenário 5 (livre) passou as 10
+iterações antes da correção: a janela é estreita e só a intercalação forçada a expôs. Correção: se
+despachar sobre o status lido ali já é `unchanged`, `loadRemainingDocuments` lança o
+`DispatchAlreadySettledSignal` — a transação desfaz e o repositório devolve `{ tripStatus }`, igual à
+reconferência. Viagem cancelada/concluída segue pelo caminho de antes (409). Sem 23505, sem
+deadlock e sem evento duplicado em nenhum cenário.
+
+Gates (de `apps/api-transportada`, banco nativo descartável 127.0.0.1:65433, PG 18.4):
+
+- arquivo novo antes da correção → 4 pass, 1 fail (cenário 4, 409 acima)
+- arquivo novo depois da correção, 3 vezes seguidas → 5 pass, 0 fail, 150 expect() (6,8 s ·
+  6,0 s · 6,5 s)
+- `trip-dispatch-load-remaining` + `trip-auto-dispatch` + `trip-status-write-guard` +
+  `trip-lifecycle` → 20 pass, 0 fail
+- contrato inteiro `bun --env-file=../../.env.test test --timeout 120000` → 7257 pass, 23 skip,
+  0 fail, 24395 expect() em 183 arquivos
+- integração inteira `DRIZZLE_TEST_DATABASE_URL=... bun --env-file=../../.env.test run
+  test:integration` → 603 pass, 0 fail, 4101 expect() em 110 arquivos (338,3 s)
+- `bun run typecheck` (raiz) limpo nas seis apps; `bunx eslint` e `bunx prettier --check` nos
+  arquivos tocados limpos.
+
+Commits: `76f0c0671` — test(trips): despacho concorrente sai uma vez (spec 185 T4.3);
+`0fdcd04f8` — fix(trips): "leva todas" com a viagem já despachada responde unchanged
+(spec 185 T4.3).

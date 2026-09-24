@@ -41,7 +41,7 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
       `stopIds` e a nota fica `loaded`.
 - [x] **T4.2** `try-auto-dispatch-trip.use-case.ts` e a ligação nos quatro chamadores (D4); campo
       `autoDispatch` nas respostas; frase no retorno do WhatsApp.
-- [ ] **T4.3** 🧠 Teste de integração (CA09): duas cargas concorrentes das duas últimas notas
+- [x] **T4.3** 🧠 Teste de integração (CA09): duas cargas concorrentes das duas últimas notas
       despacham uma vez, sem erro.
 
 ## Fase 5 — Sem "Conferir carga"
