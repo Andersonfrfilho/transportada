@@ -1113,7 +1113,6 @@
       "missing": "No freight calculated",
       "rule": "Rule: {{name}}"
     },
-    "openOccurrenceDocument": "Open occurrence",
     "openOccurrence_one": "1 invoice with an occurrence",
     "openOccurrence_other": "{{count}} invoices with occurrences",
     "processCount": "{{reached}} of {{total}}",
@@ -1126,6 +1125,7 @@
     "selectionClear": "Clear selection",
     "selectionCount": "{{count}} document selected",
     "selectionCount_other": "{{count}} documents selected",
+    "separationStatusWithReason": "{{status}} · {{reason}}",
     "title": "Trip cargo",
     "unassigned": "No stop"
   },

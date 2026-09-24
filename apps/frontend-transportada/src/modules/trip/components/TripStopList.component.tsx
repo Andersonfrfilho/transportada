@@ -18,7 +18,11 @@ import { resolveDocumentRowAction } from '../shared/documentRowAction.service'
 import { readinessReasonIcon } from '../shared/readinessIcon.service'
 import { canOfferStopFieldAction } from '../shared/tripFieldActions.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
-import { hasTripDocumentFiscalWarning, tripDocumentLabel } from '../shared/tripDocument.service'
+import {
+  hasTripDocumentFiscalWarning,
+  tripDocumentLabel,
+  tripDocumentReturnReasonCode,
+} from '../shared/tripDocument.service'
 import type {
   TripDocumentDetail,
   TripDocumentReadiness,
@@ -414,6 +418,20 @@ function TripStopDocumentRow({
     canIssueNfse: actions.canIssueNfse,
     canSubmitCte: actions.canSubmitCte,
   })
+  /**
+   * Spec 181 RF3/CA03: o selo de pipeline carrega o motivo da devolução junto ("Devolvida ·
+   * Ausente"), traduzido — em vez de um selo e uma frase separada repetindo o mesmo fato.
+   */
+  const returnReasonCode = tripDocumentReturnReasonCode(document)
+  const separationStatusLabel =
+    returnReasonCode === null
+      ? t(`separationStatus.${document.separationStatus}`)
+      : t('stops.separationStatusWithReason', {
+          reason: t(`fieldActions.returnReason.${returnReasonCode}`, {
+            defaultValue: returnReasonCode,
+          }),
+          status: t(`separationStatus.${document.separationStatus}`),
+        })
 
   return (
     <li
@@ -486,21 +504,25 @@ function TripStopDocumentRow({
           )}
         </>
       )}
-      <span className={styles.separationStatusBadge}>
-        {t(`separationStatus.${document.separationStatus}`)}
-      </span>
-      {/* Spec 173: a nota marcada leva direto ao diálogo da ocorrência dela, sem procurar o botão. */}
+      <span className={styles.separationStatusBadge}>{separationStatusLabel}</span>
+      {/*
+       * Spec 181 RF2/CA02: o marcador de ocorrência aberta e `openOccurrenceCase === true` são a
+       * mesma condição booleana (proposta-ux.md item 4) — um selo só, clicável, leva direto ao
+       * diálogo da ocorrência. Dois selos aqui voltariam a dizer o mesmo fato duas vezes.
+       */}
       {hasOpenOccurrenceMarker(document) ? (
-        <Button
-          className={styles.openOccurrenceBadge}
-          onClick={() => actions.onOpenSeparationOccurrence(document.id)}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Icon name="alert" size="sm" />
-          {t('stops.openOccurrenceDocument')}
-        </Button>
+        <Tooltip label={t('occurrence.openCaseHint')}>
+          <Button
+            className={styles.occurrenceCaseBadge}
+            onClick={() => actions.onOpenSeparationOccurrence(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="alert" size="sm" />
+            {t('occurrence.openCase')}
+          </Button>
+        </Tooltip>
       ) : null}
       {/*
        * Spec 073 CA10: a marca aparece **só** no endereço de entrega. Em 345 de 345 notas reais o
@@ -514,19 +536,6 @@ function TripStopDocumentRow({
       ) : null}
       {hasTripDocumentFiscalWarning(document) ? (
         <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
-      ) : null}
-      {/*
-       * Spec 164 RF36: marca da tratativa aberta na nota. ⚠️ Só sinaliza — nenhuma ação da linha
-       * some ou desabilita por causa dela (CA5), é o contrato de regressão em
-       * test/trip/allowed-actions-occurrence-badge.contract.ts.
-       */}
-      {document.openOccurrenceCase === true ? (
-        <Tooltip label={t('occurrence.openCaseHint')}>
-          <span className={styles.occurrenceCaseBadge}>
-            <Icon name="alert" />
-            {t('occurrence.openCase')}
-          </span>
-        </Tooltip>
       ) : null}
       {/*
        * Spec 174 RF1/RF2/RF6: o estado fiscal é **da nota** — ícone e texto na linha dela, nunca só

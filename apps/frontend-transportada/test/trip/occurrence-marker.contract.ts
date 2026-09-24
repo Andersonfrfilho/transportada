@@ -58,6 +58,12 @@ describe('marcador de ocorrência aberta (spec 173)', () => {
     expect(lista).toContain('stop.hasOpenOccurrence')
     /** A contagem é plural: "1 nota com ocorrência" / "3 notas com ocorrência". */
     expect(lista).toContain("t('stops.openOccurrence'")
-    expect(lista).toContain("t('stops.openOccurrenceDocument')")
+    /**
+     * Spec 181 RF2/CA02: o selo da nota deixou de ter texto próprio (`stops.openOccurrenceDocument`,
+     * "Ocorrência aberta") — `hasOpenOccurrenceMarker` e `openOccurrenceCase` são a mesma condição, e
+     * um selo só (`occurrence.openCase`, "Ocorrência em tratativa") basta. Ver
+     * `document-status-badges.contract.ts` para o contrato completo da fusão.
+     */
+    expect(lista).toContain("t('occurrence.openCase')")
   })
 })

@@ -1322,7 +1322,6 @@
       "missing": "Sem frete calculado",
       "rule": "Regra: {{name}}"
     },
-    "openOccurrenceDocument": "Ocorrência aberta",
     "openOccurrence_one": "1 nota com ocorrência",
     "openOccurrence_other": "{{count}} notas com ocorrência",
     "processCount": "{{reached}} de {{total}}",
@@ -1335,6 +1334,7 @@
     "selectionClear": "Limpar seleção",
     "selectionCount": "{{count}} nota selecionada",
     "selectionCount_other": "{{count}} notas selecionadas",
+    "separationStatusWithReason": "{{status}} · {{reason}}",
     "title": "Cargas da viagem",
     "unassigned": "Sem parada",
     "withoutEstimate": "Sem previsão de término: ainda não há paradas concluídas suficientes para medir o ritmo."
