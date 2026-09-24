@@ -50,6 +50,7 @@ import {
   TRIP_REPORT_ON_BEHALF_PERMISSION,
 } from '../shared/trip.constant'
 import type {
+  AttachFieldProofInput,
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
@@ -135,6 +136,8 @@ export type TripController = Readonly<{
   ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
   /** Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery`, uma chamada por nota. */
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
+  /** Spec 182 D5: `POST .../field-proof` — a foto da carga sobe depois da baixa da nota. */
+  attachFieldProof: (input: AttachFieldProofInput) => Promise<FieldReportIdResult>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   correctGeocodedAddress: (
@@ -260,6 +263,8 @@ export function createTripController(
       canReportOnBehalf ? input.client.registerFieldOccurrences(body) : forbidden(),
     reportFieldDelivery: (body) =>
       canReportOnBehalf ? input.client.reportFieldDelivery(body) : forbidden(),
+    attachFieldProof: (body) =>
+      canReportOnBehalf ? input.client.attachFieldProof(body) : forbidden(),
     readRouteGeometry: (body) =>
       canReadTripFleetDetails ? input.client.readRouteGeometry(body) : forbidden(),
     readTripOccurrences: (body) =>

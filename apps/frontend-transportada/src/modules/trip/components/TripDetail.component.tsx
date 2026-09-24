@@ -281,6 +281,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   const routeSuggestion = useRouteSuggestion({ tripId: workspace.trip?.id ?? '' })
   /** Spec 156 T12: precisa vir antes dos `return` condicionais — hooks não podem ser condicionais. */
   const fieldDelivery = useFieldDelivery({
+    attachFieldProof: workspace.controller.attachFieldProof,
     invalidate: workspace.invalidateFieldDeliveryEffects,
     reportFieldDelivery: workspace.controller.reportFieldDelivery,
     tripId: workspace.trip?.id ?? '',

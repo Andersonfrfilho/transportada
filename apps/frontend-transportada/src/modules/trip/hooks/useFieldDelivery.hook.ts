@@ -9,11 +9,18 @@ import {
 } from '../shared/fieldDeliverySend.service'
 import type { FieldDeliveryDraft } from '../shared/fieldDeliveryWizard.service'
 import { readTripRequestErrorStatus } from '../shared/tripClient.service'
-import type { ReportFieldDeliveryInput, ReportFieldDeliveryResult } from '../shared/trip.types'
+import type {
+  AttachFieldProofInput,
+  FieldReportIdResult,
+  ReportFieldDeliveryInput,
+  ReportFieldDeliveryResult,
+} from '../shared/trip.types'
 
 export type { FieldDeliverySendStatus } from '../shared/fieldDeliverySend.service'
 
 export type UseFieldDeliveryInput = Readonly<{
+  /** Spec 182 D5: sobe depois da baixa da nota, uma foto de carga por vez, nunca em paralelo. */
+  attachFieldProof: (input: AttachFieldProofInput) => Promise<FieldReportIdResult>
   /** Chamada ao fim do lote inteiro (não a cada nota) — detalhe, allowed-actions, ocorrências. */
   invalidate: () => Promise<void>
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
@@ -46,6 +53,11 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
   const draftsRef = useRef<Record<string, FieldDeliveryDraft>>({})
   const idempotencyKeysRef = useRef<Record<string, string>>({})
   /**
+   * Spec 182 D5: uma chave por `(documentId, índice da foto)` — estável entre tentativas, mesmo
+   * padrão de `idempotencyKeysRef` acima. Reenviar (retry) nunca gera chave nova para a mesma foto.
+   */
+  const cargoIdempotencyKeysRef = useRef<Record<string, string>>({})
+  /**
    * A4a (spec 156 T15): fechar o assistente no meio do envio não pode deixar o lote antigo
    * terminando por trás — as chamadas em voo são canceladas (`AbortController`) e qualquer
    * `onStart`/`onSettle` que ainda chegue depois do cancelamento é ignorado, para o próximo
@@ -59,6 +71,45 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
     const key = crypto.randomUUID()
     idempotencyKeysRef.current[documentId] = key
     return key
+  }
+
+  function resolveCargoIdempotencyKey(documentId: string, photoIndex: number): string {
+    const cacheKey = `${documentId}:${String(photoIndex)}`
+    const existing = cargoIdempotencyKeysRef.current[cacheKey]
+    if (existing !== undefined) return existing
+    const key = crypto.randomUUID()
+    cargoIdempotencyKeysRef.current[cacheKey] = key
+    return key
+  }
+
+  /**
+   * Spec 182 D5: sobe uma foto de carga de cada vez, em ordem — nunca em paralelo, e só depois que
+   * a baixa da nota já foi confirmada. Uma foto que falha não interrompe as seguintes nem desfaz a
+   * baixa: o que volta é a contagem do que ainda falta subir (retry reenvia com a mesma chave).
+   */
+  async function sendCargoPhotos(
+    draft: FieldDeliveryDraft,
+    signal: AbortSignal,
+  ): Promise<number> {
+    let cargoPending = 0
+    for (let photoIndex = 0; photoIndex < draft.cargoImageBlobs.length; photoIndex += 1) {
+      const imageBlob = draft.cargoImageBlobs[photoIndex]
+      if (imageBlob === undefined) continue
+      try {
+        await input.attachFieldProof({
+          documentId: draft.documentId,
+          idempotencyKey: resolveCargoIdempotencyKey(draft.documentId, photoIndex),
+          imageBlob,
+          kind: 'cargo',
+          signal,
+          tripId: input.tripId,
+          ...(draft.driverId === undefined ? {} : { driverId: draft.driverId }),
+        })
+      } catch {
+        cargoPending += 1
+      }
+    }
+    return cargoPending
   }
 
   async function sendDraft(
@@ -79,7 +130,9 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
           : { receiverDocument: draft.receiverDocument }),
         ...(draft.receiverName === undefined ? {} : { receiverName: draft.receiverName }),
       })
-      return { kind: result.alreadySettled ? 'alreadySettled' : 'delivered' }
+      const cargoPending = await sendCargoPhotos(draft, signal)
+      const kind = result.alreadySettled ? 'alreadySettled' : 'delivered'
+      return cargoPending === 0 ? { kind } : { cargoPending, kind }
     } catch (error) {
       const code = error instanceof Error ? error.message : 'REQUEST_FAILED'
       /** M13a: só erro transitório (rede/5xx/429, ou TRIP_STATUS_WRITE_CONFLICT) é reenviável —
@@ -125,9 +178,20 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
     void runBatch(drafts)
   }
 
+  /**
+   * Spec 182 D5: além da nota que falhou (existente), reenvia a nota já entregue que ainda tem foto
+   * de carga pendente — `reportFieldDelivery` reenviado com a mesma `Idempotency-Key` é idempotente
+   * (não duplica a baixa), e `sendCargoPhotos` reusa a chave de cada foto (não duplica a foto).
+   */
   function retryFailed(): void {
     const failedDrafts = Object.entries(statusByDocumentId)
-      .filter(([, status]) => status.kind === 'failed' && status.retryable)
+      .filter(([, status]) => {
+        if (status.kind === 'failed') return status.retryable
+        if (status.kind === 'delivered' || status.kind === 'alreadySettled') {
+          return (status.cargoPending ?? 0) > 0
+        }
+        return false
+      })
       .map(([documentId]) => draftsRef.current[documentId])
       .filter((draft): draft is FieldDeliveryDraft => draft !== undefined)
     submit(failedDrafts)
@@ -140,6 +204,7 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
     setIsSubmitting(false)
     draftsRef.current = {}
     idempotencyKeysRef.current = {}
+    cargoIdempotencyKeysRef.current = {}
   }
 
   return { isSubmitting, reset, retryFailed, statusByDocumentId, submit }

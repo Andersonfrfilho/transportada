@@ -6,6 +6,11 @@ export type { FieldDeliveryWizardDocument } from './fieldDeliveryDocument.servic
 
 /** O que a T12 recebe de volta em `onSubmit` — o envio em si não é desta task. */
 export type FieldDeliveryDraft = Readonly<{
+  /**
+   * Spec 182 RF7/D4: até cinco fotos da carga, reduzidas do mesmo jeito que o canhoto. Sempre
+   * presente — lista vazia é o caso comum (nota sem foto de carga).
+   */
+  cargoImageBlobs: readonly Blob[]
   deliveredAt: string
   documentId: string
   driverId?: string

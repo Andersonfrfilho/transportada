@@ -7,10 +7,14 @@ export const FIELD_DELIVERY_SEND_CONCURRENCY = 3
 /**
  * O que sobra de uma chamada: `alreadySettled` é o 409 `DOCUMENT_ALREADY_SETTLED` (aceite 12),
  * tratado como "já estava entregue" — informativo, não uma falha vermelha (D3/aceite 7).
+ *
+ * Spec 182 D5: `cargoPending` conta fotos de carga que não subiram depois da baixa — a nota
+ * continua `delivered`/`alreadySettled` (a foto de carga nunca desfaz a baixa), só o aviso muda.
+ * Ausente ou `0` é "nenhuma pendente"; nunca um terceiro estado.
  */
 export type FieldDeliverySendOutcome =
-  | Readonly<{ kind: 'alreadySettled' }>
-  | Readonly<{ kind: 'delivered' }>
+  | Readonly<{ cargoPending?: number; kind: 'alreadySettled' }>
+  | Readonly<{ cargoPending?: number; kind: 'delivered' }>
   | Readonly<{ code: string; kind: 'failed'; retryable: boolean }>
 
 /**

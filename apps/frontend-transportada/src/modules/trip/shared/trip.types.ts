@@ -888,6 +888,24 @@ export type ReportFieldDeliveryResult = Readonly<{
   tripCompleted: boolean
 }>
 
+/** Spec 182 RF3: `field-proof` aceita `photo` (canhoto avulso) ou `cargo` (foto da mercadoria). */
+export const FIELD_PROOF_KINDS = ['photo', 'cargo'] as const
+export type FieldProofKind = (typeof FIELD_PROOF_KINDS)[number]
+
+/**
+ * Spec 182 D5: `POST /trips/:id/documents/:documentId/field-proof` — anexa a uma entrega **já
+ * feita**, fora do `field-delivery`. É por aqui que a foto da carga do assistente (RF7) sobe,
+ * depois que a baixa da nota já foi confirmada — nunca antes, e nunca no mesmo corpo.
+ */
+export type AttachFieldProofInput = TripDocumentActionInput &
+  Readonly<{
+    driverId?: string
+    idempotencyKey: string
+    imageBlob: Blob
+    kind: FieldProofKind
+    signal?: AbortSignal
+  }>
+
 export type ReadTripAllowedActionsInput = Readonly<{
   documentIds: readonly string[]
   stopIds: readonly string[]
