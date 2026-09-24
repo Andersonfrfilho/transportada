@@ -3,6 +3,7 @@ import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, buttonClassName } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSe
 import { useTripStopOrder } from '../hooks/useTripStopOrder.hook'
 import { resolveDocumentRowAction } from '../shared/documentRowAction.service'
 import { readinessReasonIcon } from '../shared/readinessIcon.service'
+import { canOfferStopFieldAction } from '../shared/tripFieldActions.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import { hasTripDocumentFiscalWarning, tripDocumentLabel } from '../shared/tripDocument.service'
 import type {
@@ -30,6 +32,11 @@ import {
   buildTripTimelineDocumentAnchorId,
   buildTripTimelineStopAnchorId,
 } from '../shared/tripTimelineLink.service'
+import { TripArrivalDialog } from './TripArrivalDialog.component'
+import {
+  TripStopOccurrenceDialog,
+  type TripStopOccurrenceSubmission,
+} from './TripStopOccurrenceDialog.component'
 import styles from '../styles/trip.module.css'
 
 /** Spec 174 RF6: recusa e cancelamento são o que muda de cor — o resto é aviso neutro. */
@@ -55,6 +62,11 @@ export type TripStopDocumentActions = Readonly<{
   canFieldDelivery: (documentId: string) => boolean
   canManage: boolean
   /**
+   * Spec 180: `trip.report-on-behalf` — o mesmo gate que já valia em `TripFieldActions`, agora
+   * consumido aqui para oferecer "registrar chegada"/"registrar ocorrência" na própria parada.
+   */
+  canReportOnBehalf: boolean
+  /**
    * A ocorrência de galpão (`separation`), ao contrário de `canFieldOccurrence`, não varia nota a
    * nota: `trip.manage`, viagem editável e o catálogo de tipos são da viagem inteira, não da nota.
    * Vale para toda nota, em qualquer status de separação.
@@ -69,13 +81,17 @@ export type TripStopDocumentActions = Readonly<{
   capabilities: FieldActionCapabilities
   /** Spec 174 RF1: a prontidão por nota, para a linha mostrar o próprio estado fiscal. */
   fiscalReadinessByDocumentId: ReadonlyMap<string, TripDocumentReadiness>
+  isArrivePending: boolean
   isDeliverPending: boolean
   isEditable: boolean
   /** Spec 174 RF3: o mesmo pendente do lote — a linha e a barra de seleção nunca emitem ao mesmo tempo. */
   isGeneratingCte: boolean
+  isOccurrencePending: boolean
   isReleasePending: boolean
   isReturnPending: boolean
   isTransitionPending: boolean
+  /** Spec 180: registra a chegada nesta parada — o diálogo (`TripArrivalDialog`) mora nesta lista. */
+  onArrive: (input: { arrivedAt: string; stopId: string }) => void
   onFieldDeliver: (documentId: string) => void
   onFieldReturn: (documentId: string) => void
   /** Spec 174 RF3: gera o CT-e só desta nota, sem passar pela seleção. */
@@ -97,6 +113,8 @@ export type TripStopDocumentActions = Readonly<{
   renderProof: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
+  /** Spec 180: registra a ocorrência desta parada — o diálogo (`TripStopOccurrenceDialog`) mora aqui. */
+  onRegisterStopOccurrence: (input: TripStopOccurrenceSubmission & { stopId: string }) => void
   onRelease: (documentId: string) => void
   onSeparate: (documentId: string) => void
 }>
@@ -123,6 +141,13 @@ export function TripStopList({
   const orderedStops = order.orderedIds
     .map((stopId) => stopById.get(stopId))
     .filter((stop): stop is TripStopDetail => stop !== undefined)
+  /**
+   * Spec 180: registrar chegada/ocorrência mudou de `TripFieldActions` para cá — um diálogo só para
+   * a lista inteira (não um por parada), do mesmo jeito que o painel antigo já fazia.
+   */
+  const [arrivalStopId, setArrivalStopId] = useState<null | string>(null)
+  const [occurrenceStopId, setOccurrenceStopId] = useState<null | string>(null)
+  const occurrenceStop = occurrenceStopId === null ? undefined : stopById.get(occurrenceStopId)
 
   if (stops.length === 0) {
     return <p className={styles.hint}>{t('stops.empty')}</p>
@@ -135,6 +160,8 @@ export function TripStopList({
           actions={actions}
           canReorder={canReorder}
           key={stop.id}
+          onOpenArrival={setArrivalStopId}
+          onOpenOccurrence={setOccurrenceStopId}
           selection={selection}
           stop={stop}
         />
@@ -142,29 +169,82 @@ export function TripStopList({
     </ul>
   )
 
-  if (!canReorder) return list
+  const dialogs = (
+    <>
+      {/**
+       * Spec 156 T15 A1: `dispatchedAt` ainda é `null` pela mesma razão de sempre — `GET /trips/:id`
+       * não expõe `trip_dispatch_snapshots.dispatched_at` (pendência no `evidence.md` da T11).
+       */}
+      <TripArrivalDialog
+        dispatchedAt={null}
+        isOpen={arrivalStopId !== null}
+        isSubmitting={actions.isArrivePending}
+        onClose={() => setArrivalStopId(null)}
+        onSubmit={(arrivedAt) => {
+          if (arrivalStopId === null) return
+          actions.onArrive({ arrivedAt, stopId: arrivalStopId })
+          setArrivalStopId(null)
+        }}
+      />
+
+      <TripStopOccurrenceDialog
+        isOpen={occurrenceStop !== undefined}
+        isSubmitting={actions.isOccurrencePending}
+        onClose={() => setOccurrenceStopId(null)}
+        onSubmit={(input) => {
+          setOccurrenceStopId(null)
+          if (occurrenceStop === undefined) return
+          actions.onRegisterStopOccurrence({ ...input, stopId: occurrenceStop.id })
+        }}
+        stopDocuments={occurrenceStop?.documents ?? []}
+      />
+    </>
+  )
+
+  if (!canReorder) {
+    return (
+      <>
+        {list}
+        {dialogs}
+      </>
+    )
+  }
 
   return (
-    <DndContext
-      collisionDetection={closestCenter}
-      onDragEnd={order.handleDragEnd}
-      sensors={sensors}
-    >
-      <SortableContext items={[...order.orderedIds]} strategy={verticalListSortingStrategy}>
-        {list}
-      </SortableContext>
-    </DndContext>
+    <>
+      <DndContext
+        collisionDetection={closestCenter}
+        onDragEnd={order.handleDragEnd}
+        sensors={sensors}
+      >
+        <SortableContext items={[...order.orderedIds]} strategy={verticalListSortingStrategy}>
+          {list}
+        </SortableContext>
+      </DndContext>
+      {dialogs}
+    </>
   )
 }
 
 type TripStopCardProps = Readonly<{
   actions: TripStopDocumentActions
   canReorder: boolean
+  /** Spec 180: abre o `TripArrivalDialog` único da lista, marcado para esta parada. */
+  onOpenArrival: (stopId: string) => void
+  /** Spec 180: abre o `TripStopOccurrenceDialog` único da lista, marcado para esta parada. */
+  onOpenOccurrence: (stopId: string) => void
   selection: TripDocumentSelectionController
   stop: TripStopDetail
 }>
 
-function TripStopCard({ actions, canReorder, selection, stop }: TripStopCardProps) {
+function TripStopCard({
+  actions,
+  canReorder,
+  onOpenArrival,
+  onOpenOccurrence,
+  selection,
+  stop,
+}: TripStopCardProps) {
   const { t } = useTranslation('trip')
   const sortable = useSortable({ disabled: !canReorder, id: stop.id })
   const style = {
@@ -176,6 +256,18 @@ function TripStopCard({ actions, canReorder, selection, stop }: TripStopCardProp
     documentIds.length > 0 &&
     documentIds.every((documentId) => selection.selectedIds.has(documentId))
   const someSelected = documentIds.some((documentId) => selection.selectedIds.has(documentId))
+  const canArrive = canOfferStopFieldAction({
+    action: 'arrive',
+    canReportOnBehalf: actions.canReportOnBehalf,
+    capabilities: actions.capabilities,
+    stopId: stop.id,
+  })
+  const canRegisterOccurrence = canOfferStopFieldAction({
+    action: 'occurrence',
+    canReportOnBehalf: actions.canReportOnBehalf,
+    capabilities: actions.capabilities,
+    stopId: stop.id,
+  })
 
   return (
     <li
@@ -227,6 +319,34 @@ function TripStopCard({ actions, canReorder, selection, stop }: TripStopCardProp
           </span>
         ) : null}
         <StopExecution stop={stop} />
+        {/*
+         * Spec 180: as duas ações de campo por parada — vieram de `TripFieldActions`, que existia só
+         * para elas. Mesmo gate de lá (`canReportOnBehalf` + capacidade da parada), só que na linha
+         * que o escritório já olha para tudo o mais desta parada.
+         */}
+        {canArrive ? (
+          <Button
+            disabled={actions.isArrivePending}
+            onClick={() => onOpenArrival(stop.id)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Icon name="check" />
+            {t('fieldActions.arrive')}
+          </Button>
+        ) : null}
+        {canRegisterOccurrence ? (
+          <Button
+            onClick={() => onOpenOccurrence(stop.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="alert" />
+            {t('fieldActions.occurrence')}
+          </Button>
+        ) : null}
       </div>
 
       <TripStopDocumentGroup actions={actions} documents={stop.documents} selection={selection} />

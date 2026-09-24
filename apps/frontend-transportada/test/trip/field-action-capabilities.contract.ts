@@ -2,6 +2,8 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  canOfferStopFieldAction,
+  canOfferTripFieldAction,
   hasMultipleDrivers,
   resolveDefaultOnBehalfDriverId,
   resolveFieldActionCapabilities,
@@ -168,5 +170,112 @@ describe('selectFieldActionableDocumentIds (spec 156 T15, A4d)', () => {
         documentIds: [DOCUMENT_ID, 'nota-desconhecida'],
       }),
     ).toEqual([DOCUMENT_ID])
+  })
+})
+
+/**
+ * Spec 180: registrar chegada/ocorrência de parada deixa de morar num painel próprio
+ * (`TripFieldActions`) e passa para a linha da parada em `TripStopList` — o botão só aparece com
+ * `canReportOnBehalf` **e** a capacidade da parada, nunca com um dos dois sozinho.
+ */
+describe('canOfferStopFieldAction (spec 180)', () => {
+  it('oferece quando canReportOnBehalf é true e a parada tem a capacidade', () => {
+    const actions: TripAllowedActions = {
+      documents: {},
+      stops: { [STOP_ID]: ['arrive', 'occurrence'] },
+      trip: [],
+    }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      canOfferStopFieldAction({ action: 'arrive', canReportOnBehalf: true, capabilities, stopId: STOP_ID }),
+    ).toBe(true)
+    expect(
+      canOfferStopFieldAction({
+        action: 'occurrence',
+        canReportOnBehalf: true,
+        capabilities,
+        stopId: STOP_ID,
+      }),
+    ).toBe(true)
+  })
+
+  it('sem canReportOnBehalf, não oferece mesmo com a capacidade na parada', () => {
+    const actions: TripAllowedActions = {
+      documents: {},
+      stops: { [STOP_ID]: ['arrive', 'occurrence'] },
+      trip: [],
+    }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      canOfferStopFieldAction({
+        action: 'arrive',
+        canReportOnBehalf: false,
+        capabilities,
+        stopId: STOP_ID,
+      }),
+    ).toBe(false)
+  })
+
+  it('com canReportOnBehalf, não oferece sem a capacidade na parada', () => {
+    const actions: TripAllowedActions = { documents: {}, stops: {}, trip: [] }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      canOfferStopFieldAction({
+        action: 'arrive',
+        canReportOnBehalf: true,
+        capabilities,
+        stopId: STOP_ID,
+      }),
+    ).toBe(false)
+  })
+
+  it('sem allowedActions (undefined), falha fechada mesmo com canReportOnBehalf', () => {
+    const capabilities = resolveFieldActionCapabilities(undefined)
+
+    expect(
+      canOfferStopFieldAction({
+        action: 'occurrence',
+        canReportOnBehalf: true,
+        capabilities,
+        stopId: STOP_ID,
+      }),
+    ).toBe(false)
+  })
+})
+
+/** Spec 180: mesma régua de `canOfferStopFieldAction`, agora para as ações da viagem inteira. */
+describe('canOfferTripFieldAction (spec 180)', () => {
+  it('oferece quando canReportOnBehalf é true e a viagem tem a capacidade', () => {
+    const actions: TripAllowedActions = {
+      documents: {},
+      stops: {},
+      trip: ['confirmLoad', 'startRoute'],
+    }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      canOfferTripFieldAction({ action: 'confirmLoad', canReportOnBehalf: true, capabilities }),
+    ).toBe(true)
+  })
+
+  it('sem canReportOnBehalf, não oferece mesmo com a capacidade na viagem', () => {
+    const actions: TripAllowedActions = { documents: {}, stops: {}, trip: ['startRoute'] }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      canOfferTripFieldAction({ action: 'startRoute', canReportOnBehalf: false, capabilities }),
+    ).toBe(false)
+  })
+
+  it('com canReportOnBehalf, não oferece sem a capacidade na viagem', () => {
+    const actions: TripAllowedActions = { documents: {}, stops: {}, trip: [] }
+    const capabilities = resolveFieldActionCapabilities(actions)
+
+    expect(
+      canOfferTripFieldAction({ action: 'confirmLoad', canReportOnBehalf: true, capabilities }),
+    ).toBe(false)
   })
 })

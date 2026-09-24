@@ -96,6 +96,52 @@ RF3/T201 desta spec, e não foi corrigido aqui.
   `src/modules/trip/components/TripTimeline.component.tsx`,
   `src/modules/trip/styles/tripTimeline.module.css`, locales, `test/trip.contract.test.ts`.
 
+## Ações de campo saem do painel
+
+Decisão do usuário em 23/09: a tela do detalhe listava as paradas duas vezes — em
+`TripStopList.component.tsx` (ações de escritório) e de novo em `TripFieldActions.component.tsx`
+("Ações de campo (pelo motorista)"), que existia só para registrar chegada e ocorrência de parada.
+
+- **Registrar chegada** e **registrar ocorrência de parada** foram para a linha/card da própria
+  parada, em `TripStopList.component.tsx`. Os diálogos (`TripArrivalDialog`,
+  `TripStopOccurrenceDialog`) e o gate (`canReportOnBehalf` + capacidade da parada) são os mesmos —
+  só o local mudou. O estado de qual parada está com diálogo aberto (`arrivalStopId`/
+  `occurrenceStopId`) subiu para `TripStopList`, um diálogo só para a lista inteira, do jeito que o
+  painel antigo já fazia.
+- **Conferir carga** e **iniciar rota** foram para `TripHeaderActions.component.tsx` — o bloco de
+  ações da viagem que já hospeda "liberar para separação" (`planRoute`) e "cancelar viagem". Ficam
+  visíveis com `canReportOnBehalf` (independente de `canManage` — são permissões distintas,
+  `trip.report-on-behalf` × `trip.manage`); o cabeçalho passou a renderizar quando qualquer uma das
+  duas permissões libera alguma ação, e "cancelar" continua a última (destrutiva).
+- O seletor de motorista (só aparece com mais de um na viagem) moveu junto para o cabeçalho — é o
+  mesmo controle, sem duplicar: `TripDetail` já mantinha o estado (`selectedOfficeDriverId`/
+  `officeDriverId`) fora do painel removido, então nada de comportamento mudou.
+- `TripFieldActions.component.tsx` foi removido, junto da chave de locale órfã `fieldActions.title`
+  (nos dois idiomas). `fieldActions.driverLabel`/`arrive`/`occurrence`/`confirmLoad`/`startRoute`/
+  `startRouteConfirm`/`startRouteMessage`/`startRouteTitle`/`returnReason` continuam — usadas pelos
+  diálogos, por `FieldDeliveryWizardHeader` ou pela linha do tempo, conferido por grep antes de
+  qualquer remoção.
+- Dois helpers puros novos em `tripFieldActions.service.ts` — `canOfferStopFieldAction` e
+  `canOfferTripFieldAction` — porque nem `TripStopList` nem `TripHeaderActions` têm suíte de render;
+  cobrem exatamente a combinação `canReportOnBehalf` × capacidade (da parada ou da viagem), com o
+  caso de cada um faltando sozinho e o de `allowedActions` ausente (falha fechada).
+
+```
+$ bunx tsc --noEmit                                          # sem saída
+$ bunx eslint src/modules/trip test/trip --max-warnings=0     # sem saída
+$ bun test ./test/trip.contract.test.ts
+ 1564 pass · 0 fail · 19006 expect() calls [964ms] — +7 testes novos de
+ test/trip/field-action-capabilities.contract.ts (canOfferStopFieldAction/canOfferTripFieldAction)
+```
+
+- Arquivos: `src/modules/trip/shared/tripFieldActions.service.ts`,
+  `src/modules/trip/components/TripStopList.component.tsx`,
+  `src/modules/trip/components/TripHeaderActions.component.tsx`,
+  `src/modules/trip/components/TripDetail.component.tsx`,
+  `src/modules/trip/components/TripFieldActions.component.tsx` (removido),
+  `src/modules/trip/locales/trip.locale.json`, `src/modules/trip/locales/trip.en.locale.json`,
+  `test/trip/field-action-capabilities.contract.ts`.
+
 ## Pendente (fora do escopo desta execução)
 
 - **Fase 5 (T501-T503)**: bloqueada — mexe no contrato da timeline (`TRIP_TIMELINE_ITEM_KEYS`) e a

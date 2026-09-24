@@ -995,8 +995,7 @@
     "startRoute": "Start route",
     "startRouteConfirm": "Start route anyway",
     "startRouteMessage": "The trip moves to \"on delivery route\" and this cannot be undone. Confirm the start?",
-    "startRouteTitle": "Start route",
-    "title": "Field actions (on behalf of the driver)"
+    "startRouteTitle": "Start route"
   },
   "fieldDelivery": {
     "blockedNotOnTrip": "This proof is from document {{document}}, which is not on this trip.",

@@ -1203,8 +1203,7 @@
     "startRoute": "Iniciar rota",
     "startRouteConfirm": "Iniciar rota mesmo assim",
     "startRouteMessage": "A viagem passa a \"em rota de entrega\" e não é possível desfazer o toque. Confirma o início?",
-    "startRouteTitle": "Iniciar rota",
-    "title": "Ações de campo (pelo motorista)"
+    "startRouteTitle": "Iniciar rota"
   },
   "fieldDelivery": {
     "blockedNotOnTrip": "Este canhoto é da nota {{document}}, que não está nesta viagem.",

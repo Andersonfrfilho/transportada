@@ -66,10 +66,10 @@ import { describeTripVehicle } from '../shared/vehicleSummary.service'
 import { buildFieldDeliveryWizardDocuments } from '../shared/fieldDeliveryDocument.service'
 import { FieldDeliveryWizard } from './FieldDeliveryWizard.component'
 import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
-import { TripFieldActions } from './TripFieldActions.component'
 import { TripHeaderActions } from './TripHeaderActions.component'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
+import type { TripStopOccurrenceSubmission } from './TripStopOccurrenceDialog.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
 import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 
@@ -395,6 +395,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
   )
   const documentActions = {
     canManage,
+    canReportOnBehalf: workspace.controller.canReportOnBehalf,
     canSeparateOrLoad,
     canSeparationOccurrence,
     canIssueNfse: workspace.controller.canIssueNfse,
@@ -405,7 +406,9 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       workspace.fieldActionCapabilities.canDocument(documentId, 'fieldOccurrence'),
     capabilities: workspace.fieldActionCapabilities,
     fiscalReadinessByDocumentId,
+    isArrivePending: workspace.reportStopArrivalMutation.isPending,
     isGeneratingCte: workspace.createCteBatchMutation.isPending,
+    isOccurrencePending: workspace.reportStopOccurrenceMutation.isPending,
     /**
      * O par que a ação de NFS-e do módulo dono exige. A emissão pede `profileId`, e quem o escolhe
      * é o operador dentro do diálogo — a linha só oferece a abertura.
@@ -436,6 +439,8 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     isReleasePending: workspace.releaseDocumentMutation.isPending,
     isReturnPending: workspace.fieldReturnDocumentMutation.isPending,
     isTransitionPending: workspace.transitionDocumentMutation.isPending,
+    onArrive: (input: { arrivedAt: string; stopId: string }) =>
+      workspace.reportStopArrivalMutation.mutate({ ...input, ...officeDriverIdInput, tripId: trip.id }),
     onFieldDeliver: (documentId: string) =>
       workspace.fieldDeliverDocumentMutation.mutate({
         deliveredAt: new Date().toISOString(),
@@ -447,6 +452,12 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     onLoad: (documentId: string) =>
       workspace.transitionDocumentMutation.mutate({ action: 'load', documentId, tripId: trip.id }),
     onOverrideAddress: (documentId: string) => setOverrideDocumentId(documentId),
+    onRegisterStopOccurrence: (input: TripStopOccurrenceSubmission & { stopId: string }) =>
+      workspace.reportStopOccurrenceMutation.mutate({
+        ...input,
+        ...officeDriverIdInput,
+        tripId: trip.id,
+      }),
     onRelease: (documentId: string) =>
       workspace.releaseDocumentMutation.mutate({ documentId, tripId: trip.id }),
     onSeparate: (documentId: string) =>
@@ -609,17 +620,29 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
          */}
         <TripHeaderActions
           canManage={canManage}
+          canReportOnBehalf={workspace.controller.canReportOnBehalf}
+          capabilities={workspace.fieldActionCapabilities}
           fiscalReadiness={workspace.fiscalReadiness}
           isCancelPending={workspace.cancelMutation.isPending}
+          isConfirmLoadPending={workspace.confirmLoadTripMutation.isPending}
           isDispatchPending={workspace.dispatchMutation.isPending}
           isFiscalReadinessPanelVisible={canReadFleetDetails}
           isPlanRoutePending={workspace.planRouteMutation.isPending}
+          isStartRoutePending={workspace.startFieldTripMutation.isPending}
           onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
+          onConfirmLoad={() =>
+            workspace.confirmLoadTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
+          }
           onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
           onOpenOccurrenceDocument={(documentId) =>
             workspace.setOpenSeparationOccurrenceDocumentId(documentId)
           }
           onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
+          onSelectDriverId={setSelectedOfficeDriverId}
+          onStartRoute={() =>
+            workspace.startFieldTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
+          }
+          selectedDriverId={officeDriverId ?? ''}
           trip={trip}
         />
       </div>
@@ -906,30 +929,6 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         permissions={workspace.permissions}
         onNfseEmitted={() => workspace.refetchFiscalReadiness()}
         selection={selection}
-      />
-
-      <TripFieldActions
-        canReportOnBehalf={workspace.controller.canReportOnBehalf}
-        capabilities={workspace.fieldActionCapabilities}
-        isArrivePending={workspace.reportStopArrivalMutation.isPending}
-        isConfirmLoadPending={workspace.confirmLoadTripMutation.isPending}
-        isOccurrencePending={workspace.reportStopOccurrenceMutation.isPending}
-        isStartRoutePending={workspace.startFieldTripMutation.isPending}
-        onArrive={(input) =>
-          workspace.reportStopArrivalMutation.mutate({ ...input, tripId: trip.id })
-        }
-        onConfirmLoad={(input) =>
-          workspace.confirmLoadTripMutation.mutate({ ...input, tripId: trip.id })
-        }
-        onRegisterStopOccurrence={(input) =>
-          workspace.reportStopOccurrenceMutation.mutate({ ...input, tripId: trip.id })
-        }
-        onSelectDriverId={setSelectedOfficeDriverId}
-        onStartRoute={(input) =>
-          workspace.startFieldTripMutation.mutate({ ...input, tripId: trip.id })
-        }
-        selectedDriverId={officeDriverId ?? ''}
-        trip={trip}
       />
 
       <FieldOccurrenceDialog

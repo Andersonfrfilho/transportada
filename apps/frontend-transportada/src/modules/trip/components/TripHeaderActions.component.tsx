@@ -4,10 +4,14 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
 
 import { hasOpenOccurrenceMarker } from '../shared/occurrenceMarker.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
+import { canOfferTripFieldAction, hasMultipleDrivers } from '../shared/tripFieldActions.service'
+import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import type { TripDetail, TripFiscalReadiness } from '../shared/trip.types'
+import { TripConfirmDialog } from './TripConfirmDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import styles from '../styles/trip.module.css'
 
@@ -15,9 +19,16 @@ const NOT_LOADED_STATUSES = new Set(['pending', 'separated'])
 
 export type TripHeaderActionsProps = Readonly<{
   canManage: boolean
+  /**
+   * Spec 180: "conferir carga"/"iniciar rota" vieram de `TripFieldActions` — mesmo gate de lá
+   * (`trip.report-on-behalf`), agora hospedado no bloco de ações da viagem.
+   */
+  canReportOnBehalf: boolean
+  capabilities: FieldActionCapabilities
   /** Spec 170 RF2: o que barra o próximo passo, resumido ao lado de quem libera. */
   fiscalReadiness: TripFiscalReadiness | undefined
   isCancelPending: boolean
+  isConfirmLoadPending: boolean
   isDispatchPending: boolean
   /**
    * Se o painel "Prontidão fiscal" está na página para o resumo apontar. Sem `fleet.read`
@@ -25,11 +36,20 @@ export type TripHeaderActionsProps = Readonly<{
    */
   isFiscalReadinessPanelVisible: boolean
   isPlanRoutePending: boolean
+  isStartRoutePending: boolean
   onCancel: () => void
+  onConfirmLoad: () => void
   onDispatch: (input: { readonly force: boolean; readonly forceReason?: string }) => void
   /** A nota é a mesma que o selo da linha abre — o resumo do cabeçalho leva direto ao diálogo dela. */
   onOpenOccurrenceDocument: (documentId: string) => void
   onPlanRoute: () => void
+  /**
+   * Spec 156 T8b: mesmo seletor que `TripFieldActions` já usava — só aparece com mais de um
+   * motorista (`hasMultipleDrivers`), e vale para "conferir carga"/"iniciar rota" aqui.
+   */
+  onSelectDriverId: (driverId: string) => void
+  onStartRoute: () => void
+  selectedDriverId: string
   trip: TripDetail
 }>
 
@@ -47,29 +67,52 @@ export type TripHeaderActionsProps = Readonly<{
  */
 export function TripHeaderActions({
   canManage,
+  canReportOnBehalf,
+  capabilities,
   fiscalReadiness,
   isCancelPending,
+  isConfirmLoadPending,
   isDispatchPending,
   isFiscalReadinessPanelVisible,
   isPlanRoutePending,
+  isStartRoutePending,
   onCancel,
+  onConfirmLoad,
   onDispatch,
   onOpenOccurrenceDocument,
   onPlanRoute,
+  onSelectDriverId,
+  onStartRoute,
+  selectedDriverId,
   trip,
 }: TripHeaderActionsProps) {
   const { t } = useTranslation('trip')
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false)
+  const [isStartRouteDialogOpen, setIsStartRouteDialogOpen] = useState(false)
 
-  if (!canManage) return null
+  const canConfirmLoad = canOfferTripFieldAction({
+    action: 'confirmLoad',
+    canReportOnBehalf,
+    capabilities,
+  })
+  const canStartRoute = canOfferTripFieldAction({
+    action: 'startRoute',
+    canReportOnBehalf,
+    capabilities,
+  })
 
-  const unloadedDocuments = trip.documents.filter(
-    (document) =>
-      document.releasedAt === null && NOT_LOADED_STATUSES.has(document.separationStatus),
-  )
-  const canPlanRoute = trip.status === 'draft'
-  const canDispatch = ['loading', 'route_planned', 'separating'].includes(trip.status)
-  const canCancel = trip.status !== 'completed' && trip.status !== 'cancelled'
+  if (!canManage && !canConfirmLoad && !canStartRoute) return null
+
+  const unloadedDocuments = canManage
+    ? trip.documents.filter(
+        (document) =>
+          document.releasedAt === null && NOT_LOADED_STATUSES.has(document.separationStatus),
+      )
+    : []
+  const canPlanRoute = canManage && trip.status === 'draft'
+  const canDispatch =
+    canManage && ['loading', 'route_planned', 'separating'].includes(trip.status)
+  const canCancel = canManage && trip.status !== 'completed' && trip.status !== 'cancelled'
 
   function handleDispatchClick(): void {
     if (unloadedDocuments.length > 0) {
@@ -94,7 +137,7 @@ export function TripHeaderActions({
    * ainda pendente ao lado.
    */
   const readinessSummary =
-    fiscalReadiness === undefined || fiscalReadiness.totalCount === 0
+    !canManage || fiscalReadiness === undefined || fiscalReadiness.totalCount === 0
       ? null
       : fiscalReadiness.nfseCount === 0
         ? t('stateActions.readinessSummary', {
@@ -111,7 +154,7 @@ export function TripHeaderActions({
    * Spec 173 RF6: quantas notas da viagem têm tratativa aberta. Zero não vira linha — o cabeçalho é
    * o lugar mais nobre da tela, e "0 notas com ocorrência" ocuparia espaço para não dizer nada.
    */
-  const openOccurrenceDocuments = trip.documents.filter(hasOpenOccurrenceMarker)
+  const openOccurrenceDocuments = canManage ? trip.documents.filter(hasOpenOccurrenceMarker) : []
   const openOccurrences = openOccurrenceDocuments.length
   const firstOpenOccurrenceDocument = openOccurrenceDocuments[0]
   /**
@@ -126,6 +169,8 @@ export function TripHeaderActions({
     !canPlanRoute &&
     !canDispatch &&
     !canCancel &&
+    !canConfirmLoad &&
+    !canStartRoute &&
     readinessSummary === null &&
     openOccurrences === 0
   ) {
@@ -177,6 +222,41 @@ export function TripHeaderActions({
         </Button>
       ) : null}
       {/*
+       * Spec 180: "conferir carga"/"iniciar rota" vieram de `TripFieldActions` — o painel existia só
+       * para elas. O seletor de motorista é o mesmo de lá, só aparece com mais de um na viagem.
+       */}
+      {(canConfirmLoad || canStartRoute) && hasMultipleDrivers(trip.drivers) ? (
+        <label className={styles.hint}>
+          {t('fieldActions.driverLabel')}
+          <Select
+            ariaLabel={t('fieldActions.driverLabel')}
+            onChange={onSelectDriverId}
+            options={trip.drivers.map((driver) => ({
+              label: driver.driverName,
+              value: driver.driverId,
+            }))}
+            value={selectedDriverId}
+          />
+        </label>
+      ) : null}
+      {canConfirmLoad ? (
+        <Button disabled={isConfirmLoadPending} onClick={onConfirmLoad} size="sm" type="button">
+          <Icon name="check" />
+          {t('fieldActions.confirmLoad')}
+        </Button>
+      ) : null}
+      {canStartRoute ? (
+        <Button
+          disabled={isStartRoutePending}
+          onClick={() => setIsStartRouteDialogOpen(true)}
+          size="sm"
+          type="button"
+        >
+          <Icon name="send" />
+          {t('fieldActions.startRoute')}
+        </Button>
+      ) : null}
+      {/*
         A destrutiva é a última e usa o tom de alerta (revisão de design de 23/09): ela não divide
         vizinhança com a ação de todo dia, e não lê como link, que era o que o `ghost` fazia.
       */}
@@ -204,6 +284,19 @@ export function TripHeaderActions({
         subtitle={t('stateActions.forceSubtitle')}
         submitLabel={t('stateActions.forceSubmit')}
         title={t('stateActions.forceTitle')}
+      />
+
+      <TripConfirmDialog
+        confirmLabel={t('fieldActions.startRouteConfirm')}
+        isOpen={isStartRouteDialogOpen}
+        isSubmitting={isStartRoutePending}
+        message={t('fieldActions.startRouteMessage')}
+        onCancel={() => setIsStartRouteDialogOpen(false)}
+        onConfirm={() => {
+          setIsStartRouteDialogOpen(false)
+          onStartRoute()
+        }}
+        title={t('fieldActions.startRouteTitle')}
       />
     </div>
   )
