@@ -59,7 +59,9 @@ MinIO tirou as imagens públicas (Docker Hub em 2026-09-11, quay.io em 2026-09-2
 oficiais respondem 410; a nossa é a mesma versão compilada do código-fonte em `infra/minio/`. Numa
 máquina sem a imagem em cache, `make up` falha com `unauthorized` até
 `gh auth token | docker login ghcr.io -u <usuário> --password-stdin` — o token precisa de
-`read:packages` (ou `write:packages`, para republicar). A CI entra com o `GITHUB_TOKEN`.
+`read:packages` (ou `write:packages`, para republicar). **A CI não sobe o MinIO**: os dois testes de
+integração que usavam storage passaram ao dublê em memória (`test/fixtures/in-memory-object-storage.fixture.ts`
+da API), e o CI chama `make up`/`make dev` com `SERVICES` explícito, sem ele.
 
 ⚠️ **O teste da API são dois comandos, e nenhum cobre o outro.** `bun test` usa a descoberta padrão
 do Bun, que casa `*.test.*`: isso pega os 177 `test/*.contract.test.ts` e **exclui por completo** os
