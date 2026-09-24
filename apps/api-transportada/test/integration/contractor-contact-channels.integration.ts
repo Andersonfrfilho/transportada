@@ -11,6 +11,8 @@ import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { asc, eq } from 'drizzle-orm'
 
+import { createContractorContactsUseCase } from '../../src/contractor-mail/application/contractor-contacts.use-case.js'
+import { DrizzleContractorMailRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
   companies,
@@ -149,6 +151,82 @@ describe('contatos da contratante com tipos e canais (spec 183 T301)', () => {
           whatsappOptInAt: new Date('2026-09-24T10:00:00.000Z'),
           whatsappOptInByUserId: userId,
         })
+      })
+    },
+    30_000,
+  )
+})
+
+/**
+ * Spec 183 T302: o caso de uso sobre o repositório de verdade. O que a política decidiu chega ao
+ * banco, volta na leitura, e o contato de uma empresa não é achado com o contexto de outra.
+ */
+describe('escrita de contato com tipos e aceite contra Postgres (spec 183 T302)', () => {
+  testWithPostgres(
+    'grava e relê tudo; trocar o número derruba o aceite; outra empresa não acha o contato',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, contractorId, userId } = await seedContractor(database)
+        const other = await seedContractor(database)
+        const now = new Date('2026-09-24T18:00:00.000Z')
+        const useCase = createContractorContactsUseCase({
+          getContractor: { execute: async () => undefined },
+          now: () => now,
+          repository: new DrizzleContractorMailRepository(database.db),
+        })
+        const context = {
+          companyId,
+          permissions: new Set(['settings.manage'] as const),
+          userId,
+        } as unknown as Parameters<typeof useCase.create>[0]['context']
+
+        const created = await useCase.create({
+          context,
+          contractorId,
+          email: 'Compras@Example.test',
+          name: 'Compradora Souza',
+          occurrenceStages: ['delivery'],
+          phone: '(11) 99999-0001',
+          preferredChannel: 'whatsapp',
+          roleLabel: 'Compras',
+          types: ['approves_charges', 'occurrences'],
+          whatsappOptIn: true,
+        })
+        expect(created).toMatchObject({
+          canDecide: true,
+          email: 'compras@example.test',
+          phone: '5511999990001',
+          receivesOccurrences: true,
+          types: ['occurrences', 'approves_charges'],
+          whatsappOptInAt: now,
+          whatsappOptInByUserId: userId,
+        })
+
+        const [listed] = await useCase.list({ context, contractorId })
+        expect(listed).toEqual(created)
+
+        const changed = await useCase.update({
+          contactId: created.id,
+          context,
+          contractorId,
+          phone: '11988887777',
+          preferredChannel: 'email',
+        })
+        expect(changed).toMatchObject({
+          phone: '5511988887777',
+          preferredChannel: 'email',
+          whatsappOptInAt: null,
+          whatsappOptInByUserId: null,
+        })
+
+        const repository = new DrizzleContractorMailRepository(database.db)
+        expect(
+          await repository.findContractorContact({
+            companyId: other.companyId,
+            contactId: created.id,
+            contractorId,
+          }),
+        ).toBeUndefined()
       })
     },
     30_000,

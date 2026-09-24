@@ -351,3 +351,57 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
     de atribuição (T501);
   - **lacuna até a T302:** contato criado pela rota de hoje nasce com `types = '{}'`, porque derivar
     os tipos na escrita é a T302.
+
+## T302 — A política dos tipos e as rotas de contato com o aceite (verde)
+
+- Contratos escritos antes, todos vermelhos antes da implementação:
+  - `test/contractor-mail/contact-policy.contract.ts` (entra por
+    `test/contractor-mail.contract.test.ts`): a política pura `resolveContractorContactWrite`.
+    Falhou na importação.
+  - `test/contractor-mail/contractor-contacts.contract.ts` ganhou o caso de uso e as rotas da 183:
+    **9 fail** antes da implementação.
+  - No frontend, `test/delivery-clients/contractor-contacts-response.contract.ts`: **3 fail** com o
+    guard antigo.
+- **A política** (`contractor-mail/domain/contractor-contact.policy.ts`):
+  - os tipos mandam, e `receives_occurrences`/`can_decide` saem deles em toda escrita (a 143 e a 150
+    seguem lendo os dois);
+  - o pedido antigo (só os dois campos, o formulário de hoje) mexe só nos dois tipos equivalentes e
+    preserva os outros;
+  - tipos e campo antigo no mesmo pedido é `422 CONTRACTOR_CONTACT_TYPES_CONFLICT`, nunca um
+    vencendo calado;
+  - contato novo sem nada cai nos padrões de antes da 183 (recebe ocorrência, não decide);
+  - grupos vazios são recusados; tipos e grupos são deduplicados, em ordem canônica.
+- **O aceite do WhatsApp (D6):**
+  - o cliente manda `whatsappOptIn: boolean`, e o servidor carimba data (relógio do caso de uso) e
+    autor (`userId` do contexto). `whatsappOptInAt` no corpo é **400**, pelo `.strict()`;
+  - o aceite é do **número**: confirmar o mesmo número guarda o carimbo original; trocar ou tirar o
+    telefone o derruba;
+  - WhatsApp como canal preferido sem aceite é `422 CONTRACTOR_CONTACT_WHATSAPP_WITHOUT_OPT_IN`;
+    aceite sem telefone é `422 CONTRACTOR_CONTACT_OPT_IN_WITHOUT_PHONE`.
+- Telefone normalizado por `toWhatsAppPhone`, a mesma função do WhatsApp verificado; inválido é
+  `422 CONTRACTOR_CONTACT_PHONE_INVALID`. O erro não ecoa telefone nem nome, e um contrato de rota
+  confere que nenhum dos dois vai para log.
+- O `PATCH` lê o contato atual (`findContractorContact`, filtrado por empresa e contratante) e decide
+  a partir dele. Contato de fora é 404 antes da política.
+- Repositório: grava e lê os campos novos. A escrita parcial da 150 (só `status`) segue válida, e o
+  campo ausente fica com o padrão do banco ou o valor gravado.
+- Integração `test/integration/contractor-contact-channels.integration.ts` ganhou o caso de uso
+  sobre o repositório de verdade:
+  - grava e relê tudo, com o aceite carimbado;
+  - trocar o número derruba o aceite;
+  - `findContractorContact` com outra empresa → `undefined`.
+
+  Com as suítes de contatos (150) e de configuração: **13 pass**. Este caso foi escrito depois da
+  implementação; os três contratos acima foram os vermelhos.
+
+- **Achado fora da spec e corrigido na task:** o guard do painel de contatos do frontend
+  (`contractorContactsResponse.validation.ts`) usa `hasExactKeys`. A resposta nova, com mais chaves,
+  reprovaria a lista inteira e o painel da 150 quebraria no deploy. O guard segue estrito (a regra do
+  `security.md` §3): a lista de chaves ganhou os campos novos, e cada um é conferido (conjuntos
+  fechados, texto ou nulo). O painel continua mandando só os campos antigos, que é o caminho legado
+  da política; a tela nova é a T303.
+- Rodado:
+  - API, contrato: **7267 pass, 0 fail**.
+  - Frontend: **5187 pass, 0 fail** + **44 pass**.
+  - `bun run lint` e `bun run typecheck` limpos.
+  - API, integração: **580 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).

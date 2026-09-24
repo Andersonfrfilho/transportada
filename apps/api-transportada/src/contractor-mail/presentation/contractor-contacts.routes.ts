@@ -15,7 +15,12 @@ import {
   API_CONTRACTOR_CONTACTS_PATH,
   API_CONTRACTOR_CONTACT_PATH,
 } from '../../shared/api.constant.js'
-import { CONTRACTOR_CONTACT_STATUSES } from '../../database/contractor-mail.schema.js'
+import {
+  CONTRACTOR_CONTACT_CHANNELS,
+  CONTRACTOR_CONTACT_OCCURRENCE_STAGES,
+  CONTRACTOR_CONTACT_STATUSES,
+  CONTRACTOR_CONTACT_TYPES,
+} from '../../database/contractor-mail.schema.js'
 import type {
   ContractorContact,
   CreateContractorContactUseCaseInput,
@@ -27,16 +32,42 @@ const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': 'applica
 /** RFC 5321 §4.5.3.1.3 — mesmo teto do CHECK `contractor_contacts_email_length_check` no banco. */
 const EMAIL_MAX_LENGTH = 254
 
+/** Nome e setor são texto de gente: teto largo, e o banco não tem outro limite para eles. */
+const LABEL_MAX_LENGTH = 120
+/** Telefone digitado, com máscara; a política normaliza e confere o formato do WhatsApp. */
+const TYPED_PHONE_MAX_LENGTH = 32
+
+/**
+ * Spec 183 T302 (RF5, D6): os campos novos. `.strict()` segue valendo — em especial, o aceite do
+ * WhatsApp chega como `whatsappOptIn: boolean`, e o carimbo (`whatsappOptInAt`/`ByUserId`) é do
+ * servidor: mandá-lo no corpo é 400.
+ */
+const contactChannelFields = {
+  name: z.string().max(LABEL_MAX_LENGTH).optional(),
+  occurrenceStages: z.array(z.enum(CONTRACTOR_CONTACT_OCCURRENCE_STAGES)).max(3).optional(),
+  phone: z.string().max(TYPED_PHONE_MAX_LENGTH).nullable().optional(),
+  preferredChannel: z.enum(CONTRACTOR_CONTACT_CHANNELS).optional(),
+  roleLabel: z.string().max(LABEL_MAX_LENGTH).optional(),
+  types: z.array(z.enum(CONTRACTOR_CONTACT_TYPES)).max(CONTRACTOR_CONTACT_TYPES.length).optional(),
+  whatsappOptIn: z.boolean().optional(),
+}
+
+/**
+ * Os dois campos antigos seguem aceitos (o formulário anterior à 183) e sem padrão aqui: quem decide
+ * o padrão do contato novo é a política, e ela precisa saber se vieram ou não.
+ */
 const createContactSchema = z
   .object({
-    canDecide: z.boolean().default(false),
+    ...contactChannelFields,
+    canDecide: z.boolean().optional(),
     email: z.string().trim().max(EMAIL_MAX_LENGTH).email(),
-    receivesOccurrences: z.boolean().default(true),
+    receivesOccurrences: z.boolean().optional(),
   })
   .strict()
 
 const updateContactSchema = z
   .object({
+    ...contactChannelFields,
     canDecide: z.boolean().optional(),
     email: z.string().trim().max(EMAIL_MAX_LENGTH).email().optional(),
     receivesOccurrences: z.boolean().optional(),
@@ -94,11 +125,10 @@ export function createContractorContactRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseBody(createContactSchema, request)
         return {
-          canDecide: body.canDecide,
+          ...withoutUndefined(body),
           contractorId: parseUuidPathIdentifier(pathParameters.id ?? ''),
           email: body.email,
-          receivesOccurrences: body.receivesOccurrences,
-        }
+        } as CreateInput
       },
       pathname: API_CONTRACTOR_CONTACTS_PATH,
       policy: CONTACTS_MANAGE_POLICY,
@@ -138,8 +168,16 @@ function serializeContact(contact: ContractorContact): Record<string, unknown> {
     contractorId: contact.contractorId,
     email: contact.email,
     id: contact.id,
+    name: contact.name,
+    occurrenceStages: contact.occurrenceStages,
+    phone: contact.phone,
+    preferredChannel: contact.preferredChannel,
     receivesOccurrences: contact.receivesOccurrences,
+    roleLabel: contact.roleLabel,
     status: contact.status,
+    types: contact.types,
+    whatsappOptInAt: contact.whatsappOptInAt?.toISOString() ?? null,
+    whatsappOptInByUserId: contact.whatsappOptInByUserId,
   }
 }
 

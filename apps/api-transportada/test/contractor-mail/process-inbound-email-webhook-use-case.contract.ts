@@ -57,6 +57,9 @@ function buildRepository(input: { readonly settings?: ContractorMailSettingsReco
     async listContractorContacts() {
       return []
     },
+    async findContractorContact() {
+      return undefined
+    },
     async updateContractorContact() {
       throw new Error('not used in this contract')
     },

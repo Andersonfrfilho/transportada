@@ -65,7 +65,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 - [x] **T301** 🧠 Migration aditiva de `contractor_contacts` (RF5) com preenchimento e `rollback.sql`.
       Evidência: `make migration-test`.
-- [ ] **T302** Política tipos → `receives_occurrences`/`can_decide` e contrato das rotas de contato
+- [x] **T302** Política tipos → `receives_occurrences`/`can_decide` e contrato das rotas de contato
       com os campos novos e o aceite (autor e data do servidor). Evidência: política + contratos.
 - [ ] **T303** `ContractorContactsPanel` com nome, setor, telefone, tipos, grupos, canais e canal
       preferido. Evidência: contrato de validação.
