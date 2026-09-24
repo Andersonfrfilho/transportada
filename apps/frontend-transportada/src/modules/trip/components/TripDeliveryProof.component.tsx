@@ -50,7 +50,17 @@ export function TripDeliveryProof({ occurrences, products, view }: TripDeliveryP
         <p className={styles.hint}>
           {view.returnReason === null || view.returnReason === ''
             ? t('deliveryProof.returnedWithoutReason')
-            : t('deliveryProof.returned', { reason: view.returnReason })}
+            : t('deliveryProof.returned', {
+                /**
+                 * `returnReason` é código (`recipient_absent`), não texto: o dicionário vive em
+                 * `fieldActions.returnReason`. A linha do tempo já traduzia; aqui o código cru saía
+                 * em inglês na cara do operador. Código sem tradução cai nele mesmo — feio, mas
+                 * some-lo esconderia o motivo da devolução.
+                 */
+                reason: t(`fieldActions.returnReason.${view.returnReason}`, {
+                  defaultValue: view.returnReason,
+                }),
+              })}
         </p>
         <TripDocumentProducts products={products} />
         {occurrences}
