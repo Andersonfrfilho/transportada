@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   canAddFieldDeliveryCargoPhoto,
   FIELD_DELIVERY_CARGO_PHOTO_LIMIT,
+  processFieldDeliveryCargoPhotoFiles,
   splitFieldDeliveryCargoPhotoSelection,
 } from '@/modules/trip/shared/fieldDeliveryCargoPhoto.service'
 import {
@@ -158,5 +159,51 @@ describe('limite de fotos da carga (spec 182 D3, T3.2)', () => {
     expect(
       splitFieldDeliveryCargoPhotoSelection({ currentCount: 5, selectedCount: 1 }),
     ).toEqual({ accepted: 0, overflow: 1 })
+  })
+})
+
+/**
+ * Achado de revisão (spec 182): `handleCargoPhotosSelected` só tinha `try/finally` — um arquivo que
+ * a imagem não decodifica (HEIC, corrompido) derrubava o lote inteiro em silêncio, perdendo as fotos
+ * boas do mesmo lote. `processFieldDeliveryCargoPhotoFiles` isola cada arquivo.
+ */
+describe('processamento de cada foto da carga isoladamente (achado de revisão spec 182)', () => {
+  function fileNamed(name: string): File {
+    return new File(['x'], name, { type: 'image/jpeg' })
+  }
+
+  test('todos os arquivos legíveis: nenhum descartado', async () => {
+    const result = await processFieldDeliveryCargoPhotoFiles({
+      files: [fileNamed('a.jpg'), fileNamed('b.jpg')],
+      processFile: (file) => Promise.resolve(file.name.toUpperCase()),
+    })
+    expect(result).toEqual({ photos: ['A.JPG', 'B.JPG'], unreadableCount: 0 })
+  })
+
+  test('um arquivo ilegível no meio do lote não descarta os que deram certo', async () => {
+    const result = await processFieldDeliveryCargoPhotoFiles({
+      files: [fileNamed('a.jpg'), fileNamed('corrompido.heic'), fileNamed('b.jpg')],
+      processFile: (file) =>
+        file.name.endsWith('.heic')
+          ? Promise.reject(new Error('FIELD_DELIVERY_IMAGE_LOAD_FAILED'))
+          : Promise.resolve(file.name.toUpperCase()),
+    })
+    expect(result).toEqual({ photos: ['A.JPG', 'B.JPG'], unreadableCount: 1 })
+  })
+
+  test('lote inteiro ilegível: nenhuma foto, contagem bate com o total', async () => {
+    const result = await processFieldDeliveryCargoPhotoFiles({
+      files: [fileNamed('a.heic'), fileNamed('b.heic')],
+      processFile: () => Promise.reject(new Error('FIELD_DELIVERY_IMAGE_LOAD_FAILED')),
+    })
+    expect(result).toEqual({ photos: [], unreadableCount: 2 })
+  })
+
+  test('seleção vazia: nada processado', async () => {
+    const result = await processFieldDeliveryCargoPhotoFiles({
+      files: [],
+      processFile: (file) => Promise.resolve(file.name),
+    })
+    expect(result).toEqual({ photos: [], unreadableCount: 0 })
   })
 })
