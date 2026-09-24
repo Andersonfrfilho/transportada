@@ -1432,6 +1432,15 @@
   text-align: center;
 }
 
+/**
+ * O primitivo da placa traz `justify-self: start` — serve às listas, onde ela alinha com a coluna.
+ * Aqui ela é o título do quadro, e aquele `start` ganhava do `justify-items` do pai: o modelo
+ * centralizava e a placa ficava colada à esquerda, desalinhada justo do nome que ela identifica.
+ */
+.identityTitle > :first-child {
+  justify-self: center;
+}
+
 .identitySpecification {
   margin: 0;
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
