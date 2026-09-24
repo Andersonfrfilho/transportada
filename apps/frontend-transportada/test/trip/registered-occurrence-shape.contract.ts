@@ -51,4 +51,30 @@ describe('registeredOccurrenceFromApi', () => {
       }),
     ).toThrow()
   })
+
+  /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o despacho automático. */
+  test('sem autoDispatch segue funcionando — API anterior ao gatilho', () => {
+    const adapters = createTripResponseAdapters()
+
+    expect(adapters.registeredOccurrenceFromApi({ ...REGISTERED }).autoDispatch).toBeUndefined()
+  })
+
+  test('autoDispatch dispatched chega intacto', () => {
+    const adapters = createTripResponseAdapters()
+
+    const registered = adapters.registeredOccurrenceFromApi({
+      ...REGISTERED,
+      autoDispatch: { outcome: 'dispatched' },
+    })
+
+    expect(registered.autoDispatch).toEqual({ outcome: 'dispatched' })
+  })
+
+  test('autoDispatch com forma inválida recusa a resposta inteira', () => {
+    const adapters = createTripResponseAdapters()
+
+    expect(() =>
+      adapters.registeredOccurrenceFromApi({ ...REGISTERED, autoDispatch: { outcome: 'talvez' } }),
+    ).toThrow()
+  })
 })
