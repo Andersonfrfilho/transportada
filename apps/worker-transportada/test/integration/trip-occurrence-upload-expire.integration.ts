@@ -11,14 +11,16 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 import { createTripOccurrenceUploadExpireRoutine } from '../../src/trip-occurrence-upload-expire/application/trip-occurrence-upload-expire.routine.js'
 import { createDrizzleExpireOccurrenceUploadBatch } from '../../src/trip-occurrence-upload-expire/infrastructure/drizzle-trip-occurrence-upload-expire.repository.js'
-import { createNfeStorageGatewayFromEnvironment } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
+import { createNfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 import type { JobRoutineContext } from '../../src/job-run/application/job-routine.port.js'
 
 const databaseUrl = process.env.DATABASE_URL
-const bucket = process.env.STORAGE_BUCKET ?? process.env.OBJECT_STORAGE_BUCKET
-const canRun = databaseUrl !== undefined && bucket !== undefined
+const bucket = 'transportada-test'
+/** Só o banco é infraestrutura real: o storage é o dublê em memória, que o CI não sobe. */
+const canRun = databaseUrl !== undefined
 const describeIntegration = canRun ? describe : describe.skip
 
 const SILENT_LOGGER = {
@@ -55,10 +57,10 @@ describeIntegration(
 
     const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
     const db = provider.db
-    const storage = createNfeStorageGatewayFromEnvironment({
-      environment: process.env,
-      finalBucket: bucket as string,
-      stagingBucket: bucket as string,
+    const storage = createNfeStorageGateway({
+      provider: createInMemoryObjectStorageProvider({ maxObjectSizeBytes: 25 * 1024 * 1024 }),
+      finalBucket: bucket,
+      stagingBucket: bucket,
     })
 
     let expiredUploadedId: string
@@ -105,7 +107,7 @@ describeIntegration(
       const bytes = new TextEncoder().encode(`occurrence-upload-expire:${expiredUploadedId}`)
       await storage.storeObject({
         body: bytes,
-        bucket: bucket as string,
+        bucket: bucket,
         contentLength: bytes.byteLength,
         contentType: 'image/jpeg',
         key: expiredUploadedKey,
@@ -128,7 +130,7 @@ describeIntegration(
       const freshBytes = new TextEncoder().encode(`occurrence-upload-expire:${freshUploadId}`)
       await storage.storeObject({
         body: freshBytes,
-        bucket: bucket as string,
+        bucket: bucket,
         contentLength: freshBytes.byteLength,
         contentType: 'image/jpeg',
         key: freshUploadKey,
@@ -176,13 +178,9 @@ describeIntegration(
 
       // O objeto que o motorista tinha subido some do bucket de verdade — é isto que nenhum contrato
       // com porta falsa prova sozinho.
-      expect(
-        await storage.headObject({ bucket: bucket as string, key: expiredUploadedKey }),
-      ).toBeUndefined()
+      expect(await storage.headObject({ bucket: bucket, key: expiredUploadedKey })).toBeUndefined()
       // O pendente recente segue com o objeto no bucket, intocado.
-      expect(
-        await storage.headObject({ bucket: bucket as string, key: freshUploadKey }),
-      ).toBeDefined()
+      expect(await storage.headObject({ bucket: bucket, key: freshUploadKey })).toBeDefined()
     })
 
     /** Correr de novo não tem mais nada vencido para expirar — a batida a cada cinco minutos se comporta assim toda vez. */

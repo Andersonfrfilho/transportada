@@ -5,13 +5,13 @@ import { createHash, randomUUID } from 'node:crypto'
 
 import type { ObjectStorageProvider } from '@adatechnology/object-storage-provider'
 import {
-  createObjectStorageProvider,
   OBJECT_STORAGE_ERROR_CODES,
   ObjectStorageError,
 } from '@adatechnology/object-storage-provider'
 import { describe, expect, test } from 'bun:test'
 import { unzipSync } from 'fflate'
 
+import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 import type { CteArchiveEntry } from '../../src/cte-issuance/application/export-cte-documents.port'
 import { createCteArchiveGateway } from '../../src/cte-issuance/infrastructure/cte-archive.gateway'
 import type { NfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway'
@@ -23,20 +23,13 @@ const MAX_OBJECT_SIZE_BYTES = 25 * 1024 * 1024
 /** O volumoso passa dos 200 KiB: obriga a leitura em vários chunks vindos da rede. */
 const BULKY_REPETITIONS = 4_000
 
-const endpoint = process.env.OBJECT_STORAGE_ENDPOINT ?? process.env.STORAGE_ENDPOINT
-const bucket = process.env.OBJECT_STORAGE_BUCKET ?? process.env.STORAGE_BUCKET
-const accessKeyId = process.env.OBJECT_STORAGE_ACCESS_KEY ?? process.env.STORAGE_ACCESS_KEY
-const secretAccessKey = process.env.OBJECT_STORAGE_SECRET_KEY ?? process.env.STORAGE_SECRET_KEY
-const region = process.env.OBJECT_STORAGE_REGION ?? process.env.STORAGE_REGION ?? 'us-east-1'
+/**
+ * O storage é o dublê em memória (`in-memory-object-storage.fixture.ts`): o CI não sobe mais o
+ * MinIO, e o teste roda sempre — nunca pula por falta de infraestrutura.
+ */
+const testWithObjectStorage = test
 
-const hasObjectStorage = [endpoint, bucket, accessKeyId, secretAccessKey].every(
-  (value) => value !== undefined && value.trim() !== '',
-)
-
-const testWithObjectStorage = hasObjectStorage ? test : test.skip
-
-/** Só chega aqui com a suíte habilitada; sem storage configurado os casos nem rodam. */
-const BUCKET = bucket ?? ''
+const BUCKET = 'transportada-test'
 
 type SeededObject = {
   readonly entry: CteArchiveEntry
@@ -61,15 +54,7 @@ function syntheticXml(input: {
 }
 
 function createProvider(): ObjectStorageProvider {
-  return createObjectStorageProvider({
-    accessKeyId: accessKeyId ?? '',
-    endpoint: new URL(endpoint ?? ''),
-    forcePathStyle: true,
-    healthCheckBucket: BUCKET,
-    maxObjectSizeBytes: MAX_OBJECT_SIZE_BYTES,
-    region,
-    secretAccessKey: secretAccessKey ?? '',
-  })
+  return createInMemoryObjectStorageProvider({ maxObjectSizeBytes: MAX_OBJECT_SIZE_BYTES })
 }
 
 async function seedObject(input: {

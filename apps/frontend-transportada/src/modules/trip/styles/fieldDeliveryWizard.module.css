@@ -185,6 +185,77 @@
   grid-template-columns: 1fr;
 }
 
+/* Spec 184 RF7/D4: fotos da carga, no passo de revisão — grid que quebra em telas estreitas (CA07),
+   sem `border-radius` (o design system é quadrado). */
+.cargoPhotosSection {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.cargoPhotosLabel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.cargoPhotosCount {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.cargoPhotosGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cargoPhotoThumb {
+  display: grid;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.cargoPhotoThumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+/**
+ * Embaixo da foto, nunca por cima: o botão sobreposto ocupava metade da miniatura — medido no print
+ * de 375px, 38px de controle sobre 72px de foto —, justo onde o operador confere o que fotografou.
+ * Na largura toda e com a altura de toque do sistema, ele fica fácil de acertar no celular.
+ */
+.cargoPhotoRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target);
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-slate);
+  background: transparent;
+  cursor: pointer;
+}
+
+.cargoPhotoRemove:hover,
+.cargoPhotoRemove:focus-visible {
+  color: var(--color-alert);
+}
+
+/* Mesmo molde de `.occurrencePhotoUpload`: o `FileField` já tem o rótulo próprio acima dele
+   (`.cargoPhotosLabel`) — o dele fica escondido para não duplicar o texto na tela. */
+.cargoPhotosUpload > label:first-child {
+  display: none;
+}
+
 .finishedList {
   display: flex;
   flex-direction: column;

@@ -31,6 +31,7 @@ import {
 } from './multiVehicleSuggestion.validation'
 import type {
   AcceptedMultiVehicleSuggestion,
+  AttachFieldProofInput,
   CreateMultiVehicleSuggestionInput,
   MultiVehicleProposal,
   MultiVehicleSuggestion,
@@ -327,6 +328,11 @@ export type TripClient = Readonly<{
    * `receiverDocument`, `driverId` opcionais, `file` sempre presente nesta tela).
    */
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
+  /**
+   * Spec 184 D5: `POST /trips/:id/documents/:documentId/field-proof` — anexa a uma entrega já
+   * feita. É por aqui que a foto da carga do assistente sobe, depois da baixa confirmada.
+   */
+  attachFieldProof: (input: AttachFieldProofInput) => Promise<FieldReportIdResult>
   transitionTripDocument: (
     input: TransitionTripDocumentInput,
   ) => Promise<TransitionTripDocumentResult>
@@ -588,6 +594,22 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       return adapters.reportFieldDeliveryResultFromApi(readEnvelopeData(response))
+    },
+    async attachFieldProof(input) {
+      const form = new FormData()
+      form.set('file', input.imageBlob)
+      form.set('kind', input.kind)
+      if (input.driverId !== undefined) form.set('driverId', input.driverId)
+
+      const response = await authorizedRequest({
+        dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/field-proof`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
     },
     async readTripAllowedActions(input) {
       const response = await authorizedRequest({

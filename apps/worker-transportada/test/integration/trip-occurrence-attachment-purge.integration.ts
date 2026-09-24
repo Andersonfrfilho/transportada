@@ -12,14 +12,16 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 import { createTripOccurrenceAttachmentPurgeRoutine } from '../../src/trip-occurrence-attachment-purge/application/trip-occurrence-attachment-purge.routine.js'
 import { createDrizzlePurgeOccurrenceAttachmentBatch } from '../../src/trip-occurrence-attachment-purge/infrastructure/drizzle-trip-occurrence-attachment-purge.repository.js'
-import { createNfeStorageGatewayFromEnvironment } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
+import { createNfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 import type { JobRoutineContext } from '../../src/job-run/application/job-routine.port.js'
 
 const databaseUrl = process.env.DATABASE_URL
-const bucket = process.env.STORAGE_BUCKET ?? process.env.OBJECT_STORAGE_BUCKET
-const canRun = databaseUrl !== undefined && bucket !== undefined
+const bucket = 'transportada-test'
+/** Só o banco é infraestrutura real: o storage é o dublê em memória, que o CI não sobe. */
+const canRun = databaseUrl !== undefined
 const describeIntegration = canRun ? describe : describe.skip
 
 const SILENT_LOGGER = {
@@ -58,10 +60,10 @@ describeIntegration(
 
     const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
     const db = provider.db
-    const storage = createNfeStorageGatewayFromEnvironment({
-      environment: process.env,
-      finalBucket: bucket as string,
-      stagingBucket: bucket as string,
+    const storage = createNfeStorageGateway({
+      provider: createInMemoryObjectStorageProvider({ maxObjectSizeBytes: 25 * 1024 * 1024 }),
+      finalBucket: bucket,
+      stagingBucket: bucket,
     })
 
     async function insertObject(input: {
@@ -73,7 +75,7 @@ describeIntegration(
       const bytes = new TextEncoder().encode(`occurrence-attachment-purge:${id}`)
       await storage.storeObject({
         body: bytes,
-        bucket: bucket as string,
+        bucket: bucket,
         contentLength: bytes.byteLength,
         contentType: 'image/jpeg',
         key: input.key,
@@ -309,19 +311,19 @@ describeIntegration(
     `)
       expect(
         await storage.headObject({
-          bucket: bucket as string,
+          bucket: bucket,
           key: String(expiredOriginalKey?.object_key),
         }),
       ).toBeUndefined()
       expect(
         await storage.headObject({
-          bucket: bucket as string,
+          bucket: bucket,
           key: String(expiredThumbnailKey?.object_key),
         }),
       ).toBeUndefined()
       expect(
         await storage.headObject({
-          bucket: bucket as string,
+          bucket: bucket,
           key: String(freshOriginalKey?.object_key),
         }),
       ).toBeDefined()

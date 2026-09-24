@@ -1075,7 +1075,7 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     isString(value.downloadUrl) &&
     isString(value.expiresAt) &&
     isString(value.id) &&
-    (value.kind === 'photo' || value.kind === 'signature') &&
+    (value.kind === 'photo' || value.kind === 'signature' || value.kind === 'cargo') &&
     isString(value.receiverName)
   )
 }

@@ -26,6 +26,8 @@ export type FieldReportState = {
   readonly proofsByEventKind: Set<string>
   /** Spec 156 T15 M1: `eventId:kind` → canal e objeto do comprovante gravado. */
   readonly proofDetailsByEventKind: Map<string, { channel: TripFieldChannel; objectId: string }>
+  /** Spec 184 (RF4): `eventId:kind` → quantas linhas gravadas — a foto de carga soma. */
+  readonly proofCountByEventKind: Map<string, number>
   readonly reports: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly stops: Map<string, DriverStopReference>
   stopCompletes: boolean
@@ -46,6 +48,7 @@ export function createFieldReportState(
     proofsByAttachmentKey: new Map(),
     proofsByEventKind: new Set(),
     proofDetailsByEventKind: new Map(),
+    proofCountByEventKind: new Map(),
     reports: new Map(),
     stops: new Map(),
     stopCompletes: false,
@@ -155,6 +158,11 @@ export function createFieldReportUnitOfWork(
         channel: input.authorship.channel,
         objectId: input.objectId,
       })
+      const countKey = `${input.eventId}:${input.kind}`
+      state.proofCountByEventKind.set(
+        countKey,
+        (state.proofCountByEventKind.get(countKey) ?? 0) + 1,
+      )
       if (input.attachmentKey.length > 0) {
         state.proofsByAttachmentKey.set(
           `${input.eventId}:${input.kind}:${input.attachmentKey}`,
@@ -166,6 +174,8 @@ export function createFieldReportUnitOfWork(
     findProofIdByAttachmentKeyWithinTransaction: async (input) =>
       state.proofsByAttachmentKey.get(`${input.eventId}:${input.kind}:${input.attachmentKey}`) ??
       null,
+    countProofsForEvent: async (input) =>
+      state.proofCountByEventKind.get(`${input.eventId}:${input.kind}`) ?? 0,
     findDeliveryEventForProof: async (input) =>
       state.latestEvents.get(`${input.documentId}:delivered`) ?? null,
     findProofForEvent: async (input) =>

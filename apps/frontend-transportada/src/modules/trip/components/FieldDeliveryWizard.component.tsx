@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useReducer, useState, type ReactNode } from 'react'
+import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -106,6 +106,34 @@ export function FieldDeliveryWizard({
     else finishClose()
   }
 
+  /**
+   * Achado de revisão (spec 184): revoga as URLs das fotos de carga só quando elas realmente saem
+   * do estado — a nota foi confirmada (o reducer já apaga a entrada dela) ou uma foto foi removida
+   * (a entrada encolhe). Comparar com a rodada anterior num único lugar evita espalhar
+   * `revokeObjectURL` pelos vários pontos que mudam esse estado (confirmar, remover, pular).
+   */
+  const previousCargoPhotosByDocumentIdRef = useRef(state.cargoPhotosByDocumentId)
+  useEffect(() => {
+    const previous = previousCargoPhotosByDocumentIdRef.current
+    const current = state.cargoPhotosByDocumentId
+    for (const [documentId, previousPhotos] of Object.entries(previous)) {
+      const currentIds = new Set((current[documentId] ?? []).map((photo) => photo.id))
+      for (const photo of previousPhotos) {
+        if (!currentIds.has(photo.id)) URL.revokeObjectURL(photo.previewUrl)
+      }
+    }
+    previousCargoPhotosByDocumentIdRef.current = current
+  }, [state.cargoPhotosByDocumentId])
+
+  // Fechar o assistente com fotos de carga ainda não confirmadas não pode vazar os object URLs.
+  useEffect(() => {
+    return () => {
+      for (const photos of Object.values(previousCargoPhotosByDocumentIdRef.current)) {
+        for (const photo of photos) URL.revokeObjectURL(photo.previewUrl)
+      }
+    }
+  }, [])
+
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen, onClose: requestClose })
   const isFinished = isFieldDeliveryWizardFinished(state)
   /**
@@ -162,10 +190,17 @@ export function FieldDeliveryWizard({
       return (
         <FieldDeliveryReviewStep
           capture={state.step.capture}
+          cargoPhotos={state.cargoPhotosByDocumentId[currentDocument.documentId] ?? []}
           currentDocument={currentDocument}
           dispatchedAt={dispatchedAt}
           documents={state.documents}
+          onCargoPhotosAdded={(photos) =>
+            dispatch({ documentId: currentDocument.documentId, kind: 'cargoPhotosAdded', photos })
+          }
           onConfirm={(draft) => dispatch({ draft, kind: 'confirmRequested' })}
+          onRemoveCargoPhoto={(photoId) =>
+            dispatch({ documentId: currentDocument.documentId, kind: 'cargoPhotoRemoved', photoId })
+          }
           onRetake={() => dispatch({ kind: 'retakeRequested' })}
           {...driverIdInput}
         />

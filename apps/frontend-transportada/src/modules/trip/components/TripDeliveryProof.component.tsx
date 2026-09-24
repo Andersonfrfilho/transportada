@@ -106,6 +106,14 @@ export function TripDeliveryProof({
       {view.photos.map((proof) => (
         <ProofImage alt={t('deliveryProof.photoAlt')} key={proof.id} proof={proof} />
       ))}
+      {view.cargoPhotos.length > 0 ? (
+        <section className={styles.cargoPhotosSection}>
+          <h5 className={styles.hint}>{t('deliveryProof.cargoPhotosTitle')}</h5>
+          {view.cargoPhotos.map((proof) => (
+            <ProofImage alt={t('deliveryProof.cargoPhotoAlt')} key={proof.id} proof={proof} />
+          ))}
+        </section>
+      ) : null}
       <TripDeliveryProofDetail
         documentId={documentId}
         occurrences={occurrences}

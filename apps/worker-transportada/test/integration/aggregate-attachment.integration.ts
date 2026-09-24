@@ -19,6 +19,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createRabbitMqProvider, type RabbitMqConsumer } from '@adatechnology/rabbitmq-provider'
 import { eq } from 'drizzle-orm'
 
+import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 import { AggregateAttachmentOutboxPublisherService } from '../../src/aggregate-attachment/application/aggregate-attachment-outbox-publisher.service.js'
 import { AggregateAttachmentOutboxRelayService } from '../../src/aggregate-attachment/application/aggregate-attachment-outbox-relay.service.js'
 import { DrizzleAggregateAttachmentOutboxRepository } from '../../src/aggregate-attachment/infrastructure/drizzle-aggregate-attachment-outbox.repository.js'
@@ -36,9 +37,10 @@ import { buildSyntheticCcmei, buildSyntheticCrlv } from './ccmei-pdf.helper.js'
 
 const rabbitMqUrl = process.env.RABBITMQ_TEST_URL ?? process.env.RABBITMQ_URL
 const databaseUrl = process.env.DATABASE_URL
-const bucket = process.env.STORAGE_BUCKET
+const bucket = 'transportada-test'
 
-const canRun = rabbitMqUrl !== undefined && databaseUrl !== undefined && bucket !== undefined
+/** Banco e RabbitMQ são reais; o storage é o dublê em memória, que o CI não sobe. */
+const canRun = rabbitMqUrl !== undefined && databaseUrl !== undefined
 const describeIntegration = canRun ? describe : describe.skip
 
 const PIPELINE_TIMEOUT_MS = 60_000
@@ -104,13 +106,13 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
   let relay: AggregateAttachmentOutboxRelayService
 
   async function buildStorage() {
-    const { createNfeStorageGatewayFromEnvironment } = await import(
+    const { createNfeStorageGateway } = await import(
       '../../src/storage/infrastructure/nfe-storage-gateway.js'
     )
-    return createNfeStorageGatewayFromEnvironment({
-      environment: process.env,
-      finalBucket: bucket as string,
-      stagingBucket: bucket as string,
+    return createNfeStorageGateway({
+      provider: createInMemoryObjectStorageProvider({ maxObjectSizeBytes: 25 * 1024 * 1024 }),
+      finalBucket: bucket,
+      stagingBucket: bucket,
     })
   }
 
@@ -205,7 +207,7 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
 
       await storage.storeObject({
         body: bytes,
-        bucket: bucket as string,
+        bucket: bucket,
         contentLength: bytes.byteLength,
         contentType: 'application/pdf',
         key: objectKey,
@@ -265,7 +267,7 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
 
       await storage.storeObject({
         body: bytes,
-        bucket: bucket as string,
+        bucket: bucket,
         contentLength: bytes.byteLength,
         contentType: 'application/pdf',
         key: objectKey,

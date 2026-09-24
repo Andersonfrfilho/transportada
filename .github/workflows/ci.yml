@@ -116,7 +116,10 @@ jobs:
       - name: Install Playwright Chromium
         run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
       - run: make migration-test
-      - run: make up
+      # Sem MinIO: a MinIO tirou as imagens públicas (2026-09-24), e os dois testes de integração que
+      # usavam storage passaram ao dublê em memória (`test/fixtures/in-memory-object-storage.fixture.ts`).
+      # A lista explícita é o que tira o MinIO — `make up` sem `SERVICES` sobe todos.
+      - run: make up SERVICES="postgres rabbitmq keycloak mailpit"
       - name: API and worker integrations
         run: |
           set -a
@@ -127,7 +130,7 @@ jobs:
       - run: make identity-bootstrap
       - name: Local authenticated smoke
         run: |
-          make dev >"$RUNNER_TEMP/transportada-dev.log" 2>&1 &
+          make dev SERVICES="postgres rabbitmq keycloak mailpit" >"$RUNNER_TEMP/transportada-dev.log" 2>&1 &
           dev_pid=$!
           cleanup() {
             kill "$dev_pid" 2>/dev/null || true

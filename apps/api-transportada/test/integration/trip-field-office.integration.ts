@@ -24,6 +24,7 @@ import {
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
+import { OFFICE_PROOF_MAX_BYTES } from '../../src/trips/domain/delivery-proof.policy.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { resolveTripHasRoute } from '../../src/trips/domain/trip-allowed-actions.policy.js'
@@ -530,6 +531,324 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
           .from(tripDeliveryProofs)
           .where(eq(tripDeliveryProofs.companyId, company.companyId))
         expect(proofRow?.punctuality).toBe('not_required')
+      })
+    },
+  )
+
+  /**
+   * Spec 184 (CA02): a unicidade `(company, stop_event, kind)` virou índice parcial, sem `cargo`, e o
+   * `ON CONFLICT` passou a repetir o predicado. Este é o único teste que força o `DO UPDATE`: o
+   * escritório sobe o canhoto duas vezes, e o segundo substitui o primeiro. Sem o `targetWhere`, o
+   * Postgres recusaria a escrita por não achar o árbitro — e a baixa quebraria em produção.
+   */
+  testWithPostgres(
+    'spec 184: o segundo canhoto do escritório substitui o primeiro pelo índice parcial',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-deliver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-182-delivery',
+          }),
+        })
+        for (const [receiverName, idempotencyKey] of [
+          ['Ana Paula', 'office-182-proof-first'],
+          ['Bruno Lima', 'office-182-proof-second'],
+        ] as const) {
+          const response = await proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: `integration-correlation-${idempotencyKey}`,
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { receiverName },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey,
+            }),
+          })
+          expect(response.status).toBe(201)
+        }
+
+        const proofRows = await database.db
+          .select({ kind: tripDeliveryProofs.kind, receiverName: tripDeliveryProofs.receiverName })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.companyId, company.companyId))
+        expect(proofRows).toEqual([{ kind: 'photo', receiverName: 'Bruno Lima' }])
+      })
+    },
+  )
+
+  /**
+   * Spec 184 (RF3, RF4, CA01, CA04): `kind: cargo` em `field-proof` grava linha própria, sem nome
+   * nem documento do recebedor, e não mexe no canhoto (`photo`) do mesmo evento. Duas fotos de carga
+   * com `attachmentKey` diferentes somam; a mesma `attachmentKey` não duplica.
+   */
+  testWithPostgres(
+    'spec 184: kind cargo soma linhas separadas do canhoto, e a idempotência não duplica',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-cargo-deliver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z', receiverName: 'Ana Paula' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-182-cargo-deliver',
+          }),
+        })
+
+        const first = await proofRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-cargo-1',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { attachmentKey: 'cargo-1', kind: 'cargo' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-182-cargo-proof-1',
+          }),
+        })
+        expect(first.status).toBe(201)
+        const firstBody = (await first.json()) as { data: { id: string } }
+        const firstId = firstBody.data.id
+
+        const second = await proofRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-cargo-2',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { attachmentKey: 'cargo-2', kind: 'cargo' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-182-cargo-proof-2',
+          }),
+        })
+        expect(second.status).toBe(201)
+
+        /** Reenvio da primeira foto com a mesma `attachmentKey`: devolve o id já gravado, sem duplicar. */
+        const resent = await proofRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-cargo-1-resend',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { attachmentKey: 'cargo-1', kind: 'cargo' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-182-cargo-proof-1-resend',
+          }),
+        })
+        expect(resent.status).toBe(201)
+        const resentBody = (await resent.json()) as { data: { id: string } }
+        expect(resentBody.data.id).toBe(firstId)
+
+        const proofRows = await database.db
+          .select({
+            kind: tripDeliveryProofs.kind,
+            receiverName: tripDeliveryProofs.receiverName,
+            receiverDocumentMasked: tripDeliveryProofs.receiverDocumentMasked,
+          })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.companyId, company.companyId))
+        expect(proofRows).toHaveLength(3)
+        expect(proofRows.filter((row) => row.kind === 'photo')).toEqual([
+          { kind: 'photo', receiverName: 'Ana Paula', receiverDocumentMasked: '' },
+        ])
+        expect(proofRows.filter((row) => row.kind === 'cargo')).toEqual([
+          { kind: 'cargo', receiverName: '', receiverDocumentMasked: '' },
+          { kind: 'cargo', receiverName: '', receiverDocumentMasked: '' },
+        ])
+      })
+    },
+  )
+
+  /**
+   * Revisão da spec 184 (MÉDIO): contar e depois inserir deixava dois envios simultâneos lerem a
+   * mesma contagem e gravarem os dois. Com quatro fotos já gravadas, duas disputam a quinta vaga —
+   * exatamente uma passa, e o evento termina com cinco, nunca seis.
+   */
+  testWithPostgres(
+    'spec 184: duas fotos de carga simultâneas não furam o teto de cinco',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-race-deliver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-182-race-deliver',
+          }),
+        })
+        const sendCargo = (label: string) =>
+          proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: `integration-correlation-182-race-${label}`,
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { attachmentKey: `cargo-race-${label}`, kind: 'cargo' },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey: `office-182-race-${label}`,
+            }),
+          })
+        for (let index = 1; index <= 4; index += 1) {
+          expect((await sendCargo(`seed-${index}`)).status).toBe(201)
+        }
+
+        const outcomes = await Promise.allSettled([sendCargo('a'), sendCargo('b')])
+
+        expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+        const rejected = outcomes.filter((outcome) => outcome.status === 'rejected')
+        expect(rejected).toHaveLength(1)
+        expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+          code: 'TRIP_DELIVERY_PROOF_CARGO_LIMIT',
+          status: 422,
+        })
+        const cargoRows = await database.db
+          .select({ id: tripDeliveryProofs.id })
+          .from(tripDeliveryProofs)
+          .where(
+            and(
+              eq(tripDeliveryProofs.companyId, company.companyId),
+              eq(tripDeliveryProofs.kind, 'cargo'),
+            ),
+          )
+        expect(cargoRows).toHaveLength(5)
+      })
+    },
+  )
+
+  /** Spec 184 (RF4, CA03): a sexta foto de carga do mesmo evento é recusada, sem gravar. */
+  testWithPostgres(
+    'spec 184: a sexta foto de carga da mesma entrega recebe 422 TRIP_DELIVERY_PROOF_CARGO_LIMIT',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-limit-deliver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-182-limit-deliver',
+          }),
+        })
+
+        for (let index = 1; index <= 5; index += 1) {
+          const response = await proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: `integration-correlation-182-limit-${index}`,
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { attachmentKey: `cargo-limit-${index}`, kind: 'cargo' },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey: `office-182-limit-proof-${index}`,
+            }),
+          })
+          expect(response.status).toBe(201)
+        }
+
+        await expect(
+          proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-correlation-182-limit-6',
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { attachmentKey: 'cargo-limit-6', kind: 'cargo' },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey: 'office-182-limit-proof-6',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_CARGO_LIMIT', status: 422 })
+
+        const cargoCount = await database.db
+          .select({ id: tripDeliveryProofs.id })
+          .from(tripDeliveryProofs)
+          .where(
+            and(
+              eq(tripDeliveryProofs.companyId, company.companyId),
+              eq(tripDeliveryProofs.kind, 'cargo'),
+            ),
+          )
+        expect(cargoCount).toHaveLength(5)
+      })
+    },
+  )
+
+  /**
+   * Spec 184 (RF5, CA05): a foto de carga aceita o mesmo teto de bytes e a mesma checagem de
+   * cabeçalho do canhoto do escritório — sem exceção.
+   */
+  testWithPostgres(
+    'spec 184: foto de carga acima de 960 KiB ou com cabeçalho que não é imagem é recusada',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-oversize-deliver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-182-oversize-deliver',
+          }),
+        })
+
+        const oversized = new Uint8Array(OFFICE_PROOF_MAX_BYTES + 1)
+        oversized.set(JPEG_BYTES)
+        await expect(
+          proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-correlation-182-oversize',
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { attachmentKey: 'cargo-oversize', kind: 'cargo' },
+              file: { bytes: oversized, mimeType: 'image/jpeg' },
+              idempotencyKey: 'office-182-oversize-proof',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_TOO_LARGE', status: 422 })
+
+        await expect(
+          proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: 'integration-correlation-182-bad-header',
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { attachmentKey: 'cargo-bad-header', kind: 'cargo' },
+              file: { bytes: new Uint8Array([1, 2, 3, 4]), mimeType: 'image/jpeg' },
+              idempotencyKey: 'office-182-bad-header-proof',
+            }),
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE', status: 422 })
+
+        const proofRows = await database.db
+          .select({ id: tripDeliveryProofs.id })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.companyId, company.companyId))
+        expect(proofRows).toHaveLength(0)
       })
     },
   )
