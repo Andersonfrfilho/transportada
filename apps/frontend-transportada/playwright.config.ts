@@ -29,6 +29,7 @@ export default defineConfig({
   testMatch: process.env.PLAYWRIGHT_TEST_MATCH ?? [
     'responsive.smoke.spec.ts',
     'field-delivery.smoke.spec.ts',
+    'field-delivery-cargo.smoke.spec.ts',
     'trip-timeline.smoke.spec.ts',
   ],
   workers: 1,

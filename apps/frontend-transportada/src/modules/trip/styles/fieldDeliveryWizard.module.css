@@ -217,31 +217,37 @@
 }
 
 .cargoPhotoThumb {
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
+  display: grid;
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
 }
 
 .cargoPhotoThumb img {
   display: block;
   width: 100%;
-  height: 100%;
+  aspect-ratio: 1;
   object-fit: cover;
 }
 
+/**
+ * Embaixo da foto, nunca por cima: o botão sobreposto ocupava metade da miniatura — medido no print
+ * de 375px, 38px de controle sobre 72px de foto —, justo onde o operador confere o que fotografou.
+ * Na largura toda e com a altura de toque do sistema, ele fica fácil de acertar no celular.
+ */
 .cargoPhotoRemove {
-  position: absolute;
-  top: var(--space-1);
-  right: var(--space-1);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--control-height-compact, 1.75rem);
-  height: var(--control-height-compact, 1.75rem);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
-  color: var(--color-fog);
-  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+  min-height: var(--touch-target);
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-slate);
+  background: transparent;
+  cursor: pointer;
+}
+
+.cargoPhotoRemove:hover,
+.cargoPhotoRemove:focus-visible {
+  color: var(--color-alert);
 }
 
 /* Mesmo molde de `.occurrencePhotoUpload`: o `FileField` já tem o rótulo próprio acima dele

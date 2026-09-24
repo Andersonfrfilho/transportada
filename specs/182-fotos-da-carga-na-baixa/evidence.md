@@ -206,3 +206,44 @@ limite (item 5) estão em `test/trip-hooks/field-delivery.contract.ts` (descriç
 baixa e depois duas chamadas `cargo` em sequência; falha numa foto → `delivered` com `cargoPending: 1`;
 `retryFailed` reenvia com a mesma `Idempotency-Key`; nota sem foto de carga nunca chama
 `attachFieldProof`; teto de cinco como função pura.
+
+## T5.1–T5.2 — Revisão de design e auditoria (2026-09-24)
+
+**Smoke** `apps/frontend-transportada/test/field-delivery-cargo.smoke.spec.ts` — câmera simulada,
+canhoto capturado, duas fotos de carga reduzidas pelo `reduceFieldDeliveryImageToJpeg`, envio. Registrado
+no `testMatch` do `playwright.config.ts`, ao lado do `field-delivery.smoke.spec.ts`.
+
+| Execução | Resultado |
+|---|---|
+| `VITE_SMOKE_AUTH_BYPASS=true … PLAYWRIGHT_TEST_MATCH='field-delivery-cargo.smoke.spec.ts' bunx playwright test` | 5 passed |
+
+O teste de comportamento confirma, contra a rota interceptada: a baixa sobe, **depois** duas chamadas
+`field-proof` com `kind=cargo`, com `Idempotency-Key` distintas. Em 375px, sem rolagem horizontal.
+
+**Prints** em `prints/`: `review-{desktop,mobile}-{light,dark}.png` (a revisão inteira),
+`cargo-{desktop,mobile}-{light,dark}.png` (o bloco das fotos — o diálogo rola por dentro, e o print
+do diálogo inteiro mostra só o topo) e `send-desktop.png`.
+
+**Achados da revisão de design:**
+
+| Achado | Veredito |
+|---|---|
+| Botão de remover sobre a miniatura — 38px de controle sobre 72px de foto, no meio da imagem | **Corrigido**: embaixo da foto, largura toda, altura de toque do sistema |
+| Rótulo "Fotos da carga (opcional)" duplicado | Não é defeito: o segundo `<label>` do `FileField` fica escondido, e o nome acessível do input vem do `aria-label` (comentário em `file-field.tsx`) |
+| Barra fixa cobrindo o botão de adicionar | Não é defeito: a barra está no fluxo, no fim do formulário; rolando até o fim, o bloco fica acima dela — o print é que rolou só o mínimo |
+
+**Auditoria §15:**
+
+- Log: nenhuma linha de log nova no diff contra `origin/staging` — nome, documento e imagem não vão para log.
+- Storage: mesmo caminho do canhoto — bucket privado, entrega por URL assinada.
+- Erro: `TripDeliveryProofCargoLimitError` (422) é erro de domínio; nada de `AppError` cru nem stack trace.
+- N+1: uma contagem por envio (`countProofsForEvent`), não por foto em laço.
+- **Limite conhecido — taxa:** a rota do escritório aceita 300 chamadas por 5 min por usuário, somando
+  baixa, anexo e devolução. Lote realista (10–30 notas) tem folga; 50 notas com cinco fotos cada chega
+  ao teto, e o excedente volta 429 — reenviável: a nota fica entregue e a foto pendente, com "Tentar de novo".
+- **Limite conhecido — concorrência:** o teto de cinco é contagem seguida de inserção; dois envios
+  simultâneos da mesma nota poderiam passar juntos da quarta foto. O assistente envia uma por vez, então
+  não acontece por ele; um cliente que paralelizasse poderia gravar a sexta.
+
+**Gates finais do frontend:** `bun run typecheck` limpo · `bun run lint` limpo ·
+`bun --env-file=../../.env.test run test` → 5166 pass / 0 fail + 48 pass / 0 fail.
