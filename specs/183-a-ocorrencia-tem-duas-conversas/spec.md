@@ -258,12 +258,14 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   (de parada e de nota) numa forma só, filtrada por `companyId`, com o mesmo `id` que a listagem e as
   rotas `/:id/attachments`, `/:id/case/*` e `/:id/case/settlement` já usam. Traz a tratativa no
   mesmo formato da listagem (`case`). Ocorrência de outra empresa responde 404, igual a inexistente.
-- **RF2** A listagem e o detalhe trazem da nota ligada: número, série, contratante (emitente, pelo
-  `findChargeParties` da 143 RF3), valor total (`nfe_documents.total_value`, `numeric`, serializado
-  como string decimal) e endereço de entrega. O endereço é o do **destinatário da nota**
-  (`nfe_participants` + `nfe_addresses`), a mesma fonte de que a parada nasce (ADR-0043 §3 — a
-  parada guarda só `address_key` e `label`, não o endereço). Ocorrência de parada sem nota traz nota,
-  contratante e valor vazios, mostra o `label` da parada no lugar do endereço, e a UI diz "Sem nota".
+- **RF2** A listagem e o detalhe trazem da nota ligada (bloco `document`): valor total
+  (`nfe_documents.total_value`, `numeric`, serializado como string decimal), contratante (o
+  **emitente**, casado com `contractors` pelo CNPJ dentro da empresa, a regra de `findChargeParties`
+  da 143 RF3; sem cadastro, o nome do emitente e `contractorId` nulo) e endereço de entrega. O
+  endereço é o **destino físico** — `<entrega>` vence `<enderDest>` (`resolvePhysicalDestination`,
+  spec 073; lido por `listStopAddresses`, a mesma costura que decide a parada), porque é onde o
+  caminhão para, não o cadastro do cliente. Tudo em duas leituras fixas por página, sem N+1.
+  Ocorrência de parada sem nota traz `document: null` e a UI mostra o `label` da parada e "Sem nota".
 - **RF3** A listagem e o detalhe trazem do motorista: nome e se há foto; o detalhe traz também
   telefone da ficha, o telefone **verificado** do WhatsApp (outro formato, com `55`) e e-mail — nada
   da CNH (ADR-0039). Sem motorista na viagem, o

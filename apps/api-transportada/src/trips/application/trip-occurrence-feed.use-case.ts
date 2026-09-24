@@ -46,6 +46,35 @@ export type TripOccurrenceFeedCaseView = {
   readonly updatedAt: string
 }
 
+/**
+ * Spec 183 RF2: de quem é a carga, para onde ia e quanto vale. `null` quando a ocorrência não tem
+ * nota (relato de parada sem nota).
+ *
+ * - `totalValue` é `nfe_documents.total_value` em **string decimal** — dinheiro nunca vira `number`;
+ * - `contractor` é o **emitente** da nota, casado com `contractors` pelo CNPJ dentro da empresa (a
+ *   regra de `findChargeParties`, 143 RF3); sem cadastro, o nome do emitente e `contractorId` nulo;
+ *   `null` quando a nota não tem emitente gravado;
+ * - `destination` é o **destino físico** (`resolvePhysicalDestination`, spec 073): `<entrega>` vence
+ *   `<enderDest>`, porque é onde o caminhão para; `null` sem endereço gravado.
+ */
+export type TripOccurrenceFeedDocument = {
+  readonly contractor: {
+    readonly contractorId: null | string
+    readonly name: string
+    readonly taxId: null | string
+  } | null
+  readonly destination: {
+    readonly city: string
+    readonly label: string
+    readonly origin: 'delivery' | 'recipient'
+    readonly postalCode: null | string
+    readonly recipientName: string
+    readonly state: string
+  } | null
+  readonly nfeDocumentId: string
+  readonly totalValue: string
+}
+
 export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): nome de quem clicou, `null` sem vínculo ativo na empresa. */
   readonly actorName: string | null
@@ -54,6 +83,8 @@ export type TripOccurrenceFeedItem = {
   readonly channel: TripFieldChannel
   readonly createdAt: string
   readonly description: string
+  /** Spec 183 RF2: a nota da ocorrência, `null` sem nota. */
+  readonly document: TripOccurrenceFeedDocument | null
   /** Primeiro condutor da viagem. Vazio quando a viagem nasceu sem motorista pareado. */
   readonly driverName: string
   /**

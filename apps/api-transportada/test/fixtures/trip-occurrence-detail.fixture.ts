@@ -11,6 +11,23 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   channel: 'driver_app',
   createdAt: '2026-09-24T14:12:00.000Z',
   description: 'Recebedor cobrando descarga.',
+  document: {
+    contractor: {
+      contractorId: '00000000-0000-4000-8000-00000000b001',
+      name: 'Contratante Alfa',
+      taxId: '11222333000181',
+    },
+    destination: {
+      city: 'Guarulhos',
+      label: 'Avenida da Doca, 500 - Guarulhos/SP',
+      origin: 'delivery',
+      postalCode: '07000000',
+      recipientName: 'Galpão de entrega',
+      state: 'SP',
+    },
+    nfeDocumentId: '00000000-0000-4000-8000-00000000b002',
+    totalValue: '48320.0000',
+  },
   driver: {
     driverId: '00000000-0000-4000-8000-00000000f001',
     email: 'motorista@example.test',

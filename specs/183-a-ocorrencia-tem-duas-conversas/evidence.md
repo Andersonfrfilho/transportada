@@ -120,3 +120,20 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
     (`fleet_drivers_phone_check`); o WhatsApp verificado grava com `55`. O detalhe devolve os dois
     separados (`phone`, `whatsappPhone`).
   - O `.env.test` aponta para o Postgres de E2E (porta 65432); aqui só ele sobe (sem MinIO/RabbitMQ).
+
+## T203 — A nota na listagem (verde)
+
+- Contrato escrito antes: `test/integration/trip-occurrence-feed-document.integration.ts` (no
+  `package.json`) rodou **2 pass, 4 fail** antes da implementação (`document` ausente).
+- Implementação: `toFeedItems` em `trip-occurrence-feed.query.ts` monta o bloco `document` da página
+  inteira em **duas leituras fixas** — emitentes com o contratante casado por CNPJ **dentro da
+  empresa** e `listStopAddresses` (destino físico, spec 073). Página sem nota não consulta nada.
+- Provas contra Postgres: valor `'10000.0000'` (string decimal), contratante pelo emitente, destino
+  `delivery` vencendo `recipient`; emitente sem cadastro → nome do emitente e `contractorId: null`;
+  parada sem nota → `document: null`; contratante de **outra empresa** com o mesmo CNPJ não é casado;
+  **mesmo número de consultas** para 1 e para 20 ocorrências.
+- Rodado: contratos `trip-occurrence`, `trip-http`, `trip-schema` + integrações `feed-document`,
+  `detail`, `feed-case` → **492 pass, 0 fail**. Typecheck e lint limpos.
+- Correções da spec: RF2 lia "endereço do destinatário"; o código segue o destino físico, como o
+  `CLAUDE.md` da API exige para quem decide **lugar**. O RF4 foi para a T404.
+- O frontend não quebra com o campo novo: o guard da linha é tolerante a chave a mais (B5/B6).

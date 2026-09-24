@@ -40,7 +40,8 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       formato da listagem e o bloco do motorista nulo quando não há. Evidência: contrato vermelho.
 - [x] **T202** `get-trip-occurrence.use-case.ts` + query + rota até o T201 ficar verde. Evidência:
       contratos + integração com os dois tipos.
-- [ ] **T203** Campos novos na listagem (RF2–RF4) numa consulta só, valor como string decimal.
+- [x] **T203** Bloco `document` na listagem e no detalhe (RF2), valor como string decimal, sem
+      N+1. O RF4 (estado da conversa na listagem) vai com a T404, porque depende das tabelas da T401.
       Evidência: integração conferindo o número de consultas e o formato.
 - [ ] **T204** Rota `/ocorrencias/:id` no frontend (parse/build/navigate), linha clicável e
       `TripOccurrenceDetail.page.tsx` sem a conversa: resumo com autoria, nota, item/quantidade/unidade
@@ -74,7 +75,8 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [ ] **T402** Política de status (RF14) por tabela. Evidência: suíte da política.
 - [ ] **T403** Gateway de e-mail do módulo novo sobre os casos de uso da 143 (a 143 T014/T015 entram
       aqui): enviar, responder, prévia pelo mesmo template. Evidência: teste de caso de uso.
-- [ ] **T404** Rotas de conversa (listar, enviar, marcar lida, prévia) com tenant, permissão e o
+- [ ] **T404** Rotas de conversa (listar, enviar, marcar lida, prévia) e o estado da conversa na
+      listagem (RF4, vindo da T203) com tenant, permissão e o
       separador. Evidência: contratos de rota.
 - [ ] **T405** Recebida por e-mail vira mensagem da conversa; status do Resend aplicado pela
       política. Evidência: integração no worker.

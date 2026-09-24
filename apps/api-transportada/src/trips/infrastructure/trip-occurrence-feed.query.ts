@@ -17,7 +17,8 @@ import type { SQL, SQLWrapper } from 'drizzle-orm'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
-import { nfeDocuments } from '../../database/nfe.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
+import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
@@ -51,9 +52,22 @@ import type {
   TripOccurrenceFeedQuery,
 } from '../application/trip-occurrence-feed.use-case.js'
 import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
+import { listStopAddresses } from './nfe-destination-address.support.js'
+import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
-type FeedRow = Omit<TripOccurrenceFeedItem, 'createdAt'> & { readonly createdAt: Date }
+/** O papel do emitente em `nfe_participants` — o mesmo literal de `findChargeParties`. */
+const EMITTER_ROLE = 'emitter'
+
+/**
+ * A linha antes do enriquecimento: o bloco `document` (spec 183 RF2) nasce **depois** da fusão das
+ * duas fontes, numa leitura em lote por página — nunca uma consulta por linha.
+ */
+type FeedRow = Omit<TripOccurrenceFeedItem, 'createdAt' | 'document'> & {
+  readonly createdAt: Date
+  readonly nfeDocumentId: null | string
+  readonly totalValue: null | string
+}
 
 /**
  * Spec 183 RF1: a mesma consulta da listagem, presa a um id. É deliberadamente **a mesma** — o
@@ -192,6 +206,8 @@ async function listDocumentOccurrenceRows(
       channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
+      nfeDocumentId: nfeDocuments.id,
+      totalValue: nfeDocuments.totalValue,
       driverName: tripDrivers.driverName,
       /**
        * Spec 161 T10 (RF10): sai o `false` fixo — a nota de galpão grava na tabela nova (D2), a de
@@ -299,6 +315,8 @@ async function listDocumentOccurrenceRows(
     channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
+    nfeDocumentId: row.nfeDocumentId ?? null,
+    totalValue: row.totalValue ?? null,
     driverName: row.driverName ?? '',
     hasAttachment: Boolean(row.hasAttachment),
     id: row.id,
@@ -396,6 +414,8 @@ async function listStopOccurrenceRows(
       channel: tripStopOccurrences.channel,
       createdAt: tripStopOccurrences.createdAt,
       description: tripStopOccurrences.description,
+      nfeDocumentId: nfeDocuments.id,
+      totalValue: nfeDocuments.totalValue,
       driverName: tripDrivers.driverName,
       id: tripStopOccurrences.id,
       invoiceNumber: nfeDocuments.number,
@@ -468,6 +488,8 @@ async function listStopOccurrenceRows(
     channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
+    nfeDocumentId: row.nfeDocumentId ?? null,
+    totalValue: row.totalValue ?? null,
     driverName: row.driverName ?? '',
     hasAttachment: row.attachmentObjectId !== null,
     id: row.id,
@@ -482,6 +504,97 @@ async function listStopOccurrenceRows(
     typeName: row.kind,
     vehiclePlate: row.vehiclePlate,
   }))
+}
+
+const feedEmitters = alias(nfeParticipants, 'trip_occurrence_feed_emitter')
+
+/**
+ * Spec 183 RF2: o bloco `document` da página inteira em **duas** leituras fixas — emitentes (com o
+ * contratante casado pelo CNPJ **dentro da empresa**) e destinos físicos (`listStopAddresses`, a
+ * mesma costura que decide a parada) —, qualquer que seja o tamanho da página. Página sem nota
+ * nenhuma não consulta nada.
+ */
+async function toFeedItems(
+  queryable: TripQueryable,
+  companyId: string,
+  rows: readonly FeedRow[],
+): Promise<TripOccurrenceFeedItem[]> {
+  const nfeDocumentIds = [
+    ...new Set(rows.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId]))),
+  ]
+  const emitters = new Map<
+    string,
+    { readonly contractorId: null | string; readonly name: string; readonly taxId: null | string }
+  >()
+  let destinations = new Map<string, NfeDestinationAddress>()
+  if (nfeDocumentIds.length > 0) {
+    const [emitterRows, stopAddresses] = await Promise.all([
+      queryable
+        .select({
+          contractorId: contractors.id,
+          contractorName: contractors.displayName,
+          documentId: feedEmitters.documentId,
+          legalName: feedEmitters.legalName,
+          taxId: feedEmitters.taxId,
+          tradeName: feedEmitters.tradeName,
+        })
+        .from(feedEmitters)
+        .leftJoin(
+          contractors,
+          and(
+            eq(contractors.companyId, feedEmitters.companyId),
+            eq(contractors.taxId, feedEmitters.taxId),
+          ),
+        )
+        .where(
+          and(
+            eq(feedEmitters.companyId, companyId),
+            inArray(feedEmitters.documentId, nfeDocumentIds),
+            eq(feedEmitters.role, EMITTER_ROLE),
+          ),
+        ),
+      listStopAddresses(queryable, { companyId, nfeDocumentIds }),
+    ])
+    for (const emitter of emitterRows) {
+      const registeredName = emitter.contractorName?.trim() ?? ''
+      emitters.set(emitter.documentId, {
+        contractorId: emitter.contractorId ?? null,
+        name:
+          registeredName !== ''
+            ? registeredName
+            : (emitter.legalName ?? emitter.tradeName ?? '').trim(),
+        taxId: emitter.taxId ?? null,
+      })
+    }
+    destinations = stopAddresses
+  }
+
+  return rows.map(({ nfeDocumentId, totalValue, ...row }) => {
+    const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)
+    return {
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+      document:
+        nfeDocumentId === null || totalValue === null
+          ? null
+          : {
+              contractor: emitters.get(nfeDocumentId) ?? null,
+              destination:
+                destination === undefined
+                  ? null
+                  : {
+                      city: destination.city,
+                      label: destination.label,
+                      origin: destination.origin,
+                      postalCode: destination.components.postalCode ?? null,
+                      recipientName: destination.recipientName,
+                      state: destination.state,
+                    },
+              nfeDocumentId,
+              totalValue,
+            },
+    }
+  })
 }
 
 export async function listTripOccurrenceFeed(
@@ -508,7 +621,7 @@ export async function listTripOccurrenceFeed(
   const last = merged.items[merged.items.length - 1]
 
   return {
-    items: merged.items.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
+    items: await toFeedItems(queryable, query.companyId, merged.items),
     nextCursor:
       merged.hasMore && last !== undefined
         ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
@@ -538,7 +651,8 @@ export async function findTripOccurrenceFeedItem(
   ])
   const row = documentRows[0] ?? stopRows[0]
   if (row === undefined) return null
-  return { ...row, createdAt: row.createdAt.toISOString() }
+  const [item] = await toFeedItems(queryable, input.companyId, [row])
+  return item ?? null
 }
 
 const feedAttachmentOriginals = alias(storedObjects, 'trip_occurrence_feed_attachment_original')
