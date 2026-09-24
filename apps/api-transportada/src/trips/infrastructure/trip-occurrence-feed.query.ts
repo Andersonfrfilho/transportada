@@ -55,6 +55,13 @@ import type { TripQueryable } from './trip-queryable.type.js'
 
 type FeedRow = Omit<TripOccurrenceFeedItem, 'createdAt'> & { readonly createdAt: Date }
 
+/**
+ * Spec 183 RF1: a mesma consulta da listagem, presa a um id. É deliberadamente **a mesma** — o
+ * detalhe e a linha não podem divergir no que mostram (tratativa, autoria, anexo), e uma segunda
+ * consulta escrita à parte divergiria na primeira mudança de uma delas.
+ */
+type FeedRowQuery = TripOccurrenceFeedQuery & { readonly occurrenceId?: string }
+
 /** Spec 156 T9 (D3): quem gravou, resolvido pela mesma janela do padrão de nfe-documents (D16, H13). */
 const feedActorMembership = alias(userCompanyMemberships, 'trip_occurrence_feed_actor_membership')
 const feedActorProfile = alias(identityUserProfiles, 'trip_occurrence_feed_actor_profile')
@@ -140,7 +147,7 @@ function caseStatusCondition(filters: TripOccurrenceFeedFilters | undefined): SQ
 
 async function listDocumentOccurrenceRows(
   queryable: TripQueryable,
-  query: TripOccurrenceFeedQuery,
+  query: FeedRowQuery,
   cursor: KeysetCursor | null,
   documentStages: null | readonly ('delivery' | 'separation')[],
 ): Promise<readonly FeedRow[]> {
@@ -157,6 +164,9 @@ async function listDocumentOccurrenceRows(
         query.order,
       ),
     )
+  }
+  if (query.occurrenceId !== undefined) {
+    conditions.push(eq(tripDocumentOccurrences.id, query.occurrenceId))
   }
   if (documentStages !== null)
     conditions.push(inArray(tripDocumentOccurrences.stage, documentStages))
@@ -350,7 +360,7 @@ function stopOccurrencesMatchCaseFilter(filters: TripOccurrenceFeedFilters | und
 
 async function listStopOccurrenceRows(
   queryable: TripQueryable,
-  query: TripOccurrenceFeedQuery,
+  query: FeedRowQuery,
   cursor: KeysetCursor | null,
 ): Promise<readonly FeedRow[]> {
   if (!stopOccurrencesMatchCaseFilter(query.filters)) return []
@@ -363,6 +373,9 @@ async function listStopOccurrenceRows(
     conditions.push(
       keysetCondition(tripStopOccurrences.createdAt, tripStopOccurrences.id, cursor, query.order),
     )
+  }
+  if (query.occurrenceId !== undefined) {
+    conditions.push(eq(tripStopOccurrences.id, query.occurrenceId))
   }
   if (query.filters?.typeIn !== undefined && query.filters.typeIn.length > 0) {
     // O filtro de tipo casa com o `kind` do catálogo; nome de tipo cadastrado não é kind de parada.
@@ -501,6 +514,31 @@ export async function listTripOccurrenceFeed(
         ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
         : null,
   }
+}
+
+/**
+ * Spec 183 RF1: uma ocorrência só, na forma exata da linha da listagem. As duas fontes são
+ * consultadas (o id é único nas duas tabelas por ser UUID, e cada consulta já escopa pela empresa
+ * em toda junção); `null` quando nenhuma acha — de outra empresa ou inexistente, igual.
+ */
+export async function findTripOccurrenceFeedItem(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<TripOccurrenceFeedItem | null> {
+  const query: FeedRowQuery = {
+    companyId: input.companyId,
+    cursor: null,
+    limit: 1,
+    occurrenceId: input.occurrenceId,
+    order: 'desc',
+  }
+  const [documentRows, stopRows] = await Promise.all([
+    listDocumentOccurrenceRows(queryable, query, null, null),
+    listStopOccurrenceRows(queryable, query, null),
+  ])
+  const row = documentRows[0] ?? stopRows[0]
+  if (row === undefined) return null
+  return { ...row, createdAt: row.createdAt.toISOString() }
 }
 
 const feedAttachmentOriginals = alias(storedObjects, 'trip_occurrence_feed_attachment_original')

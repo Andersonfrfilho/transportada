@@ -38,7 +38,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [x] **T201** Contrato de `GET /trip-occurrences/:id` para os dois tipos, com tenant (404 de outra
       empresa), `fleet.read` (403 sem ela; motorista e agregado sem acesso), a tratativa (`case`) no
       formato da listagem e o bloco do motorista nulo quando não há. Evidência: contrato vermelho.
-- [ ] **T202** `get-trip-occurrence.use-case.ts` + query + rota até o T201 ficar verde. Evidência:
+- [x] **T202** `get-trip-occurrence.use-case.ts` + query + rota até o T201 ficar verde. Evidência:
       contratos + integração com os dois tipos.
 - [ ] **T203** Campos novos na listagem (RF2–RF4) numa consulta só, valor como string decimal.
       Evidência: integração conferindo o número de consultas e o formato.

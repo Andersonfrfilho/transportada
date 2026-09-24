@@ -181,9 +181,10 @@ abre direto (recarregar, colar o link).
 
 ### P2 — O contato do motorista está à mão
 
-**Given** a ocorrência de uma viagem com motorista, **Then** o detalhe mostra telefone (com o selo
-WhatsApp quando verificado), e-mail e categoria/validade da CNH, com "Ligar", "WhatsApp" e "Copiar
-telefone". A página inteira já exige `fleet.read`, a mesma permissão que abre a ficha do motorista.
+**Given** a ocorrência de uma viagem com motorista, **Then** o detalhe mostra foto (ou iniciais),
+telefone (com o selo WhatsApp quando verificado) e e-mail, com "Ligar", "WhatsApp", "Escrever e-mail"
+e "Copiar telefone". **Nada da CNH**: validade e número são dados que a ADR-0039 manda criptografar,
+e o módulo `trip` não os lê (`test/trip/privacy.contract.ts`, spec 079 T015). A página inteira já exige `fleet.read`, a mesma permissão que abre a ficha do motorista.
 **And** sem motorista na viagem, o bloco não aparece.
 
 ### P3 — Os contatos da contratante têm nome, tipos e canais
@@ -264,7 +265,8 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   parada guarda só `address_key` e `label`, não o endereço). Ocorrência de parada sem nota traz nota,
   contratante e valor vazios, mostra o `label` da parada no lugar do endereço, e a UI diz "Sem nota".
 - **RF3** A listagem e o detalhe trazem do motorista: nome e se há foto; o detalhe traz também
-  telefone, se é WhatsApp verificado, e-mail e categoria/validade da CNH. Sem motorista na viagem, o
+  telefone da ficha, o telefone **verificado** do WhatsApp (outro formato, com `55`) e e-mail — nada
+  da CNH (ADR-0039). Sem motorista na viagem, o
   bloco vem nulo. A foto usa o endpoint de foto de usuário que já existe.
 - **RF4** A listagem traz o estado da conversa com a contratante (`none`, `awaiting`, `replied`) e a
   quantidade de mensagens do motorista não lidas pelo operador, sem N+1. A decisão (aprovada,

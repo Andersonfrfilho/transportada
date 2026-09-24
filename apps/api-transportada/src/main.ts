@@ -369,6 +369,9 @@ import {
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
+import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
+import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
+import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createOccurrenceCaseUseCase } from './trips/application/occurrence-case.use-case.js'
 import { DrizzleOccurrenceCaseRepository } from './trips/infrastructure/drizzle-occurrence-case.repository.js'
 import { createRedeliveryProposalRoutes } from './trips/presentation/redelivery-proposal.routes.js'
@@ -2741,6 +2744,12 @@ function createApplicationRoutes({
     }),
     /** Spec 148 T7: a fila de revisão das notas que não couberam. */
     ...createTripDocumentReviewRoutes({ reviews: tripDocumentReviewRepository }),
+    /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
+    ...createTripOccurrenceDetailRoutes({
+      readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({
+        reader: { findDetail: (input) => findTripOccurrenceDetail(database, input) },
+      }),
+    }),
     ...createOccurrenceCaseRoutes({
       findCaseIdByOccurrenceId: (input) => occurrenceCaseRepository.findIdByOccurrenceId(input),
       occurrenceCase: occurrenceCaseUseCase,

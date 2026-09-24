@@ -91,3 +91,32 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
 - Decisão registrada na execução: a foto do motorista sai pelo caminho **público** que já existe
   (`/public/company-users/:token/picture`, token já publicado no provedor de identidade); a rota
   autenticada da foto exige `users.manage`, que o operador não tem.
+
+## T202 — Caso de uso, query e rota do detalhe (verde)
+
+- `read-trip-occurrence-detail.use-case.ts`, `trip-occurrence-detail.routes.ts` (`fleet.read`,
+  `no-store`), `trip-occurrence-detail.query.ts` e o filtro por id na consulta da listagem
+  (`findTripOccurrenceFeedItem`: **a mesma** consulta da linha, presa a um id — detalhe e linha não
+  divergem). Fiação em `src/main.ts`.
+- Integração nova `test/integration/trip-occurrence-detail.integration.ts` (no `package.json`):
+  ocorrência de nota igual à linha da listagem + motorista completo (foto pública, WhatsApp
+  verificado); ocorrência de parada (outra fonte, sem tratativa); **outra empresa não acha nada**
+  (nem de nota, nem de parada) e id inexistente é `null`; viagem sem motorista → `driver: null`;
+  vínculo desativado e telefone não verificado não expõem foto nem WhatsApp.
+- Rodado no estado da T202 (antes da T203): contratos `trip-occurrence` + `trip-http` + integrações
+  `trip-occurrence-detail` e `trip-occurrence-feed-case` → **387 pass, 0 fail**. Lint dos arquivos
+  tocados limpo; `bun run typecheck` limpo.
+- Suítes inteiras (rodadas com a T202 e a T203 juntas, porque a T203 veio em seguida no mesmo
+  checkout): contrato da API **7222 pass, 23 skip, 0 fail**; integração da API **566 pass, 7 skip, 9
+  fail** — 8 são de armazenamento de objetos (`OBJECT_STORAGE_UNAVAILABLE`: o MinIO do compose vem de
+  `quay.io`, que a rede desta sessão bloqueia) e 1 é `occurrence-case-closure` estourando os 5 s sob a
+  carga da suíte inteira; rodada sozinha, **1 pass, 0 fail**. Nenhuma das 9 toca código da 183.
+- Divergências achadas na execução e aplicadas:
+  - **CNH fora do detalhe.** `test/trip/privacy.contract.ts` (spec 079 T015, ADR-0039) proíbe o
+    módulo `trip` de ler `licenseExpiresAt`/`licenseNumber`: são dados que vão ser criptografados, e o
+    que torna isso barato é não haver leitor. A P2 da spec pedia validade da CNH; saiu da API e da
+    tela. Telefone e e-mail continuam, como já aparecem no detalhe da viagem.
+  - **Telefone da ficha ≠ telefone do WhatsApp.** A ficha grava 10–11 dígitos
+    (`fleet_drivers_phone_check`); o WhatsApp verificado grava com `55`. O detalhe devolve os dois
+    separados (`phone`, `whatsappPhone`).
+  - O `.env.test` aponta para o Postgres de E2E (porta 65432); aqui só ele sobe (sem MinIO/RabbitMQ).

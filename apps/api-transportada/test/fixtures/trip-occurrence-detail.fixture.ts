@@ -14,10 +14,8 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
   driver: {
     driverId: '00000000-0000-4000-8000-00000000f001',
     email: 'motorista@example.test',
-    licenseCategory: 'E',
-    licenseExpiresAt: '2028-03-31',
     name: 'Motorista A',
-    phone: '5511999990001',
+    phone: '11999990001',
     picturePath: null,
     whatsappPhone: '5511999990001',
   },
