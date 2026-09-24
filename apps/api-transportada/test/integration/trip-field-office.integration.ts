@@ -536,13 +536,13 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
   )
 
   /**
-   * Spec 182 (CA02): a unicidade `(company, stop_event, kind)` virou índice parcial, sem `cargo`, e o
+   * Spec 184 (CA02): a unicidade `(company, stop_event, kind)` virou índice parcial, sem `cargo`, e o
    * `ON CONFLICT` passou a repetir o predicado. Este é o único teste que força o `DO UPDATE`: o
    * escritório sobe o canhoto duas vezes, e o segundo substitui o primeiro. Sem o `targetWhere`, o
    * Postgres recusaria a escrita por não achar o árbitro — e a baixa quebraria em produção.
    */
   testWithPostgres(
-    'spec 182: o segundo canhoto do escritório substitui o primeiro pelo índice parcial',
+    'spec 184: o segundo canhoto do escritório substitui o primeiro pelo índice parcial',
     async () => {
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
@@ -586,12 +586,12 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
   )
 
   /**
-   * Spec 182 (RF3, RF4, CA01, CA04): `kind: cargo` em `field-proof` grava linha própria, sem nome
+   * Spec 184 (RF3, RF4, CA01, CA04): `kind: cargo` em `field-proof` grava linha própria, sem nome
    * nem documento do recebedor, e não mexe no canhoto (`photo`) do mesmo evento. Duas fotos de carga
    * com `attachmentKey` diferentes somam; a mesma `attachmentKey` não duplica.
    */
   testWithPostgres(
-    'spec 182: kind cargo soma linhas separadas do canhoto, e a idempotência não duplica',
+    'spec 184: kind cargo soma linhas separadas do canhoto, e a idempotência não duplica',
     async () => {
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
@@ -672,12 +672,12 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
   )
 
   /**
-   * Revisão da spec 182 (MÉDIO): contar e depois inserir deixava dois envios simultâneos lerem a
+   * Revisão da spec 184 (MÉDIO): contar e depois inserir deixava dois envios simultâneos lerem a
    * mesma contagem e gravarem os dois. Com quatro fotos já gravadas, duas disputam a quinta vaga —
    * exatamente uma passa, e o evento termina com cinco, nunca seis.
    */
   testWithPostgres(
-    'spec 182: duas fotos de carga simultâneas não furam o teto de cinco',
+    'spec 184: duas fotos de carga simultâneas não furam o teto de cinco',
     async () => {
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
@@ -732,9 +732,9 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
     },
   )
 
-  /** Spec 182 (RF4, CA03): a sexta foto de carga do mesmo evento é recusada, sem gravar. */
+  /** Spec 184 (RF4, CA03): a sexta foto de carga do mesmo evento é recusada, sem gravar. */
   testWithPostgres(
-    'spec 182: a sexta foto de carga da mesma entrega recebe 422 TRIP_DELIVERY_PROOF_CARGO_LIMIT',
+    'spec 184: a sexta foto de carga da mesma entrega recebe 422 TRIP_DELIVERY_PROOF_CARGO_LIMIT',
     async () => {
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)
@@ -791,11 +791,11 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
   )
 
   /**
-   * Spec 182 (RF5, CA05): a foto de carga aceita o mesmo teto de bytes e a mesma checagem de
+   * Spec 184 (RF5, CA05): a foto de carga aceita o mesmo teto de bytes e a mesma checagem de
    * cabeçalho do canhoto do escritório — sem exceção.
    */
   testWithPostgres(
-    'spec 182: foto de carga acima de 960 KiB ou com cabeçalho que não é imagem é recusada',
+    'spec 184: foto de carga acima de 960 KiB ou com cabeçalho que não é imagem é recusada',
     async () => {
       await withDisposableDatabase(async (database) => {
         const company = await seedCompany(database)

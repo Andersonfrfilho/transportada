@@ -26,7 +26,7 @@ export type FieldReportState = {
   readonly proofsByEventKind: Set<string>
   /** Spec 156 T15 M1: `eventId:kind` → canal e objeto do comprovante gravado. */
   readonly proofDetailsByEventKind: Map<string, { channel: TripFieldChannel; objectId: string }>
-  /** Spec 182 (RF4): `eventId:kind` → quantas linhas gravadas — a foto de carga soma. */
+  /** Spec 184 (RF4): `eventId:kind` → quantas linhas gravadas — a foto de carga soma. */
   readonly proofCountByEventKind: Map<string, number>
   readonly reports: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly stops: Map<string, DriverStopReference>

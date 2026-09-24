@@ -35,7 +35,7 @@ import type { RemovableObjectStoragePort } from './stored-object-cleanup.service
 
 /**
  * `kind` é sempre `'photo'` em `field-delivery`: o escritório não colhe assinatura, cumpre a
- * exigência com a foto do canhoto assinado e o nome de quem recebeu (ADR-0067 §5, D8). Spec 182:
+ * exigência com a foto do canhoto assinado e o nome de quem recebeu (ADR-0067 §5, D8). Spec 184:
  * `field-proof` também aceita `'cargo'` — a foto da mercadoria, sem nome nem documento.
  */
 export type OfficeDeliveryProofUpload = {
@@ -94,7 +94,7 @@ export type PersistOfficeProofParams = {
   readonly authorship: FieldAuthorship
   readonly companyId: string
   readonly eventId: string
-  /** Spec 182 RF3: `photo` (padrão, comportamento de hoje) ou `cargo` — nunca `signature`. */
+  /** Spec 184 RF3: `photo` (padrão, comportamento de hoje) ou `cargo` — nunca `signature`. */
   readonly kind: OfficeProofKind
   /** A storage já rastreada por `runWithStoredObjectCleanup` — o que subir aqui some se desfizer. */
   readonly storage: RemovableObjectStoragePort
@@ -108,7 +108,7 @@ export type PersistOfficeProofParams = {
  * evento **não** é substituído — 409 `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`; o do próprio escritório
  * é substituído pelo unique `(company, stop_event, kind)` da ADR-0057.
  *
- * Spec 182 (RF4): `kind: cargo` é a exceção — soma em vez de substituir, sem nome nem documento do
+ * Spec 184 (RF4): `kind: cargo` é a exceção — soma em vez de substituir, sem nome nem documento do
  * recebedor, e recusa a sexta foto do mesmo evento com 422 `TRIP_DELIVERY_PROOF_CARGO_LIMIT`.
  */
 export async function persistOfficeProof(
@@ -154,7 +154,7 @@ export async function persistOfficeProof(
   const proofId = attachment.newProofId()
   /**
    * Spec 156 T15 A2 (ADR-0067 §5): o documento que o escritório digita passa pelo mesmo envelope e
-   * pela mesma máscara do motorista (ADR-0057 §3) — nunca descartado, nunca em claro. Spec 182
+   * pela mesma máscara do motorista (ADR-0057 §3) — nunca descartado, nunca em claro. Spec 184
    * (RF4): a foto de carga nunca carrega nome nem documento do recebedor.
    */
   const receiverDocument = isCargo ? '' : upload.receiverDocument

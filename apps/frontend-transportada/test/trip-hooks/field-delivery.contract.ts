@@ -220,10 +220,10 @@ describe('useFieldDelivery (spec 156 T12)', () => {
 })
 
 /**
- * Spec 182 D5 (T3.1): a foto de carga sobe depois da baixa, uma de cada vez, em `field-proof`
+ * Spec 184 D5 (T3.1): a foto de carga sobe depois da baixa, uma de cada vez, em `field-proof`
  * (`kind: 'cargo'`) — nunca antes, nunca em paralelo, e uma foto que falha não desfaz a baixa.
  */
-describe('useFieldDelivery — fotos da carga (spec 182 D5)', () => {
+describe('useFieldDelivery — fotos da carga (spec 184 D5)', () => {
   test('duas fotos de carga: baixa a nota e depois chama attachFieldProof duas vezes, em ordem — nunca em paralelo', async () => {
     const cargoCalls: AttachFieldProofInput[] = []
     let releaseFirstCargoUpload: (() => void) | undefined

@@ -1,4 +1,4 @@
-# Tasks — Feature 182
+# Tasks — Feature 184
 
 Uma task por vez. Cada uma fecha com typecheck + testes + commit isolado, e evidência em
 `evidence.md`. Teste de aceite **antes** da implementação.
@@ -43,14 +43,14 @@ Uma task por vez. Cada uma fecha com typecheck + testes + commit isolado, e evid
 > 🤖 Modelo: 🧠 `opus`
 
 - [x] **T5.1** (CA07) Assistente com canhoto e duas fotos de carga em 375px e 1280, claro e escuro.
-  Prints em `specs/182-fotos-da-carga-na-baixa/prints/`.
+  Prints em `specs/184-fotos-da-carga-na-baixa/prints/`.
 - [x] **T5.2** Auditoria do §15 do code-standart: sem PII em log, bucket privado, URL assinada, sem
   stack trace em 500.
 
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/182-fotos-da-carga-na-baixa/ (leia spec.md,
+/oh-my-claudecode:autopilot Execute a spec specs/184-fotos-da-carga-na-baixa/ (leia spec.md,
 plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
 Modelos: Fase 1 🧠 → opus · Fase 2 → executor model=sonnet · Fase 3 → executor model=sonnet ·
 Fase 4 → executor model=haiku · Fase 5 🧠 → opus · revisão final → code-reviewer model=opus.

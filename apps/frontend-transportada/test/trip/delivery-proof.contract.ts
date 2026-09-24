@@ -39,7 +39,7 @@ describe('prova da entrega (spec 079 T005)', () => {
     expect(naoEntregue.state).not.toBe(semComprovante.state)
   })
 
-  /** Spec 182: foto da mercadoria não prova quem recebeu — sozinha, a entrega segue sem comprovante. */
+  /** Spec 184: foto da mercadoria não prova quem recebeu — sozinha, a entrega segue sem comprovante. */
   it('foto de carga sozinha não conta como comprovante', () => {
     const view = resolveDeliveryProofView({
       document: ENTREGUE,
@@ -94,8 +94,8 @@ describe('prova da entrega (spec 079 T005)', () => {
   })
 })
 
-/** Spec 182: fotos da carga — cargo */
-describe('fotos da carga (spec 182)', () => {
+/** Spec 184: fotos da carga — cargo */
+describe('fotos da carga (spec 184)', () => {
   const FOTO_CARGA_1 = {
     createdAt: '2026-09-02T14:32:00.000Z',
     downloadUrl: 'https://bucket.example/cargo1.jpg?token=xyz',
@@ -114,7 +114,7 @@ describe('fotos da carga (spec 182)', () => {
     receiverName: '',
   }
 
-  /** Spec 182 RF1/CA06: `cargo` é um tipo de comprovante separado. */
+  /** Spec 184 RF1/CA06: `cargo` é um tipo de comprovante separado. */
   it('aceita múltiplas fotos de carga na mesma entrega', () => {
     const view = resolveDeliveryProofView({
       document: ENTREGUE,
@@ -128,7 +128,7 @@ describe('fotos da carga (spec 182)', () => {
     expect(view.signatures).toHaveLength(0)
   })
 
-  /** Spec 182 CA06: canhoto e fotos de carga são grupos distintos. */
+  /** Spec 184 CA06: canhoto e fotos de carga são grupos distintos. */
   it('separa canhoto de fotos de carga', () => {
     const CANHOTO = { ...ASSINATURA, kind: 'photo' as const, receiverName: '' }
     const view = resolveDeliveryProofView({
@@ -141,7 +141,7 @@ describe('fotos da carga (spec 182)', () => {
     expect(view.signatures).toHaveLength(0)
   })
 
-  /** Spec 182 ADR-0067 §5: assinatura tem prioridade sobre canhoto. */
+  /** Spec 184 ADR-0067 §5: assinatura tem prioridade sobre canhoto. */
   it('assinatura com nome tem prioridade sobre canhoto', () => {
     const CANHOTO_COM_NOME = {
       createdAt: '2026-09-02T14:32:00.000Z',
@@ -160,7 +160,7 @@ describe('fotos da carga (spec 182)', () => {
     expect(view.receiverName).toBe('Portaria')
   })
 
-  /** Spec 182 ADR-0067 §5: sem assinatura, nome vem do canhoto. */
+  /** Spec 184 ADR-0067 §5: sem assinatura, nome vem do canhoto. */
   it('nome vem de canhoto quando não há assinatura', () => {
     const CANHOTO_COM_NOME = {
       createdAt: '2026-09-02T14:32:00.000Z',
@@ -178,7 +178,7 @@ describe('fotos da carga (spec 182)', () => {
     expect(view.receiverName).toBe('Maria')
   })
 
-  /** Spec 182 ADR-0067 §5: sem assinatura nem canhoto com nome, nada. */
+  /** Spec 184 ADR-0067 §5: sem assinatura nem canhoto com nome, nada. */
   it('nome nulo quando não há assinatura nem canhoto com nome', () => {
     const CANHOTO_SEM_NOME = {
       ...ASSINATURA,

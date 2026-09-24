@@ -132,7 +132,7 @@ describe('"Pular nota" no bloqueio (spec 156 T16)', () => {
   })
 })
 
-describe('limite de fotos da carga (spec 182 D3, T3.2)', () => {
+describe('limite de fotos da carga (spec 184 D3, T3.2)', () => {
   test('teto de cinco — espelha TRIP_DELIVERY_PROOF_CARGO_LIMIT da API', () => {
     expect(FIELD_DELIVERY_CARGO_PHOTO_LIMIT).toBe(5)
   })
@@ -163,11 +163,11 @@ describe('limite de fotos da carga (spec 182 D3, T3.2)', () => {
 })
 
 /**
- * Achado de revisão (spec 182): `handleCargoPhotosSelected` só tinha `try/finally` — um arquivo que
+ * Achado de revisão (spec 184): `handleCargoPhotosSelected` só tinha `try/finally` — um arquivo que
  * a imagem não decodifica (HEIC, corrompido) derrubava o lote inteiro em silêncio, perdendo as fotos
  * boas do mesmo lote. `processFieldDeliveryCargoPhotoFiles` isola cada arquivo.
  */
-describe('processamento de cada foto da carga isoladamente (achado de revisão spec 182)', () => {
+describe('processamento de cada foto da carga isoladamente (achado de revisão spec 184)', () => {
   function fileNamed(name: string): File {
     return new File(['x'], name, { type: 'image/jpeg' })
   }

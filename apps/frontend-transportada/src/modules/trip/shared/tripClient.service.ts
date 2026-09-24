@@ -329,7 +329,7 @@ export type TripClient = Readonly<{
    */
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
   /**
-   * Spec 182 D5: `POST /trips/:id/documents/:documentId/field-proof` — anexa a uma entrega já
+   * Spec 184 D5: `POST /trips/:id/documents/:documentId/field-proof` — anexa a uma entrega já
    * feita. É por aqui que a foto da carga do assistente sobe, depois da baixa confirmada.
    */
   attachFieldProof: (input: AttachFieldProofInput) => Promise<FieldReportIdResult>

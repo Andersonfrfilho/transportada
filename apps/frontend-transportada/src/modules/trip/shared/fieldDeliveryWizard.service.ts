@@ -7,7 +7,7 @@ export type { FieldDeliveryWizardDocument } from './fieldDeliveryDocument.servic
 /** O que a T12 recebe de volta em `onSubmit` — o envio em si não é desta task. */
 export type FieldDeliveryDraft = Readonly<{
   /**
-   * Spec 182 RF7/D4: até cinco fotos da carga, reduzidas do mesmo jeito que o canhoto. Sempre
+   * Spec 184 RF7/D4: até cinco fotos da carga, reduzidas do mesmo jeito que o canhoto. Sempre
    * presente — lista vazia é o caso comum (nota sem foto de carga).
    */
   cargoImageBlobs: readonly Blob[]
@@ -20,7 +20,7 @@ export type FieldDeliveryDraft = Readonly<{
 }>
 
 /**
- * Achado de revisão (spec 182): antes vivia como `useState` local de `FieldDeliveryReviewStep` —
+ * Achado de revisão (spec 184): antes vivia como `useState` local de `FieldDeliveryReviewStep` —
  * "Tirar outra foto" desmontava o passo e apagava as fotos de carga já adicionadas em silêncio.
  * Mora aqui, no mesmo estado do rascunho da nota, para sobreviver ao retake (que só troca `step`,
  * nunca `currentIndex`) e reaparecer ao reabrir a conferência.
@@ -56,7 +56,7 @@ export type FieldDeliveryWizardStep =
   | Readonly<{ kind: 'finished' }>
 
 export type FieldDeliveryWizardState = Readonly<{
-  /** Achado de revisão (spec 182): fotos de carga ainda não confirmadas, por `documentId` da nota
+  /** Achado de revisão (spec 184): fotos de carga ainda não confirmadas, por `documentId` da nota
    * em revisão — sobrevivem ao "Tirar outra foto" (`retakeRequested`). */
   cargoPhotosByDocumentId: Readonly<Record<string, readonly FieldDeliveryCargoPhotoDraft[]>>
   currentIndex: number
@@ -225,7 +225,7 @@ export function fieldDeliveryWizardReducer(
         isSwap && current !== undefined && !state.skippedDocumentIds.includes(current.documentId)
           ? [...state.skippedDocumentIds, current.documentId]
           : state.skippedDocumentIds
-      /** Achado de revisão (spec 182): as fotos de carga já foram para `draft.cargoImageBlobs` —
+      /** Achado de revisão (spec 184): as fotos de carga já foram para `draft.cargoImageBlobs` —
        * a entrada do rascunho local não serve mais (quem revoga os object URLs é o componente). */
       const cargoPhotosByDocumentId = { ...state.cargoPhotosByDocumentId }
       if (current !== undefined) delete cargoPhotosByDocumentId[current.documentId]

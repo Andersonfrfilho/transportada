@@ -66,7 +66,7 @@ export async function persistDeliveryProof(input: {
     authorship: input.authorship,
     companyId: input.companyId,
     eventId: input.eventId,
-    /** `field-delivery` nunca aceita `kind` no corpo (spec 182 RF3): o canhoto da baixa é sempre `photo`. */
+    /** `field-delivery` nunca aceita `kind` no corpo (spec 184 RF3): o canhoto da baixa é sempre `photo`. */
     kind: PHOTO_PROOF_KIND,
     storage: input.storage,
     transaction: input.transaction,

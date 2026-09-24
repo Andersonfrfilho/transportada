@@ -1,4 +1,4 @@
-# Evidência — Feature 182
+# Evidência — Feature 184
 
 ## T1.1 — Quem depende da unicidade `(company, stop_event, kind)`
 
@@ -277,3 +277,11 @@ e nenhum teste existente mandava `cargo` pelo app do motorista.
 | typecheck e lint das duas apps | limpos |
 
 Prints regenerados depois das correções.
+
+## Renumeração: 182 → 184 (2026-09-24)
+
+Esta spec nasceu como 182. Na hora de publicar, `origin/staging` já tinha
+`specs/182-a-ocorrencia-nao-espera-a-viagem-sair` (outra sessão) e outra branch tinha
+`183-a-ocorrencia-tem-duas-conversas`. Renumerada para **184**, o primeiro livre em todas as branches.
+Commits anteriores à troca citam "spec 182" na mensagem — é esta mesma spec. Nos arquivos, toda menção
+foi trocada; conferido antes que nenhum deles citava a outra 182.

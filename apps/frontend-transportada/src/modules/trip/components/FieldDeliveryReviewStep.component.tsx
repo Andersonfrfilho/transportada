@@ -41,7 +41,7 @@ import styles from '../styles/fieldDeliveryWizard.module.css'
 
 export type FieldDeliveryReviewStepProps = Readonly<{
   capture: FieldDeliveryCapturedPhoto
-  /** Achado de revisão (spec 182): controlado pelo assistente (`cargoPhotosByDocumentId`), para
+  /** Achado de revisão (spec 184): controlado pelo assistente (`cargoPhotosByDocumentId`), para
    * sobreviver ao "Tirar outra foto" — este componente só cria/revoga o que ele mesmo adiciona. */
   cargoPhotos: readonly FieldDeliveryCargoPhotoDraft[]
   currentDocument: FieldDeliveryWizardDocument
@@ -92,13 +92,13 @@ export function FieldDeliveryReviewStep({
 
   /** RF7/D4: até cinco fotos da carga, reduzidas do mesmo jeito que o canhoto — entram no rascunho
    * só ao confirmar o passo (aceite CA07: 375px sem rolagem horizontal, ver o CSS do grid).
-   * Achado de revisão (spec 182): a lista em si vive no assistente (`cargoPhotos` prop) — este
+   * Achado de revisão (spec 184): a lista em si vive no assistente (`cargoPhotos` prop) — este
    * componente só cuida do que só existe montado (processamento em curso, desmontagem no meio
    * dele). */
   const [isProcessingCargoPhotos, setIsProcessingCargoPhotos] = useState(false)
   const [cargoOverflow, setCargoOverflow] = useState(false)
   const [cargoUnreadableCount, setCargoUnreadableCount] = useState(0)
-  /** Achado de revisão (spec 182): se o componente desmonta (troca de nota, fecha o assistente)
+  /** Achado de revisão (spec 184): se o componente desmonta (troca de nota, fecha o assistente)
    * enquanto `handleCargoPhotosSelected` ainda está processando, as fotos que terminarem depois
    * disso não podem ser entregues ao estado do pai — o URL já criado para elas é revogado na hora. */
   const isMountedRef = useRef(true)

@@ -52,7 +52,7 @@ describe('multipart do escritório: lista fechada e um arquivo só (spec 156 T15
     expect(await statusOf(parseOfficeFieldDeliveryRequest(request))).toBe(400)
   })
 
-  it('field-delivery continua recusando o campo kind — só field-proof aceita (spec 182)', async () => {
+  it('field-delivery continua recusando o campo kind — só field-proof aceita (spec 184)', async () => {
     const request = multipart({
       fields: { deliveredAt: '2026-09-18T09:00:00.000Z', kind: 'cargo' },
       files: [JPEG],
@@ -103,7 +103,7 @@ describe('multipart do escritório: lista fechada e um arquivo só (spec 156 T15
   })
 })
 
-describe('field-proof aceita kind opcional (spec 182, RF3)', () => {
+describe('field-proof aceita kind opcional (spec 184, RF3)', () => {
   it('sem kind, o padrão continua photo', async () => {
     const request = multipart({ fields: {}, files: [JPEG] })
     const parsed = await parseOfficeFieldProofRequest(request)

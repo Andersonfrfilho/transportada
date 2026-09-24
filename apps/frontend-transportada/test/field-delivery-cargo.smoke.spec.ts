@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 182 (CA07, T5.1): a foto da carga no assistente de baixa, com a câmera simulada do
+ * Spec 184 (CA07, T5.1): a foto da carga no assistente de baixa, com a câmera simulada do
  * `field-delivery.smoke.spec.ts`. Uma nota fotografada, duas fotos da carga na revisão, envio — e
  * os prints da revisão de design em 1280 e 375, claro e escuro.
  */
@@ -17,7 +17,7 @@ import { TRIP_ID } from './trip-smoke.helper'
 const SAMPLE_ACCESS_KEY = '35260700000000000000550010000000019000000010'
 const BARCODE_VIDEO_PATH = writeFieldDeliveryBarcodeVideo(SAMPLE_ACCESS_KEY)
 const PRINTS_DIRECTORY = new URL(
-  '../../../specs/182-fotos-da-carga-na-baixa/prints/',
+  '../../../specs/184-fotos-da-carga-na-baixa/prints/',
   import.meta.url,
 )
 mkdirSync(PRINTS_DIRECTORY, { recursive: true })
@@ -105,7 +105,7 @@ async function openReviewWithCargoPhotos(page: Page): Promise<ReturnType<Page['g
 
 for (const [viewport, size] of Object.entries(VIEWPORTS)) {
   for (const theme of ['light', 'dark'] as const) {
-    test(`spec 182: revisão com duas fotos da carga — ${viewport} ${theme}`, async ({ page }) => {
+    test(`spec 184: revisão com duas fotos da carga — ${viewport} ${theme}`, async ({ page }) => {
       await page.setViewportSize(size)
       await page.emulateMedia({ colorScheme: theme })
       await mockFieldDeliverySmokeApi(page)
@@ -128,7 +128,7 @@ for (const [viewport, size] of Object.entries(VIEWPORTS)) {
   }
 }
 
-test('spec 182: a baixa sobe e depois envia as duas fotos da carga, uma por vez', async ({ page }) => {
+test('spec 184: a baixa sobe e depois envia as duas fotos da carga, uma por vez', async ({ page }) => {
   await page.setViewportSize(VIEWPORTS.desktop)
   await mockFieldDeliverySmokeApi(page)
   const cargoCalls = await mockCargoProofRoute(page)

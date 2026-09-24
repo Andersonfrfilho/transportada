@@ -1357,7 +1357,7 @@ export const tripFieldReports = pgTable(
  * papel que a resolve. Não há coluna para ele aqui, e essa ausência é a decisão.
  */
 /**
- * Spec 182: `cargo` é a foto da mercadoria, separada do canhoto (`photo`). Ao contrário dos outros
+ * Spec 184: `cargo` é a foto da mercadoria, separada do canhoto (`photo`). Ao contrário dos outros
  * dois, ela **soma** — por isso fica de fora da unicidade por entrega e tipo, logo abaixo.
  */
 export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature', 'cargo'] as const
@@ -1486,7 +1486,7 @@ export const tripDeliveryProofs = pgTable(
       .where(sql`${table.latitude} is not null`),
     /**
      * Um comprovante de cada tipo por entrega: o segundo é correção, e correção substitui. A foto
-     * da carga é a exceção (spec 182) — a segunda **soma** —, então o índice é parcial. Quem faz
+     * da carga é a exceção (spec 184) — a segunda **soma** —, então o índice é parcial. Quem faz
      * `ON CONFLICT` sobre estas colunas repete o predicado em `targetWhere`, ou o Postgres não acha
      * o árbitro e recusa a escrita.
      */

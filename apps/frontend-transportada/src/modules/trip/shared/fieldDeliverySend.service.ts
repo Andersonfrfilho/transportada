@@ -8,11 +8,11 @@ export const FIELD_DELIVERY_SEND_CONCURRENCY = 3
  * O que sobra de uma chamada: `alreadySettled` é o 409 `DOCUMENT_ALREADY_SETTLED` (aceite 12),
  * tratado como "já estava entregue" — informativo, não uma falha vermelha (D3/aceite 7).
  *
- * Spec 182 D5: `cargoPending` conta fotos de carga que não subiram depois da baixa — a nota
+ * Spec 184 D5: `cargoPending` conta fotos de carga que não subiram depois da baixa — a nota
  * continua `delivered`/`alreadySettled` (a foto de carga nunca desfaz a baixa), só o aviso muda.
  * Ausente ou `0` é "nenhuma pendente"; nunca um terceiro estado.
  *
- * `cargoRejected` (achado de revisão da spec 182): foto de carga recusada de forma terminal
+ * `cargoRejected` (achado de revisão da spec 184): foto de carga recusada de forma terminal
  * (400/422, mesmo critério M13a de `isRetryableFieldDeliveryFailure`) — nunca reenviada pelo
  * "tentar de novo", diferente de `cargoPending` (transitória, reenviável).
  */

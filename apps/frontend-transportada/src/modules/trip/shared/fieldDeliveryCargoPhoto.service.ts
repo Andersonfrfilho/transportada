@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
 /**
- * Spec 182 D3: espelha `TRIP_DELIVERY_PROOF_CARGO_LIMIT` da API — a sexta foto de carga é recusada
+ * Spec 184 D3: espelha `TRIP_DELIVERY_PROOF_CARGO_LIMIT` da API — a sexta foto de carga é recusada
  * lá (422 `TRIP_DELIVERY_PROOF_CARGO_LIMIT`); aqui é o que trava o botão antes de chegar à rede.
  */
 export const FIELD_DELIVERY_CARGO_PHOTO_LIMIT = 5
@@ -46,7 +46,7 @@ export type FieldDeliveryCargoPhotoProcessResult<TPhoto> = Readonly<{
 }>
 
 /**
- * Achado de revisão (spec 182): processa cada arquivo da seleção isoladamente — um arquivo que
+ * Achado de revisão (spec 184): processa cada arquivo da seleção isoladamente — um arquivo que
  * `processFile` rejeita (imagem que não decodifica) não descarta os que já deram certo no mesmo
  * lote. `processFile` é injetado para esta função rodar pura no teste, sem `Image`/canvas (que
  * exigem DOM real).

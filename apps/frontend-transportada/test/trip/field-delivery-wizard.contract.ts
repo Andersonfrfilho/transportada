@@ -183,12 +183,12 @@ function cargoPhoto(id: string): FieldDeliveryCargoPhotoDraft {
 }
 
 /**
- * Achado de revisão (spec 182): as fotos da carga viviam só no `useState` local de
+ * Achado de revisão (spec 184): as fotos da carga viviam só no `useState` local de
  * `FieldDeliveryReviewStep` — "Tirar outra foto" (`retakeRequested`) desmonta o passo de revisão e
  * apagava tudo sem avisar. Subir para o estado do assistente (onde o rascunho da nota vive) faz as
  * fotos sobreviverem ao retake e reaparecerem ao reabrir a revisão.
  */
-describe('fotos da carga sobrevivem ao "Tirar outra foto" (achado de revisão spec 182)', () => {
+describe('fotos da carga sobrevivem ao "Tirar outra foto" (achado de revisão spec 184)', () => {
   it('nasce vazio', () => {
     const state = createInitialFieldDeliveryWizardState(DOCUMENTS)
     expect(state.cargoPhotosByDocumentId).toEqual({})

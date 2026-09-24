@@ -12,7 +12,7 @@ const UNIQUE_NAME = 'trip_delivery_proofs_company_event_kind_unique'
 
 /**
  * As duas escritas em `trip_delivery_proofs` são `onConflictDoUpdate` sobre
- * `(company, stop_event, kind)` (evidence.md da spec 182, T1.1). Com a unicidade parcial, o
+ * `(company, stop_event, kind)` (evidence.md da spec 184, T1.1). Com a unicidade parcial, o
  * `ON CONFLICT` precisa repetir o predicado, ou o Postgres não acha o árbitro e recusa o INSERT —
  * a baixa do motorista quebraria junto.
  */
@@ -22,10 +22,10 @@ const UPSERT_SOURCES: string[] = [
 ]
 
 /**
- * Spec 182: a foto da carga é `kind` próprio, e ela **soma** — ao contrário do canhoto e da
+ * Spec 184: a foto da carga é `kind` próprio, e ela **soma** — ao contrário do canhoto e da
  * assinatura, em que o segundo envio é correção e substitui o primeiro.
  */
-describe('foto da carga no comprovante de entrega (spec 182)', () => {
+describe('foto da carga no comprovante de entrega (spec 184)', () => {
   test('conhece o tipo cargo ao lado de photo e signature', () => {
     expect([...TRIP_DELIVERY_PROOF_KINDS].sort()).toEqual(['cargo', 'photo', 'signature'])
   })

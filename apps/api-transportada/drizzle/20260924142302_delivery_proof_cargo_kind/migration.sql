@@ -1,5 +1,5 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
--- Spec 182: `cargo` é a foto da mercadoria, e ela soma — a unicidade por entrega e tipo passa a
+-- Spec 184: `cargo` é a foto da mercadoria, e ela soma — a unicidade por entrega e tipo passa a
 -- índice parcial, sem `cargo`. Relaxamento puro: nenhuma linha muda. O índice novo é criado sobre
 -- dados que já satisfaziam a unicidade total, então não há como falhar por duplicata.
 ALTER TABLE "trip_delivery_proofs" DROP CONSTRAINT "trip_delivery_proofs_company_event_kind_unique";--> statement-breakpoint

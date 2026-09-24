@@ -35,7 +35,7 @@ function statusStyle(kind: string): string {
   return styles.sendStatusNeutral ?? ''
 }
 
-/** Spec 182 D5: só `delivered`/`alreadySettled` carregam `cargoPending`/`cargoRejected` — a baixa
+/** Spec 184 D5: só `delivered`/`alreadySettled` carregam `cargoPending`/`cargoRejected` — a baixa
  * nunca falha por causa de uma foto de carga. */
 function resolveCargoPendingCount(status: FieldDeliverySendStatus | undefined): number {
   if (status === undefined) return 0
@@ -43,7 +43,7 @@ function resolveCargoPendingCount(status: FieldDeliverySendStatus | undefined): 
   return status.cargoPending ?? 0
 }
 
-/** Achado de revisão (spec 182): recusa terminal (400/422) — nunca some no "tentar de novo". */
+/** Achado de revisão (spec 184): recusa terminal (400/422) — nunca some no "tentar de novo". */
 function resolveCargoRejectedCount(status: FieldDeliverySendStatus | undefined): number {
   if (status === undefined) return 0
   if (status.kind !== 'delivered' && status.kind !== 'alreadySettled') return 0
@@ -74,7 +74,7 @@ export function FieldDeliverySendStep({
   const retryableFailedCount = statuses.filter(
     (status) => status.kind === 'failed' && status.retryable,
   ).length
-  /** Spec 182 D5: nota entregue com foto de carga pendente também entra no "tentar de novo". */
+  /** Spec 184 D5: nota entregue com foto de carga pendente também entra no "tentar de novo". */
   const cargoPendingDocumentCount = statuses.filter(
     (status) => resolveCargoPendingCount(status) > 0,
   ).length

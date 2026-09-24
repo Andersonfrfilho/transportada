@@ -3,7 +3,7 @@
  *
  * Spec 156 T6/T15: o multipart de `field-delivery` e `field-proof` — o canhoto do escritório. Lista
  * fechada de campos e um `file` só (`readOfficeMultipartForm`, seg B5). `field-delivery` nunca lê
- * `kind` do corpo: o canhoto da baixa é sempre `'photo'` (ADR-0067 §5). Spec 182: `field-proof`
+ * `kind` do corpo: o canhoto da baixa é sempre `'photo'` (ADR-0067 §5). Spec 184: `field-proof`
  * ganha `kind` opcional (`photo` | `cargo`) — é onde a foto de carga entra (D5).
  */
 import { HTTP_ERROR } from '../../shared/api.constant.js'
@@ -45,12 +45,12 @@ const PROOF_FIELDS = new Set<string>([
 ])
 const DELIVERY_FIELDS = new Set<string>([...PROOF_FIELDS, FIELD.deliveredAt])
 /**
- * Spec 182 RF3: `kind` só existe em `field-proof` — anexar comprovante a uma entrega já feita é o
+ * Spec 184 RF3: `kind` só existe em `field-proof` — anexar comprovante a uma entrega já feita é o
  * único lugar em que a foto de carga entra (D5). `field-delivery` continua sem o campo.
  */
 const FIELD_PROOF_ONLY_FIELDS = new Set<string>([...PROOF_FIELDS, FIELD.kind])
 
-/** Sem `kind`, o padrão é `photo` — o comportamento de hoje, sem regressão (spec 182 RF3). */
+/** Sem `kind`, o padrão é `photo` — o comportamento de hoje, sem regressão (spec 184 RF3). */
 function parseOfficeProofKind(value: OfficeFormValue): OfficeProofKind {
   if (value === null) return PHOTO_PROOF_KIND
   if (typeof value !== 'string' || !OFFICE_PROOF_KINDS.includes(value as OfficeProofKind)) {
@@ -108,7 +108,7 @@ export async function parseOfficeFieldDeliveryRequest(request: Request): Promise
  * `POST .../field-proof` — anexa a uma entrega **já feita**. Mesmo corpo de `field-delivery`, sem
  * `deliveredAt`: esta rota nunca muda `delivered_at` (ADR-0067 §2). O arquivo é obrigatório.
  *
- * Spec 182 RF3: `kind` é opcional, `photo` (padrão, comportamento de hoje) ou `cargo` — nunca
+ * Spec 184 RF3: `kind` é opcional, `photo` (padrão, comportamento de hoje) ou `cargo` — nunca
  * `signature` (ADR-0067 §5, o escritório não colhe assinatura).
  */
 export async function parseOfficeFieldProofRequest(request: Request): Promise<{

@@ -107,7 +107,7 @@ export function FieldDeliveryWizard({
   }
 
   /**
-   * Achado de revisão (spec 182): revoga as URLs das fotos de carga só quando elas realmente saem
+   * Achado de revisão (spec 184): revoga as URLs das fotos de carga só quando elas realmente saem
    * do estado — a nota foi confirmada (o reducer já apaga a entrada dela) ou uma foto foi removida
    * (a entrada encolhe). Comparar com a rodada anterior num único lugar evita espalhar
    * `revokeObjectURL` pelos vários pontos que mudam esse estado (confirmar, remover, pular).

@@ -19,7 +19,7 @@ import type {
 export type { FieldDeliverySendStatus } from '../shared/fieldDeliverySend.service'
 
 export type UseFieldDeliveryInput = Readonly<{
-  /** Spec 182 D5: sobe depois da baixa da nota, uma foto de carga por vez, nunca em paralelo. */
+  /** Spec 184 D5: sobe depois da baixa da nota, uma foto de carga por vez, nunca em paralelo. */
   attachFieldProof: (input: AttachFieldProofInput) => Promise<FieldReportIdResult>
   /** Chamada ao fim do lote inteiro (não a cada nota) — detalhe, allowed-actions, ocorrências. */
   invalidate: () => Promise<void>
@@ -53,18 +53,18 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
   const draftsRef = useRef<Record<string, FieldDeliveryDraft>>({})
   const idempotencyKeysRef = useRef<Record<string, string>>({})
   /**
-   * Spec 182 D5: uma chave por `(documentId, índice da foto)` — estável entre tentativas, mesmo
+   * Spec 184 D5: uma chave por `(documentId, índice da foto)` — estável entre tentativas, mesmo
    * padrão de `idempotencyKeysRef` acima. Reenviar (retry) nunca gera chave nova para a mesma foto.
    */
   const cargoIdempotencyKeysRef = useRef<Record<string, string>>({})
   /**
-   * Achado de revisão (spec 182): status por foto de carga (`documentId` → índice → resultado),
+   * Achado de revisão (spec 184): status por foto de carga (`documentId` → índice → resultado),
    * o que permite ao retry reenviar só a que ainda está `pending` — nunca a `rejected` (terminal) e
    * nunca a `sent` de novo (idempotência por índice, mesma chave de `cargoIdempotencyKeysRef`).
    */
   const cargoPhotoOutcomesRef = useRef<Record<string, ('pending' | 'rejected' | 'sent')[]>>({})
   /**
-   * Achado de revisão (spec 182): nota cuja baixa (`reportFieldDelivery`) já foi confirmada
+   * Achado de revisão (spec 184): nota cuja baixa (`reportFieldDelivery`) já foi confirmada
    * (`delivered`/`alreadySettled`) — o retry dela nunca chama `reportFieldDelivery` de novo, só
    * reenvia as fotos de carga que ainda faltam.
    */
@@ -95,7 +95,7 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
   }
 
   /**
-   * Spec 182 D5 (achado de revisão): sobe uma foto de carga de cada vez, em ordem — nunca em
+   * Spec 184 D5 (achado de revisão): sobe uma foto de carga de cada vez, em ordem — nunca em
    * paralelo, e só depois que a baixa da nota já foi confirmada. Cada foto é classificada pelo
    * mesmo critério M13a da nota (`isRetryableFieldDeliveryFailure`): falha transitória vira
    * `pending` (o retry reenvia), falha terminal (400/422) vira `rejected` (nunca reenviada). O
@@ -154,7 +154,7 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
     draft: FieldDeliveryDraft,
     signal: AbortSignal,
   ): Promise<FieldDeliverySendOutcome> {
-    /** Achado de revisão (spec 182): a nota já teve a baixa confirmada numa tentativa anterior —
+    /** Achado de revisão (spec 184): a nota já teve a baixa confirmada numa tentativa anterior —
      * o retry aqui é só de foto de carga, nunca repete `reportFieldDelivery`. */
     const previousDeliveryKind = deliveryResultRef.current[draft.documentId]
     if (previousDeliveryKind !== undefined) {
@@ -225,7 +225,7 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
   }
 
   /**
-   * Spec 182 D5: além da nota que falhou (existente), reenvia a nota já entregue que ainda tem foto
+   * Spec 184 D5: além da nota que falhou (existente), reenvia a nota já entregue que ainda tem foto
    * de carga pendente — `reportFieldDelivery` reenviado com a mesma `Idempotency-Key` é idempotente
    * (não duplica a baixa), e `sendCargoPhotos` reusa a chave de cada foto (não duplica a foto).
    */

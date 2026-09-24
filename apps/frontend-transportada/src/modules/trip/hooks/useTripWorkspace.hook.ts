@@ -136,7 +136,7 @@ export type TripController = Readonly<{
   ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
   /** Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery`, uma chamada por nota. */
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
-  /** Spec 182 D5: `POST .../field-proof` — a foto da carga sobe depois da baixa da nota. */
+  /** Spec 184 D5: `POST .../field-proof` — a foto da carga sobe depois da baixa da nota. */
   attachFieldProof: (input: AttachFieldProofInput) => Promise<FieldReportIdResult>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>

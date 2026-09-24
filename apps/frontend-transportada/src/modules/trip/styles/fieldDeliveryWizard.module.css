@@ -185,7 +185,7 @@
   grid-template-columns: 1fr;
 }
 
-/* Spec 182 RF7/D4: fotos da carga, no passo de revisão — grid que quebra em telas estreitas (CA07),
+/* Spec 184 RF7/D4: fotos da carga, no passo de revisão — grid que quebra em telas estreitas (CA07),
    sem `border-radius` (o design system é quadrado). */
 .cargoPhotosSection {
   display: grid;

@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Desfaz a spec 182: o tipo `cargo` (foto da mercadoria) e o índice único parcial que o deixava
+-- Desfaz a spec 184: o tipo `cargo` (foto da mercadoria) e o índice único parcial que o deixava
 -- somar — de volta ao `check` com dois tipos e à unicidade total por entrega e tipo.
 --
 -- ⚠️ Este rollback FALHA se já existir qualquer linha `kind = 'cargo'`: o CHECK antigo a recusaria,

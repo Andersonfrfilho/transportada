@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 182: a foto da carga **soma** — duas no mesmo evento convivem —, enquanto o canhoto continua
+ * Spec 184: a foto da carga **soma** — duas no mesmo evento convivem —, enquanto o canhoto continua
  * "o segundo substitui". E o rollback recusa enquanto houver foto de carga: recriar o `check` antigo
  * sem checar apagaria em silêncio a prova que o operador anexou.
  */

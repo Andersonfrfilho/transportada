@@ -643,7 +643,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
           tripDeliveryProofs.kind,
         ],
         /**
-   * Repete o predicado do índice parcial (spec 182): sem ele o Postgres não acha o árbitro. Literal,
+   * Repete o predicado do índice parcial (spec 184): sem ele o Postgres não acha o árbitro. Literal,
    * não parâmetro — com `$1` a inferência do índice falha do mesmo jeito.
    */
         targetWhere: sql`${tripDeliveryProofs.kind} <> ${sql.raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))}`,
@@ -685,7 +685,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     /**
      * Contar e depois inserir, em READ COMMITTED, deixava dois envios simultâneos lerem a mesma
      * contagem e gravarem os dois — o teto de cinco virava seis. A trava na linha do evento faz o
-     * segundo esperar o primeiro terminar e contar a foto que ele gravou (revisão da spec 182).
+     * segundo esperar o primeiro terminar e contar a foto que ele gravou (revisão da spec 184).
      */
     await this.transaction
       .select({ id: tripStopEvents.id })
