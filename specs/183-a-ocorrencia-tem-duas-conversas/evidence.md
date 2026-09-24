@@ -76,3 +76,18 @@ A spec foi escrita sobre o `main`, 371 commits atrás de `staging`. Auditoria de
 
 Nada disso foi implementado. **Todas as correções foram aplicadas à spec** (commit `26441ff7`) por
 decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
+
+## T201 — Contrato de `GET /trip-occurrences/:id` (vermelho)
+
+- `test/trip-occurrence/detail.contract.ts` (caso de uso: escopo pela empresa do contexto; nulo vira
+  404 `TRIP_OCCURRENCE_NOT_FOUND`) e `test/trip-http/occurrence-detail.contract.ts` (rota: `fleet.read`
+  → 200 com `{ data }`; só `trip.read` → 403 sem tocar o caso de uso; 404 tipado; id que não é UUID
+  recusado; `cache-control: no-store`, porque a resposta leva telefone e e-mail do motorista).
+  Fixture: `test/fixtures/trip-occurrence-detail.fixture.ts`. Registrados nos entrypoints
+  `trip-occurrence.contract.test.ts` e `trip-http.contract.test.ts` (já listados no `package.json`).
+- Rodado: `bun --env-file=../../.env.test test ./test/trip-occurrence.contract.test.ts
+./test/trip-http.contract.test.ts` → **0 pass, 2 fail**: `Cannot find module
+.../read-trip-occurrence-detail.use-case.js` e `.../trip-occurrence-detail.routes.js`.
+- Decisão registrada na execução: a foto do motorista sai pelo caminho **público** que já existe
+  (`/public/company-users/:token/picture`, token já publicado no provedor de identidade); a rota
+  autenticada da foto exige `users.manage`, que o operador não tem.
