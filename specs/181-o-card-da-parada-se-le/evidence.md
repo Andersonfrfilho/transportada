@@ -154,3 +154,24 @@ bunx eslint src/modules/trip test/trip --max-warnings=0                → 0 pro
 bun test ./test/trip.contract.test.ts --timeout 120000                → 1587 pass, 0 fail
   (1583 da fase anterior + 4 testes novos = 1587; nenhuma regressão)
 ```
+
+## T502 — revisão de design com print: **não fechada**
+
+O spec de prints existe (`apps/frontend-transportada/test/spec-181-prints.smoke.spec.ts`) e roda
+verde nos quatro cenários (375px e desktop, claro e escuro). **Os prints foram descartados**: eles
+não mostram o card.
+
+Causa: `mockTripWorkspaceApi` monta a viagem com `stops: []` — o dublê da tela do escritório nunca
+teve paradas. Sem parada não há card de nota, e o seletor caiu no bloco de "Sugerir roteiro". Print
+verde de conteúdo errado é pior que print nenhum, porque passa por evidência.
+
+O único dublê com paradas é `driver-trip-smoke.helper.ts`, que é o app do **motorista** — outra tela,
+não serve.
+
+**Para fechar:** estender `trip-smoke.helper.ts` com uma viagem que tenha ao menos uma parada e uma
+nota, cobrindo os estados que a spec reorganizou (carregada, devolvida com motivo, com ocorrência em
+tratativa, sem perfil de emissão). Aí os quatro prints passam a valer.
+
+⚠️ Registrado também o caminho que **não** funciona: servir o build em porta alternativa e
+fotografar pelo navegador. O app redireciona para a URL do `.env` (53000), então o que aparece é a
+árvore de outra sessão. Três tentativas em 23/09 antes de conferir `window.location.href`.
