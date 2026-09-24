@@ -8,7 +8,7 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `opus` (decisão) · a T002 é do usuário
 
-- [ ] **T001** Fechar as quatro `[NEEDS CLARIFICATION]` do `spec.md` e passar a ADR-0071 para
+- [ ] **T001** Fechar as três `[NEEDS CLARIFICATION]` do `spec.md` e passar a ADR-0071 para
       `aceito`. Evidência: `spec.md` sem marcador e a ADR com status e data.
 - [ ] **T002** 🙋 O usuário submete à Meta os modelos de WhatsApp da contratante (abertura de
       ocorrência; pedido de aprovação de taxa com botões "✅ Aprovar" / "❌ Recusar") e do motorista
@@ -17,20 +17,15 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 - [ ] **T003** Anotar no `specs/143-a-contratante-responde-por-e-mail/tasks.md` que T014, T015,
       T016, T018, T024 e T025 seguem pela 164 (sem apagar nada da 143). Evidência: o diff.
 
-## Fase 1 — Pacote (`adatechnology-packages`, ADR-0071)
+## Fase 1 — Conferir o pacote (ADR-0071; o SDK chega pronto)
 
-> 🤖 Modelo: `sonnet` · executada no repositório do pacote; aqui só entra o bump de versão
+> 🤖 Modelo: `sonnet` · nada se constrói no pacote a partir daqui
 
-- [ ] **T101** `conversations-ui`: abas por participante, selo de canal, seletor de canal com estado
-      da janela, respostas rápidas, anexos e selo de status, na camada `.cv-*`. Evidência: testes do
-      pacote e versão publicada.
-- [ ] **T102** [P] `meta-whatsapp-provider.sendMedia` (documento, imagem). Evidência: testes do
-      pacote e versão publicada.
-- [ ] **T103** [P] `meta-whatsapp-module`: eventos de status (`sent`/`delivered`/`read`/`failed`)
-      repassados ao produto com o id da mensagem; `meta-whatsapp-contracts`: política da janela de
-      24h. Evidência: testes do pacote e versão publicada.
-- [ ] **T104** Bump das versões nas apps e `bun install --frozen-lockfile` verde. Evidência:
-      `make check`.
+- [ ] **T101** Bump das versões (`conversations-ui`, `meta-whatsapp-*`) nas apps e conferência do
+      contrato nos `.d.ts` instalados: abas por participante, selo de canal, seletor com janela,
+      respostas rápidas, anexos, áudio (player, gravador, envio de mídia), transcrição exibida, selo
+      de status, eventos de status e política da janela. **Pare e pergunte** se faltar algum.
+      Evidência: `make check` verde e a lista conferida, item a item, no `evidence.md`.
 
 ## Fase 2 — O detalhe e a tabela (P1, P2) — não depende da Fase 1
 
@@ -47,7 +42,6 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
       contato, fotos, linha do tempo). Evidência: contratos de serviço puro da rota e do mapeamento.
 - [ ] **T205** Colunas Contratante, Endereço de entrega, Valor NF-e e Conversa na tabela, no menu de
       colunas e na persistência. Evidência: a da `docs/frontend/data-tables.md` § 6.
-
 - [ ] **T206** Linha do tempo (RF19) com os eventos que já existem (registro, fotos, avisos),
       tempos no topo e filtros; os eventos de conversa entram nas Fases 4–6 pela mesma fonte.
       Evidência: contrato da query de eventos (ordem, intervalo) e do mapeamento ator → cor.
@@ -76,18 +70,18 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
       separador. Evidência: contratos de rota.
 - [ ] **T405** Recebida por e-mail vira mensagem da conversa; status do Resend aplicado pela
       política. Evidência: integração no worker.
-- [ ] **T407** Política de identificação do remetente (RF16), `from_display_name` gravado pelo
+- [ ] **T406** Política de identificação do remetente (RF16), `from_display_name` gravado pelo
       worker, cartão do contato e "Adicionar aos contatos" preenchido. Evidência: suíte da política +
       contrato do payload da conversa (nome e tipos vêm do contato; o endereço como chegou também).
-- [ ] **T406** Aba Contratante (canal e-mail) sobre o `conversations-ui` e o diálogo "Enviar à
+- [ ] **T407** Aba Contratante (canal e-mail) sobre o `conversations-ui` e o diálogo "Enviar à
       contratante" com prévia. Evidência: contratos de serviço puro + smoke do envio.
 
 ## Fase 5 — Conversa com a contratante por WhatsApp (P5)
 
 > 🤖 Modelo: `sonnet` · T502 e T504 são 🧠 (segurança do webhook e decisão)
 
-- [ ] **T501** Políticas de atribuição (RF9) e de decisão por botão (D4). Evidência: suítes por
-      tabela.
+- [ ] **T501** Políticas de atribuição (RF9, com o ramo do motorista) e de decisão por botão (D4).
+      Evidência: suítes por tabela.
 - [ ] **T502** 🧠 Webhook: ramo "contato de contratante com aceite" (D6), status da Meta e
       recebidas com mídia. Evidência: contratos (número sem aceite segue recusado) + integração do
       status até `read`, idempotente.
@@ -105,14 +99,15 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 
 - [ ] **T601** Rotas `/me/trips/current/occurrences/:id/messages` (listar, responder com foto) e o
       aviso na inbox com `dedupeKey`. Evidência: contratos (motorista de outra viagem não alcança).
-- [ ] **T602** Canal WhatsApp do motorista pelo telefone verificado (ADR-0063). Evidência: teste de
-      caso de uso.
+- [ ] **T602** 🧠 Canal WhatsApp do motorista pelo telefone verificado (ADR-0063), com o desvio dos
+      fluxos de comando só por `context.id` (RF9). Evidência: teste de caso de uso + contrato de que
+      mensagem sem `context.id` da conversa continua chegando aos fluxos da spec 144.
 - [ ] **T603** Aba Motorista no detalhe, com "Anexar à ocorrência" e "Encaminhar à contratante".
       Evidência: contratos de serviço puro.
 - [ ] **T604** Tela da conversa no PWA do motorista, com status `delivered`/`read` gravados ao
       baixar/abrir. Evidência: contrato de serviço + smoke.
 
-## Fase 7 — Respostas rápidas, anexos e status (P6b, P7)
+## Fase 7 — Status, áudio, respostas rápidas e anexos (P7, P8, P9)
 
 > 🤖 Modelo: `haiku` (T701, T704) · `sonnet` (T702, T703)
 
@@ -132,7 +127,7 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
       de gravar, texto ligado ao anexo, interruptor por empresa. **Bloqueada** até a dúvida do
       provedor virar ADR. Evidência: teste de que transcrição nunca decide + provider falso.
 
-## Fase 8 — PWA e fumaça
+## Fase 8 — PWA e fumaça (P10)
 
 > 🤖 Modelo: `sonnet`
 
@@ -159,6 +154,6 @@ e specs/143-a-contratante-responde-por-e-mail/ antes de começar).
 Uma task por vez, na ordem do tasks.md, no worktree work/spec-164. Nada antes da T001 fechar.
 Cada task fecha com typecheck + lint + testes da app (contrato E integração, os dois comandos do
 CLAUDE.md) + commit isolado, evidência em evidence.md; teste novo entra na lista do package.json.
-Pare e pergunte antes de: a T002 (conta Meta), qualquer segredo, deploy, migration destrutiva, e se
-a versão do pacote exigida pela Fase 1 não estiver publicada.
+Pare e pergunte antes de: a T002 (conta Meta), qualquer segredo, deploy, migration destrutiva, a
+T706 (transcrição, até existir a ADR do provedor), e se a T101 achar algo faltando no pacote.
 ```

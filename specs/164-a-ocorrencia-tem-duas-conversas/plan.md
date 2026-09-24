@@ -11,17 +11,18 @@
   telefone, e-mail e CNH na ficha; telefone de usuário já pode ser WhatsApp verificado (ADR-0063).
 - Não existe `GET /trip-occurrences/:id`. As ocorrências vivem em `trip_stop_occurrences` e
   `trip_document_occurrences`, unidas na listagem por `trip-occurrence-feed.query.ts`.
-- As versões do pacote exigidas pela ADR-0071 ainda não existem. A Fase 2 e a Fase 3 não dependem
-  delas; da Fase 4 em diante, sim.
+- O SDK chega pronto com o que a ADR-0071 lista (spec D3). Antes de usar, a Fase 1 confere o
+  contrato da versão instalada nos `.d.ts` e para se faltar alguma coisa; a Fase 2 e a Fase 3 não
+  dependem do pacote.
 
 ## Arquitetura e arquivos afetados
 
-**Pacote (`adatechnology-packages`, fora deste repositório — ADR-0071):**
+**Pacote (`adatechnology-packages`, entregue pronto — ADR-0071; aqui só se consome):**
 
 - `conversations-ui`: abas por participante, selo de canal, seletor de canal com estado da janela,
-  respostas rápidas, anexos, selo de status.
-- `meta-whatsapp-provider`: `sendMedia` (documento, imagem).
-- `meta-whatsapp-module`: eventos de status repassados ao produto (se ainda não).
+  respostas rápidas, anexos, player e gravador de áudio, transcrição exibida, selo de status.
+- `meta-whatsapp-provider`: envio de mídia (documento, imagem, áudio).
+- `meta-whatsapp-module`: eventos de status repassados ao produto.
 - `meta-whatsapp-contracts`: política pura da janela de 24h.
 
 **API (`apps/api-transportada`):**
@@ -35,7 +36,10 @@
 - `src/contractor-mail/` — contatos com os campos do RF5; os casos de uso de envio e resposta da 143
   T015 passam a ser chamados pelo gateway de e-mail do módulo novo.
 - `src/whatsapp/` — o resolvedor de remetente do webhook ganha o ramo "contato de contratante com
-  aceite" (D6) e encaminha para o módulo novo; status da Meta idem.
+  aceite" (D6) e encaminha para o módulo novo; status da Meta idem. Mensagem de motorista só é
+  desviada dos fluxos de comando (`whatsapp-commands/`) quando responde a uma mensagem da conversa
+  (RF9, ramo do motorista).
+- Linha do tempo (RF19): uma query que une eventos da ocorrência e das duas conversas, com o ator.
 
 **Worker (`apps/worker-transportada`):**
 
@@ -45,7 +49,6 @@
 - Status: eventos do Resend e da Meta aplicados pela política RF14.
 - Áudio recebido: gravado como anexo; depois, transcrito pela porta `speech-to-text.port.ts`
   (RF18) — provedor em ADR própria, desligável por empresa, falha sem derrubar a mensagem.
-- Linha do tempo (RF19): uma query que une eventos da ocorrência e das duas conversas, com o ator.
 
 **Frontend (`apps/frontend-transportada`):**
 
@@ -102,16 +105,20 @@ Migration **aditiva**, sem apagar coluna nem dado:
   `meta_whatsapp`), `created_at`. `unique(company_id, channel, provider_message_id)` para o status
   idempotente.
 - `occurrence_conversation_attachments` — objeto no bucket privado, `sha256`, `size_bytes`,
-  `content_type`, `direction`, `message_id`.
+  `content_type`, `duration_ms` (áudio), `direction`, `message_id`.
 - `occurrence_conversation_reads` — `(company_id, conversation_id, user_id, last_read_message_id)`.
 - `contractor_mail_messages` + `from_display_name` (nome do cabeçalho `From`, gravado pelo worker ao
   ler o MIME) — é o que o RF16 mostra para remetente fora dos contatos. Nenhum log leva esse campo.
 - `occurrence_conversation_unassigned` — mensagem recebida sem conversa certa (RF9).
 - `company_quick_replies` — `company_id`, `audience`, `text` (≤ 500), `position`, `active`.
 
-Rollback: `rollback.sql` que dropa as tabelas novas e as colunas novas de `contractor_contacts`,
-nessa ordem. Nenhum dado anterior à 164 se perde, porque nenhuma coluna existente muda de sentido.
+Rollback: `rollback.sql` que dropa as tabelas novas e as colunas novas de `contractor_contacts` e
+de `contractor_mail_messages`, nessa ordem. Nenhum dado anterior à 164 se perde, porque nenhuma coluna existente muda de sentido.
 `make migration-test` roda migration e rollback.
+
+A transcrição (T706) tem migration própria, depois da ADR do provedor: texto, provedor, idioma e
+horário ligados ao anexo, e o interruptor por empresa. Ela fica fora desta migration de propósito,
+para não criar coluna de uma decisão que ainda não existe.
 
 ## Segurança e tenant
 
@@ -155,8 +162,12 @@ nessa ordem. Nenhum dado anterior à 164 se perde, porque nenhuma coluna existen
 
 ## Riscos
 
-- **Pacote atrasa:** a conversa fica sem tela. Mitigação: Fases 2 e 3 entregam valor sozinhas
-  (detalhe, colunas, contato do motorista, contatos com tipos).
+- **A versão do pacote não traz algo que a ADR-0071 lista:** a T101 para e pergunta, em vez de
+  contornar no produto (ADR-0051). Fases 2 e 3 entregam valor sozinhas enquanto isso.
+- **Fluxos de comando do motorista (spec 144):** uma regra de desvio errada tiraria mensagens dos
+  fluxos. Mitigação: só desvia com `context.id` de mensagem da conversa, com teste por ramo.
+- **Formato do áudio gravado no navegador:** pode não ser aceito pelo WhatsApp; a conversão no worker
+  e a lista de formatos se confirmam na T705.
 - **Aprovação de modelo pela Meta:** pode levar dias e ser recusada. Mitigação: submeter os modelos
   na Fase 0; o e-mail funciona sem eles.
 - **Número de contato ligado a duas contratantes:** tratado pela fila de não atribuídas (RF9), nunca

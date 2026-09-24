@@ -56,8 +56,9 @@ operador vê é a do produto, que referencia a mensagem de transporte.
 
 ## Consequências
 
-- A spec 164 fica dependente de versões do pacote (Fase 1). A parte de leitura (detalhe, colunas,
-  contatos) não depende e anda antes.
+- O SDK chega pronto com esta lista (decisão do dono do projeto, 2026-09-24). A spec 164 não constrói
+  nada no pacote: confere o contrato da versão instalada antes de usar (T101) e para se faltar algo,
+  em vez de contornar no produto.
 - `conversations-ui` ganha superfície de API (abas, canal, respostas rápidas, anexos). Como os `.cv-*`
   da ADR-0051, os nomes viram contrato.
 - Duas fontes de conversa no banco: as tabelas do produto e o schema `meta_whatsapp`. O produto nunca
