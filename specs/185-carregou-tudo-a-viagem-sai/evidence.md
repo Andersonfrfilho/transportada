@@ -56,3 +56,70 @@ Gates (banco nativo descartável 127.0.0.1:65433, PG 18.4):
 - contrato inteiro `bun --env-file=../../.env.test test --timeout 120000` → 7243 pass, 23 skip, 0 fail
 - integração inteira `bun --env-file=../../.env.test run test:integration` → 586 pass, 0 fail, 107 arquivos (318 s)
 - `bun run typecheck` (raiz) limpo; eslint e prettier nos arquivos tocados limpos.
+
+## T3.1 — teste de `loadRemaining` e da nota deixada para trás
+
+Suítes: `test/integration/trip-dispatch-load-remaining.integration.ts` (Postgres, registrada em
+`test:integration`), `test/trips/plan-and-dispatch.contract.ts` (caso de uso + corpo da rota:
+`loadRemaining` + `force` → 400, `loadRemaining` não fura agendamento, deixadas para trás sem
+`force`, viagem vazia recusada) e `test/trip-schema/tenant-safety.contract.ts` (a query de
+prontidão carrega `companyId` em toda junção e filtra por empresa e viagem).
+
+Antes da implementação (de `apps/api-transportada`, banco nativo 127.0.0.1:65433):
+- integração do arquivo novo → 4 pass, 3 fail (CA04 `loadRemaining`, CA05 liberação com motivo, e
+  a corrida de dois despachos: o segundo rejeitado — o 23505 do snapshot inserido antes do lock).
+- `bun --env-file=../../.env.test test --timeout 120000 test/trips.contract.test.ts
+  test/trip-schema.contract.test.ts` → 184 pass, 7 fail, 1 erro (`ENOENT` de
+  `dispatch-readiness.query.ts`, ainda inexistente).
+
+Commit: `53a28dafb` — test(trips): despachar leva todas e libera o que a ocorrência deixa
+(spec 185 T3.1).
+
+## T3.2 — query de prontidão, `loadRemaining`, liberação por ocorrência e ordem lock/snapshot
+
+- `trips/infrastructure/dispatch-readiness.query.ts`: uma consulta (`trip_documents` ⟕ ocorrência
+  de separação de nota inteira — `product_code = ''` e `not exists` em
+  `trip_document_occurrence_products` — ⟕ tipo com `leaves_document_behind`, `company_id` em todo
+  degrau), alimentando `resolveDispatchReadiness`. `readPreconditions` devolve `toLoad`,
+  `leftBehind`, `isCargoClosed`; `unloadedDocumentIds` = `toLoad`. "Ocorrência aberta" lida como
+  ocorrência existente: `trip_occurrence_cases` só nasce com `redeliveryPolicy ≠ unset`, e
+  `returned_to_warehouse` é terminal — filtrar pela tratativa devolveria a nota à conta.
+- `dispatchTrip`: `loadRemaining` + `force` → 400 `TRIP_DISPATCH_LOAD_REMAINING_WITH_FORCE` (também
+  no schema Zod, `refine` sobre o `.strict()`); agendamento só cede a `force`; `toLoad` sem
+  `force`/`loadRemaining` → 409 como antes; `leftBehind` sempre liberado; deixadas para trás sem
+  sobrar nota carregada → 409 `TRIP_HAS_UNLOADED_DOCUMENTS` com as notas (com `force`, despacho
+  forçado e assinado, como era antes da spec 185).
+- Motivo da deixada para trás: **no snapshot**, chave `leftBehind: [{ documentId, reason:
+  "Ocorrência: <tipo>" }]` (só quando há). `force_reason` não serve — a CHECK
+  `forced = (force_reason is not null)` e o despacho não é forçado; `trip_document_events` também
+  não — liberar não muda `separation_status` e a CHECK recusa evento sem transição. Sem migration.
+- `loadRemaining`: `pending → separated → loaded` pela aresta de `checkTripDocumentTransition`,
+  UPDATE guardado por status de origem e `released_at is null`, evento pelo escritor do lote
+  (`insertTripDocumentBatchEvents`, exportado). Nota que uma escrita concorrente tirou do caminho
+  → 409 e a transação desfaz. Sem status intermediário da viagem: ela vai direto a `dispatched`.
+- **Ordem lock/snapshot (decisão):** notas primeiro (carregar, liberar — ADR-0068 §2, notas →
+  viagem), depois `FOR NO KEY UPDATE` da viagem e reconferência de `checkTripTransition`, e só
+  então snapshot, ETA e UPDATE por compare-and-set. `trip_dispatch_snapshots` tem unique
+  `(company_id, trip_id)`: antes, o snapshot entrava antes do lock e o segundo despacho de uma
+  corrida virava 23505/500. Reconferência `unchanged` (ou compare-and-set sem linha) **lança** um
+  sinal interno que desfaz a transação inteira — nenhuma nota fica carregada/liberada por um
+  despacho que não houve — e `DrizzleTripRouteRepository.dispatch` o converte em
+  `{ tripStatus }`. A liberação também passou a ser guardada (`released_at is null` e status não
+  carregado): nota carregada depois da leitura vai no caminhão.
+- Rota `POST /trips/:id/dispatch`: corpo aceita `loadRemaining?: boolean`; resposta segue
+  `{ data: { tripStatus } }`. Não há OpenAPI gerado neste repositório: o contrato é o schema Zod.
+- Fakes de `readPreconditions` em `test/driver-trip/dispatch.contract.ts` e
+  `trip-status-write-guard.integration.ts` ganharam os campos novos do port.
+
+Gates (de `apps/api-transportada`, banco nativo 127.0.0.1:65433, PG 18.4):
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-dispatch-load-remaining.integration.ts ./test/integration/trip-status-write-guard.integration.ts ./test/integration/trip-lifecycle.integration.ts`
+  → 15 pass, 0 fail
+- contrato inteiro `bun --env-file=../../.env.test test --timeout 120000` → 7253 pass, 23 skip,
+  0 fail, 24391 expect() em 183 arquivos
+- integração inteira `bun --env-file=../../.env.test run test:integration` → 593 pass, 0 fail,
+  108 arquivos (307,8 s)
+- `bun run typecheck` (raiz) limpo nas seis apps; `bunx eslint` e `bunx prettier --check` nos
+  arquivos tocados limpos. Sem migration nesta fase.
+
+Commit: `4354c77fa` — feat(trips): despachar leva todas e libera o que a ocorrência deixa
+(spec 185 T3.2).

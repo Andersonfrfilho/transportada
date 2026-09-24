@@ -26,9 +26,10 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
 
 > 🤖 Modelo: 🧠 `opus` (transação, travas e compare-and-set do `dispatch()`)
 
-- [ ] **T3.1** Teste de integração (CA04, CA05): `loadRemaining` carrega e despacha numa transação;
-      gate recusado não altera nota; nota deixada para trás é liberada com motivo; `loadRemaining` + `force` → 400.
-- [ ] **T3.2** Query de prontidão ao lado de `readPreconditions`; `dispatch-trip.use-case.ts` com
+- [x] **T3.1** Teste de integração (CA04, CA05): `loadRemaining` carrega e despacha numa transação;
+      gate recusado não altera nota; nota deixada para trás é liberada com motivo; `loadRemaining`
+      + `force` → 400.
+- [x] **T3.2** Query de prontidão ao lado de `readPreconditions`; `dispatch-trip.use-case.ts` com
       D3; rota e OpenAPI com `loadRemaining`.
 
 ## Fase 4 — O gatilho automático
