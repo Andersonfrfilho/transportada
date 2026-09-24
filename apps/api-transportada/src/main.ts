@@ -3160,6 +3160,7 @@ function createApplicationRoutes({
               emailBody: input.emailBody,
               emailSubject: input.emailSubject,
               emailTemplateKey: input.emailTemplateKey,
+              leavesDocumentBehind: input.leavesDocumentBehind,
               name: input.name,
               notifies: input.notifies,
               occurrenceTypeId: input.occurrenceTypeId,

@@ -111,6 +111,12 @@ export type OccurrenceTypeRecord = {
   /** A chave do template do módulo de notificações; nula é o legado (assunto/corpo próprios). */
   readonly emailTemplateKey: null | string
   readonly id: string
+  /**
+   * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota", só para tipo de separação. Ausente é
+   * tratado como `false` — existe como opcional só para os dublês de teste que ainda não conhecem
+   * a marca; a implementação real (`listOccurrenceTypes`) sempre grava.
+   */
+  readonly leavesDocumentBehind?: boolean
   readonly name: string
   readonly notifies: boolean
   /**

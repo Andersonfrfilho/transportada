@@ -551,6 +551,21 @@ export class OccurrenceEmailTemplateNotFoundError extends ApiError {
 }
 
 /**
+ * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota" só faz sentido para tipo de separação —
+ * é o galpão que decide não esperar a nota, na hora de fechar a carga. Um tipo de entrega com a
+ * marca ligada não teria onde ser lido (a conta de despacho só olha ocorrência de separação).
+ */
+export class OccurrenceTypeLeavesDocumentBehindRequiresSeparationError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_LEAVES_BEHIND_REQUIRES_SEPARATION',
+      message: 'Only separation-stage occurrence types can leave the document behind.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * ADR-0067 §2 (emenda): no canal `office`, nota já `delivered`/`returned` não gera evento novo — o
  * caso real ("a entrega já aconteceu e falta o canhoto") é `field-proof`, que anexa ao evento
  * existente. O canal do motorista não passa por aqui: continua com o no-op idempotente de hoje.

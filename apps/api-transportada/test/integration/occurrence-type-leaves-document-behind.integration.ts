@@ -13,6 +13,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { companies } from '../../src/database/identity.schema.js'
+import { companyOccurrenceTypes } from '../../src/database/trip.schema.js'
 import {
   listOccurrenceTypes,
   saveOccurrenceType,
@@ -48,7 +49,10 @@ async function withDisposableDatabase(
   }
 }
 
-function baseValues(companyId: string, overrides: Partial<Parameters<typeof saveOccurrenceType>[1]> = {}) {
+function baseValues(
+  companyId: string,
+  overrides: Partial<Parameters<typeof saveOccurrenceType>[1]> = {},
+) {
   return {
     active: true,
     allowsMultipleItems: true,
@@ -149,12 +153,49 @@ describe('"a viagem segue sem a nota" contra o Postgres (spec 185 T2.1)', () => 
             .returning({ id: companies.id })
           if (company === undefined) throw new Error('Failed to seed company')
 
-          await expect(
-            saveOccurrenceType(
-              provider.db,
-              baseValues(company.id, { leavesDocumentBehind: true, stage: 'delivery' }),
-            ),
-          ).rejects.toThrow()
+          // Escrita direta: o repositório já normaliza para `false` fora de separação.
+          const insertDeliveryLeavingBehind = async (): Promise<void> => {
+            await provider.db.insert(companyOccurrenceTypes).values({
+              companyId: company.id,
+              leavesDocumentBehind: true,
+              name: 'Recusa total',
+              stage: 'delivery',
+            })
+          }
+          await expect(insertDeliveryLeavingBehind()).rejects.toThrow()
+        } finally {
+          await provider.close()
+        }
+      })
+    },
+  )
+
+  testWithPostgres(
+    'tipo marcado que muda para entrega sem mandar o campo grava false, sem bater na CHECK',
+    async () => {
+      await withDisposableDatabase(async (connectionString) => {
+        const provider = createDrizzleProvider({
+          connection: { adapter: 'postgres', max: 1, url: connectionString },
+        })
+
+        try {
+          const [company] = await provider.db
+            .insert(companies)
+            .values([{ status: 'active' }])
+            .returning({ id: companies.id })
+          if (company === undefined) throw new Error('Failed to seed company')
+
+          const created = await saveOccurrenceType(
+            provider.db,
+            baseValues(company.id, { leavesDocumentBehind: true }),
+          )
+          const moved = await saveOccurrenceType(
+            provider.db,
+            baseValues(company.id, { occurrenceTypeId: created.id, stage: 'delivery' }),
+          )
+
+          expect(moved.stage).toBe('delivery')
+          expect(moved.leavesDocumentBehind).toBe(false)
         } finally {
           await provider.close()
         }

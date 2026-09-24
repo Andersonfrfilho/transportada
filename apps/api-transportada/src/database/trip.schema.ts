@@ -1946,6 +1946,14 @@ export const companyOccurrenceTypes = pgTable(
       .$type<DeliveryProofFieldMode>()
       .notNull()
       .default('off'),
+    /**
+     * Spec 185 (RF6, ADR-0074 §4): só para tipo de separação — ocorrência aberta deste tipo, sobre
+     * a nota inteira, tira a nota da conta de "carga fechada" (`dispatch-readiness.policy.ts`) e o
+     * despacho a libera da viagem. Padrão `false`: nenhuma instalação passa a soltar nota nenhuma ao
+     * aplicar esta migration. O CHECK abaixo é a rede; a validação de negócio mora no caso de uso
+     * (`save-occurrence-type.use-case.ts`).
+     */
+    leavesDocumentBehind: boolean('leaves_document_behind').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1969,6 +1977,10 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_attachment_mode_check',
       sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_leaves_document_behind_check',
+      sql`${table.stage} = 'separation' or not ${table.leavesDocumentBehind}`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],

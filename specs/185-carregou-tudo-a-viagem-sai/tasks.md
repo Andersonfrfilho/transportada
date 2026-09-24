@@ -17,9 +17,9 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Teste (CA06): GET devolve, PUT grava, ausente não apaga, tipo de entrega com `true`
+- [x] **T2.1** Teste (CA06): GET devolve, PUT grava, ausente não apaga, tipo de entrega com `true`
       → 422.
-- [ ] **T2.2** Coluna + CHECK + migration aditiva com `rollback.sql`; GET/PUT/`saveOccurrenceType`
+- [x] **T2.2** Coluna + CHECK + migration aditiva com `rollback.sql`; GET/PUT/`saveOccurrenceType`
       no molde de `attachmentMode`; código de erro novo. Fecha com `make migration-test`.
 
 ## Fase 3 — O despacho libera o que fica e leva o que falta

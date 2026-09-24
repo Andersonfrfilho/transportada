@@ -231,6 +231,11 @@ type SaveOccurrenceTypeInput = {
   readonly emailBody: string
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
+  /**
+   * Spec 185 (RF6): "a viagem segue sem a nota". Ausente é "não mexa" — ver
+   * `save-occurrence-type.use-case.ts`.
+   */
+  readonly leavesDocumentBehind?: boolean | undefined
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string

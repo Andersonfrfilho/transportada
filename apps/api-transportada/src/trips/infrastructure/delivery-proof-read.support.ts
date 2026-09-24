@@ -755,6 +755,7 @@ export async function listOccurrenceTypes(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       id: companyOccurrenceTypes.id,
+      leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
       stage: companyOccurrenceTypes.stage,
@@ -778,6 +779,12 @@ export async function saveOccurrenceType(
     readonly emailBody: string
     readonly emailSubject: string
     readonly emailTemplateKey: null | string
+    /**
+     * Spec 185 (RF6, ADR-0074 §4): ausente é `false` — o padrão da coluna. Opcional pelo mesmo
+     * motivo de `attachmentMode` acima: o UPDATE sobrescreve o registro inteiro e o editor do
+     * painel ainda não manda o campo.
+     */
+    readonly leavesDocumentBehind?: boolean | undefined
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
@@ -812,16 +819,31 @@ export async function saveOccurrenceType(
 
   const attachmentModeChange =
     input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }
+  /**
+   * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar
+   * o campo, bateria na CHECK e viraria 500. `true` fora de separação já foi recusado no caso de uso.
+   */
+  const leavesDocumentBehindChange =
+    input.stage !== 'separation'
+      ? { leavesDocumentBehind: false }
+      : input.leavesDocumentBehind === undefined
+        ? {}
+        : { leavesDocumentBehind: input.leavesDocumentBehind }
 
   const [saved] =
     input.occurrenceTypeId === null
       ? await queryable
           .insert(companyOccurrenceTypes)
-          .values({ ...values, ...attachmentModeChange })
+          .values({ ...values, ...attachmentModeChange, ...leavesDocumentBehindChange })
           .returning()
       : await queryable
           .update(companyOccurrenceTypes)
-          .set({ ...values, ...attachmentModeChange, updatedAt: sql`now()` })
+          .set({
+            ...values,
+            ...attachmentModeChange,
+            ...leavesDocumentBehindChange,
+            updatedAt: sql`now()`,
+          })
           .where(
             and(
               eq(companyOccurrenceTypes.companyId, input.companyId),
@@ -840,6 +862,7 @@ export async function saveOccurrenceType(
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     id: saved.id,
+    leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,
     notifies: saved.notifies,
     redeliveryPolicy: saved.redeliveryPolicy,
