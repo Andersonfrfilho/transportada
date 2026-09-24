@@ -1059,3 +1059,34 @@ do motorista pelo WhatsApp só entra na conversa quando responde (`context.id`) 
 o resto segue para os fluxos de comando da spec 144. É o contrato de "número sem `context.id` da
 conversa continua chegando aos comandos" (`whatsapp-inbound-hook.contract.ts` e a tabela da T501).
 Falta o envio.
+
+## T603 — A aba Motorista no detalhe (verde, com as ações da foto na T702)
+
+- **Tela:**
+  - O painel "Conversas" ganhou a aba **Motorista**, só quando a viagem tem motorista (P7: sem
+    motorista, a aba não aparece).
+  - O fio é o mesmo da aba Contratante (extraído em `ConversationThread`): dia, balão no tom verde
+    do motorista (T704), selo do app com "Lido", porque o app confirma a leitura (RF14).
+  - O compositor ("Mensagem ao motorista" + "Enviar pelo app") aparece só com `occurrences.resolve`.
+    Tem uma chave de idempotência por mensagem escrita, que se renova depois do envio; limpa o campo
+    ao enviar e diz o que falta (em branco, acima de 8.000).
+  - Abrir a aba com mensagem nova marca como lida (RF15), pelo mesmo gancho da aba Contratante.
+- **Correção ao plano (registrada):** a P7 diz que "uma **foto** recebida pode ser anexada à
+  ocorrência ou encaminhada à conversa da contratante". As duas ações são sobre a foto, e a foto
+  chega com os anexos da **T702** (a resposta do motorista com foto também foi para lá, na T601).
+  As duas ações entram na T702, quando houver o que anexar ou encaminhar.
+- **Testes, escritos antes e vistos falhando (exportação inexistente):**
+  - cliente: o envio ao motorista manda só `{ body, channel: 'app' }` com a chave;
+  - serviço puro: o rascunho aparado ou o que falta, a mensagem do motorista do lado dele no tom
+    dele, a chave no formato da API.
+- **Smoke `test/spec-183-driver-conversation.smoke.spec.ts`, 4 pass:**
+  - prints desktop e 390 px;
+  - o envio em branco diz o que falta sem mandar;
+  - o envio real entra "na fila", com corpo aparado, canal `app` e a chave;
+  - a ocorrência de parada sem motorista não mostra a aba.
+- **Revisão de design:** tons e selo conferidos nos dois tamanhos, sem rolagem horizontal. Nada a
+  corrigir.
+- **Rodado:**
+  - frontend: **5223 + 44 pass**;
+  - API, contrato da conversa e do catálogo: **121 pass**;
+  - lint, formatação e typecheck limpos.

@@ -96,3 +96,16 @@ export function useAssignUnassignedMutation() {
     },
   })
 }
+
+export function useSendDriverAppMessageMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getOccurrenceConversationClient()
+  return useMutation({
+    mutationFn: (input: Readonly<{ body: string; idempotencyKey: string }>) =>
+      client.sendDriverAppMessage({ ...input, occurrenceId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}

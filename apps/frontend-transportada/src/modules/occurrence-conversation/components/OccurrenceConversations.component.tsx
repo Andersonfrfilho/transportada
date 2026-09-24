@@ -10,8 +10,14 @@ import { Tabs } from '@/components/ui/tabs'
 import {
   useMarkConversationReadMutation,
   useOccurrenceConversationsQuery,
+  useSendDriverAppMessageMutation,
 } from '../queries/occurrenceConversation.query'
-import { groupConversationByDay } from '../shared/occurrenceConversation.service'
+import {
+  createDriverMessageIdempotencyKey,
+  groupConversationByDay,
+  OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
+  validateDriverMessageDraft,
+} from '../shared/occurrenceConversation.service'
 import type {
   ContractorSenderSuggestion,
   OccurrenceConversation,
@@ -33,6 +39,146 @@ function dayKey(iso: string): string {
   return Number.isNaN(moment.getTime()) ? iso.slice(0, 10) : dayKeyFormatter.format(moment)
 }
 
+/** O fio da conversa por dia, nas duas abas. */
+function ConversationThread({
+  canManageContacts,
+  messages,
+  onAddContact,
+}: Readonly<{
+  canManageContacts: boolean
+  messages: OccurrenceConversation['messages']
+  onAddContact: (suggestion: ContractorSenderSuggestion) => void
+}>) {
+  return (
+    <div className={styles.thread}>
+      {groupConversationByDay(messages, dayKey).map((group) => (
+        <section aria-label={group.day} className={styles.daySection} key={group.day}>
+          <DateDivider
+            classNames={{ label: styles.dayLabel ?? '', root: styles.dayDivider ?? '' }}
+            iso={group.messages[0]?.createdAt ?? group.day}
+          />
+          {group.messages.map((message) => (
+            <ConversationMessage
+              canManageContacts={canManageContacts}
+              key={message.id}
+              message={message}
+              onAddContact={onAddContact}
+            />
+          ))}
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/** RF15: abrir a aba com mensagem nova marca como lida — para quem abriu, não para os outros. */
+function useMarkReadOnOpen(conversation: OccurrenceConversation | undefined): void {
+  const { mutate: markConversationRead } = useMarkConversationReadMutation()
+  const conversationId = conversation?.id
+  const unreadCount = conversation?.unreadCount ?? 0
+  useEffect(() => {
+    if (conversationId !== undefined && unreadCount > 0) markConversationRead(conversationId)
+  }, [conversationId, markConversationRead, unreadCount])
+}
+
+/**
+ * Spec 183 T603 (P7): a conversa com o motorista pelo app. A mensagem vira aviso na caixa dele e
+ * aparece na tela da conversa no PWA (T604). Uma chave por mensagem escrita: reenviar depois de uma
+ * queda de rede não duplica.
+ */
+function DriverConversationPanel({
+  canSend,
+  conversation,
+  driverName,
+  occurrenceId,
+}: Readonly<{
+  canSend: boolean
+  conversation: OccurrenceConversation | undefined
+  driverName: string
+  occurrenceId: string
+}>) {
+  const { t } = useTranslation('occurrenceConversation')
+  const send = useSendDriverAppMessageMutation(occurrenceId)
+  const [draft, setDraft] = useState('')
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    createDriverMessageIdempotencyKey(() => crypto.randomUUID()),
+  )
+  const [error, setError] = useState<'required' | 'tooLong' | null>(null)
+  useMarkReadOnOpen(conversation)
+  const messages = conversation?.messages ?? []
+
+  function submit(): void {
+    const validated = validateDriverMessageDraft(draft)
+    if ('error' in validated) {
+      setError(validated.error)
+      return
+    }
+    setError(null)
+    send.mutate(
+      { body: validated.body, idempotencyKey },
+      {
+        onSuccess: () => {
+          setDraft('')
+          setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
+        },
+      },
+    )
+  }
+
+  return (
+    <div className={styles.panel}>
+      <div className={styles.panelHead}>
+        <h3>
+          {driverName === '' ? t('driver.title') : t('driver.withName', { name: driverName })}
+        </h3>
+      </div>
+      {messages.length === 0 ? (
+        <p className={styles.hint}>{t('driver.empty')}</p>
+      ) : (
+        <ConversationThread
+          canManageContacts={false}
+          messages={messages}
+          onAddContact={() => undefined}
+        />
+      )}
+      {canSend ? (
+        <form
+          className={styles.panel}
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault()
+            submit()
+          }}
+        >
+          <label className={styles.field}>
+            <span>{t('driver.message')}</span>
+            <textarea
+              disabled={send.isPending}
+              maxLength={OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={3}
+              value={draft}
+            />
+            {error === null ? null : (
+              <span className={styles.error}>{t(`driver.error.${error}`)}</span>
+            )}
+          </label>
+          {send.isError ? (
+            <p className={styles.error} role="alert">
+              {t('driver.error.send')}
+            </p>
+          ) : null}
+          <div className={styles.footer}>
+            <Button disabled={send.isPending} type="submit">
+              {send.isPending ? t('driver.sending') : t('driver.send')}
+            </Button>
+          </div>
+        </form>
+      ) : null}
+    </div>
+  )
+}
+
 type OccurrenceConversationsProps = Readonly<{
   canManageContacts: boolean
   canSend: boolean
@@ -40,6 +186,8 @@ type OccurrenceConversationsProps = Readonly<{
   /** `null` na ocorrência sem contratante casada pela nota (T203). */
   contractorId: null | string
   contractorName: string
+  /** Spec 183 T603 (P7): sem motorista na viagem, a aba Motorista não aparece. */
+  driverName: null | string
   hasDocument: boolean
   occurrenceId: string
 }>
@@ -64,15 +212,7 @@ function ContractorConversationPanel({
   const { t } = useTranslation('occurrenceConversation')
   const [isSending, setSending] = useState(false)
   const [suggestion, setSuggestion] = useState<ContractorSenderSuggestion | null>(null)
-  const markRead = useMarkConversationReadMutation()
-  const conversationId = conversation?.id
-  const unreadCount = conversation?.unreadCount ?? 0
-  const { mutate: markConversationRead } = markRead
-
-  /** RF15: abrir a aba com mensagem nova marca como lida — para quem abriu, não para os outros. */
-  useEffect(() => {
-    if (conversationId !== undefined && unreadCount > 0) markConversationRead(conversationId)
-  }, [conversationId, markConversationRead, unreadCount])
+  useMarkReadOnOpen(conversation)
 
   const messages = conversation?.messages ?? []
   const canWrite = canSend && hasDocument && contractorId !== null
@@ -102,24 +242,11 @@ function ContractorConversationPanel({
           <p className={styles.hint}>{t('contractor.empty')}</p>
         ) : null
       ) : (
-        <div className={styles.thread}>
-          {groupConversationByDay(messages, dayKey).map((group) => (
-            <section aria-label={group.day} className={styles.daySection} key={group.day}>
-              <DateDivider
-                classNames={{ label: styles.dayLabel ?? '', root: styles.dayDivider ?? '' }}
-                iso={group.messages[0]?.createdAt ?? group.day}
-              />
-              {group.messages.map((message) => (
-                <ConversationMessage
-                  canManageContacts={canManageContacts && contractorId !== null}
-                  key={message.id}
-                  message={message}
-                  onAddContact={setSuggestion}
-                />
-              ))}
-            </section>
-          ))}
-        </div>
+        <ConversationThread
+          canManageContacts={canManageContacts && contractorId !== null}
+          messages={messages}
+          onAddContact={setSuggestion}
+        />
       )}
 
       {isSending ? (
@@ -146,6 +273,7 @@ export function OccurrenceConversations({
   companyId,
   contractorId,
   contractorName,
+  driverName,
   hasDocument,
   occurrenceId,
 }: OccurrenceConversationsProps) {
@@ -160,6 +288,10 @@ export function OccurrenceConversations({
     (conversation) => conversation.participant === 'contractor',
   )
   const unread = contractorConversation?.unreadCount ?? 0
+  const driverConversation = query.data?.find(
+    (conversation) => conversation.participant === 'driver',
+  )
+  const driverUnread = driverConversation?.unreadCount ?? 0
 
   if (query.isLoading) {
     return (
@@ -197,6 +329,25 @@ export function OccurrenceConversations({
             />
           ),
         },
+        ...(driverName === null
+          ? []
+          : [
+              {
+                ...(driverUnread > 0
+                  ? { badge: t('contractor.unread', { count: driverUnread }) }
+                  : {}),
+                id: 'driver',
+                label: t('tabs.driver'),
+                panel: (
+                  <DriverConversationPanel
+                    canSend={canSend}
+                    conversation={driverConversation}
+                    driverName={driverName}
+                    occurrenceId={occurrenceId}
+                  />
+                ),
+              },
+            ]),
       ]}
       onChange={setTab}
       value={tab}

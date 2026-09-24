@@ -153,3 +153,29 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     expect(failure).toMatchObject({ code: 'CONTRACTOR_MAIL_NOT_CONFIGURED' })
   })
 })
+
+describe('ao motorista pelo app (spec 183 T603)', () => {
+  test('envia só o texto e o canal app, com a chave de idempotência', async () => {
+    const requests: Request[] = []
+    const client = createClient(
+      Response.json(
+        { data: { conversationId: 'conversation-2', conversationMessageId: 'message-9' } },
+        { status: 202 },
+      ),
+      requests,
+    )
+
+    await client.sendDriverAppMessage({
+      body: 'Pode aguardar na doca?',
+      idempotencyKey: 'driver-message:key-0001',
+      occurrenceId: OCCURRENCE_ID,
+    })
+
+    const [request] = requests
+    expect(request?.url).toBe(
+      `${API_URL}/trip-occurrences/${OCCURRENCE_ID}/conversations/driver/messages`,
+    )
+    expect(request?.headers.get('idempotency-key')).toBe('driver-message:key-0001')
+    expect(await request?.json()).toEqual({ body: 'Pode aguardar na doca?', channel: 'app' })
+  })
+})

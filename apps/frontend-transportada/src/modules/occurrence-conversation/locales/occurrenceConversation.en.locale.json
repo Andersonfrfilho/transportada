@@ -1,7 +1,8 @@
 {
   "tabs": {
     "ariaLabel": "Occurrence conversations",
-    "contractor": "Contractor"
+    "contractor": "Contractor",
+    "driver": "Driver"
   },
   "contractor": {
     "title": "Conversation with the contractor",
@@ -97,6 +98,19 @@
       "OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED": "Someone else already assigned this message.",
       "OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID": "This conversation is no longer a valid choice. Refresh the page.",
       "OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND": "The message is no longer in the queue."
+    }
+  },
+  "driver": {
+    "title": "Conversation with the driver",
+    "withName": "Conversation with {{name}}",
+    "empty": "No messages yet. What you write here arrives as a notice in the driver app, and the driver replies from there.",
+    "message": "Message to the driver",
+    "send": "Send via app",
+    "sending": "Sending…",
+    "error": {
+      "required": "Write the message.",
+      "tooLong": "The message is over the 8,000-character limit.",
+      "send": "Could not send. Try again shortly."
     }
   }
 }

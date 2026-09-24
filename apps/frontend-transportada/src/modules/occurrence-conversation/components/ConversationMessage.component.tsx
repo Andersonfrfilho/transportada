@@ -46,6 +46,7 @@ const TICK_STATUS: Readonly<Partial<Record<string, string>>> = {
   bounced: 'failed',
   delivered: 'delivered',
   failed: 'failed',
+  read: 'read',
   sent: 'sent',
 }
 

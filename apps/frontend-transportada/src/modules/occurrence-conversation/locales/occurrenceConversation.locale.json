@@ -1,7 +1,8 @@
 {
   "tabs": {
     "ariaLabel": "Conversas da ocorrência",
-    "contractor": "Contratante"
+    "contractor": "Contratante",
+    "driver": "Motorista"
   },
   "contractor": {
     "title": "Conversa com a contratante",
@@ -97,6 +98,19 @@
       "OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED": "Outra pessoa já atribuiu esta mensagem.",
       "OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID": "Esta conversa não é mais uma escolha válida. Atualize a página.",
       "OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND": "A mensagem não está mais na fila."
+    }
+  },
+  "driver": {
+    "title": "Conversa com o motorista",
+    "withName": "Conversa com {{name}}",
+    "empty": "Nenhuma mensagem ainda. O que você escrever aqui chega como aviso no app do motorista, e ele responde de lá.",
+    "message": "Mensagem ao motorista",
+    "send": "Enviar pelo app",
+    "sending": "Enviando…",
+    "error": {
+      "required": "Escreva a mensagem.",
+      "tooLong": "A mensagem passou do limite de 8.000 caracteres.",
+      "send": "Não foi possível enviar. Tente de novo em instantes."
     }
   }
 }

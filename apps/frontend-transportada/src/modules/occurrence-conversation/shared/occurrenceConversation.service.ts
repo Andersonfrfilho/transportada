@@ -132,3 +132,21 @@ export function buildContractorMailRequest(draft: ContractorMailDraft): Contract
 export function createOccurrenceMailIdempotencyKey(randomId: () => string): string {
   return `occurrence-mail:${randomId()}`
 }
+
+/** O teto do corpo na conversa (o mesmo da API, `OCCURRENCE_MAIL_LIMITS.body`). */
+export const OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH = 8000
+
+/** Spec 183 T603: a mensagem ao motorista é só texto; o rascunho sai aparado ou diz o que falta. */
+export function validateDriverMessageDraft(
+  draft: string,
+): Readonly<{ body: string }> | Readonly<{ error: 'required' | 'tooLong' }> {
+  const body = draft.trim()
+  if (body === '') return { error: 'required' }
+  if (body.length > OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH) return { error: 'tooLong' }
+  return { body }
+}
+
+/** Uma chave por mensagem escrita: reenviar a mesma depois de uma queda de rede não duplica. */
+export function createDriverMessageIdempotencyKey(randomId: () => string): string {
+  return `driver-message:${randomId()}`
+}

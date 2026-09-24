@@ -48,6 +48,11 @@ export type OccurrenceConversationClient = Readonly<{
     occurrenceId: string
     subject?: string
   }) => Promise<OccurrenceMailPreview>
+  sendDriverAppMessage: (input: {
+    body: string
+    idempotencyKey: string
+    occurrenceId: string
+  }) => Promise<void>
   sendContractorMail: (input: {
     idempotencyKey: string
     occurrenceId: string
@@ -320,6 +325,13 @@ export function createOccurrenceConversationClient(
         },
       )
       return readPreview(payload)
+    },
+    async sendDriverAppMessage({ body, idempotencyKey, occurrenceId }) {
+      await requestJson(dependencies, `${occurrencePath(occurrenceId)}/driver/messages`, {
+        body: { body, channel: 'app' },
+        headers: { 'idempotency-key': idempotencyKey },
+        method: 'POST',
+      })
     },
     async sendContractorMail({ idempotencyKey, occurrenceId, request }) {
       await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {

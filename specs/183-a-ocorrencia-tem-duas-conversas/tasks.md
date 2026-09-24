@@ -117,7 +117,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [ ] **T602** 🧠 Canal WhatsApp do motorista pelo telefone verificado (ADR-0063), com o desvio dos
       fluxos de comando só por `context.id` (RF9). Evidência: teste de caso de uso + contrato de que
       mensagem sem `context.id` da conversa continua chegando aos fluxos da spec 144.
-- [ ] **T603** Aba Motorista no detalhe, com "Anexar à ocorrência" e "Encaminhar à contratante".
+- [x] **T603** Aba Motorista no detalhe, com "Anexar à ocorrência" e "Encaminhar à contratante".
       Evidência: contratos de serviço puro.
 - [ ] **T604** Tela da conversa no PWA do motorista, com status `delivered`/`read` gravados ao
       baixar/abrir. Evidência: contrato de serviço + smoke.

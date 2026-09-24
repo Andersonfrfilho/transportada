@@ -317,6 +317,38 @@ const CONVERSATION_MESSAGES = [
   },
 ] as const
 
+/** Spec 183 T603: a conversa com o motorista pelo app. */
+const DRIVER_MESSAGES = [
+  {
+    author: { kind: 'operation', name: 'Operadora Lima', userId: 'user-operator' },
+    bodyText:
+      'O recebedor quer cobrar descarga. Aguarde na doca até eu confirmar com a contratante.',
+    channel: 'app',
+    createdAt: '2026-09-24T14:22:00.000Z',
+    direction: 'outbound',
+    id: 'driver-message-1',
+    status: 'read',
+    statusTimes: {
+      delivered: '2026-09-24T14:22:30.000Z',
+      queued: '2026-09-24T14:22:00.000Z',
+      read: '2026-09-24T14:24:00.000Z',
+    },
+  },
+  {
+    author: { kind: 'driver', name: 'Motorista Sintético Alves', userId: 'user-driver' },
+    bodyText: 'Certo, estou aguardando aqui.',
+    channel: 'app',
+    createdAt: '2026-09-24T14:25:00.000Z',
+    direction: 'inbound',
+    id: 'driver-message-2',
+    status: null,
+    statusTimes: {},
+  },
+] as const
+
+/** O que a aba Motorista mandou: o smoke confere o corpo e a chave. */
+export const SENT_DRIVER_MESSAGES: { body: unknown; idempotencyKey: null | string }[] = []
+
 /** O que o diálogo mandou: o smoke do envio confere o corpo e a chave. */
 export const SENT_CONTRACTOR_MAILS: { body: unknown; idempotencyKey: null | string }[] = []
 
@@ -326,6 +358,33 @@ export const SENT_CONTRACTOR_MAILS: { body: unknown; idempotencyKey: null | stri
  */
 async function mockOccurrenceConversationApi(page: Page): Promise<void> {
   const messages: unknown[] = [...CONVERSATION_MESSAGES]
+  const driverMessages: unknown[] = [...DRIVER_MESSAGES]
+
+  /** Spec 183 T603: a mensagem ao motorista pelo app entra "na fila", como a API faria. */
+  await page.route(/\/conversations\/driver\/messages$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
+    const body = route.request().postDataJSON() as { body: string }
+    SENT_DRIVER_MESSAGES.push({
+      body,
+      idempotencyKey: route.request().headers()['idempotency-key'] ?? null,
+    })
+    driverMessages.push({
+      author: { kind: 'operation', name: 'Operadora Lima', userId: 'user-operator' },
+      bodyText: body.body,
+      channel: 'app',
+      createdAt: '2026-09-24T15:10:00.000Z',
+      direction: 'outbound',
+      id: `driver-message-${String(driverMessages.length + 1)}`,
+      status: 'queued',
+      statusTimes: { queued: '2026-09-24T15:10:00.000Z' },
+    })
+    return route.fulfill({
+      body: JSON.stringify({ data: { conversationId: 'conversation-driver' } }),
+      contentType: 'application/json',
+      headers: CORS_HEADERS,
+      status: 202,
+    })
+  })
 
   await page.route(/\/trip-occurrences\/[^/]+\/conversations$/, async (route) => {
     if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
@@ -338,6 +397,13 @@ async function mockOccurrenceConversationApi(page: Page): Promise<void> {
             id: 'conversation-contractor',
             messages,
             participant: 'contractor',
+            status: 'open',
+            unreadCount: 0,
+          },
+          {
+            id: 'conversation-driver',
+            messages: driverMessages,
+            participant: 'driver',
             status: 'open',
             unreadCount: 0,
           },

@@ -407,6 +407,7 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
                 {...(companyId === undefined ? {} : { companyId })}
                 contractorId={occurrence.document?.contractor?.contractorId ?? null}
                 contractorName={occurrence.document?.contractor?.name ?? ''}
+                driverName={occurrence.driver === null ? null : occurrence.driver.name}
                 hasDocument={occurrence.document !== null}
                 occurrenceId={occurrence.id}
               />

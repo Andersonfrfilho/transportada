@@ -9,11 +9,13 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   buildContractorMailRequest,
+  createDriverMessageIdempotencyKey,
   createOccurrenceMailIdempotencyKey,
   describeConversationMessage,
   groupConversationByDay,
   initialRecipientIds,
   validateContractorMailDraft,
+  validateDriverMessageDraft,
 } from '@/modules/occurrence-conversation/shared/occurrenceConversation.service'
 import type { OccurrenceConversationMessage } from '@/modules/occurrence-conversation/shared/occurrenceConversation.types'
 
@@ -216,5 +218,38 @@ describe('o diálogo "Enviar à contratante"', () => {
     const key = createOccurrenceMailIdempotencyKey(() => '0f8e1c2a-7b3d-4e5f-9a6b-1c2d3e4f5a6b')
     expect(key).toMatch(/^[A-Za-z0-9._:-]{16,256}$/u)
     expect(key).toBe('occurrence-mail:0f8e1c2a-7b3d-4e5f-9a6b-1c2d3e4f5a6b')
+  })
+})
+
+describe('a mensagem ao motorista (spec 183 T603)', () => {
+  test('texto aparado; vazio ou longo demais diz o que falta', () => {
+    expect(validateDriverMessageDraft('  Pode aguardar?  ')).toEqual({ body: 'Pode aguardar?' })
+    expect(validateDriverMessageDraft('   ')).toEqual({ error: 'required' })
+    expect(validateDriverMessageDraft('x'.repeat(8001))).toEqual({ error: 'tooLong' })
+  })
+
+  test('a mensagem do motorista fica do lado dele, no tom do motorista', () => {
+    expect(
+      describeConversationMessage(
+        message({
+          author: { kind: 'driver', name: 'Motorista Sintético', userId: 'driver-user' },
+          channel: 'app',
+          direction: 'inbound',
+          status: null,
+          statusTimes: {},
+        }),
+      ),
+    ).toEqual({
+      author: { kind: 'driver', name: 'Motorista Sintético' },
+      side: 'theirs',
+      status: null,
+      tone: 'driver',
+    })
+  })
+
+  test('a chave da mensagem ao motorista cabe no formato da API', () => {
+    expect(createDriverMessageIdempotencyKey(() => '0f8e1c2a-7b3d-4e5f-9a6b-1c2d3e4f5a6b')).toBe(
+      'driver-message:0f8e1c2a-7b3d-4e5f-9a6b-1c2d3e4f5a6b',
+    )
   })
 })
