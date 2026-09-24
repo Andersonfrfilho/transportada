@@ -1,6 +1,6 @@
 # ADR-0073 — O portal ganha a conversa da ocorrência, e continua sem câmera, microfone nem id interno
 
-- **Status:** proposto
+- **Status:** aceito (2026-09-24)
 - **Data:** 2026-09-24
 - **Contexto:** spec 183 (D9, RF21). Cresce o portal da ADR-0050; usa a tela de conversa da ADR-0051
   pela ADR-0072.
@@ -15,9 +15,10 @@ decide.
 
 ## Decisão
 
-1. **O portal consome o `@adatechnology/conversations-ui`**, como o painel (ADR-0051): `styles.css`
-   uma vez, só no módulo `occurrences`, com os `--cv-*` alimentados pelos tokens do portal (cópia por
-   valor dos do painel, como já é). O portal continua sem o design system do painel.
+1. **O portal consome as peças do `@adatechnology/conversations-ui`**, como o painel (ADR-0051,
+   ADR-0072): `styles.css` uma vez, só no módulo `occurrences`, com o estilo nosso por `classNames` e
+   CSS sobre `.cv-*`, a partir dos tokens do portal (cópia por valor dos do painel, como já é). O
+   portal continua sem o design system do painel.
 2. **A `Permissions-Policy` não muda.** Câmera, microfone e posição continuam negados. A
    contratante anexa por seletor de arquivo e **ouve** áudio, mas não grava áudio nem fotografa pelo
    portal. Liberar microfone para gravar é decisão nova, com ADR própria.
@@ -29,6 +30,20 @@ decide.
    funcionário da transportadora. A transportadora aparece como empresa.
 6. **O teste continua sendo serviço puro e texto de fonte.** A app não ganha Playwright com esta
    ADR; ganha contratos de que a política, o `connect-src` e as rotas não mudaram.
+
+## Revisão na aceitação (2026-09-24)
+
+Staging já tem, pela spec 164, a tela "Ocorrências" do portal com o formulário de decisão
+(`occurrences.decide`) e `GET /client/me/occurrences`. Por isso:
+
+- a conversa entra **nessa tela**, ao lado do formulário de decisão, que continua sendo o único jeito
+  de decidir pelo portal — a conversa não decide;
+- a conversa aparece só nas ocorrências que a 164 D5 já mostra ao portal;
+- as rotas novas são `/client/me/occurrence-conversations/:ref`, com `ref` opaco, e a listagem da 164
+  ganha a `conversationRef`. A rota de decisão da 164 recebe o id interno da ocorrência, contra a
+  regra do portal; isso é da 164 e fica registrado fora desta ADR;
+- o estilo da conversa no portal segue a ADR-0072 revisada: peças do pacote, estilo nosso, sem
+  Tailwind.
 
 ## Consequências
 

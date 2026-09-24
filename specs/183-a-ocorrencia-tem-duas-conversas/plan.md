@@ -30,7 +30,7 @@
 - `src/trips/` — `get-trip-occurrence.use-case.ts`, a query de detalhe ao lado de
   `trip-occurrence-feed.query.ts`, e os campos novos na listagem (RF2–RF4).
 - `src/occurrence-conversation/` (módulo novo) — `domain/` (políticas: status RF14, atribuição RF9,
-  decisão por botão D4, janela via pacote), `application/` (abrir conversa, enviar por canal, marcar
+  "a conversa não decide" D4, janela), `application/` (abrir conversa, enviar por canal, marcar
   lida pelo operador, respostas rápidas), `infrastructure/` (`drizzle-occurrence-conversation.repository.ts`,
   gateways para o trilho de e-mail da 143 e para o canal de WhatsApp), `presentation/` (rotas).
 - `src/contractor-mail/` — contatos com os campos do RF5; os casos de uso de envio e resposta da 143
@@ -67,30 +67,30 @@
 
 **Portal (`apps/frontend-client`, ADR-0073):**
 
-- `modules/occurrences/` — lista "Ocorrências" (com contador de novas) e a tela da ocorrência com a
-  conversa sobre o `conversations-ui`, anexo por seletor de arquivo, player de áudio e a decisão da
-  taxa quando cabe (D9). Tokens de balão copiados por valor do painel, como os outros.
+- `modules/occurrences/` — a tela "Ocorrências" **que já existe** (spec 164) ganha a conversa sobre as
+  peças do `conversations-ui`, ao lado do `DecisionForm` da 164 (que continua sendo a decisão), com
+  anexo por seletor de arquivo e player de áudio. Tokens de balão copiados por valor do painel, como
+  os outros; estilo pelo `classNames` das peças, sem Tailwind.
 - Sem gravação de áudio e sem câmera: a `Permissions-Policy` não muda.
 
 ## Contratos/API/eventos
 
-| Método  | Rota                                                         | Permissão           |
-| ------- | ------------------------------------------------------------ | ------------------- |
-| GET     | `/trip-occurrences/:id`                                      | `trip.read`         |
-| GET     | `/trip-occurrences/:id/conversations`                        | `trip.read`         |
-| POST    | `/trip-occurrences/:id/conversations/:participant/messages`  | `trip.manage`       |
-| POST    | `/occurrence-conversations/:id/read`                         | `trip.read`         |
-| GET     | `/occurrence-conversations/:id/mail-preview`                 | `trip.manage`       |
-| GET     | `/occurrence-conversations/unassigned`                       | `trip.manage`       |
-| POST    | `/occurrence-conversations/unassigned/:messageId/assign`     | `trip.manage`       |
-| GET/PUT | `/company-settings/quick-replies`                            | `settings.manage`   |
-| GET     | `/client/me/occurrences`                                     | `deliveries.track`  |
-| GET     | `/client/me/deliveries/:accessKey/occurrences/:ref`          | `deliveries.track`  |
-| POST    | `/client/me/deliveries/:accessKey/occurrences/:ref/messages` | `deliveries.track`  |
-| POST    | `/client/me/deliveries/:accessKey/occurrences/:ref/read`     | `deliveries.track`  |
-| POST    | `/client/me/deliveries/:accessKey/occurrences/:ref/decision` | `charges.decide`    |
-| GET     | `/me/trips/current/occurrences/:id/messages`                 | motorista da viagem |
-| POST    | `/me/trips/current/occurrences/:id/messages`                 | motorista da viagem |
+| Método  | Rota                                                          | Permissão           |
+| ------- | ------------------------------------------------------------- | ------------------- |
+| GET     | `/trip-occurrences/:id`                                       | `fleet.read`        |
+| GET     | `/trip-occurrences/:id/conversations`                         | `fleet.read`        |
+| POST    | `/trip-occurrences/:id/conversations/:participant/messages`   | `trip.manage`       |
+| POST    | `/occurrence-conversations/:id/read`                          | `fleet.read`        |
+| GET     | `/occurrence-conversations/:id/mail-preview`                  | `trip.manage`       |
+| GET     | `/occurrence-conversations/unassigned`                        | `trip.manage`       |
+| POST    | `/occurrence-conversations/unassigned/:messageId/assign`      | `trip.manage`       |
+| GET/PUT | `/company-settings/quick-replies`                             | `settings.manage`   |
+| GET     | `/client/me/occurrences` (existente, 164) + `conversationRef` | recorte do portal   |
+| GET     | `/client/me/occurrence-conversations/:ref`                    | recorte do portal   |
+| POST    | `/client/me/occurrence-conversations/:ref/messages`           | recorte do portal   |
+| POST    | `/client/me/occurrence-conversations/:ref/read`               | recorte do portal   |
+| GET     | `/me/trips/current/occurrences/:id/messages`                  | motorista da viagem |
+| POST    | `/me/trips/current/occurrences/:id/messages`                  | motorista da viagem |
 
 - `:participant` é `contractor` ou `driver`. O corpo do envio leva `channel`, `body`, `attachmentIds`
   e, no WhatsApp fora da janela, `templateKey`. Resposta de campo do motorista sem `fleet.read` omite
@@ -157,8 +157,8 @@ para não criar coluna de uma decisão que ainda não existe.
 
 - Envio: `Idempotency-Key` do cliente → id da mensagem; o outbox é gravado na mesma transação.
 - Status: único por `(canal, provider_message_id)`; a política só avança.
-- Decisão da taxa por botão: mesma transação e `FOR UPDATE` da 143 T020; a segunda decisão vira
-  `late`.
+- Nenhuma escrita desta spec toca a tratativa, a taxa ou o acerto (D4); a concorrência da decisão é
+  a da spec 164.
 - Recebida duplicada da Meta: nonce do webhook já existente + único por `provider_message_id`.
 
 ## Observabilidade
@@ -170,10 +170,11 @@ para não criar coluna de uma decisão que ainda não existe.
 
 ## Estratégia de testes
 
-- Políticas puras por tabela: status (RF14), atribuição (RF9), decisão por botão (D4), tipos de
-  contato → flags derivadas (RF5).
-- Contratos de rota com tenant e permissão (incluindo a ausência das chaves do motorista sem
-  `fleet.read`) e o separador.
+- Políticas puras por tabela: status (RF14), atribuição (RF9), tipos de contato → flags derivadas
+  (RF5), identificação do remetente (RF16), expiração (RF20).
+- "A conversa não decide" (D4): mensagem de cada canal não muda a tratativa.
+- Contratos de rota com tenant e permissão (`fleet.read` no detalhe; motorista e agregado sem acesso)
+  e o separador.
 - Integração (`test/integration/*.integration.ts`, rodando com
   `bun --env-file=../../.env.test run test:integration`): listagem com os campos novos numa consulta;
   webhook de status até `read`; botão até `approved`.

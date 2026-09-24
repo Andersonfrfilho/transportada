@@ -6,6 +6,25 @@
 > Prévia das telas (protótipo navegável, privado do dono do projeto):
 > https://claude.ai/artifact/WnJBKYDc3eRt2QJGxizh7h
 
+## Specs do mesmo assunto (lidas contra o código de staging em 2026-09-24)
+
+Ocorrência já tem várias specs. Esta não recria nenhuma decisão delas; o que ela usa de cada uma:
+
+| Spec     | O que ela já decidiu e esta spec **usa sem refazer**                                                                                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 079, 157 | tipos de ocorrência por etapa e o aviso interno                                                                                                                                                                                      |
+| 143      | trilho de e-mail com a contratante (conversa, token, webhook, worker)                                                                                                                                                                |
+| 144, 161 | WhatsApp da empresa, fluxos de comando do motorista e download de mídia da Meta                                                                                                                                                      |
+| 150      | contatos da contratante e a prévia do e-mail (precedente do RF7)                                                                                                                                                                     |
+| 156      | registro "em nome do motorista" (autoria do escritório)                                                                                                                                                                              |
+| **164**  | **a tratativa da ocorrência**: decisão no painel (`occurrences.resolve`) e no portal (`occurrences.decide`), acerto que gera `delivery_charges`, e o e-mail que só **anuncia** a decisão pendente. **Toda decisão continua lá** (D4) |
+| 166, 172 | quantidade e unidade do item na ocorrência (o detalhe só mostra)                                                                                                                                                                     |
+| 171, 180 | linha do tempo da viagem; o link da ocorrência para o detalhe (180 RF15) é feito aqui                                                                                                                                                |
+| 173      | marcador de ocorrência aberta na viagem                                                                                                                                                                                              |
+
+As divergências encontradas entre a primeira versão desta spec e o código estão em `evidence.md`
+§ "Divergências", com a correção aplicada a cada uma.
+
 ## Problema e resultado
 
 `/ocorrencias` lista o que aconteceu, mas não leva a lugar nenhum. A linha não abre nada; o botão
@@ -30,8 +49,8 @@ Nas duas: respostas rápidas, anexos nos dois sentidos, e o mesmo desenho no cel
 
 ## Fora do escopo
 
-- Decidir por WhatsApp qualquer coisa além do que a 143 já decide por e-mail (a taxa de entrega).
-  Ocorrência sem taxa só conversa.
+- **Decidir qualquer coisa pela conversa.** A decisão da ocorrência é da tratativa da spec 164, e
+  nenhuma mensagem — de canal nenhum — muda a tratativa, a taxa ou o acerto (D4).
 - Interpretar texto livre, inclusive com IA. Texto livre nunca muda estado (spec 062 D4). A
   transcrição de áudio (RF18) só converte fala em texto para leitura; ela não interpreta nem decide.
 - Push nativo para o motorista: o PWA não tem service worker de push (143, fora do escopo). O canal
@@ -63,25 +82,26 @@ a conversa que o operador vê.
 ### D3 — O que é genérico vai para o pacote; o que é do TMS fica aqui
 
 Regra do repositório (`AGENTS.md`: bibliotecas reutilizáveis vivem em `adatechnology-packages`) e
-ADR-0051 (a tela de conversa vem do pacote). Vai para o pacote: a tela da conversa (abas por
-participante, selo de canal, seletor de canal, respostas rápidas, anexos, player e gravador de
-áudio, transcrição exibida, selo de status, aviso da janela de 24h), o envio de mídia pelo WhatsApp
-(documento, imagem, áudio), os eventos de status da Meta e a política da janela. **O SDK chega pronto
-com tudo isso** (decisão do dono do projeto, 2026-09-24): esta spec não constrói nada no pacote, só
-confere o contrato da versão instalada antes de usar (Fase 1), como o `AGENTS.md` manda fazer com o
-pacote fiscal. Fica no TransportAdA: quem é a contratante, os contatos e os tipos
-deles, o motorista da viagem, a ligação com a ocorrência, a regra que decide a taxa, permissões,
-`companyId` e LGPD. Detalhe na ADR-0072.
+ADR-0051 (a tela de conversa vem do pacote). **O SDK é genérico, e todo estilo customizável fica do
+nosso lado** (decisão do dono do projeto, 2026-09-24). Do pacote vêm as peças: `ConversationPane`,
+`MessageBubble`, compositor com respostas rápidas e anexos, `AudioPlayer`, `AudioRecorderButton`,
+`AudioTranscription`, `StatusTicks`, `windowOf`/`WindowExpiredNotice`, o envio de mídia e os
+eventos de status do WhatsApp. **No TransportAdA ficam** a composição do que é do produto — as abas
+por participante, o selo de canal por mensagem (`email`, `whatsapp`, `app`, `portal`), o seletor de
+canal — e **todo o estilo**, aplicado pelos `className`/`classNames` que as peças aceitam e por
+`*.module.css` sobre a camada `.cv-*`, com os nossos tokens, **sem Tailwind** (ADR-0051). Também
+ficam aqui: quem é a contratante, os contatos e os tipos deles, o motorista da viagem, a ligação com
+a ocorrência, permissões, `companyId` e LGPD. Detalhe na ADR-0072.
 
-### D4 — No WhatsApp, só botão decide
+### D4 — A conversa não decide; a tratativa da 164 decide
 
-Resposta a **botão** de uma lista fechada ("✅ Aprovar" / "❌ Recusar") enviada a um contato com
-`can_decide` decide a taxa pela mesma transição da 143 (RF6). Texto livre pelo WhatsApp (e o texto de
-uma transcrição) é só mensagem: o sistema não tenta adivinhar se "parece" decisão, porque isso seria
-interpretar texto livre (fora do escopo). Quem lê e entende é o operador, que pode registrar a
-decisão com um toque a partir da mensagem — aí a decisão é **dele**, pelo caminho de ator que a taxa
-já tem, com a mensagem citada (062 D4: confirmação humana). No e-mail vale a 143 RF5 sem mudança
-(palavra na primeira linha + DKIM alinhado).
+Nenhuma mensagem — e-mail, WhatsApp (texto, botão ou áudio), app, portal ou transcrição — muda a
+tratativa, a taxa ou o acerto. A spec 164 já fixou onde se decide: no painel, pelo painel da
+tratativa (`occurrences.resolve`), e no portal, pelo formulário de decisão (`occurrences.decide`); e
+fixou que o e-mail só **anuncia** a decisão pendente, nunca é um segundo caminho. Esta spec mantém
+isso: a conversa é para combinar, e quem decide usa a tratativa, que fica na mesma página. A decisão
+por e-mail que a 143 previa (T019–T022) fica fora desta spec e precisa ser revista contra a 164 à
+parte.
 
 ### D5 — A janela de 24 horas manda no WhatsApp
 
@@ -92,7 +112,7 @@ para o motorista: iniciar conversa pelo WhatsApp é sempre por modelo.
 
 Quando a janela está para fechar, o produto **avisa e troca de canal** em vez de deixar a conversa
 morrer (RF20): com o motorista, a conversa segue pelo **app (PWA)**; com a contratante, pelo
-**e-mail** do contato. O operador vê o aviso antes, e a pessoa do outro lado recebe, ainda dentro da
+**portal** (quando a ocorrência está visível lá) ou pelo **e-mail** do contato. O operador vê o aviso antes, e a pessoa do outro lado recebe, ainda dentro da
 janela, uma mensagem dizendo por onde a conversa continua.
 
 ### D6 — O WhatsApp da contratante é de quem aceitou
@@ -134,28 +154,37 @@ conversa com a contratante. Decisão de crescer o portal registrada na **ADR-007
   No portal a contratante fica à direita, porque é ela quem está lendo;
 - câmera e microfone continuam **negados** na `Permissions-Policy` do portal: dá para anexar arquivo
   e ouvir áudio, mas não gravar áudio nem tirar foto por lá;
-- nenhuma rota do portal recebe id interno: a ocorrência é nomeada pela chave de acesso da nota e por
-  uma referência opaca da conversa, e o recorte vem de `resolveContractorScope`;
-- decidir a taxa pelo portal exige `charges.decide` e usa a mesma transição da 143 (RF6), com o
-  usuário do portal como ator. Taxa que já está num lote de repasse pendente se decide **no lote**
-  (tela Repasses), não na ocorrência — o portal mostra o link, não os botões.
+- a conversa aparece **só nas ocorrências que o portal já mostra**: a regra da spec 164 D5 (tratativa
+  aguardando a contratante, decidida ou fechada) vale para ela também (decisão do dono do projeto,
+  2026-09-24). Antes disso a contratante conversa por e-mail e WhatsApp, e o que ela escreveu
+  aparece no portal quando a ocorrência chega lá;
+- a conversa entra na tela "Ocorrências" **que o portal já tem** (spec 164), ao lado do formulário de
+  decisão dela, que continua sendo o único jeito de decidir pelo portal (`occurrences.decide`, D4);
+- as rotas novas do portal não recebem id interno: a conversa é nomeada por uma referência opaca
+  (`public_ref`), e o recorte vem de `resolveContractorScope`. (A rota de decisão da 164 recebe o id
+  interno da ocorrência; essa divergência com a regra do portal é da 164 e fica registrada em
+  `evidence.md`, fora desta spec.)
 
 ## Histórias priorizadas
 
 ### P1 — A linha abre o detalhe, e a tabela mostra a nota
 
-**Given** um usuário com `trip.read`, **When** ele clica numa linha de `/ocorrencias`, **Then** abre
-`/ocorrencias/:id` com: tipo, grupo e origem; a nota (número/série, contratante com CNPJ, endereço
-de entrega, valor, volumes e peso); o motorista (foto quando houver, iniciais quando não); a
-descrição; as fotos; e a linha do tempo. **And** a tabela ganha as colunas Contratante, Endereço de
+**Given** um usuário com `fleet.read` (a mesma permissão da lista hoje), **When** ele clica numa linha
+de `/ocorrencias`, **Then** abre `/ocorrencias/:id` com: tipo, grupo, origem e autoria (inclusive "em
+nome do motorista"); a nota (número/série, contratante com CNPJ, endereço de entrega, valor, volumes
+e peso) e, quando houver, item, quantidade e unidade (166/172); o motorista (foto quando houver,
+iniciais quando não; "sem motorista" quando a viagem não tem); a descrição; as fotos; o **painel da
+tratativa e o do acerto da spec 164**, com as mesmas permissões de lá; e a linha do tempo. **And** o
+evento de ocorrência na linha do tempo da viagem vira link para este detalhe (180 RF15). **And** a tabela ganha as colunas Contratante, Endereço de
 entrega, Valor NF-e e Conversa, respeitando `docs/frontend/data-tables.md`. **And** a URL do detalhe
 abre direto (recarregar, colar o link).
 
 ### P2 — O contato do motorista está à mão
 
-**Given** um usuário com `fleet.read`, **Then** o detalhe mostra telefone (com o selo WhatsApp quando
-verificado), e-mail e categoria/validade da CNH, com "Ligar", "WhatsApp" e "Copiar telefone". **And**
-sem `fleet.read` o bloco mostra só nome e foto.
+**Given** a ocorrência de uma viagem com motorista, **Then** o detalhe mostra telefone (com o selo
+WhatsApp quando verificado), e-mail e categoria/validade da CNH, com "Ligar", "WhatsApp" e "Copiar
+telefone". A página inteira já exige `fleet.read`, a mesma permissão que abre a ficha do motorista.
+**And** sem motorista na viagem, o bloco não aparece.
 
 ### P3 — Os contatos da contratante têm nome, tipos e canais
 
@@ -177,20 +206,21 @@ na mesma conversa da caixa dela.
 **Given** a empresa com canal de WhatsApp configurado e um contato com aceite, **When** o operador
 escolhe WhatsApp, **Then** a conversa começa por modelo aprovado com a prévia da mensagem; a resposta
 do contato aparece na mesma aba, com selo WhatsApp, inclusive mídia; e dentro da janela de 24h o
-operador responde em texto livre com anexos. **And** o botão "Aprovar" respondido por contato com
-`can_decide` decide a taxa (D4).
+operador responde em texto livre com anexos. **And** nada que chegue por WhatsApp muda a tratativa
+(D4).
 
 ### P6 — A contratante conversa pelo portal
 
-**Given** um usuário do portal com `deliveries.track` e vínculo com a contratante da nota, **When** ele
-abre "Ocorrências", **Then** vê as ocorrências das notas dele, com a conversa inteira (todos os
-canais), anexos e áudios para ouvir, e responde com texto e arquivo. **And** com `charges.decide`,
-aprova ou recusa ali a taxa pedida, se ela não estiver num lote pendente. **And** a mensagem que ele
-envia aparece para o operador com o selo Portal e o nome da conta dele.
+**Given** um usuário do portal com vínculo com a contratante da nota, **When** ele abre uma ocorrência
+na tela "Ocorrências" que o portal já tem (só as que a spec 164 D5 mostra), **Then** vê a conversa
+inteira (todos os canais), anexos e áudios para ouvir, e responde com texto e arquivo. **And** o
+formulário de decisão da 164 continua ao lado, como hoje. **And** a mensagem que ele envia aparece
+para o operador com o selo Portal e o nome da conta dele.
 
 ### P7 — O operador fala com o motorista
 
-**Given** uma ocorrência de uma viagem com motorista, **When** o operador abre a aba Motorista,
+**Given** uma ocorrência de uma viagem com motorista (sem motorista, a aba não aparece; registrada pelo
+escritório em nome dele, a conversa é com ele mesmo assim), **When** o operador abre a aba Motorista,
 **Then** conversa pelo **app** (a mensagem chega na inbox e na tela da conversa no PWA do motorista,
 que responde de lá, com foto) ou pelo **WhatsApp** do telefone verificado. **And** uma foto recebida
 pode ser anexada à ocorrência ou encaminhada à conversa da contratante com um toque.
@@ -222,21 +252,24 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 
 ## Requisitos funcionais
 
-- **RF1** `GET /trip-occurrences/:id` devolve os dois tipos de ocorrência (de parada e de nota) numa
-  forma só, filtrada por `companyId`, com o mesmo `id` que a listagem já devolve. Ocorrência de outra
-  empresa responde 404, igual a inexistente.
+- **RF1** `GET /trip-occurrences/:id`, com `fleet.read` (a permissão da listagem e dos anexos hoje —
+  `trip.read` é do motorista e do agregado e alargaria o acesso), devolve os dois tipos de ocorrência
+  (de parada e de nota) numa forma só, filtrada por `companyId`, com o mesmo `id` que a listagem e as
+  rotas `/:id/attachments`, `/:id/case/*` e `/:id/case/settlement` já usam. Traz a tratativa no
+  mesmo formato da listagem (`case`). Ocorrência de outra empresa responde 404, igual a inexistente.
 - **RF2** A listagem e o detalhe trazem da nota ligada: número, série, contratante (emitente, pelo
   `findChargeParties` da 143 RF3), valor total (`nfe_documents.total_value`, `numeric`, serializado
   como string decimal) e endereço de entrega. O endereço é o do **destinatário da nota**
   (`nfe_participants` + `nfe_addresses`), a mesma fonte de que a parada nasce (ADR-0043 §3 — a
   parada guarda só `address_key` e `label`, não o endereço). Ocorrência de parada sem nota traz nota,
   contratante e valor vazios, mostra o `label` da parada no lugar do endereço, e a UI diz "Sem nota".
-- **RF3** A listagem e o detalhe trazem do motorista: nome e se há foto. Telefone, se é WhatsApp,
-  e-mail e CNH só vêm para quem tem `fleet.read` — o campo **não vem** na resposta, não vem vazio.
-  A foto usa o endpoint de foto de usuário que já existe.
-- **RF4** A listagem traz o estado da conversa com a contratante (`none`, `awaiting`, `replied`; e
-  `approved`/`rejected` quando a ocorrência tem taxa decidida — esses dois vêm da taxa, não da
-  conversa) e a quantidade de mensagens do motorista não lidas pelo operador, sem N+1.
+- **RF3** A listagem e o detalhe trazem do motorista: nome e se há foto; o detalhe traz também
+  telefone, se é WhatsApp verificado, e-mail e categoria/validade da CNH. Sem motorista na viagem, o
+  bloco vem nulo. A foto usa o endpoint de foto de usuário que já existe.
+- **RF4** A listagem traz o estado da conversa com a contratante (`none`, `awaiting`, `replied`) e a
+  quantidade de mensagens do motorista não lidas pelo operador, sem N+1. A decisão (aprovada,
+  recusada) **não** é estado de conversa: a coluna mostra a da tratativa, que a listagem já traz em
+  `case`.
 - **RF5** `contractor_contacts` ganha: `name`, `role_label`, `phone` (E.164), `types` (conjunto
   fechado: `occurrences`, `approves_charges`, `scheduling`, `invoices`, `cte_xml`),
   `occurrence_stages` (`separation`, `delivery`, `stop`), `whatsapp_opt_in_at`,
@@ -251,9 +284,11 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 - **RF7** O envio por e-mail usa os casos de uso da 143 (thread por objeto, token derivado,
   outbox na mesma transação, `Idempotency-Key`). O corpo tem texto e HTML, e a prévia do diálogo é
   renderizada **pelo mesmo** template que o envio usa.
-- **RF8** O envio por WhatsApp usa o canal da empresa: modelo aprovado fora da janela, texto livre
-  dentro, mídia pelo método novo do provider (ADR-0072). A janela é calculada da última mensagem
-  **recebida** daquele número na conversa.
+- **RF8** O envio por WhatsApp usa o canal da empresa **pelo `SendMessageUseCase` do
+  `meta-whatsapp-module`** (texto, modelo e `sendMedia`), não pelo provider direto: é o módulo que
+  guarda a mensagem, aplica a janela e devolve o status — mensagem enviada por fora dele nunca recebe
+  o `onStatusUpdate` (conferido na T101). Modelo aprovado fora da janela, texto livre dentro. A
+  janela é calculada da última mensagem **recebida** daquele número na conversa.
 - **RF9** O webhook do WhatsApp aceita mensagem de número que seja telefone de contato de contratante
   com aceite (D6). A mensagem é atribuída à conversa pela referência de resposta (`context.id`)
   quando houver; sem ela, à conversa aberta mais recente daquele contato; com mais de uma candidata
@@ -264,8 +299,10 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   motorista diz isso a ele ("responda a esta mensagem").
 - **RF10** Anexo que sai: guardado no bucket privado com `sha256`, tamanho e tipo conferidos antes do
   envio (PDF, imagem, planilha; limite por canal validado no gateway). Anexo que chega: extraído do
-  MIME bruto (e-mail, já gravado pela 143 RF4) ou baixado da Meta (WhatsApp) pelo worker, gravado com
-  `sha256`, servido por URL temporária.
+  MIME bruto (e-mail, já gravado pela 143 RF4) ou baixado da Meta (WhatsApp) pelo worker —
+  reaproveitando o caminho que a spec 161 já usa (`fetchMediaAsBase64` / `ingestInboundMedia`) —,
+  gravado com `sha256`, servido por URL temporária. O compositor do pacote não aplica limite de
+  tamanho: o produto confere antes (`resolveMaxAttachmentSizeBytes` como base).
 - **RF11** O canal `app` do motorista (o PWA): a mensagem do operador vira aviso na inbox (`notification.v1`,
   `dedupeKey` = id da mensagem) e aparece na tela da conversa do PWA; a resposta do motorista é
   `POST /me/trips/current/occurrences/:id/messages`, com foto.
@@ -297,8 +334,7 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
     ou número **como chegou** fica gravado e aparece no cartão (histórico imutável);
   - no e-mail, remetente fora dos contatos aparece com o nome do cabeçalho `From` e o endereço,
     marcado "Fora dos contatos", com a ação "Adicionar aos contatos" já preenchida (nome, e-mail).
-    O contato nunca é criado sozinho, e mensagem de fora dos contatos continua sem decidir nada
-    (143: `sender_not_listed`);
+    O contato nunca é criado sozinho;
   - no WhatsApp o remetente sempre é contato (D6); se o nome do perfil do WhatsApp for diferente do
     cadastrado, o cartão mostra os dois;
   - o cabeçalho da aba Contratante lista quem já participou da conversa.
@@ -313,9 +349,11 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   aplicação (`speech-to-text.port.ts`) com um provedor ainda a decidir. O texto fica ligado ao anexo,
   com o provedor, o idioma e o horário, e **nunca** passa pela política de decisão (D4) nem pela de
   interpretação da 143. Falha de transcrição não falha a mensagem: o player aparece sem o texto.
-  Uma empresa pode desligar a transcrição.
-- **RF19** A linha do tempo da ocorrência junta os eventos da ocorrência e das duas conversas em
-  ordem, cada um com o ator (motorista, operação, contratante, sistema) em cor própria, as mesmas dos
+  Uma empresa pode desligar a transcrição. O `meta-whatsapp-module` já tem a porta
+  (`AudioTranscriber`, modos `auto`/`onDemand`, política por empresa) e a UI já mostra o texto
+  (`AudioTranscription`); falta só o motor, que é a dúvida em aberto.
+- **RF19** A linha do tempo da ocorrência junta os eventos da ocorrência, os **da tratativa**
+  (`trip_occurrence_case_events`, spec 164) e os das duas conversas em ordem, cada um com o ator (motorista, operação, contratante, sistema) em cor própria, as mesmas dos
   balões. Mostra o intervalo desde o evento anterior e marca os eventos-chave (registro, decisão).
   No topo ficam três tempos: há quanto tempo a ocorrência está aberta, quanto a contratante levou
   para responder e quanto o motorista levou para ser liberado. Filtros: Tudo, Contratante e
@@ -326,22 +364,24 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
     e para onde a conversa vai depois, com as ações "Avisar agora" e "Mudar agora";
   - **aviso automático:** 30 minutos antes de fechar (antecedência configurável por empresa), o
     sistema manda pelo WhatsApp, ainda dentro da janela, um texto fixo dizendo que a conversa
-    continua pelo app (motorista) ou por e-mail (contratante). Sai **uma vez por janela** (chave
+    continua pelo app (motorista) ou pelo portal/e-mail (contratante). Sai **uma vez por janela** (chave
     idempotente: conversa + início da janela), só se houve mensagem pelo WhatsApp naquela janela, e é
     cancelado se a pessoa responder antes (a janela reabre). Ligado por padrão para o motorista e
     desligado por padrão para a contratante; a empresa muda os dois;
   - **fechou:** o canal padrão da conversa passa para o app (motorista) ou, na contratante, para o
-    **portal** se ela tiver usuário ativo no portal, senão para o **e-mail** do contato, e sem e-mail
+    **portal** se ela tiver usuário ativo no portal e a ocorrência estiver visível lá (D9), senão
+    para o **e-mail** do contato, e sem e-mail
     só modelo aprovado. O aviso automático diz o canal escolhido. Entra um evento de sistema na conversa
     e na linha do tempo; o rascunho não se perde;
   - o motorista sem PWA instalado continua recebendo pela inbox (RF11); a troca nunca deixa a
     mensagem sem destino.
 
-- **RF21** Portal (D9): rotas `/client/me/occurrences` (lista das ocorrências das notas do recorte) e
-  `/client/me/deliveries/:accessKey/occurrences/:conversationRef` (detalhe, mensagens, envio, lida,
-  anexo, decisão), com `deliveries.track` e o recorte de `resolveContractorScope`. `conversationRef`
-  é opaco e aleatório, nunca o id da conversa. Chave de outra contratante, referência inexistente e
-  ocorrência sem conversa respondem igual. Mensagem enviada pelo operador no canal Portal avisa os
+- **RF21** Portal (D9): a resposta de `GET /client/me/occurrences` (que já existe, spec 164) ganha a
+  `conversationRef` de cada ocorrência; rotas novas `/client/me/occurrence-conversations/:ref`
+  (mensagens, envio, lida, anexo), com o recorte de `resolveContractorScope` e a mesma regra de
+  visibilidade da 164 D5. `ref` é opaco e aleatório, nunca o id da conversa. Referência de outra
+  contratante, inexistente ou de ocorrência ainda não visível no portal respondem igual. A decisão
+  continua na rota da 164; nada nestas rotas decide. Mensagem enviada pelo operador no canal Portal avisa os
   usuários do portal daquela contratante por e-mail (`notification-module`), **sem** o corpo — só
   que há mensagem nova e o link.
 
@@ -351,15 +391,18 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   resultado (143 RNF; 062 D5).
 - A listagem continua em uma consulta por página (keyset de 25) com os campos novos.
 - O webhook do WhatsApp continua respondendo sem esperar o worker (assinatura, nonce, outbox).
-- A tela da conversa vem do `@adatechnology/conversations-ui` (ADR-0051, ADR-0072); o resto da página
-  usa `src/components/ui/` e `*.module.css`, sem Tailwind.
+- As peças da conversa vêm do `@adatechnology/conversations-ui` (ADR-0051, ADR-0072); as abas, o selo
+  de canal por mensagem e o seletor de canal são do produto; o estilo é todo nosso, pelos
+  `className`/`classNames` das peças e por `*.module.css` sobre `.cv-*`, **sem Tailwind**. O resto da
+  página usa `src/components/ui/`.
 - PWA: as telas novas funcionam de 360 px de largura para cima, com alvos de toque de pelo menos
   `--touch-target`.
 - Os balões se distinguem **pela cor e pela posição**, não só pela posição: operação (enviada, à
   direita) em cobre; contratante (recebida) em azul; motorista (recebida) em verde; evento de sistema
   sem balão, tracejado e centralizado. As cores entram como tokens novos em `src/styles/index.css`
   (`--color-bubble-out`, `--color-bubble-contractor`, `--color-bubble-driver`, com versão para o tema
-  claro) e chegam ao pacote pelo `bubbleSent`/`bubbleReceived` do tema de cada aba (ADR-0051). A
+  claro) e chegam às peças pelos `classNames` delas — o `theme` do pacote é só tipo e nada o aplica
+  (conferido na T101). A
   enviada difere das recebidas também em luminosidade, e todo texto dentro do balão fica em 4,5:1 ou
   mais.
 
@@ -382,8 +425,8 @@ O que se revisa em cada página:
   e de status e linha do tempo com a mesma cor por participante nas três superfícies; comparação com
   a prévia aprovada, e toda diferença justificada ou corrigida.
 - **Usabilidade:** a tarefa principal de cada página feita do começo ao fim sem ajuda (abrir a
-  ocorrência a partir da lista, responder à contratante, trocar de canal, decidir a taxa, falar com o
-  motorista, cadastrar um contato); estado vazio, carregando (esqueleto), erro e sucesso em toda
+  ocorrência a partir da lista, responder à contratante, trocar de canal, chegar à tratativa e
+  decidir por ela, falar com o motorista, cadastrar um contato); estado vazio, carregando (esqueleto), erro e sucesso em toda
   lista e todo envio; texto longo, nome longo, muitas mensagens e muitos anexos sem quebrar o layout;
   nenhuma ação destrutiva sem confirmação; mensagens de erro que dizem o que fazer.
 - **Acessibilidade:** tudo operável por teclado, com foco visível e ordem lógica; nome acessível em
@@ -416,18 +459,22 @@ spec.
   resolve; sem ela, vai para "não atribuída" (RF9).
 - **Motorista trocado na viagem:** a conversa com o motorista é com o motorista **da ocorrência**
   (quem registrou ou o da viagem no momento), e a troca não move a conversa.
+- **Viagem sem motorista:** a listagem já aceita (`driverName` vazio); a aba Motorista e o contato
+  não aparecem, e a linha do tempo não cita motorista.
+- **Ocorrência registrada pelo escritório em nome do motorista (156):** a autoria mostra os dois; a
+  conversa é com o motorista.
+- **A contratante escreve algo que parece decisão ("aprovo") por qualquer canal:** vira mensagem; a
+  tratativa não muda. O operador vê a mensagem ao lado do painel da tratativa e decide por ele.
 - **Anexo acima do limite do canal:** recusado antes de subir, com o limite na mensagem.
-- **Contratante responde por e-mail e por WhatsApp coisas diferentes sobre a mesma taxa:** vence a
-  primeira decisão válida; a outra vira `late` (143, casos extremos).
 
 ## Critérios de aceite
 
 - Contrato de tenant: detalhe, conversas, mensagens, anexos, contatos e respostas rápidas são
   filtrados por `companyId`; id de outra empresa responde 404; telefone de contato de outra empresa
   não atribui nada.
-- Contrato de permissão: sem `fleet.read` a resposta não contém telefone, e-mail nem CNH do motorista;
-  sem `trip.manage` não há envio; o separador não alcança as rotas de envio
-  (`test/separator-role.contract.test.ts`).
+- Contrato de permissão: sem `fleet.read` o detalhe responde 403 (e o motorista e o agregado, que só
+  têm `trip.read`, não alcançam); sem `trip.manage` não há envio; o separador não alcança as rotas
+  de envio (`test/separator-role.contract.test.ts`).
 - Política da janela de 24h com teste por tabela (aberta, fechando, fechada, sem mensagem recebida).
 - Política de expiração (RF20) com teste por tabela: aviso sai uma vez por janela; não sai sem
   mensagem de WhatsApp na janela; resposta antes do aviso cancela; depois de fechar, o canal padrão é
@@ -435,8 +482,8 @@ spec.
 - Integração: o aviso agendado sai uma vez só mesmo com o job rodando duas vezes.
 - Política de atribuição do webhook (RF9) com teste para cada ramo, incluindo o do motorista: sem
   `context.id` de mensagem da conversa, a mensagem segue para os fluxos da spec 144.
-- Política de decisão do WhatsApp (D4): botão de contato com `can_decide` decide; botão de contato sem
-  `can_decide`, texto livre e número sem aceite não decidem.
+- A conversa não decide (D4): teste de que mensagem de cada canal — inclusive botão de WhatsApp,
+  resposta de e-mail com "APROVADO" e transcrição — não muda a tratativa, a taxa nem o acerto.
 - Política de identificação do remetente (RF16) com teste por tabela: e-mail com caixa diferente
   casa; contato de **outra** contratante da mesma empresa não casa; contato inativo casa e aparece
   como inativo; fora dos contatos devolve o nome do `From` e a sugestão de cadastro.
@@ -444,8 +491,6 @@ spec.
   `delivered` depois de `read` não regride, e-mail nunca chega a `read`.
 - Integração: um webhook de status da Meta leva a mensagem de `sent` a `read`, e o mesmo webhook
   repetido não cria outra transição.
-- Integração: uma resposta por botão no WhatsApp leva a taxa a `approved` com o evento apontando para
-  a mensagem, igual à 143 por e-mail.
 - Contrato de listagem: os campos novos vêm numa consulta, com o valor como string decimal.
 - Contrato por texto de fonte: nenhum log em `occurrence-conversation/**` recebe telefone, e-mail,
   corpo ou nome de arquivo.
@@ -458,8 +503,8 @@ spec.
   aberto.
 - Portal: contrato por texto de fonte de que nenhuma rota `/client/**` nova aceita id interno e de que
   o recorte só vem de `resolveContractorScope`; contrato de resposta sem nenhum campo do motorista;
-  chave de outra contratante responde igual a inexistente; taxa em lote pendente não aceita decisão
-  pela ocorrência (409 tipado).
+  referência de outra contratante e de ocorrência ainda não visível (164 D5) respondem igual a
+  inexistente.
 
 ## Dúvidas
 
@@ -470,7 +515,11 @@ Resolvidas em 2026-09-24 pelo dono do projeto: respostas rápidas são **cadastr
   motorista pode sair para ele (LGPD: base legal, retenção no provedor, região)? Decidido, vira
   ADR. Enquanto isso, o áudio funciona sem transcrição.]
 
-O pacote não é mais dúvida: ele chega pronto (D3), e a Fase 1 só confere o contrato.
+Resolvidas em 2026-09-24 (segunda rodada), depois da auditoria contra staging: (1) todas as
+correções de divergência de `evidence.md` entram — a conversa não decide, o detalhe hospeda a
+tratativa da 164, a permissão é `fleet.read`, e a aba Motorista trata "sem motorista"; (2) o portal
+mostra a conversa só das ocorrências que a 164 D5 já mostra; (3) o SDK é genérico e todo estilo
+customizável fica do nosso lado (D3); (4) ADR-0072 e ADR-0073 aceitas.
 
 A dúvida que resta bloqueia **só a T706** (transcrição), que já nasce marcada como bloqueada; o
 restante da spec pode andar depois da T001.

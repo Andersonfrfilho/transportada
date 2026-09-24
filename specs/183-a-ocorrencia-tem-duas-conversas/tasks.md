@@ -12,42 +12,46 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `opus` (decisão) · a T002 é do usuário
 
-- [ ] **T001** Passar a ADR-0072 para `aceito` e confirmar que a única `[NEEDS CLARIFICATION]` que
-      resta (provedor de transcrição) só bloqueia a T706. Evidência: a ADR com status e data.
+- [x] **T001** Passar a ADR-0072 e a ADR-0073 para `aceito` e confirmar que a única
+      `[NEEDS CLARIFICATION]` que resta (provedor de transcrição) só bloqueia a T706. Evidência: as
+      ADRs com status e data.
 - [ ] **T002** 🙋 O usuário submete à Meta os modelos de WhatsApp da contratante (abertura de
-      ocorrência; pedido de aprovação de taxa com botões "✅ Aprovar" / "❌ Recusar") e do motorista
-      (aviso de mensagem nova). **Pare e pergunte** — é conta da empresa na Meta. Evidência: nomes e
+      ocorrência; aviso de que há decisão pendente no portal — sem botão de decisão, D4) e do
+      motorista (aviso de mensagem nova; aviso de troca para o app). **Pare e pergunte** — é conta da empresa na Meta. Evidência: nomes e
       estado dos modelos no `evidence.md`.
-- [ ] **T003** Anotar no `specs/143-a-contratante-responde-por-e-mail/tasks.md` que T014, T015,
+- [x] **T003** Anotar no `specs/143-a-contratante-responde-por-e-mail/tasks.md` que T014, T015,
       T016, T018, T024 e T025 seguem pela 183 (sem apagar nada da 143). Evidência: o diff.
 
 ## Fase 1 — Conferir o pacote (ADR-0072; o SDK chega pronto)
 
 > 🤖 Modelo: `sonnet` · nada se constrói no pacote a partir daqui
 
-- [ ] **T101** Bump das versões (`conversations-ui`, `meta-whatsapp-*`) nas apps e conferência do
-      contrato nos `.d.ts` instalados: abas por participante, selo de canal, seletor com janela,
-      respostas rápidas, anexos, áudio (player, gravador, envio de mídia), transcrição exibida, selo
-      de status, eventos de status e política da janela. **Pare e pergunte** se faltar algum.
-      Evidência: `make check` verde e a lista conferida, item a item, no `evidence.md`.
+- [ ] **T101** Conferência do contrato publicado (`conversations-ui@0.3.1`, `meta-whatsapp-*`) item a
+      item, e a decisão do dono do projeto sobre o que falta (SDK genérico; composição e estilo do
+      nosso lado). O bump das versões entra na primeira task que usar o pacote (T401). Evidência: a
+      tabela da conferência e a decisão no `evidence.md`.
 
 ## Fase 2 — O detalhe e a tabela (P1, P2) — não depende da Fase 1
 
 > 🤖 Modelo: `sonnet`
 
 - [ ] **T201** Contrato de `GET /trip-occurrences/:id` para os dois tipos, com tenant (404 de outra
-      empresa) e com/sem `fleet.read` (chaves do motorista ausentes). Evidência: contrato vermelho.
+      empresa), `fleet.read` (403 sem ela; motorista e agregado sem acesso), a tratativa (`case`) no
+      formato da listagem e o bloco do motorista nulo quando não há. Evidência: contrato vermelho.
 - [ ] **T202** `get-trip-occurrence.use-case.ts` + query + rota até o T201 ficar verde. Evidência:
       contratos + integração com os dois tipos.
 - [ ] **T203** Campos novos na listagem (RF2–RF4) numa consulta só, valor como string decimal.
       Evidência: integração conferindo o número de consultas e o formato.
 - [ ] **T204** Rota `/ocorrencias/:id` no frontend (parse/build/navigate), linha clicável e
-      `TripOccurrenceDetail.page.tsx` sem a conversa (resumo, nota, motorista com foto/iniciais,
-      contato, fotos, linha do tempo). Evidência: contratos de serviço puro da rota e do mapeamento.
+      `TripOccurrenceDetail.page.tsx` sem a conversa: resumo com autoria, nota, item/quantidade/unidade
+      quando houver, motorista com foto/iniciais e contato (ou "sem motorista"), fotos, e o
+      `OccurrenceCasePanel` e o painel do acerto da 164 reaproveitados, com as permissões de lá; e o
+      link da linha do tempo da viagem para o detalhe (180 RF15). Evidência: contratos de serviço puro
+      da rota, do mapeamento e do link.
 - [ ] **T205** Colunas Contratante, Endereço de entrega, Valor NF-e e Conversa na tabela, no menu de
       colunas e na persistência. Evidência: a da `docs/frontend/data-tables.md` § 6.
-- [ ] **T206** Linha do tempo (RF19) com os eventos que já existem (registro, fotos, avisos),
-      tempos no topo e filtros; os eventos de conversa entram nas Fases 4–6 pela mesma fonte.
+- [ ] **T206** Linha do tempo (RF19) com os eventos que já existem (registro, fotos, avisos e os da
+      tratativa em `trip_occurrence_case_events`), tempos no topo e filtros; os eventos de conversa entram nas Fases 4–6 pela mesma fonte.
       Evidência: contrato da query de eventos (ordem, intervalo) e do mapeamento ator → cor.
 
 ## Fase 3 — Contatos com tipos e canais (P3)
@@ -82,17 +86,16 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 ## Fase 5 — Conversa com a contratante por WhatsApp (P5)
 
-> 🤖 Modelo: `sonnet` · T502 e T504 são 🧠 (segurança do webhook e decisão)
+> 🤖 Modelo: `sonnet` · T502 é 🧠 (segurança do webhook)
 
-- [ ] **T501** Políticas de atribuição (RF9, com o ramo do motorista) e de decisão por botão (D4).
-      Evidência: suítes por tabela.
+- [ ] **T501** Política de atribuição (RF9, com o ramo do motorista). Evidência: suíte por tabela.
 - [ ] **T502** 🧠 Webhook: ramo "contato de contratante com aceite" (D6), status da Meta e
       recebidas com mídia. Evidência: contratos (número sem aceite segue recusado) + integração do
       status até `read`, idempotente.
-- [ ] **T503** Envio por WhatsApp no worker: modelo fora da janela, texto e mídia dentro.
-      Evidência: teste de caso de uso com o provider falso.
-- [ ] **T504** 🧠 Botão "Aprovar/Recusar" decide a taxa pela transição da 143 (a 143 T020 é
-      pré-requisito). Evidência: integração até `approved` + corrida com o e-mail (uma vence).
+- [ ] **T503** Envio por WhatsApp no worker pelo `SendMessageUseCase` do módulo (RF8): modelo fora da
+      janela, texto e mídia dentro. Evidência: teste de caso de uso com o provider falso.
+- [ ] **T504** Contrato de que nada que chega pelo WhatsApp (texto, botão, áudio, transcrição) muda a
+      tratativa, a taxa ou o acerto (D4). Evidência: o contrato.
 - [ ] **T505** Fila de não atribuídas (rota + tela simples). Evidência: contratos.
 - [ ] **T506** Canal WhatsApp na aba Contratante e no diálogo (E-mail / WhatsApp / Os dois).
       Evidência: contratos de serviço puro.
@@ -119,16 +122,16 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `sonnet` · T651 é 🧠 (superfície externa)
 
-- [ ] **T650** Aceitar a ADR-0073 (o portal ganha a conversa da ocorrência) e atualizar
-      `apps/frontend-client/CLAUDE.md` com a decisão de crescer a app. Evidência: ADR aceita.
-- [ ] **T651** 🧠 Rotas `/client/me/occurrences` e `/client/me/deliveries/:accessKey/occurrences/:ref`
-      (detalhe, mensagens, lida, anexo) com `resolveContractorScope`. Evidência: contratos (id
-      interno recusado por texto de fonte; outra contratante responde igual a inexistente; nenhum
-      campo do motorista na resposta).
-- [ ] **T652** Decisão da taxa pelo portal com `charges.decide`, pela transição da 143, recusando
-      taxa em lote pendente. Evidência: integração até `approved` com o usuário do portal como ator +
-      contrato do 409 do lote.
-- [ ] **T653** Tela "Ocorrências" e a conversa no portal (anexo por arquivo, player de áudio, sem
+- [ ] **T650** Atualizar `apps/frontend-client/CLAUDE.md` com a decisão de crescer a app (ADR-0073,
+      aceita na T001). Evidência: o diff.
+- [ ] **T651** 🧠 `conversationRef` na resposta de `GET /client/me/occurrences` (164) e as rotas
+      `/client/me/occurrence-conversations/:ref` (mensagens, envio, lida, anexo) com
+      `resolveContractorScope` e a visibilidade da 164 D5. Evidência: contratos (id interno recusado
+      por texto de fonte; outra contratante e ocorrência não visível respondem igual a inexistente;
+      nenhum campo do motorista na resposta).
+- [ ] **T652** Contrato de que nada que a contratante manda pelo portal muda a tratativa; a decisão
+      continua pelo `DecisionForm` e pela rota da 164. Evidência: o contrato.
+- [ ] **T653** A conversa na tela "Ocorrências" que o portal já tem (anexo por arquivo, player de áudio, sem
       gravação). Evidência: contratos de serviço puro e de texto de fonte (a app não tem Playwright) + `Permissions-Policy` inalterada.
 - [ ] **T654** Canal Portal do lado do operador e o aviso por e-mail sem corpo aos usuários do
       portal. Evidência: contrato do template (sem corpo) + teste de caso de uso.
@@ -196,8 +199,8 @@ Não publique em staging nem em lugar nenhum sem me perguntar.
 ORDEM: uma task por vez, na ordem do tasks.md: Fase 0 → 1 → 2 → 3 → 4 → 5 → 6 → 6b → 7 → 8 → 9.
 Se a Fase 1 parar por falta no pacote, siga pelas Fases 2 e 3 (não dependem dele) e pare antes da 4.
 
-MODELOS: o que cada fase indica no tasks.md. Tasks marcadas 🧠 (T301, T401, T502, T504, T602,
-T651, T902) são validadas com architect model=opus antes de fechar. Revisão final (T901) com
+MODELOS: o que cada fase indica no tasks.md. Tasks marcadas 🧠 (T301, T401, T502, T602, T651,
+T902) são validadas com architect model=opus antes de fechar. Revisão final (T901) com
 code-reviewer + security-reviewer model=opus.
 
 CADA TASK:

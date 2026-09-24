@@ -1,6 +1,6 @@
 # ADR-0072 — A conversa multicanal vem do pacote; quem conversa com quem fica no produto
 
-- **Status:** proposto
+- **Status:** aceito (2026-09-24)
 - **Data:** 2026-09-24
 - **Contexto:** spec 183. Depende da ADR-0051 (a tela de conversa vem do pacote) e de duas ADRs que
   dividem o número 0063: `0063-a-resposta-por-e-mail-decide-a-taxa.md` e
@@ -53,6 +53,26 @@ rápidas, os anexos.
 
 O e-mail da 143 **não** muda de lugar: ele vira o transporte do canal e-mail. A conversa que o
 operador vê é a do produto, que referencia a mensagem de transporte.
+
+## Revisão na aceitação (2026-09-24)
+
+A conferência da versão publicada (`conversations-ui@0.3.1`, `meta-whatsapp-*`, spec 183 T101)
+mostrou que o pacote não traz tudo da lista acima: não há abas por participante, selo de canal por
+mensagem com canais do produto, seletor de canal, velocidade de áudio, e o `theme` não é aplicado;
+balões e compositor ainda usam utilitárias Tailwind. A decisão do dono do projeto fecha isso:
+
+- **o SDK é genérico, e todo estilo customizável fica do nosso lado.** O produto usa as peças do
+  pacote (`ConversationPane`, `MessageBubble`, compositor, `AudioPlayer`, `AudioRecorderButton`,
+  `AudioTranscription`, `StatusTicks`, `windowOf`, `sendMedia`, `onStatusUpdate`) e **compõe** o que
+  é dele — abas por participante, selo de canal por mensagem (`email`, `whatsapp`, `app`, `portal`),
+  seletor de canal;
+- o estilo entra pelos `className`/`classNames` das peças e por `*.module.css` sobre `.cv-*`, com os
+  nossos tokens. **Sem Tailwind** no painel e no portal: a ADR-0051 continua valendo;
+- o envio pelo WhatsApp passa pelo `SendMessageUseCase` do módulo, porque é ele que guarda a mensagem
+  e entrega o status; mensagem enviada por fora do módulo não recebe `onStatusUpdate`.
+
+A lista da seção "Decisão" continua sendo o que se **espera** do pacote com o tempo; o que ainda não
+existe nele é composição do produto, não contorno.
 
 ## Consequências
 
