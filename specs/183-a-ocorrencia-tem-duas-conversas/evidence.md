@@ -493,3 +493,23 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   - API, contrato: **7278 pass, 0 fail**;
   - `bun run lint` e `bun run typecheck` limpos;
   - API, integração: **582 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).
+
+## T402 — A política de status da mensagem (verde)
+
+- Contrato escrito antes: `test/occurrence-conversation/message-status-policy.contract.ts`
+  (entrypoint `test/occurrence-conversation.contract.test.ts`, no script `test`) falhou na importação
+  antes da política.
+- Política pura `src/occurrence-conversation/domain/message-status.policy.ts`, dirigida por tabela,
+  uma regra por canal (RF14):
+  - status inicial: WhatsApp, e-mail e app nascem `queued`; portal nasce `delivered`;
+  - escadas: WhatsApp `queued → sent → delivered → read`; e-mail `queued → sent → delivered`; app
+    `queued → delivered → read`; portal `delivered → read`. Pular degrau vale (`queued → read`);
+  - falhas: `failed` no WhatsApp, `bounced`/`failed` no e-mail, e só até `sent`. Depois de entregue,
+    falha é `stale`, e nada sai de uma falha;
+  - o que o canal não dá é `unsupported` e não muda nada: e-mail `read` (D7), app `sent`/`failed`,
+    portal `queued`/`sent`/`failed`, WhatsApp `bounced`;
+  - só avança: um `delivered` atrasado depois do `read` mantém `read`, mas grava o horário que
+    faltava (o selo mostra os horários). O mesmo evento de novo é `duplicate` e nem o horário muda;
+    nenhuma transição apaga horário anterior.
+- Rodado: a suíte da política dá **27 pass**; API, contrato: **7305 pass, 0 fail**; `bun run lint` e
+  `bun run typecheck` limpos. API, integração: **582 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).
