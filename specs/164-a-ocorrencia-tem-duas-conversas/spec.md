@@ -363,6 +363,42 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   enviada difere das recebidas também em luminosidade, e todo texto dentro do balão fica em 4,5:1 ou
   mais.
 
+## Revisão total de design e usabilidade
+
+A spec só fecha depois de uma **revisão completa de cada página** que ela cria ou muda, feita com as
+telas rodando (não com o protótipo), e com os achados bloqueantes corrigidos. Páginas:
+
+| Superfície | Páginas                                                                                                                                                                                                                                                        |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Painel     | `/ocorrencias` (lista), `/ocorrencias/:id` (resumo, contato do motorista, fotos, linha do tempo, abas Contratante e Motorista), diálogo "Enviar à contratante" com prévia, contatos da contratante, respostas rápidas em Configurações, fila de não atribuídas |
+| PWA        | conversa da ocorrência no app do motorista; lista e detalhe do painel em viewport de celular                                                                                                                                                                   |
+| Portal     | "Ocorrências" e a conversa da ocorrência                                                                                                                                                                                                                       |
+
+O que se revisa em cada página:
+
+- **Design:** conformidade com os guias `docs/frontend/` (`layout`, `panels`, `buttons`, `fields`,
+  `selects`, `icons`, `tooltips`, `loading`, `mutations`, `responsive`, `data-tables`); só tokens e
+  componentes de `src/components/ui/` no painel (nenhuma UI paralela sem ADR); balões, selos de canal
+  e de status e linha do tempo com a mesma cor por participante nas três superfícies; comparação com
+  a prévia aprovada, e toda diferença justificada ou corrigida.
+- **Usabilidade:** a tarefa principal de cada página feita do começo ao fim sem ajuda (abrir a
+  ocorrência a partir da lista, responder à contratante, trocar de canal, decidir a taxa, falar com o
+  motorista, cadastrar um contato); estado vazio, carregando (esqueleto), erro e sucesso em toda
+  lista e todo envio; texto longo, nome longo, muitas mensagens e muitos anexos sem quebrar o layout;
+  nenhuma ação destrutiva sem confirmação; mensagens de erro que dizem o que fazer.
+- **Acessibilidade:** tudo operável por teclado, com foco visível e ordem lógica; nome acessível em
+  todo botão só de ícone; player de áudio, selos de status e novas mensagens anunciados a leitor de
+  tela (região `aria-live` na conversa); contraste de 4,5:1 no texto, inclusive dentro dos balões;
+  alvos de toque de pelo menos `--touch-target`.
+- **Responsivo e tema:** 360, 768 e 1280 px; tema escuro e claro no painel e no PWA; o portal no tema
+  que ele tem.
+- **Idioma:** todo texto vem dos `*.locale.json` (pt-BR e en), sem texto fixo no componente.
+
+**Evidência:** no `evidence.md`, a matriz de capturas (página × largura × tema), a checklist acima
+marcada por página e a lista de achados com gravidade (bloqueante, importante, menor) e o destino
+de cada um (corrigido no commit X ou aceito com motivo). Achado bloqueante aberto impede fechar a
+spec.
+
 ## Casos extremos e falhas
 
 - **Ocorrência de parada sem nota:** sem contratante, a aba Contratante mostra o motivo e não oferece
@@ -418,6 +454,8 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 - Smoke Playwright: clicar na linha abre o detalhe; enviar pela aba Contratante mostra a mensagem na
   conversa; a mesma página em viewport de celular mostra as abas.
 - Tabela: evidência exigida por `docs/frontend/data-tables.md` § 6 para as colunas novas.
+- Revisão total de design e usabilidade (§ acima) feita, com evidência, e sem achado bloqueante
+  aberto.
 - Portal: contrato por texto de fonte de que nenhuma rota `/client/**` nova aceita id interno e de que
   o recorte só vem de `resolveContractorScope`; contrato de resposta sem nenhum campo do motorista;
   chave de outra contratante responde igual a inexistente; taxa em lote pendente não aceita decisão

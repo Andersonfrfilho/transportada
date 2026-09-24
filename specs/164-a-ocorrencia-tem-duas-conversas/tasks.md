@@ -4,6 +4,10 @@
 `evidence.md` (que nasce com a primeira task verificada). Teste de contrato/aceite **antes** da
 implementação. Teste novo entra na lista explícita do `package.json` da app.
 
+Toda task que cria ou muda tela fecha também com uma **revisão rápida** da página tocada contra a
+checklist da spec (§ "Revisão total de design e usabilidade"), com captura no `evidence.md`. A
+revisão total da T902 não substitui essas revisões; ela acontece no fim, com tudo junto.
+
 ## Fase 0 — Destravar
 
 > 🤖 Modelo: `opus` (decisão) · a T002 é do usuário
@@ -162,9 +166,16 @@ implementação. Teste novo entra na lista explícita do `package.json` da app.
 
 > 🤖 Modelo: `opus` para a revisão; `haiku` para a documentação
 
-- [ ] **T901** Revisão com `code-reviewer` e `security-reviewer` em `opus`: N+1 na listagem, PII em
-      log, 500 sem stack trace, porta nova do webhook.
-- [ ] **T902** `apps/*/CLAUDE.md`, `docs/ai-context/` e `docs/SECURITY.md` com "A ocorrência tem duas
+- [ ] **T901** Revisão de código com `code-reviewer` e `security-reviewer` em `opus`: N+1 na
+      listagem, PII em log, 500 sem stack trace, porta nova do webhook.
+- [ ] **T902** 🧠 Revisão total de design e usabilidade (spec § "Revisão total de design e
+      usabilidade") de todas as páginas do painel, do PWA e do portal, com as telas rodando.
+      Evidência: matriz de capturas, checklist por página e lista de achados com gravidade no
+      `evidence.md`.
+- [ ] **T903** Corrigir os achados bloqueantes e importantes da T902, um commit por achado, e
+      refazer a revisão das páginas tocadas. Evidência: cada achado com o commit que o fecha; nenhum
+      bloqueante aberto.
+- [ ] **T904** `apps/*/CLAUDE.md`, `docs/ai-context/` e `docs/SECURITY.md` com "A ocorrência tem duas
       conversas".
 
 ## Prompt de execução
