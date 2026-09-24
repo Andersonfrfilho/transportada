@@ -52,6 +52,14 @@ describe('multipart do escritório: lista fechada e um arquivo só (spec 156 T15
     expect(await statusOf(parseOfficeFieldDeliveryRequest(request))).toBe(400)
   })
 
+  it('field-delivery continua recusando o campo kind — só field-proof aceita (spec 182)', async () => {
+    const request = multipart({
+      fields: { deliveredAt: '2026-09-18T09:00:00.000Z', kind: 'cargo' },
+      files: [JPEG],
+    })
+    expect(await statusOf(parseOfficeFieldDeliveryRequest(request))).toBe(400)
+  })
+
   it('field-delivery recusa dois arquivos com 400', async () => {
     const request = multipart({
       fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
@@ -92,6 +100,36 @@ describe('multipart do escritório: lista fechada e um arquivo só (spec 156 T15
     })
     const parsed = await parseOfficeFieldDeliveryRequest(request)
     expect(parsed.proof?.bytes).toEqual(JPEG)
+  })
+})
+
+describe('field-proof aceita kind opcional (spec 182, RF3)', () => {
+  it('sem kind, o padrão continua photo', async () => {
+    const request = multipart({ fields: {}, files: [JPEG] })
+    const parsed = await parseOfficeFieldProofRequest(request)
+    expect(parsed.kind).toBe('photo')
+  })
+
+  it('kind: photo é aceito explicitamente', async () => {
+    const request = multipart({ fields: { kind: 'photo' }, files: [JPEG] })
+    const parsed = await parseOfficeFieldProofRequest(request)
+    expect(parsed.kind).toBe('photo')
+  })
+
+  it('kind: cargo é aceito', async () => {
+    const request = multipart({ fields: { kind: 'cargo' }, files: [JPEG] })
+    const parsed = await parseOfficeFieldProofRequest(request)
+    expect(parsed.kind).toBe('cargo')
+  })
+
+  it('kind: signature é recusado com 400 — o escritório não colhe assinatura (ADR-0067 §5)', async () => {
+    const request = multipart({ fields: { kind: 'signature' }, files: [JPEG] })
+    expect(await statusOf(parseOfficeFieldProofRequest(request))).toBe(400)
+  })
+
+  it('kind com valor desconhecido é recusado com 400', async () => {
+    const request = multipart({ fields: { kind: 'x-ray' }, files: [JPEG] })
+    expect(await statusOf(parseOfficeFieldProofRequest(request))).toBe(400)
   })
 })
 
