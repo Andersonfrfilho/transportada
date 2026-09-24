@@ -13,6 +13,7 @@ import { LocalIdentitySeedConflictError } from './local-identity-seed.error'
 import {
   companies,
   externalIdentities,
+  identityUserProfiles,
   identityUsers,
   membershipRoles,
   userCompanyMemberships,
@@ -36,6 +37,7 @@ export class LocalIdentitySeedRepository {
   public async ensureExpectedState(): Promise<void> {
     await this.ensureCompany()
     await this.ensureIdentityUser()
+    await this.ensureIdentityUserProfile()
     await this.ensureExternalIdentity()
     await this.ensureMembership()
     await this.ensureMembershipRoles()
@@ -73,6 +75,31 @@ export class LocalIdentitySeedRepository {
     if (user.status !== 'active') {
       throw new LocalIdentitySeedConflictError('identity user')
     }
+  }
+
+  /**
+   * O perfil é onde mora o nome, e é dele que a autoria da linha do tempo lê. Sem esta linha o
+   * `actorName` chega nulo e a tela afirma "por usuário removido" sobre um usuário ativo — foi o que
+   * a bancada mostrou em 23/09. O seed parava no `identity_users`; produção sempre gravou os dois
+   * juntos, na mesma transação.
+   */
+  private async ensureIdentityUserProfile(): Promise<void> {
+    const [profile] = await this.transaction
+      .select({ name: identityUserProfiles.name })
+      .from(identityUserProfiles)
+      .where(eq(identityUserProfiles.userId, this.actor.userId))
+      .limit(1)
+
+    if (profile !== undefined) return
+
+    await this.transaction.insert(identityUserProfiles).values({
+      contactAddress: this.actor.contactAddress,
+      contactChannel: 'email',
+      email: this.actor.contactAddress,
+      name: this.actor.name,
+      username: this.actor.userId,
+      userId: this.actor.userId,
+    })
   }
 
   private async ensureExternalIdentity(): Promise<void> {
