@@ -189,6 +189,8 @@ export const contractorContacts = pgTable(
       .onDelete('cascade')
       .onUpdate('cascade'),
     index('contractor_contacts_contractor_idx').on(table.companyId, table.contractorId),
+    /** Spec 183 T401: âncora das FKs compostas das mensagens da conversa para o contato. */
+    unique('contractor_contacts_company_id_id_unique').on(table.companyId, table.id),
     /** `(company_id, contractor_id, email)` do plan.md, mas por caixa: `lower(email)`, não a coluna. */
     uniqueIndex('contractor_contacts_company_contractor_email_unique').on(
       table.companyId,

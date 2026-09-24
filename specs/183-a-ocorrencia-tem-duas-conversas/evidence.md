@@ -445,3 +445,51 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   - a edição aparecia sem moldura no lugar do cartão: ganhou a borda do cartão, em cobre;
   - o texto do aceite dizia "com a data de agora" num contato já aceito, e a API guarda o carimbo
     original: o texto mostra a data gravada, e o smoke confere as duas frases.
+
+## T401 — As tabelas da conversa da ocorrência (verde)
+
+- Contrato escrito antes: `test/occurrence-conversation-schema/tables.contract.ts` (entrypoint
+  `test/occurrence-conversation-schema.contract.test.ts`, no script `test` do `package.json`)
+  falhou na importação antes do schema. Cobre:
+  - as cinco tabelas ancoradas em `companies` com `restrict`;
+  - uma conversa por (ocorrência, participante), `public_ref` único;
+  - FK composta para `contractors`, `contractor_contacts`, `contractor_mail_messages`,
+    `stored_objects` e entre as tabelas;
+  - a forma de cada participante, canal, direção e autor, e o status por canal;
+  - `sha256`, a leitura única por usuário e a idempotência pelo id do provedor;
+  - a migration sem `DROP` e o rollback derrubando as filhas primeiro.
+- Migration `drizzle/20260924190850_occurrence_conversations`, gerada pelo `db:generate`
+  (snapshot):
+  - `occurrence_conversations`, com `default_channel` e `window_expiry_notice_sent_for` do plano;
+  - `occurrence_conversation_messages`, `occurrence_conversation_attachments`,
+    `occurrence_conversation_reads` e `occurrence_conversation_unassigned`;
+  - o `unique (company_id, id)` em `contractor_contacts`, que a FK composta exige e não existia.
+- Decisões de modelo registradas:
+  - **o autor da recebida é um só** (`num_nonnulls(author_user_id, driver_user_id, sender_address)
+= 1`). A conta do portal só no canal `portal`; o endereço ou número como chegou (`sender_address`)
+    só em e-mail e WhatsApp. É o RF16: o remetente fora dos contatos não tem `contractor_contact_id`,
+    e o casamento com o cadastro é feito na leitura;
+  - **status só na enviada** (`(direction = 'outbound') = (status is not null)`). O e-mail nunca fica
+    `read` (D7), e o portal só vai de `delivered` a `read` (RF14). O resto da escada é da política
+    (T402);
+  - `occurrence_id` sem FK, como `trip_occurrence_cases`: a ocorrência vive em duas tabelas;
+  - `public_ref` só na conversa com a contratante, com formato opaco (22–64 caracteres URL-safe);
+  - o que é de outras tasks fica nas migrations delas: `from_display_name` (T406), respostas rápidas
+    (T701), configuração da expiração (T605).
+- Integração nova `test/integration/occurrence-conversation-schema.integration.ts` (no
+  `package.json`), escrita depois do schema, prova contra Postgres:
+  - FK composta recusando contratante de outra empresa;
+  - forma do participante e conversa duplicada;
+  - enviada sem operador, e-mail "lido", portal "na fila", enviada sem status, recebida com dois
+    autores e conta interna fora do portal, todas recusadas;
+  - as três formas válidas aceitas.
+
+  **2 pass**.
+
+- Rodado:
+  - `ENV_FILE=.env.test make migration-test` → **110 pass, 0 fail** (a pasta nova entrou em
+    `static-migration.contract.ts`);
+  - `bun run db:check` limpo;
+  - API, contrato: **7278 pass, 0 fail**;
+  - `bun run lint` e `bun run typecheck` limpos;
+  - API, integração: **582 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).
