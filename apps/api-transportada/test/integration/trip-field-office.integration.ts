@@ -671,6 +671,67 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
     },
   )
 
+  /**
+   * Revisão da spec 182 (MÉDIO): contar e depois inserir deixava dois envios simultâneos lerem a
+   * mesma contagem e gravarem os dois. Com quatro fotos já gravadas, duas disputam a quinta vaga —
+   * exatamente uma passa, e o evento termina com cinco, nunca seis.
+   */
+  testWithPostgres(
+    'spec 182: duas fotos de carga simultâneas não furam o teto de cinco',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'in_transit')
+        await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+        const [, , , , deliverRoute, , proofRoute] = wireRoutes(database)
+
+        await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-182-race-deliver',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt: '2026-09-18T09:00:00.000Z' },
+            idempotencyKey: 'office-182-race-deliver',
+          }),
+        })
+        const sendCargo = (label: string) =>
+          proofRoute!.execute({
+            context: fakeContext(company),
+            correlationId: `integration-correlation-182-race-${label}`,
+            pathParameters: { id: trip.tripId, documentId: trip.documentId },
+            request: multipartRequest({
+              fields: { attachmentKey: `cargo-race-${label}`, kind: 'cargo' },
+              file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+              idempotencyKey: `office-182-race-${label}`,
+            }),
+          })
+        for (let index = 1; index <= 4; index += 1) {
+          expect((await sendCargo(`seed-${index}`)).status).toBe(201)
+        }
+
+        const outcomes = await Promise.allSettled([sendCargo('a'), sendCargo('b')])
+
+        expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+        const rejected = outcomes.filter((outcome) => outcome.status === 'rejected')
+        expect(rejected).toHaveLength(1)
+        expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+          code: 'TRIP_DELIVERY_PROOF_CARGO_LIMIT',
+          status: 422,
+        })
+        const cargoRows = await database.db
+          .select({ id: tripDeliveryProofs.id })
+          .from(tripDeliveryProofs)
+          .where(
+            and(
+              eq(tripDeliveryProofs.companyId, company.companyId),
+              eq(tripDeliveryProofs.kind, 'cargo'),
+            ),
+          )
+        expect(cargoRows).toHaveLength(5)
+      })
+    },
+  )
+
   /** Spec 182 (RF4, CA03): a sexta foto de carga do mesmo evento é recusada, sem gravar. */
   testWithPostgres(
     'spec 182: a sexta foto de carga da mesma entrega recebe 422 TRIP_DELIVERY_PROOF_CARGO_LIMIT',

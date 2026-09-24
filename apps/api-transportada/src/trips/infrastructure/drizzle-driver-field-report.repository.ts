@@ -682,6 +682,19 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<number> {
+    /**
+     * Contar e depois inserir, em READ COMMITTED, deixava dois envios simultâneos lerem a mesma
+     * contagem e gravarem os dois — o teto de cinco virava seis. A trava na linha do evento faz o
+     * segundo esperar o primeiro terminar e contar a foto que ele gravou (revisão da spec 182).
+     */
+    await this.transaction
+      .select({ id: tripStopEvents.id })
+      .from(tripStopEvents)
+      .where(
+        and(eq(tripStopEvents.companyId, input.companyId), eq(tripStopEvents.id, input.eventId)),
+      )
+      .for('no key update')
+
     const [record] = await this.transaction
       .select({ total: sql<number>`count(*)::int` })
       .from(tripDeliveryProofs)

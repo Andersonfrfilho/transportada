@@ -233,7 +233,8 @@ export type DriverFieldReportTransactionPort = {
   }): Promise<string | null>
   /**
    * Spec 182 (RF4, D3): quantas fotos daquele `kind` o evento já tem — a foto de carga soma até o
-   * teto, dentro da mesma transação que vai gravar a próxima.
+   * teto, dentro da mesma transação que vai gravar a próxima. **Trava a linha do evento** antes de
+   * contar: sem isso, dois envios simultâneos leem a mesma contagem e furam o teto juntos.
    */
   countProofsForEvent(input: {
     readonly companyId: string
