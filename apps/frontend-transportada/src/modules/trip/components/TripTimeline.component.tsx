@@ -11,7 +11,9 @@ import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelD
 
 import type { TripTimelineItem, TripTimelinePage } from '../shared/trip.types'
 import {
-  filterTripTimelineItemsByDocumentId,
+  collectTripTimelineDocuments,
+  filterTripTimelineItemsByDocumentIds,
+  formatTripTimelineDocumentFilterLabel,
   removeDuplicateDispatchEvents,
   resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
@@ -65,28 +67,52 @@ type TripTimelineProps = Readonly<{
  */
 export function TripTimeline({ openDocumentId, query }: TripTimelineProps) {
   const { t } = useTranslation('trip')
-  const [onlyOpenDocument, setOnlyOpenDocument] = useState(false)
+  /**
+   * Spec 180 RF12: começa filtrando pela nota que a navegação abriu, quando houve uma — era o que o
+   * checkbox de uma nota só fazia —, e daí o operador escolhe outras.
+   */
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<ReadonlySet<string>>(
+    () => new Set(openDocumentId === null ? [] : [openDocumentId]),
+  )
 
-  const items = useMemo(() => {
+  const loadedItems = useMemo(() => {
     const pages = query.data?.pages ?? []
-    const merged = pages.flatMap((page) => page.items)
-    const withoutDuplicateDispatch = removeDuplicateDispatchEvents(merged)
-    return filterTripTimelineItemsByDocumentId(
-      withoutDuplicateDispatch,
-      onlyOpenDocument ? openDocumentId : null,
-    )
-  }, [onlyOpenDocument, openDocumentId, query.data])
+    return removeDuplicateDispatchEvents(pages.flatMap((page) => page.items))
+  }, [query.data])
+
+  const documents = useMemo(() => collectTripTimelineDocuments(loadedItems), [loadedItems])
+  const items = useMemo(
+    () => filterTripTimelineItemsByDocumentIds(loadedItems, selectedDocumentIds),
+    [loadedItems, selectedDocumentIds],
+  )
+
+  function handleDocumentToggle(documentId: string, checked: boolean) {
+    setSelectedDocumentIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(documentId)
+      else next.delete(documentId)
+      return next
+    })
+  }
 
   return (
     <section aria-labelledby="trip-timeline-title" className={styles.section}>
       <div className={styles.head}>
         <h3 id="trip-timeline-title">{t('eventTimeline.title')}</h3>
-        {openDocumentId === null ? null : (
-          <Checkbox
-            checked={onlyOpenDocument}
-            label={t('eventTimeline.onlyOpenDocument')}
-            onChange={setOnlyOpenDocument}
-          />
+        {documents.length === 0 ? null : (
+          <fieldset className={styles.documentFilter}>
+            <legend className={styles.documentFilterLegend}>
+              {t('eventTimeline.filterByDocument')}
+            </legend>
+            {documents.map((document) => (
+              <Checkbox
+                checked={selectedDocumentIds.has(document.id)}
+                key={document.id}
+                label={formatTripTimelineDocumentFilterLabel(document, t as Translate)}
+                onChange={(checked) => handleDocumentToggle(document.id, checked)}
+              />
+            ))}
+          </fieldset>
         )}
       </div>
 
@@ -160,10 +186,20 @@ function TripTimelineEntry({ item }: Readonly<{ item: TripTimelineItem }>) {
     item.occurrence.attachmentCount > 0
       ? item.occurrence.attachmentCount
       : null
-  const returnReason =
+  /**
+   * `returnReason` é código (`recipient_refused`), não texto: o dicionário vive em
+   * `fieldActions.returnReason` e a tela do motorista já o usa. A linha do tempo mostrava o código
+   * cru em inglês. Código sem tradução — há `'migration'` legado no banco — cai no próprio código,
+   * que é feio mas verdadeiro; some-lo esconderia o motivo da devolução.
+   */
+  const returnReasonCode =
     item.kind === 'document.returned' && item.returnReason !== null && item.returnReason !== ''
       ? item.returnReason
       : null
+  const returnReason =
+    returnReasonCode === null
+      ? null
+      : t(`fieldActions.returnReason.${returnReasonCode}`, { defaultValue: returnReasonCode })
   const closeReason =
     item.kind === 'trip.status_changed' &&
     item.toStatus === 'completed' &&

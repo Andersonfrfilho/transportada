@@ -412,8 +412,10 @@
     "attachmentCount_one": "{{count}} photo attached",
     "attachmentCount_other": "{{count}} photos attached",
     "closeReason": "Close reason: {{reason}}",
+    "documentFilterOption": "Invoice {{invoice}}",
     "empty": "Nothing recorded on this trip yet",
     "error": "Could not load the timeline",
+    "filterByDocument": "Filter by invoice",
     "itemTitle": {
       "dispatched": "Trip dispatched",
       "documentDelivered": "{{document}} delivered",
@@ -447,10 +449,9 @@
       "unknownOccurrenceType": "unspecified",
       "unknownStatus": "unspecified"
     },
+    "loadMore": "Load more",
     "loading": "Loading the timeline",
     "loadingMore": "Loading more",
-    "loadMore": "Load more",
-    "onlyOpenDocument": "Only this invoice",
     "recordedAt": "recorded at {{moment}}",
     "retry": "Try again",
     "returnReason": "Return reason: {{reason}}",

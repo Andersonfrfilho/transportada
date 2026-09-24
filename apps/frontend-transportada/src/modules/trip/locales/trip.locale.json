@@ -536,8 +536,10 @@
     "attachmentCount_one": "{{count}} foto anexada",
     "attachmentCount_other": "{{count}} fotos anexadas",
     "closeReason": "Motivo do encerramento: {{reason}}",
+    "documentFilterOption": "Nota {{invoice}}",
     "empty": "Nada registrado ainda nesta viagem",
     "error": "Não foi possível carregar a linha do tempo",
+    "filterByDocument": "Filtrar por nota",
     "itemTitle": {
       "dispatched": "Viagem despachada",
       "documentDelivered": "{{document}} entregue",
@@ -572,10 +574,9 @@
       "unknownOccurrenceType": "não informado",
       "unknownStatus": "não informada"
     },
+    "loadMore": "Carregar mais",
     "loading": "Carregando a linha do tempo",
     "loadingMore": "Carregando mais",
-    "loadMore": "Carregar mais",
-    "onlyOpenDocument": "Só esta nota",
     "recordedAt": "registrado em {{moment}}",
     "retry": "Tentar de novo",
     "returnReason": "Motivo da devolução: {{reason}}",

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
-  filterTripTimelineItemsByDocumentId,
+  collectTripTimelineDocuments,
+  filterTripTimelineItemsByDocumentIds,
   removeDuplicateDispatchEvents,
   resolveTripTimelineAuthorshipText,
   resolveTripTimelineTitle,
@@ -111,29 +112,59 @@ describe('remoção do par de despacho duplicado (spec 158 T8)', () => {
   })
 })
 
-/** Spec 158 RF6/T8: a nota aberta no detalhe filtra os itens no cliente. */
-describe('filtro pela nota aberta (spec 158 T8)', () => {
-  it('sem nota aberta (null), devolve todos os itens', () => {
-    const other: TripTimelineItem = { ...BASE_ITEM, document: null, id: 'item-2' }
-    expect(filterTripTimelineItemsByDocumentId([BASE_ITEM, other], null)).toHaveLength(2)
+/**
+ * Spec 180 RF12/RF13: o filtro deixa de ser "a nota aberta, sim ou não" e passa a aceitar várias
+ * notas — e os eventos da viagem (sem documento) continuam visíveis, porque comparar duas notas sem
+ * saber quando a viagem saiu tira o sentido da linha do tempo.
+ */
+describe('filtro por notas escolhidas (spec 180)', () => {
+  const otherDocument: TripTimelineItem = {
+    ...BASE_ITEM,
+    document: { id: 'doc-2', number: '456', series: null },
+    id: 'item-2',
+  }
+  const tripEvent: TripTimelineItem = { ...BASE_ITEM, document: null, id: 'item-3' }
+
+  it('sem nota escolhida, devolve todos os itens', () => {
+    const result = filterTripTimelineItemsByDocumentIds(
+      [BASE_ITEM, otherDocument, tripEvent],
+      new Set(),
+    )
+
+    expect(result).toHaveLength(3)
   })
 
-  it('com nota aberta, mantém só os itens daquela nota', () => {
-    const other: TripTimelineItem = {
-      ...BASE_ITEM,
-      document: { id: 'doc-2', number: '456', series: null },
-      id: 'item-2',
-    }
-    const withoutDocument: TripTimelineItem = { ...BASE_ITEM, document: null, id: 'item-3' }
+  it('com uma nota escolhida, mantém a nota e os eventos da viagem', () => {
+    const result = filterTripTimelineItemsByDocumentIds(
+      [BASE_ITEM, otherDocument, tripEvent],
+      new Set(['doc-1']),
+    )
 
-    const result = filterTripTimelineItemsByDocumentId([BASE_ITEM, other, withoutDocument], 'doc-1')
+    expect(result.map((item) => item.id)).toEqual(['item-1', 'item-3'])
+  })
 
-    expect(result).toHaveLength(1)
-    expect(result[0]?.id).toBe('item-1')
+  it('com duas notas escolhidas, mantém as duas', () => {
+    const result = filterTripTimelineItemsByDocumentIds(
+      [BASE_ITEM, otherDocument, tripEvent],
+      new Set(['doc-1', 'doc-2']),
+    )
+
+    expect(result.map((item) => item.id)).toEqual(['item-1', 'item-2', 'item-3'])
+  })
+
+  it('lista as notas presentes nos itens, sem repetir, para montar o seletor', () => {
+    const repeated: TripTimelineItem = { ...BASE_ITEM, id: 'item-4' }
+
+    const result = collectTripTimelineDocuments([BASE_ITEM, otherDocument, tripEvent, repeated])
+
+    expect(result.map((document) => document.id)).toEqual(['doc-1', 'doc-2'])
+  })
+
+  it('sem nenhuma nota nos itens, não oferece seletor', () => {
+    expect(collectTripTimelineDocuments([tripEvent])).toHaveLength(0)
   })
 })
 
-/** Spec 158 D6/T8/T10: o título por `kind` e, nas mudanças de situação, por transição. */
 describe('título do item por kind (spec 158 T8)', () => {
   it('trip.created (spec 171 RF3/CA02)', () => {
     const item: TripTimelineItem = {

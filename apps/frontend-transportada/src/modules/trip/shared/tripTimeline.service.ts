@@ -35,13 +35,49 @@ export function removeDuplicateDispatchEvents(
   )
 }
 
-/** RF6: a nota aberta no detalhe filtra os itens que se referem a ela — sem nota aberta, tudo passa. */
-export function filterTripTimelineItemsByDocumentId(
+/**
+ * Spec 180 RF12/RF13: filtra por **várias** notas, e mantém os eventos da viagem (sem documento).
+ * A versão anterior exigia `document.id` igual, então filtrar por uma nota escondia junto viagem
+ * criada, despachada e chegada em parada — comparar notas sem saber quando a viagem saiu tira o
+ * sentido da linha do tempo. Conjunto vazio é "nenhum filtro", não "nada".
+ */
+export function filterTripTimelineItemsByDocumentIds(
   items: readonly TripTimelineItem[],
-  documentId: null | string,
+  documentIds: ReadonlySet<string>,
 ): readonly TripTimelineItem[] {
-  if (documentId === null) return items
-  return items.filter((item) => item.document?.id === documentId)
+  if (documentIds.size === 0) return items
+  return items.filter((item) => item.document === null || documentIds.has(item.document.id))
+}
+
+/**
+ * Spec 180 RF12: as notas que o seletor oferece são as que **aparecem nos itens carregados** — o
+ * filtro é em memória (RF14), e oferecer nota sem evento carregado prometeria um resultado vazio.
+ * A ordem é a de primeira aparição, que é a da própria lista.
+ */
+export function collectTripTimelineDocuments(
+  items: readonly TripTimelineItem[],
+): readonly TripTimelineDocumentReference[] {
+  const byId = new Map<string, TripTimelineDocumentReference>()
+  for (const item of items) {
+    if (item.document !== null && !byId.has(item.document.id)) {
+      byId.set(item.document.id, item.document)
+    }
+  }
+  return [...byId.values()]
+}
+
+/**
+ * Spec 180 RF12: o rótulo da nota no seletor. Nota sem número legível cai no id curto — o operador
+ * precisa conseguir distinguir duas linhas, e "nota desconhecida" repetida não distingue nada.
+ */
+export function formatTripTimelineDocumentFilterLabel(
+  document: TripTimelineDocumentReference,
+  t: Translate,
+): string {
+  const invoice = formatOccurrenceInvoice(document.number, document.series)
+  return invoice === ''
+    ? document.id.slice(0, 8)
+    : t('eventTimeline.documentFilterOption', { invoice })
 }
 
 function formatTripTimelineDocumentLabel(
