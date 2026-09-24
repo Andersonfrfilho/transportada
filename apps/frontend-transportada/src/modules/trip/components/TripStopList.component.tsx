@@ -10,6 +10,7 @@ import { Button, buttonClassName } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
@@ -86,7 +87,6 @@ export type TripStopDocumentActions = Readonly<{
   /** Spec 174 RF1: a prontidão por nota, para a linha mostrar o próprio estado fiscal. */
   fiscalReadinessByDocumentId: ReadonlyMap<string, TripDocumentReadiness>
   isArrivePending: boolean
-  isDeliverPending: boolean
   isEditable: boolean
   /** Spec 174 RF3: o mesmo pendente do lote — a linha e a barra de seleção nunca emitem ao mesmo tempo. */
   isGeneratingCte: boolean
@@ -96,7 +96,6 @@ export type TripStopDocumentActions = Readonly<{
   isTransitionPending: boolean
   /** Spec 180: registra a chegada nesta parada — o diálogo (`TripArrivalDialog`) mora nesta lista. */
   onArrive: (input: { arrivedAt: string; stopId: string }) => void
-  onFieldDeliver: (documentId: string) => void
   onFieldReturn: (documentId: string) => void
   /** Spec 174 RF3: gera o CT-e só desta nota, sem passar pela seleção. */
   onGenerateCte: (documentId: string) => void
@@ -639,21 +638,6 @@ function TripStopDocumentRow({
             {t('actions.load')}
           </Button>
         ) : null}
-        {/*
-         * Spec 181 T203: a ação mais provável primeiro — numa nota carregada, "marcar entregue" é
-         * o acerto fácil, e "devolver" não deve ocupar essa posição.
-         */}
-        {actions.capabilities.canDocument(document.id, 'fieldDelivery') ? (
-          <Button
-            disabled={actions.isDeliverPending}
-            onClick={() => actions.onFieldDeliver(document.id)}
-            size="sm"
-            type="button"
-          >
-            <Icon name="check" />
-            {t('actions.deliver')}
-          </Button>
-        ) : null}
         {actions.capabilities.canDocument(document.id, 'fieldReturn') ? (
           <Button
             disabled={actions.isReturnPending}
@@ -716,7 +700,6 @@ function TripStopDocumentRow({
             onClick={() => actions.onOpenFieldDelivery(document.id)}
             size="sm"
             type="button"
-            variant="ghost"
           >
             <Icon name="camera" />
             {t('actions.fieldDelivery')}
