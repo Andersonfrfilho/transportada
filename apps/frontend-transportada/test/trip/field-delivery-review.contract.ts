@@ -2,6 +2,11 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  canAddFieldDeliveryCargoPhoto,
+  FIELD_DELIVERY_CARGO_PHOTO_LIMIT,
+  splitFieldDeliveryCargoPhotoSelection,
+} from '@/modules/trip/shared/fieldDeliveryCargoPhoto.service'
+import {
   formatCanhotoOcrNumber,
   formatFieldDeliveryDocumentName,
   resolveFieldDeliveryIdentificationMessage,
@@ -123,5 +128,35 @@ describe('"Pular nota" no bloqueio (spec 156 T16)', () => {
     const back = fieldDeliveryWizardReducer(finished, { kind: 'previousRequested' })
     expect(back.step.kind).toBe('capturing')
     expect(back.currentIndex).toBe(0)
+  })
+})
+
+describe('limite de fotos da carga (spec 182 D3, T3.2)', () => {
+  test('teto de cinco — espelha TRIP_DELIVERY_PROOF_CARGO_LIMIT da API', () => {
+    expect(FIELD_DELIVERY_CARGO_PHOTO_LIMIT).toBe(5)
+  })
+
+  test('a sexta foto não é oferecida', () => {
+    expect(canAddFieldDeliveryCargoPhoto(4)).toBe(true)
+    expect(canAddFieldDeliveryCargoPhoto(5)).toBe(false)
+    expect(canAddFieldDeliveryCargoPhoto(6)).toBe(false)
+  })
+
+  test('seleção que cabe inteira: nada sobra', () => {
+    expect(
+      splitFieldDeliveryCargoPhotoSelection({ currentCount: 2, selectedCount: 3 }),
+    ).toEqual({ accepted: 3, overflow: 0 })
+  })
+
+  test('escolher mais do que cabe: só entra o que cabe, o resto vira aviso', () => {
+    expect(
+      splitFieldDeliveryCargoPhotoSelection({ currentCount: 3, selectedCount: 4 }),
+    ).toEqual({ accepted: 2, overflow: 2 })
+  })
+
+  test('já no teto: a seleção inteira é overflow', () => {
+    expect(
+      splitFieldDeliveryCargoPhotoSelection({ currentCount: 5, selectedCount: 1 }),
+    ).toEqual({ accepted: 0, overflow: 1 })
   })
 })

@@ -16,7 +16,7 @@ const DOCUMENTS = [
 ] as const
 
 function draftFor(documentId: string): FieldDeliveryDraft {
-  return { deliveredAt: '2026-09-18T12:00:00.000Z', documentId, imageBlob: new Blob() }
+  return { cargoImageBlobs: [], deliveredAt: '2026-09-18T12:00:00.000Z', documentId, imageBlob: new Blob() }
 }
 
 /**
