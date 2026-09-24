@@ -98,3 +98,40 @@ prova a análise de `kind` isolada: sem campo → `photo`; `photo` explícito �
 `field-proof` aceita). O teste de CA02 já existente (T1.4, "o segundo canhoto do escritório substitui
 o primeiro") cobre RF3 item "sem `kind`, comportamento de hoje" sem precisar de teste novo — ele nunca
 manda o campo.
+
+## T4.1–T4.2 — Comprovante (Frontend)
+
+**Mudança.** `DeliveryProofKind` ganha `'cargo'`; `DeliveryProofView` ganha campo `cargoPhotos`; 
+`resolveDeliveryProofView` filtra `cargoPhotos` com `kind === 'cargo'` e atualiza lógica de 
+`receiverName` (assinatura > photo > nada; cargo nunca fornece nome — ADR-0067 §5); validação em 
+`tripResponse.validation.ts` aceita `'cargo'` em `isDeliveryProof`; 
+`TripDeliveryProof.component.tsx` renderiza grupo com fotos de carga após assinaturas e canhotos, 
+reusando `ProofImage` com `alt` próprio; strings de localização em português e inglês 
+(`cargoPhotoAlt`, `cargoPhotosTitle`) adicionadas em ordem alfabética.
+
+**Arquivos.** `src/modules/trip/shared/deliveryProof.service.ts`, 
+`src/modules/trip/shared/tripResponse.validation.ts`, 
+`src/modules/trip/components/TripDeliveryProof.component.tsx`, 
+`src/modules/trip/locales/trip.locale.json`, `src/modules/trip/locales/trip.en.locale.json`, 
+`test/trip/delivery-proof.contract.ts`.
+
+**Gates.**
+
+| Comando | Resultado |
+|---|---|
+| `bun run typecheck` | limpo |
+| `bun run lint` | limpo |
+| `bun --env-file=../../.env.test run test` | 5160 pass, 0 fail; test:hooks 44 pass, 0 fail |
+
+**CA06, RF8:** `TripDeliveryProof.component.tsx` exibe grupo "Fotos da carga" após assinaturas e 
+canhotos; renderização condicional (só exibe se `cargoPhotos.length > 0`). Prova: título e `alt` 
+aparecem apenas quando há fotos de carga; grupo vazio não ocupa espaço.
+
+**RF1, CA06:** Validação em `isDeliveryProof` aceita `kind: 'cargo'`; `deliveryProofsFromApi` 
+processa lista com múltiplas fotos `cargo` do mesmo evento sem rejeição. Prova: testes de contrato 
+passam com `cargo` na lista.
+
+**Prioridade de nome (ADR-0067 §5):** `receiverName` segue ordem — assinatura (imagem do canhoto 
+assinado) tem prioridade sobre canhoto com nome digitado; cargo nunca fornece nome. Prova: testes 
+verificam que com assinatura e canhoto ambos com nome, o retorno é o da assinatura; sem assinatura, 
+usa nome do canhoto; sem ambos, retorna `null`.
