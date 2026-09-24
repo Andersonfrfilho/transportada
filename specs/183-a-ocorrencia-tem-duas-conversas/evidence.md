@@ -513,3 +513,48 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
     nenhuma transição apaga horário anterior.
 - Rodado: a suíte da política dá **27 pass**; API, contrato: **7305 pass, 0 fail**; `bun run lint` e
   `bun run typecheck` limpos. API, integração: **582 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).
+
+## T403 — O e-mail da conversa sobre o trilho da 143 (verde)
+
+- Contrato escrito antes: `test/occurrence-conversation/occurrence-mail.contract.ts` (entra por
+  `test/occurrence-conversation.contract.test.ts`) falhou na importação antes dos casos de uso.
+  Cobre, com transação falsa:
+  - a montagem (texto com assinatura, HTML escapado e em parágrafos);
+  - a primeira mensagem criando conversa (com `public_ref` opaco) e thread (com hash do token);
+  - a segunda como resposta na mesma conversa e thread;
+  - a chave repetida devolvendo a resposta gravada, e com outro pedido 409;
+  - 404 de outra empresa e 422 sem contratante;
+  - contato inválido ou com e-mail inseguro, configuração não pronta, assunto ou mensagem vazios;
+  - a prévia pelo modelo do tipo, pelo texto do operador e em branco.
+- **Decisão de desenho (sem mudança de produto):** o "modelo" do diálogo (P4) é o texto do **tipo da
+  ocorrência** (`email_subject`/`email_body`, spec 079), que a 143 T015 já mandava reaproveitar —
+  não um `contractor_mail_templates` da 150. Por isso o catálogo da 150 não ganhou tipo novo, e a
+  prontidão confere só a configuração (chave aceita e remetente verificado), sem exigir modelo da 150.
+- **Uma função monta o e-mail** (`buildOccurrenceMail`), usada pela prévia e pelo envio (RF7): texto
+  do operador mais a assinatura (operador e transportadora); HTML escapado.
+- `sendOccurrenceMail`, numa transação:
+  1. a ocorrência na empresa, e a contratante pelo emitente (T203) — só ocorrência com nota (P4);
+  2. idempotência com trava consultiva (`occurrence-conversation.mail.send`);
+  3. prontidão;
+  4. contatos **ativos** da contratante que recebem ocorrências, sem caractere que injete cabeçalho;
+  5. conversa `contractor` criada ou reusada;
+  6. thread da 143 (`document_occurrence`/`stop_occurrence`, `subject_id` = ocorrência) criada ou
+     reusada, com o hash do token derivado;
+  7. `contractor_mail_messages` `queued` + evento no outbox;
+  8. `occurrence_conversation_messages` (`email`, `outbound`, `queued`, horário) apontando para a
+     mensagem da 143.
+- A resposta do operador cai na mesma conversa da caixa da contratante sem mudar o worker: ele já
+  deriva o mesmo `Reply-To` da thread e manda `In-Reply-To`/`References` pela última recebida.
+- 143 T014 (teste da política do token) já existia: `test/contractor-mail/reply-token-policy.contract.ts`.
+- Integração nova `test/integration/occurrence-conversation-mail.integration.ts` (no
+  `package.json`), escrita depois da implementação:
+  - envio, resposta e repetição, contando linhas (1 conversa, 1 thread, 2 mensagens da 143 e 2 da
+    conversa, e nada na repetição);
+  - contato que não recebe ocorrências e outra empresa recusados, **sem nenhuma linha gravada**;
+  - a prévia pelo modelo do tipo com os valores da nota.
+
+  **3 pass**. Na primeira rodada ela pegou um erro do próprio teste: o modelo da 079 usa `{{…}}`, e
+  não `{…}`.
+
+- Sem rota nesta task (as rotas são a T404), então nenhum endpoint novo.
+- Rodado: API, contrato: **7316 pass, 0 fail**; `bun run lint` e `bun run typecheck` limpos. API, integração: **585 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).

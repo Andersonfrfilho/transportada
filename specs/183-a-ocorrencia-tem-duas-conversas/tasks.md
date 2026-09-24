@@ -77,7 +77,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [x] **T401** 🧠 Migration das tabelas `occurrence_conversation*` (plan § Dados) com `rollback.sql`.
       Evidência: `make migration-test` + contrato de tenant do schema.
 - [x] **T402** Política de status (RF14) por tabela. Evidência: suíte da política.
-- [ ] **T403** Gateway de e-mail do módulo novo sobre os casos de uso da 143 (a 143 T014/T015 entram
+- [x] **T403** Gateway de e-mail do módulo novo sobre os casos de uso da 143 (a 143 T014/T015 entram
       aqui): enviar, responder, prévia pelo mesmo template. Evidência: teste de caso de uso.
 - [ ] **T404** Rotas de conversa (listar, enviar, marcar lida, prévia) e o estado da conversa na
       listagem (RF4, vindo da T203) com tenant, permissão e o
