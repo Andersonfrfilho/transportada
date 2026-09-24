@@ -309,3 +309,45 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
     (MinIO fora do alcance desta sessão).
 - Revisão de design: `detalhe-nota-desktop.png` e `detalhe-nota-celular.png` refeitos, com asserção
   de "3,5 CX" visível no smoke (**8 pass**). A lista segue o rótulo pequeno dos fatos vizinhos.
+
+## T301 — Contatos da contratante com tipos e canais: a migration (verde)
+
+- Contrato escrito antes: `test/contractor-mail-schema/contact-channels.contract.ts` (entra por
+  `test/contractor-mail-schema.contract.test.ts`) → **7 fail** antes do schema. Cobre:
+  - as colunas novas;
+  - quais nunca são nulas;
+  - os conjuntos fechados de `types`, `occurrence_stages` e `preferred_channel`;
+  - o telefone no formato do WhatsApp verificado;
+  - o par do aceite, aceite só com telefone e WhatsApp preferido só com aceite (D6);
+  - o índice `(company_id, phone)` para o webhook;
+  - a pasta com `migration.sql`, `rollback.sql` e `snapshot.json`, o preenchimento pelos campos
+    antigos, nenhum `DROP` na ida e todas as colunas novas no rollback (sem tocar `email`).
+- Migration `drizzle/20260924163726_contractor_contact_channels`: gerada pelo `db:generate` (com
+  snapshot), mais o `UPDATE` de preenchimento — `receives_occurrences` → `occurrences`, `can_decide`
+  → `approves_charges`. `occurrence_stages` nasce com os três grupos, e `preferred_channel` com
+  `email`. `rollback.sql` desfaz CHECKs, FK, índice, colunas e a linha do diário.
+- Telefone: só dígitos com DDI, pelo mesmo `WHATSAPP_PHONE_PATTERN` de `user_whatsapp_phones`
+  (`^55[1-9][0-9]{9,10}$`). É o formato que o webhook recebe da Meta, então casar por telefone não
+  precisa de normalização. O RF5 dizia "E.164"; é E.164 sem o `+`, restrito ao Brasil como o canal.
+- Integração nova `test/integration/contractor-contact-channels.integration.ts` (no `package.json`).
+  O `migration-test` roda sobre banco vazio, então o `UPDATE` de preenchimento é **lido do próprio
+  arquivo** e aplicado a quatro contatos (as quatro combinações dos campos antigos). Também prova os
+  cinco CHECKs recusando e o contato completo aceito: **5 pass** com a suíte de contatos da 150/143.
+- Achado no caminho: `.$type<X[]>()` depois de `.array()` tipa o **elemento** nesta versão do
+  Drizzle (`X[][]`). Corrigido para `.$type<X>().array()`; o `db:generate` seguinte deu `no_changes`.
+- Rodado:
+  - `ENV_FILE=.env.test make migration-test` → **110 pass, 0 fail**. Na primeira rodada reprovou só
+    porque `static-migration.contract.ts` lista as pastas por nome; a pasta nova entrou na lista.
+  - `bun run db:check` → limpo.
+  - API, contrato: **7242 pass, 0 fail**.
+  - API, integração: **579 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).
+  - `bun run lint` e `bun run typecheck` limpos.
+- Revisão da migration (a task pedia `architect`; feita nesta sessão, sem subagente):
+  - a coluna `NOT NULL` com padrão não reescreve a tabela (Postgres ≥ 11);
+  - os CHECKs validam as linhas existentes na criação, e todas passam: telefone e aceite nulos, canal
+    `email`;
+  - a FK do autor do aceite é `restrict`, e usuário nesta base é desativado, não apagado;
+  - o índice por telefone não é único de propósito: o mesmo número em dois contatos é caso da política
+    de atribuição (T501);
+  - **lacuna até a T302:** contato criado pela rota de hoje nasce com `types = '{}'`, porque derivar
+    os tipos na escrita é a T302.

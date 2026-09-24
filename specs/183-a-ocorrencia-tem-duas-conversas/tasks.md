@@ -63,7 +63,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `sonnet` · T301 é 🧠 (migration) — revisar com `architect` em `opus`
 
-- [ ] **T301** 🧠 Migration aditiva de `contractor_contacts` (RF5) com preenchimento e `rollback.sql`.
+- [x] **T301** 🧠 Migration aditiva de `contractor_contacts` (RF5) com preenchimento e `rollback.sql`.
       Evidência: `make migration-test`.
 - [ ] **T302** Política tipos → `receives_occurrences`/`can_decide` e contrato das rotas de contato
       com os campos novos e o aceite (autor e data do servidor). Evidência: política + contratos.

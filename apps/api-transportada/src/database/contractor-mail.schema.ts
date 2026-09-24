@@ -24,10 +24,11 @@ import {
   type ContractorMailTemplateStatus,
   type ContractorMailTemplateType,
 } from '../contractor-mail/domain/mail-template-catalog.constant.js'
-import { companies } from './identity.schema.js'
+import { companies, identityUsers } from './identity.schema.js'
 import { contractors } from './delivery-client.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
+import { WHATSAPP_PHONE_PATTERN } from '../whatsapp-commands/domain/whatsapp-phone.policy.js'
 
 /**
  * Spec 143 (ADR-0063): a configuração é por empresa. A chave de API do Resend e o segredo do
@@ -106,6 +107,29 @@ export const contractorMailSettings = pgTable(
 export const CONTRACTOR_CONTACT_STATUSES = ['active', 'inactive'] as const
 export type ContractorContactStatus = (typeof CONTRACTOR_CONTACT_STATUSES)[number]
 
+/**
+ * Spec 183 RF5: o que o contato recebe. `occurrences` e `approves_charges` são os dois campos antigos
+ * (`receives_occurrences`, `can_decide`) — que seguem gravados, derivados destes na escrita (T302),
+ * porque a 143 e a 150 os leem.
+ */
+export const CONTRACTOR_CONTACT_TYPES = [
+  'occurrences',
+  'approves_charges',
+  'scheduling',
+  'invoices',
+  'cte_xml',
+] as const
+export type ContractorContactType = (typeof CONTRACTOR_CONTACT_TYPES)[number]
+
+/** Spec 183 RF5: de quais grupos de ocorrência o contato quer saber. */
+export const CONTRACTOR_CONTACT_OCCURRENCE_STAGES = ['separation', 'delivery', 'stop'] as const
+export type ContractorContactOccurrenceStage = (typeof CONTRACTOR_CONTACT_OCCURRENCE_STAGES)[number]
+
+export const CONTRACTOR_CONTACT_CHANNELS = ['email', 'whatsapp'] as const
+export type ContractorContactChannel = (typeof CONTRACTOR_CONTACT_CHANNELS)[number]
+
+const CONTACT_PHONE_PATTERN_LITERAL = sql.raw(`'${WHATSAPP_PHONE_PATTERN.source}'`)
+
 export const contractorContacts = pgTable(
   'contractor_contacts',
   {
@@ -115,6 +139,34 @@ export const contractorContacts = pgTable(
     email: text().notNull(),
     receivesOccurrences: boolean('receives_occurrences').notNull().default(true),
     canDecide: boolean('can_decide').notNull().default(false),
+    /** Spec 183 RF5: quem é a pessoa. Vazio no contato anterior à 183, que era só um e-mail. */
+    name: text().notNull().default(''),
+    roleLabel: text('role_label').notNull().default(''),
+    /**
+     * Só dígitos com o DDI, no formato do WhatsApp verificado (`user_whatsapp_phones`): é contra ele
+     * que o webhook compara o número que chegou.
+     */
+    phone: text(),
+    types: text()
+      .$type<ContractorContactType>()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    occurrenceStages: text('occurrence_stages')
+      .$type<ContractorContactOccurrenceStage>()
+      .array()
+      .notNull()
+      .default(sql`'{separation,delivery,stop}'::text[]`),
+    /**
+     * D6: o aceite do WhatsApp — quando e quem o registrou, do servidor. Sem ele, o número não recebe
+     * mensagem da empresa e a mensagem dele não entra na conversa.
+     */
+    whatsappOptInAt: timestamp('whatsapp_opt_in_at', { withTimezone: true }),
+    whatsappOptInByUserId: uuid('whatsapp_opt_in_by_user_id'),
+    preferredChannel: text('preferred_channel')
+      .$type<ContractorContactChannel>()
+      .notNull()
+      .default('email'),
     status: text().$type<ContractorContactStatus>().notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -154,6 +206,44 @@ export const contractorContacts = pgTable(
      * segunda trava, contra qualquer escrita que não passe pela rota.
      */
     check('contractor_contacts_email_length_check', sql`length(${table.email}) <= 254`),
+    foreignKey({
+      columns: [table.whatsappOptInByUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'contractor_contacts_whatsapp_opt_in_by_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'contractor_contacts_types_check',
+      sql`${table.types} <@ array[${sql.raw(inList(CONTRACTOR_CONTACT_TYPES))}]::text[]`,
+    ),
+    check(
+      'contractor_contacts_occurrence_stages_check',
+      sql`${table.occurrenceStages} <@ array[${sql.raw(inList(CONTRACTOR_CONTACT_OCCURRENCE_STAGES))}]::text[]`,
+    ),
+    check(
+      'contractor_contacts_preferred_channel_check',
+      sql`${table.preferredChannel} in (${sql.raw(inList(CONTRACTOR_CONTACT_CHANNELS))})`,
+    ),
+    check(
+      'contractor_contacts_phone_check',
+      sql`${table.phone} is null or ${table.phone} ~ ${CONTACT_PHONE_PATTERN_LITERAL}`,
+    ),
+    /** D6: o aceite sem autor, ou o autor sem data, não prova nada. */
+    check(
+      'contractor_contacts_whatsapp_opt_in_pair_check',
+      sql`(${table.whatsappOptInAt} is null) = (${table.whatsappOptInByUserId} is null)`,
+    ),
+    check(
+      'contractor_contacts_whatsapp_opt_in_phone_check',
+      sql`${table.whatsappOptInAt} is null or ${table.phone} is not null`,
+    ),
+    check(
+      'contractor_contacts_preferred_whatsapp_check',
+      sql`${table.preferredChannel} <> 'whatsapp' or ${table.whatsappOptInAt} is not null`,
+    ),
+    /** O webhook resolve o remetente por telefone, dentro da empresa do canal. */
+    index('contractor_contacts_company_phone_idx').on(table.companyId, table.phone),
   ],
 )
 
