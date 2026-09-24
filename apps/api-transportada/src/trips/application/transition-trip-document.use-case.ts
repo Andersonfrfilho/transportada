@@ -15,9 +15,9 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
-import type { DispatchTripPort } from './dispatch-trip.use-case.js'
 import {
   tryAutoDispatchTrip,
+  type AutoDispatchDependencies,
   type TryAutoDispatchTripResult,
 } from './try-auto-dispatch-trip.use-case.js'
 import type { TripDocument } from './trip.port.js'
@@ -64,7 +64,7 @@ export type TransitionTripDocumentInput = {
    * Spec 185 (D4, RF2): ausente é instalação sem o gatilho automático ligado — carregar a nota
    * funciona igual, só não tenta despachar. Presente, só é consultado quando `action === 'load'`.
    */
-  readonly autoDispatchRepository?: DispatchTripPort
+  readonly autoDispatch?: AutoDispatchDependencies
   readonly channel: TripFieldChannel
   readonly companyId: string
   readonly documentId: string
@@ -162,13 +162,13 @@ async function attempt(
      * sempre **depois** de `applyTransition` ter comitado (transação própria).
      */
     const autoDispatch =
-      input.action === TRIP_DOCUMENT_ACTION.load && input.autoDispatchRepository !== undefined
+      input.action === TRIP_DOCUMENT_ACTION.load && input.autoDispatch !== undefined
         ? await tryAutoDispatchTrip({
+            ...input.autoDispatch,
             actorUserId: input.actorUserId,
             channel: input.channel,
             companyId: input.companyId,
             onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
-            repository: input.autoDispatchRepository,
             tripId: input.tripId,
           })
         : undefined

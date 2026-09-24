@@ -627,7 +627,7 @@ async function buildScenario(db: Database, companyId: string) {
       transitionTripDocumentsBatch({
         action: input.action,
         actorUserId: input.context.userId,
-        autoDispatchRepository: tripRouteRepository,
+        autoDispatch: { logger: { error: () => {} }, repository: tripRouteRepository },
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentIds: input.documentIds,
@@ -649,7 +649,7 @@ async function buildScenario(db: Database, companyId: string) {
       transitionTripDocument({
         action: 'load',
         actorUserId: input.context.userId,
-        autoDispatchRepository: tripRouteRepository,
+        autoDispatch: { logger: { error: () => {} }, repository: tripRouteRepository },
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
@@ -661,7 +661,11 @@ async function buildScenario(db: Database, companyId: string) {
         registerTripOccurrence({
           actorUserId: input.actorUserId,
           ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
-          autoDispatch: { channel: TRIP_FIELD_CHANNELS.whatsapp, repository: tripRouteRepository },
+          autoDispatch: {
+            channel: TRIP_FIELD_CHANNELS.whatsapp,
+            logger: { error: () => {} },
+            repository: tripRouteRepository,
+          },
           companyId: input.companyId,
           documentId: input.documentId,
           note: input.note,

@@ -10,9 +10,9 @@ import {
 } from '../domain/trip-state.policy.js'
 import { TripDocumentReturnReasonRequiredError, TripNotFoundError } from '../domain/trip.error.js'
 import type { TripTransitionBlock } from '../domain/trip-state.policy.js'
-import type { DispatchTripPort } from './dispatch-trip.use-case.js'
 import {
   tryAutoDispatchTrip,
+  type AutoDispatchDependencies,
   type TryAutoDispatchTripResult,
 } from './try-auto-dispatch-trip.use-case.js'
 import type { TripDocument } from './trip.port.js'
@@ -69,7 +69,7 @@ export type TransitionTripDocumentsBatchInput = {
    * Spec 185 (D4, RF2): ausente é instalação sem o gatilho automático ligado. Presente, só é
    * consultado quando `action === 'load'` e ao menos uma nota do lote foi de fato aplicada.
    */
-  readonly autoDispatchRepository?: DispatchTripPort
+  readonly autoDispatch?: AutoDispatchDependencies
   readonly channel: TripFieldChannel
   readonly companyId: string
   readonly documentIds: readonly string[]
@@ -198,13 +198,13 @@ export async function transitionTripDocumentsBatch(
   const autoDispatch =
     input.action === TRIP_DOCUMENT_ACTION.load &&
     appliedCount > 0 &&
-    input.autoDispatchRepository !== undefined
+    input.autoDispatch !== undefined
       ? await tryAutoDispatchTrip({
+          ...input.autoDispatch,
           actorUserId: input.actorUserId,
           channel: input.channel,
           companyId: input.companyId,
           onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
-          repository: input.autoDispatchRepository,
           tripId: input.tripId,
         })
       : undefined

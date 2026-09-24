@@ -938,7 +938,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocumentsBatch({
         action: input.action,
         actorUserId: input.context.userId,
-        autoDispatchRepository: whatsappTripRouteRepository,
+        autoDispatch: { logger, repository: whatsappTripRouteRepository },
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentIds: input.documentIds,
@@ -964,7 +964,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocument({
         action: 'load',
         actorUserId: input.context.userId,
-        autoDispatchRepository: whatsappTripRouteRepository,
+        autoDispatch: { logger, repository: whatsappTripRouteRepository },
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
@@ -991,6 +991,7 @@ export function bootstrap(): Bun.Server<undefined> {
           ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
           autoDispatch: {
             channel: TRIP_FIELD_CHANNELS.whatsapp,
+            logger,
             repository: whatsappTripRouteRepository,
           },
           companyId: input.companyId,
@@ -1972,6 +1973,7 @@ function createApplicationRoutes({
     deliveryAddressOverrideRepository,
     documentRepository: tripDocumentRepository,
     locationRepository: tripStopLookupRepository,
+    logger,
     routeRepository: tripRouteRepository,
     stopRepository: tripStopLookupRepository,
     suggestCharges: suggestDeliveryCharges,
@@ -3257,6 +3259,7 @@ function createApplicationRoutes({
                 attachment: input.attachment,
                 autoDispatch: {
                   channel: TRIP_FIELD_CHANNELS.backoffice,
+                  logger,
                   repository: tripRouteRepository,
                 },
                 companyId: input.context.companyId,

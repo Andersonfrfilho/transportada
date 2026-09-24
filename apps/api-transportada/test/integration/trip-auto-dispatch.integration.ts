@@ -30,23 +30,35 @@ import {
 import {
   companyOccurrenceTypes,
   tripDispatchSnapshots,
+  tripDocumentOccurrences,
   tripDocuments,
   trips,
   tripStatusEvents,
   type TripStatus,
 } from '../../src/database/trip.schema.js'
+import type { DispatchTripPort } from '../../src/trips/application/dispatch-trip.use-case.js'
+import type { DriverFieldReportTransactionPort } from '../../src/trips/application/driver-field-report.port.js'
 import { persistSeparationOccurrenceWithAttachment } from '../../src/trips/application/persist-separation-occurrence-attachment.service.js'
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { registerTripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import { transitionTripDocument } from '../../src/trips/application/transition-trip-document.use-case.js'
 import { transitionTripDocumentsBatch } from '../../src/trips/application/transition-trip-documents-batch.use-case.js'
+import { withFieldReport } from '../../src/trips/application/trip-field-report.port.js'
+import type { AutoDispatchLogger } from '../../src/trips/application/try-auto-dispatch-trip.use-case.js'
+import {
+  buildOccurrenceAttachmentCreateFingerprint,
+  OCCURRENCE_ATTACHMENT_CREATE_OPERATION,
+  sha256Hex,
+} from '../../src/trips/domain/occurrence-attachment.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import {
   findOccurrenceType,
+  findTripOccurrenceById,
   listDocumentProducts,
   listTripOccurrences,
   readOccurrenceTemplateValues,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleSeparationOccurrenceUnitOfWork } from '../../src/trips/infrastructure/drizzle-separation-occurrence.repository.js'
 import { DrizzleTripDocumentBatchRepository } from '../../src/trips/infrastructure/drizzle-trip-document-batch.repository.js'
 import { DrizzleTripDocumentRepository } from '../../src/trips/infrastructure/drizzle-trip-document.repository.js'
@@ -63,6 +75,7 @@ type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 const SCHEDULING_CLIENT_TAX_ID = '12345678000188'
 const LEAVES_BEHIND_TYPE_NAME = 'Item faltante'
+const SILENT_AUTO_DISPATCH_LOGGER = { error: () => {} }
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
 
 describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', () => {
@@ -78,7 +91,10 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
         const result = await transitionTripDocument({
           action: 'load',
           actorUserId: trip.userId,
-          autoDispatchRepository: new DrizzleTripRouteRepository(database.db),
+          autoDispatch: {
+            logger: SILENT_AUTO_DISPATCH_LOGGER,
+            repository: new DrizzleTripRouteRepository(database.db),
+          },
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: trip.companyId,
           documentId: lastId,
@@ -115,7 +131,10 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
         const result = await transitionTripDocumentsBatch({
           action: 'load',
           actorUserId: trip.userId,
-          autoDispatchRepository: new DrizzleTripRouteRepository(database.db),
+          autoDispatch: {
+            logger: SILENT_AUTO_DISPATCH_LOGGER,
+            repository: new DrizzleTripRouteRepository(database.db),
+          },
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: trip.companyId,
           documentIds: [lastId],
@@ -153,7 +172,10 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
         const result = await transitionTripDocument({
           action: 'load',
           actorUserId: trip.userId,
-          autoDispatchRepository: new DrizzleTripRouteRepository(database.db),
+          autoDispatch: {
+            logger: SILENT_AUTO_DISPATCH_LOGGER,
+            repository: new DrizzleTripRouteRepository(database.db),
+          },
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: trip.companyId,
           documentId,
@@ -185,7 +207,10 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
         const result = await transitionTripDocument({
           action: 'load',
           actorUserId: trip.userId,
-          autoDispatchRepository: new DrizzleTripRouteRepository(database.db),
+          autoDispatch: {
+            logger: SILENT_AUTO_DISPATCH_LOGGER,
+            repository: new DrizzleTripRouteRepository(database.db),
+          },
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: trip.companyId,
           documentId: firstId,
@@ -217,51 +242,11 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
           stage: 'separation',
         })
 
-        const registered = await registerTripOccurrence({
-          actorUserId: trip.userId,
-          attachment: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
-          autoDispatch: {
-            channel: TRIP_FIELD_CHANNELS.backoffice,
-            repository: new DrizzleTripRouteRepository(database.db),
-          },
-          companyId: trip.companyId,
+        const registered = await registerWholeDocumentOccurrence(database, trip, {
           documentId: leftBehindId,
-          note: 'Item não encontrado no galpão.',
-          occurredOn: '24/09/2026',
+          logger: SILENT_AUTO_DISPATCH_LOGGER,
           occurrenceTypeId,
-          productCode: '',
-          repository: {
-            findOccurrenceType: (query) => findOccurrenceType(database.db, query),
-            listDocumentProducts: (query) => listDocumentProducts(database.db, query),
-            listOccurrences: (query) => listTripOccurrences(database.db, query),
-            readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
-            saveOccurrence: (query) =>
-              persistSeparationOccurrenceWithAttachment({
-                attachment: query.attachment,
-                input: {
-                  actorUserId: query.actorUserId,
-                  companyId: query.companyId,
-                  documentId: query.documentId,
-                  items: query.items,
-                  note: query.note,
-                  occurrenceTypeId: query.occurrenceTypeId,
-                  productCode: query.productCode,
-                  productCodes: query.productCodes,
-                  stage: query.stage,
-                  tripId: query.tripId,
-                  typeName: query.typeName,
-                },
-                maxOriginalBytes: 960 * 1024,
-                newObjectId: () => crypto.randomUUID(),
-                now: () => new Date(),
-                storage: {
-                  remove: async () => {},
-                  store: async () => ({ sha256: '0'.repeat(64) }),
-                },
-                unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db, 'test-bucket'),
-              }),
-          },
-          tripId: trip.tripId,
+          routeRepository: new DrizzleTripRouteRepository(database.db),
         })
 
         expect(registered.autoDispatch).toEqual({ outcome: 'dispatched' })
@@ -276,7 +261,237 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
     },
     30_000,
   )
+
+  /**
+   * Revisão da spec 185: o gatilho roda depois da carga ter comitado — falha inesperada do
+   * despacho não pode virar erro sobre uma escrita que aconteceu.
+   */
+  testWithPostgres(
+    'revisão: despacho que falha com erro genérico — a carga responde TRIP_AUTO_DISPATCH_FAILED e a nota fica loaded',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, { documentCount: 3 })
+        const [firstId, lineId, batchId] = trip.tripDocumentIds as [string, string, string]
+        await moveDocument(database, trip, firstId, ['separate', 'load'])
+        await moveDocument(database, trip, lineId, ['separate'])
+        await moveDocument(database, trip, batchId, ['separate'])
+        const logged: unknown[] = []
+        const autoDispatch = {
+          logger: { error: (message: string, meta?: unknown) => logged.push({ message, meta }) },
+          repository: failingDispatchRepository(new DrizzleTripRouteRepository(database.db)),
+        }
+
+        // A linha carrega sem fechar a carga (sobra a do lote): nem tenta.
+        const line = await transitionTripDocument({
+          action: 'load',
+          actorUserId: trip.userId,
+          autoDispatch,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: trip.companyId,
+          documentId: lineId,
+          repository: new DrizzleTripDocumentRepository(database.db),
+          tripId: trip.tripId,
+        })
+        const batch = await transitionTripDocumentsBatch({
+          action: 'load',
+          actorUserId: trip.userId,
+          autoDispatch,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: trip.companyId,
+          documentIds: [batchId],
+          repository: new DrizzleTripDocumentBatchRepository(database.db),
+          tripId: trip.tripId,
+        })
+
+        expect(line.autoDispatch).toBeUndefined()
+        expect(batch.autoDispatch).toEqual({
+          code: 'TRIP_AUTO_DISPATCH_FAILED',
+          outcome: 'blocked',
+        })
+        expect(await readDocumentStates(database, [lineId, batchId])).toEqual(
+          new Map([
+            [lineId, { isReleased: false, separationStatus: 'loaded' }],
+            [batchId, { isReleased: false, separationStatus: 'loaded' }],
+          ]),
+        )
+        expect(await readTripStatus(database, trip.tripId)).toBe('loading')
+        expect(await readSnapshot(database, trip.tripId)).toBeUndefined()
+        expect(logged).toEqual([
+          {
+            message: 'trip_auto_dispatch_failed',
+            meta: { companyId: trip.companyId, errorCode: 'Error', tripId: trip.tripId },
+          },
+        ])
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'revisão: ocorrência dentro de withFieldReport com despacho falhando — a chave liquida e o reenvio não duplica',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, { documentCount: 2 })
+        const [leftBehindId, loadedId] = trip.tripDocumentIds as [string, string]
+        await moveDocument(database, trip, loadedId, ['separate', 'load'])
+        const occurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          companyId: trip.companyId,
+          id: occurrenceTypeId,
+          leavesDocumentBehind: true,
+          name: LEAVES_BEHIND_TYPE_NAME,
+          stage: 'separation',
+        })
+
+        const idempotencyKey = crypto.randomUUID()
+        const register = () =>
+          registerWithFieldReport(database, trip, {
+            documentId: leftBehindId,
+            idempotencyKey,
+            occurrenceTypeId,
+            routeRepository: failingDispatchRepository(new DrizzleTripRouteRepository(database.db)),
+          })
+
+        const first = await register()
+        const replayed = await register()
+
+        expect(first.autoDispatch).toEqual({
+          code: 'TRIP_AUTO_DISPATCH_FAILED',
+          outcome: 'blocked',
+        })
+        expect(replayed.id).toBe(first.id)
+        const occurrences = await database.db
+          .select({ id: tripDocumentOccurrences.id })
+          .from(tripDocumentOccurrences)
+          .where(eq(tripDocumentOccurrences.tripDocumentId, leftBehindId))
+        expect(occurrences).toEqual([{ id: first.id }])
+        expect(await readTripStatus(database, trip.tripId)).toBe('loading')
+      })
+    },
+    30_000,
+  )
 })
+
+/** O repositório de verdade para ler; o despacho falha com um erro que nenhum gate conhece. */
+function failingDispatchRepository(routeRepository: DrizzleTripRouteRepository): DispatchTripPort {
+  return {
+    dispatch: async () => {
+      throw new Error('simulated dispatch failure')
+    },
+    readPreconditions: (input) => routeRepository.readPreconditions(input),
+  }
+}
+
+async function registerWholeDocumentOccurrence(
+  database: TestDatabase,
+  trip: SeededTrip,
+  input: {
+    readonly documentId: string
+    readonly logger: AutoDispatchLogger
+    readonly occurrenceTypeId: string
+    readonly routeRepository: DispatchTripPort
+  },
+) {
+  return registerTripOccurrence({
+    actorUserId: trip.userId,
+    attachment: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+    autoDispatch: {
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      logger: input.logger,
+      repository: input.routeRepository,
+    },
+    companyId: trip.companyId,
+    documentId: input.documentId,
+    note: 'Item não encontrado no galpão.',
+    occurredOn: '24/09/2026',
+    occurrenceTypeId: input.occurrenceTypeId,
+    productCode: '',
+    repository: {
+      findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+      listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+      listOccurrences: (query) => listTripOccurrences(database.db, query),
+      readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
+      saveOccurrence: (query) =>
+        persistSeparationOccurrenceWithAttachment({
+          attachment: query.attachment,
+          input: {
+            actorUserId: query.actorUserId,
+            companyId: query.companyId,
+            documentId: query.documentId,
+            items: query.items,
+            note: query.note,
+            occurrenceTypeId: query.occurrenceTypeId,
+            productCode: query.productCode,
+            productCodes: query.productCodes,
+            stage: query.stage,
+            tripId: query.tripId,
+            typeName: query.typeName,
+          },
+          maxOriginalBytes: 960 * 1024,
+          newObjectId: () => crypto.randomUUID(),
+          now: () => new Date(),
+          storage: {
+            remove: async () => {},
+            store: async () => ({ sha256: '0'.repeat(64) }),
+          },
+          unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(database.db, 'test-bucket'),
+        }),
+    },
+    tripId: trip.tripId,
+  })
+}
+
+/** Molde de `main.ts` (rota `POST .../occurrences`): o registro dentro de `withFieldReport`. */
+async function registerWithFieldReport(
+  database: TestDatabase,
+  trip: SeededTrip,
+  input: {
+    readonly documentId: string
+    readonly idempotencyKey: string
+    readonly occurrenceTypeId: string
+    readonly routeRepository: DispatchTripPort
+  },
+) {
+  const fieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+  return withFieldReport({
+    guard: {
+      actorUserId: trip.userId,
+      authorship: { channel: TRIP_FIELD_CHANNELS.driverApp, onBehalfOfDriverId: null },
+      companyId: trip.companyId,
+      idempotencyKey: input.idempotencyKey,
+      operation: `${OCCURRENCE_ATTACHMENT_CREATE_OPERATION}:${buildOccurrenceAttachmentCreateFingerprint(
+        {
+          attachmentSha256: sha256Hex(JPEG_BYTES),
+          documentId: input.documentId,
+          note: 'Item não encontrado no galpão.',
+          occurrenceTypeId: input.occurrenceTypeId,
+          productCode: '',
+        },
+      )}`,
+      transaction: {
+        claim: (claim: Parameters<DriverFieldReportTransactionPort['claim']>[0]) =>
+          fieldReports.execute((transaction) => transaction.claim(claim)),
+        settle: (settle: Parameters<DriverFieldReportTransactionPort['settle']>[0]) =>
+          fieldReports.execute((transaction) => transaction.settle(settle)),
+      },
+    },
+    perform: () =>
+      registerWholeDocumentOccurrence(database, trip, {
+        documentId: input.documentId,
+        logger: SILENT_AUTO_DISPATCH_LOGGER,
+        occurrenceTypeId: input.occurrenceTypeId,
+        routeRepository: input.routeRepository,
+      }),
+    recall: async (resultId) => {
+      const occurrence = await findTripOccurrenceById(database.db, {
+        companyId: trip.companyId,
+        occurrenceId: resultId,
+      })
+      if (occurrence === null) return null
+      return { ...occurrence, attachments: [], email: null }
+    },
+  })
+}
 
 type SeededTrip = {
   readonly companyId: string

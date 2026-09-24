@@ -302,6 +302,7 @@ function buildUseCase(database: TestDatabase) {
     deliveryAddressOverrideRepository: tripRepository as never,
     documentRepository: tripRepository as never,
     locationRepository: stopRepository,
+    logger: { error: () => {} },
     routeRepository,
     stopRepository,
     suggestCharges: { onDelivered: async () => {} },

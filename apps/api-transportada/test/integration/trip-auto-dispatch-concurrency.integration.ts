@@ -308,7 +308,7 @@ function loadDocument(
   return transitionTripDocument({
     action: 'load',
     actorUserId: input.trip.userId,
-    autoDispatchRepository: input.routeRepository,
+    autoDispatch: { logger: { error: () => {} }, repository: input.routeRepository },
     channel: TRIP_FIELD_CHANNELS.backoffice,
     companyId: input.trip.companyId,
     documentId: input.documentId,

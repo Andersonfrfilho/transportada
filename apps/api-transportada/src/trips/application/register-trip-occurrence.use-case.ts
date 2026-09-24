@@ -25,9 +25,9 @@ import type {
   OccurrenceNotificationParameters,
   OccurrenceNotificationSetting,
 } from '../domain/occurrence-notification.policy.js'
-import type { DispatchTripPort } from './dispatch-trip.use-case.js'
 import {
   tryAutoDispatchTrip,
+  type AutoDispatchDependencies,
   type TryAutoDispatchTripResult,
 } from './try-auto-dispatch-trip.use-case.js'
 
@@ -241,10 +241,9 @@ export type RegisterTripOccurrenceInput = {
    * caso de uso já só grava ocorrência de separação (`OccurrenceTypeNotSeparationError` acima), por
    * isso não há filtro de `stage` aqui.
    */
-  readonly autoDispatch?: {
+  readonly autoDispatch?: AutoDispatchDependencies & {
     readonly channel: TripFieldChannel
     readonly onBehalfOfDriverId?: string | null
-    readonly repository: DispatchTripPort
   }
   readonly companyId: string
   readonly documentId: string
@@ -382,6 +381,7 @@ export async function registerTripOccurrence(
           actorUserId,
           channel: input.autoDispatch.channel,
           companyId,
+          logger: input.autoDispatch.logger,
           onBehalfOfDriverId: input.autoDispatch.onBehalfOfDriverId ?? null,
           repository: input.autoDispatch.repository,
           tripId,

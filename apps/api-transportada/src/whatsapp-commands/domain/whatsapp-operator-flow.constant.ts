@@ -9,6 +9,7 @@
  * e marcadores de passo (`separate`/`load`/`occurrence`, página) — nunca placa, nome de destinatário
  * ou qualquer outro dado que precise ser lido de novo a cada renderização (D8).
  */
+import type { TryAutoDispatchTripBlockedCode } from '../../trips/application/try-auto-dispatch-trip.use-case.js'
 import type { TripTransitionBlock } from '../../trips/domain/trip-state.policy.js'
 
 export const OPERATOR_FLOW_ACTION_KIND = {
@@ -123,8 +124,10 @@ export const OPERATOR_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionB
 export const OPERATOR_AUTO_DISPATCH_DISPATCHED_MESSAGE = 'Viagem despachada. 🚚'
 
 export const OPERATOR_AUTO_DISPATCH_BLOCKED_MESSAGES: Readonly<
-  Record<'TRIP_HAS_NO_ROUTE' | 'TRIP_HAS_UNSCHEDULED_STOPS', string>
+  Record<TryAutoDispatchTripBlockedCode, string>
 > = {
+  /** Spec 185 (revisão): falha inesperada do gatilho — a carga ficou gravada, o botão resolve. */
+  TRIP_AUTO_DISPATCH_FAILED: 'A viagem não saiu sozinha — use Despachar.',
   TRIP_HAS_NO_ROUTE: 'A viagem não saiu: há nota sem parada.',
   TRIP_HAS_UNSCHEDULED_STOPS: 'A viagem não saiu: parada aguardando agendamento.',
 } as const

@@ -35,6 +35,7 @@ import {
   transitionTripDocumentsBatch,
   type TripDocumentBatchTransitionPort,
 } from './transition-trip-documents-batch.use-case.js'
+import type { AutoDispatchLogger } from './try-auto-dispatch-trip.use-case.js'
 
 export type TripLifecycleDependencies = {
   readonly batchRepository: TripDocumentBatchTransitionPort
@@ -42,6 +43,8 @@ export type TripLifecycleDependencies = {
     OverrideDeliveryAddressPort
   readonly documentRepository: TripDocumentTransitionPort
   readonly locationRepository: FindTripLocationByAccessKeyPort
+  /** Spec 185 (revisão): o gatilho automático registra a falha que ele absorve. */
+  readonly logger: AutoDispatchLogger
   /** O rastro ao vivo (ADR-0050 §5) — separado da busca por chave, que é outra coisa. */
   readonly trackingRepository: {
     purgeByTrip(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
@@ -84,7 +87,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
          * `action === 'load'` (a própria `transitionTripDocument` filtra), por isso passá-lo
          * também para `separate` é inofensivo.
          */
-        autoDispatchRepository: dependencies.routeRepository,
+        autoDispatch: { logger: dependencies.logger, repository: dependencies.routeRepository },
         channel: TRIP_FIELD_CHANNELS.backoffice,
         ...(dependencies.suggestCharges === undefined
           ? {}
@@ -114,7 +117,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         return transitionTripDocumentsBatch({
           action: input.action,
           actorUserId: input.context.userId,
-          autoDispatchRepository: dependencies.routeRepository,
+          autoDispatch: { logger: dependencies.logger, repository: dependencies.routeRepository },
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
           documentIds: input.documentIds,
