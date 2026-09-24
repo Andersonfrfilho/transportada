@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, notInArray, or, sql } from 'drizzle-orm'
 
 import { deliveryClients, tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { nfeParticipants } from '../../database/nfe.schema.js'
@@ -26,8 +26,14 @@ const BLOCKING_STATUSES = ['pending', 'refused'] as const
  */
 export async function listUnscheduledStops(
   database: Database,
-  input: { readonly companyId: string; readonly tripId: string },
+  input: {
+    readonly companyId: string
+    /** Spec 185 (revisão): notas que o despacho vai liberar não prendem a parada delas. */
+    readonly excludedTripDocumentIds?: readonly string[]
+    readonly tripId: string
+  },
 ): Promise<readonly string[]> {
+  const excludedTripDocumentIds = input.excludedTripDocumentIds ?? []
   const rows = await database
     .selectDistinct({ stopId: tripStops.id })
     .from(tripStops)
@@ -37,6 +43,9 @@ export async function listUnscheduledStops(
         eq(tripDocuments.companyId, tripStops.companyId),
         eq(tripDocuments.stopId, tripStops.id),
         sql`${tripDocuments.releasedAt} is null`,
+        excludedTripDocumentIds.length === 0
+          ? undefined
+          : notInArray(tripDocuments.id, [...excludedTripDocumentIds]),
       ),
     )
     .innerJoin(

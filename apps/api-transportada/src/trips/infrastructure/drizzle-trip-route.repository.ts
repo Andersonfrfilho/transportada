@@ -153,12 +153,19 @@ export class DrizzleTripRouteRepository
     readonly companyId: string
     readonly tripId: string
   }): Promise<DispatchTripPreconditions | null> {
-    const route = await readRouteState(this.database, input)
-    if (route === null) return null
-
     const readiness = resolveDispatchReadiness({
       documents: await readDispatchReadinessDocuments(this.database, input),
     })
+    /**
+     * Spec 185 (revisão, RF5): a nota que o despacho vai liberar não segura a viagem pelos gates
+     * dela — nem como "nota sem parada", nem pela parada que só ela ocupa esperando agendamento.
+     */
+    const scope = {
+      ...input,
+      excludedTripDocumentIds: readiness.leftBehind.map((document) => document.tripDocumentId),
+    }
+    const route = await readRouteState(this.database, scope)
+    if (route === null) return null
 
     return {
       hasRoute: route.hasRoute,
@@ -167,7 +174,7 @@ export class DrizzleTripRouteRepository
       toLoad: readiness.toLoad,
       tripStatus: route.tripStatus,
       unloadedDocumentIds: readiness.toLoad.map((document) => document.tripDocumentId),
-      unscheduledStopIds: await listUnscheduledStops(this.database, input),
+      unscheduledStopIds: await listUnscheduledStops(this.database, scope),
     }
   }
 
@@ -383,8 +390,14 @@ export async function writeStopOrder(
 
 async function readRouteState(
   queryable: TripQueryable,
-  input: { readonly companyId: string; readonly tripId: string },
+  input: {
+    readonly companyId: string
+    /** Notas que o despacho vai liberar: não contam como "nota viva sem parada". */
+    readonly excludedTripDocumentIds?: readonly string[]
+    readonly tripId: string
+  },
 ): Promise<TripRouteState | null> {
+  const excludedTripDocumentIds = input.excludedTripDocumentIds ?? []
   const [tripRecord] = await queryable
     .select({ status: trips.status })
     .from(trips)
@@ -407,6 +420,9 @@ async function readRouteState(
         isNull(tripDocuments.releasedAt),
         isNull(tripDocuments.stopId),
         ne(tripDocuments.separationStatus, 'returned'),
+        excludedTripDocumentIds.length === 0
+          ? undefined
+          : notInArray(tripDocuments.id, [...excludedTripDocumentIds]),
       ),
     )
     .limit(1)

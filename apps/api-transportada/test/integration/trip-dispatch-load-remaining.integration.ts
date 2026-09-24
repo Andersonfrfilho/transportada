@@ -59,6 +59,7 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 const SCHEDULING_CLIENT_TAX_ID = '12345678000199'
+const OTHER_CLIENT_TAX_ID = '98765432000155'
 const LEAVES_BEHIND_TYPE_NAME = 'Item faltante'
 
 describe('despachar leva todas e deixa para trás o que a ocorrência tira (spec 185 T3.1)', () => {
@@ -265,6 +266,124 @@ describe('despachar leva todas e deixa para trás o que a ocorrência tira (spec
     30_000,
   )
 
+  /**
+   * Revisão da spec 185 (RF1/RF5): a nota que o despacho vai liberar não pode segurar a viagem
+   * pelos gates dela — nem "nota sem parada" (`TRIP_HAS_NO_ROUTE`) nem a parada que só ela ocupa
+   * esperando agendamento (`TRIP_HAS_UNSCHEDULED_STOPS`).
+   */
+  testWithPostgres(
+    'revisão: nota deixada para trás sem parada não vira TRIP_HAS_NO_ROUTE',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, { documentCount: 2 })
+        const [leftBehindId, loadedId] = trip.tripDocumentIds as [string, string]
+        await moveDocument(database, trip, loadedId, ['separate', 'load'])
+        await seedSeparationOccurrence(database, trip, {
+          leavesDocumentBehind: true,
+          productCodes: [],
+          tripDocumentId: leftBehindId,
+        })
+        await database.db
+          .update(tripDocuments)
+          .set({ stopId: null })
+          .where(eq(tripDocuments.id, leftBehindId))
+
+        const routeRepository = new DrizzleTripRouteRepository(database.db)
+        expect((await routeRepository.readPreconditions(trip))?.hasRoute).toBe(true)
+
+        const dispatched = await dispatchTrip({
+          actorUserId: trip.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: trip.companyId,
+          repository: routeRepository,
+          tripId: trip.tripId,
+        })
+
+        expect(dispatched.tripStatus).toBe('dispatched')
+        expect((await readDocumentStates(database, [leftBehindId])).get(leftBehindId)).toEqual({
+          isReleased: true,
+          separationStatus: 'pending',
+        })
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'revisão: parada ocupada só pela nota deixada para trás não vira TRIP_HAS_UNSCHEDULED_STOPS',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, {
+          documentCount: 2,
+          recipientRequiresScheduling: true,
+          recipientTaxIds: [SCHEDULING_CLIENT_TAX_ID, OTHER_CLIENT_TAX_ID],
+          separateStops: true,
+        })
+        const [leftBehindId, loadedId] = trip.tripDocumentIds as [string, string]
+        await moveDocument(database, trip, loadedId, ['separate', 'load'])
+        await seedSeparationOccurrence(database, trip, {
+          leavesDocumentBehind: true,
+          productCodes: [],
+          tripDocumentId: leftBehindId,
+        })
+
+        const routeRepository = new DrizzleTripRouteRepository(database.db)
+        expect((await routeRepository.readPreconditions(trip))?.unscheduledStopIds).toEqual([])
+
+        const dispatched = await dispatchTrip({
+          actorUserId: trip.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: trip.companyId,
+          repository: routeRepository,
+          tripId: trip.tripId,
+        })
+
+        expect(dispatched.tripStatus).toBe('dispatched')
+        expect((await readDocumentStates(database, [leftBehindId])).get(leftBehindId)).toEqual({
+          isReleased: true,
+          separationStatus: 'pending',
+        })
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'revisão: a parada que agenda continua bloqueando quando ainda leva nota',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, {
+          documentCount: 2,
+          recipientRequiresScheduling: true,
+          recipientTaxIds: [OTHER_CLIENT_TAX_ID, SCHEDULING_CLIENT_TAX_ID],
+          separateStops: true,
+        })
+        const [leftBehindId, loadedId] = trip.tripDocumentIds as [string, string]
+        await moveDocument(database, trip, loadedId, ['separate', 'load'])
+        await seedSeparationOccurrence(database, trip, {
+          leavesDocumentBehind: true,
+          productCodes: [],
+          tripDocumentId: leftBehindId,
+        })
+
+        const refused = await dispatchTrip({
+          actorUserId: trip.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: trip.companyId,
+          repository: new DrizzleTripRouteRepository(database.db),
+          tripId: trip.tripId,
+        }).catch((caught: unknown) => caught)
+
+        expect(refused).toMatchObject({ code: 'TRIP_HAS_UNSCHEDULED_STOPS', status: 409 })
+        expect((await readDocumentStates(database, [leftBehindId])).get(leftBehindId)).toEqual({
+          isReleased: false,
+          separationStatus: 'pending',
+        })
+      })
+    },
+    30_000,
+  )
+
   testWithPostgres(
     'CA05: ocorrência parcial (com item) do mesmo tipo não libera — a nota continua bloqueando',
     async () => {
@@ -416,7 +535,14 @@ type SeededTrip = {
 
 async function seedPlannedTrip(
   database: TestDatabase,
-  input: { readonly documentCount: number; readonly recipientRequiresScheduling?: boolean },
+  input: {
+    readonly documentCount: number
+    /** Por nota, na ordem; ausente é o cliente que agenda em todas. */
+    readonly recipientTaxIds?: readonly string[]
+    readonly recipientRequiresScheduling?: boolean
+    /** Cada nota num endereço próprio — uma parada por nota. */
+    readonly separateStops?: boolean
+  },
 ): Promise<SeededTrip> {
   const companyId = crypto.randomUUID()
   const userId = crypto.randomUUID()
@@ -467,7 +593,9 @@ async function seedPlannedTrip(
   for (let index = 1; index <= input.documentCount; index += 1) {
     const nfeDocumentId = await seedNfeDocument(database, {
       companyId,
-      recipientTaxId: SCHEDULING_CLIENT_TAX_ID,
+      recipientTaxId: input.recipientTaxIds?.[index - 1] ?? SCHEDULING_CLIENT_TAX_ID,
+      street:
+        input.separateStops === true ? `Rua da Carga Fechada ${index}` : 'Rua da Carga Fechada',
       suffix: String(index),
       userId,
     })
@@ -678,6 +806,7 @@ async function seedNfeDocument(
   input: {
     readonly companyId: string
     readonly recipientTaxId: string
+    readonly street: string
     readonly suffix: string
     readonly userId: string
   },
@@ -747,7 +876,7 @@ async function seedNfeDocument(
     participantId,
     postalCode: '14010100',
     state: 'SP',
-    street: 'Rua da Carga Fechada',
+    street: input.street,
   })
 
   return documentId
