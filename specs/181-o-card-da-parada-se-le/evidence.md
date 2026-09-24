@@ -82,3 +82,45 @@ bunx eslint src/modules/trip test/trip --max-warnings=0                → 0 pro
 bun test ./test/trip.contract.test.ts --timeout 120000                → 1578 pass, 0 fail
   (1571 da fase anterior + 7 testes novos = 1578; nenhuma regressão)
 ```
+
+## Fase 3 — O detalhe abre sob demanda (T301 + T303)
+
+T302 (reusar o padrão de disclosure da spec 180) e T304 (contratante/regra fiscal/contato para a
+expansão) já saíram prontos da Fase 2, junto da grade nova — ficaram registrados lá porque nasceram
+no mesmo trecho de JSX. Esta fase fecha o que sobrou: `TripDeliveryProof.component.tsx` parava de
+despejar produtos e ocorrências incondicionalmente (RF7).
+
+### O que mudou
+
+- `TripDeliveryProof.component.tsx`: os três estados (`not-delivered`, `returned`, `delivered-*`)
+  chamavam `<TripDocumentProducts products={products} /> {occurrences}` direto, sempre. Os três
+  passam a chamar um `<TripDeliveryProofDetail>` novo, que decide: produto zero → só o aviso
+  `deliveryProof.withoutProducts`, sem disclosure vazio (CA07); produto ≥ 1 → botão
+  `aria-expanded`/`aria-controls`/chevron com a contagem no rótulo fechado
+  (`deliveryProof.productsToggle`, "N produtos na nota", CA06). Ocorrências ganham o mesmo padrão de
+  botão, sempre oferecido — o conteúdo de `TripOccurrences` (registrar + histórico) é da spec
+  164/166/167, fora do escopo desta feature, então não há como saber se está "vazio" sem tocar
+  nessa lógica; a decisão consciente foi manter a expansão sempre disponível em vez de arriscar
+  esconder o formulário de registro. Ganhou a prop `documentId`, para os dois `id` de
+  `aria-controls` serem estáveis por nota — threading feito em `TripDetail.component.tsx`
+  (`TripDeliveryProofLoader`).
+- `test/trip/delivery-proof-panel.contract.ts`: a asserção que checava `<TripDocumentProducts` cru
+  na fatia "not-delivered" passou a checar `<TripDeliveryProofDetail` — o dado continua alcançável
+  em todo estado, só que atrás da expansão agora (describe count inalterado).
+- `test/trip/delivery-proof-disclosure.contract.ts` (novo): contrato de T301 — uma chamada direta
+  só de `TripDocumentProducts` (dentro da expansão), rótulo fechado com contagem, nota sem produto
+  sem disclosure vazio, duas expansões com `aria-controls`/`aria-expanded`, ids estáveis por nota.
+- ⚠️ **Gap pré-existente, não deste commit:** `trip.en.locale.json` não tem a seção `deliveryProof`
+  inteira (só `deliveryProofSettings`, seção diferente) — as chaves novas (`productsToggle`,
+  `occurrencesToggle`/`Collapse`) não entraram no en por não haver onde encaixar sem também
+  traduzir as ~13 chaves já existentes em pt-BR sem par em en, fora do escopo desta task. Sinalizado
+  para tarefa separada.
+
+### Gates
+
+```
+bunx tsc --noEmit                                                     → 0 erros
+bunx eslint src/modules/trip test/trip --max-warnings=0                → 0 problemas
+bun test ./test/trip.contract.test.ts --timeout 120000                → 1583 pass, 0 fail
+  (1578 da fase anterior + 5 testes novos = 1583; nenhuma regressão)
+```

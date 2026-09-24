@@ -1242,6 +1242,7 @@ function TripDeliveryProofLoader({
 
   return (
     <TripDeliveryProof
+      documentId={documentId}
       occurrences={
         <TripOccurrences
           canRegister={workspace.controller.canManageTrips}
