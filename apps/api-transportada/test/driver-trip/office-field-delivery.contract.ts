@@ -421,6 +421,7 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
       companyId: COMPANY_ID,
       documentId: DOCUMENT_ID,
       idempotencyKey: input.key,
+      kind: 'photo' as const,
       officeAudit: {
         action: 'trip_field_office.document_proof',
         correlationId: 'c',

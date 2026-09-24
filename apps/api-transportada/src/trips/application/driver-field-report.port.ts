@@ -232,6 +232,15 @@ export type DriverFieldReportTransactionPort = {
     readonly kind: TripDeliveryProofKind
   }): Promise<string | null>
   /**
+   * Spec 182 (RF4, D3): quantas fotos daquele `kind` o evento já tem — a foto de carga soma até o
+   * teto, dentro da mesma transação que vai gravar a próxima.
+   */
+  countProofsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<number>
+  /**
    * ADR-0070 §1, spec 159 RF1/RF2: se o evento de entrega já tem comprovante daquele tipo — usada
    * para `proofPending` na resposta e no snapshot compartilharem a mesma leitura.
    */

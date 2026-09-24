@@ -10,6 +10,7 @@
  * antes, o comprovante gravava pelo pool, fora da transação que reservava a chave. M1: o comprovante
  * que o motorista colheu não é substituído.
  */
+import { CARGO_PROOF_KIND, type OfficeProofKind } from '../domain/delivery-event.constant.js'
 import { assertOfficeProofMeetsSettings } from '../domain/office-delivery-proof.policy.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
@@ -37,6 +38,8 @@ export type ReportFieldProofInput = {
   readonly companyId: string
   readonly documentId: string
   readonly idempotencyKey: string
+  /** Spec 182 RF3: `photo` (padrão) ou `cargo` — nunca `signature` (ADR-0067 §5). */
+  readonly kind: OfficeProofKind
   /** Spec 156 T15 M11: a trilha nasce na transação do comprovante, com o objeto substituído. */
   readonly officeAudit: OfficeAuditRequest
   readonly target: ResolvedTripFieldTarget
@@ -48,12 +51,18 @@ export async function reportFieldProof(
   input: ReportFieldProofInput,
 ): Promise<OfficeProofPersistResult> {
   assertOfficeUploadAccepted(input.upload)
-  /** Spec 159 T11 item 5: a configuração é lida pelo pool, antes de a transação segurar conexão. */
-  const settings = await input.attachment.resolveSettings({
-    companyId: input.companyId,
-    documentId: input.documentId,
-  })
-  assertOfficeProofMeetsSettings({ receiver: input.upload, settings })
+  /**
+   * Spec 182 (RF4): a foto de carga não é o canhoto — não precisa satisfazer "foto obrigatória" nem
+   * "assinatura obrigatória" da configuração, e não carrega nome do recebedor para a exigir.
+   */
+  if (input.kind !== CARGO_PROOF_KIND) {
+    /** Spec 159 T11 item 5: a configuração é lida pelo pool, antes de a transação segurar conexão. */
+    const settings = await input.attachment.resolveSettings({
+      companyId: input.companyId,
+      documentId: input.documentId,
+    })
+    assertOfficeProofMeetsSettings({ receiver: input.upload, settings })
+  }
   const authorship = deriveFieldAuthorship({ target: input.target })
 
   return runWithStoredObjectCleanup({
@@ -82,6 +91,7 @@ export async function reportFieldProof(
               authorship,
               companyId: input.companyId,
               eventId: event.id,
+              kind: input.kind,
               storage,
               transaction,
               upload: input.upload,

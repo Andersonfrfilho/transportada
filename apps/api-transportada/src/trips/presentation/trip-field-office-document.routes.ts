@@ -15,6 +15,7 @@ import type {
   OfficeProofPersistResult,
 } from '../application/office-delivery-proof.service.js'
 import type { ReportDocumentOutcomeResult } from '../application/report-document-delivery.use-case.js'
+import type { OfficeProofKind } from '../domain/delivery-event.constant.js'
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
 import {
@@ -61,7 +62,7 @@ type OfficeDocumentInput = OfficeContextInput & {
 
 export type TripFieldOfficeDocumentDependencies = {
   readonly attachProof: (
-    input: OfficeDocumentInput & { readonly proof: OfficeDeliveryProofUpload },
+    input: OfficeDocumentInput & { readonly kind: OfficeProofKind; readonly proof: OfficeDeliveryProofUpload },
   ) => Promise<OfficeProofPersistResult>
   readonly reportDelivery: (
     input: OfficeDocumentInput & {
@@ -239,7 +240,9 @@ function createReturnRoute(
 function createProofRoute(
   dependencies: TripFieldOfficeDocumentDependencies,
 ): ReturnType<typeof defineRoute> {
-  return defineRoute<OfficeDocumentRequest & { readonly proof: OfficeDeliveryProofUpload }>({
+  return defineRoute<
+    OfficeDocumentRequest & { readonly kind: OfficeProofKind; readonly proof: OfficeDeliveryProofUpload }
+  >({
     async handle({ context, input }): Promise<Response> {
       const result = await dependencies.attachProof({
         ...(await resolveOfficeDocumentInput({
@@ -249,6 +252,7 @@ function createProofRoute(
           request: input,
           targets: dependencies.targets,
         })),
+        kind: input.kind,
         proof: input.proof,
       })
 
@@ -264,6 +268,7 @@ function createProofRoute(
           pathParameters,
           request,
         }),
+        kind: body.kind,
         proof: body.proof,
       }
     },

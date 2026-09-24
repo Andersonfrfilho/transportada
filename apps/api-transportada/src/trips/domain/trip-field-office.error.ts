@@ -79,6 +79,20 @@ export class TripDeliveryProofAlreadyCapturedError extends ApiError {
 }
 
 /**
+ * Spec 182 (RF4, D3): a sexta foto de carga do mesmo evento. Cinco é o teto de partida — cobre a
+ * avaria e o contexto sem transformar a baixa em álbum.
+ */
+export class TripDeliveryProofCargoLimitError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_CARGO_LIMIT',
+      message: 'This delivery already has the maximum number of cargo photos.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 156 T15: conferir a carga ou iniciar o trajeto perdeu a corrida de gravação em todas as
  * voltas (`startFieldTrip`). O toque não aconteceu — a tela pede para tentar de novo.
  */

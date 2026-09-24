@@ -254,6 +254,7 @@ export function wireRoutes(
         companyId: input.companyId,
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
+        kind: input.kind,
         officeAudit: input.officeAudit,
         target: input.target,
         unitOfWork: driverFieldReports,

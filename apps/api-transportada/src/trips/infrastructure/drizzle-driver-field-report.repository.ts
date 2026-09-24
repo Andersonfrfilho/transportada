@@ -677,6 +677,25 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return record?.id ?? null
   }
 
+  public async countProofsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<number> {
+    const [record] = await this.transaction
+      .select({ total: sql<number>`count(*)::int` })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+        ),
+      )
+
+    return record?.total ?? 0
+  }
+
   public async findProofExistsForEvent(input: {
     readonly companyId: string
     readonly eventId: string

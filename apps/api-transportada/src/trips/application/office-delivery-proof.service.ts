@@ -7,7 +7,11 @@
  */
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
-import { PHOTO_PROOF_KIND } from '../domain/delivery-event.constant.js'
+import {
+  CARGO_PROOF_KIND,
+  TRIP_DELIVERY_PROOF_CARGO_LIMIT,
+  type OfficeProofKind,
+} from '../domain/delivery-event.constant.js'
 import {
   buildDeliveryProofObjectKey,
   isDeliveryProofMimeType,
@@ -21,14 +25,18 @@ import {
 import { PROOF_PUNCTUALITY } from '../domain/delivery-proof-punctuality.policy.js'
 import { TripDeliveryProofRejectedError } from '../domain/trip.error.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
-import { TripDeliveryProofAlreadyCapturedError } from '../domain/trip-field-office.error.js'
+import {
+  TripDeliveryProofAlreadyCapturedError,
+  TripDeliveryProofCargoLimitError,
+} from '../domain/trip-field-office.error.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
 import type { FieldAuthorship } from './field-trip-target.types.js'
 import type { RemovableObjectStoragePort } from './stored-object-cleanup.service.js'
 
 /**
- * `kind` é sempre `'photo'` no canal `office`: o escritório não colhe assinatura, cumpre a exigência
- * com a foto do canhoto assinado e o nome de quem recebeu (ADR-0067 §5, D8).
+ * `kind` é sempre `'photo'` em `field-delivery`: o escritório não colhe assinatura, cumpre a
+ * exigência com a foto do canhoto assinado e o nome de quem recebeu (ADR-0067 §5, D8). Spec 182:
+ * `field-proof` também aceita `'cargo'` — a foto da mercadoria, sem nome nem documento.
  */
 export type OfficeDeliveryProofUpload = {
   readonly attachmentKey: string
@@ -86,6 +94,8 @@ export type PersistOfficeProofParams = {
   readonly authorship: FieldAuthorship
   readonly companyId: string
   readonly eventId: string
+  /** Spec 182 RF3: `photo` (padrão, comportamento de hoje) ou `cargo` — nunca `signature`. */
+  readonly kind: OfficeProofKind
   /** A storage já rastreada por `runWithStoredObjectCleanup` — o que subir aqui some se desfizer. */
   readonly storage: RemovableObjectStoragePort
   readonly transaction: DriverFieldReportTransactionPort
@@ -93,33 +103,42 @@ export type PersistOfficeProofParams = {
 }
 
 /**
- * Grava o canhoto do escritório no evento. O mesmo `attachmentKey` devolve o comprovante já gravado
- * sem subir de novo. Spec 156 T15 M1: comprovante do motorista (app ou WhatsApp) no mesmo evento
- * **não** é substituído — 409 `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`; o do próprio escritório é
- * substituído pelo unique `(company, stop_event, kind)` da ADR-0057.
+ * Grava o comprovante do escritório no evento. O mesmo `attachmentKey` devolve o comprovante já
+ * gravado sem subir de novo. Spec 156 T15 M1: comprovante do motorista (app ou WhatsApp) no mesmo
+ * evento **não** é substituído — 409 `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`; o do próprio escritório
+ * é substituído pelo unique `(company, stop_event, kind)` da ADR-0057.
+ *
+ * Spec 182 (RF4): `kind: cargo` é a exceção — soma em vez de substituir, sem nome nem documento do
+ * recebedor, e recusa a sexta foto do mesmo evento com 422 `TRIP_DELIVERY_PROOF_CARGO_LIMIT`.
  */
 export async function persistOfficeProof(
   params: PersistOfficeProofParams,
 ): Promise<OfficeProofPersistResult> {
-  const { attachment, companyId, eventId, transaction, upload } = params
+  const { attachment, companyId, eventId, kind, transaction, upload } = params
+  const isCargo = kind === CARGO_PROOF_KIND
 
   if (upload.attachmentKey.length > 0) {
     const existingId = await transaction.findProofIdByAttachmentKeyWithinTransaction({
       attachmentKey: upload.attachmentKey,
       companyId,
       eventId,
-      kind: PHOTO_PROOF_KIND,
+      kind,
     })
     if (existingId !== null) return { id: existingId, replacedObjectId: null }
   }
 
-  const previous = await transaction.findProofForEvent({
-    companyId,
-    eventId,
-    kind: PHOTO_PROOF_KIND,
-  })
-  if (previous !== null && previous.channel !== TRIP_FIELD_CHANNELS.office) {
-    throw new TripDeliveryProofAlreadyCapturedError()
+  let replacedObjectId: string | null = null
+  if (isCargo) {
+    const cargoCount = await transaction.countProofsForEvent({ companyId, eventId, kind })
+    if (cargoCount >= TRIP_DELIVERY_PROOF_CARGO_LIMIT) {
+      throw new TripDeliveryProofCargoLimitError()
+    }
+  } else {
+    const previous = await transaction.findProofForEvent({ companyId, eventId, kind })
+    if (previous !== null && previous.channel !== TRIP_FIELD_CHANNELS.office) {
+      throw new TripDeliveryProofAlreadyCapturedError()
+    }
+    replacedObjectId = previous?.objectId ?? null
   }
 
   const objectId = attachment.newObjectId()
@@ -135,9 +154,10 @@ export async function persistOfficeProof(
   const proofId = attachment.newProofId()
   /**
    * Spec 156 T15 A2 (ADR-0067 §5): o documento que o escritório digita passa pelo mesmo envelope e
-   * pela mesma máscara do motorista (ADR-0057 §3) — nunca descartado, nunca em claro.
+   * pela mesma máscara do motorista (ADR-0057 §3) — nunca descartado, nunca em claro. Spec 182
+   * (RF4): a foto de carga nunca carrega nome nem documento do recebedor.
    */
-  const { receiverDocument } = upload
+  const receiverDocument = isCargo ? '' : upload.receiverDocument
   const receiverDocumentEnvelope =
     receiverDocument.length === 0
       ? null
@@ -156,7 +176,7 @@ export async function persistOfficeProof(
     companyId,
     eventId,
     id: proofId,
-    kind: PHOTO_PROOF_KIND,
+    kind,
     latitude: null,
     longitude: null,
     mimeType: upload.mimeType,
@@ -165,10 +185,10 @@ export async function persistOfficeProof(
     punctuality: PROOF_PUNCTUALITY.notRequired,
     receiverDocumentEnvelope,
     receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
-    receiverName: upload.receiverName.trim(),
+    receiverName: isCargo ? '' : upload.receiverName.trim(),
     sha256: stored.sha256,
     sizeBytes: upload.bytes.byteLength,
   })
 
-  return { id: saved.id, replacedObjectId: previous?.objectId ?? null }
+  return { id: saved.id, replacedObjectId }
 }

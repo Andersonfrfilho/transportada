@@ -51,3 +51,50 @@ O risco que o plano apontou era real, e agora tem teste.
 recusa o segundo canhoto pelo índice parcial e prova que o rollback recusa sem apagar. O teste novo
 em `trip-field-office.integration.ts` força o `DO UPDATE` pela rota real: o segundo canhoto do
 escritório substitui o primeiro.
+
+## T2.1–T2.2 — API
+
+**Mudança.** `field-proof` ganha `kind` multipart opcional (`photo` padrão | `cargo`; `signature`
+recusado com 400 — o escritório não colhe assinatura, ADR-0067 §5). `persistOfficeProof`
+(`office-delivery-proof.service.ts`) ganha o ramo `cargo`: sem `findProofForEvent`/substituição, sem
+nome nem documento do recebedor, idempotência por `attachmentKey` filtrada por `kind` (já genérica),
+e contagem do evento (`countProofsForEvent`, porta nova em `driver-field-report.port.ts`, implementada
+em `drizzle-driver-field-report.repository.ts` com `count(*)::int`) — a partir da sexta, 422
+`TRIP_DELIVERY_PROOF_CARGO_LIMIT` (`TripDeliveryProofCargoLimitError`, nova em
+`trip-field-office.error.ts`). Limite `TRIP_DELIVERY_PROOF_CARGO_LIMIT = 5` em
+`delivery-event.constant.ts` (D3). `reportFieldProof` pula `assertOfficeProofMeetsSettings` para
+`kind: cargo` — a foto de carga não é o canhoto e não precisa satisfazer "foto"/"assinatura
+obrigatória" da configuração da empresa. `field-delivery` continua sem o campo `kind` (só
+`field-proof` aceita, RF3/D5) e segue gravando sempre `photo`.
+
+**Arquivos.** `domain/delivery-event.constant.ts`, `domain/trip-field-office.error.ts`,
+`presentation/office-field-delivery.schema.ts`, `application/office-delivery-proof.service.ts`,
+`application/report-field-proof.use-case.ts`, `application/document-outcome-proof.service.ts`
+(passa `kind: PHOTO_PROOF_KIND` explícito no `field-delivery`), `application/driver-field-report.port.ts`,
+`infrastructure/drizzle-driver-field-report.repository.ts`,
+`presentation/trip-field-office-document.routes.ts`, `main.ts` (composição). Testes:
+`test/trip-field-office/upload-hardening.contract.ts` (parsing de `kind`),
+`test/integration/trip-field-office.integration.ts` (soma, idempotência, limite, teto de bytes e
+cabeçalho), `test/driver-trip/field-report.double.ts` e `test/driver-trip/office-field-delivery.contract.ts`
+(dublê ganha `countProofsForEvent` e `kind: 'photo'` explícito, sem mudar comportamento).
+
+**Gates.**
+
+| Comando | Resultado |
+|---|---|
+| `bun run typecheck` | limpo |
+| `bun run lint` | limpo (`eslint src test drizzle.config.ts eslint.config.js --max-warnings=0`) |
+| contrato da API (`bun --env-file=../../.env.test test --timeout 120000`) | 7226 pass, 0 fail, 23 skip pré-existentes |
+| integração afetada (`bun --env-file=../../.env.test test ./test/integration/trip-field-office.integration.ts ./test/integration/trip-field-office-router.integration.ts --timeout 120000`) | 26 pass, 0 fail, 0 skip |
+
+**CA01, CA03, CA04, CA05, RF3, RF4, RF5, RF6:** `trip-field-office.integration.ts` ganhou quatro
+testes contra Postgres real — `kind: cargo` soma duas linhas sem mexer no canhoto e a mesma
+`attachmentKey` devolve o id já gravado sem duplicar; a sexta foto de carga do evento recebe 422
+`TRIP_DELIVERY_PROOF_CARGO_LIMIT` sem gravar (confirmado por contagem no banco); foto de carga acima
+de 960 KiB ou com cabeçalho que não é imagem é recusada com os mesmos códigos do canhoto
+(`TRIP_DELIVERY_PROOF_TOO_LARGE`, `TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE`). `upload-hardening.contract.ts`
+prova a análise de `kind` isolada: sem campo → `photo`; `photo` explícito → `photo`; `cargo` → `cargo`;
+`signature` ou valor desconhecido → 400; `field-delivery` continua recusando o campo `kind` (só
+`field-proof` aceita). O teste de CA02 já existente (T1.4, "o segundo canhoto do escritório substitui
+o primeiro") cobre RF3 item "sem `kind`, comportamento de hoje" sem precisar de teste novo — ele nunca
+manda o campo.
