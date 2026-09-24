@@ -299,3 +299,31 @@ describe('occurrence attachment query tenant safety (spec 161 T3)', () => {
     }
   })
 })
+
+/**
+ * Spec 185 T3.1 (D1/D3): a prontidão do despacho junta a nota, a ocorrência e o tipo cadastrado —
+ * este último **sem FK** para a ocorrência. Um degrau sem `company_id` deixaria o tipo de outra
+ * empresa decidir se a nota desta fica para trás. Prova por texto de fonte, como as vizinhas.
+ */
+describe('dispatch readiness query tenant safety (spec 185 T3.1)', () => {
+  const source = readFileSync(
+    new URL('../../src/trips/infrastructure/dispatch-readiness.query.ts', import.meta.url),
+    'utf8',
+  )
+
+  test('carries the company through every join, never only on the outermost table', () => {
+    const joins = [...source.split('.innerJoin(').slice(1), ...source.split('.leftJoin(').slice(1)]
+
+    expect(joins.length).toBeGreaterThan(0)
+    for (const join of joins) {
+      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+    }
+  })
+
+  test('filters by the tenant and by the trip, never by id alone', () => {
+    const where = source.slice(source.indexOf('.where('))
+
+    expect(where).toInclude('tripDocuments.companyId')
+    expect(where).toInclude('tripDocuments.tripId')
+  })
+})
