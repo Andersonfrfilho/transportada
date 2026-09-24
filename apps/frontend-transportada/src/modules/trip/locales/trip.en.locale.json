@@ -326,6 +326,27 @@
     "subtitle": "New address for document {{document}} — not an edit, a recorded action.",
     "title": "Redirect delivery"
   },
+  "deliveryProof": {
+    "cargoPhotoAlt": "Photo of the cargo delivered",
+    "cargoPhotosTitle": "Cargo photos",
+    "deliveredAt": "Delivered on {{moment}}",
+    "notDelivered": "This document has not been delivered yet.",
+    "occurrencesCollapse": "Collapse occurrences",
+    "occurrencesToggle": "View occurrences",
+    "open": "Open in full size",
+    "photoAlt": "Photo of the delivery proof",
+    "productLine": "{{quantity}} {{unit}} · {{description}}",
+    "products": "What's in the document",
+    "productsToggle": "{{count}} item in the document",
+    "productsToggle_other": "{{count}} items in the document",
+    "receiver": "Received by {{name}}",
+    "returned": "Document returned: {{reason}}",
+    "returnedWithoutReason": "Document returned.",
+    "signatureAlt": "Signature of the person who received the cargo",
+    "title": "Delivery proof",
+    "withoutProducts": "This document has no items recorded.",
+    "withoutProof": "Delivery recorded without attached proof."
+  },
   "deliveryProofSettings": {
     "canhotoOcr": {
       "disable": "Turn off proof-of-delivery number reading",

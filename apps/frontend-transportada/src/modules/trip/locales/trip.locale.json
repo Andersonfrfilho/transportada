@@ -430,6 +430,8 @@
     "title": "Desviar entrega"
   },
   "deliveryProof": {
+    "cargoPhotoAlt": "Foto da mercadoria entregue",
+    "cargoPhotosTitle": "Fotos da carga",
     "deliveredAt": "Entregue em {{moment}}",
     "notDelivered": "Esta nota ainda não foi entregue.",
     "occurrencesCollapse": "Recolher ocorrências",
