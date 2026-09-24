@@ -574,6 +574,18 @@ async function loadRemainingDocuments(
     .limit(1)
   if (tripRow === undefined) return
 
+  /**
+   * Spec 185 T4.3: o duplo clique cuja transação começa depois que o outro despacho comitou lê aqui
+   * a viagem já `dispatched`, e a política da nota recusaria com 409 `TRIP_ALREADY_DISPATCHED` antes
+   * da reconferência sob lock responder o `unchanged` — mesma corrida, dois desfechos.
+   */
+  const settled = checkTripTransition({
+    action: TRIP_ACTION.dispatch,
+    hasRoute: input.hasRoute,
+    tripStatus: tripRow.status,
+  })
+  if (settled.outcome === 'unchanged') throw new DispatchAlreadySettledSignal(tripRow.status)
+
   const documentIds = input.documentsToLoad.map((document) => document.tripDocumentId)
   await advanceDocuments(transaction, input, {
     action: TRIP_DOCUMENT_ACTION.separate,
