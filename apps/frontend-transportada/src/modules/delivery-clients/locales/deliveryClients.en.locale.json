@@ -137,23 +137,65 @@
     "errorGeneric": "Could not save: {{code}}"
   },
   "contractorContacts": {
-    "title": "Contractor email contacts",
-    "hint": "Who receives the address correction request and occurrence notices — chosen on every send, no fixed flag here.",
+    "title": "Contracting party contacts",
+    "hint": "Who receives notices and talks about this contracting party's occurrences, charges and invoices — by e-mail and, with consent, by WhatsApp.",
     "contractorLabel": "Contractor",
     "contractorPlaceholder": "Choose the contractor",
     "loading": "Loading contacts…",
     "empty": "No contact registered yet.",
     "emailLabel": "Email",
-    "emailRequired": "Enter the email.",
-    "emailInvalid": "Enter a valid email.",
-    "receivesOccurrences": "Receives occurrences",
-    "canDecide": "Can decide the charge",
     "statusActive": "Active",
     "statusInactive": "Inactive",
     "add": "Add contact",
     "deactivate": "Deactivate",
     "reactivate": "Reactivate",
-    "error": "Could not save: {{code}}"
+    "error": "Could not save: {{code}}",
+    "newTitle": "New contact",
+    "editTitle": "Edit contact",
+    "nameLabel": "Name",
+    "roleLabel": "Department",
+    "rolePlaceholder": "Purchasing, finance, receiving…",
+    "phoneLabel": "Phone",
+    "phonePlaceholder": "(11) 99999-0001",
+    "noPhone": "No phone",
+    "typesLegend": "Receives",
+    "stagesLegend": "Occurrence groups",
+    "channelsLegend": "Channels",
+    "optInLabel": "The contact agreed to receive WhatsApp messages",
+    "optInHint": "The consent is recorded with the current date and your user.",
+    "optInNeedsPhone": "Enter the phone to record the WhatsApp consent.",
+    "optInSince": "WhatsApp consent on {{date}}",
+    "preferredChannelLabel": "Preferred channel",
+    "channel": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    },
+    "types": {
+      "occurrences": "Occurrences",
+      "approves_charges": "Approves charges",
+      "scheduling": "Scheduling",
+      "invoices": "Invoices",
+      "cte_xml": "CT-e / XML"
+    },
+    "stages": {
+      "separation": "Separation",
+      "delivery": "Delivery",
+      "stop": "Stop"
+    },
+    "noTypes": "Receives nothing yet.",
+    "errors": {
+      "emailRequired": "Enter the e-mail.",
+      "emailInvalid": "Enter a valid e-mail.",
+      "phoneInvalid": "Enter the phone with area code, like (11) 99999-0001.",
+      "optInWithoutPhone": "The WhatsApp consent needs a phone.",
+      "whatsappWithoutOptIn": "WhatsApp as the preferred channel needs the consent.",
+      "occurrenceStagesRequired": "Choose at least one occurrence group."
+    },
+    "edit": "Edit",
+    "save": "Save contact",
+    "cancel": "Cancel",
+    "stagesSummary": "Occurrences from: {{stages}}",
+    "optInRecorded": "Consent recorded on {{date}}. Changing the phone undoes the consent."
   },
   "filters": {
     "name": "Name",

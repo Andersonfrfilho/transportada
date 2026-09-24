@@ -116,3 +116,145 @@
 .windowRow > * {
   min-height: 2.75rem;
 }
+
+/*
+ * Spec 183 T303: os contatos em cartões (nome, setor, e-mail, telefone com o aceite, canal e tipos) e
+ * o mesmo formulário para criar e editar. No celular tudo empilha; a partir de 40rem os campos vão
+ * lado a lado.
+ */
+.contactList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.contactCard {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.contactCardHeader {
+  align-items: start;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.contactName {
+  font-weight: 700;
+  margin: 0;
+}
+
+.contactFacts {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  margin: 0;
+}
+
+.contactFacts dt {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
+.contactFacts dd {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.contactChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.contactActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.contactForm {
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.contactForm h3 {
+  margin: 0;
+}
+
+.contactFields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .contactFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.contactOptions {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+}
+
+.contactOptions legend {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.contactOptions > .hint,
+.contactOptions > .error,
+.contactOptions > .field {
+  flex-basis: 100%;
+}
+
+/* Os campos de texto do contato na altura e no padding da casa, lado a lado com o `Select`. */
+.contactForm input {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.contactForm input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+/* A edição ocupa o lugar do cartão, com a mesma moldura. */
+.contactEditing {
+  border: 1px solid var(--color-copper);
+  border-radius: var(--space-2);
+  padding: var(--space-3);
+}
+
+.contactEditing .contactForm {
+  border-top: 0;
+  padding-top: 0;
+}

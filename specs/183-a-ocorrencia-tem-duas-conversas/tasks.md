@@ -67,7 +67,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       Evidência: `make migration-test`.
 - [x] **T302** Política tipos → `receives_occurrences`/`can_decide` e contrato das rotas de contato
       com os campos novos e o aceite (autor e data do servidor). Evidência: política + contratos.
-- [ ] **T303** `ContractorContactsPanel` com nome, setor, telefone, tipos, grupos, canais e canal
+- [x] **T303** `ContractorContactsPanel` com nome, setor, telefone, tipos, grupos, canais e canal
       preferido. Evidência: contrato de validação.
 
 ## Fase 4 — Conversa com a contratante por e-mail (P4) — absorve 143 T014–T016, T018

@@ -405,3 +405,43 @@ decisão do dono do projeto, e a visibilidade no portal segue a 164 D5.
   - Frontend: **5187 pass, 0 fail** + **44 pass**.
   - `bun run lint` e `bun run typecheck` limpos.
   - API, integração: **580 pass, 7 skip, 8 fail** — as mesmas 8 de object storage (MinIO).
+
+## T303 — O painel de contatos com tipos e canais (verde)
+
+- Contrato escrito antes: `test/delivery-clients/contractor-contacts-validation.contract.ts`
+  (reescrito) falhou na importação antes da implementação. Cobre:
+  - o rascunho vazio (os padrões de antes da 183);
+  - o telefone com a **mesma regra** do `toWhatsAppPhone` da API (10/11 dígitos ganham o 55; letra ou
+    curto demais é inválido; vazio é `null`), cópia por valor com aviso no código;
+  - a exibição sem o 55 e com a máscara da casa;
+  - o rascunho a partir do contato gravado;
+  - marcar e desmarcar na ordem canônica;
+  - um erro por campo, repetindo a política da T302: e-mail, telefone, aceite sem telefone, WhatsApp
+    sem aceite, "Ocorrências" sem grupo. Sem o tipo Ocorrências, os grupos não são cobrados;
+  - o corpo com só os campos novos, normalizados; telefone apagado vai como `null`; rascunho com erro
+    não vira corpo.
+- Tela (`ContractorContactsPanel.component.tsx`, refeita):
+  - cada contato é um cartão com nome (ou o e-mail, no contato anterior à 183), setor, e-mail,
+    telefone com o selo "WhatsApp aceito em DD/MM/AAAA", canal preferido, os tipos e a linha
+    "Ocorrências de: …";
+  - "Editar" troca o cartão pelo formulário no mesmo lugar (`useRevealedPanel`, rola e foca);
+  - o formulário é um só para criar e editar: nome, setor, e-mail, telefone, os cinco tipos, os três
+    grupos (só com Ocorrências marcado), o aceite (desabilitado sem telefone) e o canal preferido
+    (WhatsApp só aparece com aceite, e desmarcar o aceite volta o canal para e-mail);
+  - o texto do aceite diz a verdade: contato com aceite e o mesmo número mostra "Aceite registrado em
+    DD/MM/AAAA. Trocar o telefone desfaz o aceite."; número novo mostra que o registro será de agora.
+- O painel antigo tinha `<button>` cru ao lado dos primitivos. Agora são `Button`, `Badge`,
+  `Checkbox` e `Select` do design system, e os campos de texto usam os tokens `--field-*`, no molde de
+  `company-settings`.
+- Rodado: `bun run --cwd apps/frontend-transportada test` → **5194 pass, 0 fail** + **44 pass**;
+  `bun run lint` e `bun run typecheck` limpos. A task não toca a API.
+- Revisão de design, smoke `test/spec-183-contacts-prints.smoke.spec.ts` (fora da CI): **4 pass**.
+  Prints em `prints/`: `contatos-desktop.png`, `contatos-editar.png`, `contatos-erros.png` e
+  `contatos-celular.png` (390 px, sem rolagem horizontal). Achados corrigidos na task:
+  - os campos de texto estavam baixos e sem os tokens `--field-*` (defeito que já existia no painel
+    antigo), ao lado de um `Select` alto: agora têm a altura e o padding da casa;
+  - os grupos de ocorrência em selo cobre cheio pareciam ação e disputavam com os tipos: viraram uma
+    linha de texto subordinada;
+  - a edição aparecia sem moldura no lugar do cartão: ganhou a borda do cartão, em cobre;
+  - o texto do aceite dizia "com a data de agora" num contato já aceito, e a API guarda o carimbo
+    original: o texto mostra a data gravada, e o smoke confere as duas frases.
