@@ -531,3 +531,90 @@ Prints (revisão de design, `web.md` §15) ficam para T7.1 — fora do escopo de
 já registrava.
 
 Commits: `b4d8e4385` — feat(trips): a tela do escritório despacha "leva todas" (spec 185 T6.2).
+
+## T7.1 — revisão de design (web.md §15)
+
+**Dois modos novos em `trip-smoke.helper.ts`** (`DocumentsMode` ganhou `'dispatch-flow'` e
+`'dispatched'`, sem alterar os quatro existentes):
+
+- `dispatch-flow`: viagem em `loading`, uma parada (`Galpao Central`) com duas notas `separated`
+  (`DISPATCH_LOAD_DISPATCHED_DOCUMENT_ID`/`DISPATCH_LOAD_BLOCKED_DOCUMENT_ID`) e uma `pending` com
+  `leavesBehindOnDispatch: true` (`DISPATCH_LEFT_BEHIND_DOCUMENT_ID`), mais uma segunda parada sem
+  agendamento (`Cliente Via Norte`) citada pelo bloqueio. Novo mock de
+  `POST /trips/:id/documents/:id/load` decide `autoDispatch` pelo id da nota — a "dispatched" fecha
+  a viagem sozinha, qualquer outra recusa com `TRIP_HAS_UNSCHEDULED_STOPS` — sem precisar de estado
+  mutável entre chamadas, porque cada print clica numa nota diferente (`nth(0)`/`nth(1)`).
+- `dispatched`: viagem em `dispatched` com a nota já `loaded`; `allowed-actions` passou a devolver
+  `trip: ['startRoute']` só neste modo, para "Iniciar rota" aparecer.
+
+**`spec-185-prints.smoke.spec.ts`** (novo, fora do smoke da CI — só roda com
+`PLAYWRIGHT_TEST_MATCH`): 20 PNGs (4 telas × claro/escuro × celular/desktop, mais o catálogo de
+ocorrência) em `prints/`.
+
+⚠️ **Duas armadilhas que custaram três rodadas de smoke:**
+
+1. `canReadTrip` (`trip.constant.ts`) só aceita `fleet.read` ou `trip.report-on-behalf` — não existe
+   permissão `trip.read`. A primeira tentativa usava `trip.read` e a tela caía em "Seu acesso atual
+   não permite consultar as viagens" para as quatro primeiras telas.
+2. O catálogo de ocorrência (Configurações da empresa) não tinha smoke nenhum te testasse antes
+   desta task. `company-settings-smoke.helper.ts` fixa `access-control-allow-origin:
+   http://localhost:53000` — com `PLAYWRIGHT_FRONTEND_PORT=53185` (obrigatório aqui para não colidir
+   com a porta de outra sessão) o navegador recusa a resposta por CORS. E, mesmo corrigindo o CORS,
+   sob `VITE_SMOKE_AUTH_BYPASS=true` a identidade **nunca sai pela rede**: `fetchAuthMe`
+   (`useAuthMe.query.ts`) lê `sessionStorage['transportada.smoke-auth-me']` direto — mockar só a
+   rota `**/auth/me` (como as duas tentativas fizeram) deixa a leitura sem nada e a tela cai no
+   assistente de cadastro fiscal em vez das abas, sem nenhum pedido a `/company-settings` sair. A
+   correção final: dublê próprio no arquivo do spec (`'*'` de CORS, como `trip-smoke.helper.ts` já
+   faz) mais o `addInitScript` de sessionStorage, e o corpo de `/company-settings` reaproveitado de
+   `test/company-settings/company-settings.fixture.ts` (`COMPANY_SETTINGS_RESPONSE`) — um objeto
+   reconstruído à mão reprovava `isSettingsResponse` e também derrubava a página para o assistente.
+
+**Prints e revisão** (comparado par a par — campo com campo, botão com botão, diálogo com diálogo —
+nos dois temas; nenhuma divergência achada, nenhuma correção necessária):
+
+1. `dialogo-despachar-leva-todas-{mobile,desktop}-{dark,light}.png` — `TripConfirmDialog` reaproveita
+   literalmente as classes `mdfeGate*` do `TripReasonDialog`/portão de MDF-e: mesmo overlay, mesma
+   moldura, mesmo par de botões ("Fechar" fantasma + confirmação sólida). Título "Despachar a
+   viagem", corpo com as duas frases concatenadas ("Separar e carregar 2 notas e despachar a viagem?
+   1 nota com ocorrência sai da viagem."). Contraste do texto cinza sobre o fundo do diálogo ok nos
+   dois temas. No celular o diálogo ocupa a tela cheia (`100vh`) por desenho (`web.md` §10: modal
+   fullscreen em mobile) — o espaço em branco abaixo do texto é o comportamento esperado, não um
+   vazamento.
+2. `aviso-viagem-despachada-{mobile,desktop}-{dark,light}.png` — `successNotice` em `--color-ready`
+   (verde), a mesma cor que o resto do módulo usa para "o que entra" (`CLAUDE.md` do app), bem acima
+   do alerta vermelho que a mesma posição mostra em `bloqueio-*`. Legível nos dois temas.
+3. `bloqueio-despacho-aguardando-agendamento-{mobile,desktop}-{dark,light}.png` — mesma posição,
+   classe `.alert` (vermelho/laranja de alerta), frase "A viagem não saiu: Cliente Via Norte
+   aguardando agendamento." com o nome da parada resolvido de `trip.stops`, igual ao padrão de
+   `resolveStopLabel`.
+4. `cabecalho-viagem-despachada-{mobile,desktop}-{dark,light}.png` — selo "DESPACHADA" no cabeçalho,
+   fase "Despachada" (ícone `target`) alcançada na régua de progresso, e **nenhum** "Despachar" nem
+   "Conferir carga" — só "Iniciar rota" (sólido) e "Cancelar viagem" (fantasma vermelho), igual ao
+   par que as outras fases da viagem já usam. Sem rolagem horizontal no celular.
+5. `catalogo-ocorrencia-segue-sem-nota-{mobile,desktop}-{dark,light}.png` — o `fieldset`/`legend`
+   "No galpão" mostra o `Checkbox` "A viagem segue sem a nota" (com `Tooltip`) no tipo "Item
+   avariado"; o de "Na rua" ("Cliente ausente") não mostra nada no lugar — a condicional de
+   `type.stage === TRIP_OCCURRENCE_STAGE.separation` funciona exatamente como o código promete. O
+   formulário "Cadastrar tipo novo" também mostra a caixa (nasce em "No galpão" por padrão) — mesmo
+   componente, mesmo estilo, sem duplicação visual.
+
+**Observação registrada, não é defeito de design:** as notas do modo `dispatch-flow`/`dispatched`
+aparecem na lista pelo id cru (`00000000-0000-4000-8000-...`) em vez de um número de NF-e — a
+fixture de teste não preencheu `nfeNumber`/`nfeSeries` para essas notas sintéticas (só
+`STOP_CARD_*` tinha isso, da spec 181). É dado do dublê, não do componente: a mesma tela já mostra
+"NF-e 901" quando o campo vem preenchido (ver `nota-marcada-listagem-*` da spec 164). Não corrigido
+aqui para não inflar o escopo de T7.1 com uma fixture nova sem efeito na revisão pedida (diálogo,
+avisos, cabeçalho, catálogo).
+
+**Gates (de `apps/frontend-transportada`):**
+
+- `bun run typecheck` → limpo.
+- `bun run lint` (eslint) → limpo.
+- `bun run test` (contratos + hooks) → 5240 pass em 29 arquivos de contrato + 51 pass em hooks,
+  0 fail, exit 0 (sem regressão dos números da Fase 6).
+- `PLAYWRIGHT_TEST_MATCH=spec-185-prints.smoke.spec.ts PLAYWRIGHT_FRONTEND_PORT=53185
+  PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true VITE_API_URL=http://localhost:53001 bun run smoke` →
+  20 pass, 0 fail (rodado em primeiro plano, sem tocar a porta 53000 de outra sessão).
+
+Commit: `e189ef2b7` — test(trips): prints da revisão de design do despacho leva todas (spec 185
+T7.1).

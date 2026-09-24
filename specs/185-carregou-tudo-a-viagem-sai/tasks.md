@@ -65,7 +65,7 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
 
 > 🤖 Modelo: `sonnet` (prints) · `opus` (code-reviewer)
 
-- [ ] **T7.1** Revisão de design (web.md §15): prints do diálogo "leva todas", do aviso "Viagem
+- [x] **T7.1** Revisão de design (web.md §15): prints do diálogo "leva todas", do aviso "Viagem
       despachada", da frase de bloqueio e da caixa do catálogo, claro e escuro, celular e desktop,
       em `prints/`.
 - [ ] **T7.2** Revisão de código por `code-reviewer` (`opus`) sobre a spec inteira; atualizar
