@@ -1889,3 +1889,48 @@ bunx prettier --check specs/147-a-confirmacao-pede-o-codigo-do-app/tasks.md \
   specs/179-a-recusa-sai-com-foto/tasks.md
   All matched files use Prettier code style!
 ```
+
+## T9.2 — correções
+
+### Núcleo da app do motorista (sessão, boot, fila, capturas)
+
+Correções dos achados do `code-reviewer` e do `security-reviewer` no núcleo de
+`apps/frontend-driver`. Cada uma começou pelo contrato, visto falhando antes da implementação.
+
+| Achado                                                                                                                                                 | Commit      | Contrato (visto falhar)                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1 — refresh sem transporte não vence a sessão; `IDENTITY_*` e rede são `failed-network`; "Entrar de novo" pelo portão das capturas                    | `3cbca1af1` | `keycloak-auth-provider` (TypeError, 5xx, só 400 expira), `session-drain` (updateToken com TypeError → item drenável, sem `rejectionCause`), `capture-registry` (`createIdleGate`, `useSessionExpiry` no `main.tsx`) — `0 pass, 2 fail` (exports ausentes) |
+| A2 — releitura que falha mantém a viagem; faixa "Sem atualização — dados de HH:MM"                                                                     | `b92f17f33` | `trip-query-status` — `0 pass, 1 fail`; smoke A2 **falhou** com o comportamento antigo (`element(s) not found`) e passou com a correção                                                                                                                    |
+| A3 — `runDriverBoot` (esqueleto antes das esperas, `init` rejeitando cai no snapshot), reconexão só para no sucesso, `AbortSignal.timeout` na checagem | `440c34cba` | `boot-mode` (authenticate rejeitando é tentado de novo; init rejeitando não fica em branco; esqueleto antes da sonda), `driver-authorization` (prazo) — `29 pass, 2 fail`                                                                                  |
+| A4 + M1 + M10 — `persistWhileOpen` ('persisting'), toque grava antes do GPS (`applyReportLocation`), formulário digitado conta ('proof-form')          | `4ed137d65` | `capture-registry`, `offline-queue` — `0 pass, 1 fail`                                                                                                                                                                                                     |
+| M2 — câmera nunca presa aberta (`bindCameraCaptureInput`, ref callback)                                                                                | `e73a49368` | `camera-capture` — `83 pass, 1 fail` (módulo ausente)                                                                                                                                                                                                      |
+| M3 — `createDrainScheduler` guarda cada `only`                                                                                                         | `70159f666` | `pending-queue` — `83 pass, 1 fail`                                                                                                                                                                                                                        |
+| Segurança M1 — "Confirmar em lote" (`isUnverified`, confirmar/descartar) + B1                                                                          | `d4b3d2923` | `unverified-pending`, `pending-queue` (B1) — `443 pass, 3 fail`                                                                                                                                                                                            |
+| Segurança M2 + M9 — "Sair" com pendência própria, `signOutDriver`, eventos vencem em 7 dias                                                            | `8f61f7482` | `sign-out` — `83 pass, 1 fail`, depois `449 pass, 2 fail`                                                                                                                                                                                                  |
+| L6 + L8 (+ B3 no mesmo arquivo do provedor)                                                                                                            | `11f38889f` | `manifest` (4 URLs recusadas), `keycloak-auth-provider` (`sanitizePostAuthenticationPath`)                                                                                                                                                                 |
+| B2 + B4 + B7                                                                                                                                           | `9f6f3d063` | `capture-registry` (dois toques aplicam uma vez; aviso), `driver-authorization` (corpo autorizado vira dado inicial) — `422 pass, 7 fail` junto com L6/L8                                                                                                  |
+
+Decisões registradas em `docs/SECURITY.md` (entrada de 2026-09-25): "Confirmar em lote"; "Sair" com
+pendência própria; eventos parados com o prazo de 7 dias; a lista completa do que o aparelho guarda
+(`totalAmount`, `accessKey`, `vehiclePlate`, `receiverDocument`/`receiverName`, posição); e o risco
+residual de a sessão SSO continuar viva depois de um "Sair" sem rede.
+
+**Gates**, na árvore com o trabalho em andamento do outro executor (API e consentimento de posição):
+
+```
+bun run --cwd apps/frontend-driver check
+  $ eslint .                      (sem erro)
+  $ tsc --noEmit                  (sem erro)
+  bun test (3 entrypoints)        469 pass, 0 fail
+  vite build + dist.contract      6 pass, 0 fail
+
+bun run --cwd apps/frontend-driver smoke
+  driver-service-worker.smoke.spec.ts   2 passed (CA05(a) confirma o registro feito sem rede; CA09)
+  driver-app.smoke.spec.ts              17 passed (inclui A2 e "confirmar em lote: descartar";
+                                        CA05(b) confirma antes de drenar)
+
+bun run typecheck && bun run lint   (raiz)   sem erro
+```
+
+**Aberto:** o "Sair" sem rede apaga snapshot e fila, mas não encerra a sessão SSO do Keycloak (não
+há como sem rede); quem abrir a app com rede entra sem senha. Registrado no `docs/SECURITY.md`.
