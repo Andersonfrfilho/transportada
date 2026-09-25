@@ -29,6 +29,20 @@ export const STOP_CARD_OCCURRENCE_DOCUMENT_ID = '00000000-0000-4000-8000-0000000
 export const STOP_CARD_DONE_STOP_ID = '00000000-0000-4000-8000-00000000061a'
 export const STOP_CARD_LONG_RECIPIENT_DOCUMENT_ID = '00000000-0000-4000-8000-00000000061b'
 
+/**
+ * Spec 185 T7.1: o modo "leva todas" — duas notas "separadas" prontas para carregar (uma que o
+ * mock de `.../load` despacha sozinha, outra que ele recusa) e uma "pending" com
+ * `leavesBehindOnDispatch` para o diálogo de despacho contar a que fica para trás.
+ */
+export const DISPATCH_FLOW_STOP_ID = '00000000-0000-4000-8000-00000000061c'
+export const DISPATCH_UNSCHEDULED_STOP_ID = '00000000-0000-4000-8000-00000000061d'
+export const DISPATCH_LOAD_DISPATCHED_DOCUMENT_ID = '00000000-0000-4000-8000-00000000061e'
+export const DISPATCH_LOAD_BLOCKED_DOCUMENT_ID = '00000000-0000-4000-8000-00000000061f'
+export const DISPATCH_LEFT_BEHIND_DOCUMENT_ID = '00000000-0000-4000-8000-000000000621'
+/** T7.1: a viagem já despachada — sem "Despachar" no cabeçalho, com "Iniciar rota" liberado. */
+export const DISPATCHED_STOP_ID = '00000000-0000-4000-8000-000000000622'
+export const DISPATCHED_DOCUMENT_ID = '00000000-0000-4000-8000-000000000623'
+
 const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
   driverNames: [],
@@ -42,7 +56,13 @@ const BASE_TRIP = {
   vehicleId: VEHICLE_ID,
 } as const
 
-type DocumentsMode = 'all-authorized' | 'has-pending' | 'measured-bed' | 'stop-card-states'
+type DocumentsMode =
+  | 'all-authorized'
+  | 'dispatch-flow'
+  | 'dispatched'
+  | 'has-pending'
+  | 'measured-bed'
+  | 'stop-card-states'
 
 function measuredBox(
   input: Readonly<{ label: string; layer: number; stopSequence: number; xM: number; zM: number }>,
@@ -325,6 +345,84 @@ const STOP_CARD_STOP = {
 } as const
 
 /**
+ * Spec 185 T7.1: as duas notas "separadas" do diálogo "leva todas" — uma que o mock de
+ * `.../load` despacha sozinha, outra que ele recusa (`TRIP_HAS_UNSCHEDULED_STOPS`) — e a
+ * "pending" que fica para trás. Ordem no array é o que os testes usam para clicar em "Carregar"
+ * (`nth(0)`/`nth(1)`), já que as três não têm nada no texto que as distinga.
+ */
+const DISPATCH_LOAD_DISPATCHED_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: DISPATCH_LOAD_DISPATCHED_DOCUMENT_ID }),
+  separatedAt: '2026-08-11T09:00:00.000Z',
+  separationStatus: 'separated',
+  stopId: DISPATCH_FLOW_STOP_ID,
+} as const
+
+const DISPATCH_LOAD_BLOCKED_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: DISPATCH_LOAD_BLOCKED_DOCUMENT_ID }),
+  separatedAt: '2026-08-11T09:00:00.000Z',
+  separationStatus: 'separated',
+  stopId: DISPATCH_FLOW_STOP_ID,
+} as const
+
+const DISPATCH_LEFT_BEHIND_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: DISPATCH_LEFT_BEHIND_DOCUMENT_ID }),
+  leavesBehindOnDispatch: true,
+  stopId: DISPATCH_FLOW_STOP_ID,
+} as const
+
+const DISPATCH_FLOW_STOP = {
+  addressKey: 'dispatch-flow',
+  arrivedAt: null,
+  completedAt: null,
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: [
+    DISPATCH_LOAD_DISPATCHED_DOCUMENT,
+    DISPATCH_LOAD_BLOCKED_DOCUMENT,
+    DISPATCH_LEFT_BEHIND_DOCUMENT,
+  ],
+  hasOpenOccurrence: false,
+  id: DISPATCH_FLOW_STOP_ID,
+  label: 'Galpao Central',
+  sequence: 1,
+} as const
+
+/** A parada que a resposta de bloqueio cita em `details.stopIds` — ainda sem agendamento. */
+const DISPATCH_UNSCHEDULED_STOP = {
+  addressKey: 'dispatch-unscheduled',
+  arrivedAt: null,
+  completedAt: null,
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: [],
+  hasOpenOccurrence: false,
+  id: DISPATCH_UNSCHEDULED_STOP_ID,
+  label: 'Cliente Via Norte',
+  sequence: 2,
+} as const
+
+/** A viagem já despachada: nota carregada, sem nada a separar/carregar. */
+const DISPATCHED_DOCUMENT = {
+  ...tripDocument({ cteAuthorized: true, id: DISPATCHED_DOCUMENT_ID }),
+  loadedAt: '2026-08-11T10:00:00.000Z',
+  separationStatus: 'loaded',
+  stopId: DISPATCHED_STOP_ID,
+} as const
+
+const DISPATCHED_STOP = {
+  addressKey: 'dispatched-flow',
+  arrivedAt: null,
+  completedAt: null,
+  deliveryWindowEnd: null,
+  deliveryWindowStart: null,
+  documents: [DISPATCHED_DOCUMENT],
+  hasOpenOccurrence: false,
+  id: DISPATCHED_STOP_ID,
+  label: 'Cliente Alfa',
+  sequence: 1,
+} as const
+
+/**
  * ⚠️ **Anotado de propósito.** O guard do detalhe usa `hasExactKeys`: campo do corpo ausente aqui
  * reprova a validação inteira em tempo de execução, o detalhe não carrega, e a tela fica sem botão
  * nenhum — o smoke quebra em quatro casos e nenhum contrato de unidade acusa. Sem o tipo, só o
@@ -344,10 +442,29 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
             STOP_CARD_OCCURRENCE_DOCUMENT,
             STOP_CARD_LONG_RECIPIENT_DOCUMENT,
           ]
-        : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
+        : mode === 'dispatch-flow'
+          ? [
+              DISPATCH_LOAD_DISPATCHED_DOCUMENT,
+              DISPATCH_LOAD_BLOCKED_DOCUMENT,
+              DISPATCH_LEFT_BEHIND_DOCUMENT,
+            ]
+          : mode === 'dispatched'
+            ? [DISPATCHED_DOCUMENT]
+            : [tripDocument({ cteAuthorized: true, id: AUTHORIZED_DOCUMENT_ID })]
 
   return {
     ...BASE_TRIP,
+    /**
+     * Spec 185 T7.1: "leva todas" só oferece "Despachar" em `loading`/`route_planned`/`separating`
+     * (`canDispatch`, `TripHeaderActions.component.tsx`); `dispatched` é o print do cabeçalho sem
+     * "Conferir carga" e com a fase "Despachada" alcançada.
+     */
+    status:
+      mode === 'dispatch-flow'
+        ? 'loading'
+        : mode === 'dispatched'
+          ? 'dispatched'
+          : BASE_TRIP.status,
     amounts: null,
     /** Spec 156 T8d: `null` nos três — a viagem do smoke nunca foi encerrada à mão. */
     closeReason: null,
@@ -370,7 +487,14 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       : { cargoLayout: null, occupancy: null }),
     cargoWeight: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
-    stops: mode === 'stop-card-states' ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP] : [],
+    stops:
+      mode === 'stop-card-states'
+        ? [STOP_CARD_STOP, STOP_CARD_DONE_STOP]
+        : mode === 'dispatch-flow'
+          ? [DISPATCH_FLOW_STOP, DISPATCH_UNSCHEDULED_STOP]
+          : mode === 'dispatched'
+            ? [DISPATCHED_STOP]
+            : [],
   }
 }
 
@@ -640,7 +764,9 @@ async function registerTripMocks(
           [STOP_CARD_STOP_ID]: ['arrive', 'occurrence'],
         }
       : {}
-    await fulfillJson(route, { data: { documents, stops, trip: [] } })
+    /** T7.1: "Iniciar rota" (`canOfferTripFieldAction`) exige a capacidade vinda daqui também. */
+    const trip = input.mode === 'dispatched' ? ['startRoute'] : []
+    await fulfillJson(route, { data: { documents, stops, trip } })
   })
   /**
    * O catálogo de tipos de ocorrência é consultado pelo detalhe da viagem. Sem este dublê o pedido
@@ -695,6 +821,50 @@ async function registerTripMocks(
       return
     }
     await fulfillJson(route, { data: fiscalReadiness(input.mode) })
+  })
+  /**
+   * Spec 185 T7.1: "Carregar" (`transitionTripDocument`, `action: 'load'`) tenta fechar a viagem
+   * sozinha — o mock decide o desfecho pelo id da nota, para os prints do aviso "Viagem
+   * despachada." e da frase de bloqueio virem do mesmo modo (`dispatch-flow`), sem estado
+   * mutável: a nota "dispatched" despacha, qualquer outra recusa com `TRIP_HAS_UNSCHEDULED_STOPS`.
+   */
+  await input.page.route(/\/trips\/[^/]+\/documents\/[^/]+\/load$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    const documentId = new URL(route.request().url()).pathname.split('/').at(-2) ?? ''
+    const autoDispatch =
+      documentId === DISPATCH_LOAD_DISPATCHED_DOCUMENT_ID
+        ? ({ outcome: 'dispatched' } as const)
+        : ({
+            code: 'TRIP_HAS_UNSCHEDULED_STOPS',
+            details: { stopIds: [DISPATCH_UNSCHEDULED_STOP_ID] },
+            outcome: 'blocked',
+          } as const)
+    await fulfillJson(route, {
+      data: {
+        autoDispatch,
+        document: {
+          createdAt: '2026-08-11T09:00:00.000Z',
+          deliveredAt: null,
+          destinationOrigin: null,
+          freightCalculationId: null,
+          id: documentId,
+          loadedAt: '2026-08-11T10:00:00.000Z',
+          nfeDocumentId: NFE_DOCUMENT_ID,
+          releasedAt: null,
+          returnedAt: null,
+          returnReason: null,
+          separatedAt: '2026-08-11T09:00:00.000Z',
+          separationStatus: 'loaded',
+          stopId: DISPATCH_FLOW_STOP_ID,
+          tripId: TRIP_ID,
+          updatedAt: '2026-08-11T10:00:00.000Z',
+        },
+        tripStatus: 'loading',
+      },
+    })
   })
   await input.page.route(/\/trips\/[^/]+$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {

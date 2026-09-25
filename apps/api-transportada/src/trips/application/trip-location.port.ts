@@ -37,6 +37,14 @@ export type TripLocationRepositoryPort = {
     readonly companyId: string
     readonly driverId: string
   }): Promise<DriverTrackingState | null>
+  /**
+   * Spec 189 T7.4: o estado do consentimento, para a app mostrar o interruptor na posição certa.
+   * `null` é "nunca consentiu" ou "retirou" — os dois dizem a mesma coisa: nada sobe.
+   */
+  readConsent(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<{ readonly acceptedAt: string | null }>
   /** A última posição da viagem, ou `null` quando não há rastro — nunca a identidade de quem dirige. */
   readLastPing(input: {
     readonly companyId: string

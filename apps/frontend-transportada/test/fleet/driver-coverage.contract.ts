@@ -13,6 +13,7 @@ import {
   type FleetDriverCoverage,
 } from '@/modules/fleet/shared/driverCoverage.service'
 import type { FreightRegion } from '@/modules/fleet/shared/freightRegion.types'
+import { createFleetResponseAdapters } from '@/modules/fleet/shared/fleetResponse.validation'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const FIELDS_PATH = 'src/modules/fleet/components/DriverCoverageFields.component.tsx'
@@ -283,5 +284,53 @@ describe('fleet driver coverage contract', () => {
     expect(driverFormHook.indexOf('regions.replace(')).toBeGreaterThan(
       driverFormHook.indexOf('await (driver === undefined'),
     )
+  })
+})
+
+/**
+ * O corpo que a API grava e devolve em `PUT`/`GET /fleet/drivers/:id/regions` — a zona inteira vem
+ * com `city` e `state` vazios, nunca nulos (coluna `not null default ''`, contrato
+ * `fleet-driver-regions-http/coverage.contract.ts` da API). Recusar isso fazia a ficha dizer "Não foi
+ * possível salvar" depois de gravar tudo, e a edição não lia a cobertura salva.
+ */
+describe('driver coverage response from the API', () => {
+  const API_BODY = {
+    data: [
+      {
+        city: '',
+        code: '1.000',
+        name: 'BARRETOS',
+        regionId: 'a0b73f0b-0716-432a-a5c7-63ae9cf2c577',
+        scope: 'region',
+        state: '',
+        zone: 1,
+      },
+      {
+        city: 'BARRINHA',
+        code: '5.000',
+        name: 'JABOTICABAL',
+        regionId: '11486f74-aaf7-499c-8973-c93f72d73ad1',
+        scope: 'city',
+        state: 'SP',
+        zone: 0,
+      },
+    ],
+  }
+
+  test('reads a whole-zone coverage whose city and state come empty', () => {
+    const [zone, city] = createFleetResponseAdapters().driverCoverageListFromApi(API_BODY)
+
+    expect(zone?.city).toBeNull()
+    expect(zone?.state).toBeNull()
+    expect(zone?.scope).toBe('region')
+    expect(zone?.zone).toBe(1)
+    expect(city?.city).toBe('BARRINHA')
+    expect(city?.state).toBe('SP')
+  })
+
+  test('still refuses a city coverage without the city', () => {
+    const body = { data: [{ ...API_BODY.data[1], city: '' }] }
+
+    expect(() => createFleetResponseAdapters().driverCoverageListFromApi(body)).toThrow()
   })
 })

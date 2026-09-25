@@ -18,6 +18,7 @@ function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
     emailSubject: '',
     emailTemplateKey: null,
     id: 'type-1',
+    leavesDocumentBehind: false,
     name: 'Avaria',
     notifies: false,
     redeliveryPolicy: 'unset',

@@ -465,9 +465,49 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.identified-user .panel-link {
-  justify-self: start;
-  text-align: left;
+.identified-user-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--transportada-space-2);
+  margin: 0;
+}
+
+.identified-user-prompt {
+  color: var(--transportada-slate);
+  font-size: 0.875rem;
+}
+
+/* Sem destino o link fica escondido, e a pergunta sem resposta sai junto. */
+.identified-user-line:has(.identified-user-switch[hidden]) .identified-user-prompt {
+  display: none;
+}
+
+/* Texto, não botão: sem borda nem fundo, mas com 44px de toque no celular. */
+.identified-user-switch {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--transportada-copper);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.identified-user-switch[hidden] {
+  display: none;
+}
+
+.identified-user-switch:hover,
+.identified-user-switch:focus-visible {
+  color: var(--transportada-copper-hover);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.identified-user-switch:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--transportada-copper) 70%, transparent);
+  outline-offset: 2px;
 }
 
 .panel-footnote {

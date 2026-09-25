@@ -28,11 +28,29 @@ import {
   enqueueReport,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
+import {
+  countPending,
+  scheduleQueueDrainTriggers,
+  type DrainTriggerTarget,
+  type PendingCounts,
+} from '../shared/pendingQueue.service'
+import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
 
 const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
 /** A viagem muda pelas mãos do escritório também — cancelamento chega no próximo poll, não por push. */
 const CURRENT_TRIP_REFETCH_MS = 30_000
+
+/** Gatilhos da drenagem (revisão M4): `visibilitychange` é do `document`, o resto é do `window`. */
+const DRAIN_TRIGGER_TARGET: DrainTriggerTarget = {
+  addEventListener: (type, listener) =>
+    (type === 'visibilitychange' ? document : window).addEventListener(type, listener),
+  clearInterval: (id) => window.clearInterval(id),
+  isVisible: () => document.visibilityState === 'visible',
+  removeEventListener: (type, listener) =>
+    (type === 'visibilitychange' ? document : window).removeEventListener(type, listener),
+  setInterval: (handler, timeout) => window.setInterval(handler, timeout),
+}
 
 export type DriverProofInput = Readonly<{
   documentId: string
@@ -53,9 +71,13 @@ export type DriverReportOutcome = 'count-limit' | 'queued'
 
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  /** ADR-0075 §6: o recusado sai da fila antiga só pela mão do motorista, com confirmação na tela. */
+  discardRejected: (idempotencyKey: string) => Promise<void>
   /** `true` até a primeira leitura do IndexedDB voltar — é o que segura o esqueleto da tela. */
   isQueueLoading: boolean
   isSyncing: boolean
+  /** ADR-0075 §6: a pendência da fila antiga — `undefined` até a primeira leitura do IndexedDB. */
+  pendingCounts: PendingCounts | undefined
   /**
    * Spec 159 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
    * tela traduz em linguagem simples ("em dia", "tardia", "longe"). Some ao trocar de sessão: não é
@@ -87,18 +109,38 @@ function toOutcome(error: unknown): AttachmentSendOutcome {
 }
 
 export function useDriverTrip(
-  store: OfflineQueueStore = createIndexedDbQueueStore(),
-  attachmentStore: AttachmentStore = createIndexedDbAttachmentStore(),
+  providedStore?: OfflineQueueStore,
+  providedAttachmentStore?: AttachmentStore,
 ) {
+  /**
+   * ⚠️ As lojas padrão nascem uma vez por montagem. Como parâmetro padrão, elas eram recriadas a
+   * cada render; o efeito de montagem depende delas, então re-rodava a cada render e disparava uma
+   * drenagem nova — drenagem emendada sem fim, com `isSyncing` preso em verdadeiro.
+   */
+  const [defaultStores] = useState(() => ({
+    attachmentStore: createIndexedDbAttachmentStore(),
+    store: createIndexedDbQueueStore(),
+  }))
+  const store = providedStore ?? defaultStores.store
+  const attachmentStore = providedAttachmentStore ?? defaultStores.attachmentStore
   const queryClient = useQueryClient()
   const [queueView, setQueueView] = useState<readonly EventQueueItemView[] | undefined>(undefined)
+  const [pendingCounts, setPendingCounts] = useState<PendingCounts | undefined>(undefined)
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
+  /** Revisão M4: o temporizador da drenagem só corre enquanto isto for maior que zero. */
+  const drainableCountRef = useRef(0)
+  /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
+  const syncDrainTimerRef = useRef<() => void>(() => undefined)
 
   const refreshQueueView = useCallback(async (): Promise<void> => {
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
     setQueueView(buildEventQueueView({ attachments, queued }))
+    const counts = countPending({ attachments, now: new Date(), reports: queued })
+    setPendingCounts(counts)
+    drainableCountRef.current = counts.drainable
+    syncDrainTimerRef.current()
   }, [attachmentStore, store])
 
   const currentTrip = useQuery({
@@ -235,10 +277,6 @@ export function useDriverTrip(
   drainRef.current = requestDrain
 
   useEffect(() => {
-    function handleOnline(): void {
-      drainRef.current(undefined)
-    }
-    window.addEventListener('online', handleOnline)
     /**
      * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
      * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
@@ -246,9 +284,22 @@ export function useDriverTrip(
     void discardStaleAttachments({ attachmentStore, now: new Date() }).then(() =>
       refreshQueueView(),
     )
+    /** "Abertura" (revisão M4): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
     drainRef.current(undefined)
 
-    return () => window.removeEventListener('online', handleOnline)
+    const cancelTriggers = scheduleQueueDrainTriggers({
+      drain: () => drainRef.current(undefined),
+      getDrainable: () => drainableCountRef.current,
+      onQueueSync: (sync) => {
+        syncDrainTimerRef.current = sync
+      },
+      target: DRAIN_TRIGGER_TARGET,
+    })
+
+    return () => {
+      syncDrainTimerRef.current = () => undefined
+      cancelTriggers()
+    }
   }, [attachmentStore, refreshQueueView])
 
   async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
@@ -308,12 +359,19 @@ export function useDriverTrip(
     return 'queued'
   }
 
+  async function discardRejected(idempotencyKey: string): Promise<void> {
+    await discardRejectedQueueItem({ attachmentStore, idempotencyKey, store })
+    await refreshQueueView()
+  }
+
   const loadedView = queueView ?? []
 
   return {
     attachProof,
+    discardRejected,
     isQueueLoading: queueView === undefined,
     isSyncing: drain.isPending,
+    pendingCounts,
     proofOutcomeByDocumentId,
     queueView: loadedView,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,

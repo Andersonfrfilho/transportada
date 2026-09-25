@@ -92,6 +92,18 @@ export function buildOccurrenceUploadObjectKey(input: {
   return `tenants/${input.companyId}/trip-occurrence-uploads/${input.tripId}/${input.objectId}`
 }
 
+/**
+ * A cópia final dos bytes conferidos na confirmação: token aleatório, numa chave que nenhuma URL
+ * de subida assinada alcança.
+ */
+export function buildOccurrenceUploadFinalObjectKey(input: {
+  readonly companyId: string
+  readonly token: string
+  readonly tripId: string
+}): string {
+  return `tenants/${input.companyId}/trip-occurrence-attachments/${input.tripId}/${input.token}`
+}
+
 /** Spec 161: a criação da ocorrência de galpão com a(s) foto(s) — `withFieldReport`. */
 export const OCCURRENCE_ATTACHMENT_CREATE_OPERATION = 'separation.document.occurrence'
 

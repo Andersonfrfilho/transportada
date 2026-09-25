@@ -247,7 +247,12 @@ describe('trip client contract', () => {
 
     expect(planRouteRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/plan-route`)
     expect(dispatchRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/dispatch`)
-    expect(await dispatchRequest.json()).toEqual({ force: false, forceReason: null })
+    /**
+     * Spec 185 RF4: sem `force`/`forceReason`/`loadRemaining` explícitos, o corpo vai vazio — o
+     * servidor tem `.default(false)` para os dois, e mandar o neutro por omissão é o mesmo efeito
+     * sem inventar um valor que quem chamou não pediu.
+     */
+    expect(await dispatchRequest.json()).toEqual({})
     expect(cancelRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/cancel`)
   })
 

@@ -90,12 +90,26 @@ describe('routing panel source (ADR-0044 §5 e §6)', () => {
     expect(source).toContain('orderStopsForReview')
   })
 
-  /** Só uma sugestão pronta se decide — e o botão sabe disso, não só o servidor. */
-  test('disables the decision until the suggestion is ready', async () => {
+  /**
+   * Só uma sugestão pronta se decide. Depois de aceita ou descartada os botões **somem**: ficavam
+   * desabilitados ao lado do selo "Aceita", e o operador lia isso como tela travada.
+   */
+  test('offers the decision only while the suggestion is ready', async () => {
     const source = await readSource(PANEL_PATH)
 
     expect(source).toContain('canDecideSuggestion')
-    expect(source).toContain('disabled={!decidable')
+    expect(source).toContain('{decidable ? (')
+    expect(source).toContain('disabled={isDeciding}')
+    expect(source).not.toContain('disabled={!decidable')
+  })
+
+  /** O aceite reordena as paradas e replaneja a rota no servidor — a viagem na tela recarrega. */
+  test('reloads the trip after the suggestion is accepted', async () => {
+    const hook = await readSource('src/modules/routing/hooks/useRouteSuggestion.hook.ts')
+    const detail = await readSource('src/modules/trip/components/TripDetail.component.tsx')
+
+    expect(hook).toContain("if (action === 'accept') input.onAccepted?.()")
+    expect(detail).toContain('onAccepted: () => void workspace.invalidateTrip()')
   })
 
   /**

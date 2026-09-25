@@ -177,6 +177,14 @@ const environmentSchema = z.object({
         value === undefined || value.startsWith('https://') || value.startsWith('http://localhost'),
       { message: 'DRIVER_ADDRESS_LOOKUP_URL must be an HTTPS URL or an HTTP localhost URL' },
     ),
+  POSTAL_CODE_AWESOME_API_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'POSTAL_CODE_AWESOME_API_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   POSTAL_CODE_BRASIL_API_URL: z
     .string()
     .trim()
@@ -342,7 +350,9 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     port: parsed.APP_PORT,
     routingMatrixUrl: parsed.ROUTING_MATRIX_URL,
     postalCodeProviders: {
+      awesomeApiUrl: parsed.POSTAL_CODE_AWESOME_API_URL,
       brasilApiUrl: parsed.POSTAL_CODE_BRASIL_API_URL,
+      googleApiKey: parsed.GOOGLE_MAPS_API_KEY,
       viaCepUrl: parsed.POSTAL_CODE_VIA_CEP_URL,
     },
     logSinkUrl: parsed.LOG_SINK_URL,

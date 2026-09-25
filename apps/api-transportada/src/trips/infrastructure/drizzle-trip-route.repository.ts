@@ -10,6 +10,7 @@ import {
   tripDocuments,
   tripStops,
   trips,
+  type TripDocumentSeparationStatus,
   type TripStatus,
 } from '../../database/trip.schema.js'
 import type {
@@ -21,6 +22,7 @@ import type {
 import { listUnscheduledStops } from '../../delivery-clients/infrastructure/unscheduled-stop.query.js'
 import type { CancelTripPort } from '../application/cancel-trip.use-case.js'
 import { buildCancelReleaseWhere } from './cancel-release.query.js'
+import { resolveDispatchReadiness } from '../domain/dispatch-readiness.policy.js'
 import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
 import type { PlanTripRoutePort, TripRouteState } from '../application/plan-trip-route.use-case.js'
 import type {
@@ -34,13 +36,30 @@ import {
 import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
 import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
-import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
-import { TripStateTransitionNotAllowedError } from '../domain/trip.error.js'
+import {
+  TRIP_ACTION,
+  TRIP_DOCUMENT_ACTION,
+  checkTripDocumentTransition,
+  checkTripTransition,
+  type TripDocumentAction,
+} from '../domain/trip-state.policy.js'
+import {
+  TripHasUnloadedDocumentsError,
+  TripStateTransitionNotAllowedError,
+} from '../domain/trip.error.js'
+import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
+import {
+  insertTripDocumentBatchEvents,
+  timestampPatchFor,
+} from './drizzle-trip-document-batch.repository.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
 const NOT_LOADED_STATUSES = ['pending', 'separated'] as const
+
+/** Spec 185 (RF5): o motivo da nota deixada para trás, derivado do nome do tipo de ocorrência. */
+const LEFT_BEHIND_REASON_PREFIX = 'Ocorrência: '
 
 /**
  * Reordenar troca a `sequence` de todas as paradas da viagem numa tacada, e a unique
@@ -134,31 +153,40 @@ export class DrizzleTripRouteRepository
     readonly companyId: string
     readonly tripId: string
   }): Promise<DispatchTripPreconditions | null> {
-    const route = await readRouteState(this.database, input)
+    const readiness = resolveDispatchReadiness({
+      documents: await readDispatchReadinessDocuments(this.database, input),
+    })
+    /**
+     * Spec 185 (revisão, RF5): a nota que o despacho vai liberar não segura a viagem pelos gates
+     * dela — nem como "nota sem parada", nem pela parada que só ela ocupa esperando agendamento.
+     */
+    const scope = {
+      ...input,
+      excludedTripDocumentIds: readiness.leftBehind.map((document) => document.tripDocumentId),
+    }
+    const route = await readRouteState(this.database, scope)
     if (route === null) return null
-
-    const unloadedRows = await this.database
-      .select({ id: tripDocuments.id })
-      .from(tripDocuments)
-      .where(
-        and(
-          eq(tripDocuments.companyId, input.companyId),
-          eq(tripDocuments.tripId, input.tripId),
-          isNull(tripDocuments.releasedAt),
-          inArray(tripDocuments.separationStatus, [...NOT_LOADED_STATUSES]),
-        ),
-      )
 
     return {
       hasRoute: route.hasRoute,
+      isCargoClosed: readiness.isCargoClosed,
+      leftBehind: readiness.leftBehind,
+      toLoad: readiness.toLoad,
       tripStatus: route.tripStatus,
-      unloadedDocumentIds: unloadedRows.map((row) => row.id),
-      unscheduledStopIds: await listUnscheduledStops(this.database, input),
+      unloadedDocumentIds: readiness.toLoad.map((document) => document.tripDocumentId),
+      unscheduledStopIds: await listUnscheduledStops(this.database, scope),
     }
   }
 
   public async dispatch(input: DispatchTripWriteInput): Promise<DispatchTripWriteResult> {
-    return this.database.transaction((transaction) => dispatch(transaction, input))
+    try {
+      return await this.database.transaction((transaction) => dispatch(transaction, input))
+    } catch (error) {
+      // Corrida perdida para outro despacho: a transação desfez o que esta chamada escreveu nas
+      // notas, e a resposta é o `unchanged` da máquina de estados — nunca erro.
+      if (error instanceof DispatchAlreadySettledSignal) return { tripStatus: error.tripStatus }
+      throw error
+    }
   }
 
   public async readTripStatus(input: {
@@ -362,8 +390,14 @@ export async function writeStopOrder(
 
 async function readRouteState(
   queryable: TripQueryable,
-  input: { readonly companyId: string; readonly tripId: string },
+  input: {
+    readonly companyId: string
+    /** Notas que o despacho vai liberar: não contam como "nota viva sem parada". */
+    readonly excludedTripDocumentIds?: readonly string[]
+    readonly tripId: string
+  },
 ): Promise<TripRouteState | null> {
+  const excludedTripDocumentIds = input.excludedTripDocumentIds ?? []
   const [tripRecord] = await queryable
     .select({ status: trips.status })
     .from(trips)
@@ -386,6 +420,9 @@ async function readRouteState(
         isNull(tripDocuments.releasedAt),
         isNull(tripDocuments.stopId),
         ne(tripDocuments.separationStatus, 'returned'),
+        excludedTripDocumentIds.length === 0
+          ? undefined
+          : notInArray(tripDocuments.id, [...excludedTripDocumentIds]),
       ),
     )
     .limit(1)
@@ -397,35 +434,45 @@ async function readRouteState(
   }
 }
 
+/**
+ * Spec 185 (D3): a reconferência sob o lock da viagem devolveu `unchanged` — outro despacho venceu
+ * a corrida. Lançar desfaz a transação inteira, inclusive as notas que esta chamada já tinha
+ * carregado ou liberado; `DrizzleTripRouteRepository.dispatch` converte de volta em resultado.
+ */
+class DispatchAlreadySettledSignal extends Error {
+  public constructor(public readonly tripStatus: TripStatus) {
+    super('TRIP_DISPATCH_ALREADY_SETTLED')
+  }
+}
+
+/**
+ * ⚠️ **Ordem das escritas (spec 185 D3, ADR-0068 §2 "notas → viagem")**: primeiro as notas
+ * (carregar o que `loadRemaining` pediu, liberar o forçado e o deixado para trás), depois o lock
+ * da viagem e a reconferência de `checkTripTransition`, e **só então** snapshot, ETA e o UPDATE por
+ * compare-and-set. Antes, o snapshot era inserido antes do lock: o segundo despacho de uma corrida
+ * batia na unique `(company_id, trip_id)` do snapshot — 23505, um 500 onde a regra é `unchanged`.
+ * Reconferência que não aplica lança: nenhuma nota fica alterada por um despacho que não houve.
+ */
 async function dispatch(
   transaction: TripTransaction,
   input: DispatchTripWriteInput,
 ): Promise<DispatchTripWriteResult> {
-  if (input.unloadedDocumentIds.length > 0) {
-    await releaseUnloadedDocuments(transaction, input)
+  if (input.documentsToLoad.length > 0) {
+    await loadRemainingDocuments(transaction, input)
   }
 
-  const snapshot = await buildRouteSnapshot(transaction, input)
-  const snapshotSha256 = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex')
-
-  await transaction.insert(tripDispatchSnapshots).values({
-    actorUserId: input.actorUserId,
-    companyId: input.companyId,
-    forceReason: input.forceReason,
-    forced: input.forced,
-    snapshot,
-    snapshotSha256,
-    tripId: input.tripId,
-  })
-
-  /**
-   * Spec 109 D2: **o roteiro foi planejado para uma hora de saída, e o caminhão sai noutra.** Aqui,
-   * no clique de quem sai, o ETA de cada parada anda o mesmo tanto que a saída atrasou.
-   *
-   * ⚠️ Deslocar, não recalcular: a ordem foi conferida no galpão e o caminhão foi carregado nela.
-   * ⚠️ Na mesma transação do congelamento do roteiro — o snapshot e as horas descrevem a mesma saída.
-   */
-  await shiftEstimatedArrivals(transaction, input)
+  const releaseRequestedIds = [
+    ...input.unloadedDocumentIds,
+    ...input.leftBehind.map((document) => document.tripDocumentId),
+  ]
+  const releasedDocumentIds =
+    releaseRequestedIds.length === 0
+      ? new Set<string>()
+      : await releaseUnloadedDocuments(transaction, {
+          companyId: input.companyId,
+          tripId: input.tripId,
+          unloadedDocumentIds: releaseRequestedIds,
+        })
 
   const [tripRow] = await transaction
     .select({ status: trips.status })
@@ -448,7 +495,25 @@ async function dispatch(
   if (transition.outcome === 'blocked') {
     throw new TripStateTransitionNotAllowedError(transition.reason)
   }
-  if (transition.outcome === 'unchanged') return { tripStatus: tripRow.status }
+  if (transition.outcome === 'unchanged') throw new DispatchAlreadySettledSignal(tripRow.status)
+
+  // O motivo "Ocorrência: <tipo>" só das notas que a liberação soltou de fato: a carregada depois
+  // da leitura da precondição foi no caminhão.
+  await insertDispatchSnapshot(transaction, {
+    ...input,
+    leftBehind: input.leftBehind.filter((document) =>
+      releasedDocumentIds.has(document.tripDocumentId),
+    ),
+  })
+
+  /**
+   * Spec 109 D2: **o roteiro foi planejado para uma hora de saída, e o caminhão sai noutra.** Aqui,
+   * no clique de quem sai, o ETA de cada parada anda o mesmo tanto que a saída atrasou.
+   *
+   * ⚠️ Deslocar, não recalcular: a ordem foi conferida no galpão e o caminhão foi carregado nela.
+   * ⚠️ Na mesma transação do congelamento do roteiro — o snapshot e as horas descrevem a mesma saída.
+   */
+  await shiftEstimatedArrivals(transaction, input)
 
   const [updated] = await transaction
     .update(trips)
@@ -461,7 +526,7 @@ async function dispatch(
       ),
     )
     .returning({ status: trips.status })
-  if (updated === undefined) return { tripStatus: tripRow.status }
+  if (updated === undefined) throw new DispatchAlreadySettledSignal(tripRow.status)
 
   await recordTripStatusChange(transaction, {
     actorUserId: input.actorUserId,
@@ -474,6 +539,172 @@ async function dispatch(
   })
 
   return { tripStatus: updated.status }
+}
+
+/**
+ * Spec 185 (RF5, ADR-0074 §4): o motivo da nota deixada para trás mora **no snapshot**, ao lado do
+ * roteiro congelado — `forced`/`force_reason` não servem: a CHECK
+ * `trip_dispatch_snapshots_force_reason_check` casa os dois, e esse despacho não é forçado (a
+ * assinatura é a do cadastro do tipo). Nem o evento de nota serve: liberar não muda
+ * `separation_status`, e `trip_document_events` recusa evento sem transição.
+ */
+async function insertDispatchSnapshot(
+  transaction: TripTransaction,
+  input: DispatchTripWriteInput,
+): Promise<void> {
+  const route = await buildRouteSnapshot(transaction, input)
+  const snapshot =
+    input.leftBehind.length === 0
+      ? route
+      : {
+          ...route,
+          leftBehind: input.leftBehind.map((document) => ({
+            documentId: document.tripDocumentId,
+            reason: `${LEFT_BEHIND_REASON_PREFIX}${document.occurrenceTypeName}`,
+          })),
+        }
+  const snapshotSha256 = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex')
+
+  await transaction.insert(tripDispatchSnapshots).values({
+    actorUserId: input.actorUserId,
+    companyId: input.companyId,
+    forceReason: input.forceReason,
+    forced: input.forced,
+    snapshot,
+    snapshotSha256,
+    tripId: input.tripId,
+  })
+}
+
+/**
+ * Spec 185 (RF4, D3): `loadRemaining` leva cada nota de `toLoad` a `loaded` dentro da transação do
+ * despacho — `pending → separated → loaded`, a aresta decidida por `checkTripDocumentTransition`,
+ * com o evento de nota do mesmo escritor do lote. Cada UPDATE é guardado pelo status de origem: o
+ * que outra escrita já moveu não é reescrito. Os UPDATEs travam as notas **antes** do lock da
+ * viagem (ADR-0068 §2).
+ *
+ * O status da viagem lido aqui é sem lock, só para a política da nota; quem protege a escrita é a
+ * reconferência sob `FOR NO KEY UPDATE` logo depois — viagem cancelada ou despachada no meio
+ * desfaz tudo.
+ */
+async function loadRemainingDocuments(
+  transaction: TripTransaction,
+  input: DispatchTripWriteInput,
+): Promise<void> {
+  const [tripRow] = await transaction
+    .select({ status: trips.status })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .limit(1)
+  if (tripRow === undefined) return
+
+  /**
+   * Spec 185 T4.3: o duplo clique cuja transação começa depois que o outro despacho comitou lê aqui
+   * a viagem já `dispatched`, e a política da nota recusaria com 409 `TRIP_ALREADY_DISPATCHED` antes
+   * da reconferência sob lock responder o `unchanged` — mesma corrida, dois desfechos.
+   */
+  const settled = checkTripTransition({
+    action: TRIP_ACTION.dispatch,
+    hasRoute: input.hasRoute,
+    tripStatus: tripRow.status,
+  })
+  if (settled.outcome === 'unchanged') throw new DispatchAlreadySettledSignal(tripRow.status)
+
+  const documentIds = input.documentsToLoad.map((document) => document.tripDocumentId)
+  await advanceDocuments(transaction, input, {
+    action: TRIP_DOCUMENT_ACTION.separate,
+    documentIds: input.documentsToLoad
+      .filter((document) => document.separationStatus === 'pending')
+      .map((document) => document.tripDocumentId),
+    fromStatus: 'pending',
+    tripStatus: tripRow.status,
+  })
+  await advanceDocuments(transaction, input, {
+    action: TRIP_DOCUMENT_ACTION.load,
+    documentIds,
+    fromStatus: 'separated',
+    tripStatus: tripRow.status,
+  })
+
+  // Nota ainda viva (não liberada) que os UPDATEs guardados não alcançaram — uma escrita
+  // concorrente mudou o status que eles esperavam — e segue sem chegar a `loaded`: despachar a
+  // deixaria para trás sem ninguém ter pedido — recusa e desfaz. A liberada no meio já saiu.
+  const stillUnloaded = await transaction
+    .select({ id: tripDocuments.id })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.tripId, input.tripId),
+        inArray(tripDocuments.id, documentIds),
+        isNull(tripDocuments.releasedAt),
+        inArray(tripDocuments.separationStatus, [...NOT_LOADED_STATUSES]),
+      ),
+    )
+  if (stillUnloaded.length > 0) {
+    throw new TripHasUnloadedDocumentsError(stillUnloaded.map((row) => row.id))
+  }
+}
+
+async function advanceDocuments(
+  transaction: TripTransaction,
+  input: DispatchTripWriteInput,
+  step: {
+    readonly action: TripDocumentAction
+    readonly documentIds: readonly string[]
+    readonly fromStatus: TripDocumentSeparationStatus
+    readonly tripStatus: TripStatus
+  },
+): Promise<void> {
+  if (step.documentIds.length === 0) return
+
+  const transition = checkTripDocumentTransition({
+    action: step.action,
+    documentStatus: step.fromStatus,
+    tripStatus: step.tripStatus,
+  })
+  if (transition.outcome === 'blocked') {
+    throw new TripStateTransitionNotAllowedError(transition.reason)
+  }
+  if (transition.outcome === 'unchanged') return
+
+  const updated = await transaction
+    .update(tripDocuments)
+    .set({
+      separationStatus: transition.nextStatus,
+      updatedAt: sql`now()`,
+      ...timestampPatchFor(transition.nextStatus),
+    })
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.tripId, input.tripId),
+        inArray(tripDocuments.id, [...step.documentIds]),
+        eq(tripDocuments.separationStatus, step.fromStatus),
+        isNull(tripDocuments.releasedAt),
+      ),
+    )
+    .returning({ id: tripDocuments.id })
+  if (updated.length === 0) return
+
+  await insertTripDocumentBatchEvents(
+    transaction,
+    {
+      actorUserId: input.actorUserId,
+      channel: input.channel,
+      companyId: input.companyId,
+      items: updated.map((row) => ({
+        documentId: row.id,
+        fromStatus: step.fromStatus,
+        toStatus: transition.nextStatus,
+      })),
+      note: null,
+      onBehalfOfDriverId: input.onBehalfOfDriverId,
+      returnReason: null,
+      tripId: input.tripId,
+    },
+    updated.map((row) => row.id),
+  )
 }
 
 /**
@@ -526,7 +757,7 @@ async function releaseUnloadedDocuments(
     readonly tripId: string
     readonly unloadedDocumentIds: readonly string[]
   },
-): Promise<void> {
+): Promise<ReadonlySet<string>> {
   // A parada de cada nota tem de ser lida **antes** do UPDATE: `RETURNING` devolve o estado novo
   // da linha, e a T010 acabou de descobrir isso do jeito caro — nulava `stopId` e depois tentava
   // ler `stopId` do próprio `RETURNING`, sempre vazio.
@@ -550,7 +781,9 @@ async function releaseUnloadedDocuments(
   // (schema.ts), então a nota tem de soltar a parada por conta própria; esperar o banco fazer
   // isso sozinho foi o bug original (uma FK composta com `set null` zeraria `company_id` junto,
   // e ele é `not null`).
-  await transaction
+  // Guarda de corrida (spec 185): só libera a nota ainda viva e ainda não carregada — a que foi
+  // carregada depois da leitura da precondição vai no caminhão.
+  const released = await transaction
     .update(tripDocuments)
     .set({ releasedAt: sql`now()`, stopId: null, updatedAt: sql`now()` })
     .where(
@@ -558,10 +791,14 @@ async function releaseUnloadedDocuments(
         eq(tripDocuments.companyId, input.companyId),
         eq(tripDocuments.tripId, input.tripId),
         inArray(tripDocuments.id, [...input.unloadedDocumentIds]),
+        isNull(tripDocuments.releasedAt),
+        inArray(tripDocuments.separationStatus, [...NOT_LOADED_STATUSES]),
       ),
     )
+    .returning({ id: tripDocuments.id })
+  const releasedDocumentIds = new Set(released.map((row) => row.id))
 
-  if (affectedStopIds.length === 0) return
+  if (affectedStopIds.length === 0) return releasedDocumentIds
 
   // ADR-0043 §3: a parada é derivada — some quando a última nota viva sai dela. Uma consulta para
   // todas as paradas afetadas, um DELETE para as que esvaziaram.
@@ -579,11 +816,12 @@ async function releaseUnloadedDocuments(
     stillOccupied.map((row) => row.stopId).filter((stopId): stopId is string => stopId !== null),
   )
   const emptiedStopIds = affectedStopIds.filter((stopId) => !occupiedStopIds.has(stopId))
-  if (emptiedStopIds.length === 0) return
+  if (emptiedStopIds.length === 0) return releasedDocumentIds
 
   await transaction
     .delete(tripStops)
     .where(and(eq(tripStops.companyId, input.companyId), inArray(tripStops.id, emptiedStopIds)))
+  return releasedDocumentIds
 }
 
 type RouteSnapshotStop = {

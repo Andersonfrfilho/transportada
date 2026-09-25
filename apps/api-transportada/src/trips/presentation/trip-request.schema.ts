@@ -172,8 +172,15 @@ export const dispatchTripSchema = z
   .object({
     force: z.boolean().default(false),
     forceReason: z.string().trim().min(1).nullable().default(null),
+    /** Spec 185 (RF4, ADR-0074 §3): separa e carrega o que falta e despacha, numa transação. */
+    loadRemaining: z.boolean().default(false),
   })
   .strict()
+  // `force` libera o que falta e `loadRemaining` o carrega: pedir os dois é 400, nunca um palpite.
+  .refine((body) => !(body.force && body.loadRemaining), {
+    message: 'force and loadRemaining are mutually exclusive',
+    path: ['loadRemaining'],
+  })
 
 export type DispatchTripBody = z.infer<typeof dispatchTripSchema>
 

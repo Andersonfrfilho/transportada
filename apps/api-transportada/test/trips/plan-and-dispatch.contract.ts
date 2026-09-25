@@ -16,6 +16,7 @@ import type {
   TripRouteState,
 } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import { parseDispatchTripRequest } from '../../src/trips/presentation/trip.schema.js'
 import {
   TripDispatchForceReasonRequiredError,
   TripHasUnloadedDocumentsError,
@@ -28,6 +29,8 @@ const TRIP_ID = '22222222-2222-4222-8222-222222222222'
 const ACTOR_USER_ID = '33333333-3333-4333-8333-333333333333'
 const UNLOADED_ID = '44444444-4444-4444-8444-444444444444'
 const UNSCHEDULED_STOP_ID = '55555555-5555-4555-8555-555555555555'
+const SEPARATED_ID = '66666666-6666-4666-8666-666666666666'
+const LEFT_BEHIND_ID = '77777777-7777-4777-8777-777777777777'
 
 function createPlanFakePort(
   overrides: {
@@ -60,6 +63,10 @@ function createDispatchFakePort(
   overrides: {
     readonly exists?: boolean
     readonly hasRoute?: boolean
+    /** Spec 185: sem nota carregada, a carga não fecha — o padrão é ter ao menos uma. */
+    readonly hasLoadedDocument?: boolean
+    readonly leftBehind?: DispatchTripPreconditions['leftBehind']
+    readonly toLoad?: DispatchTripPreconditions['toLoad']
     readonly tripStatus?: DispatchTripPreconditions['tripStatus']
     readonly unloadedDocumentIds?: readonly string[]
     readonly unscheduledStopIds?: readonly string[]
@@ -68,7 +75,15 @@ function createDispatchFakePort(
   const exists = overrides.exists ?? true
   const hasRoute = overrides.hasRoute ?? true
   const tripStatus = overrides.tripStatus ?? 'loading'
-  const unloadedDocumentIds = overrides.unloadedDocumentIds ?? []
+  const toLoad =
+    overrides.toLoad ??
+    (overrides.unloadedDocumentIds ?? []).map((tripDocumentId) => ({
+      separationStatus: 'pending' as const,
+      tripDocumentId,
+    }))
+  const unloadedDocumentIds = toLoad.map((document) => document.tripDocumentId)
+  const leftBehind = overrides.leftBehind ?? []
+  const isCargoClosed = toLoad.length === 0 && (overrides.hasLoadedDocument ?? true)
   const unscheduledStopIds = overrides.unscheduledStopIds ?? []
   const dispatchCalls: DispatchTripWriteInput[] = []
 
@@ -78,7 +93,15 @@ function createDispatchFakePort(
     },
     async readPreconditions() {
       if (!exists) return null
-      return { hasRoute, tripStatus, unloadedDocumentIds, unscheduledStopIds }
+      return {
+        hasRoute,
+        isCargoClosed,
+        leftBehind,
+        toLoad,
+        tripStatus,
+        unloadedDocumentIds,
+        unscheduledStopIds,
+      }
     },
     async dispatch(input): Promise<DispatchTripWriteResult> {
       dispatchCalls.push(input)
@@ -182,9 +205,11 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
         actorUserId: ACTOR_USER_ID,
         channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId: COMPANY_ID,
+        documentsToLoad: [],
         forceReason: null,
         forced: false,
         hasRoute: true,
+        leftBehind: [],
         onBehalfOfDriverId: null,
         tripId: TRIP_ID,
         unloadedDocumentIds: [],
@@ -257,9 +282,11 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
         actorUserId: ACTOR_USER_ID,
         channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId: COMPANY_ID,
+        documentsToLoad: [],
         forceReason: 'Cliente pediu para não esperar a última nota',
         forced: true,
         hasRoute: true,
+        leftBehind: [],
         onBehalfOfDriverId: null,
         tripId: TRIP_ID,
         unloadedDocumentIds: [UNLOADED_ID],
@@ -379,5 +406,162 @@ describe('dispatch trip (spec 056 T010, ADR-0043 §2)', () => {
     }).catch((caught: unknown) => caught)
 
     expect(error).toMatchObject({ code: 'TRIP_HAS_UNSCHEDULED_STOPS' })
+  })
+})
+
+/**
+ * Spec 185 T3.1 (CA04, CA05, ADR-0074 §3/§4): o botão "Despachar" leva todas (`loadRemaining`), e
+ * a nota que a ocorrência deixa para trás sai sem `force`. `force` e `loadRemaining` são respostas
+ * opostas à mesma pergunta — liberar ou carregar o que falta — e juntos são recusados.
+ */
+describe('despachar leva todas (spec 185 T3.1)', () => {
+  test('loadRemaining com force é 400, e nada é escrito', async () => {
+    const repository = createDispatchFakePort({ unloadedDocumentIds: [UNLOADED_ID] })
+
+    const error = await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      force: true,
+      forceReason: 'não pode',
+      loadRemaining: true,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({
+      code: 'TRIP_DISPATCH_LOAD_REMAINING_WITH_FORCE',
+      status: 400,
+    })
+    expect(repository.dispatchCalls).toEqual([])
+  })
+
+  test('loadRemaining leva a pendente e a separada para a escrita, sem forçar e sem liberar', async () => {
+    const toLoad = [
+      { separationStatus: 'pending' as const, tripDocumentId: UNLOADED_ID },
+      { separationStatus: 'separated' as const, tripDocumentId: SEPARATED_ID },
+    ]
+    const repository = createDispatchFakePort({ toLoad })
+
+    const result = await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      loadRemaining: true,
+      repository,
+      tripId: TRIP_ID,
+    })
+
+    expect(result.tripStatus).toBe('dispatched')
+    expect(repository.dispatchCalls).toEqual([
+      {
+        actorUserId: ACTOR_USER_ID,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId: COMPANY_ID,
+        documentsToLoad: toLoad,
+        forceReason: null,
+        forced: false,
+        hasRoute: true,
+        leftBehind: [],
+        onBehalfOfDriverId: null,
+        tripId: TRIP_ID,
+        unloadedDocumentIds: [],
+      },
+    ])
+  })
+
+  test('loadRemaining não fura o agendamento: só force fura', async () => {
+    const repository = createDispatchFakePort({
+      unloadedDocumentIds: [UNLOADED_ID],
+      unscheduledStopIds: [UNSCHEDULED_STOP_ID],
+    })
+
+    const error = await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      loadRemaining: true,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({ code: 'TRIP_HAS_UNSCHEDULED_STOPS', status: 409 })
+    expect(repository.dispatchCalls).toEqual([])
+  })
+
+  test('a nota deixada para trás pela ocorrência sai sem force, e o despacho não é forçado', async () => {
+    const leftBehind = [{ occurrenceTypeName: 'Item faltante', tripDocumentId: LEFT_BEHIND_ID }]
+    const repository = createDispatchFakePort({ leftBehind })
+
+    await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      repository,
+      tripId: TRIP_ID,
+    })
+
+    expect(repository.dispatchCalls[0]).toMatchObject({
+      documentsToLoad: [],
+      forceReason: null,
+      forced: false,
+      leftBehind,
+      unloadedDocumentIds: [],
+    })
+  })
+
+  test('só notas deixadas para trás: não despacha viagem vazia — 409 com as notas', async () => {
+    const repository = createDispatchFakePort({
+      hasLoadedDocument: false,
+      leftBehind: [{ occurrenceTypeName: 'Item faltante', tripDocumentId: LEFT_BEHIND_ID }],
+    })
+
+    const error = await dispatchTrip({
+      actorUserId: ACTOR_USER_ID,
+      channel: TRIP_FIELD_CHANNELS.backoffice,
+      companyId: COMPANY_ID,
+      loadRemaining: true,
+      repository,
+      tripId: TRIP_ID,
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(TripHasUnloadedDocumentsError)
+    expect((error as TripHasUnloadedDocumentsError).documentIds).toEqual([LEFT_BEHIND_ID])
+    expect(repository.dispatchCalls).toEqual([])
+  })
+})
+
+describe('POST /trips/:id/dispatch — corpo (spec 185 T3.1)', () => {
+  function dispatchRequest(body: unknown): Request {
+    return new Request('http://localhost/v1/trips/id/dispatch', {
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+  }
+
+  test('aceita loadRemaining e o devolve, com false por padrão', async () => {
+    expect(await parseDispatchTripRequest(dispatchRequest({ loadRemaining: true }))).toEqual({
+      force: false,
+      forceReason: null,
+      loadRemaining: true,
+    })
+    expect(await parseDispatchTripRequest(dispatchRequest({}))).toMatchObject({
+      loadRemaining: false,
+    })
+  })
+
+  test('loadRemaining junto com force é 400', async () => {
+    await expect(
+      parseDispatchTripRequest(
+        dispatchRequest({ force: true, forceReason: 'motivo', loadRemaining: true }),
+      ),
+    ).rejects.toMatchObject({ status: 400 })
+  })
+
+  test('loadRemaining que não é booleano é 400', async () => {
+    await expect(
+      parseDispatchTripRequest(dispatchRequest({ loadRemaining: 'sim' })),
+    ).rejects.toMatchObject({ status: 400 })
   })
 })

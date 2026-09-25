@@ -36,6 +36,11 @@ export type QueuedAttachment = Readonly<{
   receiverDocument?: string
   receiverName?: string
   /**
+   * Spec 189 T9.2: sempre ausente no painel, que nunca grava sem sessão. Existe para a contagem de
+   * pendência ser a mesma definição da app do motorista (contrato de paridade de `countPending`).
+   */
+  isUnverified?: true
+  /**
    * Recusa do servidor **do anexo**, não do evento: o evento aceito permanece aceito, e este campo
    * é o que a tela de pendentes imprime como problema do arquivo. Só o envio manual tenta de novo.
    */

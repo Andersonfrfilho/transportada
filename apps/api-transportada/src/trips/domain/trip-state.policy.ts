@@ -44,7 +44,9 @@ export const TRIP_TRANSITION_BLOCK = {
   /**
    * Entregar e devolver acontecem na rua — antes do despacho a nota ainda está no barracão. Vale
    * também para os dois toques da ADR-0058: conferir carga e iniciar trajeto são de quem já está
-   * com o caminhão carregado.
+   * com o caminhão carregado. ⚠️ "Conferir carga" (`confirmLoad`/`TRIP_ACTION.confirmLoad`) é
+   * legado desde a spec 185 (ADR-0074 §5): a rota segue aceita e idempotente para aparelho com
+   * versão velha, mas `allowed-actions` não a oferece mais — a conferência é o próprio carregamento.
    */
   tripNotDispatched: 'TRIP_NOT_DISPATCHED',
   /** Separar carga cujo roteiro ninguém conferiu é separar carga que talvez não vá. */
@@ -189,9 +191,14 @@ export function checkTripAcceptsDocumentWork(input: {
   if (tripStatus === 'cancelled') return TRIP_TRANSITION_BLOCK.tripCancelled
   if (tripStatus === 'completed') return TRIP_TRANSITION_BLOCK.tripCompleted
 
-  const isStreetWork =
-    action === TRIP_DOCUMENT_ACTION.deliver || action === TRIP_DOCUMENT_ACTION.return
-  if (isStreetWork) {
+  /**
+   * Spec 182 RF3 (decisão do usuário em 24/09, registrada como deliberada): a baixa de entrega
+   * deixa de exigir a viagem despachada — o escritório registra a partir da linha da nota mesmo
+   * antes da saída, para corrigir registro ou lançar entrega feita por fora da viagem. `return`
+   * continua exigindo rua: devolução é sempre um retorno físico de algo que saiu.
+   */
+  if (action === TRIP_DOCUMENT_ACTION.deliver) return null
+  if (action === TRIP_DOCUMENT_ACTION.return) {
     return isTripDispatched(tripStatus) ? null : TRIP_TRANSITION_BLOCK.tripNotDispatched
   }
 
@@ -231,7 +238,10 @@ export type CheckTripTransitionParams = {
 
 /**
  * As transições manuais da viagem (ADR-0043 §1). As demais são derivadas — ver
- * `deriveTripStatus`, e nunca escritas à mão.
+ * `deriveTripStatus`, e nunca escritas à mão. ⚠️ `dispatch` é a exceção parcial (spec 185,
+ * ADR-0074): esta função não distingue quem chama — o mesmo gate serve o botão "Despachar"
+ * (`dispatch-trip.use-case.ts`) e o gatilho automático (`try-auto-dispatch-trip.use-case.ts`), que
+ * roda sozinho quando a carga fecha e nunca usa `force`.
  */
 export function checkTripTransition({
   action,

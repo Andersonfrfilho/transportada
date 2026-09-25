@@ -239,7 +239,22 @@ CPF nem o telefone que acabou de ser digitado.
   form data, e o FreeMarker o lê em `login.username`. O `login.ftl` faz
   `<#assign identifiedUsername = (login.username)!''>` e, com conteúdo, troca o campo de usuário por
   texto (`Entrando como` + o username, nenhum outro dado), um `<input type="hidden" name="username">` e
-  o link **"Não é você?"**. A senha ganha o `autofocus`.
+  a linha "`<usuário>` Não é você? **Trocar de usuário**". A senha ganha o `autofocus`.
+- **Trocar de usuário é link de texto, na linha do usuário** (relato de 2026-09-25; a primeira versão
+  foi botão `action-quiet` e o usuário pediu texto — a tela tem uma ação só, o "Entrar"). Cobre do
+  tema, sem borda nem fundo, sublinhado no hover e no foco, e `min-height: 2.75rem` para os 44px de
+  toque no celular. Contraste medido: 4,99 no claro e 5,24 no escuro. Quando o link fica escondido
+  (sem origem), o "Não é você?" sai junto, por `:has()`. Quem digitou o usuário de outra pessoa
+  descobre pela senha recusada, e era justamente nessa tela que a saída sumia. ⚠️ O
+  destino **não** é o `url.loginRestartFlowUrl`: medido no Keycloak 26.5.2, o restart guarda o
+  `login_hint` e devolve a mesma tela, com o mesmo usuário. O `#reset-login` do `template.ftl`
+  também não serve de saída: ele só renderiza com `auth.showUsername()`, que sai falso no
+  `UsernamePasswordForm`. O que funciona é voltar à identificação do app.
+- ⚠️ **Senha errada tira o `redirect_uri` da URL.** O formulário reenvia para
+  `login-actions/authenticate?execution=…&client_id=…&tab_id=…&client_data=…`, e o script que só lia
+  `redirect_uri` deixava o botão (e o "Esqueci minha senha" do app) escondidos. O Keycloak 26 carrega
+  o endereço no `client_data`, base64url de `{"ru": …}`, e o `password-reset-link.js` lê o `ru` quando
+  o `redirect_uri` falta.
 - **O link volta para a identificação do app**, que é a raiz do app sem sessão — painel ou portal,
   o que valer para quem entrou. ⚠️ **Quem manda é o `redirect_uri` da própria requisição de login,
   não `applicationOrigin`.** Um só realm serve os dois apps, cada um com o próprio client e o próprio
@@ -250,13 +265,27 @@ CPF nem o telefone que acabou de ser digitado.
   Sem a variável no deploy o Keycloak deixa o literal `${env.…}`, e por isso o template só grava o
   atributo quando o valor comece com `http`. O `compose.yaml` local não declara a variável, então no
   local quem resolve é sempre o `redirect_uri`.
+- **A identificação volta preenchida.** O app guarda o que foi digitado no `sessionStorage` da aba
+  (`loginIdentifierMemory.service.ts`), e o campo nasce com ele, selecionado: quem errou por um
+  dígito corrige, e quem vai digitar outro usuário apaga tudo no primeiro caractere. É dado pessoal,
+  então nunca vai para o `localStorage` nem para a URL, e sai da aba assim que a sessão nasce
+  (`main.tsx`, logo depois do `initializeKeycloakAuth`).
+- **"Continuar conectado"** é o `rememberMe` do realm, que o `login.ftl` já renderizava e o realm
+  mantinha desligado. Ligado, a caixa aparece na tela de senha, e marcá-la torna persistentes os
+  cookies da sessão do Keycloak (`KEYCLOAK_IDENTITY`, `KEYCLOAK_REMEMBER_ME`). Com o navegador
+  reaberto, o `check-sso` do boot encontra a sessão e o app entra sem passar pela identificação.
+  ⚠️ Os prazos vão junto (`ssoSessionIdleTimeoutRememberMe` 7 dias, `ssoSessionMaxLifespanRememberMe`
+  30 dias, em `deploy/keycloak/realm.json`): zerados, o Keycloak usa os da sessão comum, e a sessão
+  "lembrada" morreria nos mesmos 30 minutos de inatividade. Em ambiente existente, quem aplica os três
+  campos é o `keycloak-reconcile.sh`, lendo os valores do próprio `realm.json`. Só a sessão SSO dura
+  mais: o access token segue curto e o refresh segue rotativo.
 - **Sem `login_hint`** (acesso direto, console de conta), `login.username` vem vazio e a tela continua
   com usuário e senha.
 - **Senha errada** volta para a mesma tela só de senha, com a mensagem do Keycloak: o form reenviado
   traz o username do campo oculto.
 - ⚠️ **O template não distingue o hint do username reenviado.** No acesso direto, senha errada também
   volta só com a senha e o username que a pessoa digitou. O que ela vê é o próprio texto que digitou,
-  e o "Não é você?" leva à identificação do app. O fluxo de autenticação do realm não foi mudado, e
+  e o "Trocar de usuário" leva à identificação do app. O fluxo de autenticação do realm não foi mudado, e
   nada no FreeMarker diferencia os dois casos.
 
 Conferido em container de sonda (`quay.io/keycloak/keycloak:26.5.2`, tema montado): com

@@ -27,6 +27,7 @@ import type {
 } from '../../trips/application/register-trip-occurrence.use-case.js'
 import type { TransitionTripDocumentResult } from '../../trips/application/transition-trip-document.use-case.js'
 import type { TransitionTripDocumentsBatchResult } from '../../trips/application/transition-trip-documents-batch.use-case.js'
+import type { TryAutoDispatchTripResult } from '../../trips/application/try-auto-dispatch-trip.use-case.js'
 import type { WarehouseTrip } from '../../trips/application/list-warehouse-trips.use-case.js'
 import {
   resolveOperatorTripActions,
@@ -44,6 +45,8 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../../trips/domain/trip.error.js'
 import {
+  OPERATOR_AUTO_DISPATCH_BLOCKED_MESSAGES,
+  OPERATOR_AUTO_DISPATCH_DISPATCHED_MESSAGE,
   OPERATOR_BATCH_ALL_ANSWER,
   OPERATOR_DISPATCH_CONFIRM_ANSWER,
   OPERATOR_FLOW_ACTION_KIND,
@@ -128,7 +131,8 @@ export type OperatorFlowActionDependencies = {
     readonly note: string
     readonly occurrenceTypeId: string
     readonly tripId: string
-  }) => Promise<TripOccurrence>
+    /** Spec 185 (RF2): o desfecho do gatilho quando a ocorrência deixa a última nota para trás. */
+  }) => Promise<TripOccurrence & { readonly autoDispatch?: TryAutoDispatchTripResult }>
   readonly separateDocument: (input: {
     readonly context: CompanyContext
     readonly documentId: string
@@ -496,6 +500,10 @@ export function createOperatorWhatsAppFlowActions(
           session.whatsappNumber,
           `${applied} de ${result.items.length} notas atualizadas. ✅`,
         )
+        const autoDispatchMessage = describeAutoDispatchOutcome(result.autoDispatch)
+        if (autoDispatchMessage !== null) {
+          await channel.sendText(session.whatsappNumber, autoDispatchMessage)
+        }
       } catch (error) {
         await channel.sendText(session.whatsappNumber, describeTripError(error))
       }
@@ -517,11 +525,20 @@ export function createOperatorWhatsAppFlowActions(
       before?.separationStatus === (step === 'separate' ? 'separated' : 'loaded')
 
     try {
-      await applyDocumentTransition({ action: step, actor, documentId: answer, tripId })
+      const result = await applyDocumentTransition({
+        action: step,
+        actor,
+        documentId: answer,
+        tripId,
+      })
       await channel.sendText(
         session.whatsappNumber,
         alreadyAtTarget ? 'Já estava registrada.' : describeDocumentSuccess(step),
       )
+      const autoDispatchMessage = describeAutoDispatchOutcome(result.autoDispatch)
+      if (autoDispatchMessage !== null) {
+        await channel.sendText(session.whatsappNumber, autoDispatchMessage)
+      }
     } catch (error) {
       await channel.sendText(session.whatsappNumber, describeTripError(error))
     }
@@ -831,6 +848,10 @@ export function createOperatorWhatsAppFlowActions(
           session.whatsappNumber,
           'Foto 1 anexada. Envie outra, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
         )
+        const autoDispatchMessage = describeAutoDispatchOutcome(registered.autoDispatch)
+        if (autoDispatchMessage !== null) {
+          await channel.sendText(session.whatsappNumber, autoDispatchMessage)
+        }
         return {
           context: {
             [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: registered.id,
@@ -940,6 +961,18 @@ function describeDispatchSuccess(result: DispatchTripResult): string {
   return result.tripStatus === 'dispatched'
     ? 'Viagem despachada. 🚚'
     : 'A viagem já estava despachada.'
+}
+
+/**
+ * Spec 185 (D4): o desfecho do gatilho automático depois de carregar (linha ou lote) ou da
+ * ocorrência que deixa a última nota para trás — `null` quando não houve tentativa (a carga não
+ * fechou, ou a instalação não tem o gatilho ligado).
+ */
+function describeAutoDispatchOutcome(result: TryAutoDispatchTripResult | undefined): string | null {
+  if (result === undefined) return null
+  return result.outcome === 'dispatched'
+    ? OPERATOR_AUTO_DISPATCH_DISPATCHED_MESSAGE
+    : OPERATOR_AUTO_DISPATCH_BLOCKED_MESSAGES[result.code]
 }
 
 /** Portão recusado (409), pendência e nota inalcançável viram mensagem clara — nunca erro cru (D7). */

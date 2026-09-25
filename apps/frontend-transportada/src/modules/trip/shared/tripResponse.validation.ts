@@ -44,9 +44,11 @@ import {
 } from './routeGeometry.service'
 import {
   BATCH_STATUS_RESULT_KEYS,
+  BATCH_STATUS_RESULT_OPTIONAL_KEYS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
   STOP_ADDRESS_COMPONENTS_KEYS,
   TRANSITION_RESULT_KEYS,
+  TRANSITION_RESULT_OPTIONAL_KEYS,
   TRIP_DETAIL_KEYS,
   TRIP_DETAIL_OPTIONAL_KEYS,
   DELIVERY_PROOF_KEYS,
@@ -84,6 +86,7 @@ import {
 import {
   SCANNED_NFE_STATUS,
   TRIP_BATCH_ITEM_OUTCOME,
+  TRIP_DISPATCH_BLOCKED_CODES,
   TRIP_DOCUMENT_READINESS_REASONS,
   TRIP_FISCAL_READINESS_STATES,
   TRIP_DESTINATION_ORIGINS,
@@ -92,6 +95,7 @@ import {
   CARGO_LAYOUT_STATUSES,
 } from './trip.types'
 import type {
+  AutoDispatchOutcome,
   BatchStatusResult,
   CancelTripResult,
   DeliveryAddressOverride,
@@ -328,11 +332,31 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     isString(value.fiscalStatus) &&
     /** Spec 164 T15: ausente é API anterior ao marcador; presente tem de ser booleano. */
     (value.openOccurrenceCase === undefined || isBoolean(value.openOccurrenceCase)) &&
+    /** Spec 185 T6.1: mesma tolerância — ausente é API anterior ao campo (spec 078 D2). */
+    (value.leavesBehindOnDispatch === undefined || isBoolean(value.leavesBehindOnDispatch)) &&
     /** Spec 176: ausente é API anterior à feature; presente segue a mesma regra de dinheiro/rótulo. */
     isAbsentOrNullableString(value.freightAmount) &&
     isAbsentOrNullableString(value.freightRuleName) &&
     (value.freightSource === undefined ||
       isOneOf(value.freightSource, TRIP_DOCUMENT_FREIGHT_SOURCES))
+  )
+}
+
+/**
+ * Spec 185 T6.1: cópia por valor de `TryAutoDispatchTripResult` — `details` só existe em
+ * `TRIP_HAS_UNSCHEDULED_STOPS`, nunca em `TRIP_HAS_NO_ROUTE` (a API não manda o campo ali).
+ */
+function isAutoDispatchOutcome(value: unknown): value is AutoDispatchOutcome {
+  if (!isRecord(value)) return false
+  if (value.outcome === 'dispatched') return hasExactKeys(value, ['outcome'])
+  if (value.outcome !== 'blocked') return false
+  if (!hasKeys(value, { allowed: ['code', 'details', 'outcome'], required: ['code', 'outcome'] })) {
+    return false
+  }
+  if (!isOneOf(value.code, TRIP_DISPATCH_BLOCKED_CODES)) return false
+  return (
+    value.details === undefined ||
+    (isRecord(value.details) && isEveryItem(value.details.stopIds, isString))
   )
 }
 
@@ -457,8 +481,19 @@ function isReportFieldDeliveryResult(value: unknown): value is ReportFieldDelive
 }
 
 function isTransitionResult(value: unknown): value is TransitionTripDocumentResult {
-  if (!hasExactKeys(value, TRANSITION_RESULT_KEYS)) return false
-  return isDocument(value.document) && isOneOf(value.tripStatus, TRIP_STATUS)
+  if (
+    !hasKeys(value, {
+      allowed: [...TRANSITION_RESULT_KEYS, ...TRANSITION_RESULT_OPTIONAL_KEYS],
+      required: TRANSITION_RESULT_KEYS,
+    })
+  ) {
+    return false
+  }
+  return (
+    isDocument(value.document) &&
+    isOneOf(value.tripStatus, TRIP_STATUS) &&
+    (value.autoDispatch === undefined || isAutoDispatchOutcome(value.autoDispatch))
+  )
 }
 
 /** Cada `outcome` carrega chaves diferentes (`blocked` ganha `reason`) — checar só o que toda
@@ -473,8 +508,19 @@ function isBatchItemResult(value: unknown): value is TripDocumentBatchItemResult
 }
 
 function isBatchStatusResult(value: unknown): value is BatchStatusResult {
-  if (!hasExactKeys(value, BATCH_STATUS_RESULT_KEYS)) return false
-  return isEveryItem(value.items, isBatchItemResult) && isOneOf(value.tripStatus, TRIP_STATUS)
+  if (
+    !hasKeys(value, {
+      allowed: [...BATCH_STATUS_RESULT_KEYS, ...BATCH_STATUS_RESULT_OPTIONAL_KEYS],
+      required: BATCH_STATUS_RESULT_KEYS,
+    })
+  ) {
+    return false
+  }
+  return (
+    isEveryItem(value.items, isBatchItemResult) &&
+    isOneOf(value.tripStatus, TRIP_STATUS) &&
+    (value.autoDispatch === undefined || isAutoDispatchOutcome(value.autoDispatch))
+  )
 }
 
 /**
@@ -888,7 +934,7 @@ export function createTripResponseAdapters() {
      */
     registeredOccurrenceFromApi(input: unknown): RegisteredOccurrence {
       if (!isRecord(input)) throw invalid()
-      const { attachments, email, ...occurrence } = input
+      const { attachments, autoDispatch, email, ...occurrence } = input
       if (!isTripOccurrence(occurrence)) throw invalid()
       if (
         attachments !== undefined &&
@@ -899,9 +945,12 @@ export function createTripResponseAdapters() {
       if (email !== null && !(isRecord(email) && isString(email.body) && isString(email.subject))) {
         throw invalid()
       }
+      /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o despacho automático. */
+      if (autoDispatch !== undefined && !isAutoDispatchOutcome(autoDispatch)) throw invalid()
       return {
         ...occurrence,
         attachments: attachments ?? [],
+        ...(autoDispatch === undefined ? {} : { autoDispatch }),
         email: email as RegisteredOccurrence['email'],
       }
     },
@@ -1394,8 +1443,16 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  * de tipos que alimenta o diálogo de registro (achado B7 da revisão). Ausente degrada para o
  * padrão de hoje, em `toOccurrenceType`; presente continua validado como antes.
  */
-type RawOccurrenceType = Omit<OccurrenceType, 'allowsMultipleItems' | 'redeliveryPolicy'> &
-  Readonly<{ allowsMultipleItems?: unknown; attachmentMode?: unknown; redeliveryPolicy?: unknown }>
+type RawOccurrenceType = Omit<
+  OccurrenceType,
+  'allowsMultipleItems' | 'leavesDocumentBehind' | 'redeliveryPolicy'
+> &
+  Readonly<{
+    allowsMultipleItems?: unknown
+    attachmentMode?: unknown
+    leavesDocumentBehind?: unknown
+    redeliveryPolicy?: unknown
+  }>
 
 function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
@@ -1410,6 +1467,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         ...OCCURRENCE_TYPE_REQUIRED_KEYS,
         'allowsMultipleItems',
         'attachmentMode',
+        /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
+        'leavesDocumentBehind',
         'redeliveryPolicy',
       ],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
@@ -1424,6 +1483,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     isString(value.id) &&
+    (value.leavesDocumentBehind === undefined || isBoolean(value.leavesDocumentBehind)) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
     (value.redeliveryPolicy === undefined ||
@@ -1435,12 +1495,14 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
 }
 
 /** Achado B7: `allowsMultipleItems` nasce `true` (comportamento de hoje) e `redeliveryPolicy`
- * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`. */
+ * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`.
+ * `leavesDocumentBehind` nasce `false` (spec 185 T6.1 D2), o mesmo padrão do banco. */
 function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
-  const { allowsMultipleItems, redeliveryPolicy, ...rest } = raw
+  const { allowsMultipleItems, leavesDocumentBehind, redeliveryPolicy, ...rest } = raw
   return {
     ...rest,
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
+    leavesDocumentBehind: isBoolean(leavesDocumentBehind) ? leavesDocumentBehind : false,
     redeliveryPolicy:
       redeliveryPolicy === 'allowed' ||
       redeliveryPolicy === 'blocked' ||

@@ -7,6 +7,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig, type Plugin } from 'vite'
 
+import { assertDriverAppUrlBuildsClean } from './src/modules/identity/shared/identityEnvironment.config'
 import {
   CONTENT_SECURITY_POLICY_FILE_NAME,
   buildContentSecurityPolicy,
@@ -96,6 +97,28 @@ function contentSecurityPolicyPlugin(): Plugin {
 }
 
 /**
+ * ADR-0075 §6, revisão M1: `VITE_DRIVER_APP_URL` inválida, ou igual a `VITE_APP_URL` (laço de
+ * redirect consigo mesmo), só falhava em runtime, dentro do navegador do motorista —
+ * `readDriverAppUrl()` lança, mas só quando alguém carrega o painel. Falhar o build devolve o erro
+ * para quem fez o deploy, antes do bundle existir.
+ */
+function driverAppUrlValidationPlugin(): Plugin {
+  return {
+    name: 'transportada-driver-app-url-validation',
+    configResolved(config) {
+      const readEnvironment = (name: string): string | undefined => {
+        const value: unknown = config.env[name]
+        return typeof value === 'string' ? value : undefined
+      }
+      assertDriverAppUrlBuildsClean({
+        appUrl: readEnvironment('VITE_APP_URL'),
+        driverAppUrl: readEnvironment('VITE_DRIVER_APP_URL'),
+      })
+    },
+  }
+}
+
+/**
  * O worker do MapLibre importa o shared pelo caminho relativo, e o `?url` copia só o worker: o
  * shared nunca chegava ao `dist` e o mapa não subia fora do `vite dev`. Aqui os dois saem juntos, e
  * o bundle recebe o endereço do worker por `define`. Só no build — em dev o `node_modules` já serve
@@ -162,6 +185,7 @@ export default defineConfig({
   plugins: [
     react(),
     contentSecurityPolicyPlugin(),
+    driverAppUrlValidationPlugin(),
     maplibreWorkerAssetsPlugin(),
     openCvCompressionPlugin(),
     VitePWA({

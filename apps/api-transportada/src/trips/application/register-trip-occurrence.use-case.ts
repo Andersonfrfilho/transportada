@@ -25,6 +25,11 @@ import type {
   OccurrenceNotificationParameters,
   OccurrenceNotificationSetting,
 } from '../domain/occurrence-notification.policy.js'
+import {
+  tryAutoDispatchTrip,
+  type AutoDispatchDependencies,
+  type TryAutoDispatchTripResult,
+} from './try-auto-dispatch-trip.use-case.js'
 
 export type TripOccurrence = {
   readonly createdAt: string
@@ -79,6 +84,12 @@ export type TripOccurrenceWithAttachment = TripOccurrence &
  */
 export type RegisteredOccurrence = TripOccurrence & {
   /**
+   * Spec 185 (RF2, D4): ausente sem o gatilho ligado, ou quando a carga ainda não fechou. Uma
+   * ocorrência de nota inteira, de tipo "segue sem a nota", sobre a última pendente pode fechar a
+   * carga sozinha — o mesmo gatilho de carregar a última nota (ADR-0074 §1/§4).
+   */
+  readonly autoDispatch?: TryAutoDispatchTripResult
+  /**
    * Todos os itens marcados, na ordem em que foram marcados. Vazia é a nota inteira. Vem ao lado
    * de `productCode` (o primeiro deles), que continua existindo para quem já lia dele.
    */
@@ -111,6 +122,12 @@ export type OccurrenceTypeRecord = {
   /** A chave do template do módulo de notificações; nula é o legado (assunto/corpo próprios). */
   readonly emailTemplateKey: null | string
   readonly id: string
+  /**
+   * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota", só para tipo de separação. Ausente é
+   * tratado como `false` — existe como opcional só para os dublês de teste que ainda não conhecem
+   * a marca; a implementação real (`listOccurrenceTypes`) sempre grava.
+   */
+  readonly leavesDocumentBehind?: boolean
   readonly name: string
   readonly notifies: boolean
   /**
@@ -217,6 +234,16 @@ export type RegisterTripOccurrenceInput = {
     readonly bytes: Uint8Array
     readonly mimeType: string
     readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
+  }
+  /**
+   * Spec 185 (D4, RF2): ausente é instalação sem o gatilho automático ligado — o registro funciona
+   * igual, só não tenta despachar. `channel` é o mesmo canal desta escrita (RF2/ADR-0074 §1); este
+   * caso de uso já só grava ocorrência de separação (`OccurrenceTypeNotSeparationError` acima), por
+   * isso não há filtro de `stage` aqui.
+   */
+  readonly autoDispatch?: AutoDispatchDependencies & {
+    readonly channel: TripFieldChannel
+    readonly onBehalfOfDriverId?: string | null
   }
   readonly companyId: string
   readonly documentId: string
@@ -343,8 +370,32 @@ export async function registerTripOccurrence(
     occurrenceType,
   })
 
+  /**
+   * Spec 185 (D4, ADR-0074 §1/§4): a ocorrência que tira a última nota pendente da conta pode
+   * fechar a carga sozinha — sempre **depois** de `saveOccurrence` ter comitado (transação própria).
+   * Só a que deixa a nota para trás (tipo marcado, nota inteira, nota ainda não carregada — o
+   * gatilho confere a última pela `leftBehind`) mexe na conta; a parcial, a que só anota e a de
+   * nota já carregada nunca despacham.
+   */
+  const leavesDocumentBehind =
+    occurrenceType.leavesDocumentBehind === true && scope.scope === 'document'
+  const autoDispatch =
+    input.autoDispatch === undefined || !leavesDocumentBehind
+      ? undefined
+      : await tryAutoDispatchTrip({
+          actorUserId,
+          channel: input.autoDispatch.channel,
+          companyId,
+          leftBehindDocumentId: documentId,
+          logger: input.autoDispatch.logger,
+          onBehalfOfDriverId: input.autoDispatch.onBehalfOfDriverId ?? null,
+          repository: input.autoDispatch.repository,
+          tripId,
+        })
+
   return {
     ...saved,
+    ...(autoDispatch === undefined ? {} : { autoDispatch }),
     attachments: saved.attachments ?? [],
     email: await renderEmail({ input, occurrenceType, scope }),
     productCodes: scope.productCodes,

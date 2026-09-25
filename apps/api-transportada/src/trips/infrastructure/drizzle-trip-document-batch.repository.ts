@@ -119,7 +119,7 @@ async function writeBatch(
 
   if (updated.length > 0) {
     // 2/4: um INSERT só, uma linha de evento por nota escrita — nunca um insert por documento.
-    await insertEvents(
+    await insertTripDocumentBatchEvents(
       transaction,
       input,
       updated.map((record) => record.id),
@@ -143,7 +143,11 @@ async function writeBatch(
   }
 }
 
-async function insertEvents(
+/**
+ * Spec 185 (D3): exportado para o `loadRemaining` do despacho gravar o evento de nota pelo mesmo
+ * escritor do lote — nunca um `separation_status` escrito à mão sem evento.
+ */
+export async function insertTripDocumentBatchEvents(
   transaction: TripTransaction,
   input: TripDocumentBatchWriteInput,
   writtenDocumentIds: readonly string[],
@@ -176,7 +180,9 @@ async function insertEvents(
   }
 }
 
-function timestampPatchFor(toStatus: TripDocumentBatchWriteInput['items'][number]['toStatus']) {
+export function timestampPatchFor(
+  toStatus: TripDocumentBatchWriteInput['items'][number]['toStatus'],
+) {
   if (toStatus === 'separated') return { separatedAt: sql`now()` }
   if (toStatus === 'loaded') return { loadedAt: sql`now()` }
   if (toStatus === 'delivered') return { deliveredAt: sql`now()` }

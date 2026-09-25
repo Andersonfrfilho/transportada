@@ -275,8 +275,21 @@ describe('o operador separa, carrega e despacha pelo WhatsApp (spec 144 T016)', 
         interactive: { list_reply: { id: world.documentId, title: '1' }, type: 'list_reply' },
         type: 'interactive',
       })
-      expect(scenario.sentMessages().at(-3)?.body).toMatchObject({
+      /**
+       * Spec 185 (D4, ADR-0074 §1): carregar a única nota fecha a carga sozinha — o gatilho
+       * automático despacha a viagem na sequência, sem passar pelo botão "Despachar" manual.
+       * Quatro mensagens neste turno: a confirmação da carga, o desfecho do gatilho ("Viagem
+       * despachada."), o aviso de que a viagem saiu do menu de ações (ela não é mais "do armazém")
+       * e o nudge do menu raiz que sucede o "esta viagem não está mais disponível.".
+       */
+      expect(scenario.sentMessages().at(-4)?.body).toMatchObject({
         text: { body: 'Carregamento registrado. ✅' },
+      })
+      expect(scenario.sentMessages().at(-3)?.body).toMatchObject({
+        text: { body: 'Viagem despachada. 🚚' },
+      })
+      expect(scenario.sentMessages().at(-2)?.body).toMatchObject({
+        text: { body: 'Esta viagem não está mais disponível.' },
       })
 
       const [loaded] = await db
@@ -291,42 +304,14 @@ describe('o operador separa, carrega e despacha pelo WhatsApp (spec 144 T016)', 
         .where(eq(tripDocumentEvents.tripDocumentId, world.documentId))
       expect(loadEvents).toEqual([{ channel: 'whatsapp' }, { channel: 'whatsapp' }])
 
-      await scenario.receive({
-        from: world.phone,
-        interactive: {
-          button_reply: { id: 'dispatch', title: '🚚 Despachar' },
-          type: 'button_reply',
-        },
-        type: 'interactive',
-      })
-      const confirmMenu = scenario.sentMessages().at(-1)
-      expect(confirmMenu?.body).toMatchObject({
-        interactive: {
-          action: {
-            buttons: [{ reply: { id: 'confirm_dispatch' } }, { reply: { id: 'cancel_dispatch' } }],
-          },
-        },
-      })
-
-      await scenario.receive({
-        from: world.phone,
-        interactive: {
-          button_reply: { id: 'confirm_dispatch', title: '✅ Confirmar' },
-          type: 'button_reply',
-        },
-        type: 'interactive',
-      })
-      expect(scenario.sentMessages().at(-3)?.body).toMatchObject({
-        text: { body: 'Viagem despachada. 🚚' },
-      })
-
       const [dispatchedTrip] = await db.select().from(trips).where(eq(trips.id, world.tripId))
       expect(dispatchedTrip?.status).toBe('dispatched')
 
       /**
        * Spec 158 T4: todas as transições de status pelo WhatsApp do operador — a separação e o
-       * carregamento (via `recalculateTripStatus`) e o despacho (via `DrizzleTripRouteRepository`)
-       * — gravam `whatsapp` em `trip_status_events`, nunca `driver_app`.
+       * carregamento (via `recalculateTripStatus`) e o despacho automático (via
+       * `DrizzleTripRouteRepository`) — gravam `whatsapp` em `trip_status_events`, nunca
+       * `driver_app`.
        */
       const statusEvents = await db
         .select({ channel: tripStatusEvents.channel, toStatus: tripStatusEvents.toStatus })
@@ -642,6 +627,7 @@ async function buildScenario(db: Database, companyId: string) {
       transitionTripDocumentsBatch({
         action: input.action,
         actorUserId: input.context.userId,
+        autoDispatch: { logger: { error: () => {} }, repository: tripRouteRepository },
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentIds: input.documentIds,
@@ -663,6 +649,7 @@ async function buildScenario(db: Database, companyId: string) {
       transitionTripDocument({
         action: 'load',
         actorUserId: input.context.userId,
+        autoDispatch: { logger: { error: () => {} }, repository: tripRouteRepository },
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
@@ -674,6 +661,11 @@ async function buildScenario(db: Database, companyId: string) {
         registerTripOccurrence({
           actorUserId: input.actorUserId,
           ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
+          autoDispatch: {
+            channel: TRIP_FIELD_CHANNELS.whatsapp,
+            logger: { error: () => {} },
+            repository: tripRouteRepository,
+          },
           companyId: input.companyId,
           documentId: input.documentId,
           note: input.note,

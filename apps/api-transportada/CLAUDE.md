@@ -167,13 +167,29 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
 ## Viagem (trips) — máquina de estados
 
 `trips.status`: `draft → route_planned → separating → loading → dispatched → in_transit →
-completed` (ou `cancelled`), **derivado** do estado das notas exceto em quatro transições manuais
-(criar, `plan-route`, `dispatch`, `cancel`). `checkTripDocumentTransition`/`checkTripTransition`
+completed` (ou `cancelled`), **derivado** do estado das notas exceto em três transições manuais
+(criar, `plan-route`, `cancel`) — **`dispatch` também é derivado quando a carga fecha** (spec 185,
+ADR-0074): `tryAutoDispatchTrip` roda depois do commit da escrita que fecha a carga (carregar nota,
+linha ou lote, pelo web ou pelo WhatsApp, e a ocorrência que deixa a última nota pendente para trás),
+nunca com `force`, e nunca faz a escrita comitada falhar — um gate recusado vira `autoDispatch.blocked`
+(`TRIP_HAS_UNSCHEDULED_STOPS`, `TRIP_HAS_NO_ROUTE`, `TRIP_AUTO_DISPATCH_FAILED`) na resposta da
+escrita, não um erro dela. Os cinco pontos de escrita que tentam o gatilho recebem
+`autoDispatch: { logger, repository }`. `checkTripDocumentTransition`/`checkTripTransition`
 (`trips/domain/trip-state.policy.ts`) são a única fonte da máquina; toda transição é idempotente por
-desenho. `dispatched` é porta de não-retorno (bloqueia vincular/desvincular/reordenar, roteiro congela
-em `trip_dispatch_snapshots`); só `cancel` sai dali. `TripStop` é **derivada** — nunca criada à
-mão — via `reconcileStopOnLink`/`reconcileStopOnUnlink`, agrupando pelo endereço normalizado do
-destinatário, nunca pelo CNPJ.
+desenho. O botão "Despachar" aceita `loadRemaining` (separa e carrega o que falta na mesma transação
+do despacho); `force` e `loadRemaining` juntos → 400. `dispatched` é porta de não-retorno (bloqueia
+vincular/desvincular/reordenar, roteiro congela em `trip_dispatch_snapshots`); só `cancel` sai dali.
+`TripStop` é **derivada** — nunca criada à mão — via `reconcileStopOnLink`/`reconcileStopOnUnlink`,
+agrupando pelo endereço normalizado do destinatário, nunca pelo CNPJ.
+
+**`dispatch()` trava na ordem da ADR-0068 §2** (spec 185): primeiro as escritas nas notas (carregar
+o que `loadRemaining` pediu, liberar o forçado e o deixado para trás), depois a viagem com
+`FOR NO KEY UPDATE` e a reconferência de `checkTripTransition`, e só então snapshot/ETA e o
+`trips.status` por compare-and-set. Corrida de dois despachos: quem perde recebe
+`DispatchAlreadySettledSignal`, desfaz a própria transação e devolve `unchanged`, nunca erro.
+`readDispatchReadinessDocuments` + `resolveDispatchReadiness` (`trips/domain/dispatch-readiness.policy.ts`)
+são a fonte única da conta de "carga fechada" — despacho manual, gatilho automático e
+`leavesBehindOnDispatch` do detalhe da viagem leem a mesma consulta.
 
 ⚠️ `return`/`deliver` só depois de `dispatched`; `separate`/`load` exigem roteiro planejado —
 tratar os três como um `isEditable` só oferece o botão exatamente quando ele dá `409`. Guarda:
@@ -184,11 +200,25 @@ tratar os três como um `isEditable` só oferece o botão exatamente quando ele 
 tem, nem `trip.report`, que é a chave das rotas `/me`). Rotas com o `tripId` no caminho, alvo
 resolvido pela empresa do contexto (outra empresa → 404; sem motorista → 422 `TRIP_WITHOUT_DRIVER`;
 `driverId` fora da tripulação → 422 `DRIVER_NOT_ON_TRIP`) e os mesmos casos de uso do motorista com
-`{ target }`: `POST /trips/:id/confirm-load`, `…/start-route`, `…/stops/:stopId/arrive` (`arrivedAt`
+`{ target }`: `POST /trips/:id/confirm-load` (spec 185, ADR-0074 §5: continua aceito e idempotente,
+mas `allowed-actions` não o oferece mais — "Conferir carga" saiu da tela), `…/start-route`,
+`…/stops/:stopId/arrive` (`arrivedAt`
 opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-delivery` (multipart,
 `deliveredAt` obrigatório), `…/field-return` (JSON, `returnedAt` opcional), `…/field-proof`
 (multipart) e `…/documents/field-occurrences` (lote multipart); leituras `GET /trips/:id/allowed-actions`
 (`anyPermission`), `GET /trips/:id/field-delivery-documents` e `GET /trips/field-delivery-settings`.
+
+⚠️ **A baixa de entrega não espera o despacho** (spec 182 RF3, decisão do usuário em 24/09):
+`checkTripAcceptsDocumentWork` (`trip-state.policy.ts`) parou de exigir `isTripDispatched` para
+`deliver` — `field-delivery` responde 200/201 com a viagem em `route_planned`/`separating`/`loading`,
+não só depois do despacho. Deliberadamente contraria a leitura física do estado: serve para corrigir
+registro ou lançar entrega feita por fora da viagem. `return` (`field-return`) **não mudou** —
+devolução continua exigindo rua. `trips.status` não avança sozinho nesse caminho (a derivação só
+promove a `on_delivery_route`/`completed` a partir de `isTripDispatched`); despachar continua
+sendo o gesto do barracão. A ocorrência na linha da nota (`fieldOccurrence`) e na parada
+(`STOP_ALLOWED_ACTION.occurrence`) também deixaram de exigir despacho/rua
+(`trip-allowed-actions.policy.ts`, RF1/RF2) — só a chegada (`arrive`) continua exigindo
+`isTripOnRoad`.
 
 - Todo registro grava `channel` (`driver_app | office | whatsapp`, e `backoffice` em
   `trip_status_events`) e, no `office`, `on_behalf_of_driver_id` (CHECK + FK composta com índice
@@ -309,6 +339,20 @@ endereço, e-mail é da parte) do destinatário existem para a viagem ligar ante
 sempre serve o cru, máscara/cópia é do frontend (`formatStoredPhone`). Detalhe completo: docs/ai-context
 § "O telefone do cliente" e § "O e-mail do destinatário".
 
+**Consentimento de rastreamento e posição ao vivo** (ADR-0050 §5, spec 063; leitura acrescentada
+pela ADR-0075 §8, spec 189 T7.4): `GET`/`PUT /me/location-consent` (`me-location.routes.ts`,
+`REPORT_POLICY` = `trip.report` escopo `company`) leem/gravam `{ acceptedAt: string | null }`. O
+`GET` (`createReadLocationConsentUseCase`, `trips/application/read-location-consent.use-case.ts`) é
+"a leitura que faltava ao `PUT`", que já existia — a app do motorista precisava mostrar o estado do
+interruptor sem inferir de nenhum outro dado. As duas rotas, e também `POST
+/me/trips/current/location` (`recordLocation`, sem id de viagem — o servidor resolve a viagem do
+motorista), resolvem o motorista pelo **vínculo** da conta autenticada, nunca do payload; sem
+cadastro de motorista, `409 DRIVER_NOT_REGISTERED` (`DriverNotRegisteredError`) — é configuração
+pendente do escritório, não "nunca consentiu", e a app distingue as duas telas. Retirar o
+consentimento apaga o rastro na mesma transação (`fleet_drivers.location_sharing_consent_at`), e o
+rastro morre com a viagem (`purgeByTrip`, no fechamento e no cancelamento). Contratos:
+`test/trip-http/location-tracking.contract.ts`, `test/integration/me-location-consent.integration.ts`.
+
 ## Ocorrência da nota — tratativa e cobrança (spec 164)
 
 **A ocorrência é append-only; o estado mora ao lado.** `trip_document_occurrences` nunca ganha
@@ -319,7 +363,12 @@ só quando mudou (molde de `trip_status_events`, ADR-0068). **A nota nunca é pr
 não é bloqueado — o que a leitura ganha é `openOccurrenceCase`/`hasOpenOccurrence`, marcador
 **derivado**, nunca uma escrita nova em `trip_documents`. Quem reintroduzir esse acoplamento quebra o
 contrato de regressão de `GET /trips/:id/allowed-actions` (tem de continuar byte a byte igual com
-tratativa aberta).
+tratativa aberta). ⚠️ **Exceção opt-in da ADR-0074 §4** (spec 185): tipo de ocorrência com
+`leaves_document_behind = true`, ocorrência aberta (sem tratativa, ou tratativa fora de
+`returned_to_warehouse|closed|cancelled`) sobre a nota inteira, e nota ainda não carregada — essa
+nota **é liberada** no despacho (`released_at`), com o motivo "Ocorrência: <tipo>" em
+`snapshot.leftBehind`. É a única forma da tratativa afetar o despacho; nota `loaded` com a mesma
+ocorrência continua carga.
 
 **A tratativa tem dois escritores, e são papéis diferentes.** `occurrences.resolve`
 (`company-admin`/`operator`/`finance`, nunca `separator` nem `trip.manage` — validar a própria
@@ -378,7 +427,11 @@ foto nunca sai nessas respostas — só motivo, pontos e datas — e cai aos 90 
 
 **O endereço se mede uma vez** (ADR-0061, spec 084) — geocodificação em lote, por decisão explícita,
 nunca recalculada a cada leitura. Separação grafia × lugar (`street-comparison.policy.ts`) é o que
-torna o relatório de endereços legível. CEP vem de cadastro; a busca textual ainda sai do navegador
+torna o relatório de endereços legível. **O CEP corre em paralelo** (spec 186): banco da instalação,
+BrasilAPI `/cep/v2`, AwesomeAPI, ViaCEP e — com `GOOGLE_MAPS_API_KEY` — o Google Geocoding (pago, e
+resposta de outro CEP é descartada) partem juntos, vence o primeiro endereço **completo** e os
+provedores perdedores são abortados (`raceCompletePostalCodeSuggestion`); a v2 fica pela coordenada,
+mesmo levando ~2 s. A busca textual ainda sai do navegador
 (Photon). **Cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`),
 casada por `normalizeVehicleCatalogName` para tolerar grafia divergente entre planilha e IBGE.
 

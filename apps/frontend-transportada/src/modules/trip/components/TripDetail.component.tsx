@@ -18,12 +18,20 @@ import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
 import {
+  selectBatchTransitionDocumentIds,
+  type BatchTransitionAction,
+} from '../shared/batchTransitionSelection.service'
+import {
   selectPendingCteDocumentIds,
   selectPendingNfseDocumentIds,
 } from '../shared/cteSelection.service'
 import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey, resolveTripFeedbackKey } from '../shared/tripFeedback.service'
+import {
+  resolveAutoDispatchFeedback,
+  resolveDispatchErrorFeedback,
+} from '../shared/tripDispatchFeedback.service'
 import { countOpenTripDocumentsForClose } from '../shared/tripClose.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
 import { canIssueMdfe, selectPendingCteDocuments } from '../shared/tripMdfeGate.service'
@@ -40,7 +48,7 @@ import {
   resolveDefaultOnBehalfDriverId,
   selectFieldReturnableDocumentIds,
 } from '../shared/tripFieldActions.service'
-import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
+import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
@@ -67,6 +75,7 @@ import { buildFieldDeliveryWizardDocuments } from '../shared/fieldDeliveryDocume
 import { FieldDeliveryWizard } from './FieldDeliveryWizard.component'
 import { FieldOccurrenceDialog } from './FieldOccurrenceDialog.component'
 import { TripHeaderActions } from './TripHeaderActions.component'
+import { TripSelectAllDocuments } from './TripSelectAllDocuments.component'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import type { TripStopOccurrenceSubmission } from './TripStopOccurrenceDialog.component'
@@ -278,7 +287,10 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
    * renders, e o React derruba o componente inteiro — foi o que o smoke pegou. A viagem ainda pode
    * não ter carregado, e `''` é um id que nunca resolve, o que é exatamente o que se quer aqui.
    */
-  const routeSuggestion = useRouteSuggestion({ tripId: workspace.trip?.id ?? '' })
+  const routeSuggestion = useRouteSuggestion({
+    onAccepted: () => void workspace.invalidateTrip(),
+    tripId: workspace.trip?.id ?? '',
+  })
   /** Spec 156 T12: precisa vir antes dos `return` condicionais — hooks não podem ser condicionais. */
   const fieldDelivery = useFieldDelivery({
     attachFieldProof: workspace.controller.attachFieldProof,
@@ -475,15 +487,33 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     workspace.reorderStopsMutation.error,
     workspace.transitionDocumentMutation.error,
     workspace.batchStatusMutation.error,
-    workspace.dispatchMutation.error,
     workspace.cancelMutation.error,
     workspace.planRouteMutation.error,
-    workspace.confirmLoadTripMutation.error,
     workspace.startFieldTripMutation.error,
     workspace.reportStopArrivalMutation.error,
     workspace.reportStopOccurrenceMutation.error,
     workspace.registerFieldOccurrencesMutation.error,
   ])
+  /**
+   * Spec 185 RF8: a recusa do botão "Despachar" ganha frase própria (parada nomeada, ou "sem
+   * rota") — nunca o genérico "serverRefused" que o `feedbackKey` de cima daria a ela. Sem motivo
+   * específico (ex.: `TRIP_HAS_UNLOADED_DOCUMENTS`), cai na mesma tradução genérica de sempre.
+   */
+  const dispatchErrorFeedback = resolveDispatchErrorFeedback({
+    error: workspace.dispatchMutation.error,
+    stops: trip.stops,
+  })
+  const dispatchFeedbackKey =
+    dispatchErrorFeedback ??
+    (workspace.dispatchMutation.error === null
+      ? null
+      : { key: resolveTripFeedbackKey(workspace.dispatchMutation.error) ?? 'serverRefused' })
+  /** Spec 185 RF2/RF3: carregar a nota (linha/lote) ou registrar a ocorrência de separação também
+   * tenta fechar a viagem sozinha — `dispatched` é aviso de sucesso, `blocked` é a mesma frase acima. */
+  const autoDispatchFeedback = resolveAutoDispatchFeedback({
+    autoDispatch: workspace.autoDispatchOutcome,
+    stops: trip.stops,
+  })
 
   /**
    * A dispensa de viagem com nota de CT-e passa pelo diálogo do motivo; os outros dois estados vão
@@ -509,10 +539,16 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     setReturnDocumentId(null)
   }
 
-  function handleBatch(input: { readonly action: 'load' | 'separate' }): void {
-    if (trip === undefined || selection.selectedIds.size === 0) return
+  function handleBatch(input: { readonly action: BatchTransitionAction }): void {
+    if (trip === undefined) return
+    const documentIds = selectBatchTransitionDocumentIds({
+      action: input.action,
+      documents: trip.documents,
+      selectedIds: selection.selectedIds,
+    })
+    if (documentIds.length === 0) return
     workspace.batchStatusMutation.mutate(
-      { action: input.action, documentIds: [...selection.selectedIds], tripId: trip.id },
+      { action: input.action, documentIds, tripId: trip.id },
       { onSuccess: selection.clear },
     )
   }
@@ -621,15 +657,11 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           capabilities={workspace.fieldActionCapabilities}
           fiscalReadiness={workspace.fiscalReadiness}
           isCancelPending={workspace.cancelMutation.isPending}
-          isConfirmLoadPending={workspace.confirmLoadTripMutation.isPending}
           isDispatchPending={workspace.dispatchMutation.isPending}
           isFiscalReadinessPanelVisible={canReadFleetDetails}
           isPlanRoutePending={workspace.planRouteMutation.isPending}
           isStartRoutePending={workspace.startFieldTripMutation.isPending}
           onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
-          onConfirmLoad={() =>
-            workspace.confirmLoadTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
-          }
           onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
           onOpenOccurrenceDocument={(documentId) =>
             workspace.setOpenSeparationOccurrenceDocumentId(documentId)
@@ -667,6 +699,25 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       {feedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
           {t(`feedback.${feedbackKey}`)}
+        </p>
+      )}
+
+      {/* Spec 185 RF8: a recusa do botão "Despachar" — parada nomeada, ou "sem rota". */}
+      {dispatchFeedbackKey === null ? null : (
+        <p className={styles.alert} role="alert">
+          {t(`feedback.${dispatchFeedbackKey.key}`, dispatchFeedbackKey.params ?? {})}
+        </p>
+      )}
+
+      {/* Spec 185 RF2/RF3: o desfecho do gatilho automático — sucesso muda de cor, bloqueio não. */}
+      {autoDispatchFeedback === null ? null : (
+        <p
+          className={
+            autoDispatchFeedback.key === 'autoDispatched' ? styles.successNotice : styles.alert
+          }
+          role={autoDispatchFeedback.key === 'autoDispatched' ? 'status' : 'alert'}
+        >
+          {t(`feedback.${autoDispatchFeedback.key}`, autoDispatchFeedback.params ?? {})}
         </p>
       )}
 
@@ -754,6 +805,7 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           status: trip.status,
           stops: trip.stops,
         })}
+        tripStatus={trip.status}
       />
 
       {canManage && isEditable ? (
@@ -926,6 +978,16 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
         permissions={workspace.permissions}
         onNfseEmitted={() => workspace.refetchFiscalReadiness()}
         selection={selection}
+        separableSelection={selectBatchTransitionDocumentIds({
+          action: 'separate',
+          documents: trip.documents,
+          selectedIds: selection.selectedIds,
+        })}
+        loadableSelection={selectBatchTransitionDocumentIds({
+          action: 'load',
+          documents: trip.documents,
+          selectedIds: selection.selectedIds,
+        })}
       />
 
       <FieldOccurrenceDialog
@@ -1026,9 +1088,15 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
          * de uma nota com ocorrência) rola até aqui e move o foco para o leitor de tela anunciar
          * onde a rolagem parou, sem entrar na ordem normal do Tab.
          */}
-        <h3 id="trip-stops-title" tabIndex={-1}>
-          {t('stops.title')}
-        </h3>
+        <div className={styles.stopSectionHead}>
+          <h3 id="trip-stops-title" tabIndex={-1}>
+            {t('stops.title')}
+          </h3>
+          <TripSelectAllDocuments
+            documentIds={trip.documents.map((document) => document.id)}
+            selection={selection}
+          />
+        </div>
         <TripStopList
           actions={documentActions}
           canReorder={canManage && isEditable}

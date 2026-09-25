@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
+import type { DriverReturnReason } from './tripReturnReason.types'
 import type {
   CoverableSuggestionStop,
   LeftoverStop,
@@ -221,8 +221,33 @@ export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
     /** ⚠️ O registro devolve o formato **estreito** do anexo (`{ id, position }`, sem URL — RF6/D5),
      * diferente do `attachments` completo da leitura. */
     attachments: readonly Readonly<{ id: string; position: number }>[]
+    /** Spec 185 T6.1 (RF2/RF3): a ocorrência de separação também tenta o despacho automático. */
+    autoDispatch?: AutoDispatchOutcome
     email: null | Readonly<{ body: string; subject: string }>
   }>
+
+/**
+ * Spec 185 (D4, ADR-0074 §1/§2): cópia por valor de `TryAutoDispatchTripResult`
+ * (`apps/api-transportada/src/trips/application/try-auto-dispatch-trip.use-case.ts`) — o gatilho
+ * automático nunca usa `force`; um gate recusado não desfaz a escrita da nota, só deixa a viagem
+ * esperando o botão "Despachar".
+ */
+export const TRIP_DISPATCH_BLOCKED_CODES = [
+  'TRIP_HAS_NO_ROUTE',
+  'TRIP_HAS_UNSCHEDULED_STOPS',
+  /** Spec 185 revisão (achado 2 da API): o gatilho falhou por outro motivo — sem `details`. */
+  'TRIP_AUTO_DISPATCH_FAILED',
+] as const
+export type TripDispatchBlockedCode = (typeof TRIP_DISPATCH_BLOCKED_CODES)[number]
+
+export type AutoDispatchOutcome = Readonly<
+  | {
+      code: TripDispatchBlockedCode
+      details?: Readonly<{ stopIds: readonly string[] }>
+      outcome: 'blocked'
+    }
+  | { outcome: 'dispatched' }
+>
 
 /**
  * Spec 158 D5: ⚠️ Cópia por valor de `TRIP_TIMELINE_KINDS` da API
@@ -303,6 +328,12 @@ export type TripDocumentDetail = TripDocument &
     fiscalStatus: string
     /** Spec 164 T15 (RF21): esta nota tem tratativa de ocorrência aberta. Ausente é API anterior. */
     openOccurrenceCase?: boolean
+    /**
+     * Spec 185 T6.1 (D1, ADR-0074 §4): esta nota sairia da viagem se despachasse agora — ocorrência
+     * de separação, de tipo "segue sem a nota", sobre a nota inteira, e ainda não carregada. Ausente
+     * é API anterior ao campo (spec 078 D2); `dispatchReadiness.service.ts` trata isso como `false`.
+     */
+    leavesBehindOnDispatch?: boolean
     /**
      * Spec 079 P2: quem recebe e como falar com ele. O telefone vem do `<enderDest><fone>` que a
      * nota já traz — nada é coletado.
@@ -813,7 +844,6 @@ export type TripDocumentActionInput = Readonly<{ documentId: string; tripId: str
  */
 export type TripFieldActionTarget = Readonly<{ driverId?: string; tripId: string }>
 
-export type ConfirmLoadTripInput = TripFieldActionTarget
 export type StartFieldTripInput = TripFieldActionTarget
 
 /** O que `POST .../confirm-load` e `POST .../start-route` devolvem — nenhum recurso nasce ali. */
@@ -936,6 +966,8 @@ export type TransitionTripDocumentInput = Readonly<{
 }>
 
 export type TransitionTripDocumentResult = Readonly<{
+  /** Spec 185 T6.1 (RF2/RF3): presente só quando a escrita fechou a carga (carregar a última nota). */
+  autoDispatch?: AutoDispatchOutcome
   document: TripDocument
   tripStatus: TripStatus
 }>
@@ -963,6 +995,8 @@ export type BatchStatusInput = Readonly<{
 }>
 
 export type BatchStatusResult = Readonly<{
+  /** Spec 185 T6.1 (RF2/RF3): presente só quando o lote fechou a carga (carregar em lote). */
+  autoDispatch?: AutoDispatchOutcome
   items: readonly TripDocumentBatchItemResult[]
   tripStatus: TripStatus
 }>
@@ -996,6 +1030,9 @@ export type FieldSettlementResult = Readonly<{
 export type DispatchTripInput = Readonly<{
   force?: boolean
   forceReason?: null | string
+  /** Spec 185 RF4/RF9: separa e carrega o que falta (exceto o deixado para trás) e despacha numa
+   * transação — mutuamente exclusivo com `force` (400 do servidor com os dois). */
+  loadRemaining?: boolean
   tripId: string
 }>
 

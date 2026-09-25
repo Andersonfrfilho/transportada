@@ -88,6 +88,9 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
       readPreconditions: () =>
         Promise.resolve({
           hasRoute: true,
+          isCargoClosed: true,
+          leftBehind: [],
+          toLoad: [],
           tripStatus,
           unloadedDocumentIds: [],
           unscheduledStopIds: [],

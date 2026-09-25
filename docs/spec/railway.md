@@ -23,8 +23,14 @@ Serviços por ambiente — os nomes são únicos no projeto e cada ambiente tem 
 própria instância e o seu próprio conjunto de variáveis:
 
 ```text
-api  worker  cron  transportada-frontend  landing  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
+api  worker  cron  transportada-frontend  landing  client  driver  keycloak  rabbitmq  Postgres (app)  Postgres (Keycloak)  bucket
 ```
+
+`client` (o portal do contratante, ADR-0050) e `driver` (o app do motorista, ADR-0075 §3, spec 189)
+são as duas apps mais novas: cada uma com `Dockerfile` próprio, mas sem `deploy/<app>/railway.json`
+— nascem direto em `.railway/railway.ts` (ver a tabela abaixo), o formato que substitui o antigo.
+`driver` ainda não tem domínio próprio criado nem deploy em nenhum ambiente — a virada (tasks.md
+Fase 6 da 189) é passo humano.
 
 API, worker e cron compartilham banco e fila dentro do mesmo ambiente; nunca
 entre ambientes. O browser fala só com o domínio público da API e do Keycloak;
@@ -128,6 +134,7 @@ O Dockerfile de cada serviço é escolhido pela variável de build
 | `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json` |
 | `landing`               | `apps/frontend-landing/Dockerfile`      | `deploy/landing/railway.json`  |
 | `client`                | `apps/frontend-client/Dockerfile`       | `.railway/railway.ts`          |
+| `driver`                | `apps/frontend-driver/Dockerfile`       | `.railway/railway.ts`          |
 | `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json` |
 
 > ⚠️ **O caminho do arquivo de config é uma _configuração de serviço_, não uma
@@ -173,6 +180,19 @@ element(s)`) e o executa **como argv, sem shell**: `a && b` faz `a` receber
   ausente ou desconhecido cai em `production`, porque o valor esquecido no painel
   não pode fazer a instalação do cliente se anunciar como obra em andamento — em
   staging ele **precisa** estar declarado.
+
+> 🧭 **`driver` (ADR-0075 §3): `VITE_*` literais por ambiente, nunca `preserve()`.** No molde de
+> `VITE_IDENTIFIER_FIRST_LOGIN` do `client`: são públicas, inlinadas no build, e uma esquecida no
+> painel gera build verde que quebra no celular — `preserve()` esperaria alguém escrever o valor à
+> mão no painel primeiro. `.railway/railway.ts` fixa `VITE_API_URL`, `VITE_APP_ENV`,
+> `VITE_DRIVER_APP_URL` (o domínio da própria app, `motorista.<zona>` — obrigatória aqui),
+> `VITE_IDENTIFIER_FIRST_LOGIN` e `VITE_KEYCLOAK_*`. `PORT`, `DEPLOYED_REVISION` e
+> `RAILWAY_DOCKERFILE_PATH` seguem em `preserve()`.
+>
+> **No painel** (`transportada-frontend`), a mesma variável `VITE_DRIVER_APP_URL` é outra coisa: o
+> **interruptor** da ADR-0075 §6, em `preserve()` — ausente, o painel serve `/minha-viagem` como
+> sempre; definida (só depois de `motorista.<env>` estar no ar), o painel passa a redirecionar o
+> motorista para a app nova. Rollback: remover a variável do painel e reimplantar.
 
 ## Identidade
 

@@ -45,6 +45,8 @@ export function getRouteSuggestionClient(): RouteSuggestionClient {
  */
 export function useRouteSuggestion(input: {
   readonly client?: RouteSuggestionClient
+  /** O aceite reordena as paradas e replaneja a rota no servidor — quem mostra a viagem recarrega. */
+  readonly onAccepted?: () => void
   readonly tripId: string
 }): RouteSuggestionController {
   const [suggestion, setSuggestion] = useState<RouteSuggestion | null>(null)
@@ -111,13 +113,14 @@ export function useRouteSuggestion(input: {
             ? await client.accept({ suggestionId: suggestion.id, tripId: input.tripId })
             : await client.reject({ suggestionId: suggestion.id, tripId: input.tripId })
         setSuggestion(decided)
+        if (action === 'accept') input.onAccepted?.()
       } catch (cause) {
         setErrorCode(toErrorCode(cause))
       } finally {
         setIsDeciding(false)
       }
     },
-    [input.tripId, suggestion],
+    [input.onAccepted, input.tripId, suggestion],
   )
 
   return {

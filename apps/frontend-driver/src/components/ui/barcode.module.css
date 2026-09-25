@@ -1,0 +1,6 @@
+/* Cópia por valor de apps/frontend-transportada/src/components/ui/barcode.module.css (ADR-0075 §7). */
+/* A altura é do símbolo, não do conteúdo: código de barras baixo demais o leitor não pega. */
+.barcode {
+  height: 3rem;
+  width: 100%;
+}

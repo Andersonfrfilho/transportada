@@ -4,7 +4,9 @@
   "sslRequired": "NONE",
   "displayName": "TransportAdA Local",
   "registrationAllowed": false,
-  "rememberMe": false,
+  "rememberMe": true,
+  "ssoSessionIdleTimeoutRememberMe": 604800,
+  "ssoSessionMaxLifespanRememberMe": 2592000,
   "loginWithEmailAllowed": false,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
@@ -52,12 +54,20 @@
       "redirectUris": [
         "http://localhost:53000/auth/callback",
         "http://localhost:53100/auth/callback",
-        "http://localhost:53003/auth/callback"
+        "http://localhost:53003/auth/callback",
+        "http://localhost:53200/auth/callback",
+        "http://localhost:53112/auth/callback"
       ],
-      "webOrigins": ["http://localhost:53000", "http://localhost:53100", "http://localhost:53003"],
+      "webOrigins": [
+        "http://localhost:53000",
+        "http://localhost:53100",
+        "http://localhost:53003",
+        "http://localhost:53200",
+        "http://localhost:53112"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100"
+        "post.logout.redirect.uris": "http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100##http://localhost:53200/*##http://localhost:53200##http://localhost:53112/*##http://localhost:53112"
       },
       "protocolMappers": [
         {

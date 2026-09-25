@@ -89,8 +89,12 @@ por escrito, se o separador a alcança.
 
 **A viagem tem fases, e a nota tem as suas (ADR-0043, spec 056).** `trips.status` são nove estados
 (`draft`, `route_planned`, `separating`, `loading`, `dispatched`, `in_transit`, `completed`,
-`cancelled`), e o estado da viagem é **derivado** do de suas notas — exceto em quatro transições
-manuais (criar em `draft`, `plan-route`, `dispatch`, `cancel`). `trip_documents.separation_status`
+`cancelled`), e o estado da viagem é **derivado** do de suas notas — exceto em três transições
+manuais (criar em `draft`, `plan-route`, `cancel`). ⚠️ **`dispatch` deixou de ser só manual** (spec
+185, ADR-0074): a escrita que fecha a carga (carregar a última nota, em lote ou pelo WhatsApp, ou a
+ocorrência que libera a última pendente) despacha a viagem sozinha, com o ator e o canal de quem
+carregou — o botão "Despachar" segue existindo para quando um gate recusa o automático.
+`trip_documents.separation_status`
 (`pending`, `separated`, `loaded`, `delivered`, `returned`) muda por `POST
 /trips/:id/documents/:documentId/{separate,load,return}` ou em lote por `.../documents/batch-status`
 — nunca por `UPDATE` direto. ⚠️ **`return` é trabalho de rua, não de barracão, e isso inverte o
@@ -111,7 +115,11 @@ por desenho (repetir converge em `unchanged`, não erro — a rede do armazém c
 duas vezes). `dispatched` é a porta de não-retorno: `checkTripAcceptsLinkage` bloqueia vincular,
 desvincular e reordenar parada a partir dali (`409 STATE_TRANSITION_NOT_ALLOWED`), o roteiro
 congela em `trip_dispatch_snapshots` (append-only, mesmo padrão de `audit_logs`), e só `cancel`
-sai desse estado — incidente, não fluxo. `TripStop` é **derivada**, nunca criada à mão: vincular
+sai desse estado — incidente, não fluxo. ⚠️ **`dispatched` passa a significar "carga fechada"**
+(spec 185, ADR-0074 §6): o que já contava do despacho — congelamento do ETA, "A caminho" no
+portal, início do rastreamento, janela de 36h — continua contando do despacho, esteja ele derivado
+ou pelo botão; o ETA pode nascer adiantado quando o caminhão demora no pátio depois de carregado,
+custo aceito da simplicidade. `TripStop` é **derivada**, nunca criada à mão: vincular
 uma nota chama `reconcileStopOnLink` (`trips/application/reconcile-trip-stops.use-case.ts`), que
 agrupa pelo endereço normalizado do destinatário (`(postal_code, number, city_code)` de
 `nfe_addresses`, não pelo CNPJ — a mesma rede em cinco lojas é cinco paradas); desvincular chama

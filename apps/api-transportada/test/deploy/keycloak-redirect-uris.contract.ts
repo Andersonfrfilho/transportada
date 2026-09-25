@@ -21,8 +21,19 @@ const ENVIRONMENTS = ['production', 'staging'] as const
 const SPA_CLIENT = 'transportada-spa'
 const CALLBACK_SUFFIX = '/auth/callback'
 
-/** As duas apps que autenticam: o painel e o portal do contratante (ADR-0050 §1). */
-const AUTHENTICATED_APPS = ['app.', 'cliente.'] as const
+/**
+ * As apps que autenticam: o painel e o portal do contratante (ADR-0050 §1), mais o app do
+ * motorista (ADR-0075 §2). `motorista.` ganhou callback de staging na T6.4 da spec 189; produção
+ * entra na T6.9 — até lá, `PENDING_APPS` abaixo tira ela da asserção que roda de verdade só nesse
+ * ambiente.
+ */
+const AUTHENTICATED_APPS = ['app.', 'cliente.', 'motorista.'] as const
+
+/** Apps declaradas acima que ainda não têm callback no arquivo, por ambiente. Some daqui na T6.9. */
+const PENDING_APPS: Readonly<Record<(typeof ENVIRONMENTS)[number], ReadonlySet<string>>> = {
+  production: new Set(['motorista.']),
+  staging: new Set(),
+}
 
 type ClientRedirects = Readonly<{
   redirectUris: readonly string[]
@@ -56,6 +67,7 @@ describe('callbacks OAuth declarados por ambiente', () => {
     for (const environment of ENVIRONMENTS) {
       const uris = declaration[environment]?.[SPA_CLIENT]?.redirectUris ?? []
       for (const app of AUTHENTICATED_APPS) {
+        if (PENDING_APPS[environment].has(app)) continue
         expect(uris.some((uri) => uri.includes(app))).toBe(true)
       }
     }

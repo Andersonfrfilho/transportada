@@ -103,6 +103,7 @@ jobs:
       api: ${{ steps.detect.outputs.api }}
       frontend: ${{ steps.detect.outputs.frontend }}
       client: ${{ steps.detect.outputs.client }}
+      driver: ${{ steps.detect.outputs.driver }}
       landing: ${{ steps.detect.outputs.landing }}
       worker: ${{ steps.detect.outputs.worker }}
       cron: ${{ steps.detect.outputs.cron }}
@@ -134,6 +135,7 @@ jobs:
           CRON: ${{ steps.detect.outputs.cron }}
           FRONTEND: ${{ steps.detect.outputs.frontend }}
           FRONTEND_CLIENT: ${{ steps.detect.outputs.client }}
+          FRONTEND_DRIVER: ${{ steps.detect.outputs.driver }}
           FRONTEND_LANDING: ${{ steps.detect.outputs.landing }}
         run: |
           selected=()
@@ -144,6 +146,7 @@ jobs:
           if [ "$CRON" = true ]; then selected+=('"cron-transportada"'); fi
           if [ "$FRONTEND" = true ]; then selected+=('"frontend-transportada"'); fi
           if [ "$FRONTEND_CLIENT" = true ]; then selected+=('"frontend-client"'); fi
+          if [ "$FRONTEND_DRIVER" = true ]; then selected+=('"frontend-driver"'); fi
           if [ "$FRONTEND_LANDING" = true ]; then selected+=('"frontend-landing"'); fi
           apps="[$(IFS=,; echo "${selected[*]-}")]"
           echo "apps=$apps" >>"$GITHUB_OUTPUT"
@@ -328,6 +331,40 @@ jobs:
       - name: Deploy client
         run: .github/scripts/railway-deploy.sh deploy client
 
+  # O app do motorista chama a API para localizar a viagem e reportar entrega — o mesmo raciocínio
+  # do `deploy-frontend` (run `33917015862`), não o do `deploy-client`: publicar o bundle novo
+  # contra uma API que ainda não subiu deixaria a tela batendo em rota inexistente, num aparelho de
+  # campo sem forma fácil de saber por quê. Por isso ele espera `deploy-api`, com o mesmo `always()`
+  # e a mesma conferência de `result` do frontend.
+  #
+  # Code M8 (spec 189 T9.2): produção nunca filtra (`changes` acima), então este job dispararia em
+  # **todo** push a `main` que toque `apps/frontend-driver` — e o serviço `driver` ainda não existe
+  # na Railway de produção (T6.9, pendente). `railway-deploy.sh` bateria num serviço inexistente e
+  # reprovaria o deploy inteiro por causa de uma app que produção ainda não tem. A guarda de ambiente
+  # some daqui assim que a T6.9 marcar o domínio e o serviço de produção como prontos.
+  deploy-driver:
+    needs: [target, changes, gate, deploy-api]
+    if: >-
+      always()
+      && needs.target.result == 'success'
+      && needs.gate.result == 'success'
+      && needs.deploy-api.result != 'failure'
+      && needs.deploy-api.result != 'cancelled'
+      && needs.changes.outputs.driver == 'true'
+      && needs.target.outputs.environment != 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ needs.target.outputs.environment }}
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      TARGET_ENVIRONMENT: ${{ needs.target.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Railway CLI
+        run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
+      - name: Deploy driver
+        run: .github/scripts/railway-deploy.sh deploy driver
+
   # Worker e cron consomem tabelas que a migration da API cria: `needs: deploy-api` é a única ordem
   # que importa. Entre eles não há ordem alguma, e cada um roda no seu runner — a paralelização não
   # cabe num job só porque `railway-deploy.sh` reescreve `~/.railway/config.json` a cada chamada, e
@@ -386,7 +423,16 @@ jobs:
   # anterior dele, a mudança saía do diff e o alvo ficava para trás sem ninguém perceber.
   mark-deployed:
     needs:
-      [target, changes, deploy-api, deploy-frontend, deploy-landing, deploy-client, deploy-services]
+      [
+        target,
+        changes,
+        deploy-api,
+        deploy-frontend,
+        deploy-landing,
+        deploy-client,
+        deploy-driver,
+        deploy-services,
+      ]
     if: always() && needs.target.result == 'success' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -405,6 +451,8 @@ jobs:
           LANDING_RESULT: ${{ needs.deploy-landing.result }}
           CLIENT_CHANGED: ${{ needs.changes.outputs.client }}
           CLIENT_RESULT: ${{ needs.deploy-client.result }}
+          DRIVER_CHANGED: ${{ needs.changes.outputs.driver }}
+          DRIVER_RESULT: ${{ needs.deploy-driver.result }}
           # Worker e cron compartilham o job em matriz: o resultado é um só para os dois.
           WORKER_CHANGED: ${{ needs.changes.outputs.worker }}
           WORKER_RESULT: ${{ needs.deploy-services.result }}

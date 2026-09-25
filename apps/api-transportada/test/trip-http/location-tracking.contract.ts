@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createRequestHandler } from '../../src/http/request-handler.service.js'
+import { createReadLocationConsentUseCase } from '../../src/trips/application/read-location-consent.use-case.js'
 import { createRecordTripLocationUseCase } from '../../src/trips/application/record-trip-location.use-case.js'
 import type {
   DriverTrackingState,
@@ -35,6 +36,7 @@ function buildRepository(overrides: Partial<TripLocationRepositoryPort> = {}) {
     async recordPing(input) {
       recorded.push(input)
     },
+    readConsent: async () => ({ acceptedAt: null }),
     setConsent: async () => ({ acceptedAt: null }),
     ...overrides,
   }
@@ -50,13 +52,16 @@ function trackingOf(
   return { dispatchedAt, hasConsent, tripId: TRIP_ID }
 }
 
-function buildHandler(routes: ReturnType<typeof createMeLocationRoutes>) {
+function buildHandler(
+  routes: ReturnType<typeof createMeLocationRoutes>,
+  permissions: CompanyContext['permissions'] = REPORT_PERMISSIONS,
+) {
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
     frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
-    router: createTestRouter({ context: authenticatedContext(REPORT_PERMISSIONS), routes }),
+    router: createTestRouter({ context: authenticatedContext(permissions), routes }),
   })
 
   return (request: Request) => handleRequest(request, { timeout() {} })
@@ -130,6 +135,7 @@ describe('o rastro ao vivo do motorista (spec 063 T008)', () => {
     const calls: unknown[] = []
     const handle = buildHandler(
       createMeLocationRoutes({
+        readConsent: async () => ({ acceptedAt: null }),
         async recordLocation(input) {
           calls.push(structuredClone(input))
           return { outcome: 'recorded' }
@@ -160,6 +166,7 @@ describe('o rastro ao vivo do motorista (spec 063 T008)', () => {
   test('recusa coordenada numérica e fora do formato', async () => {
     const handle = buildHandler(
       createMeLocationRoutes({
+        readConsent: async () => ({ acceptedAt: null }),
         recordLocation: async () => ({ outcome: 'recorded' }),
         resolveDriverId: async () => DRIVER_ID,
         setConsent: async () => ({ acceptedAt: null }),
@@ -185,10 +192,50 @@ describe('o rastro ao vivo do motorista (spec 063 T008)', () => {
     expect(malformed.status).toBe(400)
   })
 
+  /** Segurança L4 (spec 189 T9.2): o regex aceita o formato, mas o globo tem intervalo. */
+  test('recusa coordenada fora do intervalo do globo', async () => {
+    const handle = buildHandler(
+      createMeLocationRoutes({
+        readConsent: async () => ({ acceptedAt: null }),
+        recordLocation: async () => ({ outcome: 'recorded' }),
+        resolveDriverId: async () => DRIVER_ID,
+        setConsent: async () => ({ acceptedAt: null }),
+      }),
+    )
+
+    const latitudeOutOfRange = await handle(
+      jsonRequest({
+        body: { latitude: '90.0000001', longitude: '0' },
+        method: 'POST',
+        path: '/me/trips/current/location',
+      }),
+    )
+    expect(latitudeOutOfRange.status).toBe(400)
+
+    const longitudeOutOfRange = await handle(
+      jsonRequest({
+        body: { latitude: '0', longitude: '180.0000001' },
+        method: 'POST',
+        path: '/me/trips/current/location',
+      }),
+    )
+    expect(longitudeOutOfRange.status).toBe(400)
+
+    const atTheBoundary = await handle(
+      jsonRequest({
+        body: { latitude: '-90', longitude: '180' },
+        method: 'POST',
+        path: '/me/trips/current/location',
+      }),
+    )
+    expect(atTheBoundary.status).toBe(201)
+  })
+
   /** O ignorado responde `202` para o log de produção distinguir sem abrir o banco. */
   test('o ignorado responde 202, e o gravado 201', async () => {
     const handle = buildHandler(
       createMeLocationRoutes({
+        readConsent: async () => ({ acceptedAt: null }),
         recordLocation: async () => ({ outcome: 'ignored' }),
         resolveDriverId: async () => DRIVER_ID,
         setConsent: async () => ({ acceptedAt: null }),
@@ -211,6 +258,7 @@ describe('o rastro ao vivo do motorista (spec 063 T008)', () => {
     const calls: unknown[] = []
     const handle = buildHandler(
       createMeLocationRoutes({
+        readConsent: async () => ({ acceptedAt: null }),
         recordLocation: async () => ({ outcome: 'ignored' }),
         resolveDriverId: async () => DRIVER_ID,
         async setConsent(input) {
@@ -288,5 +336,177 @@ describe('o teto de idade da viagem (ADR-0056 §2)', () => {
 
     expect(result.outcome).toBe('recorded')
     expect(recorded).toHaveLength(1)
+  })
+})
+
+/**
+ * Segurança M3 (spec 189 T9.2): o rate limit do Postgres corta abuso, mas não o replay bem
+ * comportado — o mesmo celular reenviando o ping do minuto anterior por causa de retry de rede.
+ */
+describe('o dedup do ping de posição (spec 189 T9.2)', () => {
+  const ping = { companyId: COMPANY_ID, driverId: DRIVER_ID, latitude: '0', longitude: '0' }
+  const NOW = new Date('2026-09-03T18:00:00.000Z')
+  const secondsAgo = (seconds: number) => new Date(NOW.getTime() - seconds * 1000).toISOString()
+
+  test('ignora o ping que repete o anterior antes de 45 s', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true),
+      readLastPing: async () => ({ latitude: '0', longitude: '0', recordedAt: secondsAgo(10) }),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('ignored')
+    expect(recorded).toEqual([])
+  })
+
+  test('grava de novo passados 45 s do último ping', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true),
+      readLastPing: async () => ({ latitude: '0', longitude: '0', recordedAt: secondsAgo(60) }),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
+  })
+
+  test('grava o ping legítimo que chega 50 s depois por atraso de rede', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true),
+      readLastPing: async () => ({ latitude: '0', longitude: '0', recordedAt: secondsAgo(50) }),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
+  })
+
+  test('sem ping anterior, grava normalmente', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true),
+      readLastPing: async () => null,
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
+  })
+})
+
+/**
+ * Spec 189 T7.4 (ADR-0075 §8, plan D8): o `PUT` existia sem leitura, e a app do motorista não tinha
+ * como mostrar o interruptor na posição certa. A leitura mora na mesma política do `PUT`
+ * (`trip.report`), e conta sem cadastro de motorista responde `409` nas duas.
+ */
+describe('a leitura do consentimento (spec 189 T7.4)', () => {
+  function consentRoutes(
+    readConsent: Parameters<typeof createMeLocationRoutes>[0]['readConsent'],
+    resolveDriverId: () => Promise<string | null> = async () => DRIVER_ID,
+  ) {
+    return createMeLocationRoutes({
+      readConsent,
+      recordLocation: async () => ({ outcome: 'ignored' }),
+      resolveDriverId,
+      setConsent: async () => ({ acceptedAt: null }),
+    })
+  }
+
+  test('devolve { data: { acceptedAt } } da conta autenticada, sem cache', async () => {
+    const calls: unknown[] = []
+    const handle = buildHandler(
+      consentRoutes(async (input) => {
+        calls.push(structuredClone(input))
+        return { acceptedAt: '2026-09-25T10:00:00.000Z' }
+      }),
+    )
+
+    const response = await handle(jsonRequest({ method: 'GET', path: '/me/location-consent' }))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ data: { acceptedAt: '2026-09-25T10:00:00.000Z' } })
+    /** A rota não aceita id de ninguém: a conta vem do contexto autenticado, nunca do pedido. */
+    expect(Object.keys(calls[0] as Record<string, unknown>).sort()).toEqual([
+      'companyId',
+      'membershipId',
+    ])
+  })
+
+  test('quem nunca consentiu lê null', async () => {
+    const handle = buildHandler(consentRoutes(async () => ({ acceptedAt: null })))
+
+    const response = await handle(jsonRequest({ method: 'GET', path: '/me/location-consent' }))
+
+    expect(await response.json()).toEqual({ data: { acceptedAt: null } })
+  })
+
+  test('sem trip.report é 403, na leitura como na escrita', async () => {
+    const handle = buildHandler(
+      consentRoutes(async () => ({ acceptedAt: null })),
+      new Set(['trip.read'] as const),
+    )
+
+    const read = await handle(jsonRequest({ method: 'GET', path: '/me/location-consent' }))
+    const write = await handle(
+      jsonRequest({ body: { accepted: true }, method: 'PUT', path: '/me/location-consent' }),
+    )
+
+    expect(read.status).toBe(403)
+    expect(write.status).toBe(403)
+  })
+
+  test('conta sem cadastro de motorista: 409 DRIVER_NOT_REGISTERED na leitura e no PUT', async () => {
+    const handle = buildHandler(
+      createMeLocationRoutes({
+        readConsent: createReadLocationConsentUseCase({
+          repository: buildRepository().repository,
+          resolveDriverId: async () => null,
+        }),
+        recordLocation: async () => ({ outcome: 'ignored' }),
+        resolveDriverId: async () => null,
+        setConsent: async () => ({ acceptedAt: null }),
+      }),
+    )
+
+    const read = await handle(jsonRequest({ method: 'GET', path: '/me/location-consent' }))
+    const write = await handle(
+      jsonRequest({ body: { accepted: true }, method: 'PUT', path: '/me/location-consent' }),
+    )
+
+    expect(read.status).toBe(409)
+    expect(((await read.json()) as { error: { code: string } }).error.code).toBe(
+      'DRIVER_NOT_REGISTERED',
+    )
+    expect(write.status).toBe(409)
+    expect(((await write.json()) as { error: { code: string } }).error.code).toBe(
+      'DRIVER_NOT_REGISTERED',
+    )
+  })
+
+  test('o caso de uso lê o consentimento do motorista que o vínculo resolveu', async () => {
+    const reads: unknown[] = []
+    const { repository } = buildRepository({
+      async readConsent(input) {
+        reads.push(structuredClone(input))
+        return { acceptedAt: '2026-09-25T10:00:00.000Z' }
+      },
+    })
+    const readConsent = createReadLocationConsentUseCase({
+      repository,
+      resolveDriverId: async () => DRIVER_ID,
+    })
+
+    const consent = await readConsent({ companyId: COMPANY_ID, membershipId: 'membership' })
+
+    expect(consent).toEqual({ acceptedAt: '2026-09-25T10:00:00.000Z' })
+    expect(reads).toEqual([{ companyId: COMPANY_ID, driverId: DRIVER_ID }])
   })
 })

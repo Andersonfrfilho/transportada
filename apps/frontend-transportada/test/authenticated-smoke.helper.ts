@@ -66,10 +66,11 @@ export async function loginAsLocalUser(page: Page): Promise<void> {
   /**
    * O provider troca a URL do callback pelo caminho de origem assim que a sessão é estabelecida.
    *
-   * ⚠️ **E o destino não é sempre `/`.** O motorista cai em `/minha-viagem` (ADR-0056: o campo tem
-   * a tela dele), e afirmar a raiz aqui reprovava os três smokes de motorista **no helper**, antes
-   * de o teste chegar a asseverar coisa alguma — falha que aponta para o lugar errado. O que este
-   * helper garante é que o **callback saiu da URL**; para onde se foi é do teste dizer.
+   * ⚠️ **E o destino não é sempre `/`.** O motorista caía em `/minha-viagem` (ADR-0056) e, com o
+   * interruptor da ADR-0075 §6 ligado, sai do painel para a app dele — cujos smokes moram em
+   * `apps/frontend-driver`. Afirmar a raiz aqui reprovava smoke **no helper**, antes de o teste
+   * chegar a asseverar coisa alguma — falha que aponta para o lugar errado. O que este helper
+   * garante é que o **callback saiu da URL**; para onde se foi é do teste dizer.
    */
   await expect(page).not.toHaveURL(/\/auth\/callback/u)
   await expect(page).toHaveURL(new RegExp(`^${FRONTEND_ORIGIN}/`, 'u'))

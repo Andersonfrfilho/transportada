@@ -317,6 +317,11 @@ function isDriverAvailability(value: unknown): value is FleetDriverAvailability 
   )
 }
 
+const isFilledText = (value: unknown): boolean => isString(value) && value.trim() !== ''
+
+/** A zona inteira não tem cidade: a API manda `""` (coluna `not null default ''`), e `null` também serve. */
+const isAbsentText = (value: unknown): boolean => value === null || value === ''
+
 function isDriverCoverage(value: unknown): value is FleetDriverCoverage {
   if (!isRecord(value)) return false
   if (!hasOnlyKeys(value, DRIVER_COVERAGE_KEYS) || !hasEveryKey(value, DRIVER_COVERAGE_KEYS)) {
@@ -324,8 +329,8 @@ function isDriverCoverage(value: unknown): value is FleetDriverCoverage {
   }
   const isCityScope = value.scope === 'city'
   return (
-    (isCityScope ? isString(value.city) : value.city === null) &&
-    (isCityScope ? isString(value.state) : value.state === null) &&
+    (isCityScope ? isFilledText(value.city) : isAbsentText(value.city)) &&
+    (isCityScope ? isFilledText(value.state) : isAbsentText(value.state)) &&
     isString(value.code) &&
     isString(value.name) &&
     isString(value.regionId) &&
@@ -436,7 +441,8 @@ export function createFleetResponseAdapters() {
       if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()
       return input.data.map((item) => {
         if (!isDriverCoverage(item)) throw invalid()
-        return item
+        // O resto da ficha lê "sem cidade" como `null`; o vazio da API não passa daqui
+        return item.scope === 'city' ? item : { ...item, city: null, state: null }
       })
     },
     driverVehicleListFromApi(input: unknown): readonly FleetDriverVehicleLink[] {

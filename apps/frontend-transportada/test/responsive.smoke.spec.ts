@@ -22,9 +22,10 @@ import {
   buildLabelledColumns,
   buildTextPdf,
 } from './document-intake/pdf-fixture.helper'
-import { DRIVER_ACCESS_KEY, DRIVER_STOP_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
+import { DRIVER_DOCUMENT_ID, DRIVER_STOP_ID, mockDriverTripApi } from './driver-trip-smoke.helper'
 import { PENDING_DOCUMENT, mockFleetWorkspaceApi } from './fleet-smoke.helper'
 import { mockFreightWorkspaceApi } from './freight-smoke.helper'
+import { registerInstallationBrandMock } from './installation-brand-smoke.helper'
 import {
   CREATED_TRIP_ID,
   FIRST_VEHICLE_ID,
@@ -1183,149 +1184,170 @@ test('CRLV de veículo já cadastrado oferece abrir a ficha existente', async ({
 })
 
 /**
- * Spec 057: o smoke que os contratos não fazem. Eles provam a fila e a política contra dublê; este
- * prova o encanamento — a tela de entrada de quem é do campo, o toque virando requisição com a
- * chave de idempotência, e a fila anunciando o que ainda não subiu.
+ * ADR-0075 §6 (spec 189 T5.4): o motorista tem app própria, e o painel o manda para lá. Os smokes
+ * da viagem dele moram em `apps/frontend-driver`; aqui fica só o que o painel decide.
+ *
+ * O Playwright do painel faz **um** build, e o smoke (local e CI, pelo `.env.example`) carrega
+ * `VITE_DRIVER_APP_URL` — o interruptor está ligado. O caso "sem a variável" é contrato
+ * (`test/driver-trip/driver-app-redirect.contract.ts`), não smoke.
  */
-test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', async ({ page }) => {
-  await page.setViewportSize(VIEWPORTS.mobile)
-  /**
-   * ⚠️ **Sem posição concedida o toque leva oito segundos, e o teste desiste aos cinco.**
-   * `readCurrentLocation` chama `getCurrentPosition` com `timeout: 8_000`; no navegador sem
-   * permissão o retorno de erro só chega no fim dele, e a confirmação nem é enfileirada antes
-   * disso. O `expect.poll` abaixo espera cinco segundos, e falhava com a tela dizendo "aguardando
-   * envio" — sintoma que aponta para a fila e não para o relógio.
-   *
-   * Conceder a posição é o que o motorista de verdade faz na primeira vez que abre o app.
-   */
-  await page.context().grantPermissions(['geolocation'])
-  await page.context().setGeolocation({ latitude: -23.5505, longitude: -46.6333 })
-  const api = await mockDriverTripApi({ page })
-  await loginAsLocalUser(page)
-
-  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
-  expect(new URL(page.url()).pathname).toBe('/minha-viagem')
-  // Escopado ao cabeçalho: o romaneio repete a placa, mas só no papel — na tela ela fica escondida
-  await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
-  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
-
-  // Um toque, uma requisição, uma chave — é o que a idempotência do servidor casa no reenvio
-  await page.getByRole('button', { name: 'Cheguei' }).click()
-  await expect.poll(() => api.reports().length).toBe(1)
-  expect(api.reports()[0]?.path).toBe(`/me/trips/current/stops/${DRIVER_STOP_ID}/arrive`)
-  expect(api.reports()[0]?.idempotencyKey).not.toBe('')
-
-  await assertNoHorizontalOverflow(page)
-})
-
-/**
- * Spec 157: a lista vinha de `/company-settings/occurrence-types` (`settings.manage`), o motorista
- * levava 403 e o seletor abria vazio. Agora ela vem da árvore `/me`, e o tipo de rua aparece.
- */
-test('o motorista vê os tipos de ocorrência de rua da empresa', async ({ page }) => {
-  await page.setViewportSize(VIEWPORTS.mobile)
-  await mockDriverTripApi({ page })
-  await loginAsLocalUser(page)
-
-  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
-
-  await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
-  await assertNoHorizontalOverflow(page)
-})
-
-/**
- * Spec 157 T4 (RF5/CA5): a falha na lista de tipos não podia mais virar `[]` silencioso — o painel
- * avisa, "Tentar de novo" repete o pedido, e entregar/devolver nunca dependem disto.
- */
-test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ page }) => {
-  await page.setViewportSize(VIEWPORTS.mobile)
-  await mockDriverTripApi({ occurrenceTypesFailures: 1, page })
-  await loginAsLocalUser(page)
-
-  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
-
-  await expect(
-    page.getByText('Não foi possível carregar os tipos de ocorrência agora.'),
-  ).toBeVisible()
-  // A falha na lista de tipos não trava o resto da parada.
-  for (const name of ['Entreguei', 'Não entreguei', 'Deu problema']) {
-    const action = page.getByRole('button', { exact: true, name })
-    await expect(action.first()).toBeVisible()
-    await expect(action.first()).toBeEnabled()
+function readDriverAppUrlForSmoke(): string {
+  const value = process.env.VITE_DRIVER_APP_URL
+  if (value === undefined || value.trim() === '') {
+    throw new Error('SMOKE_DRIVER_APP_URL_MISSING: o build do smoke precisa do interruptor ligado')
   }
+  return value.trim().replace(/\/$/u, '')
+}
 
-  await page.getByRole('button', { name: 'Tentar de novo' }).click()
-  await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
-
-  await assertNoHorizontalOverflow(page)
-})
-
-/** Lista vazia de verdade (empresa sem tipo de rua ativo) tem texto próprio, não o de falha. */
-test('sem tipo de rua cadastrado, o motorista vê o aviso de lista vazia', async ({ page }) => {
-  await page.setViewportSize(VIEWPORTS.mobile)
-  await mockDriverTripApi({ page })
-  await page.route(/\/me\/trips\/current\/occurrence-types$/, async (route) => {
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204 })
-      return
-    }
+/** A casa nova não sobe no smoke do painel: a navegação para lá é atendida por uma página mínima. */
+async function registerDriverAppLanding(page: Page, driverAppUrl: string): Promise<void> {
+  await page.route(`${driverAppUrl}/**`, async (route) => {
     await route.fulfill({
-      body: JSON.stringify({ data: [] }),
-      contentType: 'application/json',
-      status: 200,
+      body: '<!doctype html><title>Casa nova</title><h1>Casa nova do motorista</h1>',
+      contentType: 'text/html',
     })
   })
-  await loginAsLocalUser(page)
+}
 
-  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+/**
+ * A fila antiga mora no IndexedDB **da origem do painel**. Ela é semeada numa página estática da
+ * mesma origem, antes de o painel abrir — semear depois do boot correria com a leitura dele.
+ */
+async function seedLegacyDriverQueue(page: Page, queue: readonly unknown[]): Promise<void> {
+  await page.goto('/offline.html')
+  await page.evaluate(
+    (items) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open('transportada.driver-trip', 2)
+        request.onupgradeneeded = () => {
+          request.result.createObjectStore('field-reports')
+          request.result.createObjectStore('event-attachments')
+        }
+        request.onerror = () => reject(request.error ?? new Error('SEED_OPEN_FAILED'))
+        request.onsuccess = () => {
+          const transaction = request.result.transaction('field-reports', 'readwrite')
+          transaction.objectStore('field-reports').put(items, 'queue')
+          transaction.oncomplete = () => {
+            request.result.close()
+            resolve()
+          }
+          transaction.onerror = () => reject(transaction.error ?? new Error('SEED_WRITE_FAILED'))
+        }
+      }),
+    queue,
+  )
+}
 
-  await expect(
-    page.getByText('Nenhum tipo de ocorrência de rua cadastrado. Fale com o escritório.'),
-  ).toBeVisible()
+test('com a fila antiga vazia, o motorista vai para a casa nova', async ({ page }) => {
+  const driverAppUrl = readDriverAppUrlForSmoke()
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await mockDriverTripApi({ page })
+  await registerDriverAppLanding(page, driverAppUrl)
 
-  await assertNoHorizontalOverflow(page)
+  // A raiz de quem é do campo (spec 057 RF-6) leva à casa nova depois de `auth/me`...
+  await page.goto('/')
+  await expect(page).toHaveURL(`${driverAppUrl}/`)
+
+  // ...e `/minha-viagem` vai direto, sem nem pedir sessão ao painel.
+  await page.goto('/minha-viagem')
+  await expect(page).toHaveURL(`${driverAppUrl}/`)
+  await expect(page.getByRole('heading', { name: 'Casa nova do motorista' })).toBeVisible()
 })
 
-/** A tela diz a verdade: sem sinal, o toque fica "aguardando envio" — nunca "enviado". */
-test('sem sinal, a confirmação fica na fila e a tela não mente sobre isso', async ({ page }) => {
+test('com fila antiga, o painel mostra só as pendências, drena e descarta com ciência', async ({
+  page,
+}) => {
+  const driverAppUrl = readDriverAppUrlForSmoke()
   await page.setViewportSize(VIEWPORTS.mobile)
-  const api = await mockDriverTripApi({ isOffline: true, page })
-  await loginAsLocalUser(page)
+  const api = await mockDriverTripApi({ page })
+  await registerInstallationBrandMock(page)
+  await registerDriverAppLanding(page, driverAppUrl)
+  await seedLegacyDriverQueue(page, [
+    {
+      attempts: 0,
+      createdAt: '2026-09-25T10:00:00.000Z',
+      report: {
+        idempotencyKey: 'legado-chegada',
+        kind: 'arrive',
+        location: null,
+        stopId: DRIVER_STOP_ID,
+      },
+    },
+    {
+      attempts: 0,
+      createdAt: '2026-09-25T10:05:00.000Z',
+      rejectionCause: '409 TRIP_DOCUMENT_NOT_DELIVERABLE',
+      report: {
+        documentId: DRIVER_DOCUMENT_ID,
+        idempotencyKey: 'legado-entrega-recusada',
+        kind: 'deliver',
+        location: null,
+      },
+    },
+  ])
 
-  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
-  await page.getByRole('button', { name: 'Cheguei' }).click()
+  const beacon = page.waitForRequest(
+    (request) => new URL(request.url()).pathname === '/_driver-legacy-served',
+  )
+  await page.goto('/minha-viagem')
 
-  await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
-  expect(api.reports()).toEqual([])
+  // O beacon sai desta tela, com o valor enumerado e nada mais
+  expect((await beacon).postData()).toBe('pending-screen')
 
+  // Só a fila: nada da viagem, e o que sobe, sobe
+  await expect(page.getByRole('heading', { level: 1, name: 'Eventos pendentes' })).toBeVisible()
+  await expect(
+    page.getByText('O app do motorista mudou de endereço.', { exact: false }),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Romaneio de carga' })).toHaveCount(0)
+  await expect
+    .poll(() => api.reports().map((report) => report.idempotencyKey))
+    .toEqual(['legado-chegada'])
+
+  // O recusado não sobe sozinho: "Descartar" pede confirmação, com o aviso
+  await expect(page.getByText(/Rejeitado pelo servidor/u)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Ir para o app novo' })).toHaveCount(0)
+  await page.getByRole('button', { exact: true, name: 'Descartar' }).click()
+  await expect(
+    page.getByText('A entrega não foi registrada; fale com o escritório.', { exact: false }),
+  ).toBeVisible()
   await assertNoHorizontalOverflow(page)
+  await page.getByRole('button', { name: 'Descartar mesmo assim' }).click()
+
+  // Fila vazia: a ida é pelo toque, nunca sozinha
+  await expect(page.getByText('Nada aguardando envio.')).toBeVisible()
+  await expect(page).toHaveURL(/\/minha-viagem$/u)
+  await page.getByRole('button', { name: 'Ir para o app novo' }).click()
+  await expect(page).toHaveURL(`${driverAppUrl}/`)
 })
 
 /**
- * Spec 065 D1 e D1b: entre a saída do caminhão e o MDF-e o motorista só tem isto na mão — e para a
- * entrega urbana, que não terá manifesto nenhum, isto é o que existe. O aviso de não-fiscal é
- * requisito, não enfeite: impresso, o romaneio volta a parecer documento.
+ * O ícone antigo abre o painel em `standalone`: sair para outra origem cairia numa aba solta. O
+ * Chromium do Playwright não emula `display-mode`, então a consulta é respondida no navegador.
  */
-test('o motorista leva o romaneio, com a chave da nota e o aviso de que não é fiscal', async ({
+test('aberto pelo ícone antigo instalado, o painel pede para instalar o app novo', async ({
   page,
 }) => {
+  const driverAppUrl = readDriverAppUrlForSmoke()
   await page.setViewportSize(VIEWPORTS.mobile)
   await mockDriverTripApi({ page })
-  await loginAsLocalUser(page)
+  await page.addInitScript(() => {
+    const matchMedia = window.matchMedia.bind(window)
+    window.matchMedia = (query: string): MediaQueryList => {
+      const result = matchMedia(query)
+      if (query !== '(display-mode: standalone)') return result
+      return Object.defineProperty(result, 'matches', { value: true })
+    }
+  })
 
-  await expect(page.getByRole('heading', { name: 'Romaneio de carga' })).toBeVisible()
-  await expect(page.getByText('Não é documento fiscal')).toBeVisible()
+  await page.goto('/minha-viagem')
 
-  // A chave por extenso é o que se consulta no portal e o que a portaria digita quando o leitor falha
-  await expect(page.getByText(DRIVER_ACCESS_KEY)).toBeVisible()
-  await expect(page.getByText('NF-e 900123/1')).toBeVisible()
-  await expect(page.getByText('3 volumes', { exact: false })).toBeVisible()
-
-  // E o código de barras, que é o que ela bipa
-  await expect(
-    page.getByRole('img', { name: /Código de barras da chave da NF-e 900123/ }),
-  ).toBeVisible()
-
+  await expect(page.getByRole('heading', { level: 1, name: 'Instale o app novo' })).toBeVisible()
+  const link = page.getByRole('link', { name: 'Abrir o app novo' })
+  await expect(link).toHaveAttribute('href', driverAppUrl)
+  await expect(page).toHaveURL(/\/minha-viagem$/u)
+  const box = await link.boundingBox()
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
   await assertNoHorizontalOverflow(page)
 })
 

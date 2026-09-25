@@ -43,6 +43,12 @@ export type OccurrenceType = Readonly<{
   /** A chave do template do módulo de notificações que o tipo seleciona; nula é o legado. */
   emailTemplateKey: null | string
   id: string
+  /**
+   * Spec 185 T6.1 (D2, RF6): só para tipos de separação — ocorrência aberta desse tipo, sobre a
+   * nota inteira, tira a nota da conta de "carga fechada" (`leavesBehindOnDispatch`) e o despacho a
+   * libera da viagem. Padrão `false`: nenhum tipo novo tira nota da viagem sem decisão explícita.
+   */
+  leavesDocumentBehind: boolean
   name: string
   notifies: boolean
   /** Spec 164 D1/RF1: se aquele fato admite reentrega. Nasce `unset`, CHECK no banco. */

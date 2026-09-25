@@ -15,6 +15,11 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
+import {
+  tryAutoDispatchTrip,
+  type AutoDispatchDependencies,
+  type TryAutoDispatchTripResult,
+} from './try-auto-dispatch-trip.use-case.js'
 import type { TripDocument } from './trip.port.js'
 
 export type TripDocumentTransitionSnapshot = {
@@ -55,6 +60,11 @@ export type TripDocumentTransitionPort = {
 export type TransitionTripDocumentInput = {
   readonly action: TripDocumentAction
   readonly actorUserId: string
+  /**
+   * Spec 185 (D4, RF2): ausente é instalação sem o gatilho automático ligado — carregar a nota
+   * funciona igual, só não tenta despachar. Presente, só é consultado quando `action === 'load'`.
+   */
+  readonly autoDispatch?: AutoDispatchDependencies
   readonly channel: TripFieldChannel
   readonly companyId: string
   readonly documentId: string
@@ -68,6 +78,8 @@ export type TransitionTripDocumentInput = {
 }
 
 export type TransitionTripDocumentResult = {
+  /** Spec 185 (RF2/RF3): ausente quando a carga ainda não fechou, ou a ação não era `load`. */
+  readonly autoDispatch?: TryAutoDispatchTripResult
   readonly document: TripDocument
   readonly tripStatus: TripStatus
 }
@@ -145,7 +157,28 @@ async function attempt(
       })
     }
 
-    return { document: outcome.document, tripStatus: outcome.tripStatus }
+    /**
+     * Spec 185 (D4, ADR-0074 §1): a nota é que fecha a carga — só `load` tenta o gatilho, e
+     * sempre **depois** de `applyTransition` ter comitado (transação própria).
+     */
+    const autoDispatch =
+      input.action === TRIP_DOCUMENT_ACTION.load && input.autoDispatch !== undefined
+        ? await tryAutoDispatchTrip({
+            ...input.autoDispatch,
+            actorUserId: input.actorUserId,
+            channel: input.channel,
+            companyId: input.companyId,
+            onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
+            tripId: input.tripId,
+          })
+        : undefined
+
+    return {
+      ...(autoDispatch === undefined ? {} : { autoDispatch }),
+      document: outcome.document,
+      // O status lido na escrita da nota é anterior ao gatilho: quem despachou foi ele.
+      tripStatus: autoDispatch?.outcome === 'dispatched' ? 'dispatched' : outcome.tripStatus,
+    }
   }
   if (retries >= MAX_RACE_RETRIES) throw new TripDocumentTransitionConflictError()
 

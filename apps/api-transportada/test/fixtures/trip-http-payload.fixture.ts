@@ -166,6 +166,7 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   freightAmount: null,
   freightRuleName: null,
   freightSource: 'missing',
+  leavesBehindOnDispatch: false,
   nfeIssuedAt: '2026-08-01T09:00:00.000Z',
   nfeNumber: '883658',
   nfeSeries: '1',

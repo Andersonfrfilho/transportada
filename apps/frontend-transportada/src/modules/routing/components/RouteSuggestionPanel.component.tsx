@@ -164,20 +164,18 @@ export function RouteSuggestionPanel({
         })}
       </p>
 
-      <div className={styles.actions}>
-        <Button disabled={!decidable || isDeciding} onClick={onAccept} type="button">
-          <Icon aria-hidden="true" name="check" />
-          {t('panel.accept')}
-        </Button>
-        <Button
-          disabled={!decidable || isDeciding}
-          onClick={onReject}
-          type="button"
-          variant="secondary"
-        >
-          {t('panel.reject')}
-        </Button>
-      </div>
+      {/* Decidida a sugestão, o selo basta: botão desabilitado ao lado de "Aceita" parece travado. */}
+      {decidable ? (
+        <div className={styles.actions}>
+          <Button disabled={isDeciding} onClick={onAccept} type="button">
+            <Icon aria-hidden="true" name="check" />
+            {t('panel.accept')}
+          </Button>
+          <Button disabled={isDeciding} onClick={onReject} type="button" variant="secondary">
+            {t('panel.reject')}
+          </Button>
+        </div>
+      ) : null}
     </section>
   )
 }

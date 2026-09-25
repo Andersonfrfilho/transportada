@@ -1,0 +1,21 @@
+:root {
+  --asphalt: #10222c;
+  --copper: #d58a47;
+  --fog: #f0f2ee;
+}
+body {
+  margin: 0;
+  padding: 2rem;
+  color: var(--fog);
+  font-family: system-ui, sans-serif;
+  background: var(--asphalt);
+}
+main {
+  max-width: 40rem;
+}
+main > p:first-child {
+  color: var(--copper);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

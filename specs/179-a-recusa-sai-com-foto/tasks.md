@@ -55,11 +55,24 @@ DIAGNOSTICS ROW_COUNT`. `make migration-test` verde.
 
 > 🤖 Modelo: `sonnet`
 
+⚠️ **Emendada pela spec 189 (ADR-0075, T8.3) — o PWA do motorista virou `apps/frontend-driver`.**
+T301, T302 e T303 executam em `apps/frontend-driver`, não mais em
+`apps/frontend-transportada/src/modules/driver-trip/`. A spec 189 já deixou o terreno preparado
+(plan.md dela, "O que a 189 deixa pronto para a 179"): o `kind` `documentOccurrence` já existe em
+`DriverFieldReport` e no `switch` exaustivo de `driverTripClient.service.ts`, e o `send` desse `kind`
+já pede a URL assinada, sobe o blob, confirma o upload e só então faz o `POST
+.../documents/:id/occurrences` com `attachmentObjectId` — a ordem que a T203 desta spec exige
+(`required` sem anexo é recusado, e a drenagem de evento-depois-anexo daria `422`). T302/T303 não
+implementam esse encadeamento do zero: plugam a captura de imagem e a UI de estado ("na fila" /
+"enviado") no que já existe. Falta a origem do storage no `connect-src`/`img-src` de
+`apps/frontend-driver` (`VITE_STORAGE_URL`, `ARG` e contrato de build) — ver T8.3 do `tasks.md` da 189.
+
 - **T301** Teste de contrato da tela: tipo `required` sem foto ou sem motivo não habilita o envio, e
   a mensagem diz qual dos dois falta. (CA04)
-- **T302** Captura da imagem na tela de ocorrência, com o caminho de galeria quando a câmera é
-  negada, e os mesmos limites de tamanho e tipo do comprovante de entrega.
-- **T303** A fila offline carrega a imagem junto do corpo; a tela distingue "na fila" de "enviado".
+- **T302** Captura da imagem na tela de ocorrência (`apps/frontend-driver`), com o caminho de galeria
+  quando a câmera é negada, e os mesmos limites de tamanho e tipo do comprovante de entrega.
+- **T303** A fila offline (`apps/frontend-driver`) carrega a imagem junto do corpo, pelo `kind`
+  `documentOccurrence` que a spec 189 já deixou pronto; a tela distingue "na fila" de "enviado".
   Smoke cobrindo o caminho sem sinal. (CA05, RF5)
 
 ## Fase 4 — O painel e o fechamento

@@ -1,0 +1,41 @@
+{
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Enter your registered email, CPF, CNPJ, or phone number to continue.",
+    "identifierLabel": "Identifier",
+    "identifierHint": "Accepts a registered email, CPF, CNPJ, or phone number.",
+    "submit": "Continue",
+    "submitting": "Sending…"
+  },
+  "forbidden": {
+    "title": "No access",
+    "message": "This account is not a driver's; use the carrier's panel."
+  },
+  "whatsappPhone": {
+    "dialogTitle": "Link WhatsApp",
+    "close": "Close",
+    "loading": "Loading the WhatsApp link",
+    "phoneLabel": "WhatsApp number",
+    "phonePlaceholder": "(11) 98765-4321",
+    "generate": "Generate code",
+    "generating": "Generating",
+    "pendingWaiting": "Code generated, waiting for your WhatsApp message. If you lost the code, generate a new one.",
+    "codeTitle": "Your code",
+    "codeInstruction": "Send this code from your own WhatsApp to the number above",
+    "copyCompanyNumber": "Copy number",
+    "copyCompanyNumberDone": "Number copied",
+    "expiresIn": "Expires in {{seconds}}s",
+    "linkedUntil": "Valid until {{date}}",
+    "linkExpired": "The link expired. Generate a new code to verify again.",
+    "unlink": "Unlink",
+    "unlinkConfirmBody": "The number stops receiving WhatsApp commands until it is verified again.",
+    "unlinkConfirm": "Unlink",
+    "unlinkCancel": "Cancel",
+    "channelMissing": "The company has not configured WhatsApp yet. Talk to the administrator.",
+    "requestFailed": "Could not complete. Try again.",
+    "errors": {
+      "WHATSAPP_PHONE_INVALID": "Check the number you typed.",
+      "WHATSAPP_CHANNEL_NUMBER_MISSING": "The company has not configured WhatsApp yet. Talk to the administrator."
+    }
+  }
+}

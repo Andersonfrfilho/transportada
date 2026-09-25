@@ -1,0 +1,2 @@
+ALTER TABLE "company_occurrence_types" ADD COLUMN "leaves_document_behind" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "company_occurrence_types" ADD CONSTRAINT "company_occurrence_types_leaves_document_behind_check" CHECK ("stage" = 'separation' or not "leaves_document_behind");
