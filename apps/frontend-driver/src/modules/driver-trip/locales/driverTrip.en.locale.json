@@ -1,0 +1,182 @@
+{
+  "arrive": "I arrived",
+  "arrived": "Arrived at {{time}}",
+  "attachmentLimitCount": "The limit of attachments waiting to be sent was reached. Send the pending ones before attaching another — nothing was discarded.",
+  "attachmentLimitSize": "The space for attachments waiting to be sent is full. Send the pending ones before attaching another — nothing was discarded.",
+  "crop": {
+    "cancel": "Cancel",
+    "corner": {
+      "bottomLeft": "Bottom left corner",
+      "bottomRight": "Bottom right corner",
+      "topLeft": "Top left corner",
+      "topRight": "Top right corner"
+    },
+    "previewLabel": "Proof preview for cropping",
+    "useCrop": "Use crop",
+    "useOriginal": "Use without cropping"
+  },
+  "deliver": "Delivered",
+  "dispatch": {
+    "failed": "The route could not be started. Tap again.",
+    "start": "Start route",
+    "waiting": "Waiting for the route to start — field actions unlock after starting."
+  },
+  "eventLimitCount": "The limit of events waiting to be sent was reached. Send the pending ones before recording another — nothing was discarded.",
+  "documentsPending_one": "{{count}} invoice to deliver",
+  "documentsPending_other": "{{count}} invoices to deliver",
+  "error": "Your trip could not be loaded. Pull to try again.",
+  "eventQueue": {
+    "attachments_one": "{{count}} attachment",
+    "attachments_other": "{{count}} attachments",
+    "back": "Back",
+    "empty": "Nothing waiting to be sent.",
+    "kind": {
+      "arrive": "Arrival",
+      "deliver": "Delivery",
+      "occurrence": "Occurrence",
+      "proof": "Proof",
+      "return": "Return"
+    },
+    "open": "See pending events",
+    "sendAll": "Send all now",
+    "sendNow": "Send now",
+    "status": {
+      "attachmentRejected": "Attachment rejected by the server: {{cause}}. The event was already accepted.",
+      "failed_one": "Failed {{count}} time — no network on the last attempt",
+      "failed_other": "Failed {{count}} times — no network on the last attempt",
+      "queued": "Queued",
+      "rejected": "Rejected by the server: {{cause}}"
+    },
+    "title": "Pending events"
+  },
+  "loadSheet": {
+    "barcodeLabel": "Barcode for the access key of NF-e {{number}}",
+    "notFiscal": "This is not a fiscal document",
+    "note": "NF-e {{number}}/{{series}}",
+    "print": "Print",
+    "title": "Load sheet",
+    "volumes_one": "{{count}} package",
+    "volumes_other": "{{count}} packages",
+    "weight": "{{weight}} kg"
+  },
+  "loading": "Loading your trip…",
+  "manifest": {
+    "barcodeLabel": "Barcode for MDF-e access key {{accessKey}}",
+    "failed": "The document could not be fetched right now. The access key above still holds for inspection.",
+    "openDamdfe": "Get DAMDFE (PDF)",
+    "openXml": "Get XML",
+    "opening": "Getting…",
+    "protocol": "Protocol {{protocol}}",
+    "title": "MDF-e for this trip"
+  },
+  "nav": {
+    "label": "Application sections",
+    "profile": "Profile",
+    "trip": "Trip"
+  },
+  "navigate": "Navigate",
+  "noTrip": "Nothing for today. Your trip shows up here once the office dispatches it.",
+  "notRegistered": "Your account is not linked to a driver record yet. Talk to the office.",
+  "occurrence": "Something went wrong",
+  "occurrenceDescription": "What happened (optional)",
+  "occurrenceKind": {
+    "address_not_found": "Address not found",
+    "appointment_required": "Appointment required",
+    "customer_closed": "Customer closed",
+    "damaged_goods": "Damaged goods",
+    "dock_closed": "Dock closed",
+    "long_wait": "Long wait",
+    "other": "Other",
+    "unexpected_charge": "Unexpected charge"
+  },
+  "occurrencePhoto": "Occurrence photo (site or cargo)",
+  "choosePhoto": "Choose photo",
+  "noPhotoChosen": "No photo chosen",
+  "occurrencePhotoCount_one": "{{count}} photo attached",
+  "occurrencePhotoCount_other": "{{count}} photos attached",
+  "occurrencePreview": {
+    "none": "No notice will be sent to the customer for this reason.",
+    "title": "Notice that will be sent"
+  },
+  "occurrenceSend": "Record",
+  "profile": {
+    "noTrip": "No trip in progress.",
+    "queueEmpty": "Nothing waiting to be sent.",
+    "queueTitle": "Send queue",
+    "roles": {
+      "aggregate": "Aggregate driver",
+      "driver": "Driver",
+      "unknown": "No field role"
+    },
+    "signOut": "Sign out",
+    "vehicleTitle": "Trip vehicle",
+    "whatsappTitle": "WhatsApp",
+    "score": "{{score}} of 100",
+    "scoreNone": "No score yet — no delivery with a required photo in the last 90 days.",
+    "scoreTitle": "Your score",
+    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location, or never arrives. Each loss expires after 90 days."
+  },
+  "progress": {
+    "label": "{{resolved}} of {{total}} stops resolved"
+  },
+  "proof": "Attach proof",
+  "proofFailed": "The file could not be attached. The delivery is still recorded.",
+  "proofFields": {
+    "receiverDocument": "Receiver document",
+    "receiverName": "Receiver name",
+    "requiredField": "Fill in this field before attaching the proof."
+  },
+  "queued_one": "{{count}} confirmation waiting to be sent",
+  "queued_other": "{{count}} confirmations waiting to be sent",
+  "rejected": "The office changed this invoice while you were offline. Check before moving on.",
+  "return": "Not delivered",
+  "returnReason": {
+    "address_not_found": "Address not found",
+    "damaged_goods": "Damaged",
+    "establishment_closed": "Establishment closed",
+    "recipient_absent": "Recipient absent",
+    "recipient_refused": "Refused"
+  },
+  "returnTitle": "Why was it not delivered?",
+  "schedule": {
+    "at": "Scheduled for {{time}}",
+    "protocol": "Protocol {{protocol}}"
+  },
+  "signature": {
+    "cancel": "Cancel",
+    "canvasLabel": "Signature area — draw with your finger",
+    "clear": "Clear",
+    "confirm": "Confirm signature",
+    "exitFullscreen": "Exit full screen",
+    "fullscreen": "Full screen",
+    "open": "Collect signature"
+  },
+  "stopCompleted": "Stop completed",
+  "stopTitle": "Stop {{sequence}}",
+  "title": "My trip",
+  "tripCompleted": "Trip completed. Good work.",
+  "vehicle": "Vehicle {{plate}}",
+  "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",
+  "pendingProofs": {
+    "attach": "Attach proof",
+    "back": "Back",
+    "documentLabel": "Document {{number}}/{{series}}",
+    "empty": "No pending photos. You are all caught up.",
+    "open": "Pending photos",
+    "outcome": {
+      "away": "Recorded far from the location — may have cost points on your score.",
+      "late": "Recorded past the deadline — may have cost points on your score.",
+      "late_and_away": "Recorded past the deadline and far from the location — may have cost points on your score.",
+      "not_required": "Recorded.",
+      "on_time": "Recorded on time and on site."
+    },
+    "outcomeDismiss": "Dismiss notice",
+    "queued": "Photo saved on the phone. It uploads by itself when the signal returns.",
+    "title": "Pending photos",
+    "hint": "These deliveries still need the proof photo. Send it as soon as you can: a photo that never arrives costs more points.",
+    "outcomeFor": "{{recipient}} · Document {{number}}/{{series}}"
+  },
+  "proofPendingWarningTitle": "Proof photo required",
+  "proofPendingWarningLead": "Take it here, at delivery time. A photo sent later or away from here costs points on your score.",
+  "proofPendingWarningDetails": "How the photo counts toward your score"
+}

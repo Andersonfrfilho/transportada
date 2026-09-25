@@ -24,10 +24,11 @@ export const CONTENT_SECURITY_POLICY_FILE_NAME = 'content-security-policy.txt'
 export const EXTERNAL_CONNECT_ORIGIN: readonly string[] = []
 
 /**
- * Origem que o bundle nomeia sem nunca buscar — `window.open`, não `fetch`. O mapa da parada e o XML
- * do MDF-e entram aqui quando o módulo da viagem chegar (ADR-0075 §4).
+ * Origem que o bundle nomeia sem nunca buscar — `window.open`, não `fetch` (ADR-0075 §4).
+ * `maps.google.com` é o mapa da parada (`DriverStopCard.component.tsx`); o XML do MDF-e por URL
+ * assinada não nomeia origem fixa nenhuma no código — a URL vem inteira da API.
  */
-export const NON_FETCH_ORIGIN: readonly string[] = []
+export const NON_FETCH_ORIGIN: readonly string[] = ['https://maps.google.com']
 
 type ContentSecurityPolicyParams = {
   readonly allowsInlineScript: boolean

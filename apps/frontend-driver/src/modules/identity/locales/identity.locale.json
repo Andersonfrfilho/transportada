@@ -1,0 +1,29 @@
+{
+  "whatsappPhone": {
+    "dialogTitle": "Vincular WhatsApp",
+    "close": "Fechar",
+    "loading": "Carregando o vínculo do WhatsApp",
+    "phoneLabel": "Número de WhatsApp",
+    "phonePlaceholder": "(11) 98765-4321",
+    "generate": "Gerar código",
+    "generating": "Gerando",
+    "pendingWaiting": "Código gerado, aguardando a mensagem no WhatsApp. Se perdeu o código, gere outro.",
+    "codeTitle": "Seu código",
+    "codeInstruction": "Envie este código do seu WhatsApp para o número acima",
+    "copyCompanyNumber": "Copiar número",
+    "copyCompanyNumberDone": "Número copiado",
+    "expiresIn": "Expira em {{seconds}}s",
+    "linkedUntil": "Válido até {{date}}",
+    "linkExpired": "O vínculo venceu. Gere um código novo para verificar de novo.",
+    "unlink": "Desvincular",
+    "unlinkConfirmBody": "O número deixa de receber comandos por WhatsApp até ser verificado de novo.",
+    "unlinkConfirm": "Desvincular",
+    "unlinkCancel": "Cancelar",
+    "channelMissing": "A empresa ainda não configurou o WhatsApp. Fale com o administrador.",
+    "requestFailed": "Não foi possível concluir. Tente de novo.",
+    "errors": {
+      "WHATSAPP_PHONE_INVALID": "Confira o número digitado.",
+      "WHATSAPP_CHANNEL_NUMBER_MISSING": "A empresa ainda não configurou o WhatsApp. Fale com o administrador."
+    }
+  }
+}

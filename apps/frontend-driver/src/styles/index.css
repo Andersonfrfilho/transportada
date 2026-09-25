@@ -14,6 +14,8 @@
   --color-graphite: #1c2b33;
   --color-ready: #6aae8c;
   --color-slate: #8fa3ad;
+  /* O texto que senta sobre o cobre: cópia do token do painel (ui-button-default). */
+  --color-ink-on-accent: #10222c;
   --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
   --font-utility: 'SFMono-Regular', Consolas, monospace;
@@ -23,13 +25,28 @@
   --space-4: 1rem;
   --space-5: 1.25rem;
   --space-6: 1.5rem;
+  --space-7: 1.75rem;
   --space-8: 2rem;
   --space-10: 2.5rem;
   --space-12: 3rem;
+  --space-16: 4rem;
   --layout-gutter: var(--space-8);
   --layout-max-width: 60rem;
   --layout-width: min(100% - var(--layout-gutter), var(--layout-max-width));
   --radius-panel: 0.75rem;
+  /* Cópia dos tokens de campo/controle do painel (ADR-0075 §7) — o design system caseiro usa os dois. */
+  --field-height: 3rem;
+  --field-height-compact: 2.4rem;
+  --field-padding: var(--space-3);
+  --field-padding-compact: var(--space-2) var(--space-3);
+  --field-font-size: 0.9rem;
+  --field-font-size-compact: 0.82rem;
+  --control-height: var(--field-height);
+  --control-height-compact: var(--field-height-compact);
+  /* Alvo de toque de 44px do `web.md` §10. */
+  --touch-target: 2.75rem;
+  --icon-size-sm: 0.9rem;
+  --icon-size-md: 1.1rem;
 }
 
 * {
@@ -42,6 +59,67 @@ body {
   font-family: var(--font-body);
   margin: 0;
   min-height: 100vh;
+}
+
+/* Ícone e rótulo no mesmo eixo, separados pelo token — cópia por valor do painel (`web.md` §9). */
+button:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.ui-button:hover {
+  transform: translateY(-1px);
+}
+
+.ui-button-size-default {
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-5);
+}
+
+.ui-button-size-sm {
+  min-height: var(--control-height-compact);
+  padding: var(--space-2) var(--space-3);
+}
+
+.ui-button-default {
+  border-color: var(--color-copper);
+  color: var(--color-ink-on-accent);
+  background: var(--color-copper);
+}
+
+.ui-button-secondary {
+  border-color: color-mix(in srgb, var(--color-slate) 30%, transparent);
+  color: var(--color-fog);
+  background: color-mix(in srgb, var(--color-graphite) 85%, transparent);
+}
+
+.ui-button-ghost {
+  border-color: color-mix(in srgb, var(--color-slate) 20%, transparent);
+  color: color-mix(in srgb, var(--color-fog) 88%, var(--color-slate) 12%);
+  background: color-mix(in srgb, var(--color-asphalt) 48%, transparent);
+}
+
+.ui-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
 }
 
 .environment-banner {

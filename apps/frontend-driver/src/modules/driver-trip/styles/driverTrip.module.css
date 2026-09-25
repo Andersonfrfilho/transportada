@@ -1,0 +1,767 @@
+/* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/styles/driverTrip.module.css (ADR-0075 §7). */
+/* A tela é do motorista, não do analista: alvo grande, contraste alto e uma coluna só. */
+.shell {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0 auto;
+  max-width: 40rem;
+  padding: var(--space-4);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.vehicle {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.queueBanner {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-radius: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.rejectedBanner {
+  background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+  border-radius: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+/* Spec 159 (T11): resultado da pontualidade — persiste até o motorista dispensar. */
+.proofOutcomeToast {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-left: var(--space-1) solid var(--color-copper);
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  margin: 0;
+  padding: var(--space-3);
+}
+
+/* Em dia é notícia boa: verde, com o mesmo formato — a cor nunca é a única pista (ícone e texto). */
+.proofOutcomeToastGood {
+  background: color-mix(in srgb, var(--color-ready) 18%, transparent);
+  border-left-color: var(--color-ready);
+}
+
+.proofOutcomeText {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.proofOutcomeTitle {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+}
+
+.stopList {
+  display: grid;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stop {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+/* A parada de agora é a que ele está fazendo: sem isso ele varre a lista com o caminhão parado. */
+.stopCurrent {
+  border-color: var(--color-copper);
+  border-width: 2px;
+}
+
+.stopDone {
+  opacity: 0.65;
+}
+
+.stopHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.stopLabel {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.stopMeta {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.documentList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.document {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.documentSettled {
+  color: var(--color-slate);
+}
+
+/* Alvo de toque de 44px, que é o mínimo para quem usa uma mão e está de pé. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.actions > * {
+  min-height: 2.75rem;
+}
+
+.occurrenceForm {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Spec 082 D8: motivo por chips — alvo de 44px, canto reto, um selecionado por vez. */
+.occurrenceChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.occurrenceChip {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+/* A prévia do aviso: painel destacado, com a chave do template pequena e monoespaçada. */
+.occurrencePreview {
+  border: 1px solid var(--color-slate);
+  border-left: 4px solid var(--color-copper);
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.occurrencePreviewTitle {
+  font-weight: 700;
+  margin: 0;
+}
+
+.occurrencePreviewText {
+  margin: 0;
+}
+
+.occurrencePreviewKey {
+  color: var(--color-slate);
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.proofField {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Spec 060 D3: a hora marcada vem antes do endereço — é o que a portaria pede. */
+.stopSchedule {
+  color: var(--color-copper);
+  font-weight: 700;
+  margin: 0;
+}
+
+/* Spec 065 D9: o MDF-e sob demanda. Vem antes do romaneio porque é o documento que a barreira pede. */
+.manifest {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.manifestHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* A chave é lida em voz alta para o fiscal: quebra em qualquer ponto e não estoura a tela estreita. */
+.manifestKey {
+  font-family: var(--font-utility);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.manifestProtocol {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.manifestActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.manifestActions > * {
+  min-height: 2.75rem;
+}
+
+/* Spec 065 D1: o romaneio. O aviso de não-fiscal é irmão do título — na tela e no papel. */
+.loadSheet {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.loadSheetHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.loadSheetDisclaimer {
+  color: var(--color-alert);
+  font-weight: 700;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/*
+ * O veículo já está no cabeçalho da tela, e repeti-lo aqui é ruído. No papel ele é necessário: lá o
+ * cabeçalho não vai junto, e um romaneio sem placa não identifica a carga de ninguém.
+ */
+.loadSheetMeta {
+  color: var(--color-slate);
+  display: none;
+  margin: 0;
+}
+
+.loadSheetStops,
+.loadSheetNotes {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.loadSheetStop {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.loadSheetNote {
+  border-top: 1px solid var(--color-slate);
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+}
+
+.loadSheetNoteHead {
+  margin: 0;
+}
+
+.loadSheetTotals {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+/* A chave é lida em voz alta e digitada: monoespaçada e quebrando, nunca cortada. */
+.loadSheetKey {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * O romaneio é impresso, e impresso é onde ele volta a parecer documento fiscal. Então o papel leva
+ * só ele — sem menu, sem botões —, em preto no branco, e com o aviso mantido em destaque.
+ */
+@media print {
+  .shell > *:not(.loadSheet) {
+    display: none;
+  }
+
+  .loadSheet {
+    border: none;
+    color: #000;
+    padding: 0;
+  }
+
+  .printAction {
+    display: none;
+  }
+
+  .loadSheetDisclaimer {
+    color: #000;
+  }
+
+  .loadSheetMeta {
+    color: #000;
+    display: block;
+  }
+
+  .loadSheetNote {
+    break-inside: avoid;
+  }
+}
+
+/* Spec 082 D1 — shell do módulo: header de marca, progresso da viagem e barra inferior.
+   Cantos quadrados de propósito: o mockup aprovado é radius 0 em todo o shell do campo. */
+.moduleShell {
+  display: grid;
+  min-height: 100dvh;
+  align-content: start;
+  /* A barra inferior é fixa: sem esta folga a última parada fica escondida atrás dela. */
+  padding-bottom: var(--space-16);
+}
+
+.moduleHeader {
+  align-items: center;
+  background: var(--color-graphite);
+  border-bottom: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+
+.moduleBrand {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.moduleBrandLogo {
+  height: var(--space-8);
+  width: var(--space-8);
+}
+
+.moduleBrandCopy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.moduleCompanyName {
+  color: var(--color-slate);
+  font-size: var(--field-font-size-compact);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.driverAvatar {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-copper) 25%, transparent);
+  border: 1px solid var(--color-copper);
+  border-radius: 0;
+  display: inline-flex;
+  font-weight: 700;
+  height: var(--space-10);
+  justify-content: center;
+  width: var(--space-10);
+}
+
+.driverAvatarLarge {
+  composes: driverAvatar;
+  font-size: 1.125rem;
+  height: var(--space-12);
+  width: var(--space-12);
+}
+
+/* Um segmento por parada: verde resolvida, cobre a corrente, cinza pendente. */
+.progressBar {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.progressSegment {
+  background: var(--color-slate);
+  border-radius: 0;
+  flex: 1;
+  height: var(--space-2);
+  transition: background-color 0.3s ease;
+}
+
+.progressSegment[data-state='resolved'] {
+  background: var(--color-ready);
+}
+
+.progressSegment[data-state='current'] {
+  background: var(--color-copper);
+}
+
+/* A pulsação da parada corrente só existe para quem não pediu movimento reduzido. */
+@media (prefers-reduced-motion: no-preference) {
+  .progressSegment[data-state='current'] {
+    animation: driver-progress-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes driver-progress-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.bottomBar {
+  background: var(--color-graphite);
+  border-radius: 0;
+  border-top: 1px solid var(--color-slate);
+  bottom: 0;
+  display: flex;
+  left: 0;
+  position: fixed;
+  right: 0;
+}
+
+.bottomBarItem {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--color-slate);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  font: inherit;
+  gap: var(--space-1);
+  justify-content: center;
+  /* Alvo de toque: nunca abaixo de 44px para quem opera de pé, com uma mão. */
+  min-height: 2.75rem;
+  padding: var(--space-2);
+}
+
+.bottomBarItemActive {
+  composes: bottomBarItem;
+  color: var(--color-copper);
+  font-weight: 700;
+}
+
+.profileScore {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  margin: 0;
+}
+
+.profileCard {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.profileIdentityCard {
+  composes: profileCard;
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.profileIdentity {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.profileName {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.profileRole {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.profileSectionTitle {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.profileMeta {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.signOutButton {
+  min-height: 2.75rem;
+}
+
+@media print {
+  .moduleHeader,
+  .bottomBar,
+  .progressBar {
+    display: none;
+  }
+}
+
+/* Spec 082 D7 — fila de eventos pendentes: tokens quadrados do painel (radius 0), alvo >= 44px */
+.queueBannerButton,
+.rejectedBannerButton {
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  padding: var(--space-3);
+  text-align: left;
+}
+
+.queueBannerButton {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+}
+
+.rejectedBannerButton {
+  background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+}
+
+.queueBannerAction {
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+.eventQueueOpenButton,
+.eventQueueSendAll {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.eventQueueHeader {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.eventQueueTitle {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.eventQueueList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.eventQueueItem {
+  align-items: center;
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3);
+}
+
+.eventQueueItemBody {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.eventQueueItemTitle {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.eventQueueItemTime {
+  color: var(--color-slate);
+}
+
+.eventQueueStatusRejected {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.eventQueueItem button {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.stopDistance {
+  align-self: center;
+  color: var(--color-slate);
+  font-variant-numeric: tabular-nums;
+}
+
+.proofSection {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+/*
+ * Spec 159 RF12: aviso antes de entregar — cobre suave, nunca o vermelho da recusa. O texto fica na
+ * cor do corpo e em 1rem: cobre sobre cobre some no sol, e o motorista lê isso de pé, com uma mão.
+ */
+.proofPendingWarning {
+  background: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  border-left: var(--space-1) solid var(--color-copper);
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.proofPendingWarningTitle {
+  align-items: center;
+  color: var(--color-copper);
+  display: flex;
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.proofPendingWarningLead {
+  margin: 0;
+}
+
+.proofPendingWarningDetails summary {
+  align-items: center;
+  color: var(--color-slate);
+  cursor: pointer;
+  display: flex;
+  min-height: var(--control-height);
+  text-decoration: underline;
+}
+
+.proofPendingWarningDetails p {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* O campo do recebedor segue os tokens de campo — cru, ele media 21px de altura no celular. */
+.proofField input[type='text'] {
+  background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  width: 100%;
+}
+
+/* Spec 159 T12: cada nota pendente é um cartão, como a parada — sem ele os itens se emendavam. */
+.pendingProofItem {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.pendingProofRecipient {
+  font-weight: 700;
+}
+
+.pendingProofQueued {
+  align-items: center;
+  color: var(--color-slate);
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.proofFieldError {
+  color: var(--color-alert);
+}
+
+.signaturePad {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.signaturePad button {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.signaturePadFullscreen {
+  align-content: center;
+  background: var(--color-graphite);
+  height: 100%;
+  justify-items: center;
+  width: 100%;
+}
+
+/* iOS sem screen.orientation.lock: o conteúdo rotaciona para o traço ficar horizontal */
+.signaturePadRotated {
+  transform: rotate(90deg);
+}
+
+.signatureCanvas {
+  background: #ffffff;
+  border: 1px dashed var(--color-slate);
+  border-radius: 0;
+  max-width: 100%;
+  touch-action: none;
+}
+
+.proofCrop {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proofCrop button {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.proofCropStage {
+  position: relative;
+  touch-action: none;
+}
+
+.proofCropStage canvas {
+  max-width: 100%;
+}
+
+.proofCropHandle {
+  background: var(--color-graphite);
+  border: 2px solid var(--color-alert);
+  border-radius: 0;
+  height: var(--control-height);
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: var(--control-height);
+}

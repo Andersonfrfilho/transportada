@@ -102,9 +102,11 @@
       "version": "0.1.0",
       "dependencies": {
         "@tanstack/react-query": "5.90.20",
+        "i18next": "25.7.4",
         "keycloak-js": "26.2.4",
         "react": "19.2.0",
         "react-dom": "19.2.0",
+        "react-i18next": "16.5.0",
         "workbox-core": "7.4.1",
         "workbox-precaching": "7.4.1",
         "workbox-routing": "7.4.1",

@@ -1,0 +1,191 @@
+{
+  "arrive": "Cheguei",
+  "arrived": "Cheguei às {{time}}",
+  "deliver": "Entreguei",
+  "documentsPending_one": "{{count}} nota para entregar",
+  "documentsPending_other": "{{count}} notas para entregar",
+  "attachmentLimitCount": "Limite de anexos aguardando envio atingido. Envie os pendentes antes de anexar outro — nada foi descartado.",
+  "attachmentLimitSize": "Espaço para anexos aguardando envio cheio. Envie os pendentes antes de anexar outro — nada foi descartado.",
+  "dispatch": {
+    "failed": "Não foi possível iniciar o trajeto. Toque de novo.",
+    "start": "Iniciar trajeto",
+    "waiting": "Aguardando o início do trajeto — as ações de campo liberam depois de iniciar."
+  },
+  "error": "Não foi possível carregar sua viagem. Puxe para tentar de novo.",
+  "eventLimitCount": "Limite de eventos aguardando envio atingido. Envie os pendentes antes de registrar outro — nada foi descartado.",
+  "eventQueue": {
+    "attachments_one": "{{count}} anexo",
+    "attachments_other": "{{count}} anexos",
+    "back": "Voltar",
+    "empty": "Nada aguardando envio.",
+    "kind": {
+      "arrive": "Chegada",
+      "deliver": "Entrega",
+      "occurrence": "Ocorrência",
+      "proof": "Comprovante",
+      "return": "Devolução"
+    },
+    "open": "Ver eventos pendentes",
+    "sendAll": "Enviar todos agora",
+    "sendNow": "Enviar agora",
+    "status": {
+      "attachmentRejected": "Anexo rejeitado pelo servidor: {{cause}}. O evento já foi aceito.",
+      "failed_one": "Falhou {{count}} vez — sem rede na última tentativa",
+      "failed_other": "Falhou {{count}} vezes — sem rede na última tentativa",
+      "queued": "Na fila",
+      "rejected": "Rejeitado pelo servidor: {{cause}}"
+    },
+    "title": "Eventos pendentes"
+  },
+  "loadSheet": {
+    "title": "Romaneio de carga",
+    "notFiscal": "Não é documento fiscal",
+    "print": "Imprimir",
+    "note": "NF-e {{number}}/{{series}}",
+    "volumes_one": "{{count}} volume",
+    "volumes_other": "{{count}} volumes",
+    "weight": "{{weight}} kg",
+    "barcodeLabel": "Código de barras da chave da NF-e {{number}}"
+  },
+  "loading": "Carregando sua viagem…",
+  "manifest": {
+    "title": "MDF-e desta viagem",
+    "protocol": "Protocolo {{protocol}}",
+    "barcodeLabel": "Código de barras da chave do MDF-e {{accessKey}}",
+    "openDamdfe": "Obter DAMDFE (PDF)",
+    "openXml": "Obter XML",
+    "opening": "Obtendo…",
+    "failed": "Não foi possível obter o documento agora. A chave acima continua valendo para conferência."
+  },
+  "nav": {
+    "label": "Seções do aplicativo",
+    "profile": "Perfil",
+    "trip": "Viagem"
+  },
+  "navigate": "Navegar",
+  "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
+  "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
+  "pendingProofs": {
+    "attach": "Anexar comprovante",
+    "back": "Voltar",
+    "documentLabel": "Nota {{number}}/{{series}}",
+    "empty": "Nenhuma foto pendente. Está tudo em dia.",
+    "open": "Fotos pendentes",
+    "outcome": {
+      "away": "Registrada longe do local — pode ter tirado pontos da sua nota.",
+      "late": "Registrada fora do prazo — pode ter tirado pontos da sua nota.",
+      "late_and_away": "Registrada fora do prazo e longe do local — pode ter tirado pontos da sua nota.",
+      "not_required": "Registrada.",
+      "on_time": "Registrada em dia e no local."
+    },
+    "outcomeDismiss": "Dispensar aviso",
+    "queued": "Foto guardada no celular. Ela sobe sozinha quando o sinal voltar.",
+    "title": "Fotos pendentes",
+    "hint": "Estas entregas ainda precisam da foto do canhoto. Envie assim que puder: foto que não chega tira mais pontos da sua nota.",
+    "outcomeFor": "{{recipient}} · Nota {{number}}/{{series}}"
+  },
+  "proofPendingWarning": "Tirar de novo não melhora: vale a pior foto. Foto enviada muito depois conta como atrasada, mesmo que o relógio do aparelho mostre outra hora.",
+  "occurrence": "Deu problema",
+  "occurrenceDescription": "O que aconteceu (opcional)",
+  "occurrenceKind": {
+    "address_not_found": "Endereço não localizado",
+    "appointment_required": "Exigiram agendamento",
+    "customer_closed": "Cliente fechado",
+    "damaged_goods": "Mercadoria avariada",
+    "dock_closed": "Doca interditada",
+    "long_wait": "Espera longa",
+    "other": "Outro",
+    "unexpected_charge": "Cobrança inesperada"
+  },
+  "occurrencePhoto": "Foto da ocorrência (local ou carga)",
+  "choosePhoto": "Escolher foto",
+  "noPhotoChosen": "Nenhuma foto escolhida",
+  "occurrencePhotoCount_one": "{{count}} foto anexada",
+  "occurrencePhotoCount_other": "{{count}} fotos anexadas",
+  "occurrencePreview": {
+    "none": "Nenhum aviso será enviado ao cliente para este motivo.",
+    "title": "Aviso que será enviado"
+  },
+  "occurrenceSend": "Registrar",
+  "profile": {
+    "noTrip": "Sem viagem em andamento.",
+    "queueEmpty": "Nada aguardando envio.",
+    "queueTitle": "Fila de envio",
+    "roles": {
+      "aggregate": "Agregado",
+      "driver": "Motorista",
+      "unknown": "Sem papel de campo"
+    },
+    "score": "{{score}} de 100",
+    "scoreNone": "Sem nota ainda — nenhuma entrega com foto obrigatória nos últimos 90 dias.",
+    "scoreTitle": "Sua nota",
+    "signOut": "Sair",
+    "vehicleTitle": "Veículo da viagem",
+    "whatsappTitle": "WhatsApp",
+    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega ou não chega. Cada perda some depois de 90 dias."
+  },
+  "progress": {
+    "label": "{{resolved}} de {{total}} paradas resolvidas"
+  },
+  "proof": "Anexar canhoto",
+  "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
+  "proofFields": {
+    "receiverDocument": "Documento de quem recebeu",
+    "receiverName": "Nome de quem recebeu",
+    "requiredField": "Preencha este campo antes de anexar o comprovante."
+  },
+  "signature": {
+    "cancel": "Cancelar",
+    "canvasLabel": "Área de assinatura — desenhe com o dedo",
+    "clear": "Limpar",
+    "confirm": "Confirmar assinatura",
+    "exitFullscreen": "Sair da tela inteira",
+    "fullscreen": "Tela inteira",
+    "open": "Colher assinatura"
+  },
+  "crop": {
+    "cancel": "Cancelar",
+    "corner": {
+      "bottomLeft": "Canto inferior esquerdo",
+      "bottomRight": "Canto inferior direito",
+      "topLeft": "Canto superior esquerdo",
+      "topRight": "Canto superior direito"
+    },
+    "previewLabel": "Prévia do comprovante para recorte",
+    "useCrop": "Usar recorte",
+    "useOriginal": "Usar sem recorte"
+  },
+  "queued_one": "{{count}} confirmação aguardando envio",
+  "queued_other": "{{count}} confirmações aguardando envio",
+  "rejected": "O escritório mudou esta nota enquanto você estava sem sinal. Confira antes de seguir.",
+  "return": "Não entreguei",
+  "returnReason": {
+    "address_not_found": "Endereço não encontrado",
+    "damaged_goods": "Avaria",
+    "establishment_closed": "Estabelecimento fechado",
+    "recipient_absent": "Ausente",
+    "recipient_refused": "Recusa"
+  },
+  "returnTitle": "Por que não entregou?",
+  "schedule": {
+    "at": "Hora marcada: {{time}}",
+    "protocol": "Protocolo {{protocol}}"
+  },
+  "stopCompleted": "Parada concluída",
+  "stopTitle": "Parada {{sequence}}",
+  "title": "Minha viagem",
+  "tripCompleted": "Viagem concluída. Bom trabalho.",
+  "vehicle": "Veículo {{plate}}",
+  "documentOccurrence": "Registrar ocorrência",
+  "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",
+  "documentOccurrenceFailed": "Não deu para registrar a ocorrência. A nota continua como estava — toque de novo.",
+  "documentOccurrenceProduct": "Item",
+  "documentOccurrenceTypesEmpty": "Nenhum tipo de ocorrência de rua cadastrado. Fale com o escritório.",
+  "documentOccurrenceTypesFailed": "Não foi possível carregar os tipos de ocorrência agora. Entregar e devolver continuam funcionando normalmente.",
+  "documentOccurrenceTypesLoading": "Carregando os tipos de ocorrência…",
+  "documentOccurrenceTypesRetry": "Tentar de novo",
+  "documentOccurrenceWholeDocument": "A nota inteira",
+  "proofPendingWarningTitle": "Foto do canhoto obrigatória",
+  "proofPendingWarningLead": "Tire aqui, na hora da entrega. Foto enviada depois ou longe daqui tira pontos da sua nota.",
+  "proofPendingWarningDetails": "Como a foto conta na nota"
+}
