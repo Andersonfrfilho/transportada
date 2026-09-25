@@ -12,7 +12,10 @@ import { Icon } from '@/components/ui/icon'
 import type { OccurrenceConversationAttachment } from '@/modules/occurrence-conversation/shared/occurrenceConversation.types'
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
-import { attachConversationPhotoToOccurrence } from '../shared/conversationPhotoToOccurrence.service'
+import {
+  attachConversationPhotoToOccurrence,
+  isConversationPhotoAlreadyAttached,
+} from '../shared/conversationPhotoToOccurrence.service'
 import { buildOccurrencePhotoAttachment } from '../shared/occurrencePhotoImage.service'
 import styles from '../styles/trip.module.css'
 
@@ -48,7 +51,8 @@ export function ConversationPhotoToOccurrenceAction({
     onSuccess: () => void queryClient.invalidateQueries(),
   })
 
-  if (attach.isSuccess) {
+  /** Spec 183 T903 (F4): a chave é do anexo — já usada é "já anexada", não erro. */
+  if (attach.isSuccess || isConversationPhotoAlreadyAttached(attach.error)) {
     return <span className={styles.hint}>{t('occurrenceDetail.conversationPhoto.attached')}</span>
   }
   return (

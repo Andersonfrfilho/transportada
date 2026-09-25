@@ -54,3 +54,11 @@ export async function attachConversationPhotoToOccurrence(input: {
     tripId: input.occurrence.tripId,
   })
 }
+
+/**
+ * Spec 183 T903 (F4): a chave é do anexo (`conversationPhotoIdempotencyKey`). Já usada — por outra
+ * pessoa, ou com a foto reduzida em outro aparelho — quer dizer que a foto já foi à ocorrência.
+ */
+export function isConversationPhotoAlreadyAttached(error: unknown): boolean {
+  return error instanceof Error && error.message === 'TRIP_FIELD_REPORT_KEY_REUSED'
+}

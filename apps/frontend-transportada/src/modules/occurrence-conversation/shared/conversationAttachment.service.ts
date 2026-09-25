@@ -214,3 +214,11 @@ export function recoverFromSendFailure(error: unknown): SendFailureRecovery {
   }
   return { clearUploads: false, reason: 'generic', renewKey: false }
 }
+
+/**
+ * Spec 183 T903 (F4): encaminhar usa a chave derivada do anexo. Chave já usada quer dizer que
+ * alguém — outra pessoa, ou esta depois de recarregar — já encaminhou aquele anexo: é "já feito".
+ */
+export function isForwardAlreadyDone(error: unknown): boolean {
+  return failureCode(error) === 'OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED'
+}

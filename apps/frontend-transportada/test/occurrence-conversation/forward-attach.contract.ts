@@ -10,10 +10,15 @@ import { readFile } from 'node:fs/promises'
 
 import { describe, expect, test } from 'bun:test'
 
-import { createOccurrenceConversationClient } from '@/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
+import { isForwardAlreadyDone } from '@/modules/occurrence-conversation/shared/conversationAttachment.service'
+import {
+  createOccurrenceConversationClient,
+  OccurrenceConversationRequestError,
+} from '@/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
 import {
   attachConversationPhotoToOccurrence,
   conversationPhotoIdempotencyKey,
+  isConversationPhotoAlreadyAttached,
   isForwardableToOccurrence,
 } from '@/modules/trip/shared/conversationPhotoToOccurrence.service'
 
@@ -117,5 +122,56 @@ describe('anexar à ocorrência (spec 183 T702d)', () => {
 
     expect(source).toMatch(/renderAttachmentActions/u)
     expect(source).toMatch(/message\.direction === 'inbound'/u)
+  })
+})
+
+/**
+ * Spec 183 T903 (achado F4): a chave de encaminhar e de anexar é derivada do anexo — é ela que
+ * impede a duplicata. Por isso, quando outra pessoa (ou a mesma, depois de recarregar a página) já
+ * fez a ação, a API responde 409 de chave usada: a foto já está lá. O botão diz "já feito", nunca
+ * erro.
+ */
+describe('a ação já feita por outra pessoa não é erro (spec 183 T903, F4)', () => {
+  test('encaminhar: a chave do anexo já usada é "já encaminhada"', () => {
+    expect(
+      isForwardAlreadyDone(
+        new OccurrenceConversationRequestError('OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED'),
+      ),
+    ).toBe(true)
+    expect(
+      isForwardAlreadyDone(
+        new OccurrenceConversationRequestError('OCCURRENCE_CONVERSATION_FORWARD_INVALID'),
+      ),
+    ).toBe(false)
+    expect(isForwardAlreadyDone(new Error('network'))).toBe(false)
+  })
+
+  test('anexar à ocorrência: a chave do anexo já usada é "já anexada"', () => {
+    expect(isConversationPhotoAlreadyAttached(new Error('TRIP_FIELD_REPORT_KEY_REUSED'))).toBe(true)
+    expect(isConversationPhotoAlreadyAttached(new Error('TRIP_OCCURRENCE_ATTACHMENT_LIMIT'))).toBe(
+      false,
+    )
+    expect(isConversationPhotoAlreadyAttached(null)).toBe(false)
+  })
+
+  test('os dois botões mostram o "já feito" nesse caso, e não o erro', async () => {
+    const forward = await readFile(
+      new URL(
+        '../../src/modules/occurrence-conversation/components/OccurrenceConversations.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(forward).toMatch(/send\.isSuccess \|\| isForwardAlreadyDone\(send\.error\)/u)
+    const attach = await readFile(
+      new URL(
+        '../../src/modules/trip/components/ConversationPhotoToOccurrenceAction.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(attach).toMatch(
+      /attach\.isSuccess \|\| isConversationPhotoAlreadyAttached\(attach\.error\)/u,
+    )
   })
 })

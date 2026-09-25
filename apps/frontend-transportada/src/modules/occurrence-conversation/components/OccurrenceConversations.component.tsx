@@ -35,6 +35,7 @@ import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.com
 import { QuickReplyPicker } from './QuickReplyPicker.component'
 import { ConversationMessage } from './ConversationMessage.component'
 import {
+  isForwardAlreadyDone,
   recoverFromSendFailure,
   type SendFailureRecovery,
 } from '../shared/conversationAttachment.service'
@@ -69,7 +70,10 @@ function ForwardToContractorAction({
 }: Readonly<{ attachmentId: string; occurrenceId: string }>) {
   const { t } = useTranslation('occurrenceConversation')
   const send = useSendContractorPortalMessageMutation(occurrenceId)
-  if (send.isSuccess) return <span className={styles.hint}>{t('attachment.forwarded')}</span>
+  /** Spec 183 T903 (F4): a chave é do anexo — já usada é "já encaminhada", não erro. */
+  if (send.isSuccess || isForwardAlreadyDone(send.error)) {
+    return <span className={styles.hint}>{t('attachment.forwarded')}</span>
+  }
   return (
     <>
       <Button
