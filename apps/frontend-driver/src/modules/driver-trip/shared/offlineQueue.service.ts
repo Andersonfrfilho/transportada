@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineQueue.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverFieldReport } from './driverTrip.types'
+import type { DriverFieldReport, DriverReportedLocation } from './driverTrip.types'
 
 /**
  * ADR-0045 §5: o motorista entra no subsolo do shopping e sai sem sinal por vinte minutos. Se o
@@ -139,6 +139,24 @@ export async function drainQueue(input: {
   )
 
   return { rejected, remaining: remaining.length, sent }
+}
+
+/**
+ * Spec 189 T9.2 (M1): o toque grava com `location: null` e a posição chega depois, no mesmo item
+ * pela chave — o molde de `applyAttachmentLocation`. Ocorrência não leva posição, e o item que já
+ * tem uma não é sobrescrito.
+ */
+export function applyReportLocation(input: {
+  readonly idempotencyKey: string
+  readonly items: readonly QueuedReport[]
+  readonly location: DriverReportedLocation
+}): readonly QueuedReport[] {
+  return input.items.map((item) => {
+    const report = item.report
+    if (report.idempotencyKey !== input.idempotencyKey) return item
+    if (report.kind === 'occurrence' || report.location !== null) return item
+    return { ...item, report: { ...report, location: input.location } }
+  })
 }
 
 /** Chave do toque: opaca, gerada uma vez, e é o que o servidor casa no reenvio. */

@@ -11,6 +11,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { ProofCrop } from './ProofCrop.component'
 import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
+import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
 import { captureRegistry } from '../shared/captureRegistry.service'
 import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
@@ -439,6 +440,15 @@ export function DeliveryProofSection({
   })
   const canSign = plan.rendersSignature && isSignatureCaptureSupported()
   const cameraFieldRef = useCameraCaptureFieldRef()
+  /**
+   * M10: nome ou documento digitados e nada anexado ainda é trabalho em andamento — recarregar
+   * para o SW novo jogaria fora. Anexou, o texto foi junto com o anexo, e o formulário não segura.
+   */
+  const hasUnattachedText =
+    (receiverName.trim() !== '' || receiverDocument !== '') &&
+    !attached.photo &&
+    !attached.signature
+  useCaptureRegistration('proof-form', hasUnattachedText)
 
   function receiverFields(): Pick<DriverProofAttachment, 'receiverDocument' | 'receiverName'> {
     const canonical = canonicalReceiverDocument(receiverDocument)

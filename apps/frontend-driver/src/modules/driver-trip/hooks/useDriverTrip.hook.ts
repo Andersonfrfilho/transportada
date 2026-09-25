@@ -5,8 +5,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getDriverTripClient, toAttachmentSendOutcome } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
+import { captureRegistry, persistWhileOpen } from '../shared/captureRegistry.service'
 import type {
   DriverFieldReport,
+  DriverReportedLocation,
   DriverTripSnapshot,
   ProofPunctuality,
 } from '../shared/driverTrip.types'
@@ -26,6 +28,7 @@ import {
   type QueuedAttachment,
 } from '../shared/offlineAttachments.service'
 import {
+  applyReportLocation,
   createIdempotencyKey,
   enqueueReport,
   type OfflineQueueStore,
@@ -101,6 +104,10 @@ export type DriverTripController = Readonly<{
   refetchTrip: () => void
   rejectedCount: number
   report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
+  /** M1: grava o toque na hora, com a posição completando o item depois. */
+  reportWithLocation: (
+    build: (location: DriverReportedLocation | null) => DriverFieldReport,
+  ) => Promise<DriverReportOutcome>
   sendAllNow: () => void
   sendNow: (idempotencyKey: string) => void
   snapshot: DriverTripSnapshot | undefined
@@ -342,17 +349,52 @@ export function useDriverTrip(
     }
   }, [attachmentStore, refreshQueueView])
 
-  async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
-    const result = await enqueueReport({
-      now: new Date(),
-      report: fieldReport,
-      store,
-      subHash: session.subHash,
+  /** A4: a gravação conta como captura aberta até o IndexedDB confirmar — nada navega no meio. */
+  function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
+    return persistWhileOpen(captureRegistry, async () => {
+      const result = await enqueueReport({
+        now: new Date(),
+        report: fieldReport,
+        store,
+        subHash: session.subHash,
+      })
+      if (!result.accepted) return result.reason
+      await refreshQueueView()
+      requestDrain(undefined)
+      return 'queued'
     })
-    if (!result.accepted) return result.reason
-    await refreshQueueView()
-    requestDrain(undefined)
-    return 'queued'
+  }
+
+  /**
+   * Spec 189 T9.2 (M1): "Cheguei/Entreguei/Devolvi" gravam **antes** de esperar o GPS — até 8 s
+   * em que fechar a app perdia o toque. O item entra com `location: null`, a posição o completa pela
+   * chave, e só então a drenagem é pedida: a espera conta no registro de capturas (`persisting`),
+   * então nem o SW novo nem o `keycloak.init` navegam no meio. Uma drenagem que já estava em voo
+   * pode levar o item sem posição — como a foto (spec 159 T11) —, mas nunca perdê-lo.
+   */
+  function reportWithLocation(
+    build: (location: DriverReportedLocation | null) => DriverFieldReport,
+  ): Promise<DriverReportOutcome> {
+    return persistWhileOpen(captureRegistry, async () => {
+      const fieldReport = build(null)
+      const result = await enqueueReport({
+        now: new Date(),
+        report: fieldReport,
+        store,
+        subHash: session.subHash,
+      })
+      if (!result.accepted) return result.reason
+      await refreshQueueView()
+
+      const location = await readCurrentLocation()
+      if (location !== null) {
+        await store.update((items) =>
+          applyReportLocation({ idempotencyKey: fieldReport.idempotencyKey, items, location }),
+        )
+      }
+      requestDrain(undefined)
+      return 'queued'
+    })
   }
 
   /**
@@ -368,7 +410,11 @@ export function useDriverTrip(
    * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0070
    * §4) — nunca perdida.
    */
-  async function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {
+  function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {
+    return persistWhileOpen(captureRegistry, () => enqueueProof(input))
+  }
+
+  async function enqueueProof(input: DriverProofInput): Promise<DriverProofOutcome> {
     const attachmentKey = createIdempotencyKey()
     const result = await enqueueAttachment({
       attachment: {
@@ -431,6 +477,7 @@ export function useDriverTrip(
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
+    reportWithLocation,
     sendAllNow: () => requestDrain(undefined),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
     snapshot: currentTrip.data,

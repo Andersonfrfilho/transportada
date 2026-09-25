@@ -8,7 +8,16 @@
  * liga as quatro capturas a ele, traz o contrato próprio e soma `hasOpened` — a regra de aplicação
  * do SW (`serviceWorkerUpdate.service.ts`) só aplica sozinha antes da primeira captura da sessão.
  */
-export const CAPTURE_KINDS = ['camera', 'crop', 'signature', 'occurrence-dialog'] as const
+export const CAPTURE_KINDS = [
+  'camera',
+  'crop',
+  'signature',
+  'occurrence-dialog',
+  /** Spec 189 T9.2 (A4): o que a captura entregou, ainda a caminho do IndexedDB. */
+  'persisting',
+  /** Spec 189 T9.2 (M10): nome/documento do recebedor digitados e ainda não anexados. */
+  'proof-form',
+] as const
 export type CaptureKind = (typeof CAPTURE_KINDS)[number]
 
 export type CaptureRegistry = Readonly<{
@@ -91,6 +100,24 @@ export function createIdleGate(registry: Pick<CaptureRegistry, 'isIdle' | 'onIdl
       })
       return 'deferred'
     },
+  }
+}
+
+/**
+ * Spec 189 T9.2 (A4): a captura fecha quando o componente desmonta, e o componente desmonta antes
+ * de o que ele entregou chegar ao IndexedDB. `persisting` abre **na mesma volta síncrona** do
+ * `onConfirm` — antes do `close` da captura, que só vem no commit do React — e fecha quando a
+ * gravação termina, dando certo ou não. Sem isso, o SW novo recarregava no intervalo.
+ */
+export async function persistWhileOpen<TResult>(
+  registry: Pick<CaptureRegistry, 'close' | 'open'>,
+  task: () => Promise<TResult>,
+): Promise<TResult> {
+  registry.open('persisting')
+  try {
+    return await task()
+  } finally {
+    registry.close('persisting')
   }
 }
 

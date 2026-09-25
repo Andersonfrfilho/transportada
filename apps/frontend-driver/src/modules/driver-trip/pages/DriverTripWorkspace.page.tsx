@@ -260,12 +260,9 @@ export function DriverTripWorkspacePage() {
     window.open(download.downloadUrl, '_blank', 'noopener')
   }
 
-  async function report(
-    build: (
-      location: Awaited<ReturnType<typeof readCurrentLocation>>,
-    ) => Parameters<typeof driverTrip.report>[0],
-  ): Promise<void> {
-    const outcome = await driverTrip.report(build(await readCurrentLocation()))
+  /** M1: o toque grava na hora; a posição (até 8 s de GPS) completa o item depois, no hook. */
+  async function report(build: Parameters<typeof driverTrip.reportWithLocation>[0]): Promise<void> {
+    const outcome = await driverTrip.reportWithLocation(build)
     if (outcome === 'count-limit') setEventLimitReached(true)
   }
 

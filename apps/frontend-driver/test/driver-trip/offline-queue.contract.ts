@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  applyReportLocation,
   drainQueue,
   enqueueReport,
   EVENT_QUEUE_LIMIT,
@@ -186,5 +187,55 @@ describe('a fila offline', () => {
 
     expect(calls).toBe(0)
     expect(result).toEqual({ rejected: [], remaining: 0, sent: 0 })
+  })
+})
+
+/**
+ * Spec 189 T9.2 (M1): "Cheguei/Entreguei/Devolvi" gravam na hora, com `location: null`, e a
+ * posição (até 8 s de GPS) completa o mesmo item depois — o molde de `applyAttachmentLocation`.
+ * Fechar a app durante a espera não perde mais o toque.
+ */
+describe('a posição chega depois do toque (M1)', () => {
+  const LOCATION = {
+    accuracyMeters: 12,
+    capturedAt: NOW.toISOString(),
+    latitude: -23.55,
+    longitude: -46.63,
+  }
+
+  it('completa só o item da chave, e só se ele ainda não tem posição', () => {
+    const items: QueuedReport[] = [
+      { attempts: 0, createdAt: NOW.toISOString(), report: arrival('chave-1') },
+      { attempts: 0, createdAt: NOW.toISOString(), report: delivery('chave-2') },
+    ]
+
+    const next = applyReportLocation({ idempotencyKey: 'chave-2', items, location: LOCATION })
+
+    expect(next[0]?.report).toEqual(arrival('chave-1'))
+    expect(next[1]?.report).toEqual({
+      documentId: 'document-1',
+      idempotencyKey: 'chave-2',
+      kind: 'deliver',
+      location: LOCATION,
+    })
+  })
+
+  it('ocorrência não tem posição: fica como está', () => {
+    const occurrence: QueuedReport = {
+      attempts: 0,
+      createdAt: NOW.toISOString(),
+      report: {
+        description: 'portão fechado',
+        documentId: null,
+        idempotencyKey: 'chave-3',
+        kind: 'occurrence',
+        occurrenceKind: 'long_wait',
+        stopId: 'stop-1',
+      },
+    }
+
+    expect(
+      applyReportLocation({ idempotencyKey: 'chave-3', items: [occurrence], location: LOCATION }),
+    ).toEqual([occurrence])
   })
 })
