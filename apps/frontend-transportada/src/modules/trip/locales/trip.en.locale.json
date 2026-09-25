@@ -684,6 +684,11 @@
       "decided": "Decided",
       "closed": "Closed",
       "cancelled": "Cancelled"
+    },
+    "card": {
+      "list": "Occurrences",
+      "newestFirst": "Newest first",
+      "oldestFirst": "Oldest first"
     }
   },
   "pendingMeasurement": {
@@ -1408,6 +1413,12 @@
       "attaching": "Attaching…",
       "attached": "Attached to the occurrence.",
       "error": "Could not attach: the occurrence may already have five photos. Try again shortly."
+    },
+    "phoneTabs": {
+      "ariaLabel": "Occurrence sections",
+      "summary": "Summary",
+      "contractor": "Contractor",
+      "driver": "Driver"
     }
   },
   "occurrenceTimeline": {

@@ -125,7 +125,8 @@
       "required": "Write the message.",
       "tooLong": "The message is over the 8,000-character limit.",
       "send": "Could not send. Try again shortly."
-    }
+    },
+    "noDriver": "This occurrence's trip has no driver; there is no one to talk to."
   },
   "driverApp": {
     "title": "Messages from operations",

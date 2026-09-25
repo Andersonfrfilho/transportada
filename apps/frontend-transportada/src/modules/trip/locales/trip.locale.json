@@ -867,6 +867,11 @@
       "decided": "Decidida",
       "closed": "Encerrada",
       "cancelled": "Cancelada"
+    },
+    "card": {
+      "list": "Ocorrências",
+      "newestFirst": "Mais recentes primeiro",
+      "oldestFirst": "Mais antigas primeiro"
     }
   },
   "pendingMeasurement": {
@@ -1636,6 +1641,12 @@
       "attaching": "Anexando…",
       "attached": "Anexada à ocorrência.",
       "error": "Não foi possível anexar: a ocorrência pode já ter cinco fotos. Tente de novo em instantes."
+    },
+    "phoneTabs": {
+      "ariaLabel": "Partes da ocorrência",
+      "summary": "Resumo",
+      "contractor": "Contratante",
+      "driver": "Motorista"
     }
   },
   "occurrenceTimeline": {

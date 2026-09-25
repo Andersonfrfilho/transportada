@@ -2061,3 +2061,60 @@ migration na API). Um commit por parte.
     tarefa separada.
 - **Rodado:** painel **5277 + 44 pass**; portal **82 pass**; lint, typecheck e formatação da raiz
   limpos.
+
+## T801 — A ocorrência no celular: lista em cartões, detalhe em abas, alvos de toque (verde, com duas divergências registradas)
+
+- **Divergência 1: o breakpoint.**
+  - A spec e a task dizem "abaixo de 768 px". O design system só tem 40rem (640 px), 64rem e 80rem
+    (`docs/frontend/responsive.md`), e `responsive.contract.ts` recusa 48rem.
+  - Implementado em **40rem**, a quebra "tablet" da casa: abaixo de 640 px, cartões e abas; acima,
+    tabela e página inteira.
+  - **Proposta de correção da spec:** trocar "768 px" por "abaixo do breakpoint tablet (40rem)" na
+    P11/T801.
+- **Divergência 2: a "caixa de envio fixa no rodapé" (P11).**
+  - Implementada primeiro como `position: sticky; bottom: 0`, medida no navegador e descartada. Com
+    texto, anexos e gravador, a caixa ocupa **359 de 800 px** e cobre a conversa e o botão "Enviar
+    por e-mail" (`prints/celular-contratante-rolando-*` da primeira rodada, substituído).
+  - Ficou assim: no celular quem rola é a conversa (`max-height: min(32rem, 55dvh)`), e a caixa de
+    envio fica logo abaixo dela, sempre à mão, sem cobrir mensagem.
+  - **Proposta de correção da spec:** "com a caixa de envio logo abaixo da conversa, que rola
+    sozinha".
+- **Lista:**
+  - Cada ocorrência vira um cartão, com CSS apenas (cartão na base, tabela a partir de 40rem). O
+    cartão tem tipo, etapa, data, placa, contratante, valor, endereço, motorista e o estado da
+    conversa.
+  - O cartão inteiro é o link do detalhe (`buildTripOccurrenceRoute`), com `min-height` de alvo de
+    toque.
+  - A ordenação por data ganhou um botão acima dos cartões ("Mais recentes primeiro"). O
+    "Carregar mais" saiu de dentro do quadro da tabela, onde sumiria no celular.
+- **Detalhe:**
+  - `useMinWidth('40rem')` (novo, sobre `matchMedia`; sem `window` responde "largo") decide o
+    layout.
+  - No celular são três abas: **Resumo** (resumo, nota, tratativa, linha do tempo), **Contratante**
+    (a conversa com a contratante) e **Motorista** (contato, com "Ligar"/"WhatsApp" que já eram links
+    `tel:`/`wa.me`, e a conversa com o motorista).
+  - No celular, `OccurrenceConversations` recebe `participant` e mostra só aquela conversa, sem as
+    abas internas.
+  - Na tela larga a página é a de sempre, provado a 1440 com a tabela e sem as abas de cima.
+- **Alvos de toque:** `@media (pointer: coarse)`, que não é breakpoint pela `responsive.md`, leva a
+  44 px os `Button sm` das telas da ocorrência e o link de arquivo do balão. Medido sob toque, nenhum
+  botão, link ou aba do `main` fica abaixo de 44 px nas três abas, a 360 e a 390.
+- **Teste, escrito antes e visto falhando** (import inexistente):
+  `test/trip/occurrence-mobile.contract.ts` (**7 pass**, no entrypoint). Cobre:
+  - cartão na base e tabela a 40rem;
+  - os campos do cartão e o link;
+  - o alvo de toque do cartão;
+  - as três abas e as seções de cada uma;
+  - a conversa rolável com a caixa logo abaixo;
+  - a regra de toque nos dois módulos.
+- **No navegador** (`isMobile` e `hasTouch`, contra a API real):
+  - a 360 e a 390, `scrollWidth` igual à tela na lista e no detalhe;
+  - o cartão abre o detalhe;
+  - as abas Resumo, Contratante e Motorista mostram só as suas seções;
+  - a 1440 a tabela segue e as abas de cima não existem.
+
+  Prints: `prints/celular-{lista,resumo,contratante,contratante-rolando,motorista}-{360,390}.png`.
+
+- **Achado de medição (não do app):** o screenshot `fullPage` do Playwright desfaz a emulação de
+  toque (`pointer: coarse` passa a `false`). A medida dos alvos foi feita antes dele.
+- **Rodado:** painel **5284 + 44 pass**; lint, typecheck e formatação da raiz limpos.

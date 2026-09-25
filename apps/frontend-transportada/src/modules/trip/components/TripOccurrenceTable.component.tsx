@@ -243,6 +243,83 @@ export function TripOccurrenceTableSkeleton() {
   )
 }
 
+/**
+ * Spec 183 T801 (P11): no celular, cada ocorrência é um cartão com o que decide o clique —
+ * contratante, valor, endereço e motorista, além do tipo, da etapa e da conversa. O cartão inteiro
+ * é o link do detalhe (o mesmo da linha da tabela).
+ */
+function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
+  const { t } = useTranslation('trip')
+  const cells = describeOccurrenceDocumentCells(item.document)
+  const conversation = describeOccurrenceConversationCell(item)
+  const label = resolveOccurrenceTypeLabel(item)
+
+  return (
+    <li>
+      <a
+        className={styles.occurrenceCard}
+        href={buildTripOccurrenceRoute(item.id)}
+        onClick={(event) => {
+          event.preventDefault()
+          openOccurrence(item.id)
+        }}
+      >
+        <span className={styles.occurrenceCardHead}>
+          <strong>{label.labelKey === null ? label.value : t(label.labelKey)}</strong>
+          <span className={styles.statusBadge}>
+            {t(`occurrenceFeed.stage.${item.stage ?? 'stop'}`)}
+          </span>
+        </span>
+        <span className={styles.occurrenceCellNote}>
+          {formatMoment(item.createdAt)} · {item.vehiclePlate}
+        </span>
+        <dl className={styles.occurrenceCardFields}>
+          {cells.contractorName === '' ? null : (
+            <div>
+              <dt>{t('occurrenceFeed.columns.contractor')}</dt>
+              <dd>{cells.contractorName}</dd>
+            </div>
+          )}
+          {cells.totalValue === null ? null : (
+            <div>
+              <dt>{t('occurrenceFeed.columns.invoiceValue')}</dt>
+              <dd className={styles.occurrenceMoneyCell}>{formatAmount(cells.totalValue)}</dd>
+            </div>
+          )}
+          {cells.destination === '' ? null : (
+            <div>
+              <dt>{t('occurrenceFeed.columns.destination')}</dt>
+              <dd>{cells.destination}</dd>
+            </div>
+          )}
+          <div>
+            <dt>{t('occurrenceFeed.columns.driverName')}</dt>
+            <dd>{item.driverName}</dd>
+          </div>
+        </dl>
+        {conversation.state === null && conversation.driverUnreadCount === 0 ? null : (
+          <span className={styles.occurrenceCardHead}>
+            {conversation.state === null ? null : (
+              <span className={styles.statusBadge}>
+                {t(
+                  `occurrenceFeed.conversation.${conversation.state.kind}.${conversation.state.value}`,
+                )}
+              </span>
+            )}
+            {conversation.driverUnreadCount === 0 ? null : (
+              <span className={styles.occurrenceCellNote}>
+                {t('occurrenceFeed.conversation.driverUnread', {
+                  count: conversation.driverUnreadCount,
+                })}
+              </span>
+            )}
+          </span>
+        )}
+      </a>
+    </li>
+  )
+}
+
 export function TripOccurrenceTable({
   canResolveOccurrenceCases,
   table,
@@ -254,93 +331,113 @@ export function TripOccurrenceTable({
   const columnCount = table.visibleColumns.length + 1
 
   return (
-    <div className={styles.tableScroll}>
-      <table className={styles.dataTable}>
-        <thead>
-          <tr>
-            {table.visibleColumns.map((column) =>
-              column === 'createdAt' ? (
-                <th
-                  aria-sort={table.order === 'desc' ? 'descending' : 'ascending'}
-                  key={column}
-                  scope="col"
-                >
-                  <button className={styles.sortButton} onClick={table.toggleOrder} type="button">
-                    {t('occurrenceFeed.columns.createdAt')}
-                    <span aria-hidden="true" className={styles.sortIndicator}>
-                      {table.order === 'desc' ? '▼' : '▲'}
-                    </span>
-                  </button>
-                </th>
-              ) : (
-                <th
-                  className={column === 'invoiceValue' ? styles.occurrenceMoneyHeader : undefined}
-                  key={column}
-                  scope="col"
-                >
-                  {t(`occurrenceFeed.columns.${column}`)}
-                </th>
-              ),
-            )}
-            <th scope="col">
-              <span className={styles.srOnly}>{t('occurrenceFeed.detail.title')}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {table.items.length === 0 ? (
+    <>
+      {/** Spec 183 T801: o celular vê cartões; a partir de 40rem, a tabela (só CSS, sem JS). */}
+      <div className={styles.occurrenceCardsFrame}>
+        <Button onClick={table.toggleOrder} size="sm" type="button" variant="ghost">
+          <Icon name={table.order === 'desc' ? 'arrow-down' : 'arrow-up'} />
+          {table.order === 'desc'
+            ? t('occurrenceFeed.card.newestFirst')
+            : t('occurrenceFeed.card.oldestFirst')}
+        </Button>
+        {table.items.length === 0 ? (
+          <p className={styles.occurrenceCellNote}>{t('occurrenceFeed.empty')}</p>
+        ) : (
+          <ul aria-label={t('occurrenceFeed.card.list')} className={styles.occurrenceCards}>
+            {table.items.map((item) => (
+              <OccurrenceCard item={item} key={item.id} />
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className={`${styles.tableScroll} ${styles.occurrenceTableFrame}`}>
+        <table className={styles.dataTable}>
+          <thead>
             <tr>
-              <td colSpan={columnCount}>{t('occurrenceFeed.empty')}</td>
+              {table.visibleColumns.map((column) =>
+                column === 'createdAt' ? (
+                  <th
+                    aria-sort={table.order === 'desc' ? 'descending' : 'ascending'}
+                    key={column}
+                    scope="col"
+                  >
+                    <button className={styles.sortButton} onClick={table.toggleOrder} type="button">
+                      {t('occurrenceFeed.columns.createdAt')}
+                      <span aria-hidden="true" className={styles.sortIndicator}>
+                        {table.order === 'desc' ? '▼' : '▲'}
+                      </span>
+                    </button>
+                  </th>
+                ) : (
+                  <th
+                    className={column === 'invoiceValue' ? styles.occurrenceMoneyHeader : undefined}
+                    key={column}
+                    scope="col"
+                  >
+                    {t(`occurrenceFeed.columns.${column}`)}
+                  </th>
+                ),
+              )}
+              <th scope="col">
+                <span className={styles.srOnly}>{t('occurrenceFeed.detail.title')}</span>
+              </th>
             </tr>
-          ) : (
-            table.items.flatMap((item) => {
-              const rows = [
-                <tr
-                  className={styles.occurrenceRow}
-                  key={item.id}
-                  onClick={(event) => {
-                    /** A linha inteira abre o detalhe; botão e link dentro dela fazem só o deles. */
-                    if (
-                      event.target instanceof Element &&
-                      event.target.closest('a, button') !== null
-                    )
-                      return
-                    openOccurrence(item.id)
-                  }}
-                >
-                  {table.visibleColumns.map((column) => (
-                    <OccurrenceCell column={column} item={item} key={column} />
-                  ))}
-                  <td>
-                    <Button
-                      onClick={() => table.toggleExpanded(item.id)}
-                      size="sm"
-                      type="button"
-                      variant="secondary"
-                    >
-                      <Icon name={table.expandedId === item.id ? 'close' : 'eye'} />
-                      {table.expandedId === item.id
-                        ? t('occurrenceFeed.detail.close')
-                        : t('occurrenceFeed.detail.open')}
-                    </Button>
-                  </td>
-                </tr>,
-              ]
-              if (table.expandedId === item.id) {
-                rows.push(
-                  <OccurrenceDetailRow
-                    canResolveOccurrenceCases={canResolveOccurrenceCases}
-                    columnCount={columnCount}
-                    item={item}
-                    key={`${item.id}-detail`}
-                  />,
-                )
-              }
-              return rows
-            })
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {table.items.length === 0 ? (
+              <tr>
+                <td colSpan={columnCount}>{t('occurrenceFeed.empty')}</td>
+              </tr>
+            ) : (
+              table.items.flatMap((item) => {
+                const rows = [
+                  <tr
+                    className={styles.occurrenceRow}
+                    key={item.id}
+                    onClick={(event) => {
+                      /** A linha inteira abre o detalhe; botão e link dentro dela fazem só o deles. */
+                      if (
+                        event.target instanceof Element &&
+                        event.target.closest('a, button') !== null
+                      )
+                        return
+                      openOccurrence(item.id)
+                    }}
+                  >
+                    {table.visibleColumns.map((column) => (
+                      <OccurrenceCell column={column} item={item} key={column} />
+                    ))}
+                    <td>
+                      <Button
+                        onClick={() => table.toggleExpanded(item.id)}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        <Icon name={table.expandedId === item.id ? 'close' : 'eye'} />
+                        {table.expandedId === item.id
+                          ? t('occurrenceFeed.detail.close')
+                          : t('occurrenceFeed.detail.open')}
+                      </Button>
+                    </td>
+                  </tr>,
+                ]
+                if (table.expandedId === item.id) {
+                  rows.push(
+                    <OccurrenceDetailRow
+                      canResolveOccurrenceCases={canResolveOccurrenceCases}
+                      columnCount={columnCount}
+                      item={item}
+                      key={`${item.id}-detail`}
+                    />,
+                  )
+                }
+                return rows
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {table.hasNextPage ? (
         <div className={styles.occurrenceLoadMore}>
@@ -358,6 +455,6 @@ export function TripOccurrenceTable({
           </Button>
         </div>
       ) : null}
-    </div>
+    </>
   )
 }

@@ -1,15 +1,18 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { Fragment, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { Tabs } from '@/components/ui/tabs'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { OccurrenceConversations } from '@/modules/occurrence-conversation/components/OccurrenceConversations.component'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { formatStoredPhone } from '@/modules/shared/phone.service'
+import { useMinWidth } from '@/modules/shared/useMinWidth.hook'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
 import { OccurrenceCasePanel } from '../components/OccurrenceCasePanel.component'
@@ -19,6 +22,10 @@ import { useTripOccurrenceDetailQuery } from '../queries/tripOccurrenceFeed.quer
 import {
   buildOccurrenceDriverContact,
   formatOccurrenceItemQuantity,
+  OCCURRENCE_DETAIL_PHONE_TABS,
+  occurrenceDetailSectionsFor,
+  type OccurrenceDetailPhoneTab,
+  type OccurrenceDetailSection,
 } from '../shared/tripOccurrenceDetail.service'
 import {
   formatOccurrenceInvoice,
@@ -328,6 +335,117 @@ function OccurrenceSummaryPanel({ occurrence }: Readonly<{ occurrence: TripOccur
   )
 }
 
+type OccurrenceDetailSectionsProps = Readonly<{
+  canManageContacts: boolean
+  canResolveOccurrenceCases: boolean
+  companyId?: string
+  occurrence: TripOccurrenceDetail
+}>
+
+/**
+ * Spec 183 T801 (P11): as seções do detalhe. Na tela larga, a página inteira na ordem de sempre; no
+ * celular (abaixo de 40rem), três abas — Resumo, Contratante e Motorista —, cada uma com as suas
+ * seções (`occurrenceDetailSectionsFor`). A conversa, no celular, mostra só a parte da aba.
+ */
+function OccurrenceDetailSections({
+  canManageContacts,
+  canResolveOccurrenceCases,
+  companyId,
+  occurrence,
+}: OccurrenceDetailSectionsProps) {
+  const { t } = useTranslation('trip')
+  const isWide = useMinWidth('40rem')
+  const [phoneTab, setPhoneTab] = useState<OccurrenceDetailPhoneTab>('summary')
+
+  function conversations(participant?: 'contractor' | 'driver') {
+    return (
+      <section aria-labelledby="occurrence-conversations-title" className={styles.panel}>
+        <div className={styles.panelHead}>
+          <h2 id="occurrence-conversations-title">{t('occurrenceDetail.conversations.title')}</h2>
+        </div>
+        <OccurrenceConversations
+          canManageContacts={canManageContacts}
+          canSend={canResolveOccurrenceCases}
+          {...(companyId === undefined ? {} : { companyId })}
+          contractorId={occurrence.document?.contractor?.contractorId ?? null}
+          contractorName={occurrence.document?.contractor?.name ?? ''}
+          driverName={occurrence.driver === null ? null : occurrence.driver.name}
+          hasDocument={occurrence.document !== null}
+          occurrenceId={occurrence.id}
+          {...(participant === undefined ? {} : { participant })}
+          /** Spec 183 T702d: a foto do motorista pode virar foto da ocorrência. */
+          renderAttachmentActions={(attachment) => {
+            const tripDocumentId = occurrence.document?.tripDocumentId ?? null
+            return tripDocumentId !== null &&
+              isForwardableToOccurrence(attachment, {
+                stage: occurrence.stage,
+                tripDocumentId,
+              }) ? (
+              <ConversationPhotoToOccurrenceAction
+                attachment={attachment}
+                occurrenceId={occurrence.id}
+                tripDocumentId={tripDocumentId}
+                tripId={occurrence.tripId}
+              />
+            ) : null
+          }}
+        />
+      </section>
+    )
+  }
+
+  const sections: Record<OccurrenceDetailSection, () => ReactNode> = {
+    case: () =>
+      occurrence.source === 'document' ? (
+        <section aria-labelledby="occurrence-case-title" className={styles.panel}>
+          <div className={styles.panelHead}>
+            <h2 id="occurrence-case-title">{t('occurrenceDetail.case.title')}</h2>
+          </div>
+          <OccurrenceCasePanel
+            canResolve={canResolveOccurrenceCases}
+            occurrenceCase={occurrence.case}
+            occurrenceId={occurrence.id}
+          />
+        </section>
+      ) : null,
+    contractorConversation: () => conversations('contractor'),
+    conversations: () => conversations(),
+    document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
+    driverContact: () => <OccurrenceDriverPanel occurrence={occurrence} />,
+    driverConversation: () => conversations('driver'),
+    summary: () => <OccurrenceSummaryPanel occurrence={occurrence} />,
+    timeline: () => (
+      <OccurrenceTimelinePanel
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrenceId={occurrence.id}
+      />
+    ),
+  }
+  const deck = (tab: OccurrenceDetailPhoneTab | null) => (
+    <div className={styles.deck}>
+      {occurrenceDetailSectionsFor(tab).map((section) => (
+        <Fragment key={section}>{sections[section]()}</Fragment>
+      ))}
+    </div>
+  )
+
+  if (isWide) return deck(null)
+  return (
+    <div className={styles.occurrencePhoneTabs}>
+      <Tabs
+        ariaLabel={t('occurrenceDetail.phoneTabs.ariaLabel')}
+        items={OCCURRENCE_DETAIL_PHONE_TABS.map((tab) => ({
+          id: tab,
+          label: t(`occurrenceDetail.phoneTabs.${tab}`),
+          panel: deck(tab),
+        }))}
+        onChange={(id) => setPhoneTab(id as OccurrenceDetailPhoneTab)}
+        value={phoneTab}
+      />
+    </div>
+  )
+}
+
 export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrenceId: string }>) {
   const { t } = useTranslation('trip')
   const authQuery = useAuthMeQuery()
@@ -345,7 +463,7 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
   const occurrence = detailQuery.data
 
   return (
-    <main className={styles.tripShell}>
+    <main className={`${styles.tripShell} ${styles.occurrenceDetailPage}`}>
       <nav aria-label={t('occurrenceDetail.breadcrumb')}>
         <Button
           onClick={() => navigateToTripOccurrences(createBrowserWorkspaceNavigator())}
@@ -381,60 +499,12 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
             <OccurrenceTypeTitle occurrence={occurrence} />
             <OccurrenceAuthorship occurrence={occurrence} />
           </header>
-          <div className={styles.deck}>
-            <OccurrenceSummaryPanel occurrence={occurrence} />
-            <OccurrenceDocumentPanel occurrence={occurrence} />
-            <OccurrenceDriverPanel occurrence={occurrence} />
-            {occurrence.source === 'document' ? (
-              <section aria-labelledby="occurrence-case-title" className={styles.panel}>
-                <div className={styles.panelHead}>
-                  <h2 id="occurrence-case-title">{t('occurrenceDetail.case.title')}</h2>
-                </div>
-                <OccurrenceCasePanel
-                  canResolve={canResolveOccurrenceCases}
-                  occurrenceCase={occurrence.case}
-                  occurrenceId={occurrence.id}
-                />
-              </section>
-            ) : null}
-            <section aria-labelledby="occurrence-conversations-title" className={styles.panel}>
-              <div className={styles.panelHead}>
-                <h2 id="occurrence-conversations-title">
-                  {t('occurrenceDetail.conversations.title')}
-                </h2>
-              </div>
-              <OccurrenceConversations
-                canManageContacts={canManageContacts}
-                canSend={canResolveOccurrenceCases}
-                {...(companyId === undefined ? {} : { companyId })}
-                contractorId={occurrence.document?.contractor?.contractorId ?? null}
-                contractorName={occurrence.document?.contractor?.name ?? ''}
-                driverName={occurrence.driver === null ? null : occurrence.driver.name}
-                hasDocument={occurrence.document !== null}
-                occurrenceId={occurrence.id}
-                /** Spec 183 T702d: a foto do motorista pode virar foto da ocorrência. */
-                renderAttachmentActions={(attachment) => {
-                  const tripDocumentId = occurrence.document?.tripDocumentId ?? null
-                  return tripDocumentId !== null &&
-                    isForwardableToOccurrence(attachment, {
-                      stage: occurrence.stage,
-                      tripDocumentId,
-                    }) ? (
-                    <ConversationPhotoToOccurrenceAction
-                      attachment={attachment}
-                      occurrenceId={occurrence.id}
-                      tripDocumentId={tripDocumentId}
-                      tripId={occurrence.tripId}
-                    />
-                  ) : null
-                }}
-              />
-            </section>
-            <OccurrenceTimelinePanel
-              {...(companyId === undefined ? {} : { companyId })}
-              occurrenceId={occurrence.id}
-            />
-          </div>
+          <OccurrenceDetailSections
+            canManageContacts={canManageContacts}
+            canResolveOccurrenceCases={canResolveOccurrenceCases}
+            {...(companyId === undefined ? {} : { companyId })}
+            occurrence={occurrence}
+          />
         </>
       )}
     </main>

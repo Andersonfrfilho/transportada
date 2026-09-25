@@ -537,3 +537,22 @@
   font-size: var(--field-font-size-compact);
   color: var(--color-alert);
 }
+
+/* Spec 183 T801 (P11): no celular, quem rola é a conversa, e a caixa de envio fica logo abaixo
+   dela — sempre à mão sem cobrir mensagem. A caixa presa no rodapé da tela (`position: sticky`) foi
+   medida e descartada: com texto, anexos e gravador ela ocupa 359 de 800 px e cobre a conversa. */
+.thread {
+  max-height: min(32rem, 55dvh);
+}
+
+.composer {
+  position: static;
+}
+
+/* Sob toque (não é breakpoint: `responsive.md`), selo, velocidade e ações chegam ao alvo. */
+@media (pointer: coarse) {
+  .panel :global(.ui-button-size-sm),
+  .messageFile {
+    min-height: var(--touch-target);
+  }
+}

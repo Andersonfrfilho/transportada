@@ -61,3 +61,31 @@ export function formatOccurrenceItemQuantity(
   const quantity = formatNumber(item.quantity)
   return item.unit === null ? quantity : `${quantity} ${item.unit}`
 }
+
+/** Spec 183 T801 (P11): no celular, o detalhe vira três abas. */
+export const OCCURRENCE_DETAIL_PHONE_TABS = ['summary', 'contractor', 'driver'] as const
+
+export type OccurrenceDetailPhoneTab = (typeof OCCURRENCE_DETAIL_PHONE_TABS)[number]
+
+export type OccurrenceDetailSection =
+  | 'case'
+  | 'contractorConversation'
+  | 'conversations'
+  | 'document'
+  | 'driverContact'
+  | 'driverConversation'
+  | 'summary'
+  | 'timeline'
+
+/**
+ * As seções de cada aba no celular; `null` é a tela larga, com a página inteira na ordem de
+ * sempre. As conversas, no celular, se separam por parte: cada aba mostra a sua, sem abas internas.
+ */
+export function occurrenceDetailSectionsFor(
+  tab: OccurrenceDetailPhoneTab | null,
+): readonly OccurrenceDetailSection[] {
+  if (tab === 'summary') return ['summary', 'document', 'case', 'timeline']
+  if (tab === 'contractor') return ['contractorConversation']
+  if (tab === 'driver') return ['driverContact', 'driverConversation']
+  return ['summary', 'document', 'driverContact', 'case', 'conversations', 'timeline']
+}

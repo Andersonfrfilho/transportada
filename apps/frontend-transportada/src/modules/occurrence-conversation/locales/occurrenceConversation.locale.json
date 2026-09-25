@@ -125,7 +125,8 @@
       "required": "Escreva a mensagem.",
       "tooLong": "A mensagem passou do limite de 8.000 caracteres.",
       "send": "Não foi possível enviar. Tente de novo em instantes."
-    }
+    },
+    "noDriver": "A viagem desta ocorrência não tem motorista; não há com quem conversar."
   },
   "driverApp": {
     "title": "Mensagens da operação",

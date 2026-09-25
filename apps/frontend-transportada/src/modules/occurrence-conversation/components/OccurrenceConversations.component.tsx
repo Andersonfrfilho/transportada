@@ -241,7 +241,7 @@ function DriverConversationPanel({
       )}
       {canSend ? (
         <form
-          className={styles.panel}
+          className={`${styles.panel} ${styles.composer}`}
           noValidate
           onSubmit={(event) => {
             event.preventDefault()
@@ -306,6 +306,11 @@ type OccurrenceConversationsProps = Readonly<{
    * ocorrência", do módulo `trip`) — a conversa só decide onde ela aparece.
    */
   renderAttachmentActions?: RenderAttachmentActions
+  /**
+   * Spec 183 T801: no celular, a aba de cima (Contratante ou Motorista) já escolheu a parte — mostra
+   * só aquela conversa, sem as abas internas.
+   */
+  participant?: 'contractor' | 'driver'
 }>
 
 /**
@@ -359,7 +364,7 @@ function ContractorPortalComposer({
 
   return (
     <form
-      className={styles.panel}
+      className={`${styles.panel} ${styles.composer}`}
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
@@ -522,6 +527,7 @@ export function OccurrenceConversations({
   driverName,
   hasDocument,
   occurrenceId,
+  participant,
   renderAttachmentActions,
 }: OccurrenceConversationsProps) {
   const { t } = useTranslation('occurrenceConversation')
@@ -556,6 +562,36 @@ export function OccurrenceConversations({
     )
   }
 
+  const contractorPanel = (
+    <ContractorConversationPanel
+      canManageContacts={canManageContacts}
+      canSend={canSend}
+      contractorId={contractorId}
+      contractorName={contractorName}
+      conversation={contractorConversation}
+      hasDocument={hasDocument}
+      occurrenceId={occurrenceId}
+      portalAvailable={query.data?.contractorPortal.available ?? false}
+    />
+  )
+  const driverPanel =
+    driverName === null ? null : (
+      <DriverConversationPanel
+        canSend={canSend}
+        conversation={driverConversation}
+        driverName={driverName}
+        occurrenceId={occurrenceId}
+        portalAvailable={query.data?.contractorPortal.available ?? false}
+        {...(renderAttachmentActions === undefined ? {} : { renderAttachmentActions })}
+      />
+    )
+
+  /** Spec 183 T801: a aba de cima do celular já escolheu a parte. */
+  if (participant === 'contractor') return contractorPanel
+  if (participant === 'driver') {
+    return driverPanel ?? <p className={styles.hint}>{t('driver.noDriver')}</p>
+  }
+
   return (
     <Tabs
       ariaLabel={t('tabs.ariaLabel')}
@@ -564,20 +600,9 @@ export function OccurrenceConversations({
           ...(unread > 0 ? { badge: t('contractor.unread', { count: unread }) } : {}),
           id: 'contractor',
           label: t('tabs.contractor'),
-          panel: (
-            <ContractorConversationPanel
-              canManageContacts={canManageContacts}
-              canSend={canSend}
-              contractorId={contractorId}
-              contractorName={contractorName}
-              conversation={contractorConversation}
-              hasDocument={hasDocument}
-              occurrenceId={occurrenceId}
-              portalAvailable={query.data?.contractorPortal.available ?? false}
-            />
-          ),
+          panel: contractorPanel,
         },
-        ...(driverName === null
+        ...(driverPanel === null
           ? []
           : [
               {
@@ -586,16 +611,7 @@ export function OccurrenceConversations({
                   : {}),
                 id: 'driver',
                 label: t('tabs.driver'),
-                panel: (
-                  <DriverConversationPanel
-                    canSend={canSend}
-                    conversation={driverConversation}
-                    driverName={driverName}
-                    occurrenceId={occurrenceId}
-                    portalAvailable={query.data?.contractorPortal.available ?? false}
-                    {...(renderAttachmentActions === undefined ? {} : { renderAttachmentActions })}
-                  />
-                ),
+                panel: driverPanel,
               },
             ]),
       ]}
