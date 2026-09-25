@@ -261,7 +261,9 @@ export function OccurrenceConversation({
             <label className="panel__label" htmlFor={fieldId}>
               Mensagem para a transportadora
             </label>
+            {/* Spec 183 T903 (F13): o sucesso limpa a caixa — digitar durante o envio perderia o texto. */}
             <textarea
+              disabled={send.isPending}
               id={fieldId}
               onChange={(event) => setDraft(event.target.value)}
               rows={3}

@@ -293,3 +293,20 @@ describe('mensagem nova anunciada no portal (spec 183 T902, D2)', () => {
     expect(component).toMatch(/aria-live="polite"/u)
   })
 })
+
+/**
+ * Spec 183 T903 (achado F13): durante o envio o texto não é editável — o sucesso limpa a caixa, e o
+ * que fosse digitado nesse meio-tempo sumiria sem ter sido enviado.
+ */
+describe('a caixa de texto do portal durante o envio (spec 183 T903, F13)', () => {
+  test('o textarea fica desabilitado enquanto envia', async () => {
+    const source = await readFile(
+      new URL(
+        '../../src/modules/occurrences/OccurrenceConversation.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(source).toMatch(/<textarea\s+disabled=\{send\.isPending\}/u)
+  })
+})
