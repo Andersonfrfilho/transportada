@@ -142,7 +142,11 @@ describe('a rota /_driver-legacy-served do server.ts', () => {
   function post(body: BodyInit, headers: Record<string, string> = {}): Promise<Response> {
     return fetch(`${baseUrl}/_driver-legacy-served`, {
       body,
-      headers: { 'content-type': 'text/plain;charset=UTF-8', ...headers },
+      headers: {
+        'content-type': 'text/plain;charset=UTF-8',
+        'sec-fetch-site': 'same-origin',
+        ...headers,
+      },
       method: 'POST',
     })
   }
@@ -279,7 +283,7 @@ describe('o beacon não inunda o log sob rajada', () => {
   function post(): Promise<Response> {
     return fetch(`${baseUrl}/_driver-legacy-served`, {
       body: DRIVER_LEGACY_BEACON_MODE,
-      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      headers: { 'content-type': 'text/plain;charset=UTF-8', 'sec-fetch-site': 'same-origin' },
       method: 'POST',
     })
   }
@@ -303,5 +307,83 @@ describe('o beacon não inunda o log sob rajada', () => {
     expect(lines).toHaveLength(2)
     const entries = lines.map((line) => JSON.parse(line) as Record<string, unknown>)
     expect(entries.map((entry) => entry.count)).toEqual([1, 3])
+  })
+})
+
+/**
+ * Segurança L5 (spec 189 T9.2): a rota é pública — sem esta guarda, qualquer site de terceiro
+ * poderia inflar a medida com um `fetch`/`sendBeacon` cross-origin (`sendBeacon` não exige CORS), e
+ * a T10.1 nunca veria zero mesmo com o módulo antigo já sem uso real. `sec-fetch-site` é escrito
+ * pelo próprio navegador — script nenhum, nem de origem alheia, consegue forjar o valor —, então
+ * `cross-site` e ausente são os dois casos que um site alheio de fato produziria. `describe` próprio
+ * (servidor isolado) porque `readLogLines()`/verificar o log mata o processo, e as suítes acima já
+ * usam o delas até o fim.
+ */
+describe('o beacon ignora quem não é a própria origem', () => {
+  let workingDirectory = ''
+  let serverProcess: ReturnType<typeof Bun.spawn> | undefined
+  let baseUrl = ''
+
+  beforeAll(async () => {
+    workingDirectory = await mkdtemp(join(tmpdir(), 'driver-legacy-beacon-origin-'))
+    await mkdir(join(workingDirectory, 'dist'))
+    await copyFile(SERVER_SOURCE, join(workingDirectory, 'server.ts'))
+    await writeFile(
+      join(workingDirectory, 'dist', 'content-security-policy.txt'),
+      "default-src 'self'",
+    )
+    await writeFile(join(workingDirectory, 'dist', 'index.html'), '<!doctype html><title>t</title>')
+
+    const probe = Bun.serve({ fetch: () => new Response(null), port: 0 })
+    const port = probe.port
+    await probe.stop(true)
+    baseUrl = `http://127.0.0.1:${port}`
+
+    serverProcess = Bun.spawn(['bun', './server.ts'], {
+      cwd: workingDirectory,
+      env: { ...process.env, PORT: String(port) },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    })
+
+    const deadline = Date.now() + SERVER_BOOT_TIMEOUT_MS
+    while (Date.now() < deadline) {
+      const isReady = await fetch(`${baseUrl}/health/live`).then(
+        (response) => response.ok,
+        () => false,
+      )
+      if (isReady) return
+      await Bun.sleep(50)
+    }
+    throw new Error('DRIVER_LEGACY_BEACON_ORIGIN_SERVER_DID_NOT_START')
+  })
+
+  afterAll(async () => {
+    serverProcess?.kill()
+    await serverProcess?.exited
+    await rm(workingDirectory, { force: true, recursive: true })
+  })
+
+  it('cross-site e sem o cabeçalho respondem 204, mas não geram log', async () => {
+    const responses = await Promise.all([
+      fetch(`${baseUrl}/_driver-legacy-served`, {
+        body: DRIVER_LEGACY_BEACON_MODE,
+        headers: { 'content-type': 'text/plain;charset=UTF-8', 'sec-fetch-site': 'cross-site' },
+        method: 'POST',
+      }),
+      fetch(`${baseUrl}/_driver-legacy-served`, {
+        body: DRIVER_LEGACY_BEACON_MODE,
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        method: 'POST',
+      }),
+    ])
+    expect(responses.map((response) => response.status)).toEqual([204, 204])
+
+    serverProcess?.kill()
+    await serverProcess?.exited
+    const stdout = serverProcess?.stdout
+    const text = stdout instanceof ReadableStream ? await new Response(stdout).text() : ''
+
+    expect(text).not.toContain('driver_legacy_served')
   })
 })

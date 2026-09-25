@@ -121,6 +121,11 @@ Bun.serve({
     if (url.pathname === DRIVER_LEGACY_BEACON_PATH) {
       if (
         request.method === 'POST' &&
+        // Segurança L5 (spec 189 T9.2): a rota é pública, sem auth — sem isto, qualquer site de
+        // terceiro poderia inflar a medida com um `fetch` (ou `sendBeacon`, que não exige CORS)
+        // cross-origin, e a T10.1 nunca veria zero. `sec-fetch-site` é da fronteira Fetch Metadata:
+        // o navegador escreve sozinho, script nenhum consegue forjar o valor.
+        request.headers.get('sec-fetch-site') === 'same-origin' &&
         (await readSmallBody(request)) === DRIVER_LEGACY_BEACON_MODE
       ) {
         registerDriverLegacyBeaconHit(Date.now())
