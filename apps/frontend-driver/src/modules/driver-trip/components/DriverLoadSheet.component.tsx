@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/components/DriverLoadSheet.component.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Barcode } from '@/components/ui/barcode'
@@ -24,6 +25,10 @@ type DriverLoadSheetProps = Readonly<{
  */
 export function DriverLoadSheet({ trip }: DriverLoadSheetProps) {
   const { t } = useTranslation('driverTrip')
+  /** Recolhido por padrão: a lista de notas não empurra a viagem para baixo até o motorista pedir. */
+  const [isExpanded, setExpanded] = useState(false)
+  const stopsListId = useId()
+  const noteCount = trip.stops.reduce((total, stop) => total + stop.documents.length, 0)
 
   return (
     <section className={styles.loadSheet}>
@@ -41,9 +46,20 @@ export function DriverLoadSheet({ trip }: DriverLoadSheetProps) {
           <Icon name="document" />
           {t('loadSheet.print')}
         </Button>
+        <Button
+          aria-controls={stopsListId}
+          aria-expanded={isExpanded}
+          className={styles.loadSheetToggle}
+          onClick={() => setExpanded((current) => !current)}
+          type="button"
+          variant="ghost"
+        >
+          {isExpanded ? t('loadSheet.hide') : t('loadSheet.show', { count: noteCount })}
+        </Button>
       </header>
 
-      <ol className={styles.loadSheetStops}>
+      {/* Recolhida, a lista continua no DOM: o papel impresso leva o romaneio inteiro (CSS de impressão) */}
+      <ol className={styles.loadSheetStops} hidden={!isExpanded} id={stopsListId}>
         {trip.stops.map((stop) => (
           <li className={styles.loadSheetStop} key={stop.id}>
             <h3>

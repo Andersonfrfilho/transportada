@@ -158,7 +158,7 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
 
   expect(new URL(page.url()).pathname).toBe('/')
   await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
-  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
 
   // Um toque, uma requisição, uma chave — é o que a idempotência do servidor casa no reenvio
   await page.getByRole('button', { name: 'Cheguei' }).click()
@@ -259,6 +259,16 @@ test('o motorista leva o romaneio, com a chave da nota e o aviso de que não é 
 
   await expect(page.getByRole('heading', { name: 'Romaneio de carga' })).toBeVisible()
   await expect(page.getByText('Não é documento fiscal')).toBeVisible()
+
+  // Recolhido por padrão: a lista de notas não empurra a viagem para baixo até o motorista pedir
+  const toggle = page.getByRole('button', { name: /Mostrar notas/u })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByText(DRIVER_ACCESS_KEY)).toBeHidden()
+  await toggle.click()
+  await expect(page.getByRole('button', { name: 'Ocultar notas' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
 
   // A chave por extenso é o que se consulta no portal e o que a portaria digita quando o leitor falha
   await expect(page.getByText(DRIVER_ACCESS_KEY)).toBeVisible()
@@ -449,7 +459,7 @@ test('CA07: o temporizador drena sozinho e para quando não há mais pendência'
 test('A2: a releitura que falha mantém a viagem na tela, com a hora do dado', async ({ page }) => {
   await page.clock.install()
   const api = await openTrip(page)
-  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
 
   api.setTripReadFailing(true)
   // O tique de 30 s, e depois as três novas tentativas do TanStack (1 s, 2 s, 4 s).
@@ -460,7 +470,7 @@ test('A2: a releitura que falha mantém a viagem na tela, com a hora do dado', a
 
   await expect(page.getByText(/Sem atualização — dados de \d/u)).toBeVisible()
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
-  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Cheguei' })).toBeVisible()
   await expect(
     page.getByText('Não foi possível carregar sua viagem', { exact: false }),
@@ -546,7 +556,7 @@ test.describe('CA12: duas viagens e a janela de entrega', () => {
 
     await trips.getByRole('button', { name: 'Viagem 1 · GCQ8E47' }).click()
     await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
-    await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+    await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
     await expect(
       page.getByRole('heading', { exact: true, name: 'Rua das Flores, 20' }),
     ).toHaveCount(0)

@@ -46,7 +46,10 @@
     "volumes_one": "{{count}} volume",
     "volumes_other": "{{count}} volumes",
     "weight": "{{weight}} kg",
-    "barcodeLabel": "Código de barras da chave da NF-e {{number}}"
+    "barcodeLabel": "Código de barras da chave da NF-e {{number}}",
+    "show_one": "Mostrar notas ({{count}})",
+    "show_other": "Mostrar notas ({{count}})",
+    "hide": "Ocultar notas"
   },
   "loading": "Carregando sua viagem…",
   "manifest": {

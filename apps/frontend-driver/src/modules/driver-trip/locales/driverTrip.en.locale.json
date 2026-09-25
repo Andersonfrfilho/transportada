@@ -58,7 +58,10 @@
     "title": "Load sheet",
     "volumes_one": "{{count}} package",
     "volumes_other": "{{count}} packages",
-    "weight": "{{weight}} kg"
+    "weight": "{{weight}} kg",
+    "show_one": "Show notes ({{count}})",
+    "show_other": "Show notes ({{count}})",
+    "hide": "Hide notes"
   },
   "loading": "Loading your trip…",
   "manifest": {

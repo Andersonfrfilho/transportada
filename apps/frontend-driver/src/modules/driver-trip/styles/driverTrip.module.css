@@ -275,6 +275,10 @@
   margin: 0;
 }
 
+.loadSheetToggle {
+  justify-self: start;
+}
+
 .loadSheetStops,
 .loadSheetNotes {
   display: grid;
@@ -282,6 +286,11 @@
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* O `display: grid` acima venceria o `hidden` do navegador: recolhida, a lista some de fato. */
+.loadSheetStops[hidden] {
+  display: none;
 }
 
 .loadSheetStop {
@@ -328,8 +337,14 @@
     padding: 0;
   }
 
-  .printAction {
+  .printAction,
+  .loadSheetToggle {
     display: none;
+  }
+
+  /* Recolhido na tela, o romaneio sai inteiro no papel. */
+  .loadSheetStops[hidden] {
+    display: grid;
   }
 
   .loadSheetDisclaimer {
