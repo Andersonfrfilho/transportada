@@ -2444,3 +2444,18 @@ mail_message_id)`.
     - o remetente não confirmado continua na conversa;
   - o que continua valendo.
 - Formatação da raiz limpa.
+
+## Fechamento — as tasks que ficam abertas, cada uma com o motivo
+
+Todas as outras estão `[x]` com evidência acima. Nenhuma das abertas é bloqueada por código desta
+spec: todas esperam uma decisão ou uma ação do usuário.
+
+| Task             | Por que fica aberta                                                                                                                                                                 | O que destrava                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **T002** 🙋      | Submeter os modelos de WhatsApp à Meta é ação do usuário, na conta da Meta.                                                                                                         | O usuário submete e a Meta aprova.   |
+| **T503**         | Fora da janela de 24 h, o WhatsApp só sai por modelo aprovado.                                                                                                                      | T002.                                |
+| **T506**         | O canal WhatsApp na aba Contratante e no diálogo depende do envio (T503).                                                                                                           | T503.                                |
+| **T602** 🧠      | O WhatsApp do motorista fora da janela também exige modelo aprovado.                                                                                                                | T002.                                |
+| **T605**         | A política da janela está pronta e testada. O job e o aviso de troca de canal são um modelo da T002.                                                                                | T002.                                |
+| **T702 / T702f** | A T702 fecha quando fechar a T702f (mídia da Meta: foto, documento e áudio pelo WhatsApp). O usuário decidiu na T702e que ela espera o envio pela Meta. T702a–e estão `[x]`.        | T002 e T503.                         |
+| **T706** 🔒      | A transcrição de áudio tem `[NEEDS CLARIFICATION]` na spec: que provedor, e se a voz pode sair para ele (LGPD: base legal, retenção, região). Nada se implementa com dúvida aberta. | A decisão do provedor, que vira ADR. |
