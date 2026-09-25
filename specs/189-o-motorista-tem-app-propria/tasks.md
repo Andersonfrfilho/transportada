@@ -371,7 +371,7 @@ consentimento, vem **depois da virada** e não a segura.
 
 Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
-- [ ] **T7.1** Contrato de `driverTripSelection.service.ts`:
+- [x] **T7.1** Contrato de `driverTripSelection.service.ts`:
   - uma viagem;
   - duas, com uma em rota;
   - duas em rota: a mais antiga;

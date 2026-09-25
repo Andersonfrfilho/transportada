@@ -1,0 +1,65 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { describe, expect, it } from 'bun:test'
+
+import type { DriverTrip } from '@/modules/driver-trip/shared/driverTrip.types'
+import { resolveSelectedTrip } from '@/modules/driver-trip/shared/driverTripSelection.service'
+
+function buildTrip(id: string, status: string): DriverTrip {
+  return { id, manifest: null, status, stops: [], vehiclePlate: `PLACA-${id}` }
+}
+
+/**
+ * ADR-0075 §8, RF12: a API devolve as viagens em `createdAt` ascendente, e a tela mostrava
+ * `trips[0]` — o agregado com duas viagens ativas só enxergava a primeira. A viagem padrão é a mais
+ * antiga **em rota** (`in_transit` ou `on_delivery_route`); sem nenhuma em rota, a mais antiga da
+ * lista, na ordem em que a API mandou.
+ */
+describe('qual viagem a tela mostra (spec 189 T7.1)', () => {
+  it('com uma viagem só, é ela', () => {
+    const only = buildTrip('a', 'route_planned')
+
+    expect(resolveSelectedTrip({ selectedTripId: undefined, trips: [only] })).toBe(only)
+  })
+
+  it('com duas, a que está em rota vence a mais antiga parada', () => {
+    const planned = buildTrip('a', 'route_planned')
+    const onRoute = buildTrip('b', 'in_transit')
+
+    expect(resolveSelectedTrip({ selectedTripId: undefined, trips: [planned, onRoute] })).toBe(
+      onRoute,
+    )
+  })
+
+  it('com duas em rota, a mais antiga', () => {
+    const older = buildTrip('a', 'on_delivery_route')
+    const newer = buildTrip('b', 'in_transit')
+
+    expect(resolveSelectedTrip({ selectedTripId: undefined, trips: [older, newer] })).toBe(older)
+  })
+
+  it('sem nenhuma em rota, a mais antiga da lista', () => {
+    const older = buildTrip('a', 'route_planned')
+    const newer = buildTrip('b', 'dispatched')
+
+    expect(resolveSelectedTrip({ selectedTripId: undefined, trips: [older, newer] })).toBe(older)
+  })
+
+  it('a escolha do motorista vale enquanto a viagem estiver na lista', () => {
+    const onRoute = buildTrip('a', 'in_transit')
+    const chosen = buildTrip('b', 'route_planned')
+
+    expect(resolveSelectedTrip({ selectedTripId: 'b', trips: [onRoute, chosen] })).toBe(chosen)
+  })
+
+  /** A viagem escolhida fechou ou saiu do motorista: a tela volta ao padrão, nunca fica vazia. */
+  it('a escolhida sumiu da lista: volta à padrão', () => {
+    const planned = buildTrip('a', 'route_planned')
+    const onRoute = buildTrip('b', 'in_transit')
+
+    expect(resolveSelectedTrip({ selectedTripId: 'gone', trips: [planned, onRoute] })).toBe(onRoute)
+  })
+
+  it('sem viagem nenhuma, nada', () => {
+    expect(resolveSelectedTrip({ selectedTripId: 'gone', trips: [] })).toBeUndefined()
+  })
+})

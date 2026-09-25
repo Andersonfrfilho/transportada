@@ -1373,3 +1373,22 @@ providedAttachmentStore?)` — só para o teste injetar uma loja que nunca resol
   com a variável já removida no servidor — quem testar o rollback (T6.5, T6.10) precisa saber
   disso para não confundir "ainda não propagou" com "não funcionou".
 - Sem código tocado: os dois são documentação. `bunx prettier --write` nos dois `.md`.
+
+## Fase 7 — Depois da virada: o que não é paridade
+
+### T7.1 — Contrato de `driverTripSelection.service.ts`
+
+`apps/frontend-driver/test/driver-trip/trip-selection.contract.ts`, no entrypoint
+`test/driver-trip.contract.test.ts`. Sete casos sobre `resolveSelectedTrip({ selectedTripId, trips })`:
+uma viagem; duas com uma em rota (a em rota vence a mais antiga parada); duas em rota (a mais
+antiga); nenhuma em rota (a mais antiga da lista, na ordem `createdAt` ascendente da API); a escolha
+do motorista vale enquanto está na lista; a escolhida sumiu (volta à padrão); lista vazia. "Em rota"
+é `in_transit` ou `on_delivery_route` (ADR-0075 §8).
+
+Vermelho pela razão certa — o módulo ainda não existe:
+
+```
+cd apps/frontend-driver && bun test test/driver-trip.contract.test.ts
+  error: Cannot find module '@/modules/driver-trip/shared/driverTripSelection.service'
+  0 pass / 1 fail / 1 error
+```
