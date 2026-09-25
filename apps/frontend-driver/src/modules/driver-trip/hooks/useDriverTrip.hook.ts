@@ -113,9 +113,24 @@ function toOutcome(error: unknown): AttachmentSendOutcome {
 }
 
 export function useDriverTrip(
-  store: OfflineQueueStore = createIndexedDbQueueStore(),
-  attachmentStore: AttachmentStore = createIndexedDbAttachmentStore(),
+  providedStore?: OfflineQueueStore,
+  providedAttachmentStore?: AttachmentStore,
 ) {
+  /**
+   * ⚠️ **Um parâmetro com padrão de função cria uma loja nova a cada chamada sem argumento** — e
+   * `useDriverTrip()` é chamado sem argumento em produção. A loja nova muda a identidade de
+   * `store`/`attachmentStore` a cada render, `refreshQueueView` (que depende delas) é recriada
+   * junto, e o `useEffect` de montagem (que depende de `refreshQueueView`) roda de novo a cada
+   * render — uma drenagem emendada na outra, sem fim, com `isSyncing` nunca voltando a `false`
+   * mesmo sem pedido nenhum em voo. `useState` com inicializador preguiçoso cria a loja **uma vez**
+   * por instância do hook; `??` cede a quem passar uma própria (os contratos).
+   */
+  const [defaultStores] = useState(() => ({
+    attachmentStore: createIndexedDbAttachmentStore(),
+    store: createIndexedDbQueueStore(),
+  }))
+  const store = providedStore ?? defaultStores.store
+  const attachmentStore = providedAttachmentStore ?? defaultStores.attachmentStore
   const queryClient = useQueryClient()
   const session = useDriverSession()
   const [foreignPendingCount, setForeignPendingCount] = useState(0)
