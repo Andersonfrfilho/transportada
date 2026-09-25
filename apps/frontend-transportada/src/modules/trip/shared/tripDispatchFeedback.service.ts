@@ -83,6 +83,9 @@ export function resolveDispatchErrorFeedback(input: {
   return null
 }
 
+/** Nenhuma nota vai na viagem: o diálogo explica e não oferece despachar (o clique daria 409). */
+export const DISPATCH_CONFIRM_NOTHING_TO_CARRY_KEY = 'stateActions.dispatchConfirmNothingToCarry'
+
 /**
  * RF9 (revisão): uma chave i18n só por caso do diálogo "Despachar" — nunca a concatenação de duas
  * traduções calculadas em TS. O caso combinado (`toLoadCount` e `leftBehindCount` > 0) encaixa as
@@ -108,7 +111,7 @@ export function resolveDispatchConfirmMessage(input: {
      */
     return isCargoClosed
       ? { key: 'stateActions.dispatchConfirmLeftBehindOnly', params: { count: leftBehindCount } }
-      : { key: 'stateActions.dispatchConfirmNothingToCarry' }
+      : { key: DISPATCH_CONFIRM_NOTHING_TO_CARRY_KEY }
   }
 
   return leftBehindCount === 0

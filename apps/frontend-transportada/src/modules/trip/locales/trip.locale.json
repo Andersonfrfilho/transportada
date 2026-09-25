@@ -1305,6 +1305,7 @@
     "cancel": "Cancelar viagem",
     "dispatch": "Despachar",
     "dispatchConfirmTitle": "Despachar a viagem",
+    "dispatchUnderstood": "Entendi",
     "dispatchConfirmSimple": "Despachar a viagem?",
     "dispatchConfirmLoadRemaining": "Separar e carregar {{count}} nota e despachar a viagem?",
     "dispatchConfirmLoadRemaining_other": "Separar e carregar {{count}} notas e despachar a viagem?",

@@ -28,6 +28,9 @@ acontece no carregamento. Despachar e conferir são passos que o sistema pedia e
    (ADR-0048), nota viva sem parada (`TRIP_HAS_NO_ROUTE`) — a viagem fica em `loading` e a resposta
    da escrita diz o motivo. O botão "Despachar" termina o serviço depois que a pendência se resolve.
    "Sem alguém assinar" (ADR-0043) continua a regra para despacho com pendência.
+   O gatilho **nunca faz a escrita que o chamou falhar**: carga reaberta ou viagem cancelada entre as
+   leituras é "nada a despachar"; qualquer outra falha vira `autoDispatch.blocked` com
+   `TRIP_AUTO_DISPATCH_FAILED` e log sem dado pessoal (revisão de código da spec 185).
 3. **O botão "Despachar" leva todas.** Com nota `pending`/`separated`, o clique do escritório separa
    e carrega o que falta e despacha, numa transação, depois de uma confirmação que diz quantas notas
    serão carregadas. Tirar uma nota da viagem é antes, desvinculando-a. O `force` com motivo (que
@@ -39,7 +42,9 @@ acontece no carregamento. Despachar e conferir são passos que o sistema pedia e
    (`released_at`, o mesmo mecanismo do `force`), registrando o motivo sem pedir assinatura — a
    assinatura é a do cadastro do tipo, feita por quem tem `settings.manage`. Ocorrência sobre parte
    dos itens não tira a nota: avaria em 2 de 50 volumes sai com a nota (spec 056 D7, "parcial é
-   ocorrência, não estado").
+   ocorrência, não estado"). "Aberta" é sem tratativa ou com tratativa fora de
+   `returned_to_warehouse | closed | cancelled`, e a nota que vai ser deixada para trás não conta nos
+   gates de roteiro e agendamento — ela sai da viagem no mesmo despacho (revisão de código da spec 185).
 5. **"Conferir carga" deixa de ser oferecido**, no escritório e no app do motorista. A conferência
    é o carregamento. A rota `confirm-load` segue aceita e idempotente para aparelho com versão velha;
    "Iniciar rota" já parte de `dispatched` (`checkFieldStart`) e continua sendo o "saí" do motorista.

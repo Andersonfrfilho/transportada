@@ -8,7 +8,10 @@ import { Select } from '@/components/ui/select'
 
 import { resolveDispatchReadiness } from '../shared/dispatchReadiness.service'
 import { hasOpenOccurrenceMarker } from '../shared/occurrenceMarker.service'
-import { resolveDispatchConfirmMessage } from '../shared/tripDispatchFeedback.service'
+import {
+  DISPATCH_CONFIRM_NOTHING_TO_CARRY_KEY,
+  resolveDispatchConfirmMessage,
+} from '../shared/tripDispatchFeedback.service'
 import { canOfferTripFieldAction, hasMultipleDrivers } from '../shared/tripFieldActions.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import type { TripDetail, TripFiscalReadiness } from '../shared/trip.types'
@@ -113,9 +116,14 @@ export function TripHeaderActions({
     toLoadCount: readiness.toLoadCount,
   })
   const dispatchMessage = t(confirmMessage.key, confirmMessage.params ?? {})
+  const isNothingToCarry = confirmMessage.key === DISPATCH_CONFIRM_NOTHING_TO_CARRY_KEY
 
   function handleDispatchClick(): void {
     setIsDispatchConfirmOpen(true)
+  }
+
+  function closeDispatchConfirm(): void {
+    setIsDispatchConfirmOpen(false)
   }
 
   function handleDispatchConfirm(): void {
@@ -269,12 +277,14 @@ export function TripHeaderActions({
       ) : null}
 
       <TripConfirmDialog
-        confirmLabel={t('stateActions.dispatch')}
+        confirmLabel={
+          isNothingToCarry ? t('stateActions.dispatchUnderstood') : t('stateActions.dispatch')
+        }
         isOpen={isDispatchConfirmOpen}
         isSubmitting={isDispatchPending}
         message={dispatchMessage}
-        onCancel={() => setIsDispatchConfirmOpen(false)}
-        onConfirm={handleDispatchConfirm}
+        onCancel={closeDispatchConfirm}
+        onConfirm={isNothingToCarry ? closeDispatchConfirm : handleDispatchConfirm}
         title={t('stateActions.dispatchConfirmTitle')}
       />
 

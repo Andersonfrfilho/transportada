@@ -1,9 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import {
   resolveAutoDispatchFeedback,
   resolveDispatchBlockedFeedback,
+  DISPATCH_CONFIRM_NOTHING_TO_CARRY_KEY,
   resolveDispatchConfirmMessage,
   resolveDispatchErrorFeedback,
 } from '@/modules/trip/shared/tripDispatchFeedback.service'
@@ -161,7 +164,22 @@ describe('resolveDispatchConfirmMessage (spec 185 revisão, achado 2 — o diál
   test('nada a carregar e nenhuma nota carregada: nenhuma nota vai, frase própria', () => {
     expect(
       resolveDispatchConfirmMessage({ isCargoClosed: false, leftBehindCount: 3, toLoadCount: 0 }),
-    ).toEqual({ key: 'stateActions.dispatchConfirmNothingToCarry' })
+    ).toEqual({ key: DISPATCH_CONFIRM_NOTHING_TO_CARRY_KEY })
+  })
+
+  /**
+   * Re-revisão N2: com nenhuma nota indo, "Despachar" seria um clique que sempre dá 409 — o botão
+   * de confirmar vira "Entendi" e só fecha o diálogo.
+   */
+  test('com nenhuma nota indo, o diálogo não oferece despachar', () => {
+    const header = readFileSync(
+      new URL('../../src/modules/trip/components/TripHeaderActions.component.tsx', import.meta.url),
+      'utf8',
+    )
+
+    expect(header).toContain('confirmMessage.key === DISPATCH_CONFIRM_NOTHING_TO_CARRY_KEY')
+    expect(header).toContain("t('stateActions.dispatchUnderstood')")
+    expect(header).toContain('isNothingToCarry ? closeDispatchConfirm : handleDispatchConfirm')
   })
 })
 

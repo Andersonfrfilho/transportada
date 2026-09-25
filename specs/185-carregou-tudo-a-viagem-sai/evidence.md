@@ -714,4 +714,30 @@ commit, comentário/doc só, sem mudança de comportamento).
 `docs/adr/0058-a-viagem-comeca-e-termina-por-toque-do-motorista.md`,
 `docs/adr/0058-o-motorista-abre-a-porta-do-despacho.md`.
 
-**Veredito:** Revisão reexecutada pendente.
+**Veredito:** Revisão reexecutada — ver seção seguinte.
+
+## Re-revisão de código (code-reviewer, opus) — APROVADO COM RESSALVAS
+
+Os 2 HIGH, os 6 MEDIUM e os LOW da primeira revisão foram verificados como corrigidos no código;
+nenhum achado novo acima de LOW. LOW novos:
+
+- **N2 (corrigido):** com nenhuma nota indo na viagem, o diálogo oferecia "Despachar" (clique que
+  sempre dá 409). Agora o confirmar vira "Entendi" e só fecha
+  (`DISPATCH_CONFIRM_NOTHING_TO_CARRY_KEY`); contrato em `test/trip/dispatch-feedback.contract.ts`.
+- **N4 (corrigido):** ADR-0074 §2 e §4 registram `TRIP_AUTO_DISPATCH_FAILED`, o sentido de "aberta" e
+  a exclusão da nota deixada para trás dos gates.
+- **N1 (conhecido, não corrigido):** corrida de milissegundos entre a leitura dos gates e a
+  liberação — nota de `leftBehind` carregada nessa janela vai no caminhão sem ter passado pelos
+  gates de roteiro/agendamento. Mesma classe da corrida de `hasRoute` lido fora da transação, que já
+  existia.
+- **N3 (conhecido):** `TRIP_HAS_UNLOADED_DOCUMENTS` pelo botão sempre vira "todas têm ocorrência";
+  na corrida do `stillUnloaded` a frase fica imprecisa. Sem efeito na carga.
+- **N5/N6:** T7.2 marcada antes do veredito (agora vale); nesting do i18n testado à mão pelo
+  revisor, sem contrato que renderize a frase final.
+
+## Gates finais (sobre `eb7a80ae2` + N2/N4)
+
+- API integração inteira (Postgres nativo 127.0.0.1:65433): 615 pass, 0 fail, 111 arquivos (361 s)
+- API `db:test` (migration + rollback): 110 pass, 0 fail
+- API contrato: 7272 pass, 23 skip, 0 fail
+- Frontend `bun run test`: 5253 + 51 pass, 0 fail; `typecheck`, `lint` limpos; prettier limpo
