@@ -67,7 +67,7 @@ implementam esse encadeamento do zero: plugam a captura de imagem e a UI de esta
 "enviado") no que já existe. Falta a origem do storage no `connect-src`/`img-src` de
 `apps/frontend-driver` (`VITE_STORAGE_URL`, `ARG` e contrato de build) — ver T8.3 do `tasks.md` da 189.
 
-- **T301** Teste de contrato da tela: tipo `required` sem foto ou sem motivo não habilita o envio, e
+- **T301** ✅ Teste de contrato da tela: tipo `required` sem foto ou sem motivo não habilita o envio, e
   a mensagem diz qual dos dois falta. (CA04)
 - **T302** Captura da imagem na tela de ocorrência (`apps/frontend-driver`), com o caminho de galeria
   quando a câmera é negada, e os mesmos limites de tamanho e tipo do comprovante de entrega.

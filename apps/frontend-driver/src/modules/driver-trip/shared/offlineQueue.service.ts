@@ -162,7 +162,7 @@ export function applyReportLocation(input: {
   return input.items.map((item) => {
     const report = item.report
     if (report.idempotencyKey !== input.idempotencyKey) return item
-    if (report.kind === 'occurrence' || report.location !== null) return item
+    if (!('location' in report) || report.location !== null) return item
     return { ...item, report: { ...report, location: input.location } }
   })
 }

@@ -21,6 +21,8 @@ type DriverEventQueuePageProps = Readonly<{
 const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   arrive: 'eventQueue.kind.arrive',
   deliver: 'eventQueue.kind.deliver',
+  /** Spec 179: a ocorrência da nota com a foto — os dois sobem juntos, no mesmo item. */
+  documentOccurrence: 'eventQueue.kind.documentOccurrence',
   occurrence: 'eventQueue.kind.occurrence',
   /** Grupo de anexos cujo evento já subiu — só os arquivos aguardam. */
   proof: 'eventQueue.kind.proof',

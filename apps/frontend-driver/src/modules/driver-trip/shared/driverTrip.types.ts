@@ -181,15 +181,40 @@ export type DriverFieldReport =
       occurrenceKind: DriverOccurrenceKind
       stopId: string
     }>
+  /**
+   * Spec 179 (T303): a ocorrência da nota com a foto junto. O `send` sobe a foto por URL assinada,
+   * confirma e só então faz o `POST` com `attachmentObjectId` — a API recusa tipo `required` sem
+   * anexo, e anexo que chegasse depois do evento daria `422`.
+   */
+  | Readonly<{
+      documentId: string
+      idempotencyKey: string
+      kind: 'documentOccurrence'
+      note: string
+      occurrenceTypeId: string
+      /** Só para a tela de pendentes: quem decide pelo id é o servidor. */
+      occurrenceTypeName: string
+      photo: DriverOccurrencePhoto | null
+      /** Vazio é a nota inteira. */
+      productCode: string
+    }>
+
+/** A foto já reencodada (JPEG, sem EXIF) — o `Blob` vai inteiro para o IndexedDB. */
+export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>
 
 /**
  * Spec 079: o tipo de ocorrência que a empresa cadastrou, como o motorista o vê.
  *
  * ⚠️ A lista **vem do servidor**: ela deixou de ser cópia por valor quando os tipos viraram
  * cadastro. O motorista só enxerga os de `delivery` ativos — o galpão não é dele —, e o filtro é
- * do servidor (spec 157): a rota `/me/trips/current/occurrence-types` devolve só `id` e `name`.
+ * do servidor (spec 157): a rota `/me/trips/current/occurrence-types` devolve `id` e `name`.
  */
 export type DriverOccurrenceType = Readonly<{
+  /**
+   * Spec 179: a exigência de comprovante do tipo. Opcional porque a rota do motorista ainda não o
+   * devolve — ausente, a tela não antecipa a observação obrigatória, e quem decide é o servidor.
+   */
+  attachmentMode?: ProofFieldRequirement
   id: string
   name: string
 }>

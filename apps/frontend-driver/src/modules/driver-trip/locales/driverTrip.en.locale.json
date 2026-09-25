@@ -33,6 +33,7 @@
     "kind": {
       "arrive": "Arrival",
       "deliver": "Delivery",
+      "documentOccurrence": "Occurrence with photo",
       "occurrence": "Occurrence",
       "proof": "Proof",
       "return": "Return"
@@ -253,5 +254,37 @@
     "notice_other": "{{count}} records made offline at {{time}} — send them?",
     "send": "Send",
     "warning": "Discarding erases these records from the phone for good, together with the photos and signatures of the same deliveries — none of it reaches the office."
+  },
+  "notDelivered": {
+    "title": "Not delivered",
+    "reasonLegend": "Why wasn't it delivered?",
+    "occurrenceTypeLegend": "Which occurrence to record?",
+    "photoLabel": "Occurrence photo",
+    "takePhoto": "Take photo",
+    "chooseFromGallery": "Choose from gallery",
+    "galleryHint": "If the camera does not open or access was denied, choose the photo from the gallery.",
+    "noPhoto": "No photo yet",
+    "photoPreview": "Occurrence photo preview",
+    "photoReading": "Preparing the photo…",
+    "photoTooLarge": "The photo is over 512 KB even after reducing it. Take another one, closer to what matters.",
+    "photoFailed": "Could not read this photo. Take another one or choose from the gallery.",
+    "noteLabel": "Note",
+    "noteOptional": "optional",
+    "noteRequired": "required for this type",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "missingLead": "To confirm, add: {{fields}}.",
+    "missing": {
+      "reason": "the reason",
+      "occurrenceType": "the occurrence type",
+      "photo": "the photo",
+      "note": "the note"
+    },
+    "withoutOccurrence": "Without the occurrence types, the return goes with the reason only — there is nowhere to record the photo right now.",
+    "status": {
+      "queued": "Occurrence with photo queued — it goes up when the signal is back.",
+      "sent": "Occurrence with photo sent.",
+      "rejected": "The server refused the occurrence with photo. See pending events."
+    }
   }
 }

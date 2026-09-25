@@ -549,3 +549,61 @@ a ponta (gates, integração e smoke da CI, sete deploys). Implantação ativa d
 `2636d914` = `45c5e0e94`; pre-deploy `migrated=true`; `/health/live` e `/health/ready` 200;
 `POST …/occurrence-uploads/:id/confirm` sem token → 401; nenhuma linha de erro no log desde a subida.
 Não exercitei o fluxo autenticado do motorista em staging.
+
+## 25/09 — Fase 3 na app do motorista (`apps/frontend-driver`)
+
+Pedido do usuário: _"o 'Não entreguei' precisa registrar ocorrência com foto"_ — tocar "Não
+entreguei" abre o registro da ocorrência da nota: motivo, foto obrigatória (câmera, com galeria como
+alternativa), observação opcional, confirmar; sem foto o confirmar fica desabilitado e diz o que
+falta; sem sinal, foto e ocorrência entram juntas na fila e a tela diferencia "na fila" de "enviado".
+
+### O fluxo escolhido: ocorrência com foto **e** devolução, no mesmo toque
+
+Conferido no código e nas specs antes de escrever:
+
+- A ocorrência da nota **não fecha a nota**. `trip_document_occurrences` é append-only e a spec 164
+  RF19 proíbe escrita em `trip_documents` por causa dela (`separation_status`, `returned_at` "seguem
+  com os mesmos escritores de hoje"). Quem fecha nota, parada e viagem é a devolução (`/return` →
+  `runDocumentOutcome`, `architecture-review.md` § "O risco que a spec não tinha visto"). Trocar a
+  devolução pela ocorrência deixaria a parada aberta para sempre.
+- A devolução exige `reason` da lista fechada `DRIVER_RETURN_REASONS` (`me-trip.schema.ts:38`,
+  `z.enum`). O tipo de ocorrência é cadastro livre da empresa — deduzir um do outro seria comparar
+  nome de tipo, o que `duplicacao.md` e o plano desta spec proíbem.
+
+Por isso "Não entreguei" pergunta **os dois**: o motivo da devolução (a lista de sempre) e o tipo de
+ocorrência (o cadastro da empresa), mais a foto e a observação. Confirmar enfileira dois itens, a
+ocorrência antes: rede caída nela para a drenagem inteira e a devolução espera junto, então a nota
+não fecha sem a prova ter subido. Recusa do servidor na ocorrência (ex.: `422` de observação
+obrigatória) não segura a devolução — exigir prova não pode virar bloqueio na rua (P3); a recusa
+fica à vista na fila de pendentes, com "Enviar agora".
+
+Sem lista de tipos (falha sem cópia guardada, ou empresa sem tipo de rua) não há ocorrência onde
+pendurar a foto: a devolução segue só com o motivo e a tela diz isso (spec 157 RF5 — devolver nunca
+depende da lista).
+
+### Achado: o `kind` `documentOccurrence` que a 189 dizia ter deixado pronto não existia
+
+`apps/frontend-driver/CLAUDE.md` ("Drenagem", "O que a spec 147 e a spec 179 acrescentam") e a
+emenda da Fase 3 afirmam que o `kind` já existia em `DriverFieldReport` e no `switch` de
+`driverTripClient.service.ts`. `git log -S"kind: 'documentOccurrence'" --all` não acha nada, e
+`origin/staging` também não tem. Foi escrito aqui (T301), com o encadeamento que a emenda descreve:
+URL assinada → `PUT` direto ao storage (sem o token da API) → `confirm` → `POST .../occurrences` com
+`attachmentObjectId` e a chave do toque.
+
+### T301 — o que falta para confirmar (CA04)
+
+`notDelivered.service.ts` (puro): `listMissingNotDeliveredFields` devolve **todos** os campos que
+faltam, na ordem da tela (`reason`, `occurrenceType`, `photo`, `note`); a foto é exigida em todo tipo
+(é "Não entreguei"), a observação só quando o tipo declara `attachmentMode: 'required'` — a mesma
+regra do servidor (`TripOccurrenceNoteRequiredError`). `buildNotDeliveredReports` monta os dois
+itens, ocorrência antes, e recusa rascunho incompleto (`NOT_DELIVERED_INCOMPLETE`).
+`DriverOccurrenceType.attachmentMode` entrou **opcional**: a rota do motorista ainda devolve só `id`
+e `name` (ver "Pendência de API" abaixo), e a leitura aceita o campo quando vier e recusa valor fora
+do vocabulário.
+
+```
+$ bun test ./test/driver-trip/not-delivered.contract.ts ./test/driver-trip/occurrence-upload.contract.ts
+ 25 pass · 0 fail
+$ bun run typecheck && bun run lint        # sem saída
+$ bun run test                             # 526 pass · 0 fail (3 entrypoints)
+```

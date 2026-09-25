@@ -40,6 +40,8 @@ export const DRIVER_TRIP_ERROR = {
   /** A rede não respondeu. É o caso do subsolo, e ele **não** tira o item da fila. */
   OFFLINE: 'OFFLINE',
   RESPONSE_INVALID: 'RESPONSE_INVALID',
+  /** Spec 179: o storage recusou o `PUT` da foto (URL vencida, assinatura) — resposta, não rede. */
+  UPLOAD_FAILED: 'OCCURRENCE_UPLOAD_FAILED',
 } as const
 
 export class DriverTripRequestError extends Error {
@@ -154,7 +156,11 @@ export type DriverTripClient = Readonly<{
 
 export type LocationConsent = Readonly<{ acceptedAt: string | null }>
 
-function reportPath(report: DriverFieldReport): string {
+type DocumentOccurrenceReport = Extract<DriverFieldReport, { kind: 'documentOccurrence' }>
+/** Os relatos que são um `POST` JSON só — a ocorrência com foto tem caminho próprio. */
+type JsonFieldReport = Exclude<DriverFieldReport, DocumentOccurrenceReport>
+
+function reportPath(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/arrive`
@@ -167,7 +173,7 @@ function reportPath(report: DriverFieldReport): string {
   }
 }
 
-function reportBody(report: DriverFieldReport): string {
+function reportBody(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
     case 'deliver':
@@ -291,6 +297,10 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       return toLocationConsent(payload)
     },
     async send(report) {
+      if (report.kind === 'documentOccurrence') {
+        await sendDocumentOccurrence({ dependencies, report })
+        return
+      }
       await request({
         body: reportBody(report),
         dependencies,
@@ -300,6 +310,117 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
     },
   }
+}
+
+/**
+ * Spec 179 (RF2/T303): a foto sobe **antes** do registro, no mesmo `send` — a API recusa tipo
+ * `required` sem anexo. Rede caída em qualquer passo é "tente depois": o item fica na fila e o
+ * reenvio pede uma URL nova (a anterior vence em minutos); o registro casa pela chave do toque.
+ */
+async function sendDocumentOccurrence(input: {
+  readonly dependencies: ClientDependencies
+  readonly report: DocumentOccurrenceReport
+}): Promise<void> {
+  const { dependencies, report } = input
+  const attachmentObjectId =
+    report.photo === null
+      ? undefined
+      : await uploadOccurrencePhoto({
+          dependencies,
+          documentId: report.documentId,
+          photo: report.photo.blob,
+        })
+
+  await request({
+    body: JSON.stringify({
+      ...(attachmentObjectId === undefined ? {} : { attachmentObjectId }),
+      note: report.note,
+      occurrenceTypeId: report.occurrenceTypeId,
+      productCode: report.productCode,
+    }),
+    dependencies,
+    idempotencyKey: report.idempotencyKey,
+    method: 'POST',
+    path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrences`,
+  })
+}
+
+/** Pede a URL assinada, sobe o arquivo direto ao storage e confirma — devolve o id do objeto. */
+async function uploadOccurrencePhoto(input: {
+  readonly dependencies: ClientDependencies
+  readonly documentId: string
+  readonly photo: Blob
+}): Promise<string> {
+  const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrence-uploads`
+  const upload = toOccurrenceUpload(
+    await request({
+      body: JSON.stringify({ mimeType: input.photo.type, sizeBytes: input.photo.size }),
+      dependencies: input.dependencies,
+      method: 'POST',
+      path: uploadsPath,
+    }),
+  )
+
+  let response: Response
+  try {
+    // Sem `authorization`: o token da API não vai ao storage — a assinatura da URL é a credencial.
+    response = await input.dependencies.fetch(
+      new Request(upload.uploadUrl, {
+        body: input.photo,
+        cache: 'no-store',
+        headers: { 'content-type': input.photo.type },
+        method: 'PUT',
+      }),
+    )
+  } catch {
+    throw new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+  }
+  if (!response.ok) {
+    throw new DriverTripRequestError({
+      code: DRIVER_TRIP_ERROR.UPLOAD_FAILED,
+      isOffline: false,
+      status: response.status,
+    })
+  }
+
+  const confirmed = await request({
+    dependencies: input.dependencies,
+    method: 'POST',
+    path: `${uploadsPath}/${upload.id}/confirm`,
+  })
+  return readDataId(confirmed)
+}
+
+function readData(payload: unknown): Record<string, unknown> {
+  const data =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { readonly data?: unknown }).data
+      : undefined
+  if (typeof data !== 'object' || data === null) throw invalidResponse()
+  return data as Record<string, unknown>
+}
+
+function readDataId(payload: unknown): string {
+  const id = readData(payload).id
+  if (typeof id !== 'string') throw invalidResponse()
+  return id
+}
+
+function toOccurrenceUpload(payload: unknown): Readonly<{ id: string; uploadUrl: string }> {
+  const record = readData(payload)
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.uploadUrl !== 'string' ||
+    !isSafeDownloadUrl(record.uploadUrl)
+  ) {
+    throw invalidResponse()
+  }
+  return { id: record.id, uploadUrl: record.uploadUrl }
+}
+
+/** Resposta que não se deixa ler é recusa, não rede: repetir não a conserta. */
+function invalidResponse(): DriverTripRequestError {
+  return new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.RESPONSE_INVALID, isOffline: false })
 }
 
 export function getDriverTripClient(): DriverTripClient {
@@ -495,6 +616,16 @@ function readErrorCode(payload: unknown): string {
 
 function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
   if (typeof value !== 'object' || value === null) return false
-  const candidate = value as { readonly id?: unknown; readonly name?: unknown }
-  return typeof candidate.id === 'string' && typeof candidate.name === 'string'
+  const candidate = value as {
+    readonly attachmentMode?: unknown
+    readonly id?: unknown
+    readonly name?: unknown
+  }
+  const hasKnownMode =
+    candidate.attachmentMode === undefined ||
+    (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(candidate.attachmentMode)
+  return typeof candidate.id === 'string' && typeof candidate.name === 'string' && hasKnownMode
 }
+
+/** ⚠️ Cópia por valor de `DELIVERY_PROOF_FIELD_MODES` — o vocabulário de `attachmentMode` (spec 179 RF1). */
+const PROOF_FIELD_REQUIREMENTS = ['off', 'optional', 'required'] as const
