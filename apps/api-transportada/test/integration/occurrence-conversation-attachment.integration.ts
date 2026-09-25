@@ -240,6 +240,14 @@ describe('o anexo da conversa contra Postgres e S3 (spec 183 T702a)', () => {
           .where(eq(occurrenceConversationUploads.id, upload.uploadId))
         expect(uploadRow).toEqual({ status: 'attached' })
 
+        /**
+         * Spec 183 T903 (S1): a URL da subida segue no prazo depois do envio. O PUT tardio com outro
+         * arquivo do mesmo tamanho não troca o anexo: ele aponta para a cópia final dos bytes
+         * conferidos — o download abaixo ainda devolve o PDF original.
+         */
+        const swapped = PDF.map((byte, index) => (index === PDF.byteLength - 2 ? 0x58 : byte))
+        await put(upload.uploadUrl, swapped, 'application/pdf')
+
         /** 2. O motorista responde com foto e lê as duas, com URL que baixa os mesmos bytes. */
         const mine = {
           companyId,

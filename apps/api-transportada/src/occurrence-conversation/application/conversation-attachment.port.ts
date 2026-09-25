@@ -53,6 +53,19 @@ export type ConversationAttachmentStoragePort = {
     readonly bucket: string
     readonly key: string
   }): Promise<{ readonly contentLength: number } | undefined>
+  /**
+   * Spec 183 T903 (S1): a cópia final dos bytes conferidos, numa chave que nenhuma URL assinada
+   * alcança, e a remoção da chave da subida (ou da cópia, quando a ligação falha).
+   */
+  storeObject(input: {
+    readonly body: Uint8Array
+    readonly bucket: string
+    readonly contentLength: number
+    readonly contentType: string
+    readonly key: string
+    readonly sha256: string
+  }): Promise<unknown>
+  deleteObject(input: { readonly bucket: string; readonly key: string }): Promise<void>
 }
 
 export type ConversationUploadRepositoryPort = {

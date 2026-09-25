@@ -50,7 +50,9 @@ const storage: ConversationAttachmentStoragePort = {
   createSignedDownload: async ({ key }) => new URL(`https://s3.test/${key}`),
   createSignedUpload: async ({ key }) => new URL(`https://s3.test/${key}?upload`),
   getObjectStream: async () => new Blob([PDF]).stream(),
+  deleteObject: async () => undefined,
   headObject: async () => ({ contentLength: PDF.byteLength }),
+  storeObject: async () => undefined,
 }
 
 /** O falso da porta de anexo: registra o alvo pedido e devolve um pedido para cada id. */

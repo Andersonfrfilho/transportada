@@ -153,7 +153,9 @@ function createFake(
       createSignedDownload: async ({ key }) => new URL(`https://s3.test/${key}`),
       createSignedUpload: async ({ key }) => new URL(`https://s3.test/${key}?upload`),
       getObjectStream: async () => new Blob([PDF]).stream(),
+      deleteObject: async () => undefined,
       headObject: async () => ({ contentLength: uploadBytes }),
+      storeObject: async () => undefined,
     },
     unitOfWork: { execute: (operation) => operation(transaction) },
   })

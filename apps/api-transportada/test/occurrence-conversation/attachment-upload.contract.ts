@@ -36,6 +36,8 @@ const PDF = new TextEncoder().encode('%PDF-1.7 conteúdo do comprovante')
 
 function storage(objects: Record<string, Uint8Array>) {
   const signed: unknown[] = []
+  const deleted: string[] = []
+  const stored: unknown[] = []
   const port: ConversationAttachmentStoragePort = {
     createSignedDownload: async (input) => {
       signed.push(input)
@@ -45,11 +47,19 @@ function storage(objects: Record<string, Uint8Array>) {
       signed.push(input)
       return new URL(`https://s3.test/${input.key}?upload`)
     },
+    deleteObject: async ({ key }) => {
+      deleted.push(key)
+      delete objects[key]
+    },
     getObjectStream: async ({ key }) => new Blob([objects[key] ?? new Uint8Array()]).stream(),
     headObject: async ({ key }) =>
       objects[key] === undefined ? undefined : { contentLength: objects[key].byteLength },
+    storeObject: async (input) => {
+      stored.push({ ...input, body: undefined })
+      objects[input.key] = input.body
+    },
   }
-  return { port, signed }
+  return { deleted, objects, port, signed, stored }
 }
 
 describe('o pedido de upload do anexo (spec 183 T702a)', () => {
@@ -171,6 +181,7 @@ describe('a ligação do anexo à mensagem (spec 183 T702a)', () => {
 
     await attachConversationUploads({
       messageId: 'message-1',
+      newObjectToken: () => 'final-1',
       now: NOW,
       storage: storage({ 'key-1': PDF }).port,
       target: TARGET,
@@ -187,7 +198,7 @@ describe('a ligação do anexo à mensagem (spec 183 T702a)', () => {
         fileName: 'comprovante.pdf',
         messageId: 'message-1',
         now: NOW,
-        objectKey: 'key-1',
+        objectKey: 'occurrence-conversations/final-1',
         sha256: createHash('sha256').update(PDF).digest('hex'),
         sizeBytes: PDF.byteLength,
         uploadId: 'upload-1',
@@ -310,5 +321,82 @@ describe('a leitura do anexo (spec 183 T702a)', () => {
         key: 'key-1',
       },
     ])
+  })
+})
+
+/**
+ * Spec 183 T903 (achado S1): a URL de subida vale 15 minutos e continua valendo depois do envio. Se
+ * o anexo apontasse para a chave da subida, um PUT tardio trocaria o arquivo já conferido — e o
+ * sha256 gravado deixaria de ser o dos bytes servidos. A ligação copia os bytes conferidos para uma
+ * chave final nova, que nenhuma URL assinada alcança, e apaga a da subida.
+ */
+describe('o anexo conferido não pode ser trocado depois (spec 183 T903, S1)', () => {
+  const upload = (id: string, objectKey: string): PendingConversationUpload => ({
+    bucket: 'bucket-test',
+    declaredContentType: 'application/pdf',
+    expiresAt: new Date(NOW.getTime() + 60_000),
+    fileName: `${id}.pdf`,
+    id,
+    objectKey,
+  })
+
+  test('os bytes conferidos vão para uma chave final nova, e a da subida é apagada', async () => {
+    const attached: { objectKey: string; sha256: string }[] = []
+    const bucket = storage({ 'staging-1': PDF })
+    const tokens = ['final-1']
+    await attachConversationUploads({
+      messageId: 'message-1',
+      newObjectToken: () => tokens.shift() ?? 'unexpected',
+      now: NOW,
+      storage: bucket.port,
+      target: TARGET,
+      transaction: {
+        attachUpload: async (input) => void attached.push(input),
+        lockPendingUploads: async () => [upload('upload-1', 'staging-1')],
+      },
+      uploadIds: ['upload-1'],
+    })
+
+    expect(attached.map((row) => row.objectKey)).toEqual(['occurrence-conversations/final-1'])
+    expect(bucket.stored).toEqual([
+      {
+        body: undefined,
+        bucket: 'bucket-test',
+        contentLength: PDF.byteLength,
+        contentType: 'application/pdf',
+        key: 'occurrence-conversations/final-1',
+        sha256: createHash('sha256').update(PDF).digest('hex'),
+      },
+    ])
+    expect(bucket.deleted).toEqual(['staging-1'])
+
+    // O PUT tardio na URL da subida não toca o que o anexo aponta.
+    bucket.objects['staging-1'] = new TextEncoder().encode('%PDF-1.7 outro arquivo')
+    expect(bucket.objects['occurrence-conversations/final-1']).toEqual(PDF)
+  })
+
+  test('um anexo recusado no meio apaga as cópias finais que já subiram', async () => {
+    const bucket = storage({ 'staging-1': PDF, 'staging-2': new TextEncoder().encode('não é pdf') })
+    const tokens = ['final-1', 'final-2']
+    await expect(
+      attachConversationUploads({
+        messageId: 'message-1',
+        newObjectToken: () => tokens.shift() ?? 'unexpected',
+        now: NOW,
+        storage: bucket.port,
+        target: TARGET,
+        transaction: {
+          attachUpload: async () => undefined,
+          lockPendingUploads: async () => [
+            upload('upload-1', 'staging-1'),
+            upload('upload-2', 'staging-2'),
+          ],
+        },
+        uploadIds: ['upload-1', 'upload-2'],
+      }),
+    ).rejects.toMatchObject({ code: 'OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED' })
+
+    expect(bucket.objects['occurrence-conversations/final-1']).toBeUndefined()
+    expect(bucket.deleted).toContain('occurrence-conversations/final-1')
   })
 })

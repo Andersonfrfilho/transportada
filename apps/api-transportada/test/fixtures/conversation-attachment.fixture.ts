@@ -24,6 +24,8 @@ export const listNoAttachments = async () => []
 export const UNUSED_ATTACHMENT_STORAGE: ConversationAttachmentStoragePort = {
   createSignedDownload: async () => unexpected('createSignedDownload'),
   createSignedUpload: async () => unexpected('createSignedUpload'),
+  deleteObject: async () => unexpected('deleteObject'),
   getObjectStream: async () => unexpected('getObjectStream'),
   headObject: async () => unexpected('headObject'),
+  storeObject: async () => unexpected('storeObject'),
 }

@@ -10,6 +10,9 @@
  *    ser deste alvo e estar `pending` e no prazo; o objeto tem de existir, caber no teto e ter os
  *    bytes do tipo declarado. Só então vira `stored_objects` + anexo da mensagem, com o sha256 dos
  *    bytes. Qualquer falha desfaz a mensagem inteira — mensagem com anexo pela metade não existe.
+ *    Os bytes conferidos são copiados para uma chave final nova (T903, S1): a URL de subida vale 15
+ *    minutos e seguiria valendo depois do envio — apontar o anexo para ela deixaria um PUT tardio
+ *    trocar o arquivo já conferido.
  * 3. **Leitura** (`signConversationAttachments`): URL temporária de cinco minutos, para baixar com o
  *    nome do arquivo.
  */
@@ -36,6 +39,7 @@ import type {
   ConversationAttachmentView,
   ConversationUploadRepositoryPort,
   ConversationUploadTarget,
+  PendingConversationUpload,
 } from './conversation-attachment.port.js'
 
 /** Quinze minutos para subir, como o pedido da spec 179 — vida curta de propósito. */
@@ -121,6 +125,8 @@ async function readAllBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Ar
 
 export async function attachConversationUploads(input: {
   readonly messageId: string
+  /** Só para teste; em produção, 256 bits aleatórios. */
+  readonly newObjectToken?: () => string
   readonly now: Date
   readonly storage: ConversationAttachmentStoragePort
   readonly target: ConversationUploadTarget
@@ -149,7 +155,24 @@ export async function attachConversationUploads(input: {
   })
   if (pending.length !== unique.size) throw new OccurrenceConversationUploadInvalidError()
 
-  for (const upload of input.uploadIds.flatMap((id) => pending.filter((row) => row.id === id))) {
+  const finalCopies: { readonly bucket: string; readonly key: string }[] = []
+  const stagingObjects: { readonly bucket: string; readonly key: string }[] = []
+  try {
+    for (const upload of input.uploadIds.flatMap((id) => pending.filter((row) => row.id === id))) {
+      await attachOne(upload)
+    }
+  } catch (error) {
+    /** A cópia final que já subiu não tem dono se a ligação cai: sai do bucket, melhor esforço. */
+    await Promise.allSettled(finalCopies.map((location) => input.storage.deleteObject(location)))
+    throw error
+  }
+  /**
+   * A chave da subida só sai depois de tudo ligado: se um anexo do meio fosse recusado, os outros
+   * seguem reenviáveis. Falha em apagar deixa um objeto que nada referencia — nunca o anexo errado.
+   */
+  await Promise.allSettled(stagingObjects.map((location) => input.storage.deleteObject(location)))
+
+  async function attachOne(upload: PendingConversationUpload): Promise<void> {
     if (upload.expiresAt.getTime() <= input.now.getTime()) {
       throw new OccurrenceConversationUploadInvalidError()
     }
@@ -182,6 +205,21 @@ export async function attachConversationUploads(input: {
       )
     }
 
+    const sha256 = createHash('sha256').update(bytes).digest('hex')
+    const finalKey = buildConversationUploadObjectKey(
+      (input.newObjectToken ?? newConversationObjectToken)(),
+    )
+    await input.storage.storeObject({
+      body: bytes,
+      bucket: upload.bucket,
+      contentLength: bytes.byteLength,
+      contentType: upload.declaredContentType,
+      key: finalKey,
+      sha256,
+    })
+    finalCopies.push({ bucket: upload.bucket, key: finalKey })
+    stagingObjects.push(location)
+
     await input.transaction.attachUpload({
       bucket: upload.bucket,
       companyId: input.target.companyId,
@@ -189,8 +227,8 @@ export async function attachConversationUploads(input: {
       fileName: upload.fileName,
       messageId: input.messageId,
       now: input.now,
-      objectKey: upload.objectKey,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
+      objectKey: finalKey,
+      sha256,
       sizeBytes: bytes.byteLength,
       uploadId: upload.id,
     })

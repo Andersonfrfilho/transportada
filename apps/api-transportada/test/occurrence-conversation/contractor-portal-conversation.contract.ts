@@ -152,7 +152,9 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
       createSignedDownload: async ({ key }) => new URL(`https://s3.test/${key}`),
       createSignedUpload: async ({ key }) => new URL(`https://s3.test/${key}?upload`),
       getObjectStream: async () => new Blob([]).stream(),
+      deleteObject: async () => undefined,
       headObject: async () => undefined,
+      storeObject: async () => undefined,
     },
     unitOfWork: { execute: (work) => work(transaction) },
   })
