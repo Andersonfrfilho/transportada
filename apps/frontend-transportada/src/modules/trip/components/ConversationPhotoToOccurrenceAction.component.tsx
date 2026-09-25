@@ -13,6 +13,10 @@ import type { OccurrenceConversationAttachment } from '@/modules/occurrence-conv
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import {
+  TRIP_OCCURRENCE_ATTACHMENTS_QUERY_KEY,
+  TRIP_OCCURRENCE_FEED_QUERY_KEY,
+} from '../queries/tripOccurrenceFeed.query'
+import {
   attachConversationPhotoToOccurrence,
   isConversationPhotoAlreadyAttached,
 } from '../shared/conversationPhotoToOccurrence.service'
@@ -47,8 +51,16 @@ export function ConversationPhotoToOccurrenceAction({
         download,
         occurrence: { occurrenceId, tripDocumentId, tripId },
       }),
-    /** A foto nova aparece no resumo e na linha do tempo da ocorrência. */
-    onSuccess: () => void queryClient.invalidateQueries(),
+    /**
+     * A foto nova aparece no resumo, na linha do tempo e nas fotos da ocorrência — só isso é relido
+     * (T903, F9: antes, a invalidação sem chave relia a aplicação inteira).
+     */
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+      void queryClient.invalidateQueries({
+        queryKey: [TRIP_OCCURRENCE_ATTACHMENTS_QUERY_KEY, occurrenceId],
+      })
+    },
   })
 
   /** Spec 183 T903 (F4): a chave é do anexo — já usada é "já anexada", não erro. */

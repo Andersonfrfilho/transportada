@@ -175,3 +175,23 @@ describe('a ação já feita por outra pessoa não é erro (spec 183 T903, F4)',
     )
   })
 })
+
+/**
+ * Spec 183 T903 (achado F9): anexar a foto à ocorrência relia **toda** consulta da aplicação
+ * (`invalidateQueries()` sem chave). Relê só o que a foto muda: o feed da ocorrência (lista, detalhe
+ * e linha do tempo) e as fotos dela.
+ */
+describe('anexar à ocorrência relê só o que muda (spec 183 T903, F9)', () => {
+  test('invalida o feed e as fotos da ocorrência, nunca tudo', async () => {
+    const source = await readFile(
+      new URL(
+        '../../src/modules/trip/components/ConversationPhotoToOccurrenceAction.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(source).not.toMatch(/invalidateQueries\(\)/u)
+    expect(source).toContain('queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY]')
+    expect(source).toContain('queryKey: [TRIP_OCCURRENCE_ATTACHMENTS_QUERY_KEY, occurrenceId]')
+  })
+})
