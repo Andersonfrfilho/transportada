@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { HealthService } from '../../src/health/health.service'
+import { IDENTITY_RATE_LIMIT_DEFAULTS } from '../../src/identity/shared/identity-rate-limit.constant.js'
 import { appliedMigrations } from '../fixtures/health.fixture'
 import type { AuthenticationPort } from '../../src/identity/application/identity.port'
 import { TenantContextService } from '../../src/identity/application/tenant-context.service'
@@ -67,6 +68,7 @@ const server = startApiServer({
     appEnv: 'test',
     bootstrapToken: undefined,
     clientIpPolicy: { source: 'x-real-ip', trustedProxyHops: 1 },
+    identityRateLimits: IDENTITY_RATE_LIMIT_DEFAULTS,
     cargoLayoutTimeBudgetMs: 60_000,
     companyId: undefined,
     contractorMailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },

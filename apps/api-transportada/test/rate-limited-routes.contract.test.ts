@@ -12,6 +12,9 @@ import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conv
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
+import { createLoginHintRoutes } from '../src/identity/presentation/login-hint.routes'
+import { createPasswordResetRoutes } from '../src/identity/presentation/password-reset.routes'
+import { createUserActivationRoutes } from '../src/identity/presentation/user-activation.routes'
 import { createMeLocationRoutes } from '../src/trips/presentation/me-location.routes'
 import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
@@ -419,6 +422,9 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'address-correction/presentation/address-correction.routes.ts',
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
       'contractor-portal/presentation/contractor-occurrence.routes.ts',
+      'identity/presentation/login-hint.routes.ts',
+      'identity/presentation/password-reset.routes.ts',
+      'identity/presentation/user-activation.routes.ts',
       'occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
@@ -432,5 +438,137 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'trips/presentation/trip-field-office-trip.routes.ts',
       'trips/presentation/trip.routes.ts',
     ])
+  })
+})
+
+/**
+ * Spec 191 RF12, ADR-0076 §3: as rotas anônimas de identidade contam por IP no Postgres, em dois
+ * estágios. Escopo e store são literais da rota; teto e janela vêm do ambiente, e os números
+ * distintos abaixo provam que cada rota lê o seu.
+ */
+describe('rotas anônimas de identidade com teto no Postgres (spec 191 T1.3)', () => {
+  function limitedAnonymous(
+    routes: readonly {
+      readonly method: string
+      readonly pathname: string
+      readonly rateLimit?: unknown
+    }[],
+  ) {
+    return routes.map((route) => ({
+      rateLimit: route.rateLimit,
+      signature: `${route.method} ${route.pathname}`,
+    }))
+  }
+
+  function passwordResetRoutes() {
+    const unused = unusedDependencies() as never
+    return createPasswordResetRoutes({
+      confirmPasswordReset: unused,
+      rateLimits: {
+        confirmIp: { maxRequests: 23, windowSeconds: 960 },
+        requestIp: { maxRequests: 13, windowSeconds: 930 },
+        requestTarget: { maxRequests: 4, windowSeconds: 3_660 },
+      },
+      requestPasswordReset: unused,
+    })
+  }
+
+  test('login-hints: só IP, sem alvo (ADR-0076 §3)', () => {
+    const routes = createLoginHintRoutes({
+      rateLimit: { maxRequests: 61, windowSeconds: 660 },
+      resolveLoginHint: unusedDependencies() as never,
+    })
+
+    expect(limitedAnonymous(routes)).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 61,
+          scope: 'login-hints-ip',
+          store: 'postgres',
+          windowSeconds: 660,
+        },
+        signature: 'POST /login-hints',
+      },
+    ])
+  })
+
+  test('user-activation: só IP (a entropia do código protege o alvo)', () => {
+    const routes = createUserActivationRoutes({
+      activateInvitation: unusedDependencies() as never,
+      rateLimit: { maxRequests: 21, windowSeconds: 910 },
+    })
+
+    expect(limitedAnonymous(routes)).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 21,
+          scope: 'user-activation-ip',
+          store: 'postgres',
+          windowSeconds: 910,
+        },
+        signature: 'POST /user-activation',
+      },
+    ])
+  })
+
+  test('password-resets: IP e alvo', () => {
+    const [request] = limitedAnonymous(passwordResetRoutes())
+
+    expect(request).toEqual({
+      rateLimit: {
+        maxRequests: 13,
+        scope: 'password-resets-ip',
+        store: 'postgres',
+        target: { maxRequests: 4, scope: 'password-resets-target', windowSeconds: 3_660 },
+        windowSeconds: 930,
+      },
+      signature: 'POST /password-resets',
+    })
+  })
+
+  test('password-resets/confirm: só IP', () => {
+    const [, confirm] = limitedAnonymous(passwordResetRoutes())
+
+    expect(confirm).toEqual({
+      rateLimit: {
+        maxRequests: 23,
+        scope: 'password-resets-confirm-ip',
+        store: 'postgres',
+        windowSeconds: 960,
+      },
+      signature: 'POST /password-resets/confirm',
+    })
+  })
+
+  /**
+   * O alvo é o texto digitado, normalizado como o login o lê: e-mail em minúsculas, CPF e telefone
+   * sem máscara, o resto aparado e em minúsculas. Duas grafias da mesma pessoa caem no mesmo balde.
+   */
+  test.each([
+    [' Ana@Empresa.TEST ', 'ana@empresa.test'],
+    ['529.982.247-25', '52998224725'],
+    ['(11) 98765-4321', '11987654321'],
+    [' Joao.Silva ', 'joao.silva'],
+  ])('password-resets: o alvo de %p é %p', async (typed, expected) => {
+    const [request] = passwordResetRoutes()
+    const targets: string[] = []
+
+    await request!
+      .execute({
+        correlationId: 'rate-limited-routes',
+        limitTarget: async ({ target }) => {
+          targets.push(target)
+          return { allowed: false, retryAfterSeconds: 1 }
+        },
+        pathParameters: {},
+        request: new Request('http://localhost/password-resets', {
+          body: JSON.stringify({ username: typed }),
+          headers: { 'content-type': 'application/json' },
+          method: 'POST',
+        }),
+      })
+      .catch(() => undefined)
+
+    expect(targets).toEqual([expected])
   })
 })

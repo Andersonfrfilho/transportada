@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { ActivateInvitationUseCase } from '../application/activate-invitation.use-case.js'
+import type { RateLimitCeiling } from '../../http/rate-limiter.service.js'
 import { defineAnonymousRoute } from '../../http/router.service.js'
 import { API_USER_ACTIVATION_PATH, HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -12,6 +13,7 @@ import {
 
 type Dependencies = {
   readonly activateInvitation: ActivateInvitationUseCase
+  readonly rateLimit: RateLimitCeiling
 }
 
 export function createUserActivationRoutes(
@@ -29,6 +31,11 @@ export function createUserActivationRoutes(
         return parseActivateInvitationRequest(body)
       },
       pathname: API_USER_ACTIVATION_PATH,
+      /**
+       * Só IP (spec 191 RF12): uma chave pelo hash do chute não protege nada, porque cada chute tem
+       * outro hash. O que protege o código são os 64 bits dele somados a este teto.
+       */
+      rateLimit: { ...dependencies.rateLimit, scope: 'user-activation-ip', store: 'postgres' },
     }),
   ]
 }

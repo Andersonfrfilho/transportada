@@ -3,7 +3,9 @@
  */
 import type { ConfirmPasswordResetUseCase } from '../application/confirm-password-reset.use-case.js'
 import type { RequestPasswordResetUseCase } from '../application/request-password-reset.use-case.js'
+import type { RateLimitCeiling } from '../../http/rate-limiter.service.js'
 import { defineAnonymousRoute } from '../../http/router.service.js'
+import { normalizeRateLimitTarget } from '../domain/login-identifier.policy.js'
 import {
   API_PASSWORD_RESET_CONFIRM_PATH,
   API_PASSWORD_RESETS_PATH,
@@ -19,6 +21,11 @@ import {
 
 type Dependencies = {
   readonly confirmPasswordReset: ConfirmPasswordResetUseCase
+  readonly rateLimits: {
+    readonly confirmIp: RateLimitCeiling
+    readonly requestIp: RateLimitCeiling
+    readonly requestTarget: RateLimitCeiling
+  }
   readonly requestPasswordReset: RequestPasswordResetUseCase
 }
 
@@ -36,6 +43,20 @@ export function createPasswordResetRoutes(
         return parseRequestPasswordResetRequest(await parseJsonBody(request))
       },
       pathname: API_PASSWORD_RESETS_PATH,
+      /**
+       * Spec 191 RF12: o pedido dispara envio, então conta por IP e pelo alvo. O alvo é o texto
+       * digitado, não o usuário resolvido — o 429 sai igual para quem existe e para quem não existe.
+       */
+      rateLimit: {
+        ...dependencies.rateLimits.requestIp,
+        scope: 'password-resets-ip',
+        store: 'postgres',
+        target: {
+          ...dependencies.rateLimits.requestTarget,
+          key: (input) => normalizeRateLimitTarget(input.username),
+          scope: 'password-resets-target',
+        },
+      },
     }),
     defineAnonymousRoute<ConfirmPasswordResetRequest>({
       async handle({ input }): Promise<Response> {
@@ -47,6 +68,12 @@ export function createPasswordResetRoutes(
         return parseConfirmPasswordResetRequest(await parseJsonBody(request))
       },
       pathname: API_PASSWORD_RESET_CONFIRM_PATH,
+      /** Só IP: como na ativação, o que protege o código é a entropia dele somada a este teto. */
+      rateLimit: {
+        ...dependencies.rateLimits.confirmIp,
+        scope: 'password-resets-confirm-ip',
+        store: 'postgres',
+      },
     }),
   ]
 }

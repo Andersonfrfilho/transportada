@@ -6,6 +6,7 @@ import type { LogLevel } from '@adatechnology/logger'
 import type { CryptographicConfiguration } from '../config/cryptographic-configuration.schema'
 import type { CompanyRole, FiscalEnvironment } from '../database/database.schema'
 import type { CompanyPermission } from '../identity/domain/authorization.policy'
+import type { IdentityRateLimits } from '../identity/shared/identity-rate-limit.constant'
 import type { ClientIpPolicy } from './client-ip.constant'
 
 export type DatabasePoolConfiguration = {
@@ -40,6 +41,8 @@ export type ApiEnvironment = {
   /** O canal de e-mail é oferecido no fan-out; quem envia é o worker, que guarda a credencial. */
   readonly emailChannelEnabled: boolean
   readonly frontendOrigins: readonly [string, ...string[]]
+  /** Spec 191 RF12: teto e janela das rotas anônimas de identidade, por IP e por alvo. */
+  readonly identityRateLimits: IdentityRateLimits
   readonly keycloak: {
     readonly admin: {
       readonly clientId: string

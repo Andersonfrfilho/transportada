@@ -4,6 +4,7 @@
 import { z } from 'zod'
 
 import { DATABASE_POOL_DEFAULTS } from '../database/database-pool.constant'
+import { IDENTITY_RATE_LIMIT_DEFAULTS } from '../identity/shared/identity-rate-limit.constant'
 import { REQUEST_TIMEOUT_SECONDS } from '../shared/api.constant'
 import {
   CLIENT_IP_SOURCES,
@@ -15,6 +16,16 @@ import { parseCryptographicConfiguration } from './cryptographic-configuration.s
 
 const POSTGRESQL_PROTOCOLS = ['postgres:', 'postgresql:'] as const
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+/** Spec 191: o mesmo intervalo do teto do e-mail com contratantes, para toda rota com teto no env. */
+function rateLimitMaxRequests(defaultValue: number): z.ZodType<number, unknown> {
+  return z.coerce.number().int().min(1).max(10_000).default(defaultValue)
+}
+
+/** Acima de um dia, a limpeza do worker apagaria a janela viva — ela só conhece esse teto. */
+function rateLimitWindowSeconds(defaultValue: number): z.ZodType<number, unknown> {
+  return z.coerce.number().int().min(60).max(86_400).default(defaultValue)
+}
 
 /** Vazio é o padrão e significa desligado; preenchido e torto derruba o boot. */
 function optionalUrl(name: string): z.ZodType<string | undefined, string | undefined> {
@@ -131,6 +142,38 @@ const environmentSchema = z.object({
     .min(60)
     .max(86_400)
     .default(3_600),
+  // Spec 191 RF12: teto e janela das rotas anônimas de identidade, contados por IP (e, na
+  // recuperação, também pelo alvo) no Postgres. Escopo e store são literais da rota.
+  RATE_LIMIT_LOGIN_HINTS_IP_MAX: rateLimitMaxRequests(
+    IDENTITY_RATE_LIMIT_DEFAULTS.loginHintsIp.maxRequests,
+  ),
+  RATE_LIMIT_LOGIN_HINTS_IP_WINDOW_SECONDS: rateLimitWindowSeconds(
+    IDENTITY_RATE_LIMIT_DEFAULTS.loginHintsIp.windowSeconds,
+  ),
+  RATE_LIMIT_USER_ACTIVATION_IP_MAX: rateLimitMaxRequests(
+    IDENTITY_RATE_LIMIT_DEFAULTS.userActivationIp.maxRequests,
+  ),
+  RATE_LIMIT_USER_ACTIVATION_IP_WINDOW_SECONDS: rateLimitWindowSeconds(
+    IDENTITY_RATE_LIMIT_DEFAULTS.userActivationIp.windowSeconds,
+  ),
+  RATE_LIMIT_PASSWORD_RESETS_IP_MAX: rateLimitMaxRequests(
+    IDENTITY_RATE_LIMIT_DEFAULTS.passwordResetsIp.maxRequests,
+  ),
+  RATE_LIMIT_PASSWORD_RESETS_IP_WINDOW_SECONDS: rateLimitWindowSeconds(
+    IDENTITY_RATE_LIMIT_DEFAULTS.passwordResetsIp.windowSeconds,
+  ),
+  RATE_LIMIT_PASSWORD_RESETS_TARGET_MAX: rateLimitMaxRequests(
+    IDENTITY_RATE_LIMIT_DEFAULTS.passwordResetsTarget.maxRequests,
+  ),
+  RATE_LIMIT_PASSWORD_RESETS_TARGET_WINDOW_SECONDS: rateLimitWindowSeconds(
+    IDENTITY_RATE_LIMIT_DEFAULTS.passwordResetsTarget.windowSeconds,
+  ),
+  RATE_LIMIT_PASSWORD_RESET_CONFIRM_IP_MAX: rateLimitMaxRequests(
+    IDENTITY_RATE_LIMIT_DEFAULTS.passwordResetConfirmIp.maxRequests,
+  ),
+  RATE_LIMIT_PASSWORD_RESET_CONFIRM_IP_WINDOW_SECONDS: rateLimitWindowSeconds(
+    IDENTITY_RATE_LIMIT_DEFAULTS.passwordResetConfirmIp.windowSeconds,
+  ),
   // ADR-0076 §6: de qual cabeçalho sai o IP do cliente (a chave do rate limit anônimo e o IP da
   // trilha). O padrão é a topologia medida — só o edge do Railway, que escreve `x-real-ip`.
   // Cloudflare com proxy ligado na frente pede `cf-connecting-ip`; outro proxy que anexa a
@@ -329,6 +372,28 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     },
     emailChannelEnabled: parsed.EMAIL_CHANNEL_ENABLED,
     frontendOrigins: parsed.FRONTEND_ORIGIN,
+    identityRateLimits: {
+      loginHintsIp: {
+        maxRequests: parsed.RATE_LIMIT_LOGIN_HINTS_IP_MAX,
+        windowSeconds: parsed.RATE_LIMIT_LOGIN_HINTS_IP_WINDOW_SECONDS,
+      },
+      passwordResetConfirmIp: {
+        maxRequests: parsed.RATE_LIMIT_PASSWORD_RESET_CONFIRM_IP_MAX,
+        windowSeconds: parsed.RATE_LIMIT_PASSWORD_RESET_CONFIRM_IP_WINDOW_SECONDS,
+      },
+      passwordResetsIp: {
+        maxRequests: parsed.RATE_LIMIT_PASSWORD_RESETS_IP_MAX,
+        windowSeconds: parsed.RATE_LIMIT_PASSWORD_RESETS_IP_WINDOW_SECONDS,
+      },
+      passwordResetsTarget: {
+        maxRequests: parsed.RATE_LIMIT_PASSWORD_RESETS_TARGET_MAX,
+        windowSeconds: parsed.RATE_LIMIT_PASSWORD_RESETS_TARGET_WINDOW_SECONDS,
+      },
+      userActivationIp: {
+        maxRequests: parsed.RATE_LIMIT_USER_ACTIVATION_IP_MAX,
+        windowSeconds: parsed.RATE_LIMIT_USER_ACTIVATION_IP_WINDOW_SECONDS,
+      },
+    },
     keycloak: {
       admin: {
         clientId: parsed.KEYCLOAK_ADMIN_CLIENT_ID,

@@ -88,7 +88,7 @@ com `rollback.sql` e fecha com `make migration-test`.
       - o `subject_key` recebido pelo store falso não contém IP nem identificador em claro;
       - `make config` passa com a chave e falha sem ela.
 
-- [ ] **T1.3** 🧠 **Declarar nas quatro rotas existentes.**
+- [x] **T1.3** 🧠 **Declarar nas quatro rotas existentes.**
       `scope` e `store` literais na rota; teto e janela vêm do env, com padrões em
       `src/identity/shared/identity-rate-limit.constant.ts`, no molde de `RATE_LIMIT_CONTRACTOR_MAIL_*`
       (`environment.schema.ts:122-128`).

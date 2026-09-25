@@ -1539,6 +1539,7 @@ function createAnonymousRoutes({
    * documento e o telefone — que o provedor não sabe procurar — deixariam de ser caminho.
    */
   const loginHintRoutes = createLoginHintRoutes({
+    rateLimit: config.identityRateLimits.loginHintsIp,
     resolveLoginHint: createResolveLoginHintUseCase({
       repository: createDrizzleLoginIdentifierRepository(database),
     }),
@@ -1740,6 +1741,7 @@ function createAnonymousRoutes({
         invitations: new DrizzleInvitationRepository(database),
         now: () => new Date(),
       }),
+      rateLimit: config.identityRateLimits.userActivationIp,
     }),
     ...createPasswordResetRoutes({
       confirmPasswordReset: createConfirmPasswordResetUseCase({
@@ -1752,6 +1754,11 @@ function createAnonymousRoutes({
         now: () => new Date(),
         requests: new DrizzlePasswordResetRepository(database),
       }),
+      rateLimits: {
+        confirmIp: config.identityRateLimits.passwordResetConfirmIp,
+        requestIp: config.identityRateLimits.passwordResetsIp,
+        requestTarget: config.identityRateLimits.passwordResetsTarget,
+      },
       requestPasswordReset: createRequestPasswordResetUseCase({
         envelopeProvider: createPasswordResetCodeSecretService({
           envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),

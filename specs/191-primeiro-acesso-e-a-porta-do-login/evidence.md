@@ -155,3 +155,49 @@ Gates:
   0 fail, 184 arquivos.
 - Integração: `server`, `auth-me`, `rate-limiter` → 8 pass, 0 fail.
 - `bun run typecheck` e `bun run lint` na raiz → exit 0.
+
+## T1.3 — teto declarado nas quatro rotas anônimas de identidade (2026-09-25)
+
+Contrato primeiro. Visto vermelho: `bun test ./test/rate-limit.contract.test.ts
+./test/rate-limited-routes.contract.test.ts` → 59 pass, 16 fail (as rotas não declaravam teto, o env
+não tinha as variáveis e a lista de arquivos com `store: 'postgres'` não tinha os de identidade).
+
+| Rota                            | Escopo (literal na rota)                        | Padrão (env)            |
+| ------------------------------- | ----------------------------------------------- | ----------------------- |
+| `POST /login-hints`             | `login-hints-ip`                                | 60 / 600 s, só IP       |
+| `POST /user-activation`         | `user-activation-ip`                            | 20 / 900 s, só IP       |
+| `POST /password-resets`         | `password-resets-ip` + `password-resets-target` | 10 / 900 s + 3 / 3600 s |
+| `POST /password-resets/confirm` | `password-resets-confirm-ip`                    | 20 / 900 s, só IP       |
+
+- Padrões em `src/identity/shared/identity-rate-limit.constant.ts`; variáveis
+  `RATE_LIMIT_{LOGIN_HINTS_IP,USER_ACTIVATION_IP,PASSWORD_RESETS_IP,PASSWORD_RESETS_TARGET,PASSWORD_RESET_CONFIRM_IP}_{MAX,WINDOW_SECONDS}`,
+  no intervalo do `RATE_LIMIT_CONTRACTOR_MAIL_*` (1–10000; 60–86400 s), declaradas no `.env.example`.
+- Alvo: `normalizeRateLimitTarget` (`login-identifier.policy.ts`) = `parseLoginIdentifier(...)?.value`
+  ou o texto aparado e em minúsculas. Contrato com `' Ana@Empresa.TEST '`, `'529.982.247-25'`,
+  `'(11) 98765-4321'` e `' Joao.Silva '`.
+- `test/rate-limited-routes.contract.test.ts`: um `test()` por rota anônima, e os três arquivos de
+  identidade entraram na lista de quem declara `store: 'postgres'`.
+- O "a API não tem limitador" saiu de `login-hint.routes.ts`.
+- O schema de ambiente passou a importar `src/identity/shared/`, e o pre-deploy carrega o schema: o
+  `Dockerfile` da API ganhou o `COPY` dessa pasta (o contrato
+  `pre-deploy.contract.ts` › "copia todo o grafo de imports" apontou a falta).
+
+Integração `test/integration/anonymous-rate-limit.integration.ts` (escrita junto com a
+implementação, não vista vermelha antes): dois `createRouter` sobre o mesmo banco, o mesmo IP
+alternando entre eles, alvo diferente a cada pedido → 10 × 204 e o 11º 429; a tabela só guarda
+`ip:`/`target:` + 43 caracteres de HMAC, sem o IP nem o texto. Janela de 86 400 s no teste: a do
+Postgres é alinhada à época e uma de 15 min poderia virar no meio da execução.
+
+Gates:
+
+- `bun test ./test/rate-limit.contract.test.ts ./test/rate-limited-routes.contract.test.ts` → 75
+  pass, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo) → 7385 pass, 23 skip,
+  0 fail, 184 arquivos.
+- Integração completa, os 111 arquivos do `test:integration` em quatro lotes (cada lote cabe no
+  teto de 10 min da ferramenta): 526 pass, 3 skip, 4 fail. As 3 falhas são as esperadas da T0.2
+  (`company-user-removal`, vermelho até a T2.2). A 4ª foi
+  `nfe-document-events` › "resolves a resent legacy event…" por timeout de 60 s sob carga; sozinho,
+  o arquivo dá 4 pass, 0 fail.
+- `make config` → exit 0. `make check` → exit 0 (API 7376 pass/32 skip/0 fail; demais apps 0 fail;
+  build verde).

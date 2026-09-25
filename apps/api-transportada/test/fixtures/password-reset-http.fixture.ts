@@ -1,6 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  allowingRateLimitWindows,
+  OPEN_ANONYMOUS_RATE_LIMIT,
+  syntheticRateLimitSubjects,
+} from './anonymous-rate-limit.fixture'
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
 import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
@@ -28,6 +33,11 @@ type ExecuteCall = Record<string, unknown>
 
 type RouteDependencies = {
   readonly confirmPasswordReset: { execute(input: ExecuteCall): Promise<void> }
+  readonly rateLimits: {
+    readonly confirmIp: typeof OPEN_ANONYMOUS_RATE_LIMIT
+    readonly requestIp: typeof OPEN_ANONYMOUS_RATE_LIMIT
+    readonly requestTarget: typeof OPEN_ANONYMOUS_RATE_LIMIT
+  }
   readonly requestPasswordReset: { execute(input: ExecuteCall): Promise<void> }
 }
 
@@ -58,6 +68,11 @@ export async function createPasswordResetHttpFixture({
   const requestCalls: ExecuteCall[] = []
 
   const anonymousRoutes = await loadRoutes({
+    rateLimits: {
+      confirmIp: OPEN_ANONYMOUS_RATE_LIMIT,
+      requestIp: OPEN_ANONYMOUS_RATE_LIMIT,
+      requestTarget: OPEN_ANONYMOUS_RATE_LIMIT,
+    },
     confirmPasswordReset: {
       async execute(input) {
         confirmCalls.push(structuredClone(input))
@@ -88,6 +103,8 @@ export async function createPasswordResetHttpFixture({
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
     userPictureExistence: stubUserPictureExistence(),
     healthService: healthService(),
+    rateLimitSubjects: syntheticRateLimitSubjects(),
+    rateLimitWindows: allowingRateLimitWindows(),
     routes: [],
     tenantContext: {
       async resolveCompany() {
