@@ -749,3 +749,49 @@ make check                                    exit 0
 ```
 
 **Commit próprio, T3.6 — fecha a Fase 3.**
+
+## Fase 5 — O painel manda o motorista para a casa nova (desligado até a Fase 6)
+
+### T5.1 — Contratos no painel, antes do código
+
+Quatro contratos novos em `apps/frontend-transportada/test/driver-trip/`, importados por
+`test/driver-trip.contract.test.ts` (que já está na lista do `package.json`), e um teste a mais em
+`test/shared/vite-build-args.contract.ts`:
+
+- `driver-app-redirect.contract.ts`:
+  - `readDriverAppUrl`: ausente, vazia e só com espaço devolvem `undefined` **sem lançar**; presente
+    passa por `readTrustedUrl` (barra final tirada, `http://localhost` aceito, `http://` de fora
+    recusado com `IDENTITY_CONFIGURATION_INVALID_VITE_DRIVER_APP_URL`);
+  - `resolveDriverAppRedirect`: **sem a variável, `stay`** em cinco combinações (com fila, sem fila,
+    `standalone`, raiz, escritório) — é o "o painel serve `/minha-viagem`"; fila vazia → `redirect`
+    (em `/minha-viagem` e na raiz para quem é do campo); `standalone` → `install-screen`; pendência →
+    `pending-screen`, inclusive em `standalone` (a fila só sai desta origem); escritório → `stay`;
+    fora de `/` e `/minha-viagem` → `stay`.
+- `pending-queue.contract.ts`: `countPending` do painel (drainable, rejected, total, anexo vencido
+  fora da conta) e a **paridade pelo texto de fonte** com
+  `apps/frontend-driver/src/modules/driver-trip/shared/pendingQueue.service.ts` (do tipo
+  `PendingCounts` ao fim de `countPending`), mais o cabeçalho "Cópia por valor".
+- `queue-discard.contract.ts`: "Descartar" tira o evento recusado com os anexos dele; anexo recusado
+  sai sozinho (o evento e os outros anexos ficam); o que não foi recusado não se descarta.
+- `legacy-beacon.contract.ts`:
+  - `sendDriverLegacyBeacon` manda `('/_driver-legacy-served', 'pending-screen')`;
+  - `sendBeacon` só existe em `driverAppRedirect.service.ts`;
+  - `main.tsx` chama o beacon **uma** vez, dentro do ramo `case 'pending-screen':`;
+  - a rota do `server.ts` sobe de verdade (cópia do arquivo num diretório temporário com um `dist/`
+    mínimo, `Bun.spawn`, porta livre): `204` e corpo vazio para válido, inválido, grande (214
+    bytes), em partes (stream de 78 bytes) e `GET`; só o válido gera **uma** linha de log, com as
+    chaves exatas `at`, `event`, `mode` — sem usuário e sem IP.
+- `vite-build-args.contract.ts`: o código lê `VITE_DRIVER_APP_URL` e o `Dockerfile` declara
+  `ARG VITE_DRIVER_APP_URL`.
+
+**Vermelhos pela razão certa:**
+
+```
+cd apps/frontend-transportada && bun test ./test/driver-trip.contract.test.ts
+  0 pass / 1 fail / 1 error
+  Cannot find module '@/modules/driver-trip/shared/driverAppRedirect.service'
+
+cd apps/frontend-transportada && bun test ./test/shared.contract.test.ts
+  300 pass / 1 fail
+  (fail) o interruptor do motorista é lido pelo código e tem ARG no Dockerfile
+```
