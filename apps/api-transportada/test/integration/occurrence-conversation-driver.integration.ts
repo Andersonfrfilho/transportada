@@ -212,8 +212,10 @@ describe('a conversa com o motorista pelo app contra Postgres (spec 183 T601)', 
           create: async ({ fields }: { fields: readonly Uint8Array[] }) =>
             fields.map((field) => new TextDecoder().decode(field)).join('|'),
         }
+        /** Relógio que anda: duas mensagens no mesmo instante não têm ordem garantida. */
+        let tick = 0
         const send = createSendDriverAppMessageUseCase({
-          clock: () => NOW,
+          clock: () => new Date(NOW.getTime() + 60_000 * tick++),
           fingerprintService,
           notifier: { notify: async () => undefined },
           storage: UNUSED_ATTACHMENT_STORAGE,
