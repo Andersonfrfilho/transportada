@@ -138,6 +138,12 @@
   margin: 0;
   padding: 0;
   border: 0;
+  /*
+   * Spec 183 T902 (contraste): a linha de metadados é `<footer>`, que o estilo global pinta de
+   * cinza. Sobre o cobre e o azul do balão, o cinza fica em 2,3:1; herdar o texto do balão, que já
+   * passa de 4,5:1 nos dois temas, é o que segura hora, canal e selo legíveis.
+   */
+  color: inherit;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -459,7 +465,8 @@
 }
 
 .attachmentSize {
-  color: color-mix(in srgb, currentColor 72%, transparent);
+  /* Esmaecer o tamanho levava a 3,6:1 sobre o cobre; o peso da fonte já o separa do nome. */
+  color: inherit;
   white-space: nowrap;
 }
 

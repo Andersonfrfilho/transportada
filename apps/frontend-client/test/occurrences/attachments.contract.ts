@@ -302,3 +302,13 @@ describe('o áudio no portal (spec 183 T705)', () => {
     expect(component).toMatch(/<PortalAudioPlayer/u)
   })
 })
+
+describe('o contraste dentro do balão (spec 183 T902, D1)', () => {
+  test('hora e tamanho do anexo sem opacity — com ela, 4,39:1 sobre o cobre', async () => {
+    const css = await readFile(new URL('../../src/styles/index.css', import.meta.url), 'utf8')
+    for (const selector of ['.conversation__meta {', '.conversation__file-size {']) {
+      const start = css.indexOf(selector)
+      expect(css.slice(start, css.indexOf('}', start))).not.toContain('opacity')
+    }
+  })
+})

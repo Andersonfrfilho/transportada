@@ -290,7 +290,7 @@ select {
 .conversation__meta {
   font-size: 0.75rem;
   margin: var(--space-1) 0 0;
-  opacity: 0.85;
+  /* Spec 183 T902: sem esmaecer — esmaecida, a hora ficava em 4,39:1 sobre o cobre. */
   text-align: right;
 }
 
@@ -356,7 +356,6 @@ input[type='file']::file-selector-button {
 
 .conversation__file-size {
   font-size: 0.75rem;
-  opacity: 0.85;
   white-space: nowrap;
 }
 
