@@ -243,6 +243,28 @@ describe('scheduleQueueDrainTriggers (plan D5)', () => {
     expect(target.intervalCount()).toBe(1)
   })
 
+  it('a fila ganhar pendência no meio da sessão liga o temporizador, sem esperar gatilho', () => {
+    const target = createFakeTarget()
+    let drainable = 0
+    let syncQueue: () => void = () => undefined
+
+    scheduleQueueDrainTriggers({
+      drain: () => undefined,
+      getDrainable: () => drainable,
+      onQueueSync: (sync) => {
+        syncQueue = sync
+      },
+      target,
+    })
+    expect(target.intervalCount()).toBe(0)
+
+    /** O toque enfileira com sinal fraco: `online` nunca dispara, e a tela segue visível. */
+    drainable = 1
+    syncQueue()
+
+    expect(target.intervalCount()).toBe(1)
+  })
+
   it('cancelar desliga os ouvintes e o temporizador', () => {
     const target = createFakeTarget()
 

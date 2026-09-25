@@ -1068,3 +1068,16 @@ bun run --cwd apps/frontend-driver smoke
   nesta task, só localmente.
 - `realm/spa-redirect-uris.json` (staging/produção) **não muda** — a porta `53112` é só do realm
   local, nunca sai de `localhost`.
+
+## Correção — o toque enfileirado liga o temporizador (achado da T4.1)
+
+O `scheduleQueueDrainTriggers` só armava o temporizador na montagem ou num gatilho (`online`,
+`pageshow`, `visibilitychange`). Com sinal fraco, o toque enfileirado no meio da sessão ficava
+parado, porque nenhum desses gatilhos dispara. O agendador passou a entregar o `sync` dele por
+`onQueueSync`, e `refreshQueueView` o chama sempre que recalcula a pendência drenável.
+
+- Contrato novo em `pending-queue.contract.ts`: "a fila ganhar pendência no meio da sessão liga o
+  temporizador, sem esperar gatilho". Falhou antes da correção (13 pass / 1 fail) e passa depois
+  (14 pass / 0 fail).
+- `bun run --cwd apps/frontend-driver check`: 375 pass / 0 fail, `dist` 6 pass / 0 fail.
+- `bun run --cwd apps/frontend-driver smoke`: 2 passed + 13 passed.

@@ -68,6 +68,11 @@ export type DrainTriggerTarget = Readonly<{
 export function scheduleQueueDrainTriggers(input: {
   readonly drain: () => void
   readonly getDrainable: () => number
+  /**
+   * Entrega a quem chama o `sync` do temporizador. Um toque enfileirado com sinal fraco não dispara
+   * `online` nem muda a visibilidade: sem este aviso, o temporizador só nasceria no próximo gatilho.
+   */
+  readonly onQueueSync?: (sync: () => void) => void
   readonly target: DrainTriggerTarget
 }): () => void {
   let intervalId: number | undefined
@@ -110,6 +115,7 @@ export function scheduleQueueDrainTriggers(input: {
   input.target.addEventListener('online', handleOnline)
   input.target.addEventListener('pageshow', handlePageshow)
   input.target.addEventListener('visibilitychange', handleVisibilityChange)
+  input.onQueueSync?.(syncInterval)
   syncInterval()
 
   return () => {

@@ -140,6 +140,8 @@ export function useDriverTrip(
   >(new Map())
   /** Plan D5: o temporizador da drenagem só corre enquanto isto for maior que zero. */
   const drainableCountRef = useRef(0)
+  /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
+  const syncDrainTimerRef = useRef<() => void>(() => undefined)
 
   const refreshQueueView = useCallback(async (): Promise<void> => {
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
@@ -159,6 +161,7 @@ export function useDriverTrip(
       ownerSubHash: session.subHash,
       reports: queued,
     }).drainable
+    syncDrainTimerRef.current()
   }, [attachmentStore, session.subHash, store])
 
   /**
@@ -330,11 +333,18 @@ export function useDriverTrip(
     /** "Abertura" (plan D5): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
     drainRef.current(undefined)
 
-    return scheduleQueueDrainTriggers({
+    const cancelTriggers = scheduleQueueDrainTriggers({
       drain: () => drainRef.current(undefined),
       getDrainable: () => drainableCountRef.current,
+      onQueueSync: (sync) => {
+        syncDrainTimerRef.current = sync
+      },
       target: DRAIN_TRIGGER_TARGET,
     })
+    return () => {
+      syncDrainTimerRef.current = () => undefined
+      cancelTriggers()
+    }
   }, [attachmentStore, refreshQueueView])
 
   async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {

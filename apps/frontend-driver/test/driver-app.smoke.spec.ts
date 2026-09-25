@@ -366,14 +366,10 @@ test('CA07: a drenagem roda em visibilitychange e o temporizador para quando a f
 
 test('CA07: o temporizador drena sozinho e para quando não há mais pendência', async ({ page }) => {
   /**
-   * ⚠️ **O temporizador só nasce dentro de `scheduleQueueDrainTriggers`, e ele só chama
-   * `setInterval` na montagem ou num gatilho (`online`/`pageshow`/`visibilitychange`)** — nunca
-   * sozinho quando um toque enfileira algo no meio da sessão. Medido: enfileirar por um clique e
-   * avançar o relógio direto não dispara request nenhuma (`readQueue` do IndexedDB confirma
-   * `attempts` parado em 1, do único envio imediato do próprio `report()`). Por isso o teste
-   * dispara um `visibilitychange` primeiro — ainda sem sinal, então ele tenta e falha, mas é o que
-   * registra o temporizador (`syncInterval` vê `drainable > 0` e liga o `setInterval`) — e só a
-   * partir daí o relógio falso entra em cena para provar os tiques seguintes.
+   * O toque enfileirado liga o temporizador na hora, pelo `onQueueSync`. Antes disso, ele só
+   * nascia na montagem ou num gatilho (`online`/`pageshow`/`visibilitychange`), e um toque com
+   * sinal fraco ficava parado. O teste ainda dispara um `visibilitychange` antes de instalar o
+   * relógio falso: é o que garante um `setInterval` criado **depois** do relógio.
    *
    * O relógio falso precisa existir antes desse `setInterval` real: instalado depois, o
    * `page.clock` não o adota, e `fastForward` não dispara nada.
