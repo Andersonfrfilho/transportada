@@ -120,6 +120,15 @@ export type OccurrenceMailTransactionPort = {
     readonly publicRef: string
   }): Promise<{ readonly id: string }>
   /** A thread da 143 do objeto; `undefined` antes da primeira mensagem. */
+  /**
+   * Spec 183 T903 (C3): trava a ocorrência na transação antes de procurar a thread — dois envios
+   * com chaves diferentes criariam duas threads, e o segundo viraria 500 pela unicidade.
+   */
+  lockOccurrenceThread(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: string
+  }): Promise<void>
   findOccurrenceThread(params: {
     readonly companyId: string
     readonly occurrenceId: string

@@ -160,4 +160,43 @@ describe('o aviso automático à contratante contra Postgres (spec 183 T802)', (
     },
     30_000,
   )
+
+  testWithPostgres(
+    'C3: aviso automático e envio manual ao mesmo tempo, na primeira mensagem, criam uma thread só',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId } = seeded.company
+        await setEmailsContractor(database, seeded, true)
+
+        const [automatic, manual] = await Promise.allSettled([
+          automaticMail(database).send({
+            companyId,
+            correlationId: 'correlation-race-1',
+            occurrenceId: seeded.occurrenceId,
+          }),
+          createOccurrenceMailUseCase(database).send({
+            actorUserId: seeded.company.userId,
+            bodyText: 'Mandamos a foto em seguida.',
+            companyId,
+            contactIds: seeded.contactIds.slice(0, 1),
+            correlationId: 'correlation-race-2',
+            idempotencyKey: 'race-manual-key-0001',
+            occurrenceId: seeded.occurrenceId,
+            subject: 'Ocorrência',
+          }),
+        ])
+
+        expect(automatic.status).toBe('fulfilled')
+        expect(manual.status).toBe('fulfilled')
+        const threads = await database.db
+          .select({ id: contractorMailMessages.threadId })
+          .from(contractorMailMessages)
+          .where(eq(contractorMailMessages.companyId, companyId))
+        expect(new Set(threads.map((row) => row.id)).size).toBe(1)
+        expect(threads).toHaveLength(2)
+      })
+    },
+    30_000,
+  )
 })

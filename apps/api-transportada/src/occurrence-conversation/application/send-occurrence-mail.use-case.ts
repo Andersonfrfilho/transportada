@@ -193,6 +193,11 @@ async function executeSend(params: {
     occurrenceKind: target.kind,
     publicRef: createPublicRef(),
   })
+  await transaction.lockOccurrenceThread({
+    companyId,
+    occurrenceId: input.occurrenceId,
+    occurrenceKind: target.kind,
+  })
   const existingThread = await transaction.findOccurrenceThread({
     companyId,
     occurrenceId: input.occurrenceId,

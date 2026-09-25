@@ -465,6 +465,19 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     return row
   }
 
+  public async lockOccurrenceThread(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: string
+  }): Promise<void> {
+    await acquireAdvisoryLock(this.transaction, [
+      'occurrence-mail-thread',
+      params.companyId,
+      params.occurrenceKind,
+      params.occurrenceId,
+    ])
+  }
+
   public async findOccurrenceThread(params: {
     readonly companyId: string
     readonly occurrenceId: string

@@ -38,6 +38,7 @@ const TARGET: OccurrenceMailTarget = {
 }
 
 type FakeState = {
+  calls: string[]
   conversations: { id: string; publicRef: string }[]
   conversationMessages: Parameters<OccurrenceMailTransactionPort['recordConversationMessage']>[0][]
   idempotency: Map<string, { fingerprint: string; response: SendOccurrenceMailResult }>
@@ -58,6 +59,7 @@ function createFake(
   const locked: { ids: readonly string[]; target: ConversationUploadTarget }[] = []
   const attached: { messageId: string; uploadId: string }[] = []
   const state: FakeState = {
+    calls: [],
     conversationMessages: [],
     conversations: [],
     idempotency: new Map(),
@@ -109,7 +111,11 @@ function createFake(
       return 'target' in overrides ? (overrides.target ?? null) : TARGET
     },
     async findOccurrenceThread() {
+      state.calls.push('findOccurrenceThread')
       return state.threadId === undefined ? undefined : { id: state.threadId }
+    },
+    async lockOccurrenceThread(params) {
+      state.calls.push(`lock:${params.companyId}:${params.occurrenceKind}:${params.occurrenceId}`)
     },
     async findOperatorName() {
       return 'Operadora Lima'
@@ -493,5 +499,23 @@ describe('o aviso automático, sem autor humano (spec 183 T802)', () => {
     expect(await failure(() => useCase.send(input({ actorUserId: null })))).toMatchObject({
       message: 'OCCURRENCE_MAIL_AUTHOR_REQUIRED',
     })
+  })
+})
+
+describe('o primeiro e-mail da ocorrência não corre (spec 183 T903, achado C3)', () => {
+  /**
+   * Dois envios com chaves diferentes (dois operadores, o aviso automático junto de um manual) não
+   * achavam thread e criavam duas; o segundo violava a unicidade da thread e respondia 500. A
+   * procura da thread passa a acontecer com a ocorrência travada.
+   */
+  test('trava pela ocorrência antes de procurar a thread', async () => {
+    const { state, useCase } = createFake()
+
+    await useCase.send(input())
+
+    expect(state.calls).toEqual([
+      `lock:${COMPANY_ID}:document:${OCCURRENCE_ID}`,
+      'findOccurrenceThread',
+    ])
   })
 })
