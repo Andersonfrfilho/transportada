@@ -34,6 +34,11 @@ export type DriverTripProofScenario = Readonly<{
   /** O veredito que o `/proof` devolve por documento; sem entrada, `not_required`. */
   punctualityByDocumentId?: Readonly<Record<string, string>>
   score?: number | null
+  /**
+   * Com `true`, o "Entreguei" vira `delivered` na leitura seguinte, como na API — é o que abre o
+   * comprovante no cartão da parada. Sem ele, a nota fica `loaded` (o que os outros cenários esperam).
+   */
+  settlesDeliveries?: boolean
   stopDeliveryProof?: Readonly<Record<string, string>>
 }>
 
@@ -44,6 +49,7 @@ function isProofDelivered(item: unknown, provedDocumentIds: ReadonlySet<string>)
 
 function buildSnapshot(input: {
   readonly arrived: boolean
+  readonly deliveredDocumentIds: ReadonlySet<string>
   readonly provedDocumentIds: ReadonlySet<string>
   readonly scenario: DriverTripProofScenario | undefined
 }) {
@@ -69,14 +75,18 @@ function buildSnapshot(input: {
               documents: [
                 {
                   accessKey: DRIVER_ACCESS_KEY,
-                  deliveredAt: null,
+                  deliveredAt: input.deliveredDocumentIds.has(DRIVER_DOCUMENT_ID)
+                    ? '2026-08-26T13:05:00.000Z'
+                    : null,
                   grossWeight: '12.50',
                   id: DRIVER_DOCUMENT_ID,
                   number: '900123',
                   proofPending: false,
                   recipientName: 'Mercearia do Centro',
                   returnReason: null,
-                  separationStatus: 'loaded',
+                  separationStatus: input.deliveredDocumentIds.has(DRIVER_DOCUMENT_ID)
+                    ? 'delivered'
+                    : 'loaded',
                   series: '1',
                   totalAmount: '1500.00',
                   volumeCount: '3',
@@ -129,6 +139,7 @@ export async function mockDriverTripApi(
   let arrived = false
   let isOffline = input.isOffline === true
   const provedDocumentIds = new Set<string>()
+  const deliveredDocumentIds = new Set<string>()
   let occurrenceTypesFailing = input.occurrenceTypesFailing === true
   let tripReadFailing = false
 
@@ -143,7 +154,7 @@ export async function mockDriverTripApi(
     }
     await fulfillJson(
       route,
-      buildSnapshot({ arrived, provedDocumentIds, scenario: input.scenario }),
+      buildSnapshot({ arrived, deliveredDocumentIds, provedDocumentIds, scenario: input.scenario }),
     )
   })
 
@@ -178,6 +189,10 @@ export async function mockDriverTripApi(
       path,
     })
     arrived = true
+    const deliveredDocumentId = /\/documents\/([^/]+)\/deliver$/u.exec(path)?.[1]
+    if (deliveredDocumentId !== undefined && input.scenario?.settlesDeliveries === true) {
+      deliveredDocumentIds.add(deliveredDocumentId)
+    }
     const proofDocumentId = /\/documents\/([^/]+)\/proof$/u.exec(path)?.[1]
     if (proofDocumentId !== undefined) provedDocumentIds.add(proofDocumentId)
     const data =

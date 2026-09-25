@@ -686,38 +686,29 @@ const SMOKE_PHOTO = {
  * Pedido do usuário (25/09): o canhoto são três botões do mesmo tamanho — "Tirar foto" abre a
  * câmera (`capture`), "Anexar" abre galeria e arquivos (sem `capture`), "Colher assinatura" tem
  * ícone próprio. Sem o rótulo solto "Anexar canhoto"; depois de anexar, a miniatura, o
- * "anexada" e o "Refazer".
+ * "anexada" e o "Refazer". No cartão da parada, depois do "Entreguei" — em "Fotos pendentes" a nota
+ * troca o formulário pelo aviso da fila assim que a foto entra nela (spec 159).
  */
 test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a foto anexada', async ({
   page,
 }) => {
   await page.setViewportSize(VIEWPORTS.mobile)
   await grantLocation(page)
-  const api = await mockDriverTripApi({
+  await mockDriverTripApi({
     page,
     scenario: {
-      pendingProofs: [
-        {
-          deliveredAt: '2026-09-25T13:10:00.000Z',
-          deliveryProof: {
-            photo: 'required',
-            receiverDocument: 'off',
-            receiverName: 'off',
-            signature: 'optional',
-          },
-          documentId: '00000000-0000-4000-8000-000000000301',
-          documentNumber: '900301',
-          documentSeries: '1',
-          recipientName: 'Padaria Estrela',
-          tripId: '00000000-0000-4000-8000-000000000100',
-          tripStatus: 'in_transit',
-        },
-      ],
+      settlesDeliveries: true,
+      stopDeliveryProof: {
+        photo: 'required',
+        receiverDocument: 'off',
+        receiverName: 'off',
+        signature: 'optional',
+      },
     },
   })
   await loginAsLocalUser(page)
-  await page.getByRole('button', { name: /Fotos pendentes/u }).click()
-  const item = page.locator('li', { hasText: 'Padaria Estrela' })
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).click()
+  const item = page.locator('li', { hasText: 'Mercearia do Centro' }).last()
 
   const takePhoto = item.getByRole('button', { name: /^Tirar foto/u })
   const attach = item.getByRole('button', { exact: true, name: 'Anexar' })
@@ -725,6 +716,7 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   await expect(takePhoto).toHaveText(/Tirar foto \*/u)
   await expect(attach).toBeVisible()
   await expect(sign).toBeVisible()
+  await expect(item.getByText('Canhoto', { exact: true })).toBeVisible()
   await expect(item.getByText('Anexar canhoto')).toHaveCount(0)
   // O input nativo fica por baixo, fora da ordem de tabulação e do leitor de tela.
   for (const input of await item.locator('input[type=file]').all()) {
@@ -738,7 +730,8 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   for (const box of [takeBox, attachBox, signBox]) expect(box?.height).toBeGreaterThanOrEqual(44)
   // As duas portas da foto dividem a linha em partes iguais; a assinatura ocupa a linha inteira.
   expect(Math.abs((takeBox?.width ?? 0) - (attachBox?.width ?? 0))).toBeLessThanOrEqual(1)
-  expect(takeBox?.y).toBe(attachBox?.y)
+  // Mesma linha — a folga de 1 px é o `translateY(-1px)` do hover do botão.
+  expect(Math.abs((takeBox?.y ?? 0) - (attachBox?.y ?? 0))).toBeLessThanOrEqual(1)
   expect(signBox?.width ?? 0).toBeGreaterThan((takeBox?.width ?? 0) * 1.9)
 
   // "Anexar" abre galeria e arquivos: o seletor que ele abre não pede a câmera.
@@ -746,11 +739,6 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   await attach.click()
   expect(await (await galleryChooser).element().getAttribute('capture')).toBeNull()
 
-  /**
-   * Sem sinal, a foto fica na fila e a nota continua na lista — com rede, a foto sobe, a leitura
-   * seguinte tira a nota de "Fotos pendentes" e o estado "anexada" some junto (spec 159).
-   */
-  api.setOffline(true)
   // "Tirar foto" abre a câmera traseira na hora.
   const cameraChooserPromise = page.waitForEvent('filechooser')
   await takePhoto.click()
