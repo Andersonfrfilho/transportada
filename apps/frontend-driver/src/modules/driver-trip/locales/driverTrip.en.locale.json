@@ -200,5 +200,10 @@
   "tripSelector": {
     "label": "Your trips",
     "option": "Trip {{number}} · {{plate}}"
+  },
+  "deliveryWindow": {
+    "between": "Window {{start}}–{{end}}",
+    "from": "Window from {{start}}",
+    "until": "Window until {{end}}"
   }
 }

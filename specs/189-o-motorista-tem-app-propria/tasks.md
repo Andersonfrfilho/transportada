@@ -385,7 +385,7 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
   **Aceite:** T7.1 verde; Playwright com duas viagens e o Perfil com a placa da escolhida.
 
-- [ ] **T7.3** Janela de entrega: contrato do formatador (os dois lados, um lado, nenhum) e o texto no
+- [x] **T7.3** Janela de entrega: contrato do formatador (os dois lados, um lado, nenhum) e o texto no
       `DriverStopCard`, em pt-BR e en.
 
   **Aceite:** verde; aparece no Playwright.

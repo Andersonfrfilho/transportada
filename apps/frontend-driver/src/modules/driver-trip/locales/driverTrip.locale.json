@@ -209,5 +209,10 @@
   "tripSelector": {
     "label": "Suas viagens",
     "option": "Viagem {{number}} · {{plate}}"
+  },
+  "deliveryWindow": {
+    "between": "Janela {{start}}–{{end}}",
+    "from": "Janela a partir das {{start}}",
+    "until": "Janela até as {{end}}"
   }
 }

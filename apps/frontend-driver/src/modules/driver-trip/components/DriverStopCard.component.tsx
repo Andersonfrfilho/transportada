@@ -12,6 +12,7 @@ import { ProofCrop } from './ProofCrop.component'
 import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { captureRegistry } from '../shared/captureRegistry.service'
+import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
   DRIVER_OCCURRENCE_KINDS,
@@ -52,6 +53,12 @@ function formatScheduleTime(scheduledAt: string | null): string {
     month: '2-digit',
   })
 }
+
+const DELIVERY_WINDOW_KEYS = {
+  between: 'deliveryWindow.between',
+  from: 'deliveryWindow.from',
+  until: 'deliveryWindow.until',
+} as const
 
 export type DriverProofAttachment = Readonly<{
   documentId: string
@@ -111,6 +118,10 @@ export function DriverStopCard({
   const [openOccurrence, setOpenOccurrence] = useState(false)
   const isCompleted = stop.completedAt !== null
   const distanceLabel = formatStopDistance({ location: lastKnownLocation, stop })
+  const deliveryWindow = describeDeliveryWindow({
+    end: stop.deliveryWindowEnd,
+    start: stop.deliveryWindowStart,
+  })
 
   return (
     <li
@@ -128,6 +139,12 @@ export function DriverStopCard({
             {stop.schedule.protocol === ''
               ? ''
               : ` · ${t('schedule.protocol', { protocol: stop.schedule.protocol })}`}
+          </p>
+        )}
+        {/* RF13 (ADR-0075 §8): a janela vem junto da hora marcada — é o que decide se ele entra. */}
+        {deliveryWindow === undefined ? null : (
+          <p className={styles.stopSchedule}>
+            {t(DELIVERY_WINDOW_KEYS[deliveryWindow.kind], deliveryWindow)}
           </p>
         )}
         <h2 className={styles.stopLabel}>{stop.label}</h2>

@@ -1585,3 +1585,26 @@ apagar", declarar as duas com `preserve()` é a correção. Não é decisão de 
 - Duas `Update variable` (`map-tiles.MAP_PBF_URL` e `osrm.OSRM_PBF_URL`), já declaradas no arquivo.
 
 Contratos de deploy da API: verdes. `railway config apply` fica para o usuário (T6.3).
+
+### T7.3 — Janela de entrega no cartão da parada
+
+- Contrato antes: `test/driver-trip/delivery-window.contract.ts` (os dois lados, só o começo, só o
+  fim, nenhum), no entrypoint. Vermelho pela razão certa (`Cannot find module
+'@/modules/driver-trip/shared/deliveryWindow.service'`, 0 pass / 1 fail / 1 error).
+- `deliveryWindow.service.ts` (puro): `describeDeliveryWindow({ end, start, timeZone? })` devolve
+  `{ kind: 'between' | 'from' | 'until', … }` com as horas em `HH:MM`, ou `undefined` sem janela. O
+  fuso só é passado pelo teste; na tela vale o do aparelho, como a hora marcada do agendamento.
+- `DriverStopCard.component.tsx`: a linha da janela logo abaixo da hora marcada, com a mesma classe
+  (`stopSchedule`). Locales `deliveryWindow.between|from|until` em pt-BR ("Janela 08:00–12:00",
+  "Janela a partir das 08:00", "Janela até as 12:00") e en.
+- Playwright: a parada da segunda viagem do CA12 ganhou janela 11:00Z–15:00Z, e o teste confere
+  "Janela 08:00–12:00" com `timezoneId: 'America/Sao_Paulo'` (bloco `test.describe` próprio).
+
+```
+cd apps/frontend-driver && bun run check
+  lint ok · typecheck ok · test 386 pass / 0 fail (+4) · build ok, precache 13 arquivos,
+  603.406 bytes · dist.contract 6 pass / 0 fail
+cd apps/frontend-driver && PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false bun run smoke
+  driver-service-worker.smoke.spec.ts   2 passed
+  driver-app.smoke.spec.ts             14 passed
+```
