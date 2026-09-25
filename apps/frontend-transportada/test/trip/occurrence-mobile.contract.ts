@@ -111,3 +111,36 @@ describe('o detalhe no celular (spec 183 T801)', () => {
     }
   })
 })
+
+/**
+ * Spec 183 T903 (achado F11): o nome do contato no balão (abre o cartão) e o "fechar" dos diálogos
+ * da conversa — que ficam fora de `.panel`, num portal — também chegam ao alvo de toque; e o selo de
+ * status só aponta (`aria-controls`) para a lista de horários quando ela existe.
+ */
+describe('alvos de toque e aria-controls da conversa (spec 183 T903, F11)', () => {
+  test('sob toque, o nome do contato e o fechar dos diálogos crescem até o alvo', async () => {
+    const css = await readFile(
+      new URL(
+        '../../src/modules/occurrence-conversation/styles/occurrenceConversation.module.css',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
+    expect(coarse).toMatch(
+      /\.authorButton,\s*\.iconAction\s*\{[^}]*min-height: var\(--touch-target\)/u,
+    )
+    expect(coarse).toMatch(/\.iconAction\s*\{[^}]*min-width: var\(--touch-target\)/u)
+  })
+
+  test('o selo aponta para a lista de horários só quando ela está aberta', async () => {
+    const source = await readFile(
+      new URL(
+        '../../src/modules/occurrence-conversation/components/ConversationMessage.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(source).toContain('aria-controls={isTimesOpen ? timesId : undefined}')
+  })
+})

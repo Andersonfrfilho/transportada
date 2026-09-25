@@ -562,6 +562,16 @@
   .messageFile {
     min-height: var(--touch-target);
   }
+
+  /* T903 (F11): o nome do contato (abre o cartão) e o fechar dos diálogos, que ficam num portal. */
+  .authorButton,
+  .iconAction {
+    min-height: var(--touch-target);
+  }
+
+  .iconAction {
+    min-width: var(--touch-target);
+  }
 }
 
 /* Spec 183 T902 (D2): a região que anuncia mensagem nova — lida por leitor de tela, invisível. */

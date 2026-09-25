@@ -230,7 +230,7 @@ export function ConversationMessage({
           <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
           {status === null ? null : (
             <Button
-              aria-controls={timesId}
+              aria-controls={isTimesOpen ? timesId : undefined}
               aria-expanded={isTimesOpen}
               className={styles.statusButton}
               onClick={() => setTimesOpen((open) => !open)}
