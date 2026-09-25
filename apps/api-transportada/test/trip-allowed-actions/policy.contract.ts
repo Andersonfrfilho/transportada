@@ -66,15 +66,38 @@ describe('allowedActions — por nota (spec 156 D10)', () => {
     expect(documentActions(FINANCE, trip)).toEqual(['fieldProof', 'fieldOccurrence'])
   })
 
+  /**
+   * Spec 182 RF2/RF3 (decisão do usuário em 24/09): a ocorrência e a baixa de entrega na linha da
+   * nota deixam de exigir o despacho — cobre `draft` (com nota vinculada), `route_planned`,
+   * `separating` e `loading` de uma vez, o RNF da spec ("cobrir cada estado explicitamente").
+   */
+  it('RF2/RF3: ocorrência e baixa de campo aparecem antes do despacho, em qualquer fase de barracão', () => {
+    for (const status of ['draft', 'route_planned', 'separating', 'loading'] as const) {
+      expect(documentActions(FINANCE, snapshot({ status }))).toEqual([
+        'fieldDelivery',
+        'fieldOccurrence',
+      ])
+    }
+  })
+
+  it('CA06: viagem cancelada não oferece nem a ocorrência nem a baixa na linha da nota', () => {
+    expect(documentActions(FINANCE, snapshot({ status: 'cancelled' }))).toEqual([])
+  })
+
   it('A1: o separador não recebe deliver, return nem ação de campo', () => {
     for (const status of ['dispatched', 'in_transit', 'on_delivery_route'] as const) {
       expect(documentActions(SEPARATOR, snapshot({ status }))).toEqual([])
     }
   })
 
-  it('A1: o finance não recebe ação do barracão', () => {
+  /**
+   * A1: `separate`/`load` (barracão, `canManage`) continuam fora do alcance do finance. A
+   * ocorrência de campo entra (spec 182 RF2) — o finance tem `trip.report-on-behalf`, e a
+   * ocorrência não é mais ação de barracão.
+   */
+  it('A1: o finance não recebe ação do barracão, só a ocorrência de campo (RF2)', () => {
     const trip = snapshot({ documents: [documentIn('pending')], status: 'separating' })
-    expect(documentActions(FINANCE, trip)).toEqual([])
+    expect(documentActions(FINANCE, trip)).toEqual(['fieldOccurrence'])
   })
 
   it('o barracão: separar, carregar e ocorrência de galpão pelo portão do operador (M2)', () => {
@@ -145,8 +168,22 @@ describe('allowedActions — por parada e por viagem', () => {
     expect(arrived.stops[STOP_ID]).toEqual(['occurrence'])
   })
 
-  it('parada fora da rua (antes do despacho ou concluída) não tem ação', () => {
-    for (const status of ['loading', 'completed'] as const) {
+  /**
+   * Spec 182 RF1 (decisão do usuário em 24/09): a ocorrência de parada deixa de exigir a viagem na
+   * estrada — a chegada continua exigindo (P3/CA02), e é ela que segue de fora nesses estados.
+   */
+  it('parada fora da rua, antes do despacho: sem chegada, mas com ocorrência (RF1)', () => {
+    for (const status of ['route_planned', 'separating', 'loading'] as const) {
+      expect(
+        resolveTripAllowedActions({ capabilities: FINANCE, trip: snapshot({ status }) }).stops[
+          STOP_ID
+        ],
+      ).toEqual(['occurrence'])
+    }
+  })
+
+  it('parada de viagem cancelada ou concluída não tem ação — o que terminou não recebe registro novo (CA06)', () => {
+    for (const status of ['cancelled', 'completed'] as const) {
       expect(
         resolveTripAllowedActions({ capabilities: FINANCE, trip: snapshot({ status }) }).stops,
       ).toEqual({})
