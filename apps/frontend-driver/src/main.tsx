@@ -164,7 +164,9 @@ function PageFrame({ children }: PageFrameProps): ReactNode {
 function renderScreen(root: Root, screen: ReactNode): void {
   root.render(
     <StrictMode>
-      <PageFrame>{screen}</PageFrame>
+      <QueryClientProvider client={queryClient}>
+        <PageFrame>{screen}</PageFrame>
+      </QueryClientProvider>
     </StrictMode>,
   )
 }

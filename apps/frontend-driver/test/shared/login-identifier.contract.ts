@@ -26,6 +26,20 @@ describe('a tela de entrada segue o tema do Keycloak', () => {
     expect(page).toContain('<InstallationBrandMark')
   })
 
+  /**
+   * A marca vem de `useInstallationBrandView`, que é TanStack Query: fora do `QueryClientProvider`
+   * a tela lança no render e o campo nunca aparece. Derrubou o smoke do service worker na CI.
+   */
+  test('a tela de entrada é montada dentro do QueryClientProvider', async () => {
+    const main = await readApplicationFile('src/main.tsx')
+    const renderScreen = main.slice(
+      main.indexOf('function renderScreen('),
+      main.indexOf('\n}\n', main.indexOf('function renderScreen(')),
+    )
+
+    expect(renderScreen).toContain('<QueryClientProvider client={queryClient}>')
+  })
+
   test('o campo tem canto reto, como o `.field-input` do tema', async () => {
     const stylesheet = await readApplicationFile('src/styles/index.css')
 
