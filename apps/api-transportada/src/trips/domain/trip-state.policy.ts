@@ -191,9 +191,14 @@ export function checkTripAcceptsDocumentWork(input: {
   if (tripStatus === 'cancelled') return TRIP_TRANSITION_BLOCK.tripCancelled
   if (tripStatus === 'completed') return TRIP_TRANSITION_BLOCK.tripCompleted
 
-  const isStreetWork =
-    action === TRIP_DOCUMENT_ACTION.deliver || action === TRIP_DOCUMENT_ACTION.return
-  if (isStreetWork) {
+  /**
+   * Spec 182 RF3 (decisão do usuário em 24/09, registrada como deliberada): a baixa de entrega
+   * deixa de exigir a viagem despachada — o escritório registra a partir da linha da nota mesmo
+   * antes da saída, para corrigir registro ou lançar entrega feita por fora da viagem. `return`
+   * continua exigindo rua: devolução é sempre um retorno físico de algo que saiu.
+   */
+  if (action === TRIP_DOCUMENT_ACTION.deliver) return null
+  if (action === TRIP_DOCUMENT_ACTION.return) {
     return isTripDispatched(tripStatus) ? null : TRIP_TRANSITION_BLOCK.tripNotDispatched
   }
 

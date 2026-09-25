@@ -68,8 +68,14 @@ describe('trip document transitions (ADR-0043 §1)', () => {
     }
   })
 
-  test('delivers and returns only from loaded, and only on the road', () => {
-    for (const tripStatus of DISPATCHED_STATUSES) {
+  /**
+   * Spec 182 RF3 (decisão do usuário em 24/09): `deliver` deixa de exigir a viagem despachada —
+   * a baixa de entrega fica disponível a partir da linha da nota em qualquer estado não-terminal,
+   * para corrigir registro ou lançar entrega feita por fora da viagem. `return` continua exigindo
+   * rua: devolução é sempre um retorno físico de algo que saiu.
+   */
+  test('delivers from loaded in any non-terminal state; returns only from loaded, and only on the road', () => {
+    for (const tripStatus of [...WAREHOUSE_STATUSES, ...DISPATCHED_STATUSES]) {
       expect(
         checkTripDocumentTransition({
           action: TRIP_DOCUMENT_ACTION.deliver,
@@ -77,14 +83,6 @@ describe('trip document transitions (ADR-0043 §1)', () => {
           tripStatus,
         }),
       ).toEqual({ outcome: 'applied', nextStatus: 'delivered' })
-
-      expect(
-        checkTripDocumentTransition({
-          action: TRIP_DOCUMENT_ACTION.return,
-          documentStatus: 'loaded',
-          tripStatus,
-        }),
-      ).toEqual({ outcome: 'applied', nextStatus: 'returned' })
 
       for (const documentStatus of ['pending', 'separated'] as const) {
         expect(
@@ -96,15 +94,37 @@ describe('trip document transitions (ADR-0043 §1)', () => {
         ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.documentNotLoaded })
       }
     }
+
+    for (const tripStatus of DISPATCHED_STATUSES) {
+      expect(
+        checkTripDocumentTransition({
+          action: TRIP_DOCUMENT_ACTION.return,
+          documentStatus: 'loaded',
+          tripStatus,
+        }),
+      ).toEqual({ outcome: 'applied', nextStatus: 'returned' })
+
+      for (const documentStatus of ['pending', 'separated'] as const) {
+        expect(
+          checkTripDocumentTransition({
+            action: TRIP_DOCUMENT_ACTION.return,
+            documentStatus,
+            tripStatus,
+          }),
+        ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.documentNotLoaded })
+      }
+    }
   })
 
-  test('keeps warehouse work out of the street and street work out of the warehouse', () => {
+  test('keeps return out of the warehouse, and keeps warehouse work out of the street', () => {
     for (const tripStatus of WAREHOUSE_STATUSES) {
-      for (const action of [TRIP_DOCUMENT_ACTION.deliver, TRIP_DOCUMENT_ACTION.return]) {
-        expect(
-          checkTripDocumentTransition({ action, documentStatus: 'loaded', tripStatus }),
-        ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripNotDispatched })
-      }
+      expect(
+        checkTripDocumentTransition({
+          action: TRIP_DOCUMENT_ACTION.return,
+          documentStatus: 'loaded',
+          tripStatus,
+        }),
+      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripNotDispatched })
     }
 
     for (const tripStatus of DISPATCHED_STATUSES) {
