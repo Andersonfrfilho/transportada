@@ -27,6 +27,7 @@ import {
 } from '@/modules/driver-trip/shared/driverWorkspace.service'
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
 import { LoginIdentifierPage } from '@/modules/identity/pages/LoginIdentifier.page'
+import { forgetLoginIdentifier } from '@/modules/identity/shared/loginIdentifierMemory.service'
 import { InstallationBrandMark } from '@/modules/identity/components/InstallationBrandMark.component'
 import {
   useInstallationBrandView,
@@ -991,6 +992,7 @@ async function bootstrapApplication(): Promise<void> {
     )
     return
   }
+  forgetLoginIdentifier()
 
   if (await takeOverDriverEntry({ isAuthenticated: true })) return
 

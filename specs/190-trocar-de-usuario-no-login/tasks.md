@@ -13,3 +13,16 @@
 - [x] **T1.3** Revisão de design (`web.md` §15) com prints em 1280px e 375px, antes e depois do clique,
       em container de sonda com o tema novo.
 - [x] **T1.4** `docs/frontend/login-theme.md` atualizado.
+
+## Fase 2 — Identificador lembrado e "Continuar conectado"
+
+> 🤖 Modelo: `sonnet`
+
+- [x] **T2.1** Contrato primeiro: `test/identity/login-identifier-memory.contract.ts` (aba, limpeza
+      depois da sessão, armazenamento recusado) e `keycloak-realm.contract.ts` § "continuar conectado"
+      (realm declara, reconciliação liga, não reescreve à toa, regrava prazo divergente).
+- [x] **T2.2** `loginIdentifierMemory.service.ts` + `LoginIdentifier.page.tsx` (campo preenchido e
+      selecionado) + `main.tsx` (esquece depois do login).
+- [x] **T2.3** `rememberMe` com prazos nos dois `realm.json`, aplicados pelo `keycloak-reconcile.sh`.
+- [x] **T2.4** Ponta a ponta: sonda do Keycloak com o realm novo e Vite do worktree; prints da caixa e
+      do campo preenchido; navegador reaberto com e sem a caixa marcada.

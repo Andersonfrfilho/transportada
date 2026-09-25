@@ -14,7 +14,9 @@ readonly SMOKE_CLIENT_ID=account-console
 # O caminho sai da posição do próprio script, não do diretório de quem o chamou: caminho relativo
 # funcionaria no runner (que roda da raiz) e falharia em qualquer outro lugar — inclusive no contrato
 # que executa este arquivo de um diretório temporário.
-readonly REDIRECT_URIS_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/realm/spa-redirect-uris.json"
+readonly REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+readonly REDIRECT_URIS_FILE="$REPOSITORY_ROOT/realm/spa-redirect-uris.json"
+readonly REALM_FILE="$REPOSITORY_ROOT/deploy/keycloak/realm.json"
 
 : "${TARGET_ENVIRONMENT:?TARGET_ENVIRONMENT é obrigatório}"
 
@@ -73,6 +75,27 @@ else
     --header "Authorization: Bearer $token" \
     --header 'content-type: application/json' \
     --data '{"editUsernameAllowed": true}'
+fi
+
+# O "Continuar conectado" da tela de senha só existe com `rememberMe` ligado, e os dois prazos vão no
+# mesmo PUT: zerados, o Keycloak cai nos da sessão comum e a sessão lembrada morre em 30 minutos. Os
+# valores saem do `realm.json`, a mesma fonte da instalação nova — nunca uma segunda cópia aqui.
+readonly REMEMBER_ME_FIELDS='{rememberMe, ssoSessionIdleTimeoutRememberMe, ssoSessionMaxLifespanRememberMe}'
+declared_remember_me="$(jq --compact-output --sort-keys "$REMEMBER_ME_FIELDS" "$REALM_FILE")"
+current_remember_me="$(curl --silent --show-error --fail --max-time 30 \
+  --header "Authorization: Bearer $token" \
+  "$base_url/admin/realms/$REALM" \
+  | jq --compact-output --sort-keys "$REMEMBER_ME_FIELDS")"
+
+if [ "$current_remember_me" = "$declared_remember_me" ]; then
+  echo "realm $REALM: continuar conectado já está como o realm.json declara"
+else
+  echo "realm $REALM: continuar conectado $current_remember_me → $declared_remember_me"
+  curl --silent --show-error --fail --max-time 30 \
+    --request PUT "$base_url/admin/realms/$REALM" \
+    --header "Authorization: Bearer $token" \
+    --header 'content-type: application/json' \
+    --data "$declared_remember_me"
 fi
 
 # `redirectUris` não era gerenciado por lugar nenhum: o `realm.json` versionado só tem localhost, e
