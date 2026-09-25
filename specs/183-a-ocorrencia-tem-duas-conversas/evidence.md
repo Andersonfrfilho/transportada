@@ -1622,3 +1622,29 @@ num commit só, não daria para ver qual parte quebrou. A T702e fica aberta até
 - **Fica para as próximas partes:** as telas (T702b), o MIME do e-mail recebido (T702c), a foto do
   motorista encaminhada (T702d) e o expurgo dos pedidos vencidos, que entra com a T702c no worker
   (o índice `(status, expires_at)` já existe).
+
+## T702b — ⏸️ parcial: o anexo no painel e no app do motorista; o envio pelo navegador espera decisão
+
+- **Feito (painel e app do motorista):**
+  - `conversationAttachment.service.ts`: lista de tipos e tetos do app e do portal, **cópia por
+    valor** da política da API, com contrato de paridade que lê a de lá; o teto por tipo sai do
+    `resolveMaxAttachmentSizeBytes` do `@adatechnology/conversations-ui` (função pura, sem
+    Tailwind nem `styles.css`); escolha que recusa tipo, tamanho e o sexto arquivo com o motivo;
+    subida um a um que reusa o que já subiu do rascunho (o reenvio mantém os ids, e a chave de
+    idempotência continua valendo);
+  - clientes: pedido de URL (operador pela conversa e canal; motorista pela ocorrência dele), PUT
+    direto ao armazenamento **sem o token**, envio com `attachmentIds` só quando há, leitura dos
+    anexos por mensagem (anexo malformado sai, a mensagem fica);
+  - telas: `ConversationAttachmentPicker` (o `FileField` do design system) na aba Motorista, no
+    compositor do portal e na resposta do app; `ConversationAttachments` no balão (miniatura da
+    imagem, áudio, link de download com nome e tamanho); texto vazio vale com anexo.
+- **Testes, escritos antes e vistos falhando** (módulo inexistente, depois 2 fail de cada parte
+  nova): `test/occurrence-conversation/attachments.contract.ts` (**14 pass**). Suíte do painel
+  **5250 + 44 pass**; lint, typecheck e formatação da raiz limpos.
+- **🙋 Parado para decisão do usuário: o upload pelo navegador bate na CSP.** O painel tem o
+  contrato "o bucket não entra em connect-src" (revisão da spec 161) e o portal tem o `connect-src`
+  fixado pela ADR-0073. Recomendado: o bucket entra em `connect-src` (painel, pela
+  `VITE_OBJECT_STORAGE_URL` que já existe; portal, com a mesma variável nova e emenda à ADR-0073) e
+  em `media-src` (áudio). A alternativa é subir pela API, com teto de corpo próprio de até 25 MB.
+- **Falta:** a CSP (depois da decisão), o portal (cliente, leitura e envio), o smoke no navegador
+  contra a API real com prints e a revisão de design.

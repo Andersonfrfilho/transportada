@@ -169,5 +169,23 @@
       "tooLong": "O texto passou do limite de 500 caracteres.",
       "save": "Não foi possível gravar. Tente de novo em instantes."
     }
+  },
+  "attachment": {
+    "label": "Anexos",
+    "optional": "opcional",
+    "choose": "Escolher arquivos",
+    "placeholder": "PDF, imagem, planilha ou áudio — até {{count}} por mensagem",
+    "chosen": "Anexos escolhidos",
+    "remove": "Tirar {{name}}",
+    "inMessage": "Anexos da mensagem",
+    "uploading": "Subindo os anexos…",
+    "rejected": {
+      "type": "{{name}}: este tipo de arquivo não é aceito.",
+      "size": "{{name}}: passa do limite de {{max}} deste canal.",
+      "limit": "{{name}}: são no máximo {{count}} anexos por mensagem."
+    },
+    "error": {
+      "upload": "Não foi possível subir os anexos. Tente de novo em instantes."
+    }
   }
 }

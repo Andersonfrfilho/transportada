@@ -7,6 +7,11 @@
 import { isRecord, isString } from '@/modules/trip/shared/tripGuards.validation'
 
 import {
+  toConversationAttachments,
+  type ConversationAttachmentChannel,
+} from './conversationAttachment.service'
+
+import {
   OCCURRENCE_CONVERSATION_CHANNELS,
   OCCURRENCE_CONVERSATION_MESSAGE_STATUSES,
   type ContractorMailRequest,
@@ -22,6 +27,8 @@ import {
 export const OCCURRENCE_CONVERSATION_ERROR = {
   REQUEST_FAILED: 'OCCURRENCE_CONVERSATION_REQUEST_FAILED',
   RESPONSE_INVALID: 'OCCURRENCE_CONVERSATION_RESPONSE_INVALID',
+  /** O armazenamento recusou o arquivo (ou não respondeu); a API nunca chegou a vê-lo. */
+  UPLOAD_FAILED: 'OCCURRENCE_CONVERSATION_UPLOAD_FAILED',
 } as const
 
 export class OccurrenceConversationRequestError extends Error {
@@ -49,13 +56,26 @@ export type OccurrenceConversationClient = Readonly<{
     occurrenceId: string
     subject?: string
   }) => Promise<OccurrenceMailPreview>
-  /** Spec 183 T654 (RF21): à contratante pelo portal, só o texto. */
+  /** Spec 183 T702b: o PUT direto ao armazenamento, sem o token — a URL já é a autorização. */
+  putConversationUpload: (input: { file: File; url: string }) => Promise<void>
+  /** Spec 183 T702b: a URL de subida de um anexo para o app (motorista) ou o portal (contratante). */
+  requestConversationUpload: (input: {
+    channel: ConversationAttachmentChannel
+    contentType: string
+    fileName: string
+    occurrenceId: string
+    participant: 'contractor' | 'driver'
+    sizeBytes: number
+  }) => Promise<Readonly<{ uploadId: string; uploadUrl: string }>>
+  /** Spec 183 T654 (RF21): à contratante pelo portal — o texto e, desde a T702b, os anexos. */
   sendContractorPortalMessage: (input: {
+    attachmentIds?: readonly string[]
     body: string
     idempotencyKey: string
     occurrenceId: string
   }) => Promise<void>
   sendDriverAppMessage: (input: {
+    attachmentIds?: readonly string[]
     body: string
     idempotencyKey: string
     occurrenceId: string
@@ -125,6 +145,7 @@ function toMessage(value: unknown): null | OccurrenceConversationMessage {
       )
     : {}
   return {
+    attachments: toConversationAttachments(value.attachments),
     author,
     bodyText: value.bodyText,
     channel: value.channel,
@@ -286,6 +307,52 @@ export async function requestJson(
   return payload
 }
 
+/**
+ * Spec 183 T702b: o PUT do arquivo direto ao armazenamento. Sem o token: a URL assinada já é a
+ * autorização, e o token da API não tem por que sair para outro host.
+ */
+export async function putConversationUpload(
+  dependencies: ClientDependencies,
+  input: Readonly<{ file: File; url: string }>,
+): Promise<void> {
+  let response: Response
+  try {
+    response = await dependencies.fetch(
+      new Request(input.url, {
+        body: input.file,
+        headers: { 'content-type': input.file.type },
+        method: 'PUT',
+      }),
+    )
+  } catch {
+    throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.UPLOAD_FAILED)
+  }
+  if (!response.ok) {
+    throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.UPLOAD_FAILED)
+  }
+}
+
+/** A resposta do pedido de upload: só o id e a URL interessam à tela. */
+export function readConversationUpload(
+  payload: unknown,
+): Readonly<{ uploadId: string; uploadUrl: string }> {
+  const data = isRecord(payload) ? payload.data : undefined
+  if (!isRecord(data) || !isString(data.uploadId) || !isString(data.uploadUrl)) {
+    throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.RESPONSE_INVALID)
+  }
+  return { uploadId: data.uploadId, uploadUrl: data.uploadUrl }
+}
+
+/** Os anexos só entram no corpo quando há: o envio sem anexo segue igual ao de antes. */
+export function withAttachments(
+  body: Record<string, unknown>,
+  attachmentIds: readonly string[] | undefined,
+): Record<string, unknown> {
+  return attachmentIds === undefined || attachmentIds.length === 0
+    ? body
+    : { attachmentIds, ...body }
+}
+
 const occurrencePath = (occurrenceId: string): string =>
   `/trip-occurrences/${encodeURIComponent(occurrenceId)}/conversations`
 
@@ -343,16 +410,25 @@ export function createOccurrenceConversationClient(
       )
       return readPreview(payload)
     },
-    async sendDriverAppMessage({ body, idempotencyKey, occurrenceId }) {
+    putConversationUpload: (input) => putConversationUpload(dependencies, input),
+    async requestConversationUpload({ occurrenceId, participant, ...declared }) {
+      const payload = await requestJson(
+        dependencies,
+        `${occurrencePath(occurrenceId)}/${participant}/uploads`,
+        { body: declared, method: 'POST' },
+      )
+      return readConversationUpload(payload)
+    },
+    async sendDriverAppMessage({ attachmentIds, body, idempotencyKey, occurrenceId }) {
       await requestJson(dependencies, `${occurrencePath(occurrenceId)}/driver/messages`, {
-        body: { body, channel: 'app' },
+        body: withAttachments({ body, channel: 'app' }, attachmentIds),
         headers: { 'idempotency-key': idempotencyKey },
         method: 'POST',
       })
     },
-    async sendContractorPortalMessage({ body, idempotencyKey, occurrenceId }) {
+    async sendContractorPortalMessage({ attachmentIds, body, idempotencyKey, occurrenceId }) {
       await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
-        body: { body, channel: 'portal' },
+        body: withAttachments({ body, channel: 'portal' }, attachmentIds),
         headers: { 'idempotency-key': idempotencyKey },
         method: 'POST',
       })

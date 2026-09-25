@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,8 @@ import {
   useMarkDriverConversationReadMutation,
   useReplyDriverConversationMutation,
 } from '@/modules/occurrence-conversation/queries/driverConversation.query'
+import { ConversationAttachmentPicker } from '@/modules/occurrence-conversation/components/ConversationAttachmentPicker.component'
+import { ConversationAttachments } from '@/modules/occurrence-conversation/components/ConversationAttachments.component'
 import type { DriverConversationSummary } from '@/modules/occurrence-conversation/shared/driverConversationClient.service'
 import {
   createDriverMessageIdempotencyKey,
@@ -44,23 +46,28 @@ function DriverConversation({
     createDriverMessageIdempotencyKey(() => crypto.randomUUID()),
   )
   const [error, setError] = useState<'required' | 'tooLong' | null>(null)
+  /** Spec 183 T702b: a foto ou o documento da resposta, e o que já subiu deste rascunho. */
+  const [files, setFiles] = useState<readonly File[]>([])
+  const uploaded = useRef(new Map<File, string>())
 
   useEffect(() => {
     markRead(conversation.occurrenceId)
   }, [conversation.occurrenceId, markRead])
 
   function submit(): void {
-    const validated = validateDriverMessageDraft(draft)
+    const validated = validateDriverMessageDraft(draft, files.length)
     if ('error' in validated) {
       setError(validated.error)
       return
     }
     setError(null)
     reply.mutate(
-      { body: validated.body, idempotencyKey },
+      { body: validated.body, files, idempotencyKey, uploaded: uploaded.current },
       {
         onSuccess: () => {
           setDraft('')
+          setFiles([])
+          uploaded.current = new Map()
           setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
           void messages.refetch()
         },
@@ -106,7 +113,10 @@ function DriverConversation({
                       {isMine ? t('driverApp.me') : (message.authorName ?? t('author.operation'))}
                     </span>
                   </header>
-                  <p className={conversationStyles.body}>{message.bodyText}</p>
+                  {message.bodyText === '' ? null : (
+                    <p className={conversationStyles.body}>{message.bodyText}</p>
+                  )}
+                  <ConversationAttachments attachments={message.attachments} />
                   <footer className={conversationStyles.meta}>
                     <time dateTime={message.createdAt}>{formatMoment(message.createdAt)}</time>
                   </footer>
@@ -138,6 +148,12 @@ function DriverConversation({
             <span className={conversationStyles.error}>{t(`driver.error.${error}`)}</span>
           )}
         </label>
+        <ConversationAttachmentPicker
+          channel="app"
+          disabled={reply.isPending}
+          files={files}
+          onChange={setFiles}
+        />
         {reply.isError ? (
           <p className={conversationStyles.error} role="alert">
             {t('driverApp.error')}

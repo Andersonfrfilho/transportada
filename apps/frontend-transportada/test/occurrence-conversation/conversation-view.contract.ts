@@ -36,6 +36,7 @@ function message(
   overrides: Partial<OccurrenceConversationMessage> = {},
 ): OccurrenceConversationMessage {
   return {
+    attachments: [],
     author: { kind: 'operation', name: 'Operadora Lima', userId: 'user-1' },
     bodyText: 'Autorizam a descarga?',
     channel: 'email',

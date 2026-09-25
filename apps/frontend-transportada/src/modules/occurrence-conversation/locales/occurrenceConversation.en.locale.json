@@ -169,5 +169,23 @@
       "tooLong": "The text is over the 500-character limit.",
       "save": "Could not save. Try again in a moment."
     }
+  },
+  "attachment": {
+    "label": "Attachments",
+    "optional": "optional",
+    "choose": "Choose files",
+    "placeholder": "PDF, image, spreadsheet or audio — up to {{count}} per message",
+    "chosen": "Chosen attachments",
+    "remove": "Remove {{name}}",
+    "inMessage": "Message attachments",
+    "uploading": "Uploading attachments…",
+    "rejected": {
+      "type": "{{name}}: this file type is not accepted.",
+      "size": "{{name}}: exceeds the {{max}} limit of this channel.",
+      "limit": "{{name}}: at most {{count}} attachments per message."
+    },
+    "error": {
+      "upload": "The attachments could not be uploaded. Try again shortly."
+    }
   }
 }

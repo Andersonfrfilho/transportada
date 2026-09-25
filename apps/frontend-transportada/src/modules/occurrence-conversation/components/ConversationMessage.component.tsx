@@ -12,6 +12,7 @@ import type {
   OccurrenceConversationMessage,
 } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceConversation.module.css'
+import { ConversationAttachments } from './ConversationAttachments.component'
 
 const timeFormatter = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' })
 const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -169,9 +170,12 @@ export function ConversationMessage({
           </div>
         ) : null}
 
-        <div className={styles.body}>
-          <MessageText message={toPayload(message)} />
-        </div>
+        {message.bodyText === '' ? null : (
+          <div className={styles.body}>
+            <MessageText message={toPayload(message)} />
+          </div>
+        )}
+        <ConversationAttachments attachments={message.attachments} />
 
         <footer className={styles.meta}>
           <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>

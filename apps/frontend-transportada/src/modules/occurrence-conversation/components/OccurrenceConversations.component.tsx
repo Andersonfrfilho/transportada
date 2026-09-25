@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { DateDivider } from '@adatechnology/conversations-ui'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,7 @@ import type {
 } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceConversation.module.css'
 import { AddContractorContactDialog } from './AddContractorContactDialog.component'
+import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
 import { QuickReplyPicker } from './QuickReplyPicker.component'
 import { ConversationMessage } from './ConversationMessage.component'
 import { SendToContractorDialog } from './SendToContractorDialog.component'
@@ -108,21 +109,26 @@ function DriverConversationPanel({
     createDriverMessageIdempotencyKey(() => crypto.randomUUID()),
   )
   const [error, setError] = useState<'required' | 'tooLong' | null>(null)
+  /** Spec 183 T702b: os anexos do rascunho e o que já subiu dele. */
+  const [files, setFiles] = useState<readonly File[]>([])
+  const uploaded = useRef(new Map<File, string>())
   useMarkReadOnOpen(conversation)
   const messages = conversation?.messages ?? []
 
   function submit(): void {
-    const validated = validateDriverMessageDraft(draft)
+    const validated = validateDriverMessageDraft(draft, files.length)
     if ('error' in validated) {
       setError(validated.error)
       return
     }
     setError(null)
     send.mutate(
-      { body: validated.body, idempotencyKey },
+      { body: validated.body, files, idempotencyKey, uploaded: uploaded.current },
       {
         onSuccess: () => {
           setDraft('')
+          setFiles([])
+          uploaded.current = new Map()
           setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
         },
       },
@@ -172,6 +178,12 @@ function DriverConversationPanel({
               <span className={styles.error}>{t(`driver.error.${error}`)}</span>
             )}
           </label>
+          <ConversationAttachmentPicker
+            channel="app"
+            disabled={send.isPending}
+            files={files}
+            onChange={setFiles}
+          />
           {send.isError ? (
             <p className={styles.error} role="alert">
               {t('driver.error.send')}
@@ -213,19 +225,24 @@ function ContractorPortalComposer({ occurrenceId }: Readonly<{ occurrenceId: str
     createPortalMessageIdempotencyKey(() => crypto.randomUUID()),
   )
   const [error, setError] = useState<'required' | 'tooLong' | null>(null)
+  /** Spec 183 T702b: os anexos do rascunho e o que já subiu dele. */
+  const [files, setFiles] = useState<readonly File[]>([])
+  const uploaded = useRef(new Map<File, string>())
 
   function submit(): void {
-    const validated = validateDriverMessageDraft(draft)
+    const validated = validateDriverMessageDraft(draft, files.length)
     if ('error' in validated) {
       setError(validated.error)
       return
     }
     setError(null)
     send.mutate(
-      { body: validated.body, idempotencyKey },
+      { body: validated.body, files, idempotencyKey, uploaded: uploaded.current },
       {
         onSuccess: () => {
           setDraft('')
+          setFiles([])
+          uploaded.current = new Map()
           setIdempotencyKey(createPortalMessageIdempotencyKey(() => crypto.randomUUID()))
         },
       },
@@ -261,6 +278,12 @@ function ContractorPortalComposer({ occurrenceId }: Readonly<{ occurrenceId: str
           <span className={styles.error}>{t(`contractor.portal.error.${error}`)}</span>
         )}
       </label>
+      <ConversationAttachmentPicker
+        channel="portal"
+        disabled={send.isPending}
+        files={files}
+        onChange={setFiles}
+      />
       {send.isError ? (
         <p className={styles.error} role="alert">
           {t('contractor.portal.error.send')}

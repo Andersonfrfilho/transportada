@@ -67,7 +67,17 @@ export type OccurrenceConversationAuthor =
     }>
   | Readonly<{ kind: 'driver'; name: null | string; userId: string }>
 
+/** Spec 183 T702b (RF10): o anexo da mensagem, com a URL temporária (cinco minutos) de leitura. */
+export type OccurrenceConversationAttachment = Readonly<{
+  contentType: string
+  fileName: string
+  id: string
+  sizeBytes: number
+  url: string
+}>
+
 export type OccurrenceConversationMessage = Readonly<{
+  attachments: readonly OccurrenceConversationAttachment[]
   author: OccurrenceConversationAuthor
   bodyText: string
   channel: OccurrenceConversationChannel

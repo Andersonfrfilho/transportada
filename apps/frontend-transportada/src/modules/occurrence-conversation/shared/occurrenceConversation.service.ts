@@ -137,11 +137,13 @@ export function createOccurrenceMailIdempotencyKey(randomId: () => string): stri
 export const OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH = 8000
 
 /** Spec 183 T603: a mensagem ao motorista é só texto; o rascunho sai aparado ou diz o que falta. */
+/** Spec 183 T702b: com anexo, o texto pode ficar vazio (a foto sem legenda é o caso comum). */
 export function validateDriverMessageDraft(
   draft: string,
+  attachmentCount = 0,
 ): Readonly<{ body: string }> | Readonly<{ error: 'required' | 'tooLong' }> {
   const body = draft.trim()
-  if (body === '') return { error: 'required' }
+  if (body === '' && attachmentCount === 0) return { error: 'required' }
   if (body.length > OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH) return { error: 'tooLong' }
   return { body }
 }
