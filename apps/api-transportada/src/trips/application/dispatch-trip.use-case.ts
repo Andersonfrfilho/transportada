@@ -41,7 +41,8 @@ export type DispatchTripWriteInput = {
    * Spec 185 (RF4): as notas que `loadRemaining` separa e carrega **na transação do despacho**,
    * com o status lido na precondição — a escrita confere de novo, linha a linha.
    */
-  readonly documentsToLoad: DispatchTripPreconditions['toLoad'] /** `true` só quando havia pendência real — despachar sem pendência nunca é "forçado". */
+  readonly documentsToLoad: DispatchTripPreconditions['toLoad']
+  /** `true` só quando havia pendência real — despachar sem pendência nunca é "forçado". */
   readonly forced: boolean
   readonly forceReason: string | null
   /**

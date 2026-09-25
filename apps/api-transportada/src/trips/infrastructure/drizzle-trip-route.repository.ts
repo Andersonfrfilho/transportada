@@ -626,8 +626,9 @@ async function loadRemainingDocuments(
     tripStatus: tripRow.status,
   })
 
-  // Nota que uma escrita concorrente tirou do caminho (liberada, por exemplo) e ainda não chegou a
-  // `loaded`: despachar deixaria carga para trás sem ninguém ter pedido — recusa e desfaz.
+  // Nota ainda viva (não liberada) que os UPDATEs guardados não alcançaram — uma escrita
+  // concorrente mudou o status que eles esperavam — e segue sem chegar a `loaded`: despachar a
+  // deixaria para trás sem ninguém ter pedido — recusa e desfaz. A liberada no meio já saiu.
   const stillUnloaded = await transaction
     .select({ id: tripDocuments.id })
     .from(tripDocuments)
