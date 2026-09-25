@@ -30,3 +30,35 @@ Conferido contra o código, sem divergência:
 | achado 2026-09-18 aberto                              | `docs/SECURITY.md:304-326`                                                   |
 
 Status passa de `proposta` a `aceita`, sem mudar decisão.
+
+## T0.2 — medição da remoção de vínculo com histórico (2026-09-25)
+
+`test/integration/company-user-removal.integration.ts`, registrado no `test:integration` do
+`package.json`. Chama `DrizzleCompanyUserRepository.removeMembership` num banco descartável e
+captura a falha como `{ sqlState, constraint }` (via `findPostgresError`).
+
+```bash
+cd apps/api-transportada
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/company-user-removal.integration.ts
+# 0 pass, 3 fail
+```
+
+| Caso                                             | SQLSTATE | Constraint                              |
+| ------------------------------------------------ | -------- | --------------------------------------- |
+| (a) convidado, convite `pending`                 | `23503`  | `user_invitations_membership_fk`        |
+| (b) ativado (`accepted`) + pedido de recuperação | `23503`  | `user_invitations_membership_fk`        |
+| (c) sem convite + pedido de recuperação          | `23503`  | `password_reset_requests_membership_fk` |
+
+A hipótese se confirmou nas duas FKs. O caso (c) foi acrescentado porque, no (b), a FK do convite
+barra antes e esconde a do pedido; o vínculo sem convite existe de verdade (o primeiro administrador
+nasce sem convite).
+
+Nenhum mapeamento de `23503` em `src/http`: a rota `DELETE` do vínculo responde 500 genérico.
+Efeito colateral medido no caminho: `remove-company-user-membership.use-case.ts:74-86` desvincula o
+WhatsApp e chama `setEnabled(false)` no Keycloak **antes** do `DELETE` que falha. Quem tenta remover
+um convidado hoje deixa a conta desabilitada no realm e o vínculo intacto no banco.
+
+O teste fica vermelho até a T2.2. ⚠️ Enquanto isso, `bun run test:integration` tem estas 3 falhas
+esperadas.
+
+Gates: `bun run typecheck` (exit 0) e `bun run lint` (exit 0) na raiz.

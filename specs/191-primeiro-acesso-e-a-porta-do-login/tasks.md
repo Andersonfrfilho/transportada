@@ -27,7 +27,7 @@ com `rollback.sql` e fecha com `make migration-test`.
 - [x] **T0.1** Conferir a ADR-0076 (`Status: proposta`) contra o código e passá-la a `aceita` sem
       mudar decisão. Se algo divergir, pare e pergunte.
       Conferir também que 191 e 0076 seguem livres: `git fetch && git log --all --oneline -- 'specs/191*' 'docs/adr/0076*'`.
-- [ ] **T0.2** **Medir a remoção de vínculo com histórico.**
+- [x] **T0.2** **Medir a remoção de vínculo com histórico.**
       Criar `test/integration/company-user-removal.integration.ts` com dois casos: - (a) convidado → remover; - (b) ativado, com um pedido de recuperação → remover.
 
       Anotar no `evidence.md` o SQLSTATE e a constraint de cada caso. O esperado é `23503` em
