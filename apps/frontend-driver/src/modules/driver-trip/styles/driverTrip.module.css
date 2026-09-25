@@ -1017,3 +1017,54 @@
   resize: vertical;
   width: 100%;
 }
+
+/*
+ * O canhoto (pedido do usuário, 25/09): "Tirar foto", "Anexar" e "Colher assinatura" são o mesmo
+ * botão, do mesmo tamanho. Duas colunas desde 375 px; a assinatura ocupa a linha inteira.
+ */
+.proofCapture {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proofCaptureTitle {
+  font-weight: 700;
+  margin: 0;
+}
+
+.proofCaptureGrid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.proofCaptureAction {
+  min-height: 2.75rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.proofCaptureWide {
+  grid-column: 1 / -1;
+}
+
+/* Foto anexada: a miniatura e o "anexada" em verde, acima dos botões que continuam para refazer. */
+.proofCaptureAttached {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.proofCaptureThumbnail {
+  border: 1px solid var(--color-slate);
+  height: var(--space-16);
+  object-fit: cover;
+  width: var(--space-16);
+}
+
+.proofCaptureAttachedText {
+  align-items: center;
+  color: var(--color-ready);
+  display: flex;
+  gap: var(--space-2);
+}

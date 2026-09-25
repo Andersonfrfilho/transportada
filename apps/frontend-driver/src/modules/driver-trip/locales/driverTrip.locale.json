@@ -146,6 +146,13 @@
     "label": "{{resolved}} de {{total}} paradas resolvidas"
   },
   "proof": "Anexar canhoto",
+  "proofCapture": {
+    "title": "Canhoto",
+    "attach": "Anexar",
+    "retake": "Refazer",
+    "attached": "Foto do canhoto anexada",
+    "thumbnail": "Miniatura da foto do canhoto"
+  },
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
   "proofFields": {
     "receiverDocument": "Documento de quem recebeu",

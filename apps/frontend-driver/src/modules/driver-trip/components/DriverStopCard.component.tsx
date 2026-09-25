@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { FileField } from '@/components/ui/file-field'
+import { FilePickerButton } from '@/components/ui/file-picker-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
@@ -14,6 +15,7 @@ import { ProofCrop } from './ProofCrop.component'
 import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
+import { usePhotoPreviewUrl } from '../hooks/usePhotoPreviewUrl.hook'
 import { captureRegistry } from '../shared/captureRegistry.service'
 import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
 import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocumentFormat.service'
@@ -504,7 +506,10 @@ export function DeliveryProofSection({
     signature: false,
   })
   const canSign = plan.rendersSignature && isSignatureCaptureSupported()
+  const rendersPhotoCapture = plan.rendersPhoto || (plan.rendersSignature && !canSign)
   const cameraFieldRef = useCameraCaptureFieldRef()
+  const galleryFieldRef = useCameraCaptureFieldRef()
+  const photoPreview = usePhotoPreviewUrl()
   /**
    * M10: nome ou documento digitados e nada anexado ainda é trabalho em andamento — recarregar
    * para o SW novo jogaria fora. Anexou, o texto foi junto com o anexo, e o formulário não segura.
@@ -545,6 +550,7 @@ export function DeliveryProofSection({
     const next = { ...attached, [kind]: true }
     if (blockedByFields(next)) return
     setAttached(next)
+    if (kind === 'photo') photoPreview.showPhoto(file)
     onProof({ documentId, file, kind, ...receiverFields() })
   }
 
@@ -599,45 +605,73 @@ export function DeliveryProofSection({
         </label>
       ) : null}
 
-      <div className={styles.actions}>
-        {canSign ? (
-          <Button
-            aria-label={t('signature.open')}
-            onClick={() => setOpenSignature((open) => !open)}
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="save" />
-            {t('signature.open')}
-            {plan.fields.signature === 'required' && !attached.signature ? ' *' : ''}
-          </Button>
-        ) : null}
-        {missing.includes('signature') ? (
-          <span className={styles.proofFieldError} role="alert">
-            {t('proofFields.requiredField')}
-          </span>
-        ) : null}
-        {plan.rendersPhoto || (plan.rendersSignature && !canSign) ? (
-          <div className={styles.proofField}>
-            <FileField
-              accept="image/*"
-              actionLabel={t('choosePhoto')}
-              capture="environment"
-              inputRef={cameraFieldRef}
-              label={`${t('proof')}${plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}`}
-              placeholder={t('noPhotoChosen')}
-              onSelect={(file) => {
-                if (file !== undefined) setCropFile(file)
-              }}
-            />
-            {missing.includes('photo') ? (
-              <span className={styles.proofFieldError} role="alert">
-                {t('proofFields.requiredField')}
+      {/*
+       * Pedido do usuário (25/09): três botões iguais — "Tirar foto" abre a câmera na hora,
+       * "Anexar" abre galeria e arquivos, "Colher assinatura" abre o quadro. Em 375 px: as duas
+       * portas da foto lado a lado e a assinatura na linha inteira, abaixo — cada rótulo cabe
+       * numa linha, e a foto (que é a prova da nota) vem primeiro.
+       */}
+      {rendersPhotoCapture || canSign ? (
+        <div className={styles.proofCapture}>
+          <p className={styles.proofCaptureTitle}>{t('proofCapture.title')}</p>
+          {photoPreview.previewUrl === undefined ? null : (
+            <div className={styles.proofCaptureAttached} role="status">
+              <img
+                alt={t('proofCapture.thumbnail')}
+                className={styles.proofCaptureThumbnail}
+                src={photoPreview.previewUrl}
+              />
+              <span className={styles.proofCaptureAttachedText}>
+                <Icon name="check" />
+                {t('proofCapture.attached')}
               </span>
+            </div>
+          )}
+          <div className={styles.proofCaptureGrid}>
+            {rendersPhotoCapture ? (
+              <>
+                <FilePickerButton
+                  accept="image/*"
+                  capture="environment"
+                  className={styles.proofCaptureAction}
+                  inputRef={cameraFieldRef}
+                  onSelect={setCropFile}
+                >
+                  <Icon name="camera" />
+                  {attached.photo ? t('proofCapture.retake') : t('choosePhoto')}
+                  {plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}
+                </FilePickerButton>
+                <FilePickerButton
+                  accept="image/*"
+                  className={styles.proofCaptureAction}
+                  inputRef={galleryFieldRef}
+                  onSelect={setCropFile}
+                >
+                  <Icon name="upload" />
+                  {t('proofCapture.attach')}
+                </FilePickerButton>
+              </>
+            ) : null}
+            {canSign ? (
+              <Button
+                className={`${styles.proofCaptureAction} ${styles.proofCaptureWide}`}
+                onClick={() => setOpenSignature((open) => !open)}
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="pen" />
+                {t('signature.open')}
+                {plan.fields.signature === 'required' && !attached.signature ? ' *' : ''}
+              </Button>
             ) : null}
           </div>
-        ) : null}
-      </div>
+          {missing.includes('photo') || missing.includes('signature') ? (
+            <span className={styles.proofFieldError} role="alert">
+              {t('proofFields.requiredField')}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {openSignature ? (
         <SignaturePad

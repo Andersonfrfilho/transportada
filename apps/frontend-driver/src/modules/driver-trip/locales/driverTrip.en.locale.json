@@ -138,6 +138,13 @@
     "label": "{{resolved}} of {{total}} stops resolved"
   },
   "proof": "Attach proof",
+  "proofCapture": {
+    "title": "Delivery receipt",
+    "attach": "Attach",
+    "retake": "Retake",
+    "attached": "Receipt photo attached",
+    "thumbnail": "Receipt photo thumbnail"
+  },
   "proofFailed": "The file could not be attached. The delivery is still recorded.",
   "proofFields": {
     "receiverDocument": "Receiver document",

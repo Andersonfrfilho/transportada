@@ -267,10 +267,14 @@ describe('as quatro capturas registram no capture registry (leitura de fonte, AD
     expect(source).toContain('RefCallback<HTMLInputElement>')
   })
 
-  it('DriverStopCard usa o hook da câmera nos dois seletores de foto (nota e ocorrência)', () => {
+  /**
+   * Três seletores: "Tirar foto" e "Anexar" do canhoto (pedido do usuário de 25/09 — a galeria
+   * também sai da página) e a foto da ocorrência de parada.
+   */
+  it('DriverStopCard usa o hook da câmera nos três seletores de foto', () => {
     const source = readFileSync(DRIVER_STOP_CARD, 'utf8')
 
-    expect(source.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(2)
+    expect(source.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(3)
   })
 
   it('recorte: ProofCrop abre e fecha no ciclo de vida do componente', () => {

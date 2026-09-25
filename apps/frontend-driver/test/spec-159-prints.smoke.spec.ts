@@ -93,7 +93,8 @@ async function openDriverApp(
 }
 
 async function attachPhoto(item: Locator, page: Page): Promise<void> {
-  await item.locator('input[type=file]').setInputFiles({
+  // Duas portas para a foto do canhoto: a da câmera é a que tem `capture`.
+  await item.locator('input[type=file][capture]').setInputFiles({
     buffer: PHOTO_BYTES,
     mimeType: 'image/png',
     name: 'canhoto.png',

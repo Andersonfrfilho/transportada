@@ -671,3 +671,92 @@ test('CA14: com consentimento, a posição sobe 1 vez por minuto, com aviso, e p
   await expect(indicator).toHaveCount(0)
   expect(await listSmallTouchTargets(page)).toEqual([])
 })
+
+/** PNG 1×1 sintético — nenhuma foto real entra em fixture. */
+const SMOKE_PHOTO = {
+  buffer: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  ),
+  mimeType: 'image/png',
+  name: 'canhoto.png',
+} as const
+
+/**
+ * Pedido do usuário (25/09): o canhoto são três botões do mesmo tamanho — "Tirar foto" abre a
+ * câmera (`capture`), "Anexar" abre galeria e arquivos (sem `capture`), "Colher assinatura" tem
+ * ícone próprio. Sem o rótulo solto "Anexar canhoto"; depois de anexar, a miniatura, o
+ * "anexada" e o "Refazer".
+ */
+test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a foto anexada', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  await mockDriverTripApi({
+    page,
+    scenario: {
+      pendingProofs: [
+        {
+          deliveredAt: '2026-09-25T13:10:00.000Z',
+          deliveryProof: {
+            photo: 'required',
+            receiverDocument: 'off',
+            receiverName: 'off',
+            signature: 'optional',
+          },
+          documentId: '00000000-0000-4000-8000-000000000301',
+          documentNumber: '900301',
+          documentSeries: '1',
+          recipientName: 'Padaria Estrela',
+          tripId: '00000000-0000-4000-8000-000000000100',
+          tripStatus: 'in_transit',
+        },
+      ],
+    },
+  })
+  await loginAsLocalUser(page)
+  await page.getByRole('button', { name: /Fotos pendentes/u }).click()
+  const item = page.locator('li', { hasText: 'Padaria Estrela' })
+
+  const takePhoto = item.getByRole('button', { name: /^Tirar foto/u })
+  const attach = item.getByRole('button', { exact: true, name: 'Anexar' })
+  const sign = item.getByRole('button', { exact: true, name: 'Colher assinatura' })
+  await expect(takePhoto).toHaveText(/Tirar foto \*/u)
+  await expect(attach).toBeVisible()
+  await expect(sign).toBeVisible()
+  await expect(item.getByText('Anexar canhoto')).toHaveCount(0)
+  // O input nativo fica por baixo, fora da ordem de tabulação e do leitor de tela.
+  for (const input of await item.locator('input[type=file]').all()) {
+    await expect(input).toHaveAttribute('aria-hidden', 'true')
+    await expect(input).toHaveAttribute('tabindex', '-1')
+  }
+
+  const [takeBox, attachBox, signBox] = await Promise.all(
+    [takePhoto, attach, sign].map((button) => button.boundingBox()),
+  )
+  for (const box of [takeBox, attachBox, signBox]) expect(box?.height).toBeGreaterThanOrEqual(44)
+  // As duas portas da foto dividem a linha em partes iguais; a assinatura ocupa a linha inteira.
+  expect(Math.abs((takeBox?.width ?? 0) - (attachBox?.width ?? 0))).toBeLessThanOrEqual(1)
+  expect(takeBox?.y).toBe(attachBox?.y)
+  expect(signBox?.width ?? 0).toBeGreaterThan((takeBox?.width ?? 0) * 1.9)
+
+  // "Anexar" abre galeria e arquivos: o seletor que ele abre não pede a câmera.
+  const galleryChooser = page.waitForEvent('filechooser')
+  await attach.click()
+  expect(await (await galleryChooser).element().getAttribute('capture')).toBeNull()
+
+  // "Tirar foto" abre a câmera traseira na hora.
+  const cameraChooserPromise = page.waitForEvent('filechooser')
+  await takePhoto.click()
+  const cameraChooser = await cameraChooserPromise
+  expect(await cameraChooser.element().getAttribute('capture')).toBe('environment')
+  await cameraChooser.setFiles(SMOKE_PHOTO)
+  await page.getByRole('button', { name: 'Usar sem recorte' }).click()
+
+  await expect(item.getByText('Foto do canhoto anexada')).toBeVisible()
+  await expect(item.getByRole('img', { name: 'Miniatura da foto do canhoto' })).toBeVisible()
+  await expect(item.getByRole('button', { exact: true, name: 'Refazer' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+})

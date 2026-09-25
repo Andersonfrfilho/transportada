@@ -24,6 +24,7 @@ export type IconName =
   | 'link'
   | 'logout'
   | 'message'
+  | 'pen'
   | 'printer'
   | 'refresh'
   | 'save'
@@ -63,6 +64,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   logout: ['M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', 'M10 16l4-4-4-4', 'M14 12H4'],
   /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
   message: ['M4 5h16v11H9l-4 4v-4H4V5z'],
+  /** Caneta com o traço embaixo: colher a assinatura de quem recebeu — não é "salvar". */
+  pen: ['M4 20h16', 'M15.5 4.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z'],
   /** A impressora: papel entrando por cima, corpo no meio, folha saindo por baixo. */
   printer: ['M6 8V4h12v4', 'M4 8h16v8H4z', 'M7 16h10v4H7z'],
   refresh: ['M20 12a8 8 0 1 1-2.6-5.9', 'M20 4v5h-5'],
