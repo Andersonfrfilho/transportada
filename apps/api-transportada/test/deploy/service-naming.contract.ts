@@ -73,9 +73,9 @@ describe('contrato de nome de serviço e de domínio', () => {
     )
     const deployed = deployedServicesOf(workflow)
 
-    // Os sete: keycloak, api, frontend, landing e client por nome, e os dois da matriz. Menos que
-    // isso é serviço que saiu do pipeline sem ninguém notar.
-    expect(deployed).toHaveLength(7)
+    // Os oito: keycloak, api, frontend, landing, client e driver por nome, e os dois da matriz.
+    // Menos que isso é serviço que saiu do pipeline sem ninguém notar.
+    expect(deployed).toHaveLength(8)
     for (const service of deployed) {
       expect(declared).toContain(service)
     }

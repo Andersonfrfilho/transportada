@@ -231,7 +231,12 @@ describe('o gate barra as duas pontas, não uma (spec 078 T004)', () => {
   test('api e apps de cliente dependem do gate', async () => {
     const workflow = await read(DEPLOY_WORKFLOW_PATH)
 
-    for (const job of ['deploy-api', 'deploy-frontend', 'deploy-client'] as const) {
+    for (const job of [
+      'deploy-api',
+      'deploy-frontend',
+      'deploy-client',
+      'deploy-driver',
+    ] as const) {
       const start = workflow.indexOf(`  ${job}:`)
       expect(start).toBeGreaterThan(0)
       const needs = workflow.slice(start, workflow.indexOf('\n', workflow.indexOf('needs:', start)))

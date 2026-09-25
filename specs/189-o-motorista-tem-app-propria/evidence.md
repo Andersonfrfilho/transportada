@@ -1519,6 +1519,78 @@ humana, e de qualquer forma bloqueado por este achado). Meu bloco `driver` está
 o valor atual, sem saber qual é) ou confirmar que são lixo e apagá-las de propósito — as duas
 opções exigem quem conhece a origem delas, fora do escopo de T6.1/T6.2.
 
+### T6.4 — Job `deploy-driver`, gate e origens de staging (preparado, sem push)
+
+**Escopo:** só o que o orquestrador pediu — o job de deploy, o teste de gate, e as origens de
+staging em `spa-redirect-uris.json`. Sem `railway config apply` (é da T6.3, humana), sem push (é o
+orquestrador quem publica). Domínio próprio de staging
+`https://motorista.staging.fernandes-transportadora.com.br` e domínio gerado
+`https://driver-staging-38bf.up.railway.app` recebidos do orquestrador — não consultados por mim.
+
+- `.github/workflows/deploy.yml`: job `deploy-driver` (`needs: [target, changes, gate, deploy-api]`),
+  no molde do `deploy-frontend` — não do `deploy-client` — porque o app do motorista chama a API em
+  runtime (localizar viagem, reportar entrega) e publicar o bundle contra uma API ainda não subida
+  reproduziria o descompasso do run `33917015862`; mesmo `if: always()` com as quatro condições de
+  `needs.deploy-api.result`. `mark-deployed` ganhou `deploy-driver` na lista de `needs` e
+  `DRIVER_RESULT: ${{ needs.deploy-driver.result }}`, substituindo o comentário que explicava por
+  que a variável não existia ainda.
+- `apps/api-transportada/test/deploy/pipeline-change-filter.contract.ts:234`: `'deploy-driver'`
+  somado ao array do teste "api e apps de cliente dependem do gate".
+- `apps/api-transportada/test/deploy/service-naming.contract.ts:78`: a contagem de serviços
+  publicados subiu de 7 para 8 (o comentário da T6.1/T6.2 já anunciava isso: "só a T6.4 liga o job
+  `deploy-driver` e soma ele à contagem do teste acima") — não estava na lista literal do briefing,
+  mas é consequência direta de ligar o job, e o teste ficaria vermelho sem o ajuste.
+- `apps/api-transportada/test/deploy/keycloak-redirect-uris.contract.ts`: `PENDING_APPS` trocou de
+  `ReadonlySet<string>` único para `Record<ambiente, ReadonlySet<string>>` — staging vazio (motorista
+  cobrida de verdade), produção ainda com `'motorista.'` pendente até a T6.9. O `test.todo('motorista
+tem callback nos dois ambientes (spec 189 T6.4)')` foi removido: o teste vivo "painel e portal têm
+  callback nos dois ambientes" agora cobre staging para `motorista.` sem pular. **Efeito colateral
+  corrigido**: esse `test.todo` com um argumento só quebrava `bun run --cwd apps/api-transportada
+typecheck` (`TS2554: Expected 2-3 arguments, but got 1` — a assinatura de `test.todo` em
+  `bun-types@1.3.14` exige `fn` como segundo parâmetro). Removê-lo elimina o erro; typecheck
+  conferido abaixo.
+- `realm/spa-redirect-uris.json`: staging ganhou
+  `https://motorista.staging.fernandes-transportadora.com.br/auth/callback` e
+  `https://driver-staging-38bf.up.railway.app/auth/callback` em `redirectUris`, e as origens
+  correspondentes em `webOrigins` — no molde das entradas de `cliente.`/`client-staging-af03`.
+  Produção não foi tocada (entra na T6.9).
+- `.railway/railway.ts`: **não tocado.** O domínio próprio de staging está sendo criado agora
+  (T6.3, 👤, ainda não marcada `[x]`) — o comentário do bloco `driver` (linhas 617-626) já registra
+  por que declarar `domains` antes da T6.3 terminar e de um `railway config pull` trazer o valor de
+  volta faria o `plan` tentar registrar domínio por código, que a Railway recusa. Segui o padrão
+  documentado: nada de domínio à mão aqui.
+
+**Gates, todos em primeiro plano:**
+
+```
+cd apps/api-transportada && bun --env-file=../../.env.test test test/deploy.contract.test.ts --timeout 120000
+  183 pass / 0 fail (antes da implementação: 2 fail pela razão certa — job/teste ainda não existiam)
+
+bun run --cwd apps/api-transportada typecheck
+  $ bunx tsc --noEmit    (saída vazia, exit 0 — o TS2554 do test.todo sumiu)
+
+bash -n .github/scripts/railway-deploy.sh && bash -n .github/scripts/mark-deployed.sh
+  bash syntax OK
+
+bunx prettier --check .github/workflows/deploy.yml realm/spa-redirect-uris.json \
+  apps/api-transportada/test/deploy/pipeline-change-filter.contract.ts \
+  apps/api-transportada/test/deploy/keycloak-redirect-uris.contract.ts \
+  apps/api-transportada/test/deploy/service-naming.contract.ts
+  All matched files use Prettier code style! (depois de um --write no pipeline-change-filter, linha
+  longa demais)
+
+bun test test/keycloak-realm.contract.test.ts   (raiz)
+  18 pass / 0 fail
+```
+
+Não rodei `make check` nem os testes de `apps/frontend-driver`/`apps/api-transportada/src` — outro
+executor trabalha em paralelo na Fase 7 nesses caminhos, e o briefing pediu para não tocar lá.
+
+**T6.4 não marcada `[x]`**: o aceite pede `deploy-api` e `deploy-driver` verdes em staging, login e
+logout em `motorista.staging.<zona>`, `keycloak-redirect-uris` verde no CI e o pós-logout conferido
+por `scripts/keycloak-client-origins.py staging show` — nada disso roda sem push e sem a T6.3
+terminada (domínio + CNAME + TXT + `FRONTEND_ORIGIN`). Preparado, sem publicar.
+
 ## Fase 7 — Depois da virada: o que não é paridade
 
 ### T7.1 — Contrato de `driverTripSelection.service.ts`
