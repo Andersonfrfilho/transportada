@@ -106,7 +106,7 @@ jobs:
       # Reservá-las é dizer ao kernel para nunca sorteá-las; nenhuma delas é de saída.
       - name: Reservar as portas da stack local
         run: |
-          ports=51025,53000-53002,53100-53102,54000-54999,55432,55672-55673,58025,58080,59000-59002
+          ports=51025,53000-53002,53100-53102,53112,53200,54000-54999,55432,55672-55673,58025,58080,59000-59002
           sudo sysctl -w "net.ipv4.ip_local_reserved_ports=$ports"
       - uses: oven-sh/setup-bun@v2
         with:

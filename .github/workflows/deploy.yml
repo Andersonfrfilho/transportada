@@ -103,6 +103,7 @@ jobs:
       api: ${{ steps.detect.outputs.api }}
       frontend: ${{ steps.detect.outputs.frontend }}
       client: ${{ steps.detect.outputs.client }}
+      driver: ${{ steps.detect.outputs.driver }}
       landing: ${{ steps.detect.outputs.landing }}
       worker: ${{ steps.detect.outputs.worker }}
       cron: ${{ steps.detect.outputs.cron }}
@@ -134,6 +135,7 @@ jobs:
           CRON: ${{ steps.detect.outputs.cron }}
           FRONTEND: ${{ steps.detect.outputs.frontend }}
           FRONTEND_CLIENT: ${{ steps.detect.outputs.client }}
+          FRONTEND_DRIVER: ${{ steps.detect.outputs.driver }}
           FRONTEND_LANDING: ${{ steps.detect.outputs.landing }}
         run: |
           selected=()
@@ -144,6 +146,7 @@ jobs:
           if [ "$CRON" = true ]; then selected+=('"cron-transportada"'); fi
           if [ "$FRONTEND" = true ]; then selected+=('"frontend-transportada"'); fi
           if [ "$FRONTEND_CLIENT" = true ]; then selected+=('"frontend-client"'); fi
+          if [ "$FRONTEND_DRIVER" = true ]; then selected+=('"frontend-driver"'); fi
           if [ "$FRONTEND_LANDING" = true ]; then selected+=('"frontend-landing"'); fi
           apps="[$(IFS=,; echo "${selected[*]-}")]"
           echo "apps=$apps" >>"$GITHUB_OUTPUT"
@@ -405,6 +408,10 @@ jobs:
           LANDING_RESULT: ${{ needs.deploy-landing.result }}
           CLIENT_CHANGED: ${{ needs.changes.outputs.client }}
           CLIENT_RESULT: ${{ needs.deploy-client.result }}
+          # Sem DRIVER_RESULT de propósito: o job deploy-driver ainda não existe (entra na T6.4), e
+          # sem resultado o script cai no ramo "marco parado" — o marco só avança quando o deploy
+          # existir e passar.
+          DRIVER_CHANGED: ${{ needs.changes.outputs.driver }}
           # Worker e cron compartilham o job em matriz: o resultado é um só para os dois.
           WORKER_CHANGED: ${{ needs.changes.outputs.worker }}
           WORKER_RESULT: ${{ needs.deploy-services.result }}

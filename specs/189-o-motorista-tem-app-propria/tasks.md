@@ -77,7 +77,7 @@ consentimento, vem **depois da virada** e não a segura.
   - `make check` verde, com `dockerfile-workspace` e `pipeline-change-filter` verdes;
   - o tamanho do precache registrado no `evidence.md`.
 
-- [ ] **T1.3** Workspace e pipeline (linhas de "T1.3" da D9):
+- [x] **T1.3** Workspace e pipeline (linhas de "T1.3" da D9):
   - `package.json` da raiz, com os scripts encadeando a app;
   - Makefile:
     - `FRONTEND_DRIVER_PORT := $(or $(shell sed …),53200)`;

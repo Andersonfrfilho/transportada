@@ -101,3 +101,54 @@ docker build -f apps/frontend-driver/Dockerfile .   exit 0
 docker run (PORT=8080) → GET /manifest.webmanifest
   200 · Strict-Transport-Security: max-age=31536000 · Cache-Control: no-cache · "name":"Minha viagem"
 ```
+
+### T1.3 — Workspace e pipeline (linhas "T1.3" da D9)
+
+Arquivos: `package.json` da raiz (os quatro scripts encadeados — `build`, `lint`, `test`,
+`typecheck` — ganham `bun run --cwd apps/frontend-driver <script>` entre `frontend-client` e
+`frontend-landing`); `Makefile` (`FRONTEND_DRIVER_PORT := $(or $(shell sed -n
+'s/^FRONTEND_DRIVER_PORT=//p' $(ENV_FILE) 2>/dev/null),53200)`; `dev` sobe `apps/frontend-driver` e
+mata no `cleanup`; `smoke` confere `/` e `/manifest.webmanifest` da `53200`); `.env.example`
+(`FRONTEND_DRIVER_PORT=53200`, `VITE_DRIVER_APP_URL=http://localhost:53200`, `53200` somada ao
+`FRONTEND_ORIGIN`); `.github/workflows/ci.yml:109` (`53112,53200` em
+`ip_local_reserved_ports`); `.github/workflows/deploy.yml` (saída `driver` no job `changes`;
+`FRONTEND_DRIVER` → `"frontend-driver"` no passo `apps`; `DRIVER_CHANGED` no job `mark-deployed`,
+**sem** `DRIVER_RESULT` — o job `deploy-driver` só nasce na T6.4); `.github/scripts/mark-deployed.sh`
+(`driver` em `TARGETS`).
+
+⚠️ **`.env` local não foi tocado** (link simbólico compartilhado entre worktrees, conforme o
+briefing). `make dev`/`make check` seguem verdes porque o `Makefile` cai no padrão `53200`
+(`$(or …)`) sem a variável no arquivo, e `main.tsx` desta fase (tela provisória da T1.2) ainda não lê
+`VITE_DRIVER_APP_URL` — isso só entra em D4/T2.3+. Nomes e valores não secretos para o orquestrador
+aplicar no `.env` real:
+
+```
+FRONTEND_DRIVER_PORT=53200
+VITE_DRIVER_APP_URL=http://localhost:53200
+FRONTEND_ORIGIN: somar ",http://localhost:53200" ao valor atual (sem apagar as origens existentes)
+```
+
+```
+bash -n .github/scripts/changed-targets.sh    ok
+bash -n .github/scripts/mark-deployed.sh      ok
+
+bun install                                   no changes (bun.lock inalterado)
+
+bun run typecheck   (raiz, 7 apps)            ok, frontend-driver incluída
+bun run lint        (raiz, 7 apps)            ok, frontend-driver incluída
+
+make check                                    exit 0
+  format:check ok · lint ok · typecheck ok
+  api 7309 pass · worker 1424 · cron 101 · frontend 5264+51 · client 55 · driver 39+6 · landing 111
+  build ok (frontend-driver: dist.contract.test.ts 6 pass / 0 fail, precache 272 KiB)
+
+cd apps/api-transportada && bun --env-file=../../.env.test test test/deploy.contract.test.ts --timeout 120000
+  178 pass / 0 fail / 636 expect()   (dockerfile-workspace, pipeline-change-filter, mark-deployed sob a suíte)
+
+make dev (stack completa) → GET http://localhost:53200/manifest.webmanifest
+  200 · {"name":"Minha viagem","short_name":"Viagem","description":"A viagem do motorista: paradas,
+  entregas e comprovantes.","start_url":"/","display":"standalone","background_color":"#0B1F2A",
+  "theme_color":"#0B1F2A","lang":"pt-BR","scope":"/","id":"/","icons":[…192,512,maskable-512…]}
+  painel (53000) e API (53001) também responderam durante o mesmo `make dev` — nada quebrou nas
+  apps existentes.
+```
