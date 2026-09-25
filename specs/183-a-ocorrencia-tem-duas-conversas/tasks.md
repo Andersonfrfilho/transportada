@@ -197,7 +197,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `opus` para a revisão; `haiku` para a documentação
 
-- [ ] **T901** Revisão de código com `code-reviewer` e `security-reviewer` em `opus`: N+1 na
+- [x] **T901** Revisão de código com `code-reviewer` e `security-reviewer` em `opus`: N+1 na
       listagem, PII em log, 500 sem stack trace, porta nova do webhook.
 - [ ] **T902** 🧠 Revisão total de design e usabilidade (spec § "Revisão total de design e
       usabilidade") de todas as páginas do painel, do PWA e do portal, com as telas rodando.

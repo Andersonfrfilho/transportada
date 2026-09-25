@@ -2191,3 +2191,59 @@ migration na API). Um commit por parte.
     ele grava);
   - painel **5286 + 44 pass**;
   - lint, typecheck e formatação da raiz limpos.
+
+## T901 — Revisão de código e de segurança (verde)
+
+- **Como:** três revisões só de leitura sobre `git diff origin/staging...HEAD`, em `opus`, cada uma
+  conferindo no código o que apontou:
+  - **API** (`code-reviewer`): `src/` e `drizzle/` da API. Rodou `database-migration.contract`
+    (70 pass, 4 skip, 0 fail).
+  - **Segurança** (`security-reviewer`): as cinco apps. Rodou `rate-limited-routes.contract`
+    (9 de 9).
+  - **Painel, portal e worker** (`code-reviewer`). Rodou `design-system` e `occurrence-conversation`
+    do painel (470 pass, 2 skip).
+- **Numeração dos achados:** `C` para o código da API, `S` para segurança, `F` para painel, portal e
+  worker. A tabela da T903 traz cada achado com a gravidade dada pelo revisor e o destino.
+- **Os quatro pontos que a task pede, com a resposta:**
+  - **N+1 na listagem:**
+    - o feed de ocorrências monta o bloco `document` e o resumo das conversas em leituras fixas
+      por página, sem N+1;
+    - a lista de conversas do **app do motorista** tem N+1 (C7, menor, aceito para depois);
+    - o corte de 1000 mensagens (C8) e o resumo que traz todas as mensagens (C9) também ficaram
+      para depois.
+  - **PII em log:**
+    - nenhum log novo da API nem do worker leva telefone, e-mail, corpo, assunto, nome de arquivo
+      ou token;
+    - só ids, códigos, contagens e `errorName`;
+    - conferido nos notifiers, no gancho automático, no WhatsApp de entrada e de status e na
+      expiração de upload.
+  - **500 sem stack trace:**
+    - os `new Error` crus no caminho de rota não são alcançáveis hoje (C11, menor, aceito para
+      depois);
+    - o `CREDENTIAL_UNAVAILABLE` que a bancada mostrou sai 500 **sem log**. Esse defeito é
+      anterior à 183 e fica na lista de pendências.
+  - **Porta nova do webhook:**
+    - o status do Resend só entra depois da assinatura verificada e é aplicado na empresa do
+      webhook;
+    - o WhatsApp de entrada deduplica pelo id do provedor (`onConflictDoNothing`);
+    - atribuir exige aceite e contato cadastrado, e a mensagem respondida é procurada dentro da
+      empresa.
+- **Conferido e sem achado:**
+  - isolamento por empresa em toda consulta nova, com FK composta nas junções;
+  - portal:
+    - `:ref` opaco, com UUID recusado;
+    - recorte por `ContractorScope` mais a fronteira da 164;
+    - nenhum id na resposta de anexo;
+    - chave de objeto de 256 bits sem id interno;
+  - D4: nada da conversa escreve em tratativa, cobrança ou acerto;
+  - dinheiro como string decimal;
+  - idempotência com advisory lock antes da leitura;
+  - uploads:
+    - tipos fechados e conferidos pelos bytes;
+    - teto por canal e 25 MB somados no e-mail;
+    - PUT de 15 min e GET de 5 min assinados;
+  - CSP e Permissions-Policy:
+    - `microphone=(self)` no painel e `microphone=()` no portal;
+    - nenhum `dangerouslySetInnerHTML`;
+  - locales pt-BR e en com as mesmas chaves;
+  - paridade das políticas copiadas entre API e worker.
