@@ -461,17 +461,18 @@ async function dispatch(
     await loadRemainingDocuments(transaction, input)
   }
 
-  const releasedDocumentIds = [
+  const releaseRequestedIds = [
     ...input.unloadedDocumentIds,
     ...input.leftBehind.map((document) => document.tripDocumentId),
   ]
-  if (releasedDocumentIds.length > 0) {
-    await releaseUnloadedDocuments(transaction, {
-      companyId: input.companyId,
-      tripId: input.tripId,
-      unloadedDocumentIds: releasedDocumentIds,
-    })
-  }
+  const releasedDocumentIds =
+    releaseRequestedIds.length === 0
+      ? new Set<string>()
+      : await releaseUnloadedDocuments(transaction, {
+          companyId: input.companyId,
+          tripId: input.tripId,
+          unloadedDocumentIds: releaseRequestedIds,
+        })
 
   const [tripRow] = await transaction
     .select({ status: trips.status })
@@ -496,7 +497,14 @@ async function dispatch(
   }
   if (transition.outcome === 'unchanged') throw new DispatchAlreadySettledSignal(tripRow.status)
 
-  await insertDispatchSnapshot(transaction, input)
+  // O motivo "Ocorrência: <tipo>" só das notas que a liberação soltou de fato: a carregada depois
+  // da leitura da precondição foi no caminhão.
+  await insertDispatchSnapshot(transaction, {
+    ...input,
+    leftBehind: input.leftBehind.filter((document) =>
+      releasedDocumentIds.has(document.tripDocumentId),
+    ),
+  })
 
   /**
    * Spec 109 D2: **o roteiro foi planejado para uma hora de saída, e o caminhão sai noutra.** Aqui,
@@ -748,7 +756,7 @@ async function releaseUnloadedDocuments(
     readonly tripId: string
     readonly unloadedDocumentIds: readonly string[]
   },
-): Promise<void> {
+): Promise<ReadonlySet<string>> {
   // A parada de cada nota tem de ser lida **antes** do UPDATE: `RETURNING` devolve o estado novo
   // da linha, e a T010 acabou de descobrir isso do jeito caro — nulava `stopId` e depois tentava
   // ler `stopId` do próprio `RETURNING`, sempre vazio.
@@ -774,7 +782,7 @@ async function releaseUnloadedDocuments(
   // e ele é `not null`).
   // Guarda de corrida (spec 185): só libera a nota ainda viva e ainda não carregada — a que foi
   // carregada depois da leitura da precondição vai no caminhão.
-  await transaction
+  const released = await transaction
     .update(tripDocuments)
     .set({ releasedAt: sql`now()`, stopId: null, updatedAt: sql`now()` })
     .where(
@@ -786,8 +794,10 @@ async function releaseUnloadedDocuments(
         inArray(tripDocuments.separationStatus, [...NOT_LOADED_STATUSES]),
       ),
     )
+    .returning({ id: tripDocuments.id })
+  const releasedDocumentIds = new Set(released.map((row) => row.id))
 
-  if (affectedStopIds.length === 0) return
+  if (affectedStopIds.length === 0) return releasedDocumentIds
 
   // ADR-0043 §3: a parada é derivada — some quando a última nota viva sai dela. Uma consulta para
   // todas as paradas afetadas, um DELETE para as que esvaziaram.
@@ -805,11 +815,12 @@ async function releaseUnloadedDocuments(
     stillOccupied.map((row) => row.stopId).filter((stopId): stopId is string => stopId !== null),
   )
   const emptiedStopIds = affectedStopIds.filter((stopId) => !occupiedStopIds.has(stopId))
-  if (emptiedStopIds.length === 0) return
+  if (emptiedStopIds.length === 0) return releasedDocumentIds
 
   await transaction
     .delete(tripStops)
     .where(and(eq(tripStops.companyId, input.companyId), inArray(tripStops.id, emptiedStopIds)))
+  return releasedDocumentIds
 }
 
 type RouteSnapshotStop = {

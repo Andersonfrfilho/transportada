@@ -386,6 +386,53 @@ describe('despachar leva todas e deixa para trás o que a ocorrência tira (spec
   )
 
   /**
+   * Revisão da spec 185 (RF5): o motivo "Ocorrência: <tipo>" do snapshot sai das linhas que a
+   * liberação **de fato** soltou, não da precondição — a nota carregada depois da leitura vai no
+   * caminhão, e o snapshot não pode dizer que ela ficou.
+   */
+  testWithPostgres(
+    'revisão: nota deixada para trás carregada depois da leitura vai no caminhão e sai do motivo do snapshot',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, { documentCount: 2 })
+        const [lateLoadedId, loadedId] = trip.tripDocumentIds as [string, string]
+        await moveDocument(database, trip, loadedId, ['separate', 'load'])
+        await seedSeparationOccurrence(database, trip, {
+          leavesDocumentBehind: true,
+          productCodes: [],
+          tripDocumentId: lateLoadedId,
+        })
+        const routeRepository = new DrizzleTripRouteRepository(database.db)
+        const preconditions = await routeRepository.readPreconditions(trip)
+        expect(preconditions?.leftBehind.map((document) => document.tripDocumentId)).toEqual([
+          lateLoadedId,
+        ])
+        await moveDocument(database, trip, lateLoadedId, ['separate', 'load'])
+
+        const dispatched = await dispatchTrip({
+          actorUserId: trip.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: trip.companyId,
+          repository: {
+            dispatch: (writeInput) => routeRepository.dispatch(writeInput),
+            readPreconditions: async () => preconditions,
+          },
+          tripId: trip.tripId,
+        })
+
+        expect(dispatched.tripStatus).toBe('dispatched')
+        expect((await readDocumentStates(database, [lateLoadedId])).get(lateLoadedId)).toEqual({
+          isReleased: false,
+          separationStatus: 'loaded',
+        })
+        const snapshot = await readSnapshot(database, trip.tripId)
+        expect((snapshot?.snapshot as { leftBehind?: unknown }).leftBehind).toBeUndefined()
+      })
+    },
+    30_000,
+  )
+
+  /**
    * Revisão da spec 185 (ADR-0074 §3): o `force` com motivo continua na API para o WhatsApp e o
    * app do motorista — e passou pela reordenação de `dispatch()` (notas → trava da viagem →
    * snapshot). Prova que ele ainda libera as não carregadas, apaga a parada que esvaziou, grava o
