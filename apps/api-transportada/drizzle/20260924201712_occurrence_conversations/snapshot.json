@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "84adc3fa-6fcf-4151-90bc-93ee8208ee97",
+  "id": "7fa18d3f-8416-4a2b-af31-4cacd551d650",
   "prevIds": [
-    "2e4969cb-ecb0-433d-a9d7-5c26fca9b961"
+    "84adc3fa-6fcf-4151-90bc-93ee8208ee97"
   ],
   "ddl": [
     {
@@ -1137,6 +1137,36 @@
     {
       "isRlsEnabled": false,
       "name": "rate_limit_windows",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "occurrence_conversation_attachments",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "occurrence_conversation_messages",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "occurrence_conversation_reads",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "occurrence_conversation_unassigned",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "occurrence_conversations",
       "entityType": "tables",
       "schema": "public"
     },
@@ -31590,6 +31620,747 @@
       "table": "rate_limit_windows"
     },
     {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stored_object_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sha256",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size_bytes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "file_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "duration_ms",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "conversation_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "direction",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "author_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_contact_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "driver_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sender_address",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "body_text",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "status_times",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "mail_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "conversation_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_read_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "read_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_contact_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sender_address",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "body_text",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "mail_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "received_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "assigned_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "assigned_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "assigned_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "occurrence_kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "occurrence_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "participant",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "driver_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "public_ref",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'open'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "window_expiry_notice_sent_for",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
       "nameExplicit": true,
       "columns": [
         {
@@ -37412,6 +38183,104 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "rate_limit_windows"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "message_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "occurrence_conversation_attachments_message_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "conversation_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "occurrence_conversation_messages_conversation_created_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "received_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"assigned_message_id\" is null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "occurrence_conversation_unassigned_open_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
     },
     {
       "nameExplicit": true,
@@ -44809,6 +45678,385 @@
       "table": "trip_document_reviews"
     },
     {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_attachments_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "message_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "occurrence_conversation_messages",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_attachments_message_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "stored_object_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "stored_objects",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_attachments_stored_object_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_messages_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "conversation_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "occurrence_conversations",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_messages_conversation_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_contact_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractor_contacts",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_messages_contractor_contact_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "mail_message_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractor_mail_messages",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_messages_mail_message_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "author_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "identity_users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_messages_author_user_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "driver_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "identity_users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_messages_driver_user_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_reads_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "conversation_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "occurrence_conversations",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_reads_conversation_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "last_read_message_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "occurrence_conversation_messages",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_reads_message_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "identity_users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_reads_user_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_unassigned_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_contact_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractor_contacts",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_unassigned_contractor_contact_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "mail_message_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractor_mail_messages",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_unassigned_mail_message_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "assigned_message_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "occurrence_conversation_messages",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_unassigned_assigned_message_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "assigned_by_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "identity_users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversation_unassigned_assigned_by_user_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversations_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractors",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversations_contractor_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "driver_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "identity_users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "occurrence_conversations_driver_user_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
       "columns": [
         "group_id",
         "permission"
@@ -46700,6 +47948,56 @@
       "name": "trip_document_reviews_pkey",
       "schema": "public",
       "table": "trip_document_reviews",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "occurrence_conversation_attachments_pkey",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "occurrence_conversation_messages_pkey",
+      "schema": "public",
+      "table": "occurrence_conversation_messages",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "occurrence_conversation_reads_pkey",
+      "schema": "public",
+      "table": "occurrence_conversation_reads",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "occurrence_conversation_unassigned_pkey",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "occurrence_conversations_pkey",
+      "schema": "public",
+      "table": "occurrence_conversations",
       "entityType": "pks"
     },
     {
@@ -48964,6 +50262,18 @@
         "id"
       ],
       "nullsNotDistinct": false,
+      "name": "contractor_contacts_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_contacts"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
       "name": "contractor_inbound_email_outbox_company_id_id_unique",
       "entityType": "uniques",
       "schema": "public",
@@ -49287,19 +50597,6 @@
       ],
       "nullsNotDistinct": false,
       "name": "trip_delivery_proofs_company_id_id_unique",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "trip_delivery_proofs"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "stop_event_id",
-        "kind"
-      ],
-      "nullsNotDistinct": false,
-      "name": "trip_delivery_proofs_company_event_kind_unique",
       "entityType": "uniques",
       "schema": "public",
       "table": "trip_delivery_proofs"
@@ -49695,6 +50992,118 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "trip_document_reviews"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversation_attachments_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversation_messages_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "channel",
+        "provider_message_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversation_messages_provider_message_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "conversation_id",
+        "user_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversation_reads_user_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversation_reads"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversation_unassigned_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "channel",
+        "provider_message_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversation_unassigned_provider_message_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversations_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "occurrence_kind",
+        "occurrence_id",
+        "participant"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversations_occurrence_participant_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "public_ref"
+      ],
+      "nullsNotDistinct": false,
+      "name": "occurrence_conversations_public_ref_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "occurrence_conversations"
     },
     {
       "nameExplicit": false,
@@ -54797,7 +56206,7 @@
       "table": "delivery_address_overrides"
     },
     {
-      "value": "\"kind\" in ('photo', 'signature')",
+      "value": "\"kind\" in ('photo', 'signature', 'cargo')",
       "name": "trip_delivery_proofs_kind_check",
       "entityType": "checks",
       "schema": "public",
@@ -55614,6 +57023,194 @@
       "entityType": "checks",
       "schema": "public",
       "table": "trip_document_reviews"
+    },
+    {
+      "value": "\"sha256\" ~ '^[0-9a-f]{64}$'",
+      "name": "occurrence_conversation_attachments_sha256_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "value": "\"size_bytes\" > 0",
+      "name": "occurrence_conversation_attachments_size_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "value": "\"duration_ms\" is null or \"duration_ms\" > 0",
+      "name": "occurrence_conversation_attachments_duration_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_attachments"
+    },
+    {
+      "value": "\"channel\" in ('email', 'whatsapp', 'app', 'portal')",
+      "name": "occurrence_conversation_messages_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "\"direction\" in ('inbound', 'outbound')",
+      "name": "occurrence_conversation_messages_direction_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "(\"direction\" = 'outbound' and \"author_user_id\" is not null and \"driver_user_id\" is null and \"sender_address\" is null and \"contractor_contact_id\" is null)\n        or (\"direction\" = 'inbound' and num_nonnulls(\"author_user_id\", \"driver_user_id\", \"sender_address\") = 1\n          and (\"author_user_id\" is null or \"channel\" = 'portal')\n          and (\"sender_address\" is null or \"channel\" in ('email', 'whatsapp')))",
+      "name": "occurrence_conversation_messages_author_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "\"status\" is null or \"status\" in ('queued', 'sent', 'delivered', 'read', 'failed', 'bounced')",
+      "name": "occurrence_conversation_messages_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "(\"direction\" = 'outbound') = (\"status\" is not null)",
+      "name": "occurrence_conversation_messages_status_direction_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "\"channel\" <> 'email' or \"status\" is null or \"status\" <> 'read'",
+      "name": "occurrence_conversation_messages_email_never_read_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "\"channel\" <> 'portal' or \"status\" is null or \"status\" in ('delivered', 'read')",
+      "name": "occurrence_conversation_messages_portal_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "length(\"body_text\") <= 8000",
+      "name": "occurrence_conversation_messages_body_length_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_messages"
+    },
+    {
+      "value": "\"channel\" in ('email', 'whatsapp')",
+      "name": "occurrence_conversation_unassigned_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "value": "num_nonnulls(\"assigned_message_id\", \"assigned_at\", \"assigned_by_user_id\") in (0, 3)",
+      "name": "occurrence_conversation_unassigned_assignment_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversation_unassigned"
+    },
+    {
+      "value": "\"occurrence_kind\" in ('stop', 'document')",
+      "name": "occurrence_conversations_occurrence_kind_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "value": "\"participant\" in ('contractor', 'driver')",
+      "name": "occurrence_conversations_participant_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "value": "\"status\" in ('open', 'closed')",
+      "name": "occurrence_conversations_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "value": "\"default_channel\" is null or \"default_channel\" in ('email', 'whatsapp', 'app', 'portal')",
+      "name": "occurrence_conversations_default_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "value": "(\"participant\" = 'contractor' and \"contractor_id\" is not null and \"public_ref\" is not null and \"driver_user_id\" is null)\n        or (\"participant\" = 'driver' and \"driver_user_id\" is not null and \"contractor_id\" is null and \"public_ref\" is null)",
+      "name": "occurrence_conversations_participant_shape_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "value": "\"public_ref\" is null or \"public_ref\" ~ '^[A-Za-z0-9_-]{22,64}$'",
+      "name": "occurrence_conversations_public_ref_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "occurrence_conversations"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "leaves_document_behind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "stop_event_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "kind",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"kind\" <> 'cargo'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_delivery_proofs_company_event_kind_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_delivery_proofs"
+    },
+    {
+      "value": "\"stage\" = 'separation' or not \"leaves_document_behind\"",
+      "name": "company_occurrence_types_leaves_document_behind_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_occurrence_types"
     }
   ],
   "renames": []

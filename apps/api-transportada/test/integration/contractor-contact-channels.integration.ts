@@ -22,7 +22,7 @@ import {
 } from '../../src/database/database.schema.js'
 
 const MIGRATION_SQL = new URL(
-  '../../drizzle/20260924163726_contractor_contact_channels/migration.sql',
+  '../../drizzle/20260924201711_contractor_contact_channels/migration.sql',
   import.meta.url,
 )
 

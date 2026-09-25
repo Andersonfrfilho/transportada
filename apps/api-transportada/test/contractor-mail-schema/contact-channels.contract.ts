@@ -17,7 +17,7 @@ import {
   requiredColumnNames,
 } from '../fiscal-schema/support.js'
 
-const MIGRATION_NAME = '20260924163726_contractor_contact_channels'
+const MIGRATION_NAME = '20260924201711_contractor_contact_channels'
 const MIGRATION_DIRECTORY = new URL(`../../drizzle/${MIGRATION_NAME}/`, import.meta.url)
 
 describe('contatos da contratante com tipos e canais (spec 183 T301)', () => {

@@ -50618,19 +50618,6 @@
       "nameExplicit": true,
       "columns": [
         "company_id",
-        "stop_event_id",
-        "kind"
-      ],
-      "nullsNotDistinct": false,
-      "name": "trip_delivery_proofs_company_event_kind_unique",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "trip_delivery_proofs"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "company_id",
         "id"
       ],
       "nullsNotDistinct": false,
@@ -56239,7 +56226,7 @@
       "table": "delivery_address_overrides"
     },
     {
-      "value": "\"kind\" in ('photo', 'signature')",
+      "value": "\"kind\" in ('photo', 'signature', 'cargo')",
       "name": "trip_delivery_proofs_kind_check",
       "entityType": "checks",
       "schema": "public",
@@ -57189,6 +57176,61 @@
       "entityType": "checks",
       "schema": "public",
       "table": "occurrence_conversations"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "leaves_document_behind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "stop_event_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "kind",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"kind\" <> 'cargo'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_delivery_proofs_company_event_kind_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_delivery_proofs"
+    },
+    {
+      "value": "\"stage\" = 'separation' or not \"leaves_document_behind\"",
+      "name": "company_occurrence_types_leaves_document_behind_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_occurrence_types"
     }
   ],
   "renames": []
