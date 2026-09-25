@@ -68,7 +68,7 @@ fecham com o comando de integração (`bun --env-file=../../.env.test run test:i
 - [x] **T7.1** Revisão de design (web.md §15): prints do diálogo "leva todas", do aviso "Viagem
       despachada", da frase de bloqueio e da caixa do catálogo, claro e escuro, celular e desktop,
       em `prints/`.
-- [ ] **T7.2** Revisão de código por `code-reviewer` (`opus`) sobre a spec inteira; atualizar
+- [x] **T7.2** Revisão de código por `code-reviewer` (`opus`) sobre a spec inteira; atualizar
       `apps/api-transportada/CLAUDE.md` ("a nota nunca é presa" / 164 D8) e
       `docs/ai-context/*` com a ADR-0074.
 

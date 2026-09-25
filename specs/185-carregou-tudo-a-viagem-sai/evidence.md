@@ -663,3 +663,55 @@ item 3) passam dos dois lados por desenho, e a integração do item 4 foi escrit
 - `bun run typecheck` (raiz) → exit 0 nas seis apps
 - `bunx eslint` e `bunx prettier --check` nos 22 arquivos tocados → limpos (exit 0); `rg` de
   `console.log|debugger|TODO|HACK` nos arquivos tocados → nada
+
+## Revisão de código — correções do frontend e documentação
+
+Correções dos achados de frontend e da atualização de documentação da spec 185 (T7.2), depois da
+leva da API acima. Achados `A*` são do frontend (um commit); achados `D*` são de documentação —
+`CLAUDE.md` da API, `docs/ai-context/*`, três ADRs e comentários de `trip-state.policy.ts` (outro
+commit, comentário/doc só, sem mudança de comportamento).
+
+| # | Achado | O que mudou | Teste | Commit |
+|---|---|---|---|---|
+| A1 | MEDIUM — o aviso de `autoDispatch` sobrevivia a outra ação na viagem | `dispatchMutation`/`cancelMutation`/`planRouteMutation` (`useTripWorkspace.hook.ts`) limpam `autoDispatchOutcome` (`setAutoDispatchOutcome(undefined)`) no próprio `onSuccess` — um bloqueio antigo ("A viagem não saiu: …") não sobrevive a um despacho manual, cancelamento ou replanejamento de rota bem-sucedidos. | `test/trip/auto-dispatch-notice.contract.ts` (3 casos novos, leitura de fonte: cada mutation contém `setAutoDispatchOutcome(undefined)` no próprio bloco). | `6be3fea52` |
+| A2 | MEDIUM — o diálogo "Despachar" prometia a frase errada, por concatenação de TS | `resolveDispatchConfirmMessage` (`tripDispatchFeedback.service.ts`, novo) decide uma chave i18n só por caso — `TripHeaderActions.component.tsx` não concatena mais duas traduções. O caso combinado (`toLoad` e `leftBehind` > 0) encaixa as duas contagens no locale por *nesting* do i18next (`dispatchConfirmLoadRemainingWithLeftBehind`, texto idêntico ao das prints do T7.1). Dois casos novos: nada a carregar mas sobra nota carregada e nota(s) deixada(s) para trás (`dispatchConfirmLeftBehindOnly`) e nenhuma nota carregada, tudo deixado para trás (`dispatchConfirmNothingToCarry` — o despacho recusaria com 409 `TRIP_HAS_UNLOADED_DOCUMENTS`, então o diálogo não promete "Despachar?"). O mesmo erro HTTP no botão manual ganhou frase própria em `resolveDispatchErrorFeedback` (`hasNoCargoToDispatch`), no lugar do genérico "Há notas ainda não carregadas" (que mentiria: não sobra nota para carregar, a viagem ficaria vazia). | `test/trip/dispatch-feedback.contract.ts` (5 casos novos de `resolveDispatchConfirmMessage` + 1 de `TRIP_HAS_UNLOADED_DOCUMENTS`); `test/trip/dispatch-confirm-dialog.contract.ts` (ajustado: verifica `resolveDispatchConfirmMessage`, não mais as três chamadas `t(...)` antigas). | `6be3fea52` |
+| A3 | LOW — o botão calculava `loadRemaining` pela contagem do cliente | `handleDispatchConfirm` manda `onDispatch({ loadRemaining: true })` sempre — no servidor é no-op sem nota pendente; a contagem do cliente só decide o texto do diálogo agora, nunca o parâmetro da chamada. | `test/trip/dispatch-confirm-dialog.contract.ts` (mantido: `loadRemaining` continua no corpo de `onDispatch`, sem condicional). | `6be3fea52` |
+| A4 | Para a próxima leva (achado 2 da API) — código novo sem vocabulário no cliente | `TRIP_DISPATCH_BLOCKED_CODES` ganhou `TRIP_AUTO_DISPATCH_FAILED`; `resolveDispatchBlockedFeedback` devolve `autoDispatchFailed` ("A viagem não saiu sozinha — use Despachar."), sem exigir `stopIds`. | `test/trip/dispatch-feedback.contract.ts` (`resolveDispatchBlockedFeedback`/`resolveAutoDispatchFeedback` com o código novo); `test/trip/auto-dispatch-response.contract.ts` (a validação aceita o código sem `details`). | `6be3fea52` |
+| A5 | LOW — tipo sem uso | `ConfirmLoadTripInput` removido de `trip.types.ts` — `rg -n "ConfirmLoadTripInput" src test` confirmou zero uso fora da própria declaração antes de remover. | — | `6be3fea52` |
+| D1 | Doc — `apps/api-transportada/CLAUDE.md` | "Quatro transições manuais" → três; parágrafo com o despacho automático (gatilho, códigos de bloqueio, `loadRemaining`, `force`+`loadRemaining` → 400); parágrafo novo sobre a ordem de trava de `dispatch()`, `DispatchAlreadySettledSignal` e a fonte única da conta (D1); nota no `confirm-load` (não oferecido em `allowed-actions`, ADR-0074 §5); exceção opt-in da ADR-0074 §4 na seção da spec 164 ("a nota nunca é presa"). | `bun --env-file=../../.env.test test --timeout 120000` (contratos que leem o CLAUDE.md continuam verdes, mesma contagem). | `5e4773ba7` |
+| D2 | Doc — `docs/ai-context/api-transportada.md` | (~91-93, ~111-113): mesma correção das "quatro transições manuais"; `dispatched` passa a significar "carga fechada" (ADR-0074 §6). | idem D1. | `5e4773ba7` |
+| D3 | Doc — `docs/ai-context/frontend-transportada.md` | (~256): trecho do "diálogo de despacho forçado" marcado obsoleto (riscado, mantido para histórico), com o texto atual logo acima (`TripHeaderActions`, `dispatchReadiness.service.ts`, `tripDispatchFeedback.service.ts`, sem `force` e sem "Conferir carga" na tela). | `bun run test` do frontend (arquivo não é lido por contrato nenhum — a app CLAUDE.md que os contratos leem não mudou; verde sem regressão, 5252+51 pass, já rodado na leva A). | `5e4773ba7` |
+| D4 | Doc — `apps/api-transportada/src/trips/domain/trip-state.policy.ts` | Comentário de `checkTripTransition` (~233) explica que `dispatch` serve os dois chamadores (botão e gatilho, mesma política); comentário de `tripNotDispatched` (~45-47) marca `confirmLoad` como legado (ADR-0074 §5). Só comentário — sem mudança de comportamento. | `bun --env-file=../../.env.test test --timeout 120000` (mesmos 7272 pass, 0 fail — comentário não muda teste nenhum). | `5e4773ba7` |
+| D5 | Doc — três ADRs | `docs/adr/0043-a-nota-anda-pela-viagem.md` e os dois `docs/adr/0058-*.md` ganharam a linha "Revisada por ADR-0074 (despacho derivado quando a carga fecha)" no cabeçalho/metadados; corpo de cada ADR intacto. | — | `5e4773ba7` |
+
+**Gates (de `apps/frontend-transportada`, primeiro plano):**
+
+- `bun run test` (contratos + hooks) → 5252 pass em 29 arquivos de contrato + 51 pass em hooks,
+  0 fail, exit 0 (era 5240+51 antes desta leva — os 12 casos novos dos achados A1/A2/A4).
+- `bun run typecheck` → limpo.
+- `bun run lint` (eslint) → limpo.
+- `bun run build` → build de produção completo, sem erro (avisos de chunk grande pré-existentes).
+
+**Gates (de `apps/api-transportada`, Postgres nativo descartável, primeiro plano):**
+
+- `bun --env-file=../../.env.test test --timeout 120000` → 7272 pass, 23 skip, 0 fail,
+  24424 expect() em 183 arquivos (22,8 s) — os mesmos números da leva anterior: comentário e
+  `CLAUDE.md` não mudam contagem de teste.
+
+**Gates (raiz):**
+
+- `bun run typecheck` → exit 0 nas seis apps (api, worker, cron, frontend, frontend-client,
+  frontend-landing).
+- `bunx prettier --check` nos arquivos de documentação tocados (CLAUDE.md da API, os dois
+  `docs/ai-context/*`, os três ADRs) → limpo, exit 0.
+- `bunx eslint`/`bunx prettier --check` nos arquivos do frontend tocados → limpos; `rg` de
+  `console.log|debugger|TODO|HACK` nos arquivos tocados do frontend → nada.
+
+**Documentação atualizada nesta leva:** `apps/api-transportada/CLAUDE.md`,
+`docs/ai-context/api-transportada.md`, `docs/ai-context/frontend-transportada.md`,
+`apps/api-transportada/src/trips/domain/trip-state.policy.ts` (comentários),
+`docs/adr/0043-a-nota-anda-pela-viagem.md`,
+`docs/adr/0058-a-viagem-comeca-e-termina-por-toque-do-motorista.md`,
+`docs/adr/0058-o-motorista-abre-a-porta-do-despacho.md`.
+
+**Veredito:** Revisão reexecutada pendente.
