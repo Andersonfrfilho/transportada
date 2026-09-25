@@ -618,3 +618,48 @@ avisos, cabeçalho, catálogo).
 
 Commit: `e189ef2b7` — test(trips): prints da revisão de design do despacho leva todas (spec 185
 T7.1).
+
+## Revisão de código — correções da API
+
+Correções dos achados da revisão de código da spec 185, uma por commit (teste + correção juntos,
+cada HIGH no seu). Cada correção de comportamento tem teste visto falhando antes dela — a contagem
+"antes" de cada linha. Os controles (tratativa `recorded` no item 1, parada que ainda leva nota no
+item 3) passam dos dois lados por desenho, e a integração do item 4 foi escrita depois da correção
+(a prova de falha do item 4 é o contrato).
+
+| # | Achado | O que mudou | Teste | Commit |
+|---|---|---|---|---|
+| 1 | HIGH — "ocorrência aberta" era qualquer ocorrência | `dispatch-readiness.query.ts` ganhou `not exists` de tratativa terminal (junção com `company_id`). **Lista usada: `OCCURRENCE_CASE_TERMINAL_STATUSES` = `returned_to_warehouse`, `closed`, `cancelled`** (`occurrence-case-state.policy.ts`, a mesma do marcador `occurrence-case-marker.query.ts`). O detalhe da viagem (`readTripDetail`) já lia por esta mesma consulta — nenhuma segunda fonte. Tipo aposentado (`active = false`) continua valendo para a ocorrência já registrada: a marca é do tipo no momento do despacho, e aposentar não desfaz o registro — sem mudança de código. | `trip-dispatch-load-remaining.integration.ts`: os três terminais → a nota volta a `toLoad` e o despacho sem `force` recusa com 409 (antes: 1 fail); `recorded` → continua deixada para trás. `trip-detail-leaves-behind.integration.ts`: tratativa `cancelled` → `leavesBehindOnDispatch: false` (antes: 1 fail). | `aa935a8c4` |
+| 2 | HIGH — o gatilho podia fazer a escrita comitada responder erro (e pular o `settle` do `withFieldReport`) | `tryAutoDispatchTrip` não lança mais: `TripHasUnloadedDocumentsError` e `TripStateTransitionNotAllowedError` com `TRIP_CANCELLED`/`TRIP_COMPLETED` → `undefined`; qualquer outro erro → log `trip_auto_dispatch_failed` com só `{ companyId, tripId, errorCode }` (código da `ApiError` ou nome do erro — nunca a mensagem) e `{ outcome: 'blocked', code: 'TRIP_AUTO_DISPATCH_FAILED' }`. As escritas recebem `autoDispatch: { logger, repository }` (antes `autoDispatchRepository`); `TripLifecycleDependencies.logger` novo; `main.ts` passa o `logger` da aplicação nos cinco pontos. Idempotência: com o gatilho sem lançar, o `perform` sempre retorna e o `settle` sempre roda — provado por teste, sem mover o gatilho para fora do `perform`. | `test/trips/try-auto-dispatch.contract.ts` (novo, 8 casos; antes: 7 fail). `trip-auto-dispatch.integration.ts`: dublê de `dispatch` que lança erro genérico → lote responde `TRIP_AUTO_DISPATCH_FAILED`, notas `loaded`, viagem `loading`, sem snapshot, um log só com ids e código; ocorrência dentro de `withFieldReport` (molde de `main.ts`) com o mesmo dublê → reenvio com a mesma chave devolve a mesma ocorrência, uma linha só em `trip_document_occurrences` (antes: 2 fail). | `9009897de` |
+| 3 | MEDIUM — gates contavam a nota que vai ser liberada | `readPreconditions` lê a prontidão primeiro e passa `excludedTripDocumentIds` (os de `leftBehind`) para `readRouteState` (nota viva sem parada) e `listUnscheduledStops` (parada esperando agendamento). | `trip-dispatch-load-remaining.integration.ts`: deixada para trás sem parada não vira `TRIP_HAS_NO_ROUTE`; parada ocupada só por ela não vira `TRIP_HAS_UNSCHEDULED_STOPS` (antes: 2 fail); controle — parada que agenda e ainda leva nota continua bloqueando. | `333646b81` |
+| 4 | MEDIUM — toda ocorrência de separação tentava o gatilho | `registerTripOccurrence` só tenta com tipo `leavesDocumentBehind` sobre a nota inteira, e passa `leftBehindDocumentId`: o gatilho só segue se **esta** nota entrou em `leftBehind` (logo, não carregada). **Achado no caminho:** `findOccurrenceType` nunca lia `leaves_document_behind` — o campo chegava `undefined` ao caso de uso; passou a ler. | `try-auto-dispatch.contract.ts`: parcial, tipo que só anota e nota já carregada em viagem toda carregada não despacham (antes: 3 fail); a que entra em `leftBehind` despacha. `trip-auto-dispatch.integration.ts`: ocorrência "segue sem a nota" sobre nota `loaded` numa viagem toda carregada em `loading` → sem `autoDispatch`, viagem continua `loading`. | `350341f7e` |
+| 5 | MEDIUM — WhatsApp não avisava o desfecho da ocorrência | Depois de "Foto 1 anexada", segunda mensagem com `describeAutoDispatchOutcome(registered.autoDispatch)`; `TRIP_AUTO_DISPATCH_FAILED` → "A viagem não saiu sozinha — use Despachar." (constante em `OPERATOR_AUTO_DISPATCH_BLOCKED_MESSAGES`, agora `Record<TryAutoDispatchTripBlockedCode, string>`). | `operator-flow-actions.contract.ts`: `dispatched` e `TRIP_AUTO_DISPATCH_FAILED` chegam depois de "Foto 1 anexada" (antes: 2 fail); sem gatilho, só a confirmação. | `3d884fb97` |
+| 6 | MEDIUM — `force` sem integração depois da reordenação de `dispatch()` | Só teste (o comportamento já estava certo). | `trip-dispatch-load-remaining.integration.ts`: `force` + motivo pelo canal `whatsapp` libera a pendente e a separada (`stop_id` nulo), apaga as duas paradas que esvaziaram, snapshot `forced = true` com `force_reason` e só a parada que ficou, evento de status com ator e canal `whatsapp`. | `e667930f5` |
+| 7 | LOW — `leftBehind` do snapshot vinha da precondição | `releaseUnloadedDocuments` devolve os ids do `RETURNING` do UPDATE guardado; o snapshot grava `leftBehind` só dessas notas. | `trip-dispatch-load-remaining.integration.ts`: deixada para trás carregada depois da leitura vai no caminhão e não aparece em `snapshot.leftBehind` (antes: 1 fail). | `b8637d136` |
+| 8 | LOW — resposta da carga dizia `loading` com `autoDispatch.dispatched` | `transitionTripDocument`/`transitionTripDocumentsBatch` devolvem `tripStatus: 'dispatched'` quando o gatilho despachou. | CA01/CA02 em `trip-auto-dispatch.integration.ts` conferem `result.tripStatus` (antes: 2 fail). | `5362a3030` |
+| 9 | LOW — comentários errados | `stillUnloaded` (a nota liberada **não** é o caso: o filtro é `released_at is null`) e o JSDoc de `forced` que estava colado em `documentsToLoad`. | — | `0f3ef6dd6` |
+| 10 | LOW opcional — gatilho lê a prontidão barata primeiro | **Não feito.** Pede um método novo em `DispatchTripPort` — muda todo dublê do port e a barreira do cenário 1 de `trip-auto-dispatch-concurrency.integration.ts`, que segura as cargas justamente no `readPreconditions` do gatilho. Não é "simples"; fica registrado. | — | — |
+
+**Para a próxima leva (frontend/docs):**
+
+- Código novo em `autoDispatch.code`: `TRIP_AUTO_DISPATCH_FAILED` (`{ outcome: 'blocked', code }`, sem
+  `details`). `isAutoDispatchOutcome`/`TripDispatchBlockedCode` do frontend recusam código fora do
+  vocabulário — precisam aprender este, com frase própria ("A viagem não saiu sozinha — use
+  Despachar." no WhatsApp).
+- `tripStatus` da resposta de carregar (linha e lote) já vem `dispatched` quando o gatilho despachou.
+- Texto en "with an open case": com a correção 1, "aberta" passou a significar "sem tratativa ou
+  tratativa fora de `returned_to_warehouse`/`closed`/`cancelled`" — a frase continua verdadeira; não
+  foi mexida (é do frontend).
+- `returned_to_warehouse` entra como terminal por ser a constante do domínio (decisão do
+  orquestrador): ocorrência cuja tratativa foi devolvida ao barracão deixa de tirar a nota da conta.
+
+**Gates (de `apps/api-transportada`, Postgres nativo descartável 127.0.0.1:65433, primeiro plano):**
+
+- contrato inteiro `bun --env-file=../../.env.test test --timeout 120000` → 7272 pass, 23 skip,
+  0 fail, 24424 expect() em 183 arquivos (23,4 s)
+- integração inteira `DRIZZLE_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:65433/postgres bun
+  --env-file=../../.env.test run test:integration` → 615 pass, 0 fail, 4154 expect() em 111
+  arquivos (351,2 s)
+- `bun run typecheck` (raiz) → exit 0 nas seis apps
+- `bunx eslint` e `bunx prettier --check` nos 22 arquivos tocados → limpos (exit 0); `rg` de
+  `console.log|debugger|TODO|HACK` nos arquivos tocados → nada
