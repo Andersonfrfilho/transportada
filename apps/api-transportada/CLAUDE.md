@@ -182,8 +182,9 @@ vincular/desvincular/reordenar, roteiro congela em `trip_dispatch_snapshots`); s
 `TripStop` é **derivada** — nunca criada à mão — via `reconcileStopOnLink`/`reconcileStopOnUnlink`,
 agrupando pelo endereço normalizado do destinatário, nunca pelo CNPJ.
 
-**`dispatch()` trava na ordem da ADR-0068 §2** (spec 185): notas primeiro, `FOR NO KEY UPDATE`,
-depois a viagem — reconfere as notas depois do lock, e só então grava snapshot/ETA e escreve
+**`dispatch()` trava na ordem da ADR-0068 §2** (spec 185): primeiro as escritas nas notas (carregar
+o que `loadRemaining` pediu, liberar o forçado e o deixado para trás), depois a viagem com
+`FOR NO KEY UPDATE` e a reconferência de `checkTripTransition`, e só então snapshot/ETA e o
 `trips.status` por compare-and-set. Corrida de dois despachos: quem perde recebe
 `DispatchAlreadySettledSignal`, desfaz a própria transação e devolve `unchanged`, nunca erro.
 `readDispatchReadinessDocuments` + `resolveDispatchReadiness` (`trips/domain/dispatch-readiness.policy.ts`)
