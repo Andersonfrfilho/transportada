@@ -24,6 +24,7 @@ import {
   identityUserProfiles,
   identityUsers,
   membershipRoles,
+  passwordResetRequests,
   userCompanyMemberships,
   userInvitations,
 } from '../../database/database.schema.js'
@@ -93,8 +94,11 @@ function isRealPerson() {
 }
 
 const CONTACT_REVEAL_ACTION = 'company-user.contact.revealed'
-const CONTACT_REVEAL_ENTITY = 'company-user'
+const COMPANY_USER_ENTITY_TYPE = 'company-user'
 const CONTACT_REVEAL_PERMISSION = 'users.reveal'
+
+const MEMBERSHIP_REMOVED_ACTION = 'company-user.membership-removed'
+const MEMBERSHIP_REMOVED_PERMISSION = 'users.manage'
 
 /** Canal de um perfil que não existe: não há contato, e o formato precisa de um valor. */
 const DEFAULT_CONTACT_CHANNEL = 'email' as const
@@ -448,10 +452,10 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         companyId: input.companyId,
         correlationId: input.correlationId,
         entityId: targetUserId,
-        entityType: CONTACT_REVEAL_ENTITY,
+        entityType: COMPANY_USER_ENTITY_TYPE,
         permission: CONTACT_REVEAL_PERMISSION,
         targetId: targetUserId,
-        targetType: CONTACT_REVEAL_ENTITY,
+        targetType: COMPANY_USER_ENTITY_TYPE,
       })),
     )
   }
@@ -516,18 +520,98 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
     }
   }
 
+  /**
+   * `user_invitations` e `password_reset_requests` têm FK `ON DELETE RESTRICT` para a membership
+   * (`user_invitations_membership_fk`, `password_reset_requests_membership_fk`): o `DELETE` sozinho
+   * batia em `23503` e virava 500 (spec 191 T0.2, medido). O convite `accepted`/`superseded` e o
+   * pedido de recuperação já resolvido são histórico, não vínculo vivo — apagá-los junto com a
+   * membership é o que a ADR-0076 §9 decide, com a trilha gravada **antes** das duas exclusões para
+   * as contagens saírem de uma leitura anterior ao `DELETE`, nunca de uma leitura que já apagou.
+   *
+   * `userInvitationRoles` e as duas filas de outbox (`invitation_delivery_outbox`,
+   * `password_reset_delivery_outbox`) têm `ON DELETE CASCADE` para `user_invitations`/
+   * `password_reset_requests` — a cascata do banco cuida delas, sem escrita própria aqui.
+   */
   public async removeMembership(input: {
+    readonly actorUserId: string
     readonly companyId: string
+    readonly correlationId: string
     readonly userId: string
   }): Promise<void> {
-    await this.database
-      .delete(userCompanyMemberships)
-      .where(
-        and(
-          eq(userCompanyMemberships.companyId, input.companyId),
-          eq(userCompanyMemberships.userId, input.userId),
-        ),
-      )
+    await this.database.transaction(async (transaction) => {
+      const [acceptedInvitation] = await transaction
+        .select({ acceptedAt: userInvitations.acceptedAt })
+        .from(userInvitations)
+        .where(
+          and(
+            eq(userInvitations.companyId, input.companyId),
+            eq(userInvitations.userId, input.userId),
+            eq(userInvitations.status, 'accepted'),
+          ),
+        )
+        .limit(1)
+
+      const invitationCount = await transaction
+        .select({ id: userInvitations.id })
+        .from(userInvitations)
+        .where(
+          and(
+            eq(userInvitations.companyId, input.companyId),
+            eq(userInvitations.userId, input.userId),
+          ),
+        )
+      const passwordResetCount = await transaction
+        .select({ id: passwordResetRequests.id })
+        .from(passwordResetRequests)
+        .where(
+          and(
+            eq(passwordResetRequests.companyId, input.companyId),
+            eq(passwordResetRequests.userId, input.userId),
+          ),
+        )
+
+      await transaction.insert(auditLogs).values({
+        action: MEMBERSHIP_REMOVED_ACTION,
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        entityId: input.userId,
+        entityType: COMPANY_USER_ENTITY_TYPE,
+        metadata: {
+          invitationAcceptedAt: acceptedInvitation?.acceptedAt?.toISOString() ?? null,
+          invitationsDeleted: invitationCount.length,
+          passwordResetsDeleted: passwordResetCount.length,
+        },
+        permission: MEMBERSHIP_REMOVED_PERMISSION,
+        targetId: input.userId,
+        targetType: COMPANY_USER_ENTITY_TYPE,
+      })
+
+      await transaction
+        .delete(userInvitations)
+        .where(
+          and(
+            eq(userInvitations.companyId, input.companyId),
+            eq(userInvitations.userId, input.userId),
+          ),
+        )
+      await transaction
+        .delete(passwordResetRequests)
+        .where(
+          and(
+            eq(passwordResetRequests.companyId, input.companyId),
+            eq(passwordResetRequests.userId, input.userId),
+          ),
+        )
+      await transaction
+        .delete(userCompanyMemberships)
+        .where(
+          and(
+            eq(userCompanyMemberships.companyId, input.companyId),
+            eq(userCompanyMemberships.userId, input.userId),
+          ),
+        )
+    })
   }
 
   /**

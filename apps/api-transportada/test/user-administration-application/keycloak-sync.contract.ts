@@ -488,4 +488,32 @@ describe('sincronização com o Keycloak — remoção de vínculo', () => {
     expect(repository.removeMembershipCalls).toHaveLength(1)
     expect(whatsappPhones.unbindCalls).toEqual([])
   })
+
+  /**
+   * Spec 191 T2.2: medido que a ordem antiga desabilitava no provedor e desvinculava o WhatsApp
+   * **antes** do `DELETE`, então uma falha no banco (as FKs `RESTRICT` do T0.2) deixava a conta
+   * desabilitada com o vínculo intacto — efeito externo aplicado, escrita interna revertida, sem
+   * como desfazer o primeiro. Hoje o banco vai primeiro: uma falha ali nunca chega a tocar o
+   * provedor nem o WhatsApp.
+   */
+  test('falha ao remover o vínculo no banco nunca chega a desabilitar no provedor', async () => {
+    const gateway = createIdentityGatewayFake()
+    const repository = createCompanyUserRepositoryFake()
+    const whatsappPhones = createWhatsAppPhonesFake()
+    repository.removeMembership = () => Promise.reject(new Error('23503'))
+
+    const execution = createRemoveCompanyUserMembershipUseCase({
+      identityGateway: gateway,
+      repository,
+      whatsappPhones,
+    }).execute({
+      context: { companyId: COMPANY_ID, userId: '00000000-0000-4000-8000-0000000000aa' },
+      correlationId: CORRELATION_ID,
+      userId: TARGET_USER_ID,
+    })
+
+    await expect(execution).rejects.toThrow('23503')
+    expect(gateway.setEnabledCalls).toEqual([])
+    expect(whatsappPhones.unbindCalls).toEqual([])
+  })
 })
