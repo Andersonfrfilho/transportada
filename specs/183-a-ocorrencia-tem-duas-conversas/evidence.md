@@ -1132,3 +1132,41 @@ Falta o envio.
     fora do ar), iguais à linha de base;
   - lint, formatação e typecheck limpos.
 
+## T605 — ⏭️ aberta: a política está pronta; o job e o aviso esperam o envio por WhatsApp
+
+**Por que fica aberta.** A T605 age sobre a conversa pelo WhatsApp, e nada dela sai para o mundo
+hoje:
+
+- o aviso automático é uma mensagem **enviada** pelo WhatsApp, e o envio é a T503 (aberta);
+- o "aviso de troca para o app" do motorista é um dos modelos que a T002 manda submeter à Meta;
+- o canal WhatsApp na caixa de envio, onde apareceriam "a janela fecha em N min", "Avisar agora" e
+  "Mudar agora", é a T506 (aberta).
+
+Sem envio, nenhuma conversa tem fala da operação pelo WhatsApp, então o aviso nunca seria devido. E
+o canal padrão só escolhe entre canais que a tela ainda não oferece. Um job agendado e uma tabela de
+configuração agora seriam código sem efeito, com uma rotina nova no catálogo das quatro apps e uma
+migration de CHECK para rodar vazia. Ficam para quando a T503 e a T506 voltarem, junto com a
+integração "o aviso sai uma vez com o job rodando duas vezes".
+
+**Entregue agora — a política pura:** `domain/whatsapp-window-expiry.policy.ts`
+(`decideWhatsAppWindowExpiry`), com a suíte por tabela
+`test/occurrence-conversation/whatsapp-window-expiry-policy.contract.ts` no entrypoint. A suíte foi
+escrita antes e vista falhando (módulo inexistente). Ela cobre os critérios de aceite do RF20:
+
+- **estado:** sem recebida é `none`; depois `open`; a última hora é `closing`; no fim, `closed`;
+- **aviso:** sai na antecedência da empresa e **uma vez por janela** (a chave é o início dela);
+  - não sai antes da antecedência, com a janela fechada, sem fala da operação na janela, com o
+    aviso já gravado para o mesmo início, ou desligado para aquele participante (motorista ligado
+    por padrão, contratante desligado);
+  - a resposta antes do aviso reabre a janela e leva o aviso para o fim da nova (é o "cancela");
+- **fechou:** o canal passa para o app (motorista), o portal (contratante com acesso e ocorrência
+  visível), o e-mail (com e-mail) ou o modelo (sem nenhum dos dois). Com a janela aberta, o canal
+  não troca, mas a caixa de envio já sabe o próximo.
+
+**Leitura registrada (comportamento — proposta de redação para o RF20):** "só se houve mensagem pelo
+WhatsApp naquela janela" foi lido como "se a **operação** falou pelo WhatsApp depois da abertura".
+A mensagem recebida que abre a janela sempre existe, então a leitura literal nunca bloquearia nada.
+E a contratante que só recebeu e-mail nosso não precisa saber que um WhatsApp fecha. Proposta: trocar
+a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
+
+- **Rodado:** API, contrato da conversa **140 pass**.
