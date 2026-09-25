@@ -373,6 +373,9 @@ import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occu
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
+import { createContractorPortalConversationUseCase } from './occurrence-conversation/application/contractor-portal-conversation.use-case.js'
+import { createDrizzleContractorPortalConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
+import { createClientOccurrenceConversationRoutes } from './occurrence-conversation/presentation/client-occurrence-conversation.routes.js'
 import { createOccurrenceConversationUnassignedRoutes } from './occurrence-conversation/presentation/occurrence-conversation-unassigned.routes.js'
 import { createOccurrenceConversationRoutes } from './occurrence-conversation/presentation/occurrence-conversation.routes.js'
 import {
@@ -393,7 +396,10 @@ import {
   createSendDriverAppMessageUseCase,
 } from './occurrence-conversation/application/driver-conversation.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
-import { createSendOccurrenceMailUseCase } from './occurrence-conversation/application/send-occurrence-mail.use-case.js'
+import {
+  createPublicRef,
+  createSendOccurrenceMailUseCase,
+} from './occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import {
   createOccurrenceMailReader,
   createOccurrenceSuggestedMailReader,
@@ -2083,6 +2089,14 @@ function createApplicationRoutes({
   )
   const viewPreferencesRepository = new DrizzleViewPreferencesRepository(database)
   const fingerprintService = createIdempotencyFingerprintService({ key: idempotencyHmacKey })
+  /** Spec 183 T651 (RF21): a conversa da contratante pelo portal, com o recorte da 164. */
+  const contractorPortalConversation = createContractorPortalConversationUseCase({
+    clock: () => new Date(),
+    fingerprintService,
+    newRef: createPublicRef,
+    scopes: contractorPortalRepository,
+    unitOfWork: createDrizzleContractorPortalConversationUnitOfWork(database),
+  })
   const requestImport = createRequestNfeImportUseCase({
     fingerprintService,
     unitOfWork: nfeImportRepository,
@@ -2977,6 +2991,7 @@ function createApplicationRoutes({
       listBatches: { execute: (input) => contractorExtraCharges.list(input) },
     }),
     ...createContractorOccurrenceRoutes({
+      conversationRefs: (input) => contractorPortalConversation.conversationRefs(input),
       decideOccurrenceCase,
       /**
        * Spec 164 T11: o mesmo ponto único de leitura do anexo (`readOccurrenceAttachments`) — o
@@ -2991,6 +3006,7 @@ function createApplicationRoutes({
           repository: new DrizzleOccurrenceAttachmentRepository(database),
         }),
     }),
+    ...createClientOccurrenceConversationRoutes({ conversation: contractorPortalConversation }),
     ...createContractorPortalBindingRoutes({
       bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },
       listPortalUsers: { execute: (input) => contractorPortalBindings.list(input) },

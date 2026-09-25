@@ -14,6 +14,8 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, exists, inArray } from 'drizzle-orm'
+import type { AnyColumn } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import {
@@ -61,17 +63,69 @@ export type ContractorOccurrenceDetail = ContractorOccurrenceListItem & {
 }
 
 /** A mesma condição de escopo que `listContractorDeliveries` usa — a nota é do contratante quando ele emitiu ou recebe. */
-function buildScopeCondition(database: Database, scope: ContractorScope) {
+function buildScopeCondition(
+  database: Pick<Database, 'select'>,
+  scope: ContractorScope,
+  documents: { readonly companyId: AnyColumn; readonly nfeDocumentId: AnyColumn } = tripDocuments,
+) {
   return exists(
     database
       .select({ one: nfeParticipants.id })
       .from(nfeParticipants)
       .where(
         and(
-          eq(nfeParticipants.companyId, tripDocuments.companyId),
-          eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+          eq(nfeParticipants.companyId, documents.companyId),
+          eq(nfeParticipants.documentId, documents.nfeDocumentId),
           inArray(nfeParticipants.role, [...CONTRACTOR_ROLES]),
           inArray(nfeParticipants.taxId, [...scope.taxIds]),
+        ),
+      ),
+  )
+}
+
+const visibleOccurrence = alias(tripDocumentOccurrences, 'contractor_visible_occurrence')
+const visibleCase = alias(tripOccurrenceCases, 'contractor_visible_case')
+const visibleDocument = alias(tripDocuments, 'contractor_visible_document')
+
+/**
+ * Spec 183 T651: a fronteira desta listagem — ocorrência de nota, tratativa visível (D5) e nota do
+ * recorte — como condição sobre a ocorrência de **outra** consulta. A conversa do portal filtra por
+ * aqui, e não repete a regra: a tratativa continua sendo assunto só deste módulo (D4 da 183, que um
+ * contrato por texto de fonte cobra da conversa). Tabelas com apelido próprio, para não colidir com
+ * as da consulta de fora.
+ */
+export function buildContractorVisibleOccurrenceCondition(
+  database: Pick<Database, 'select'>,
+  input: {
+    readonly companyId: AnyColumn
+    readonly occurrenceId: AnyColumn
+    readonly scope: ContractorScope
+  },
+) {
+  return exists(
+    database
+      .select({ one: visibleOccurrence.id })
+      .from(visibleOccurrence)
+      .innerJoin(
+        visibleCase,
+        and(
+          eq(visibleCase.companyId, visibleOccurrence.companyId),
+          eq(visibleCase.occurrenceId, visibleOccurrence.id),
+          inArray(visibleCase.status, [...CONTRACTOR_VISIBLE_CASE_STATUSES]),
+        ),
+      )
+      .innerJoin(
+        visibleDocument,
+        and(
+          eq(visibleDocument.companyId, visibleOccurrence.companyId),
+          eq(visibleDocument.id, visibleOccurrence.tripDocumentId),
+        ),
+      )
+      .where(
+        and(
+          eq(visibleOccurrence.companyId, input.companyId),
+          eq(visibleOccurrence.id, input.occurrenceId),
+          buildScopeCondition(database, input.scope, visibleDocument),
         ),
       ),
   )

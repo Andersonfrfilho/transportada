@@ -132,7 +132,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 - [x] **T650** Atualizar `apps/frontend-client/CLAUDE.md` com a decisão de crescer a app (ADR-0073,
       aceita na T001). Evidência: o diff.
-- [ ] **T651** 🧠 `conversationRef` na resposta de `GET /client/me/occurrences` (164) e as rotas
+- [x] **T651** 🧠 `conversationRef` na resposta de `GET /client/me/occurrences` (164) e as rotas
       `/client/me/occurrence-conversations/:ref` (mensagens, envio, lida, anexo) com
       `resolveContractorScope` e a visibilidade da 164 D5. Evidência: contratos (id interno recusado
       por texto de fonte; outra contratante e ocorrência não visível respondem igual a inexistente;

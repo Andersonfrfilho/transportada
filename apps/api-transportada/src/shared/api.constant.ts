@@ -141,6 +141,8 @@ export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 /** Spec 164 T9: a tratativa que chegou ao contratante — no molde das duas rotas acima. */
 export const API_CLIENT_OCCURRENCES_PATH = '/client/me/occurrences'
+/** Spec 183 T651 (RF21): a conversa da contratante pelo portal, nomeada pela `public_ref`. */
+export const API_CLIENT_OCCURRENCE_CONVERSATIONS_PATH = '/client/me/occurrence-conversations'
 export const API_CTE_BATCHES_PATH = '/cte-batches'
 export const API_CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
 export const API_CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'

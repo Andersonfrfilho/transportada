@@ -1188,3 +1188,82 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
   cópia por valor dos do painel. Proposta de correção à ADR-0073 §1, igual à da ADR-0051 §1 na T407:
   "peças do pacote, sem o `styles.css`".
 - **Rodado:** `frontend-client` **55 pass**; prettier limpo nos dois arquivos.
+
+## T651 — A conversa da contratante pelo portal, pela referência opaca (verde)
+
+- **Rotas novas** (`occurrence-conversation/presentation/client-occurrence-conversation.routes.ts`):
+  - todas com `deliveries.track`, `cache-control: no-store`, `pathParameterFormat: 'opaque'` e teto
+    no Postgres:
+    - `GET /client/me/occurrence-conversations/:ref` — o fio e as não lidas da conta;
+    - `POST …/:ref/messages` — `{ body }` estrito, `Idempotency-Key` obrigatória, 201;
+    - `POST …/:ref/read` — 204;
+  - baldes: ler e marcar como lida dividem `contractor-occurrence-conversation-read` (120/300 s);
+    enviar tem `contractor-occurrence-conversation-send` (30/300 s). Ambos estão em
+    `test/rate-limited-routes.contract.test.ts`.
+- **`conversationRef` em `GET /client/me/occurrences`** (164): uma leitura de referências por
+  página. Sai `null` quando a contratante do recorte não é a da conversa: o recebedor vê a
+  ocorrência, mas não a conversa com o emitente (D1).
+- **O recorte e a visibilidade:**
+  - a conversa só é achada quando valem juntos:
+    - a conversa é **com a contratante** (nunca a do motorista);
+    - a contratante dela está em `scope.contractorIds`;
+    - a ocorrência é de nota do recorte;
+    - a tratativa está visível ao portal (164 D5);
+  - referência de outra contratante, inexistente, de tratativa ainda interna, fora do formato ou
+    com cara de UUID responde o **mesmo 404** da 164 (`OCCURRENCE_CASE_NOT_FOUND`). As duas
+    últimas nem chegam ao banco;
+  - conta sem vínculo recebe o 403 de sempre, antes de qualquer leitura.
+- **A resposta** traz só `side` (`carrier` | `contractor`), `mine`, `channel`, `body` e
+  `createdAt`. Não traz id de mensagem, autor da transportadora, endereço nem nada do motorista (a
+  consulta só lê a conversa com a contratante).
+- **O envio:**
+  - grava mensagem **recebida** pelo canal `portal`, com `author_user_id` da conta do portal (o
+    CHECK da T401 já previa);
+  - o operador a lê na mesma conversa;
+  - a mesma chave com o mesmo texto devolve o gravado; com outro texto é 409; em branco ou acima
+    de 8.000 é 422.
+- **A lida** é por conta do portal (`occurrence_conversation_reads`, a mesma função do operador).
+  As não lidas do portal contam as mensagens **da transportadora** depois da última lida.
+- **Decisão técnica registrada — a conversa nasce na listagem:** quando a ocorrência chega ao portal
+  e a transportadora ainda não escreveu, a contratante precisa poder escrever primeiro. A listagem
+  cria a conversa que falta (idempotente, `onConflictDoNothing` na chave única da T401), com a
+  `public_ref` aleatória de sempre (`createPublicRef`), sem evento e sem auditoria.
+- **Correção forçada pelo contrato da T504 (D4):** a primeira versão do repositório lia
+  `trip_occurrence_cases` para saber a visibilidade, e o contrato "a conversa nunca decide" reprovou
+  por texto de fonte. A fronteira da 164 virou
+  `buildContractorVisibleOccurrenceCondition` no próprio `contractor-occurrence.query.ts` (dono da
+  D5), com tabelas de apelido próprio. A conversa só a usa e continua sem conhecer a tratativa.
+- **Anexo (fora desta task):** a rota de anexo do portal entra na **T702**, com os anexos. É a
+  mesma decisão da T502/T601/T603 para foto e mídia.
+- **Testes, escritos antes e vistos falhando** (módulo inexistente; a `conversationRef` ausente na
+  listagem):
+  - `test/occurrence-conversation/contractor-portal-conversation.contract.ts` (entrypoint da
+    conversa):
+    - caso de uso: serialização sem id nem autor; os três 404 iguais; formato e UUID sem tocar o
+      banco; conta sem vínculo; envio, replay, 409 e 422; lida por conta; referências pelo recorte;
+    - rotas: caminhos, política, formato opaco, `no-store`, chave obrigatória, corpo estrito (um
+      `decision` no corpo é 400);
+    - texto de fonte: sem `:id`, sem `parseUuidPathIdentifier`, sem `companyId`/ids no arquivo de
+      rotas; nada de `taxId`, `driver`, `decide`/`decision`, `caseStatus`, `transition` ou log;
+    - a listagem da 164 com `conversationRef` e `null`.
+  - `test/contractor-portal-schema/tenant-safety.contract.ts` (novo, no entrypoint do schema do
+    portal): toda junção leva `companyId`, na conversa e na fronteira da 164; todo `where` da
+    conversa filtra pela empresa; achar e criar exigem `scope.contractorIds` e a fronteira.
+  - `test/integration/occurrence-conversation-portal.integration.ts` (Postgres, **3 pass**,
+    registrada no `package.json`):
+    - tratativa interna não dá referência nem conversa;
+    - visível, a referência é a da conversa que o e-mail criou;
+    - leitura, envio idempotente, a mensagem na visão do operador como `portal`/recebida, lida
+      zerando as não lidas;
+    - a listagem cria a conversa uma vez só, e a contratante escreve primeiro;
+    - outra contratante da mesma empresa e outra empresa com a referência na mão: 404, sem
+      referência.
+- **Rodado:**
+  - API, contratos **7448 pass, 23 skip, 0 fail**;
+  - integrações da 164 que leem a listagem (`trip-occurrence-case`, `occurrence-case-closure`,
+    `contractor-portal*`) com a do portal: **15 pass**;
+  - integração completa, rodada sozinha: **596 pass, 7 skip, 8 fail** (611 testes em 118 arquivos,
+    a do portal entre eles). As 8 são as conhecidas do MinIO, iguais à linha de base. A entrada nova
+    no `package.json` foi escrita sem o `./` das outras e corrigida para `./test/integration/…`, por
+    consistência (a rodada mostra que o arquivo rodou);
+  - lint e typecheck da raiz limpos.
