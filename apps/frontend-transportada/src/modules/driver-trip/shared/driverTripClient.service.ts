@@ -11,6 +11,7 @@ import {
   type ProofPunctuality,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
+import { createIdempotencyKey } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 /** Rede presa (sinal fraco, portal cativo) não pode deixar o painel carregando para sempre. */
@@ -188,6 +189,8 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
           productCode: input.productCode,
         }),
         dependencies,
+        // Um toque, uma chave: repetir o toque depois de uma falha é o conserto (spec 179 T200).
+        idempotencyKey: createIdempotencyKey(),
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrences`,
       })
