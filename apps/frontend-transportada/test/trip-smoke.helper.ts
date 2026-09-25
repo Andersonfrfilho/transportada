@@ -459,7 +459,12 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
      * (`canDispatch`, `TripHeaderActions.component.tsx`); `dispatched` é o print do cabeçalho sem
      * "Conferir carga" e com a fase "Despachada" alcançada.
      */
-    status: mode === 'dispatch-flow' ? 'loading' : mode === 'dispatched' ? 'dispatched' : BASE_TRIP.status,
+    status:
+      mode === 'dispatch-flow'
+        ? 'loading'
+        : mode === 'dispatched'
+          ? 'dispatched'
+          : BASE_TRIP.status,
     amounts: null,
     /** Spec 156 T8d: `null` nos três — a viagem do smoke nunca foi encerrada à mão. */
     closeReason: null,

@@ -14,10 +14,7 @@ import { mockTripWorkspaceApi, TRIP_ID } from './trip-smoke.helper'
  * `PLAYWRIGHT_TEST_MATCH=spec-185-prints.smoke.spec.ts` e grava os PNGs ao lado da spec, mesmo
  * arranjo de `spec-181-prints.smoke.spec.ts`/`spec-164-prints.smoke.spec.ts`.
  */
-const PRINTS_DIRECTORY = resolve(
-  process.cwd(),
-  '../../specs/185-carregou-tudo-a-viagem-sai/prints',
-)
+const PRINTS_DIRECTORY = resolve(process.cwd(), '../../specs/185-carregou-tudo-a-viagem-sai/prints')
 const PHONE = { height: 844, width: 375 } as const
 const DESKTOP = { height: 900, width: 1440 } as const
 const THEMES = ['dark', 'light'] as const
@@ -153,7 +150,11 @@ const COMPANY_SETTINGS_CORS_HEADERS = {
   'access-control-allow-origin': '*',
 }
 
-async function fulfillCompanySettingsJson(route: Route, body: unknown, status = 200): Promise<void> {
+async function fulfillCompanySettingsJson(
+  route: Route,
+  body: unknown,
+  status = 200,
+): Promise<void> {
   await route.fulfill({
     body: JSON.stringify(body),
     contentType: 'application/json',
