@@ -583,17 +583,21 @@ test.describe('CA12: duas viagens e a janela de entrega', () => {
       trips.getByRole('button', { name: 'Rua das Flores, 20 · 1 parada' }),
     ).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('main > header').getByText('Veículo ABC1D23')).toBeVisible()
+    // Pedido do usuário (25/09): a parada virou cabeçalho expansível — o rótulo mora no botão do
+    // acordeão, não mais num `<h2>` isolado (o `<h2>` agora embrulha o botão inteiro, ver
+    // DriverStopCard.component.tsx).
     await expect(
-      page.getByRole('heading', { exact: true, name: 'Rua das Flores, 20' }),
+      page.getByText('Rua das Flores, 20', { exact: true }).filter({ visible: true }).first(),
     ).toBeVisible()
-    // CA12 (spec 189 T7.3): a parada com janela diz a janela no cartão.
+    // CA12 (spec 189 T7.3): a parada com janela diz a janela no cartão — dentro do botão do
+    // cabeçalho, aberto por padrão porque é a única parada (sempre a atual).
     await expect(page.getByText('Janela 08:00–12:00')).toBeVisible()
 
     await trips.getByRole('button', { name: 'Praca da Se, 100 · 1 parada' }).click()
     await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
     await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
     await expect(
-      page.getByRole('heading', { exact: true, name: 'Rua das Flores, 20' }),
+      page.getByText('Rua das Flores, 20', { exact: true }).filter({ visible: true }),
     ).toHaveCount(0)
 
     await page.reload()

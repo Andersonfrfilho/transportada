@@ -197,6 +197,11 @@
     "protocol": "Protocolo {{protocol}}"
   },
   "stopCompleted": "Parada concluída",
+  "stopState": {
+    "completed": "Concluída",
+    "current": "Em andamento",
+    "pending": "Pendente"
+  },
   "stopTitle": "Parada {{sequence}}",
   "title": "Minha viagem",
   "tripCompleted": "Viagem concluída. Bom trabalho.",
@@ -302,5 +307,24 @@
   "startRoute": {
     "failed": "Não foi possível iniciar a rota. Toque de novo.",
     "start": "Iniciar rota"
+  },
+  "activity": {
+    "delivered": "Entregue às {{time}}",
+    "deliveredQueued": "Entregue às {{time}} · na fila",
+    "deliveredRejected": "O escritório recusou o registro da entrega às {{time}}. Veja em eventos pendentes.",
+    "documentOccurrenceRecorded": "Ocorrência registrada às {{time}}",
+    "occurrenceMarker": "Com ocorrência",
+    "occurrenceQueued": "Ocorrência registrada às {{time}} · na fila",
+    "occurrenceRejected": "O escritório recusou a ocorrência registrada às {{time}}. Veja em eventos pendentes.",
+    "occurrenceSent": "Ocorrência registrada às {{time}} · enviada",
+    "returned": "Devolvida às {{time}} — {{reason}}",
+    "returnedQueued": "Devolvida às {{time}} · na fila — {{reason}}",
+    "returnedRejected": "O escritório recusou o registro da devolução às {{time}}. Veja em eventos pendentes.",
+    "toast": {
+      "delivered": "Entrega registrada",
+      "documentOccurrence": "Ocorrência registrada",
+      "occurrence": "Ocorrência registrada",
+      "returned": "Devolução registrada"
+    }
   }
 }

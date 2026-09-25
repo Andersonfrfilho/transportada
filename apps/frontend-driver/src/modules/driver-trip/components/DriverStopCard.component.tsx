@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FileField } from '@/components/ui/file-field'
 import { FilePickerButton } from '@/components/ui/file-picker-button'
-import { Icon } from '@/components/ui/icon'
+import { Icon, type IconName } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
@@ -16,8 +16,15 @@ import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
 import { usePhotoPreviewUrl } from '../hooks/usePhotoPreviewUrl.hook'
+import { useTransientNotice } from '../hooks/useTransientNotice.hook'
 import { captureRegistry } from '../shared/captureRegistry.service'
 import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
+import {
+  stopHasOccurrenceMarker,
+  type DocumentActivityStatus,
+  type DocumentActivityView,
+  type DocumentReturnActivityView,
+} from '../shared/documentActivity.service'
 import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocumentFormat.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
@@ -48,6 +55,39 @@ import {
 import { isSignatureCaptureSupported } from '../shared/signatureCapture.service'
 import styles from '../styles/driverTrip.module.css'
 
+/** Cheguei, entreguei, devolvi, registrei — sempre HH:MM local, nunca com segundos. */
+function formatActivityTime(at: string): string {
+  return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+const ACTIVITY_ICON: Readonly<Record<DocumentActivityStatus, IconName>> = {
+  queued: 'clock',
+  rejected: 'alert',
+  sent: 'check',
+}
+
+const ACTIVITY_CLASS: Readonly<Record<DocumentActivityStatus, string>> = {
+  queued: styles.activityStatusQueued ?? '',
+  rejected: styles.activityStatusRejected ?? '',
+  sent: styles.activityStatusSent ?? '',
+}
+
+/**
+ * A linha que fica depois do toque — pedido do usuário (25/09): "registrei... e nada aconteceu?".
+ * Ícone e cor acompanham o texto (que carrega o sentido), igual a `DriverNotDeliveredStatus`.
+ */
+function ActivityStatusLine({
+  status,
+  text,
+}: Readonly<{ status: DocumentActivityStatus; text: string }>) {
+  return (
+    <p className={`${styles.activityStatus} ${ACTIVITY_CLASS[status]}`} role="status">
+      <Icon aria-hidden="true" name={ACTIVITY_ICON[status]} size="sm" />
+      {text}
+    </p>
+  )
+}
+
 /** Sem hora marcada o agendamento ainda está sendo pedido — e dizer isso é melhor que uma data vazia. */
 function formatScheduleTime(scheduledAt: string | null): string {
   if (scheduledAt === null) return '—'
@@ -74,6 +114,8 @@ export type DriverProofAttachment = Readonly<{
 }>
 
 type DriverStopCardProps = Readonly<{
+  /** Pedido do usuário (25/09): "entrega guardada" — a foto/nota que veio de `onDocumentOccurrence`. */
+  deliverActivityByDocumentId: ReadonlyMap<string, DocumentActivityView>
   isCurrent: boolean
   /**
    * Spec 082 (revisão): viagem `route_planned` chega à tela, mas as ações de campo ficam trancadas
@@ -81,15 +123,18 @@ type DriverStopCardProps = Readonly<{
    * acumular eventos condenados.
    */
   isFieldWorkBlocked: boolean
+  /** Pedido do usuário (25/09): a atual abre sozinha e destacada; as outras ficam fechadas. */
+  isOpen: boolean
   /** Spec 082 D2: a última posição conhecida — sem ela, a distância simplesmente não aparece. */
   lastKnownLocation: DriverReportedLocation | null
   onArrive: (stopId: string) => void
   onDeliver: (documentId: string) => void
+  /** `Promise<boolean>`: sucesso acende a linha e o aviso transitório no cartão, nunca à cega. */
   onDocumentOccurrence: (input: {
     documentId: string
     occurrenceTypeId: string
     productCode: string
-  }) => void
+  }) => Promise<boolean>
   occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => void
   onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
@@ -100,16 +145,24 @@ type DriverStopCardProps = Readonly<{
   onOccurrencePhoto: (input: { documentId: string; file: File }) => void
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
   onNotDelivered: (input: { documentId: string; draft: NotDeliveredDraft }) => void
+  /** Pedido do usuário (25/09): o toque no cabeçalho abre/fecha — o aberto vem da página, derivado. */
+  onToggle: () => void
   /** Spec 179 RF5: por nota, "na fila" / "enviado" / "recusado" da ocorrência com foto. */
   notDeliveredStatusByDocumentId: ReadonlyMap<string, NotDeliveredStatus>
+  /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", com o mesmo retorno de fila. */
+  returnActivityByDocumentId: ReadonlyMap<string, DocumentReturnActivityView>
   /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
   onRetryOccurrenceTypes: () => void
   stop: DriverTripStop
+  /** Pedido do usuário (25/09): "ocorrência registrada às HH:MM · na fila/enviada" do "Deu problema". */
+  stopOccurrenceActivity: DocumentActivityView | undefined
 }>
 
 export function DriverStopCard({
+  deliverActivityByDocumentId,
   isCurrent,
   isFieldWorkBlocked,
+  isOpen,
   lastKnownLocation,
   notDeliveredStatusByDocumentId,
   onArrive,
@@ -121,138 +174,248 @@ export function DriverStopCard({
   onOccurrencePhoto,
   onProof,
   onRetryOccurrenceTypes,
+  onToggle,
+  returnActivityByDocumentId,
   stop,
+  stopOccurrenceActivity,
 }: DriverStopCardProps) {
   const { t } = useTranslation('driverTrip')
   const [openOccurrence, setOpenOccurrence] = useState(false)
+  /** Pedido do usuário (25/09): quem registra vê — um aviso que some sozinho, perto do que ele tocou. */
+  const { announce, notice } = useTransientNotice()
+  /** Painel "Registrar ocorrência" da nota (`onDocumentOccurrence`): chamada direta, sem fila offline. */
+  const [documentOccurrenceRecordedAtByDocumentId, setDocumentOccurrenceRecordedAtByDocumentId] =
+    useState<ReadonlyMap<string, string>>(new Map())
   const isCompleted = stop.completedAt !== null
   const distanceLabel = formatStopDistance({ location: lastKnownLocation, stop })
   const deliveryWindow = describeDeliveryWindow({
     end: stop.deliveryWindowEnd,
     start: stop.deliveryWindowStart,
   })
+  const bodyId = useId()
+  const stopChipView = isCompleted ? 'completed' : isCurrent ? 'current' : 'pending'
+  const documentIdsWithOccurrence = new Set(
+    stop.documents
+      .filter(
+        (document) =>
+          documentOccurrenceRecordedAtByDocumentId.has(document.id) ||
+          notDeliveredStatusByDocumentId.get(document.id) !== undefined,
+      )
+      .map((document) => document.id),
+  )
+  const hasOccurrenceMarker = stopHasOccurrenceMarker({
+    documentIds: stop.documents.map((document) => document.id),
+    documentOccurrenceIds: documentIdsWithOccurrence,
+    stopOccurrenceKey: stopOccurrenceActivity === undefined ? undefined : 'present',
+  })
+
+  function handleDocumentOccurrence(input: {
+    documentId: string
+    occurrenceTypeId: string
+    productCode: string
+  }): void {
+    void onDocumentOccurrence(input).then((success) => {
+      if (!success) return
+      setDocumentOccurrenceRecordedAtByDocumentId((current) =>
+        new Map(current).set(input.documentId, new Date().toISOString()),
+      )
+      announce(input.documentId, t('activity.toast.documentOccurrence'))
+    })
+  }
 
   return (
     <li
       className={`${styles.stop} ${isCurrent ? styles.stopCurrent : ''} ${isCompleted ? styles.stopDone : ''}`}
     >
-      <header className={styles.stopHeader}>
-        <p className={styles.stopMeta}>{t('stopTitle', { sequence: stop.sequence })}</p>
-        {/*
+      {/* Padrão WAI-ARIA de acordeão: o `<h2>` embrulha o botão, nunca o inverso (heading não é
+          conteúdo de frase — não pode morar dentro de um `<button>`). */}
+      <h2 className={styles.stopLabel}>
+        <button
+          aria-controls={bodyId}
+          aria-expanded={isOpen}
+          className={styles.stopHeader}
+          onClick={onToggle}
+          type="button"
+        >
+          <span className={styles.stopHeaderTop}>
+            <span className={styles.stopHeaderTitle}>
+              <p className={styles.stopMeta}>{t('stopTitle', { sequence: stop.sequence })}</p>
+              <span className={styles.stopHeaderLabelText}>{stop.label}</span>
+            </span>
+            <span className={styles.stopHeaderRight}>
+              <span className={styles.stopChips}>
+                <span
+                  className={`${styles.stopChip} ${stopChipView === 'current' ? styles.stopChipCurrent : ''} ${stopChipView === 'completed' ? styles.stopChipCompleted : ''}`}
+                >
+                  {stopChipView === 'completed' ? (
+                    <Icon aria-hidden="true" name="check" size="sm" />
+                  ) : null}
+                  {t(`stopState.${stopChipView}`)}
+                </span>
+                {hasOccurrenceMarker ? (
+                  <span className={`${styles.stopChip} ${styles.stopChipOccurrence}`}>
+                    <Icon aria-hidden="true" name="alert" size="sm" />
+                    {t('activity.occurrenceMarker')}
+                  </span>
+                ) : null}
+              </span>
+              <Icon
+                aria-hidden="true"
+                className={`${styles.stopExpandIcon} ${isOpen ? styles.stopExpandIconOpen : ''}`}
+                name="chevron-down"
+              />
+            </span>
+          </span>
+          {/*
           Spec 060 D3: hora e protocolo **antes do endereço**. É o que o porteiro pede, e quem chega
           sem o número volta com a carga — o endereço ele já sabe, porque está lá.
         */}
-        {stop.schedule === null ? null : (
-          <p className={styles.stopSchedule}>
-            {t('schedule.at', { time: formatScheduleTime(stop.schedule.scheduledAt) })}
-            {stop.schedule.protocol === ''
-              ? ''
-              : ` · ${t('schedule.protocol', { protocol: stop.schedule.protocol })}`}
+          {stop.schedule === null ? null : (
+            <p className={styles.stopSchedule}>
+              {t('schedule.at', { time: formatScheduleTime(stop.schedule.scheduledAt) })}
+              {stop.schedule.protocol === ''
+                ? ''
+                : ` · ${t('schedule.protocol', { protocol: stop.schedule.protocol })}`}
+            </p>
+          )}
+          {/* RF13 (ADR-0075 §8): a janela vem junto da hora marcada — é o que decide se ele entra. */}
+          {deliveryWindow === undefined ? null : (
+            <p className={styles.stopSchedule}>
+              {t(DELIVERY_WINDOW_KEYS[deliveryWindow.kind], deliveryWindow)}
+            </p>
+          )}
+          <p className={styles.stopMeta}>
+            {isCompleted
+              ? t('stopCompleted')
+              : t('documentsPending', { count: countPendingDocuments(stop) })}
           </p>
-        )}
-        {/* RF13 (ADR-0075 §8): a janela vem junto da hora marcada — é o que decide se ele entra. */}
-        {deliveryWindow === undefined ? null : (
-          <p className={styles.stopSchedule}>
-            {t(DELIVERY_WINDOW_KEYS[deliveryWindow.kind], deliveryWindow)}
-          </p>
-        )}
-        <h2 className={styles.stopLabel}>{stop.label}</h2>
-        <p className={styles.stopMeta}>
-          {isCompleted
-            ? t('stopCompleted')
-            : t('documentsPending', { count: countPendingDocuments(stop) })}
+          {/* Status da parada no cabeçalho, não entre os botões: lá ele ficava solto e desalinhado */}
+          {stop.arrivedAt === null && distanceLabel === null ? null : (
+            <p className={styles.stopStatus}>
+              {stop.arrivedAt === null ? null : (
+                <span className={styles.stopArrived}>
+                  <Icon aria-hidden="true" name="check" size="sm" />
+                  {t('arrived', { time: formatActivityTime(stop.arrivedAt) })}
+                </span>
+              )}
+              {/* Spec 082 D2: sem posição ou sem coordenada da parada, nada — nunca "0 km" */}
+              {distanceLabel === null ? null : (
+                <span className={styles.stopDistance}>{distanceLabel}</span>
+              )}
+            </p>
+          )}
+        </button>
+      </h2>
+
+      {notice === undefined ? null : (
+        <p className={styles.activityNotice} role="status">
+          <Icon aria-hidden="true" name="check" size="sm" />
+          {notice.message}
         </p>
-        {/* Status da parada no cabeçalho, não entre os botões: lá ele ficava solto e desalinhado */}
-        {stop.arrivedAt === null && distanceLabel === null ? null : (
-          <p className={styles.stopStatus}>
-            {stop.arrivedAt === null ? null : (
-              <span className={styles.stopArrived}>
-                <Icon aria-hidden="true" name="check" size="sm" />
-                {t('arrived', {
-                  time: new Date(stop.arrivedAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                })}
-              </span>
-            )}
-            {/* Spec 082 D2: sem posição ou sem coordenada da parada, nada — nunca "0 km" */}
-            {distanceLabel === null ? null : (
-              <span className={styles.stopDistance}>{distanceLabel}</span>
-            )}
-          </p>
-        )}
-      </header>
+      )}
 
-      <div className={styles.actions}>
-        <Button
-          // O botão abre o app de mapa que a pessoa já usa — navegar é delegar (ADR-0045 §8)
-          onClick={() => window.open(buildNavigationHref(stop), '_blank', 'noopener,noreferrer')}
-          type="button"
-          variant="ghost"
-        >
-          <Icon name="link" />
-          {t('navigate')}
-        </Button>
-        {/* Trancado até o despacho: a API recusa `arrive` fora de dispatched/in_transit */}
-        {isFieldWorkBlocked || stop.arrivedAt !== null ? null : (
-          <Button onClick={() => onArrive(stop.id)} type="button">
-            <Icon name="check" />
-            {t('arrive')}
+      <div className={styles.stopBody} hidden={!isOpen} id={bodyId}>
+        <div className={styles.actions}>
+          <Button
+            // O botão abre o app de mapa que a pessoa já usa — navegar é delegar (ADR-0045 §8)
+            onClick={() => window.open(buildNavigationHref(stop), '_blank', 'noopener,noreferrer')}
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="link" />
+            {t('navigate')}
           </Button>
-        )}
-        {isFieldWorkBlocked ? null : (
-          <Button onClick={() => setOpenOccurrence((open) => !open)} type="button" variant="ghost">
-            <Icon name="alert" />
-            {t('occurrence')}
-          </Button>
-        )}
-      </div>
+          {/* Trancado até o despacho: a API recusa `arrive` fora de dispatched/in_transit */}
+          {isFieldWorkBlocked || stop.arrivedAt !== null ? null : (
+            <Button onClick={() => onArrive(stop.id)} type="button">
+              <Icon name="check" />
+              {t('arrive')}
+            </Button>
+          )}
+          {isFieldWorkBlocked ? null : (
+            <Button
+              onClick={() => setOpenOccurrence((open) => !open)}
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="alert" />
+              {t('occurrence')}
+            </Button>
+          )}
+        </div>
 
-      {isFieldWorkBlocked ? <p className={styles.stopMeta}>{t('dispatch.waiting')}</p> : null}
+        {isFieldWorkBlocked ? <p className={styles.stopMeta}>{t('dispatch.waiting')}</p> : null}
 
-      {openOccurrence ? (
-        <OccurrenceForm
-          stop={stop}
-          onSubmit={(input) => {
-            onOccurrence({ description: input.description, kind: input.kind, stopId: stop.id })
-            /* A mesma nota da prévia: a escolha mora em `findOccurrencePhotoDocument`. */
-            const photoTarget = findOccurrencePhotoDocument(stop)
-            if (photoTarget !== undefined) {
-              for (const file of input.photos) {
-                onOccurrencePhoto({ documentId: photoTarget.id, file })
-              }
-            }
-            setOpenOccurrence(false)
-          }}
-        />
-      ) : null}
-
-      <ul className={styles.documentList}>
-        {stop.documents.map((document) => (
-          <DocumentRow
-            document={document}
-            isFieldWorkBlocked={isFieldWorkBlocked}
-            key={document.id}
-            notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
-            onDeliver={onDeliver}
-            occurrenceTypes={occurrenceTypes}
-            onDocumentOccurrence={onDocumentOccurrence}
-            onNotDelivered={onNotDelivered}
-            onProof={onProof}
-            onRetryOccurrenceTypes={onRetryOccurrenceTypes}
-            stopProofSettings={stop.deliveryProof}
+        {stopOccurrenceActivity === undefined ? null : (
+          <ActivityStatusLine
+            status={stopOccurrenceActivity.status}
+            text={t(
+              stopOccurrenceActivity.status === 'sent'
+                ? 'activity.occurrenceSent'
+                : stopOccurrenceActivity.status === 'rejected'
+                  ? 'activity.occurrenceRejected'
+                  : 'activity.occurrenceQueued',
+              { time: formatActivityTime(stopOccurrenceActivity.at) },
+            )}
           />
-        ))}
-      </ul>
+        )}
+
+        {openOccurrence ? (
+          <OccurrenceForm
+            stop={stop}
+            onSubmit={(input) => {
+              onOccurrence({ description: input.description, kind: input.kind, stopId: stop.id })
+              /* A mesma nota da prévia: a escolha mora em `findOccurrencePhotoDocument`. */
+              const photoTarget = findOccurrencePhotoDocument(stop)
+              if (photoTarget !== undefined) {
+                for (const file of input.photos) {
+                  onOccurrencePhoto({ documentId: photoTarget.id, file })
+                }
+              }
+              announce(stop.id, t('activity.toast.occurrence'))
+              setOpenOccurrence(false)
+            }}
+          />
+        ) : null}
+
+        <ul className={styles.documentList}>
+          {stop.documents.map((document) => (
+            <DocumentRow
+              deliverActivity={deliverActivityByDocumentId.get(document.id)}
+              document={document}
+              documentOccurrenceRecordedAt={documentOccurrenceRecordedAtByDocumentId.get(
+                document.id,
+              )}
+              isFieldWorkBlocked={isFieldWorkBlocked}
+              key={document.id}
+              notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
+              onAnnounce={(message) => announce(document.id, message)}
+              onDeliver={onDeliver}
+              occurrenceTypes={occurrenceTypes}
+              onDocumentOccurrence={handleDocumentOccurrence}
+              onNotDelivered={onNotDelivered}
+              onProof={onProof}
+              onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+              returnActivity={returnActivityByDocumentId.get(document.id)}
+              stopProofSettings={stop.deliveryProof}
+            />
+          ))}
+        </ul>
+      </div>
     </li>
   )
 }
 
 type DocumentRowProps = Readonly<{
+  /** Pedido do usuário (25/09): "entregue às HH:MM" — mesmo retorno de fila da devolução/ocorrência. */
+  deliverActivity: DocumentActivityView | undefined
   document: DriverTripDocument
+  /** Painel "Registrar ocorrência" (chamada direta): hora da última confirmação, se houve. */
+  documentOccurrenceRecordedAt: string | undefined
   isFieldWorkBlocked: boolean
   notDeliveredStatus: NotDeliveredStatus | undefined
+  /** O aviso transitório do cartão inteiro — um por parada, anunciado pela nota que agiu. */
+  onAnnounce: (message: string) => void
   onDeliver: (documentId: string) => void
   /** Spec 079: o que aconteceu **sem** a carga voltar. O tipo vem do cadastro da empresa. */
   onDocumentOccurrence: (input: {
@@ -264,19 +427,25 @@ type DocumentRowProps = Readonly<{
   onNotDelivered: (input: { documentId: string; draft: NotDeliveredDraft }) => void
   onProof: (input: DriverProofAttachment) => void
   onRetryOccurrenceTypes: () => void
+  /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", mesmo retorno de fila da entrega. */
+  returnActivity: DocumentReturnActivityView | undefined
   stopProofSettings: DriverDeliveryProofSettings | null
 }>
 
 function DocumentRow({
+  deliverActivity,
   document,
+  documentOccurrenceRecordedAt,
   isFieldWorkBlocked,
   notDeliveredStatus,
   occurrenceTypes,
+  onAnnounce,
   onDeliver,
   onDocumentOccurrence,
   onNotDelivered,
   onProof,
   onRetryOccurrenceTypes,
+  returnActivity,
   stopProofSettings,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
@@ -312,6 +481,14 @@ function DocumentRow({
             : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
         </span>
         <DriverNotDeliveredStatus status={notDeliveredStatus} />
+        {documentOccurrenceRecordedAt === undefined ? null : (
+          <ActivityStatusLine
+            status="sent"
+            text={t('activity.documentOccurrenceRecorded', {
+              time: formatActivityTime(documentOccurrenceRecordedAt),
+            })}
+          />
+        )}
         {/* O canhoto anexa depois: a entrega já está confirmada, e o arquivo não a desfaz */}
         {document.separationStatus === 'delivered' ? (
           <DeliveryProofSection
@@ -329,6 +506,48 @@ function DocumentRow({
       <span>{document.recipientName}</span>
       <DocumentDetails document={document} />
       <DriverNotDeliveredStatus status={notDeliveredStatus} />
+      {documentOccurrenceRecordedAt === undefined ? null : (
+        <ActivityStatusLine
+          status="sent"
+          text={t('activity.documentOccurrenceRecorded', {
+            time: formatActivityTime(documentOccurrenceRecordedAt),
+          })}
+        />
+      )}
+      {/*
+       * Pedido do usuário (25/09): "registrei e nada aconteceu?" — a nota ainda não bate como
+       * entregue/devolvida no snapshot (a API não confirmou), mas o toque já está na fila, e a
+       * linha diz isso. Some sozinha quando o snapshot confirmar: o cartão vira o ramo "settled".
+       */}
+      {deliverActivity === undefined ? null : (
+        <ActivityStatusLine
+          status={deliverActivity.status}
+          text={t(
+            deliverActivity.status === 'sent'
+              ? 'activity.delivered'
+              : deliverActivity.status === 'rejected'
+                ? 'activity.deliveredRejected'
+                : 'activity.deliveredQueued',
+            { time: formatActivityTime(deliverActivity.at) },
+          )}
+        />
+      )}
+      {returnActivity === undefined ? null : (
+        <ActivityStatusLine
+          status={returnActivity.status}
+          text={t(
+            returnActivity.status === 'sent'
+              ? 'activity.returned'
+              : returnActivity.status === 'rejected'
+                ? 'activity.returnedRejected'
+                : 'activity.returnedQueued',
+            {
+              reason: t(`returnReason.${returnActivity.reason}`),
+              time: formatActivityTime(returnActivity.at),
+            },
+          )}
+        />
+      )}
       {/* Spec 159 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
       {/* Aviso, não erro: cobre em vez de vermelho, e o detalhe da regra fica a um toque. */}
       {isProofPendingWarningDue({ document, stopProofSettings }) ? (
@@ -345,7 +564,13 @@ function DocumentRow({
         </div>
       ) : null}
       <div className={styles.actions}>
-        <Button onClick={() => onDeliver(document.id)} type="button">
+        <Button
+          onClick={() => {
+            onAnnounce(t('activity.toast.delivered'))
+            onDeliver(document.id)
+          }}
+          type="button"
+        >
           <Icon name="check" />
           {t('deliver')}
         </Button>
@@ -405,6 +630,8 @@ function DocumentRow({
                   })
                   setOpenDocumentOccurrence(false)
                 }}
+                // O retorno (linha + aviso transitório) chega pelo `.then` de `onDocumentOccurrence`,
+                // acima — nunca em silêncio, mesmo essa sendo uma chamada direta (sem fila offline).
                 type="button"
                 variant="ghost"
               >
@@ -424,6 +651,7 @@ function DocumentRow({
           onCancel={() => setOpenReturn(false)}
           onConfirm={(draft) => {
             onNotDelivered({ documentId: document.id, draft })
+            onAnnounce(t('activity.toast.returned'))
             setOpenReturn(false)
           }}
           onRetryOccurrenceTypes={onRetryOccurrenceTypes}

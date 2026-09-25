@@ -139,19 +139,142 @@
   opacity: 0.65;
 }
 
+/*
+ * Pedido do usuário (25/09): cada parada é expansível — o cabeçalho inteiro é o botão que abre e
+ * fecha. Alvo de toque generoso (a parada inteira, não um ícone pequeno) e reset dos estilos nativos
+ * de `<button>`, porque ele carrega o layout que já existia.
+ */
 .stopHeader {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
   display: grid;
+  font: inherit;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.stopHeaderTop {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.stopHeaderTitle {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.stopHeaderRight {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+
+.stopExpandIcon {
+  color: var(--color-slate);
+  transition: transform 150ms ease;
+}
+
+.stopExpandIconOpen {
+  transform: rotate(180deg);
+}
+
+.stopChips {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-1);
 }
 
+/* Chip de status: cobre por padrão, com o tom mudando pelo estado — nunca só pela cor. */
+.stopChip {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-slate);
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 700;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+}
+
+.stopChipCurrent {
+  border-color: var(--color-copper);
+  color: var(--color-copper);
+}
+
+.stopChipCompleted {
+  border-color: var(--color-ready);
+  color: var(--color-ready);
+}
+
+.stopChipOccurrence {
+  border-color: var(--color-alert);
+  color: var(--color-alert);
+}
+
+/* O corpo (notas, ações, comprovante) só existe visualmente aberto — `display: grid` venceria o
+   `hidden` do navegador sem esta regra, mesmo defeito medido no romaneio (`.loadSheetStops[hidden]`). */
+.stopBody {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.stopBody[hidden] {
+  display: none;
+}
+
+/* O `<h2>` só embrulha o botão do cabeçalho (padrão WAI-ARIA de acordeão) — sem tamanho próprio,
+   para não vazar `font-size` para o resto do botão por herança (`.stopHeader` usa `font: inherit`). */
 .stopLabel {
-  font-size: 1.125rem;
   margin: 0;
+}
+
+.stopHeaderLabelText {
+  font-size: 1.125rem;
 }
 
 .stopMeta {
   color: var(--color-slate);
   margin: 0;
+}
+
+/* A confirmação some sozinha — igual ao aviso bom da pontualidade, mesmo verde de "aconteceu". */
+.activityNotice {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-ready) 18%, transparent);
+  border-left: var(--space-1) solid var(--color-ready);
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+/* A linha que fica: o que foi feito, e desde quando — na fila, enviada ou recusada pelo servidor. */
+.activityStatus {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.activityStatusQueued {
+  color: var(--color-copper);
+}
+
+.activityStatusSent {
+  color: var(--color-ready);
+}
+
+.activityStatusRejected {
+  color: var(--color-alert);
 }
 
 .documentList {

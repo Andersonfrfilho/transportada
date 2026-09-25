@@ -177,6 +177,11 @@
     "open": "Collect signature"
   },
   "stopCompleted": "Stop completed",
+  "stopState": {
+    "completed": "Completed",
+    "current": "In progress",
+    "pending": "Pending"
+  },
   "stopTitle": "Stop {{sequence}}",
   "title": "My trip",
   "tripCompleted": "Trip completed. Good work.",
@@ -293,5 +298,24 @@
   "startRoute": {
     "failed": "Could not start the route. Tap again.",
     "start": "Start route"
+  },
+  "activity": {
+    "delivered": "Delivered at {{time}}",
+    "deliveredQueued": "Delivered at {{time}} · queued",
+    "deliveredRejected": "The office refused the delivery recorded at {{time}}. See pending events.",
+    "documentOccurrenceRecorded": "Occurrence recorded at {{time}}",
+    "occurrenceMarker": "Has an occurrence",
+    "occurrenceQueued": "Occurrence recorded at {{time}} · queued",
+    "occurrenceRejected": "The office refused the occurrence recorded at {{time}}. See pending events.",
+    "occurrenceSent": "Occurrence recorded at {{time}} · sent",
+    "returned": "Returned at {{time}} — {{reason}}",
+    "returnedQueued": "Returned at {{time}} · queued — {{reason}}",
+    "returnedRejected": "The office refused the return recorded at {{time}}. See pending events.",
+    "toast": {
+      "delivered": "Delivery recorded",
+      "documentOccurrence": "Occurrence recorded",
+      "occurrence": "Occurrence recorded",
+      "returned": "Return recorded"
+    }
   }
 }
