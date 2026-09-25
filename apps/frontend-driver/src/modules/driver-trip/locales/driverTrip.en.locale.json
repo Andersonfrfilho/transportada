@@ -192,5 +192,9 @@
     "notice_one": "{{count}} pending item from another account on this phone. It is not sent with your account.",
     "notice_other": "{{count}} pending items from another account on this phone. They are not sent with your account.",
     "warning": "Discarding deletes these pending items from the phone for good: whoever recorded them will not be able to send them."
+  },
+  "serviceWorkerUpdate": {
+    "apply": "Update",
+    "available": "New version available."
   }
 }

@@ -1,11 +1,12 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/components/SignaturePad.component.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import { captureRegistry } from '../shared/captureRegistry.service'
 import {
   enterSignatureFullscreen,
   exitSignatureFullscreen,
@@ -33,6 +34,12 @@ export function SignaturePad({ onCancel, onConfirm }: SignaturePadProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   /** Sem lock (iOS) o conteúdo rotaciona por CSS para o traço ficar horizontal. */
   const [isCssRotated, setIsCssRotated] = useState(false)
+
+  /** Plan D2: aberto do montar ao desmontar — navegar no meio do traço perdia a assinatura. */
+  useEffect(() => {
+    captureRegistry.open('signature')
+    return () => captureRegistry.close('signature')
+  }, [])
 
   function toCanvasPoint(event: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } {
     const canvas = event.currentTarget

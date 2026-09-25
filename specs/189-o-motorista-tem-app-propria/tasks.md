@@ -203,7 +203,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** contratos verdes.
 
-- [ ] **T3.5** Atualização em ponto seguro (plan D2):
+- [x] **T3.5** Atualização em ponto seguro (plan D2):
   - contrato de `captureRegistry` (abrir, fechar, `isIdle`) e da regra de aplicação (abertura, toque
     com `isIdle`, adiamento);
   - câmera, recorte, assinatura e diálogo de ocorrência registram no `captureRegistry`;

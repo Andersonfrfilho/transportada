@@ -1,4 +1,5 @@
 import './driver-trip/boot-mode.contract'
+import './driver-trip/capture-registry.contract'
 import './driver-trip/catalog-parity.contract'
 import './driver-trip/code128.contract'
 import './driver-trip/copy-by-value-header.contract'

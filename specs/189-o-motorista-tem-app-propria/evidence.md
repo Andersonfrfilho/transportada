@@ -636,3 +636,59 @@ cd apps/frontend-driver && bun run test
 ```
 
 **Commit próprio, T3.4.**
+
+### T3.5 — Atualização em ponto seguro (plan D2)
+
+**Contrato antes do código.** `test/driver-trip/capture-registry.contract.ts`, na lista do
+entrypoint:
+
+- `captureRegistry`: abre/fecha por `kind`, com contagem (fechar sem abrir não derruba nada);
+  `isIdle()` exige **todos** os kinds fechados, não só um; `onIdle` dispara só quando a última
+  captura aberta fecha, e o cancelamento da inscrição funciona; `hasOpened()` começa falso, vira
+  verdadeiro na primeira abertura e nunca volta.
+- A regra de aplicação (`serviceWorkerUpdate.service.ts`): antes da primeira captura, aplica
+  sozinho; depois de uma captura (já fechada), mostra o aviso em vez de aplicar; o toque aplica na
+  hora com o registro ocioso; com captura aberta, o toque espera o `close`.
+- Leitura de fonte: o hook da câmera liga `click`/`change`/`cancel` ao registro;
+  `DriverStopCard.component.tsx` usa o hook nos dois seletores de foto (nota e ocorrência), e abre
+  e fecha `'occurrence-dialog'` no montar/desmontar do formulário de ocorrência; `ProofCrop` e
+  `SignaturePad` abrem e fecham `'crop'`/`'signature'` no próprio montar/desmontar (a tela já os
+  monta e desmonta condicionalmente, então o ciclo de vida do componente **é** o ciclo da captura);
+  `main.tsx` importa `registerSW` de `virtual:pwa-register` e liga o `onNeedRefresh` a
+  `handleServiceWorkerUpdateAvailable`.
+
+**Implementação:**
+
+- `captureRegistry.service.ts` ganha `hasOpened()`.
+- `serviceWorkerUpdate.service.ts` (novo): `handleServiceWorkerUpdateAvailable` e
+  `requestServiceWorkerUpdate`, as duas pontas da regra.
+- `useCameraCaptureFieldRef.hook.ts` (novo): usa o `inputRef` que `FileField` já aceitava — nenhuma
+  mudança no primitivo genérico de `components/ui/`. O `click` no `<input type=file>` abre antes de
+  qualquer resposta do seletor nativo chegar; `change` e `cancel` fecham, escolhido ou não.
+- `DriverStopCard.component.tsx`: os dois `FileField` de foto (comprovante e ocorrência) recebem o
+  `inputRef` do hook da câmera; `OccurrenceForm` abre/fecha `'occurrence-dialog'` num `useEffect` de
+  montagem.
+- `ProofCrop.component.tsx` e `SignaturePad.component.tsx`: `useEffect` de montagem abre a captura,
+  o cleanup fecha.
+- `main.tsx`: `registerSW({ immediate: true, onNeedRefresh })` fora do bypass de smoke (o mesmo
+  guarda do painel), com um `Set` de assinantes no módulo — o mesmo padrão do `onIdle` do
+  `captureRegistry` — para o `PageFrame` mostrar `DriverServiceWorkerUpdateNotice` sem prop
+  drilling por toda a árvore. `DriverServiceWorkerUpdateNotice.component.tsx` (novo): "Nova versão
+  disponível." + botão "Atualizar", chaves `serviceWorkerUpdate.*` nos dois locales.
+- `workbox-window` entra como dependência direta (`package.json`, `bun.lock`): é quem
+  `virtual:pwa-register` importa, e faltava — o `build` quebrava com `Rollup failed to resolve
+import "workbox-window"` até essa linha entrar.
+
+```
+cd apps/frontend-driver && bun run lint && bun run typecheck
+  ok
+
+cd apps/frontend-driver && bun run test
+  369 pass / 0 fail   (355 + 14 de capture-registry.contract, incluindo os 5 de leitura de fonte)
+
+cd apps/frontend-driver && bun run build
+  precache 13 entries (568.58 KiB) — abaixo do teto de 1,5 MiB
+  dist.contract.test.ts 6 pass / 0 fail
+```
+
+**Commit próprio, T3.5.**

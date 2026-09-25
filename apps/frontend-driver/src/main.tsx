@@ -5,8 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { registerSW } from 'virtual:pwa-register'
 
 import { EnvironmentBanner } from '@/components/EnvironmentBanner.component'
+import { DriverServiceWorkerUpdateNotice } from '@/modules/driver-trip/components/DriverServiceWorkerUpdateNotice.component'
 import {
   DriverSessionContext,
   type DriverSession,
@@ -21,6 +23,10 @@ import {
 import { captureRegistry } from '@/modules/driver-trip/shared/captureRegistry.service'
 import { createIndexedDbTripSnapshotStore } from '@/modules/driver-trip/shared/indexedDbQueue.service'
 import {
+  handleServiceWorkerUpdateAvailable,
+  requestServiceWorkerUpdate,
+} from '@/modules/driver-trip/shared/serviceWorkerUpdate.service'
+import {
   claimTripSnapshot,
   hashSubject,
   readLastTripSnapshot,
@@ -28,6 +34,7 @@ import {
 } from '@/modules/driver-trip/shared/tripSnapshot.service'
 import { DriverForbiddenPage } from '@/modules/identity/DriverForbidden.page'
 import { checkDriverAuthorization } from '@/modules/identity/shared/driverAuthorization.service'
+import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthBypass.service'
 import { DriverNotificationsPage } from '@/modules/notification/pages/DriverNotifications.page'
 import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
@@ -52,13 +59,75 @@ const tripSnapshotStore = createIndexedDbTripSnapshotStore()
 
 applyEnvironmentBadge({ document, environment: deploymentEnvironment })
 
+/**
+ * Registro do service worker (plan D2). `registerType: 'prompt'` (ADR-0075 §5): o `onNeedRefresh`
+ * decide, pela regra de aplicação, entre `updateSW(true)` sozinho e o aviso "Nova versão —
+ * Atualizar" — nunca recarrega a página no meio de uma captura. Fora do smoke: um SW real
+ * atrapalharia o bypass de autenticação da T4.1.
+ */
+const serviceWorkerUpdateListeners = new Set<() => void>()
+let needsServiceWorkerUpdate = false
+let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | undefined
+
+function notifyServiceWorkerUpdateListeners(): void {
+  for (const listener of [...serviceWorkerUpdateListeners]) listener()
+}
+
+if (!isSmokeAuthBypassEnabled()) {
+  applyServiceWorkerUpdate = registerSW({
+    immediate: true,
+    onNeedRefresh: () => {
+      handleServiceWorkerUpdateAvailable({
+        apply: () => void applyServiceWorkerUpdate?.(true),
+        captureRegistry,
+        showUpdateBanner: () => {
+          needsServiceWorkerUpdate = true
+          notifyServiceWorkerUpdateListeners()
+        },
+      })
+    },
+  })
+}
+
+function applyServiceWorkerUpdateNow(): void {
+  needsServiceWorkerUpdate = false
+  notifyServiceWorkerUpdateListeners()
+  requestServiceWorkerUpdate({
+    apply: () => void applyServiceWorkerUpdate?.(true),
+    captureRegistry,
+  })
+}
+
+/** O componente relê o módulo a cada notificação — o mesmo padrão de assinatura do captureRegistry. */
+function useServiceWorkerUpdateBanner(): boolean {
+  const [needsUpdate, setNeedsUpdate] = useState(needsServiceWorkerUpdate)
+
+  useEffect(() => {
+    setNeedsUpdate(needsServiceWorkerUpdate)
+    function handleChange(): void {
+      setNeedsUpdate(needsServiceWorkerUpdate)
+    }
+    serviceWorkerUpdateListeners.add(handleChange)
+    return () => {
+      serviceWorkerUpdateListeners.delete(handleChange)
+    }
+  }, [])
+
+  return needsUpdate
+}
+
 type PageFrameProps = Readonly<{ children: ReactNode }>
 
 /** A faixa de ambiente vai no topo de toda página — com sessão ou não. */
 function PageFrame({ children }: PageFrameProps): ReactNode {
+  const needsServiceWorkerUpdateNow = useServiceWorkerUpdateBanner()
+
   return (
     <>
       <EnvironmentBanner environment={deploymentEnvironment} />
+      {needsServiceWorkerUpdateNow ? (
+        <DriverServiceWorkerUpdateNotice onApply={applyServiceWorkerUpdateNow} />
+      ) : null}
       {children}
     </>
   )

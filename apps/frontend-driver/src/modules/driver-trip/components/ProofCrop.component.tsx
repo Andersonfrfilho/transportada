@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import { captureRegistry } from '../shared/captureRegistry.service'
 import {
   boundsToCorners,
   cornersToBounds,
@@ -37,6 +38,12 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
   const draggingRef = useRef<CornerKey | null>(null)
   const [corners, setCorners] = useState<CropCorners | null>(null)
   const [size, setSize] = useState<{ height: number; width: number } | null>(null)
+
+  /** Plan D2: aberto do montar ao desmontar — navegar no meio do recorte perdia o ajuste. */
+  useEffect(() => {
+    captureRegistry.open('crop')
+    return () => captureRegistry.close('crop')
+  }, [])
 
   useEffect(() => {
     const url = URL.createObjectURL(file)

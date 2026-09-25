@@ -201,5 +201,9 @@
     "notice_one": "{{count}} pendência de outra conta neste celular. Ela não é enviada com a sua conta.",
     "notice_other": "{{count}} pendências de outra conta neste celular. Elas não são enviadas com a sua conta.",
     "warning": "Descartar apaga essas pendências do celular para sempre: quem as registrou não vai conseguir enviá-las."
+  },
+  "serviceWorkerUpdate": {
+    "apply": "Atualizar",
+    "available": "Nova versão disponível."
   }
 }

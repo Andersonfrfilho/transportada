@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/components/DriverStopCard.component.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,8 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { ProofCrop } from './ProofCrop.component'
 import { SignaturePad } from './SignaturePad.component'
+import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
+import { captureRegistry } from '../shared/captureRegistry.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
   DRIVER_OCCURRENCE_KINDS,
@@ -419,6 +421,7 @@ export function DeliveryProofSection({
     signature: false,
   })
   const canSign = plan.rendersSignature && isSignatureCaptureSupported()
+  const cameraFieldRef = useCameraCaptureFieldRef()
 
   function receiverFields(): Pick<DriverProofAttachment, 'receiverDocument' | 'receiverName'> {
     const canonical = canonicalReceiverDocument(receiverDocument)
@@ -528,6 +531,7 @@ export function DeliveryProofSection({
               accept="image/*"
               actionLabel={t('choosePhoto')}
               capture="environment"
+              inputRef={cameraFieldRef}
               label={`${t('proof')}${plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}`}
               placeholder={t('noPhotoChosen')}
               onSelect={(file) => {
@@ -586,6 +590,13 @@ function OccurrenceForm({ onSubmit, stop }: OccurrenceFormProps) {
   const [kind, setKind] = useState<DriverOccurrenceKind>('long_wait')
   const [description, setDescription] = useState('')
   const [photos, setPhotos] = useState<readonly File[]>([])
+  const cameraFieldRef = useCameraCaptureFieldRef()
+
+  /** Plan D2: aberto do montar ao desmontar — navegar no meio do relato perdia o que já foi digitado. */
+  useEffect(() => {
+    captureRegistry.open('occurrence-dialog')
+    return () => captureRegistry.close('occurrence-dialog')
+  }, [])
 
   const noteDocument = findOccurrencePhotoDocument(stop)
   const preview = renderOccurrenceNoticePreview({
@@ -640,6 +651,7 @@ function OccurrenceForm({ onSubmit, stop }: OccurrenceFormProps) {
             accept="image/*"
             actionLabel={t('choosePhoto')}
             capture="environment"
+            inputRef={cameraFieldRef}
             label={t('occurrencePhoto')}
             placeholder={t('noPhotoChosen')}
             onSelect={(file) => {
