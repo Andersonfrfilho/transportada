@@ -40,3 +40,86 @@ export function countPending(input: {
 
   return { drainable, rejected, total: drainable + rejected }
 }
+
+/** O mesmo intervalo da sonda de reconexão da app do motorista (plan D5, `bootMode.service.ts`). */
+export const QUEUE_DRAIN_INTERVAL_MS = 30_000
+
+type DrainEventType = 'online' | 'pageshow' | 'visibilitychange'
+
+export type DrainTriggerTarget = Readonly<{
+  addEventListener: (type: DrainEventType, listener: () => void) => void
+  clearInterval: (id: number) => void
+  isVisible: () => boolean
+  removeEventListener: (type: DrainEventType, listener: () => void) => void
+  setInterval: (handler: () => void, timeout: number) => number
+}>
+
+/**
+ * ADR-0075 §6, revisão M4: a b18564bc8 estabilizou as lojas do `useDriverTrip` e, sem querer, tirou
+ * o único gatilho de repetição que a tela de pendências tinha — o efeito de montagem que reexecutava
+ * a cada render. Estes são os gatilhos explícitos: `online`, `visibilitychange` visível e `pageshow`
+ * sempre chamam `drain`. O temporizador de 30 s existe só enquanto `getDrainable()` for maior que
+ * zero — cobre o sinal fraco, onde `online` nunca dispara — e se desliga sozinho quando a fila
+ * esvazia. "Abertura" é o gatilho de fora: quem monta chama `drain()` uma vez, antes de agendar
+ * estes.
+ */
+export function scheduleQueueDrainTriggers(input: {
+  readonly drain: () => void
+  readonly getDrainable: () => number
+  /**
+   * Entrega a quem chama o `sync` do temporizador. Um toque enfileirado com sinal fraco não dispara
+   * `online` nem muda a visibilidade: sem este aviso, o temporizador só nasceria no próximo gatilho.
+   */
+  readonly onQueueSync?: (sync: () => void) => void
+  readonly target: DrainTriggerTarget
+}): () => void {
+  let intervalId: number | undefined
+
+  function stopInterval(): void {
+    if (intervalId === undefined) return
+    input.target.clearInterval(intervalId)
+    intervalId = undefined
+  }
+
+  function tick(): void {
+    input.drain()
+    if (input.getDrainable() <= 0) stopInterval()
+  }
+
+  function syncInterval(): void {
+    if (input.getDrainable() <= 0) {
+      stopInterval()
+      return
+    }
+    intervalId ??= input.target.setInterval(tick, QUEUE_DRAIN_INTERVAL_MS)
+  }
+
+  function handleOnline(): void {
+    input.drain()
+    syncInterval()
+  }
+
+  function handlePageshow(): void {
+    input.drain()
+    syncInterval()
+  }
+
+  function handleVisibilityChange(): void {
+    if (!input.target.isVisible()) return
+    input.drain()
+    syncInterval()
+  }
+
+  input.target.addEventListener('online', handleOnline)
+  input.target.addEventListener('pageshow', handlePageshow)
+  input.target.addEventListener('visibilitychange', handleVisibilityChange)
+  input.onQueueSync?.(syncInterval)
+  syncInterval()
+
+  return () => {
+    input.target.removeEventListener('online', handleOnline)
+    input.target.removeEventListener('pageshow', handlePageshow)
+    input.target.removeEventListener('visibilitychange', handleVisibilityChange)
+    stopInterval()
+  }
+}

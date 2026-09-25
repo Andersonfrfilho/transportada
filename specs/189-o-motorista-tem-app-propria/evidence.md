@@ -1107,3 +1107,49 @@ apagaria uma entrega que a próxima tentativa enviaria.
 - `bun test ./test/driver-trip.contract.test.ts`: 209 pass / 0 fail (13 destes são os casos novos;
   antes da função nova o arquivo não compilava — `isEventQueueItemDiscardable` não existia).
 - `bun run typecheck`: limpo.
+
+### M4 — gatilhos explícitos de drenagem no `useDriverTrip` do painel
+
+A b18564bc8 estabilizou as lojas padrão do `useDriverTrip` (`useState` em vez de parâmetro
+recriado a cada render) e, com isso, tirou sem querer o único gatilho de repetição que a tela de
+pendências tinha: o efeito de montagem reexecutando a cada render por causa da loja instável.
+Sem ele, um envio que falha (rede fraca, 5xx) só tenta de novo se o motorista trocar de tela ou a
+rede voltar (`online`) — nunca sozinho.
+
+O agendador copiado é a versão **atual** da app do motorista (commit `fdffe1f3a`, achado durante a
+T4.1 dela): `scheduleQueueDrainTriggers` ganhou `onQueueSync`, chamado por `refreshQueueView`
+sempre que a pendência drenável é recalculada — sem isso, um toque enfileirado com sinal fraco não
+liga o temporizador até o próximo gatilho externo.
+
+- `pendingQueue.service.ts` (cópia por valor, ADR-0075 §7) ganha `QUEUE_DRAIN_INTERVAL_MS`,
+  `DrainTriggerTarget` e `scheduleQueueDrainTriggers` (com `onQueueSync`), idênticos aos da app do
+  motorista — só `countPending` (já copiado) muda entre as duas, pelo `ownerSubHash` que o painel
+  não tem.
+- `useDriverTrip.hook.ts`: `drainableCountRef` e `syncDrainTimerRef` (novos), `refreshQueueView`
+  chama `syncDrainTimerRef.current()` ao recalcular a pendência, e o efeito de montagem troca o
+  `window.addEventListener('online', ...)` manual por `scheduleQueueDrainTriggers` (gatilhos
+  `online`, `pageshow`, `visibilitychange` visível, e o temporizador de 30 s enquanto houver
+  pendência drenável).
+- **Isto muda o comportamento do módulo antigo com o interruptor desligado.** `useDriverTrip` é o
+  hook de `/minha-viagem` também fora do modo `pending-screen` — quem usa a tela de sempre (sem
+  `VITE_DRIVER_APP_URL`) ganha os mesmos gatilhos. É intencional: a alternativa (só a tela de
+  pendências do painel ganhar retry) duplicaria o hook, e a spec 082 já estabeleceu que "uma
+  drenagem por vez" é regra do hook inteiro, não de uma tela.
+- Teste novo em `test/driver-trip/pending-queue.contract.ts` — a mesma suíte
+  `scheduleQueueDrainTriggers` da app do motorista (8 casos: os três gatilhos chamam `drain`,
+  `visibilitychange` invisível não chama, o temporizador só existe com `drainable > 0`, ele chama
+  no intervalo de 30 s, para quando a fila zera, `online` liga o temporizador quando a fila ganha
+  pendência, `onQueueSync` liga sem esperar gatilho, e cancelar desliga tudo).
+- Teste novo, com DOM, em `test/trip-hooks/driver-trip-drain-triggers.contract.ts` (a garantia
+  pedida na revisão: "montar não emenda drenagens sem fim"): monta `useDriverTrip` de verdade com
+  uma loja em memória e um item sempre "offline" (nunca ganha `rejectionCause`, fica drenável para
+  sempre); a montagem drena uma vez, `online` e `pageshow` cada um drena mais uma, e **parado sem
+  gatilho nenhum a contagem não sobe sozinha** — é a prova de que o efeito de montagem não
+  reexecuta a cada render. Desmontar cancela os ouvintes: disparar `online`/`pageshow` depois não
+  drena mais. Fila vazia: montar não drena.
+- `bun test ./test/driver-trip.contract.test.ts`: 217 pass / 0 fail (era 209 antes do M2; +8 desta
+  revisão).
+- `bun run --cwd apps/frontend-transportada test:hooks`: 54 pass / 0 fail (eram 51; +3 desta
+  revisão).
+- `bun run --cwd apps/frontend-transportada test`: 217 + 54 pass / 0 fail.
+- `bun run typecheck` e `bun run lint`: limpos.
