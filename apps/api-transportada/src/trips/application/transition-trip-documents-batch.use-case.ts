@@ -218,6 +218,7 @@ export async function transitionTripDocumentsBatch(
           outcome: 'not_found',
         },
     ),
-    tripStatus: written.tripStatus,
+    // O status lido na escrita do lote é anterior ao gatilho: quem despachou foi ele.
+    tripStatus: autoDispatch?.outcome === 'dispatched' ? 'dispatched' : written.tripStatus,
   }
 }

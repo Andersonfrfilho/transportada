@@ -176,7 +176,8 @@ async function attempt(
     return {
       ...(autoDispatch === undefined ? {} : { autoDispatch }),
       document: outcome.document,
-      tripStatus: outcome.tripStatus,
+      // O status lido na escrita da nota é anterior ao gatilho: quem despachou foi ele.
+      tripStatus: autoDispatch?.outcome === 'dispatched' ? 'dispatched' : outcome.tripStatus,
     }
   }
   if (retries >= MAX_RACE_RETRIES) throw new TripDocumentTransitionConflictError()

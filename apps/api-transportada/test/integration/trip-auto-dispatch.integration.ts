@@ -103,6 +103,8 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
         })
 
         expect(result.autoDispatch).toEqual({ outcome: 'dispatched' })
+        // Revisão da spec 185: a resposta da carga já diz o status que o gatilho deixou.
+        expect(result.tripStatus).toBe('dispatched')
         expect(await readTripStatus(database, trip.tripId)).toBe('dispatched')
 
         const snapshot = await readSnapshot(database, trip.tripId)
@@ -143,6 +145,8 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
         })
 
         expect(result.autoDispatch).toEqual({ outcome: 'dispatched' })
+        // Revisão da spec 185: a resposta da carga já diz o status que o gatilho deixou.
+        expect(result.tripStatus).toBe('dispatched')
         expect(await readTripStatus(database, trip.tripId)).toBe('dispatched')
 
         const statusEvents = await readStatusEvents(database, trip.tripId)
