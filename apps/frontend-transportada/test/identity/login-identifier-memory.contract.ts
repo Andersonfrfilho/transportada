@@ -98,10 +98,8 @@ describe('login identifier memory contract', () => {
     const main = readSource('main.tsx')
     const authenticated = main.indexOf('const isAuthenticated = await initializeKeycloakAuth()')
     const forget = main.indexOf('forgetLoginIdentifier()', authenticated)
-    const application = main.indexOf(
-      'takeOverDriverEntry({ isAuthenticated: true })',
-      authenticated,
-    )
+    /** Antes de a aplicação montar: é o primeiro ponto em que a sessão já existe. */
+    const application = main.indexOf('<QueryClientProvider', authenticated)
 
     expect(authenticated).toBeGreaterThan(-1)
     expect(forget).toBeGreaterThan(authenticated)
