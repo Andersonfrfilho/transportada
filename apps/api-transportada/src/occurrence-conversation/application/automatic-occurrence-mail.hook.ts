@@ -40,42 +40,52 @@ export function createAutomaticOccurrenceMailHook(dependencies: {
     }): Promise<AutomaticOccurrenceMailResult>
   }
 }): AutomaticOccurrenceMailHook {
-  const inFlight = new Set<Promise<void>>()
+  /**
+   * Spec 183 T903 (C4/S4): uma fila só, em série. O lote do escritório tem até 50 notas, e cada
+   * aviso abre a própria transação: em paralelo, o lote tomava o pool inteiro (10 conexões) depois
+   * da resposta, e as requisições dos outros esperavam até 503.
+   */
+  let queue: Promise<void> = Promise.resolve()
+
+  function sendOne(companyId: string, correlationId: string, occurrenceId: string): Promise<void> {
+    return dependencies.useCase
+      .send({ companyId, correlationId, occurrenceId })
+      .then((result) => {
+        if (result.outcome === 'sent') {
+          dependencies.logger.info('occurrence_automatic_mail_sent', {
+            companyId,
+            occurrenceId,
+            recipientCount: result.recipientCount,
+            whatsappFallbackCount: result.whatsappFallbackCount,
+            whatsappUnreachableCount: result.whatsappUnreachableCount,
+          })
+          return
+        }
+        dependencies.logger.info('occurrence_automatic_mail_skipped', {
+          companyId,
+          occurrenceId,
+          reason: result.reason,
+        })
+      })
+      .catch((error: unknown) => {
+        dependencies.logger.error('occurrence_automatic_mail_failed', {
+          companyId,
+          errorCode: errorCode(error),
+          occurrenceId,
+        })
+      })
+  }
+
   return {
     announce({ companyId, correlationId, occurrenceIds }) {
       for (const occurrenceId of occurrenceIds) {
-        const run = dependencies.useCase
-          .send({ companyId, correlationId: correlationId ?? crypto.randomUUID(), occurrenceId })
-          .then((result) => {
-            if (result.outcome === 'sent') {
-              dependencies.logger.info('occurrence_automatic_mail_sent', {
-                companyId,
-                occurrenceId,
-                recipientCount: result.recipientCount,
-                whatsappFallbackCount: result.whatsappFallbackCount,
-                whatsappUnreachableCount: result.whatsappUnreachableCount,
-              })
-              return
-            }
-            dependencies.logger.info('occurrence_automatic_mail_skipped', {
-              companyId,
-              occurrenceId,
-              reason: result.reason,
-            })
-          })
-          .catch((error: unknown) => {
-            dependencies.logger.error('occurrence_automatic_mail_failed', {
-              companyId,
-              errorCode: errorCode(error),
-              occurrenceId,
-            })
-          })
-          .finally(() => inFlight.delete(run))
-        inFlight.add(run)
+        queue = queue.then(() =>
+          sendOne(companyId, correlationId ?? crypto.randomUUID(), occurrenceId),
+        )
       }
     },
     async settled() {
-      await Promise.all([...inFlight])
+      await queue
     },
   }
 }

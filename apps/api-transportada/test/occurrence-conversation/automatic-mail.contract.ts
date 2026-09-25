@@ -182,3 +182,32 @@ describe('o gancho do registro (spec 183 T802)', () => {
     expect(JSON.stringify(logs)).not.toContain('@')
   })
 })
+
+describe('o lote não estoura o pool (spec 183 T903, achados C4/S4)', () => {
+  test('os avisos de um lote saem um de cada vez, na ordem', async () => {
+    let inFlight = 0
+    let peak = 0
+    const order: string[] = []
+    const hook = createAutomaticOccurrenceMailHook({
+      logger: { error: () => undefined, info: () => undefined },
+      useCase: {
+        send: async ({ occurrenceId }) => {
+          inFlight += 1
+          peak = Math.max(peak, inFlight)
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          order.push(occurrenceId)
+          inFlight -= 1
+          return { outcome: 'skipped', reason: 'type_off' }
+        },
+      },
+    })
+
+    hook.announce({ companyId: COMPANY_ID, occurrenceIds: ['a', 'b', 'c'] })
+    hook.announce({ companyId: COMPANY_ID, occurrenceIds: ['d'] })
+    await hook.settled()
+
+    expect(peak).toBe(1)
+    expect(order).toEqual(['a', 'b', 'c', 'd'])
+  })
+})
+
