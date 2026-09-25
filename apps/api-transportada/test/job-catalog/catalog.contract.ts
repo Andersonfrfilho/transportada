@@ -121,6 +121,12 @@ const CATALOG = [
     job: 'trip.occurrence-upload.expire',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 183 T702c2: o pedido de upload do anexo da conversa, vencido, só toca o próprio banco e o bucket. */
+    failureOutcomes: [],
+    job: 'occurrence-conversation.upload.expire',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -140,6 +146,7 @@ const SEED_MIGRATIONS = [
   '20260915233000_rate_limit_windows',
   '20260922112706_trip_occurrence_attachment_purge_job',
   '20260924033423_lumpy_scalphunter',
+  '20260925152805_occurrence_conversation_upload_expire_job',
 ] as const
 
 describe('job catalog', () => {

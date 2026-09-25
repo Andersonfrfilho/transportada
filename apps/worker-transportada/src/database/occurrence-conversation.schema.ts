@@ -53,3 +53,15 @@ export const occurrenceConversationAttachments = pgTable('occurrence_conversatio
   durationMs: integer('duration_ms'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+/** Spec 183 T702c2: o pedido de upload do anexo — o worker expira o `pending` vencido. */
+export type OccurrenceConversationUploadStatus = 'pending' | 'attached' | 'expired'
+
+export const occurrenceConversationUploads = pgTable('occurrence_conversation_uploads', {
+  id: uuid().defaultRandom().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  bucket: text().notNull(),
+  objectKey: text('object_key').notNull(),
+  status: text().$type<OccurrenceConversationUploadStatus>().notNull().default('pending'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})

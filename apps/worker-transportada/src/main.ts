@@ -151,6 +151,9 @@ import { startContractorMailInboundConsumer } from './runtime/contractor-mail-in
 import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
 import { createInboundConversationAttachmentStore } from './occurrence-conversation/application/inbound-mail-attachments.service.js'
+import { createOccurrenceConversationUploadExpireRoutine } from './occurrence-conversation-upload-expire/application/occurrence-conversation-upload-expire.routine.js'
+import { OCCURRENCE_CONVERSATION_UPLOAD_EXPIRE_JOB } from './occurrence-conversation-upload-expire/domain/occurrence-conversation-upload-expire.constant.js'
+import { createDrizzleExpireConversationUploadBatch } from './occurrence-conversation-upload-expire/infrastructure/drizzle-occurrence-conversation-upload-expire.repository.js'
 import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
 import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
@@ -1252,6 +1255,16 @@ export async function startWorkerRuntime(
             logger,
             now: () => new Date(),
           }),
+          /** Spec 183 T702c2: o pedido de upload do anexo da conversa que venceu sem virar anexo. */
+          [OCCURRENCE_CONVERSATION_UPLOAD_EXPIRE_JOB]:
+            createOccurrenceConversationUploadExpireRoutine({
+              expire: createDrizzleExpireConversationUploadBatch({
+                database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                deleteObject: (object) => storageGateway.deleteObject(object),
+              }),
+              logger,
+              now: () => new Date(),
+            }),
           /**
            * Ausente quando a instalação não declara credencial de administração do realm: sem
            * provedor não há atributo a escrever, e a janela pousa em `job_run_routine_missing`.

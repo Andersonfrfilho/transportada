@@ -1766,3 +1766,39 @@ migration na API). Um commit por parte.
     de base sem ela, uma completa). A causa não foi estabelecida; fica registrado como está, e o
     `catch` mudo do boot entra como achado para a revisão da Fase 9.
   - lint, typecheck e formatação da raiz limpos.
+
+## T702c2 — O pedido de upload vencido sai do bucket e fecha como `expired` (verde)
+
+- **Rotina nova no worker:** `occurrence-conversation.upload.expire`, a cada batida (300 s). A
+  unidade de trabalho é a da rotina irmã da spec 179 (`expireOccurrenceUploadUnit`, que não conhece a
+  tabela): trava o pedido `pending` vencido com `for update skip locked`, apaga o objeto do bucket
+  **antes** de marcar `expired`, numa transação por pedido; falha de bucket vira contador, e cinco
+  seguidas encerram o ciclo. Folga de 900 s sobre o vencimento (a URL vale 900 s), para o relógio
+  entre API e worker nunca apagar o objeto de um envio legítimo em voo. O `attached` ganha a corrida:
+  o lock reconfere `pending`, e o `markExpired` também. O log só conta.
+- **Catálogo de jobs nos quatro apps** (API, worker, cron, painel), cópia por valor com contrato de
+  paridade em cada um.
+- **Migration aditiva** `20260925152805_occurrence_conversation_upload_expire_job` (gerada pelo
+  `db:generate`, no formato da precedente `lumpy_scalphunter`: `CHECK` recriado `NOT VALID` e
+  validado em seguida, sem lock longo, e a linha do relógio em `job_schedules`). Rollback à mão:
+  apaga a execução e o agendamento do job, devolve os dois `CHECK` e remove a linha do diário
+  conferindo que era uma só. Registrada em `static-migration.contract.ts` e na lista de migrations
+  que semeiam o relógio (`catalog.contract.ts`).
+- **Cópia no worker** de `occurrence_conversation_uploads` (as colunas que a rotina lê e grava), com
+  contrato de paridade contra a API.
+- **Testes, escritos antes e vistos falhando:** os três contratos de catálogo (worker 2 fail, API 4
+  fail, cron 2 fail) antes das entradas, e o da API ainda 1 fail até a migration semear; a rotina e a
+  paridade (`occurrence-conversation-upload-expire/*.contract.ts`, **5 pass**) com o módulo
+  inexistente. Integração `occurrence-conversation-upload-expire.integration.ts` (**1 pass**, no
+  `package.json`), contra Postgres e o S3 de verdade: o vencido que subiu some do bucket e vira
+  `expired`; o vencido que nunca subiu fecha sem erro; o recente e o `attached` ficam, com o objeto
+  no bucket; rodar de novo não muda nada.
+- **Achado no caminho:** a paridade de colunas da T702c1 cortava a tabela até o fim do arquivo e
+  passou a contar as colunas da cópia nova; corrigida para parar no fecho da tabela (a mesma correção
+  do teste novo).
+- **Rodado:**
+  - `ENV_FILE=.env.test make migration-test` **110 pass**; `bun run db:check` limpo;
+  - API: contratos **7557 pass, 0 fail**; integração completa sozinha **609 pass, 7 skip, 0 fail**;
+  - worker: contratos **1446 pass**; integração completa sozinha **138 pass, 4 skip, 0 fail**;
+  - cron **101 pass**; painel **5251 + 44 pass**;
+  - lint, typecheck e formatação da raiz limpos.

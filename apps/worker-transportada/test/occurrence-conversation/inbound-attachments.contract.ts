@@ -90,6 +90,7 @@ describe('a política do anexo é a da API (spec 183 T702c1)', () => {
     ])
     const table = worker.slice(worker.indexOf("pgTable('occurrence_conversation_attachments'"))
     const columns = table
+      .slice(0, table.indexOf('\n})'))
       .split('\n')
       .filter((line) => /^\s+[a-zA-Z]+: (uuid|text|integer|timestamp)\(.*,$/u.test(line))
 
