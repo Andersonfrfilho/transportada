@@ -34,6 +34,10 @@ import { AddContractorContactDialog } from './AddContractorContactDialog.compone
 import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
 import { QuickReplyPicker } from './QuickReplyPicker.component'
 import { ConversationMessage } from './ConversationMessage.component'
+import {
+  recoverFromSendFailure,
+  type SendFailureRecovery,
+} from '../shared/conversationAttachment.service'
 import { resendChannelFor } from '../shared/messageStatus.service'
 import { SendToContractorDialog } from './SendToContractorDialog.component'
 
@@ -189,6 +193,7 @@ function DriverConversationPanel({
   /** Spec 183 T702b: os anexos do rascunho e o que já subiu dele. */
   const [files, setFiles] = useState<readonly File[]>([])
   const uploaded = useRef(new Map<File, string>())
+  const [failureReason, setFailureReason] = useState<SendFailureRecovery['reason']>('generic')
   const composerRef = useRef<HTMLTextAreaElement>(null)
   useMarkReadOnOpen(conversation)
   const messages = conversation?.messages ?? []
@@ -217,6 +222,14 @@ function DriverConversationPanel({
           setFiles([])
           uploaded.current = new Map()
           setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
+        },
+        /** Spec 183 T903 (F2/F3): upload vencido sobe de novo; chave já usada ganha outra. */
+        onError: (failure) => {
+          const recovery = recoverFromSendFailure(failure)
+          if (recovery.clearUploads) uploaded.current = new Map()
+          if (recovery.renewKey)
+            setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
+          setFailureReason(recovery.reason)
         },
       },
     )
@@ -290,7 +303,9 @@ function DriverConversationPanel({
           />
           {send.isError ? (
             <p className={styles.error} role="alert">
-              {t('driver.error.send')}
+              {failureReason === 'generic'
+                ? t('driver.error.send')
+                : t(`sendRecovery.${failureReason}`)}
             </p>
           ) : null}
           <div className={styles.footer}>
@@ -355,6 +370,7 @@ function ContractorPortalComposer({
   /** Spec 183 T702b: os anexos do rascunho e o que já subiu dele. */
   const [files, setFiles] = useState<readonly File[]>([])
   const uploaded = useRef(new Map<File, string>())
+  const [failureReason, setFailureReason] = useState<SendFailureRecovery['reason']>('generic')
 
   function submit(): void {
     const validated = validateDriverMessageDraft(draft, files.length)
@@ -371,6 +387,14 @@ function ContractorPortalComposer({
           setFiles([])
           uploaded.current = new Map()
           setIdempotencyKey(createPortalMessageIdempotencyKey(() => crypto.randomUUID()))
+        },
+        /** Spec 183 T903 (F2/F3): upload vencido sobe de novo; chave já usada ganha outra. */
+        onError: (failure) => {
+          const recovery = recoverFromSendFailure(failure)
+          if (recovery.clearUploads) uploaded.current = new Map()
+          if (recovery.renewKey)
+            setIdempotencyKey(createPortalMessageIdempotencyKey(() => crypto.randomUUID()))
+          setFailureReason(recovery.reason)
         },
       },
     )
@@ -415,7 +439,9 @@ function ContractorPortalComposer({
       />
       {send.isError ? (
         <p className={styles.error} role="alert">
-          {t('contractor.portal.error.send')}
+          {failureReason === 'generic'
+            ? t('contractor.portal.error.send')
+            : t(`sendRecovery.${failureReason}`)}
         </p>
       ) : null}
       <div className={styles.footer}>

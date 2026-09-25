@@ -19,6 +19,10 @@ import {
   OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
   validateDriverMessageDraft,
 } from '@/modules/occurrence-conversation/shared/occurrenceConversation.service'
+import {
+  recoverFromSendFailure,
+  type SendFailureRecovery,
+} from '@/modules/occurrence-conversation/shared/conversationAttachment.service'
 import conversationStyles from '@/modules/occurrence-conversation/styles/occurrenceConversation.module.css'
 
 import styles from '../styles/driverTrip.module.css'
@@ -69,6 +73,7 @@ function DriverConversation({
   /** Spec 183 T702b: a foto ou o documento da resposta, e o que já subiu deste rascunho. */
   const [files, setFiles] = useState<readonly File[]>([])
   const uploaded = useRef(new Map<File, string>())
+  const [failureReason, setFailureReason] = useState<SendFailureRecovery['reason']>('generic')
 
   useEffect(() => {
     markRead(conversation.occurrenceId)
@@ -90,6 +95,14 @@ function DriverConversation({
           uploaded.current = new Map()
           setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
           void messages.refetch()
+        },
+        /** Spec 183 T903 (F2/F3): upload vencido sobe de novo; chave já usada ganha outra. */
+        onError: (failure) => {
+          const recovery = recoverFromSendFailure(failure)
+          if (recovery.clearUploads) uploaded.current = new Map()
+          if (recovery.renewKey)
+            setIdempotencyKey(createDriverMessageIdempotencyKey(() => crypto.randomUUID()))
+          setFailureReason(recovery.reason)
         },
       },
     )
@@ -180,7 +193,9 @@ function DriverConversation({
         />
         {reply.isError ? (
           <p className={conversationStyles.error} role="alert">
-            {t('driverApp.error')}
+            {failureReason === 'generic'
+              ? t('driverApp.error')
+              : t(`sendRecovery.${failureReason}`)}
           </p>
         ) : null}
         <Button disabled={reply.isPending} type="submit">

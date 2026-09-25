@@ -84,10 +84,10 @@
       "OCCURRENCE_CONVERSATION_NO_RECIPIENT": "None of the chosen contacts receives occurrences now. Check the contacts and try again.",
       "OCCURRENCE_CONVERSATION_CONTRACTOR_UNKNOWN": "The invoice of this occurrence has no registered contractor.",
       "OCCURRENCE_CONVERSATION_MAIL_INVALID": "Subject or message is blank or too long.",
-      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "This send was already made with another text. Close and reopen the dialog.",
+      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "A previous send was already recorded. Send again to send the current text.",
       "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "One of the attachments is not what it claims to be, or the files exceed what an email can carry. Check and try again.",
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Could not upload the attachments. Try again shortly.",
-      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "An attachment expired before sending. Remove it and choose it again."
+      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "An attachment expired before sending. Send again — it will upload once more."
     }
   },
   "addContact": {
@@ -232,5 +232,9 @@
   "thread": {
     "newMessages_one": "{{count}} new message in the conversation",
     "newMessages_other": "{{count}} new messages in the conversation"
+  },
+  "sendRecovery": {
+    "uploadExpired": "An attachment expired before sending. Send again — it will upload once more.",
+    "alreadySent": "The previous message was already recorded. Send again to send the current text."
   }
 }

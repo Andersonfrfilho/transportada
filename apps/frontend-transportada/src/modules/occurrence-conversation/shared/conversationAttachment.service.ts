@@ -183,3 +183,34 @@ export function toConversationAttachments(
 export function conversationAttachmentKind(contentType: string): ConversationAttachmentKind {
   return CONVERSATION_ATTACHMENT_CONTENT_TYPES[contentType] ?? 'document'
 }
+
+export type SendFailureRecovery = Readonly<{
+  clearUploads: boolean
+  reason: 'alreadySent' | 'generic' | 'uploadExpired'
+  renewKey: boolean
+}>
+
+function failureCode(error: unknown): string {
+  return typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+    ? error.code
+    : ''
+}
+
+/**
+ * Spec 183 T903 (F2/F3): o que o rascunho faz depois de um envio que falhou. Upload vencido
+ * (`UPLOAD_INVALID`, a URL vale 15 min) sobe de novo; chave já usada com outro conteúdo — a API
+ * gravou e a resposta se perdeu — ganha chave nova e sobe de novo. O resto repete o mesmo envio.
+ */
+export function recoverFromSendFailure(error: unknown): SendFailureRecovery {
+  const code = failureCode(error)
+  if (code === 'OCCURRENCE_CONVERSATION_UPLOAD_INVALID') {
+    return { clearUploads: true, reason: 'uploadExpired', renewKey: false }
+  }
+  if (code === 'OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED') {
+    return { clearUploads: true, reason: 'alreadySent', renewKey: true }
+  }
+  return { clearUploads: false, reason: 'generic', renewKey: false }
+}

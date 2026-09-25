@@ -13,6 +13,7 @@ import {
   useContractorMailPreviewMutation,
   useSendContractorMailMutation,
 } from '../queries/occurrenceConversation.query'
+import { recoverFromSendFailure } from '../shared/conversationAttachment.service'
 import { OccurrenceConversationRequestError } from '../shared/occurrenceConversationClient.service'
 import {
   buildContractorMailRequest,
@@ -67,7 +68,7 @@ export function SendToContractorDialog({
   const initialPreview = useContractorMailPreviewMutation(occurrenceId)
   const livePreview = useContractorMailPreviewMutation(occurrenceId)
   const send = useSendContractorMailMutation(occurrenceId)
-  const [idempotencyKey] = useState(() =>
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
     createOccurrenceMailIdempotencyKey(() => crypto.randomUUID()),
   )
   const [subject, setSubject] = useState('')
@@ -107,7 +108,17 @@ export function SendToContractorDialog({
         request: buildContractorMailRequest(draft),
         uploaded: uploaded.current,
       },
-      { onSuccess: onClose },
+      {
+        /** Spec 183 T903 (F2/F3): upload vencido sobe de novo; chave já usada ganha outra. */
+        onError: (failure) => {
+          const recovery = recoverFromSendFailure(failure)
+          if (recovery.clearUploads) uploaded.current = new Map()
+          if (recovery.renewKey) {
+            setIdempotencyKey(createOccurrenceMailIdempotencyKey(() => crypto.randomUUID()))
+          }
+        },
+        onSuccess: onClose,
+      },
     )
   }
 
