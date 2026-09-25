@@ -1392,3 +1392,33 @@ cd apps/frontend-driver && bun test test/driver-trip.contract.test.ts
   error: Cannot find module '@/modules/driver-trip/shared/driverTripSelection.service'
   0 pass / 1 fail / 1 error
 ```
+
+### T7.2 — `DriverTripSelector.component.tsx` e o fim do `trips[0]`
+
+- `driverTripSelection.service.ts` (puro): `resolveSelectedTrip` — a escolha vale enquanto a viagem
+  está na lista; sem ela, a mais antiga em `in_transit`/`on_delivery_route`, senão `trips[0]`.
+- `useSelectedDriverTrip.hook.ts`: a escolha fica em `sessionStorage`
+  (`transportada.driver-trip.selected-trip`, só o id da viagem), com `try/catch` para aba privada.
+- `DriverTripSelector.component.tsx`: um `Button` por viagem num `role="group"` ("Suas viagens"),
+  `aria-pressed` na escolhida, rótulo "Viagem N · PLACA" (N é a posição na ordem da API — duas
+  viagens podem ter a mesma placa). Com uma viagem só, não aparece.
+- `DriverTripWorkspace.page.tsx`: `snapshot?.trips[0]` → `useSelectedDriverTrip(snapshot?.trips ?? [])`,
+  e o seletor logo abaixo do cabeçalho. `DriverProfile.page.tsx` recebe a viagem escolhida por prop
+  (`trip`) em vez de ler `trips[0]`. `git grep "trips\[0\]" -- apps/frontend-driver/src` só acha o
+  fallback dentro do próprio serviço.
+- Locales pt-BR e en (`tripSelector.label`, `tripSelector.option`), `.tripSelector` no CSS.
+- Playwright: `mockDriverTripApi` aceita `scenario.additionalTrips`; o teste novo **CA12** abre com
+  duas viagens (a primeira `dispatched`, a segunda `in_transit`), confere que a padrão é a segunda,
+  troca para a primeira, recarrega (a escolha sobrevive), abre o Perfil e vê só a placa da
+  escolhida; mais a varredura de 44 px e de rolagem horizontal.
+
+```
+cd apps/frontend-driver && bun test test/driver-trip.contract.test.ts
+  303 pass / 0 fail   (T7.1 verde)
+cd apps/frontend-driver && bun run check
+  lint ok · typecheck ok · test 382 pass / 0 fail · build ok, precache 13 arquivos, 602.590 bytes ·
+  dist.contract 6 pass / 0 fail
+cd apps/frontend-driver && PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false bun run smoke
+  driver-service-worker.smoke.spec.ts   2 passed
+  driver-app.smoke.spec.ts             14 passed   (13 + CA12)
+```

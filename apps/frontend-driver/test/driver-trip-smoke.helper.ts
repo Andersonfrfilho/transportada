@@ -28,6 +28,8 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
 }
 
 export type DriverTripProofScenario = Readonly<{
+  /** Spec 189 T7.2: viagens além da de sempre, depois dela — a API ordena por `createdAt`. */
+  additionalTrips?: readonly unknown[]
   pendingProofs?: readonly unknown[]
   /** O veredito que o `/proof` devolve por documento; sem entrada, `not_required`. */
   punctualityByDocumentId?: Readonly<Record<string, string>>
@@ -89,6 +91,7 @@ function buildSnapshot(input: {
           ],
           vehiclePlate: 'GCQ8E47',
         },
+        ...(input.scenario?.additionalTrips ?? []),
       ],
     },
   }

@@ -18,6 +18,13 @@
   margin: 0;
 }
 
+/* RF12: uma viagem por botão, lado a lado enquanto couber — com duas, o polegar alcança as duas. */
+.tripSelector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .queueBanner {
   background: color-mix(in srgb, var(--color-copper) 18%, transparent);
   border-radius: var(--space-2);

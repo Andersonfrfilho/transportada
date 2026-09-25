@@ -417,3 +417,66 @@ test('CA15: nenhum interativo abaixo de 44x44 px em 375 px', async ({ page }) =>
 
   expect(await listSmallTouchTargets(page)).toEqual([])
 })
+
+const SECOND_TRIP = {
+  id: '00000000-0000-4000-8000-000000000200',
+  manifest: null,
+  status: 'in_transit',
+  stops: [
+    {
+      arrivedAt: null,
+      completedAt: null,
+      deliveryProof: null,
+      deliveryWindowEnd: null,
+      deliveryWindowStart: null,
+      documents: [],
+      id: '00000000-0000-4000-8000-000000000201',
+      label: 'Rua das Flores, 20',
+      latitude: null,
+      longitude: null,
+      schedule: null,
+      sequence: 1,
+    },
+  ],
+  vehiclePlate: 'ABC1D23',
+} as const
+
+/**
+ * CA12 (spec 189 T7.2): duas viagens ativas, as duas alcançáveis. A padrão é a mais antiga em rota
+ * — aqui a segunda da lista, porque a primeira ainda está só despachada —, a escolha sobrevive à
+ * recarga (fica na sessão) e o Perfil mostra a placa da escolhida, não a de `trips[0]`.
+ */
+test('CA12: com duas viagens, o seletor troca a viagem da tela e a placa do Perfil', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  await mockDriverTripApi({ page, scenario: { additionalTrips: [SECOND_TRIP] } })
+  await loginAsLocalUser(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+
+  const trips = page.getByRole('group', { name: 'Suas viagens' })
+  await expect(trips.getByRole('button', { name: 'Viagem 2 · ABC1D23' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(page.locator('main > header').getByText('Veículo ABC1D23')).toBeVisible()
+  await expect(page.getByRole('heading', { exact: true, name: 'Rua das Flores, 20' })).toBeVisible()
+
+  await trips.getByRole('button', { name: 'Viagem 1 · GCQ8E47' }).click()
+  await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+  await expect(page.getByRole('heading', { exact: true, name: 'Rua das Flores, 20' })).toHaveCount(
+    0,
+  )
+
+  await page.reload()
+  await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Perfil' }).click()
+  await expect(page.getByText('Veículo GCQ8E47')).toBeVisible()
+  await expect(page.getByText('Veículo ABC1D23')).toHaveCount(0)
+
+  expect(await listSmallTouchTargets(page)).toEqual([])
+  await assertNoHorizontalOverflow(page)
+})

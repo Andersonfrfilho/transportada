@@ -380,7 +380,7 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
   **Aceite:** vermelho.
 
-- [ ] **T7.2** `DriverTripSelector.component.tsx`, com `trips[0]` trocado em
+- [x] **T7.2** `DriverTripSelector.component.tsx`, com `trips[0]` trocado em
       `DriverTripWorkspace.page.tsx` e `DriverProfile.page.tsx` e a escolha guardada na sessão.
 
   **Aceite:** T7.1 verde; Playwright com duas viagens e o Perfil com a placa da escolhida.

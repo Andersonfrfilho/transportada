@@ -205,5 +205,9 @@
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
     "available": "Nova versão disponível."
+  },
+  "tripSelector": {
+    "label": "Suas viagens",
+    "option": "Viagem {{number}} · {{plate}}"
   }
 }

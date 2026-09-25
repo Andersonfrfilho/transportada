@@ -9,7 +9,7 @@ import { WhatsAppPhonePanel } from '@/modules/identity/components/WhatsAppPhoneP
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
 
-import type { DriverTripSnapshot } from '../shared/driverTrip.types'
+import type { DriverTrip, DriverTripSnapshot } from '../shared/driverTrip.types'
 import { listProofPendingDocuments } from '../shared/driverTripView.service'
 import { createIndexedDbTripSnapshotStore } from '../shared/indexedDbQueue.service'
 import { discardTripSnapshots } from '../shared/tripSnapshot.service'
@@ -21,6 +21,8 @@ type DriverProfilePageProps = Readonly<{
   onOpenQueue: () => void
   queuedCount: number
   snapshot: DriverTripSnapshot | undefined
+  /** RF12: a viagem escolhida na tela da viagem — o Perfil mostra a placa dela, não a de `trips[0]`. */
+  trip: DriverTrip | undefined
 }>
 
 /** Os dois papéis do campo têm rótulo; qualquer outro sai como veio — esconder seria mentir. */
@@ -38,12 +40,12 @@ export function DriverProfilePage({
   onOpenQueue,
   queuedCount,
   snapshot,
+  trip,
 }: DriverProfilePageProps) {
   const { t } = useTranslation('driverTrip')
   const pendingProofCount = listProofPendingDocuments(snapshot).length
   const authMeQuery = useAuthMeQuery()
   const profile = getKeycloakAuthProvider().getProfile()
-  const trip = snapshot?.trips[0]
   const role = authMeQuery.data?.data.roles.find(
     (candidate) => FIELD_ROLE_LABEL_KEYS[candidate] !== undefined,
   )

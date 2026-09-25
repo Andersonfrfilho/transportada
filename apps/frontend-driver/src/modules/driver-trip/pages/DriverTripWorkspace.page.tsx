@@ -15,7 +15,9 @@ import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
+import { DriverTripSelector } from '../components/DriverTripSelector.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
+import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
@@ -134,7 +136,8 @@ export function DriverTripWorkspacePage() {
   }
 
   const snapshot = driverTrip.snapshot
-  const trip = snapshot?.trips[0]
+  /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
+  const { selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
 
   if (driverTrip.status === 'loading') {
     return (
@@ -231,6 +234,7 @@ export function DriverTripWorkspacePage() {
         <DriverProfilePage
           queuedCount={driverTrip.queuedCount}
           snapshot={snapshot}
+          trip={trip}
           onOpenPendingProofs={() => navigateToDriverSection('pending-proofs')}
           onOpenQueue={() => navigateToDriverSection('queue')}
         />
@@ -292,6 +296,12 @@ export function DriverTripWorkspacePage() {
             <p className={styles.vehicle}>{t('vehicle', { plate: trip.vehiclePlate })}</p>
           )}
         </header>
+
+        <DriverTripSelector
+          onSelect={selectTrip}
+          selectedTripId={trip?.id}
+          trips={snapshot?.trips ?? []}
+        />
 
         {/* ADR-0075 §8: boot sem rede — a viagem é o snapshot, e a tela diz de quando ele é */}
         {driverTrip.offlineSnapshotSavedAt === undefined ? null : (

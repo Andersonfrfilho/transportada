@@ -196,5 +196,9 @@
   "serviceWorkerUpdate": {
     "apply": "Update",
     "available": "New version available."
+  },
+  "tripSelector": {
+    "label": "Your trips",
+    "option": "Trip {{number}} · {{plate}}"
   }
 }
