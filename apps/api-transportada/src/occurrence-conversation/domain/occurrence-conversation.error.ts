@@ -140,3 +140,32 @@ export class OccurrenceConversationPortalUnavailableError extends ApiError {
     })
   }
 }
+
+/** Spec 183 T701 (RF12): o texto da resposta rápida em branco ou acima de 500 caracteres. */
+export class QuickReplyInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'QUICK_REPLY_INVALID',
+      message: 'A quick reply needs 1 to 500 characters',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 183 T701: a resposta rápida não existe nesta empresa (ou é de outra — a resposta é a mesma). */
+export class QuickReplyNotFoundError extends ApiError {
+  public constructor() {
+    super({ code: 'QUICK_REPLY_NOT_FOUND', message: 'Quick reply was not found', status: 404 })
+  }
+}
+
+/** Spec 183 T701: a nova ordem tem de trazer exatamente as respostas daquele público, uma vez cada. */
+export class QuickReplyOrderInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'QUICK_REPLY_ORDER_INVALID',
+      message: 'The order must list every quick reply of the audience exactly once',
+      status: 422,
+    })
+  }
+}

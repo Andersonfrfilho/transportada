@@ -20,12 +20,14 @@ import {
   OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
   validateDriverMessageDraft,
 } from '../shared/occurrenceConversation.service'
+import { insertQuickReply } from '../shared/quickReplies.service'
 import type {
   ContractorSenderSuggestion,
   OccurrenceConversation,
 } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceConversation.module.css'
 import { AddContractorContactDialog } from './AddContractorContactDialog.component'
+import { QuickReplyPicker } from './QuickReplyPicker.component'
 import { ConversationMessage } from './ConversationMessage.component'
 import { SendToContractorDialog } from './SendToContractorDialog.component'
 
@@ -152,6 +154,11 @@ function DriverConversationPanel({
             submit()
           }}
         >
+          <QuickReplyPicker
+            audience="driver"
+            disabled={send.isPending}
+            onPick={(text) => setDraft((current) => insertQuickReply(current, text))}
+          />
           <label className={styles.field}>
             <span>{t('driver.message')}</span>
             <textarea
@@ -234,6 +241,11 @@ function ContractorPortalComposer({ occurrenceId }: Readonly<{ occurrenceId: str
         submit()
       }}
     >
+      <QuickReplyPicker
+        audience="contractor"
+        disabled={send.isPending}
+        onPick={(text) => setDraft((current) => insertQuickReply(current, text))}
+      />
       <label className={styles.field}>
         <span>{t('contractor.portal.message')}</span>
         <textarea

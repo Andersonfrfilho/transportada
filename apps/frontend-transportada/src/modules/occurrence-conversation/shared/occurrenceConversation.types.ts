@@ -145,3 +145,14 @@ export type UnassignedMessage = Readonly<{
   receivedAt: string
   senderAddress: string
 }>
+
+/** Spec 183 T701 (RF12): para quem a resposta rápida é escrita — as mesmas abas da conversa. */
+export type QuickReplyAudience = 'contractor' | 'driver'
+
+export type QuickReply = Readonly<{
+  active: boolean
+  audience: QuickReplyAudience
+  id: string
+  position: number
+  text: string
+}>

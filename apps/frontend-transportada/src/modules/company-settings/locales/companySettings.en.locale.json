@@ -8,7 +8,8 @@
     "taxes": "Taxes",
     "driverAllowance": "Driver allowance",
     "occurrenceTypes": "Occurrence types",
-    "entryKinds": "Entry kinds"
+    "entryKinds": "Entry kinds",
+    "quickReplies": "Quick replies"
   },
   "entryKinds": {
     "title": "Entry kinds",

@@ -140,5 +140,34 @@
     "reply": "Your reply",
     "send": "Reply",
     "error": "Could not send. Check the signal and try again."
+  },
+  "quickReplies": {
+    "pick": "Quick reply",
+    "loading": "Loading quick replies",
+    "loadError": "Could not load the quick replies. Try again in a moment.",
+    "description": "Ready texts offered by the composer of each conversation tab. Picking one only inserts the text; the writer still edits it before sending. Deactivating removes it from the composer without deleting it.",
+    "audience": {
+      "contractor": "For the contractor",
+      "driver": "For the driver"
+    },
+    "new": {
+      "contractor": "New reply for the contractor",
+      "driver": "New reply for the driver"
+    },
+    "empty": "No reply yet.",
+    "limit": "Up to 500 characters.",
+    "text": "Reply text",
+    "active": "Active",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "add": "Add",
+    "error": {
+      "required": "Write the text.",
+      "tooLong": "The text is over the 500-character limit.",
+      "save": "Could not save. Try again in a moment."
+    }
   }
 }

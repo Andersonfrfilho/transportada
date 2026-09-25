@@ -245,6 +245,7 @@ export async function mockOccurrenceDetailPrintsApi(
   })
 
   await mockOccurrenceConversationApi(input.page)
+  await mockQuickRepliesApi(input.page)
 }
 
 const CONTRACTOR_CONTACT = {
@@ -506,5 +507,96 @@ async function mockOccurrenceConversationApi(page: Page): Promise<void> {
   await page.route(/\/occurrence-conversations\/[^/]+\/read$/, async (route) => {
     if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
     return fulfillJson(route, { data: { unreadCount: 0 } })
+  })
+}
+
+type QuickReplyRow = {
+  active: boolean
+  audience: 'contractor' | 'driver'
+  id: string
+  position: number
+  text: string
+}
+
+/** Spec 183 T701: o cadastro das respostas rápidas, em memória por página, como a API faria. */
+export const QUICK_REPLIES: QuickReplyRow[] = []
+
+function seedQuickReplies(): void {
+  QUICK_REPLIES.splice(
+    0,
+    QUICK_REPLIES.length,
+    {
+      active: true,
+      audience: 'contractor',
+      id: '00000000-0000-4000-8000-000000183701',
+      position: 0,
+      text: 'Podem confirmar a autorização da descarga?',
+    },
+    {
+      active: false,
+      audience: 'contractor',
+      id: '00000000-0000-4000-8000-000000183702',
+      position: 1,
+      text: 'Segue o comprovante em anexo.',
+    },
+    {
+      active: true,
+      audience: 'driver',
+      id: '00000000-0000-4000-8000-000000183703',
+      position: 0,
+      text: 'Pode descarregar, a contratante autorizou.',
+    },
+  )
+}
+
+export async function mockQuickRepliesApi(page: Page): Promise<void> {
+  seedQuickReplies()
+  const sorted = () =>
+    QUICK_REPLIES.toSorted((left, right) =>
+      left.audience === right.audience
+        ? left.position - right.position
+        : left.audience.localeCompare(right.audience),
+    )
+
+  await page.route(/\/occurrence-quick-replies\?audience=(contractor|driver)$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
+    const audience = new URL(route.request().url()).searchParams.get('audience')
+    return fulfillJson(route, {
+      data: sorted().filter((reply) => reply.audience === audience && reply.active),
+    })
+  })
+
+  await page.route(/\/company-settings\/quick-replies(\/[^/]+)?$/, async (route) => {
+    const request = route.request()
+    if (request.method() === 'OPTIONS') return fulfillOptions(route)
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'POST') {
+      const body = request.postDataJSON() as { audience: 'contractor' | 'driver'; text: string }
+      const reply = {
+        active: true,
+        audience: body.audience,
+        id: `00000000-0000-4000-8000-${String(183800 + QUICK_REPLIES.length).padStart(12, '0')}`,
+        position: QUICK_REPLIES.filter((item) => item.audience === body.audience).length,
+        text: body.text,
+      }
+      QUICK_REPLIES.push(reply)
+      return fulfillJson(route, { data: reply })
+    }
+    if (request.method() === 'PUT' && path.endsWith('/order')) {
+      const body = request.postDataJSON() as { ids: string[] }
+      body.ids.forEach((id, position) => {
+        const reply = QUICK_REPLIES.find((item) => item.id === id)
+        if (reply !== undefined) reply.position = position
+      })
+      return fulfillJson(route, { data: sorted() })
+    }
+    if (request.method() === 'PATCH') {
+      const id = path.split('/').at(-1)
+      const body = request.postDataJSON() as { active?: boolean; text?: string }
+      const reply = QUICK_REPLIES.find((item) => item.id === id)
+      if (reply !== undefined) Object.assign(reply, body)
+      return fulfillJson(route, { data: reply })
+    }
+    return fulfillJson(route, { data: sorted() })
   })
 }

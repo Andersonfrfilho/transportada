@@ -10,6 +10,7 @@
  */
 import { sql } from 'drizzle-orm'
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -459,5 +460,54 @@ export const occurrenceConversationUnassigned = pgTable(
     index('occurrence_conversation_unassigned_open_idx')
       .on(table.companyId, table.receivedAt)
       .where(sql`${table.assignedMessageId} is null`),
+  ],
+)
+
+/** Spec 183 T701 (RF12): para quem a resposta rápida é escrita — a mesma divisão das abas. */
+export const COMPANY_QUICK_REPLY_AUDIENCES = OCCURRENCE_CONVERSATION_PARTICIPANTS
+export type CompanyQuickReplyAudience = OccurrenceConversationParticipant
+
+/** O teto do texto de uma resposta rápida (RF12): é um começo de mensagem, não um modelo. */
+export const COMPANY_QUICK_REPLY_MAX_LENGTH = 500
+
+/**
+ * Spec 183 T701 (RF12): as respostas rápidas da empresa, por público, ordenáveis e ativáveis. A
+ * resposta desativada fica (quem a escreveu pode religar), mas some do compositor. Nada aqui decide:
+ * é texto que o operador ainda edita antes de mandar (D4).
+ */
+export const companyQuickReplies = pgTable(
+  'company_quick_replies',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    audience: text().$type<CompanyQuickReplyAudience>().notNull(),
+    bodyText: text('body_text').notNull(),
+    position: integer().notNull(),
+    active: boolean().notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_quick_replies_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'company_quick_replies_audience_check',
+      sql`${table.audience} in (${sql.raw(inList(COMPANY_QUICK_REPLY_AUDIENCES))})`,
+    ),
+    check(
+      'company_quick_replies_body_text_check',
+      sql`char_length(btrim(${table.bodyText})) between 1 and ${sql.raw(String(COMPANY_QUICK_REPLY_MAX_LENGTH))}`,
+    ),
+    check('company_quick_replies_position_check', sql`${table.position} >= 0`),
+    index('company_quick_replies_audience_position_idx').on(
+      table.companyId,
+      table.audience,
+      table.position,
+    ),
   ],
 )

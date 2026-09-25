@@ -376,6 +376,9 @@ import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/
 import { createSendContractorPortalMessageUseCase } from './occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createContractorPortalNotifier } from './occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
 import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
+import { createQuickRepliesUseCase } from './occurrence-conversation/application/quick-replies.use-case.js'
+import { createDrizzleQuickRepliesUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-quick-replies.repository.js'
+import { createQuickReplyRoutes } from './occurrence-conversation/presentation/quick-replies.routes.js'
 import { createContractorPortalConversationUseCase } from './occurrence-conversation/application/contractor-portal-conversation.use-case.js'
 import { createDrizzleContractorPortalConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
 import { createClientOccurrenceConversationRoutes } from './occurrence-conversation/presentation/client-occurrence-conversation.routes.js'
@@ -3025,6 +3028,12 @@ function createApplicationRoutes({
         }),
     }),
     ...createClientOccurrenceConversationRoutes({ conversation: contractorPortalConversation }),
+    /** Spec 183 T701 (RF12): as respostas rápidas — cadastro e leitura do compositor. */
+    ...createQuickReplyRoutes({
+      quickReplies: createQuickRepliesUseCase({
+        unitOfWork: createDrizzleQuickRepliesUnitOfWork(database),
+      }),
+    }),
     ...createContractorPortalBindingRoutes({
       bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },
       listPortalUsers: { execute: (input) => contractorPortalBindings.list(input) },

@@ -1314,16 +1314,17 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
   importado: a mesma regra global da T407, já registrada no `CLAUDE.md` do portal na T650.
 - **Bundle (a ADR-0073 pede antes e depois):**
 
-  |     | antes (sem a conversa)       | depois                          | diferença                     |
-  | --- | ---------------------------- | ------------------------------- | ----------------------------- |
-  | JS  | 283,00 kB (gzip 87,02 kB)    | 356,24 kB (gzip 111,49 kB)      | **+73,24 kB (gzip +24,47 kB)** |
-  | CSS | 3,69 kB (gzip 1,24 kB)       | 4,76 kB (gzip 1,48 kB)          | +1,07 kB (gzip +0,24 kB)       |
+  |     | antes (sem a conversa)    | depois                     | diferença                      |
+  | --- | ------------------------- | -------------------------- | ------------------------------ |
+  | JS  | 283,00 kB (gzip 87,02 kB) | 356,24 kB (gzip 111,49 kB) | **+73,24 kB (gzip +24,47 kB)** |
+  | CSS | 3,69 kB (gzip 1,24 kB)    | 4,76 kB (gzip 1,48 kB)     | +1,07 kB (gzip +0,24 kB)       |
 
   É muito para duas peças pequenas. O índice do pacote não declara `sideEffects: false`, e o
   `MessageText` puxa o `tailwind-merge`. **Proposta ao pacote** (não bloqueia):
   - declarar `sideEffects: false`;
   - exportar as peças de texto e data por um caminho próprio, para o portal (e o celular do
     cliente) pagar só pelo que usa.
+
 - **Revisão de design:** prints numa bancada temporária, porque o portal não tem Playwright nem
   atalho de login, e um contrato proíbe esse atalho. A bancada monta o `OccurrenceListPage`
   verdadeiro com um cliente falso, foi servida pelo Vite e apagada depois. Os prints são de 1440 e
@@ -1340,6 +1341,7 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
      círculos grandes. A regra global `input { width: 100%; min-height: var(--field-height) }` do
      portal pega o `type="radio"`. Registrado para uma task própria, porque a correção é no CSS
      global e no formulário da 164.
+
 - **Anexo e áudio:** o anexo por arquivo entra com a **T702** e o player de áudio com a **T705**,
   quando existirem na API. A `Permissions-Policy` não muda (contrato abaixo).
 - **Testes, escritos antes e vistos falhando** (módulo inexistente; depois, o campo de não lidas
@@ -1388,6 +1390,7 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
   - as contas são as ligadas por `contractor_portal_bindings` com vínculo ativo.
 
   A conversa segue sem ler a tratativa: o contrato D4 da T504 passa.
+
 - **Aviso** (`contractor-portal-notifier.gateway.ts`, trilho `notification.v1` como o do motorista
   na T601):
   - um aviso por conta do portal, com `dedupeKey` da mensagem e da conta;
@@ -1412,8 +1415,7 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
   `{{portalUrl}}` no modelo. Fica na lista de pendências do usuário.
 - **Lacuna anterior registrada:** o comentário do `NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD` da API
   diz que um contrato "de cada lado" cobra os exemplos, mas só o do frontend existe. Na API faltam
-  `documentLabel`, `occurrenceType` e `stopLabel` do modelo de e-mail da spec 079, desde antes da
-  183.
+  `documentLabel`, `occurrenceType` e `stopLabel` do modelo de e-mail da spec 079, desde antes da 183.
 - **Revisão de design** (prints `prints/conversa-portal-{desktop,celular}.png`, painel):
   - o campo repete o molde da aba Motorista (rótulo, dica, botão primário à direita);
   - a mensagem entra "Entregue";
@@ -1422,6 +1424,7 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
   Achado corrigido: com dois canais, "Enviar à contratante" (o diálogo de e-mail) e "Enviar pelo
   portal" ficavam ambíguos. O botão do e-mail virou **"Enviar por e-mail"** (o título do diálogo
   segue "Enviar à contratante"), e os prints da T407 foram regenerados com o rótulo novo.
+
 - **Rótulo da ocorrência:** o `describeOccurrence` do repositório do motorista virou
   `domain/occurrence-label.policy.ts` (`describeOccurrenceLabel`), usado pelos dois avisos.
 - **Testes, escritos antes e vistos falhando** (módulos inexistentes; depois, a lida sem horário e o
@@ -1453,4 +1456,72 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
     **8 pass**; integração completa sozinha **598 pass, 7 skip, 8 fail** (as 8 do MinIO, iguais à
     linha de base);
   - painel: **5229 + 44 pass**;
+  - lint, typecheck e formatação da raiz limpos.
+
+## T701 — Respostas rápidas por empresa e público (verde)
+
+- **Migration aditiva** `20260925022221_company_quick_replies` (gerada por `db:generate`, com
+  `snapshot.json` e `rollback.sql`):
+  - a tabela `company_quick_replies` tem `audience` (`contractor` | `driver`), `body_text`,
+    `position` e `active`;
+  - FK para `companies` com restrict;
+  - CHECKs: o público fechado, o texto aparado de 1 a 500 caracteres e a posição não negativa;
+  - índice `(company_id, audience, position)`;
+  - o rollback derruba a tabela e a linha do diário, conferindo que era uma só.
+  - Rodado: `ENV_FILE=.env.test make migration-test` **110 pass** e `bun run db:check` limpo.
+- **API** (`occurrence-conversation/…quick-replies…`):
+  - o cadastro é `settings.manage`:
+    - `GET /company-settings/quick-replies`;
+    - `POST` (201, a nova entra no fim do público);
+    - `PATCH /:id` (`text` e/ou `active`);
+    - `PUT /order` (exige exatamente as respostas do público, uma vez cada; senão 422
+      `QUICK_REPLY_ORDER_INVALID`, travando as linhas antes de conferir);
+  - o compositor lê `GET /occurrence-quick-replies?audience=` com `occurrences.resolve`, só as
+    ativas;
+  - texto em branco ou acima de 500 é 422 `QUICK_REPLY_INVALID`; resposta de outra empresa é 404;
+    tudo `no-store`;
+  - desativar não apaga.
+  - Sem auditoria, por escolha registrada: é texto de apoio que o operador ainda edita (D4), não
+    configuração que muda comportamento.
+- **Painel:**
+  - aba **Respostas rápidas** em Configurações, registrada em `SETTINGS_PANEL_PLACEMENT`
+    (cadastro da empresa, como o catálogo de tipos de ocorrência);
+  - o painel `QuickRepliesSettingsPanel` é autocontido, do módulo dono (padrão
+    `NfseEmissionAction`): uma lista por público, com adicionar, editar, ativar/desativar e
+    subir/descer;
+  - o `QuickReplyPicker` (select do design system) aparece nos três compositores (aba Motorista,
+    campo do portal e diálogo de e-mail) só quando há resposta ativa daquele público. Escolher só
+    **insere** o texto no rascunho, numa linha nova.
+- **Testes, escritos antes e vistos falhando** (exportação e tabela inexistentes):
+  - API:
+    - schema e migration (`occurrence-conversation-schema/quick-replies.contract.ts`, com o
+      tenant-safety por texto de fonte do repositório);
+    - caso de uso e rotas (`occurrence-conversation/quick-replies.contract.ts`);
+    - a lista exaustiva do separador ganhou as rotas e prova que ele não alcança nenhuma;
+    - `static-migration.contract.ts` lista a migration;
+  - integração `quick-replies.integration.ts` (**2 pass**, no `package.json`):
+    - fim do público, ordem, ativas no compositor e a desativada que fica;
+    - outra empresa com os ids na mão: 404, 422 e lista vazia;
+    - o banco recusa texto acima de 500, em branco e público fora da lista;
+  - painel `occurrence-conversation/quick-replies.contract.ts`:
+    - o cliente pelos caminhos da API, descartando linha inválida;
+    - o rascunho, subir e descer, a inserção e o filtro por público;
+    - texto de fonte: a aba e os três compositores;
+  - smoke `test/spec-183-quick-replies.smoke.spec.ts` (**3 pass**):
+    - o cadastro adiciona no fim com o texto aparado, diz o que falta e reordena;
+    - o compositor da aba Motorista insere a resposta depois do que já estava escrito.
+- **Revisão de design** (`prints/respostas-rapidas-{desktop,celular,compositor}.png`):
+  - o molde das outras abas de Configurações;
+  - a desativada esmaecida, com o interruptor desmarcado;
+  - setas das pontas desabilitadas;
+  - sem rolagem horizontal.
+
+  Nada a corrigir. O helper `company-settings-smoke.helper.ts` não é usado por nenhum smoke e tem
+  o cadastro da empresa num formato antigo, que a validação de hoje recusa. O smoke desta task
+  usa o fixture dos contratos (`COMPANY_SETTINGS_RESPONSE`).
+
+- **Rodado:**
+  - API: contratos **7476 pass, 23 skip, 0 fail**; integração completa sozinha **600 pass, 7 skip, 8 fail** (as 8 do MinIO,
+    iguais à linha de base);
+  - painel: **5236 + 44 pass**;
   - lint, typecheck e formatação da raiz limpos.

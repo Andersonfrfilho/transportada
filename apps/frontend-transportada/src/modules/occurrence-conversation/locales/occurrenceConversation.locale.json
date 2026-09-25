@@ -140,5 +140,34 @@
     "reply": "Sua resposta",
     "send": "Responder",
     "error": "Não foi possível enviar. Confira o sinal e tente de novo."
+  },
+  "quickReplies": {
+    "pick": "Resposta rápida",
+    "loading": "Carregando as respostas rápidas",
+    "loadError": "Não foi possível carregar as respostas rápidas. Tente de novo em instantes.",
+    "description": "Textos prontos que o compositor de cada aba da conversa oferece. Escolher só insere o texto; quem escreve ainda edita antes de enviar. Desativar tira do compositor sem apagar.",
+    "audience": {
+      "contractor": "Para a contratante",
+      "driver": "Para o motorista"
+    },
+    "new": {
+      "contractor": "Nova resposta para a contratante",
+      "driver": "Nova resposta para o motorista"
+    },
+    "empty": "Nenhuma resposta cadastrada.",
+    "limit": "Até 500 caracteres.",
+    "text": "Texto da resposta",
+    "active": "Ativa",
+    "moveUp": "Subir",
+    "moveDown": "Descer",
+    "edit": "Editar",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "add": "Adicionar",
+    "error": {
+      "required": "Escreva o texto.",
+      "tooLong": "O texto passou do limite de 500 caracteres.",
+      "save": "Não foi possível gravar. Tente de novo em instantes."
+    }
   }
 }

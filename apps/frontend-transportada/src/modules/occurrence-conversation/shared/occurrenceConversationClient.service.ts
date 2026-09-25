@@ -247,7 +247,11 @@ function readErrorCode(payload: unknown): string {
 export async function requestJson(
   dependencies: ClientDependencies,
   path: string,
-  init?: Readonly<{ body?: object; headers?: Record<string, string>; method?: 'GET' | 'POST' }>,
+  init?: Readonly<{
+    body?: object
+    headers?: Record<string, string>
+    method?: 'GET' | 'PATCH' | 'POST' | 'PUT'
+  }>,
 ): Promise<unknown> {
   const accessToken = await dependencies.getAccessToken()
   let response: Response

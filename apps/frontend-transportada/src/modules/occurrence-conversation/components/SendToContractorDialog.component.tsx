@@ -20,7 +20,9 @@ import {
   initialRecipientIds,
   validateContractorMailDraft,
 } from '../shared/occurrenceConversation.service'
+import { insertQuickReply } from '../shared/quickReplies.service'
 import styles from '../styles/occurrenceConversation.module.css'
+import { QuickReplyPicker } from './QuickReplyPicker.component'
 
 const KNOWN_ERRORS = new Set([
   'CONTRACTOR_MAIL_NOT_CONFIGURED',
@@ -187,6 +189,11 @@ export function SendToContractorDialog({ onClose, occurrenceId }: SendToContract
               )}
             </label>
 
+            <QuickReplyPicker
+              audience="contractor"
+              disabled={isBusy}
+              onPick={(text) => setBody((current) => insertQuickReply(current, text))}
+            />
             <label className={styles.field}>
               <span>{t('dialog.body')}</span>
               <textarea

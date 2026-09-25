@@ -148,7 +148,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `haiku` (T701, T704) · `sonnet` (T702, T703)
 
-- [ ] **T701** [P] `company_quick_replies` + rotas `settings.manage` + tela em Configurações.
+- [x] **T701** [P] `company_quick_replies` + rotas `settings.manage` + tela em Configurações.
       Evidência: contratos.
 - [ ] **T702** Anexos: upload, conferência de tipo pelo conteúdo, limite por canal, URL temporária;
       extração das recebidas no worker. Evidência: contratos + integração.

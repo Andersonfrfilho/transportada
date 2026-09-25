@@ -338,3 +338,39 @@
   display: grid;
   gap: var(--space-1);
 }
+
+/*
+ * Spec 183 T701 (RF12): as respostas rápidas em Configurações — uma lista por público, cada linha
+ * com o texto, o interruptor e as setas de ordem.
+ */
+.quickReplyList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quickReplyRow {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.quickReplyText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quickReplyInactive {
+  opacity: 0.6;
+}
+
+.quickReplyActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

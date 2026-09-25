@@ -11,6 +11,7 @@ import { resolveCompanyPermissions } from '../src/identity/domain/authorization.
 import type { AuthenticatedContext, CompanyContext } from '../src/identity/domain/tenant-context'
 import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-documents.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
+import { createQuickReplyRoutes } from '../src/occurrence-conversation/presentation/quick-replies.routes'
 import { createOccurrenceConversationUnassignedRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation-unassigned.routes'
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
 import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
@@ -83,6 +84,9 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
     ...createOccurrenceConversationRoutes(dependencies),
     ...createOccurrenceConversationUnassignedRoutes(dependencies),
+    // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
+    // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
+    ...createQuickReplyRoutes(dependencies),
   ]
 
   return routes

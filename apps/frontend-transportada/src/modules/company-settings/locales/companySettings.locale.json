@@ -8,7 +8,8 @@
     "taxes": "Tributos",
     "driverAllowance": "Diária do motorista",
     "occurrenceTypes": "Tipos de ocorrência",
-    "entryKinds": "Espécies de lançamento"
+    "entryKinds": "Espécies de lançamento",
+    "quickReplies": "Respostas rápidas"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
