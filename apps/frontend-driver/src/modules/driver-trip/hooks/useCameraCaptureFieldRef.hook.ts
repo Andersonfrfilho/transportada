@@ -1,38 +1,39 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useRef, type RefObject } from 'react'
+import { useCallback, type RefCallback } from 'react'
 
+import {
+  bindCameraCaptureInput,
+  type CameraCaptureEnvironment,
+} from '../shared/cameraCapture.service'
 import { captureRegistry } from '../shared/captureRegistry.service'
 
+/** Montado na hora de ligar: o módulo também é importado por contratos, fora do navegador. */
+function createBrowserEnvironment(): CameraCaptureEnvironment {
+  return {
+    clearTimeout: (id) => window.clearTimeout(id),
+    document,
+    isVisible: () => document.visibilityState === 'visible',
+    setTimeout: (handler, timeout) => window.setTimeout(handler, timeout),
+    window,
+  }
+}
+
 /**
- * Plan D2: registra a captura `'camera'` no `<input type="file">` de um `FileField` — o `click`
- * abre o seletor nativo (câmera ou galeria) antes de qualquer resposta chegar, e `change`/`cancel`
- * fecham, tenha o motorista escolhido um arquivo ou desistido. Não muda `FileField`, que é genérico:
- * usa o `inputRef` que ele já aceita.
+ * Plan D2 (revisto na spec 189 T9.2 M2): registra a captura `'camera'` no `<input type="file">` de
+ * um `FileField`. **Ref callback**, não `useEffect` com `[]`: o input que só monta depois (o campo
+ * condicional) também é ligado, e o React 19 chama a limpeza devolvida quando ele sai — que fecha a
+ * captura se o seletor ainda estiver aberto. As regras moram em `bindCameraCaptureInput`.
  */
-export function useCameraCaptureFieldRef(): RefObject<HTMLInputElement | null> {
-  const inputRef = useRef<HTMLInputElement | null>(null)
-
-  useEffect(() => {
-    const input = inputRef.current
-    if (input === null) return undefined
-
-    function handleOpen(): void {
-      captureRegistry.open('camera')
-    }
-    function handleClose(): void {
-      captureRegistry.close('camera')
-    }
-
-    input.addEventListener('click', handleOpen)
-    input.addEventListener('change', handleClose)
-    input.addEventListener('cancel', handleClose)
-
-    return () => {
-      input.removeEventListener('click', handleOpen)
-      input.removeEventListener('change', handleClose)
-      input.removeEventListener('cancel', handleClose)
-    }
-  }, [])
-
-  return inputRef
+export function useCameraCaptureFieldRef(): RefCallback<HTMLInputElement> {
+  return useCallback(
+    (element: HTMLInputElement | null) =>
+      element === null
+        ? undefined
+        : bindCameraCaptureInput({
+            element,
+            environment: createBrowserEnvironment(),
+            registry: captureRegistry,
+          }),
+    [],
+  )
 }

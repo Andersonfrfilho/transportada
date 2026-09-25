@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/components/ui/file-field.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useId, type ChangeEvent, type RefObject } from 'react'
+import { useId, type ChangeEvent, type Ref } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -15,7 +15,7 @@ export type FileFieldProps = Readonly<{
   className?: string | undefined
   disabled?: boolean
   fileName?: string
-  inputRef?: RefObject<HTMLInputElement | null>
+  inputRef?: Ref<HTMLInputElement>
   label: string
   multiple?: boolean
   onSelect: (file: File | undefined) => void

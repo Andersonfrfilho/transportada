@@ -249,11 +249,12 @@ describe('a regra de aplicação da atualização (plan D2)', () => {
 })
 
 describe('as quatro capturas registram no capture registry (leitura de fonte, ADR-0075 §8)', () => {
-  it('câmera/foto: o hook do input liga click/change/cancel ao registro', () => {
+  it('câmera/foto: o hook do input liga o input ao registro por ref callback', () => {
     const source = readFileSync(CAMERA_CAPTURE_HOOK, 'utf8')
 
-    expect(source).toContain("captureRegistry.open('camera')")
-    expect(source).toContain("captureRegistry.close('camera')")
+    expect(source).toContain('bindCameraCaptureInput(')
+    expect(source).toContain('captureRegistry')
+    expect(source).toContain('RefCallback<HTMLInputElement>')
   })
 
   it('DriverStopCard usa o hook da câmera nos dois seletores de foto (nota e ocorrência)', () => {
