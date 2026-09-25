@@ -18,8 +18,8 @@
   "deliver": "Delivered",
   "dispatch": {
     "failed": "The route could not be started. Tap again.",
-    "start": "Start route",
-    "waiting": "Waiting for the route to start — field actions unlock after starting."
+    "start": "Dispatch trip",
+    "waiting": "Waiting for dispatch — field actions unlock after the trip is dispatched."
   },
   "eventLimitCount": "The limit of events waiting to be sent was reached. Send the pending ones before recording another — nothing was discarded.",
   "documentsPending_one": "{{count}} invoice to deliver",
@@ -291,5 +291,9 @@
       "sent": "Occurrence with photo sent.",
       "rejected": "The server refused the occurrence with photo. See pending events."
     }
+  },
+  "startRoute": {
+    "failed": "Could not start the route. Tap again.",
+    "start": "Start route"
   }
 }

@@ -8,8 +8,8 @@
   "attachmentLimitSize": "Espaço para anexos aguardando envio cheio. Envie os pendentes antes de anexar outro — nada foi descartado.",
   "dispatch": {
     "failed": "Não foi possível iniciar o trajeto. Toque de novo.",
-    "start": "Iniciar trajeto",
-    "waiting": "Aguardando o início do trajeto — as ações de campo liberam depois de iniciar."
+    "start": "Despachar viagem",
+    "waiting": "Aguardando o despacho — as ações de campo liberam depois de despachar a viagem."
   },
   "error": "Não foi possível carregar sua viagem. Puxe para tentar de novo.",
   "eventLimitCount": "Limite de eventos aguardando envio atingido. Envie os pendentes antes de registrar outro — nada foi descartado.",
@@ -300,5 +300,9 @@
       "sent": "Ocorrência com foto enviada.",
       "rejected": "O servidor recusou a ocorrência com foto. Veja em eventos pendentes."
     }
+  },
+  "startRoute": {
+    "failed": "Não foi possível iniciar a rota. Toque de novo.",
+    "start": "Iniciar rota"
   }
 }

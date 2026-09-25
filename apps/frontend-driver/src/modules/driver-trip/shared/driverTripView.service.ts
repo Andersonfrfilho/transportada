@@ -37,6 +37,11 @@ export function isAwaitingDispatch(trip: DriverTrip): boolean {
   return trip.status === 'route_planned'
 }
 
+/** O "saí" do motorista (ADR-0058/0074): da carga fechada ou carregando para a rota de entrega. */
+export function canStartRoute(trip: DriverTrip): boolean {
+  return trip.status === 'dispatched' || trip.status === 'in_transit'
+}
+
 /**
  * A foto da ocorrência pega carona no proof de **uma** nota da parada: a primeira ainda em aberto,
  * senão a primeira da lista. A escolha mora aqui porque a prévia e o envio precisam apontar para a

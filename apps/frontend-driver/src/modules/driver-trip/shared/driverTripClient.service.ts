@@ -118,6 +118,8 @@ export type DriverTripClient = Readonly<{
    * que abre o portão.
    */
   dispatchTrip: (input: { tripId: string }) => Promise<void>
+  /** `POST /me/trips/current/start-route`: o servidor resolve a viagem, e repetir o toque converge. */
+  startRoute: () => Promise<void>
   /**
    * Spec 079: o que aconteceu **sem** a carga voltar. Não passa pela fila de relatos: ao contrário
    * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
@@ -219,6 +221,9 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/dispatch`,
       })
+    },
+    async startRoute() {
+      await request({ dependencies, method: 'POST', path: `${CURRENT_TRIP_PATH}/start-route` })
     },
     async registerDocumentOccurrence(input) {
       await request({

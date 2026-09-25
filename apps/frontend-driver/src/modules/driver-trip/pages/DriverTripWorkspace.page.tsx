@@ -55,6 +55,7 @@ import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import {
   findCurrentStop,
   findProofDocumentLabel,
+  canStartRoute,
   isAwaitingDispatch,
   listProofPendingDocuments,
   type ProofDocumentLabel,
@@ -101,6 +102,8 @@ export function DriverTripWorkspacePage() {
   /** Iniciar trajeto: falhar não muda nada no servidor — repetir o toque é o conserto. */
   const [isDispatching, setIsDispatching] = useState(false)
   const [dispatchFailed, setDispatchFailed] = useState(false)
+  const [isStartingRoute, setIsStartingRoute] = useState(false)
+  const [startRouteFailed, setStartRouteFailed] = useState(false)
   /**
    * Os tipos cadastrados pela empresa. Spec 157 RF5: falha e lista vazia de verdade são estados
    * diferentes — o painel avisa a falha e oferece tentar de novo; entregar e devolver nunca
@@ -342,6 +345,20 @@ export function DriverTripWorkspacePage() {
     }
   }
 
+  /** O "saí" do motorista: a API grava o evento na linha do tempo; o snapshot novo tira o botão. */
+  async function startRoute(): Promise<void> {
+    setStartRouteFailed(false)
+    setIsStartingRoute(true)
+    try {
+      await getDriverTripClient().startRoute()
+      driverTrip.refetchTrip()
+    } catch {
+      setStartRouteFailed(true)
+    } finally {
+      setIsStartingRoute(false)
+    }
+  }
+
   const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
   const proofPendingCount = listProofPendingDocuments(snapshot).length
   /** Spec 159 (T11): entradas ainda não dispensadas — computado no render, nunca em `useEffect`. */
@@ -398,6 +415,19 @@ export function DriverTripWorkspacePage() {
             </Button>
             <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
           </div>
+        ) : null}
+        {trip !== undefined && canStartRoute(trip) ? (
+          <div className={styles.actions}>
+            <Button disabled={isStartingRoute} onClick={() => void startRoute()} type="button">
+              <Icon name="check" />
+              {t('startRoute.start')}
+            </Button>
+          </div>
+        ) : null}
+        {startRouteFailed ? (
+          <p className={styles.alert} role="alert">
+            {t('startRoute.failed')}
+          </p>
         ) : null}
         {dispatchFailed ? (
           <p className={styles.alert} role="alert">

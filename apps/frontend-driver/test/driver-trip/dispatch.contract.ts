@@ -6,7 +6,10 @@ import { describe, expect, it } from 'bun:test'
 import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
 import driverTripEn from '../../src/modules/driver-trip/locales/driverTrip.en.locale.json'
 import { createDriverTripClient } from '../../src/modules/driver-trip/shared/driverTripClient.service'
-import { isAwaitingDispatch } from '../../src/modules/driver-trip/shared/driverTripView.service'
+import {
+  canStartRoute,
+  isAwaitingDispatch,
+} from '../../src/modules/driver-trip/shared/driverTripView.service'
 
 const WORKSPACE = new URL(
   '../../src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx',
@@ -69,7 +72,7 @@ describe('iniciar trajeto (route_planned)', () => {
   it('as ações de campo ficam trancadas com aviso enquanto o trajeto não começa', () => {
     expect(card).toInclude('isFieldWorkBlocked')
     expect(card).toInclude("t('dispatch.waiting')")
-    expect(driverTrip.dispatch.start).toBe('Iniciar trajeto')
+    expect(driverTrip.dispatch.start).toBe('Despachar viagem')
     expect(driverTrip.dispatch.waiting.toLowerCase()).toInclude('aguardando')
     expect(driverTripEn.dispatch.start).toBeString()
     expect(driverTripEn.dispatch.waiting).toBeString()
@@ -157,5 +160,43 @@ describe('o attachmentKey no multipart de comprovante', () => {
     const form = await requests[0]?.formData()
     expect(form?.get('attachmentKey')).toBe('anexo-1')
     expect(form?.get('kind')).toBe('photo')
+  })
+})
+
+/**
+ * O "saí" do motorista (ADR-0058, mantido pela ADR-0074): da viagem despachada ou carregando para
+ * `on_delivery_route`, por `POST /me/trips/current/start-route`. A API grava o evento na linha do
+ * tempo com canal `driver_app`; a app nunca tinha chamado essa rota.
+ */
+describe('iniciar rota', () => {
+  const trip = { id: 't', manifest: null, status: 'dispatched', stops: [], vehiclePlate: 'A' }
+
+  it('só dispatched e in_transit podem iniciar a rota', () => {
+    expect(canStartRoute(trip)).toBe(true)
+    expect(canStartRoute({ ...trip, status: 'in_transit' })).toBe(true)
+    expect(canStartRoute({ ...trip, status: 'route_planned' })).toBe(false)
+    expect(canStartRoute({ ...trip, status: 'on_delivery_route' })).toBe(false)
+    expect(canStartRoute({ ...trip, status: 'completed' })).toBe(false)
+  })
+
+  it('o cliente inicia a rota por POST /me/trips/current/start-route, sem corpo', async () => {
+    const requests: Request[] = []
+    await createCapturingClient(requests).startRoute()
+
+    expect(requests[0]?.url).toBe('https://api.test/me/trips/current/start-route')
+    expect(requests[0]?.method).toBe('POST')
+  })
+
+  it('a tela oferece "Iniciar rota" e refaz o snapshot no sucesso', () => {
+    const workspace = readFileSync(WORKSPACE, 'utf8')
+    expect(workspace).toInclude('canStartRoute(trip)')
+    expect(workspace).toInclude("t('startRoute.start')")
+    expect(workspace).toInclude('startRoute()')
+  })
+
+  it('os dois idiomas têm os textos, e o despacho deixa de se chamar "Iniciar trajeto"', () => {
+    expect(driverTrip.startRoute.start).toBe('Iniciar rota')
+    expect(driverTripEn.startRoute.start).toBe('Start route')
+    expect(driverTrip.dispatch.start).not.toBe('Iniciar trajeto')
   })
 })
