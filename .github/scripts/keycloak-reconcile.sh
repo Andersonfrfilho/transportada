@@ -123,19 +123,40 @@ for client_id in $(printf '%s' "$declared" | jq -r 'keys[]'); do
   uuid="$(printf '%s' "$client" | jq -r '.id')"
   wanted="$(printf '%s' "$declared" | jq --arg id "$client_id" '.[$id]')"
 
+  # Pós-logout desejado: cada origem declarada em `webOrigins` vira dois valores, separador `##`
+  # (padrão do Keycloak). Acrescenta, nunca remove — a mesma regra do redirect URI acima.
+  wanted_post_logout="$(printf '%s' "$wanted" | jq '[.webOrigins[] | (. + "/*"), .]')"
+
   # A união é calculada pelo `jq` e ordenada: sem isso, o mesmo conjunto em ordem diferente pareceria
   # mudança e o script escreveria a cada deploy.
-  merged="$(jq --null-input --argjson current "$client" --argjson wanted "$wanted" '{
-    redirectUris: (($current.redirectUris // []) + $wanted.redirectUris | unique),
-    webOrigins: (($current.webOrigins // []) + $wanted.webOrigins | unique)
-  }')"
+  #
+  # ⚠️ **O corpo do PUT leva TODOS os atributos atuais**, com só `post.logout.redirect.uris`
+  # trocado. Um PUT parcial (só `redirectUris`/`webOrigins`) apagaria `pkce.code.challenge.method` —
+  # o Keycloak aceita a omissão sem erro, e o client vira público sem PKCE em silêncio (ADR-0075 §2).
+  merged="$(jq --null-input \
+    --argjson current "$client" \
+    --argjson wanted "$wanted" \
+    --argjson wantedPostLogout "$wanted_post_logout" '
+    (($current.attributes["post.logout.redirect.uris"] // "")
+      | split("##") | map(select(length > 0))) as $currentPostLogout
+    | (($currentPostLogout + $wantedPostLogout) | unique) as $mergedPostLogout
+    | {
+        redirectUris: (($current.redirectUris // []) + $wanted.redirectUris | unique),
+        webOrigins: (($current.webOrigins // []) + $wanted.webOrigins | unique),
+        attributes: (($current.attributes // {}) + {
+          "post.logout.redirect.uris": ($mergedPostLogout | join("##"))
+        })
+      }')"
 
   added="$(jq --null-input --argjson current "$client" --argjson merged "$merged" '
-    ($merged.redirectUris - ($current.redirectUris // [])) + ($merged.webOrigins - ($current.webOrigins // []))
+    ($merged.redirectUris - ($current.redirectUris // []))
+    + ($merged.webOrigins - ($current.webOrigins // []))
+    + (($merged.attributes["post.logout.redirect.uris"] | split("##"))
+        - (($current.attributes["post.logout.redirect.uris"] // "") | split("##")))
     | join(", ")' --raw-output)"
 
   if [ -z "$added" ]; then
-    echo "client $client_id: os callbacks declarados já estão cadastrados"
+    echo "client $client_id: os callbacks e o pós-logout declarados já estão cadastrados"
   else
     echo "client $client_id: acrescentando $added"
     curl --silent --show-error --fail --max-time 30 \
@@ -146,15 +167,29 @@ for client_id in $(printf '%s' "$declared" | jq -r 'keys[]'); do
   fi
 
   # Confere no ar, não na resposta do PUT: 204 diz que o corpo foi aceito, não que ele valeu.
-  missing="$(curl --silent --show-error --fail --max-time 30 \
+  client_after="$(curl --silent --show-error --fail --max-time 30 \
     --header "Authorization: Bearer $token" \
     --get "$base_url/admin/realms/$REALM/clients" \
-    --data-urlencode "clientId=$client_id" \
-    | jq --argjson wanted "$wanted" --raw-output \
-      '$wanted.redirectUris - (.[0].redirectUris // []) | join(", ")')"
+    --data-urlencode "clientId=$client_id")"
+
+  missing="$(printf '%s' "$client_after" | jq --argjson wanted "$wanted" \
+    --argjson wantedPostLogout "$wanted_post_logout" --raw-output '
+    ($wanted.redirectUris - (.[0].redirectUris // []))
+    + ($wantedPostLogout - ((.[0].attributes["post.logout.redirect.uris"] // "") | split("##")))
+    | join(", ")')"
 
   if [ -n "$missing" ]; then
     echo "::error::o client $client_id continua sem os callbacks: $missing"
+    exit 1
+  fi
+
+  # `pkce.code.challenge.method` é a guarda da reconciliação inteira: sem ela, um client público sem
+  # PKCE passaria batido porque o `204` do PUT não diz o que o Keycloak de fato gravou.
+  pkce_method="$(printf '%s' "$client_after" \
+    | jq --raw-output '.[0].attributes["pkce.code.challenge.method"] // empty')"
+
+  if [ "$pkce_method" != "S256" ]; then
+    echo "::error::o client $client_id ficou sem pkce.code.challenge.method=S256 na reconciliação"
     exit 1
   fi
 done

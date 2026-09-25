@@ -101,7 +101,7 @@ consentimento, vem **depois da virada** e não a segura.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** Contratos:
+- [x] **T2.1** Contratos:
   - `test/keycloak-realm.contract.test.ts:246-266`, com a `53200` em `redirectUris`, `webOrigins` e
     `post.logout.redirect.uris`;
   - o harness `runReconcile` (`keycloak-realm.contract.ts:178-185`) estendido:
@@ -116,7 +116,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** vermelhos pela razão certa.
 
-- [ ] **T2.2** `realm/transportada-local-realm.json` com a `53200`, e `keycloak-reconcile.sh` com a
+- [x] **T2.2** `realm/transportada-local-realm.json` com a `53200`, e `keycloak-reconcile.sh` com a
       plan D7 (`$merged.attributes` completo e o cálculo de faltas com o pós-logout).
       `spa-redirect-uris.json` ainda **não** muda.
 

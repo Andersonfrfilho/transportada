@@ -152,3 +152,59 @@ make dev (stack completa) → GET http://localhost:53200/manifest.webmanifest
   painel (53000) e API (53001) também responderam durante o mesmo `make dev` — nada quebrou nas
   apps existentes.
 ```
+
+## Fase 2 — Entrar e sair pelo Keycloak
+
+### T2.1 — Contratos do pós-logout e do PUT completo do Keycloak
+
+`test/keycloak-realm.contract.test.ts:246-266` ganhou a `53200` em `redirectUris`, `webOrigins` e
+`post.logout.redirect.uris` do realm local. `apps/api-transportada/test/deploy/keycloak-realm.contract.ts`:
+o harness `runReconcile` ganhou `spaClient.attributes` na entrada, `clientWrites[].attributes` e o
+`GET` pós-`PUT` do duplo (`FakeKeycloak`) refletindo o que foi gravado (antes só `redirectUris`/
+`webOrigins`). Quatro casos novos: o corpo do `PUT` preserva `pkce.code.challenge.method`; o corpo
+contém o pós-logout novo; o pós-logout que já existia continua; a verificação pós-`PUT` reprova
+quando `pkce.code.challenge.method` não é `S256`.
+
+Vermelhos pela razão certa (script ainda sem a lógica):
+
+```
+cd apps/frontend-driver... (não aplicável)
+bun test ./test/keycloak-realm.contract.test.ts
+  17 pass / 1 fail — "imports separate SPA... PKCE S256 only" (post.logout.redirect.uris sem 53200)
+
+cd apps/api-transportada && bun --env-file=../../.env.test test ./test/deploy.contract.test.ts --timeout 120000
+  178 pass / 4 fail — os 4 casos novos de pkce/pós-logout (attributes sempre undefined)
+```
+
+**Commit próprio, T2.1.**
+
+### T2.2 — `realm/transportada-local-realm.json` e `keycloak-reconcile.sh`
+
+`realm/transportada-local-realm.json`: `http://localhost:53200` em `redirectUris`, `webOrigins` e
+`post.logout.redirect.uris` do client `transportada-spa`. `spa-redirect-uris.json` **não** mudou
+(fica para a T6.4).
+
+`.github/scripts/keycloak-reconcile.sh`: o laço de reconciliação de callbacks ganhou
+`wanted_post_logout` (cada `webOrigins` desejado vira `<origem>/*` e `<origem>`), `$merged.attributes`
+soma `$current.attributes` (preservando `pkce.code.challenge.method` e qualquer outro atributo) com
+o pós-logout unido, o cálculo de "o que falta" (`added`) passa a incluir o pós-logout, e a
+verificação pós-`PUT` — feita sobre a **mesma** releitura do client — confere redirectUris, o
+pós-logout **e** `pkce.code.challenge.method == "S256"`, com `exit 1` nomeado se qualquer um faltar.
+
+```
+bash -n .github/scripts/keycloak-reconcile.sh    ok
+
+bun test ./test/keycloak-realm.contract.test.ts
+  18 pass / 0 fail / 99 expect()
+
+cd apps/api-transportada && bun --env-file=../../.env.test test ./test/deploy.contract.test.ts --timeout 120000
+  182 pass / 0 fail / 650 expect()
+
+cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+  7290 pass / 23 skip / 0 fail / 24475 expect()   (suíte inteira da API, contrato)
+
+make config     exit 0 (realm-contract 18 pass)
+make check      exit 0 — ver saída consolidada abaixo, junto da T2.3
+```
+
+**Commit próprio, T2.2.**
