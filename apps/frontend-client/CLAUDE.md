@@ -74,6 +74,12 @@ O que a ADR fixa, e que continua valendo para quem mexer aqui:
   ele traz regra global (`:where(*) { border-color }` e `:root`), que repintaria a app inteira, e que
   o `MessageBubble` só tem forma com Tailwind. Então o balão é nosso, com `MessageText`/`StatusTicks`/
   `DateDivider` dentro, e os tokens de balão são cópia por valor dos do painel (`--color-bubble-*`).
+- **Revisão da 183 (T903):**
+  - Hora e tamanho do anexo sem `opacity` dentro do balão: esmaecidos, davam 4,39:1 (D1).
+  - Mensagem nova da transportadora é anunciada numa região `aria-live` por
+    `announceNewCarrierMessages` (D2).
+  - A caixa de texto trava durante o envio, porque o sucesso a limpa (F13).
+  - Contrato: `test/occurrences/`.
 - **Continua sem design system e sem Playwright:** a prova é serviço puro e texto de fonte, mais o
   contrato de que a `Permissions-Policy` não mudou e de que o `connect-src` só ganhou o bucket. O tamanho do bundle antes e
   depois do pacote fica no `evidence.md` da spec 183 (T653).

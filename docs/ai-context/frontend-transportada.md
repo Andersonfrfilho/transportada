@@ -703,3 +703,31 @@ permissão/tarifa — molde reaproveitado depois pela T402 item 6 e pela T503.
 
 Detalhe completo (contratos, vermelhos, arquivos por caminho, gates):
 `specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md` (T204, T303, T401, T402, T503).
+
+## A ocorrência tem duas conversas (spec 183, 24–25/09/2026)
+
+- **Peças do pacote sem Tailwind (T407).** O `styles.css` do `@adatechnology/conversations-ui` traz
+  regra global (`:where(*) { border-color }`, `:root`), e o `MessageBubble` só tem forma com
+  Tailwind. Por isso o balão é nosso, e dentro dele entram `MessageText`, `StatusTicks` e
+  `DateDivider`. O `StatusTicks` traz classes Tailwind inertes: "lido" e "entregue" saem com a mesma
+  cor, e o texto ao lado diferencia.
+- **Contraste dentro do balão (D1).** O `<footer>` do balão herdava o cinza global, e o axe mediu de
+  2,3:1 a 4,4:1 sobre o cobre e o azul, nos dois temas. Agora a linha herda o texto do balão.
+- **`aria-live` e a leitura que parava (D2).** O `refetchInterval` parava quando nada estava
+  pendente, e a mensagem nova da contratante só aparecia ao recarregar. Agora a leitura cai para
+  60 s em vez de parar, e a região anuncia o que chegou.
+- **Recuperação do envio (F2/F3).** O mapa arquivo→upload e a chave só eram limpos no sucesso.
+  - Um upload vencido (15 min) prendia o motorista sem sinal num erro genérico para sempre.
+  - A resposta perdida seguida de edição do texto dava 409 eterno.
+- **Fronteira entre módulos (F5).**
+  - A conversa importava `useContractorContacts` e `ContactForm`. Agora é a
+    `AddContractorContactAction` de `delivery-clients`.
+  - As guardas vinham de `trip`, que importa a conversa. Agora o módulo tem as próprias.
+  - A tela do app do motorista (`driver-trip`) continua compondo peças de `occurrence-conversation`,
+    porque depende do layout do próprio app. Proposta registrada: uma API pública do módulo, com a
+    tela e o contador.
+- **Página de clientes (revisão da 183).** O usuário apontou o print a 360 px ("tela feia tudo fora
+  do padrão"): título solto, campo cru e tabela estourando 86 px.
+  - Ela ganhou o molde de Ocorrências: cabeçalho em painel, `--field-*` e tabela num quadro.
+  - A segunda rodada da revisão achou o quadro sem foco (D3). Agora é região nomeada com
+    `tabIndex={0}`.

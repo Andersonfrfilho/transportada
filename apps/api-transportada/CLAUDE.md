@@ -16,7 +16,8 @@ Módulos: `addresses`, `address-correction`, `billing`, `companies`, `contractor
 `contractor-portal`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`, `freight`,
 `freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
 `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
-`operations`, `routing`, `storage`, `trips`, `view-preferences`, `whatsapp-commands`, `health`.
+`occurrence-conversation`, `operations`, `routing`, `storage`, `trips`, `view-preferences`,
+`whatsapp-commands`, `health`.
 Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
 
 ⚠️ **O pedido de correção de endereço (`address-correction/`) nunca edita `nfe_addresses` nem o XML**
@@ -355,6 +356,52 @@ isso por **contagem de linhas antes e depois**, não por ausência de erro — �
 disso, um segundo motivo para os cinco anos de retenção da spec 161 D9: enquanto o demonstrativo for
 contestável, a foto que o sustenta precisa sobreviver ao mesmo prazo (`docs/SECURITY.md`, achado
 22/09/2026).
+
+## A ocorrência tem duas conversas (spec 183)
+
+`occurrence-conversation/` guarda, por ocorrência, **uma** conversa com a contratante e **uma** com o
+motorista (unique `(company_id, occurrence_kind, occurrence_id, participant)`). Os canais são
+e-mail (spec 143), WhatsApp, app do motorista e portal. Histórico, medições e defeitos investigados:
+docs/ai-context § "A ocorrência tem duas conversas".
+
+- **A conversa nunca decide (D4).** Nada do módulo escreve em tratativa, cobrança ou acerto; o
+  contrato `conversation-never-decides.contract.ts` reprova até **citar** as tabelas e os casos de
+  uso da 164. Quem precisa saber se a tratativa encerrou lê pelo fragmento que `trips` exporta
+  (`trips/infrastructure/terminal-occurrence-case.query.ts`), nunca pela tabela.
+- **Conversa "aberta" é derivada, não gravada** (T903, C2). Nenhuma conversa fecha, e a leitura do
+  portal cria a conversa de toda ocorrência visível — `status = 'open'` sozinho não diz nada.
+  - Para a atribuição do WhatsApp (RF9) e para as candidatas da fila de não atribuídas vale
+    `attributableContractorConversation`: a tratativa não chegou a estado terminal (a definição
+    da T206).
+  - Na atribuição automática, a conversa também precisa ter mensagem.
+- **Anexo em três passos** (`conversation-attachment.service.ts`):
+  1. **Pedido:** URL de PUT assinada de 15 min. A chave é um token de 256 bits, sem id interno,
+     porque a URL vai ao portal.
+  2. **Ligação:** feita na transação da mensagem. Confere o pedido `pending`, o alvo, o prazo, o
+     teto e os bytes, e **copia os bytes conferidos para uma chave final nova** (T903, S1: a URL de
+     subida segue valendo, e um PUT tardio trocaria o arquivo). A chave da subida é apagada.
+  3. **Leitura:** URL de 5 min, `attachment`.
+  - Tetos por canal; o e-mail soma até 25 MB.
+- **Quem escreveu é decidido na leitura** (`identifyContractorSender`, RF16), e editar o contato
+  corrige mensagens antigas. No e-mail, **só o DKIM alinhado** casa o `From` com o cadastro
+  (`dkim_result = 'aligned'` em `contractor_mail_messages`). Sem ele, a identidade é `unknown` com
+  `unverified` (T903, S2), e a mensagem continua na conversa.
+- **A conversa do motorista segue o destinatário de agora** (T903, C1):
+  - o envio da operação passa a conversa ao motorista principal atual (`retarget`), e a conta
+    anterior deixa de lê-la;
+  - a resposta de quem não é o destinatário é 409 `OCCURRENCE_CONVERSATION_DRIVER_CHANGED`;
+  - a tripulação é fixa desde a criação da viagem; o que muda é a conta por trás da ficha.
+- **O aviso automático à contratante** (T802, `emails_contractor` do tipo):
+  - dispara e esquece depois do commit, nos cinco caminhos de registro, **em série** (T903, C4);
+  - um por ocorrência (chave `occurrence-auto-mail:<id>`), sem autor, com a mensagem `automatic`;
+  - o primeiro e-mail da ocorrência trava `['occurrence-mail-thread', empresa, kind, ocorrência]`
+    antes de procurar a thread (T903, C3), porque sem isso o aviso e um envio manual simultâneos
+    davam 23505.
+- **Rotas que enviam declaram `rateLimit` no Postgres** e aparecem em
+  `test/rate-limited-routes.contract.test.ts`: e-mail, app, portal, uploads e a resposta do
+  motorista (`driver-occurrence-conversation-send`, 30/300 s).
+- Logs só com ids, códigos e contagens. Isolamento:
+  `test/occurrence-conversation-schema/tenant-safety.contract.ts`.
 
 ## Fleet — ficha do motorista e geocodificação
 

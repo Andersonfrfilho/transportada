@@ -113,3 +113,14 @@ Cobertura ponta a ponta em
 `api-transportada/test/integration/alphanumeric-cnpj-end-to-end.integration.ts`: nota de emitente
 alfanumérico → lote → frete → payload de CT-e → DACTE → fatura. Ele **não** cobre assinatura e
 transmissão (o XML nasce no worker, com certificado e rede).
+
+## A conversa da ocorrência no portal (spec 183, 24–25/09/2026)
+
+- **Esmaecer custava contraste (D1).** Com `opacity`, a hora e o tamanho do anexo ficavam em 4,39:1
+  sobre o cobre, logo abaixo dos 4,5:1. Agora o texto sai sem esmaecer.
+- **Anúncio de mensagem nova (D2).** `announceNewCarrierMessages` compara a leitura nova com a
+  anterior, e a primeira leitura nunca anuncia. O texto vai numa região `.visually-hidden` com
+  `aria-live`.
+- **Caixa travada no envio (F13).** Conferido no navegador com o POST segurado por 2 s: a caixa fica
+  desabilitada e volta vazia.
+- **Anterior à 183:** a navegação do portal estoura 64 px a 360. Ficou para uma tarefa própria.

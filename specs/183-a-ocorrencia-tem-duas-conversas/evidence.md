@@ -2405,3 +2405,42 @@ mail_message_id)`.
 - **Painel** **5311 + 44 pass**; **portal** **86 pass**.
 - **Migrations:** `ENV_FILE=.env.test make migration-test` **111 pass**; `bun run db:check` limpo.
 - **Raiz:** lint, typecheck e `format:check` limpos.
+
+## T904 — A documentação com "A ocorrência tem duas conversas" (verde)
+
+- **`apps/api-transportada/CLAUDE.md`:**
+  - `occurrence-conversation` entrou na lista de módulos;
+  - seção nova **"A ocorrência tem duas conversas (spec 183)"**, com as invariantes que não se
+    reimplementam por engano:
+    - D4 e o fragmento de `trips`;
+    - "aberta" derivada (C2);
+    - anexo em três passos, com a cópia final (S1);
+    - identidade na leitura, com DKIM (S2);
+    - conversa do motorista que segue o destinatário (C1);
+    - aviso automático em série, com o lock por ocorrência (C3/C4);
+    - rotas com limite de taxa.
+- **`apps/worker-transportada/CLAUDE.md`:** o e-mail recebido vira mensagem (a identidade é da
+  leitura da API); o e-mail enviado com anexo falha em vez de sair sem o arquivo (F1); a expiração
+  do upload.
+- **`apps/frontend-transportada/CLAUDE.md`:** seção nova **"A conversa da ocorrência (spec 183)"**:
+  - peças do pacote sem Tailwind;
+  - `aria-live` e a leitura que nunca para;
+  - recuperação do envio;
+  - "já feito" nas ações de chave fixa;
+  - a ação de contatos de `delivery-clients` e o remetente não confirmado;
+  - as guardas próprias e o celular.
+- **`apps/frontend-client/CLAUDE.md`:** as correções da revisão no portal (D1, D2, F13).
+- **`docs/ai-context/`:** seção datada "A ocorrência tem duas conversas" em `api-transportada.md`,
+  `worker-transportada.md`, `frontend-transportada.md` e `frontend-client.md`. Guarda o porquê das
+  decisões, as medições e os defeitos achados. Registra também que a corrida do C3 não se reproduziu
+  sem a correção.
+- **`docs/SECURITY.md`:** entrada **"a ocorrência tem duas conversas: anexo por URL assinada,
+  remetente pelo DKIM, portal por referência opaca (spec 183)"**:
+  - fechados na revisão: S1, S2, S3 e S4;
+  - abertos:
+    - o mesmo padrão do S1 no upload da 179;
+    - sem teto próprio para o aviso automático;
+    - S5, risco aceito;
+    - o remetente não confirmado continua na conversa;
+  - o que continua valendo.
+- Formatação da raiz limpa.

@@ -172,6 +172,37 @@ Histórico completo (contratos de catálogo/recarregamento/navegação, caso ext
 validação do deep link):
 `docs/ai-context/frontend-transportada.md` (spec 154 T204–T303, T401).
 
+## A conversa da ocorrência (spec 183)
+
+`occurrence-conversation/` desenha as duas conversas da ocorrência: a aba Contratante (e-mail e
+portal) e a aba Motorista (app). A mesma tela serve ao app do motorista e, com peças próprias, ao
+portal. Histórico: docs/ai-context § "A ocorrência tem duas conversas".
+
+- **Do `@adatechnology/conversations-ui` entram só peças que não dependem de Tailwind:**
+  `MessageText`, `StatusTicks` e `DateDivider`. O `styles.css` do pacote nunca é importado
+  (ADR-0051), e a cor de cada participante vem dos tokens.
+- **Mensagem nova é anunciada a leitor de tela** (T903, D2). O fio tem região `aria-live`
+  alimentada por `countNewIncomingMessages`, que nunca anuncia a primeira leitura. A leitura nunca
+  para: com envio pendente, o refetch é rápido; sem nada pendente, cai para
+  `CONVERSATION_IDLE_REFETCH_MS` (60 s).
+- **Envio que falhou se recupera no reenvio** (`recoverFromSendFailure`, T903 F2/F3):
+  - upload vencido esquece os ids e sobe de novo;
+  - chave já usada com outro conteúdo gera chave nova;
+  - conversa passada a outro motorista diz o motivo.
+- **Ação com chave derivada do anexo** (encaminhar à contratante, anexar à ocorrência): o 409 de chave
+  usada quer dizer "já feito" e aparece assim, nunca como erro (T903, F4).
+- **"Adicionar aos contatos" é a `AddContractorContactAction` de `delivery-clients`** (T903, F5, pela
+  regra da fronteira acima). A conversa só decide quando oferecê-la: remetente fora dos contatos e
+  **confirmado**. O e-mail sem DKIM alinhado aparece como "Remetente não confirmado" e não oferece
+  cadastro (S2).
+- **O módulo tem as próprias guardas** (`occurrenceConversationGuards.validation.ts`). Ler as de `trip`
+  fechava ciclo, porque `trip` importa a conversa. Contrato: `module-boundary.contract.ts`.
+- **No celular** (T801): a lista vira cartões, o detalhe vira abas, e o fio tem altura limitada com
+  a caixa de envio logo abaixo. A caixa presa ao rodapé foi medida e descartada: cobria 359 de
+  800 px. Sob `pointer: coarse`, botões pequenos, nome do contato e "fechar" chegam a
+  `--touch-target`.
+- Áudio e microfone: § "CSP, ambiente e tema de login" acima.
+
 ## Testes de hook com DOM
 
 Os contratos rodam **sem DOM**. Hook que só se prova montado (corrida entre efeito, mutation e
