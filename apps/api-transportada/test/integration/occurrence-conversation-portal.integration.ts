@@ -137,7 +137,7 @@ describe('a conversa da contratante pelo portal contra Postgres (spec 183 T651)'
           context: portal,
           occurrenceIds: [seeded.occurrenceId],
         })
-        expect(refs.get(seeded.occurrenceId)).toBe(ref)
+        expect(refs.get(seeded.occurrenceId)).toEqual({ ref, unreadCount: 1 })
 
         const before = await useCase.read({ context: portal, ref })
         expect(before).toEqual({
@@ -181,6 +181,12 @@ describe('a conversa da contratante pelo portal contra Postgres (spec 183 T651)'
         await useCase.markRead({ context: portal, ref })
         const after = await useCase.read({ context: portal, ref })
         expect(after.unreadCount).toBe(0)
+        /** Spec 183 T653: a listagem traz as não lidas da conta, e a lida zera. */
+        const listed = await useCase.conversationRefs({
+          context: portal,
+          occurrenceIds: [seeded.occurrenceId],
+        })
+        expect(listed.get(seeded.occurrenceId)).toEqual({ ref, unreadCount: 0 })
         expect(after.messages.at(-1)).toMatchObject({ mine: true, side: 'contractor' })
       })
     },
@@ -209,9 +215,9 @@ describe('a conversa da contratante pelo portal contra Postgres (spec 183 T651)'
           occurrenceIds: [seeded.occurrenceId],
         })
 
-        const ref = first.get(seeded.occurrenceId)
+        const ref = first.get(seeded.occurrenceId)?.ref ?? ''
         expect(ref).toMatch(/^[A-Za-z0-9_-]{22,64}$/u)
-        expect(second.get(seeded.occurrenceId)).toBe(ref)
+        expect(second.get(seeded.occurrenceId)).toEqual({ ref, unreadCount: 0 })
         const rows = await database.db
           .select({ id: occurrenceConversations.id })
           .from(occurrenceConversations)
@@ -223,7 +229,7 @@ describe('a conversa da contratante pelo portal contra Postgres (spec 183 T651)'
           bodyText: 'Qual caixa?',
           context: portal,
           idempotencyKey: 'portal-send-key-0002',
-          ref: ref ?? '',
+          ref,
         })
         const messages = await database.db
           .select({ channel: occurrenceConversationMessages.channel })
@@ -252,7 +258,7 @@ describe('a conversa da contratante pelo portal contra Postgres (spec 183 T651)'
               context: portal,
               occurrenceIds: [seeded.occurrenceId],
             })
-          ).get(seeded.occurrenceId) ?? ''
+          ).get(seeded.occurrenceId)?.ref ?? ''
 
         /** Outra contratante da mesma empresa — o recebedor, por exemplo, com vínculo próprio. */
         const betaId = crypto.randomUUID()

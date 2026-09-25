@@ -21,6 +21,7 @@ import type {
   ContractorPortalConversationUnitOfWorkPort,
   ContractorPortalScopePort,
   PortalConversationMessageRecord,
+  PortalConversationSummary,
 } from './contractor-portal-conversation.port.js'
 
 export const PORTAL_CONVERSATION_SEND_OPERATION = 'occurrence-conversation.portal.send'
@@ -51,7 +52,7 @@ export type ContractorPortalConversationUseCase = {
   conversationRefs(input: {
     readonly context: CompanyContext
     readonly occurrenceIds: readonly string[]
-  }): Promise<ReadonlyMap<string, string>>
+  }): Promise<ReadonlyMap<string, PortalConversationSummary>>
   markRead(input: { readonly context: CompanyContext; readonly ref: string }): Promise<void>
   read(input: {
     readonly context: CompanyContext
@@ -128,6 +129,7 @@ export function createContractorPortalConversationUseCase(dependencies: {
           newRef: dependencies.newRef,
           occurrenceIds,
           scope,
+          userId: context.userId,
         }),
       )
     },

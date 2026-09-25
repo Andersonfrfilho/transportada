@@ -80,6 +80,13 @@ export type OccurrenceAttachment = Readonly<{
 export type Occurrence = Readonly<{
   attachments: readonly OccurrenceAttachment[]
   caseStatus: string
+  /**
+   * Spec 183 T651/T653: a referência opaca da conversa com a transportadora — nunca o id dela.
+   * `null` quando a conversa não é com a empresa desta conta (quem só recebe a nota, por exemplo).
+   */
+  conversationRef: string | null
+  /** As mensagens da transportadora que esta conta ainda não leu — o botão da conversa mostra. */
+  conversationUnreadCount: number
   decidedAt: string | null
   decisionKind: OccurrenceDecisionKind | null
   occurrenceId: string
@@ -97,4 +104,30 @@ export type OccurrenceDecisionInput = Readonly<{
 export type OccurrenceDecisionResult = Readonly<{
   kind: 'changed' | 'unchanged'
   status: string
+}>
+
+/** Spec 183 T653: o canal por onde a mensagem entrou na conversa (D9 — a conversa é uma só). */
+export type PortalConversationChannel = 'email' | 'portal' | 'whatsapp'
+
+/**
+ * A mensagem como o portal a recebe: sem id, sem autor da transportadora e sem nada do motorista
+ * (ADR-0073 §5). `mine` diz se foi esta conta que escreveu.
+ */
+export type PortalConversationMessage = Readonly<{
+  body: string
+  channel: PortalConversationChannel
+  createdAt: string
+  mine: boolean
+  side: 'carrier' | 'contractor'
+}>
+
+export type PortalConversation = Readonly<{
+  messages: readonly PortalConversationMessage[]
+  unreadCount: number
+}>
+
+export type PortalConversationMessageInput = Readonly<{
+  body: string
+  idempotencyKey: string
+  ref: string
 }>

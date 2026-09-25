@@ -22,6 +22,12 @@ export type PortalConversationMessageRecord = {
   readonly direction: OccurrenceConversationDirection
 }
 
+/** Spec 183 T653: a referência da conversa e as mensagens da transportadora que a conta não leu. */
+export type PortalConversationSummary = {
+  readonly ref: string
+  readonly unreadCount: number
+}
+
 export type PortalConversationIdempotencyRecord = {
   readonly fingerprint: string
   readonly response: unknown
@@ -31,14 +37,15 @@ export type ContractorPortalConversationTransactionPort = {
   /**
    * A referência de cada ocorrência listada cuja contratante (o emitente da nota) está no recorte.
    * A conversa nasce aqui quando ainda não existe (idempotente): a ocorrência chegou ao portal, e a
-   * contratante precisa poder escrever primeiro.
+   * contratante precisa poder escrever primeiro. Junto, as não lidas **desta conta** (T653).
    */
   ensureConversationRefs(input: {
     readonly companyId: string
     readonly newRef: () => string
     readonly occurrenceIds: readonly string[]
     readonly scope: ContractorScope
-  }): Promise<ReadonlyMap<string, string>>
+    readonly userId: string
+  }): Promise<ReadonlyMap<string, PortalConversationSummary>>
   /** `null` para referência de outra contratante, inexistente ou de ocorrência ainda não visível. */
   findConversation(input: {
     readonly companyId: string

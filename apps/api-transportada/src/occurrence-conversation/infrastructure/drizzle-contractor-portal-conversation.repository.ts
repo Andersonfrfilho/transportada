@@ -40,11 +40,33 @@ async function acquireAdvisoryLock(transaction: Transaction, fields: readonly st
   await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
 }
 
+/**
+ * A mensagem da transportadora que esta conta do portal ainda não leu: depois da última lida dela
+ * (`occurrence_conversation_reads`, por conta), na ordem `(created_at, id)` do fio.
+ */
+function unreadByUser(userId: string) {
+  return and(
+    eq(occurrenceConversationMessages.direction, 'outbound'),
+    sql`not exists (
+              select 1
+              from ${occurrenceConversationReads} as portal_read
+              join ${occurrenceConversationMessages} as portal_last_read
+                on portal_last_read.company_id = portal_read.company_id
+                and portal_last_read.id = portal_read.last_read_message_id
+              where portal_read.company_id = ${occurrenceConversationMessages.companyId}
+                and portal_read.conversation_id = ${occurrenceConversationMessages.conversationId}
+                and portal_read.user_id = ${userId}
+                and (portal_last_read.created_at, portal_last_read.id)
+                  >= (${occurrenceConversationMessages.createdAt}, ${occurrenceConversationMessages.id})
+            )`,
+  )
+}
+
 function createTransactionPort(
   transaction: Transaction,
 ): ContractorPortalConversationTransactionPort {
   return {
-    async ensureConversationRefs({ companyId, newRef, occurrenceIds, scope }) {
+    async ensureConversationRefs({ companyId, newRef, occurrenceIds, scope, userId }) {
       if (occurrenceIds.length === 0 || scope.contractorIds.length === 0) return new Map()
 
       /** A contratante da conversa é o emitente da nota (T203), e ela tem de estar no recorte. */
@@ -113,6 +135,7 @@ function createTransactionPort(
 
       const rows = await transaction
         .select({
+          id: occurrenceConversations.id,
           occurrenceId: occurrenceConversations.occurrenceId,
           publicRef: occurrenceConversations.publicRef,
         })
@@ -129,8 +152,39 @@ function createTransactionPort(
             inArray(occurrenceConversations.contractorId, [...scope.contractorIds]),
           ),
         )
+      if (rows.length === 0) return new Map()
+
+      /** Spec 183 T653: as não lidas desta conta, numa consulta só para a página inteira. */
+      const unread = await transaction
+        .select({
+          conversationId: occurrenceConversationMessages.conversationId,
+          total: count(),
+        })
+        .from(occurrenceConversationMessages)
+        .where(
+          and(
+            eq(occurrenceConversationMessages.companyId, companyId),
+            inArray(
+              occurrenceConversationMessages.conversationId,
+              rows.map((row) => row.id),
+            ),
+            unreadByUser(userId),
+          ),
+        )
+        .groupBy(occurrenceConversationMessages.conversationId)
+      const unreadByConversation = new Map(unread.map((row) => [row.conversationId, row.total]))
+
       return new Map(
-        rows.flatMap((row) => (row.publicRef === null ? [] : [[row.occurrenceId, row.publicRef]])),
+        rows.flatMap((row) =>
+          row.publicRef === null
+            ? []
+            : [
+                [
+                  row.occurrenceId,
+                  { ref: row.publicRef, unreadCount: unreadByConversation.get(row.id) ?? 0 },
+                ] as const,
+              ],
+        ),
       )
     },
 
@@ -241,19 +295,7 @@ function createTransactionPort(
           and(
             eq(occurrenceConversationMessages.companyId, companyId),
             eq(occurrenceConversationMessages.conversationId, conversationId),
-            eq(occurrenceConversationMessages.direction, 'outbound'),
-            sql`not exists (
-              select 1
-              from ${occurrenceConversationReads} as portal_read
-              join ${occurrenceConversationMessages} as portal_last_read
-                on portal_last_read.company_id = portal_read.company_id
-                and portal_last_read.id = portal_read.last_read_message_id
-              where portal_read.company_id = ${occurrenceConversationMessages.companyId}
-                and portal_read.conversation_id = ${occurrenceConversationMessages.conversationId}
-                and portal_read.user_id = ${userId}
-                and (portal_last_read.created_at, portal_last_read.id)
-                  >= (${occurrenceConversationMessages.createdAt}, ${occurrenceConversationMessages.id})
-            )`,
+            unreadByUser(userId),
           ),
         )
       return row?.total ?? 0

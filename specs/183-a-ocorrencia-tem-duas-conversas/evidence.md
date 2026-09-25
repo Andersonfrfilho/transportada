@@ -1288,3 +1288,83 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
   - API, contratos **7450 pass, 23 skip, 0 fail**;
   - a integração não muda nesta task (só um arquivo de contrato). A rodada completa da T651, sobre o
     mesmo código, vale para ela.
+
+## T653 — A conversa na tela "Ocorrências" do portal (verde; anexo e áudio com a T702/T705)
+
+- **Tela** (`apps/frontend-client/src/modules/occurrences/`):
+  - `OccurrenceConversation.component.tsx` fica no cartão da ocorrência, **abaixo** do
+    `DecisionForm` da 164, que continua sendo a decisão;
+  - fechada por padrão, "Conversa com a transportadora (N nova[s])";
+  - abrir lê o fio e marca como lida (RF15);
+  - o fio é agrupado por dia com o `DateDivider` do pacote, e o texto sai pelo `MessageText` dentro
+    de um balão nosso;
+  - a transportadora fica à esquerda, em cobre, como empresa ("Transportadora"); a contratante à
+    direita, em azul ("Você" ou "Sua equipe"), como pede a D9. Cada mensagem diz por onde chegou
+    (e-mail, WhatsApp, portal);
+  - o campo "Mensagem para a transportadora" diz o que falta sem ir à API e renova a chave de
+    idempotência depois do envio.
+- **As não lidas na listagem (acréscimo à API desta task):** sem elas, o botão só saberia das novas
+  depois de aberto. `GET /client/me/occurrences` passou a trazer `conversationUnreadCount` ao lado
+  da `conversationRef`:
+  - são as mensagens da transportadora depois da última lida **desta conta**;
+  - saem numa consulta agrupada por página;
+  - a condição de "não lida" é uma função só (`unreadByUser`), a mesma da leitura do fio.
+- **Pacote:** `@adatechnology/conversations-ui@0.3.1` entrou no portal, com a mesma versão fixada do
+  painel. O lockfile mudou uma linha e nada foi baixado. O `styles.css` do pacote **não** é
+  importado: a mesma regra global da T407, já registrada no `CLAUDE.md` do portal na T650.
+- **Bundle (a ADR-0073 pede antes e depois):**
+
+  |     | antes (sem a conversa)       | depois                          | diferença                     |
+  | --- | ---------------------------- | ------------------------------- | ----------------------------- |
+  | JS  | 283,00 kB (gzip 87,02 kB)    | 356,24 kB (gzip 111,49 kB)      | **+73,24 kB (gzip +24,47 kB)** |
+  | CSS | 3,69 kB (gzip 1,24 kB)       | 4,76 kB (gzip 1,48 kB)          | +1,07 kB (gzip +0,24 kB)       |
+
+  É muito para duas peças pequenas. O índice do pacote não declara `sideEffects: false`, e o
+  `MessageText` puxa o `tailwind-merge`. **Proposta ao pacote** (não bloqueia):
+  - declarar `sideEffects: false`;
+  - exportar as peças de texto e data por um caminho próprio, para o portal (e o celular do
+    cliente) pagar só pelo que usa.
+- **Revisão de design:** prints numa bancada temporária, porque o portal não tem Playwright nem
+  atalho de login, e um contrato proíbe esse atalho. A bancada monta o `OccurrenceListPage`
+  verdadeiro com um cliente falso, foi servida pelo Vite e apagada depois. Os prints são de 1440 e
+  390 px:
+  - `prints/portal-conversa-fechada-{desktop,celular}.png` — o botão com "(1 nova)";
+  - `prints/portal-conversa-{desktop,celular}.png` — o fio aberto: dia, lados, tons, canal, o envio
+    em branco dizendo o que falta e o enviado no fio;
+  - sem rolagem horizontal (`scrollWidth` 1440 e 390).
+
+  Achados:
+  1. **Corrigido nesta task:** o botão da conversa dizia "Enviar", ao lado de "Enviar decisão" no
+     mesmo cartão. Justo a confusão que a D4 separa. Virou **"Enviar mensagem"**, com contrato.
+  2. **Fora desta task (anterior à 183):** os três rádios do `DecisionForm` da 164 aparecem como
+     círculos grandes. A regra global `input { width: 100%; min-height: var(--field-height) }` do
+     portal pega o `type="radio"`. Registrado para uma task própria, porque a correção é no CSS
+     global e no formulário da 164.
+- **Anexo e áudio:** o anexo por arquivo entra com a **T702** e o player de áudio com a **T705**,
+  quando existirem na API. A `Permissions-Policy` não muda (contrato abaixo).
+- **Testes, escritos antes e vistos falhando** (módulo inexistente; depois, o campo de não lidas
+  ausente). O arquivo é `test/occurrences/conversation.contract.ts`, no entrypoint:
+  - resposta:
+    - a `conversationRef` e as não lidas;
+    - referência fora do formato vira `null`;
+    - a conversa lida campo a campo: id, autor e nome de motorista não passam, e lado ou canal
+      desconhecido fica de fora;
+  - cliente: os três caminhos pela referência, o corpo `{ body }`, a chave no cabeçalho e o 204 sem
+    corpo;
+  - serviço: o rascunho, a chave no formato da API, o agrupamento por dia, o lado, o tom e o autor
+    (D9), e o contador do botão;
+  - texto de fonte:
+    - as peças do pacote sem o `styles.css`;
+    - nada de `getUserMedia`, `MediaRecorder` nem `capture=`, e a `Permissions-Policy` igual;
+    - a conversa não chama nem monta a decisão;
+    - "Enviar mensagem";
+    - os tokens de balão iguais aos escuros do painel;
+    - o contador vindo da listagem.
+  - API: os contratos da T651 foram estendidos (as referências com `unreadCount`, o `userId` da
+    conta, a listagem com `conversationUnreadCount`), e a integração do portal agora confere as
+    não lidas na listagem (1, e 0 depois da lida).
+- **Rodado:**
+  - portal: **70 pass**, build, lint e typecheck;
+  - API: contratos **7450 pass, 23 skip, 0 fail**; integração do portal **3 pass**; integração
+    completa sozinha **596 pass, 7 skip, 8 fail** (as 8 do MinIO, iguais à linha de base);
+  - lint e typecheck da raiz limpos.

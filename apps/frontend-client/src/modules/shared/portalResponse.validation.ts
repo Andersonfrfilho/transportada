@@ -9,6 +9,9 @@ import type {
   OccurrenceAttachment,
   OccurrenceDecisionKind,
   OccurrenceDecisionResult,
+  PortalConversation,
+  PortalConversationChannel,
+  PortalConversationMessage,
 } from './portal.types'
 
 /**
@@ -147,12 +150,21 @@ function toOccurrenceAttachment(row: Record<string, unknown>): OccurrenceAttachm
   }
 }
 
+/** O formato da `public_ref` na API; qualquer outra coisa não vira caminho de requisição. */
+const CONVERSATION_REF_PATTERN = /^[A-Za-z0-9_-]{22,64}$/u
+
+function readConversationRef(value: unknown): string | null {
+  return typeof value === 'string' && CONVERSATION_REF_PATTERN.test(value) ? value : null
+}
+
 function toOccurrence(row: Record<string, unknown>): Occurrence {
   return {
     attachments: Array.isArray(row.attachments)
       ? row.attachments.filter(isRecord).map(toOccurrenceAttachment)
       : [],
     caseStatus: readString(row, 'caseStatus'),
+    conversationRef: readConversationRef(row.conversationRef),
+    conversationUnreadCount: readNumber(row, 'conversationUnreadCount'),
     decidedAt: readNullableString(row, 'decidedAt'),
     decisionKind: toOccurrenceDecisionKind(row.decisionKind),
     occurrenceId: readString(row, 'occurrenceId'),
@@ -175,4 +187,32 @@ export function toOccurrenceDecisionResult(payload: unknown): OccurrenceDecision
   if (kind !== 'changed' && kind !== 'unchanged') return null
 
   return { kind, status: readString(row, 'status') }
+}
+
+const CONVERSATION_CHANNELS: readonly PortalConversationChannel[] = ['email', 'portal', 'whatsapp']
+
+function toConversationMessage(row: Record<string, unknown>): PortalConversationMessage | null {
+  const { channel, side } = row
+  if (side !== 'carrier' && side !== 'contractor') return null
+  if (!CONVERSATION_CHANNELS.includes(channel as PortalConversationChannel)) return null
+  return {
+    body: readString(row, 'body'),
+    channel: channel as PortalConversationChannel,
+    createdAt: readString(row, 'createdAt'),
+    mine: readBoolean(row, 'mine'),
+    side,
+  }
+}
+
+/**
+ * Spec 183 T653: a conversa lida campo a campo — o que a API mandar a mais (id, autor) não chega à
+ * tela, e mensagem de lado ou canal desconhecido fica de fora em vez de ser adivinhada.
+ */
+export function toConversation(payload: unknown): PortalConversation {
+  if (!isRecord(payload) || !isRecord(payload.data)) return { messages: [], unreadCount: 0 }
+  const row = payload.data
+  const messages = Array.isArray(row.messages)
+    ? row.messages.filter(isRecord).flatMap((item) => toConversationMessage(item) ?? [])
+    : []
+  return { messages, unreadCount: readNumber(row, 'unreadCount') }
 }

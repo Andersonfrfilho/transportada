@@ -81,7 +81,9 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
   const transaction: ContractorPortalConversationTransactionPort = {
     async ensureConversationRefs(input) {
       fake.calls.push({ input, name: 'ensureConversationRefs' })
-      return new Map(input.occurrenceIds.map((id) => [id, `${REF}-${id.slice(-1)}`]))
+      return new Map(
+        input.occurrenceIds.map((id) => [id, { ref: `${REF}-${id.slice(-1)}`, unreadCount: 2 }]),
+      )
     },
     async findConversation(input) {
       fake.calls.push({ input, name: 'findConversation' })
@@ -270,9 +272,14 @@ describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)'
       occurrenceIds: [OCCURRENCE_ID],
     })
 
-    expect(refs.get(OCCURRENCE_ID)).toBe(`${REF}-5`)
-    const call = fake.calls[0]?.input as { readonly scope: unknown; readonly newRef: () => string }
+    expect(refs.get(OCCURRENCE_ID)).toEqual({ ref: `${REF}-5`, unreadCount: 2 })
+    const call = fake.calls[0]?.input as {
+      readonly newRef: () => string
+      readonly scope: unknown
+      readonly userId: string
+    }
     expect(call.scope).toBe(SCOPE)
+    expect(call.userId).toBe(PORTAL_USER_ID)
     expect(call.newRef()).toBe(REF)
   })
 
@@ -426,7 +433,7 @@ describe('a conversa do portal por texto de fonte (spec 183 T651, ADR-0073)', ()
   })
 })
 
-describe('a listagem da 164 ganha a conversationRef (spec 183 T651)', () => {
+describe('a listagem da 164 ganha a conversationRef e as não lidas (spec 183 T651, T653)', () => {
   function occurrence(occurrenceId: string) {
     return {
       caseStatus: 'awaiting_contractor' as const,
@@ -449,7 +456,7 @@ describe('a listagem da 164 ganha a conversationRef (spec 183 T651)', () => {
     const [list] = createContractorOccurrenceRoutes({
       conversationRefs: async (input) => {
         refCalls.push(input)
-        return new Map([[OCCURRENCE_ID, REF]])
+        return new Map([[OCCURRENCE_ID, { ref: REF, unreadCount: 3 }]])
       },
       decideOccurrenceCase: {
         decide: async () => {
@@ -466,10 +473,16 @@ describe('a listagem da 164 ganha a conversationRef (spec 183 T651)', () => {
       request: new Request('http://api.test/client/me/occurrences'),
     } as never)
     const body = (await response.json()) as {
-      readonly data: readonly { readonly conversationRef: null | string }[]
+      readonly data: readonly {
+        readonly conversationRef: null | string
+        readonly conversationUnreadCount: number
+      }[]
     }
 
-    expect(body.data.map((item) => item.conversationRef)).toEqual([REF, null])
+    expect(body.data.map((item) => [item.conversationRef, item.conversationUnreadCount])).toEqual([
+      [REF, 3],
+      [null, 0],
+    ])
     expect(refCalls).toEqual([
       { context: CONTEXT, occurrenceIds: [OCCURRENCE_ID, CONVERSATION_ID] },
     ])

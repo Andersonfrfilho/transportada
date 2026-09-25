@@ -77,6 +77,7 @@
       "name": "@transportada/frontend-client",
       "version": "0.1.0",
       "dependencies": {
+        "@adatechnology/conversations-ui": "0.3.1",
         "@tanstack/react-query": "5.90.20",
         "keycloak-js": "26.2.4",
         "react": "19.2.0",
