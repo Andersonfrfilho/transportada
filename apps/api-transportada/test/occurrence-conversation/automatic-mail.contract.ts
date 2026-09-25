@@ -210,4 +210,3 @@ describe('o lote não estoura o pool (spec 183 T903, achados C4/S4)', () => {
     expect(order).toEqual(['a', 'b', 'c', 'd'])
   })
 })
-
