@@ -203,9 +203,14 @@ Não se cria client novo. A app entra como terceira origem de `transportada-spa`
     `Dockerfile` do painel entra desde já.
   - **Rollback:** remover a variável e reimplantar o painel.
 - **A decisão é pura:** `resolveDriverAppRedirect`, que recebe `pathname`, `isFieldOnlyUser`, `pendingTotal`, `driverAppUrl` e `isStandalone`.
-  - Sem interruptor ou sem usuário de campo, o resultado é `stay`.
-  - Com interruptor, usuário de campo e `pendingTotal = 0`: `redirect`. Em `display-mode: standalone`,
-    o resultado é `install-screen` (abaixo).
+  - Sem interruptor, o resultado é `stay`.
+  - **Quem decide se é a entrada do motorista muda com o caminho.** Em `/minha-viagem`, é o
+    caminho que diz de quem é a tela — `isFieldOnlyUser` não entra na conta, porque quem abre essa
+    rota já escolheu ir para lá (inclusive o boot sem sessão, `main.tsx`). Na raiz (`/`), quem
+    decide é o usuário de campo: só `isFieldOnlyUser` verdadeiro entra na fila de redirecionamento
+    — o escritório abrindo `/` continua na tela de NF-e.
+  - Com interruptor, usuário de campo (ou `/minha-viagem`) e `pendingTotal = 0`: `redirect`. Em
+    `display-mode: standalone`, o resultado é `install-screen` (abaixo).
   - Com pendência, o resultado é `pending-screen`.
 - **Pendência** é uma definição só, em função pura: eventos não recusados, mais anexos dentro do prazo
   de 7 dias, mais recusados ainda não descartados. A drenagem automática usa a parte drenável (sem os

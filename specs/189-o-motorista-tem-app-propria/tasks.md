@@ -341,7 +341,11 @@ consentimento, vem **depois da virada** e não a segura.
   - com fila semeada, aparece a tela de pendências;
   - o beacon aparece em `railway logs`.
 
-  **Rollback:** remover a variável e reimplantar.
+  **Rollback:** remover a variável e reimplantar. ⚠️ O painel é PWA com `registerType: 'autoUpdate'`
+  — quem já abriu o painel com o bundle ligado, e tem o service worker antigo no aparelho, não sente
+  o rollback na aba aberta nem na reabertura imediata: o SW troca de versão em segundo plano e só
+  serve o bundle novo (sem o interruptor) na **segunda** abertura depois do deploy do rollback. A
+  primeira abertura ainda pode redirecionar, mesmo com a variável já removida no servidor.
 
 - [ ] **T6.6** 👤 **Aparelhos reais em staging.** O usuário:
   - instala no Android e no iPhone;

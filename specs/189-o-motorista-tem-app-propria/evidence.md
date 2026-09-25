@@ -1355,3 +1355,21 @@ providedAttachmentStore?)` — só para o teste injetar uma loja que nunca resol
   tempo decorrido fica abaixo de 200 ms).
 - `bun test ./test/driver-trip.contract.test.ts`: 229 pass / 0 fail (era 227; +2 desta revisão).
 - `bun run typecheck`, `bun run lint`: limpos.
+
+### LOW — ADR-0075 §6: quem decide muda com o caminho; runbook do rollback (T6.5)
+
+- `docs/adr/0075-o-motorista-tem-app-propria.md` §6, no bullet "A decisão é pura": novo sub-item
+  explícito — em `/minha-viagem` é o **caminho** que decide (o boot sem sessão também passa por
+  ali, `isFieldOnlyUser` nem entra na conta); na **raiz**, quem decide é o usuário de campo
+  (`isFieldOnlyUser`), e o escritório abrindo `/` continua na tela de NF-e. Documenta o que
+  `resolveDriverAppRedirect` já fazia (`isDriverEntry = pathname === DRIVER_TRIP_PATH ||
+(pathname === '/' && isFieldOnlyUser)`), sem mudar código — texto não estava claro sobre a
+  assimetria entre os dois caminhos de entrada.
+- `specs/189-o-motorista-tem-app-propria/tasks.md`, T6.5 (rollback de staging): acrescentei que o
+  painel é PWA com `registerType: 'autoUpdate'` — quem já abriu com o bundle ligado, e tem o
+  service worker antigo no aparelho, não sente o rollback na aba aberta nem na reabertura
+  imediata; o SW troca de versão em segundo plano e só serve o bundle sem o interruptor na
+  **segunda** abertura depois do deploy do rollback. A primeira abertura pode redirecionar mesmo
+  com a variável já removida no servidor — quem testar o rollback (T6.5, T6.10) precisa saber
+  disso para não confundir "ainda não propagou" com "não funcionou".
+- Sem código tocado: os dois são documentação. `bunx prettier --write` nos dois `.md`.
