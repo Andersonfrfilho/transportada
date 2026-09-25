@@ -21,11 +21,6 @@ import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
-import { readDriverAppMode } from '@/modules/driver-trip/shared/driverAppEntry.service'
-import {
-  isDriverAppUrlOwnOrigin,
-  sendDriverLegacyBeacon,
-} from '@/modules/driver-trip/shared/driverAppRedirect.service'
 import {
   DRIVER_TRIP_PATH,
   isFieldOnlyUser,
@@ -497,26 +492,49 @@ function ApplicationShell(): ReactNode {
     }
 
     /**
+     * Revisão LOW: a leitura de `readDriverAppMode` é assíncrona (IndexedDB) — a corrida é quem já
+     * navegou para outra tela, ou desmontou este efeito, enquanto ela corria. `cancelled` cobre a
+     * desmontagem; a releitura do `pathname` cobre a navegação manual, que continua sendo decisão
+     * de quem clicou.
+     */
+    let cancelled = false
+
+    /**
      * ADR-0075 §6: com o interruptor ligado, a raiz de quem é do campo leva à casa nova. A tela de
      * pendências e a de instalar nascem no boot de `/minha-viagem`, fora do shell — é para lá que
      * a navegação de página inteira leva.
+     *
+     * Revisão LOW: `import()` dinâmico — quem nunca tem a variável (a maioria, hoje) nunca baixa
+     * `driverAppEntry.service`/`driverAppRedirect.service` (IndexedDB, o beacon) no chunk de
+     * entrada; eles só chegam depois deste `driverAppUrl !== undefined`.
      */
-    void readDriverAppMode({ driverAppUrl, isFieldOnlyUser: true }).then((mode) => {
-      /**
-       * Revisão M1: a origem própria em `redirect` viraria um `location.replace` para a página que
-       * já está aberta — a rede de segurança é ficar, exatamente como sem o interruptor.
-       */
-      if (
-        mode === 'redirect' &&
-        !isDriverAppUrlOwnOrigin({ driverAppUrl, origin: window.location.origin })
-      ) {
-        window.location.replace(driverAppUrl)
-      } else if (mode === 'stay' || mode === 'redirect') {
-        enterDriverTrip()
-      } else {
-        window.location.replace(DRIVER_TRIP_PATH)
-      }
-    })
+    void Promise.all([
+      import('@/modules/driver-trip/shared/driverAppEntry.service'),
+      import('@/modules/driver-trip/shared/driverAppRedirect.service'),
+    ]).then(([{ readDriverAppMode }, { isDriverAppUrlOwnOrigin }]) =>
+      readDriverAppMode({ driverAppUrl, isFieldOnlyUser: true }).then((mode) => {
+        if (cancelled || window.location.pathname !== '/') return
+
+        /**
+         * Revisão M1: a origem própria em `redirect` viraria um `location.replace` para a página
+         * que já está aberta — a rede de segurança é ficar, exatamente como sem o interruptor.
+         */
+        if (
+          mode === 'redirect' &&
+          !isDriverAppUrlOwnOrigin({ driverAppUrl, origin: window.location.origin })
+        ) {
+          window.location.replace(driverAppUrl)
+        } else if (mode === 'stay' || mode === 'redirect') {
+          enterDriverTrip()
+        } else {
+          window.location.replace(DRIVER_TRIP_PATH)
+        }
+      }),
+    )
+
+    return () => {
+      cancelled = true
+    }
   }, [permissions])
 
   useEffect(() => {
@@ -878,6 +896,16 @@ async function takeOverDriverEntry(
   const driverAppUrl = readDriverAppUrl()
   if (driverAppUrl === undefined) return false
 
+  /**
+   * Revisão LOW: `import()` dinâmico, pelo mesmo motivo do efeito da raiz — quem não tem a
+   * variável nunca baixa estes módulos (IndexedDB, o beacon) no chunk de entrada.
+   */
+  const [{ readDriverAppMode }, { isDriverAppUrlOwnOrigin, sendDriverLegacyBeacon }] =
+    await Promise.all([
+      import('@/modules/driver-trip/shared/driverAppEntry.service'),
+      import('@/modules/driver-trip/shared/driverAppRedirect.service'),
+    ])
+
   // Ainda sem `auth/me`: em `/minha-viagem` é o caminho que diz de quem é a tela.
   const mode = await readDriverAppMode({ driverAppUrl, isFieldOnlyUser: false })
   switch (mode) {
@@ -893,8 +921,12 @@ async function takeOverDriverEntry(
       renderDriverAppScreen(<DriverAppInstallPage driverAppUrl={driverAppUrl} />)
       return true
     case 'pending-screen':
-      if (!input.isAuthenticated) return false
+      /**
+       * Revisão LOW: o beacon sai **nesta** passada, antes do login — a medida de uso conta quem
+       * chegou aqui mesmo se abandonar a tela de login do Keycloak, não só quem termina de entrar.
+       */
       sendDriverLegacyBeacon(navigator)
+      if (!input.isAuthenticated) return false
       // Recarregar é a "próxima abertura": com a fila vazia, o boot decide entre ir e instalar.
       renderDriverAppScreen(
         <DriverLegacyPendingPage onGoToDriverApp={() => window.location.reload()} />,

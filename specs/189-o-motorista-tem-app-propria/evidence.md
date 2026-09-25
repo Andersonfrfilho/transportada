@@ -1258,3 +1258,35 @@ fazia `reader.read()` rejeitar sem ninguém pegando, e o leitor nunca era libera
 - `bun test ./test/driver-trip.contract.test.ts`: 226 pass / 0 fail (era 225 depois do M1; +1
   desta revisão).
 - `bun run typecheck` e `bun run lint`: limpos.
+
+### LOW — beacon antes do login, corrida do efeito da raiz, `import()` dinâmico (`main.tsx`)
+
+- **Beacon antes do login.** `takeOverDriverEntry`, ramo `pending-screen`: `sendDriverLegacyBeacon`
+  sai antes do `if (!input.isAuthenticated) return false`, não depois. A medida de uso passa a
+  contar quem chega à tela de pendências mesmo se abandonar o login do Keycloak, não só quem
+  termina de entrar — o teste de `legacy-beacon.contract.ts` que conta ocorrências de
+  `sendDriverLegacyBeacon(` no texto de `main.tsx` (ainda 1) e a posição dentro do `case
+'pending-screen':` seguem verdes sem mudança, porque a chamada continua sendo a mesma, só mais
+  cedo no bloco.
+- **Corrida do efeito da raiz.** O efeito de `ApplicationShell` que decide a entrada do motorista
+  na raiz (`/`) lê o IndexedDB de forma assíncrona; sem guarda, quem navegasse para outra tela
+  enquanto a leitura corria (ou desmontasse o efeito) podia ser puxado de volta quando ela
+  terminasse. Ganhou `cancelled` (setado na limpeza do efeito) e a releitura de
+  `window.location.pathname !== '/'` dentro do `.then`, antes de agir.
+- **`import()` dinâmico.** `readDriverAppMode` (de `driverAppEntry.service.ts`) e
+  `isDriverAppUrlOwnOrigin`/`sendDriverLegacyBeacon` (de `driverAppRedirect.service.ts`) saíram dos
+  imports estáticos do topo do arquivo — agora entram por `import()`, nos dois pontos de uso
+  (efeito da raiz e `takeOverDriverEntry`), só depois do `driverAppUrl === undefined` já ter sido
+  descartado. Quem não tem a variável (a maioria, hoje) nunca baixa esses módulos — nem o
+  IndexedDB que eles arrastam — no chunk de entrada. `DRIVER_TRIP_PATH`/`isFieldOnlyUser` (de
+  `driverWorkspace.service.ts`) continuam estáticos: `WORKSPACE_NAVIGATION_ITEMS` precisa de
+  `DRIVER_TRIP_PATH` no escopo do módulo.
+- **Build de verdade:** `bun run build` — verde, chunk `index` caiu de 1.043,72 kB para
+  1.038,22 kB (gzip 319,47 kB → 317,55 kB), e o precache foi de 151 para 154 entradas (os módulos
+  que saíram do chunk de entrada agora são chunks próprios, ainda precacheados pelo PWA — o ganho
+  é no chunk de **entrada**, o que carrega antes de qualquer coisa aparecer, não no total).
+- `bun test ./test/driver-trip.contract.test.ts`: 226 pass / 0 fail (sem mudança de contagem — só
+  reorganização, nenhum teste novo específico destes três itens; a paridade das rotas continua
+  coberta pelos testes existentes de `driver-app-redirect.contract.ts` e `legacy-beacon.contract.ts`).
+- `bun run typecheck`, `bun run lint`: limpos. `bun run test` (contrato + hooks): 5320 + 54 pass /
+  0 fail.
