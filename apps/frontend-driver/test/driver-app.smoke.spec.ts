@@ -608,9 +608,14 @@ test('CA14: com consentimento, a posição sobe 1 vez por minuto, com aviso, e p
   await expect.poll(() => api.locationPosts().length).toBe(3)
 
   await page.getByRole('button', { name: 'Perfil' }).click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  // Relógio parado no toque: na CI, o `setTimeout(0)` com que o TanStack avisa a tela da viagem
+  // ainda não tinha corrido quando o `fastForward` abaixo disparou, junto, o envio agendado. Parado,
+  // esse atraso vira regra — e desligar só passa se cortar o envio no próprio toque.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000)
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-checked', 'false')
-  expect(api.consentWrites()).toEqual([true, false])
+  await expect.poll(() => api.consentWrites()).toEqual([true, false])
 
   const postsWhenTurnedOff = api.locationPosts().length
   await page.clock.fastForward('03:00')

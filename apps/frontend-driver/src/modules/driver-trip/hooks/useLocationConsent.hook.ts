@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
@@ -7,6 +7,7 @@ import {
   getDriverTripClient,
   type LocationConsent,
 } from '../shared/driverTripClient.service'
+import { locationConsentRevocation } from '../shared/locationConsentRevocation.service'
 
 /**
  * Code B5 (spec 189 T9.2): sem cadastro de motorista é configuração pendente do escritório, não
@@ -43,10 +44,19 @@ export type LocationConsentState = Readonly<{
  * que o servidor nunca apagou, religando o interruptor sozinho sem o motorista tocar em nada.
  * `isLocallyRevoked` fixa "desligado" na tela até um `PUT` **bem-sucedido** confirmar, tentativa
  * falha ou não.
+ *
+ * T9.2, CA14 na CI: a retirada era estado local deste hook — o rastreamento, com a própria
+ * instância, nunca a via, e só parava quando o `setQueryData` chegasse ao render dele. Agora ela é
+ * a `locationConsentRevocation`, compartilhada e marcada **no toque**, antes do `mutate`; e só um
+ * `PUT` de ligar bem-sucedido a desfaz — o de desligar não, para um `GET` que saiu antes dele não
+ * religar a tela com o `acceptedAt` velho.
  */
 export function useLocationConsent(): LocationConsentState {
   const queryClient = useQueryClient()
-  const [isLocallyRevoked, setIsLocallyRevoked] = useState(false)
+  const isLocallyRevoked = useSyncExternalStore(
+    locationConsentRevocation.subscribe,
+    locationConsentRevocation.isRevoked,
+  )
   const query = useQuery({
     queryFn: () => getDriverTripClient().readLocationConsent(),
     queryKey: LOCATION_CONSENT_QUERY_KEY,
@@ -65,12 +75,11 @@ export function useLocationConsent(): LocationConsentState {
       // pode chegar depois e sobrescrever o `setQueryData` otimista abaixo com o estado velho.
       await queryClient.cancelQueries({ queryKey: LOCATION_CONSENT_QUERY_KEY })
       if (!accepted) {
-        setIsLocallyRevoked(true)
         queryClient.setQueryData<LocationConsent>(LOCATION_CONSENT_QUERY_KEY, { acceptedAt: null })
       }
     },
-    onSuccess: (consent) => {
-      setIsLocallyRevoked(false)
+    onSuccess: (consent, accepted) => {
+      if (accepted) locationConsentRevocation.restore()
       queryClient.setQueryData<LocationConsent>(LOCATION_CONSENT_QUERY_KEY, consent)
     },
   })
@@ -82,6 +91,9 @@ export function useLocationConsent(): LocationConsentState {
     isRevokeFailed: mutation.isError && mutation.variables === false,
     isSaveFailed: mutation.isError,
     isSaving: mutation.isPending,
-    setConsent: (accepted) => mutation.mutate(accepted),
+    setConsent: (accepted) => {
+      if (!accepted) locationConsentRevocation.revoke()
+      mutation.mutate(accepted)
+    },
   }
 }

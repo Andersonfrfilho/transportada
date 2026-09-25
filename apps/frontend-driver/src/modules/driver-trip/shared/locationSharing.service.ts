@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverTrip } from './driverTrip.types'
+import type { LocationConsentRevocation } from './locationConsentRevocation.service'
 
 /** RF15 (ADR-0075 §8): o teto — no máximo um envio por minuto, com a app aberta. */
 export const LOCATION_SHARING_INTERVAL_MS = 60_000
@@ -57,12 +58,18 @@ export type LocationSharingDependencies = Readonly<{
   geolocation: Pick<Geolocation, 'clearWatch' | 'watchPosition'>
   now: () => number
   onStatusChange: (status: LocationSharingStatus) => void
-  send: (position: SharedPosition) => Promise<void>
+  /** T9.2: a retirada no toque para tudo sem esperar o `update(false)` que vem do render. */
+  revocation: Pick<LocationConsentRevocation, 'isRevoked' | 'subscribe'>
+  /** O sinal aborta ao parar: o envio que ainda esperava o token não sai mais. */
+  send: (position: SharedPosition, signal: AbortSignal) => Promise<void>
   setTimer: (callback: () => void, delayMs: number) => TimerId
 }>
 
 export type LocationSharingController = Readonly<{
-  /** `true` liga o `watchPosition`; `false` faz `clearWatch` e para o temporizador. */
+  /**
+   * `true` liga o `watchPosition`; `false` faz `clearWatch` e para o temporizador. Com a retirada
+   * local valendo, `true` também desliga: o render pode chegar com o `hasConsent` de antes do toque.
+   */
   update: (isActive: boolean) => void
 }>
 
@@ -87,6 +94,8 @@ export function createLocationSharingController(
   let latest: SharedPosition | undefined
   let lastSentAt: number | undefined
   let status: LocationSharingStatus = 'off'
+  let abortController: AbortController | undefined
+  let unsubscribeRevocation: (() => void) | undefined
 
   function changeStatus(next: LocationSharingStatus): void {
     if (next === status) return
@@ -103,14 +112,27 @@ export function createLocationSharingController(
     if (watchId !== undefined) dependencies.geolocation.clearWatch(watchId)
     if (timerId !== undefined) dependencies.clearTimer(timerId)
     clearRetryTimer()
+    abortController?.abort()
+    unsubscribeRevocation?.()
     watchId = undefined
     timerId = undefined
     latest = undefined
+    abortController = undefined
+    unsubscribeRevocation = undefined
+  }
+
+  function stop(): void {
+    halt()
+    changeStatus('off')
+  }
+
+  function handleRevocation(): void {
+    if (dependencies.revocation.isRevoked()) stop()
   }
 
   function sendLatest(): void {
     timerId = undefined
-    if (latest === undefined) return
+    if (latest === undefined || abortController === undefined) return
     const elapsed = lastSentAt === undefined ? Infinity : dependencies.now() - lastSentAt
     if (elapsed < LOCATION_SHARING_INTERVAL_MS) {
       timerId = dependencies.setTimer(sendLatest, LOCATION_SHARING_INTERVAL_MS - elapsed)
@@ -118,11 +140,13 @@ export function createLocationSharingController(
     }
     lastSentAt = dependencies.now()
     // Posição ao vivo não entra na fila: a que falhou já ficou velha, e a próxima vem em um minuto.
-    void dependencies.send(latest).catch(() => undefined)
+    void dependencies.send(latest, abortController.signal).catch(() => undefined)
     timerId = dependencies.setTimer(sendLatest, LOCATION_SHARING_INTERVAL_MS)
   }
 
   function handlePosition(position: GeolocationPosition): void {
+    // Callback que o navegador já tinha enfileirado antes do `clearWatch`.
+    if (watchId === undefined) return
     latest = toSharedPosition(position)
     changeStatus('sharing')
     if (timerId === undefined) sendLatest()
@@ -152,6 +176,8 @@ export function createLocationSharingController(
   }
 
   function start(): void {
+    abortController ??= new AbortController()
+    unsubscribeRevocation ??= dependencies.revocation.subscribe(handleRevocation)
     changeStatus('waiting')
     watchId = dependencies.geolocation.watchPosition(handlePosition, handleError, {
       enableHighAccuracy: true,
@@ -161,9 +187,8 @@ export function createLocationSharingController(
 
   return {
     update(isActive) {
-      if (!isActive) {
-        halt()
-        changeStatus('off')
+      if (!isActive || dependencies.revocation.isRevoked()) {
+        stop()
         return
       }
       if (watchId !== undefined || status === 'unavailable') return

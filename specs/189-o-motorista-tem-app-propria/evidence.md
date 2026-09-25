@@ -2038,3 +2038,73 @@ bun run --cwd apps/frontend-driver smoke
 **Escolha registrada (N2):** para autenticar, `proof-form` não conta. A navegação do `keycloak.init`
 ou do "Entrar de novo" perde o nome e o documento digitados e ainda não anexados — dois campos
 curtos, que custam menos que deixar o motorista sem sessão.
+
+## T9.2 — CA14 na CI
+
+**Defeito (LGPD).** CI de staging, run `36175377209`, job `gate / integration`, `make smoke`:
+`driver-app.smoke.spec.ts:618` — depois de o motorista **desligar** o compartilhamento, com o relógio
+avançado 3 min, chegou mais um `POST /me/trips/current/location` (esperado 3, recebido 4). Local
+passava 20/20, inclusive com `--workers=4`.
+
+**Causa raiz.** O controlador de envio só parava quando a tela da viagem re-renderizava com
+`hasConsent` falso, e esse caminho era todo assíncrono em relação ao toque:
+
+1. `onMutate` fazia `await cancelQueries` e só então `setQueryData({ acceptedAt: null })`;
+2. o TanStack avisa os observadores por `setTimeout(0)` (`notifyManager`, `systemSetTimeoutZero`) —
+   que o relógio falso do Playwright também controla;
+3. o React renderiza e só no efeito passivo chama `controller.update(false)`.
+
+O interruptor do Perfil, porém, ficava "Desligado" já no passo 1, porque lia o próprio
+`isLocallyRevoked` — estado **local daquela instância** do `useLocationConsent`; a instância do
+rastreamento nunca o via (o que também quebrava o M5 dela: com o `PUT` de desligar falhando, o
+refetch trazia o `acceptedAt` de volta e o envio religava com o interruptor mostrando desligado).
+Na CI, o `setTimeout(0)` do passo 2 ainda não tinha corrido quando o `fastForward('03:00')` chegou;
+o `fastForward` disparou, no mesmo laço, o aviso **e** o temporizador de 60 s vencido, sem o React ter
+chance de rodar o efeito entre os dois — e a quarta posição saiu. Hipóteses (b) retry e (c) callback
+em voo não eram a causa do CA14, mas tinham a mesma forma e ficam fechadas pela mesma correção.
+
+**Reprodução determinística, antes da correção.**
+
+- Smoke: o CA14 passa a parar o relógio (`page.clock.pauseAt`) antes do toque, o que torna regra o
+  atraso da CI. Com o código antigo: `--grep CA14 --repeat-each 5` → **5 failed**, todos
+  `Expected length: 3, Received length: 4` — o sintoma exato da CI.
+- Contrato (`test/driver-trip/location-sharing.contract.ts`, relógio falso): seis casos novos em
+  "desligar corta o envio no toque" e um em "a retirada local do consentimento". Com o código antigo
+  (e o harness tolerando o `send` sem sinal): **388 pass, 5 fail** — a retirada não limpava watch
+  nem temporizador, desligar durante o novo tento agendado (sem sinal) deixava o temporizador vivo,
+  o envio que esperava o token saía depois do toque, o callback já enfileirado antes do
+  `clearWatch` enviava, e um `update(true)` atrasado religava.
+
+**Correção.** A retirada local é a fonte da verdade para o controlador:
+
+- `locationConsentRevocation.service.ts` (novo): retirada **compartilhada e síncrona**, marcada no
+  próprio toque (`setConsent(false)` chama `revoke()` antes do `mutate`) e desfeita só por um `PUT`
+  de **ligar** bem-sucedido. O `useLocationConsent` a lê por `useSyncExternalStore` — as duas
+  instâncias (Perfil e rastreamento) veem a mesma.
+- `locationSharing.service.ts`: o controlador assina a retirada enquanto está ativo e para na hora
+  (watch, temporizador, novo tento); `update(true)` com a retirada valendo desliga; o `send` recebe
+  um `AbortSignal` abortado ao parar (o envio que ainda esperava o token não sai); e o callback de
+  posição que chega com o watch já limpo é ignorado.
+- `driverTripClient.service.ts`: `sendLocation(position, signal)` repassa o sinal ao `fetch`.
+- CA14: `consentWrites` virou `expect.poll` — o interruptor agora vira antes de o `PUT` sair.
+
+**Gates:**
+
+```
+bun test test/driver-trip.contract.test.ts          393 pass, 0 fail
+bun run --cwd apps/frontend-driver check
+  eslint, tsc                                        sem erro
+  bun test (3 entrypoints)                           489 pass, 0 fail
+  vite build + dist.contract                         6 pass, 0 fail
+raiz: bun run typecheck / bun run lint               exit 0 / exit 0
+
+bun run --cwd apps/frontend-driver smoke -- --grep CA14 --repeat-each 20                20 passed
+bun run --cwd apps/frontend-driver smoke -- --grep CA14 --repeat-each 20 --workers=4    20 passed
+bun run --cwd apps/frontend-driver smoke -- --grep CA14 --repeat-each 40 --workers=8    40 passed
+bun run --cwd apps/frontend-driver smoke
+  driver-service-worker.smoke.spec.ts   2 passed
+  driver-app.smoke.spec.ts              17 passed
+```
+
+A retirada vive em memória: recarregar a página a zera, e o estado volta a ser o do servidor — o
+mesmo registro que o `docs/SECURITY.md` já faz para a retirada que falhou.

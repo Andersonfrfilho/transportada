@@ -145,7 +145,10 @@ export type DriverTripClient = Readonly<{
   readLocationConsent: () => Promise<LocationConsent>
   send: (report: DriverFieldReport) => Promise<void>
   /** A posição ao vivo. Sem id de viagem: o servidor resolve a viagem do motorista (ADR-0050 §5). */
-  sendLocation: (position: Readonly<{ latitude: string; longitude: string }>) => Promise<void>
+  sendLocation: (
+    position: Readonly<{ latitude: string; longitude: string }>,
+    signal: AbortSignal,
+  ) => Promise<void>
   setLocationConsent: (accepted: boolean) => Promise<LocationConsent>
 }>
 
@@ -269,12 +272,13 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const payload = await request({ dependencies, method: 'GET', path: LOCATION_CONSENT_PATH })
       return toLocationConsent(payload)
     },
-    async sendLocation(position) {
+    async sendLocation(position, signal) {
       await request({
         body: JSON.stringify(position),
         dependencies,
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/location`,
+        signal,
       })
     },
     async setLocationConsent(accepted) {

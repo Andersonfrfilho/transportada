@@ -130,8 +130,11 @@ e a viagem em `dispatched`/`in_transit`/`on_delivery_route`,
 `locationSharing.service.ts:createLocationSharingController` usa `watchPosition` e envia **no
 máximo uma vez por minuto** (`LOCATION_SHARING_INTERVAL_MS`), só com a app visível
 (`useLocationSharing.hook.ts`, `visibilitychange` via `useSyncExternalStore`); desligar limpa o
-`watch` e o temporizador na hora, antes da resposta do `PUT`. Falha de envio não entra na fila:
-posição ao vivo velha não serve. Enquanto sobe, `DriverLocationSharingIndicator.component.tsx`
+`watch` e o temporizador na hora, antes da resposta do `PUT`: o toque marca
+`locationConsentRevocation.service.ts` (compartilhada, síncrona, desfeita só por um `PUT` de ligar
+bem-sucedido), que o controlador assina — o caminho `setQueryData` → `setTimeout(0)` do TanStack →
+efeito do React deixava um envio agendado sair depois do toque (CA14 na CI, spec 189 T9.2). Falha
+de envio não entra na fila: posição ao vivo velha não serve. Enquanto sobe, `DriverLocationSharingIndicator.component.tsx`
 (`role="status"`) fica visível na tela da viagem. `test/driver-trip/location-sharing.contract.ts`.
 ⚠️ Não confundir com `driverLocation.service.ts` (`readCurrentLocation`): é uma leitura **pontual**
 via `getCurrentPosition`, para carimbar uma confirmação de entrega (ADR-0045 §3) — não bloqueia o

@@ -3,6 +3,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 
 import type { DriverTrip } from '../shared/driverTrip.types'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
+import { locationConsentRevocation } from '../shared/locationConsentRevocation.service'
 import {
   createLocationSharingController,
   shouldShareLocation,
@@ -42,7 +43,8 @@ export function useLocationSharing(trips: readonly DriverTrip[]): LocationSharin
           geolocation,
           now: () => Date.now(),
           onStatusChange: setStatus,
-          send: (position) => getDriverTripClient().sendLocation(position),
+          revocation: locationConsentRevocation,
+          send: (position, signal) => getDriverTripClient().sendLocation(position, signal),
           setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
         }),
   )
