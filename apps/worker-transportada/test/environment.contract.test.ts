@@ -319,6 +319,31 @@ describe('worker environment contract', () => {
     ).toThrow(WorkerConfigurationError)
   })
 
+  /**
+   * `API_BASE_URL` serve também à baixa de comandos do WhatsApp e à marca do e-mail: sozinha ela
+   * não liga o MDF-e automático, e não pode derrubar o boot. Derrubou o worker de staging em
+   * 2026-09-25, quando a variável foi definida sem as três credenciais do Keycloak.
+   */
+  test('API_BASE_URL sozinha sobe, sem ligar o MDF-e automático', () => {
+    const environment = parseWorkerEnvironment({
+      ...validEnvironment,
+      API_BASE_URL: 'https://api.staging.example.com',
+    })
+
+    expect(environment.apiBaseUrl).toBe('https://api.staging.example.com')
+    expect(environment.mdfeAutoIssue).toBeUndefined()
+  })
+
+  test('uma credencial do MDF-e automático sem as outras derruba o boot', () => {
+    expect(() =>
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        API_BASE_URL: 'https://api.staging.example.com',
+        WORKER_CLIENT_ID: 'transportada-worker',
+      }),
+    ).toThrow(WorkerConfigurationError)
+  })
+
   test('does not expose connection credentials in configuration errors', () => {
     const secret = 'do-not-leak'
 
