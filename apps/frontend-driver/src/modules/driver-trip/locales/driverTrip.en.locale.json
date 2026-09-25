@@ -116,7 +116,14 @@
     "score": "{{score}} of 100",
     "scoreNone": "No score yet — no delivery with a required photo in the last 90 days.",
     "scoreTitle": "Your score",
-    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location, or never arrives. Each loss expires after 90 days."
+    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location, or never arrives. Each loss expires after 90 days.",
+    "signOutPending": {
+      "cancel": "Stay",
+      "discard": "Discard and sign out",
+      "notice_one": "{{count}} of your records has not been sent. Signing out now leaves it on the phone — send it first or discard it.",
+      "notice_other": "{{count}} of your records have not been sent. Signing out now leaves them on the phone — send them first or discard them.",
+      "send": "Send now"
+    }
   },
   "progress": {
     "label": "{{resolved}} of {{total}} stops resolved"

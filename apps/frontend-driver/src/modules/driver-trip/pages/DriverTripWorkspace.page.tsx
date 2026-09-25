@@ -237,6 +237,10 @@ export function DriverTripWorkspacePage() {
       <div className={styles.moduleShell}>
         <DriverShellHeader />
         <DriverProfilePage
+          canSync={!driverTrip.isOfflineBoot}
+          onDiscardOwnPending={() => driverTrip.discardOwnPending()}
+          onSendAll={() => driverTrip.sendAllNow()}
+          ownPendingCount={driverTrip.ownPendingCount}
           queuedCount={driverTrip.queuedCount}
           snapshot={snapshot}
           trip={trip}

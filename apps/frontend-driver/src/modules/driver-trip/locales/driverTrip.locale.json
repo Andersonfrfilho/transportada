@@ -124,7 +124,14 @@
     "signOut": "Sair",
     "vehicleTitle": "Veículo da viagem",
     "whatsappTitle": "WhatsApp",
-    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega ou não chega. Cada perda some depois de 90 dias."
+    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega ou não chega. Cada perda some depois de 90 dias.",
+    "signOutPending": {
+      "cancel": "Ficar",
+      "discard": "Descartar e sair",
+      "notice_one": "{{count}} registro seu ainda não subiu. Saindo agora, ele fica no celular — envie antes ou descarte.",
+      "notice_other": "{{count}} registros seus ainda não subiram. Saindo agora, eles ficam no celular — envie antes ou descarte.",
+      "send": "Enviar agora"
+    }
   },
   "progress": {
     "label": "{{resolved}} de {{total}} paradas resolvidas"

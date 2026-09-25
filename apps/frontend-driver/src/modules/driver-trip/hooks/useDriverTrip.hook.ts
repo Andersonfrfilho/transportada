@@ -38,7 +38,11 @@ import {
   createDrainScheduler,
   scheduleQueueDrainTriggers,
 } from '../shared/pendingQueue.service'
-import { discardForeignPending, partitionPendingByOwner } from '../shared/queueOwner.service'
+import {
+  discardForeignPending,
+  discardOwnPending,
+  partitionPendingByOwner,
+} from '../shared/queueOwner.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { saveTripSnapshot } from '../shared/tripSnapshot.service'
 import {
@@ -93,6 +97,8 @@ export type DriverTripController = Readonly<{
   discardUnverifiedPending: () => Promise<void>
   /** ADR-0075 §8: "Descartar" as pendências de outra conta — o item e o dado saem do aparelho. */
   discardForeignPending: () => Promise<void>
+  /** "Sair" com pendência própria: apaga o que o dono deixou na fila, com o dado junto. */
+  discardOwnPending: () => Promise<void>
   /** Itens da fila de outra conta neste aparelho: nunca enviados com o token desta. */
   foreignPendingCount: number
   /** `true` até a primeira leitura do IndexedDB voltar — é o que segura o esqueleto da tela. */
@@ -105,6 +111,8 @@ export type DriverTripController = Readonly<{
   dataSavedAt: string | undefined
   /** `true` no boot sem rede — a faixa diz "sem conexão"; com sessão viva, "sem atualização". */
   isOfflineBoot: boolean
+  /** Tudo o que é do dono e ainda está no aparelho — o "Sair" avisa antes de deixar para trás. */
+  ownPendingCount: number
   /**
    * Spec 159 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
    * tela traduz em linguagem simples ("em dia", "tardia", "longe"). Some ao trocar de sessão: não é
@@ -336,7 +344,7 @@ export function useDriverTrip(
      * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
      * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
      */
-    void discardStaleAttachments({ attachmentStore, now: new Date() }).then(() =>
+    void discardStaleAttachments({ attachmentStore, now: new Date(), store }).then(() =>
       refreshQueueView(),
     )
     /** "Abertura" (plan D5): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
@@ -354,7 +362,7 @@ export function useDriverTrip(
       syncDrainTimerRef.current = () => undefined
       cancelTriggers()
     }
-  }, [attachmentStore, refreshQueueView])
+  }, [attachmentStore, refreshQueueView, store])
 
   /** A4: a gravação conta como captura aberta até o IndexedDB confirmar — nada navega no meio. */
   function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
@@ -466,6 +474,12 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  /** "Sair" com pendência própria (segurança M2): o item e o dado saem do aparelho. */
+  async function discardOwn(): Promise<void> {
+    await discardOwnPending({ attachmentStore, ownerSubHash: session.subHash, store })
+    await refreshQueueView()
+  }
+
   /** "Confirmar em lote": o dono autenticado assume o que foi feito sem rede, e a drenagem leva. */
   async function confirmUnverified(): Promise<void> {
     await confirmUnverifiedPending({ attachmentStore, ownerSubHash: session.subHash, store })
@@ -484,6 +498,7 @@ export function useDriverTrip(
     attachProof,
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
+    discardOwnPending: discardOwn,
     discardUnverifiedPending: discardUnverified,
     foreignPendingCount,
     isQueueLoading: queueView === undefined,
@@ -495,6 +510,7 @@ export function useDriverTrip(
       isRefetchError: currentTrip.isRefetchError,
     }),
     isOfflineBoot: !session.canSync,
+    ownPendingCount: loadedView.length,
     proofOutcomeByDocumentId,
     queueView: loadedView,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,

@@ -129,9 +129,13 @@ qualquer coisa que apareça no enquadramento — dado pessoal guardado além da 
 
 **O que é (risco aceito):** para o motorista abrir a viagem no subsolo, sem sinal e antes do
 Keycloak responder, a app grava o último `GET /me/trips/current` no aparelho. Ele carrega dado
-pessoal de terceiro — nome do destinatário, rótulo e coordenadas das paradas e número das notas — e fica legível
-por quem tiver o celular desbloqueado e abrir as ferramentas do navegador. Sem rede, a app mostra
-esse snapshot **sem token**: a leitura não passa pelo Keycloak, só pela posse do aparelho.
+pessoal de terceiro e dado comercial — nome do destinatário, rótulo e coordenadas das paradas,
+número, chave de acesso (`accessKey`) e valor (`totalAmount`) das notas, e a placa do veículo
+(`vehiclePlate`) — e fica legível por quem tiver o celular desbloqueado e abrir as ferramentas do
+navegador. A fila offline (`field-reports`/`event-attachments`) guarda ainda a posição de cada
+toque, a foto e a assinatura do comprovante e o documento e o nome de quem recebeu
+(`receiverDocument`/`receiverName`). Sem rede, a app mostra esse snapshot **sem token**: a leitura
+não passa pelo Keycloak, só pela posse do aparelho.
 
 **Como está contido:**
 
@@ -145,7 +149,15 @@ esse snapshot **sem token**: a leitura não passa pelo Keycloak, só pela posse 
   conta aparece como "pendências de outra conta", com "Descartar" e aviso. Nunca sai com o token de
   quem não tocou.
 - **Sem token no aparelho.** O snapshot não guarda token nem refresh token; a drenagem fica
-  suspensa até haver sessão. Os anexos seguem com o descarte de 7 dias da spec 159.
+  suspensa até haver sessão. Os anexos seguem com o descarte de 7 dias da spec 159, e desde a spec
+  189 T9.2 os eventos parados também (`discardStaleAttachments` com a fila de eventos, pelo
+  `createdAt`), levando junto os anexos pendurados neles.
+- **"Sair" com pendência própria.** Antes de sair, a app avisa "N registros seus ainda não
+  subiram" e oferece "Enviar agora" (com sessão) ou "Descartar e sair" — o descarte
+  (`queueOwner.service.ts:discardOwnPending`) apaga evento, blob, documento e nome do recebedor e
+  posição, só do dono. Sem rede, o logout do Keycloak rejeita e a app recarrega para "sem viagem
+  salva" (`signOut.service.ts`). ⚠️ Nesse caso a sessão SSO do Keycloak continua viva até o próximo
+  logout com rede: o snapshot e a fila já saíram, mas quem abrir a app com rede entra sem senha.
 - **"Confirmar em lote" (decisão do usuário, spec 189 T9.2).** Sem rede, a posse do celular basta
   para registrar em nome de quem usou por último — "Cheguei", "Entreguei", "Devolvi", ocorrência e
   foto. Tudo o que é gravado com `canSync: false` sai marcado `isUnverified` (evento e anexo), e a

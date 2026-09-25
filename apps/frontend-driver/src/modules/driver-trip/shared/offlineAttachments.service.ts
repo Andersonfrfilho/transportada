@@ -154,24 +154,48 @@ export function isAttachmentDiscardable(input: {
   return input.now.getTime() - capturedAt > ATTACHMENT_DISCARD_AFTER_MS
 }
 
-/** Descarta o anexo **e o dado**: o blob e a posição somem da store, não só o item da lista. */
+/**
+ * Descarta o anexo **e o dado**: o blob e a posição somem da store, não só o item da lista.
+ *
+ * Spec 189 T9.2 (segurança M2): com a fila de eventos (`store`), o evento parado ganha o mesmo prazo
+ * de 7 dias pelo `createdAt` — ele carrega posição e, no grupo dele, documento e nome do recebedor —
+ * e os anexos pendurados nele saem junto, porque sem o evento eles subiriam para uma entrega que o
+ * servidor nunca viu.
+ */
 export async function discardStaleAttachments(input: {
   readonly attachmentStore: AttachmentStore
   readonly now: Date
+  readonly store?: OfflineQueueStore
 }): Promise<number> {
+  const staleEventKeys = new Set<string>()
+  await input.store?.update((current) =>
+    current.filter((item) => {
+      const createdAt = new Date(item.createdAt).getTime()
+      const isStale =
+        Number.isFinite(createdAt) && input.now.getTime() - createdAt > ATTACHMENT_DISCARD_AFTER_MS
+      if (isStale) staleEventKeys.add(item.report.idempotencyKey)
+      return !isStale
+    }),
+  )
+
   const groups = await input.attachmentStore.readAll()
-  let discardedCount = 0
+  let discardedCount = staleEventKeys.size
 
   for (const [eventKey, attachments] of groups) {
+    const isEventStale = staleEventKeys.has(eventKey)
     const hasStale = attachments.some((attachment) =>
       isAttachmentDiscardable({ attachment, now: input.now }),
     )
-    if (!hasStale) continue
+    if (!isEventStale && !hasStale) continue
 
     const remaining = await input.attachmentStore.update({
       eventKey,
       mutate: (current) =>
-        current.filter((attachment) => !isAttachmentDiscardable({ attachment, now: input.now })),
+        isEventStale
+          ? []
+          : current.filter(
+              (attachment) => !isAttachmentDiscardable({ attachment, now: input.now }),
+            ),
     })
     discardedCount += attachments.length - remaining.length
   }

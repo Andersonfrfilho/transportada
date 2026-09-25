@@ -74,3 +74,37 @@ export async function discardForeignPending(input: {
 
   return discardedReports + results.reduce((total, count) => total + count, 0)
 }
+
+/**
+ * "Sair" com pendência própria (spec 189 T9.2, segurança M2): descartar leva o evento, o blob, o
+ * documento e o nome do recebedor e a posição — só os do dono. Deixar no aparelho faria o próximo
+ * motorista ver tudo como "pendência de outra conta", sem prazo além dos 7 dias.
+ */
+export async function discardOwnPending(input: {
+  readonly attachmentStore: AttachmentStore
+  readonly ownerSubHash: string
+  readonly store: OfflineQueueStore
+}): Promise<number> {
+  let discardedReports = 0
+  await input.store.update((current) => {
+    const kept = current.filter((item) => !isOwnedBy(item, input.ownerSubHash))
+    discardedReports = current.length - kept.length
+    return kept
+  })
+
+  const groups = await input.attachmentStore.readAll()
+  const results = await Promise.all(
+    groups.map(async ([eventKey, items]) => {
+      const ownCount = items.filter((item) => isOwnedBy(item, input.ownerSubHash)).length
+      if (ownCount === 0) return 0
+      await input.attachmentStore.update({
+        eventKey,
+        mutate: (current: readonly QueuedAttachment[]) =>
+          current.filter((item) => !isOwnedBy(item, input.ownerSubHash)),
+      })
+      return ownCount
+    }),
+  )
+
+  return discardedReports + results.reduce((total, count) => total + count, 0)
+}
