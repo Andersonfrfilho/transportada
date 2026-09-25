@@ -2247,3 +2247,66 @@ migration na API). Um commit por parte.
     - nenhum `dangerouslySetInnerHTML`;
   - locales pt-BR e en com as mesmas chaves;
   - paridade das políticas copiadas entre API e worker.
+
+## T902 — Revisão total de design e usabilidade (verde)
+
+- **Como:**
+  - Passeio Playwright contra a stack real: API em 53001, painel em 53000, portal em 53100,
+    Keycloak em 58080, SeaweedFS no lugar do MinIO, Chromium em `/opt/pw-browsers/chromium`.
+  - Em cada captura, três medições:
+    - o axe-core 4.10.2 (`wcag2a` e `wcag2aa`) roda na página;
+    - o estouro horizontal é medido (`scrollWidth - innerWidth`);
+    - as regiões `aria-live`/`status` são contadas.
+  - Capturas em `prints/revisao/`.
+- **Primeira rodada (antes das correções):**
+  - D1: axe acusou contraste de 2,3:1 a 4,4:1 na linha de metadados do balão, nas três
+    superfícies.
+  - D2: nenhuma região `aria-live` no fio.
+  - Página de clientes a 360 px:
+    - estourava 86 px;
+    - título solto colado na borda;
+    - campo de busca cru.
+    - O usuário apontou o print ("tela feia tudo fora do padrão").
+- **Segunda rodada (depois das correções, mesma matriz, 50 capturas):**
+  - axe sem violação e estouro 0 em todas as capturas do painel e do app, com duas exceções:
+    - `clientes` a 360 px nos dois temas: `scrollable-region-focusable` (achado **D3**, regressão
+      da correção da página, corrigido e reauditado);
+    - portal a 360 px: estouro de 64 px na navegação. É **anterior** à 183 e virou tarefa
+      separada.
+  - A fila de mensagens sem conversa entrou na matriz: a bancada ganhou uma mensagem de WhatsApp
+    pendente.
+
+**Matriz de capturas** (painel e app: tema escuro e claro; portal: o tema que ele tem):
+
+| Página                                    | 360 | 768 | 1280 | Arquivo                                     |
+| ----------------------------------------- | --- | --- | ---- | ------------------------------------------- |
+| `/ocorrencias` (lista e fila)             | ✓✓  | ✓✓  | ✓✓   | `lista-<largura>-<tema>.png`                |
+| `/ocorrencias/:id` (resumo e Contratante) | ✓✓  | ✓✓  | ✓✓   | `detalhe-…`                                 |
+| Aba Motorista                             | ✓✓  | ✓✓  | ✓✓   | `detalhe-motorista-…`                       |
+| Diálogo "Enviar à contratante" (prévia)   | ✓✓  | ✓✓  | ✓✓   | `dialogo-email-…`                           |
+| Respostas rápidas (Configurações)         | ✓✓  | ✓✓  | ✓✓   | `respostas-rapidas-…`                       |
+| Clientes de entrega                       | ✓✓  | ✓✓  | ✓✓   | `clientes-…`, `clientes-corrigido-…`        |
+| Contatos da contratante                   | ✓✓  | ✓✓  | ✓✓   | `contatos-…`                                |
+| App do motorista: caixa e conversa        | ✓✓  | —   | —    | `app-caixa-360-…`, `app-conversa-360-…`     |
+| Portal: Ocorrências e conversa            | ✓   | —   | ✓    | `portal-ocorrencias-…`, `portal-conversa-…` |
+
+**Checklist por página** (spec § "Revisão total de design e usabilidade"):
+
+| Página                    | Design                                                                            | Usabilidade                                                                                                                                      | Acessibilidade                                                                               | Responsivo e tema                                    | Idioma |
+| ------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------ |
+| Lista e fila              | painéis e tokens; cartões a 360 (T801)                                            | abrir a ocorrência pelo cartão ou pela linha; atribuir a mensagem sem conversa                                                                   | axe 0; alvo de toque no cartão                                                               | 0 px de estouro nos 3 × 2                            | ✓      |
+| Detalhe e aba Contratante | balões com a cor por participante nas três superfícies; selo de canal e de status | e-mail com prévia; portal; reenviar por outro canal (T703); cadastrar contato a partir do balão (F5); remetente não confirmado sem cadastro (S2) | contraste 4,5:1 no balão (D1); `aria-live` (D2); `aria-controls` só com a lista aberta (F11) | abas no celular; fio limitado com a caixa abaixo     | ✓      |
+| Aba Motorista             | mesmo molde                                                                       | falar com o motorista; encaminhar a foto; anexar à ocorrência ("já feito" em vez de erro, F4)                                                    | player com velocidade; gravação com nome acessível                                           | ✓                                                    | ✓      |
+| Diálogo do e-mail         | tela cheia no celular, caixa a partir de 40rem                                    | prévia; anexos com teto; anexo vencido e chave repetida se recuperam (F2/F3)                                                                     | foco preso, `Esc`, fechar com 44×44 sob toque (F11)                                          | ✓                                                    | ✓      |
+| Respostas rápidas         | painel de configuração perto do efeito                                            | cadastrar, reordenar, desativar                                                                                                                  | axe 0                                                                                        | ✓                                                    | ✓      |
+| Clientes e contatos       | cabeçalho em painel, campo `--field-*`, tabela no quadro (revisão)                | buscar e abrir; cadastrar contato com tipos e canais                                                                                             | quadro da tabela focável e nomeado (D3)                                                      | 0 px de estouro depois da correção                   | ✓      |
+| App do motorista          | cores e balões do painel                                                          | ler, responder com foto e áudio; a conversa de outro motorista diz o motivo (C1)                                                                 | `aria-live` (D2)                                                                             | 360 nos dois temas                                   | ✓      |
+| Portal                    | tema do portal; sem câmera nem microfone                                          | ler e responder; a foto encaminhada chega; caixa travada durante o envio (F13)                                                                   | `aria-live` (D2); contraste (D1)                                                             | estouro de 64 px na navegação a 360 (anterior à 183) | ✓      |
+
+- **Achados de design e usabilidade**, com a gravidade: nenhum bloqueante.
+  - **D1** (importante): contraste dos metadados do balão.
+  - **D2** (importante): mensagem nova não anunciada, e a leitura parava quando não havia nada
+    pendente.
+  - **Clientes** (importante, pedido do usuário): página fora do padrão no celular.
+  - **D3** (importante, da segunda rodada): quadro da tabela de clientes sem foco.
+- As correções, com o commit de cada uma, estão na tabela da T903.
