@@ -35,7 +35,7 @@ consentimento, vem **depois da virada** e não a segura.
 > 🤖 Modelo: `sonnet` · T1.2 🧠 `opus` (SW `injectManifest`, `registerType: 'prompt'` e orçamento de
 > precache)
 
-- [ ] **T1.1** Contratos da app, antes do código, em `apps/frontend-driver/test/shared/*.contract.ts`,
+- [x] **T1.1** Contratos da app, antes do código, em `apps/frontend-driver/test/shared/*.contract.ts`,
       com o entrypoint `test/shared.contract.test.ts`:
   - `content-security-policy`:
     - `connect-src` só com `'self'`, a API e o Keycloak;
