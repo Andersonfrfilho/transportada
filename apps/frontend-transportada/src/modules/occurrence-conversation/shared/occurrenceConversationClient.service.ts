@@ -11,6 +11,7 @@ import {
   OCCURRENCE_CONVERSATION_MESSAGE_STATUSES,
   type ContractorMailRequest,
   type OccurrenceConversation,
+  type OccurrenceConversationsView,
   type OccurrenceConversationMessage,
   type OccurrenceMailPreview,
   type OccurrenceMailRecipient,
@@ -41,13 +42,19 @@ export type ClientDependencies = Readonly<{
 export type OccurrenceConversationClient = Readonly<{
   assignUnassigned: (input: { conversationId: string; unassignedId: string }) => Promise<void>
   listUnassigned: () => Promise<readonly UnassignedMessage[]>
-  listConversations: (input: { occurrenceId: string }) => Promise<readonly OccurrenceConversation[]>
+  listConversations: (input: { occurrenceId: string }) => Promise<OccurrenceConversationsView>
   markConversationRead: (input: { conversationId: string }) => Promise<void>
   previewContractorMail: (input: {
     body?: string
     occurrenceId: string
     subject?: string
   }) => Promise<OccurrenceMailPreview>
+  /** Spec 183 T654 (RF21): à contratante pelo portal, só o texto. */
+  sendContractorPortalMessage: (input: {
+    body: string
+    idempotencyKey: string
+    occurrenceId: string
+  }) => Promise<void>
   sendDriverAppMessage: (input: {
     body: string
     idempotencyKey: string
@@ -303,7 +310,13 @@ export function createOccurrenceConversationClient(
       if (!isRecord(data) || !Array.isArray(data.conversations)) {
         throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.RESPONSE_INVALID)
       }
-      return data.conversations.flatMap((conversation) => toConversation(conversation) ?? [])
+      const portal = isRecord(data.contractorPortal) ? data.contractorPortal : {}
+      return {
+        contractorPortal: { available: portal.available === true },
+        conversations: data.conversations.flatMap(
+          (conversation) => toConversation(conversation) ?? [],
+        ),
+      }
     },
     async markConversationRead({ conversationId }) {
       await requestJson(
@@ -329,6 +342,13 @@ export function createOccurrenceConversationClient(
     async sendDriverAppMessage({ body, idempotencyKey, occurrenceId }) {
       await requestJson(dependencies, `${occurrencePath(occurrenceId)}/driver/messages`, {
         body: { body, channel: 'app' },
+        headers: { 'idempotency-key': idempotencyKey },
+        method: 'POST',
+      })
+    },
+    async sendContractorPortalMessage({ body, idempotencyKey, occurrenceId }) {
+      await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
+        body: { body, channel: 'portal' },
         headers: { 'idempotency-key': idempotencyKey },
         method: 'POST',
       })

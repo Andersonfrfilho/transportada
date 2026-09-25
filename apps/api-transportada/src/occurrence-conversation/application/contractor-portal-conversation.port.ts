@@ -68,7 +68,12 @@ export type ContractorPortalConversationTransactionPort = {
     readonly companyId: string
     readonly conversationId: string
   }): Promise<readonly PortalConversationMessageRecord[]>
+  /**
+   * A lida da conta (RF15) e, junto, as mensagens da transportadora pelo canal `portal` passam a
+   * `read` pela política (T654): o portal é o único canal da contratante que sabe "lida" de verdade.
+   */
   markRead(input: {
+    readonly at: Date
     readonly companyId: string
     readonly conversationId: string
     readonly userId: string

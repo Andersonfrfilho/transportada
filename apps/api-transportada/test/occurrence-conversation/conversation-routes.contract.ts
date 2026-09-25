@@ -33,6 +33,7 @@ const OCCURRENCE_ID = '00000000-0000-4000-8000-000000183501'
 const CONVERSATION_ID = '00000000-0000-4000-8000-000000183502'
 
 const VIEW: OccurrenceConversationsView = {
+  contractorPortal: { available: false },
   conversations: [
     {
       id: CONVERSATION_ID,
@@ -101,6 +102,7 @@ function createFixture(params: {
       listConversations: { list: record('list') as never },
       markRead: { markRead: record('read') as never },
       sendDriverApp: { send: record('sendDriverApp') as never },
+      sendPortal: { send: record('sendPortal') as never },
       previewMail: { preview: record('preview') as never },
       sendMail: { send: record('send') as never },
     }),

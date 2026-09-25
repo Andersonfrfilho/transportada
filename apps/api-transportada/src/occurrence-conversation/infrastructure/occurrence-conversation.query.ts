@@ -17,6 +17,7 @@ import {
   occurrenceConversationReads,
   occurrenceConversations,
 } from '../../database/database.schema.js'
+import { findContractorPortalAudience } from '../../contractor-portal/infrastructure/contractor-occurrence.query.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 import { countUnread, readLastReads } from './occurrence-conversation-summary.query.js'
@@ -182,13 +183,15 @@ export async function findOccurrenceConversations(
   const contractorIds = [
     ...new Set(conversations.flatMap((conversation) => conversation.contractorId ?? [])),
   ]
-  const [messages, lastReads, contacts] = await Promise.all([
+  const [messages, lastReads, contacts, portalAudience] = await Promise.all([
     readMessages(queryable, input.companyId, conversationIds),
     readLastReads(queryable, { ...input, conversationIds }),
     readContractorContacts(queryable, input.companyId, contractorIds),
+    item.source === 'document' ? findContractorPortalAudience(queryable, input) : null,
   ])
 
   return {
+    contractorPortal: { available: (portalAudience?.userIds.length ?? 0) > 0 },
     conversations: conversations.map((conversation) => {
       const own = messages.filter((message) => message.conversationId === conversation.id)
       return {

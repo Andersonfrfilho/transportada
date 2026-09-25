@@ -50,6 +50,11 @@ export type OccurrenceConversationView = {
 }
 
 export type OccurrenceConversationsView = {
+  /**
+   * Spec 183 T654 (RF21): o canal Portal está aberto quando o portal mostra a ocorrência à
+   * contratante e alguém dela tem conta — senão a mensagem ficaria sem leitor.
+   */
+  readonly contractorPortal: { readonly available: boolean }
   readonly conversations: readonly OccurrenceConversationView[]
 }
 

@@ -69,6 +69,20 @@ export function useSendContractorMailMutation(occurrenceId: string) {
   })
 }
 
+/** Spec 183 T654 (RF21): à contratante pelo portal; a conversa e a listagem voltam a ser lidas. */
+export function useSendContractorPortalMessageMutation(occurrenceId: string) {
+  const queryClient = useQueryClient()
+  const client = getOccurrenceConversationClient()
+  return useMutation({
+    mutationFn: (input: Readonly<{ body: string; idempotencyKey: string }>) =>
+      client.sendContractorPortalMessage({ ...input, occurrenceId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })
+    },
+  })
+}
+
 export const OCCURRENCE_UNASSIGNED_QUERY_KEY = 'occurrence-conversation-unassigned'
 
 export function useUnassignedMessagesQuery(

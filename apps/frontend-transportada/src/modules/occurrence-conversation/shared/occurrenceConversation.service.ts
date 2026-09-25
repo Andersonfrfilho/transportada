@@ -150,3 +150,8 @@ export function validateDriverMessageDraft(
 export function createDriverMessageIdempotencyKey(randomId: () => string): string {
   return `driver-message:${randomId()}`
 }
+
+/** Spec 183 T654: a chave do envio à contratante pelo portal, uma por mensagem escrita. */
+export function createPortalMessageIdempotencyKey(randomId: () => string): string {
+  return `portal-message:${randomId()}`
+}

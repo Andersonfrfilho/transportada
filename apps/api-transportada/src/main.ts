@@ -373,6 +373,9 @@ import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occu
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
 import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
 import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
+import { createSendContractorPortalMessageUseCase } from './occurrence-conversation/application/contractor-portal-message.use-case.js'
+import { createContractorPortalNotifier } from './occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
+import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
 import { createContractorPortalConversationUseCase } from './occurrence-conversation/application/contractor-portal-conversation.use-case.js'
 import { createDrizzleContractorPortalConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
 import { createClientOccurrenceConversationRoutes } from './occurrence-conversation/presentation/client-occurrence-conversation.routes.js'
@@ -2862,6 +2865,21 @@ function createApplicationRoutes({
             } as never),
         }),
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      /** Spec 183 T654 (RF21): à contratante pelo portal, com o aviso por e-mail sem o corpo. */
+      sendPortal: createSendContractorPortalMessageUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        newRef: createPublicRef,
+        notifier: createContractorPortalNotifier({
+          logger,
+          send: (params) =>
+            notifications.useCases.sendNotification.execute({
+              ...params,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            } as never),
+        }),
+        unitOfWork: createDrizzleContractorPortalMessageUnitOfWork(database),
       }),
     }),
     /** Spec 183 T601 (RF11): a conversa da ocorrência no `/me` do motorista. */

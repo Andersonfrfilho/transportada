@@ -137,6 +137,7 @@ export function createContractorPortalConversationUseCase(dependencies: {
     async markRead(input) {
       await withConversation(input, (transaction, conversationId) =>
         transaction.markRead({
+          at: dependencies.clock(),
           companyId: input.context.companyId,
           conversationId,
           userId: input.context.userId,

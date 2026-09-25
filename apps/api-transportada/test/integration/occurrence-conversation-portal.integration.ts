@@ -6,11 +6,16 @@
  * dela; o que ela escreve entra na mesma conversa que o operador lê, pelo canal `portal`; a lida é da
  * conta dela. A listagem cria a conversa que ainda não existia, uma vez só. Outra contratante, outra
  * empresa e tratativa ainda interna respondem igual a inexistente.
+ *
+ * T654: a operação escreve pelo canal Portal só quando o portal mostra a ocorrência e há conta ligada
+ * à contratante; a mensagem nasce entregue, o portal a lê do lado da transportadora e a lida da
+ * conta a leva a `read`.
  */
 import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
 import {
+  contractorPortalBindings,
   contractors,
   identityUsers,
   occurrenceConversationMessages,
@@ -21,8 +26,10 @@ import {
 import { resolveContractorScope } from '../../src/contractor-portal/domain/contractor-scope.policy.js'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import { createContractorPortalConversationUseCase } from '../../src/occurrence-conversation/application/contractor-portal-conversation.use-case.js'
+import { createSendContractorPortalMessageUseCase } from '../../src/occurrence-conversation/application/contractor-portal-message.use-case.js'
 import { createPublicRef } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import { createDrizzleContractorPortalConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
+import { createDrizzleContractorPortalMessageUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
 import { findOccurrenceConversations } from '../../src/occurrence-conversation/infrastructure/occurrence-conversation.query.js'
 import {
   createOccurrenceMailUseCase,
@@ -288,6 +295,137 @@ describe('a conversa da contratante pelo portal contra Postgres (spec 183 T651)'
             ref,
           }),
         ).rejects.toMatchObject({ status: 404 })
+      })
+    },
+    30_000,
+  )
+})
+
+describe('a operação escreve pelo portal, contra Postgres (spec 183 T654)', () => {
+  testWithPostgres(
+    'só com a ocorrência visível e conta ligada; nasce entregue, o portal lê e vira lida',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, userId: operatorUserId } = seeded.company
+        const contractorId = await contractorIdOf(database, companyId)
+        const portal = await seedPortalUser(database, companyId)
+        const notices: unknown[] = []
+        const send = (bodyText: string, idempotencyKey: string) =>
+          createSendContractorPortalMessageUseCase({
+            clock: () => new Date(),
+            fingerprintService: {
+              create: async ({ fields, operation }) =>
+                `${operation}:${fields.map((field) => new TextDecoder().decode(field)).join('|')}`,
+            },
+            newRef: createPublicRef,
+            notifier: { notify: async (input) => void notices.push(input) },
+            unitOfWork: createDrizzleContractorPortalMessageUnitOfWork(database.db),
+          }).send({
+            actorUserId: operatorUserId,
+            bodyText,
+            companyId,
+            idempotencyKey,
+            occurrenceId: seeded.occurrenceId,
+          })
+        const portalAvailable = async () =>
+          (
+            await findOccurrenceConversations(database.db, {
+              companyId,
+              occurrenceId: seeded.occurrenceId,
+              userId: operatorUserId,
+            })
+          )?.contractorPortal.available
+
+        /** Tratativa ainda interna: o portal não mostra. */
+        await setCaseStatus(database, seeded, 'under_review')
+        await database.db
+          .insert(contractorPortalBindings)
+          .values({ companyId, contractorId, membershipId: portal.membershipId })
+        expect(await portalAvailable()).toBe(false)
+        await expect(send('Oi', 'portal-operator-key-0001')).rejects.toMatchObject({ status: 409 })
+
+        await setCaseStatus(database, seeded, 'awaiting_contractor')
+        expect(await portalAvailable()).toBe(true)
+        const sent = await send('Recebemos a nota de devolução.', 'portal-operator-key-0002')
+        expect(await send('Recebemos a nota de devolução.', 'portal-operator-key-0002')).toEqual(
+          sent,
+        )
+        expect(notices).toEqual([
+          {
+            companyId,
+            messageId: sent.conversationMessageId,
+            occurrenceLabel: expect.stringMatching(/^NF /u),
+            recipientUserIds: [portal.userId],
+          },
+        ])
+
+        const [stored] = await database.db
+          .select({
+            channel: occurrenceConversationMessages.channel,
+            direction: occurrenceConversationMessages.direction,
+            status: occurrenceConversationMessages.status,
+            statusTimes: occurrenceConversationMessages.statusTimes,
+          })
+          .from(occurrenceConversationMessages)
+          .where(eq(occurrenceConversationMessages.id, sent.conversationMessageId))
+        expect(stored).toMatchObject({
+          channel: 'portal',
+          direction: 'outbound',
+          status: 'delivered',
+        })
+        expect(typeof stored?.statusTimes.delivered).toBe('string')
+
+        const scope = resolveContractorScope([{ contractorId, taxId: EMITTER_TAX_ID }])
+        const portalSide = createUseCase(database, () => scope)
+        const ref =
+          (
+            await portalSide.conversationRefs({
+              context: portal,
+              occurrenceIds: [seeded.occurrenceId],
+            })
+          ).get(seeded.occurrenceId)?.ref ?? ''
+        const read = await portalSide.read({ context: portal, ref })
+        expect(read.messages).toEqual([
+          {
+            body: 'Recebemos a nota de devolução.',
+            channel: 'portal',
+            createdAt: expect.any(String),
+            mine: false,
+            side: 'carrier',
+          },
+        ])
+
+        await portalSide.markRead({ context: portal, ref })
+        const [afterRead] = await database.db
+          .select({
+            status: occurrenceConversationMessages.status,
+            statusTimes: occurrenceConversationMessages.statusTimes,
+          })
+          .from(occurrenceConversationMessages)
+          .where(eq(occurrenceConversationMessages.id, sent.conversationMessageId))
+        expect(afterRead?.status).toBe('read')
+        expect(typeof afterRead?.statusTimes.read).toBe('string')
+        expect(afterRead?.statusTimes.delivered).toBe(stored?.statusTimes.delivered)
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'sem conta do portal ligada à contratante, o canal não está disponível',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setCaseStatus(database, seeded, 'awaiting_contractor')
+
+        const view = await findOccurrenceConversations(database.db, {
+          companyId: seeded.company.companyId,
+          occurrenceId: seeded.occurrenceId,
+          userId: seeded.company.userId,
+        })
+
+        expect(view?.contractorPortal).toEqual({ available: false })
       })
     },
     30_000,

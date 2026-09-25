@@ -7,6 +7,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createOccurrenceConversationClient } from '@/modules/occurrence-conversation/shared/occurrenceConversationClient.service'
+import { createPortalMessageIdempotencyKey } from '@/modules/occurrence-conversation/shared/occurrenceConversation.service'
 
 const API_URL = 'https://api.example.test'
 const OCCURRENCE_ID = 'occurrence-1'
@@ -53,12 +54,55 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
       requests,
     )
 
-    const conversations = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+    const view = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+    const { conversations } = view
 
+    /** Spec 183 T654: sem o campo, o canal Portal fica fechado — nunca aberto por engano. */
+    expect(view.contractorPortal).toEqual({ available: false })
     expect(conversations).toHaveLength(1)
     expect(conversations[0]?.messages.map((message) => message.id)).toEqual(['message-1'])
     expect(requests[0]?.url).toBe(`${API_URL}/trip-occurrences/${OCCURRENCE_ID}/conversations`)
     expect(requests[0]?.headers.get('authorization')).toBe('Bearer synthetic-token')
+  })
+
+  test('a leitura diz se o canal Portal está aberto (spec 183 T654)', async () => {
+    const client = createClient(
+      Response.json({ data: { contractorPortal: { available: true }, conversations: [] } }),
+      [],
+    )
+
+    expect(
+      (await client.listConversations({ occurrenceId: OCCURRENCE_ID })).contractorPortal,
+    ).toEqual({ available: true })
+  })
+
+  test('envia à contratante pelo portal só o texto, com a chave (spec 183 T654)', async () => {
+    const requests: Request[] = []
+    const client = createClient(
+      Response.json(
+        { data: { conversationId: 'conversation-1', conversationMessageId: 'message-1' } },
+        { status: 202 },
+      ),
+      requests,
+    )
+
+    await client.sendContractorPortalMessage({
+      body: 'Recebemos a nota.',
+      idempotencyKey: 'portal-message:key-0001',
+      occurrenceId: OCCURRENCE_ID,
+    })
+
+    const [request] = requests
+    expect(request?.method).toBe('POST')
+    expect(request?.url).toBe(
+      `${API_URL}/trip-occurrences/${OCCURRENCE_ID}/conversations/contractor/messages`,
+    )
+    expect(request?.headers.get('idempotency-key')).toBe('portal-message:key-0001')
+    expect(await request?.json()).toEqual({ body: 'Recebemos a nota.', channel: 'portal' })
+  })
+
+  test('a chave do envio pelo portal tem prefixo próprio (spec 183 T654)', () => {
+    expect(createPortalMessageIdempotencyKey(() => 'abc-123')).toBe('portal-message:abc-123')
   })
 
   test('envia à contratante com a chave de idempotência e o corpo do diálogo', async () => {

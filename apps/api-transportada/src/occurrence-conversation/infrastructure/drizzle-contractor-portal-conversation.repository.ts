@@ -8,7 +8,7 @@
  * vê a ocorrência, mas não a conversa que a transportadora tem com o emitente.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, count, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 
 import {
   contractors,
@@ -25,6 +25,7 @@ import type {
   ContractorPortalConversationTransactionPort,
   ContractorPortalConversationUnitOfWorkPort,
 } from '../application/contractor-portal-conversation.port.js'
+import { applyMessageStatus } from '../domain/message-status.policy.js'
 import { markOccurrenceConversationRead } from './occurrence-conversation.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -272,8 +273,45 @@ function createTransactionPort(
         .limit(PORTAL_MESSAGE_LIMIT)
     },
 
-    async markRead(input) {
-      await markOccurrenceConversationRead(transaction, input)
+    async markRead({ at, companyId, conversationId, userId }) {
+      await markOccurrenceConversationRead(transaction, { companyId, conversationId, userId })
+      /** T654: só o canal `portal` sabe "lida" pela contratante; e-mail e WhatsApp têm a deles. */
+      const rows = await transaction
+        .select({
+          id: occurrenceConversationMessages.id,
+          status: occurrenceConversationMessages.status,
+          statusTimes: occurrenceConversationMessages.statusTimes,
+        })
+        .from(occurrenceConversationMessages)
+        .where(
+          and(
+            eq(occurrenceConversationMessages.companyId, companyId),
+            eq(occurrenceConversationMessages.conversationId, conversationId),
+            eq(occurrenceConversationMessages.direction, 'outbound'),
+            eq(occurrenceConversationMessages.channel, 'portal'),
+            isNotNull(occurrenceConversationMessages.status),
+          ),
+        )
+        .for('update', { of: occurrenceConversationMessages })
+      for (const row of rows) {
+        if (row.status === null) continue
+        const result = applyMessageStatus({
+          at: at.toISOString(),
+          channel: 'portal',
+          current: { status: row.status, statusTimes: row.statusTimes },
+          incoming: 'read',
+        })
+        if (!result.changed) continue
+        await transaction
+          .update(occurrenceConversationMessages)
+          .set({ status: result.status, statusTimes: { ...result.statusTimes } })
+          .where(
+            and(
+              eq(occurrenceConversationMessages.companyId, companyId),
+              eq(occurrenceConversationMessages.id, row.id),
+            ),
+          )
+      }
     },
 
     async saveIdempotency({ companyId, fingerprint, idempotencyKey, operation, response }) {

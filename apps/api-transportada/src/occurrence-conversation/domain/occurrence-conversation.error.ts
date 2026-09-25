@@ -125,3 +125,18 @@ export class OccurrenceConversationMessageInvalidError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 183 T654 (RF21, D9): o portal não mostra esta ocorrência à contratante — a tratativa ainda é
+ * interna, a nota não tem contratante casada ou ninguém dela tem conta no portal. Escrever ali seria
+ * mensagem que ninguém lê.
+ */
+export class OccurrenceConversationPortalUnavailableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_PORTAL_UNAVAILABLE',
+      message: 'The contractor portal does not show this occurrence',
+      status: 409,
+    })
+  }
+}

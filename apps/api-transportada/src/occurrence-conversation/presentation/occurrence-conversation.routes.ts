@@ -32,6 +32,7 @@ import type {
   ListOccurrenceConversationsUseCase,
   MarkOccurrenceConversationReadUseCase,
 } from '../application/read-occurrence-conversations.use-case.js'
+import type { createSendContractorPortalMessageUseCase } from '../application/contractor-portal-message.use-case.js'
 import type { createSendDriverAppMessageUseCase } from '../application/driver-conversation.use-case.js'
 import type { SendOccurrenceMailUseCase } from '../application/send-occurrence-mail.use-case.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
@@ -74,6 +75,14 @@ const appMessageSchema = z
   })
   .strict()
 
+/** Spec 183 T654 (RF21): à contratante pelo portal, só o texto. */
+const portalMessageSchema = z
+  .object({
+    body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
+    channel: z.literal('portal'),
+  })
+  .strict()
+
 const mailPreviewSchema = z
   .object({
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body).optional(),
@@ -88,6 +97,8 @@ export type OccurrenceConversationRoutesDependencies = {
   readonly sendMail: SendOccurrenceMailUseCase
   /** Spec 183 T601: ao motorista pelo app. */
   readonly sendDriverApp: Pick<ReturnType<typeof createSendDriverAppMessageUseCase>, 'send'>
+  /** Spec 183 T654: à contratante pelo portal. */
+  readonly sendPortal: Pick<ReturnType<typeof createSendContractorPortalMessageUseCase>, 'send'>
 }
 
 function jsonResponse(body: object, status = 200): Response {
@@ -119,6 +130,12 @@ type SendInput =
       readonly kind: 'app'
       readonly occurrenceId: string
     }
+  | {
+      readonly bodyText: string
+      readonly idempotencyKey: string
+      readonly kind: 'portal'
+      readonly occurrenceId: string
+    }
 
 export function createOccurrenceConversationRoutes(
   dependencies: OccurrenceConversationRoutesDependencies,
@@ -142,14 +159,18 @@ export function createOccurrenceConversationRoutes(
     }),
     defineRoute<SendInput>({
       async handle({ context, input }): Promise<Response> {
-        if (input.kind === 'app') {
-          const result = await dependencies.sendDriverApp.send({
+        if (input.kind === 'app' || input.kind === 'portal') {
+          const request = {
             actorUserId: context.scope.userId,
             bodyText: input.bodyText,
             companyId: context.scope.companyId,
             idempotencyKey: input.idempotencyKey,
             occurrenceId: input.occurrenceId,
-          })
+          }
+          const result =
+            input.kind === 'app'
+              ? await dependencies.sendDriverApp.send(request)
+              : await dependencies.sendPortal.send(request)
           return jsonResponse({ data: result }, 202)
         }
         const result = await dependencies.sendMail.send({
@@ -171,8 +192,8 @@ export function createOccurrenceConversationRoutes(
         const idempotencyKey = parseIdempotencyKey(request.headers.get('idempotency-key'))
         const raw = await parseBody(channelSchema, request)
         /**
-         * Hoje: a contratante por e-mail (T404) e o motorista pelo app (T601). WhatsApp espera os
-         * modelos da Meta (T503) e o portal é a Fase 6b.
+         * Hoje: a contratante por e-mail (T404) e pelo portal (T654), e o motorista pelo app
+         * (T601). WhatsApp espera os modelos da Meta (T503).
          */
         if (participant === 'contractor' && raw.channel === 'email') {
           const body = mailMessageSchema.safeParse(raw)
@@ -186,6 +207,11 @@ export function createOccurrenceConversationRoutes(
             occurrenceId,
             subject: body.data.subject,
           }
+        }
+        if (participant === 'contractor' && raw.channel === 'portal') {
+          const body = portalMessageSchema.safeParse(raw)
+          if (!body.success) throw invalidRequest()
+          return { bodyText: body.data.body, idempotencyKey, kind: 'portal' as const, occurrenceId }
         }
         if (participant === 'driver' && raw.channel === 'app') {
           const body = appMessageSchema.safeParse(raw)

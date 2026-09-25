@@ -42,6 +42,11 @@ export const NOTIFICATION_TEMPLATE_KEY = {
    */
   TRIP_CONVERSATION_MESSAGE: 'trip.conversation-message',
   /**
+   * Spec 183 T654 (RF21): a operação escreveu à contratante pelo portal. Só e-mail — o portal não
+   * tem caixa de entrada — e **sem o corpo**: quem lê é quem entra no portal (ADR-0073).
+   */
+  TRIP_CONTRACTOR_PORTAL_MESSAGE: 'trip.contractor-portal-message',
+  /**
    * Spec 082 D8: a ocorrência de **parada** que o motorista relata do celular, uma chave por
    * motivo do catálogo (`TRIP_STOP_OCCURRENCE_KINDS`). O motorista nunca escreve o aviso — o
    * texto é o template da transportadora, e a tela dele só mostra a prévia.
@@ -88,6 +93,24 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
     templates: {
       inbox: {
         body: 'A operação mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Abra a ocorrência no app para ler e responder.',
+      },
+    },
+  },
+  /**
+   * Spec 183 T654 (RF21): a mensagem da operação à contratante pelo portal vira aviso por e-mail às
+   * contas do portal dela. O texto diz a nota e onde ler; o que foi escrito fica no portal. ⚠️ Sem
+   * o link do portal: nem a API nem o worker conhecem a URL dele hoje (só o build do portal, em
+   * `VITE_CLIENT_APP_URL`), e uma variável nova é decisão do dono da instalação.
+   */
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.EMAIL],
+    placeholders: ['occurrenceLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_CONTRACTOR_PORTAL_MESSAGE,
+    templates: {
+      email: {
+        body: 'A transportadora mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Entre no portal de acompanhamento, em Ocorrências, para ler e responder.',
+        subject: 'Nova mensagem sobre a ocorrência {{occurrenceLabel}}',
       },
     },
   },

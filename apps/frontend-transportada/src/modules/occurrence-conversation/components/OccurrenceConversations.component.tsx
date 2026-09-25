@@ -10,10 +10,12 @@ import { Tabs } from '@/components/ui/tabs'
 import {
   useMarkConversationReadMutation,
   useOccurrenceConversationsQuery,
+  useSendContractorPortalMessageMutation,
   useSendDriverAppMessageMutation,
 } from '../queries/occurrenceConversation.query'
 import {
   createDriverMessageIdempotencyKey,
+  createPortalMessageIdempotencyKey,
   groupConversationByDay,
   OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
   validateDriverMessageDraft,
@@ -192,6 +194,75 @@ type OccurrenceConversationsProps = Readonly<{
   occurrenceId: string
 }>
 
+/**
+ * Spec 183 T654 (RF21, D9): a mensagem à contratante pelo portal. Só o texto; quem tem conta no
+ * portal recebe o aviso por e-mail sem o corpo. Uma chave por mensagem escrita, como no app.
+ */
+function ContractorPortalComposer({ occurrenceId }: Readonly<{ occurrenceId: string }>) {
+  const { t } = useTranslation('occurrenceConversation')
+  const send = useSendContractorPortalMessageMutation(occurrenceId)
+  const [draft, setDraft] = useState('')
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    createPortalMessageIdempotencyKey(() => crypto.randomUUID()),
+  )
+  const [error, setError] = useState<'required' | 'tooLong' | null>(null)
+
+  function submit(): void {
+    const validated = validateDriverMessageDraft(draft)
+    if ('error' in validated) {
+      setError(validated.error)
+      return
+    }
+    setError(null)
+    send.mutate(
+      { body: validated.body, idempotencyKey },
+      {
+        onSuccess: () => {
+          setDraft('')
+          setIdempotencyKey(createPortalMessageIdempotencyKey(() => crypto.randomUUID()))
+        },
+      },
+    )
+  }
+
+  return (
+    <form
+      className={styles.panel}
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault()
+        submit()
+      }}
+    >
+      <label className={styles.field}>
+        <span>{t('contractor.portal.message')}</span>
+        <textarea
+          disabled={send.isPending}
+          maxLength={OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH}
+          onChange={(event) => setDraft(event.target.value)}
+          rows={3}
+          value={draft}
+        />
+        {error === null ? (
+          <span className={styles.hint}>{t('contractor.portal.hint')}</span>
+        ) : (
+          <span className={styles.error}>{t(`contractor.portal.error.${error}`)}</span>
+        )}
+      </label>
+      {send.isError ? (
+        <p className={styles.error} role="alert">
+          {t('contractor.portal.error.send')}
+        </p>
+      ) : null}
+      <div className={styles.footer}>
+        <Button disabled={send.isPending} type="submit">
+          {send.isPending ? t('contractor.portal.sending') : t('contractor.portal.send')}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 function ContractorConversationPanel({
   canManageContacts,
   canSend,
@@ -200,6 +271,7 @@ function ContractorConversationPanel({
   conversation,
   hasDocument,
   occurrenceId,
+  portalAvailable,
 }: Readonly<{
   canManageContacts: boolean
   canSend: boolean
@@ -208,6 +280,8 @@ function ContractorConversationPanel({
   conversation: OccurrenceConversation | undefined
   hasDocument: boolean
   occurrenceId: string
+  /** Spec 183 T654: o portal mostra a ocorrência e alguém da contratante tem conta. */
+  portalAvailable: boolean
 }>) {
   const { t } = useTranslation('occurrenceConversation')
   const [isSending, setSending] = useState(false)
@@ -249,6 +323,10 @@ function ContractorConversationPanel({
         />
       )}
 
+      {canWrite && portalAvailable ? (
+        <ContractorPortalComposer occurrenceId={occurrenceId} />
+      ) : null}
+
       {isSending ? (
         <SendToContractorDialog onClose={() => setSending(false)} occurrenceId={occurrenceId} />
       ) : null}
@@ -284,11 +362,11 @@ export function OccurrenceConversations({
     enabled: true,
     occurrenceId,
   })
-  const contractorConversation = query.data?.find(
+  const contractorConversation = query.data?.conversations.find(
     (conversation) => conversation.participant === 'contractor',
   )
   const unread = contractorConversation?.unreadCount ?? 0
-  const driverConversation = query.data?.find(
+  const driverConversation = query.data?.conversations.find(
     (conversation) => conversation.participant === 'driver',
   )
   const driverUnread = driverConversation?.unreadCount ?? 0
@@ -326,6 +404,7 @@ export function OccurrenceConversations({
               conversation={contractorConversation}
               hasDocument={hasDocument}
               occurrenceId={occurrenceId}
+              portalAvailable={query.data?.contractorPortal.available ?? false}
             />
           ),
         },

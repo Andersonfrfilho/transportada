@@ -17,6 +17,9 @@ import { and, desc, eq, exists, inArray } from 'drizzle-orm'
 import type { AnyColumn } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
+import { contractorPortalBindings } from '../../database/client-portal.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import {
   companyOccurrenceTypes,
@@ -31,6 +34,7 @@ import type {
 import { CONTRACTOR_VISIBLE_CASE_STATUSES } from '../../trips/domain/occurrence-case.policy.js'
 import { resolveOccurrenceItems } from '../../trips/infrastructure/occurrence-items.support.js'
 import type { OccurrenceItemView } from '../../trips/infrastructure/occurrence-items.support.js'
+import { resolveContractorScope } from '../domain/contractor-scope.policy.js'
 import type { ContractorScope } from '../domain/contractor-scope.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -129,6 +133,92 @@ export function buildContractorVisibleOccurrenceCondition(
         ),
       ),
   )
+}
+
+/**
+ * Spec 183 T654 (RF21, D9): quem lê esta ocorrência pelo portal. A contratante é o emitente da nota
+ * (T203); a ocorrência tem de estar visível ao portal pela mesma fronteira da listagem, com o recorte
+ * dessa contratante; e as contas são as ligadas a ela por `contractor_portal_bindings` com vínculo
+ * ativo. `null` quando o portal não mostra a ocorrência a ninguém — lista vazia quando mostraria, mas
+ * ninguém tem conta.
+ */
+export async function findContractorPortalAudience(
+  database: Pick<Database, 'select'>,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<{ readonly contractorId: string; readonly userIds: readonly string[] } | null> {
+  const [emitter] = await database
+    .select({ contractorId: contractors.id, taxId: contractors.taxId })
+    .from(tripDocumentOccurrences)
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
+      ),
+    )
+    .innerJoin(
+      nfeParticipants,
+      and(
+        eq(nfeParticipants.companyId, tripDocuments.companyId),
+        eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+        eq(nfeParticipants.role, 'emitter'),
+      ),
+    )
+    .innerJoin(
+      contractors,
+      and(
+        eq(contractors.companyId, nfeParticipants.companyId),
+        eq(contractors.taxId, nfeParticipants.taxId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (emitter === undefined || emitter.taxId.trim() === '') return null
+
+  const scope = resolveContractorScope([emitter])
+  const [visible] = await database
+    .select({ id: tripDocumentOccurrences.id })
+    .from(tripDocumentOccurrences)
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.id, input.occurrenceId),
+        buildContractorVisibleOccurrenceCondition(database, {
+          companyId: tripDocumentOccurrences.companyId,
+          occurrenceId: tripDocumentOccurrences.id,
+          scope,
+        }),
+      ),
+    )
+    .limit(1)
+  if (visible === undefined) return null
+
+  const accounts = await database
+    .select({ userId: userCompanyMemberships.userId })
+    .from(contractorPortalBindings)
+    .innerJoin(
+      userCompanyMemberships,
+      and(
+        eq(userCompanyMemberships.companyId, contractorPortalBindings.companyId),
+        eq(userCompanyMemberships.id, contractorPortalBindings.membershipId),
+        eq(userCompanyMemberships.status, 'active'),
+      ),
+    )
+    .where(
+      and(
+        eq(contractorPortalBindings.companyId, input.companyId),
+        eq(contractorPortalBindings.contractorId, emitter.contractorId),
+      ),
+    )
+  return {
+    contractorId: emitter.contractorId,
+    userIds: [...new Set(accounts.map((account) => account.userId))],
+  }
 }
 
 export async function listContractorOccurrences(

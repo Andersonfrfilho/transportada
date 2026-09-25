@@ -353,6 +353,15 @@ export const SENT_DRIVER_MESSAGES: { body: unknown; idempotencyKey: null | strin
 export const SENT_CONTRACTOR_MAILS: { body: unknown; idempotencyKey: null | string }[] = []
 
 /**
+ * Spec 183 T654: o canal Portal da ocorrência de nota. Fechado por padrão — os prints da T407 são a
+ * contratante sem conta no portal —, e o smoke do portal abre antes de navegar.
+ */
+export const CONTRACTOR_PORTAL = { available: false }
+
+/** O que a aba Contratante mandou pelo portal: o smoke confere o corpo e a chave. */
+export const SENT_PORTAL_MESSAGES: { body: unknown; idempotencyKey: null | string }[] = []
+
+/**
  * Spec 183 T407: a conversa com a contratante da ocorrência de nota (a de parada não tem). O envio
  * acrescenta a mensagem "na fila", como a API faria.
  */
@@ -392,6 +401,7 @@ async function mockOccurrenceConversationApi(page: Page): Promise<void> {
     if (id !== DOCUMENT_OCCURRENCE_ID) return fulfillJson(route, { data: { conversations: [] } })
     return fulfillJson(route, {
       data: {
+        contractorPortal: { available: CONTRACTOR_PORTAL.available },
         conversations: [
           {
             id: 'conversation-contractor',
@@ -450,11 +460,31 @@ async function mockOccurrenceConversationApi(page: Page): Promise<void> {
 
   await page.route(/\/conversations\/contractor\/messages$/, async (route) => {
     if (route.request().method() === 'OPTIONS') return fulfillOptions(route)
-    const body = route.request().postDataJSON() as { body: string }
-    SENT_CONTRACTOR_MAILS.push({
-      body,
-      idempotencyKey: route.request().headers()['idempotency-key'] ?? null,
-    })
+    const body = route.request().postDataJSON() as { body: string; channel: string }
+    const idempotencyKey = route.request().headers()['idempotency-key'] ?? null
+    /** Spec 183 T654: pelo portal a mensagem nasce entregue, como a API grava. */
+    if (body.channel === 'portal') {
+      SENT_PORTAL_MESSAGES.push({ body, idempotencyKey })
+      messages.push({
+        author: { kind: 'operation', name: 'Operadora Lima', userId: 'user-operator' },
+        bodyText: body.body,
+        channel: 'portal',
+        createdAt: '2026-09-24T15:07:00.000Z',
+        direction: 'outbound',
+        id: `conversation-message-${String(messages.length + 1)}`,
+        status: 'delivered',
+        statusTimes: { delivered: '2026-09-24T15:07:00.000Z' },
+      })
+      return route.fulfill({
+        body: JSON.stringify({
+          data: { conversationId: 'conversation-contractor', conversationMessageId: 'm-portal' },
+        }),
+        contentType: 'application/json',
+        headers: CORS_HEADERS,
+        status: 202,
+      })
+    }
+    SENT_CONTRACTOR_MAILS.push({ body, idempotencyKey })
     messages.push({
       author: { kind: 'operation', name: 'Operadora Lima', userId: 'user-operator' },
       bodyText: body.body,

@@ -21,6 +21,7 @@ import {
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
 import type {
   DriverConversationTransactionPort,
   DriverConversationUnitOfWorkPort,
@@ -42,18 +43,6 @@ async function acquireAdvisoryLock(transaction: Transaction, fields: readonly st
   const digest = await crypto.subtle.digest('SHA-256', encoded)
   const lockId = new DataView(digest).getBigInt64(0, false)
   await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
-}
-
-/** Como a ocorrência se chama no aviso: a nota, ou o tipo na ocorrência de parada. Nunca PII. */
-function describeOccurrence(item: {
-  readonly invoiceNumber: null | string
-  readonly invoiceSeries: null | string
-  readonly typeName: string
-}): string {
-  if (item.invoiceNumber === null || item.invoiceNumber === '') return item.typeName
-  return item.invoiceSeries === null || item.invoiceSeries === ''
-    ? `NF ${item.invoiceNumber}`
-    : `NF ${item.invoiceNumber}/${item.invoiceSeries}`
 }
 
 function createTransactionPort(transaction: Transaction): DriverConversationTransactionPort {
@@ -145,7 +134,7 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
           occurrenceId: row.occurrenceId,
         })
         if (item === null) continue
-        summaries.push({ ...row, occurrenceLabel: describeOccurrence(item) })
+        summaries.push({ ...row, occurrenceLabel: describeOccurrenceLabel(item) })
       }
       return summaries
     },
@@ -182,7 +171,7 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
       return {
         driverUserId: driver?.userId ?? null,
         occurrenceKind: item.source,
-        occurrenceLabel: describeOccurrence(item),
+        occurrenceLabel: describeOccurrenceLabel(item),
       }
     },
 

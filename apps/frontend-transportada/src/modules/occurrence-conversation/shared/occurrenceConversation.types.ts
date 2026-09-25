@@ -86,6 +86,15 @@ export type OccurrenceConversation = Readonly<{
   unreadCount: number
 }>
 
+/**
+ * Spec 183 T654 (RF21): a leitura das conversas da ocorrência. O canal Portal só abre quando o
+ * portal mostra a ocorrência à contratante e alguém dela tem conta.
+ */
+export type OccurrenceConversationsView = Readonly<{
+  contractorPortal: Readonly<{ available: boolean }>
+  conversations: readonly OccurrenceConversation[]
+}>
+
 export type OccurrenceMailRecipient = Readonly<{
   approvesCharges: boolean
   contactId: string

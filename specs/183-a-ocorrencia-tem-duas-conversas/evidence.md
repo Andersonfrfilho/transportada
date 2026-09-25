@@ -1368,3 +1368,89 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
   - API: contratos **7450 pass, 23 skip, 0 fail**; integração do portal **3 pass**; integração
     completa sozinha **596 pass, 7 skip, 8 fail** (as 8 do MinIO, iguais à linha de base);
   - lint e typecheck da raiz limpos.
+
+## T654 — O canal Portal do lado do operador, com o aviso por e-mail sem o corpo (verde; sem o link)
+
+- **Envio** (`POST /trip-occurrences/:id/conversations/contractor/messages`,
+  `{ body, channel: 'portal' }` estrito, `occurrences.resolve`, `Idempotency-Key`, 202, no mesmo
+  balde de teto da conversa):
+  - só sai quando o portal mostra a ocorrência à contratante **e** alguém dela tem conta. Senão é
+    409 `OCCURRENCE_CONVERSATION_PORTAL_UNAVAILABLE`, porque seria mensagem sem leitor. Ocorrência
+    inexistente é 404;
+  - a mensagem nasce `delivered` (a escada do canal portal é entregue → lida): gravada, já está
+    no portal;
+  - a mesma chave com o mesmo texto devolve o gravado sem gravar nem avisar de novo; com outro
+    texto é 409.
+- **Quem lê pelo portal** vem de `findContractorPortalAudience`, no `contractor-occurrence.query.ts`
+  da 164 (dono da visibilidade, como na T651):
+  - a contratante é o emitente da nota (T203);
+  - a ocorrência tem de passar pela mesma `buildContractorVisibleOccurrenceCondition` da listagem;
+  - as contas são as ligadas por `contractor_portal_bindings` com vínculo ativo.
+
+  A conversa segue sem ler a tratativa: o contrato D4 da T504 passa.
+- **Aviso** (`contractor-portal-notifier.gateway.ts`, trilho `notification.v1` como o do motorista
+  na T601):
+  - um aviso por conta do portal, com `dedupeKey` da mensagem e da conta;
+  - modelo novo `trip.contractor-portal-message`, **só e-mail** (o portal não tem caixa de
+    entrada), com a nota como único marcador e **sem o corpo**;
+  - falha registrada só com `companyId` e o nome do erro, sem subir: a mensagem já está no portal;
+  - o exemplo `occurrenceLabel` entrou também no `NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD` da API,
+    para o envio de teste não sair com o marcador cru.
+- **Lida no portal:** marcar como lida pela conta do portal leva as mensagens da transportadora
+  **do canal portal** a `read`, pela política (T402), com o horário. E-mail e WhatsApp têm a lida
+  deles (D7).
+- **Leitura do operador:** `GET /trip-occurrences/:id/conversations` ganhou
+  `contractorPortal: { available }`, e a aba Contratante mostra o campo "Mensagem pelo portal" só
+  quando o canal está aberto. Sem ele, a tela segue igual à T407. O aviso "o portal ainda não
+  mostra…" foi tirado de propósito: apareceria em toda ocorrência de instalação que não usa o
+  portal, no caminho do e-mail, que é o principal.
+- **⚠️ Divergência de produto (registrada, depende do usuário) — o link do aviso:** o RF21 pede
+  "que há mensagem nova **e o link**". Nem a API nem o worker conhecem a URL do portal hoje (só o
+  build dele, em `VITE_CLIENT_APP_URL`), e variável de ambiente nova é ponto de parar e perguntar.
+  O aviso diz "Entre no portal de acompanhamento, em Ocorrências". **Proposta:** uma variável da
+  API com a URL pública do portal (por exemplo, `CLIENT_PORTAL_URL`), passada como marcador
+  `{{portalUrl}}` no modelo. Fica na lista de pendências do usuário.
+- **Lacuna anterior registrada:** o comentário do `NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD` da API
+  diz que um contrato "de cada lado" cobra os exemplos, mas só o do frontend existe. Na API faltam
+  `documentLabel`, `occurrenceType` e `stopLabel` do modelo de e-mail da spec 079, desde antes da
+  183.
+- **Revisão de design** (prints `prints/conversa-portal-{desktop,celular}.png`, painel):
+  - o campo repete o molde da aba Motorista (rótulo, dica, botão primário à direita);
+  - a mensagem entra "Entregue";
+  - sem rolagem horizontal nos dois tamanhos.
+
+  Achado corrigido: com dois canais, "Enviar à contratante" (o diálogo de e-mail) e "Enviar pelo
+  portal" ficavam ambíguos. O botão do e-mail virou **"Enviar por e-mail"** (o título do diálogo
+  segue "Enviar à contratante"), e os prints da T407 foram regenerados com o rótulo novo.
+- **Rótulo da ocorrência:** o `describeOccurrence` do repositório do motorista virou
+  `domain/occurrence-label.policy.ts` (`describeOccurrenceLabel`), usado pelos dois avisos.
+- **Testes, escritos antes e vistos falhando** (módulos inexistentes; depois, a lida sem horário e o
+  cliente sem a leitura inteira):
+  - API `test/occurrence-conversation/contractor-portal-message.contract.ts` (no entrypoint):
+    - caso de uso: grava entregue e avisa sem o corpo; 404 e os dois 409 sem gravar nem avisar;
+      replay e 409; 422 antes de ler;
+    - notificador: um por conta, e a falha não sobe;
+    - catálogo: só e-mail, o marcador da nota, sem corpo, prefixo `trip.`;
+    - rota: `{ body, channel }` estrito e 202;
+  - API: o contrato da T651 cobra a lida com horário; `conversation-routes.contract.ts` ganhou
+    `sendPortal` e o `contractorPortal` da leitura;
+  - integração `occurrence-conversation-portal.integration.ts`, **+2 casos**:
+    - tratativa interna: fechado e 409;
+    - visível e com conta: aberto, envio idempotente, um aviso só, a linha `portal`/`outbound`/
+      `delivered` com horário, o portal lê do lado da transportadora, e a lida leva a `read`
+      mantendo o horário de entregue;
+    - sem conta ligada: fechado;
+  - painel `test/occurrence-conversation/conversation-client.contract.ts`: a leitura com
+    `contractorPortal` (sem o campo, fechado), o envio `{ body, channel: 'portal' }` com a chave,
+    e a chave com prefixo `portal-message:`;
+  - smoke `test/spec-183-portal-channel.smoke.spec.ts` (**3 pass**, com os smokes das abas
+    Contratante e Motorista: 12 pass):
+    - sem portal, só o e-mail;
+    - com portal, o envio em branco diz o que falta;
+    - o envio real entra entregue, com corpo aparado, canal `portal` e a chave.
+- **Rodado:**
+  - API: contratos **7459 pass, 23 skip, 0 fail**; integrações do portal, da leitura e do motorista
+    **8 pass**; integração completa sozinha **598 pass, 7 skip, 8 fail** (as 8 do MinIO, iguais à
+    linha de base);
+  - painel: **5229 + 44 pass**;
+  - lint, typecheck e formatação da raiz limpos.

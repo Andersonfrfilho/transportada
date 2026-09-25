@@ -141,7 +141,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       continua pelo `DecisionForm` e pela rota da 164. Evidência: o contrato.
 - [x] **T653** A conversa na tela "Ocorrências" que o portal já tem (anexo por arquivo, player de áudio, sem
       gravação). Evidência: contratos de serviço puro e de texto de fonte (a app não tem Playwright) + `Permissions-Policy` inalterada.
-- [ ] **T654** Canal Portal do lado do operador e o aviso por e-mail sem corpo aos usuários do
+- [x] **T654** Canal Portal do lado do operador e o aviso por e-mail sem corpo aos usuários do
       portal. Evidência: contrato do template (sem corpo) + teste de caso de uso.
 
 ## Fase 7 — Status, áudio, respostas rápidas e anexos (P8, P9, P10)

@@ -10,11 +10,22 @@
     "empty": "Nenhuma mensagem ainda. O e-mail enviado daqui chega aos contatos da contratante, e a resposta volta para esta conversa.",
     "noContractor": "Esta ocorrência não tem contratante identificada pela nota; não há a quem escrever.",
     "noDocument": "Ocorrência de parada não tem nota, e por isso não tem contratante a quem escrever.",
-    "send": "Enviar à contratante",
+    "send": "Enviar por e-mail",
     "loading": "Carregando a conversa",
     "error": "Não foi possível carregar a conversa. Tente de novo em instantes.",
     "unread_one": "{{count}} nova",
-    "unread_other": "{{count}} novas"
+    "unread_other": "{{count}} novas",
+    "portal": {
+      "message": "Mensagem pelo portal",
+      "hint": "A contratante lê no portal de acompanhamento; quem tem conta recebe um aviso por e-mail, sem o texto.",
+      "send": "Enviar pelo portal",
+      "sending": "Enviando…",
+      "error": {
+        "required": "Escreva a mensagem.",
+        "tooLong": "A mensagem passou do limite de 8.000 caracteres.",
+        "send": "Não foi possível enviar. Tente de novo em instantes."
+      }
+    }
   },
   "author": {
     "operation": "Operação",

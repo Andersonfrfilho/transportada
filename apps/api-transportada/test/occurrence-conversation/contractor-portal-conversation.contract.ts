@@ -253,13 +253,19 @@ describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)'
     expect(fake.calls.some((call) => call.name === 'insertPortalMessage')).toBe(false)
   })
 
-  test('marcar como lida é por conta do portal', async () => {
+  /** T654: a lida leva as mensagens do canal portal a `read`, no horário do relógio do caso de uso. */
+  test('marcar como lida é por conta do portal, com o horário', async () => {
     const { fake, useCase } = createFake()
 
     await useCase.markRead({ context: CONTEXT, ref: REF })
 
     expect(fake.calls.at(-1)).toEqual({
-      input: { companyId: COMPANY_ID, conversationId: CONVERSATION_ID, userId: PORTAL_USER_ID },
+      input: {
+        at: NOW,
+        companyId: COMPANY_ID,
+        conversationId: CONVERSATION_ID,
+        userId: PORTAL_USER_ID,
+      },
       name: 'markRead',
     })
   })

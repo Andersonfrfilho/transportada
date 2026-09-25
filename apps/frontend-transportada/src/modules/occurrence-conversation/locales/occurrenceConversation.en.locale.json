@@ -10,11 +10,22 @@
     "empty": "No messages yet. The email sent from here reaches the contractor's contacts, and the reply comes back to this conversation.",
     "noContractor": "This occurrence has no contractor identified by the invoice; there is no one to write to.",
     "noDocument": "A stop occurrence has no invoice, so there is no contractor to write to.",
-    "send": "Send to contractor",
+    "send": "Send by email",
     "loading": "Loading the conversation",
     "error": "Could not load the conversation. Try again shortly.",
     "unread_one": "{{count}} new",
-    "unread_other": "{{count}} new"
+    "unread_other": "{{count}} new",
+    "portal": {
+      "message": "Message through the portal",
+      "hint": "The contractor reads it in the tracking portal; account holders get an email notice, without the text.",
+      "send": "Send through the portal",
+      "sending": "Sending…",
+      "error": {
+        "required": "Write the message.",
+        "tooLong": "The message is over the 8,000-character limit.",
+        "send": "Could not send. Try again in a moment."
+      }
+    }
   },
   "author": {
     "operation": "Operations",

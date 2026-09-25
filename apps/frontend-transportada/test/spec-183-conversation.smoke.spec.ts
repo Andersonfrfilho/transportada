@@ -57,7 +57,7 @@ test('smoke: o diálogo abre preenchido, mostra a prévia e o envio entra na con
   SENT_CONTRACTOR_MAILS.length = 0
   await page.setViewportSize(DESKTOP)
   await openDetail(page)
-  await conversationsPanel(page).getByRole('button', { name: 'Enviar à contratante' }).click()
+  await conversationsPanel(page).getByRole('button', { name: 'Enviar por e-mail' }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Enviar à contratante' })
   await expect(dialog.getByLabel('Assunto')).toHaveValue('Ocorrência — NF 4512/1')
@@ -87,7 +87,7 @@ test('smoke: sem destinatário o diálogo diz o que falta e não envia', async (
   SENT_CONTRACTOR_MAILS.length = 0
   await page.setViewportSize(DESKTOP)
   await openDetail(page)
-  await conversationsPanel(page).getByRole('button', { name: 'Enviar à contratante' }).click()
+  await conversationsPanel(page).getByRole('button', { name: 'Enviar por e-mail' }).click()
   const dialog = page.getByRole('dialog', { name: 'Enviar à contratante' })
   await dialog.getByRole('checkbox', { name: /Maria Souza/u }).uncheck()
   await dialog.getByRole('button', { name: 'Enviar e-mail' }).click()
@@ -114,7 +114,7 @@ test('print: a aba e o diálogo no celular', async ({ page }) => {
   await expect(panel.getByText('Autorizado. Pode pagar')).toBeVisible()
   await panel.scrollIntoViewIfNeeded()
   await panel.screenshot({ path: resolve(PRINTS_DIRECTORY, 'conversa-contratante-celular.png') })
-  await panel.getByRole('button', { name: 'Enviar à contratante' }).click()
+  await panel.getByRole('button', { name: 'Enviar por e-mail' }).click()
   const dialog = page.getByRole('dialog', { name: 'Enviar à contratante' })
   await expect(dialog.getByLabel('Assunto')).toHaveValue('Ocorrência — NF 4512/1')
   await page.screenshot({ path: resolve(PRINTS_DIRECTORY, 'enviar-contratante-celular.png') })
