@@ -100,8 +100,8 @@
     "unexpected_charge": "Unexpected charge"
   },
   "occurrencePhoto": "Occurrence photo (site or cargo)",
-  "choosePhoto": "Choose photo",
-  "noPhotoChosen": "No photo chosen",
+  "choosePhoto": "Take photo",
+  "noPhotoChosen": "No photo taken",
   "occurrencePhotoCount_one": "{{count}} photo attached",
   "occurrencePhotoCount_other": "{{count}} photos attached",
   "occurrencePreview": {

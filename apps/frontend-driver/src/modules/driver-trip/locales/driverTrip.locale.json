@@ -108,8 +108,8 @@
     "unexpected_charge": "Cobrança inesperada"
   },
   "occurrencePhoto": "Foto da ocorrência (local ou carga)",
-  "choosePhoto": "Escolher foto",
-  "noPhotoChosen": "Nenhuma foto escolhida",
+  "choosePhoto": "Tirar foto",
+  "noPhotoChosen": "Nenhuma foto tirada",
   "occurrencePhotoCount_one": "{{count}} foto anexada",
   "occurrencePhotoCount_other": "{{count}} fotos anexadas",
   "occurrencePreview": {

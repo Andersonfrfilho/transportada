@@ -132,6 +132,7 @@ export function SignaturePad({ onCancel, onConfirm }: SignaturePadProps) {
         aria-label={t('signature.canvasLabel')}
         className={styles.signatureCanvas}
         height={SIGNATURE_HEIGHT}
+        ref={canvasRef}
         width={SIGNATURE_WIDTH}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
