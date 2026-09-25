@@ -29,15 +29,13 @@
         "https://app.staging.fernandes-transportadora.com.br/auth/callback",
         "https://cliente.staging.fernandes-transportadora.com.br/auth/callback",
         "https://client-staging-af03.up.railway.app/auth/callback",
-        "https://motorista.staging.fernandes-transportadora.com.br/auth/callback",
-        "https://driver-staging-38bf.up.railway.app/auth/callback"
+        "https://motorista.staging.fernandes-transportadora.com.br/auth/callback"
       ],
       "webOrigins": [
         "https://app.staging.fernandes-transportadora.com.br",
         "https://cliente.staging.fernandes-transportadora.com.br",
         "https://client-staging-af03.up.railway.app",
-        "https://motorista.staging.fernandes-transportadora.com.br",
-        "https://driver-staging-38bf.up.railway.app"
+        "https://motorista.staging.fernandes-transportadora.com.br"
       ]
     }
   }
