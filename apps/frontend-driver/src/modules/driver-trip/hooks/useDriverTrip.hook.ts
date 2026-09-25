@@ -30,9 +30,21 @@ import {
   enqueueReport,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
+import { countPending, scheduleQueueDrainTriggers } from '../shared/pendingQueue.service'
 import { discardForeignPending, partitionPendingByOwner } from '../shared/queueOwner.service'
 import { saveTripSnapshot } from '../shared/tripSnapshot.service'
 import { useDriverSession } from './useDriverSession.hook'
+
+/** Gatilhos da drenagem (plan D5): `visibilitychange` é do `document`, o resto é do `window`. */
+const DRAIN_TRIGGER_TARGET = {
+  addEventListener: (type: 'online' | 'pageshow' | 'visibilitychange', listener: () => void) =>
+    (type === 'visibilitychange' ? document : window).addEventListener(type, listener),
+  clearInterval: (id: number) => window.clearInterval(id),
+  isVisible: () => document.visibilityState === 'visible',
+  removeEventListener: (type: 'online' | 'pageshow' | 'visibilitychange', listener: () => void) =>
+    (type === 'visibilitychange' ? document : window).removeEventListener(type, listener),
+  setInterval: (handler: () => void, timeout: number) => window.setInterval(handler, timeout),
+}
 
 const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
@@ -111,6 +123,8 @@ export function useDriverTrip(
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
+  /** Plan D5: o temporizador da drenagem só corre enquanto isto for maior que zero. */
+  const drainableCountRef = useRef(0)
 
   const refreshQueueView = useCallback(async (): Promise<void> => {
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
@@ -124,6 +138,12 @@ export function useDriverTrip(
     setQueueView(
       buildEventQueueView({ attachments: pending.ownAttachments, queued: pending.ownReports }),
     )
+    drainableCountRef.current = countPending({
+      attachments,
+      now: new Date(),
+      ownerSubHash: session.subHash,
+      reports: queued,
+    }).drainable
   }, [attachmentStore, session.subHash, store])
 
   /**
@@ -285,10 +305,6 @@ export function useDriverTrip(
   drainRef.current = requestDrain
 
   useEffect(() => {
-    function handleOnline(): void {
-      drainRef.current(undefined)
-    }
-    window.addEventListener('online', handleOnline)
     /**
      * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
      * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
@@ -296,9 +312,14 @@ export function useDriverTrip(
     void discardStaleAttachments({ attachmentStore, now: new Date() }).then(() =>
       refreshQueueView(),
     )
+    /** "Abertura" (plan D5): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
     drainRef.current(undefined)
 
-    return () => window.removeEventListener('online', handleOnline)
+    return scheduleQueueDrainTriggers({
+      drain: () => drainRef.current(undefined),
+      getDrainable: () => drainableCountRef.current,
+      target: DRAIN_TRIGGER_TARGET,
+    })
   }, [attachmentStore, refreshQueueView])
 
   async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
