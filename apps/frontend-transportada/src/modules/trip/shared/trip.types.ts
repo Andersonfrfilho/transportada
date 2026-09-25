@@ -235,6 +235,8 @@ export type RegisteredOccurrence = Omit<TripOccurrence, 'attachments'> &
 export const TRIP_DISPATCH_BLOCKED_CODES = [
   'TRIP_HAS_NO_ROUTE',
   'TRIP_HAS_UNSCHEDULED_STOPS',
+  /** Spec 185 revisão (achado 2 da API): o gatilho falhou por outro motivo — sem `details`. */
+  'TRIP_AUTO_DISPATCH_FAILED',
 ] as const
 export type TripDispatchBlockedCode = (typeof TRIP_DISPATCH_BLOCKED_CODES)[number]
 
@@ -842,7 +844,6 @@ export type TripDocumentActionInput = Readonly<{ documentId: string; tripId: str
  */
 export type TripFieldActionTarget = Readonly<{ driverId?: string; tripId: string }>
 
-export type ConfirmLoadTripInput = TripFieldActionTarget
 export type StartFieldTripInput = TripFieldActionTarget
 
 /** O que `POST .../confirm-load` e `POST .../start-route` devolvem — nenhum recurso nasce ali. */

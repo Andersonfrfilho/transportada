@@ -30,6 +30,11 @@ export function resolveDispatchBlockedFeedback(input: {
   readonly stops: readonly TripStopDetail[]
 }): TripDispatchFeedback {
   if (input.code === 'TRIP_HAS_NO_ROUTE') return { key: 'hasNoRoute' }
+  /**
+   * Spec 185 revisão (achado 2 da API): o gatilho falhou por um motivo que não é gate de negócio
+   * (erro inesperado no `dispatch()`) — a API não manda `stopIds` para este código.
+   */
+  if (input.code === 'TRIP_AUTO_DISPATCH_FAILED') return { key: 'autoDispatchFailed' }
   const labels = (input.stopIds ?? []).map((stopId) => resolveStopLabel(input.stops, stopId))
   return { key: 'hasUnscheduledStops', params: { stops: labels.join(', ') } }
 }
@@ -67,7 +72,51 @@ export function resolveDispatchErrorFeedback(input: {
     return resolveDispatchBlockedFeedback({ code: 'TRIP_HAS_NO_ROUTE', stops: input.stops })
   }
 
+  /**
+   * Spec 185 revisão (achado 2 do frontend): o botão manda `loadRemaining: true` sempre — a única
+   * forma de `TRIP_HAS_UNLOADED_DOCUMENTS` chegar por ele é a viagem ficar vazia depois de liberar
+   * as notas deixadas para trás (`assertDispatchGates` na API). O genérico "Há notas ainda não
+   * carregadas" mentiria aqui: não sobrou nota nenhuma para carregar.
+   */
+  if (error.message === 'TRIP_HAS_UNLOADED_DOCUMENTS') return { key: 'hasNoCargoToDispatch' }
+
   return null
+}
+
+/**
+ * RF9 (revisão): uma chave i18n só por caso do diálogo "Despachar" — nunca a concatenação de duas
+ * traduções calculadas em TS. O caso combinado (`toLoadCount` e `leftBehindCount` > 0) encaixa as
+ * duas contagens no locale por *nesting* do i18next (`$t(...)`), preservando o plural de cada parte.
+ */
+export function resolveDispatchConfirmMessage(input: {
+  readonly isCargoClosed: boolean
+  readonly leftBehindCount: number
+  readonly toLoadCount: number
+}): Readonly<{ key: string; params?: Readonly<Record<string, number>> }> {
+  const { isCargoClosed, leftBehindCount, toLoadCount } = input
+
+  if (toLoadCount === 0 && leftBehindCount === 0) {
+    return { key: 'stateActions.dispatchConfirmSimple' }
+  }
+
+  if (toLoadCount === 0) {
+    /**
+     * Sem nota a carregar e ao menos uma deixada para trás: com nota já carregada sobrando
+     * (`isCargoClosed`), o despacho sai só com as notas que ficarem. Sem nenhuma nota carregada, o
+     * despacho recusaria (409 `TRIP_HAS_UNLOADED_DOCUMENTS`, viagem ficaria vazia) — frase própria,
+     * sem prometer "Despachar?".
+     */
+    return isCargoClosed
+      ? { key: 'stateActions.dispatchConfirmLeftBehindOnly', params: { count: leftBehindCount } }
+      : { key: 'stateActions.dispatchConfirmNothingToCarry' }
+  }
+
+  return leftBehindCount === 0
+    ? { key: 'stateActions.dispatchConfirmLoadRemaining', params: { count: toLoadCount } }
+    : {
+        key: 'stateActions.dispatchConfirmLoadRemainingWithLeftBehind',
+        params: { leftBehindCount, loadCount: toLoadCount },
+      }
 }
 
 /**

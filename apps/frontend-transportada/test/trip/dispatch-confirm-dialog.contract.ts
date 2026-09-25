@@ -41,10 +41,11 @@ describe('o botão "Despachar" leva todas, com confirmação (spec 185 RF9)', ()
     expect(cabecalho).not.toContain('onDispatch({ force: true')
   })
 
-  it('a mensagem muda com notas a carregar e com nota deixada para trás', () => {
-    expect(cabecalho).toContain("t('stateActions.dispatchConfirmSimple')")
-    expect(cabecalho).toContain("t('stateActions.dispatchConfirmLoadRemaining'")
-    expect(cabecalho).toContain("t('stateActions.dispatchConfirmLeftBehind'")
+  it('a mensagem vem de resolveDispatchConfirmMessage — nunca concatenação de duas traduções', () => {
+    expect(cabecalho).toContain('resolveDispatchConfirmMessage')
+    expect(cabecalho).toContain('tripDispatchFeedback.service')
+    expect(cabecalho).not.toContain('dispatchLoadRemainingMessage')
+    expect(cabecalho).not.toContain('dispatchLeftBehindMessage')
   })
 })
 

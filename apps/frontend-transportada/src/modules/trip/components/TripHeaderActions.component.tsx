@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select'
 
 import { resolveDispatchReadiness } from '../shared/dispatchReadiness.service'
 import { hasOpenOccurrenceMarker } from '../shared/occurrenceMarker.service'
+import { resolveDispatchConfirmMessage } from '../shared/tripDispatchFeedback.service'
 import { canOfferTripFieldAction, hasMultipleDrivers } from '../shared/tripFieldActions.service'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import type { TripDetail, TripFiscalReadiness } from '../shared/trip.types'
@@ -101,18 +102,17 @@ export function TripHeaderActions({
    * notas que o botão vai separar e carregar, nunca as que uma ocorrência já deixa para trás.
    */
   const readiness = resolveDispatchReadiness({ documents: trip.documents })
-  const dispatchLoadRemainingMessage = t('stateActions.dispatchConfirmLoadRemaining', {
-    count: readiness.toLoadCount,
+  /**
+   * Spec 185 revisão (achado 2): uma chave i18n só por caso — nunca a concatenação de duas
+   * traduções calculadas aqui. `resolveDispatchConfirmMessage` decide a chave; o combinado das duas
+   * contagens (`toLoad`/`leftBehind`) e o caso "não sobra nota nenhuma" vivem no locale.
+   */
+  const confirmMessage = resolveDispatchConfirmMessage({
+    isCargoClosed: readiness.isCargoClosed,
+    leftBehindCount: readiness.leftBehindCount,
+    toLoadCount: readiness.toLoadCount,
   })
-  const dispatchLeftBehindMessage = t('stateActions.dispatchConfirmLeftBehind', {
-    count: readiness.leftBehindCount,
-  })
-  const dispatchMessage =
-    readiness.toLoadCount === 0
-      ? t('stateActions.dispatchConfirmSimple')
-      : readiness.leftBehindCount === 0
-        ? dispatchLoadRemainingMessage
-        : `${dispatchLoadRemainingMessage} ${dispatchLeftBehindMessage}`
+  const dispatchMessage = t(confirmMessage.key, confirmMessage.params ?? {})
 
   function handleDispatchClick(): void {
     setIsDispatchConfirmOpen(true)
@@ -120,7 +120,12 @@ export function TripHeaderActions({
 
   function handleDispatchConfirm(): void {
     setIsDispatchConfirmOpen(false)
-    onDispatch({ loadRemaining: readiness.toLoadCount > 0 })
+    /**
+     * Spec 185 revisão (achado 3): sempre `true` — no servidor é no-op sem nota pendente
+     * (`dispatch-trip.use-case.ts`), e a contagem do cliente só decide o texto do diálogo, nunca o
+     * parâmetro da chamada.
+     */
+    onDispatch({ loadRemaining: true })
   }
 
   /**

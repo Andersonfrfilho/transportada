@@ -862,11 +862,26 @@ export function useTripWorkspace(
       return invalidate()
     },
   })
+  /**
+   * Spec 185 revisão: despachar pelo botão resolve a pendência que o aviso de `autoDispatch`
+   * descrevia — sem limpar aqui, um bloqueio antigo ("A viagem não saiu: …") continuaria na tela
+   * depois de um despacho manual bem-sucedido.
+   */
   const dispatchMutation = useMutation({
     mutationFn: controller.dispatchTrip,
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setAutoDispatchOutcome(undefined)
+      return invalidate()
+    },
   })
-  const cancelMutation = useMutation({ mutationFn: controller.cancelTrip, onSuccess: invalidate })
+  /** Spec 185 revisão: cancelar também torna o aviso de `autoDispatch` anterior obsoleto. */
+  const cancelMutation = useMutation({
+    mutationFn: controller.cancelTrip,
+    onSuccess: () => {
+      setAutoDispatchOutcome(undefined)
+      return invalidate()
+    },
+  })
   /**
    * Spec 065 D4bis: o lote urgente. Invalida a viagem **e** a prontidão — o que muda é o estado
    * fiscal das notas, e é ele que o painel mostra.
@@ -883,9 +898,13 @@ export function useTripWorkspace(
     mutationFn: controller.setTripMdfeRequirement,
     onSuccess: invalidate,
   })
+  /** Spec 185 revisão: replanejar o roteiro também torna o aviso de `autoDispatch` anterior obsoleto. */
   const planRouteMutation = useMutation({
     mutationFn: controller.planTripRoute,
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setAutoDispatchOutcome(undefined)
+      return invalidate()
+    },
   })
 
   return {

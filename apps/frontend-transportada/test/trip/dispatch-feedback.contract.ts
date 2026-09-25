@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   resolveAutoDispatchFeedback,
   resolveDispatchBlockedFeedback,
+  resolveDispatchConfirmMessage,
   resolveDispatchErrorFeedback,
 } from '@/modules/trip/shared/tripDispatchFeedback.service'
 import type { TripStopDetail } from '@/modules/trip/shared/trip.types'
@@ -44,6 +45,12 @@ describe('resolveDispatchBlockedFeedback (spec 185 RF8)', () => {
     expect(resolveDispatchBlockedFeedback({ code: 'TRIP_HAS_NO_ROUTE', stops: STOPS })).toEqual({
       key: 'hasNoRoute',
     })
+  })
+
+  test('TRIP_AUTO_DISPATCH_FAILED vira frase própria, sem stopIds', () => {
+    expect(
+      resolveDispatchBlockedFeedback({ code: 'TRIP_AUTO_DISPATCH_FAILED', stops: STOPS }),
+    ).toEqual({ key: 'autoDispatchFailed' })
   })
 
   test('TRIP_HAS_UNSCHEDULED_STOPS resolve o rótulo de cada parada a partir de trip.stops', () => {
@@ -107,6 +114,55 @@ describe('resolveDispatchErrorFeedback (o botão "Despachar")', () => {
     ).toBeNull()
     expect(resolveDispatchErrorFeedback({ error: null, stops: STOPS })).toBeNull()
   })
+
+  /**
+   * Spec 185 revisão (achado 2): o botão manda `loadRemaining: true` sempre — a única forma deste
+   * código chegar por ele é a viagem ficar vazia depois de liberar as deixadas para trás. O genérico
+   * "Há notas ainda não carregadas" mentiria, então ganha frase própria aqui.
+   */
+  test('TRIP_HAS_UNLOADED_DOCUMENTS vira "nenhuma nota vai na viagem", nunca o genérico', () => {
+    expect(
+      resolveDispatchErrorFeedback({
+        error: requestError('TRIP_HAS_UNLOADED_DOCUMENTS'),
+        stops: STOPS,
+      }),
+    ).toEqual({ key: 'hasNoCargoToDispatch' })
+  })
+})
+
+describe('resolveDispatchConfirmMessage (spec 185 revisão, achado 2 — o diálogo "Despachar")', () => {
+  test('nada a carregar e nada deixado para trás: confirmação simples', () => {
+    expect(
+      resolveDispatchConfirmMessage({ isCargoClosed: true, leftBehindCount: 0, toLoadCount: 0 }),
+    ).toEqual({ key: 'stateActions.dispatchConfirmSimple' })
+  })
+
+  test('só notas a carregar: uma chave, com a contagem', () => {
+    expect(
+      resolveDispatchConfirmMessage({ isCargoClosed: false, leftBehindCount: 0, toLoadCount: 2 }),
+    ).toEqual({ key: 'stateActions.dispatchConfirmLoadRemaining', params: { count: 2 } })
+  })
+
+  test('notas a carregar e nota deixada para trás: uma chave só, nunca concatenação', () => {
+    expect(
+      resolveDispatchConfirmMessage({ isCargoClosed: false, leftBehindCount: 1, toLoadCount: 2 }),
+    ).toEqual({
+      key: 'stateActions.dispatchConfirmLoadRemainingWithLeftBehind',
+      params: { leftBehindCount: 1, loadCount: 2 },
+    })
+  })
+
+  test('nada a carregar, mas há nota carregada sobrando: só a contagem de deixadas para trás', () => {
+    expect(
+      resolveDispatchConfirmMessage({ isCargoClosed: true, leftBehindCount: 1, toLoadCount: 0 }),
+    ).toEqual({ key: 'stateActions.dispatchConfirmLeftBehindOnly', params: { count: 1 } })
+  })
+
+  test('nada a carregar e nenhuma nota carregada: nenhuma nota vai, frase própria', () => {
+    expect(
+      resolveDispatchConfirmMessage({ isCargoClosed: false, leftBehindCount: 3, toLoadCount: 0 }),
+    ).toEqual({ key: 'stateActions.dispatchConfirmNothingToCarry' })
+  })
 })
 
 describe('resolveAutoDispatchFeedback (RF3 — carregar/ocorrência tentam o gatilho automático)', () => {
@@ -143,5 +199,15 @@ describe('resolveAutoDispatchFeedback (RF3 — carregar/ocorrência tentam o gat
         stops: STOPS,
       }),
     ).toEqual({ key: 'hasNoRoute' })
+  })
+
+  /** Achado 2 da revisão da API: código novo, sem `details`, com frase própria. */
+  test('blocked por TRIP_AUTO_DISPATCH_FAILED vira "use Despachar"', () => {
+    expect(
+      resolveAutoDispatchFeedback({
+        autoDispatch: { code: 'TRIP_AUTO_DISPATCH_FAILED', outcome: 'blocked' },
+        stops: STOPS,
+      }),
+    ).toEqual({ key: 'autoDispatchFailed' })
   })
 })

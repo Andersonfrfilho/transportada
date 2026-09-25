@@ -40,6 +40,32 @@ describe('o workspace captura o autoDispatch de quem fecha a carga (spec 185 RF2
   it('expõe o desfecho para a tela ler', () => {
     expect(workspace).toContain('autoDispatchOutcome')
   })
+
+  /**
+   * Spec 185 revisão (achado 1): a viagem mudando por outra ação torna o aviso de `autoDispatch`
+   * anterior obsoleto — um bloqueio antigo ("A viagem não saiu: …") não pode sobreviver a um
+   * despacho manual, um cancelamento ou um replanejamento de rota bem-sucedidos.
+   */
+  it('despachar pelo botão limpa o aviso anterior', () => {
+    const area = workspace.slice(
+      workspace.indexOf('const dispatchMutation'),
+      workspace.indexOf('const cancelMutation'),
+    )
+    expect(area).toContain('setAutoDispatchOutcome(undefined)')
+  })
+
+  it('cancelar a viagem limpa o aviso anterior', () => {
+    const area = workspace.slice(
+      workspace.indexOf('const cancelMutation'),
+      workspace.indexOf('createCteBatchMutation ='),
+    )
+    expect(area).toContain('setAutoDispatchOutcome(undefined)')
+  })
+
+  it('replanejar a rota limpa o aviso anterior', () => {
+    const area = workspace.slice(workspace.indexOf('const planRouteMutation'))
+    expect(area).toContain('setAutoDispatchOutcome(undefined)')
+  })
 })
 
 describe('o detalhe da viagem mostra o desfecho do gatilho automático', () => {

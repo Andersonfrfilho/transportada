@@ -74,6 +74,18 @@ describe('transitionTripDocumentResultFromApi lê autoDispatch (spec 185 T6.1)',
     })
   })
 
+  /** Spec 185 revisão (achado 2 da API): código novo, sem `details`. */
+  test('TRIP_AUTO_DISPATCH_FAILED sem details chega intacto', () => {
+    const adapters = createTripResponseAdapters()
+
+    const result = adapters.transitionTripDocumentResultFromApi({
+      ...TRANSITION_BASE,
+      autoDispatch: { code: 'TRIP_AUTO_DISPATCH_FAILED', outcome: 'blocked' },
+    })
+
+    expect(result.autoDispatch).toEqual({ code: 'TRIP_AUTO_DISPATCH_FAILED', outcome: 'blocked' })
+  })
+
   test('código fora do vocabulário recusa a resposta inteira', () => {
     const adapters = createTripResponseAdapters()
 
