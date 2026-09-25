@@ -1942,3 +1942,53 @@ migration na API). Um commit por parte.
   - worker: contratos **1451 pass**; integração completa sozinha **141 pass, 4 skip, 0 fail**;
   - cron **101 pass**; painel **5257 + 44 pass**; portal **80 pass**;
   - lint, typecheck e formatação da raiz limpos.
+
+## T703 — O selo de status com os horários, a falha em destaque e "Reenviar por outro canal" (verde)
+
+- **Serviço puro** `messageStatus.service.ts`:
+  - As escadas de cada canal são cópia por valor da política da API, com contrato de paridade que
+    lê `message-status.policy.ts`.
+  - `describeMessageStatus` dá os passos na ordem do canal, cada um com o horário gravado; passo
+    sem horário não aparece.
+  - O e-mail **nunca** mostra "lida": um `read` que chegue vira o último passo que o canal dá. O
+    portal nunca mostra "na fila".
+  - Falha e devolução entram como último passo, com o motivo.
+  - `resendChannelFor` decide o outro canal da mesma parte:
+    - contratante pelo portal, quando há conta ligada;
+    - WhatsApp da contratante sem portal → e-mail;
+    - motorista → app;
+    - sem outro canal, não oferece.
+- **O balão:**
+  - Ganhou o selo de canal (E-MAIL, PORTAL, APP, WHATSAPP).
+  - O selo de status virou botão (`aria-expanded`) que abre a lista "Horários da mensagem". Saiu o
+    `title` nativo que o design system proíbe.
+  - A falha fica em destaque, com o motivo por canal ("O e-mail não saiu: o provedor não aceitou o
+    envio.", "O e-mail voltou: …").
+  - A ação "Reenviar por {canal}" leva o mesmo texto ao compositor do portal ou do app, com foco,
+    ou abre o diálogo do e-mail com esse texto no lugar do modelo do tipo. O operador revisa e
+    envia; nada sai sozinho.
+- **Muda sozinho (P8):** a leitura das conversas volta a cada 20 s enquanto alguma mensagem que sai
+  ainda pode avançar na escada do canal dela. Com tudo confirmado ou falho, para.
+- **Teste, escrito antes e visto falhando** (módulo inexistente): `message-status.contract.ts`
+  (**12 pass**, registrado no entrypoint). Cobre:
+  - paridade das escadas;
+  - os quatro canais;
+  - e-mail sem "lida";
+  - passo sem horário;
+  - falha e devolução;
+  - as regras de reenvio;
+  - quando a leitura volta sozinha.
+- **No navegador, contra a API real (1440 e 390):**
+  - A falha foi produzida pelo caminho do worker, `markMessageFailed` sobre o e-mail da T702e, não
+    à mão no banco.
+  - O balão mostra o destaque e o motivo. O selo "FALHOU" abre "Na fila 17:19 | Falhou 17:55", e o
+    "LIDO" do portal abre "Entregue 14:46 | Lido 15:00".
+  - "Reenviar por Portal" preenche o compositor do portal com o texto e dá foco
+    (`prints/status-falha-{1440,390}.png`, `prints/status-reenvio-{1440,390}.png`).
+- **Revisão de design (web.md §15):**
+  - O botão de reenvio é `Button secondary sm` com ícone, igual a "Encaminhar à contratante".
+  - O selo-botão é `ghost sm`. Tem a altura dos controles compactos, portanto maior que a linha de
+    metadados ao lado; é o preço do alvo de toque.
+  - O destaque usa `--color-alert` (a borda do balão e a faixa do motivo).
+  - A 390 o motivo quebra em linhas e nada estoura.
+- **Rodado:** painel **5269 + 44 pass**; lint, typecheck e formatação da raiz limpos.

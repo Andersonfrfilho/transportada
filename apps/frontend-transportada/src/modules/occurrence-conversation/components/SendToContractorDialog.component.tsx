@@ -46,6 +46,8 @@ function errorKey(error: unknown): string {
 }
 
 type SendToContractorDialogProps = Readonly<{
+  /** Spec 183 T703: o texto de uma mensagem que falhou em outro canal vence o modelo do tipo. */
+  initialBody?: string
   onClose: () => void
   occurrenceId: string
 }>
@@ -55,7 +57,11 @@ type SendToContractorDialogProps = Readonly<{
  * grupo marcados; "Ver prévia" mostra o e-mail que sai, com a assinatura — a mesma função do envio.
  * Uma chave de idempotência por abertura: reenviar depois de uma queda de rede não duplica.
  */
-export function SendToContractorDialog({ onClose, occurrenceId }: SendToContractorDialogProps) {
+export function SendToContractorDialog({
+  initialBody,
+  onClose,
+  occurrenceId,
+}: SendToContractorDialogProps) {
   const { t } = useTranslation('occurrenceConversation')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
   const initialPreview = useContractorMailPreviewMutation(occurrenceId)
@@ -79,12 +85,12 @@ export function SendToContractorDialog({ onClose, occurrenceId }: SendToContract
       {
         onSuccess: (preview) => {
           setSubject(preview.subject)
-          setBody(preview.bodyText)
+          setBody(initialBody ?? preview.bodyText)
           setContactIds(initialRecipientIds(preview.recipients))
         },
       },
     )
-  }, [loadInitialPreview])
+  }, [initialBody, loadInitialPreview])
 
   const preview = initialPreview.data
   const draft = { body, contactIds, subject }

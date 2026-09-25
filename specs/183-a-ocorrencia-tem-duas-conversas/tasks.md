@@ -171,7 +171,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
         verdade (exceção na 143 autorizada) — feito; a mídia da Meta virou a T702f.
   - [ ] **T702f** Mídia da Meta no WhatsApp (foto, documento, áudio). ⏸️ Bloqueada pela T002 (modelos e
         envio da Meta), por decisão do usuário na T702e.
-- [ ] **T703** Selo de status na UI com os horários, destaque de falha e "Reenviar por outro canal".
+- [x] **T703** Selo de status na UI com os horários, destaque de falha e "Reenviar por outro canal".
       Evidência: contrato de mapeamento status → selo (e-mail nunca mostra "lida").
 - [x] **T704** [P] Tokens `--color-bubble-out`, `--color-bubble-contractor`, `--color-bubble-driver`
       (tema escuro e claro). Evidência: contrato de contraste 4,5:1 do texto sobre cada balão, nos

@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { hasPendingOutboundStatus } from '../shared/messageStatus.service'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
@@ -68,6 +69,9 @@ export function getOccurrenceConversationClient(): OccurrenceConversationClient 
   })
 }
 
+/** O Resend e a Meta confirmam em segundos; 20 s é folga sem martelar a API. */
+const CONVERSATION_STATUS_REFETCH_MS = 20_000
+
 export function useOccurrenceConversationsQuery(
   input: Readonly<{ companyId?: string; enabled: boolean; occurrenceId: string }>,
 ) {
@@ -76,6 +80,16 @@ export function useOccurrenceConversationsQuery(
     enabled: input.enabled,
     queryFn: () => client.listConversations({ occurrenceId: input.occurrenceId }),
     queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY, input.companyId, input.occurrenceId],
+    /**
+     * Spec 183 T703 (P8): o selo muda sozinho. Enquanto alguma mensagem que sai ainda pode
+     * avançar, a conversa volta a ser lida; tudo confirmado ou falho, para.
+     */
+    refetchInterval: (query) =>
+      query.state.data?.conversations.some((conversation) =>
+        hasPendingOutboundStatus(conversation.messages),
+      ) === true
+        ? CONVERSATION_STATUS_REFETCH_MS
+        : false,
   })
 }
 

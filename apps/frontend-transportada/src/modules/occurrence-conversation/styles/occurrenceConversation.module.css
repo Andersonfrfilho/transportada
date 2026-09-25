@@ -146,10 +146,51 @@
   font-size: 0.72rem;
 }
 
-.status {
-  display: inline-flex;
-  align-items: center;
+/* Spec 183 T703: o selo é botão (abre os horários), mas lê como a linha de metadados. */
+.statusButton {
   gap: var(--space-1);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.channelTag {
+  padding: 0 var(--space-1);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.statusTimes {
+  margin: 0;
+  padding: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  border-top: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+}
+
+.statusTimes li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.failure {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-left: 3px solid var(--color-alert);
+  color: var(--color-fog);
+}
+
+.failure p {
+  margin: 0;
+  font-weight: 600;
 }
 
 .card {

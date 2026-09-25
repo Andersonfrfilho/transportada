@@ -33,6 +33,7 @@ import { AddContractorContactDialog } from './AddContractorContactDialog.compone
 import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
 import { QuickReplyPicker } from './QuickReplyPicker.component'
 import { ConversationMessage } from './ConversationMessage.component'
+import { resendChannelFor } from '../shared/messageStatus.service'
 import { SendToContractorDialog } from './SendToContractorDialog.component'
 
 /** A chave do dia no fuso de quem vê: `en-CA` escreve `AAAA-MM-DD`. */
@@ -94,16 +95,20 @@ function ForwardToContractorAction({
 }
 
 /** O fio da conversa por dia, nas duas abas. */
+type ConversationResend = NonNullable<Parameters<typeof ConversationMessage>[0]['resend']>
+
 function ConversationThread({
   canManageContacts,
   messages,
   onAddContact,
   renderAttachmentActions,
+  resend,
 }: Readonly<{
   canManageContacts: boolean
   messages: OccurrenceConversation['messages']
   onAddContact: (suggestion: ContractorSenderSuggestion) => void
   renderAttachmentActions?: RenderAttachmentActions
+  resend?: ConversationResend
 }>) {
   return (
     <div className={styles.thread}>
@@ -120,6 +125,7 @@ function ConversationThread({
               message={message}
               onAddContact={onAddContact}
               {...(renderAttachmentActions === undefined ? {} : { renderAttachmentActions })}
+              {...(resend === undefined ? {} : { resend })}
             />
           ))}
         </section>
@@ -169,8 +175,18 @@ function DriverConversationPanel({
   /** Spec 183 T702b: os anexos do rascunho e o que já subiu dele. */
   const [files, setFiles] = useState<readonly File[]>([])
   const uploaded = useRef(new Map<File, string>())
+  const composerRef = useRef<HTMLTextAreaElement>(null)
   useMarkReadOnOpen(conversation)
   const messages = conversation?.messages ?? []
+  /** Spec 183 T703: o WhatsApp que falhou volta ao compositor do app, com o mesmo texto. */
+  const resend: ConversationResend = {
+    channelFor: (message) =>
+      resendChannelFor(message, { participant: 'driver', portalAvailable: false }),
+    onResend: (message) => {
+      setDraft(message.bodyText)
+      composerRef.current?.focus()
+    },
+  }
 
   function submit(): void {
     const validated = validateDriverMessageDraft(draft, files.length)
@@ -206,6 +222,7 @@ function DriverConversationPanel({
           canManageContacts={false}
           messages={messages}
           onAddContact={() => undefined}
+          {...(canSend ? { resend } : {})}
           /** Spec 183 T702d: as ações só na mensagem que o motorista mandou. */
           renderAttachmentActions={(attachment, message) =>
             message.direction === 'inbound' ? (
@@ -240,6 +257,7 @@ function DriverConversationPanel({
             <span>{t('driver.message')}</span>
             <textarea
               disabled={send.isPending}
+              ref={composerRef}
               maxLength={OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH}
               onChange={(event) => setDraft(event.target.value)}
               rows={3}
@@ -293,10 +311,23 @@ type OccurrenceConversationsProps = Readonly<{
  * Spec 183 T654 (RF21, D9): a mensagem à contratante pelo portal. Só o texto; quem tem conta no
  * portal recebe o aviso por e-mail sem o corpo. Uma chave por mensagem escrita, como no app.
  */
-function ContractorPortalComposer({ occurrenceId }: Readonly<{ occurrenceId: string }>) {
+function ContractorPortalComposer({
+  occurrenceId,
+  prefill,
+}: Readonly<{
+  occurrenceId: string
+  /** Spec 183 T703: o texto de uma mensagem que falhou em outro canal, a reenviar por aqui. */
+  prefill: null | Readonly<{ nonce: number; text: string }>
+}>) {
   const { t } = useTranslation('occurrenceConversation')
   const send = useSendContractorPortalMessageMutation(occurrenceId)
   const [draft, setDraft] = useState('')
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (prefill === null) return
+    setDraft(prefill.text)
+    composerRef.current?.focus()
+  }, [prefill])
   const [idempotencyKey, setIdempotencyKey] = useState(() =>
     createPortalMessageIdempotencyKey(() => crypto.randomUUID()),
   )
@@ -343,6 +374,7 @@ function ContractorPortalComposer({ occurrenceId }: Readonly<{ occurrenceId: str
         <span>{t('contractor.portal.message')}</span>
         <textarea
           disabled={send.isPending}
+          ref={composerRef}
           maxLength={OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH}
           onChange={(event) => setDraft(event.target.value)}
           rows={3}
@@ -397,10 +429,25 @@ function ContractorConversationPanel({
   const { t } = useTranslation('occurrenceConversation')
   const [isSending, setSending] = useState(false)
   const [suggestion, setSuggestion] = useState<ContractorSenderSuggestion | null>(null)
+  /** Spec 183 T703: o reenvio leva o texto ao compositor do portal ou ao diálogo do e-mail. */
+  const [portalPrefill, setPortalPrefill] = useState<null | { nonce: number; text: string }>(null)
+  const [mailBody, setMailBody] = useState<string | undefined>(undefined)
   useMarkReadOnOpen(conversation)
 
   const messages = conversation?.messages ?? []
   const canWrite = canSend && hasDocument && contractorId !== null
+  const resend: ConversationResend = {
+    channelFor: (message) =>
+      resendChannelFor(message, { participant: 'contractor', portalAvailable }),
+    onResend: (message, channel) => {
+      if (channel === 'portal') {
+        setPortalPrefill({ nonce: Date.now(), text: message.bodyText })
+        return
+      }
+      setMailBody(message.bodyText)
+      setSending(true)
+    },
+  }
 
   return (
     <div className={styles.panel}>
@@ -431,15 +478,23 @@ function ContractorConversationPanel({
           canManageContacts={canManageContacts && contractorId !== null}
           messages={messages}
           onAddContact={setSuggestion}
+          {...(canWrite ? { resend } : {})}
         />
       )}
 
       {canWrite && portalAvailable ? (
-        <ContractorPortalComposer occurrenceId={occurrenceId} />
+        <ContractorPortalComposer occurrenceId={occurrenceId} prefill={portalPrefill} />
       ) : null}
 
       {isSending ? (
-        <SendToContractorDialog onClose={() => setSending(false)} occurrenceId={occurrenceId} />
+        <SendToContractorDialog
+          {...(mailBody === undefined ? {} : { initialBody: mailBody })}
+          onClose={() => {
+            setSending(false)
+            setMailBody(undefined)
+          }}
+          occurrenceId={occurrenceId}
+        />
       ) : null}
       {suggestion !== null && contractorId !== null ? (
         <AddContractorContactDialog

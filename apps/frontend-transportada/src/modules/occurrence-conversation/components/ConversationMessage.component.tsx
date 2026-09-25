@@ -6,9 +6,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { formatContractorContactPhone } from '@/modules/delivery-clients/shared/contractorContacts.validation'
 
+import { Icon } from '@/components/ui/icon'
+
+import { describeMessageStatus } from '../shared/messageStatus.service'
 import { describeConversationMessage } from '../shared/occurrenceConversation.service'
 import type {
   OccurrenceConversationAttachment,
+  OccurrenceConversationChannel,
   ContractorSenderSuggestion,
   OccurrenceConversationMessage,
 } from '../shared/occurrenceConversation.types'
@@ -56,6 +60,17 @@ type ConversationMessageProps = Readonly<{
   canManageContacts: boolean
   message: OccurrenceConversationMessage
   onAddContact: (suggestion: ContractorSenderSuggestion) => void
+  /**
+   * Spec 183 T703 (P8): o outro canal da mesma parte para a mensagem que falhou, e o que fazer
+   * ao pedir o reenvio (o painel leva o texto ao compositor daquele canal).
+   */
+  resend?: Readonly<{
+    channelFor: (message: OccurrenceConversationMessage) => OccurrenceConversationChannel | null
+    onResend: (
+      message: OccurrenceConversationMessage,
+      channel: OccurrenceConversationChannel,
+    ) => void
+  }>
   /** Spec 183 T702d: as ações sobre cada anexo desta mensagem. */
   renderAttachmentActions?: (
     attachment: OccurrenceConversationAttachment,
@@ -73,24 +88,23 @@ export function ConversationMessage({
   message,
   onAddContact,
   renderAttachmentActions,
+  resend,
 }: ConversationMessageProps) {
   const { t } = useTranslation('occurrenceConversation')
   const [isCardOpen, setCardOpen] = useState(false)
+  const [isTimesOpen, setTimesOpen] = useState(false)
   const view = describeConversationMessage(message)
-  const { author, status } = view
+  const { author } = view
+  const status = describeMessageStatus(message)
+  const resendChannel = status?.failure == null ? null : (resend?.channelFor(message) ?? null)
+  const timesId = `message-status-times-${message.id}`
   const toneClass =
     view.tone === 'outbound'
       ? styles.bubbleOutbound
       : view.tone === 'driver'
         ? styles.bubbleDriver
         : styles.bubbleContractor
-  const isFailed = status?.value === 'failed' || status?.value === 'bounced'
-  const statusLabel =
-    status === null
-      ? null
-      : status.at === null
-        ? t(`status.${status.value}`)
-        : t('status.at', { status: t(`status.${status.value}`), time: formatDateTime(status.at) })
+  const isFailed = status?.failure != null
   const tick = status === null ? undefined : TICK_STATUS[status.value]
 
   return (
@@ -189,15 +203,54 @@ export function ConversationMessage({
             : { renderActions: (attachment) => renderAttachmentActions(attachment, message) })}
         />
 
+        {status?.failure == null ? null : (
+          <div className={styles.failure} role="status">
+            <p>{t(`failure.${status.failure}.${message.channel}`)}</p>
+            {resendChannel === null || resend === undefined ? null : (
+              <Button
+                onClick={() => resend.onResend(message, resendChannel)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <Icon name="send" />
+                {t('failure.resend', { channel: t(`channel.${resendChannel}`) })}
+              </Button>
+            )}
+          </div>
+        )}
+
         <footer className={styles.meta}>
+          {/** Spec 183 T703: por onde a mensagem foi — o selo diz o que aquele canal confirma. */}
+          <span className={styles.channelTag}>{t(`channel.${message.channel}`)}</span>
           <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
-          {status === null || statusLabel === null ? null : (
-            <span className={styles.status} title={statusLabel}>
-              {tick === undefined ? null : <StatusTicks status={tick} title={statusLabel} />}
+          {status === null ? null : (
+            <Button
+              aria-controls={timesId}
+              aria-expanded={isTimesOpen}
+              className={styles.statusButton}
+              onClick={() => setTimesOpen((open) => !open)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {tick === undefined ? null : (
+                <StatusTicks status={tick} title={t(`status.${status.value}`)} />
+              )}
               <span>{t(`status.${status.value}`)}</span>
-            </span>
+            </Button>
           )}
         </footer>
+        {status === null || !isTimesOpen ? null : (
+          <ol aria-label={t('status.times')} className={styles.statusTimes} id={timesId}>
+            {status.steps.map((step) => (
+              <li key={step.status}>
+                <span>{t(`status.${step.status}`)}</span>
+                <time dateTime={step.at}>{formatDateTime(step.at)}</time>
+              </li>
+            ))}
+          </ol>
+        )}
       </article>
     </div>
   )

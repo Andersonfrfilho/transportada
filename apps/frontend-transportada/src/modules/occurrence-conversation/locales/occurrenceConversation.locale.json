@@ -57,7 +57,7 @@
     "read": "Lido",
     "failed": "Falhou",
     "bounced": "Devolvido",
-    "at": "{{status}} às {{time}}"
+    "times": "Horários da mensagem"
   },
   "dialog": {
     "title": "Enviar à contratante",
@@ -195,5 +195,26 @@
     "forwarding": "Encaminhando…",
     "forwarded": "Encaminhada à contratante pelo portal.",
     "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
+  },
+  "channel": {
+    "email": "E-mail",
+    "whatsapp": "WhatsApp",
+    "app": "App",
+    "portal": "Portal"
+  },
+  "failure": {
+    "resend": "Reenviar por {{channel}}",
+    "bounced": {
+      "email": "O e-mail voltou: o endereço recusou a mensagem.",
+      "whatsapp": "A mensagem voltou.",
+      "app": "A mensagem voltou.",
+      "portal": "A mensagem voltou."
+    },
+    "failed": {
+      "email": "O e-mail não saiu: o provedor não aceitou o envio.",
+      "whatsapp": "O WhatsApp não entregou a mensagem.",
+      "app": "A mensagem não chegou ao app.",
+      "portal": "A mensagem não chegou ao portal."
+    }
   }
 }

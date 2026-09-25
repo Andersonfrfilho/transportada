@@ -57,7 +57,7 @@
     "read": "Read",
     "failed": "Failed",
     "bounced": "Bounced",
-    "at": "{{status}} at {{time}}"
+    "times": "Message times"
   },
   "dialog": {
     "title": "Send to contractor",
@@ -195,5 +195,26 @@
     "forwarding": "Forwarding…",
     "forwarded": "Forwarded to the contractor through the portal.",
     "forwardError": "Could not forward. Try again shortly."
+  },
+  "channel": {
+    "email": "Email",
+    "whatsapp": "WhatsApp",
+    "app": "App",
+    "portal": "Portal"
+  },
+  "failure": {
+    "resend": "Resend via {{channel}}",
+    "bounced": {
+      "email": "The email bounced: the address refused the message.",
+      "whatsapp": "The message bounced.",
+      "app": "The message bounced.",
+      "portal": "The message bounced."
+    },
+    "failed": {
+      "email": "The email was not sent: the provider did not accept it.",
+      "whatsapp": "WhatsApp did not deliver the message.",
+      "app": "The message did not reach the app.",
+      "portal": "The message did not reach the portal."
+    }
   }
 }
