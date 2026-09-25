@@ -614,7 +614,7 @@ function readErrorCode(payload: unknown): string {
   return typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED'
 }
 
-function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
+export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as {
     readonly attachmentMode?: unknown

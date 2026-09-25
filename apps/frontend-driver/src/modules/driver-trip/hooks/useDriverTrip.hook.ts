@@ -19,6 +19,7 @@ import {
   createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
 import {
+  ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
   discardStaleAttachments,
   drainQueueWithAttachments,
@@ -31,6 +32,8 @@ import {
   applyReportLocation,
   createIdempotencyKey,
   enqueueReport,
+  enqueueReports,
+  sumReportPhotoBytes,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
 import {
@@ -89,6 +92,9 @@ export type DriverProofOutcome = 'count-limit' | 'queued' | 'size-limit'
 /** Spec 082 (revisão): o teto da fila de eventos recusa tipado, nunca `QuotaExceededError` cru. */
 export type DriverReportOutcome = 'count-limit' | 'queued'
 
+/** Spec 179: a foto da ocorrência conta no mesmo teto de bytes dos anexos. */
+export type DriverNotDeliveredOutcome = DriverReportOutcome | 'size-limit'
+
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
   /** "Confirmar em lote": tira a marca do que foi feito sem rede e drena. */
@@ -126,12 +132,16 @@ export type DriverTripController = Readonly<{
   refetchTrip: () => void
   rejectedCount: number
   report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
+  /** Spec 179: os itens do mesmo toque ("Não entreguei"), todos ou nenhum. */
+  reportNotDelivered: (reports: readonly DriverFieldReport[]) => Promise<DriverNotDeliveredOutcome>
   /** M1: grava o toque na hora, com a posição completando o item depois. */
   reportWithLocation: (
     build: (location: DriverReportedLocation | null) => DriverFieldReport,
   ) => Promise<DriverReportOutcome>
   sendAllNow: () => void
   sendNow: (idempotencyKey: string) => void
+  /** Spec 179 RF5: as chaves que o servidor aceitou nesta sessão — o "enviado" da tela. */
+  sentReportKeys: ReadonlySet<string>
   snapshot: DriverTripSnapshot | undefined
   status: 'error' | 'loading' | 'ready'
   /** O que o dono fez sem rede e ainda não confirmou — só com sessão viva. */
@@ -167,6 +177,7 @@ export function useDriverTrip(
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
+  const [sentReportKeys, setSentReportKeys] = useState<ReadonlySet<string>>(new Set())
   /** Plan D5: o temporizador da drenagem só corre enquanto isto for maior que zero. */
   const drainableCountRef = useRef(0)
   /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
@@ -238,15 +249,18 @@ export function useDriverTrip(
 
   /** A drenagem é uma só — automática e manual entram pela mesma porta, `only` restringe. */
   const drain = useMutation({
-    mutationFn: (only?: string) => {
+    mutationFn: async (only?: string) => {
       const client = getDriverTripClient()
-      return drainQueueWithAttachments({
+      /** O que o servidor aceitou nesta drenagem, chave a chave — é isso que a tela chama de enviado. */
+      const sentKeys: string[] = []
+      const result = await drainQueueWithAttachments({
         attachmentStore,
         ...(only === undefined ? {} : { only }),
         ownerSubHash: session.subHash,
         send: async (report): Promise<AttachmentSendOutcome> => {
           try {
             await client.send(report)
+            sentKeys.push(report.idempotencyKey)
             return { kind: 'sent' }
           } catch (error) {
             return toAttachmentSendOutcome(error)
@@ -281,9 +295,13 @@ export function useDriverTrip(
         },
         store,
       })
+      return { ...result, sentKeys }
     },
     onSuccess: (result) => {
       void refreshQueueView()
+      if (result.sentKeys.length > 0) {
+        setSentReportKeys((current) => new Set([...current, ...result.sentKeys]))
+      }
       if (result.attachmentsSent.length > 0) {
         setProofOutcomeByDocumentId((current) => {
           const next = new Map(current)
@@ -421,6 +439,47 @@ export function useDriverTrip(
   }
 
   /**
+   * Spec 179 (T303): "Não entreguei" grava a ocorrência com foto e a devolução juntas, antes do GPS —
+   * como o `reportWithLocation`. A foto conta no teto de bytes dos anexos: estourou, nada entra e a
+   * tela diz (nunca descarte calado). A posição completa só a devolução, que é quem a leva.
+   */
+  function reportNotDelivered(
+    reports: readonly DriverFieldReport[],
+  ): Promise<DriverNotDeliveredOutcome> {
+    return persistWhileOpen(captureRegistry, async () => {
+      const [queued, attachmentTotals] = await Promise.all([
+        store.read(),
+        attachmentStore.readTotals(),
+      ])
+      const photoBytes =
+        sumReportPhotoBytes(queued.map((item) => item.report)) + sumReportPhotoBytes(reports)
+      if (attachmentTotals.totalBytes + photoBytes > ATTACHMENT_QUEUE_LIMIT.maxTotalBytes) {
+        return 'size-limit'
+      }
+
+      const result = await enqueueReports({
+        isUnverified: !session.canSync,
+        now: new Date(),
+        reports,
+        store,
+        subHash: session.subHash,
+      })
+      if (!result.accepted) return result.reason
+      await refreshQueueView()
+
+      const returned = reports.find((report) => report.kind === 'return')
+      const location = returned === undefined ? null : await readCurrentLocation()
+      if (returned !== undefined && location !== null) {
+        await store.update((items) =>
+          applyReportLocation({ idempotencyKey: returned.idempotencyKey, items, location }),
+        )
+      }
+      requestDrain(undefined)
+      return 'queued'
+    })
+  }
+
+  /**
    * Spec 159 (revisão D6): o comprovante **sempre** entra na fila offline, com a entrega ainda na
    * fila ou já aceita — nunca mais pela rota multipart direta. Isso é o que garante o aceite 8: a
    * foto de uma nota já entregue segue offline como qualquer outro anexo, e sobe na próxima
@@ -523,9 +582,11 @@ export function useDriverTrip(
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
+    reportNotDelivered,
     reportWithLocation,
     sendAllNow: () => requestDrain(undefined),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
+    sentReportKeys,
     snapshot: currentTrip.data,
     /** Sem sessão não há quem confirme: a faixa só aparece depois de entrar. */
     unverifiedPending: session.canSync ? unverifiedPending : undefined,

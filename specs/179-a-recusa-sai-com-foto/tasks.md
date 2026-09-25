@@ -69,7 +69,7 @@ implementam esse encadeamento do zero: plugam a captura de imagem e a UI de esta
 
 - **T301** ✅ Teste de contrato da tela: tipo `required` sem foto ou sem motivo não habilita o envio, e
   a mensagem diz qual dos dois falta. (CA04)
-- **T302** Captura da imagem na tela de ocorrência (`apps/frontend-driver`), com o caminho de galeria
+- **T302** ✅ Captura da imagem na tela de ocorrência (`apps/frontend-driver`), com o caminho de galeria
   quando a câmera é negada, e os mesmos limites de tamanho e tipo do comprovante de entrega.
 - **T303** A fila offline (`apps/frontend-driver`) carrega a imagem junto do corpo, pelo `kind`
   `documentOccurrence` que a spec 189 já deixou pronto; a tela distingue "na fila" de "enviado".

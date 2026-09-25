@@ -265,8 +265,6 @@
     "warning": "Descartar apaga esses registros do celular para sempre, junto com as fotos e assinaturas das mesmas entregas — nada deles chega ao escritório."
   },
   "notDelivered": {
-    "title": "Não entreguei",
-    "reasonLegend": "Por que não entregou?",
     "occurrenceTypeLegend": "Qual ocorrência registrar?",
     "photoLabel": "Foto da ocorrência",
     "takePhoto": "Tirar foto",

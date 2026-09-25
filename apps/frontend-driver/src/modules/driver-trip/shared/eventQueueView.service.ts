@@ -22,6 +22,8 @@ export type EventQueueItemView = Readonly<{
    * lado como problema do arquivo — o reenvio manual só re-POSTa o anexo.
    */
   attachmentRejectionCause?: string
+  /** Spec 179 (T303): a nota da ocorrência com foto — é por ela que o cartão diz "na fila". */
+  documentId?: string
   idempotencyKey: string
   /** `proof` é o grupo de anexos cujo evento já subiu — só os arquivos ainda aguardam. */
   kind: DriverFieldReport['kind'] | 'proof'
@@ -48,9 +50,13 @@ export function buildEventQueueView(input: {
     const attachmentCause = group.find(
       (attachment) => attachment.rejectionCause !== undefined,
     )?.rejectionCause
+    const report = item.report
+    /** A foto da ocorrência mora no próprio item: sobe junto dele, e conta como anexo dele. */
+    const carriesPhoto = report.kind === 'documentOccurrence' && report.photo !== null
     return {
-      attachmentCount: group.length,
+      attachmentCount: group.length + (carriesPhoto ? 1 : 0),
       ...(attachmentCause === undefined ? {} : { attachmentRejectionCause: attachmentCause }),
+      ...(report.kind === 'documentOccurrence' ? { documentId: report.documentId } : {}),
       idempotencyKey: item.report.idempotencyKey,
       kind: item.report.kind,
       queuedAt: item.createdAt,

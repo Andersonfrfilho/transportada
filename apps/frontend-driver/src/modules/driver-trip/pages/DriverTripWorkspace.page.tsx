@@ -18,6 +18,7 @@ import { DriverStopCard, type DriverProofAttachment } from '../components/Driver
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
 import { DriverUnverifiedPendingNotice } from '../components/DriverUnverifiedPendingNotice.component'
+import { useDriverSession } from '../hooks/useDriverSession.hook'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
@@ -36,8 +37,20 @@ import type {
   DriverOccurrenceKind,
   DriverOccurrenceTypesState,
   DriverReportedLocation,
-  DriverReturnReason,
 } from '../shared/driverTrip.types'
+import {
+  buildNotDeliveredReports,
+  findOccurrenceKey,
+  resolveNotDeliveredStatus,
+  type NotDeliveredDraft,
+  type NotDeliveredStatus,
+} from '../shared/notDelivered.service'
+import {
+  readCachedOccurrenceTypes,
+  resolveOccurrenceTypesStorage,
+  resolveOccurrenceTypesWithCache,
+  saveCachedOccurrenceTypes,
+} from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import {
   findCurrentStop,
@@ -56,6 +69,7 @@ import styles from '../styles/driverTrip.module.css'
 export function DriverTripWorkspacePage() {
   const { t } = useTranslation('driverTrip')
   const driverTrip = useDriverTrip()
+  const { subHash } = useDriverSession()
   /**
    * RF5 (plan D4): a navegação interna do módulo deixou de ser estado local isolado — ela deriva da
    * mesma leitura de caminho/`popstate` que a casca usa para decidir entre a viagem e as
@@ -105,6 +119,13 @@ export function DriverTripWorkspacePage() {
   const [dismissedProofOutcomeIds, setDismissedProofOutcomeIds] = useState<ReadonlySet<string>>(
     new Set(),
   )
+  /**
+   * Spec 179 RF5: a chave da ocorrência com foto que o toque desta sessão gravou, por nota — é ela
+   * que o cartão acompanha de "na fila" até "enviado".
+   */
+  const [notDeliveredKeyByDocumentId, setNotDeliveredKeyByDocumentId] = useState<
+    ReadonlyMap<string, string>
+  >(new Map())
   /** Spec 159 (T12): de qual nota é cada aviso de pontualidade. */
   const [proofLabelByDocumentId, setProofLabelByDocumentId] = useState<
     ReadonlyMap<string, ProofDocumentLabel>
@@ -122,20 +143,18 @@ export function DriverTripWorkspacePage() {
 
   useEffect(() => {
     let isActive = true
-    void getDriverTripClient()
-      .listOccurrenceTypes()
-      .then((result) => {
-        if (isActive) setOccurrenceTypes(result)
-      })
+    void loadOccurrenceTypes(subHash).then((result) => {
+      if (isActive) setOccurrenceTypes(result)
+    })
     return () => {
       isActive = false
     }
-  }, [])
+  }, [subHash])
 
   /** O card chama isto quando o motorista toca "Tentar de novo" — o cliente nunca lança. */
   function handleRetryOccurrenceTypes(): void {
     setOccurrenceTypes({ status: 'loading' })
-    void getDriverTripClient().listOccurrenceTypes().then(setOccurrenceTypes)
+    void loadOccurrenceTypes(subHash).then(setOccurrenceTypes)
   }
 
   const snapshot = driverTrip.snapshot
@@ -264,6 +283,44 @@ export function DriverTripWorkspacePage() {
     const download = await getDriverTripClient().readManifestXml(manifestId)
     window.open(download.downloadUrl, '_blank', 'noopener')
   }
+
+  /** Spec 179 (T303): a ocorrência com foto e a devolução entram juntas na fila. */
+  async function reportNotDelivered(input: {
+    documentId: string
+    draft: NotDeliveredDraft
+  }): Promise<void> {
+    setAttachmentLimit(undefined)
+    const reports = buildNotDeliveredReports({
+      createIdempotencyKey,
+      documentId: input.documentId,
+      draft: input.draft,
+      occurrenceTypes,
+    })
+    const outcome = await driverTrip.reportNotDelivered(reports)
+    if (outcome === 'count-limit') setEventLimitReached(true)
+    if (outcome === 'size-limit') setAttachmentLimit('size-limit')
+    const occurrenceKey = findOccurrenceKey(reports)
+    if (outcome !== 'queued' || occurrenceKey === undefined) return
+    setNotDeliveredKeyByDocumentId((current) =>
+      new Map(current).set(input.documentId, occurrenceKey),
+    )
+  }
+
+  /** RF5: por nota da viagem na tela, o estado da ocorrência com foto — derivado a cada render. */
+  function buildNotDeliveredStatuses(): ReadonlyMap<string, NotDeliveredStatus> {
+    const statuses = new Map<string, NotDeliveredStatus>()
+    for (const document of trip?.stops.flatMap((stop) => stop.documents) ?? []) {
+      const status = resolveNotDeliveredStatus({
+        documentId: document.id,
+        occurrenceKey: notDeliveredKeyByDocumentId.get(document.id),
+        queueView: driverTrip.queueView,
+        sentReportKeys: driverTrip.sentReportKeys,
+      })
+      if (status !== undefined) statuses.set(document.id, status)
+    }
+    return statuses
+  }
+  const notDeliveredStatusByDocumentId = buildNotDeliveredStatuses()
 
   /** M1: o toque grava na hora; a posição (até 8 s de GPS) completa o item depois, no hook. */
   async function report(build: Parameters<typeof driverTrip.reportWithLocation>[0]): Promise<void> {
@@ -525,15 +582,8 @@ export function DriverTripWorkspacePage() {
                     })
                     .catch(() => setProofFailed(true))
                 }}
-                onReturn={(input: { documentId: string; reason: DriverReturnReason }) =>
-                  void report((location) => ({
-                    documentId: input.documentId,
-                    idempotencyKey: createIdempotencyKey(),
-                    kind: 'return',
-                    location,
-                    reason: input.reason,
-                  }))
-                }
+                notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
+                onNotDelivered={(input) => void reportNotDelivered(input)}
               />
             ))}
           </ul>
@@ -545,4 +595,19 @@ export function DriverTripWorkspacePage() {
       />
     </div>
   )
+}
+
+/**
+ * Spec 179 P3: a lista da API, e a última boa do mesmo dono quando ela falha — sem sinal, "Não
+ * entreguei" continua pedindo o tipo e a foto.
+ */
+async function loadOccurrenceTypes(subHash: string): Promise<DriverOccurrenceTypesState> {
+  const storage = resolveOccurrenceTypesStorage()
+  const result = await getDriverTripClient().listOccurrenceTypes()
+  if (result.status === 'loaded')
+    saveCachedOccurrenceTypes({ storage, subHash, types: result.types })
+  return resolveOccurrenceTypesWithCache({
+    cached: readCachedOccurrenceTypes({ storage, subHash }),
+    result,
+  })
 }

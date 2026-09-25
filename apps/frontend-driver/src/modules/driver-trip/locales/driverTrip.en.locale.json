@@ -256,8 +256,6 @@
     "warning": "Discarding erases these records from the phone for good, together with the photos and signatures of the same deliveries — none of it reaches the office."
   },
   "notDelivered": {
-    "title": "Not delivered",
-    "reasonLegend": "Why wasn't it delivered?",
     "occurrenceTypeLegend": "Which occurrence to record?",
     "photoLabel": "Occurrence photo",
     "takePhoto": "Take photo",

@@ -607,3 +607,30 @@ $ bun test ./test/driver-trip/not-delivered.contract.ts ./test/driver-trip/occur
 $ bun run typecheck && bun run lint        # sem saída
 $ bun run test                             # 526 pass · 0 fail (3 entrypoints)
 ```
+
+### T302 — a captura da foto no "Não entreguei"
+
+`DriverNotDeliveredForm.component.tsx` (estado em `useNotDeliveredForm.hook.ts`) substitui os chips
+soltos de devolução: motivo (a lista de sempre), tipo de ocorrência (cadastro da empresa), foto
+obrigatória e observação (opcional; "obrigatória para este tipo" quando o tipo diz `required`). Duas
+portas para a mesma foto: **Tirar foto** (`capture="environment"`) e **Escolher da galeria** (sem
+`capture`) — é a saída quando a câmera não abre ou o acesso foi negado, sem depender de detectar a
+negação. A foto é reencodada no aparelho (`occurrencePhotoImage.service.ts`, cópia por valor da spec
+161: lado ≤ 1600 px, JPEG mirando 400 KiB, sem EXIF) e recusada acima de 512 KiB, o teto do
+servidor. O confirmar fica desabilitado enquanto falta algo, e o texto ao lado diz o quê
+(`notDelivered.missingLead`). O formulário aberto conta como captura (`occurrence-dialog`).
+
+Sem sinal na abertura da app, a lista de tipos cai na última lista boa do mesmo dono
+(`occurrenceTypesCache.service.ts`, `localStorage` por `SHA-256(sub)` — cadastro da empresa, sem
+dado de pessoa, o mesmo nível da marca da instalação). Sem cópia, a devolução segue só com o motivo e
+a tela diz que a foto não tem onde ser registrada agora.
+
+Confirmar grava os dois itens numa transação só (`enqueueReports`, todos ou nenhum) e a foto conta no
+teto de bytes dos anexos (`sumReportPhotoBytes` + `ATTACHMENT_QUEUE_LIMIT.maxTotalBytes`): estourou,
+nada entra e a faixa de sempre avisa. `unverified-pending.contract.ts` passou de três para quatro
+caminhos que marcam `isUnverified` — o quarto é este.
+
+```
+$ bun run typecheck && bun run lint        # sem saída
+$ bun run test                             # 546 pass · 0 fail
+```

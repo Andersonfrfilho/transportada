@@ -963,3 +963,57 @@
   transform: translate(-50%, -50%);
   width: var(--control-height);
 }
+
+/* Spec 179: "Não entreguei" — os rótulos das perguntas do formulário, no peso do título da seção. */
+.notDeliveredLegend {
+  font-weight: 700;
+  margin: 0;
+}
+
+/* A foto tirada, antes de confirmar: cabe na largura e não empurra o confirmar para fora da tela. */
+.notDeliveredPhotoPreview {
+  border: 1px solid var(--color-slate);
+  display: block;
+  height: auto;
+  max-height: calc(var(--space-16) * 3);
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* O que falta para confirmar: cobre, como aviso — ainda não é erro, é o caminho até o confirmar. */
+.notDeliveredMissing {
+  color: var(--color-copper);
+  margin: 0;
+}
+
+/* Na fila é cobre (ainda não subiu), enviado é verde, recusado é o vermelho da recusa. */
+.notDeliveredStatus {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.notDeliveredStatusQueued {
+  color: var(--color-copper);
+}
+
+.notDeliveredStatusSent {
+  color: var(--color-ready);
+}
+
+.notDeliveredStatusRejected {
+  color: var(--color-alert);
+}
+
+.proofField textarea {
+  background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  min-height: calc(var(--field-height) * 2);
+  padding: var(--field-padding);
+  resize: vertical;
+  width: 100%;
+}

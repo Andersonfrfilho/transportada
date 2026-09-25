@@ -8,6 +8,8 @@ import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
+import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { ProofCrop } from './ProofCrop.component'
 import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
@@ -18,12 +20,10 @@ import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocu
 import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
   DRIVER_OCCURRENCE_KINDS,
-  DRIVER_RETURN_REASONS,
   type DriverDeliveryProofSettings,
   type DriverOccurrenceKind,
   type DriverOccurrenceTypesState,
   type DriverReportedLocation,
-  type DriverReturnReason,
   type DriverTripDocument,
   type DriverTripStop,
 } from '../shared/driverTrip.types'
@@ -34,6 +34,7 @@ import {
   isDocumentSettled,
   isProofPendingWarningDue,
 } from '../shared/driverTripView.service'
+import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
 import { renderOccurrenceNoticePreview } from '../shared/occurrenceNoticePreview.service'
 import {
   canonicalReceiverDocument,
@@ -95,7 +96,10 @@ type DriverStopCardProps = Readonly<{
    * comprovante da nota associada (`/documents/:id/proof`), rotulada como foto da ocorrência.
    */
   onOccurrencePhoto: (input: { documentId: string; file: File }) => void
-  onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
+  /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
+  onNotDelivered: (input: { documentId: string; draft: NotDeliveredDraft }) => void
+  /** Spec 179 RF5: por nota, "na fila" / "enviado" / "recusado" da ocorrência com foto. */
+  notDeliveredStatusByDocumentId: ReadonlyMap<string, NotDeliveredStatus>
   /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
   onRetryOccurrenceTypes: () => void
   stop: DriverTripStop
@@ -105,14 +109,15 @@ export function DriverStopCard({
   isCurrent,
   isFieldWorkBlocked,
   lastKnownLocation,
+  notDeliveredStatusByDocumentId,
   onArrive,
   onDeliver,
   occurrenceTypes,
   onDocumentOccurrence,
+  onNotDelivered,
   onOccurrence,
   onOccurrencePhoto,
   onProof,
-  onReturn,
   onRetryOccurrenceTypes,
   stop,
 }: DriverStopCardProps) {
@@ -227,11 +232,12 @@ export function DriverStopCard({
             document={document}
             isFieldWorkBlocked={isFieldWorkBlocked}
             key={document.id}
+            notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
             onDeliver={onDeliver}
             occurrenceTypes={occurrenceTypes}
             onDocumentOccurrence={onDocumentOccurrence}
+            onNotDelivered={onNotDelivered}
             onProof={onProof}
-            onReturn={onReturn}
             onRetryOccurrenceTypes={onRetryOccurrenceTypes}
             stopProofSettings={stop.deliveryProof}
           />
@@ -244,6 +250,7 @@ export function DriverStopCard({
 type DocumentRowProps = Readonly<{
   document: DriverTripDocument
   isFieldWorkBlocked: boolean
+  notDeliveredStatus: NotDeliveredStatus | undefined
   onDeliver: (documentId: string) => void
   /** Spec 079: o que aconteceu **sem** a carga voltar. O tipo vem do cadastro da empresa. */
   onDocumentOccurrence: (input: {
@@ -252,8 +259,8 @@ type DocumentRowProps = Readonly<{
     productCode: string
   }) => void
   occurrenceTypes: DriverOccurrenceTypesState
+  onNotDelivered: (input: { documentId: string; draft: NotDeliveredDraft }) => void
   onProof: (input: DriverProofAttachment) => void
-  onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
   onRetryOccurrenceTypes: () => void
   stopProofSettings: DriverDeliveryProofSettings | null
 }>
@@ -261,11 +268,12 @@ type DocumentRowProps = Readonly<{
 function DocumentRow({
   document,
   isFieldWorkBlocked,
+  notDeliveredStatus,
   occurrenceTypes,
   onDeliver,
   onDocumentOccurrence,
+  onNotDelivered,
   onProof,
-  onReturn,
   onRetryOccurrenceTypes,
   stopProofSettings,
 }: DocumentRowProps) {
@@ -301,6 +309,7 @@ function DocumentRow({
             ? t('deliver')
             : t(`returnReason.${document.returnReason ?? 'recipient_absent'}`)}
         </span>
+        <DriverNotDeliveredStatus status={notDeliveredStatus} />
         {/* O canhoto anexa depois: a entrega já está confirmada, e o arquivo não a desfaz */}
         {document.separationStatus === 'delivered' ? (
           <DeliveryProofSection
@@ -317,6 +326,7 @@ function DocumentRow({
     <li className={styles.document}>
       <span>{document.recipientName}</span>
       <DocumentDetails document={document} />
+      <DriverNotDeliveredStatus status={notDeliveredStatus} />
       {/* Spec 159 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
       {/* Aviso, não erro: cobre em vez de vermelho, e o detalhe da regra fica a um toque. */}
       {isProofPendingWarningDue({ document, stopProofSettings }) ? (
@@ -402,23 +412,20 @@ function DocumentRow({
           )}
         </fieldset>
       ) : null}
+      {/*
+       * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
+       * devolução — a devolução fecha a nota, a ocorrência é a prova (`notDelivered.service.ts`).
+       */}
       {openReturn ? (
-        <fieldset className={styles.occurrenceForm}>
-          <legend>{t('returnTitle')}</legend>
-          {DRIVER_RETURN_REASONS.map((reason) => (
-            <Button
-              key={reason}
-              onClick={() => {
-                onReturn({ documentId: document.id, reason })
-                setOpenReturn(false)
-              }}
-              type="button"
-              variant="ghost"
-            >
-              {t(`returnReason.${reason}`)}
-            </Button>
-          ))}
-        </fieldset>
+        <DriverNotDeliveredForm
+          occurrenceTypes={occurrenceTypes}
+          onCancel={() => setOpenReturn(false)}
+          onConfirm={(draft) => {
+            onNotDelivered({ documentId: document.id, draft })
+            setOpenReturn(false)
+          }}
+          onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+        />
       ) : null}
     </li>
   )

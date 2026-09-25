@@ -220,10 +220,11 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
     ])
   })
 
-  it('o hook marca o que grava sem sessão, nos três caminhos', () => {
+  /** Spec 179: o quarto é "Não entreguei" (ocorrência com foto e devolução no mesmo toque). */
+  it('o hook marca o que grava sem sessão, nos quatro caminhos', () => {
     const hook = readFileSync(HOOK, 'utf8')
 
-    expect(hook.match(/isUnverified: !session\.canSync/gu)?.length).toBe(3)
+    expect(hook.match(/isUnverified: !session\.canSync/gu)?.length).toBe(4)
   })
 
   /**

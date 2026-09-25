@@ -127,6 +127,10 @@ const COPIED_FILES: ReadonlyArray<readonly [path: string, origin: string]> = [
     'apps/frontend-transportada/src/modules/driver-trip/shared/offlineQueue.service.ts',
   ],
   [
+    'src/modules/driver-trip/shared/occurrencePhotoImage.service.ts',
+    'apps/frontend-transportada/src/modules/trip/shared/occurrencePhotoImage.service.ts',
+  ],
+  [
     'src/modules/driver-trip/shared/proofCrop.service.ts',
     'apps/frontend-transportada/src/modules/driver-trip/shared/proofCrop.service.ts',
   ],

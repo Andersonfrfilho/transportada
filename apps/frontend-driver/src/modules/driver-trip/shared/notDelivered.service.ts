@@ -6,6 +6,7 @@ import type {
   DriverOccurrenceTypesState,
   DriverReturnReason,
 } from './driverTrip.types'
+import type { EventQueueItemView } from './eventQueueView.service'
 
 /**
  * Spec 179 (T301–T303), com o ajuste do usuário de 25/09: "Não entreguei" registra a **ocorrência
@@ -77,6 +78,37 @@ export function listMissingNotDeliveredFields(input: {
     missing.push('note')
   }
   return missing
+}
+
+export type NotDeliveredStatus = 'queued' | 'rejected' | 'sent'
+
+/**
+ * RF5: a tela distingue "na fila" de "enviado" pelo que está gravado — nunca por suposição. Na fila
+ * (ou recusada, ainda à vista) é o que a fila diz; "enviado" só quando a drenagem viu o servidor
+ * aceitar **esta** chave. Item descartado não vira "enviado": sem as duas provas, nada aparece.
+ */
+export function resolveNotDeliveredStatus(input: {
+  readonly documentId: string
+  /** A chave da ocorrência que o toque desta sessão gravou, quando houve. */
+  readonly occurrenceKey: string | undefined
+  readonly queueView: readonly EventQueueItemView[]
+  readonly sentReportKeys: ReadonlySet<string>
+}): NotDeliveredStatus | undefined {
+  const queued = input.queueView.find(
+    (item) =>
+      item.kind === 'documentOccurrence' &&
+      (item.idempotencyKey === input.occurrenceKey || item.documentId === input.documentId),
+  )
+  if (queued !== undefined) return queued.status.state === 'rejected' ? 'rejected' : 'queued'
+  if (input.occurrenceKey !== undefined && input.sentReportKeys.has(input.occurrenceKey)) {
+    return 'sent'
+  }
+  return undefined
+}
+
+/** A chave da ocorrência entre os itens do toque — é ela que a tela acompanha. */
+export function findOccurrenceKey(reports: readonly DriverFieldReport[]): string | undefined {
+  return reports.find((report) => report.kind === 'documentOccurrence')?.idempotencyKey
 }
 
 /**
