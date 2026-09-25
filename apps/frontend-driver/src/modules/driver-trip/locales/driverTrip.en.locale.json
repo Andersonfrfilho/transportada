@@ -243,6 +243,6 @@
     "notice_one": "{{count}} record made offline at {{time}} — send it?",
     "notice_other": "{{count}} records made offline at {{time}} — send them?",
     "send": "Send",
-    "warning": "Discarding erases these records from the phone for good — none of it reaches the office."
+    "warning": "Discarding erases these records from the phone for good, together with the photos and signatures of the same deliveries — none of it reaches the office."
   }
 }

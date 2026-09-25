@@ -61,6 +61,44 @@ describe('a captura da câmera nunca fica presa aberta (M2)', () => {
     expect(registry.isIdle()).toBe(false)
 
     element.dispatchEvent(new Event('change'))
+    environment.runTimers()
+    expect(registry.isIdle()).toBe(true)
+  })
+
+  /**
+   * Segunda leitura (baixa): o `change` fechava `camera` antes de o React montar o recorte (o
+   * `open('crop')` é do efeito dele). No intervalo o registro ficava ocioso e o SW novo podia
+   * recarregar com a foto em memória. O fechamento vai para o tique seguinte, depois do recorte abrir.
+   */
+  it('change entrega a vez ao recorte sem deixar o registro ocioso no meio', () => {
+    const registry = createCaptureRegistry()
+    const environment = createEnvironment()
+    const element = new EventTarget()
+    let idleCalls = 0
+    registry.onIdle(() => (idleCalls += 1))
+    bindCameraCaptureInput({ element, environment, registry })
+
+    element.dispatchEvent(new Event('click'))
+    element.dispatchEvent(new Event('change'))
+    expect(registry.isIdle()).toBe(false)
+
+    registry.open('crop')
+    environment.runTimers()
+    expect(registry.isIdle()).toBe(false)
+    expect(idleCalls).toBe(0)
+
+    registry.close('crop')
+    expect(idleCalls).toBe(1)
+  })
+
+  it('cancel fecha na hora: não há recorte a esperar', () => {
+    const registry = createCaptureRegistry()
+    const element = new EventTarget()
+    bindCameraCaptureInput({ element, environment: createEnvironment(), registry })
+
+    element.dispatchEvent(new Event('click'))
+    element.dispatchEvent(new Event('cancel'))
+
     expect(registry.isIdle()).toBe(true)
   })
 

@@ -158,6 +158,13 @@ não passa pelo Keycloak, só pela posse do aparelho.
   posição, só do dono. Sem rede, o logout do Keycloak rejeita e a app recarrega para "sem viagem
   salva" (`signOut.service.ts`). ⚠️ Nesse caso a sessão SSO do Keycloak continua viva até o próximo
   logout com rede: o snapshot e a fila já saíram, mas quem abrir a app com rede entra sem senha.
+- **Retirada do consentimento de posição que falhou (risco aceito).** Desligar o interruptor para o
+  GPS e o envio **na hora**, antes da resposta do `PUT /me/location-consent`
+  (`useLocationConsent.hook.ts`, `isRevokeFailed`). Se o `PUT { accepted: false }` não chega ao
+  servidor, a tela avisa ("Não foi possível salvar a sua escolha") e oferece tentar de novo — mas
+  a marca de falha vive só em memória: ao recarregar a app, o servidor ainda diz `acceptedAt`, o
+  interruptor volta ligado e a posição volta a subir. O motorista vê o interruptor ligado no
+  Perfil e o indicador na tela da viagem; o conserto é desligar de novo com rede.
 - **"Confirmar em lote" (decisão do usuário, spec 189 T9.2).** Sem rede, a posse do celular basta
   para registrar em nome de quem usou por último — "Cheguei", "Entreguei", "Devolvi", ocorrência e
   foto. Tudo o que é gravado com `canSync: false` sai marcado `isUnverified` (evento e anexo), e a

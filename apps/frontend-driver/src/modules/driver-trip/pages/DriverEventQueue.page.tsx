@@ -118,14 +118,17 @@ export function DriverEventQueuePage({
                     {statusLabel(item)}
                   </p>
                 </div>
-                <Button
-                  disabled={isSyncing}
-                  type="button"
-                  variant="secondary"
-                  onClick={() => onSendOne(item.idempotencyKey)}
-                >
-                  {t('eventQueue.sendNow')}
-                </Button>
+                {/* Não verificado sobe pela confirmação da faixa da viagem, não item a item. */}
+                {item.status.state === 'unverified' ? null : (
+                  <Button
+                    disabled={isSyncing}
+                    type="button"
+                    variant="secondary"
+                    onClick={() => onSendOne(item.idempotencyKey)}
+                  >
+                    {t('eventQueue.sendNow')}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>

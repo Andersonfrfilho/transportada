@@ -61,15 +61,26 @@ export function bindCameraCaptureInput(input: {
     returnTimer = environment.setTimeout(handleClose, CAMERA_RETURN_GRACE_MS)
   }
 
+  /**
+   * Segunda leitura (baixa): com arquivo escolhido, quem vem a seguir é o recorte, e o
+   * `open('crop')` dele sai no efeito do React — depois deste `change`. Fechar aqui deixava o
+   * registro ocioso no meio, com a foto só em memória. O fechamento vai para o tique seguinte.
+   */
+  function handleChange(): void {
+    clearReturnTimer()
+    if (!isOpen) return
+    returnTimer = environment.setTimeout(handleClose, 0)
+  }
+
   element.addEventListener('click', handleOpen)
-  element.addEventListener('change', handleClose)
+  element.addEventListener('change', handleChange)
   element.addEventListener('cancel', handleClose)
   environment.document.addEventListener('visibilitychange', handleReturn)
   environment.window.addEventListener('focus', handleReturn)
 
   return () => {
     element.removeEventListener('click', handleOpen)
-    element.removeEventListener('change', handleClose)
+    element.removeEventListener('change', handleChange)
     element.removeEventListener('cancel', handleClose)
     environment.document.removeEventListener('visibilitychange', handleReturn)
     environment.window.removeEventListener('focus', handleReturn)

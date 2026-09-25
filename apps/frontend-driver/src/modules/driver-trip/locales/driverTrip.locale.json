@@ -252,6 +252,6 @@
     "notice_one": "{{count}} registro feito sem rede às {{time}} — enviar?",
     "notice_other": "{{count}} registros feitos sem rede às {{time}} — enviar?",
     "send": "Enviar",
-    "warning": "Descartar apaga esses registros do celular para sempre — nada deles chega ao escritório."
+    "warning": "Descartar apaga esses registros do celular para sempre, junto com as fotos e assinaturas das mesmas entregas — nada deles chega ao escritório."
   }
 }

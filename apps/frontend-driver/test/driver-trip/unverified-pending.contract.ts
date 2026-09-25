@@ -23,6 +23,14 @@ const OWNER = 'a'.repeat(64)
 const OTHER = 'b'.repeat(64)
 const NOW = new Date('2026-09-25T12:00:00.000Z')
 const HOOK = new URL('../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts', import.meta.url)
+const QUEUE_PAGE = new URL(
+  '../../src/modules/driver-trip/pages/DriverEventQueue.page.tsx',
+  import.meta.url,
+)
+const LOCALE = new URL(
+  '../../src/modules/driver-trip/locales/driverTrip.locale.json',
+  import.meta.url,
+)
 
 function queued(input: {
   createdAt?: string
@@ -280,5 +288,20 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
     })
 
     expect(counts).toEqual({ drainable: 0, rejected: 0, total: 3 })
+  })
+
+  /** Segunda leitura (baixa): o aviso do descarte diz que as fotos da mesma entrega vão junto. */
+  it('o aviso do descarte em lote fala das fotos e assinaturas da mesma nota', () => {
+    const locale = JSON.parse(readFileSync(LOCALE, 'utf8')) as {
+      readonly unverifiedPending: { readonly warning: string }
+    }
+
+    expect(locale.unverifiedPending.warning).toContain('fotos')
+    expect(locale.unverifiedPending.warning).toContain('assinaturas')
+  })
+
+  /** "Enviar agora" num item não verificado não faria nada: a confirmação é na faixa da viagem. */
+  it('a tela da fila não oferece "Enviar agora" em item não verificado', () => {
+    expect(readFileSync(QUEUE_PAGE, 'utf8')).toContain("item.status.state === 'unverified' ? null")
   })
 })
