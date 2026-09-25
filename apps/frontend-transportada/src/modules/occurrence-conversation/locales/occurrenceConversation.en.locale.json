@@ -49,7 +49,9 @@
       "email": "Email",
       "whatsapp": "WhatsApp"
     },
-    "automatic": "Automatic notice from the occurrence type"
+    "automatic": "Automatic notice from the occurrence type",
+    "unverified": "Sender not confirmed",
+    "unverifiedHint": "The email arrived without the sender domain's signature: someone else may have written that address."
   },
   "status": {
     "queued": "Queued",

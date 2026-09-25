@@ -75,6 +75,20 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
           driverUnreadCount: 0,
         })
 
+        /** O worker grava o e-mail recebido com o DKIM conferido; alinhado, o `From` identifica. */
+        const [contactMail] = await database.db
+          .insert(contractorMailMessages)
+          .values({
+            bodyText: 'Podem descarregar.',
+            companyId,
+            direction: 'inbound',
+            dkimResult: 'aligned',
+            fromAddress: 'compras@alfa.example.test',
+            subject: 'Re: Ocorrência',
+            threadId: sent.threadId,
+            toAddresses: ['resposta@reply.example.test'],
+          })
+          .returning({ id: contractorMailMessages.id })
         await database.db.insert(occurrenceConversationMessages).values({
           bodyText: 'Podem descarregar.',
           channel: 'email',
@@ -82,6 +96,7 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
           conversationId: sent.conversationId,
           createdAt: new Date(Date.now() + 1000),
           direction: 'inbound',
+          mailMessageId: contactMail?.id ?? null,
           senderAddress: 'compras@alfa.example.test',
         })
         expect((await feedItem(userId))?.conversation.contractorState).toBe('replied')
@@ -123,6 +138,7 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
             bodyText: 'Quem fala é o João.',
             companyId,
             direction: 'inbound',
+            dkimResult: 'aligned',
             fromAddress: 'Joao@Alfa.example.test',
             fromDisplayName: 'João Lima',
             subject: 'Re: Ocorrência',
@@ -151,6 +167,52 @@ describe('as leituras da conversa contra Postgres (spec 183 T404)', () => {
             displayName: 'João Lima',
             kind: 'unknown',
             suggestion: { email: 'joao@alfa.example.test', name: 'João Lima', phone: null },
+            unverified: false,
+          },
+          kind: 'contractor',
+          userId: null,
+        })
+
+        /**
+         * Spec 183 T903 (S2): o mesmo endereço do contato, sem DKIM alinhado, não vira o contato — o
+         * `From` é texto livre. A mensagem fica, como remetente não confirmado.
+         */
+        const [spoofed] = await database.db
+          .insert(contractorMailMessages)
+          .values({
+            bodyText: 'Aprovo a cobrança.',
+            companyId,
+            direction: 'inbound',
+            dkimResult: 'not_aligned',
+            fromAddress: 'compras@alfa.example.test',
+            fromDisplayName: 'Compras Alfa',
+            subject: 'Re: Ocorrência',
+            threadId: sent.threadId,
+            toAddresses: ['resposta@reply.example.test'],
+          })
+          .returning({ id: contractorMailMessages.id })
+        await database.db.insert(occurrenceConversationMessages).values({
+          bodyText: 'Aprovo a cobrança.',
+          channel: 'email',
+          companyId,
+          conversationId: sent.conversationId,
+          createdAt: new Date(Date.now() + 3000),
+          direction: 'inbound',
+          mailMessageId: spoofed?.id ?? null,
+          senderAddress: 'compras@alfa.example.test',
+        })
+        const withSpoofed = await findOccurrenceConversations(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+          userId,
+        })
+        expect(withSpoofed?.conversations[0]?.messages.at(-1)?.author).toEqual({
+          identity: {
+            arrivedAs: 'compras@alfa.example.test',
+            displayName: 'Compras Alfa',
+            kind: 'unknown',
+            suggestion: { email: 'compras@alfa.example.test', name: 'Compras Alfa', phone: null },
+            unverified: true,
           },
           kind: 'contractor',
           userId: null,

@@ -5,6 +5,8 @@
  * de status que o e-mail consegue dar e o dia de cada grupo. O diálogo "Enviar à contratante" monta o
  * pedido e confere o rascunho antes de a API conferir de novo.
  */
+import { readFile } from 'node:fs/promises'
+
 import { describe, expect, test } from 'bun:test'
 
 import {
@@ -149,7 +151,43 @@ describe('a mensagem da conversa (spec 183 T407)', () => {
       kind: 'unknown',
       name: 'João Lima',
       suggestion: { email: 'joao@alfa.example.test', name: 'João Lima', phone: null },
+      unverified: false,
     })
+  })
+
+  /**
+   * Spec 183 T903 (S2): o e-mail sem DKIM alinhado chega sem identidade de contato, com
+   * `unverified`. A tela diz "remetente não confirmado" e não oferece cadastrar aquele endereço.
+   */
+  test('remetente de e-mail não confirmado: sem contato, marcado, sem sugestão de cadastro', async () => {
+    const view = describeConversationMessage(
+      message({
+        author: {
+          identity: {
+            arrivedAs: 'compras@alfa.example.test',
+            displayName: 'Compras Alfa',
+            kind: 'unknown',
+            suggestion: { email: 'compras@alfa.example.test', name: 'Compras Alfa', phone: null },
+            unverified: true,
+          },
+          kind: 'contractor',
+          userId: null,
+        },
+        direction: 'inbound',
+        status: null,
+      }),
+    )
+    expect(view.author).toMatchObject({ kind: 'unknown', unverified: true })
+
+    const source = await readFile(
+      new URL(
+        '../../src/modules/occurrence-conversation/components/ConversationMessage.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(source).toMatch(/author\.unverified \? \(/u)
+    expect(source).toMatch(/canManageContacts && !author\.unverified/u)
   })
 })
 

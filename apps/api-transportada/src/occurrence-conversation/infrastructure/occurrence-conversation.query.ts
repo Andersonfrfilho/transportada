@@ -20,6 +20,7 @@ import {
 import { findContractorPortalAudience } from '../../contractor-portal/infrastructure/contractor-occurrence.query.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
+import type { ContractorMailDkimResult } from '../../database/contractor-mail.schema.js'
 import { countUnread, readLastReads } from './occurrence-conversation-summary.query.js'
 import {
   identifyContractorSender,
@@ -47,6 +48,7 @@ type MessageRow = {
   readonly conversationId: string
   readonly createdAt: Date
   readonly direction: OccurrenceConversationMessageView['direction']
+  readonly dkimResult: ContractorMailDkimResult | null
   readonly driverName: null | string
   readonly driverUserId: null | string
   readonly fromDisplayName: null | string
@@ -73,6 +75,8 @@ function toAuthor(
       ? null
       : identifyContractorSender({
           address: row.senderAddress,
+          /** T903 (S2): o `From` de e-mail só vale como identidade com DKIM alinhado. */
+          authenticated: row.channel !== 'email' || row.dkimResult === 'aligned',
           channel: row.channel === 'whatsapp' ? 'whatsapp' : 'email',
           contacts,
           contractorId,
@@ -131,6 +135,7 @@ async function readMessages(
       conversationId: occurrenceConversationMessages.conversationId,
       createdAt: occurrenceConversationMessages.createdAt,
       direction: occurrenceConversationMessages.direction,
+      dkimResult: contractorMailMessages.dkimResult,
       driverName: driverProfile.name,
       driverUserId: occurrenceConversationMessages.driverUserId,
       fromDisplayName: contractorMailMessages.fromDisplayName,

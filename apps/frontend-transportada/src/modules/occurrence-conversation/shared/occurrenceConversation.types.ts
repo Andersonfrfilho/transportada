@@ -56,6 +56,8 @@ export type ContractorSenderIdentity =
       displayName: null | string
       kind: 'unknown'
       suggestion: ContractorSenderSuggestion
+      /** Spec 183 T903 (S2): e-mail sem DKIM alinhado — o endereço não prova quem mandou. */
+      unverified?: boolean
     }>
 
 export type OccurrenceConversationAuthor =

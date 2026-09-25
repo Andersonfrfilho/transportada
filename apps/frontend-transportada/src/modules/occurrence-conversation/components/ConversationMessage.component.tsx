@@ -148,7 +148,12 @@ export function ConversationMessage({
           {author.kind === 'unknown' ? (
             <>
               <span>{author.name}</span>
-              <span className={styles.tag}>{t('author.outside')}</span>
+              {/** Spec 183 T903 (S2): sem DKIM alinhado, o `From` não prova quem mandou. */}
+              {author.unverified ? (
+                <span className={styles.tag}>{t('author.unverified')}</span>
+              ) : (
+                <span className={styles.tag}>{t('author.outside')}</span>
+              )}
             </>
           ) : null}
         </header>
@@ -179,7 +184,10 @@ export function ConversationMessage({
         {author.kind === 'unknown' ? (
           <div className={styles.author}>
             <span className={styles.hint}>{author.arrivedAs}</span>
-            {canManageContacts ? (
+            {author.unverified ? (
+              <span className={styles.hint}>{t('author.unverifiedHint')}</span>
+            ) : null}
+            {canManageContacts && !author.unverified ? (
               <Button
                 onClick={() => onAddContact(author.suggestion)}
                 size="sm"

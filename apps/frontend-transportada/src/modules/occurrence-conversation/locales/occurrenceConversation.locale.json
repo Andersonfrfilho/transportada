@@ -49,7 +49,9 @@
       "email": "E-mail",
       "whatsapp": "WhatsApp"
     },
-    "automatic": "Aviso automático do tipo de ocorrência"
+    "automatic": "Aviso automático do tipo de ocorrência",
+    "unverified": "Remetente não confirmado",
+    "unverifiedHint": "O e-mail chegou sem assinatura do domínio do remetente: o endereço pode ter sido escrito por outra pessoa."
   },
   "status": {
     "queued": "Na fila",

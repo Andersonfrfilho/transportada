@@ -32,6 +32,7 @@ export type ConversationMessageAuthorView =
       kind: 'unknown'
       name: string
       suggestion: ContractorSenderSuggestion
+      unverified: boolean
     }>
   /** Portal: o usuário da contratante (Fase 6b). */
   | Readonly<{ kind: 'contractorUser' }>
@@ -67,6 +68,7 @@ function describeAuthor(message: OccurrenceConversationMessage): ConversationMes
     kind: 'unknown',
     name: identity.displayName ?? identity.arrivedAs,
     suggestion: identity.suggestion,
+    unverified: identity.unverified === true,
   }
 }
 
