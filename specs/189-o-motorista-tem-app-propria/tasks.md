@@ -244,7 +244,7 @@ consentimento, vem **depois da virada** e não a segura.
 
 > 🤖 Modelo: `sonnet` · T5.2 🧠 `opus`, com `code-reviewer` (`opus`) antes do push
 
-- [ ] **T5.1** Contratos no painel:
+- [x] **T5.1** Contratos no painel:
   - `readDriverAppUrl`: ausente e vazia devolvem `undefined` sem lançar, e a presente passa por
     `readTrustedUrl`;
   - `resolveDriverAppRedirect`:

@@ -17,6 +17,12 @@
     "attachments_one": "{{count}} anexo",
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
+    "discard": {
+      "confirm": "Descartar mesmo assim",
+      "keep": "Manter",
+      "open": "Descartar",
+      "warning": "A entrega não foi registrada; fale com o escritório. Descartar apaga este item do aparelho."
+    },
     "empty": "Nada aguardando envio.",
     "kind": {
       "arrive": "Chegada",
@@ -36,6 +42,19 @@
       "rejected": "Rejeitado pelo servidor: {{cause}}"
     },
     "title": "Eventos pendentes"
+  },
+  "legacy": {
+    "install": {
+      "address": "Endereço novo: {{address}}",
+      "body": "O app do motorista agora tem endereço próprio, e este ícone é do app antigo. Abra o endereço novo no navegador, instale o app pela tela inicial e apague este ícone.",
+      "open": "Abrir o app novo",
+      "title": "Instale o app novo"
+    },
+    "pending": {
+      "done": "Tudo enviado. Agora é só abrir o app novo.",
+      "go": "Ir para o app novo",
+      "intro": "O app do motorista mudou de endereço. Antes de ir para o app novo, termine de enviar o que ficou neste aparelho."
+    }
   },
   "loadSheet": {
     "title": "Romaneio de carga",

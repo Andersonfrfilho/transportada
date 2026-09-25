@@ -63,3 +63,16 @@ export function getIdentityEnvironment(): IdentityEnvironment {
 export function isIdentifierFirstLoginEnabled(): boolean {
   return import.meta.env.VITE_IDENTIFIER_FIRST_LOGIN === 'true'
 }
+
+/**
+ * A casa nova do motorista (ADR-0075 §6). É **interruptor**, não configuração obrigatória, e por
+ * isso é lida sozinha, no mesmo molde da bandeira acima: ausente ou vazia, o painel serve
+ * `/minha-viagem` como sempre, sem lançar. Presente, é origem como as outras — e valor errado é erro
+ * de configuração que aparece, nunca um `stay` calado.
+ */
+export function readDriverAppUrl(): string | undefined {
+  const value = import.meta.env.VITE_DRIVER_APP_URL
+  if (value === undefined || value.trim() === '') return undefined
+
+  return readTrustedUrl(value, 'VITE_DRIVER_APP_URL')
+}

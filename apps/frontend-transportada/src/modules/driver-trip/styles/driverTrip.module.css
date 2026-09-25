@@ -613,6 +613,35 @@
   min-height: 2.75rem;
 }
 
+.eventQueueItemActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.eventQueueDiscardConfirm {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* ADR-0075 §6: a tela de pendências do painel, com a casa nova à vista quando a fila esvazia. */
+.legacyNotice {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.legacyNotice p {
+  margin: 0;
+}
+
+.legacyGoButton {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
 .stopDistance {
   align-self: center;
   color: var(--color-slate);

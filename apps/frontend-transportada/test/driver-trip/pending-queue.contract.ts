@@ -22,7 +22,15 @@ const PANEL_SOURCE = new URL(
   import.meta.url,
 )
 
-/** Do tipo `PendingCounts` até o fim de `countPending`: é a definição, sem os gatilhos da drenagem. */
+/**
+ * Do tipo `PendingCounts` até o fim de `countPending`: é a definição, sem os gatilhos da drenagem.
+ *
+ * A única diferença admitida é o dono: a fila da app nova leva `subHash` (ADR-0075 §8) e a do
+ * painel não tem de quem ser, então as linhas do filtro de dono saem antes da comparação — e as em
+ * branco também, que o `prettier` reorganiza sozinho. Qualquer outra divergência reprova.
+ */
+const OWNER_FILTER_LINE = /ownerSubHash|isOwned|ADR-0075 §8/u
+
 function extractDefinition(source: string): string {
   const start = source.indexOf('export type PendingCounts')
   const functionStart = source.indexOf('export function countPending')
@@ -30,7 +38,11 @@ function extractDefinition(source: string): string {
   if (start === -1 || functionStart === -1 || end === -1) {
     throw new Error('PENDING_QUEUE_DEFINITION_NOT_FOUND')
   }
-  return source.slice(start, end + 2)
+  return source
+    .slice(start, end + 2)
+    .split('\n')
+    .filter((line) => line.trim() !== '' && !OWNER_FILTER_LINE.test(line))
+    .join('\n')
 }
 
 function report(input: { key: string; rejectionCause?: string }): QueuedReport {

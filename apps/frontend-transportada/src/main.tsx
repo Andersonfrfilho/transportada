@@ -21,6 +21,8 @@ import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
+import { readDriverAppMode } from '@/modules/driver-trip/shared/driverAppEntry.service'
+import { sendDriverLegacyBeacon } from '@/modules/driver-trip/shared/driverAppRedirect.service'
 import {
   DRIVER_TRIP_PATH,
   isFieldOnlyUser,
@@ -41,6 +43,7 @@ import {
   getKeycloakAuthProvider,
   initializeKeycloakAuth,
 } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import { readDriverAppUrl } from '@/modules/identity/shared/identityEnvironment.config'
 import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthBypass.service'
 import { parseMdfeManifestTripParameter } from '@/modules/mdfe-manifest/shared/mdfeManifestRoute.service'
 import { parseNfseInvoiceParameter } from '@/modules/nfse-invoice/shared/nfseInvoiceRoute.service'
@@ -284,6 +287,13 @@ const DriverTripWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/driver-trip/pages/DriverTripWorkspace.page'))
     .DriverTripWorkspacePage,
 }))
+const DriverLegacyPendingPage = lazy(async () => ({
+  default: (await import('@/modules/driver-trip/pages/DriverLegacyPending.page'))
+    .DriverLegacyPendingPage,
+}))
+const DriverAppInstallPage = lazy(async () => ({
+  default: (await import('@/modules/driver-trip/pages/DriverAppInstall.page')).DriverAppInstallPage,
+}))
 const ExtraChargeWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/extra-charges/pages/ExtraChargeWorkspace.page'))
     .ExtraChargeWorkspacePage,
@@ -471,9 +481,28 @@ function ApplicationShell(): ReactNode {
     if (permissions === undefined || !isFieldOnlyUser(permissions)) return
     if (window.location.pathname !== '/') return
 
-    window.history.replaceState({}, '', DRIVER_TRIP_PATH)
-    setCurrentWorkspace('driver-trip')
-    setCurrentPath(DRIVER_TRIP_PATH)
+    function enterDriverTrip(): void {
+      window.history.replaceState({}, '', DRIVER_TRIP_PATH)
+      setCurrentWorkspace('driver-trip')
+      setCurrentPath(DRIVER_TRIP_PATH)
+    }
+
+    const driverAppUrl = readDriverAppUrl()
+    if (driverAppUrl === undefined) {
+      enterDriverTrip()
+      return
+    }
+
+    /**
+     * ADR-0075 §6: com o interruptor ligado, a raiz de quem é do campo leva à casa nova. A tela de
+     * pendências e a de instalar nascem no boot de `/minha-viagem`, fora do shell — é para lá que
+     * a navegação de página inteira leva.
+     */
+    void readDriverAppMode({ driverAppUrl, isFieldOnlyUser: true }).then((mode) => {
+      if (mode === 'redirect') window.location.replace(driverAppUrl)
+      else if (mode === 'stay') enterDriverTrip()
+      else window.location.replace(DRIVER_TRIP_PATH)
+    })
   }, [permissions])
 
   useEffect(() => {
@@ -807,6 +836,56 @@ function PublicRouteFrame({ children }: PublicRouteFrameProps): ReactNode {
   )
 }
 
+function renderDriverAppScreen(screen: ReactNode): void {
+  createRoot(applicationRootElement).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <PublicRouteFrame>
+          <Suspense fallback={<PageTransitionSkeleton />}>{screen}</Suspense>
+        </PublicRouteFrame>
+      </QueryClientProvider>
+    </StrictMode>,
+  )
+}
+
+/**
+ * ADR-0075 §6: `/minha-viagem` com o interruptor ligado. **Sem a variável, devolve `false` sem ler
+ * nada** — nem o IndexedDB — e o boot segue exatamente como sempre.
+ *
+ * Roda antes e depois da autenticação. Antes, resolve o que não precisa de sessão: a fila vazia vai
+ * para a casa nova (ou para a tela de instalar) sem pedir login ao painel. A tela de pendências
+ * precisa do token para drenar, então só é montada depois — e a volta do Keycloak cai em
+ * `/auth/callback`, que só vira `/minha-viagem` dentro do `initialize`.
+ */
+async function takeOverDriverEntry(
+  input: Readonly<{ isAuthenticated: boolean }>,
+): Promise<boolean> {
+  if (window.location.pathname !== DRIVER_TRIP_PATH) return false
+  const driverAppUrl = readDriverAppUrl()
+  if (driverAppUrl === undefined) return false
+
+  // Ainda sem `auth/me`: em `/minha-viagem` é o caminho que diz de quem é a tela.
+  const mode = await readDriverAppMode({ driverAppUrl, isFieldOnlyUser: false })
+  switch (mode) {
+    case 'redirect':
+      window.location.replace(driverAppUrl)
+      return true
+    case 'install-screen':
+      renderDriverAppScreen(<DriverAppInstallPage driverAppUrl={driverAppUrl} />)
+      return true
+    case 'pending-screen':
+      if (!input.isAuthenticated) return false
+      sendDriverLegacyBeacon(navigator)
+      // Recarregar é a "próxima abertura": com a fila vazia, o boot decide entre ir e instalar.
+      renderDriverAppScreen(
+        <DriverLegacyPendingPage onGoToDriverApp={() => window.location.reload()} />,
+      )
+      return true
+    case 'stay':
+      return false
+  }
+}
+
 async function bootstrapApplication(): Promise<void> {
   if (window.location.pathname === '/primeiro-acesso') {
     createRoot(applicationRootElement).render(
@@ -848,6 +927,8 @@ async function bootstrapApplication(): Promise<void> {
    * tela pergunta o identificador, resolve o login e só então leva ao provedor. Desligada, ela
    * redireciona antes de renderizar, exatamente como sempre fez.
    */
+  if (await takeOverDriverEntry({ isAuthenticated: false })) return
+
   const isAuthenticated = await initializeKeycloakAuth()
   if (!isAuthenticated) {
     createRoot(applicationRootElement).render(
@@ -859,6 +940,8 @@ async function bootstrapApplication(): Promise<void> {
     )
     return
   }
+
+  if (await takeOverDriverEntry({ isAuthenticated: true })) return
 
   createRoot(applicationRootElement).render(
     <StrictMode>

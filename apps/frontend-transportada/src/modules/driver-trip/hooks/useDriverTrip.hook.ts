@@ -28,6 +28,8 @@ import {
   enqueueReport,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
+import { countPending, type PendingCounts } from '../shared/pendingQueue.service'
+import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
 
 const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
@@ -53,9 +55,13 @@ export type DriverReportOutcome = 'count-limit' | 'queued'
 
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  /** ADR-0075 §6: o recusado sai da fila antiga só pela mão do motorista, com confirmação na tela. */
+  discardRejected: (idempotencyKey: string) => Promise<void>
   /** `true` até a primeira leitura do IndexedDB voltar — é o que segura o esqueleto da tela. */
   isQueueLoading: boolean
   isSyncing: boolean
+  /** ADR-0075 §6: a pendência da fila antiga — `undefined` até a primeira leitura do IndexedDB. */
+  pendingCounts: PendingCounts | undefined
   /**
    * Spec 159 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
    * tela traduz em linguagem simples ("em dia", "tardia", "longe"). Some ao trocar de sessão: não é
@@ -92,6 +98,7 @@ export function useDriverTrip(
 ) {
   const queryClient = useQueryClient()
   const [queueView, setQueueView] = useState<readonly EventQueueItemView[] | undefined>(undefined)
+  const [pendingCounts, setPendingCounts] = useState<PendingCounts | undefined>(undefined)
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
@@ -99,6 +106,7 @@ export function useDriverTrip(
   const refreshQueueView = useCallback(async (): Promise<void> => {
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
     setQueueView(buildEventQueueView({ attachments, queued }))
+    setPendingCounts(countPending({ attachments, now: new Date(), reports: queued }))
   }, [attachmentStore, store])
 
   const currentTrip = useQuery({
@@ -308,12 +316,19 @@ export function useDriverTrip(
     return 'queued'
   }
 
+  async function discardRejected(idempotencyKey: string): Promise<void> {
+    await discardRejectedQueueItem({ attachmentStore, idempotencyKey, store })
+    await refreshQueueView()
+  }
+
   const loadedView = queueView ?? []
 
   return {
     attachProof,
+    discardRejected,
     isQueueLoading: queueView === undefined,
     isSyncing: drain.isPending,
+    pendingCounts,
     proofOutcomeByDocumentId,
     queueView: loadedView,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,

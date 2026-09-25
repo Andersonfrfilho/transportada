@@ -38,6 +38,15 @@ const OPENCV_CHUNK_PATTERN = /^\/assets\/opencv-[^/]+\.js$/u
  * `scripts/fetch-canhoto-ocr.ts` gera os `.br`/`.gz` ao lado de cada `.wasm.js`/`worker.min.js`.
  */
 const CANHOTO_OCR_PREFIX = '/canhoto-ocr/'
+/**
+ * ADR-0075 §6: a medida que autoriza remover o módulo antigo do motorista — zero destes em 14 dias
+ * de log de produção. A rota é **pública** (ninguém autentica um `sendBeacon`), então ela aceita só
+ * o valor enumerado, lê no máximo ~32 bytes e responde `204` sempre: quem pergunta não distingue
+ * válido de inválido, e valor arbitrário não vira linha de log.
+ */
+const DRIVER_LEGACY_BEACON_PATH = '/_driver-legacy-served'
+const DRIVER_LEGACY_BEACON_MODE = 'pending-screen'
+const DRIVER_LEGACY_BEACON_MAX_BYTES = 32
 
 // A diretiva é composta no build, onde as origens da API e do Keycloak existem — aqui elas não
 // chegam, porque `VITE_*` é inlinado no bundle. Sem o arquivo o servidor não sobe: publicar sem CSP
@@ -72,6 +81,21 @@ Bun.serve({
     const url = new URL(request.url)
     if (url.pathname === HEALTH_PATH) {
       return respond(new Response('ok'), REVALIDATE_CACHE_CONTROL)
+    }
+    if (url.pathname === DRIVER_LEGACY_BEACON_PATH) {
+      if (
+        request.method === 'POST' &&
+        (await readSmallBody(request)) === DRIVER_LEGACY_BEACON_MODE
+      ) {
+        console.log(
+          JSON.stringify({
+            at: new Date().toISOString(),
+            event: 'driver_legacy_served',
+            mode: DRIVER_LEGACY_BEACON_MODE,
+          }),
+        )
+      }
+      return respond(new Response(null, { status: 204 }), REVALIDATE_CACHE_CONTROL)
     }
 
     const asset = resolveAsset(url.pathname)
@@ -187,6 +211,32 @@ async function precompressedResponse(
   const fallback = new Response(original)
   fallback.headers.set('Vary', 'Accept-Encoding')
   return fallback
+}
+
+/**
+ * O corpo do beacon, ou `undefined` se passar de `DRIVER_LEGACY_BEACON_MAX_BYTES`. O
+ * `Content-Length` declarado grande nem é lido; sem ele (corpo em partes), a leitura para no
+ * primeiro byte além do teto e cancela o resto — nunca se acumula o que o cliente quiser mandar.
+ */
+async function readSmallBody(request: Request): Promise<string | undefined> {
+  const declaredLength = Number(request.headers.get('content-length') ?? '0')
+  if (declaredLength > DRIVER_LEGACY_BEACON_MAX_BYTES) return undefined
+  if (request.body === null) return ''
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > DRIVER_LEGACY_BEACON_MAX_BYTES) {
+      await reader.cancel()
+      return undefined
+    }
+    chunks.push(value)
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks))
 }
 
 function resolveAsset(pathname: string): Bun.BunFile {

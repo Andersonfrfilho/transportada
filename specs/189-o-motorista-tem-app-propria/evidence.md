@@ -795,3 +795,77 @@ cd apps/frontend-transportada && bun test ./test/shared.contract.test.ts
   300 pass / 1 fail
   (fail) o interruptor do motorista é lido pelo código e tem ARG no Dockerfile
 ```
+
+**Commit próprio, T5.1.**
+
+### T5.2 — Implementação (plan D6)
+
+**O que entrou:**
+
+- `identity/shared/identityEnvironment.config.ts`: `readDriverAppUrl()`, lida sozinha no molde de
+  `isIdentifierFirstLoginEnabled()`. Ausente/vazia → `undefined`; presente → `readTrustedUrl`.
+- `driver-trip/shared/driverAppRedirect.service.ts` (puro): `resolveDriverAppRedirect`,
+  `isStandaloneDisplay`, `sendDriverLegacyBeacon` e as constantes do beacon.
+- `driver-trip/shared/driverAppEntry.service.ts`: a metade impura — lê a fila antiga do IndexedDB e
+  o `display-mode`. Fila ilegível vira `stay` (o painel serve `/minha-viagem` como sempre).
+- `driver-trip/shared/pendingQueue.service.ts`: cópia por valor, no sentido inverso, de
+  `countPending` da app. A fila do painel não tem dono, então o filtro `ownerSubHash` não vem: com o
+  texto idêntico o `tsc` recusava (`TS2559`, os tipos do painel não têm `subHash`). O contrato de
+  paridade passou a comparar sem as linhas do filtro de dono e sem linhas em branco — mutação
+  conferida: trocar a regra do anexo vencido no painel reprova a paridade e o teste de comportamento.
+- `driver-trip/shared/queueDiscard.service.ts`: `discardRejectedQueueItem`.
+- `useDriverTrip`: `pendingCounts` e `discardRejected` a mais; nada muda no que já existia.
+- `DriverEventQueue.page.tsx`: `onBack` opcional e `onDiscard` opcional, com confirmação em linha
+  ("A entrega não foi registrada; fale com o escritório…", "Descartar mesmo assim" / "Manter"). Sem
+  `onDiscard`, a marcação do item é **a de antes** (o botão "Enviar agora" direto no item).
+- `DriverLegacyPending.page.tsx` (só a fila, sem a viagem; "Ir para o app novo" com `total = 0`) e
+  `DriverAppInstall.page.tsx` ("Instale o app novo", link para a casa nova em nova aba). Textos em
+  pt-BR e en no `driverTrip*.locale.json`.
+- `main.tsx`:
+  - `takeOverDriverEntry` roda **antes** e **depois** do `initializeKeycloakAuth`, só em
+    `/minha-viagem` e só com a variável. Antes: `redirect` e `install-screen`, sem pedir login ao
+    painel. Depois: `pending-screen` (precisa de token para drenar; e a volta do Keycloak cai em
+    `/auth/callback`, que só vira `/minha-viagem` dentro do `initialize`). O beacon sai só no
+    `case 'pending-screen':`. "Ir para o app novo" recarrega — é a "próxima abertura": o boot decide
+    entre ir e instalar.
+  - na raiz, o efeito de quem é do campo: sem a variável, o mesmo `replaceState` de sempre; com
+    ela, `redirect` → `location.replace(<casa nova>)`, pendência/instalação →
+    `location.replace('/minha-viagem')`, onde o boot monta a tela.
+- `server.ts`: `/_driver-legacy-served` antes da resolução de arquivo. `POST` com corpo igual a
+  `pending-screen` loga `{"at","event":"driver_legacy_served","mode":"pending-screen"}`; qualquer
+  outra coisa, nada. `Content-Length` > 32 nem é lido; corpo em partes para no primeiro byte além
+  de 32 e cancela. Sempre `204` com os cabeçalhos de segurança.
+- `Dockerfile`: `ARG VITE_DRIVER_APP_URL`.
+- `.railway/railway.ts` (commit próprio, arquivo compartilhado): `VITE_DRIVER_APP_URL: preserve()`
+  no painel, com o comentário do interruptor. `preserve()` não cria a variável que não existe.
+
+**Autorrevisão do boot — sem a variável, nada muda para ninguém:**
+
+- pré e pós autenticação: `takeOverDriverEntry` devolve `false` se o caminho não é `/minha-viagem`
+  e, sendo, se `readDriverAppUrl()` é `undefined` — sem abrir IndexedDB, sem render, sem beacon;
+- raiz de quem é do campo: `readDriverAppUrl()` `undefined` → `enterDriverTrip()`, que são as três
+  linhas de antes, na mesma ordem;
+- escritório: o efeito sai antes, em `isFieldOnlyUser`, como antes; `readDriverAppUrl` nem roda;
+- `DriverEventQueuePage` sem `onDiscard`: mesma marcação de antes (conferido no diff);
+- `useDriverTrip`: só estado a mais (`pendingCounts`), no mesmo lote de `setQueueView`;
+- as duas telas novas são `lazy`: não entram no bundle inicial;
+- `server.ts`: a rota nova vem antes da resolução de arquivo e só casa o caminho exato; os outros
+  caminhos seguem o mesmo fluxo;
+- variável presente mas inválida: `readTrustedUrl` lança — só em `/minha-viagem` e no efeito de
+  quem é do campo, nunca para o escritório.
+
+**Gates (só o painel, por causa da Fase 4 em paralelo):**
+
+```
+cd apps/frontend-transportada && bun run lint        ok
+cd apps/frontend-transportada && bun run typecheck   ok
+cd apps/frontend-transportada && bun run test
+  contratos 5290 pass / 0 fail (29 arquivos; 26 testes novos da T5.1) · hooks 51 pass / 0 fail
+cd apps/frontend-transportada && bun run build        ok (precache 151 entradas)
+cd apps/api-transportada && bun test ./test/deploy/{migrations-are-applied,staging-refresh,
+  osm-extract,gatus,service-naming}.contract.ts       52 pass / 0 fail (leem o railway.ts)
+```
+
+**Aberto nesta task:** `make check` (fica com o orquestrador, na publicação), o `code-reviewer`
+(`opus`) antes do push e a publicação em staging **sem** a variável com o print de `/minha-viagem`.
+Por isso a T5.2 não está marcada no `tasks.md`.

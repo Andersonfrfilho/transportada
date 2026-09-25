@@ -28,6 +28,9 @@ ARG VITE_KEYCLOAK_URL
 # A etapa de identificacao antes do login. Ausente vale `false`: o caminho de entrada continua o de
 # sempre. Como todo `VITE_*`, ela e inlinada no build — ligar ou desligar exige rebuild.
 ARG VITE_IDENTIFIER_FIRST_LOGIN
+# O interruptor da casa nova do motorista (ADR-0075 §6). Ausente, o painel serve /minha-viagem como
+# sempre. Ligar e desligar (o rollback) e definir ou remover a variavel no servico E reimplantar.
+ARG VITE_DRIVER_APP_URL
 # A origem do mapa de rua, quando ela nao e a propria (ADR-0044 §6). Ausente, `BASEMAP_URL` cai em
 # `/map-tiles/area.pmtiles` — mesma origem —, e o estagio de runtime copia so o `dist`, que nao traz
 # o PMTiles: o mapa some e a tela cai na lista ordenada. Ela tambem alimenta o `connect-src` da CSP,
