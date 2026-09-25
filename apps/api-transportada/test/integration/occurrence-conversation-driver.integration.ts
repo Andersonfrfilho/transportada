@@ -16,7 +16,9 @@ import {
   occurrenceConversations,
 } from '../../src/database/database.schema.js'
 import {
+  createListMyConversationsUseCase,
   createListMyOccurrenceConversationUseCase,
+  createMarkMyConversationReadUseCase,
   createReplyMyOccurrenceConversationUseCase,
   createSendDriverAppMessageUseCase,
 } from '../../src/occurrence-conversation/application/driver-conversation.use-case.js'
@@ -109,7 +111,10 @@ describe('a conversa com o motorista pelo app contra Postgres (spec 183 T601)', 
           driverUserId,
           occurrenceId: seeded.occurrenceId,
         }
-        const list = createListMyOccurrenceConversationUseCase({ unitOfWork })
+        const list = createListMyOccurrenceConversationUseCase({
+          clock: () => new Date('2026-09-24T17:04:00.000Z'),
+          unitOfWork,
+        })
         const reply = createReplyMyOccurrenceConversationUseCase({
           clock: () => new Date('2026-09-24T17:05:00.000Z'),
           fingerprintService,
@@ -126,6 +131,46 @@ describe('a conversa com o motorista pelo app contra Postgres (spec 183 T601)', 
           ['outbound', 'Pode aguardar na doca?'],
           ['inbound', 'Aguardo sim.'],
         ])
+
+        /** T604 (RF14): baixar marcou entregue; a lista traz a não lida; abrir marca lida, uma vez. */
+        const statusOf = async () =>
+          (
+            await database.db
+              .select({
+                status: occurrenceConversationMessages.status,
+                statusTimes: occurrenceConversationMessages.statusTimes,
+              })
+              .from(occurrenceConversationMessages)
+              .where(eq(occurrenceConversationMessages.id, sent.conversationMessageId))
+          )[0]
+        expect((await statusOf())?.status).toBe('delivered')
+        const inbox = createListMyConversationsUseCase({ clock: () => NOW, unitOfWork })
+        expect(await inbox.list({ companyId, driverUserId })).toEqual([
+          {
+            lastMessageAt: '2026-09-24T17:05:00.000Z',
+            occurrenceId: seeded.occurrenceId,
+            occurrenceLabel: expect.stringMatching(/^NF /u),
+            unreadCount: 1,
+          },
+        ])
+        expect(await inbox.list({ companyId: other.companyId, driverUserId })).toEqual([])
+        const markRead = createMarkMyConversationReadUseCase({
+          clock: () => new Date('2026-09-24T17:06:00.000Z'),
+          unitOfWork,
+        })
+        await markRead.markRead(mine)
+        const afterRead = await statusOf()
+        await markRead.markRead(mine)
+        expect(afterRead).toEqual({
+          status: 'read',
+          statusTimes: {
+            delivered: '2026-09-24T17:04:00.000Z',
+            queued: NOW.toISOString(),
+            read: '2026-09-24T17:06:00.000Z',
+          },
+        })
+        expect(await statusOf()).toEqual(afterRead)
+        expect((await inbox.list({ companyId, driverUserId }))[0]?.unreadCount).toBe(0)
 
         expect(
           await failure(() => list.list({ ...mine, driverId: crypto.randomUUID() })),

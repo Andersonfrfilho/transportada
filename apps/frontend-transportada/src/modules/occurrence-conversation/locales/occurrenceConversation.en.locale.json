@@ -112,5 +112,22 @@
       "tooLong": "The message is over the 8,000-character limit.",
       "send": "Could not send. Try again shortly."
     }
+  },
+  "driverApp": {
+    "title": "Messages from operations",
+    "back": "Back",
+    "loading": "Loading messages",
+    "empty": "No messages from operations yet.",
+    "item": "{{label}} · {{at}}",
+    "itemUnread_one": "{{label}} · {{count}} new message",
+    "itemUnread_other": "{{label}} · {{count}} new messages",
+    "open_one": "Messages from operations ({{count}} new)",
+    "open_other": "Messages from operations ({{count}} new)",
+    "openAll": "Messages from operations",
+    "conversationTitle": "Occurrence {{label}}",
+    "me": "You",
+    "reply": "Your reply",
+    "send": "Reply",
+    "error": "Could not send. Check the signal and try again."
   }
 }

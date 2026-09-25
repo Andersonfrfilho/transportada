@@ -112,5 +112,22 @@
       "tooLong": "A mensagem passou do limite de 8.000 caracteres.",
       "send": "Não foi possível enviar. Tente de novo em instantes."
     }
+  },
+  "driverApp": {
+    "title": "Mensagens da operação",
+    "back": "Voltar",
+    "loading": "Carregando as mensagens",
+    "empty": "Nenhuma mensagem da operação por enquanto.",
+    "item": "{{label}} · {{at}}",
+    "itemUnread_one": "{{label}} · {{count}} mensagem nova",
+    "itemUnread_other": "{{label}} · {{count}} mensagens novas",
+    "open_one": "Mensagens da operação ({{count}} nova)",
+    "open_other": "Mensagens da operação ({{count}} novas)",
+    "openAll": "Mensagens da operação",
+    "conversationTitle": "Ocorrência {{label}}",
+    "me": "Você",
+    "reply": "Sua resposta",
+    "send": "Responder",
+    "error": "Não foi possível enviar. Confira o sinal e tente de novo."
   }
 }

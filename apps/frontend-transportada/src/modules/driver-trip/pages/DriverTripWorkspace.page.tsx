@@ -15,6 +15,7 @@ import { DriverStopCard, type DriverProofAttachment } from '../components/Driver
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
+import { DriverOccurrenceConversationsPage } from './DriverOccurrenceConversations.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
@@ -34,6 +35,8 @@ import {
   listProofPendingDocuments,
   type ProofDocumentLabel,
 } from '../shared/driverTripView.service'
+import { useDriverConversationsQuery } from '@/modules/occurrence-conversation/queries/driverConversation.query'
+import { countDriverUnread } from '@/modules/occurrence-conversation/shared/driverConversationClient.service'
 import styles from '../styles/driverTrip.module.css'
 
 /**
@@ -43,6 +46,7 @@ import styles from '../styles/driverTrip.module.css'
  */
 export function DriverTripWorkspacePage() {
   const { t } = useTranslation('driverTrip')
+  const { t: tConversation } = useTranslation('occurrenceConversation')
   const driverTrip = useDriverTrip()
   /** Spec 082 D1: navegação interna do módulo — estado local, sem rota nova no shell do app. */
   const [section, setSection] = useState<DriverSection>('trip')
@@ -50,6 +54,11 @@ export function DriverTripWorkspacePage() {
   const [isQueueOpen, setIsQueueOpen] = useState(false)
   /** Spec 159 T9: a tela de fotos pendentes, mesmo padrão da fila de eventos. */
   const [isPendingProofsOpen, setIsPendingProofsOpen] = useState(false)
+  /** Spec 183 T604: as conversas da operação com o motorista, com a contagem no atalho. */
+  const [isConversationsOpen, setIsConversationsOpen] = useState(false)
+  const driverConversations = useDriverConversationsQuery({ enabled: true })
+  const driverConversationCount = driverConversations.data?.length ?? 0
+  const driverUnread = countDriverUnread(driverConversations.data ?? [])
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
   /** Spec 082 D6: teto da fila de anexos atingido — anunciado antes de qualquer descarte. */
@@ -180,6 +189,16 @@ export function DriverTripWorkspacePage() {
       .catch(() => setProofFailed(true))
   }
 
+  if (isConversationsOpen) {
+    return (
+      <div className={styles.moduleShell}>
+        <DriverShellHeader />
+        <DriverOccurrenceConversationsPage onBack={() => setIsConversationsOpen(false)} />
+        <DriverBottomBar section={section} onSelect={setSection} />
+      </div>
+    )
+  }
+
   if (isPendingProofsOpen) {
     return (
       <div className={styles.moduleShell}>
@@ -288,6 +307,19 @@ export function DriverTripWorkspacePage() {
           <p className={styles.alert} role="alert">
             {t('eventLimitCount')}
           </p>
+        ) : null}
+
+        {/* Spec 183 T604: as mensagens da operação, com as novas contadas. */}
+        {driverConversationCount > 0 ? (
+          <button
+            className={styles.queueBannerButton}
+            type="button"
+            onClick={() => setIsConversationsOpen(true)}
+          >
+            {driverUnread > 0
+              ? tConversation('driverApp.open', { count: driverUnread })
+              : tConversation('driverApp.openAll')}
+          </button>
         ) : null}
 
         {/* Spec 159 T9: atalho visível com a contagem — leva à tela de anexo em lote. */}

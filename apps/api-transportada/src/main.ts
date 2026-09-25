@@ -386,7 +386,9 @@ import {
   createListUnassignedMessagesUseCase,
 } from './occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
 import {
+  createListMyConversationsUseCase,
   createListMyOccurrenceConversationUseCase,
+  createMarkMyConversationReadUseCase,
   createReplyMyOccurrenceConversationUseCase,
   createSendDriverAppMessageUseCase,
 } from './occurrence-conversation/application/driver-conversation.use-case.js'
@@ -2850,7 +2852,16 @@ function createApplicationRoutes({
     }),
     /** Spec 183 T601 (RF11): a conversa da ocorrência no `/me` do motorista. */
     ...createMeOccurrenceConversationRoutes({
+      inbox: createListMyConversationsUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
       list: createListMyOccurrenceConversationUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      markRead: createMarkMyConversationReadUseCase({
+        clock: () => new Date(),
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
       reply: createReplyMyOccurrenceConversationUseCase({

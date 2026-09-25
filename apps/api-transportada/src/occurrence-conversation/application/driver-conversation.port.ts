@@ -25,7 +25,32 @@ export type DriverConversationIdempotencyRecord = {
   readonly response: unknown
 }
 
+export type DriverConversationSummaryRecord = {
+  readonly lastMessageAt: Date
+  readonly occurrenceId: string
+  readonly occurrenceLabel: string
+  /** Mensagens da operação que o motorista ainda não abriu. */
+  readonly unreadCount: number
+}
+
 export type DriverConversationTransactionPort = {
+  /**
+   * Spec 183 T604 (RF14): aplica o status do app (entregue ao baixar, lida ao abrir) às mensagens da
+   * operação nas conversas deste motorista — só nesta ocorrência, ou em todas com `null` — pela
+   * política, travando as linhas.
+   */
+  applyDriverStatus(input: {
+    readonly at: Date
+    readonly companyId: string
+    readonly driverUserId: string
+    readonly incoming: 'delivered' | 'read'
+    readonly occurrenceId: null | string
+  }): Promise<void>
+  /** As conversas deste motorista na empresa, da mais recente para a mais antiga. */
+  listMyConversations(input: {
+    readonly companyId: string
+    readonly driverUserId: string
+  }): Promise<readonly DriverConversationSummaryRecord[]>
   /** A ocorrência na empresa e o usuário do motorista da viagem; `null` na ocorrência alheia. */
   findDriverTarget(input: {
     readonly companyId: string

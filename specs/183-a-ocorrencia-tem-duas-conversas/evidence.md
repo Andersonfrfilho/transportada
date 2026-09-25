@@ -1090,3 +1090,45 @@ Falta o envio.
   - frontend: **5223 + 44 pass**;
   - API, contrato da conversa e do catálogo: **121 pass**;
   - lint, formatação e typecheck limpos.
+
+## T604 — A conversa no app do motorista, com entregue e lida gravados (verde)
+
+- **API (rotas `/me`, `trip.read`, recortadas pelo motorista do contexto):**
+  - `GET /me/trips/current/occurrence-conversations` lista as conversas do motorista (até 20, da
+    mais recente), com o rótulo da ocorrência e as mensagens da operação ainda não lidas. Baixar a
+    lista grava **`delivered`** nas mensagens do app que estavam `queued` (RF14, pela política da
+    T402, que só avança).
+  - `GET /me/trips/current/occurrences/:id/messages` também grava `delivered`, só daquela conversa.
+  - `POST /me/trips/current/occurrences/:id/messages/read` grava **`read`** (204, `no-store`);
+    ocorrência que não é do motorista responde 404, igual a inexistente.
+  - A escrita trava as linhas (`for update of` a mensagem) e só grava as que a política mudou:
+    repetir o `read` não muda `status_times`.
+- **App (PWA):**
+  - o workspace do motorista ganha o atalho "Mensagens da operação (N nova[s])" quando há conversa;
+  - a lista mostra a ocorrência e as novas; abrir a conversa marca como lida;
+  - a resposta usa a validação e a chave de idempotência da T601 e aparece no fio ao enviar.
+- **Testes, escritos antes e vistos falhando (exportações inexistentes):**
+  - caso de uso: a lista aplica `delivered` sem ocorrência e devolve o horário em ISO; o `read` de
+    ocorrência alheia é 404 sem escrita;
+  - rotas: permissão, recorte, 204 `no-store`;
+  - cliente do app: caminhos, chave no cabeçalho e contagem de não lidas
+    (`test/occurrence-conversation/driver-client.contract.ts`, no entrypoint).
+- **Integração** `occurrence-conversation-driver.integration.ts` (Postgres): a mensagem da operação
+  sai `queued` → a lista a leva a `delivered` e conta 1 nova → `read` uma vez → 0 novas, e o segundo
+  `read` não muda nada.
+- **Smoke `test/spec-183-driver-app.smoke.spec.ts`, 1 pass, prints 390 px:**
+  - o atalho mostra a nova (`prints/motorista-app-atalho.png`);
+  - abrir a conversa chama o `read`;
+  - o envio em branco diz o que falta;
+  - a resposta sai aparada, com a chave `driver-message:`, e entra no fio
+    (`prints/motorista-app-conversa.png`).
+- **Revisão de design:** o atalho usa a faixa de aviso do próprio workspace; o fio usa os balões e
+  tons da aba Motorista (T603); o campo e o botão têm a mesma largura e o botão é o primário da tela;
+  sem rolagem horizontal a 390 px. Nada a corrigir.
+- **Rodado:**
+  - frontend: **5226 + 44 pass**;
+  - API: contrato da conversa **111 pass**; integração completa rodada sozinha: **593 pass, 7 skip,
+    8 fail** — as 8 são as conhecidas do MinIO (arquivo de CT-e e extrato de pedágio da 154, bucket
+    fora do ar), iguais à linha de base;
+  - lint, formatação e typecheck limpos.
+

@@ -6,7 +6,7 @@
  * lê pelo `/me` só alcança ocorrência de viagem em que a ficha dele está na tripulação.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
@@ -20,6 +20,7 @@ import {
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
+import { applyMessageStatus } from '../domain/message-status.policy.js'
 import type {
   DriverConversationTransactionPort,
   DriverConversationUnitOfWorkPort,
@@ -29,6 +30,12 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 const authorProfile = alias(identityUserProfiles, 'driver_conversation_author_profile')
+
+/**
+ * A lista do app mostra as conversas recentes. O rótulo sai do leitor do feed, uma leitura por
+ * conversa: o motorista tem poucas, e o teto segura o custo.
+ */
+const MY_CONVERSATIONS_LIMIT = 20
 
 async function acquireAdvisoryLock(transaction: Transaction, fields: readonly string[]) {
   const encoded = new TextEncoder().encode(JSON.stringify(fields))
@@ -51,6 +58,98 @@ function describeOccurrence(item: {
 
 function createTransactionPort(transaction: Transaction): DriverConversationTransactionPort {
   return {
+    async applyDriverStatus({ at, companyId, driverUserId, incoming, occurrenceId }) {
+      const rows = await transaction
+        .select({
+          id: occurrenceConversationMessages.id,
+          status: occurrenceConversationMessages.status,
+          statusTimes: occurrenceConversationMessages.statusTimes,
+        })
+        .from(occurrenceConversationMessages)
+        .innerJoin(
+          occurrenceConversations,
+          and(
+            eq(occurrenceConversations.companyId, occurrenceConversationMessages.companyId),
+            eq(occurrenceConversations.id, occurrenceConversationMessages.conversationId),
+          ),
+        )
+        .where(
+          and(
+            eq(occurrenceConversations.companyId, companyId),
+            eq(occurrenceConversations.participant, 'driver'),
+            eq(occurrenceConversations.driverUserId, driverUserId),
+            ...(occurrenceId === null
+              ? []
+              : [eq(occurrenceConversations.occurrenceId, occurrenceId)]),
+            eq(occurrenceConversationMessages.direction, 'outbound'),
+            eq(occurrenceConversationMessages.channel, 'app'),
+            isNotNull(occurrenceConversationMessages.status),
+          ),
+        )
+        .for('update', { of: occurrenceConversationMessages })
+      for (const row of rows) {
+        if (row.status === null) continue
+        const result = applyMessageStatus({
+          at: at.toISOString(),
+          channel: 'app',
+          current: { status: row.status, statusTimes: row.statusTimes },
+          incoming,
+        })
+        if (!result.changed) continue
+        await transaction
+          .update(occurrenceConversationMessages)
+          .set({ status: result.status, statusTimes: { ...result.statusTimes } })
+          .where(
+            and(
+              eq(occurrenceConversationMessages.companyId, companyId),
+              eq(occurrenceConversationMessages.id, row.id),
+            ),
+          )
+      }
+    },
+
+    async listMyConversations({ companyId, driverUserId }) {
+      const rows = await transaction
+        .select({
+          lastMessageAt: sql<Date>`max(${occurrenceConversationMessages.createdAt})`.mapWith(
+            (value: Date | string) => new Date(value),
+          ),
+          occurrenceId: occurrenceConversations.occurrenceId,
+          unreadCount:
+            sql<number>`count(*) filter (where ${occurrenceConversationMessages.direction} = 'outbound' and ${occurrenceConversationMessages.status} is distinct from 'read')`.mapWith(
+              Number,
+            ),
+        })
+        .from(occurrenceConversations)
+        .innerJoin(
+          occurrenceConversationMessages,
+          and(
+            eq(occurrenceConversationMessages.companyId, occurrenceConversations.companyId),
+            eq(occurrenceConversationMessages.conversationId, occurrenceConversations.id),
+          ),
+        )
+        .where(
+          and(
+            eq(occurrenceConversations.companyId, companyId),
+            eq(occurrenceConversations.participant, 'driver'),
+            eq(occurrenceConversations.driverUserId, driverUserId),
+          ),
+        )
+        .groupBy(occurrenceConversations.occurrenceId)
+        .orderBy(desc(sql`max(${occurrenceConversationMessages.createdAt})`))
+        .limit(MY_CONVERSATIONS_LIMIT)
+      const summaries = []
+      for (const row of rows) {
+        const item = await findTripOccurrenceFeedItem(transaction, {
+          companyId,
+          occurrenceId: row.occurrenceId,
+        })
+        if (item === null) continue
+        summaries.push({ ...row, occurrenceLabel: describeOccurrence(item) })
+      }
+      return summaries
+    },
+
     async findDriverTarget({ companyId, occurrenceId }) {
       const item = await findTripOccurrenceFeedItem(transaction, { companyId, occurrenceId })
       if (item === null) return null

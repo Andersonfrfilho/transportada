@@ -119,7 +119,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       mensagem sem `context.id` da conversa continua chegando aos fluxos da spec 144.
 - [x] **T603** Aba Motorista no detalhe, com "Anexar à ocorrência" e "Encaminhar à contratante".
       Evidência: contratos de serviço puro.
-- [ ] **T604** Tela da conversa no PWA do motorista, com status `delivered`/`read` gravados ao
+- [x] **T604** Tela da conversa no PWA do motorista, com status `delivered`/`read` gravados ao
       baixar/abrir. Evidência: contrato de serviço + smoke.
 - [ ] **T605** Expiração da janela (RF20): política por tabela, job agendado idempotente, aviso
       automático, troca do canal padrão (app para o motorista, e-mail para a contratante), aviso na

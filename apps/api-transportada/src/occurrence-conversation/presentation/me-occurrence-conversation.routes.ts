@@ -13,7 +13,9 @@ import { parseBody, parseUuidPathIdentifier } from '../../http/request-parsing.s
 import { defineRoute } from '../../http/router.service.js'
 import { DriverNotRegisteredError } from '../../trips/domain/trip.error.js'
 import type {
+  createListMyConversationsUseCase,
   createListMyOccurrenceConversationUseCase,
+  createMarkMyConversationReadUseCase,
   createReplyMyOccurrenceConversationUseCase,
 } from '../application/driver-conversation.use-case.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
@@ -21,6 +23,8 @@ import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.consta
 const READ_POLICY = { permission: 'trip.read', scope: 'company' } as const
 const REPORT_POLICY = { permission: 'trip.report', scope: 'company' } as const
 const MESSAGES_PATH = '/me/trips/current/occurrences/:id/messages'
+const READ_PATH = `${MESSAGES_PATH}/read`
+const INBOX_PATH = '/me/trips/current/occurrence-conversations'
 
 const replySchema = z.object({ body: z.string().max(OCCURRENCE_MAIL_LIMITS.body) }).strict()
 
@@ -32,6 +36,10 @@ function jsonResponse(body: object, status = 200): Response {
 }
 
 export function createMeOccurrenceConversationRoutes(dependencies: {
+  /** Spec 183 T604: as conversas do motorista para a lista do app (baixar é entregar). */
+  readonly inbox: Pick<ReturnType<typeof createListMyConversationsUseCase>, 'list'>
+  /** Spec 183 T604: abrir a conversa é ler as mensagens da operação. */
+  readonly markRead: Pick<ReturnType<typeof createMarkMyConversationReadUseCase>, 'markRead'>
   readonly list: Pick<ReturnType<typeof createListMyOccurrenceConversationUseCase>, 'list'>
   readonly reply: Pick<ReturnType<typeof createReplyMyOccurrenceConversationUseCase>, 'reply'>
   readonly resolveDriverId: (context: {
@@ -49,6 +57,38 @@ export function createMeOccurrenceConversationRoutes(dependencies: {
   }
 
   return [
+    defineRoute<Record<string, never>>({
+      async handle({ context }): Promise<Response> {
+        await resolveDriver(context.scope)
+        const data = await dependencies.inbox.list({
+          companyId: context.scope.companyId,
+          driverUserId: context.scope.userId,
+        })
+        return jsonResponse({ data })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: INBOX_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<{ readonly occurrenceId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        await dependencies.markRead.markRead({
+          companyId: context.scope.companyId,
+          driverId,
+          driverUserId: context.scope.userId,
+          occurrenceId: input.occurrenceId,
+        })
+        return new Response(null, { headers: { 'cache-control': 'no-store' }, status: 204 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: READ_PATH,
+      policy: READ_POLICY,
+    }),
     defineRoute<{ readonly occurrenceId: string }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)

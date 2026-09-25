@@ -64,6 +64,17 @@ function createFixture(params: {
     }),
     rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: createMeOccurrenceConversationRoutes({
+      inbox: {
+        list: async (input) => {
+          calls.push({ input, name: 'inbox' })
+          return []
+        },
+      },
+      markRead: {
+        markRead: async (input) => {
+          calls.push({ input, name: 'markRead' })
+        },
+      },
       list: {
         list: async (input) => {
           calls.push({ input, name: 'list' })
@@ -154,5 +165,48 @@ describe('a conversa da ocorrência no /me do motorista (spec 183 T601)', () => 
     const response = await fixture.handle(jsonRequest({ method: 'GET', path: PATH }))
     expect(response.status).toBe(404)
     expect((await responseApiError(response)).code).toBe('TRIP_OCCURRENCE_NOT_FOUND')
+  })
+})
+
+describe('as conversas do motorista e a leitura (spec 183 T604)', () => {
+  test('lista as conversas dele pelo trip.read, do usuário do contexto', async () => {
+    const fixture = createFixture({ permissions: new Set(['trip.read'] as const) })
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: '/me/trips/current/occurrence-conversations' }),
+    )
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toContain('no-store')
+    expect(fixture.calls).toEqual([
+      {
+        input: { companyId: COMPANY_CONTEXT.companyId, driverUserId: COMPANY_CONTEXT.userId },
+        name: 'inbox',
+      },
+    ])
+  })
+
+  test('abrir a conversa marca lida pelo trip.read e responde 204', async () => {
+    const fixture = createFixture({ permissions: new Set(['trip.read'] as const) })
+    const response = await fixture.handle(jsonRequest({ method: 'POST', path: `${PATH}/read` }))
+    expect(response.status).toBe(204)
+    expect(fixture.calls).toEqual([
+      {
+        input: {
+          companyId: COMPANY_CONTEXT.companyId,
+          driverId: DRIVER_ID,
+          driverUserId: COMPANY_CONTEXT.userId,
+          occurrenceId: OCCURRENCE_ID,
+        },
+        name: 'markRead',
+      },
+    ])
+  })
+
+  test('sem ficha de motorista, a lista também recusa', async () => {
+    const fixture = createFixture({ driverId: null })
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: '/me/trips/current/occurrence-conversations' }),
+    )
+    expect(response.status).toBe(409)
+    expect(fixture.calls).toEqual([])
   })
 })

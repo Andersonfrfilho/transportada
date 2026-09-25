@@ -145,6 +145,7 @@ type MyOccurrenceInput = {
 }
 
 export function createListMyOccurrenceConversationUseCase(dependencies: {
+  readonly clock: () => Date
   readonly unitOfWork: DriverConversationUnitOfWorkPort
 }) {
   return {
@@ -152,6 +153,14 @@ export function createListMyOccurrenceConversationUseCase(dependencies: {
       dependencies.unitOfWork.execute(async (transaction) => {
         const occurrence = await transaction.findMyOccurrence(input)
         if (occurrence === null) throw new TripOccurrenceNotFoundError()
+        /** T604 (RF14): o app baixou — entregue, antes de ler, para a resposta já vir com ele. */
+        await transaction.applyDriverStatus({
+          at: dependencies.clock(),
+          companyId: input.companyId,
+          driverUserId: input.driverUserId,
+          incoming: 'delivered',
+          occurrenceId: input.occurrenceId,
+        })
         const messages = await transaction.listDriverMessages({
           companyId: input.companyId,
           driverUserId: input.driverUserId,
@@ -162,6 +171,51 @@ export function createListMyOccurrenceConversationUseCase(dependencies: {
           ...message,
           createdAt: message.createdAt.toISOString(),
         }))
+      }),
+  }
+}
+
+/** Spec 183 T604: as conversas do motorista, para a lista do app; baixar é entregar. */
+export function createListMyConversationsUseCase(dependencies: {
+  readonly clock: () => Date
+  readonly unitOfWork: DriverConversationUnitOfWorkPort
+}) {
+  return {
+    list: (input: { readonly companyId: string; readonly driverUserId: string }) =>
+      dependencies.unitOfWork.execute(async (transaction) => {
+        const conversations = await transaction.listMyConversations(input)
+        await transaction.applyDriverStatus({
+          at: dependencies.clock(),
+          companyId: input.companyId,
+          driverUserId: input.driverUserId,
+          incoming: 'delivered',
+          occurrenceId: null,
+        })
+        return conversations.map((conversation) => ({
+          ...conversation,
+          lastMessageAt: conversation.lastMessageAt.toISOString(),
+        }))
+      }),
+  }
+}
+
+/** Spec 183 T604: abrir a conversa no app é ler as mensagens da operação. */
+export function createMarkMyConversationReadUseCase(dependencies: {
+  readonly clock: () => Date
+  readonly unitOfWork: DriverConversationUnitOfWorkPort
+}) {
+  return {
+    markRead: (input: MyOccurrenceInput) =>
+      dependencies.unitOfWork.execute(async (transaction) => {
+        const occurrence = await transaction.findMyOccurrence(input)
+        if (occurrence === null) throw new TripOccurrenceNotFoundError()
+        await transaction.applyDriverStatus({
+          at: dependencies.clock(),
+          companyId: input.companyId,
+          driverUserId: input.driverUserId,
+          incoming: 'read',
+          occurrenceId: input.occurrenceId,
+        })
       }),
   }
 }

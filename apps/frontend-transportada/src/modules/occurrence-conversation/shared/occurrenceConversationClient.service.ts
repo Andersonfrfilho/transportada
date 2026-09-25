@@ -32,7 +32,7 @@ export class OccurrenceConversationRequestError extends Error {
   }
 }
 
-type ClientDependencies = Readonly<{
+export type ClientDependencies = Readonly<{
   apiUrl: string
   fetch: (request: Request, init?: RequestInit) => Promise<Response>
   getAccessToken: () => Promise<string>
@@ -237,7 +237,7 @@ function readErrorCode(payload: unknown): string {
   return OCCURRENCE_CONVERSATION_ERROR.REQUEST_FAILED
 }
 
-async function requestJson(
+export async function requestJson(
   dependencies: ClientDependencies,
   path: string,
   init?: Readonly<{ body?: object; headers?: Record<string, string>; method?: 'GET' | 'POST' }>,

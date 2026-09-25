@@ -14,7 +14,9 @@ import type {
   DriverConversationMessageRecord,
 } from '../../src/occurrence-conversation/application/driver-conversation.port.js'
 import {
+  createListMyConversationsUseCase,
   createListMyOccurrenceConversationUseCase,
+  createMarkMyConversationReadUseCase,
   createReplyMyOccurrenceConversationUseCase,
   createSendDriverAppMessageUseCase,
 } from '../../src/occurrence-conversation/application/driver-conversation.use-case.js'
@@ -31,6 +33,7 @@ type State = {
   idempotency: Map<string, { fingerprint: string; response: unknown }>
   messages: Record<string, unknown>[]
   notifications: unknown[]
+  statusCalls: unknown[]
 }
 
 function createFake(
@@ -46,9 +49,23 @@ function createFake(
     idempotency: new Map(),
     messages: [],
     notifications: [],
+    statusCalls: [],
   }
   const exists = overrides.occurrenceExists ?? true
   const transaction: DriverConversationTransactionPort = {
+    async applyDriverStatus(input) {
+      state.statusCalls.push(input)
+    },
+    async listMyConversations() {
+      return [
+        {
+          lastMessageAt: NOW,
+          occurrenceId: OCCURRENCE_ID,
+          occurrenceLabel: 'NF 4512/1',
+          unreadCount: 1,
+        },
+      ]
+    },
     async findDriverTarget() {
       if (!exists) return null
       return {
@@ -100,7 +117,9 @@ function createFake(
       fields.map((field) => new TextDecoder().decode(field)).join('|'),
   }
   return {
-    list: createListMyOccurrenceConversationUseCase({ unitOfWork }),
+    inbox: createListMyConversationsUseCase({ clock: () => NOW, unitOfWork }),
+    list: createListMyOccurrenceConversationUseCase({ clock: () => NOW, unitOfWork }),
+    markRead: createMarkMyConversationReadUseCase({ clock: () => NOW, unitOfWork }),
     reply: createReplyMyOccurrenceConversationUseCase({
       clock: () => NOW,
       fingerprintService,
@@ -274,5 +293,74 @@ describe('o motorista lê e responde a conversa dele (spec 183 T601)', () => {
       ),
     ).toMatchObject({ code: 'TRIP_OCCURRENCE_NOT_FOUND', status: 404 })
     expect(fake.state.messages).toEqual([])
+  })
+})
+
+/**
+ * Spec 183 T604 (RF14): o app do motorista confirma a entrega ao **baixar** e a leitura ao **abrir**
+ * — pela política, então nada regride e o repetido não muda nada.
+ */
+describe('entregue ao baixar, lida ao abrir (spec 183 T604)', () => {
+  const MINE = {
+    companyId: COMPANY_ID,
+    driverId: DRIVER_ID,
+    driverUserId: DRIVER_USER_ID,
+    occurrenceId: OCCURRENCE_ID,
+  }
+
+  test('a lista das conversas dele vem com as não lidas e marca entregue o que baixou', async () => {
+    const fake = createFake()
+
+    expect(await fake.inbox.list({ companyId: COMPANY_ID, driverUserId: DRIVER_USER_ID })).toEqual([
+      {
+        lastMessageAt: NOW.toISOString(),
+        occurrenceId: OCCURRENCE_ID,
+        occurrenceLabel: 'NF 4512/1',
+        unreadCount: 1,
+      },
+    ])
+    expect(fake.state.statusCalls).toEqual([
+      {
+        at: NOW,
+        companyId: COMPANY_ID,
+        driverUserId: DRIVER_USER_ID,
+        incoming: 'delivered',
+        occurrenceId: null,
+      },
+    ])
+  })
+
+  test('baixar a conversa de uma ocorrência marca entregue só a dela', async () => {
+    const fake = createFake()
+    await fake.list.list(MINE)
+    expect(fake.state.statusCalls).toEqual([
+      {
+        at: NOW,
+        companyId: COMPANY_ID,
+        driverUserId: DRIVER_USER_ID,
+        incoming: 'delivered',
+        occurrenceId: OCCURRENCE_ID,
+      },
+    ])
+  })
+
+  test('abrir marca lida; ocorrência que não é dele é 404 sem marcar nada', async () => {
+    const fake = createFake()
+    await fake.markRead.markRead(MINE)
+    expect(fake.state.statusCalls).toEqual([
+      {
+        at: NOW,
+        companyId: COMPANY_ID,
+        driverUserId: DRIVER_USER_ID,
+        incoming: 'read',
+        occurrenceId: OCCURRENCE_ID,
+      },
+    ])
+
+    const other = createFake({ driverOnTrip: false })
+    expect(await failure(() => other.markRead.markRead(MINE))).toMatchObject({
+      code: 'TRIP_OCCURRENCE_NOT_FOUND',
+    })
+    expect(other.state.statusCalls).toEqual([])
   })
 })
