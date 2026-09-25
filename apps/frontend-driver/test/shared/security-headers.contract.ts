@@ -86,4 +86,21 @@ describe('os cabeçalhos da app do motorista (ADR-0075 §4)', () => {
       /return pathname\.startsWith\(IMMUTABLE_ASSET_PREFIX\)\s*\?\s*IMMUTABLE_CACHE_CONTROL\s*:\s*REVALIDATE_CACHE_CONTROL/u,
     )
   })
+
+  /**
+   * Segurança L7 (spec 189 T9.2): caminho malformado (ex.: `/..%2f`) não pode derrubar o servidor
+   * estático com uma exceção não tratada — `resolveAsset` some dentro de `new URL(...)`, e sem
+   * `try/catch` a exceção subiria crua até o `Bun.serve`. `server.ts` não é importável no teste (o
+   * top-level chama `Bun.serve()` de verdade e exige `dist/`), então o contrato lê o texto-fonte —
+   * o mesmo molde dos testes acima.
+   */
+  test('caminho malformado (ex.: /..%2f) vira 400 com revalidate, nunca exceção crua', async () => {
+    const server = await Bun.file(SERVER_SOURCE).text()
+
+    expect(server).toContain('/..%2f')
+    expect(server).toMatch(/try\s*\{\s*const asset = resolveAsset\(url\.pathname\)/u)
+    expect(server).toMatch(
+      /catch\s*\{\s*return respond\(new Response\('Bad Request', \{ status: 400 \}\), REVALIDATE_CACHE_CONTROL\)/u,
+    )
+  })
 })

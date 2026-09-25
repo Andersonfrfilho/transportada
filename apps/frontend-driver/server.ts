@@ -51,9 +51,19 @@ Bun.serve({
       return respond(new Response('ok'), REVALIDATE_CACHE_CONTROL)
     }
 
-    const asset = resolveAsset(url.pathname)
-    if (await asset.exists()) {
-      return respond(new Response(asset), cacheControlFor(url.pathname))
+    /**
+     * Segurança L7 (spec 189 T9.2): `resolveAsset` monta `new URL(...)` a partir do `pathname` cru
+     * — caminho malformado (ex.: `/..%2f`, barra invertida, percent-encoding inválido) não pode
+     * derrubar o servidor estático com uma exceção não tratada. Vira `400` comum, sem cache, nunca
+     * `500` nem stack trace de volta ao cliente.
+     */
+    try {
+      const asset = resolveAsset(url.pathname)
+      if (await asset.exists()) {
+        return respond(new Response(asset), cacheControlFor(url.pathname))
+      }
+    } catch {
+      return respond(new Response('Bad Request', { status: 400 }), REVALIDATE_CACHE_CONTROL)
     }
 
     // Navegação de rota do SPA não tem arquivo correspondente: cai no index sem cache.
