@@ -5,11 +5,40 @@
   gap: var(--space-6);
   padding-block: var(--space-6);
   width: var(--layout-width);
+  /* Sem centralizar, abas e campos colavam na borda esquerda no celular (`docs/frontend/layout.md`). */
+  margin-inline: auto;
 }
 
+/*
+ * Revisão da spec 183 (T902): o mesmo cabeçalho em painel das outras páginas (molde de
+ * Ocorrências, `trip.module.css`). Solto, o título ia de borda a borda no celular.
+ */
 .header {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-graphite) 90%, transparent),
+    color-mix(in srgb, var(--color-asphalt) 82%, transparent)
+  );
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.kicker {
+  margin: 0;
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .hint {
@@ -37,6 +66,23 @@
 .field {
   display: grid;
   gap: var(--space-1);
+}
+
+/* O campo de busca com a métrica de campo (`docs/frontend/fields.md`): cru, tinha 21 px de altura. */
+.field input {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+/* A tabela rola no próprio quadro (`docs/frontend/responsive.md`): a página não rola de lado. */
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .table {

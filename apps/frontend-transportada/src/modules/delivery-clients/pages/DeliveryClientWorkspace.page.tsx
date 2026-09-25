@@ -127,6 +127,7 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
+        <p className={styles.kicker}>{t('kicker')}</p>
         <h1>{t('title')}</h1>
         <p className={styles.hint}>{t('subtitle')}</p>
       </header>
@@ -216,37 +217,39 @@ function ClientsListPanel({ controller, isReadOnly, t }: ClientsListPanelProps):
           <Skeleton height="2.5rem" />
         </SkeletonGroup>
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">{t('table.name')}</th>
-              <th scope="col">{t('table.taxId')}</th>
-              <th scope="col">{t('table.scheduling')}</th>
-              <th scope="col">{t('table.fee')}</th>
-              <th scope="col">{t('table.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(controller.clients ?? []).map((client) => (
-              <tr key={client.id}>
-                <td>{client.displayName === '' ? t('form.unnamed') : client.displayName}</td>
-                <td className={styles.document}>{client.taxId}</td>
-                <td>{client.requiresScheduling ? t('table.schedulingYes') : '—'}</td>
-                <td>{client.deliveryFeeAmount ?? '—'}</td>
-                <td>
-                  <Button
-                    onClick={() => controller.selectClient(client.id)}
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Icon name="edit" />
-                    {t('table.open')}
-                  </Button>
-                </td>
+        <div className={styles.tableScroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">{t('table.name')}</th>
+                <th scope="col">{t('table.taxId')}</th>
+                <th scope="col">{t('table.scheduling')}</th>
+                <th scope="col">{t('table.fee')}</th>
+                <th scope="col">{t('table.actions')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(controller.clients ?? []).map((client) => (
+                <tr key={client.id}>
+                  <td>{client.displayName === '' ? t('form.unnamed') : client.displayName}</td>
+                  <td className={styles.document}>{client.taxId}</td>
+                  <td>{client.requiresScheduling ? t('table.schedulingYes') : '—'}</td>
+                  <td>{client.deliveryFeeAmount ?? '—'}</td>
+                  <td>
+                    <Button
+                      onClick={() => controller.selectClient(client.id)}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Icon name="edit" />
+                      {t('table.open')}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {controller.nextCursor === null ? null : (
