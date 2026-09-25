@@ -199,6 +199,11 @@ export default defineRailway((ctx) => {
       VITE_API_URL: preserve(),
       VITE_APP_ENV: preserve(),
       VITE_APP_URL: preserve(),
+      /**
+       * Interruptor da ADR-0075 §6; definido só com `motorista.<env>` no ar. Ausente, o painel serve
+       * `/minha-viagem` como sempre — e o rollback é remover a variável e reimplantar o painel.
+       */
+      VITE_DRIVER_APP_URL: preserve(),
       VITE_EMAIL_FROM: preserve(),
       /**
        * A tela de identificação (e-mail, CPF, CNPJ ou telefone antes da senha) é o caminho de entrada
