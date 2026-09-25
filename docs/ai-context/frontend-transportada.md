@@ -253,9 +253,15 @@ módulo** apesar de três tasks da spec 056 sugerirem esse caminho de arquivo �
 viagem (criar, fechar, vincular, liberar, reordenar parada, desviar endereço, separar/carregar/
 devolver nota, lote, despachar, cancelar, planejar rota) entra em `useTripWorkspace.hook.ts`, ao
 lado das demais; seguir o nome de arquivo sugerido teria fragmentado o mesmo padrão em dois
-lugares. O diálogo de despacho forçado (`TripStateActions.component.tsx`) calcula as notas
+lugares. ⚠️ **Obsoleto (spec 185, ADR-0074):** o diálogo de despacho forçado descrito abaixo saiu da
+tela — `TripStateActions.component.tsx` não abre mais diálogo de despacho nenhum. Quem despacha hoje
+é `TripHeaderActions.component.tsx`, com a confirmação "leva todas" (`dispatchReadiness.service.ts`
+espelha a conta pura `resolveDispatchReadiness` da API, `tripDispatchFeedback.service.ts` resolve a
+frase); não há `force` nem motivo na tela do escritório, e "Conferir carga" não existe mais em lugar
+nenhum. ~~O diálogo de despacho forçado (`TripStateActions.component.tsx`) calculava as notas
 pendentes **direto de `trip.documents`** (mesmo filtro `pending`/`separated` do backend) em vez de
-decodificar `error.details` depois de uma tentativa recusada — evita o round-trip e é o mesmo dado.
+decodificar `error.details` depois de uma tentativa recusada — evitava o round-trip e era o mesmo
+dado.~~
 
 **A câmera é permitida à própria origem, e só ela.** `server.ts` responde
 `Permissions-Policy: camera=(self), geolocation=(self), microphone=()` — `camera=()` negava a

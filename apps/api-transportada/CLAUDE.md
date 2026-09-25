@@ -167,13 +167,28 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
 ## Viagem (trips) — máquina de estados
 
 `trips.status`: `draft → route_planned → separating → loading → dispatched → in_transit →
-completed` (ou `cancelled`), **derivado** do estado das notas exceto em quatro transições manuais
-(criar, `plan-route`, `dispatch`, `cancel`). `checkTripDocumentTransition`/`checkTripTransition`
+completed` (ou `cancelled`), **derivado** do estado das notas exceto em três transições manuais
+(criar, `plan-route`, `cancel`) — **`dispatch` também é derivado quando a carga fecha** (spec 185,
+ADR-0074): `tryAutoDispatchTrip` roda depois do commit da escrita que fecha a carga (carregar nota,
+linha ou lote, pelo web ou pelo WhatsApp, e a ocorrência que deixa a última nota pendente para trás),
+nunca com `force`, e nunca faz a escrita comitada falhar — um gate recusado vira `autoDispatch.blocked`
+(`TRIP_HAS_UNSCHEDULED_STOPS`, `TRIP_HAS_NO_ROUTE`, `TRIP_AUTO_DISPATCH_FAILED`) na resposta da
+escrita, não um erro dela. Os cinco pontos de escrita que tentam o gatilho recebem
+`autoDispatch: { logger, repository }`. `checkTripDocumentTransition`/`checkTripTransition`
 (`trips/domain/trip-state.policy.ts`) são a única fonte da máquina; toda transição é idempotente por
-desenho. `dispatched` é porta de não-retorno (bloqueia vincular/desvincular/reordenar, roteiro congela
-em `trip_dispatch_snapshots`); só `cancel` sai dali. `TripStop` é **derivada** — nunca criada à
-mão — via `reconcileStopOnLink`/`reconcileStopOnUnlink`, agrupando pelo endereço normalizado do
-destinatário, nunca pelo CNPJ.
+desenho. O botão "Despachar" aceita `loadRemaining` (separa e carrega o que falta na mesma transação
+do despacho); `force` e `loadRemaining` juntos → 400. `dispatched` é porta de não-retorno (bloqueia
+vincular/desvincular/reordenar, roteiro congela em `trip_dispatch_snapshots`); só `cancel` sai dali.
+`TripStop` é **derivada** — nunca criada à mão — via `reconcileStopOnLink`/`reconcileStopOnUnlink`,
+agrupando pelo endereço normalizado do destinatário, nunca pelo CNPJ.
+
+**`dispatch()` trava na ordem da ADR-0068 §2** (spec 185): notas primeiro, `FOR NO KEY UPDATE`,
+depois a viagem — reconfere as notas depois do lock, e só então grava snapshot/ETA e escreve
+`trips.status` por compare-and-set. Corrida de dois despachos: quem perde recebe
+`DispatchAlreadySettledSignal`, desfaz a própria transação e devolve `unchanged`, nunca erro.
+`readDispatchReadinessDocuments` + `resolveDispatchReadiness` (`trips/domain/dispatch-readiness.policy.ts`)
+são a fonte única da conta de "carga fechada" — despacho manual, gatilho automático e
+`leavesBehindOnDispatch` do detalhe da viagem leem a mesma consulta.
 
 ⚠️ `return`/`deliver` só depois de `dispatched`; `separate`/`load` exigem roteiro planejado —
 tratar os três como um `isEditable` só oferece o botão exatamente quando ele dá `409`. Guarda:
@@ -184,7 +199,9 @@ tratar os três como um `isEditable` só oferece o botão exatamente quando ele 
 tem, nem `trip.report`, que é a chave das rotas `/me`). Rotas com o `tripId` no caminho, alvo
 resolvido pela empresa do contexto (outra empresa → 404; sem motorista → 422 `TRIP_WITHOUT_DRIVER`;
 `driverId` fora da tripulação → 422 `DRIVER_NOT_ON_TRIP`) e os mesmos casos de uso do motorista com
-`{ target }`: `POST /trips/:id/confirm-load`, `…/start-route`, `…/stops/:stopId/arrive` (`arrivedAt`
+`{ target }`: `POST /trips/:id/confirm-load` (spec 185, ADR-0074 §5: continua aceito e idempotente,
+mas `allowed-actions` não o oferece mais — "Conferir carga" saiu da tela), `…/start-route`,
+`…/stops/:stopId/arrive` (`arrivedAt`
 opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-delivery` (multipart,
 `deliveredAt` obrigatório), `…/field-return` (JSON, `returnedAt` opcional), `…/field-proof`
 (multipart) e `…/documents/field-occurrences` (lote multipart); leituras `GET /trips/:id/allowed-actions`
@@ -319,7 +336,12 @@ só quando mudou (molde de `trip_status_events`, ADR-0068). **A nota nunca é pr
 não é bloqueado — o que a leitura ganha é `openOccurrenceCase`/`hasOpenOccurrence`, marcador
 **derivado**, nunca uma escrita nova em `trip_documents`. Quem reintroduzir esse acoplamento quebra o
 contrato de regressão de `GET /trips/:id/allowed-actions` (tem de continuar byte a byte igual com
-tratativa aberta).
+tratativa aberta). ⚠️ **Exceção opt-in da ADR-0074 §4** (spec 185): tipo de ocorrência com
+`leaves_document_behind = true`, ocorrência aberta (sem tratativa, ou tratativa fora de
+`returned_to_warehouse|closed|cancelled`) sobre a nota inteira, e nota ainda não carregada — essa
+nota **é liberada** no despacho (`released_at`), com o motivo "Ocorrência: <tipo>" em
+`snapshot.leftBehind`. É a única forma da tratativa afetar o despacho; nota `loaded` com a mesma
+ocorrência continua carga.
 
 **A tratativa tem dois escritores, e são papéis diferentes.** `occurrences.resolve`
 (`company-admin`/`operator`/`finance`, nunca `separator` nem `trip.manage` — validar a própria
