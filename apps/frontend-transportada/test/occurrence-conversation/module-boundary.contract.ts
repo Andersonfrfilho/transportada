@@ -56,4 +56,3 @@ describe('a fronteira entre a conversa e os contatos (spec 183 T903, F5)', () =>
     expect(offenders).toEqual([])
   })
 })
-
