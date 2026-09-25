@@ -1453,6 +1453,39 @@ cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
 ## Fechados
 
+### 2026-09-25 — PUT tardio na URL de subida trocava a foto da ocorrência já conferida (spec 179)
+
+**Onde:** `api-transportada`, `trips/application/confirm-occurrence-upload.use-case.ts` e
+`trips/domain/occurrence-attachment.policy.ts` (`buildOccurrenceUploadFinalObjectKey`). Mesmo defeito
+de forma do achado S1 da spec 183 (T903, anexo da conversa da ocorrência), achado depois ali e
+procurado aqui.
+
+**O que era:** a URL de PUT assinada da foto/PDF da ocorrência do motorista vale 15 minutos e segue
+valendo depois da confirmação — a assinatura cobre chave e `Content-Length`, não um "uso único".
+`confirmOccurrenceUpload` lia o objeto na chave da subida, conferia tipo pela assinatura dos bytes,
+teto e sha256, e gravava `stored_objects.object_key` **na mesma chave**. Um PUT tardio com outro
+arquivo do mesmo tamanho trocava os bytes já conferidos: o download passava a devolver o arquivo
+novo, com tipo nunca conferido e sha256 que não bate mais com o registrado. Medido contra o MinIO
+local antes da correção: o download devolveu o byte trocado.
+
+**Corrigido:** a confirmação grava os bytes que acabou de conferir numa chave final nova
+(`tenants/<empresa>/trip-occurrence-attachments/<viagem>/<token>`, 256 bits aleatórios em base64url),
+que nenhuma URL assinada alcança, e aponta o registro para ela. A chave da subida só é apagada
+**depois** de o registro gravado. Falha na gravação do registro apaga a cópia final (melhor esforço)
+e sobe o erro; a chamada que perde a corrida de confirmação concorrente (achado [2]) apaga a própria
+cópia e deixa a chave da subida para a vencedora. Contrato em
+`test/trip-occurrence/upload.contract.ts` (ordem `store → confirm → delete`, limpeza na falha e na
+corrida perdida); integração contra Postgres e S3 em
+`test/integration/trip-occurrence-upload-confirm.integration.ts` (PUT tardio na mesma URL não muda o
+download).
+
+**Residual aceito:** o PUT tardio ainda **escreve** — recria a chave da subida com bytes que nada
+referencia. `trip.occurrence-upload.expire` só varre linhas `pending`, e a linha já está
+`confirmed`, então esse objeto fica órfão no bucket. Mesmo destino de uma falha ao apagar a chave da
+subida depois da confirmação. Só quem recebeu a URL (o próprio motorista) consegue fazer isso, dentro
+dos 15 minutos, com o tamanho declarado — nunca muda o anexo. ⚠️ A integração pula quando o S3 não
+responde, e a CI não sobe o MinIO: a prova contra storage real só roda localmente.
+
 ### 2026-09-24 — objeto do upload de ocorrência sem dono no bucket, sem expurgo (spec 179)
 
 **Onde:** `api-transportada` (`shared/job-catalog.constant.ts`, migration

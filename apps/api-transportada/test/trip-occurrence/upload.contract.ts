@@ -12,7 +12,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   confirmOccurrenceUpload,
   type OccurrenceUploadConfirmationPort,
-  type OccurrenceUploadReadStoragePort,
+  type OccurrenceUploadConfirmationStoragePort,
   type PendingOccurrenceUpload,
 } from '../../src/trips/application/confirm-occurrence-upload.use-case.js'
 import {
@@ -146,18 +146,31 @@ describe('emitir a URL assinada de upload (spec 179 T201, RF2/RF2a)', () => {
 })
 
 describe('confirmar o upload (spec 179 T201, RF2a)', () => {
+  type StorageCall =
+    | { readonly key: string; readonly kind: 'confirm' }
+    | { readonly key: string; readonly kind: 'delete' }
+    | { readonly body: Uint8Array; readonly key: string; readonly kind: 'store' }
+
   function storage(input: {
     readonly bytes?: Uint8Array
+    readonly calls?: StorageCall[]
     readonly contentLength?: number
     readonly notFound?: boolean
-  }) {
+  }): OccurrenceUploadConfirmationStoragePort {
     return {
+      async deleteObject(location) {
+        input.calls?.push({ key: location.key, kind: 'delete' })
+      },
       async getObjectStream() {
         return new Response(input.bytes ?? JPEG_BYTES).body as ReadableStream<Uint8Array>
       },
       async headObject() {
         if (input.notFound === true) return undefined
         return { contentLength: input.contentLength ?? (input.bytes ?? JPEG_BYTES).byteLength }
+      },
+      async storeObject(stored) {
+        input.calls?.push({ body: stored.body, key: stored.key, kind: 'store' })
+        return undefined
       },
     }
   }
@@ -166,11 +179,14 @@ describe('confirmar o upload (spec 179 T201, RF2a)', () => {
     pending: null | Partial<PendingOccurrenceUpload> = {},
     confirmed: object[] = [],
     confirmedUpload: null | { readonly id: string } = null,
-    confirmOutcome: { readonly confirmed: boolean } = { confirmed: true },
+    confirmOutcome: { readonly confirmed: boolean } | Error = { confirmed: true },
+    calls: StorageCall[] = [],
   ): OccurrenceUploadConfirmationPort {
     return {
       async confirmUpload(input) {
         confirmed.push(input)
+        calls.push({ key: input.objectKey, kind: 'confirm' })
+        if (confirmOutcome instanceof Error) throw confirmOutcome
         return confirmOutcome
       },
       async findConfirmedUpload() {
@@ -190,16 +206,120 @@ describe('confirmar o upload (spec 179 T201, RF2a)', () => {
   }
 
   /** Prova que o reenvio idempotente não toca o storage: nem `head()`, nem baixar os bytes. */
-  function unreachableStorage(): OccurrenceUploadReadStoragePort {
+  function unreachableStorage(): OccurrenceUploadConfirmationStoragePort {
     return {
+      async deleteObject() {
+        throw new Error('não deveria apagar objeto no reenvio idempotente')
+      },
       async getObjectStream() {
         throw new Error('não deveria baixar bytes no reenvio idempotente')
       },
       async headObject() {
         throw new Error('não deveria checar o objeto no reenvio idempotente')
       },
+      async storeObject() {
+        throw new Error('não deveria gravar objeto no reenvio idempotente')
+      },
     }
   }
+
+  const STAGING_KEY = `tenants/${COMPANY}/trip-occurrence-uploads/${TRIP}/${OBJECT_ID}`
+  const FINAL_TOKEN = 'token-final-de-teste'
+
+  /**
+   * A URL de PUT assinada vale 15 minutos e segue valendo depois da confirmação. Se o registro
+   * apontasse para a chave da subida, um PUT tardio do mesmo tamanho trocaria o arquivo já
+   * conferido. Os bytes conferidos vão para uma chave final nova, e a da subida sai depois.
+   */
+  test('grava os bytes conferidos numa chave final nova, aponta o registro para ela e apaga a da subida depois', async () => {
+    const calls: StorageCall[] = []
+    const confirmed: object[] = []
+    await confirmOccurrenceUpload({
+      companyId: COMPANY,
+      id: OBJECT_ID,
+      newObjectToken: () => FINAL_TOKEN,
+      now: NOW,
+      repository: repository({}, confirmed, null, { confirmed: true }, calls),
+      storage: storage({ bytes: JPEG_BYTES, calls }),
+      tripId: TRIP,
+    })
+
+    const finalKey = `tenants/${COMPANY}/trip-occurrence-attachments/${TRIP}/${FINAL_TOKEN}`
+    expect(calls).toEqual([
+      { body: JPEG_BYTES, key: finalKey, kind: 'store' },
+      { key: finalKey, kind: 'confirm' },
+      { key: STAGING_KEY, kind: 'delete' },
+    ])
+    expect((confirmed[0] as { objectKey: string }).objectKey).not.toBe(STAGING_KEY)
+  })
+
+  test('sem token injetado, a chave final é aleatória e nunca a da subida', async () => {
+    const confirmed: object[] = []
+    await confirmOccurrenceUpload({
+      companyId: COMPANY,
+      id: OBJECT_ID,
+      now: NOW,
+      repository: repository({}, confirmed),
+      storage: storage({ bytes: JPEG_BYTES }),
+      tripId: TRIP,
+    })
+
+    const { objectKey } = confirmed[0] as { objectKey: string }
+    expect(objectKey).toStartWith(`tenants/${COMPANY}/trip-occurrence-attachments/${TRIP}/`)
+    expect(objectKey.split('/').at(-1)).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  })
+
+  test('a gravação do registro falha: a cópia final sai do bucket, a da subida fica, o erro sobe', async () => {
+    const calls: StorageCall[] = []
+    const failure = new Error('banco caiu')
+    const rejected = await confirmOccurrenceUpload({
+      companyId: COMPANY,
+      id: OBJECT_ID,
+      newObjectToken: () => FINAL_TOKEN,
+      now: NOW,
+      repository: repository({}, [], null, failure, calls),
+      storage: storage({ bytes: JPEG_BYTES, calls }),
+      tripId: TRIP,
+    }).catch((error: unknown) => error)
+
+    const finalKey = `tenants/${COMPANY}/trip-occurrence-attachments/${TRIP}/${FINAL_TOKEN}`
+    expect(rejected).toBe(failure)
+    expect(calls.filter((call) => call.kind === 'delete')).toEqual([
+      { key: finalKey, kind: 'delete' },
+    ])
+  })
+
+  test('perde a corrida: a cópia final desta chamada sai do bucket e a da subida fica para a vencedora', async () => {
+    const calls: StorageCall[] = []
+    await confirmOccurrenceUpload({
+      companyId: COMPANY,
+      id: OBJECT_ID,
+      newObjectToken: () => FINAL_TOKEN,
+      now: NOW,
+      repository: repository({}, [], { id: OBJECT_ID }, { confirmed: false }, calls),
+      storage: storage({ bytes: JPEG_BYTES, calls }),
+      tripId: TRIP,
+    })
+
+    const finalKey = `tenants/${COMPANY}/trip-occurrence-attachments/${TRIP}/${FINAL_TOKEN}`
+    expect(calls.filter((call) => call.kind === 'delete')).toEqual([
+      { key: finalKey, kind: 'delete' },
+    ])
+  })
+
+  test('bytes recusados: nada é copiado nem apagado', async () => {
+    const calls: StorageCall[] = []
+    await confirmOccurrenceUpload({
+      companyId: COMPANY,
+      id: OBJECT_ID,
+      now: NOW,
+      repository: repository({ mimeType: 'image/jpeg' }, [], null, { confirmed: true }, calls),
+      storage: storage({ bytes: PDF_BYTES, calls }),
+      tripId: TRIP,
+    }).catch((error: unknown) => error)
+
+    expect(calls).toEqual([])
+  })
 
   test('objeto real batendo com o tipo declarado grava stored_objects com sha256 e tamanho reais', async () => {
     const confirmed: object[] = []
@@ -493,8 +613,10 @@ describe('pedir e confirmar o upload amarrados à nota (spec 179 T202)', () => {
       now: NOW,
       repository: reachableRepository({ confirmed, reachable: false }),
       storage: {
+        deleteObject: async () => undefined,
         getObjectStream: async () => new Response(JPEG_BYTES).body as ReadableStream<Uint8Array>,
         headObject: async () => ({ contentLength: JPEG_BYTES.byteLength }),
+        storeObject: async () => undefined,
       },
     }).catch((error: unknown) => error)
 
