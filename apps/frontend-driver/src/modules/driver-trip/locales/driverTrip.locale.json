@@ -228,5 +228,10 @@
     "saveFailed": "Não foi possível salvar a sua escolha. Tente de novo.",
     "indicator": "Compartilhando sua posição com o contratante.",
     "unavailable": "Posição indisponível no aparelho. Nada está sendo enviado."
+  },
+  "sessionExpired": {
+    "notice": "Sua sessão venceu. O que está na fila continua no celular e sobe depois que você entrar.",
+    "signIn": "Entrar de novo",
+    "waitingCapture": "Você entra de novo assim que terminar a captura aberta."
   }
 }

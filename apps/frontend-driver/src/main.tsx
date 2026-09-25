@@ -9,10 +9,12 @@ import { registerSW } from 'virtual:pwa-register'
 
 import { EnvironmentBanner } from '@/components/EnvironmentBanner.component'
 import { DriverServiceWorkerUpdateNotice } from '@/modules/driver-trip/components/DriverServiceWorkerUpdateNotice.component'
+import { DriverSessionExpiredNotice } from '@/modules/driver-trip/components/DriverSessionExpiredNotice.component'
 import {
   DriverSessionContext,
   type DriverSession,
 } from '@/modules/driver-trip/hooks/useDriverSession.hook'
+import { useSessionExpiry } from '@/modules/driver-trip/hooks/useSessionExpiry.hook'
 import { DriverOfflineEmptyPage } from '@/modules/driver-trip/pages/DriverOfflineEmpty.page'
 import { DriverTripWorkspacePage } from '@/modules/driver-trip/pages/DriverTripWorkspace.page'
 import {
@@ -151,12 +153,19 @@ type DriverShellProps = Readonly<{ session: DriverSession }>
  */
 function DriverShell({ session }: DriverShellProps): ReactNode {
   const [section, setSection] = useState(() => resolveDriverRouteSection(window.location.pathname))
+  const sessionExpiry = useSessionExpiry(session.canSync)
 
   useEffect(() => subscribeDriverRoute(setSection), [])
 
   return (
     <QueryClientProvider client={queryClient}>
       <DriverSessionContext value={session}>
+        {sessionExpiry.state === 'active' ? null : (
+          <DriverSessionExpiredNotice
+            onReauthenticate={sessionExpiry.reauthenticate}
+            state={sessionExpiry.state}
+          />
+        )}
         <NotificationProvider
           client={getNotificationClient()}
           theme={{ rootClassName: NOTIFICATION_THEME_CLASS }}

@@ -219,5 +219,10 @@
     "saveFailed": "Could not save your choice. Try again.",
     "indicator": "Sharing your location with the shipper.",
     "unavailable": "Location unavailable on this device. Nothing is being sent."
+  },
+  "sessionExpired": {
+    "notice": "Your session expired. What is queued stays on the phone and uploads after you sign in.",
+    "signIn": "Sign in again",
+    "waitingCapture": "You will sign in again as soon as the open capture is finished."
   }
 }

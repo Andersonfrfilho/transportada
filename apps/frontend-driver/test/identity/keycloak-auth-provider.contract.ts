@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 
 import {
   createKeycloakAuthProvider,
+  IDENTITY_SESSION_EXPIRED,
+  IDENTITY_UNREACHABLE,
+  IdentityUnreachableError,
   type KeycloakClient,
 } from '../../src/modules/shared/KeycloakAuthProvider.provider'
 import { readTrustedUrl } from '../../src/modules/shared/environment.config'
@@ -66,6 +69,60 @@ describe('KeycloakAuthProvider', () => {
 
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).message).toBe('IDENTITY_SESSION_EXPIRED')
+    expect(client.clearToken).toHaveBeenCalledTimes(1)
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * Spec 189 T9.2 (A1): o keycloak-js 26.2.4 só limpa o token quando o refresh volta `400`. Falha de
+   * transporte (subsolo, sinal fraco) não é sessão vencida: expirar aqui mandava o motorista entrar
+   * de novo sem rede, e a fila marcava o toque como recusado.
+   */
+  test('a transport failure on refresh keeps the session and throws a typed network error', async () => {
+    const client = createClient({
+      updateToken: mock(() => Promise.reject(new TypeError('Failed to fetch'))),
+    })
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+    const listener = mock(() => undefined)
+    provider.onSessionExpired(listener)
+
+    const error = await provider.getAccessToken().catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(IdentityUnreachableError)
+    expect((error as Error).message).toBe(IDENTITY_UNREACHABLE)
+    expect(client.clearToken).not.toHaveBeenCalled()
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  test('a 5xx from the token endpoint is transport too, not an expired session', async () => {
+    const client = createClient({
+      updateToken: mock(() =>
+        Promise.reject(Object.assign(new Error('bad status'), { response: { status: 503 } })),
+      ),
+    })
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+    const listener = mock(() => undefined)
+    provider.onSessionExpired(listener)
+
+    const error = await provider.getAccessToken().catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(IdentityUnreachableError)
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  test('only a 400 from the token endpoint expires the session', async () => {
+    const client = createClient({
+      updateToken: mock(() =>
+        Promise.reject(Object.assign(new Error('bad status'), { response: { status: 400 } })),
+      ),
+    })
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+    const listener = mock(() => undefined)
+    provider.onSessionExpired(listener)
+
+    const error = await provider.getAccessToken().catch((caught: unknown) => caught)
+
+    expect((error as Error).message).toBe(IDENTITY_SESSION_EXPIRED)
     expect(client.clearToken).toHaveBeenCalledTimes(1)
     expect(listener).toHaveBeenCalledTimes(1)
   })

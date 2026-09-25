@@ -1,7 +1,10 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTripClient.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { getDriverEnvironment } from '@/modules/shared/environment.config'
-import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
+import {
+  getKeycloakAuthProvider,
+  isIdentityError,
+} from '@/modules/shared/KeycloakAuthProvider.provider'
 
 import {
   PROOF_PUNCTUALITY_VALUES,
@@ -12,6 +15,7 @@ import {
   type ProofPunctuality,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
+import type { AttachmentSendOutcome } from './offlineAttachments.service'
 import { createIdempotencyKey } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
@@ -52,6 +56,23 @@ export class DriverTripRequestError extends Error {
     this.status = input.status
     this.name = 'DriverTripRequestError'
   }
+}
+
+/**
+ * O resultado de um envio da fila. Rede caída **e** erro de identidade (`IDENTITY_*`: refresh sem
+ * transporte, sessão vencida) são "tente depois" — o item fica drenável, sem causa de recusa, e sobe
+ * depois de a rede ou a sessão voltarem. Só a resposta do servidor recusa.
+ */
+export function toAttachmentSendOutcome(error: unknown): AttachmentSendOutcome {
+  if (error instanceof DriverTripRequestError && error.isOffline) return { kind: 'failed-network' }
+  if (isIdentityError(error)) return { kind: 'failed-network' }
+  const cause =
+    error instanceof DriverTripRequestError
+      ? error.status !== undefined
+        ? `${error.status} ${error.code}`
+        : error.code
+      : 'REQUEST_FAILED'
+  return { cause, kind: 'rejected' }
 }
 
 type ClientDependencies = Readonly<{

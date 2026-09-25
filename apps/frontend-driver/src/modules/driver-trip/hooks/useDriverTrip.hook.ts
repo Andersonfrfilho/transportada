@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { DriverTripRequestError, getDriverTripClient } from '../shared/driverTripClient.service'
+import { getDriverTripClient, toAttachmentSendOutcome } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import type {
   DriverFieldReport,
@@ -100,17 +100,6 @@ export type DriverTripController = Readonly<{
   snapshot: DriverTripSnapshot | undefined
   status: 'error' | 'loading' | 'ready'
 }>
-
-function toOutcome(error: unknown): AttachmentSendOutcome {
-  if (error instanceof DriverTripRequestError && error.isOffline) return { kind: 'failed-network' }
-  const cause =
-    error instanceof DriverTripRequestError
-      ? error.status !== undefined
-        ? `${error.status} ${error.code}`
-        : error.code
-      : 'REQUEST_FAILED'
-  return { cause, kind: 'rejected' }
-}
 
 export function useDriverTrip(
   providedStore?: OfflineQueueStore,
@@ -209,7 +198,7 @@ export function useDriverTrip(
             await client.send(report)
             return { kind: 'sent' }
           } catch (error) {
-            return toOutcome(error)
+            return toAttachmentSendOutcome(error)
           }
         },
         sendAttachment: async (attachment: QueuedAttachment): Promise<AttachmentSendOutcome> => {
@@ -236,7 +225,7 @@ export function useDriverTrip(
             })
             return { kind: 'sent', punctuality: result.punctuality }
           } catch (error) {
-            return toOutcome(error)
+            return toAttachmentSendOutcome(error)
           }
         },
         store,

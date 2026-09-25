@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import { createCaptureRegistry } from '@/modules/driver-trip/shared/captureRegistry.service'
+import {
+  createCaptureRegistry,
+  createIdleGate,
+} from '@/modules/driver-trip/shared/captureRegistry.service'
 import {
   handleServiceWorkerUpdateAvailable,
   requestServiceWorkerUpdate,
@@ -81,6 +84,37 @@ describe('captureRegistry (plan D2)', () => {
 
     registry.close('camera')
     expect(registry.hasOpened()).toBe(true)
+  })
+})
+
+describe('o portão de quem navega a página (spec 189 T9.2)', () => {
+  it('ocioso, a ação roda na hora', () => {
+    const gate = createIdleGate(createCaptureRegistry())
+    let calls = 0
+
+    expect(gate.request(() => (calls += 1))).toBe('now')
+    expect(calls).toBe(1)
+    expect(gate.isWaiting()).toBe(false)
+  })
+
+  it('com captura aberta, dois toques rodam a ação uma vez só, no close', () => {
+    const registry = createCaptureRegistry()
+    const gate = createIdleGate(registry)
+    let calls = 0
+    registry.open('signature')
+
+    expect(gate.request(() => (calls += 1))).toBe('deferred')
+    expect(gate.request(() => (calls += 1))).toBe('deferred')
+    expect(gate.isWaiting()).toBe(true)
+    expect(calls).toBe(0)
+
+    registry.close('signature')
+    expect(calls).toBe(1)
+    expect(gate.isWaiting()).toBe(false)
+
+    registry.open('signature')
+    registry.close('signature')
+    expect(calls).toBe(1)
   })
 })
 
@@ -172,6 +206,13 @@ describe('as quatro capturas registram no capture registry (leitura de fonte, AD
 
     expect(source).toContain("captureRegistry.open('occurrence-dialog')")
     expect(source).toContain("captureRegistry.close('occurrence-dialog')")
+  })
+
+  it('main.tsx: a sessão vencida vira "Entrar de novo", que passa pelo portão das capturas', () => {
+    const source = readFileSync(MAIN, 'utf8')
+
+    expect(source).toContain('useSessionExpiry(')
+    expect(source).toContain('<DriverSessionExpiredNotice')
   })
 
   it('main.tsx liga o onNeedRefresh do registerSW à regra de aplicação', () => {

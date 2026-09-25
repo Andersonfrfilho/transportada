@@ -54,5 +54,45 @@ export function createCaptureRegistry(): CaptureRegistry {
   }
 }
 
+export type IdleGate = Readonly<{
+  /** `true` enquanto há uma ação esperando a última captura fechar. */
+  isWaiting: () => boolean
+  /** Roda agora se ocioso; senão guarda a ação e roda no `close` — uma vez, a mais recente. */
+  request: (action: () => void) => 'deferred' | 'now'
+}>
+
+/**
+ * O portão de quem navega a página (atualização do SW, "Entrar de novo"). Tocar duas vezes com a
+ * captura aberta não empilha duas assinaturas de `onIdle`: a ação guardada é uma só.
+ */
+export function createIdleGate(registry: Pick<CaptureRegistry, 'isIdle' | 'onIdle'>): IdleGate {
+  let pendingAction: (() => void) | undefined
+  let unsubscribe: (() => void) | undefined
+
+  function release(): void {
+    unsubscribe?.()
+    unsubscribe = undefined
+    pendingAction = undefined
+  }
+
+  return {
+    isWaiting: () => pendingAction !== undefined,
+    request(action) {
+      if (registry.isIdle()) {
+        release()
+        action()
+        return 'now'
+      }
+      pendingAction = action
+      unsubscribe ??= registry.onIdle(() => {
+        const next = pendingAction
+        release()
+        next?.()
+      })
+      return 'deferred'
+    },
+  }
+}
+
 /** O registro da página: um só, porque é a página inteira que navega. */
 export const captureRegistry = createCaptureRegistry()

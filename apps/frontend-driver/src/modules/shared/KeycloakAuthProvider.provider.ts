@@ -24,6 +24,35 @@ export type IdentityProfile = {
 }
 
 export const IDENTITY_SESSION_EXPIRED = 'IDENTITY_SESSION_EXPIRED'
+export const IDENTITY_UNREACHABLE = 'IDENTITY_UNREACHABLE'
+
+/** O refresh morreu no transporte: a sessão continua válida, só não deu para falar com o Keycloak. */
+export class IdentityUnreachableError extends Error {
+  public readonly isOffline = true
+
+  public constructor() {
+    super(IDENTITY_UNREACHABLE)
+    this.name = 'IdentityUnreachableError'
+  }
+}
+
+/** Todo erro que esta camada lança começa assim — quem drena a fila trata como "tente depois". */
+export function isIdentityError(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith('IDENTITY_')
+}
+
+/**
+ * ⚠️ O keycloak-js 26.2.4 só limpa o token quando o endpoint responde `400` (refresh recusado).
+ * `TypeError` do `fetch`, timeout e 5xx são o subsolo: expirar a sessão aí mandaria o motorista
+ * entrar de novo sem rede. Qualquer outro erro (sem refresh token, por exemplo) é sessão vencida.
+ */
+function isRefreshTransportFailure(error: unknown): boolean {
+  if (error instanceof TypeError) return true
+  if (error instanceof DOMException) return true
+  if (typeof error !== 'object' || error === null || !('response' in error)) return false
+  const response = (error as { readonly response?: { readonly status?: unknown } }).response
+  return response?.status !== 400
+}
 
 export type KeycloakAuthProvider = {
   getAccessToken(): Promise<string>
@@ -190,7 +219,8 @@ export function createKeycloakAuthProvider(
     async getAccessToken(): Promise<string> {
       try {
         await keycloak.updateToken(TOKEN_MINIMUM_VALIDITY_SECONDS)
-      } catch {
+      } catch (error: unknown) {
+        if (isRefreshTransportFailure(error)) throw new IdentityUnreachableError()
         return expireSession()
       }
 
