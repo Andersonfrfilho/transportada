@@ -16,9 +16,10 @@ export type RecordTripLocationInput = {
 /**
  * Segurança M3 (spec 189 T9.2): o rate limit do Postgres já corta abuso, mas não replay bem
  * comportado — o mesmo celular reenviando o ping do minuto anterior por causa de retry de rede.
- * Cinco segundos de folga sobre o 1/min do app evita descartar o ping seguinte legítimo.
+ * Quinze segundos de folga sobre o 1/min do app: com sinal fraco a latência passa de cinco
+ * segundos, e uma janela apertada descartava o ping seguinte legítimo, dobrando o intervalo real.
  */
-const PING_DEDUP_WINDOW_SECONDS = 55
+const PING_DEDUP_WINDOW_SECONDS = 45
 
 /**
  * `ignored` não é falha: é o que responde quando não há viagem em rua, quando o motorista não

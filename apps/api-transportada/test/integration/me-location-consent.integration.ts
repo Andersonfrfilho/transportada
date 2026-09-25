@@ -266,7 +266,7 @@ describe('a leitura do consentimento de posição (spec 189 T7.4)', () => {
  * `trip_location_pings`, e o de depois da janela volta a gravar.
  */
 describe('o dedup do ping de posição contra o banco (spec 189 T9.2)', () => {
-  testWithPostgres('o ping repetido antes de 55 s não duplica a linha', async () => {
+  testWithPostgres('o ping repetido antes de 45 s não duplica a linha', async () => {
     await withDisposableDatabase(async (database) => {
       const company = await seedCompany(database)
       const trip = await seedTrip(database, company, 'dispatched')

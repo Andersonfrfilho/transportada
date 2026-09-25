@@ -348,7 +348,7 @@ describe('o dedup do ping de posição (spec 189 T9.2)', () => {
   const NOW = new Date('2026-09-03T18:00:00.000Z')
   const secondsAgo = (seconds: number) => new Date(NOW.getTime() - seconds * 1000).toISOString()
 
-  test('ignora o ping que repete o anterior antes de 55 s', async () => {
+  test('ignora o ping que repete o anterior antes de 45 s', async () => {
     const { recorded, repository } = buildRepository({
       readCurrentTracking: async () => trackingOf(true),
       readLastPing: async () => ({ latitude: '0', longitude: '0', recordedAt: secondsAgo(10) }),
@@ -361,10 +361,23 @@ describe('o dedup do ping de posição (spec 189 T9.2)', () => {
     expect(recorded).toEqual([])
   })
 
-  test('grava de novo passados 55 s do último ping', async () => {
+  test('grava de novo passados 45 s do último ping', async () => {
     const { recorded, repository } = buildRepository({
       readCurrentTracking: async () => trackingOf(true),
       readLastPing: async () => ({ latitude: '0', longitude: '0', recordedAt: secondsAgo(60) }),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
+  })
+
+  test('grava o ping legítimo que chega 50 s depois por atraso de rede', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true),
+      readLastPing: async () => ({ latitude: '0', longitude: '0', recordedAt: secondsAgo(50) }),
     })
     const useCase = createRecordTripLocationUseCase({ repository })
 
