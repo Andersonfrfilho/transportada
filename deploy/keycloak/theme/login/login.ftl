@@ -23,8 +23,19 @@
                                  `data-fallback-origin`, para quando não houver `redirect_uri` a ler;
                                  sem a variável no deploy o valor é o literal `${env.…}`, por isso o
                                  `<#if>` testa `http`. -->
-                            <a class="panel-link" data-identity-restart hidden href="#"
-                               <#if applicationOrigin?starts_with("http")>data-fallback-origin="${applicationOrigin}"</#if>>${msg("transportadaNotYou")}</a>
+                            <#-- Botão, e não link discreto: quem digitou o usuário de outra pessoa
+                                 descobre pela senha recusada, e é ali que precisa da saída. O
+                                 `loginRestartFlowUrl` não serve — o restart guarda o `login_hint` e
+                                 devolve esta mesma tela, com o mesmo usuário. -->
+                            <a class="action action-quiet identified-user-switch" data-identity-restart hidden href="#"
+                               <#if applicationOrigin?starts_with("http")>data-fallback-origin="${applicationOrigin}"</#if>>
+                                <svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round"
+                                     stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+                                    <path d="m12 19-7-7 7-7" />
+                                    <path d="M19 12H5" />
+                                </svg>
+                                <span>${msg("transportadaSwitchUser")}</span>
+                            </a>
                         </div>
                         <input id="username" name="username" type="hidden" value="${identifiedUsername}" />
                     <#else>

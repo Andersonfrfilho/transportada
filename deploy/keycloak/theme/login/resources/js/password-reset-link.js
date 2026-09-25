@@ -19,13 +19,28 @@
    */
   function resolveRedirectOrigin() {
     try {
-      var redirectUri = new URLSearchParams(window.location.search).get('redirect_uri')
+      var parameters = new URLSearchParams(window.location.search)
+      var redirectUri =
+        parameters.get('redirect_uri') || readClientDataRedirect(parameters.get('client_data'))
       if (redirectUri === null) return null
 
       return new URL(redirectUri).origin
     } catch (error) {
       return null
     }
+  }
+
+  /**
+   * Depois de uma senha recusada a tela é `login-actions/authenticate`, sem `redirect_uri` na URL:
+   * o Keycloak 26 o carrega no `client_data`, base64url de `{"ru": …}`. É o mesmo endereço da
+   * requisição original, só em outra embalagem.
+   */
+  function readClientDataRedirect(clientData) {
+    if (clientData === null) return null
+
+    var base64 = clientData.replace(/-/g, '+').replace(/_/g, '/')
+    var redirectUri = JSON.parse(atob(base64)).ru
+    return typeof redirectUri === 'string' ? redirectUri : null
   }
 
   function render() {
