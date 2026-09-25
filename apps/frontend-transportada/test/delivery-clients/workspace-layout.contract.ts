@@ -71,7 +71,9 @@ describe('o quadro da tabela rola pelo teclado (spec 183 T903, D3)', () => {
       read('locales/deliveryClients.locale.json'),
       read('locales/deliveryClients.en.locale.json'),
     ])
-    expect(JSON.parse(pt).table.region).toBe('Clientes de entrega (role para os lados)')
-    expect(JSON.parse(en).table.region).toBe('Delivery clients (scroll sideways)')
+    const regionOf = (json: string) =>
+      (JSON.parse(json) as { table: { region: string } }).table.region
+    expect(regionOf(pt)).toBe('Clientes de entrega (role para os lados)')
+    expect(regionOf(en)).toBe('Delivery clients (scroll sideways)')
   })
 })
