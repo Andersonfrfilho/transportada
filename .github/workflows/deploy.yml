@@ -336,6 +336,12 @@ jobs:
   # contra uma API que ainda não subiu deixaria a tela batendo em rota inexistente, num aparelho de
   # campo sem forma fácil de saber por quê. Por isso ele espera `deploy-api`, com o mesmo `always()`
   # e a mesma conferência de `result` do frontend.
+  #
+  # Code M8 (spec 189 T9.2): produção nunca filtra (`changes` acima), então este job dispararia em
+  # **todo** push a `main` que toque `apps/frontend-driver` — e o serviço `driver` ainda não existe
+  # na Railway de produção (T6.9, pendente). `railway-deploy.sh` bateria num serviço inexistente e
+  # reprovaria o deploy inteiro por causa de uma app que produção ainda não tem. A guarda de ambiente
+  # some daqui assim que a T6.9 marcar o domínio e o serviço de produção como prontos.
   deploy-driver:
     needs: [target, changes, gate, deploy-api]
     if: >-
@@ -345,6 +351,7 @@ jobs:
       && needs.deploy-api.result != 'failure'
       && needs.deploy-api.result != 'cancelled'
       && needs.changes.outputs.driver == 'true'
+      && needs.target.outputs.environment != 'production'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ needs.target.outputs.environment }}
