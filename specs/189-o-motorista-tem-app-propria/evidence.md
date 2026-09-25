@@ -1081,3 +1081,29 @@ parado, porque nenhum desses gatilhos dispara. O agendador passou a entregar o `
   (14 pass / 0 fail).
 - `bun run --cwd apps/frontend-driver check`: 375 pass / 0 fail, `dist` 6 pass / 0 fail.
 - `bun run --cwd apps/frontend-driver smoke`: 2 passed + 13 passed.
+
+## Fase 5 — ajustes da revisão (código, `code-reviewer` opus)
+
+Escopo desta seção: só `apps/frontend-transportada` (e o texto da ADR-0075), pelos itens MEDIUM e
+LOW da revisão de código da T5.2/T5.3/T5.4. A Fase 4 (`apps/frontend-driver`) é de outro executor,
+em paralelo, e não é tocada aqui.
+
+### M2 — "Descartar" só para recusa de negócio
+
+`isDiscardable` (`DriverEventQueue.page.tsx`) tratava qualquer `status.state === 'rejected'` ou
+`attachmentRejectionCause` como descartável — inclusive `401`/`403`/`408`/`429`/5xx e
+`REQUEST_FAILED` (a causa genérica que `toOutcome`, em `useDriverTrip.hook.ts:84-92`, dá a qualquer
+erro que não seja `DriverTripRequestError`, inclusive a sessão expirada vinda de `getAccessToken`).
+Essas causas são infraestrutura passageira, não decisão do servidor sobre o evento — descartar
+apagaria uma entrega que a próxima tentativa enviaria.
+
+- Nova função pura `isEventQueueItemDiscardable` em `eventQueueView.service.ts` (ao lado de
+  `buildEventQueueView`/`hasSendableEvents`, onde já mora a lógica testável da tela), substituindo
+  a `isDiscardable` local do `.page.tsx`. `DriverEventQueue.page.tsx` só chama a função nova.
+- Teste em `test/driver-trip/event-queue.contract.ts`: recusa de negócio (`409 CONFLICT`) segue
+  descartável; `401`, `403`, `408`, `429`, `500`, `503` e `REQUEST_FAILED` (`it.each`) não são;
+  anexo com causa de infraestrutura não fica descartável mesmo com o evento aceito; anexo recusado
+  por negócio com evento aceito fica descartável; item sem recusa nenhuma não é descartável.
+- `bun test ./test/driver-trip.contract.test.ts`: 209 pass / 0 fail (13 destes são os casos novos;
+  antes da função nova o arquivo não compilava — `isEventQueueItemDiscardable` não existia).
+- `bun run typecheck`: limpo.

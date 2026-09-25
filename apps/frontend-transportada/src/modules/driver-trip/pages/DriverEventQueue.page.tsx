@@ -7,7 +7,11 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-import { hasSendableEvents, type EventQueueItemView } from '../shared/eventQueueView.service'
+import {
+  hasSendableEvents,
+  isEventQueueItemDiscardable,
+  type EventQueueItemView,
+} from '../shared/eventQueueView.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
@@ -29,11 +33,6 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   /** Grupo de anexos cujo evento já subiu — só os arquivos aguardam. */
   proof: 'eventQueue.kind.proof',
   return: 'eventQueue.kind.return',
-}
-
-/** Recusado pelo servidor — o evento ou um anexo dele. É o único item que se pode descartar. */
-function isDiscardable(item: EventQueueItemView): boolean {
-  return item.status.state === 'rejected' || item.attachmentRejectionCause !== undefined
 }
 
 /**
@@ -183,7 +182,7 @@ export function DriverEventQueuePage({
                 ) : (
                   <div className={styles.eventQueueItemActions}>
                     {sendNowButton(item)}
-                    {isDiscardable(item) ? (
+                    {isEventQueueItemDiscardable(item) ? (
                       <Button
                         disabled={isSyncing}
                         type="button"

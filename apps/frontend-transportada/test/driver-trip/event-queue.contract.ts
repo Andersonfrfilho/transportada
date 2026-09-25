@@ -4,6 +4,8 @@ import { describe, expect, it } from 'bun:test'
 import {
   buildEventQueueView,
   hasSendableEvents,
+  isEventQueueItemDiscardable,
+  type EventQueueItemView,
 } from '@/modules/driver-trip/shared/eventQueueView.service'
 import type { QueuedAttachment } from '@/modules/driver-trip/shared/offlineAttachments.service'
 import type { QueuedReport } from '@/modules/driver-trip/shared/offlineQueue.service'
@@ -127,6 +129,78 @@ describe('a tela de eventos pendentes (D7)', () => {
 
     expect(views[0]?.status).toEqual({ state: 'queued' })
     expect(views[0]?.attachmentRejectionCause).toBe('413 PROOF_FILE_TOO_LARGE')
+  })
+
+  /** O teste conhece o tamanho do array pela própria montagem — falhar alto é melhor que `!`. */
+  function firstView(views: readonly EventQueueItemView[]): EventQueueItemView {
+    const [item] = views
+    if (item === undefined) throw new Error('EVENT_QUEUE_VIEW_EMPTY')
+    return item
+  }
+
+  /**
+   * ADR-0075 §6, revisão M2: "Descartar" é só para recusa de negócio — 401/403/408/429/5xx e
+   * `REQUEST_FAILED` (inclusive a sessão expirada, que `toOutcome` classifica assim) são
+   * infraestrutura passageira, nunca uma decisão do servidor sobre o evento.
+   */
+  it('recusa de negócio é descartável', () => {
+    const item = firstView(
+      buildEventQueueView({
+        attachments: [],
+        queued: [queuedItem({ key: 'chave-1', rejectionCause: '409 CONFLICT' })],
+      }),
+    )
+
+    expect(isEventQueueItemDiscardable(item)).toBe(true)
+  })
+
+  it.each([
+    ['401 UNAUTHORIZED'],
+    ['403 FORBIDDEN'],
+    ['408 REQUEST_TIMEOUT'],
+    ['429 TOO_MANY_REQUESTS'],
+    ['500 INTERNAL'],
+    ['503 UNAVAILABLE'],
+    ['REQUEST_FAILED'],
+  ])('%s não é recusa de negócio — não é descartável', (cause) => {
+    const item = firstView(
+      buildEventQueueView({
+        attachments: [],
+        queued: [queuedItem({ key: 'chave-1', rejectionCause: cause })],
+      }),
+    )
+
+    expect(isEventQueueItemDiscardable(item)).toBe(false)
+  })
+
+  it('anexo com causa de infraestrutura não fica descartável, mesmo com o evento aceito', () => {
+    const item = firstView(
+      buildEventQueueView({
+        attachments: [['chave-1', [attachment({ rejectionCause: '500 INTERNAL' })]]],
+        queued: [queuedItem({ key: 'chave-1' })],
+      }),
+    )
+
+    expect(isEventQueueItemDiscardable(item)).toBe(false)
+  })
+
+  it('anexo recusado por negócio, com evento aceito, fica descartável', () => {
+    const item = firstView(
+      buildEventQueueView({
+        attachments: [['chave-1', [attachment({ rejectionCause: '413 PROOF_FILE_TOO_LARGE' })]]],
+        queued: [queuedItem({ key: 'chave-1' })],
+      }),
+    )
+
+    expect(isEventQueueItemDiscardable(item)).toBe(true)
+  })
+
+  it('item ainda na fila, sem recusa nenhuma, não é descartável', () => {
+    const item = firstView(
+      buildEventQueueView({ attachments: [], queued: [queuedItem({ key: 'chave-1' })] }),
+    )
+
+    expect(isEventQueueItemDiscardable(item)).toBe(false)
   })
 
   it('enviar todos só se habilita com algo enviável', () => {
