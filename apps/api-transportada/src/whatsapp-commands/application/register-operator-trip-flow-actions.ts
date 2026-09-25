@@ -131,7 +131,8 @@ export type OperatorFlowActionDependencies = {
     readonly note: string
     readonly occurrenceTypeId: string
     readonly tripId: string
-  }) => Promise<TripOccurrence>
+    /** Spec 185 (RF2): o desfecho do gatilho quando a ocorrência deixa a última nota para trás. */
+  }) => Promise<TripOccurrence & { readonly autoDispatch?: TryAutoDispatchTripResult }>
   readonly separateDocument: (input: {
     readonly context: CompanyContext
     readonly documentId: string
@@ -847,6 +848,10 @@ export function createOperatorWhatsAppFlowActions(
           session.whatsappNumber,
           'Foto 1 anexada. Envie outra, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
         )
+        const autoDispatchMessage = describeAutoDispatchOutcome(registered.autoDispatch)
+        if (autoDispatchMessage !== null) {
+          await channel.sendText(session.whatsappNumber, autoDispatchMessage)
+        }
         return {
           context: {
             [OPERATOR_FLOW_CONTEXT_KEY.occurrenceId]: registered.id,
@@ -959,8 +964,9 @@ function describeDispatchSuccess(result: DispatchTripResult): string {
 }
 
 /**
- * Spec 185 (D4): o desfecho do gatilho automático depois de carregar (linha ou lote) — `null`
- * quando não houve tentativa (a carga não fechou, ou a instalação não tem o gatilho ligado).
+ * Spec 185 (D4): o desfecho do gatilho automático depois de carregar (linha ou lote) ou da
+ * ocorrência que deixa a última nota para trás — `null` quando não houve tentativa (a carga não
+ * fechou, ou a instalação não tem o gatilho ligado).
  */
 function describeAutoDispatchOutcome(result: TryAutoDispatchTripResult | undefined): string | null {
   if (result === undefined) return null

@@ -979,6 +979,67 @@ describe('FlowAction do passo de foto do operador (spec 161 T15)', () => {
     })
   })
 
+  /**
+   * Revisão da spec 185 (RF2, ADR-0074 §4): a ocorrência que deixa a última nota para trás pode
+   * despachar a viagem — o desfecho do gatilho chega numa mensagem à parte, depois de "Foto 1
+   * anexada" (conversation-flow.md §5, uma ideia por mensagem).
+   */
+  for (const [autoDispatch, expected] of [
+    [{ outcome: 'dispatched' }, 'Viagem despachada. 🚚'],
+    [
+      { code: 'TRIP_AUTO_DISPATCH_FAILED', outcome: 'blocked' },
+      'A viagem não saiu sozinha — use Despachar.',
+    ],
+  ] as const) {
+    test(`primeira foto com gatilho ${autoDispatch.outcome}: "${expected}" depois de "Foto 1 anexada"`, async () => {
+      const { channel, sent } = await buildChannelWithMedia(1024)
+      await callAction({
+        channel,
+        context: { ...PHOTO_CONTEXT, ...withImage() },
+        deps: buildDeps({
+          registerOccurrence: async () => ({
+            autoDispatch,
+            createdAt: NOW.toISOString(),
+            id: 'occurrence-1',
+            note: '',
+            occurrenceTypeId: OCCURRENCE_TYPE_ID,
+            productCode: '',
+            stage: 'separation',
+            typeName: 'Item faltante',
+          }),
+        }),
+        kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+      })
+
+      expect(sent.map((message) => message.body)).toEqual([
+        'Foto 1 anexada. Envie outra, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
+        expected,
+      ])
+    })
+  }
+
+  test('primeira foto sem gatilho: só "Foto 1 anexada"', async () => {
+    const { channel, sent } = await buildChannelWithMedia(1024)
+    await callAction({
+      channel,
+      context: { ...PHOTO_CONTEXT, ...withImage() },
+      deps: buildDeps({
+        registerOccurrence: async () => ({
+          createdAt: NOW.toISOString(),
+          id: 'occurrence-1',
+          note: '',
+          occurrenceTypeId: OCCURRENCE_TYPE_ID,
+          productCode: '',
+          stage: 'separation',
+          typeName: 'Item faltante',
+        }),
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(sent).toHaveLength(1)
+  })
+
   test('foto grande demais: a recusa da persistência vira mensagem com o motivo e o limite, nada muda no fluxo', async () => {
     const { channel, sent } = await buildChannelWithMedia(961 * 1024)
     const result = await callAction({
