@@ -1374,6 +1374,151 @@ providedAttachmentStore?)` — só para o teste injetar uma loja que nunca resol
   disso para não confundir "ainda não propagou" com "não funcionou".
 - Sem código tocado: os dois são documentação. `bunx prettier --write` nos dois `.md`.
 
+## Fase 6 — A virada: staging, depois produção
+
+### T6.1 — Contratos: linha `driver` na tabela de build e `motorista.` no redirect URIs
+
+- `apps/api-transportada/test/deploy/service-naming.contract.ts`: novo teste "o serviço driver está
+  declarado na tabela de build" — lê `docs/spec/railway.md` e exige `driver` no conjunto de
+  serviços declarados. Vermelho antes da T6.2 (a tabela não tinha a linha):
+
+  ```
+  Expected to contain: "driver"
+  Received: Set(7) { "api", "worker", "cron", "transportada-frontend", "landing", "client", "keycloak" }
+  (fail) ... o serviço driver está declarado na tabela de build
+  182 pass / 1 fail
+  ```
+
+- `apps/api-transportada/test/deploy/keycloak-redirect-uris.contract.ts`: `AUTHENTICATED_APPS`
+  ganhou `'motorista.'`. **Decisão registrada** (o briefing deu duas opções e pediu escolha): optei
+  por A — manter `'motorista.'` na constante (documenta o requisito de verdade) e tirar a asserção
+  viva dela com um novo `PENDING_APPS: ReadonlySet<string>` só com `'motorista.'`, mais um
+  `test.todo('motorista tem callback nos dois ambientes (spec 189 T6.4)')` como placeholder
+  rastreável. Rejeitei a opção B (adiar a mudança de `AUTHENTICATED_APPS` inteira para a T6.4)
+  porque a T6.1 pede explicitamente "com `'motorista.'`" no arquivo agora, e a solução escolhida
+  deixa isso visível no código sem derrubar `make check` entre a T6.1 e a T6.4 — `keycloak-redirect-
+uris.contract.ts` é importado por `test/deploy.contract.test.ts`, que entra na suíte de contrato
+  raiz; um teste vermelho ali ficaria vermelho em todo `make check` até a T6.4, e a instrução comum
+  veda commit fora de `make check` verde salvo aceite explícito de "vermelhos" — a T6.1 tem esse
+  aceite, mas o briefing pediu para evitar mesmo assim.
+  **Fecha na T6.4:** tirar `'motorista.'` de `PENDING_APPS` (o teste vivo passa a cobri-la) e trocar
+  o `test.todo` por uma asserção de verdade (ou apagá-lo), quando `spa-redirect-uris.json` ganhar a
+  origem do motorista.
+
+- `bun --env-file=../../.env.test test test/deploy.contract.test.ts --timeout 120000` (de dentro de
+  `apps/api-transportada`), antes da T6.2: **182 pass / 1 todo / 1 fail** — o fail é só o teste novo
+  de `service-naming` (razão certa, acima); `keycloak-redirect-uris` não regrediu.
+- `bunx prettier --check` nos dois arquivos: limpo.
+- Commit `452d2cd5c`.
+
+### T6.2 — Serviço `driver` em `.railway/railway.ts`
+
+- Bloco `driver` acrescentado em `.railway/railway.ts`, no molde do `client` (linhas ~574-612):
+  `build.dockerfilePath: apps/frontend-driver/Dockerfile`, `healthcheckPath: /health/live`,
+  `healthcheckTimeout: 120`, `restartPolicyType: ON_FAILURE`, `replicas: { sfo: 1 }`, e `driver`
+  somado ao array `shared` (entra nos dois ambientes). **Sem `source`**: como `api`/`worker`/
+  `panel`/`landing`/`keycloak`/`cron`, para não conectar o GitHub e disparar auto-deploy fora do
+  gate (o `client` conecta em staging, mas isso é uma exceção já medida e documentada no arquivo,
+  não o padrão para serviço novo). **Sem `domains`** ainda — o domínio nasce no painel na T6.3
+  (👤) e só volta ao arquivo depois, por `railway config pull`; declará-lo agora faria o `plan`
+  tentar registrar domínio por código, que a Railway recusa (`docs/spec/railway.md` § "Duas coisas
+  que o arquivo não pode fazer").
+- **`VITE_*` literais por ambiente** (ADR-0075 §3), nunca `preserve()`. Valores obtidos com
+  `railway variables --service client --environment <env> --json`, filtrando só as chaves `VITE_*`
+  (nenhuma outra variável foi impressa nem lida):
+
+  | Variável                      | staging                                                     | production                                               |
+  | ----------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+  | `VITE_API_URL`                | `https://api.staging.fernandes-transportadora.com.br`       | `https://api.fernandes-transportadora.com.br`            |
+  | `VITE_APP_ENV`                | `staging`                                                   | `production`                                             |
+  | `VITE_DRIVER_APP_URL`         | `https://motorista.staging.fernandes-transportadora.com.br` | `https://motorista.fernandes-transportadora.com.br`      |
+  | `VITE_IDENTIFIER_FIRST_LOGIN` | `true`                                                      | `true`                                                   |
+  | `VITE_KEYCLOAK_CLIENT_ID`     | `transportada-spa`                                          | `transportada-spa`                                       |
+  | `VITE_KEYCLOAK_REALM`         | `transportada`                                              | `transportada`                                           |
+  | `VITE_KEYCLOAK_URL`           | `https://auth.staging.fernandes-transportadora.com.br`      | `https://transportada-afr-fernandes-auth.up.railway.app` |
+
+  `VITE_DRIVER_APP_URL` substitui o `VITE_CLIENT_APP_URL` do molde (é o único que muda de
+  variável — os demais mantêm o nome e valor do `client`). `VITE_IDENTIFIER_FIRST_LOGIN` copiado
+  literal `'true'` dos dois ambientes, como no `client` — nenhuma decisão nova, mesmo padrão de
+  tela de identificação antes do login. `PORT`, `DEPLOYED_REVISION` e `RAILWAY_DOCKERFILE_PATH`
+  ficam em `preserve()`.
+
+- `docs/spec/railway.md`: nova linha na tabela de build —
+  `| \`driver\` | \`apps/frontend-driver/Dockerfile\` | \`.railway/railway.ts\` |`.
+- `bunx --bun tsc --noEmit --target es2022 --module esnext --moduleResolution bundler --strict
+.railway/railway.ts`: sem erro (exit 0) — não há script de typecheck dedicado ao IaC no
+  `package.json`, então validei a sintaxe/tipos com o `tsc` direto antes do `plan`.
+- `bunx prettier --check` em `.railway/railway.ts` e `docs/spec/railway.md`: limpo.
+- `bun --env-file=../../.env.test test test/deploy.contract.test.ts --timeout 120000`: **183 pass /
+  1 todo / 0 fail** — `service-naming` fechou verde (a linha nova aparece na tabela).
+
+**`railway config plan` de staging — BLOQUEADO, NÃO aplicado.** Comando:
+`railway config plan --verbose` (linkado em `staging`, `railway link --project
+62de4c69-216a-4335-93a0-4942c6a95c54`). Saída completa:
+
+```
+Railway configuration
+Using .railway/railway.ts
+Project transportada
+Environment staging
+Project ID 62de4c69-216a-4335-93a0-4942c6a95c54
+
+Plan: 1 to add, 11 to change, 2 to destroy
+  ~ Update api deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+  - Delete variable worker.API_BASE_URL
+  ~ Update worker deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+  - Delete variable transportada-frontend.VITE_OBJECT_STORAGE_URL
+  ~ Update transportada-frontend deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+  ~ Update landing deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+  ~ Update keycloak deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+  ~ Update vector deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+  ~ Update client deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+  + Create service driver
+  + Update variable map-tiles.MAP_PBF_URL
+    └ map-tiles.MAP_PBF_URL (preserve() → «hidden»)
+  ~ Update map-tiles deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+  + Update variable osrm.OSRM_PBF_URL
+    └ osrm.OSRM_PBF_URL (preserve() → «hidden»)
+  ~ Update osrm deploy.restartPolicyType
+    └ deploy.restartPolicyType (null → "ON_FAILURE")
+
+! 2 destructive change(s) will remove Railway resources or variables.
+```
+
+**Leitura:**
+
+- `+ Create service driver` — limpo, é a mudança desta task, sem nenhum destroy associado.
+- Os 9 `~ Update *.deploy.restartPolicyType (null → "ON_FAILURE")` e as 2 atualizações de
+  `MAP_PBF_URL`/`OSRM_PBF_URL` são o ruído já documentado em `docs/spec/railway.md` § "Migrar um
+  serviço" (o padrão da Railway gravado como vazio, e o extrato de mapa fixado no arquivo
+  divergindo do `-latest` baixado) — **não são novos**, não vêm do meu bloco `driver`.
+  Confirmei em `.railway/railway.ts`: nenhuma dessas quatro chaves aparece no bloco `driver`.
+- **Os 2 `destroy` não têm relação com o serviço `driver`:** `worker.API_BASE_URL` e
+  `transportada-frontend.VITE_OBJECT_STORAGE_URL` não aparecem em `.railway/railway.ts` (grep
+  vazio nos dois nomes), mas o código das duas apps **as lê**:
+  `apps/worker-transportada/src/config/environment.schema.ts:44` (`API_BASE_URL: optionalUrl()`) e
+  `apps/frontend-transportada/vite.config.ts:70` (`readEnvironment('VITE_OBJECT_STORAGE_URL')`,
+  com `ARG VITE_OBJECT_STORAGE_URL` no `Dockerfile:42`). São variáveis vivas na Railway, usadas
+  pelo código, e ausentes do arquivo IaC — exatamente o "omitir é apagar" que
+  `docs/spec/railway.md` avisa. Pré-existente: nenhuma das duas foi tocada nesta task nem faz
+  parte do escopo da spec 189.
+
+**Parando aqui, conforme o aceite da T6.2** ("`railway config plan` de staging sem nenhum
+`destroy`" — se aparecer, parar e devolver o plano). Não rodei `railway config apply` (é da T6.3,
+humana, e de qualquer forma bloqueado por este achado). Meu bloco `driver` está pronto e correto
+(commit pendente até a decisão abaixo); o que falta é alguém decidir, para as duas variáveis
+órfãs, entre acrescentá-las como `preserve()` nos blocos `worker` e `transportada-frontend` (mantém
+o valor atual, sem saber qual é) ou confirmar que são lixo e apagá-las de propósito — as duas
+opções exigem quem conhece a origem delas, fora do escopo de T6.1/T6.2.
+
 ## Fase 7 — Depois da virada: o que não é paridade
 
 ### T7.1 — Contrato de `driverTripSelection.service.ts`

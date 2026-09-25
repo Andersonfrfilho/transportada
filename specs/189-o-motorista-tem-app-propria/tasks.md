@@ -298,7 +298,7 @@ consentimento, vem **depois da virada** e não a segura.
 
 > 🤖 Modelo: `sonnet` · 👤 onde marcado
 
-- [ ] **T6.1** Contratos:
+- [x] **T6.1** Contratos:
   - `service-naming.contract.ts:67` (a tabela de `docs/spec/railway.md`);
   - `keycloak-redirect-uris.contract.ts:25`, com `'motorista.'`.
 

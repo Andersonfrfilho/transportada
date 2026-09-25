@@ -128,6 +128,7 @@ O Dockerfile de cada serviço é escolhido pela variável de build
 | `transportada-frontend` | `apps/frontend-transportada/Dockerfile` | `deploy/frontend/railway.json` |
 | `landing`               | `apps/frontend-landing/Dockerfile`      | `deploy/landing/railway.json`  |
 | `client`                | `apps/frontend-client/Dockerfile`       | `.railway/railway.ts`          |
+| `driver`                | `apps/frontend-driver/Dockerfile`       | `.railway/railway.ts`          |
 | `keycloak`              | `deploy/keycloak/Dockerfile`            | `deploy/keycloak/railway.json` |
 
 > ⚠️ **O caminho do arquivo de config é uma _configuração de serviço_, não uma
