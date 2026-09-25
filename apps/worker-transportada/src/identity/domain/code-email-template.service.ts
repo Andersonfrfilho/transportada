@@ -124,7 +124,14 @@ export type CodeEmailRecipient = {
   readonly pictureToken: string | undefined
 }
 
+/** O botão que leva à tela onde o código é usado. Ausente, o e-mail é só o código, como sempre foi. */
+export type CodeEmailAction = {
+  readonly label: string
+  readonly url: string
+}
+
 export type CodeEmailContent = {
+  readonly action?: CodeEmailAction
   readonly code: string
   readonly headline: string
   readonly intro: string
@@ -213,6 +220,7 @@ export function renderCodeEmail(input: {
       content.headline,
       content.intro,
       content.code,
+      ...(content.action === undefined ? [] : [`${content.action.label}: ${content.action.url}`]),
       content.note,
       '',
       AUTOMATED_NOTE,
@@ -346,9 +354,28 @@ function renderBody(input: {
     `<h1 style="margin:0 0 16px;color:${EMAIL_PALETTE.text};font-family:${EMAIL_FONTS.body};font-size:20px;font-weight:600;line-height:1.3">${escapeHtml(content.headline)}</h1>`,
     toParagraphs(content.intro),
     `<p style="margin:0 0 16px;padding:16px;background:${EMAIL_PALETTE.background};border-left:4px solid ${accent};color:${EMAIL_PALETTE.text};font-family:${EMAIL_FONTS.mono};font-size:24px;font-weight:700;letter-spacing:2px;text-align:center">${escapeHtml(content.code)}</p>`,
+    content.action === undefined ? '' : renderAction({ accent, action: content.action }),
     note,
     `<p style="margin:0 0 16px;color:${EMAIL_PALETTE.muted};font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.5">${escapeHtml(AUTOMATED_NOTE)}</p>`,
     '</td></tr>',
+  ].join('')
+}
+
+/**
+ * Botão "à prova de Outlook": tabela com a cor na célula e o link ocupando o bloco inteiro. O
+ * endereço vai também por extenso logo abaixo — imagem e estilo podem cair, o texto do link não.
+ */
+function renderAction(input: {
+  readonly accent: string
+  readonly action: CodeEmailAction
+}): string {
+  const url = escapeHtml(input.action.url)
+  return [
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 12px">',
+    `<tr><td align="center" style="background:${input.accent}">`,
+    `<a href="${url}" style="display:inline-block;padding:14px 28px;color:${EMAIL_PALETTE.background};font-family:${EMAIL_FONTS.body};font-size:15px;font-weight:700;text-decoration:none">${escapeHtml(input.action.label)}</a>`,
+    '</td></tr></table>',
+    `<p style="margin:0 0 16px;color:${EMAIL_PALETTE.muted};font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.5;text-align:center;word-break:break-all"><a href="${url}" style="color:${EMAIL_PALETTE.muted}">${url}</a></p>`,
   ].join('')
 }
 

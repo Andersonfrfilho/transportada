@@ -36,7 +36,11 @@ export type InvitationDeliveryDependencies = {
       readonly companyId: string
       readonly channel: InvitationContactChannel
       /** O texto em volta do código no e-mail; o WhatsApp continua mandando `body` em uma linha. */
-      readonly email?: { readonly intro: string; readonly note: string }
+      readonly email?: {
+        readonly action?: { readonly label: string; readonly path: string }
+        readonly intro: string
+        readonly note: string
+      }
       /** Quem recebe: o e-mail se dirige a uma pessoa, e é ela que aparece na identidade. */
       readonly recipient?: { readonly name: string; readonly pictureToken: string | undefined }
       readonly subject: string
@@ -68,7 +72,9 @@ export type InvitationDeliveryDependencies = {
 
 const DELIVERY_SUBJECT = 'Seu código de ativação'
 const INVITATION_EMAIL_TEXT = {
-  intro: 'Use o código abaixo para ativar seu acesso e definir sua senha.',
+  action: { label: 'Ativar meu acesso', path: '/ativar' },
+  intro:
+    'Toque no botão para ativar seu acesso e definir sua senha. Se preferir, use o código abaixo na tela de ativação.',
   note: 'O código é de uso único. Se não reconhece este convite, ignore este e-mail.',
 } as const
 

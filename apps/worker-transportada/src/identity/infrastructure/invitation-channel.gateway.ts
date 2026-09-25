@@ -59,7 +59,15 @@ export function createInvitationChannelGateway(drivers: {
        * O que o e-mail diz em volta do código, separado do `body` que o WhatsApp manda em uma linha.
        * Ausente, o template usa o `body` como parágrafo — nenhum trilho fica sem mensagem.
        */
-      readonly email?: { readonly intro: string; readonly note: string }
+      readonly email?: {
+        /**
+         * A tela do painel onde o código é usado. O código vai no **fragmento** (`#codigo=`), que o
+         * navegador não manda a servidor nenhum — nem ao nosso, nem a proxy, nem a log de acesso.
+         */
+        readonly action?: { readonly label: string; readonly path: string }
+        readonly intro: string
+        readonly note: string
+      }
       /**
        * Quem recebe. O e-mail é endereçado a uma pessoa, e a identidade dele mostra a foto de perfil
        * quando ela existe — o WhatsApp ignora, porque lá a conversa já é com a pessoa.
@@ -120,11 +128,17 @@ export function createInvitationChannelGateway(drivers: {
           ? await drivers.legal?.find({ companyId: input.companyId })
           : undefined
 
+      const action = buildEmailAction({
+        action: input.email?.action,
+        appBaseUrl: brand.appBaseUrl,
+        code: input.code,
+      })
       const document = renderCodeEmail({
         brand,
         ...(legal === undefined ? {} : { legal }),
         ...(input.recipient === undefined ? {} : { recipient: input.recipient }),
         content: {
+          ...(action === undefined ? {} : { action }),
           code: input.code,
           headline: input.subject,
           intro: input.email?.intro ?? input.body,
@@ -145,4 +159,21 @@ export function createInvitationChannelGateway(drivers: {
       throw new InvitationDeliveryFailedError(result.outcome, result.errorCode)
     },
   }
+}
+
+type BuildEmailActionParams = {
+  readonly action: { readonly label: string; readonly path: string } | undefined
+  readonly appBaseUrl: string | undefined
+  readonly code: string
+}
+
+/** Sem a origem do painel não há link que funcione — o e-mail segue só com o código. */
+function buildEmailAction({
+  action,
+  appBaseUrl,
+  code,
+}: BuildEmailActionParams): { readonly label: string; readonly url: string } | undefined {
+  if (action === undefined || appBaseUrl === undefined) return undefined
+  const origin = appBaseUrl.endsWith('/') ? appBaseUrl.slice(0, -1) : appBaseUrl
+  return { label: action.label, url: `${origin}${action.path}#codigo=${encodeURIComponent(code)}` }
 }

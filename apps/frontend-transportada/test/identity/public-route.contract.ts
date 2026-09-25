@@ -23,7 +23,12 @@ describe('first access public route contract', () => {
   })
 })
 
-const PUBLIC_PAGES = ['FirstAccessPage', 'PasswordResetPage', 'LoginIdentifierPage'] as const
+const PUBLIC_PAGES = [
+  'FirstAccessPage',
+  'PasswordResetPage',
+  'UserActivationPage',
+  'LoginIdentifierPage',
+] as const
 
 /**
  * A faixa de ambiente morava só no `ApplicationShell`: as telas que o `bootstrapApplication` monta

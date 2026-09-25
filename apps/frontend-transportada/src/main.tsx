@@ -33,6 +33,7 @@ import {
   useInstallationDocumentTitle,
 } from '@/modules/identity/hooks/useInstallationBrandView.hook'
 import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
+import { UserActivationPage } from '@/modules/identity/pages/UserActivation.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
 import { useCompanyUserPicture } from '@/modules/identity/hooks/useCompanyUserPicture.hook'
 import { WhatsAppPhoneDialog } from '@/modules/identity/components/WhatsAppPhoneDialog.component'
@@ -824,6 +825,18 @@ async function bootstrapApplication(): Promise<void> {
       <StrictMode>
         <PublicRouteFrame>
           <PasswordResetPage />
+        </PublicRouteFrame>
+      </StrictMode>,
+    )
+    return
+  }
+
+  // O link do convite abre aqui, com o código no fragmento: a conta ainda não tem senha nem sessão
+  if (window.location.pathname === '/ativar') {
+    createRoot(applicationRootElement).render(
+      <StrictMode>
+        <PublicRouteFrame>
+          <UserActivationPage />
         </PublicRouteFrame>
       </StrictMode>,
     )

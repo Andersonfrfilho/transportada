@@ -617,5 +617,17 @@
       "WHATSAPP_PHONE_INVALID": "Confira o número digitado.",
       "WHATSAPP_CHANNEL_NUMBER_MISSING": "A empresa ainda não configurou o WhatsApp. Fale com o administrador."
     }
-  }
+  },
+  "activationTitle": "Ativar acesso",
+  "activationDescription": "Digite o código de ativação que você recebeu no convite e escolha a sua senha.",
+  "activationDescriptionFromLink": "O código do seu convite já está preenchido. Escolha a sua senha para ativar o acesso.",
+  "activationCode": "Código de ativação",
+  "activationPassword": "Nova senha",
+  "activationPasswordConfirmation": "Repita a nova senha",
+  "activationPasswordHint": "Pelo menos 12 caracteres.",
+  "activationSubmit": "Ativar acesso",
+  "activationDone": "Acesso ativado. Entre com o seu e-mail e a senha que acabou de escolher.",
+  "activationGoToLogin": "Ir para o login",
+  "activationRejected": "Não foi possível ativar. Confira o código — ele é de uso único e expira — e tente de novo, ou peça um novo convite.",
+  "activationPasswordMismatch": "As duas senhas não são iguais."
 }
