@@ -17,6 +17,14 @@ const COORDINATE_DECIMALS = 7
 const GEOLOCATION_PERMISSION_DENIED = 1
 const GEOLOCATION_POSITION_UNAVAILABLE = 2
 
+/**
+ * Code M6 (spec 189 T9.2): sem sinal (debaixo de viaduto, garagem) é transitório — só a negação de
+ * permissão é definitiva. Manter o `watch` aberto já bastaria em teoria, mas alguns aparelhos param
+ * de chamar o `error`/`success` depois do primeiro `POSITION_UNAVAILABLE`; reabrir o `watch` depois
+ * de um tempo é o que garante que ele volta a tentar sozinho.
+ */
+export const POSITION_UNAVAILABLE_RETRY_DELAY_MS = 30_000
+
 /** `waiting`: GPS observado, sem posição ainda. `unavailable`: GPS negado ou sem sinal nenhum. */
 export type LocationSharingStatus = 'off' | 'sharing' | 'unavailable' | 'waiting'
 
@@ -75,6 +83,7 @@ export function createLocationSharingController(
 ): LocationSharingController {
   let watchId: number | undefined
   let timerId: TimerId | undefined
+  let retryTimerId: TimerId | undefined
   let latest: SharedPosition | undefined
   let lastSentAt: number | undefined
   let status: LocationSharingStatus = 'off'
@@ -85,9 +94,15 @@ export function createLocationSharingController(
     dependencies.onStatusChange(next)
   }
 
+  function clearRetryTimer(): void {
+    if (retryTimerId !== undefined) dependencies.clearTimer(retryTimerId)
+    retryTimerId = undefined
+  }
+
   function halt(): void {
     if (watchId !== undefined) dependencies.geolocation.clearWatch(watchId)
     if (timerId !== undefined) dependencies.clearTimer(timerId)
+    clearRetryTimer()
     watchId = undefined
     timerId = undefined
     latest = undefined
@@ -113,14 +128,27 @@ export function createLocationSharingController(
     if (timerId === undefined) sendLatest()
   }
 
-  /** Demora (`TIMEOUT`) não é recusa: o `watchPosition` continua e a posição ainda pode chegar. */
+  /**
+   * Demora (`TIMEOUT`) não é recusa: o `watchPosition` continua e a posição ainda pode chegar.
+   * Code M6: sem sinal (`POSITION_UNAVAILABLE`) também não é — o `watch` segue aberto e, se o
+   * aparelho parou de chamar sozinho, o temporizador reabre depois de
+   * `POSITION_UNAVAILABLE_RETRY_DELAY_MS`. Só `PERMISSION_DENIED` é definitivo.
+   */
   function handleError(error: GeolocationPositionError): void {
-    const isRefusal =
-      error.code === GEOLOCATION_PERMISSION_DENIED ||
-      error.code === GEOLOCATION_POSITION_UNAVAILABLE
-    if (!isRefusal) return
-    halt()
-    changeStatus('unavailable')
+    if (error.code === GEOLOCATION_PERMISSION_DENIED) {
+      halt()
+      changeStatus('unavailable')
+      return
+    }
+    if (error.code !== GEOLOCATION_POSITION_UNAVAILABLE) return
+    if (retryTimerId !== undefined) return
+    retryTimerId = dependencies.setTimer(() => {
+      retryTimerId = undefined
+      if (watchId === undefined) return
+      dependencies.geolocation.clearWatch(watchId)
+      watchId = undefined
+      start()
+    }, POSITION_UNAVAILABLE_RETRY_DELAY_MS)
   }
 
   function start(): void {

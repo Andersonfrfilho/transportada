@@ -7,6 +7,7 @@ import type { DriverTrip } from '@/modules/driver-trip/shared/driverTrip.types'
 import {
   createLocationSharingController,
   LOCATION_SHARING_INTERVAL_MS,
+  POSITION_UNAVAILABLE_RETRY_DELAY_MS,
   shouldShareLocation,
   type LocationSharingStatus,
 } from '@/modules/driver-trip/shared/locationSharing.service'
@@ -243,6 +244,43 @@ describe('o envio da posição (spec 189 T7.5)', () => {
 
     expect(harness.statuses.at(-1)).toBe('sharing')
     expect(harness.sent).toHaveLength(1)
+  })
+
+  /**
+   * Code M6 (spec 189 T9.2): sem sinal (debaixo de viaduto, garagem) é transitório, ao contrário da
+   * negação — o `watch` continua aberto e, se o aparelho parar de chamar sozinho, reabre depois de
+   * `POSITION_UNAVAILABLE_RETRY_DELAY_MS`.
+   */
+  it('GPS sem sinal: mantém o watch e tenta de novo depois de um tempo', () => {
+    const harness = buildHarness()
+    harness.controller.update(true)
+
+    harness.emitError(2)
+
+    expect(harness.statuses.at(-1)).not.toBe('unavailable')
+    expect(harness.activeWatches()).toBe(1)
+    expect(harness.cleared).toHaveLength(0)
+
+    harness.advance(POSITION_UNAVAILABLE_RETRY_DELAY_MS)
+
+    expect(harness.cleared).toHaveLength(1)
+    expect(harness.activeWatches()).toBe(1)
+
+    harness.emitPosition(-23.55, -46.63)
+    expect(harness.sent).toHaveLength(1)
+    expect(harness.statuses.at(-1)).toBe('sharing')
+  })
+
+  it('desligar durante a espera do sinal cancela o novo tento', () => {
+    const harness = buildHarness()
+    harness.controller.update(true)
+
+    harness.emitError(2)
+    harness.controller.update(false)
+    harness.advance(POSITION_UNAVAILABLE_RETRY_DELAY_MS * 2)
+
+    expect(harness.activeWatches()).toBe(0)
+    expect(harness.sent).toEqual([])
   })
 })
 
