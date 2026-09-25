@@ -120,4 +120,49 @@ describe('o MDF-e na mão do motorista', () => {
     const broken = buildClient(() => Promise.resolve(new Response(JSON.stringify({ data: {} }))))
     expect(broken.client.readManifestXml(MANIFEST_ID)).rejects.toThrow()
   })
+
+  /**
+   * Spec 189 T9.2 (L6): a URL vai para `window.open`. Uma `javascript:` ou `data:` vinda de uma
+   * resposta adulterada rodaria na origem da app; só `https:` (e `http:` de loopback, o MinIO do
+   * `make dev`) abre.
+   */
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'http://bucket.example.test/assinada',
+    'não é url',
+  ])('a URL do XML que não é https é recusada: %s', async (downloadUrl) => {
+    const { client } = buildClient(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: { accessKey: ACCESS_KEY, downloadUrl, expiresAt: '2026-08-26T12:21:10.000Z' },
+          }),
+        ),
+      ),
+    )
+
+    const error = await client.readManifestXml(MANIFEST_ID).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(Error)
+  })
+
+  it('a URL do MinIO local (http de loopback) continua abrindo', async () => {
+    const { client } = buildClient(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              accessKey: ACCESS_KEY,
+              downloadUrl: 'http://127.0.0.1:59000/bucket/assinada',
+              expiresAt: '2026-08-26T12:21:10.000Z',
+            },
+          }),
+        ),
+      ),
+    )
+
+    expect((await client.readManifestXml(MANIFEST_ID)).downloadUrl).toBe(
+      'http://127.0.0.1:59000/bucket/assinada',
+    )
+  })
 })

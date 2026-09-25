@@ -3,10 +3,12 @@
 /**
  * ⚠️ **Cópia por valor** do provedor do portal. As duas apps não importam código uma da outra, e a
  * autenticação é a parte em que isso mais dói de duplicar — mas é também a parte em que compartilhar
- * um bundle anularia a separação da ADR-0075 §1. O desvio deliberado: aqui **não existe o atalho de
- * autenticação usado nos testes de fumaça do painel**. Um bypass de autenticação num app servido a
- * usuário externo é exatamente o tipo de código que ninguém quer descobrir ligado em produção — e o
- * contrato de segurança desta app falha se ele reaparecer, por nome.
+ * um bundle anularia a separação da ADR-0075 §1. O login é sempre real, pelo Keycloak: **este
+ * provedor não tem atalho de autenticação**. O `smokeAuthBypass.service.ts` desta app (cópia do
+ * painel, com as duas travas) só desliga o service worker e troca a fonte do `/auth/me` do Perfil
+ * no Playwright — nunca a autenticação —, e o `Dockerfile` nunca declara o `ARG` dele
+ * (`test/shared/vite-build-args.contract.ts`). Os desvios deliberados do portal são o erro de
+ * transporte tipado no refresh (`IdentityUnreachableError`) e o caminho de volta sanitizado.
  */
 import Keycloak from 'keycloak-js'
 
@@ -156,6 +158,17 @@ function persistPostAuthenticationPath(): void {
   writeWindowName(`${POST_AUTHENTICATION_PATH_WINDOW_NAME_PREFIX}${getCurrentApplicationPath()}`)
 }
 
+/**
+ * Spec 189 T9.2 (L8): `window.name` sobrevive à navegação e qualquer página que passe pela aba pode
+ * escrevê-lo. Só volta caminho da própria app — começa com `/`, e não com `//` nem `/\` (que o
+ * navegador lê como outra origem).
+ */
+export function sanitizePostAuthenticationPath(path: string): string {
+  if (!path.startsWith('/')) return '/'
+  if (path.startsWith('//') || path.startsWith('/\\')) return '/'
+  return path
+}
+
 function resolvePostAuthenticationPath(): string {
   if (!canUseBrowserNavigation()) {
     return '/'
@@ -167,7 +180,9 @@ function resolvePostAuthenticationPath(): string {
   }
 
   writeWindowName('')
-  return persistedPath.slice(POST_AUTHENTICATION_PATH_WINDOW_NAME_PREFIX.length)
+  return sanitizePostAuthenticationPath(
+    persistedPath.slice(POST_AUTHENTICATION_PATH_WINDOW_NAME_PREFIX.length),
+  )
 }
 
 function restoreApplicationPathAfterAuthentication(): void {

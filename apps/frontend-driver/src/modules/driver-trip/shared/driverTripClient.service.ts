@@ -384,6 +384,23 @@ function toLocationConsent(payload: unknown): LocationConsent {
   return { acceptedAt }
 }
 
+const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '[::1]'])
+
+/**
+ * Spec 189 T9.2 (L6): a URL assinada vai direto para `window.open`. `javascript:`/`data:` vindos de
+ * uma resposta adulterada rodariam na origem da app — só `https:` abre, e `http:` só de loopback,
+ * que é o MinIO do `make dev`.
+ */
+function isSafeDownloadUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'https:') return true
+    return url.protocol === 'http:' && LOOPBACK_HOSTNAMES.has(url.hostname)
+  } catch {
+    return false
+  }
+}
+
 function toManifestDownload(payload: unknown): DriverTripManifestDownload {
   const data =
     typeof payload === 'object' && payload !== null
@@ -395,7 +412,8 @@ function toManifestDownload(payload: unknown): DriverTripManifestDownload {
   if (
     typeof record.accessKey !== 'string' ||
     typeof record.downloadUrl !== 'string' ||
-    typeof record.expiresAt !== 'string'
+    typeof record.expiresAt !== 'string' ||
+    !isSafeDownloadUrl(record.downloadUrl)
   ) {
     throw new DriverTripResponseError()
   }

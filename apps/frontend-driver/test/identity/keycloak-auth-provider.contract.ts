@@ -7,6 +7,7 @@ import {
   IDENTITY_SESSION_EXPIRED,
   IDENTITY_UNREACHABLE,
   IdentityUnreachableError,
+  sanitizePostAuthenticationPath,
   type KeycloakClient,
 } from '../../src/modules/shared/KeycloakAuthProvider.provider'
 import { readTrustedUrl } from '../../src/modules/shared/environment.config'
@@ -256,5 +257,25 @@ describe('driver environment', () => {
     'https://user:password@identity.example.com',
   ])('rejects an untrusted identity URL: %s', (url) => {
     expect(() => readTrustedUrl(url, 'URL')).toThrow('DRIVER_CONFIGURATION_INVALID_URL')
+  })
+})
+
+/**
+ * Spec 189 T9.2 (L8): o caminho de volta mora em `window.name`, que outra página da mesma aba pode
+ * escrever. Só caminho da própria app — começa com `/` e não é `//` nem `/\\` (protocolo relativo).
+ */
+describe('sanitizePostAuthenticationPath (L8)', () => {
+  test.each(['/', '/perfil', '/notificacoes?aba=1#topo'])('aceita %s', (path) => {
+    expect(sanitizePostAuthenticationPath(path)).toBe(path)
+  })
+
+  test.each([
+    '//evil.example',
+    '/\\evil.example',
+    'https://evil.example/',
+    'javascript:alert(1)',
+    '',
+  ])('troca %s pela raiz', (path) => {
+    expect(sanitizePostAuthenticationPath(path)).toBe('/')
   })
 })
