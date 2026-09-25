@@ -1290,3 +1290,23 @@ fazia `reader.read()` rejeitar sem ninguém pegando, e o leitor nunca era libera
   coberta pelos testes existentes de `driver-app-redirect.contract.ts` e `legacy-beacon.contract.ts`).
 - `bun run typecheck`, `bun run lint`: limpos. `bun run test` (contrato + hooks): 5320 + 54 pass /
   0 fail.
+
+### LOW — `DriverLegacyPending.page.tsx`: lojas sem argumento, erro de descarte à vista
+
+- **`useDriverTrip()` sem argumentos.** Desde a b18564bc8, as lojas **padrão** de `useDriverTrip`
+  já nascem estáveis (`useState` interno) — o `useState` local desta tela, que criava as próprias
+  lojas só para contornar a instabilidade antiga, e o comentário que explicava esse contorno,
+  ficaram sem propósito. A tela agora chama `useDriverTrip()` puro, como qualquer outro consumidor
+  do módulo.
+- **Erro de descarte à vista.** `onDiscard` engolia a rejeição de `discardRejected` com `void`: uma
+  falha (rede, sessão) não aparecia em lugar nenhum, e o motorista via o item continuar na fila sem
+  saber por quê. Agora `onDiscard` zera o erro anterior, chama `discardRejected(...).catch(...)`, e
+  mostra `role="alert"` com `eventQueue.discard.failed` (novo texto, pt-BR e en) quando falha —
+  reaproveitando `.eventQueueStatusRejected` de `driverTrip.module.css`, a mesma classe do texto de
+  recusa da própria fila.
+- Sem contrato novo dedicado (mesmo motivo do M3: não existe helper de render de componente
+  completo neste app, só de hooks). A troca de `useDriverTrip(stores.store, stores.attachmentStore)`
+  para `useDriverTrip()` não muda o contrato do hook, que já é testado com e sem argumento em
+  `driver-trip-drain-triggers.contract.ts` (revisão M4) e em `event-queue.contract.ts`.
+- `bun run typecheck`, `bun run lint`: limpos. `bun run test` (contrato + hooks): 5320 + 54 pass /
+  0 fail — nenhuma suíte quebrou com a assinatura nova de `useDriverTrip()` nesta tela.

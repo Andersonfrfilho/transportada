@@ -19,6 +19,7 @@
     "back": "Voltar",
     "discard": {
       "confirm": "Descartar mesmo assim",
+      "failed": "Não foi possível descartar agora. Tente de novo.",
       "keep": "Manter",
       "open": "Descartar",
       "warning": "A entrega não foi registrada; fale com o escritório. Descartar apaga este item do aparelho."

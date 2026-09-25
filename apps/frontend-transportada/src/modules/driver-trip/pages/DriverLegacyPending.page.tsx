@@ -9,10 +9,6 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
-import {
-  createIndexedDbAttachmentStore,
-  createIndexedDbQueueStore,
-} from '../shared/indexedDbQueue.service'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import styles from '../styles/driverTrip.module.css'
 
@@ -30,18 +26,11 @@ type DriverLegacyPendingPageProps = Readonly<{
  */
 export function DriverLegacyPendingPage({ onGoToDriverApp }: DriverLegacyPendingPageProps) {
   const { t } = useTranslation('driverTrip')
-  /**
-   * ⚠️ As lojas vão **estáveis**. O padrão do `useDriverTrip` cria uma loja nova a cada render, e o
-   * efeito de montagem depende dela: ele roda de novo a cada render e emenda uma drenagem na outra —
-   * `isSyncing` nunca volta a `false`, e "Descartar" ficava desabilitado para sempre (medido no
-   * smoke desta tela).
-   */
-  const [stores] = useState(() => ({
-    attachmentStore: createIndexedDbAttachmentStore(),
-    store: createIndexedDbQueueStore(),
-  }))
-  const driverTrip = useDriverTrip(stores.store, stores.attachmentStore)
+  /** Revisão M4: as lojas padrão do `useDriverTrip` já nascem estáveis — sem argumento nenhum. */
+  const driverTrip = useDriverTrip()
   const isQueueEmpty = driverTrip.pendingCounts?.total === 0
+  /** Revisão LOW: o descarte pode falhar (rede, sessão) — a tela mostra, não engole `void`. */
+  const [discardError, setDiscardError] = useState(false)
   /**
    * Revisão M3: esta tela nasce fora do `ApplicationShell` (`renderDriverAppScreen`, `main.tsx`), e
    * é a única do painel que drena a fila antiga sem o aviso de sessão expirada dele. Reautenticar
@@ -78,11 +67,19 @@ export function DriverLegacyPendingPage({ onGoToDriverApp }: DriverLegacyPending
           ) : null}
         </div>
       </section>
+      {discardError ? (
+        <p className={styles.eventQueueStatusRejected} role="alert">
+          {t('eventQueue.discard.failed')}
+        </p>
+      ) : null}
       <DriverEventQueuePage
         isLoading={driverTrip.isQueueLoading}
         isSyncing={driverTrip.isSyncing}
         items={driverTrip.queueView}
-        onDiscard={(idempotencyKey) => void driverTrip.discardRejected(idempotencyKey)}
+        onDiscard={(idempotencyKey) => {
+          setDiscardError(false)
+          driverTrip.discardRejected(idempotencyKey).catch(() => setDiscardError(true))
+        }}
         onSendAll={() => driverTrip.sendAllNow()}
         onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
       />

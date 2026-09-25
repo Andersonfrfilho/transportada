@@ -31,6 +31,7 @@
     "back": "Back",
     "discard": {
       "confirm": "Discard anyway",
+      "failed": "Could not discard right now. Try again.",
       "keep": "Keep",
       "open": "Discard",
       "warning": "The delivery was not recorded; talk to the office. Discarding removes this item from the device."
