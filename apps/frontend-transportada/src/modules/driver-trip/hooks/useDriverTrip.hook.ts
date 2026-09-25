@@ -19,6 +19,8 @@ import {
   discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
+  isAttachmentDiscardable,
+  type AttachmentGroupEntries,
   type AttachmentSendOutcome,
   type AttachmentStore,
   type QueuedAttachment,
@@ -27,12 +29,49 @@ import {
   createIdempotencyKey,
   enqueueReport,
   type OfflineQueueStore,
+  type QueuedReport,
 } from '../shared/offlineQueue.service'
+import {
+  scheduleQueueDrainTriggers,
+  type DrainTriggerTarget,
+} from '../shared/queueDrainScheduler.service'
 
 const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
 /** A viagem muda pelas mãos do escritório também — cancelamento chega no próximo poll, não por push. */
 const CURRENT_TRIP_REFETCH_MS = 30_000
+
+/** `visibilitychange` é do `document`, o resto dos gatilhos de drenagem é do `window`. */
+const DRAIN_TRIGGER_TARGET: DrainTriggerTarget = {
+  addEventListener: (type, listener) =>
+    (type === 'visibilitychange' ? document : window).addEventListener(type, listener),
+  clearInterval: (id) => window.clearInterval(id),
+  isVisible: () => document.visibilityState === 'visible',
+  removeEventListener: (type, listener) =>
+    (type === 'visibilitychange' ? document : window).removeEventListener(type, listener),
+  setInterval: (handler, timeout) => window.setInterval(handler, timeout),
+}
+
+/**
+ * Contagem mínima do que ainda vale a pena tentar drenar: evento não recusado pelo servidor (a
+ * drenagem automática já pula os recusados) e anexo ainda não vencido (o que `discardStaleAttachments`
+ * teria removido). É só o que decide se o temporizador de `scheduleQueueDrainTriggers` continua
+ * ligado — não precisa ser exata, só maior que zero enquanto houver algo para tentar de novo.
+ */
+function countDrainableItems(input: {
+  readonly attachments: AttachmentGroupEntries
+  readonly now: Date
+  readonly queued: readonly QueuedReport[]
+}): number {
+  const drainableEvents = input.queued.filter((item) => item.rejectionCause === undefined).length
+  const drainableAttachments = input.attachments.reduce(
+    (total, [, group]) =>
+      total +
+      group.filter((attachment) => !isAttachmentDiscardable({ attachment, now: input.now })).length,
+    0,
+  )
+  return drainableEvents + drainableAttachments
+}
 
 export type DriverProofInput = Readonly<{
   documentId: string
@@ -107,9 +146,16 @@ export function useDriverTrip(
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
 
+  /** Revisão da drenagem sem fim: o temporizador só corre enquanto isto for maior que zero. */
+  const drainableCountRef = useRef(0)
+  /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
+  const syncDrainTimerRef = useRef<() => void>(() => undefined)
+
   const refreshQueueView = useCallback(async (): Promise<void> => {
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
     setQueueView(buildEventQueueView({ attachments, queued }))
+    drainableCountRef.current = countDrainableItems({ attachments, now: new Date(), queued })
+    syncDrainTimerRef.current()
   }, [attachmentStore, store])
 
   const currentTrip = useQuery({
@@ -246,10 +292,6 @@ export function useDriverTrip(
   drainRef.current = requestDrain
 
   useEffect(() => {
-    function handleOnline(): void {
-      drainRef.current(undefined)
-    }
-    window.addEventListener('online', handleOnline)
     /**
      * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
      * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
@@ -257,9 +299,22 @@ export function useDriverTrip(
     void discardStaleAttachments({ attachmentStore, now: new Date() }).then(() =>
       refreshQueueView(),
     )
+    /** "Abertura": o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
     drainRef.current(undefined)
 
-    return () => window.removeEventListener('online', handleOnline)
+    const cancelTriggers = scheduleQueueDrainTriggers({
+      drain: () => drainRef.current(undefined),
+      getDrainable: () => drainableCountRef.current,
+      onQueueSync: (sync) => {
+        syncDrainTimerRef.current = sync
+      },
+      target: DRAIN_TRIGGER_TARGET,
+    })
+
+    return () => {
+      syncDrainTimerRef.current = () => undefined
+      cancelTriggers()
+    }
   }, [attachmentStore, refreshQueueView])
 
   async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
