@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { InstallationBrandMark } from '@/modules/identity/components/InstallationBrandMark.component'
+import { useInstallationBrandView } from '@/modules/identity/hooks/useInstallationBrandView.hook'
 
 import { getKeycloakAuthProvider } from './KeycloakAuthProvider.provider'
 import { resolveLoginHint } from './loginHintClient.service'
@@ -21,6 +23,7 @@ export function LoginIdentifierPage() {
   const { t } = useTranslation('identity')
   const [identifier, setIdentifier] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
+  const brand = useInstallationBrandView()
 
   async function submit(): Promise<void> {
     const typed = identifier.trim()
@@ -37,32 +40,43 @@ export function LoginIdentifierPage() {
   }
 
   return (
-    <main className="page">
+    <main className="page login">
       <form
-        className="panel"
+        className="panel login__panel"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
         }}
       >
-        <h1 className="page__title">{t('login.title')}</h1>
-        <p className="page__subtitle">{t('login.subtitle')}</p>
+        <div className="login__brand">
+          <InstallationBrandMark
+            brand={brand}
+            logoClassName="login__logo"
+            nameClassName="login__name"
+          />
+        </div>
+        <h1 className="page__title login__title">{t('login.title')}</h1>
+        <p className="page__subtitle login__subtitle">{t('login.subtitle')}</p>
 
-        <label className="panel__row" htmlFor="login-identifier">
-          <span className="panel__label">{t('login.identifierLabel')}</span>
+        <label className="panel__label login__label" htmlFor="login-identifier">
+          {t('login.identifierLabel')}
         </label>
         <input
           autoComplete="username"
           autoFocus
-          className="panel__input"
+          className="panel__input login__input"
           id="login-identifier"
           onChange={(event) => setIdentifier(event.target.value)}
           type="text"
           value={identifier}
         />
-        <p className="page__subtitle">{t('login.identifierHint')}</p>
+        <p className="login__hint">{t('login.identifierHint')}</p>
 
-        <Button disabled={identifier.trim() === '' || isSubmitting} type="submit">
+        <Button
+          className="login__submit"
+          disabled={identifier.trim() === '' || isSubmitting}
+          type="submit"
+        >
           {isSubmitting ? t('login.submitting') : t('login.submit')}
         </Button>
       </form>

@@ -197,3 +197,66 @@ button:has(svg) {
   padding: var(--field-padding);
   width: 100%;
 }
+
+/**
+ * A entrada é a primeira metade do login; a segunda é o tema do Keycloak
+ * (`deploy/keycloak/theme/login`). As duas têm a mesma cara: marca no alto, textos no centro e
+ * campo de canto reto (o `.field-input` de lá).
+ */
+.login__panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+}
+
+.login__brand {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: center;
+  margin-bottom: var(--space-2);
+  text-align: center;
+}
+
+.login__logo {
+  height: 3rem;
+  max-width: 100%;
+  object-fit: contain;
+  width: auto;
+}
+
+.login__name {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.login__title {
+  margin: 0;
+  text-align: center;
+}
+
+.login__subtitle {
+  margin: 0 0 var(--space-2);
+  text-align: center;
+}
+
+.login__label {
+  margin-top: var(--space-2);
+}
+
+.login__input {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+}
+
+.login__hint {
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  margin: 0;
+  text-align: center;
+}
+
+.login__submit {
+  width: 100%;
+}
