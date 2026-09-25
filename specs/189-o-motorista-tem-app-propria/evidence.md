@@ -2007,3 +2007,34 @@ bun test ./test/keycloak-realm.contract.test.ts   (raiz)      18 pass, 0 fail
   `keycloak-reconcile.sh` só faz união (nunca remove) — se o domínio já estiver cadastrado no
   Keycloak de staging, ele continua lá até uma ação manual de admin; o arquivo só impede que ele
   volte a ser pedido nas próximas reconciliações.
+
+## T9.2 — segunda leitura
+
+### Núcleo da app do motorista
+
+A segunda leitura do `code-reviewer` aprovou A1, A2, A4 e os itens M/B, e achou quatro coisas
+novas. Cada correção começou pelo contrato, visto falhando.
+
+| Achado                                                                                                                                                                                                                                                                | Commit      | Contrato (visto falhar)                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1 [ALTA] — o `init` que rejeitou condenava a instância singleton do keycloak-js ("can only be initialized once" a cada reconexão); `createKeycloakAuthSession` cria provedor novo a cada tentativa depois da primeira                                                | `040de08f`  | `keycloak-auth-provider`: o segundo `init` da mesma instância lança, e a reconexão se recupera no tique seguinte com a instância nova — `0 pass, 1 fail` (export ausente) |
+| N2 [MÉDIA] — `proof-form` não segura a reautenticação: o registro aceita kinds ignorados, e `createAuthenticationCaptureView` é o que a reconexão e o "Entrar de novo" usam; o SW continua respeitando tudo                                                           | `dc46e827`  | `capture-registry` — `96 pass, 1 fail` (export ausente)                                                                                                                   |
+| N3 [MÉDIA] — a drenagem para no primeiro evento não verificado do dono (automática e com `only`), e `countPending` conta o que fica atrás como parado                                                                                                                 | `06c33a77`  | `unverified-pending` — `476 pass, 2 fail`                                                                                                                                 |
+| Baixas — `camera` fecha no tique seguinte ao `change` (o recorte abre antes); aviso do descarte cita fotos e assinaturas; "Enviar agora" some em item não verificado; `docs/SECURITY.md` registra a retirada de consentimento que falhou e volta depois de recarregar | `fea1732cb` | `camera-capture`, `unverified-pending` — `479 pass, 3 fail`                                                                                                               |
+
+**Gates:**
+
+```
+bun run --cwd apps/frontend-driver check
+  eslint, tsc                     sem erro
+  bun test (3 entrypoints)        482 pass, 0 fail
+  vite build + dist.contract      6 pass, 0 fail
+
+bun run --cwd apps/frontend-driver smoke
+  driver-service-worker.smoke.spec.ts   2 passed
+  driver-app.smoke.spec.ts              17 passed
+```
+
+**Escolha registrada (N2):** para autenticar, `proof-form` não conta. A navegação do `keycloak.init`
+ou do "Entrar de novo" perde o nome e o documento digitados e ainda não anexados — dois campos
+curtos, que custam menos que deixar o motorista sem sessão.
