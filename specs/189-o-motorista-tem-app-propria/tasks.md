@@ -142,14 +142,14 @@ consentimento, vem **depois da virada** e não a segura.
 > 🤖 Modelo: `sonnet` · T3.1 `haiku` · T3.3a 🧠 `opus` (boot sem Keycloak, dono do snapshot e da
 > fila)
 
-- [ ] **T3.1** Copiar os **20** contratos de `apps/frontend-transportada/test/driver-trip/` (os 21
+- [x] **T3.1** Copiar os **20** contratos de `apps/frontend-transportada/test/driver-trip/` (os 21
       menos `office-execution`), inclusive o `catalog-parity`, que compara com a API. O entrypoint
       `test/driver-trip.contract.test.ts` entra no `package.json`, e entra também o contrato do
       cabeçalho "Cópia por valor".
 
   **Aceite:** rodam e falham só por import ausente.
 
-- [ ] **T3.2** Copiar o código da tabela da ADR §7 (sem o sino, que é a T3.3):
+- [x] **T3.2** Copiar o código da tabela da ADR §7 (sem o sino, que é a T3.3):
   - cada arquivo com o cabeçalho;
   - na cópia, o comentário de `driverLocation.service.ts` atualizado (plan D3);
   - o `eslint` barra import de `../frontend-*` e `@/` que não resolva dentro da app.

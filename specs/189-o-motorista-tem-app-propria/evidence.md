@@ -290,3 +290,108 @@ cd apps/api-transportada && bun --env-file=../../.env.test run test:integration
 ```
 
 **Commit próprio, T2.3.**
+
+## Fase 3 — O módulo muda de casa, com o campo seguro
+
+### T3.1 — Contratos do módulo da viagem, antes do código
+
+Os 20 contratos de `apps/frontend-transportada/test/driver-trip/` (os 21 menos
+`office-execution.contract.ts`, que fica no painel — spec 179 T302/T303 continuam lá até a emenda da
+T8.3) copiados sem alteração para `apps/frontend-driver/test/driver-trip/`: mesma profundidade de
+diretório, os imports relativos (`../../src/modules/driver-trip/...`) e por `@/` resolvem igual.
+`catalog-parity.contract.ts` também não muda — o caminho relativo até
+`apps/api-transportada/src/trips/domain/driver-return-reason.policy.ts` sobe o mesmo número de
+níveis a partir de `apps/frontend-driver/test/driver-trip/`.
+
+Entram também `test/driver-trip.contract.test.ts` (entrypoint) e
+`test/driver-trip/copy-by-value-header.contract.ts`: um contrato novo, que varre os arquivos que a
+T3.2 vai trazer para dentro da app e confere que cada um começa com
+`/* Cópia por valor de <origem> (ADR-0075 §7). */` apontando para a origem certa. `package.json`
+ganha `test/driver-trip.contract.test.ts` no script `test`.
+
+```
+cd apps/frontend-driver && bun test test/driver-trip.contract.test.ts
+  0 pass / 1 fail / 1 error
+  error: Cannot find module '@/modules/driver-trip/shared/driverTrip.types'
+    from 'test/driver-trip/catalog-parity.contract.ts'
+```
+
+Vermelho pela razão certa: falha por import ausente, com o módulo da viagem ainda fora da app (foi
+movido apenas na T3.2, adiante).
+
+**Commit próprio, T3.1.**
+
+### T3.2 — Código da tabela da ADR §7 (sem o sino)
+
+Copiado por valor (cabeçalho em cada arquivo, cópia por valor conferida pelo contrato da T3.1):
+
+- o módulo inteiro `apps/frontend-transportada/src/modules/driver-trip/` (34 arquivos). Dois ajustes
+  de import, porque esta app já tinha o próprio `environment.config.ts`/`KeycloakAuthProvider.
+provider.ts` (molde do portal, da T1.2/T2.3) em `modules/shared/`, e não em `modules/identity/
+shared/` como no painel: `getIdentityEnvironment()` → `getDriverEnvironment()` em
+  `driverTripClient.service.ts`, e o caminho do `KeycloakAuthProvider` em `driverTripClient.service.ts`,
+  `DriverShellHeader.component.tsx` e `DriverProfile.page.tsx`. O comentário de
+  `driverLocation.service.ts` já chegou da origem citando a ADR-0075 §8 (RF15/I9): "uma leitura por
+  confirmação; posição contínua só com consentimento (ADR-0050 §5, ADR-0075 §8)" — nenhuma edição
+  precisou;
+- o design system caseiro do painel, só os primitivos que o módulo usa (conferido por
+  `grep` dos imports do módulo, não a lista inteira da ADR): `button`, `icon` (14 nomes usados, não o
+  catálogo de ~90 do painel — `alert camera check clock close copy document download link logout
+message refresh save trash upload workspace-driver-trip workspace-users`), `skeleton`, `barcode` +
+  `code128.service`, `file-field`, `copy-button` (dependência do `WhatsAppPhonePanel`), `cn`
+  (`src/lib/utils.ts`);
+- `InstallationBrandMark`, `useInstallationBrandView`, `useInstallationBrand.query`,
+  `installationBrand.service`, `installationBrandCache.service` (marca da transportadora no
+  cabeçalho da viagem); `WhatsAppPhonePanel` e as dependências dele (`useWhatsAppPhone.hook`,
+  `whatsappPhone.constant/types/validation/client/viewModel.service`, `whatsappPhone.module.css`,
+  `phone.service`, `useCountdown.hook` — todos em `modules/shared/`, com os mesmos dois ajustes de
+  import do item acima); `taxId.service` (CPF/CNPJ alfanumérico da prova de entrega);
+- `useAuthMe.query.ts` e `i18n.service.ts`, os dois **reduzidos** (cabeçalho "Cópia por valor,
+  reduzida, de ..."): o painel valida `roles`/`permissions` contra um catálogo fechado de dezenas de
+  papéis e permissões de escritório que este app não usa — só `data.roles` (o Perfil lê isso, e
+  `trip.read` já é a API que decide, via `checkDriverAuthorization`); o painel registra vinte e
+  poucos namespaces de locale, este app só usa `driverTrip` e `identity` (a chave `whatsappPhone`
+  reduzida em `identity.locale.json`/`identity.en.locale.json`, só com o que o `WhatsAppPhonePanel`
+  lê).
+
+Fora da tabela, dois ajustes que a T3.1 e a varredura de CSP acusaram:
+
+- `NON_FETCH_ORIGIN` (vazia desde a T1.1, com o comentário "entra quando o módulo da viagem chegar")
+  ganha `https://maps.google.com` — `DriverStopCard.component.tsx` abre o mapa por `window.open`,
+  nunca `fetch`;
+- `eslint.config.mjs` ganha `no-restricted-imports` contra `**/frontend-*/**`, para barrar import
+  relativo de outra app (o `@/` que não resolva já falha o `tsc`, mas o relativo escaparia da árvore
+  desta app sem essa regra).
+
+`package.json`: `i18next`/`react-i18next` como dependência, na versão que o painel usa
+(`25.7.4`/`16.5.0`); `bun install` sem mudança de resolução (o workspace Bun já tinha os pacotes
+hoisted pela app do painel) — `bun.lock` mudou mesmo assim.
+
+⚠️ **Achado de processo**: ao inserir o cabeçalho de cópia num lote de arquivos com
+`{ printf; cat "$origem"; } > "$destino"` (agrupamento de comandos com redirecionamento único), o
+shell desta sessão perdeu, de forma silenciosa e reproduzível, a linha de comentário original de doze
+arquivos (a de copyright e, num deles, um comentário no meio do corpo) — confirmado com `Read`
+(autoritativo) contra o `cat`/`diff` do Bash, que também mostrou o problema mas de forma menos
+confiável para depurar. A forma com `printf > tmp; cat >> tmp; mv tmp destino` (comandos separados,
+sem agrupamento) não tem esse defeito, e foi o padrão usado para corrigir os doze arquivos e para
+todo o resto da cópia. Registrado aqui porque não é atribuível ao conteúdo copiado — reproduziu-se
+até com um arquivo de teste solto em `/tmp`.
+
+```
+cd apps/frontend-driver && bun test test/driver-trip.contract.test.ts
+  231 pass / 0 fail / 432 expect()   (21 contratos, T3.1 verde)
+
+cd apps/frontend-driver && bun run test
+  296 pass / 0 fail / 569 expect()   (shared + identity + driver-trip)
+
+cd apps/frontend-driver && bun run typecheck
+  ok
+
+cd apps/frontend-driver && bun run lint
+  ok
+
+cd apps/frontend-driver && bun run build
+  vite build ok · precache 13 arquivos, 225,91 KiB (231.395 bytes) · dist.contract.test.ts 6 pass / 0 fail
+```
+
+**Commit próprio, T3.2.**
