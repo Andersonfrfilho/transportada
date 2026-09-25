@@ -1224,3 +1224,37 @@ que era preciso entrar de novo.
   seria escopo maior do que a revisão pediu.
 - `bun run typecheck`, `bun run lint`: limpos. `bun run test` (contrato + hooks): 5319 + 54 pass /
   0 fail — nenhuma suíte quebrou com o import novo de `KeycloakAuthProvider.provider` na tela.
+
+### M5 — `readSmallBody` protegido, com `reader.cancel()` no `finally`
+
+`readSmallBody` (`server.ts`) chamava `reader.read()` fora de qualquer `try`, e só cancelava o
+leitor no ramo de corpo grande demais. Corpo abortado no meio (aba fechada durante o `sendBeacon`)
+fazia `reader.read()` rejeitar sem ninguém pegando, e o leitor nunca era liberado nesse caminho.
+
+- `readSmallBody`: `reader.getReader()` e o laço de leitura entram num `try`; qualquer erro (corpo
+  abortado, stream corrompido) cai no `catch` e devolve `undefined` — a mesma rota do valor
+  inválido, nunca uma exceção subindo até a rota. `reader.cancel()` sai do `finally`
+  (`.catch(() => undefined)` porque cancelar um leitor cujo stream já terminou é um não-operação
+  segura, mas não custa nada blindar), então ele é solto em toda saída da função, inclusive erro.
+  A rota em si (`fetch()`, linha 85-99) já sempre respondia `204` independente do retorno de
+  `readSmallBody` — o que faltava era `readSmallBody` nunca lançar.
+- **Medido, não só lido:** rodei o servidor de verdade (fora do harness de teste, num diretório
+  temporário) com a versão **antiga** de `readSmallBody` (sem `try`/`catch`) e um corpo que erra no
+  meio (`ReadableStream` cujo `pull` erra no segundo pedido). Resultado: `stdout` e `stderr` vazios,
+  `/health/live` respondeu `200` depois — o `Bun.serve` engole a rejeição da função `fetch` sozinho,
+  por padrão, sem log nem crash. Ou seja, **este cenário específico não distinguia código antigo do
+  novo num teste de caixa-preta** (a conexão HTTP cai antes de o cliente conseguir ler qualquer
+  resposta, então nem `204` dá para observar do lado do cliente para um corpo que o próprio cliente
+  abortou — só dá para confirmar que o servidor continua de pé depois). A correção continua certa
+  pelo motivo que a task deu (não depender da rede de segurança do framework, soltar o leitor
+  explicitamente), e o teste guarda o **contrato observável**: o processo sobrevive e segue
+  servindo `204` para o próximo pedido, sem log. Registro aqui para não parecer TDD que não houve.
+- Caso novo em `test/driver-trip/legacy-beacon.contract.ts`, com `Bun.spawn` como os existentes:
+  corpo cujo `pull` erra depois do primeiro chunk (`pending-`) — `post(abortedBody)` rejeita do
+  lado do cliente (a conexão cai, não há como observar status), e o pedido seguinte
+  (`install-screen`) continua respondendo `204`, provando que o processo não travou nem morreu. O
+  teste final da suíte (contagem de linhas de log) confirma que o corpo abortado não gerou linha
+  nenhuma.
+- `bun test ./test/driver-trip.contract.test.ts`: 226 pass / 0 fail (era 225 depois do M1; +1
+  desta revisão).
+- `bun run typecheck` e `bun run lint`: limpos.

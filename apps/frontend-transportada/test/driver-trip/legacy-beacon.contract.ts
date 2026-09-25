@@ -172,9 +172,37 @@ describe('a rota /_driver-legacy-served do server.ts', () => {
   })
 
   /**
-   * Valor válido gera **uma** linha, sem usuário e sem IP. Os outros quatro pedidos do teste
-   * anterior não geram nada: log de valor arbitrário seria um jeito de escrever no log de produção
-   * por uma rota sem autenticação.
+   * Revisão M5: a aba fecha no meio do `sendBeacon` — o corpo termina em erro, não em `done`. A
+   * conexão cai (o `fetch` do cliente nunca vê resposta nenhuma — não há como observar `204` para
+   * um pedido cujo corpo o próprio cliente abortou), então a prova é outra: o servidor não trava
+   * nem derruba o processo — `reader.cancel()` no `finally` solta o leitor, e ele segue de pé para
+   * o próximo pedido. ⚠️ Não chama `readLogLines()` aqui: ela mata o processo e consome o
+   * `stdout` de uma vez só — quem confere o log, sem log nenhum do que abortou, é o teste seguinte.
+   */
+  it('corpo abortado no meio não derruba o servidor', async () => {
+    let hasSentFirstChunk = false
+    const abortedBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (!hasSentFirstChunk) {
+          hasSentFirstChunk = true
+          controller.enqueue(new TextEncoder().encode('pending-'))
+          return
+        }
+        controller.error(new Error('ABORTED'))
+      },
+    })
+
+    expect(post(abortedBody)).rejects.toBeTruthy()
+
+    /** Só prova que o processo segue de pé — `install-screen` não é o valor logado. */
+    const stillAlive = await post('install-screen')
+    expect(stillAlive.status).toBe(204)
+  })
+
+  /**
+   * Valor válido gera **uma** linha, sem usuário e sem IP. Os outros pedidos dos dois testes
+   * anteriores não geram nada — inclusive o corpo abortado — log de valor arbitrário seria um
+   * jeito de escrever no log de produção por uma rota sem autenticação.
    */
   it('só o valor enumerado gera log, e a linha não carrega quem mandou', async () => {
     const lines = await readLogLines()

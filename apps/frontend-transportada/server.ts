@@ -214,29 +214,35 @@ async function precompressedResponse(
 }
 
 /**
- * O corpo do beacon, ou `undefined` se passar de `DRIVER_LEGACY_BEACON_MAX_BYTES`. O
- * `Content-Length` declarado grande nem é lido; sem ele (corpo em partes), a leitura para no
- * primeiro byte além do teto e cancela o resto — nunca se acumula o que o cliente quiser mandar.
+ * O corpo do beacon, ou `undefined` se passar de `DRIVER_LEGACY_BEACON_MAX_BYTES` ou se a leitura
+ * falhar — corpo abortado (aba fechada no meio do `sendBeacon`) é o mesmo caminho do valor
+ * inválido, nunca uma exceção subindo até a rota: ela responde `204` sempre. O `Content-Length`
+ * declarado grande nem é lido; sem ele (corpo em partes), a leitura para no primeiro byte além do
+ * teto. `reader.cancel()` sai no `finally` — solta o leitor em toda saída, inclusive erro.
  */
 async function readSmallBody(request: Request): Promise<string | undefined> {
   const declaredLength = Number(request.headers.get('content-length') ?? '0')
   if (declaredLength > DRIVER_LEGACY_BEACON_MAX_BYTES) return undefined
   if (request.body === null) return ''
 
-  const reader = request.body.getReader()
-  const chunks: Uint8Array[] = []
-  let size = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.byteLength
-    if (size > DRIVER_LEGACY_BEACON_MAX_BYTES) {
-      await reader.cancel()
-      return undefined
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+  try {
+    reader = request.body.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > DRIVER_LEGACY_BEACON_MAX_BYTES) return undefined
+      chunks.push(value)
     }
-    chunks.push(value)
+    return new TextDecoder().decode(Buffer.concat(chunks))
+  } catch {
+    return undefined
+  } finally {
+    await reader?.cancel().catch(() => undefined)
   }
-  return new TextDecoder().decode(Buffer.concat(chunks))
 }
 
 function resolveAsset(pathname: string): Bun.BunFile {
