@@ -237,6 +237,7 @@
   },
   "sendRecovery": {
     "uploadExpired": "An attachment expired before sending. Send again — it will upload once more.",
-    "alreadySent": "The previous message was already recorded. Send again to send the current text."
+    "alreadySent": "The previous message was already recorded. Send again to send the current text.",
+    "driverChanged": "This conversation moved to another driver of the trip. Reach the office another way."
   }
 }

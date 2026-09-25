@@ -10,6 +10,7 @@ import type { IdempotencyFingerprintPort } from '../../companies/application/com
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import {
+  OccurrenceConversationDriverChangedError,
   OccurrenceConversationDriverUnknownError,
   OccurrenceConversationIdempotencyKeyReusedError,
 } from '../domain/occurrence-conversation.error.js'
@@ -98,11 +99,13 @@ export function createSendDriverAppMessageUseCase(dependencies: {
           idempotencyKey: input.idempotencyKey,
           operation: SEND_DRIVER_APP_MESSAGE_OPERATION,
           run: async (): Promise<SendDriverAppMessageResult> => {
+            /** T903 (C1): a mensagem vai ao motorista principal de agora — a conversa passa a ele. */
             const conversation = await transaction.findOrCreateDriverConversation({
               companyId: input.companyId,
               driverUserId,
               occurrenceId: input.occurrenceId,
               occurrenceKind: target.occurrenceKind,
+              retarget: true,
             })
             const status = initialOutboundStatus('app')
             const message = await transaction.insertMessage({
@@ -271,6 +274,11 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
       return dependencies.unitOfWork.execute(async (transaction) => {
         const occurrence = await transaction.findMyOccurrence(input)
         if (occurrence === null) throw new TripOccurrenceNotFoundError()
+        /**
+         * T903 (C1): o motorista principal de agora assume a conversa ao responder; outro da
+         * tripulação só responde se já for o destinatário dela.
+         */
+        const target = await transaction.findDriverTarget(input)
         const executed = await replayOrRun({
           companyId: input.companyId,
           fields: [
@@ -289,7 +297,11 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
               driverUserId: input.driverUserId,
               occurrenceId: input.occurrenceId,
               occurrenceKind: occurrence.occurrenceKind,
+              retarget: target?.driverUserId === input.driverUserId,
             })
+            if (conversation.driverUserId !== input.driverUserId) {
+              throw new OccurrenceConversationDriverChangedError()
+            }
             const message = await transaction.insertMessage({
               authorUserId: null,
               bodyText,

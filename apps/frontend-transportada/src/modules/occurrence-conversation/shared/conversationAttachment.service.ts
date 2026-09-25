@@ -186,7 +186,7 @@ export function conversationAttachmentKind(contentType: string): ConversationAtt
 
 export type SendFailureRecovery = Readonly<{
   clearUploads: boolean
-  reason: 'alreadySent' | 'generic' | 'uploadExpired'
+  reason: 'alreadySent' | 'driverChanged' | 'generic' | 'uploadExpired'
   renewKey: boolean
 }>
 
@@ -211,6 +211,10 @@ export function recoverFromSendFailure(error: unknown): SendFailureRecovery {
   }
   if (code === 'OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED') {
     return { clearUploads: true, reason: 'alreadySent', renewKey: true }
+  }
+  /** T903 (C1): a conversa passou a outro motorista da viagem; reenviar não muda isso. */
+  if (code === 'OCCURRENCE_CONVERSATION_DRIVER_CHANGED') {
+    return { clearUploads: false, reason: 'driverChanged', renewKey: false }
   }
   return { clearUploads: false, reason: 'generic', renewKey: false }
 }

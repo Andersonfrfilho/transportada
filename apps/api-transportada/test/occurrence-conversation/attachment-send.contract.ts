@@ -100,7 +100,10 @@ function driverTransaction(attachments: ConversationAttachmentTransactionPort) {
       occurrenceLabel: 'NF 4512/1',
     }),
     findMyOccurrence: async () => ({ occurrenceKind: 'document' as const }),
-    findOrCreateDriverConversation: async () => ({ id: 'conversation-driver' }),
+    findOrCreateDriverConversation: async ({ driverUserId }: { driverUserId: string }) => ({
+      driverUserId,
+      id: 'conversation-driver',
+    }),
     insertMessage: async () => ({ id: 'message-1' }),
     listAttachments: async () => [],
     listDriverMessages: async () => [],

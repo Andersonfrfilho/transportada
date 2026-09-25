@@ -237,6 +237,7 @@
   },
   "sendRecovery": {
     "uploadExpired": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
-    "alreadySent": "A mensagem anterior já foi registrada. Envie de novo para mandar o texto atual."
+    "alreadySent": "A mensagem anterior já foi registrada. Envie de novo para mandar o texto atual.",
+    "driverChanged": "Esta conversa passou para outro motorista da viagem. Fale com a operação por outro canal."
   }
 }

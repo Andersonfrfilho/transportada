@@ -115,6 +115,20 @@ export class OccurrenceConversationDriverUnknownError extends ApiError {
   }
 }
 
+/**
+ * Spec 183 T903 (C1): a conversa da ocorrência é com outro motorista da viagem — o principal mudou.
+ * Responder nela gravaria uma mensagem que este motorista não vê.
+ */
+export class OccurrenceConversationDriverChangedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_DRIVER_CHANGED',
+      message: 'The occurrence conversation is with another driver of the trip',
+      status: 409,
+    })
+  }
+}
+
 /** Mensagem em branco ou acima do teto da conversa. */
 export class OccurrenceConversationMessageInvalidError extends ApiError {
   public constructor() {

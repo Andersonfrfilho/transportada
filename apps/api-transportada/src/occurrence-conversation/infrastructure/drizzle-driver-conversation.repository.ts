@@ -235,30 +235,36 @@ function createTransactionPort(transaction: Transaction): DriverConversationTran
         eq(occurrenceConversations.occurrenceId, input.occurrenceId),
         eq(occurrenceConversations.participant, 'driver'),
       )
-      await transaction
-        .insert(occurrenceConversations)
-        .values({
-          companyId: input.companyId,
-          driverUserId: input.driverUserId,
-          occurrenceId: input.occurrenceId,
-          occurrenceKind: input.occurrenceKind,
-          participant: 'driver',
-        })
-        .onConflictDoNothing({
-          target: [
-            occurrenceConversations.companyId,
-            occurrenceConversations.occurrenceKind,
-            occurrenceConversations.occurrenceId,
-            occurrenceConversations.participant,
-          ],
-        })
+      const target = [
+        occurrenceConversations.companyId,
+        occurrenceConversations.occurrenceKind,
+        occurrenceConversations.occurrenceId,
+        occurrenceConversations.participant,
+      ]
+      const insert = transaction.insert(occurrenceConversations).values({
+        companyId: input.companyId,
+        driverUserId: input.driverUserId,
+        occurrenceId: input.occurrenceId,
+        occurrenceKind: input.occurrenceKind,
+        participant: 'driver',
+      })
+      /** T903 (C1): o motorista principal mudou — a conversa (uma por ocorrência) passa a ele. */
+      await (input.retarget
+        ? insert.onConflictDoUpdate({ set: { driverUserId: input.driverUserId }, target })
+        : insert.onConflictDoNothing({ target }))
       const [conversation] = await transaction
-        .select({ id: occurrenceConversations.id })
+        .select({
+          driverUserId: occurrenceConversations.driverUserId,
+          id: occurrenceConversations.id,
+        })
         .from(occurrenceConversations)
         .where(where)
         .limit(1)
-      if (conversation === undefined) throw new Error('driver conversation was not created')
-      return conversation
+      /** O CHECK da tabela garante o destinatário na conversa de motorista. */
+      if (conversation?.driverUserId == null) {
+        throw new Error('driver conversation was not created')
+      }
+      return { driverUserId: conversation.driverUserId, id: conversation.id }
     },
 
     async insertMessage(input) {

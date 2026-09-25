@@ -35,6 +35,9 @@ const NOW = new Date('2026-09-24T17:00:00.000Z')
 
 type State = {
   conversations: { driverUserId: string; id: string }[]
+  /** O motorista principal da viagem agora (posição 1) e a tripulação, `driverId` → usuário. */
+  crew: Map<string, string>
+  target: null | string
   idempotency: Map<string, { fingerprint: string; response: unknown }>
   messages: Record<string, unknown>[]
   notifications: unknown[]
@@ -51,6 +54,8 @@ function createFake(
 ) {
   const state: State = {
     conversations: [],
+    crew: new Map([[DRIVER_ID, DRIVER_USER_ID]]),
+    target: overrides.driverUserId === undefined ? DRIVER_USER_ID : overrides.driverUserId,
     idempotency: new Map(),
     messages: [],
     notifications: [],
@@ -76,14 +81,13 @@ function createFake(
     async findDriverTarget() {
       if (!exists) return null
       return {
-        driverUserId:
-          overrides.driverUserId === undefined ? DRIVER_USER_ID : overrides.driverUserId,
+        driverUserId: state.target,
         occurrenceKind: 'document',
         occurrenceLabel: 'NF 4512/1',
       }
     },
     async findMyOccurrence({ driverId }) {
-      if (!exists || overrides.driverOnTrip === false || driverId !== DRIVER_ID) return null
+      if (!exists || overrides.driverOnTrip === false || !state.crew.has(driverId)) return null
       return { occurrenceKind: 'document' }
     },
     async findIdempotency({ idempotencyKey, operation }) {
@@ -92,18 +96,23 @@ function createFake(
     async saveIdempotency({ fingerprint, idempotencyKey, operation, response }) {
       state.idempotency.set(`${operation}:${idempotencyKey}`, { fingerprint, response })
     },
-    async findOrCreateDriverConversation({ driverUserId }) {
-      const found = state.conversations.find((c) => c.driverUserId === driverUserId)
-      if (found !== undefined) return { id: found.id }
-      const created = { driverUserId, id: `conversation-${String(state.conversations.length + 1)}` }
-      state.conversations.push(created)
-      return { id: created.id }
+    /** Como o banco: uma conversa de motorista por ocorrência, com o destinatário dela. */
+    async findOrCreateDriverConversation({ driverUserId, retarget }) {
+      const [found] = state.conversations
+      if (found === undefined) {
+        const created = { driverUserId, id: 'conversation-1' }
+        state.conversations.push(created)
+        return { ...created }
+      }
+      if (retarget) found.driverUserId = driverUserId
+      return { ...found }
     },
     async insertMessage(input) {
       state.messages.push(input)
       return { id: `message-${String(state.messages.length)}` }
     },
-    async listDriverMessages() {
+    async listDriverMessages({ driverUserId }) {
+      if (state.conversations[0]?.driverUserId !== driverUserId) return []
       return state.messages.map(
         (message, index): DriverConversationMessageRecord => ({
           authorName: message.direction === 'outbound' ? 'Operadora Lima' : null,
@@ -307,6 +316,76 @@ describe('o motorista lê e responde a conversa dele (spec 183 T601)', () => {
       ),
     ).toMatchObject({ code: 'TRIP_OCCURRENCE_NOT_FOUND', status: 404 })
     expect(fake.state.messages).toEqual([])
+  })
+})
+
+/**
+ * Spec 183 T903 (achado C1): a conversa do motorista é uma por ocorrência, e o destinatário é o
+ * motorista principal da viagem. Quando ele muda, a próxima mensagem da operação passa a conversa ao
+ * novo — que lê o histórico —, e o anterior deixa de lê-la. Quem não é o destinatário não responde
+ * nela: a resposta iria para uma conversa que ele não vê.
+ */
+describe('a troca do motorista principal (spec 183 T903, C1)', () => {
+  const NEW_DRIVER_ID = '00000000-0000-4000-8000-000000184006'
+  const NEW_DRIVER_USER_ID = '00000000-0000-4000-8000-000000184007'
+  const OLD = {
+    companyId: COMPANY_ID,
+    driverId: DRIVER_ID,
+    driverUserId: DRIVER_USER_ID,
+    occurrenceId: OCCURRENCE_ID,
+  }
+  const NEW = { ...OLD, driverId: NEW_DRIVER_ID, driverUserId: NEW_DRIVER_USER_ID }
+
+  function swapped() {
+    const fake = createFake()
+    fake.state.crew.set(NEW_DRIVER_ID, NEW_DRIVER_USER_ID)
+    return fake
+  }
+
+  test('a mensagem da operação passa a conversa ao novo, que lê o histórico; o anterior não lê mais', async () => {
+    const fake = swapped()
+    await fake.send.send(SEND)
+    fake.state.target = NEW_DRIVER_USER_ID
+
+    await fake.send.send({ ...SEND, bodyText: 'Troca de motorista.', idempotencyKey: 'key-0002' })
+
+    expect(fake.state.conversations).toEqual([
+      { driverUserId: NEW_DRIVER_USER_ID, id: 'conversation-1' },
+    ])
+    expect((await fake.list.list(NEW)).map((message) => message.bodyText)).toEqual([
+      'Pode aguardar na doca?',
+      'Troca de motorista.',
+    ])
+    expect(await fake.list.list(OLD)).toEqual([])
+    expect(fake.state.notifications.at(-1)).toMatchObject({ recipientUserId: NEW_DRIVER_USER_ID })
+  })
+
+  test('quem não é o destinatário da conversa não responde nela: 409, nada gravado', async () => {
+    const fake = swapped()
+    await fake.send.send(SEND)
+    const before = fake.state.messages.length
+
+    expect(
+      await failure(() =>
+        fake.reply.reply({ ...NEW, bodyText: 'Sou o segundo.', idempotencyKey: 'reply-0003' }),
+      ),
+    ).toMatchObject({ code: 'OCCURRENCE_CONVERSATION_DRIVER_CHANGED', status: 409 })
+    expect(fake.state.messages).toHaveLength(before)
+  })
+
+  test('o novo motorista principal responde antes da operação escrever: a conversa passa a ele', async () => {
+    const fake = swapped()
+    await fake.send.send(SEND)
+    fake.state.target = NEW_DRIVER_USER_ID
+
+    await fake.reply.reply({ ...NEW, bodyText: 'Assumi a viagem.', idempotencyKey: 'reply-0004' })
+
+    expect(fake.state.conversations[0]?.driverUserId).toBe(NEW_DRIVER_USER_ID)
+    expect(
+      await failure(() =>
+        fake.reply.reply({ ...OLD, bodyText: 'Ainda estou aqui.', idempotencyKey: 'reply-0005' }),
+      ),
+    ).toMatchObject({ code: 'OCCURRENCE_CONVERSATION_DRIVER_CHANGED', status: 409 })
   })
 })
 

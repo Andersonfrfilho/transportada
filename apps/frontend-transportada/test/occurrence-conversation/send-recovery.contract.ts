@@ -38,4 +38,13 @@ describe('depois de um envio que falhou (spec 183 T903, F2/F3)', () => {
       renewKey: false,
     })
   })
+
+  /** T903 (C1): a conversa passou a outro motorista da viagem — reenviar não resolve, a tela diz. */
+  test('a conversa é de outro motorista: nada muda, e o motivo aparece', () => {
+    expect(
+      recoverFromSendFailure(
+        new OccurrenceConversationRequestError('OCCURRENCE_CONVERSATION_DRIVER_CHANGED'),
+      ),
+    ).toEqual({ clearUploads: false, reason: 'driverChanged', renewKey: false })
+  })
 })

@@ -195,4 +195,93 @@ describe('a conversa com o motorista pelo app contra Postgres (spec 183 T601)', 
     },
     30_000,
   )
+
+  /**
+   * Spec 183 T903 (C1): a tripulação é fixa desde a criação da viagem, mas a conta por trás da ficha
+   * do motorista principal pode mudar (novo vínculo). A conversa (uma por ocorrência) segue o
+   * destinatário de agora; o co-motorista não responde numa conversa que não é dele.
+   */
+  testWithPostgres(
+    'C1: a conversa passa à conta nova do motorista principal; o co-motorista não responde nela',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, firstDriverId, secondDriverId, userId } = seeded.company
+        const unitOfWork = createDrizzleDriverConversationUnitOfWork(database.db)
+        const fingerprintService = {
+          create: async ({ fields }: { fields: readonly Uint8Array[] }) =>
+            fields.map((field) => new TextDecoder().decode(field)).join('|'),
+        }
+        const send = createSendDriverAppMessageUseCase({
+          clock: () => NOW,
+          fingerprintService,
+          notifier: { notify: async () => undefined },
+          storage: UNUSED_ATTACHMENT_STORAGE,
+          unitOfWork,
+        })
+        const reply = createReplyMyOccurrenceConversationUseCase({
+          clock: () => NOW,
+          fingerprintService,
+          storage: UNUSED_ATTACHMENT_STORAGE,
+          unitOfWork,
+        })
+        const list = createListMyOccurrenceConversationUseCase({
+          clock: () => NOW,
+          storage: UNUSED_ATTACHMENT_STORAGE,
+          unitOfWork,
+        })
+        const operator = {
+          actorUserId: userId,
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        }
+
+        const oldUserId = await linkDriverMembership(database, seeded.company, firstDriverId)
+        const coDriverUserId = await linkDriverMembership(database, seeded.company, secondDriverId)
+        const first = await send.send({
+          ...operator,
+          bodyText: 'Pode aguardar na doca?',
+          idempotencyKey: 'driver-c1-send-01',
+        })
+
+        const coDriver = {
+          companyId,
+          driverId: secondDriverId,
+          driverUserId: coDriverUserId,
+          occurrenceId: seeded.occurrenceId,
+        }
+        expect(
+          await failure(() =>
+            reply.reply({ ...coDriver, bodyText: 'Sou o segundo.', idempotencyKey: 'c1-reply-01' }),
+          ),
+        ).toMatchObject({ code: 'OCCURRENCE_CONVERSATION_DRIVER_CHANGED', status: 409 })
+
+        const newUserId = await linkDriverMembership(database, seeded.company, firstDriverId)
+        const second = await send.send({
+          ...operator,
+          bodyText: 'Agora é com você.',
+          idempotencyKey: 'driver-c1-send-02',
+        })
+        expect(second.conversationId).toBe(first.conversationId)
+        const [conversation] = await database.db
+          .select({ driverUserId: occurrenceConversations.driverUserId })
+          .from(occurrenceConversations)
+          .where(eq(occurrenceConversations.id, first.conversationId))
+        expect(conversation).toEqual({ driverUserId: newUserId })
+
+        const main = { ...coDriver, driverId: firstDriverId, driverUserId: newUserId }
+        expect((await list.list(main)).map((message) => message.bodyText)).toEqual([
+          'Pode aguardar na doca?',
+          'Agora é com você.',
+        ])
+        expect(await list.list({ ...main, driverUserId: oldUserId })).toEqual([])
+        const messages = await database.db
+          .select({ id: occurrenceConversationMessages.id })
+          .from(occurrenceConversationMessages)
+          .where(eq(occurrenceConversationMessages.conversationId, first.conversationId))
+        expect(messages).toHaveLength(2)
+      })
+    },
+    30_000,
+  )
 })

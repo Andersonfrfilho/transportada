@@ -90,12 +90,17 @@ export type DriverConversationTransactionPort = {
     readonly operation: string
     readonly response: unknown
   }): Promise<void>
+  /**
+   * A conversa de motorista da ocorrência (uma só) e o destinatário dela. Com `retarget`, a conversa
+   * que já existe passa a `driverUserId` — o motorista principal mudou (T903, C1).
+   */
   findOrCreateDriverConversation(input: {
     readonly companyId: string
     readonly driverUserId: string
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceConversationKind
-  }): Promise<{ readonly id: string }>
+    readonly retarget: boolean
+  }): Promise<{ readonly driverUserId: string; readonly id: string }>
   insertMessage(input: {
     readonly authorUserId: null | string
     readonly bodyText: string
