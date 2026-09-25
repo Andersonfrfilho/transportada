@@ -68,12 +68,12 @@ Rota: `POST /trips/:id/dispatch` body ganha `loadRemaining?: boolean` (mutuament
 Roda **depois** do commit da escrita da nota (transação própria): gate recusado não desfaz a carga.
 Chamado por:
 
-| Escrita | Onde |
-|---|---|
-| carregar nota | `trips/application/transition-trip-document.use-case.ts:88` (via `trip-lifecycle.use-case.ts:72-90`) |
-| lote | `trips/application/transition-trip-documents-batch.use-case.ts:96-189` |
-| WhatsApp (individual e "todas") | `main.ts:937-946`, `:962-971` — reusam os dois use cases acima |
-| ocorrência de separação | `trips/application/register-trip-occurrence.use-case.ts:256-353` |
+| Escrita                         | Onde                                                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| carregar nota                   | `trips/application/transition-trip-document.use-case.ts:88` (via `trip-lifecycle.use-case.ts:72-90`) |
+| lote                            | `trips/application/transition-trip-documents-batch.use-case.ts:96-189`                               |
+| WhatsApp (individual e "todas") | `main.ts:937-946`, `:962-971` — reusam os dois use cases acima                                       |
+| ocorrência de separação         | `trips/application/register-trip-occurrence.use-case.ts:256-353`                                     |
 
 A resposta HTTP de cada um ganha `autoDispatch` opcional. WhatsApp: mensagem de retorno cita
 "viagem despachada" ou o bloqueio.
