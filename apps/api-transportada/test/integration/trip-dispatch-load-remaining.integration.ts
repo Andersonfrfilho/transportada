@@ -38,6 +38,7 @@ import {
   tripOccurrenceCases,
   trips,
   tripStatusEvents,
+  tripStops,
   type TripOccurrenceCaseStatus,
   type TripStatus,
 } from '../../src/database/trip.schema.js'
@@ -378,6 +379,71 @@ describe('despachar leva todas e deixa para trás o que a ocorrência tira (spec
         expect((await readDocumentStates(database, [leftBehindId])).get(leftBehindId)).toEqual({
           isReleased: false,
           separationStatus: 'pending',
+        })
+      })
+    },
+    30_000,
+  )
+
+  /**
+   * Revisão da spec 185 (ADR-0074 §3): o `force` com motivo continua na API para o WhatsApp e o
+   * app do motorista — e passou pela reordenação de `dispatch()` (notas → trava da viagem →
+   * snapshot). Prova que ele ainda libera as não carregadas, apaga a parada que esvaziou, grava o
+   * snapshot forçado com o motivo e o evento de status com o canal de quem pediu.
+   */
+  testWithPostgres(
+    'revisão: force com motivo libera as não carregadas, apaga a parada vazia, snapshot forçado e evento com o canal',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, {
+          documentCount: 3,
+          recipientTaxIds: [OTHER_CLIENT_TAX_ID, OTHER_CLIENT_TAX_ID, OTHER_CLIENT_TAX_ID],
+          separateStops: true,
+        })
+        const [loadedId, pendingId, separatedId] = trip.tripDocumentIds as [string, string, string]
+        await moveDocument(database, trip, loadedId, ['separate', 'load'])
+        await moveDocument(database, trip, separatedId, ['separate'])
+        const stopsBefore = await readStopIdsByDocument(database, trip.tripDocumentIds)
+
+        const dispatched = await dispatchTrip({
+          actorUserId: trip.userId,
+          channel: TRIP_FIELD_CHANNELS.whatsapp,
+          companyId: trip.companyId,
+          force: true,
+          forceReason: 'Cliente pediu para entregar na próxima viagem.',
+          repository: new DrizzleTripRouteRepository(database.db),
+          tripId: trip.tripId,
+        })
+
+        expect(dispatched.tripStatus).toBe('dispatched')
+        expect(await readDocumentStates(database, trip.tripDocumentIds)).toEqual(
+          new Map([
+            [loadedId, { isReleased: false, separationStatus: 'loaded' }],
+            [pendingId, { isReleased: true, separationStatus: 'pending' }],
+            [separatedId, { isReleased: true, separationStatus: 'separated' }],
+          ]),
+        )
+        const stopsAfter = await readStopIdsByDocument(database, trip.tripDocumentIds)
+        expect(stopsAfter.get(pendingId)).toBeNull()
+        expect(stopsAfter.get(separatedId)).toBeNull()
+        const remainingStops = await database.db
+          .select({ id: tripStops.id })
+          .from(tripStops)
+          .where(eq(tripStops.tripId, trip.tripId))
+        expect(remainingStops).toEqual([{ id: stopsBefore.get(loadedId) as string }])
+
+        const snapshot = await readSnapshot(database, trip.tripId)
+        expect(snapshot).toMatchObject({
+          forceReason: 'Cliente pediu para entregar na próxima viagem.',
+          forced: true,
+        })
+        expect(
+          (snapshot?.snapshot as { stops: readonly { documentIds: unknown }[] }).stops,
+        ).toEqual([expect.objectContaining({ documentIds: [loadedId] })])
+        expect((await readStatusEvents(database, trip.tripId)).at(-1)).toEqual({
+          actorUserId: trip.userId,
+          channel: 'whatsapp',
+          toStatus: 'dispatched',
         })
       })
     },
@@ -774,6 +840,17 @@ async function readSnapshot(
     .from(tripDispatchSnapshots)
     .where(eq(tripDispatchSnapshots.tripId, tripId))
   return row
+}
+
+async function readStopIdsByDocument(
+  database: TestDatabase,
+  tripDocumentIds: readonly string[],
+): Promise<Map<string, string | null>> {
+  const rows = await database.db
+    .select({ id: tripDocuments.id, stopId: tripDocuments.stopId })
+    .from(tripDocuments)
+    .where(inArray(tripDocuments.id, [...tripDocumentIds]))
+  return new Map(rows.map((row) => [row.id, row.stopId]))
 }
 
 async function readTripStatus(database: TestDatabase, tripId: string): Promise<TripStatus> {
