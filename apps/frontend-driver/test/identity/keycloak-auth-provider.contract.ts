@@ -2,8 +2,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 
+import { createCaptureRegistry } from '../../src/modules/driver-trip/shared/captureRegistry.service'
+import {
+  scheduleAuthenticationOnReconnect,
+  type ReconnectTarget,
+} from '../../src/modules/driver-trip/shared/bootMode.service'
 import {
   createKeycloakAuthProvider,
+  createKeycloakAuthSession,
   IDENTITY_SESSION_EXPIRED,
   IDENTITY_UNREACHABLE,
   IdentityUnreachableError,
@@ -277,5 +283,84 @@ describe('sanitizePostAuthenticationPath (L8)', () => {
     '',
   ])('troca %s pela raiz', (path) => {
     expect(sanitizePostAuthenticationPath(path)).toBe('/')
+  })
+})
+
+/**
+ * Spec 189 T9.2, segunda leitura (N1): o keycloak-js 26.2.4 marca `didInitialize` antes de qualquer
+ * `await`. Um `init` que rejeitou uma vez fazia toda reconexão de 30 s lançar "can only be
+ * initialized once" na mesma instância — e a app ficava sem sessão para sempre.
+ */
+describe('createKeycloakAuthSession (N1)', () => {
+  function createSingleUseClient(firstInit: () => Promise<boolean>): KeycloakClient {
+    let didInitialize = false
+    return createClient({
+      init: mock(() => {
+        if (didInitialize) {
+          return Promise.reject(new Error("A 'Keycloak' instance can only be initialized once."))
+        }
+        didInitialize = true
+        return firstInit()
+      }),
+    })
+  }
+
+  test('o init que rejeitou é refeito numa instância nova, e a reconexão se recupera', async () => {
+    const clients = [
+      createSingleUseClient(() => Promise.reject(new Error('Keycloak caiu no meio'))),
+      createSingleUseClient(() => Promise.resolve(true)),
+    ]
+    let created = 0
+    const session = createKeycloakAuthSession(() => {
+      const client = clients[created]
+      created += 1
+      if (client === undefined) throw new Error('client extra')
+      return createKeycloakAuthProvider(client, CALLBACK_URL)
+    })
+    const listeners = new Set<() => void>()
+    const intervals = new Map<number, () => void>()
+    const target: ReconnectTarget = {
+      addEventListener: (_type, listener) => listeners.add(listener),
+      clearInterval: (id) => intervals.delete(id),
+      removeEventListener: (_type, listener) => listeners.delete(listener),
+      setInterval: (handler) => {
+        intervals.set(1, handler)
+        return 1
+      },
+    }
+    let authenticated = 0
+
+    scheduleAuthenticationOnReconnect({
+      authenticate: async () => {
+        if (await session.initialize()) authenticated += 1
+      },
+      captureRegistry: createCaptureRegistry(),
+      probe: () => Promise.resolve(true),
+      target,
+    })
+
+    for (const listener of [...listeners]) listener()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(authenticated).toBe(0)
+    expect(intervals.size).toBe(1)
+
+    for (const handler of [...intervals.values()]) handler()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(authenticated).toBe(1)
+    expect(created).toBe(2)
+    expect(clients[0]?.init).toHaveBeenCalledTimes(1)
+    expect(intervals.size).toBe(0)
+  })
+
+  test('sem init nenhum, o provedor é um só', () => {
+    let created = 0
+    const session = createKeycloakAuthSession(() => {
+      created += 1
+      return createKeycloakAuthProvider(createClient(), CALLBACK_URL)
+    })
+
+    expect(session.getProvider()).toBe(session.getProvider())
+    expect(created).toBe(1)
   })
 })

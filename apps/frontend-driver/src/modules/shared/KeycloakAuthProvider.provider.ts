@@ -124,8 +124,6 @@ export type KeycloakClient = Pick<
   'clearToken' | 'init' | 'login' | 'logout' | 'token' | 'updateToken'
 >
 
-let authProvider: KeycloakAuthProvider | undefined
-
 function getAuthenticationCallbackUrl(): string {
   return `${getDriverEnvironment().appBaseUrl}${AUTHENTICATION_CALLBACK_PATH}`
 }
@@ -320,18 +318,49 @@ export function createKeycloakAuthProvider(
   }
 }
 
-export function getKeycloakAuthProvider(): KeycloakAuthProvider {
-  if (authProvider === undefined) {
-    const environment = getDriverEnvironment()
-    authProvider = createKeycloakAuthProvider(
-      new Keycloak(environment.keycloak),
-      getAuthenticationCallbackUrl(),
-    )
-  }
+export type KeycloakAuthSession = Readonly<{
+  getProvider: () => KeycloakAuthProvider
+  /** O `init` do provedor corrente — ou de um novo, se o corrente já tentou uma vez. */
+  initialize: () => Promise<boolean>
+}>
 
-  return authProvider
+/**
+ * Spec 189 T9.2, segunda leitura (N1): o keycloak-js 26.2.4 marca `didInitialize` antes de qualquer
+ * `await` do `init`, e uma instância que tentou uma vez nunca mais inicializa ("can only be
+ * initialized once"). Com o provedor singleton, o `init` que rejeitou (Keycloak caiu entre a sonda e
+ * o `init`) condenava toda reconexão de 30 s: a app ficava no snapshot sem sessão para sempre. Cada
+ * nova tentativa ganha uma instância nova; quem pega o provedor depois pega a nova.
+ */
+export function createKeycloakAuthSession(
+  createProvider: () => KeycloakAuthProvider,
+): KeycloakAuthSession {
+  let provider: KeycloakAuthProvider | undefined
+  let hasStartedInitialization = false
+
+  return {
+    getProvider() {
+      provider ??= createProvider()
+      return provider
+    },
+    initialize() {
+      if (provider === undefined || hasStartedInitialization) provider = createProvider()
+      hasStartedInitialization = true
+      return provider.initialize()
+    },
+  }
+}
+
+const AUTH_SESSION = createKeycloakAuthSession(() =>
+  createKeycloakAuthProvider(
+    new Keycloak(getDriverEnvironment().keycloak),
+    getAuthenticationCallbackUrl(),
+  ),
+)
+
+export function getKeycloakAuthProvider(): KeycloakAuthProvider {
+  return AUTH_SESSION.getProvider()
 }
 
 export async function initializeKeycloakAuth(): Promise<boolean> {
-  return getKeycloakAuthProvider().initialize()
+  return AUTH_SESSION.initialize()
 }
