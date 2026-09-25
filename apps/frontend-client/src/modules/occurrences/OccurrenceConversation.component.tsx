@@ -22,6 +22,7 @@ import {
 } from './shared/occurrenceConversation.service'
 import {
   formatFileSize,
+  nextPortalPlaybackRate,
   pickPortalAttachments,
   PORTAL_ATTACHMENT_ACCEPT,
   PORTAL_ATTACHMENTS_PER_MESSAGE,
@@ -45,6 +46,37 @@ function toPayload(message: PortalConversationMessage, index: number): MessagePa
     timestamp: message.createdAt,
     type: 'text',
   }
+}
+
+const RATE_FORMATTER = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
+
+/**
+ * Spec 183 T705: o áudio toca pelo `<audio>` nativo, com a velocidade ao lado. O portal só ouve —
+ * não grava (o `Permissions-Policy` dele fecha o microfone).
+ */
+function PortalAudioPlayer({ label, src }: Readonly<{ label: string; src: string }>) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [rate, setRate] = useState(1)
+  /** `defaultPlaybackRate` sobrevive a um novo carregamento do `src`; `playbackRate` sozinho, não. */
+  useEffect(() => {
+    if (audioRef.current === null) return
+    audioRef.current.defaultPlaybackRate = rate
+    audioRef.current.playbackRate = rate
+  }, [rate])
+  const rateText = `${RATE_FORMATTER.format(rate)}×`
+  return (
+    <div className="conversation__audio">
+      <audio aria-label={label} controls preload="metadata" ref={audioRef} src={src} />
+      <button
+        aria-label={`Velocidade de reprodução: ${rateText}`}
+        className="secondary conversation__audio-speed"
+        onClick={() => setRate(nextPortalPlaybackRate)}
+        type="button"
+      >
+        {rateText}
+      </button>
+    </div>
+  )
 }
 
 /**
@@ -71,12 +103,7 @@ function MessageAttachments({
                 <img alt={attachment.fileName} loading="lazy" src={attachment.url} />
               </a>
             ) : kind === 'audio' ? (
-              <audio
-                aria-label={attachment.fileName}
-                controls
-                preload="none"
-                src={attachment.url}
-              />
+              <PortalAudioPlayer label={attachment.fileName} src={attachment.url} />
             ) : (
               <a
                 className="conversation__file"

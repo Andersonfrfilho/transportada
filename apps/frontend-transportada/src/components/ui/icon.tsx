@@ -42,6 +42,7 @@ export type IconName =
   | 'logout'
   | 'menu'
   | 'message'
+  | 'microphone'
   | 'page-first'
   | 'page-last'
   | 'page-next'
@@ -56,6 +57,7 @@ export type IconName =
   | 'speed'
   | 'sort'
   | 'spinner'
+  | 'stop'
   | 'sun'
   | 'moon'
   | 'trash'
@@ -179,6 +181,13 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   save: ['M5 4h11l3 3v13H5z', 'M8 4v5h7', 'M8 14h8v6H8z'],
   search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'M20 20l-4-4'],
   send: ['M4 12l16-8-6 16-2.5-6.5L4 12z'],
+  /** Spec 183 T705: gravar e parar o áudio da conversa. */
+  microphone: [
+    'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z',
+    'M5 11a7 7 0 0 0 14 0',
+    'M12 18v3',
+  ],
+  stop: ['M7 7h10v10H7z'],
   shield: ['M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z'],
   sort: ['M8 9l4-4 4 4', 'M8 15l4 4 4-4'],
   /** Velocímetro: o objetivo "chegar antes". O relógio (`clock`) fica para hora marcada. */

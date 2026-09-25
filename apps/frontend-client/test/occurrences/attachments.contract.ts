@@ -14,6 +14,8 @@ import {
   PORTAL_ATTACHMENT_LIMITS,
   pickPortalAttachments,
   uploadPortalAttachments,
+  nextPortalPlaybackRate,
+  PORTAL_PLAYBACK_RATES,
 } from '../../src/modules/occurrences/shared/conversationAttachment.service'
 import { createPortalClient } from '../../src/modules/shared/portalClient.service'
 import { toConversation } from '../../src/modules/shared/portalResponse.validation'
@@ -264,5 +266,39 @@ describe('o anexo na tela do portal (spec 183 T702b)', () => {
     expect(component).not.toMatch(/capture=/u)
     expect(component).not.toMatch(/getUserMedia|MediaRecorder/u)
     expect(component).toMatch(/<a[\s\S]*?download=/u)
+  })
+})
+
+describe('o áudio no portal (spec 183 T705)', () => {
+  test('o player troca a velocidade em 1×, 1,5× e 2×', () => {
+    expect(PORTAL_PLAYBACK_RATES).toEqual([1, 1.5, 2])
+    expect(nextPortalPlaybackRate(1)).toBe(1.5)
+    expect(nextPortalPlaybackRate(1.5)).toBe(2)
+    expect(nextPortalPlaybackRate(2)).toBe(1)
+  })
+
+  test('o portal toca áudio e nunca grava: nenhum arquivo de src pede o microfone', async () => {
+    const { Glob } = await import('bun')
+    const sources: string[] = []
+    for await (const path of new Glob('src/**/*.{ts,tsx}').scan({
+      cwd: new URL('../..', import.meta.url).pathname,
+    })) {
+      sources.push(path)
+    }
+    for (const path of sources) {
+      const text = await readFile(new URL(`../../${path}`, import.meta.url), 'utf8')
+      expect({ path, recording: /getUserMedia|MediaRecorder/u.test(text) }).toEqual({
+        path,
+        recording: false,
+      })
+    }
+    const component = await readFile(
+      new URL(
+        '../../src/modules/occurrences/OccurrenceConversation.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(component).toMatch(/<PortalAudioPlayer/u)
   })
 })

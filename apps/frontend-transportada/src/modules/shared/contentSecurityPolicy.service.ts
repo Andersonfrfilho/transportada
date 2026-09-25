@@ -121,8 +121,13 @@ export function buildContentSecurityPolicy({
       ]),
     ].sort(),
   ].join(' ')
-  /** Spec 183 T702b/T705: o áudio do anexo toca por `<audio>`, que é `media-src`. */
-  const mediaSource = [SELF, ...(storageOrigin === undefined ? [] : [storageOrigin])].join(' ')
+  /**
+   * Spec 183 T702b/T705: o áudio do anexo toca por `<audio>`, que é `media-src`; a gravação é
+   * ouvida antes de enviar por URL `blob:` criada pelo próprio navegador.
+   */
+  const mediaSource = [SELF, 'blob:', ...(storageOrigin === undefined ? [] : [storageOrigin])].join(
+    ' ',
+  )
   // O preâmbulo do react-refresh é script inline, e só existe no servidor de dev. Em preview e em
   // produção o bundle é arquivo, então `script-src 'self'` basta e é o que fica no `dist`.
   const scriptSource = [

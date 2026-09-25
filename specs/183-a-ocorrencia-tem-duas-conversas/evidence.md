@@ -1992,3 +1992,72 @@ migration na API). Um commit por parte.
   - O destaque usa `--color-alert` (a borda do balão e a faixa do motivo).
   - A 390 o motivo quebra em linhas e nada estoura.
 - **Rodado:** painel **5269 + 44 pass**; lint, typecheck e formatação da raiz limpos.
+
+## T705 — Áudio: player com velocidade no painel, no app e no portal; gravação no painel e no app (verde)
+
+- **Decisão do usuário (25/09/2026):** autorizou `microphone=(self)` no painel, que serve também o
+  app do motorista. O portal segue `microphone=()`. Registrado em `docs/SECURITY.md` e no
+  `CLAUDE.md` da app.
+- **Por que não os componentes do pacote:** `AudioRecorderButton` e `AudioPlayer` são Tailwind, e a
+  regra desta spec proíbe.
+  - Do pacote vem só o teto de duração (`DEFAULT_MAX_RECORDING_MILLISECONDS`, 5 min), e a ordem de
+    formatos é a mesma dele (OGG/Opus, M4A, WEBM), os três da lista da API.
+  - A velocidade, que o `AudioPlayer` do pacote não tem, é um botão nosso (1×, 1,5×, 2×).
+- **Painel e app do motorista:**
+  - `ConversationAudioRecorder` mostra "Gravar áudio", depois "Gravando m:ss de 5:00" com "Parar";
+    em seguida "Ouça antes de usar", com "Usar áudio" ou "Descartar".
+  - O áudio usado vira anexo do rascunho pelo mesmo seletor: mesmos tetos por canal, sobe por URL
+    assinada, bytes conferidos.
+  - Navegador sem `MediaRecorder` não mostra o botão. Microfone negado mostra a frase e o anexo de
+    arquivo continua valendo.
+  - `ConversationAudioPlayer` usa o `<audio>` nativo com o botão de velocidade.
+- **Portal:** `PortalAudioPlayer` (o `<audio>` e a velocidade), sem gravador.
+- **Segurança e CSP:** `media-src` ganha `blob:` (ouvir a gravação). O contrato do portal varre
+  `src/` inteiro atrás de `getUserMedia` e `MediaRecorder`.
+- **Defeitos achados no navegador e corrigidos nesta task:**
+  1. **A leitura automática da T703 (20 s) trocava o `src` de todo anexo**, porque cada leitura
+     assina a URL de novo. O áudio que tocava recomeçava e as imagens eram baixadas outra vez.
+     Correção: a mesma URL por anexo durante 4 min, abaixo dos 5 de validade
+     (`createAttachmentUrlCache`, com contrato).
+  2. **A velocidade voltava a 1× a cada novo carregamento** do `<audio>`: medido `RATE 1` depois de
+     escolher 1,5×. Correção: `defaultPlaybackRate` junto de `playbackRate`, no painel e no portal.
+     Medido `RATE 1.5` depois do `load()`.
+  3. **No app a 390, o player encolhia até sumir o botão de tocar** (133 px), porque o balão encolhe
+     no conteúdo e `min(12rem, 100%)` era circular. Correção: piso fixo de 13rem, medido 208 px, com
+     a velocidade ao lado sem estourar a tela (`scrollWidth` 390).
+- **Testes, escritos antes e vistos falhando:**
+  - painel `audio.contract.ts`: formato por suporte do navegador, teto de 5 min igual ao do pacote,
+    arquivo gravado aceito pelo seletor de app, portal e e-mail, tipos que tocam, velocidade,
+    duração, URL estável;
+  - `security-headers.contract.ts`: `microphone=(self)` exato;
+  - `content-security-policy.contract.ts`: `media-src 'self' blob:` mais só o bucket;
+  - portal `attachments.contract.ts`: velocidade e nenhum `getUserMedia`/`MediaRecorder` em `src/`.
+- **Contratos de formato e tamanho máximo:** já cobertos pela política da API desde a T702a
+  (assinaturas OGG/ID3/ftyp/EBML; 16 MB no app, no portal e no WhatsApp, 10 MB no e-mail). Não foram
+  duplicados.
+- **Integração** `occurrence-conversation-attachment.integration.ts`, caso T705 (Postgres + S3): o
+  WEBM que o motorista grava vira anexo `audio/webm` com o `sha256` dos bytes, e a leitura baixa os
+  mesmos bytes (**3 pass** no arquivo).
+- **No navegador, contra a API real**, com o microfone falso do Chromium
+  (`--use-fake-device-for-media-stream`):
+  - **Painel a 1440:**
+    - grava 2,4 s, ouve, usa e envia ao motorista (upload 201, PUT 200, mensagem 202);
+    - o balão mostra o player e a velocidade vai a 1,5×;
+    - grava e envia pelo portal à contratante (201/200/202).
+  - **App do motorista a 390:** toca o áudio do operador, troca a velocidade, grava e responde. A
+    resposta está no banco (`inbound app audio/mp4`).
+  - **Portal a 390:** a contratante ouve, troca a velocidade até 2×, e não há botão de gravar.
+  - Prints: `prints/audio-{gravando,revisar}-1440.png`, `audio-enviado-motorista.png`,
+    `audio-{gravando,revisar}-app-390.png`, `audio-app-motorista-390.png`,
+    `audio-{gravando,revisar}-portal.png`, `audio-portal-390.png`.
+- **Fica para depois:** a transcrição é a T706, bloqueada. O Chromium grava `audio/mp4`; o
+  Firefox, OGG. Os dois estão na lista.
+- **Revisão de design (web.md §15):**
+  - "Gravar áudio", "Parar", "Usar áudio" e "Descartar" são `Button secondary`/`ghost sm` com
+    ícone. Os ícones `microphone` e `stop` entraram no primitivo `icon`.
+  - O relógio de gravação usa `--color-alert` e a fonte utilitária.
+  - No portal, o botão de velocidade é o `button.secondary` da casa.
+  - A 390 o portal segue com o `scrollWidth` 424 da barra de navegação, anterior à 183 e já em
+    tarefa separada.
+- **Rodado:** painel **5277 + 44 pass**; portal **82 pass**; lint, typecheck e formatação da raiz
+  limpos.

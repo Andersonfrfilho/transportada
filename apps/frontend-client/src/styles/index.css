@@ -372,6 +372,25 @@ input[type='file']::file-selector-button {
   width: 18rem;
 }
 
+/* Spec 183 T705: o player e a velocidade na mesma linha, sem estourar o balão a 390 px. */
+.conversation__audio {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.conversation__audio audio {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversation__audio-speed {
+  flex: none;
+  font-family: var(--font-utility, inherit);
+  padding-inline: var(--space-2);
+}
+
 @media (min-width: 40rem) {
   .page__title {
     font-size: 2.25rem;

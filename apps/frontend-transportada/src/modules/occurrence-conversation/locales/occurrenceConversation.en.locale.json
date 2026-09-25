@@ -216,5 +216,15 @@
       "app": "The message did not reach the app.",
       "portal": "The message did not reach the portal."
     }
+  },
+  "audio": {
+    "speed": "Playback speed: {{rate}}",
+    "record": "Record audio",
+    "stop": "Stop",
+    "recording": "Recording {{elapsed}} of {{max}}",
+    "review": "Listen before using",
+    "use": "Use audio",
+    "discard": "Discard",
+    "microphoneError": "Could not use the microphone. Check the browser permission or attach an audio file."
   }
 }

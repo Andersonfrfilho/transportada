@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 /**
  * Spec 183 T702b (RF10): os anexos dentro do balão. Imagem aparece em miniatura e abre inteira; áudio
- * toca ali (o player completo é da T705); o resto é um link de download com nome e tamanho. A URL é
+ * toca ali, com a velocidade da T705; o resto é um link de download com nome e tamanho. A URL é
  * temporária (cinco minutos) — a leitura da conversa assina de novo a cada busca.
  */
 import { formatFileSize } from '@adatechnology/conversations-ui'
@@ -10,9 +10,14 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 
+import { createAttachmentUrlCache } from '../shared/conversationAudio.service'
+import { ConversationAudioPlayer } from './ConversationAudioPlayer.component'
 import { conversationAttachmentKind } from '../shared/conversationAttachment.service'
 import type { OccurrenceConversationAttachment } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceConversation.module.css'
+
+/** Uma só para a tela: a URL de cada anexo fica estável entre leituras (spec 183 T705). */
+const attachmentUrls = createAttachmentUrlCache()
 
 export function ConversationAttachments({
   attachments,
@@ -27,7 +32,11 @@ export function ConversationAttachments({
 
   return (
     <ul aria-label={t('attachment.inMessage')} className={styles.messageAttachments}>
-      {attachments.map((attachment) => {
+      {attachments.map((listed) => {
+        const attachment = {
+          ...listed,
+          url: attachmentUrls.resolve(listed.id, listed.url, Date.now()),
+        }
         const kind = conversationAttachmentKind(attachment.contentType)
         return (
           <li key={attachment.id}>
@@ -41,13 +50,7 @@ export function ConversationAttachments({
                 <img alt={attachment.fileName} loading="lazy" src={attachment.url} />
               </a>
             ) : kind === 'audio' ? (
-              <audio
-                aria-label={attachment.fileName}
-                className={styles.messageAudio}
-                controls
-                preload="none"
-                src={attachment.url}
-              />
+              <ConversationAudioPlayer label={attachment.fileName} src={attachment.url} />
             ) : (
               <a
                 className={styles.messageFile}

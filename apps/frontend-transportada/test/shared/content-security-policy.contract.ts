@@ -260,8 +260,11 @@ describe('o bucket do anexo entra em img-src (revisão spec 161), connect-src e 
     expect(directiveOf(policy, 'connect-src')).toContain(BUCKET_URL)
   })
 
-  /** Spec 183 T702b/T705: o áudio do anexo toca pelo `<audio>`, que é `media-src`. */
-  test('o bucket entra em media-src, e só ele além da própria origem', () => {
+  /**
+   * Spec 183 T702b/T705: o áudio do anexo toca pelo `<audio>`, que é `media-src`; a gravação é
+   * ouvida antes de enviar por URL `blob:` do próprio navegador.
+   */
+  test('o bucket e o blob da gravação entram em media-src, e só eles além da própria origem', () => {
     const policy = buildContentSecurityPolicy({
       allowsInlineScript: false,
       apiBaseUrl: API_BASE_URL,
@@ -270,7 +273,7 @@ describe('o bucket do anexo entra em img-src (revisão spec 161), connect-src e 
       objectStorageUrl: BUCKET_URL,
     })
 
-    expect(directiveOf(policy, 'media-src')).toBe(`media-src 'self' ${BUCKET_URL}`)
+    expect(directiveOf(policy, 'media-src')).toBe(`media-src 'self' blob: ${BUCKET_URL}`)
   })
 
   /** Sem a variável — instalação que serve o anexo pelo próprio domínio — nada é acrescentado. */
@@ -284,7 +287,7 @@ describe('o bucket do anexo entra em img-src (revisão spec 161), connect-src e 
     })
 
     expect(directiveOf(policy, 'img-src')).toBe(`img-src 'self' blob: ${API_BASE_URL}`)
-    expect(directiveOf(policy, 'media-src')).toBe(`media-src 'self'`)
+    expect(directiveOf(policy, 'media-src')).toBe(`media-src 'self' blob:`)
     expect(directiveOf(policy, 'connect-src')).not.toContain('storageapi.dev')
   })
 })

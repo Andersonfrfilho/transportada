@@ -499,3 +499,41 @@
   gap: var(--space-2);
   margin-top: var(--space-1);
 }
+
+/* Spec 183 T705: o player com a velocidade ao lado, e o gravador na caixa de envio. */
+.audioPlayer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.audioPlayer {
+  flex-wrap: wrap;
+}
+
+/*
+ * O balão encolhe até o conteúdo: sem piso, o `<audio>` some até o botão de tocar. 13rem cabem no
+ * balão de 88% a 390 px ao lado da velocidade; abaixo disso a velocidade desce de linha.
+ */
+.audioPlayer audio {
+  flex: 1 1 13rem;
+  min-width: 13rem;
+}
+
+.audioRecorder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.audioRecorder audio {
+  max-width: 100%;
+}
+
+.recordingClock {
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  color: var(--color-alert);
+}

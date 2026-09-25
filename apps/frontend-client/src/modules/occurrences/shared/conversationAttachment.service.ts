@@ -117,3 +117,11 @@ export async function uploadPortalAttachments(input: {
 }
 
 export { formatFileSize }
+
+/** Spec 183 T705: a velocidade do áudio (o `<audio>` nativo não tem botão para ela). */
+export const PORTAL_PLAYBACK_RATES = [1, 1.5, 2] as const
+
+export function nextPortalPlaybackRate(current: number): number {
+  const index = PORTAL_PLAYBACK_RATES.findIndex((rate) => rate === current)
+  return PORTAL_PLAYBACK_RATES[(index + 1) % PORTAL_PLAYBACK_RATES.length] ?? 1
+}

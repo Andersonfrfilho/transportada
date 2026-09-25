@@ -58,6 +58,38 @@ o valor do acerto.
 
 **Origem:** spec 164, T29 (revisão final da Fase 7). Registrado em 2026-09-22.
 
+### 2026-09-25 — o microfone passa a ser permitido à própria origem no painel (spec 183 T705)
+
+**Onde:** `frontend-transportada`, `server.ts` (`SECURITY_HEADERS`) e
+`shared/contentSecurityPolicy.service.ts` (`media-src`).
+
+**O que é:**
+
+- O cabeçalho passa a `camera=(self), geolocation=(self), microphone=(self)`. O operador e o
+  motorista gravam áudio na conversa da ocorrência (RF17, P9). O pedido de mudança foi feito e o
+  usuário autorizou em 25/09/2026.
+- `media-src` ganha `blob:`, para ouvir a gravação antes de enviar.
+
+**O que continua fechado:**
+
+- O **portal da contratante** segue `microphone=()`. O contrato de lá varre `src/` e falha se
+  aparecer `getUserMedia` ou `MediaRecorder`.
+- No painel, `(self)` não é `*`: nenhum iframe herda o microfone.
+
+**O que a decisão limita:**
+
+- O microfone só abre no clique em "Gravar áudio", e a trilha é parada ao terminar ou ao sair da
+  tela.
+- A gravação para sozinha em 5 min.
+- O áudio só existe como anexo enviado: sobe por URL assinada, é conferido pelos bytes (assinatura
+  OGG/MP4/WEBM) e vai para o bucket privado com a mesma retenção dos anexos.
+- Nada é gravado sem o operador ouvir e escolher "Usar áudio".
+
+**O que falta:** nada em aberto. O contrato de cabeçalhos exige `(self)` exato (falha com `*` ou com
+origem de terceiro), e o da CSP exige `media-src 'self' blob:` mais só o bucket.
+
+**Origem:** spec 183 T705.
+
 ### 2026-09-22 — foto de ocorrência vinda do WhatsApp entra sem reencode: EXIF/GPS preservado e sem miniatura (spec 161, risco aceito)
 
 **Onde:** `api-transportada`, `whatsapp-commands` (T13, `registerOccurrence` em `src/main.ts`), que

@@ -231,6 +231,7 @@ export function SendToContractorDialog({
             </label>
 
             <ConversationAttachmentPicker
+              allowRecording
               channel="email"
               disabled={isBusy}
               files={files}

@@ -20,13 +20,17 @@ import {
   type ConversationAttachmentRejection,
 } from '../shared/conversationAttachment.service'
 import styles from '../styles/occurrenceConversation.module.css'
+import { ConversationAudioRecorder } from './ConversationAudioRecorder.component'
 
 export function ConversationAttachmentPicker({
+  allowRecording = false,
   channel,
   disabled,
   files,
   onChange,
 }: Readonly<{
+  /** Spec 183 T705: gravar áudio aqui — só no painel e no app do motorista, nunca no portal. */
+  allowRecording?: boolean
   channel: ConversationAttachmentChannel
   disabled: boolean
   files: readonly File[]
@@ -69,11 +73,26 @@ export function ConversationAttachmentPicker({
         placeholder={t('attachment.placeholder', { count: CONVERSATION_ATTACHMENTS_PER_MESSAGE })}
         resetAfterSelect
       />
+      {allowRecording ? (
+        <ConversationAudioRecorder
+          disabled={disabled || files.length >= CONVERSATION_ATTACHMENTS_PER_MESSAGE}
+          onRecorded={(file) => add([file])}
+        />
+      ) : null}
       {files.length === 0 ? null : (
         <ul aria-label={t('attachment.chosen')} className={styles.attachmentList}>
           {files.map((file, index) => (
             <li className={styles.attachmentItem} key={`${file.name}-${String(index)}`}>
-              <Icon name={file.type.startsWith('image/') ? 'image' : 'document'} size="sm" />
+              <Icon
+                name={
+                  file.type.startsWith('image/')
+                    ? 'image'
+                    : file.type.startsWith('audio/')
+                      ? 'microphone'
+                      : 'document'
+                }
+                size="sm"
+              />
               <span className={styles.attachmentName}>{file.name}</span>
               <span className={styles.attachmentSize}>{formatFileSize(file.size)}</span>
               <Button

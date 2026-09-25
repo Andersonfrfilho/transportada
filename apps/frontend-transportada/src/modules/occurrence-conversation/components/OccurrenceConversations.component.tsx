@@ -268,6 +268,7 @@ function DriverConversationPanel({
             )}
           </label>
           <ConversationAttachmentPicker
+            allowRecording
             channel="app"
             disabled={send.isPending}
             files={files}
@@ -387,6 +388,7 @@ function ContractorPortalComposer({
         )}
       </label>
       <ConversationAttachmentPicker
+        allowRecording
         channel="portal"
         disabled={send.isPending}
         files={files}

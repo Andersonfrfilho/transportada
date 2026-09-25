@@ -177,7 +177,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       (tema escuro e claro). Evidência: contrato de contraste 4,5:1 do texto sobre cada balão, nos
       dois temas. Feita antes da T206, que usa as mesmas cores na linha do tempo (RF19); passar os
       tokens às peças de cada aba foi para a T407, que cria a primeira aba.
-- [ ] **T705** Áudio (RF17): player (tocar, posição, velocidade) e gravação no navegador, envio
+- [x] **T705** Áudio (RF17): player (tocar, posição, velocidade) e gravação no navegador, envio
       pelo WhatsApp e pelo app, recebido pelos dois. Evidência: contratos (formato, duração e tamanho
       máximos) + integração do recebido até o anexo com `sha256`.
 - [ ] **T706** 🔒 Transcrição (RF18): porta `speech-to-text.port.ts`, transcrição no worker depois

@@ -468,4 +468,58 @@ describe('o anexo da conversa contra Postgres e S3 (spec 183 T702a)', () => {
     },
     120_000,
   )
+
+  testWithInfrastructure(
+    'T705: o áudio que o motorista grava no app chega como anexo, com o sha256 dos bytes',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, firstDriverId } = seeded.company
+        const driverUserId = await linkDriverMembership(database, seeded.company, firstDriverId)
+        const flow = setup(database)
+        /** O cabeçalho EBML do WEBM/Opus que o `MediaRecorder` do Chrome grava. */
+        const WEBM = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81, 0x01, 0x42])
+        const mine = {
+          companyId,
+          driverId: firstDriverId,
+          driverUserId,
+          occurrenceId: seeded.occurrenceId,
+        }
+
+        const upload = await flow.driverUpload.request({
+          ...mine,
+          contentType: 'audio/webm',
+          fileName: 'audio-20260925-180405.webm',
+          sizeBytes: WEBM.byteLength,
+        })
+        await put(upload.uploadUrl, WEBM, 'audio/webm')
+        await flow.reply.reply({
+          ...mine,
+          attachmentIds: [upload.uploadId],
+          bodyText: '',
+          idempotencyKey: 'attachment-integration-audio-01',
+        })
+
+        const [row] = await database.db
+          .select({
+            contentType: occurrenceConversationAttachments.contentType,
+            sha256: occurrenceConversationAttachments.sha256,
+            sizeBytes: occurrenceConversationAttachments.sizeBytes,
+          })
+          .from(occurrenceConversationAttachments)
+          .where(eq(occurrenceConversationAttachments.companyId, companyId))
+        expect(row).toEqual({
+          contentType: 'audio/webm',
+          sha256: createHash('sha256').update(WEBM).digest('hex'),
+          sizeBytes: WEBM.byteLength,
+        })
+        const read = await flow.list.list(mine)
+        const audio = read.at(-1)?.attachments[0]
+        expect(audio?.contentType).toBe('audio/webm')
+        const download = await fetch(audio?.url ?? '')
+        expect(new Uint8Array(await download.arrayBuffer())).toEqual(WEBM)
+      })
+    },
+    120_000,
+  )
 })

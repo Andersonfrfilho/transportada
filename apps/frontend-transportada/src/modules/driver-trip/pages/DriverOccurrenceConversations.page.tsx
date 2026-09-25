@@ -149,6 +149,7 @@ function DriverConversation({
           )}
         </label>
         <ConversationAttachmentPicker
+          allowRecording
           channel="app"
           disabled={reply.isPending}
           files={files}
