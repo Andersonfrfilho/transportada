@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/components/DriverStopCard.component.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
 import { captureRegistry } from '../shared/captureRegistry.service'
 import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
+import { formatDocumentAmount, formatDocumentWeight } from '../shared/driverDocumentFormat.service'
 import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
   DRIVER_OCCURRENCE_KINDS,
@@ -273,6 +274,7 @@ function DocumentRow({
     return (
       <li className={styles.document}>
         <span>{document.recipientName}</span>
+        <DocumentDetails document={document} />
       </li>
     )
   }
@@ -281,6 +283,7 @@ function DocumentRow({
     return (
       <li className={`${styles.document} ${styles.documentSettled}`}>
         <span>{document.recipientName}</span>
+        <DocumentDetails document={document} />
         <span>
           {document.separationStatus === 'delivered'
             ? t('deliver')
@@ -301,6 +304,7 @@ function DocumentRow({
   return (
     <li className={styles.document}>
       <span>{document.recipientName}</span>
+      <DocumentDetails document={document} />
       {/* Spec 159 RF12: avisa antes de entregar — nunca bloqueia o botão abaixo. */}
       {/* Aviso, não erro: cobre em vez de vermelho, e o detalhe da regra fica a um toque. */}
       {isProofPendingWarningDue({ document, stopProofSettings }) ? (
@@ -405,6 +409,48 @@ function DocumentRow({
         </fieldset>
       ) : null}
     </li>
+  )
+}
+
+type DocumentDetailsProps = Readonly<{
+  document: DriverTripDocument
+}>
+
+/**
+ * NF-e, volumes/peso e valor de cada nota — visível em todo estado do cartão, porque descreve a
+ * nota em si, não a entrega dela. A chave fica atrás de um toque: por extenso ela não cabe numa
+ * linha sem empurrar o resto do cartão, e ela só importa para quem vai conferir ou bipar.
+ */
+function DocumentDetails({ document }: DocumentDetailsProps) {
+  const { t } = useTranslation('driverTrip')
+  const [isKeyVisible, setKeyVisible] = useState(false)
+  const keyId = useId()
+
+  return (
+    <div className={styles.documentDetails}>
+      <p className={styles.documentDetailsMeta}>
+        {t('loadSheet.note', { number: document.number, series: document.series })}
+      </p>
+      <p className={styles.documentDetailsMeta}>
+        {t('loadSheet.volumes', { count: Number(document.volumeCount) })} ·{' '}
+        {t('loadSheet.weight', { weight: formatDocumentWeight(document.grossWeight) })}
+      </p>
+      <p className={styles.documentDetailsAmount}>{formatDocumentAmount(document.totalAmount)}</p>
+      <button
+        aria-controls={keyId}
+        aria-expanded={isKeyVisible}
+        className={styles.documentDetailsKeyToggle}
+        onClick={() => setKeyVisible((current) => !current)}
+        type="button"
+      >
+        {isKeyVisible ? t('documentDetails.hideKey') : t('documentDetails.seeKey')}
+      </button>
+      {isKeyVisible ? (
+        <p className={styles.documentDetailsKey} id={keyId}>
+          {document.accessKey}
+        </p>
+      ) : null}
+    </div>
   )
 }
 

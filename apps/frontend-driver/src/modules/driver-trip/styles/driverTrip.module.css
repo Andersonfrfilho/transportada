@@ -25,6 +25,26 @@
   gap: var(--space-2);
 }
 
+/* O caminho em cima, a placa — linha de apoio, menor — embaixo. */
+.tripSelectorOption {
+  display: grid;
+  gap: 0;
+  text-align: left;
+}
+
+.tripSelectorPath {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tripSelectorPlate {
+  color: inherit;
+  font-size: var(--field-font-size-compact);
+  opacity: 0.75;
+}
+
 /* RF15: o aviso de que a posição está subindo — à vista, nunca rastreamento invisível. */
 .locationIndicator {
   background: color-mix(in srgb, var(--color-ready) 18%, transparent);
@@ -140,6 +160,44 @@
 
 .documentSettled {
   color: var(--color-slate);
+}
+
+/* NF-e, volumes/peso e valor de cada nota — sempre visível, independente do estado da entrega. */
+.documentDetails {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.documentDetailsMeta {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.documentDetailsAmount {
+  font-weight: 700;
+  margin: 0;
+}
+
+/* A chave fica recolhida atrás do toque — ela não cabe numa linha sem empurrar o resto do cartão. */
+.documentDetailsKeyToggle {
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--color-slate);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  justify-self: start;
+  min-height: var(--touch-target);
+  padding: 0;
+  text-decoration: underline;
+}
+
+.documentDetailsKey {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Alvo de toque de 44px, que é o mínimo para quem usa uma mão e está de pé. */
@@ -258,8 +316,75 @@
   gap: var(--space-1);
 }
 
+/*
+ * Só ícones na tela (decisão do usuário, 2026-09-25): o título por extenso mora aqui só para leitor
+ * de tela, e volta a aparecer no papel (ver @media print, que desfaz esta ocultação).
+ */
+.loadSheetTitle {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.loadSheetIconRow {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* A contagem de notas: ícone + número, com a dica dando o nome por extenso ao passar o mouse. */
+.loadSheetCount {
+  align-items: center;
+  color: var(--color-fog);
+  display: inline-flex;
+  gap: var(--space-1);
+  min-height: var(--touch-target);
+}
+
+/* O aviso na tela: um ícone de alerta com a dica. Botão para abrir no toque; 44px de área. */
+.loadSheetNotFiscalIcon {
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--color-alert);
+  cursor: help;
+  display: inline-flex;
+  justify-content: center;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  padding: 0;
+}
+
+/* Imprimir e mostrar/ocultar: o mesmo botão-ícone quadrado, com 44px de alvo de toque. */
+.loadSheetIconButton {
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--color-fog);
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  padding: 0;
+}
+
+/* O chevron gira ao abrir — a mesma dica visual que uma seta virando "para cima" daria. */
+.loadSheetToggleButton svg {
+  transition: transform 150ms ease;
+}
+
+.loadSheetToggleOpen svg {
+  transform: rotate(180deg);
+}
+
+/* Na tela o aviso é o ícone; o texto por extenso fica só no papel (ver @media print). */
 .loadSheetDisclaimer {
   color: var(--color-alert);
+  display: none;
   font-weight: 700;
   margin: 0;
   text-transform: uppercase;
@@ -273,10 +398,6 @@
   color: var(--color-slate);
   display: none;
   margin: 0;
-}
-
-.loadSheetToggle {
-  justify-self: start;
 }
 
 .loadSheetStops,
@@ -337,9 +458,26 @@
     padding: 0;
   }
 
-  .printAction,
-  .loadSheetToggle {
+  .loadSheetIconRow {
     display: none;
+  }
+
+  /* Recolhido na tela por acessibilidade, o título volta a aparecer por extenso no papel. */
+  .loadSheetTitle {
+    clip-path: none;
+    color: #000;
+    font-size: 1.125rem;
+    font-weight: 700;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    white-space: normal;
+    width: auto;
+  }
+
+  .loadSheetDisclaimer {
+    display: block;
   }
 
   /* Recolhido na tela, o romaneio sai inteiro no papel. */

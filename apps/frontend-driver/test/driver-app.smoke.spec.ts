@@ -252,33 +252,67 @@ test('sem sinal, a confirmação fica na fila e a tela não mente sobre isso', a
   await assertNoHorizontalOverflow(page)
 })
 
-test('o motorista leva o romaneio, com a chave da nota e o aviso de que não é fiscal', async ({
-  page,
-}) => {
+/**
+ * Decisão do usuário (2026-09-25): o cabeçalho do romaneio passou a ser só ícones — o título por
+ * extenso mora num `h2` visualmente oculto (para leitor de tela) e reaparece no papel impresso. Os
+ * quatro ícones (contagem de notas, aviso de não-fiscal, imprimir, mostrar/ocultar) têm dica no
+ * toque/hover e `aria-label` próprio.
+ */
+test('o motorista leva o romaneio, só com ícones no cabeçalho', async ({ page }) => {
   await openTrip(page)
 
-  await expect(page.getByRole('heading', { name: 'Romaneio de carga' })).toBeVisible()
-  await expect(page.getByText('Não é documento fiscal')).toBeVisible()
+  const loadSheet = page.getByRole('region', { name: 'Romaneio de carga' })
+  await expect(loadSheet.getByRole('button', { name: 'Não é documento fiscal' })).toBeVisible()
+  await expect(loadSheet.getByRole('button', { name: 'Imprimir' })).toBeVisible()
 
   // Recolhido por padrão: a lista de notas não empurra a viagem para baixo até o motorista pedir
-  const toggle = page.getByRole('button', { name: /Mostrar notas/u })
+  const toggle = loadSheet.getByRole('button', { name: 'Mostrar notas' })
   await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.getByText(DRIVER_ACCESS_KEY)).toBeHidden()
+  await expect(loadSheet.getByText(DRIVER_ACCESS_KEY)).toBeHidden()
   await toggle.click()
-  await expect(page.getByRole('button', { name: 'Ocultar notas' })).toHaveAttribute(
+  await expect(loadSheet.getByRole('button', { name: 'Ocultar notas' })).toHaveAttribute(
     'aria-expanded',
     'true',
   )
 
   // A chave por extenso é o que se consulta no portal e o que a portaria digita quando o leitor falha
-  await expect(page.getByText(DRIVER_ACCESS_KEY)).toBeVisible()
-  await expect(page.getByText('NF-e 900123/1')).toBeVisible()
-  await expect(page.getByText('3 volumes', { exact: false })).toBeVisible()
+  await expect(loadSheet.getByText(DRIVER_ACCESS_KEY)).toBeVisible()
+  await expect(loadSheet.getByText('NF-e 900123/1')).toBeVisible()
+  await expect(loadSheet.getByText('3 volumes', { exact: false })).toBeVisible()
 
   // E o código de barras, que é o que ela bipa
   await expect(
     page.getByRole('img', { name: /Código de barras da chave da NF-e 900123/ }),
   ).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/**
+ * Decisão do usuário (2026-09-25): cada nota do cartão da parada mostra o número, volumes/peso e o
+ * valor sem toque nenhum — só a chave de acesso fica recolhida atrás de "Ver chave", porque ela não
+ * cabe numa linha sem empurrar o resto do cartão.
+ *
+ * O romaneio (`DriverLoadSheet`) fica recolhido o teste inteiro, então "NF-e 900123/1" e a chave só
+ * existem uma vez na tela — a do cartão da parada, que é o que este teste mede.
+ */
+test('cada nota da parada mostra NF-e, volumes/peso e valor — a chave fica atrás de "Ver chave"', async ({
+  page,
+}) => {
+  await openTrip(page)
+
+  // `exact`: o romaneio (recolhido) tem "NF-e 900123/1 — Mercearia do Centro" na mesma página.
+  await expect(page.getByText('NF-e 900123/1', { exact: true })).toBeVisible()
+  await expect(page.getByText('3 volumes · 12,5 kg')).toBeVisible()
+  await expect(page.getByText(/R\$\s*1\.500,00/u)).toBeVisible()
+
+  // `[class*=]`: o romaneio (recolhido) guarda a mesma chave num `<p>` próprio, mesmo texto exato.
+  // O sufixo "_" separa do botão "Ver chave" — a classe dele começa com o mesmo prefixo.
+  const revealedKey = page.locator('[class*="documentDetailsKey_"]')
+  await expect(revealedKey).toHaveCount(0)
+  await page.getByRole('button', { name: 'Ver chave' }).click()
+  await expect(page.getByRole('button', { name: 'Ocultar chave' })).toBeVisible()
+  await expect(revealedKey).toHaveText(DRIVER_ACCESS_KEY)
 
   await assertNoHorizontalOverflow(page)
 })
@@ -543,10 +577,11 @@ test.describe('CA12: duas viagens e a janela de entrega', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
 
     const trips = page.getByRole('group', { name: 'Suas viagens' })
-    await expect(trips.getByRole('button', { name: 'Viagem 2 · ABC1D23' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    // Decisão do usuário (2026-09-25): o seletor diz o caminho da viagem, não a posição na lista —
+    // com uma parada só, o caminho é o rótulo dela; a placa vira linha de apoio, embaixo.
+    await expect(
+      trips.getByRole('button', { name: 'Rua das Flores, 20 · 1 parada' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('main > header').getByText('Veículo ABC1D23')).toBeVisible()
     await expect(
       page.getByRole('heading', { exact: true, name: 'Rua das Flores, 20' }),
@@ -554,7 +589,7 @@ test.describe('CA12: duas viagens e a janela de entrega', () => {
     // CA12 (spec 189 T7.3): a parada com janela diz a janela no cartão.
     await expect(page.getByText('Janela 08:00–12:00')).toBeVisible()
 
-    await trips.getByRole('button', { name: 'Viagem 1 · GCQ8E47' }).click()
+    await trips.getByRole('button', { name: 'Praca da Se, 100 · 1 parada' }).click()
     await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
     await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
     await expect(

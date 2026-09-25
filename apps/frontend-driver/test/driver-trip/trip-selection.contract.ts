@@ -1,11 +1,31 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
-import type { DriverTrip } from '@/modules/driver-trip/shared/driverTrip.types'
-import { resolveSelectedTrip } from '@/modules/driver-trip/shared/driverTripSelection.service'
+import type { DriverTrip, DriverTripStop } from '@/modules/driver-trip/shared/driverTrip.types'
+import {
+  describeTripSelectorPath,
+  resolveSelectedTrip,
+} from '@/modules/driver-trip/shared/driverTripSelection.service'
 
-function buildTrip(id: string, status: string): DriverTrip {
-  return { id, manifest: null, status, stops: [], vehiclePlate: `PLACA-${id}` }
+function buildTrip(id: string, status: string, stops: readonly DriverTripStop[] = []): DriverTrip {
+  return { id, manifest: null, status, stops, vehiclePlate: `PLACA-${id}` }
+}
+
+function buildStop(label: string, sequence = 1): DriverTripStop {
+  return {
+    arrivedAt: null,
+    completedAt: null,
+    deliveryProof: null,
+    deliveryWindowEnd: null,
+    deliveryWindowStart: null,
+    documents: [],
+    id: `stop-${sequence}`,
+    label,
+    latitude: null,
+    longitude: null,
+    schedule: null,
+    sequence,
+  }
 }
 
 /**
@@ -61,5 +81,50 @@ describe('qual viagem a tela mostra (spec 189 T7.1)', () => {
 
   it('sem viagem nenhuma, nada', () => {
     expect(resolveSelectedTrip({ selectedTripId: 'gone', trips: [] })).toBeUndefined()
+  })
+})
+
+/**
+ * Spec 189 T7.2 (revisão): o botão do seletor diz para onde a viagem vai, não a posição dela na
+ * lista — "Viagem 1"/"Viagem 2" não dizia nada sobre o trajeto, e duas viagens podem ter a mesma
+ * placa.
+ */
+describe('o caminho que o seletor de viagens mostra', () => {
+  it('com uma parada só, o caminho é ela mesma', () => {
+    const trip = buildTrip('a', 'in_transit', [buildStop('Praca da Se, 100')])
+
+    expect(describeTripSelectorPath(trip)).toEqual({ path: 'Praca da Se, 100', stopCount: 1 })
+  })
+
+  it('com mais de uma parada, a primeira e a última — o meio fica implícito na contagem', () => {
+    const trip = buildTrip('a', 'in_transit', [
+      buildStop('Praca da Se, 100', 1),
+      buildStop('Rua Augusta, 500', 2),
+      buildStop('Av. Paulista, 900', 3),
+    ])
+
+    expect(describeTripSelectorPath(trip)).toEqual({
+      path: 'Praca da Se, 100 → Av. Paulista, 900',
+      stopCount: 3,
+    })
+  })
+
+  it('rótulo com " — " usa só a parte antes do traço, para ficar curto', () => {
+    const trip = buildTrip('a', 'in_transit', [
+      buildStop('Praca da Se, 100 — portaria 2', 1),
+      buildStop('Rua Augusta, 500 — retirar no balcão', 2),
+    ])
+
+    expect(describeTripSelectorPath(trip)).toEqual({
+      path: 'Praca da Se, 100 → Rua Augusta, 500',
+      stopCount: 2,
+    })
+  })
+
+  it('sem parada nenhuma, caminho vazio', () => {
+    expect(describeTripSelectorPath(buildTrip('a', 'in_transit', []))).toEqual({
+      path: '',
+      stopCount: 0,
+    })
   })
 })

@@ -14,6 +14,8 @@ export type IconName =
   | 'alert'
   | 'camera'
   | 'check'
+  | 'chevron-down'
+  | 'clipboard-list'
   | 'clock'
   | 'close'
   | 'copy'
@@ -22,6 +24,7 @@ export type IconName =
   | 'link'
   | 'logout'
   | 'message'
+  | 'printer'
   | 'refresh'
   | 'save'
   | 'trash'
@@ -42,6 +45,10 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   alert: ['M12 3.5 2.7 19.5h18.6L12 3.5z', 'M12 10v4', 'M12 17h.01'],
   camera: ['M4 8h4l2-3h4l2 3h4v11H4z', 'M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z'],
   check: ['M5 13l4 4L19 7'],
+  /** Só o gatilho de abrir/fechar: gira 180° via CSS quando a lista que ele controla está aberta. */
+  'chevron-down': ['M6 9l6 6 6-6'],
+  /** Prancheta com a lista: a contagem de notas do romaneio, ao lado do número. */
+  'clipboard-list': ['M6 4h12v17H6z', 'M9 3h6v3H9z', 'M9 10h6', 'M9 14h4'],
   /** Relógio: o tempo que o roteiro leva, ao lado do número que o diz. */
   clock: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 7v5l3 2'],
   close: ['M6 6l12 12', 'M18 6L6 18'],
@@ -56,6 +63,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   logout: ['M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', 'M10 16l4-4-4-4', 'M14 12H4'],
   /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
   message: ['M4 5h16v11H9l-4 4v-4H4V5z'],
+  /** A impressora: papel entrando por cima, corpo no meio, folha saindo por baixo. */
+  printer: ['M6 8V4h12v4', 'M4 8h16v8H4z', 'M7 16h10v4H7z'],
   refresh: ['M20 12a8 8 0 1 1-2.6-5.9', 'M20 4v5h-5'],
   save: ['M5 4h11l3 3v13H5z', 'M8 4v5h7', 'M8 14h8v6H8z'],
   trash: ['M5 7h14', 'M10 7V4h4v3', 'M7 7l1 13h8l1-13'],

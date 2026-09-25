@@ -47,9 +47,14 @@
     "volumes_other": "{{count}} volumes",
     "weight": "{{weight}} kg",
     "barcodeLabel": "Código de barras da chave da NF-e {{number}}",
-    "show_one": "Mostrar notas ({{count}})",
-    "show_other": "Mostrar notas ({{count}})",
-    "hide": "Ocultar notas"
+    "show": "Mostrar notas",
+    "hide": "Ocultar notas",
+    "noteCount_one": "{{count}} nota",
+    "noteCount_other": "{{count}} notas"
+  },
+  "documentDetails": {
+    "seeKey": "Ver chave",
+    "hideKey": "Ocultar chave"
   },
   "loading": "Carregando sua viagem…",
   "manifest": {
@@ -221,7 +226,8 @@
   },
   "tripSelector": {
     "label": "Suas viagens",
-    "option": "Viagem {{number}} · {{plate}}"
+    "option_one": "{{path}} · {{count}} parada",
+    "option_other": "{{path}} · {{count}} paradas"
   },
   "deliveryWindow": {
     "between": "Janela {{start}}–{{end}}",
