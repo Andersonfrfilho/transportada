@@ -111,7 +111,9 @@ export type ApiEnvironment = {
    */
   readonly routingMatrixUrl: string | undefined
   readonly postalCodeProviders: {
+    readonly awesomeApiUrl: string | undefined
     readonly brasilApiUrl: string | undefined
+    readonly googleApiKey: string | undefined
     readonly viaCepUrl: string | undefined
   }
   /** Destino HTTP do log estruturado; ausente mantém só o stdout. */

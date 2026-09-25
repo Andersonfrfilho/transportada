@@ -1009,6 +1009,18 @@ cache curto de CEP por empresa reduziria a chamada externa, mas não substitui o
 **Decisão:** **ADR-0040**, item 5 — a rota sobe assim, com o achado datado. O saldo é positivo (o
 volume de transferência ao provedor cai) e o preço está escrito em vez de descoberto depois.
 
+**Atualização 2026-09-24 (spec 186):** a busca passou a correr em paralelo — banco e provedores
+partem juntos, e entre os provedores entra a AwesomeAPI (`cep.awesomeapi.com.br`). Duas frases acima
+deixam de valer: agora **todo CEP consultado sai para os três provedores** configurados
+(`brasilapi.com.br`, `cep.awesomeapi.com.br`, `viacep.com.br`), inclusive quando a base sabia, e um
+cliente em laço vira **três** chamadas externas por requisição, não uma. O que sai continua sendo
+oito dígitos de CEP e nada mais — a porta do provedor não recebe `companyId`, e os perdedores da
+corrida são abortados. Com `GOOGLE_MAPS_API_KEY` presente, `maps.googleapis.com` é o quarto destino:
+**cada busca é uma chamada paga** (um laço aqui é custo, não só volume), e o resultado preenche campo
+que é gravado, o que os termos do Google Maps Platform não permitem guardar para sempre (ADR-0044
+§3) — risco aceito por decisão do usuário, spec 186. O limitador que falta passou a pesar três vezes mais; a prioridade dele não
+muda, mas este é o argumento mais forte que ele tem hoje.
+
 **Origem:** spec 050, T7.2.
 
 ### 2026-08-20 — endereço do motorista sai do navegador para quatro terceiros, sem CSP para conter

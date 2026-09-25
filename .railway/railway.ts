@@ -111,6 +111,7 @@ export default defineRailway((ctx) => {
       OBJECT_STORAGE_REGION: preserve(),
       OBJECT_STORAGE_SECRET_KEY: preserve(),
       PORT: preserve(),
+      POSTAL_CODE_AWESOME_API_URL: preserve(),
       POSTAL_CODE_BRASIL_API_URL: preserve(),
       POSTAL_CODE_VIA_CEP_URL: preserve(),
       PROVISION_COMPANY_ID: preserve(),

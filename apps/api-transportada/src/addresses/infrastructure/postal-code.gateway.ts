@@ -5,6 +5,8 @@ import type {
   PostalCodeProviderPort,
   PostalCodeProviderQuery,
 } from '../application/postal-code.port.js'
+import { raceCompletePostalCodeSuggestion } from '../application/postal-code-race.service.js'
+import { buildGooglePostalCodeTarget, readGooglePostalCode } from './google-postal-code.mapper.js'
 import {
   type PostalCodeSuggestion,
   toPostalCodeSuggestion,
@@ -13,7 +15,10 @@ import {
 type Fetch = (input: string, init: RequestInit) => Promise<Response>
 
 export type PostalCodeGatewayConfiguration = {
+  readonly awesomeApiUrl: string | undefined
   readonly brasilApiUrl: string | undefined
+  /** Pago por chamada: presente, o Google corre junto com os gratuitos em todo CEP (spec 186). */
+  readonly googleApiKey: string | undefined
   readonly viaCepUrl: string | undefined
 }
 
@@ -54,6 +59,20 @@ const readBrasilApi = (payload: unknown): PostalCodeSuggestion | null => {
   })
 }
 
+/** A AwesomeAPI já manda o tipo no logradouro (`address` = "Rua …"); `address_name` viria sem ele. */
+const readAwesomeApi = (payload: unknown): PostalCodeSuggestion | null => {
+  if (!isRecord(payload)) {
+    return null
+  }
+
+  return toPostalCodeSuggestion({
+    city: readString(payload.city),
+    district: readString(payload.district),
+    state: readStateCode(payload.state),
+    street: readString(payload.address),
+  })
+}
+
 /** O ViaCEP responde 200 com `{"erro": true}` para CEP inexistente — o status não acusa nada. */
 const readViaCep = (payload: unknown): PostalCodeSuggestion | null => {
   if (!isRecord(payload) || payload.erro !== undefined) {
@@ -76,6 +95,15 @@ const buildProviders = (
   if (configuration.brasilApiUrl !== undefined) {
     providers.push({ read: readBrasilApi, target: `${configuration.brasilApiUrl}/${postalCode}` })
   }
+  if (configuration.awesomeApiUrl !== undefined) {
+    providers.push({ read: readAwesomeApi, target: `${configuration.awesomeApiUrl}/${postalCode}` })
+  }
+  if (configuration.googleApiKey !== undefined) {
+    providers.push({
+      read: (payload) => readGooglePostalCode({ payload, postalCode }),
+      target: buildGooglePostalCodeTarget({ apiKey: configuration.googleApiKey, postalCode }),
+    })
+  }
   if (configuration.viaCepUrl !== undefined) {
     providers.push({ read: readViaCep, target: `${configuration.viaCepUrl}/${postalCode}/json/` })
   }
@@ -83,44 +111,56 @@ const buildProviders = (
   return providers
 }
 
+type ReadProviderParams = {
+  readonly fetch: Fetch
+  readonly provider: Provider
+  readonly signal: AbortSignal
+}
+
 /**
- * Os provedores são consultados **em sequência**, não em corrida: eles são de terceiros e a nossa
- * política é gastar a chamada do segundo só quando o primeiro não soube. Falha de rede, status ruim e
- * corpo inesperado são a mesma coisa aqui — nada disso é defeito nosso, e o operador segue digitando.
+ * Falha de rede, status ruim, corpo inesperado e aborto por ter perdido a corrida são a mesma coisa
+ * aqui — nada disso é defeito nosso, e o operador segue digitando.
  */
-async function readProvider(
-  fetch: Fetch,
-  { read, target }: Provider,
-): Promise<PostalCodeSuggestion | null> {
+async function readProvider({
+  fetch,
+  provider,
+  signal,
+}: ReadProviderParams): Promise<PostalCodeSuggestion | null> {
   try {
-    const response = await fetch(target, {
+    const response = await fetch(provider.target, {
       headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_IN_MILLISECONDS),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_IN_MILLISECONDS)]),
     })
     if (!response.ok) {
       return null
     }
 
-    return read(await response.json())
+    return provider.read(await response.json())
   } catch {
     return null
   }
 }
 
+/**
+ * Os provedores correm juntos (spec 186) e o primeiro endereço completo encerra a corrida: os que
+ * ainda estão no ar são abortados. A ordem da lista só desempata parciais.
+ */
 export function createPostalCodeGateway({
   configuration,
   fetch,
 }: CreatePostalCodeGatewayParams): PostalCodeProviderPort {
   return {
     async findByPostalCode({ postalCode }: PostalCodeProviderQuery) {
-      for (const provider of buildProviders(configuration, postalCode)) {
-        const suggestion = await readProvider(fetch, provider)
-        if (suggestion !== null) {
-          return suggestion
-        }
+      const race = new AbortController()
+      try {
+        return await raceCompletePostalCodeSuggestion(
+          buildProviders(configuration, postalCode).map(
+            (provider) => () => readProvider({ fetch, provider, signal: race.signal }),
+          ),
+        )
+      } finally {
+        race.abort()
       }
-
-      return null
     },
   }
 }

@@ -119,3 +119,11 @@ e quem executar a 0039 tem três saídas — nenhuma escolhida aqui, porque a 00
   quem for executá-la.
 - Se um dia a base local passar a ser a única fonte — provedor externo fora, cache nosso —, a decisão
   a tomar é sobre atualização de logradouro, que é dado que muda. ADR nova.
+
+## Emenda 2026-09-24 — a escada vira corrida (spec 186)
+
+A sequência "banco → BrasilAPI → ViaCEP" deixou de existir. Banco e provedores partem juntos, entram
+a AwesomeAPI e — havendo `GOOGLE_MAPS_API_KEY` — o Google Geocoding (pago por chamada), e vence o primeiro endereço **completo**; os perdedores são
+abortados. Motivo medido: a BrasilAPI `/cep/v2` leva ~2 s quando resolve coordenada, e a fila punha
+esse tempo inteiro na frente do operador. Preço aceito: todo CEP consultado sai para os provedores,
+mesmo quando a base sabia (`docs/SECURITY.md`, achado de 2026-08-21, atualização da mesma data).

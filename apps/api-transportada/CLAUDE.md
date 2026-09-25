@@ -378,7 +378,11 @@ foto nunca sai nessas respostas — só motivo, pontos e datas — e cai aos 90 
 
 **O endereço se mede uma vez** (ADR-0061, spec 084) — geocodificação em lote, por decisão explícita,
 nunca recalculada a cada leitura. Separação grafia × lugar (`street-comparison.policy.ts`) é o que
-torna o relatório de endereços legível. CEP vem de cadastro; a busca textual ainda sai do navegador
+torna o relatório de endereços legível. **O CEP corre em paralelo** (spec 186): banco da instalação,
+BrasilAPI `/cep/v2`, AwesomeAPI, ViaCEP e — com `GOOGLE_MAPS_API_KEY` — o Google Geocoding (pago, e
+resposta de outro CEP é descartada) partem juntos, vence o primeiro endereço **completo** e os
+provedores perdedores são abortados (`raceCompletePostalCodeSuggestion`); a v2 fica pela coordenada,
+mesmo levando ~2 s. A busca textual ainda sai do navegador
 (Photon). **Cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`),
 casada por `normalizeVehicleCatalogName` para tolerar grafia divergente entre planilha e IBGE.
 

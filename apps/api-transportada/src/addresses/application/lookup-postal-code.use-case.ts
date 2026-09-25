@@ -3,10 +3,10 @@
  */
 import {
   type PostalCodeSuggestion,
-  isCompletePostalCodeSuggestion,
   parsePostalCode,
 } from '../domain/postal-code-suggestion.policy.js'
 import type { PostalCodeDirectoryPort, PostalCodeProviderPort } from './postal-code.port.js'
+import { raceCompletePostalCodeSuggestion } from './postal-code-race.service.js'
 
 export type LookupPostalCodeRequest = {
   readonly companyId: string
@@ -23,11 +23,10 @@ export type CreateLookupPostalCodeUseCaseParams = {
 }
 
 /**
- * A escada tem três degraus e o último é o teclado do operador. O banco da instalação vem primeiro
- * porque é dado nosso e não custa chamada externa; o provedor público só é consultado quando a casa
- * não soube o endereço **inteiro** — parar numa resposta parcial deixaria o logradouro em branco
- * tendo quem soubesse. Ninguém sabendo, a resposta é vazia: a busca é conveniência, e cadastro não
- * para porque um CEP não foi achado.
+ * Banco da instalação e provedor público correm juntos (spec 186): esperar o banco antes de perguntar
+ * fora punha a BrasilAPI inteira — ~2 s quando ela resolve coordenada — na frente do operador. Vence
+ * a primeira resposta **completa**; parcial não vence, porque parar na UF deixaria o logradouro em
+ * branco tendo quem soubesse. Ninguém sabendo, a resposta é vazia e o operador digita.
  */
 export function createLookupPostalCodeUseCase({
   directory,
@@ -36,13 +35,12 @@ export function createLookupPostalCodeUseCase({
   return {
     execute: async ({ companyId, postalCode }) => {
       const canonical = parsePostalCode(postalCode)
-      const local = await directory.findByPostalCode({ companyId, postalCode: canonical })
-      if (isCompletePostalCodeSuggestion(local)) {
-        return local
-      }
 
-      // O parcial de casa fica guardado e só responde quando nem a BrasilAPI nem o ViaCEP souberam
-      return (await provider.findByPostalCode({ postalCode: canonical })) ?? local
+      // O provedor vem antes na lista porque, entre parciais, ele sabe mais que o banco
+      return raceCompletePostalCodeSuggestion([
+        () => provider.findByPostalCode({ postalCode: canonical }),
+        () => directory.findByPostalCode({ companyId, postalCode: canonical }),
+      ])
     },
   }
 }
