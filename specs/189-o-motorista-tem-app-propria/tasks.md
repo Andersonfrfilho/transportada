@@ -423,14 +423,14 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
 > 🤖 Modelo: `haiku` · T8.1 e T8.3 `sonnet`
 
-- [ ] **T8.1** Criar `apps/frontend-driver/CLAUDE.md` (o núcleo normativo) e
+- [x] **T8.1** Criar `apps/frontend-driver/CLAUDE.md` (o núcleo normativo) e
       `docs/ai-context/frontend-driver.md`.
   - Conteúdo: separação, SSO, reconciliação, CSP, HSTS, SW `prompt`, boot sem rede, dono do snapshot,
     pendência, sino, o que a 147 e a 179 acrescentam, cópia por valor e porta.
 
   **Aceite:** os dois arquivos existem e citam a ADR-0075.
 
-- [ ] **T8.2** Atualizar a documentação existente:
+- [x] **T8.2** Atualizar a documentação existente:
   - `CLAUDE.md` da raiz: Estrutura, portas (`frontend-driver 53200`, preview `53112`), comandos e a
     nota de que o motorista não é mais rota do painel;
   - `apps/frontend-transportada/CLAUDE.md` e `docs/ai-context/frontend-transportada.md`: o
@@ -440,7 +440,7 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
   **Aceite:** `bunx prettier --check` nos `.md`.
 
-- [ ] **T8.3** Emendar a spec 147:
+- [x] **T8.3** Emendar a spec 147:
   - `plan.md` e `tasks.md`:
     - a T006 vale para as duas apps, mas só para a tela do código;
     - a T008 passa a ser "`push` e `notificationclick` no `sw.ts` de `apps/frontend-driver`";
