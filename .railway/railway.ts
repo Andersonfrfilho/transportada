@@ -137,6 +137,7 @@ export default defineRailway((ctx) => {
       ANEEL_TIMEOUT_MS: preserve(),
       ANP_BASE_URL: preserve(),
       ANP_TIMEOUT_MS: preserve(),
+      API_BASE_URL: preserve(),
       APP_BASE_URL: preserve(),
       APP_ENV: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_CNPJ: preserve(),
@@ -226,6 +227,8 @@ export default defineRailway((ctx) => {
        * painel, não só reiniciar.
        */
       VITE_MAP_TILES_URL: preserve(),
+      /** Lida no build (`vite.config.ts`, `objectStorageUrl`); estava viva no painel e fora daqui. */
+      VITE_OBJECT_STORAGE_URL: preserve(),
     },
   })
 

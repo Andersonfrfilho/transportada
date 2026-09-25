@@ -1567,3 +1567,21 @@ cd apps/frontend-driver && PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false bun run
   driver-service-worker.smoke.spec.ts   2 passed
   driver-app.smoke.spec.ts             14 passed   (13 + CA12)
 ```
+
+### T6.2 — desbloqueada pelo orquestrador: as duas variáveis órfãs viram `preserve()`
+
+O plano de staging queria apagar `worker.API_BASE_URL` e `transportada-frontend.VITE_OBJECT_STORAGE_URL`:
+as duas estão vivas na Railway e são lidas pelo código (`worker-transportada/src/config/environment.schema.ts:44`
+e `frontend-transportada/vite.config.ts:70`), mas nunca foram declaradas no `railway.ts`. Como "omitir é
+apagar", declarar as duas com `preserve()` é a correção. Não é decisão de apagar nada.
+
+`railway config plan --verbose` (link em `staging`, environment `3cd99844-…`), depois da correção:
+**`Plan: 1 to add, 11 to change, 0 to destroy`**.
+
+- `+ Create service driver`.
+- Nove `deploy.restartPolicyType (null → "ON_FAILURE")` (api, worker, transportada-frontend, landing,
+  keycloak, vector, client, map-tiles, osrm): o arquivo já declarava a política, e o painel da Railway
+  estava sem ela.
+- Duas `Update variable` (`map-tiles.MAP_PBF_URL` e `osrm.OSRM_PBF_URL`), já declaradas no arquivo.
+
+Contratos de deploy da API: verdes. `railway config apply` fica para o usuário (T6.3).

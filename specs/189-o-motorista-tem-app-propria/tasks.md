@@ -304,7 +304,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** vermelhos. O de redirect URIs fecha na T6.4.
 
-- [ ] **T6.2** O serviço `driver` em `.railway/railway.ts` (plan D9), com as `VITE_*` literais.
+- [x] **T6.2** O serviço `driver` em `.railway/railway.ts` (plan D9), com as `VITE_*` literais.
       Os valores vêm de `railway variables --service client --environment <env> --json`, filtrando só
       as `VITE_*`, sem imprimir nada além delas. A linha entra em `docs/spec/railway.md`.
 
