@@ -76,6 +76,7 @@ import {
   TRIP_CARGO_LAYOUT_POLL_KEYS,
   TRIP_OCCURRENCE_OPTIONAL_KEYS,
   FIELD_OCCURRENCE_TYPE_KEYS,
+  FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS,
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
   TRIP_TIMELINE_ITEM_KEYS,
   TRIP_TIMELINE_STOP_REFERENCE_KEYS,
@@ -1226,9 +1227,19 @@ function isOccurrenceAttachmentPosition(
   )
 }
 
+/**
+ * Spec 179 T304: `attachmentMode` é aditivo (`hasKeys`, não `hasExactKeys`) — API mais nova que o
+ * bundle manda o campo, API mais velha não manda, e as duas passam.
+ */
 function isFieldOccurrenceType(value: unknown): value is FieldOccurrenceType {
   return (
-    hasExactKeys(value, FIELD_OCCURRENCE_TYPE_KEYS) && isString(value.id) && isString(value.name)
+    hasKeys(value, {
+      allowed: [...FIELD_OCCURRENCE_TYPE_KEYS, ...FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS],
+      required: FIELD_OCCURRENCE_TYPE_KEYS,
+    }) &&
+    isString(value.id) &&
+    isString(value.name) &&
+    (value.attachmentMode === undefined || isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES))
   )
 }
 

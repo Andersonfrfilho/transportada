@@ -6,6 +6,7 @@ import type {
   LeftoverStop,
 } from '@/modules/routing/shared/suggestionLeftover.service'
 
+import type { OccurrenceAttachmentMode } from './occurrence.constant'
 import type { OccurrenceQuantityUnit } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
@@ -183,8 +184,17 @@ export type TripOccurrence = Readonly<{
   typeName: string
 }>
 
-/** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo de ocorrência de nota do escritório. */
-export type FieldOccurrenceType = Readonly<{ id: string; name: string }>
+/**
+ * Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo de ocorrência de nota do escritório.
+ *
+ * Spec 179 T304: `attachmentMode` passou a sair junto (o mesmo campo que a rota `/me` do motorista
+ * ganhou) — ausente é API anterior ao campo, e esta tela ainda não usa o valor.
+ */
+export type FieldOccurrenceType = Readonly<{
+  attachmentMode?: OccurrenceAttachmentMode
+  id: string
+  name: string
+}>
 
 /**
  * O que o registro devolve: a ocorrência mais o e-mail pronto.

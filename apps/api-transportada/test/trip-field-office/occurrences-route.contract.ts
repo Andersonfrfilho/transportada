@@ -79,7 +79,9 @@ function multipartRequest(input: {
 function buildDependencies() {
   const registered: unknown[] = []
   const dependencies: TripFieldOfficeOccurrenceDependencies = {
-    listFieldOccurrenceTypes: async () => [{ id: TYPE_ID, name: 'Cliente ausente' }],
+    listFieldOccurrenceTypes: async () => [
+      { attachmentMode: 'off', id: TYPE_ID, name: 'Cliente ausente' },
+    ],
     registerOccurrences: async (input) => {
       registered.push(input)
       return {
@@ -140,7 +142,7 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
     }
   })
 
-  it('GET devolve só id e nome dos tipos de rua', async () => {
+  it('GET devolve id, nome e attachmentMode dos tipos de rua', async () => {
     const response = await findRoute('GET').execute({
       context: context(),
       correlationId: 'c-1',
@@ -149,7 +151,9 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: [{ id: TYPE_ID, name: 'Cliente ausente' }] })
+    expect(await response.json()).toEqual({
+      data: [{ attachmentMode: 'off', id: TYPE_ID, name: 'Cliente ausente' }],
+    })
   })
 
   it('POST resolve o alvo, registra o lote e pede a trilha ao caso de uso', async () => {

@@ -50,6 +50,13 @@ DIAGNOSTICS ROW_COUNT`. `make migration-test` verde.
   (`trip-occurrence-attachment.integration.ts`). Detalhe completo em `evidence.md`. A escrita
   continua **única**, dentro do `unitOfWork.execute` + `withFieldReport` que a T200 já tinha montado
   — não precisou de unit of work nova. (CA02, CA03, RF3)
+- **T304** ✅ O motorista sabe quando o tipo exige comprovante: `GET /me/trips/current/occurrence-types`
+  passa a devolver `attachmentMode`, junto de `id` e `name` (`list-field-occurrence-types.use-case.ts`,
+  `type.attachmentMode ?? 'off'`). Aditiva, sem migration — fecha a pendência que a T303 registrou em
+  `evidence.md` ("a app já lê o campo quando ele vier"). A mesma função alimenta a rota do escritório
+  (`GET /trips/occurrence-types/field`), cujo validador no painel (`hasExactKeys`) recusaria a chave
+  nova — trocado por `hasKeys` com `attachmentMode` opcional (`FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`),
+  o mesmo padrão que `isOccurrenceType` já usa para campo aditivo.
 
 ## Fase 3 — O motorista tira a foto
 

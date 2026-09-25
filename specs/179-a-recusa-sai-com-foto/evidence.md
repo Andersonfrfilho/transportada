@@ -740,3 +740,45 @@ o elemento antes de fotografar.
    o print entra no molde de `spec-185-prints.smoke.spec.ts` (mesmo dublê de
    `/company-settings/occurrence-types`, com `attachmentMode` no tipo de rua).
 4. **Pendência de API**: ver T303 — `attachmentMode` em `GET /me/trips/current/occurrence-types`.
+   Fechada pela T304 abaixo.
+
+## T304 — o motorista sabe quando o tipo exige comprovante (RF1, CA07, CA08)
+
+`list-field-occurrence-types.use-case.ts` (o único produtor de `GET /me/trips/current/occurrence-types`
+e, pela mesma composição em `main.ts`, também de `GET /trips/occurrence-types/field`) ganha
+`attachmentMode` no tipo `FieldOccurrenceType` e no `map`, com `type.attachmentMode ?? 'off'` — o
+mesmo padrão de fallback que `register-driver-occurrence.use-case.ts` já usa para o registro em si
+(dado legado sem a coluna preenchida). Aditiva, nenhuma migration: a coluna já existe desde a T102.
+
+Teste de contrato primeiro (`test/trip-occurrence/field-catalog.contract.ts`, falhou antes da
+implementação): repassa `attachmentMode` quando o tipo tem um, e degrada para `'off'` quando não
+tem. Os dois testes de rota que já cobriam esta função (`me-routes.contract.ts`,
+`office-field-occurrences.contract.ts`, `trip-field-office/occurrences-route.contract.ts`) tinham o
+corpo esperado com só `id`/`name` — atualizados para incluir `attachmentMode`.
+
+**A mesma função alimenta duas rotas, e só uma tinha o contrato pronto para o campo novo.**
+`GET /trips/occurrence-types/field` (escritório) é consumida pelo painel
+(`apps/frontend-transportada`), cujo `isFieldOccurrenceType` usava `hasExactKeys(value,
+['id','name'])` — chave desconhecida reprovaria a validação e derrubaria a lista de tipos do diálogo
+de ocorrência do escritório assim que a API subisse com o campo novo. Trocado por `hasKeys` com
+`attachmentMode` opcional (`FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`, `trip.constant.ts`), o mesmo padrão
+que `isOccurrenceType` já usa para `allowsMultipleItems`/`leavesDocumentBehind`/`redeliveryPolicy` —
+campo aditivo é tolerado, não exigido. `FieldOccurrenceType` (painel) ganhou o campo como opcional;
+a tela do escritório não lê o valor hoje, só deixa de recusar a resposta.
+
+`apps/frontend-driver` e o módulo legado `driver-trip` de `apps/frontend-transportada` já toleravam
+o campo ausente (`isDriverOccurrenceType`/duck-typing por `id`/`name` sem `hasExactKeys`) — nenhuma
+mudança neles.
+
+```
+$ bun run typecheck                                    # api-transportada: sem saída
+$ bun run lint                                          # api-transportada: sem saída
+$ bun --env-file=../../.env.test test --timeout 120000   # api-transportada: 7394 pass · 0 fail
+$ bunx tsc --noEmit                                      # frontend-transportada: sem saída
+$ bun run lint                                           # frontend-transportada: sem saída
+$ bun run test                                           # frontend-transportada: 5345 pass · 0 fail · hooks 54 pass · 0 fail
+```
+
+Sem migration — a coluna e o CHECK já existem (T102). Nenhum dado de outra empresa: `companyId` vem
+de `context.scope.companyId` em ambas as rotas, como antes; o `map` só acrescenta um campo derivado
+do próprio tipo já filtrado por empresa.

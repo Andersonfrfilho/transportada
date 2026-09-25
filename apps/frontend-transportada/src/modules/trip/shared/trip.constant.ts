@@ -406,6 +406,12 @@ export const TRIP_OCCURRENCE_ATTACHMENT_OPTIONAL_KEYS = [
 /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences` lista os tipos de rua do escritório. */
 export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
 
+/**
+ * Spec 179 T304: `attachmentMode` é aditivo — ausente é API anterior ao campo, e esta tela ainda
+ * não usa o valor (quem decide se a observação é obrigatória hoje é a app do motorista).
+ */
+export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = ['attachmentMode'] as const
+
 export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/field`
 
 /** Spec 158 D6: `GET /trips/:id/timeline` — todo campo nasce sempre presente (nulo, quando falta). */
