@@ -339,6 +339,20 @@ endereço, e-mail é da parte) do destinatário existem para a viagem ligar ante
 sempre serve o cru, máscara/cópia é do frontend (`formatStoredPhone`). Detalhe completo: docs/ai-context
 § "O telefone do cliente" e § "O e-mail do destinatário".
 
+**Consentimento de rastreamento e posição ao vivo** (ADR-0050 §5, spec 063; leitura acrescentada
+pela ADR-0075 §8, spec 189 T7.4): `GET`/`PUT /me/location-consent` (`me-location.routes.ts`,
+`REPORT_POLICY` = `trip.report` escopo `company`) leem/gravam `{ acceptedAt: string | null }`. O
+`GET` (`createReadLocationConsentUseCase`, `trips/application/read-location-consent.use-case.ts`) é
+"a leitura que faltava ao `PUT`", que já existia — a app do motorista precisava mostrar o estado do
+interruptor sem inferir de nenhum outro dado. As duas rotas, e também `POST
+/me/trips/current/location` (`recordLocation`, sem id de viagem — o servidor resolve a viagem do
+motorista), resolvem o motorista pelo **vínculo** da conta autenticada, nunca do payload; sem
+cadastro de motorista, `409 DRIVER_NOT_REGISTERED` (`DriverNotRegisteredError`) — é configuração
+pendente do escritório, não "nunca consentiu", e a app distingue as duas telas. Retirar o
+consentimento apaga o rastro na mesma transação (`fleet_drivers.location_sharing_consent_at`), e o
+rastro morre com a viagem (`purgeByTrip`, no fechamento e no cancelamento). Contratos:
+`test/trip-http/location-tracking.contract.ts`, `test/integration/me-location-consent.integration.ts`.
+
 ## Ocorrência da nota — tratativa e cobrança (spec 164)
 
 **A ocorrência é append-only; o estado mora ao lado.** `trip_document_occurrences` nunca ganha

@@ -23,6 +23,7 @@ apps/worker-transportada/    consumidor RabbitMQ + outbox relay
 apps/cron-transportada/      processo one-shot agendado (NF-e, NFS-e, notificações, preço da ANP)
 apps/frontend-transportada/  React 19 + Vite 7 (PWA)
 apps/frontend-client/        portal do contratante — app separada por segurança (ADR-0050)
+apps/frontend-driver/        PWA do motorista — app separada do painel (ADR-0075, spec 189)
 docs/spec/                   constitution, architecture, domain-model, fiscal-integration
 docs/adr/                    NNNN-titulo.md (0001..0010)
 specs/NNN-nome/              spec.md · plan.md · tasks.md · evidence.md
@@ -81,7 +82,17 @@ verde dele de "exercitou o banco". Uma task que mexe em `test/integration/**` s�
 segundo comando, ou seus testes novos não rodaram.
 
 Portas (bind em 127.0.0.1): postgres 55432 · rabbitmq 55672/55673 · minio 59000/59001 ·
-mailpit 51025/58025 · keycloak 58080 · frontend 53000 · api 53001 · worker 53002.
+mailpit 51025/58025 · keycloak 58080 · frontend 53000 · api 53001 · worker 53002 ·
+frontend-driver 53200 (`FRONTEND_DRIVER_PORT`; `53112` não é uma segunda porta de serviço — é a
+origem sintética que o Playwright do `frontend-driver` usa como `VITE_DRIVER_APP_URL` só durante o
+próprio smoke, reservada em `ci.yml:109`).
+
+O **motorista deixou de ser só uma rota do painel** (ADR-0075, spec 189): ele ganhou app própria,
+`apps/frontend-driver`, em `motorista.<zona>`. Enquanto o interruptor `VITE_DRIVER_APP_URL` do
+painel estiver desligado (variável ausente), o painel continua servindo `/minha-viagem` como antes
+— é o caminho de transição, drenado pela fila antiga e medido por um beacon
+(`driver_legacy_served`) até a remoção do módulo `driver-trip` do painel (tasks.md Fase 10 da 189,
+sob aprovação humana).
 
 ## Convenções
 

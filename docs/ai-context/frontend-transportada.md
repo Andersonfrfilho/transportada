@@ -709,3 +709,52 @@ permissão/tarifa — molde reaproveitado depois pela T402 item 6 e pela T503.
 
 Detalhe completo (contratos, vermelhos, arquivos por caminho, gates):
 `specs/154-a-lista-de-pracas-e-a-data-do-catalogo/evidence.md` (T204, T303, T401, T402, T503).
+
+## O motorista sai de casa: o interruptor, a fila antiga e o beacon (spec 189, ADR-0075)
+
+Até a spec 189, `/minha-viagem` era o destino final do motorista: o módulo `driver-trip` inteiro
+(34 arquivos, ~5.760 linhas) vivia aqui, dentro do bundle e do `scope` do painel. A ADR-0075 tirou
+essa tela para `apps/frontend-driver`, uma app própria — este arquivo registra o lado que ficou no
+painel: como ele descobre que a app nova existe, o que faz enquanto ela ainda não existe (ou o
+interruptor está desligado), e como se mede quando pode parar de servir a tela velha.
+
+**Por que `VITE_DRIVER_APP_URL` é lida sozinha, fora de `getIdentityEnvironment()`.** A variável
+podia — e devia — nascer desligada: o código publica antes de `motorista.<ambiente>` estar no ar.
+Se a leitura passasse pela configuração de identidade inteira (que valida `VITE_API_URL`,
+`VITE_KEYCLOAK_URL` etc. e derruba o boot se algo faltar), uma instalação sem a variável ainda
+levantaria o painel normalmente — mas encadear a leitura ali criaria uma dependência desnecessária
+entre uma bandeira opcional e a configuração obrigatória. `readDriverAppUrl()` (`identityEnvironment.
+config.ts`) é a mesma forma de `isIdentifierFirstLoginEnabled()`: ausente/vazia devolve `undefined`
+sem lançar, presente passa por `readTrustedUrl` (a mesma validação de `VITE_API_URL`/
+`VITE_KEYCLOAK_URL` — exige `https:` ou `http://localhost`, sem user/pass/query/hash).
+
+**A validação no build** (`assertDriverAppUrlBuildsClean`, chamada por `vite.config.ts`) falha se
+`VITE_DRIVER_APP_URL === VITE_APP_URL` — evitaria um laço de redirect consigo mesmo, e falhar no
+build é mais barato que descobrir em produção. Mas o valor de um serviço pode mudar entre o build e
+o deploy do painel (o domínio é resolvido em tempo de build, mas o deploy é posterior), então
+`isDriverAppUrlOwnOrigin` (revisão M1) compara a origem de novo em runtime, antes de todo
+`location.replace` automático — URL ilegível conta como "é a própria origem", porque não
+redirecionar é sempre o lado seguro.
+
+**A tela de pendências não é "pendências de outra conta"** — é a fila offline _desta origem_
+(`app.<zona>`, do IndexedDB do painel) que ainda não foi drenada quando o interruptor liga. Ela
+existe porque simplesmente apagar a fila silenciosamente perderia entrega e foto que o motorista já
+registrou em campo; a decisão do usuário foi "descartar com ciência" — o evento recusado ganha
+"Descartar" com o aviso "a entrega não foi registrada; fale com o escritório", nunca some sozinho.
+`DriverLegacyPending.page.tsx` é renderizada fora do `ApplicationShell` normal (é a única tela do
+painel que trata sessão expirada localmente, sem o aviso padrão do shell) via `renderDriverAppScreen`
+em `main.tsx`.
+
+**O beacon** é a métrica que substitui "esperar um tempo e torcer": zero hits em 14 dias de log de
+produção autoriza remover o módulo (tasks.md Fase 10, T10.1, aprovação humana). Ele dispara **antes**
+de checar `isAuthenticated` de propósito — conta quem chegou na tela de pendências mesmo que
+abandone o login do Keycloak sem terminar, porque é exatamente esse alguém que ainda depende do
+módulo antigo. O throttle de 60 s no servidor (`registerDriverLegacyBeaconHit`, `server.ts`) evita
+que uma sessão presa numa aba aberta vire um log por request; só a primeira ocorrência da janela
+grava, as seguintes só incrementam um contador em memória.
+
+Testes: `test/driver-trip/driver-app-redirect.contract.ts` (as quatro decisões de
+`resolveDriverAppRedirect`, a rede de segurança de `isDriverAppUrlOwnOrigin`, `readDriverAppUrl`),
+`test/driver-trip/legacy-beacon.contract.ts` (emissão só em `pending-screen`, corpo até 32 bytes, o
+`204` sempre, o throttle). Evidência de execução: `specs/189-o-motorista-tem-app-propria/evidence.md`
+(T5.1–T5.4).
