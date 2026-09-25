@@ -71,6 +71,8 @@ export function getOccurrenceConversationClient(): OccurrenceConversationClient 
 
 /** O Resend e a Meta confirmam em segundos; 20 s é folga sem martelar a API. */
 const CONVERSATION_STATUS_REFETCH_MS = 20_000
+/** Sem status a esperar, só a mensagem nova do outro lado: um minuto basta para conversa humana. */
+export const CONVERSATION_IDLE_REFETCH_MS = 60_000
 
 export function useOccurrenceConversationsQuery(
   input: Readonly<{ companyId?: string; enabled: boolean; occurrenceId: string }>,
@@ -81,15 +83,17 @@ export function useOccurrenceConversationsQuery(
     queryFn: () => client.listConversations({ occurrenceId: input.occurrenceId }),
     queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY, input.companyId, input.occurrenceId],
     /**
-     * Spec 183 T703 (P8): o selo muda sozinho. Enquanto alguma mensagem que sai ainda pode
-     * avançar, a conversa volta a ser lida; tudo confirmado ou falho, para.
+     * Spec 183 T703 (P8): o selo muda sozinho — com mensagem que sai ainda podendo avançar, a
+     * conversa volta a ser lida a cada 20 s. Spec 183 T902 (D2): mesmo com tudo confirmado, a
+     * mensagem nova do outro lado precisa aparecer (e ser anunciada) sem recarregar — a cada 60 s.
+     * Aba oculta não lê: o TanStack pausa o intervalo em segundo plano.
      */
     refetchInterval: (query) =>
       query.state.data?.conversations.some((conversation) =>
         hasPendingOutboundStatus(conversation.messages),
       ) === true
         ? CONVERSATION_STATUS_REFETCH_MS
-        : false,
+        : CONVERSATION_IDLE_REFETCH_MS,
   })
 }
 

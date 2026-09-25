@@ -90,3 +90,21 @@ export function conversationToggleLabel(unreadCount: number): string {
   if (unreadCount <= 0) return base
   return `${base} (${unreadCount} ${unreadCount === 1 ? 'nova' : 'novas'})`
 }
+
+/**
+ * Spec 183 T902 (D2): a frase que a região `aria-live` lê quando a transportadora escreveu desde a
+ * leitura anterior. O portal não expõe id de mensagem, então a conta é pelas da transportadora; a
+ * primeira leitura (`null`) não anuncia.
+ */
+export function announceNewCarrierMessages(
+  previousCarrierCount: null | number,
+  messages: readonly Readonly<{ side: 'carrier' | 'contractor' }>[],
+): string {
+  if (previousCarrierCount === null) return ''
+  const count =
+    messages.filter((message) => message.side === 'carrier').length - previousCarrierCount
+  if (count <= 0) return ''
+  return count === 1
+    ? '1 mensagem nova da transportadora'
+    : `${String(count)} mensagens novas da transportadora`
+}

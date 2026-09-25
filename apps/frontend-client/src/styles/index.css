@@ -395,3 +395,13 @@ input[type='file']::file-selector-button {
     font-size: 2.25rem;
   }
 }
+
+/* Spec 183 T902 (D2): texto lido por leitor de tela e invisível na tela (a região que anuncia). */
+.visually-hidden {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

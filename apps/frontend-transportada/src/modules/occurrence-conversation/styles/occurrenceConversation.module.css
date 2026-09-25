@@ -563,3 +563,13 @@
     min-height: var(--touch-target);
   }
 }
+
+/* Spec 183 T902 (D2): a região que anuncia mensagem nova — lida por leitor de tela, invisível. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

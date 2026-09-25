@@ -17,6 +17,7 @@ import {
 import {
   createDriverMessageIdempotencyKey,
   createPortalMessageIdempotencyKey,
+  countNewIncomingMessages,
   groupConversationByDay,
   OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
   validateDriverMessageDraft,
@@ -110,8 +111,21 @@ function ConversationThread({
   renderAttachmentActions?: RenderAttachmentActions
   resend?: ConversationResend
 }>) {
+  const { t } = useTranslation('occurrenceConversation')
+  const [announcement, setAnnouncement] = useState('')
+  const previousIds = useRef<null | readonly string[]>(null)
+  /** Spec 183 T902 (D2): a leitura que traz mensagem nova a anuncia; a primeira, não. */
+  useEffect(() => {
+    const count = countNewIncomingMessages(previousIds.current, messages)
+    previousIds.current = messages.map((message) => message.id)
+    if (count > 0) setAnnouncement(t('thread.newMessages', { count }))
+  }, [messages, t])
+
   return (
     <div className={styles.thread}>
+      <p aria-live="polite" className={styles.srOnly}>
+        {announcement}
+      </p>
       {groupConversationByDay(messages, dayKey).map((group) => (
         <section aria-label={group.day} className={styles.daySection} key={group.day}>
           <DateDivider

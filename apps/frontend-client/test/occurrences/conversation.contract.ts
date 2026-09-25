@@ -10,6 +10,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { describe, expect, test } from 'bun:test'
 
 import {
+  announceNewCarrierMessages,
   conversationToggleLabel,
   createConversationIdempotencyKey,
   describePortalMessage,
@@ -263,5 +264,32 @@ describe('o cartão mostra as novas sem abrir a conversa (spec 183 T653)', () =>
     const page = await readFile('src/modules/occurrences/OccurrenceList.page.tsx', 'utf8')
 
     expect(page).toContain('unreadCount={occurrence.conversationUnreadCount}')
+  })
+})
+
+describe('mensagem nova anunciada no portal (spec 183 T902, D2)', () => {
+  test('conta as da transportadora que chegaram desde a leitura anterior; a primeira não anuncia', () => {
+    const carrier = { side: 'carrier' as const }
+    const mine = { side: 'contractor' as const }
+
+    expect(announceNewCarrierMessages(null, [carrier, carrier])).toBe('')
+    expect(announceNewCarrierMessages(1, [carrier, mine, carrier])).toBe(
+      '1 mensagem nova da transportadora',
+    )
+    expect(announceNewCarrierMessages(1, [carrier, carrier, carrier])).toBe(
+      '2 mensagens novas da transportadora',
+    )
+    expect(announceNewCarrierMessages(2, [carrier, carrier])).toBe('')
+  })
+
+  test('a conversa tem a região polite', async () => {
+    const component = await readFile(
+      new URL(
+        '../../src/modules/occurrences/OccurrenceConversation.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(component).toMatch(/aria-live="polite"/u)
   })
 })

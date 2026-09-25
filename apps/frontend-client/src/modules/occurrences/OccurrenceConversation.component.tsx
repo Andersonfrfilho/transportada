@@ -14,6 +14,7 @@ import {
   useSendConversationMessage,
 } from './queries/occurrenceConversation.query'
 import {
+  announceNewCarrierMessages,
   conversationToggleLabel,
   createConversationIdempotencyKey,
   describePortalMessage,
@@ -194,6 +195,16 @@ export function OccurrenceConversation({
   }
 
   const messages = conversation.data?.messages ?? []
+  const [announcement, setAnnouncement] = useState('')
+  const previousCarrierCount = useRef<null | number>(null)
+  const loadedMessages = conversation.data?.messages
+  /** Spec 183 T902 (D2): a leitura que traz mensagem da transportadora a anuncia; a primeira, não. */
+  useEffect(() => {
+    if (loadedMessages === undefined) return
+    const text = announceNewCarrierMessages(previousCarrierCount.current, loadedMessages)
+    previousCarrierCount.current = loadedMessages.filter((item) => item.side === 'carrier').length
+    if (text !== '') setAnnouncement(text)
+  }, [loadedMessages])
 
   return (
     <section className="conversation">
@@ -207,6 +218,9 @@ export function OccurrenceConversation({
       </button>
       {isOpen && (
         <div className="conversation__body">
+          <p aria-live="polite" className="visually-hidden">
+            {announcement}
+          </p>
           {conversation.isLoading && <div className="skeleton" />}
           {conversation.error !== null && (
             <p className="panel__label">Não foi possível carregar a conversa agora.</p>

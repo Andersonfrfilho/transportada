@@ -14,6 +14,7 @@ import { ConversationAttachmentPicker } from '@/modules/occurrence-conversation/
 import { ConversationAttachments } from '@/modules/occurrence-conversation/components/ConversationAttachments.component'
 import type { DriverConversationSummary } from '@/modules/occurrence-conversation/shared/driverConversationClient.service'
 import {
+  countNewIncomingMessages,
   createDriverMessageIdempotencyKey,
   OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
   validateDriverMessageDraft,
@@ -39,6 +40,25 @@ function DriverConversation({
 }: Readonly<{ conversation: DriverConversationSummary; onBack: () => void }>) {
   const { t } = useTranslation('occurrenceConversation')
   const messages = useDriverConversationMessagesQuery(conversation.occurrenceId)
+  const [announcement, setAnnouncement] = useState('')
+  const previousIds = useRef<null | readonly string[]>(null)
+  /**
+   * Spec 183 T902 (D2): para o motorista, "recebida" é a da operação (`outbound`). A leitura que a
+   * traz é anunciada; a primeira, não.
+   */
+  const loaded = messages.data
+  useEffect(() => {
+    if (loaded === undefined) return
+    const count = countNewIncomingMessages(
+      previousIds.current,
+      loaded.map((message) => ({
+        direction: message.direction === 'outbound' ? 'inbound' : 'outbound',
+        id: message.id,
+      })),
+    )
+    previousIds.current = loaded.map((message) => message.id)
+    if (count > 0) setAnnouncement(t('thread.newMessages', { count }))
+  }, [loaded, t])
   const { mutate: markRead } = useMarkDriverConversationReadMutation()
   const reply = useReplyDriverConversationMutation(conversation.occurrenceId)
   const [draft, setDraft] = useState('')
@@ -92,6 +112,9 @@ function DriverConversation({
         </SkeletonGroup>
       ) : (
         <div className={conversationStyles.thread}>
+          <p aria-live="polite" className={conversationStyles.srOnly}>
+            {announcement}
+          </p>
           {(messages.data ?? []).map((message) => {
             const isMine = message.direction === 'inbound'
             return (

@@ -159,3 +159,17 @@ export function createDriverMessageIdempotencyKey(randomId: () => string): strin
 export function createPortalMessageIdempotencyKey(randomId: () => string): string {
   return `portal-message:${randomId()}`
 }
+
+/**
+ * Spec 183 T902 (D2): quantas mensagens recebidas chegaram desde a leitura anterior. `null` é a
+ * primeira leitura — o fio inteiro não é "novo" e nada é anunciado.
+ */
+export function countNewIncomingMessages(
+  previousIds: null | readonly string[],
+  messages: readonly Readonly<{ direction: 'inbound' | 'outbound'; id: string }>[],
+): number {
+  if (previousIds === null) return 0
+  const seen = new Set(previousIds)
+  return messages.filter((message) => message.direction === 'inbound' && !seen.has(message.id))
+    .length
+}

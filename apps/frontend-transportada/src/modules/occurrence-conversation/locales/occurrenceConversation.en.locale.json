@@ -228,5 +228,9 @@
     "use": "Use audio",
     "discard": "Discard",
     "microphoneError": "Could not use the microphone. Check the browser permission or attach an audio file."
+  },
+  "thread": {
+    "newMessages_one": "{{count}} new message in the conversation",
+    "newMessages_other": "{{count}} new messages in the conversation"
   }
 }
