@@ -71,6 +71,7 @@
   },
   "nav": {
     "label": "Application sections",
+    "notifications": "Notifications",
     "profile": "Profile",
     "trip": "Trip"
   },

@@ -101,6 +101,8 @@
       "name": "@transportada/frontend-driver",
       "version": "0.1.0",
       "dependencies": {
+        "@adatechnology/notification-client": "0.1.0-rc.3",
+        "@adatechnology/notification-ui": "0.1.0-rc.9",
         "@tanstack/react-query": "5.90.20",
         "i18next": "25.7.4",
         "keycloak-js": "26.2.4",

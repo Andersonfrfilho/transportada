@@ -1,0 +1,62 @@
+/* Cópia por valor, reduzida, de apps/frontend-transportada/src/modules/notification/styles/notification.module.css (ADR-0075 §7). */
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+/**
+ * ⚠️ Reduzida: o painel tem o editor de template com prévia (`--adn-preview-*`, dezenas de
+ * variáveis do aparelho retratado). Esta app só monta o sino e a lista — `NotificationBell` e
+ * `NotificationList` — então só entram as variáveis `--adn-*` que essas duas classes do pacote leem.
+ */
+.notificationTheme {
+  --adn-accent: var(--color-copper);
+  --adn-border: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  --adn-danger: var(--color-alert);
+  --adn-muted: var(--color-slate);
+  --adn-radius-md: var(--space-2);
+  --adn-space-2: var(--space-2);
+  --adn-space-3: var(--space-3);
+  --adn-space-4: var(--space-4);
+  --adn-surface: var(--color-graphite);
+  --adn-text: var(--color-fog);
+
+  --adn-canvas: var(--color-asphalt);
+  --adn-color-accent: var(--color-copper);
+  --adn-color-accent-line: color-mix(in srgb, var(--color-copper) 45%, transparent);
+  --adn-color-accent-soft: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  --adn-color-border: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  --adn-color-canvas: var(--color-asphalt);
+  --adn-color-danger: var(--color-alert);
+  --adn-color-faint: color-mix(in srgb, var(--color-slate) 55%, transparent);
+  --adn-color-muted: var(--color-slate);
+  --adn-color-surface: var(--color-graphite);
+  --adn-color-text: var(--color-fog);
+  --adn-color-warning: var(--color-copper);
+  --adn-font-mono: var(--font-utility);
+  --adn-radius: var(--space-2);
+  --adn-radius-sm: var(--space-1);
+  --adn-shadow-card: 0 var(--space-1) var(--space-1)
+    color-mix(in srgb, var(--color-asphalt) 60%, transparent);
+  --adn-space-1: var(--space-1);
+  --adn-space-5: var(--space-5);
+  --adn-space-6: var(--space-6);
+  --adn-touch-target: var(--touch-target);
+  --adn-warning: var(--color-copper);
+
+  font-family: var(--font-body);
+}
+
+/* RF9: alvo de toque de 44px — o painel não precisa disso (mouse), o campo precisa. */
+.notificationBell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+/*
+ * O contador do sino fixa texto branco no pacote, porque a paleta dele tem vermelho escuro. O nosso
+ * alerta é vermelho claro, e branco sobre ele dá 2,99:1 — a tinta escura é o que torna o número
+ * legível sem trocar a cor do alerta em todo o resto do produto.
+ */
+.notificationTheme :global(.adn-bell__badge) {
+  color: var(--color-asphalt);
+}

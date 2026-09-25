@@ -395,3 +395,108 @@ cd apps/frontend-driver && bun run build
 ```
 
 **Commit próprio, T3.2.**
+
+### T3.3 — Casca (plan D4)
+
+- `driverRoute.service.ts` (novo, `modules/shared/`, não é cópia — é código próprio desta app):
+  `resolveDriverRouteSection`/`buildDriverRoutePath` para as cinco seções
+  (`/`, `/perfil`, `/fila`, `/fotos`, `/notificacoes`), `navigateToDriverSection`
+  (`pushState` + `popstate` sintético) e `subscribeDriverRoute` (`addEventListener('popstate', …)`,
+  devolve a função de cancelamento). Contrato em `test/shared/driver-route.contract.ts`: as cinco
+  seções, caminho desconhecido cai em `trip`, o inverso `buildDriverRoutePath ∘ resolveDriverRouteSection`
+  fecha para as cinco, e `subscribeDriverRoute` com um `target` falso (sem DOM) prova a chamada e o
+  cancelamento.
+- `installPrompt.service.ts` (novo, mesmo motivo): `resolveInstallGuidance` (`android-prompt` com
+  `beforeinstallprompt`, `ios-instructions` sem ele em iOS, `unavailable` já instalado ou nenhum dos
+  dois), `detectIsIos` (user agent) e `detectIsStandalone` (media query ou `navigator.standalone`).
+  Contrato em `test/shared/install-prompt.contract.ts`, seis casos. ⚠️ Só o serviço — o botão que
+  aciona o prompt do Android e o texto "Compartilhar → Adicionar à Tela de Início" do iOS ficam para
+  a T147 ("a área de Instalar no Perfil", ADR-0075 "o que a 189 deixa pronto para a 147"); a T3.3
+  só pede o contrato.
+- `DriverTripWorkspace.page.tsx`: os três `useState` locais (`section`, `isQueueOpen`,
+  `isPendingProofsOpen`) viraram derivados de `resolveDriverRouteSection(window.location.pathname)`
+  mais `subscribeDriverRoute` num `useEffect`. `onSelect` do `DriverBottomBar` e os botões que abrem
+  fila/fotos chamam `navigateToDriverSection`; os `onBack` das duas telas viraram
+  `window.history.back()` — desfaz exatamente o `pushState` que abriu a tela, e volta para onde a
+  pessoa estava (viagem ou perfil), sem precisar guardar essa informação à parte.
+- **O sino**: `notificationClient.service.ts` copiado por valor para `modules/notification/shared/`
+  (mesmos dois ajustes de import da T3.2); `notificationTheme.constant.ts` copiado; `notification.
+module.css` copiado **reduzido** — o painel tem ~80 variáveis `--adn-preview-*` do editor de
+  template com prévia (aparelho retratado), que esta app não tem; ficam só as ~25 que
+  `NotificationBell`/`NotificationList` leem, mais `min-width`/`min-height: var(--touch-target)` em
+  `.notificationBell` (RF9, 44 px — o painel não precisa disso, é mouse).
+  `DriverShellHeader.component.tsx` ganha `<NotificationBell>` entre a marca e o avatar, com
+  `onClick={() => navigateToDriverSection('notifications')}` — diferença registrada da origem em
+  comentário no arquivo (o painel não tem o sino _neste_ componente, ele mora no shell inteiro).
+  `DriverNotificationsPage` (novo, `modules/notification/pages/`) monta `<NotificationList />` sem
+  props — lê do `NotificationProvider` que a casca já monta — com um botão de voltar
+  (`window.history.back()`) e o título traduzido (`nav.notifications`, chave nova em
+  `driverTrip.locale.json`/`.en.locale.json`, dentro do bloco `nav` que a T3.2 já tinha copiado).
+  `main.tsx` reescrito: a tela provisória da T1.2 sai; entram `QueryClientProvider` (não existia
+  ainda — `useDriverTrip`/`useAuthMeQuery`/`useWhatsAppPhone` precisam dele),
+  `import '@/modules/shared/i18n/i18n.service'`, e `NotificationProvider` com
+  `client={getNotificationClient()}` e `theme={{ rootClassName: NOTIFICATION_THEME_CLASS }}` — o
+  mesmo padrão do painel (`main.tsx:855-871` de lá). Dentro do provider, a leitura de
+  `driverRoute.service` decide entre `DriverNotificationsPage` e `DriverTripWorkspacePage` (que por
+  sua vez decide entre viagem/fila/fotos/perfil, internamente, pela mesma leitura de rota).
+  `isRegisteredDriver: false` continua mostrando a tela que o módulo já tinha (nenhuma mudança —
+  `DriverTripWorkspace.page.tsx:355/370` já tratava isso desde a origem).
+
+O que o pacote exporta (conferido em `node_modules/@adatechnology/notification-ui/dist/index.d.ts`):
+`NotificationProvider`, `NotificationBell` (`onClick`, `className`, `maxBadgeCount`),
+`NotificationList` (`category?`, `onSelect?`, `className?`, `renderEmpty?`, `components?` — nenhuma
+prop obrigatória, lê tudo do contexto do provider), mais `NotificationItem`,
+`NotificationSettingsWorkspace`/`NotificationsWorkspace` (as telas compostas do painel, não usadas
+aqui) e os hooks headless. Versão instalada: `@adatechnology/notification-client` `0.1.0-rc.3` e
+`@adatechnology/notification-ui` `0.1.0-rc.9` — as mesmas do painel (`package.json` do painel,
+conferido antes de fixar a versão nesta app).
+
+Ajuste num contrato da T1.1, feito ao implementar (mesmo padrão de "ajuste sem mudar o que ele
+cobra" da T1.2): `environment-banner.contract.ts` conferia a faixa de ambiente acima da string
+literal `<main` em `main.tsx` — que só existia por acaso, na tela provisória da T1.2. Sem tela
+provisória, a asserção passa a comparar contra `{children}`, que é onde `PageFrame` (o mesmo
+componente de antes) insere o conteúdo — o que o contrato prova (a faixa antes do conteúdo, uma
+vez só) não mudou.
+
+```
+cd apps/frontend-driver && bun run test
+  307 pass / 0 fail / 595 expect()   (shared + identity + driver-trip, os dois contratos novos inclusos)
+
+cd apps/frontend-driver && bun run typecheck && bun run lint
+  ok
+
+cd apps/frontend-driver && bun run build
+  vite build ok · precache 13 arquivos, 550,02 KiB (582.316 bytes) — o salto de 225,91 KiB (T3.2) vem
+  do main.tsx agora importar de verdade o módulo inteiro e o pacote do sino, que antes não eram
+  alcançados por nenhum import; segue bem abaixo do teto de 1,5 MiB.
+  dist.contract.test.ts 6 pass / 0 fail
+```
+
+**Verificação no navegador** (Browser pane, contra um `bun run --cwd apps/frontend-driver dev` e um
+`bun run --cwd apps/api-transportada dev` próprios deste executor, subidos e derrubados por ele —
+a `53200`/`53001` já estavam ocupadas por processo de outra sessão nesta mesma árvore, então o
+`vite` desta verificação subiu sozinho na `53201` e foi encerrado logo depois; a leitura real ficou
+contra a **`53200` já em pé**, que é a mesma árvore e reflete o código atual por HMR do Vite):
+
+- `http://localhost:53200` carrega sem quebrar, título "Minha viagem", e mostra a
+  `LoginIdentifierPage` (sem sessão) — prova que `main.tsx` novo monta a árvore, `i18n.service` está
+  registrado (os textos saem traduzidos, não chaves cruas) e nada no boot lança exceção não tratada
+  antes da autenticação.
+- ⚠️ **Não foi possível logar** para ver o sino de verdade: o processo da API em `53001` (de outra
+  sessão) recusa `/login-hints` por CORS (`FORBIDDEN`, sem `Access-Control-Allow-Origin`) — o `.env`
+  desta árvore **tem** `http://localhost:53200` em `FRONTEND_ORIGIN` (conferido: `sed -n '8p' .env`),
+  então o processo em pé deve ter subido antes dessa entrada existir, ou com outro `.env`. Reiniciar
+  esse processo não é deste executor: ele pertence a outra sessão ativa na mesma árvore (o aviso do
+  briefing), e derrubá-lo arriscaria o trabalho dela. Evidência do sino em tela fica pendente de uma
+  verificação com stack própria — não é bloqueio de `make check`, que não sobe servidor nenhum.
+
+```
+make check                                    exit 0
+  format:check ok · lint ok (7 apps) · typecheck ok (7 apps)
+  api/worker/cron/frontend-transportada/frontend-client/frontend-driver/frontend-landing: todos os
+  testes verdes, nenhum "fail" acima de zero em nenhuma suíte; build das 7 apps ok, incluindo
+  driver (dist.contract.test.ts 6 pass / 0 fail) e frontend-transportada (opencv/pdf.worker/maplibre
+  fora do orçamento do motorista, como sempre — são do painel, não desta app)
+```
+
+**Commit próprio, T3.3.**

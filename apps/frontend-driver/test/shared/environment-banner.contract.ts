@@ -131,13 +131,18 @@ describe('faixa de ambiente da app do motorista', () => {
     expect(banner.match(/aria-hidden/g)?.length).toBe(1)
   })
 
+  /**
+   * ⚠️ Ajustado na T3.3: o app não tem mais uma tela provisória com `<main>` solto em `main.tsx` —
+   * `PageFrame` é quem compõe faixa + conteúdo, e `{children}` é o conteúdo. O que o contrato
+   * confere (a faixa antes do conteúdo, uma vez só) não mudou.
+   */
   test('vai no topo da página, acima do conteúdo', async () => {
     const main = await readApplicationFile('src/main.tsx')
     const bannerIndex = main.indexOf('<EnvironmentBanner environment={deploymentEnvironment} />')
 
     expect(main).toContain('const deploymentEnvironment = getDeploymentEnvironment()')
     expect(bannerIndex).toBeGreaterThan(-1)
-    expect(bannerIndex).toBeLessThan(main.indexOf('<main'))
+    expect(bannerIndex).toBeLessThan(main.indexOf('{children}'))
     expect(main.match(/<EnvironmentBanner /g)?.length).toBe(1)
   })
 

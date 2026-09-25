@@ -59,6 +59,7 @@
   },
   "nav": {
     "label": "Seções do aplicativo",
+    "notifications": "Notificações",
     "profile": "Perfil",
     "trip": "Viagem"
   },

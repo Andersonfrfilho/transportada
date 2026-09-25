@@ -18,6 +18,11 @@ import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
+import {
+  navigateToDriverSection,
+  resolveDriverRouteSection,
+  subscribeDriverRoute,
+} from '@/modules/shared/driverRoute.service'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
@@ -45,12 +50,21 @@ import styles from '../styles/driverTrip.module.css'
 export function DriverTripWorkspacePage() {
   const { t } = useTranslation('driverTrip')
   const driverTrip = useDriverTrip()
-  /** Spec 082 D1: navegação interna do módulo — estado local, sem rota nova no shell do app. */
-  const [section, setSection] = useState<DriverSection>('trip')
+  /**
+   * RF5 (plan D4): a navegação interna do módulo deixou de ser estado local isolado — ela deriva da
+   * mesma leitura de caminho/`popstate` que a casca usa para decidir entre a viagem e as
+   * notificações. `history.back()` desfaz o `pushState` de quem abriu a fila ou as fotos, e volta
+   * exatamente para onde a pessoa estava (viagem ou perfil).
+   */
+  const [routeSection, setRouteSection] = useState(() =>
+    resolveDriverRouteSection(window.location.pathname),
+  )
+  useEffect(() => subscribeDriverRoute(setRouteSection), [])
+  const section: DriverSection = routeSection === 'profile' ? 'profile' : 'trip'
   /** Spec 082 D7: a tela de pendentes abre por cima da seção corrente — banner e Perfil chegam nela. */
-  const [isQueueOpen, setIsQueueOpen] = useState(false)
+  const isQueueOpen = routeSection === 'queue'
   /** Spec 159 T9: a tela de fotos pendentes, mesmo padrão da fila de eventos. */
-  const [isPendingProofsOpen, setIsPendingProofsOpen] = useState(false)
+  const isPendingProofsOpen = routeSection === 'pending-proofs'
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
   /** Spec 082 D6: teto da fila de anexos atingido — anunciado antes de qualquer descarte. */
@@ -132,7 +146,10 @@ export function DriverTripWorkspacePage() {
             <Skeleton variant="block" />
           </SkeletonGroup>
         </main>
-        <DriverBottomBar section={section} onSelect={setSection} />
+        <DriverBottomBar
+          section={section}
+          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
+        />
       </div>
     )
   }
@@ -144,7 +161,10 @@ export function DriverTripWorkspacePage() {
         <main className={styles.shell}>
           <p role="alert">{t('error')}</p>
         </main>
-        <DriverBottomBar section={section} onSelect={setSection} />
+        <DriverBottomBar
+          section={section}
+          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
+        />
       </div>
     )
   }
@@ -157,11 +177,14 @@ export function DriverTripWorkspacePage() {
           isLoading={driverTrip.isQueueLoading}
           isSyncing={driverTrip.isSyncing}
           items={driverTrip.queueView}
-          onBack={() => setIsQueueOpen(false)}
+          onBack={() => window.history.back()}
           onSendAll={() => driverTrip.sendAllNow()}
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
         />
-        <DriverBottomBar section={section} onSelect={setSection} />
+        <DriverBottomBar
+          section={section}
+          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
+        />
       </div>
     )
   }
@@ -186,13 +209,16 @@ export function DriverTripWorkspacePage() {
       <div className={styles.moduleShell}>
         <DriverShellHeader />
         <DriverPendingProofsPage
-          onBack={() => setIsPendingProofsOpen(false)}
+          onBack={() => window.history.back()}
           onProof={handleProof}
           proofOutcomeByDocumentId={driverTrip.proofOutcomeByDocumentId}
           queueView={driverTrip.queueView}
           snapshot={snapshot}
         />
-        <DriverBottomBar section={section} onSelect={setSection} />
+        <DriverBottomBar
+          section={section}
+          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
+        />
       </div>
     )
   }
@@ -204,10 +230,13 @@ export function DriverTripWorkspacePage() {
         <DriverProfilePage
           queuedCount={driverTrip.queuedCount}
           snapshot={snapshot}
-          onOpenPendingProofs={() => setIsPendingProofsOpen(true)}
-          onOpenQueue={() => setIsQueueOpen(true)}
+          onOpenPendingProofs={() => navigateToDriverSection('pending-proofs')}
+          onOpenQueue={() => navigateToDriverSection('queue')}
         />
-        <DriverBottomBar section={section} onSelect={setSection} />
+        <DriverBottomBar
+          section={section}
+          onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
+        />
       </div>
     )
   }
@@ -296,7 +325,7 @@ export function DriverTripWorkspacePage() {
           <button
             className={styles.queueBannerButton}
             type="button"
-            onClick={() => setIsPendingProofsOpen(true)}
+            onClick={() => navigateToDriverSection('pending-proofs')}
           >
             {t('pendingProofs.open')} ({proofPendingCount})
           </button>
@@ -307,7 +336,7 @@ export function DriverTripWorkspacePage() {
           <button
             className={styles.queueBannerButton}
             type="button"
-            onClick={() => setIsQueueOpen(true)}
+            onClick={() => navigateToDriverSection('queue')}
           >
             {t('queued', { count: driverTrip.queuedCount })}
             <span className={styles.queueBannerAction}>{t('eventQueue.open')}</span>
@@ -347,7 +376,7 @@ export function DriverTripWorkspacePage() {
           <button
             className={styles.rejectedBannerButton}
             type="button"
-            onClick={() => setIsQueueOpen(true)}
+            onClick={() => navigateToDriverSection('queue')}
           >
             {t('rejected')}
           </button>
@@ -458,7 +487,10 @@ export function DriverTripWorkspacePage() {
           </ul>
         )}
       </main>
-      <DriverBottomBar section={section} onSelect={setSection} />
+      <DriverBottomBar
+        section={section}
+        onSelect={(next) => navigateToDriverSection(next === 'profile' ? 'profile' : 'trip')}
+      />
     </div>
   )
 }

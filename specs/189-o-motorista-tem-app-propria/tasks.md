@@ -156,7 +156,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** T3.1 verde; o `check` da app e o `make check` verdes.
 
-- [ ] **T3.3** Casca (plan D4):
+- [x] **T3.3** Casca (plan D4):
   - `driverRoute.service.ts`, com contrato para as cinco seções e `popstate`;
   - `main.tsx` com `DriverShellHeader`, a seção e `DriverBottomBar`, sem layout de escritório;
   - `isRegisteredDriver: false` mostra a tela do módulo;
