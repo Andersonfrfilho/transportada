@@ -201,3 +201,153 @@ Gates:
   o arquivo dá 4 pass, 0 fail.
 - `make config` → exit 0. `make check` → exit 0 (API 7376 pass/32 skip/0 fail; demais apps 0 fail;
   build verde).
+
+## T2.1 — o status derivado prioriza a suspensão (2026-09-25)
+
+`deriveCompanyUserStatus` (`company-user.policy.ts:85-91`) checava `hasPendingInvitation` antes de
+`membershipStatus`: quem suspendia um convidado continuava aparecendo como "convidado" na listagem,
+porque suspender não revoga o convite (ADR-0076 §8) e o convite pendente sobrevive. Invertida a
+prioridade: `membershipStatus !== 'active'` decide `suspended` **antes** de olhar o convite.
+
+Contrato novo, visto vermelho antes do conserto:
+`test/user-administration-application/company-user-status.contract.ts` (registrado no entrypoint
+`test/user-administration-application.contract.test.ts`).
+
+```bash
+cd apps/api-transportada
+bun --env-file=../../.env.test test ./test/user-administration-application.contract.test.ts
+# antes:  110 pass, 1 fail ("vínculo desabilitado é suspenso, mesmo com convite pendente")
+# depois: 112 pass, 0 fail
+```
+
+Integração (prova com `JOIN` de verdade, não repositório falso — a pendência aparece porque a
+migração `user_company_memberships_status_check`/`user_invitations` são tabelas de verdade):
+caso novo em `test/integration/company-user-listing.integration.ts` — membership `disabled` +
+convite `pending` → `listPage` devolve as duas colunas, e `toCompanyUserView(item).status` é
+`suspended`.
+
+```bash
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/company-user-listing.integration.ts
+# 10 pass, 0 fail
+```
+
+`revoked` continua sem consumidor: nada nesta task grava esse status — confirmado lendo
+`change-company-user-status.use-case.ts`, que só escreve `active`/`disabled`.
+
+Gates: `bun run typecheck` (API, exit 0) e `bun run lint` (API, exit 0).
+
+## T2.2 — remover vínculo com histórico funciona (2026-09-25)
+
+Põe verde o vermelho da T0.2. `DrizzleCompanyUserRepository.removeMembership` passa a rodar numa
+transação: lê o `acceptedAt` do convite `accepted` (se houver) e as contagens de
+`user_invitations`/`password_reset_requests` da membership, grava `audit_logs`
+`company-user.membership-removed` com `metadata { invitationAcceptedAt, invitationsDeleted,
+passwordResetsDeleted }`, e só então apaga as duas tabelas de histórico e a membership, nessa ordem.
+`user_invitation_roles`, `invitation_delivery_outbox` e `password_reset_delivery_outbox` saem
+sozinhas por `ON DELETE CASCADE` — sem escrita própria para elas.
+
+Efeito colateral medido no T0.2 corrigido: `remove-company-user-membership.use-case.ts` desvinculava
+o WhatsApp e desabilitava no Keycloak **antes** do `DELETE` que falhava — uma falha de banco deixava
+a conta desabilitada no provedor com o vínculo intacto, sem como desfazer o primeiro efeito. Hoje a
+ordem inverteu: o `subject` do Keycloak é resolvido antes (leitura pura, não afetada pela remoção),
+`repository.removeMembership` roda primeiro (transação atômica: ou tudo, ou nada), e só depois dela
+ter sucesso é que o WhatsApp é desvinculado e a conta desabilitada. Uma falha no banco nunca mais
+chega a tocar o provedor.
+
+```bash
+cd apps/api-transportada
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/company-user-removal.integration.ts
+# 4 pass, 0 fail — (a) convidado, (b) ativado+recuperação, (c) sem convite+recuperação,
+# (d) isolamento: convite e pedido do mesmo usuário em outra empresa ficam intactos.
+# (b) também confere a trilha: actorUserId e as três contagens da metadata.
+
+bun --env-file=../../.env.test test ./test/user-administration-application.contract.test.ts
+# 112 pass, 0 fail — inclui o teste novo "falha ao remover o vínculo no banco nunca chega a
+# desabilitar no provedor" (repository.removeMembership rejeitado → setEnabledCalls e
+# whatsappPhones.unbindCalls continuam vazios).
+```
+
+Gates: `bun run typecheck` (API, exit 0) e `bun run lint` (API, exit 0). Suíte completa de contrato
+(sem DB): `bun --env-file=../../.env.test test --timeout 120000` → 7392 pass, 23 skip, 0 fail, 184
+arquivos (a correção também exigiu adicionar `membershipStatus`/`identityStatus` às fábricas de
+`InvitationRecord` em `test/user-activation/password-handoff.contract.ts`,
+`test/user-administration-application/manual-activation.contract.ts`,
+`test/user-invitation-domain/invitation.contract.ts` e `test/fixtures/keycloak-sync.fixture.ts` —
+ver T2.3).
+
+## T2.3 — a ativação exige vínculo vivo, e o reenvio do administrador recusa suspenso (2026-09-25)
+
+`InvitationSnapshot` (`invitation.policy.ts`) ganhou `membershipStatus`/`identityStatus`.
+`DrizzleInvitationRepository.findOne` (usado por `findByCodeHash` e `findLatestForUser`) junta
+`user_company_memberships` e `identity_users` à linha do convite — as duas FKs de `user_invitations`
+garantem que a junção nunca perde a linha. `create()` faz a mesma leitura logo após o `insert`, na
+mesma transação. `decideInvitationActivation` recusa (mesma recusa genérica, sem campo de motivo) se
+`membershipStatus !== 'active'` ou `identityStatus !== 'active'` — a checagem entra **antes** da
+comparação de hash, então nem chega a `setEnabled`.
+
+`resend-company-user-code.use-case.ts` lança `CompanyUserSuspendedError` (`invitation.error.ts`,
+`COMPANY_USER_SUSPENDED`, 409) quando `companyUser.membershipStatus === 'disabled'`, antes de tocar
+em `invitations.findLatestForUser`/`create`/`outbox`.
+
+Contrato primeiro, visto vermelho:
+
+```bash
+cd apps/api-transportada
+bun --env-file=../../.env.test test ./test/user-invitation-domain.contract.test.ts \
+  ./test/user-administration-application.contract.test.ts \
+  ./test/user-invitation-delivery.contract.test.ts
+# 137 pass, 0 fail — inclui:
+#  - "vínculo desabilitado" e "identidade desabilitada" na lista de recusas idênticas
+#    (user-invitation-domain/invitation.contract.ts, mesma resposta JSON.stringify de todo o resto);
+#  - "recusa o reenvio para vínculo suspenso, com 409, sem criar nem publicar nada"
+#    (user-invitation-delivery/enqueue.contract.ts): nenhum convite criado, outbox vazio.
+
+bun --env-file=../../.env.test test ./test/user-activation.contract.test.ts
+# 19 pass, 0 fail — inclui "código certo de vínculo suspenso ou identidade desabilitada recusa sem
+# habilitar ninguém" (password-handoff.contract.ts): a sequência de chamadas para no
+# `findByCodeHash`, `setPassword`/`setEnabled`/`markAccepted` nunca são chamados.
+```
+
+Integração nova (prova o `JOIN`, não o repositório falso):
+`test/integration/invitation-status-join.integration.ts`, registrada no `test:integration` do
+`package.json`.
+
+```bash
+bun --env-file=../../.env.test test --timeout 120000 ./test/integration/invitation-status-join.integration.ts
+# 1 pass, 0 fail — create/findByCodeHash/findLatestForUser concordam: membership disabled,
+# identity active.
+```
+
+`reconcile-company-users.use-case.ts` **só expõe** `realm.enabled` cru na resposta — não compara
+contra a membership local nem corrige nada. `REALM_OWNED_FIELD` (`user-reconciliation.policy.ts:134-
+138`) só diffa `email`/`taxId`/`username`; `enabled` nunca entra em `differences`. A corrida aceita
+pela ADR-0076 §8 (ativação passa pela checagem, suspensão acontece antes do `setEnabled(true)`) não
+tem conserto automático hoje: se acontecer, a tela de reconciliação mostra o `enabled` do Keycloak
+sem apontar a divergência, e só um administrador olhando os dois lados percebe. Achado registrado,
+sem código novo — não pedido pela task.
+
+Painel (`apps/frontend-transportada`): `UserAdministration.page.tsx` já mapeia qualquer código de
+`resendInvitationMutation.error` via `t('users.errors.${rowErrorCode}')` — não precisou de código
+novo. Entrou a chave `users.errors.COMPANY_USER_SUSPENDED` em `identity.locale.json` ("Este acesso
+está suspenso. Reative antes de reenviar o código.") e `identity.en.locale.json`. Contrato:
+`test/identity/company-users.contract.ts` › "surfaces the suspended-membership 409 from
+resendInvitation".
+
+```bash
+cd apps/frontend-transportada
+bun run test
+# 5337 pass, 0 fail (29 arquivos) + 54 pass, 0 fail (hooks, processo próprio)
+bun run typecheck
+# exit 0
+```
+
+Gates: `bun run typecheck` e `bun run lint` na raiz da API (exit 0 nos dois). Suíte completa de
+contrato da API: 7392 pass, 23 skip, 0 fail. Integração completa (114 arquivos do `test:integration`
+(antes de registrar `invitation-status-join.integration.ts`) rodada em um único lote em segundo
+plano por exceder o teto de 10 min do terminal em primeiro plano: 620 pass, 7 skip, 1 fail. A
+única falha é `whatsapp-command-repository.integration.ts` › "confirmar é confirmar a prévia
+mostrada" por timeout de 5 s sob carga — módulo alheio a esta task, mesmo padrão de flakiness já
+registrado para `nfe-document-events` na T1.3. Rodados à parte, em primeiro plano:
+`company-user-removal.integration.ts` (4 pass), `company-user-listing.integration.ts` (10 pass) e
+`invitation-status-join.integration.ts` (1 pass), todos 0 fail. `bun run --cwd
+apps/frontend-transportada test` acima.

@@ -35,6 +35,8 @@ const pendingInvitation = (overrides: Partial<InvitationSnapshot> = {}): Invitat
   companyId: COMPANY_ID,
   expiresAt: new Date('2026-08-05T12:00:00.000Z'),
   id: INVITATION_ID,
+  identityStatus: 'active',
+  membershipStatus: 'active',
   status: 'pending',
   userId: USER_ID,
   ...overrides,
@@ -108,6 +110,18 @@ describe('regra 2 — expirado, já usado e inexistente produzem a mesma recusa'
       decideInvitationActivation({
         attemptedCodeHash: WRONG_HASH,
         invitation: pendingInvitation(),
+        now: NOW,
+      }),
+      // ADR-0076 §8: suspender não revoga o convite — o código certo de um vínculo suspenso ou de
+      // uma identidade desabilitada recusa com a mesma resposta, sem dizer qual dos dois é o caso.
+      decideInvitationActivation({
+        attemptedCodeHash: CORRECT_HASH,
+        invitation: pendingInvitation({ membershipStatus: 'disabled' }),
+        now: NOW,
+      }),
+      decideInvitationActivation({
+        attemptedCodeHash: CORRECT_HASH,
+        invitation: pendingInvitation({ identityStatus: 'disabled' }),
         now: NOW,
       }),
     ]

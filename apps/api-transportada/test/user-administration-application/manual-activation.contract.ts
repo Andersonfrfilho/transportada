@@ -41,6 +41,8 @@ function buildInvitation(overrides: Partial<InvitationRecord> = {}): InvitationR
     companyId: COMPANY_ID,
     expiresAt: NOW,
     id: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e14',
+    identityStatus: 'active',
+    membershipStatus: 'active',
     roles: ['operator'],
     status: 'pending',
     userId: USER_ID,

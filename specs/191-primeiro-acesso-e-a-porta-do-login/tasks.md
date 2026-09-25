@@ -114,14 +114,14 @@ com `rollback.sql` e fecha com `make migration-test`.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T2.1** **O status derivado prioriza a suspensão.**
+- [x] **T2.1** **O status derivado prioriza a suspensão.**
       Contrato primeiro: `deriveCompanyUserStatus` (`company-user.policy.ts:85-91`) devolve
       `suspended` para membership `disabled` com convite `pending`.
       Contrato da linha "suspenso" na listagem: `test/user-administration-*` e a integração
       `company-user-listing.integration.ts`.
       **Não** revogar convite ao suspender. O status `revoked` segue sem uso: anotar no `evidence.md`.
 
-- [ ] **T2.2** **Remover vínculo com histórico funciona.** Põe verde o teste da T0.2.
+- [x] **T2.2** **Remover vínculo com histórico funciona.** Põe verde o teste da T0.2.
       Se o `23503` se confirmou, `removeMembership` faz, na mesma transação do `DELETE`: - apaga **todos** os `user_invitations` (`pending`, `accepted` e `superseded`) e os
       `password_reset_requests` da membership, com cascata para roles e outbox; - antes disso, grava em `audit_logs` `company-user.membership-removed` com
       `metadata { invitationAcceptedAt, invitationsDeleted, passwordResetsDeleted }`.
@@ -130,7 +130,7 @@ com `rollback.sql` e fecha com `make migration-test`.
       - integração verde;
       - contrato de isolamento: convites e pedidos do mesmo usuário em outra empresa ficam intactos.
 
-- [ ] **T2.3** **A ativação exige vínculo vivo, e o reenvio do administrador recusa suspenso.**
+- [x] **T2.3** **A ativação exige vínculo vivo, e o reenvio do administrador recusa suspenso.**
       Mudanças: - `InvitationSnapshot` ganha `membershipStatus` e `identityStatus`, por join em
       `findByCodeHash`; - `decideInvitationActivation` recusa, com a mesma recusa genérica, se algum dos dois não
       estiver `active`; - `resend-company-user-code` lança o erro novo de `invitation.error.ts` (409) para membership

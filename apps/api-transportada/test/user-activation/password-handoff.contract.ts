@@ -30,6 +30,8 @@ const CODE_HASH = new Bun.CryptoHasher('sha256').update(ACTIVATION_CODE).digest(
 type InvitationOverrides = {
   readonly attemptCount?: number
   readonly expiresAt?: Date
+  readonly identityStatus?: string
+  readonly membershipStatus?: string
   readonly status?: string
 }
 
@@ -40,6 +42,8 @@ const pendingInvitation = (overrides: InvitationOverrides = {}) => ({
   companyId: COMPANY_ID,
   expiresAt: new Date('2026-08-05T12:00:00.000Z'),
   id: INVITATION_ID,
+  identityStatus: 'active',
+  membershipStatus: 'active',
   roles: ['fiscal'],
   status: 'pending',
   userId: USER_ID,
@@ -202,6 +206,27 @@ describe('ativação — recusas e limite de tentativas', () => {
 
       await expect(run()).rejects.toThrow(InvitationCodeRejectedError)
       expect(names(calls)).not.toContain('setPassword')
+      expect(names(calls)).not.toContain('markAccepted')
+    }
+  })
+
+  /**
+   * ADR-0076 §8, spec 191 T2.3: suspender não revoga o convite, então o código certo continua
+   * batendo com o hash mesmo depois de o administrador suspender o convidado. É aqui, na ativação,
+   * que a suspensão para de valer — nunca `setEnabled(true)` para um vínculo ou identidade que não
+   * seguem `active`.
+   */
+  test('código certo de vínculo suspenso ou identidade desabilitada recusa sem habilitar ninguém', async () => {
+    for (const invitation of [
+      pendingInvitation({ membershipStatus: 'disabled' }),
+      pendingInvitation({ identityStatus: 'disabled' }),
+    ]) {
+      const { calls, run } = await activate({ invitation })
+
+      await expect(run()).rejects.toThrow(InvitationCodeRejectedError)
+      expect(names(calls)).toEqual(['findByCodeHash'])
+      expect(names(calls)).not.toContain('setPassword')
+      expect(names(calls)).not.toContain('setEnabled')
       expect(names(calls)).not.toContain('markAccepted')
     }
   })

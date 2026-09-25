@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { CompanyUserNotFoundError } from '../domain/company-user.error.js'
+import { CompanyUserSuspendedError } from '../domain/invitation.error.js'
 import { planInvitationResend } from '../domain/invitation.policy.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
 import {
@@ -47,6 +48,9 @@ export function createResendCompanyUserCodeUseCase({
     async execute({ context, correlationId, userId }) {
       const companyUser = await repository.findByUserId({ companyId: context.companyId, userId })
       if (companyUser === undefined) throw new CompanyUserNotFoundError()
+      // ADR-0076 §8: suspender não revoga o convite — é aqui que o reenvio do administrador recusa
+      // reentregar o código enquanto o vínculo não volta a `active`.
+      if (companyUser.membershipStatus === 'disabled') throw new CompanyUserSuspendedError()
 
       const previousInvitation = await invitations.findLatestForUser({
         companyId: context.companyId,

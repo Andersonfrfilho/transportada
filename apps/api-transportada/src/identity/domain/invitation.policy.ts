@@ -3,7 +3,11 @@
  */
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 
-import type { CompanyRole } from '../../database/identity.schema.js'
+import type {
+  CompanyRole,
+  IdentityStatus,
+  MembershipStatus,
+} from '../../database/identity.schema.js'
 import type { UserInvitationStatus } from '../../database/user-invitation.schema.js'
 import { INVITATION_MAX_ATTEMPTS, INVITATION_TTL_MINUTES } from './invitation.constant.js'
 import {
@@ -18,7 +22,11 @@ export type InvitationSnapshot = {
   readonly codeHash: string
   readonly companyId: string
   readonly expiresAt: Date
+  /** ADR-0076 §8: a ativação exige os dois `active`, ao lado do código — vínculo suspenso ou
+   * identidade desabilitada recusam mesmo com o código certo, com a mesma recusa genérica. */
+  readonly identityStatus: IdentityStatus
   readonly id: string
+  readonly membershipStatus: MembershipStatus
   readonly status: UserInvitationStatus
   readonly userId: string
 }
@@ -114,6 +122,11 @@ export function decideInvitationActivation({
   // códigos que existe convite de verdade — convite inexistente não tem contador para estourar.
   if (invitation.attemptCount >= INVITATION_MAX_ATTEMPTS) return REJECTED
   if (invitation.expiresAt.getTime() <= now.getTime()) return REJECTED
+  // ADR-0076 §8: suspender não revoga o convite, então um código válido de convite suspenso
+  // continua existindo — é aqui, e não na suspensão, que ele para de ativar. Mesma recusa genérica
+  // do resto da função: nada aqui distingue "suspenso" de "código errado" para quem responde.
+  if (invitation.membershipStatus !== 'active') return REJECTED
+  if (invitation.identityStatus !== 'active') return REJECTED
   if (!matchesCodeHash(invitation.codeHash, attemptedCodeHash)) return REJECTED
 
   return {
