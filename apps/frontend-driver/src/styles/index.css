@@ -42,8 +42,7 @@
   --field-font-size: 0.9rem;
   --field-font-size-compact: 0.82rem;
   --control-height: var(--field-height);
-  --control-height-compact: var(--field-height-compact);
-  /* Alvo de toque de 44px do `web.md` §10. */
+  /* Alvo de toque de 44px do `web.md` §10 — sem variante compacta nesta app (T3.6). */
   --touch-target: 2.75rem;
   --icon-size-sm: 0.9rem;
   --icon-size-md: 1.1rem;
@@ -91,11 +90,6 @@ button:has(svg) {
 .ui-button-size-default {
   min-height: var(--control-height);
   padding: var(--space-3) var(--space-5);
-}
-
-.ui-button-size-sm {
-  min-height: var(--control-height-compact);
-  padding: var(--space-2) var(--space-3);
 }
 
 .ui-button-default {

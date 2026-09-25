@@ -692,3 +692,60 @@ cd apps/frontend-driver && bun run build
 ```
 
 **Commit próprio, T3.5.**
+
+### T3.6 — Alvo de toque: contrato de CSS
+
+**Contrato antes do código.** `test/shared/touch-target.contract.ts`, na lista do entrypoint
+`test/shared.contract.test.ts`, varre todo `.css`/`.module.css` de `src/` (parser de regras no
+molde de `field-metrics.contract.ts` do painel):
+
+- `--control-height-compact` não aparece em arquivo nenhum;
+- nenhuma declaração `min-height`/`height` com valor **literal** (`rem`/`px` — `var()`, `%`, `vh` e
+  `dvh` não são medidos, porque não são o número mágico que a regra proíbe) fica abaixo de 44px, com
+  uma exceção: a regra que esconde visualmente o `<input type=file>` nativo do `FileField`
+  (`clip-path` + `position: absolute`, documentada no próprio arquivo) — o alvo de toque real ali é
+  o rótulo por cima, que já mede `var(--control-height)`;
+- o `Button` do design system não tem variante de tamanho abaixo do padrão.
+
+Vermelho pela razão certa: os dois achados reais da varredura.
+
+```
+cd apps/frontend-driver && bun test test/shared.contract.test.ts
+  antes:  50 pass / 3 fail — --control-height-compact em src/styles/index.css; .boxed/.boxedDone
+          de copy-button.module.css em 1.75rem; Button ainda com a variante 'sm'
+  depois: 53 pass / 0 fail
+```
+
+**Implementação:**
+
+- `src/styles/index.css`: fora `--control-height-compact` e a classe `.ui-button-size-sm` que a
+  usava — nenhum `Button` do app pedia `size="sm"` (achado ao auditar todo `size=` do `src/`, sem
+  resultado).
+- `src/components/ui/button.tsx`: sem o tamanho compacto, `size`/`ButtonSize` não tinham mais para
+  que servir com um valor só — saíram os dois, e `buttonClassName`/`Button` ficam só com `variant`.
+- `src/components/ui/copy-button.module.css`: `.boxed`/`.boxedDone` (usadas por `CopyButton`, real
+  em `WhatsAppPhonePanel`) de `1.75rem` para `var(--touch-target)` (2.75rem) — era o único acerto de
+  altura fora do padrão que a varredura achou em toda a app; o resto (`driverTrip.module.css`,
+  `notification.module.css`, `whatsappPhone.module.css`, `file-field.module.css`) já usava
+  `2.75rem`/`--control-height`/`--field-height`/`--touch-target` ou não era interativo (ícone,
+  esqueleto, avatar, logo, barra de progresso).
+
+```
+cd apps/frontend-driver && bun run lint && bun run typecheck
+  ok
+
+cd apps/frontend-driver && bun run test
+  372 pass / 0 fail
+
+cd apps/frontend-driver && bun run build
+  precache 13 entries (568.37 KiB) — abaixo do teto de 1,5 MiB
+  dist.contract.test.ts 6 pass / 0 fail
+
+make check                                    exit 0
+  format:check ok · lint ok (7 apps) · typecheck ok (7 apps)
+  api 7309 (T3.3a) segue a mesma faixa · worker/cron/frontend-transportada/frontend-client/
+  frontend-landing sem regressão · driver: shared+identity+driver-trip 372 pass / 0 fail
+  build das 7 apps ok, incluindo driver (dist.contract 6 pass / 0 fail)
+```
+
+**Commit próprio, T3.6 — fecha a Fase 3.**

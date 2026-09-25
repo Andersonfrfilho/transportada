@@ -4,18 +4,11 @@ import { cloneElement, isValidElement, type ButtonHTMLAttributes, type ReactElem
 
 import { cn } from '@/lib/utils'
 
-type ButtonSize = 'default' | 'sm'
 type ButtonVariant = 'default' | 'ghost' | 'secondary'
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   readonly asChild?: boolean
-  readonly size?: ButtonSize
   readonly variant?: ButtonVariant
-}
-
-const SIZE_CLASS: Readonly<Record<ButtonSize, string>> = {
-  default: 'ui-button-size-default',
-  sm: 'ui-button-size-sm',
 }
 
 const VARIANT_CLASS: Readonly<Record<ButtonVariant, string>> = {
@@ -27,17 +20,19 @@ const VARIANT_CLASS: Readonly<Record<ButtonVariant, string>> = {
 /**
  * O mesmo conjunto de classes que `Button` aplica, para quem recebe um `className` e monta o
  * próprio `<button>`. Repetir os nomes no call site faria a mudança de uma variante parar aqui.
+ *
+ * ⚠️ Sem variante de tamanho compacto (T3.6, `web.md` §10): o alvo de toque de 44px é o único que
+ * esta app oferece.
  */
 export function buttonClassName(
   input: Readonly<{
     className?: string | undefined
-    size?: ButtonSize | undefined
     variant?: ButtonVariant | undefined
   }> = {},
 ): string {
   return cn(
     'ui-button',
-    SIZE_CLASS[input.size ?? 'default'],
+    'ui-button-size-default',
     VARIANT_CLASS[input.variant ?? 'default'],
     input.className,
   )
@@ -47,11 +42,10 @@ export function Button({
   asChild,
   children,
   className,
-  size = 'default',
   variant = 'default',
   ...props
 }: ButtonProps) {
-  const resolvedClassName = buttonClassName({ className, size, variant })
+  const resolvedClassName = buttonClassName({ className, variant })
   if (asChild && isValidElement(children)) {
     const child = children as ReactElement<{ readonly className?: string }>
     return cloneElement(child, {

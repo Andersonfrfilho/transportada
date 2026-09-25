@@ -211,7 +211,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** contratos verdes.
 
-- [ ] **T3.6** Alvo de toque: contrato de CSS. Nenhum `min-height` ou `height` interativo abaixo de
+- [x] **T3.6** Alvo de toque: contrato de CSS. Nenhum `min-height` ou `height` interativo abaixo de
       `2.75rem`, e nada de `--control-height-compact` na app. O sino está incluído.
 
   **Aceite:** verde.
