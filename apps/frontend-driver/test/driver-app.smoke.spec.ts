@@ -693,7 +693,7 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
 }) => {
   await page.setViewportSize(VIEWPORTS.mobile)
   await grantLocation(page)
-  await mockDriverTripApi({
+  const api = await mockDriverTripApi({
     page,
     scenario: {
       pendingProofs: [
@@ -746,6 +746,11 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   await attach.click()
   expect(await (await galleryChooser).element().getAttribute('capture')).toBeNull()
 
+  /**
+   * Sem sinal, a foto fica na fila e a nota continua na lista — com rede, a foto sobe, a leitura
+   * seguinte tira a nota de "Fotos pendentes" e o estado "anexada" some junto (spec 159).
+   */
+  api.setOffline(true)
   // "Tirar foto" abre a câmera traseira na hora.
   const cameraChooserPromise = page.waitForEvent('filechooser')
   await takePhoto.click()
