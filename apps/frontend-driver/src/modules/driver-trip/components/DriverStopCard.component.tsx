@@ -155,6 +155,26 @@ export function DriverStopCard({
             ? t('stopCompleted')
             : t('documentsPending', { count: countPendingDocuments(stop) })}
         </p>
+        {/* Status da parada no cabeçalho, não entre os botões: lá ele ficava solto e desalinhado */}
+        {stop.arrivedAt === null && distanceLabel === null ? null : (
+          <p className={styles.stopStatus}>
+            {stop.arrivedAt === null ? null : (
+              <span className={styles.stopArrived}>
+                <Icon aria-hidden="true" name="check" size="sm" />
+                {t('arrived', {
+                  time: new Date(stop.arrivedAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                })}
+              </span>
+            )}
+            {/* Spec 082 D2: sem posição ou sem coordenada da parada, nada — nunca "0 km" */}
+            {distanceLabel === null ? null : (
+              <span className={styles.stopDistance}>{distanceLabel}</span>
+            )}
+          </p>
+        )}
       </header>
 
       <div className={styles.actions}>
@@ -167,20 +187,12 @@ export function DriverStopCard({
           <Icon name="link" />
           {t('navigate')}
         </Button>
-        {/* Spec 082 D2: sem posição ou sem coordenada da parada, nada — nunca "0 km" */}
-        {distanceLabel === null ? null : (
-          <span className={styles.stopDistance}>{distanceLabel}</span>
-        )}
         {/* Trancado até o despacho: a API recusa `arrive` fora de dispatched/in_transit */}
-        {isFieldWorkBlocked ? null : stop.arrivedAt === null ? (
+        {isFieldWorkBlocked || stop.arrivedAt !== null ? null : (
           <Button onClick={() => onArrive(stop.id)} type="button">
             <Icon name="check" />
             {t('arrive')}
           </Button>
-        ) : (
-          <span className={styles.stopMeta}>
-            {t('arrived', { time: new Date(stop.arrivedAt).toLocaleTimeString() })}
-          </span>
         )}
         {isFieldWorkBlocked ? null : (
           <Button onClick={() => setOpenOccurrence((open) => !open)} type="button" variant="ghost">
