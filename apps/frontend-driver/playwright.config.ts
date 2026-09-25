@@ -3,15 +3,15 @@ import { defineConfig } from '@playwright/test'
 
 const DRIVER_PORT = Number(process.env.PLAYWRIGHT_DRIVER_PORT ?? '53200')
 
+/**
+ * ⚠️ **Reaproveitar só quando pedido.** O smoke depende do que o `vite build` inlina
+ * (`VITE_SMOKE_AUTH_BYPASS`, `VITE_DRIVER_APP_URL`), e um servidor já de pé na porta não passou por
+ * esse build — pode ser até um `vite` de dev, onde o StrictMode monta a tela duas vezes. Medido na
+ * spec 189: era essa a "leitura de tipos disparada duas vezes" da T4.1, que no build de produção
+ * acontece uma vez só.
+ */
 function shouldReuseExistingServer(variableName: string): boolean {
-  const variableValue = process.env[variableName]
-  if (variableValue === 'true') {
-    return true
-  }
-  if (variableValue === 'false') {
-    return false
-  }
-  return !process.env.CI
+  return process.env[variableName] === 'true'
 }
 
 /** O comando compila antes de servir: os 60s padrão do Playwright cobrem build e boot juntos. */

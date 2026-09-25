@@ -100,10 +100,9 @@ export type DriverTripApiMock = Readonly<{
   /** Liga e desliga o sinal no meio do teste — a fila offline é o que se quer fotografar. */
   setOffline: (isOffline: boolean) => void
   /**
-   * ⚠️ **Booleano, não contador.** O boot autenticado desta app (tela de identificação → Keycloak
-   * de verdade) dispara a leitura de tipos mais de uma vez antes de a tela assentar — quantas vezes
-   * varia (spec 189 T4.1, achado aberto). Um contador de N falhas é uma corrida com esse número; um
-   * interruptor não é: falha até o teste mandar parar.
+   * **Booleano, não contador:** falha até o teste mandar parar, qualquer que seja o número de
+   * leituras. No build de produção a tela lê os tipos uma vez; sob um `vite` de dev (StrictMode) lê
+   * duas — e um contador de N falhas acertaria um e erraria o outro.
    */
   setOccurrenceTypesFailing: (isFailing: boolean) => void
 }>

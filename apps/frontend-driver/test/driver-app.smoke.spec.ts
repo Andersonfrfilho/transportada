@@ -182,11 +182,10 @@ test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ p
   await page.setViewportSize(VIEWPORTS.mobile)
   await grantLocation(page)
   /**
-   * ⚠️ O login real pela tela de identificação (sem o atalho do painel) dispara a leitura de tipos
-   * mais de uma vez antes de `DriverTripWorkspacePage` assentar, e quantas vezes varia (medido: 1 a
-   * 2 chamadas automáticas, nenhuma delas de um clique — achado aberto para a spec 189 investigar,
-   * fora do escopo da T4.1). Um interruptor, e não uma contagem de falhas, é o que resiste a essa
-   * variação: falha até o teste mandar parar.
+   * A falha é um interruptor, não uma contagem: falha até o teste mandar parar. No build de
+   * produção a tela lê os tipos uma vez só; as duas leituras medidas na T4.1 vinham de um `vite` de
+   * dev reaproveitado na porta, com o StrictMode montando a tela duas vezes (`playwright.config.ts`,
+   * `shouldReuseExistingServer`). O interruptor não depende de quantas leituras houver.
    */
   const api = await mockDriverTripApi({ occurrenceTypesFailing: true, page })
   await loginAsLocalUser(page)
