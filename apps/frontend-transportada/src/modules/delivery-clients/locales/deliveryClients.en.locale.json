@@ -233,7 +233,8 @@
     "open": "Open",
     "scheduling": "Scheduling",
     "schedulingYes": "Required",
-    "taxId": "Document"
+    "taxId": "Document",
+    "region": "Delivery clients (scroll sideways)"
   },
   "windows": {
     "add": "Add a window",

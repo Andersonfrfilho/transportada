@@ -217,7 +217,13 @@ function ClientsListPanel({ controller, isReadOnly, t }: ClientsListPanelProps):
           <Skeleton height="2.5rem" />
         </SkeletonGroup>
       ) : (
-        <div className={styles.tableScroll}>
+        /** Spec 183 T903 (D3): a 360 px o quadro rola; região nomeada para rolar pelo teclado. */
+        <div
+          aria-label={t('table.region')}
+          className={styles.tableScroll}
+          role="region"
+          tabIndex={0}
+        >
           <table className={styles.table}>
             <thead>
               <tr>

@@ -54,8 +54,24 @@ describe('a página de clientes no padrão (revisão da spec 183)', () => {
     ])
 
     expect(page).toMatch(
-      /<div className=\{styles\.tableScroll\}>\s*<table className=\{styles\.table\}>/u,
+      /<div\s+aria-label=\{t\('table\.region'\)\}\s+className=\{styles\.tableScroll\}\s+role="region"\s+tabIndex=\{0\}\s*>\s*<table className=\{styles\.table\}>/u,
     )
     expect(block(css, '.tableScroll')).toContain('overflow-x: auto')
+  })
+})
+
+/**
+ * Spec 183 T903 (achado D3, da nova rodada da T902): o quadro que rola a tabela a 360 px precisa
+ * receber foco pelo teclado — sem isso, quem não usa mouse não rola a tabela (axe
+ * `scrollable-region-focusable`, WCAG 2.1.1). Vira região nomeada e focável.
+ */
+describe('o quadro da tabela rola pelo teclado (spec 183 T903, D3)', () => {
+  test('o rótulo da região existe nos dois idiomas', async () => {
+    const [pt, en] = await Promise.all([
+      read('locales/deliveryClients.locale.json'),
+      read('locales/deliveryClients.en.locale.json'),
+    ])
+    expect(JSON.parse(pt).table.region).toBe('Clientes de entrega (role para os lados)')
+    expect(JSON.parse(en).table.region).toBe('Delivery clients (scroll sideways)')
   })
 })

@@ -233,7 +233,8 @@
     "open": "Abrir",
     "scheduling": "Agendamento",
     "schedulingYes": "Exige",
-    "taxId": "Documento"
+    "taxId": "Documento",
+    "region": "Clientes de entrega (role para os lados)"
   },
   "windows": {
     "add": "Acrescentar horário",
