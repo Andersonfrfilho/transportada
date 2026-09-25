@@ -156,7 +156,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
   - [x] **T702a** API: pedido de upload por URL assinada (operador, motorista e portal), anexo
         conferido pelos bytes (tipo, tamanho por canal, sha256) e ligado à mensagem no envio; leitura
         com URL temporária nas três superfícies. Evidência: contratos + integração com S3.
-  - [ ] **T702b** Telas: anexar e ver anexo no painel, no PWA do motorista e no portal. Evidência:
+  - [x] **T702b** Telas: anexar e ver anexo no painel, no PWA do motorista e no portal. Evidência:
         contratos + smoke no navegador contra a API real, com prints.
   - [ ] **T702c** Worker: os anexos do e-mail recebido da contratante viram anexos da mensagem da
         conversa, a partir do MIME já gravado; e o expurgo dos pedidos de upload vencidos (objeto e

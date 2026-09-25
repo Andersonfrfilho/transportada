@@ -300,6 +300,27 @@ select {
 }
 
 /* Spec 183 T702b: o anexo — o que se escolhe no formulário e o que chega no balão. */
+/*
+ * O seletor de arquivo é nativo (esta app não tem design system), mas o botão dele segue o
+ * `button.secondary` da casa: sem isso o navegador desenha o cinza do sistema no meio dos tokens.
+ */
+input[type='file'] {
+  align-content: center;
+  padding: var(--space-2);
+}
+
+input[type='file']::file-selector-button {
+  background: transparent;
+  border: 1px solid var(--color-slate);
+  border-radius: 0.5rem;
+  color: var(--color-fog);
+  cursor: pointer;
+  font: inherit;
+  margin-inline-end: var(--space-3);
+  min-height: calc(var(--control-height) - var(--space-3));
+  padding-inline: var(--space-3);
+}
+
 .conversation__attachments,
 .conversation__chosen {
   display: grid;

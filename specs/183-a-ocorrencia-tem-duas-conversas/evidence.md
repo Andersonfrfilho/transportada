@@ -1676,3 +1676,42 @@ num commit só, não daria para ver qual parte quebrou. A T702e fica aberta até
   pré-verificação de CORS. O bucket do Railway precisa aceitar `PUT` (e o cabeçalho `content-type`)
   das origens do painel e do portal. `<img>` nunca precisou disso; `fetch` precisa.
 
+### T702b — no navegador, contra a API real (verde)
+
+- **Bancada:** Postgres de desenvolvimento migrado e com o seed local; Keycloak 26.5.2 com o realm
+  versionado; o S3 local (SeaweedFS, porque `quay.io` está bloqueado aqui) no lugar do MinIO, pela
+  sobreposição de ambiente só no processo da API; API em `bun ./src/main.ts`; painel e portal em
+  `vite` com a origem do bucket na CSP. Cenário semeado por script temporário (apagado): viagem em
+  trânsito, ocorrência de nota com a tratativa aguardando a contratante, o `local-user` como
+  motorista da viagem e a conta `contratante-alfa` no Keycloak, ligada ao portal da contratante.
+  O painel foi servido com `VITE_IDENTIFIER_FIRST_LOGIN=false` (o ajudante do smoke entra pelo
+  formulário do Keycloak); o portal entrou pela tela de identificação de verdade.
+- **O fluxo inteiro, com Playwright (`/opt/pw-browsers/chromium`), login real, sem mock de API:**
+  1. painel, aba Motorista (1440): o `.svg` é recusado com o motivo; PDF + PNG escolhidos; envio só
+     com anexo. Rede: pedido de URL **201** → PUT ao bucket **200** (duas vezes) → mensagem **202**;
+     a imagem desce pela URL assinada (**200**) e o link do PDF baixa os bytes (`%PDF-`);
+  2. painel, aba Contratante: texto + PDF pelo portal;
+  3. app do motorista (390): vê a imagem e o PDF da operação e responde com foto;
+  4. portal (390 e 1440): login pela identificação, abre a conversa, vê o PDF da transportadora;
+     recusa o `.svg`, envia a nota de devolução em PDF;
+  5. painel: a resposta da contratante chega com o anexo, e a mensagem da operação pelo portal
+     aparece como **Lido** (a contratante abriu).
+- **Prints** (`prints/anexo-*.png`): painel motorista (escolhido e enviado), painel contratante,
+  painel com a resposta do portal, app do motorista (recebido e respondido, 390), portal (recebido
+  390 e 1440, escolhido e enviado 390, seletor 390).
+- **Revisão de design (web.md §15):**
+  - painel e app: o seletor é o `FileField` do design system, igual aos campos vizinhos; o anexo no
+    balão segue o tom do balão (link com borda em `currentColor`, nome truncado com reticências,
+    tamanho em fonte utilitária); imagem limitada a 16rem de altura;
+  - **corrigido nesta task:** no portal, o botão nativo do seletor vinha com o cinza do sistema no
+    meio dos tokens — passou a seguir o `button.secondary` da casa (`::file-selector-button`);
+  - **achados fora desta task, registrados:** (a) o portal tem rolagem horizontal a 390 px já na tela
+    "Entregas" (`scrollWidth` 424; a barra de navegação não quebra) — anterior à 183, virou tarefa
+    separada; (b) os rádios gigantes do `DecisionForm` (164), já registrados; (c) o cartão "Resposta
+    da contratante" da linha do tempo diz "Sem envio à contratante" mesmo com envio pelo portal —
+    fica para a revisão da Fase 9 (T902).
+- **Observado na bancada, sem defeito do produto:** a foto semeada da ocorrência não tem objeto no
+  bucket (o seed usa armazenamento falso), e o aviso por e-mail ao portal falha sem RabbitMQ
+  (`occurrence_conversation_portal_notice_failed`, sem corpo no log) — a mensagem é gravada igual.
+- **Rodado:** painel **5251 + 44 pass**; portal **80 pass** e build verde; lint, typecheck e
+  formatação da raiz limpos.
