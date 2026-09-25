@@ -12,6 +12,7 @@ import type {
   DispatchTripPort,
   DispatchTripPreconditions,
 } from '../../src/trips/application/dispatch-trip.use-case.js'
+import { registerTripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import { tryAutoDispatchTrip } from '../../src/trips/application/try-auto-dispatch-trip.use-case.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { TRIP_TRANSITION_BLOCK } from '../../src/trips/domain/trip-state.policy.js'
@@ -166,5 +167,125 @@ describe('o gatilho automático nunca faz a escrita comitada falhar (spec 185 re
       outcome: 'blocked',
     })
     expect([...noRoute.logged, ...unscheduled.logged]).toEqual([])
+  })
+})
+
+/**
+ * Revisão da spec 185 (RF2, ADR-0074 §4): a ocorrência só tenta o despacho quando **ela** tira a
+ * nota da conta — tipo "a viagem segue sem a nota", sobre a nota inteira, e a nota ainda não
+ * carregada (é o que a põe em `leftBehind`). Ocorrência parcial, de tipo que só anota, ou sobre
+ * nota já carregada numa viagem que ficou toda carregada em `loading` não despacha nada.
+ */
+describe('a ocorrência só despacha quando deixa a nota para trás (spec 185 revisão)', () => {
+  const DOCUMENT_ID = '00000000-0000-4000-8000-000000000017'
+  const TYPE_ID = '00000000-0000-4000-8000-0000000000e1'
+
+  async function registerWith(input: {
+    readonly leavesDocumentBehind: boolean
+    readonly productCode: string
+    readonly state: DispatchTripPreconditions
+  }) {
+    const calls = { dispatch: 0, readPreconditions: 0 }
+    const registered = await registerTripOccurrence({
+      actorUserId: USER_ID,
+      attachment: { bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/jpeg' },
+      autoDispatch: {
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        logger: { error: () => {} },
+        repository: {
+          dispatch: async () => {
+            calls.dispatch += 1
+            return { tripStatus: 'dispatched' }
+          },
+          readPreconditions: async () => {
+            calls.readPreconditions += 1
+            return input.state
+          },
+        },
+      },
+      companyId: COMPANY_ID,
+      documentId: DOCUMENT_ID,
+      note: '',
+      occurredOn: '24/09/2026',
+      occurrenceTypeId: TYPE_ID,
+      productCode: input.productCode,
+      repository: {
+        findOccurrenceType: async () => ({
+          active: true,
+          allowsMultipleItems: true,
+          emailBody: '',
+          emailSubject: '',
+          emailTemplateKey: null,
+          id: TYPE_ID,
+          leavesDocumentBehind: input.leavesDocumentBehind,
+          name: 'Item faltante',
+          notifies: false,
+          stage: 'separation',
+        }),
+        listDocumentProducts: async () => [{ code: 'SKU-1', description: 'Caixa' }],
+        listOccurrences: async () => [],
+        readTemplateValues: async () => {
+          throw new Error('não deveria montar e-mail')
+        },
+        saveOccurrence: async (query) => ({
+          createdAt: '2026-09-24T12:00:00.000Z',
+          id: 'occurrence-1',
+          note: query.note,
+          occurrenceTypeId: query.occurrenceTypeId,
+          productCode: query.productCode,
+          stage: query.stage,
+          typeName: query.typeName,
+        }),
+      },
+      tripId: TRIP_ID,
+    })
+    return { calls, registered }
+  }
+
+  test('ocorrência parcial numa viagem toda carregada em loading: não despacha', async () => {
+    const { calls, registered } = await registerWith({
+      leavesDocumentBehind: true,
+      productCode: 'SKU-1',
+      state: CLOSED_CARGO,
+    })
+
+    expect(registered.autoDispatch).toBeUndefined()
+    expect(calls).toEqual({ dispatch: 0, readPreconditions: 0 })
+  })
+
+  test('tipo que só anota, sobre a nota inteira: não despacha', async () => {
+    const { calls, registered } = await registerWith({
+      leavesDocumentBehind: false,
+      productCode: '',
+      state: CLOSED_CARGO,
+    })
+
+    expect(registered.autoDispatch).toBeUndefined()
+    expect(calls).toEqual({ dispatch: 0, readPreconditions: 0 })
+  })
+
+  test('nota inteira já carregada (fora de leftBehind) numa viagem toda carregada: não despacha', async () => {
+    const { calls, registered } = await registerWith({
+      leavesDocumentBehind: true,
+      productCode: '',
+      state: CLOSED_CARGO,
+    })
+
+    expect(registered.autoDispatch).toBeUndefined()
+    expect(calls.dispatch).toBe(0)
+  })
+
+  test('nota inteira não carregada que entra em leftBehind e fecha a carga: despacha', async () => {
+    const { calls, registered } = await registerWith({
+      leavesDocumentBehind: true,
+      productCode: '',
+      state: {
+        ...CLOSED_CARGO,
+        leftBehind: [{ occurrenceTypeName: 'Item faltante', tripDocumentId: DOCUMENT_ID }],
+      },
+    })
+
+    expect(registered.autoDispatch).toEqual({ outcome: 'dispatched' })
+    expect(calls.dispatch).toBe(1)
   })
 })

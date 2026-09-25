@@ -373,14 +373,20 @@ export async function registerTripOccurrence(
   /**
    * Spec 185 (D4, ADR-0074 §1/§4): a ocorrência que tira a última nota pendente da conta pode
    * fechar a carga sozinha — sempre **depois** de `saveOccurrence` ter comitado (transação própria).
+   * Só a que deixa a nota para trás (tipo marcado, nota inteira, nota ainda não carregada — o
+   * gatilho confere a última pela `leftBehind`) mexe na conta; a parcial, a que só anota e a de
+   * nota já carregada nunca despacham.
    */
+  const leavesDocumentBehind =
+    occurrenceType.leavesDocumentBehind === true && scope.scope === 'document'
   const autoDispatch =
-    input.autoDispatch === undefined
+    input.autoDispatch === undefined || !leavesDocumentBehind
       ? undefined
       : await tryAutoDispatchTrip({
           actorUserId,
           channel: input.autoDispatch.channel,
           companyId,
+          leftBehindDocumentId: documentId,
           logger: input.autoDispatch.logger,
           onBehalfOfDriverId: input.autoDispatch.onBehalfOfDriverId ?? null,
           repository: input.autoDispatch.repository,

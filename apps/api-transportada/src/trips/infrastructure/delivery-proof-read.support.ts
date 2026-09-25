@@ -628,6 +628,8 @@ export async function findOccurrenceType(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       id: companyOccurrenceTypes.id,
+      /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
+      leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */

@@ -262,6 +262,39 @@ describe('carregar a última nota despacha a viagem sozinha (spec 185 T4.1)', ()
     30_000,
   )
 
+  testWithPostgres(
+    'revisão: ocorrência "segue sem a nota" sobre nota já carregada, viagem toda carregada em loading — não despacha',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const trip = await seedPlannedTrip(database, { documentCount: 2 })
+        const [firstId, secondId] = trip.tripDocumentIds as [string, string]
+        // Carregadas sem o gatilho: a viagem fica toda carregada, parada em `loading`.
+        await moveDocument(database, trip, firstId, ['separate', 'load'])
+        await moveDocument(database, trip, secondId, ['separate', 'load'])
+        const occurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          companyId: trip.companyId,
+          id: occurrenceTypeId,
+          leavesDocumentBehind: true,
+          name: LEAVES_BEHIND_TYPE_NAME,
+          stage: 'separation',
+        })
+
+        const registered = await registerWholeDocumentOccurrence(database, trip, {
+          documentId: secondId,
+          logger: SILENT_AUTO_DISPATCH_LOGGER,
+          occurrenceTypeId,
+          routeRepository: new DrizzleTripRouteRepository(database.db),
+        })
+
+        expect(registered.autoDispatch).toBeUndefined()
+        expect(await readTripStatus(database, trip.tripId)).toBe('loading')
+        expect(await readSnapshot(database, trip.tripId)).toBeUndefined()
+      })
+    },
+    30_000,
+  )
+
   /**
    * Revisão da spec 185: o gatilho roda depois da carga ter comitado — falha inesperada do
    * despacho não pode virar erro sobre uma escrita que aconteceu.

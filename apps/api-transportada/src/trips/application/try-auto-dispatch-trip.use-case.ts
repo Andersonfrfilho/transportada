@@ -58,6 +58,11 @@ export type TryAutoDispatchTripInput = AutoDispatchDependencies & {
   readonly actorUserId: string
   readonly channel: TripFieldChannel
   readonly companyId: string
+  /**
+   * Spec 185 (revisão, RF2): a escrita que chamou só fecha a carga se pôs **esta** nota em
+   * `leftBehind` — sem ela lá, não foi essa escrita que mudou a conta, e não há o que tentar.
+   */
+  readonly leftBehindDocumentId?: string
   readonly onBehalfOfDriverId?: string | null
   readonly tripId: string
 }
@@ -101,6 +106,12 @@ async function attemptAutoDispatch(
   if (state === null) return undefined
   if (!AUTO_DISPATCH_ELIGIBLE_STATUSES.includes(state.tripStatus)) return undefined
   if (!state.isCargoClosed) return undefined
+  if (
+    input.leftBehindDocumentId !== undefined &&
+    !state.leftBehind.some((document) => document.tripDocumentId === input.leftBehindDocumentId)
+  ) {
+    return undefined
+  }
 
   await dispatchTrip({
     actorUserId: input.actorUserId,
