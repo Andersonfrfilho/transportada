@@ -16,26 +16,21 @@
                     <#if identifiedUsername?has_content>
                         <div class="field identified-user">
                             <span class="field-label">${msg("transportadaIdentifiedAs")}</span>
-                            <strong class="identified-user-name" dir="ltr">${identifiedUsername}</strong>
                             <#-- O script resolve a origem pelo `redirect_uri` da requisição de login
                                  sempre que ele existir — é o app de onde a pessoa veio, e nem sempre é
                                  o painel. `applicationOrigin` (a variável do deploy) só entra como
                                  `data-fallback-origin`, para quando não houver `redirect_uri` a ler;
                                  sem a variável no deploy o valor é o literal `${env.…}`, por isso o
                                  `<#if>` testa `http`. -->
-                            <#-- Botão, e não link discreto: quem digitou o usuário de outra pessoa
-                                 descobre pela senha recusada, e é ali que precisa da saída. O
-                                 `loginRestartFlowUrl` não serve — o restart guarda o `login_hint` e
-                                 devolve esta mesma tela, com o mesmo usuário. -->
-                            <a class="action action-quiet identified-user-switch" data-identity-restart hidden href="#"
-                               <#if applicationOrigin?starts_with("http")>data-fallback-origin="${applicationOrigin}"</#if>>
-                                <svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round"
-                                     stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
-                                    <path d="m12 19-7-7 7-7" />
-                                    <path d="M19 12H5" />
-                                </svg>
-                                <span>${msg("transportadaSwitchUser")}</span>
-                            </a>
+                            <#-- Texto na linha do usuário, e não botão: a tela tem uma ação só, o
+                                 "Entrar". O `loginRestartFlowUrl` não serve de destino — o restart
+                                 guarda o `login_hint` e devolve esta mesma tela, com o mesmo usuário. -->
+                            <p class="identified-user-line">
+                                <strong class="identified-user-name" dir="ltr">${identifiedUsername}</strong>
+                                <span class="identified-user-prompt">${msg("transportadaNotYou")}</span>
+                                <a class="identified-user-switch" data-identity-restart hidden href="#"
+                                   <#if applicationOrigin?starts_with("http")>data-fallback-origin="${applicationOrigin}"</#if>>${msg("transportadaSwitchUser")}</a>
+                            </p>
                         </div>
                         <input id="username" name="username" type="hidden" value="${identifiedUsername}" />
                     <#else>

@@ -26,3 +26,13 @@
 - [x] **T2.3** `rememberMe` com prazos nos dois `realm.json`, aplicados pelo `keycloak-reconcile.sh`.
 - [x] **T2.4** Ponta a ponta: sonda do Keycloak com o realm novo e Vite do worktree; prints da caixa e
       do campo preenchido; navegador reaberto com e sem a caixa marcada.
+
+## Fase 3 — Link de texto no lugar do botão
+
+> 🤖 Modelo: `sonnet`
+
+- [x] **T3.1** Contrato: `<a class="identified-user-switch">` sem `action` e sem `<svg>`, "Não é você?"
+      nos dois bundles, CSS com cobre, `min-height: 2.75rem`, sem borda e com `:focus-visible`.
+- [x] **T3.2** `login.ftl` (linha do usuário), `login.css`, mensagens.
+- [x] **T3.3** Suspeita de "trocar volta ao mesmo usuário" medida com `login_hint=anderson.fernandes`.
+- [x] **T3.4** Prints nos temas claro e escuro, em 1280px e 375px.

@@ -24,8 +24,9 @@ sem jeito de voltar. Pedido: um botão **"Trocar de usuário"**.
 
 ## Decisão
 
-- O link vira botão **"Trocar de usuário"** (`action action-quiet`, com a seta de voltar), logo abaixo
-  de "Entrando como <usuário>", na mesma moldura dos botões secundários do tema.
+- ~~O link vira botão `action action-quiet` com seta.~~ Revisto a pedido do usuário: é **link de
+  texto** na linha do usuário — "`<usuário>` Não é você? **Trocar de usuário**" —, só a ação em cobre,
+  sem borda nem fundo, sublinhada no hover e no foco, com 44px de toque e sem ícone.
 - O destino continua sendo a identificação do app (a origem do `redirect_uri`, e não o restart do
   Keycloak). O script passa a ler o `ru` do `client_data` (base64url) quando o `redirect_uri` falta.
 - Sem origem nenhuma (nem `redirect_uri`, nem `client_data`, nem variável do deploy), o botão segue
