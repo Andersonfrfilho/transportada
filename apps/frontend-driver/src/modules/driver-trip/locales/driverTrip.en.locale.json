@@ -205,5 +205,19 @@
     "between": "Window {{start}}–{{end}}",
     "from": "Window from {{start}}",
     "until": "Window until {{end}}"
+  },
+  "locationSharing": {
+    "title": "Location during the trip",
+    "purpose": "Why: the shipper follows where the cargo is while the trip is on the road.",
+    "audience": "Who sees it: only the shipper of that delivery, and only a point on the map — without your name or the plate.",
+    "retention": "How long: the trail is erased when the trip closes, and as soon as you turn this off.",
+    "when": "Your location is only sent with the app open on screen and the trip on the road, at most once a minute.",
+    "switch": "Share my location",
+    "on": "On",
+    "off": "Off",
+    "loadFailed": "Could not read your choice right now. Sharing stays off.",
+    "saveFailed": "Could not save your choice. Try again.",
+    "indicator": "Sharing your location with the shipper.",
+    "unavailable": "Location unavailable on this device. Nothing is being sent."
   }
 }

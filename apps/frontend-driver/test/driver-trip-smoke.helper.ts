@@ -10,7 +10,7 @@ import { type Page, type Route } from '@playwright/test'
 
 const CORS_HEADERS = {
   'access-control-allow-headers': 'Authorization, Content-Type, Idempotency-Key',
-  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
 }
 
 export const DRIVER_STOP_ID = '00000000-0000-4000-8000-000000000101'
@@ -98,6 +98,10 @@ function buildSnapshot(input: {
 }
 
 export type DriverTripApiMock = Readonly<{
+  /** Spec 189 T7.5: cada `PUT /me/location-consent`, na ordem, com o `accepted` enviado. */
+  consentWrites: () => readonly boolean[]
+  /** Spec 189 T7.5: cada `POST /me/trips/current/location`, com as coordenadas em texto. */
+  locationPosts: () => readonly Readonly<{ latitude: string; longitude: string }>[]
   /** O que o aparelho enviou: o caminho e a chave de idempotência, que é o que importa aqui. */
   reports: () => readonly Readonly<{ idempotencyKey: string; path: string }>[]
   /** Liga e desliga o sinal no meio do teste — a fila offline é o que se quer fotografar. */
@@ -180,7 +184,40 @@ export async function mockDriverTripApi(
     await fulfillJson(route, { data }, 201)
   })
 
+  /**
+   * Spec 189 T7.5: o consentimento nasce nulo (desligado), como na API, e o `PUT` grava. Sem o
+   * dublê, o Perfil e o rastreamento falariam com a API real de `make dev`.
+   */
+  let consentAcceptedAt: string | null = null
+  const consentWrites: boolean[] = []
+  const locationPosts: Array<{ latitude: string; longitude: string }> = []
+
+  await input.page.route(/\/me\/location-consent$/, async (route) => {
+    const method = route.request().method()
+    if (method === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    if (method === 'PUT') {
+      const accepted = (route.request().postDataJSON() as { accepted: boolean }).accepted
+      consentWrites.push(accepted)
+      consentAcceptedAt = accepted ? new Date().toISOString() : null
+    }
+    await fulfillJson(route, { data: { acceptedAt: consentAcceptedAt } })
+  })
+
+  await input.page.route(/\/me\/trips\/current\/location$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    locationPosts.push(route.request().postDataJSON() as { latitude: string; longitude: string })
+    await fulfillJson(route, { data: { outcome: 'recorded' } }, 201)
+  })
+
   return {
+    consentWrites: () => consentWrites,
+    locationPosts: () => locationPosts,
     reports: () => reports,
     setOccurrenceTypesFailing: (next) => {
       occurrenceTypesFailing = next

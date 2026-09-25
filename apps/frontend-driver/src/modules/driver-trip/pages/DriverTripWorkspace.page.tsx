@@ -10,6 +10,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
 import { DriverForeignPendingNotice } from '../components/DriverForeignPendingNotice.component'
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
+import { DriverLocationSharingIndicator } from '../components/DriverLocationSharingIndicator.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
 import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice.component'
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
@@ -17,6 +18,7 @@ import { DriverStopCard, type DriverProofAttachment } from '../components/Driver
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
+import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
@@ -138,6 +140,8 @@ export function DriverTripWorkspacePage() {
   const snapshot = driverTrip.snapshot
   /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
   const { selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
+  /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
+  const locationSharingStatus = useLocationSharing(snapshot?.trips ?? [])
 
   if (driverTrip.status === 'loading') {
     return (
@@ -302,6 +306,8 @@ export function DriverTripWorkspacePage() {
           selectedTripId={trip?.id}
           trips={snapshot?.trips ?? []}
         />
+
+        <DriverLocationSharingIndicator status={locationSharingStatus} />
 
         {/* ADR-0075 §8: boot sem rede — a viagem é o snapshot, e a tela diz de quando ele é */}
         {driverTrip.offlineSnapshotSavedAt === undefined ? null : (

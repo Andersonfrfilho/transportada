@@ -1726,3 +1726,53 @@ cd apps/api-transportada && bun run typecheck
   `test.todo` da T6.4 (commit 452d2cd5c); o orquestrador confirmou que é conhecido e está com outro
   executor. Nenhum erro nos arquivos da T7.4.
 ```
+
+### T7.5 — Consentimento de posição na app
+
+- **Contrato antes** (`test/driver-trip/location-sharing.contract.ts`, no entrypoint), vermelho pela
+  razão certa (`Cannot find module '@/modules/driver-trip/shared/locationSharing.service'`):
+  - `shouldShareLocation`: só com consentimento **e** viagem em `dispatched`/`in_transit`/
+    `on_delivery_route` **e** app visível; basta uma das viagens estar na rua (o servidor resolve a
+    viagem do ping);
+  - o controlador: inativo não observa o GPS; a primeira posição sobe na hora, com sete casas em
+    texto; **no máximo 1 envio a cada 60 s** com o GPS mandando posição a cada segundo; desligar faz
+    `clearWatch` e para o temporizador; religar antes de 60 s espera o resto do intervalo; **GPS
+    negado** → `unavailable`, sem watch e sem envio; `TIMEOUT` do GPS não é recusa;
+  - o comentário de `driverLocation.service.ts` (plan D3) cita "posição contínua só com
+    consentimento (ADR-0050 §5, ADR-0075 §8)" e não diz mais "nunca `watchPosition`".
+- `locationSharing.service.ts` (puro, dependências injetadas): o `watchPosition` guarda a última
+  posição e um temporizador envia uma vez por intervalo; o relógio do último envio sobrevive a
+  desligar e religar. Falha de envio não entra na fila: posição ao vivo velha não serve.
+- `driverTripClient.service.ts`: `readLocationConsent` (`GET`), `setLocationConsent` (`PUT
+{accepted}`) e `sendLocation` (`POST /me/trips/current/location`, sem id de viagem).
+- `useLocationConsent.hook.ts` (TanStack Query): o Perfil e o rastreamento leem a mesma consulta;
+  **desligar vale na hora**, antes da resposta do `PUT`. `useLocationSharing.hook.ts`: visibilidade
+  por `useSyncExternalStore` sobre `visibilitychange`, um controlador por tela, e
+  `update(isActive)` a cada mudança.
+- `DriverLocationConsentCard.component.tsx` no Perfil: `role="switch"`, **desligado por padrão** (e
+  desligado enquanto carrega ou se a leitura falha), com o texto de finalidade, quem vê ("só o
+  contratante daquela entrega, e só um ponto no mapa — sem o seu nome e sem a placa") e retenção
+  ("o rastro é apagado quando a viagem fecha, e na hora em que você desliga" — é o que a API faz:
+  `purgeByTrip` no fechamento e o `delete` na transação do `PUT {accepted:false}`).
+- `DriverLocationSharingIndicator.component.tsx` na tela da viagem, `role="status"`: "Compartilhando
+  sua posição com o contratante." enquanto o GPS é observado; "Posição indisponível no aparelho.
+  Nada está sendo enviado." com o GPS negado.
+- Locales pt-BR e en (`locationSharing.*`), `.locationIndicator` e `.locationSwitchState` no CSS.
+- Playwright: `mockDriverTripApi` ganhou o dublê de `/me/location-consent` (nasce nulo) e de
+  `/me/trips/current/location`, então nenhum smoke fala com a API real. O **CA14** novo, com
+  `page.clock`: interruptor desligado com os três textos; liga → `PUT [true]`; na viagem, o
+  indicador aparece e sobe **1** `POST` (`-23.5505000`/`-46.6333000`); +30 s continua 1; +31 s → 2;
+  +60 s → 3; desliga → `PUT [true, false]`; +3 min, nenhum `POST` novo; o indicador some; varredura
+  de 44 px.
+
+```
+cd apps/frontend-driver && bun run check
+  lint ok · typecheck ok · test 399 pass / 0 fail · build ok, precache 13 arquivos, 609.514 bytes ·
+  dist.contract 6 pass / 0 fail
+cd apps/frontend-driver && PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false bun run smoke
+  driver-service-worker.smoke.spec.ts   2 passed
+  driver-app.smoke.spec.ts             15 passed   (13 + CA12 + CA14)
+```
+
+Aberto: o print de design (web.md §15) do Perfil com o interruptor e do indicador fica com a T9.1,
+que já lista "o Perfil, com o consentimento".

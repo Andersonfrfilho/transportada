@@ -405,7 +405,7 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
   bun --env-file=../../.env.test run test:integration
   ```
 
-- [ ] **T7.5** Consentimento na app.
+- [x] **T7.5** Consentimento na app.
   - Contrato do serviço de rastreamento:
     - só envia com consentimento, a viagem em `dispatched`, `in_transit` ou `on_delivery_route` e a
       app visível;

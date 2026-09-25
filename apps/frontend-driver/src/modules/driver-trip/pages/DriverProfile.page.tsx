@@ -9,6 +9,7 @@ import { WhatsAppPhonePanel } from '@/modules/identity/components/WhatsAppPhoneP
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
 
+import { DriverLocationConsentCard } from '../components/DriverLocationConsentCard.component'
 import type { DriverTrip, DriverTripSnapshot } from '../shared/driverTrip.types'
 import { listProofPendingDocuments } from '../shared/driverTripView.service'
 import { createIndexedDbTripSnapshotStore } from '../shared/indexedDbQueue.service'
@@ -115,6 +116,8 @@ export function DriverProfilePage({
           {t('eventQueue.open')}
         </Button>
       </section>
+
+      <DriverLocationConsentCard />
 
       <section className={styles.profileCard}>
         <h2 className={styles.profileSectionTitle}>{t('profile.whatsappTitle')}</h2>

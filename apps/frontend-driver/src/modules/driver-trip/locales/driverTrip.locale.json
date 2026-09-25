@@ -214,5 +214,19 @@
     "between": "Janela {{start}}–{{end}}",
     "from": "Janela a partir das {{start}}",
     "until": "Janela até as {{end}}"
+  },
+  "locationSharing": {
+    "title": "Posição durante a viagem",
+    "purpose": "Para quê: o contratante acompanha onde a carga está enquanto a viagem está na rua.",
+    "audience": "Quem vê: só o contratante daquela entrega, e só um ponto no mapa — sem o seu nome e sem a placa.",
+    "retention": "Por quanto tempo: o rastro é apagado quando a viagem fecha, e na hora em que você desliga.",
+    "when": "A posição só sobe com o aplicativo aberto na tela e a viagem na rua, no máximo uma vez por minuto.",
+    "switch": "Compartilhar minha posição",
+    "on": "Ligado",
+    "off": "Desligado",
+    "loadFailed": "Não foi possível ler a sua escolha agora. O compartilhamento fica desligado.",
+    "saveFailed": "Não foi possível salvar a sua escolha. Tente de novo.",
+    "indicator": "Compartilhando sua posição com o contratante.",
+    "unavailable": "Posição indisponível no aparelho. Nada está sendo enviado."
   }
 }

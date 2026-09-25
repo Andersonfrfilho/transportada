@@ -3,8 +3,9 @@
 import type { DriverReportedLocation } from './driverTrip.types'
 
 /**
- * ADR-0045 §3: uma leitura por confirmação, `getCurrentPosition` e nunca `watchPosition` — a
- * coordenada é da entrega, não da pessoa.
+ * ADR-0045 §3: uma leitura por confirmação; posição contínua só com consentimento (ADR-0050 §5,
+ * ADR-0075 §8). Aqui é `getCurrentPosition` — a coordenada é da entrega, não da pessoa; o
+ * `watchPosition` do rastreamento mora em `locationSharing.service.ts`, atrás do interruptor.
  *
  * E a recusa **não bloqueia**: GPS desligado, sem sinal no galpão ou permissão negada devolvem
  * `null`, e a confirmação segue. Produto que exige coordenada é produto que o motorista contorna

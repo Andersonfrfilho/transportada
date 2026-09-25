@@ -15,6 +15,7 @@ import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripRespo
 import { createIdempotencyKey } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
+const LOCATION_CONSENT_PATH = '/me/location-consent'
 /** Rede presa (sinal fraco, portal cativo) não pode deixar o painel carregando para sempre. */
 const OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS = 10_000
 
@@ -119,8 +120,15 @@ export type DriverTripClient = Readonly<{
   /** Já o XML sai por URL assinada — ele existe para ser repassado, não para ser lido na tela. */
   readManifestXml: (manifestId: string) => Promise<DriverTripManifestDownload>
   readCurrent: () => Promise<DriverTripSnapshot>
+  /** Spec 189 T7.5: o consentimento de posição — `null` é "nunca consentiu" ou "retirou". */
+  readLocationConsent: () => Promise<LocationConsent>
   send: (report: DriverFieldReport) => Promise<void>
+  /** A posição ao vivo. Sem id de viagem: o servidor resolve a viagem do motorista (ADR-0050 §5). */
+  sendLocation: (position: Readonly<{ latitude: string; longitude: string }>) => Promise<void>
+  setLocationConsent: (accepted: boolean) => Promise<LocationConsent>
 }>
+
+export type LocationConsent = Readonly<{ acceptedAt: string | null }>
 
 function reportPath(report: DriverFieldReport): string {
   switch (report.kind) {
@@ -236,6 +244,27 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const payload = await request({ dependencies, method: 'GET', path: CURRENT_TRIP_PATH })
       return toDriverTripSnapshot(payload)
     },
+    async readLocationConsent() {
+      const payload = await request({ dependencies, method: 'GET', path: LOCATION_CONSENT_PATH })
+      return toLocationConsent(payload)
+    },
+    async sendLocation(position) {
+      await request({
+        body: JSON.stringify(position),
+        dependencies,
+        method: 'POST',
+        path: `${CURRENT_TRIP_PATH}/location`,
+      })
+    },
+    async setLocationConsent(accepted) {
+      const payload = await request({
+        body: JSON.stringify({ accepted }),
+        dependencies,
+        method: 'PUT',
+        path: LOCATION_CONSENT_PATH,
+      })
+      return toLocationConsent(payload)
+    },
     async send(report) {
       await request({
         body: reportBody(report),
@@ -321,6 +350,19 @@ function readFileName(disposition: string | null, fallback: string): string {
   return match?.[1] ?? fallback
 }
 
+function toLocationConsent(payload: unknown): LocationConsent {
+  const data =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { readonly data?: unknown }).data
+      : undefined
+  if (typeof data !== 'object' || data === null) throw new DriverTripResponseError()
+
+  const acceptedAt = (data as Record<string, unknown>).acceptedAt
+  if (acceptedAt !== null && typeof acceptedAt !== 'string') throw new DriverTripResponseError()
+
+  return { acceptedAt }
+}
+
 function toManifestDownload(payload: unknown): DriverTripManifestDownload {
   const data =
     typeof payload === 'object' && payload !== null
@@ -350,7 +392,7 @@ async function request(
     dependencies: ClientDependencies
     form?: FormData
     idempotencyKey?: string
-    method: 'GET' | 'POST'
+    method: 'GET' | 'POST' | 'PUT'
     path: string
     signal?: AbortSignal
   }>,

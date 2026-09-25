@@ -489,3 +489,62 @@ test.describe('CA12: duas viagens e a janela de entrega', () => {
     await assertNoHorizontalOverflow(page)
   })
 })
+
+/**
+ * CA14 (spec 189 T7.5, ADR-0075 §8): o interruptor nasce desligado, com finalidade, quem vê e
+ * retenção. Ligado, com a viagem na rua e a app na tela, a posição sobe no máximo uma vez por minuto
+ * (relógio falso), e a tela da viagem avisa. Desligado, nada mais sobe.
+ *
+ * O relógio falso vem antes do boot, como no CA07: instalado depois, ele não adota os temporizadores
+ * que a app já agendou.
+ */
+test('CA14: com consentimento, a posição sobe 1 vez por minuto, com aviso, e para ao desligar', async ({
+  page,
+}) => {
+  await page.clock.install()
+  const api = await openTrip(page)
+  const indicator = page.getByText('Compartilhando sua posição com o contratante.')
+  await expect(indicator).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Perfil' }).click()
+  const toggle = page.getByRole('switch', { name: /Compartilhar minha posição/u })
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await expect(toggle).toContainText('Desligado')
+  await expect(page.getByText(/^Para quê: o contratante acompanha/u)).toBeVisible()
+  await expect(page.getByText(/^Quem vê: só o contratante daquela entrega/u)).toBeVisible()
+  await expect(page.getByText(/^Por quanto tempo: o rastro é apagado/u)).toBeVisible()
+  expect(api.locationPosts()).toEqual([])
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  expect(api.consentWrites()).toEqual([true])
+
+  await page.getByRole('button', { name: 'Viagem', exact: true }).click()
+  await expect(indicator).toBeVisible()
+  await expect.poll(() => api.locationPosts().length).toBe(1)
+  expect(api.locationPosts()[0]).toEqual({ latitude: '-23.5505000', longitude: '-46.6333000' })
+
+  // Meio minuto depois, nada: o teto é um por minuto.
+  await page.clock.fastForward('00:30')
+  await page.waitForTimeout(300)
+  expect(api.locationPosts()).toHaveLength(1)
+
+  await page.clock.fastForward('00:31')
+  await expect.poll(() => api.locationPosts().length).toBe(2)
+  await page.clock.fastForward('01:00')
+  await expect.poll(() => api.locationPosts().length).toBe(3)
+
+  await page.getByRole('button', { name: 'Perfil' }).click()
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  expect(api.consentWrites()).toEqual([true, false])
+
+  const postsWhenTurnedOff = api.locationPosts().length
+  await page.clock.fastForward('03:00')
+  await page.waitForTimeout(300)
+  expect(api.locationPosts()).toHaveLength(postsWhenTurnedOff)
+
+  await page.getByRole('button', { name: 'Viagem', exact: true }).click()
+  await expect(indicator).toHaveCount(0)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+})
