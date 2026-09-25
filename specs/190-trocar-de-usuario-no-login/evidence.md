@@ -46,3 +46,34 @@ Prints: `evidence/senha-desktop.png`, `evidence/senha-mobile.png`, `evidence/ide
 - `apps/api-transportada`, `bun test test/deploy.contract.test.ts`: 184 pass / 0 fail.
 - `test/keycloak-realm.contract.test.ts` (raiz): 18 pass / 0 fail.
 - `prettier --check` nos arquivos tocados: limpo.
+
+## Fase 2 — Identificador lembrado e "Continuar conectado"
+
+Contratos antes da implementação: `login-identifier-memory` sem o módulo (falha de import) e
+`continuar conectado` com **1 pass, 3 fail**. Depois: `test/identity.contract.test.ts` 244 pass /
+0 fail, e `test/deploy.contract.test.ts` da API 188 pass / 0 fail.
+
+Sonda do Keycloak 26.5.2 com o realm novo (mais o callback da porta 53010), Vite deste worktree em
+`localhost:53010`, Playwright com `reducedMotion: 'reduce'`:
+
+```
+desktop senha { rememberMeLabel: 'Continuar conectado', rememberMeVisible: true }
+desktop identificador { url: 'http://localhost:53010/auth/callback', value: 'local-user', selected: 10 }
+mobile  senha { rememberMeLabel: 'Continuar conectado', rememberMeVisible: true }
+mobile  identificador { url: 'http://localhost:53010/auth/callback', value: 'local-user', selected: 10 }
+```
+
+Login com a senha certa e o navegador "reaberto" (novo contexto só com os cookies que têm validade):
+
+```
+sem continuar conectado  → reaberto em /auth/callback, tela "Digite como você é conhecido no sistema."
+                            identificador na aba após o login: null
+                            cookies persistentes: KC_AUTH_SESSION_HASH, KEYCLOAK_SESSION
+com continuar conectado  → reaberto em /, painel "NF-e Workspace … Local User", sem identificação nem senha
+                            identificador na aba após o login: null
+                            cookies persistentes: + KEYCLOAK_IDENTITY, KEYCLOAK_REMEMBER_ME
+```
+
+Revisão de design: a caixa é o `.field-inline` do tema (marcação em cobre, texto `slate`), entre o erro
+e o "Entrar"; o campo da identificação volta com o valor selecionado. Prints:
+`evidence/senha-lembrar-{desktop,mobile}.png`, `evidence/identificador-preenchido-{desktop,mobile}.png`.

@@ -262,6 +262,20 @@ CPF nem o telefone que acabou de ser digitado.
   Sem a variável no deploy o Keycloak deixa o literal `${env.…}`, e por isso o template só grava o
   atributo quando o valor comece com `http`. O `compose.yaml` local não declara a variável, então no
   local quem resolve é sempre o `redirect_uri`.
+- **A identificação volta preenchida.** O app guarda o que foi digitado no `sessionStorage` da aba
+  (`loginIdentifierMemory.service.ts`), e o campo nasce com ele, selecionado: quem errou por um
+  dígito corrige, e quem vai digitar outro usuário apaga tudo no primeiro caractere. É dado pessoal,
+  então nunca vai para o `localStorage` nem para a URL, e sai da aba assim que a sessão nasce
+  (`main.tsx`, logo depois do `initializeKeycloakAuth`).
+- **"Continuar conectado"** é o `rememberMe` do realm, que o `login.ftl` já renderizava e o realm
+  mantinha desligado. Ligado, a caixa aparece na tela de senha, e marcá-la torna persistentes os
+  cookies da sessão do Keycloak (`KEYCLOAK_IDENTITY`, `KEYCLOAK_REMEMBER_ME`). Com o navegador
+  reaberto, o `check-sso` do boot encontra a sessão e o app entra sem passar pela identificação.
+  ⚠️ Os prazos vão junto (`ssoSessionIdleTimeoutRememberMe` 7 dias, `ssoSessionMaxLifespanRememberMe`
+  30 dias, em `deploy/keycloak/realm.json`): zerados, o Keycloak usa os da sessão comum, e a sessão
+  "lembrada" morreria nos mesmos 30 minutos de inatividade. Em ambiente existente, quem aplica os três
+  campos é o `keycloak-reconcile.sh`, lendo os valores do próprio `realm.json`. Só a sessão SSO dura
+  mais: o access token segue curto e o refresh segue rotativo.
 - **Sem `login_hint`** (acesso direto, console de conta), `login.username` vem vazio e a tela continua
   com usuário e senha.
 - **Senha errada** volta para a mesma tela só de senha, com a mensagem do Keycloak: o form reenviado
