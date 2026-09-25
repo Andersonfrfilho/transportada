@@ -26,6 +26,44 @@ describe('checkDriverAuthorization', () => {
     expect(result).toBe('authorized')
   })
 
+  /**
+   * Spec 189 T9.2 (B7): a checagem já leu `GET /me/trips/current` — o corpo vira o dado inicial da
+   * tela, em vez de a consulta pedir a mesma coisa de novo logo em seguida.
+   */
+  test('o corpo da resposta autorizada volta para virar o dado inicial', async () => {
+    const body = { data: { isRegisteredDriver: true, pendingProofs: [], trips: [] } }
+    const payloads: unknown[] = []
+
+    const result = await checkDriverAuthorization({
+      apiBaseUrl: API_BASE_URL,
+      fetch: mock(() => Promise.resolve(new Response(JSON.stringify(body)))),
+      getAccessToken: () => Promise.resolve('access-token'),
+      onAuthorizedPayload: (payload) => payloads.push(payload),
+    })
+
+    expect(result).toBe('authorized')
+    expect(payloads).toEqual([body])
+  })
+
+  test('403 e corpo ilegível não entregam dado inicial nenhum', async () => {
+    const payloads: unknown[] = []
+
+    await checkDriverAuthorization({
+      apiBaseUrl: API_BASE_URL,
+      fetch: mock(() => Promise.resolve(new Response(null, { status: 403 }))),
+      getAccessToken: () => Promise.resolve('access-token'),
+      onAuthorizedPayload: (payload) => payloads.push(payload),
+    })
+    await checkDriverAuthorization({
+      apiBaseUrl: API_BASE_URL,
+      fetch: mock(() => Promise.resolve(new Response('<html>'))),
+      getAccessToken: () => Promise.resolve('access-token'),
+      onAuthorizedPayload: (payload) => payloads.push(payload),
+    })
+
+    expect(payloads).toEqual([])
+  })
+
   test('a checagem manda o token e chama /me/trips/current', async () => {
     let received: Request | undefined
     const fetchSpy = mock((input: RequestInfo | URL): Promise<Response> => {

@@ -204,7 +204,8 @@
   },
   "serviceWorkerUpdate": {
     "apply": "Update",
-    "available": "New version available."
+    "available": "New version available.",
+    "waitingCapture": "Updates when the capture is finished."
   },
   "tripSelector": {
     "label": "Your trips",

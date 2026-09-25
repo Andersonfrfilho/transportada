@@ -213,7 +213,8 @@
   },
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
-    "available": "Nova versão disponível."
+    "available": "Nova versão disponível.",
+    "waitingCapture": "Atualiza ao terminar a captura."
   },
   "tripSelector": {
     "label": "Suas viagens",

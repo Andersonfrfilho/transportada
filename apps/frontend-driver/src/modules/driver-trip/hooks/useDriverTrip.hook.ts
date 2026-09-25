@@ -222,6 +222,12 @@ export function useDriverTrip(
     },
     queryKey: CURRENT_TRIP_QUERY_KEY,
     refetchInterval: CURRENT_TRIP_REFETCH_MS,
+    /**
+     * B7: o dado inicial que veio da checagem de autorização tem `savedAt` de agora — sem prazo de
+     * frescor, a consulta o releria ao montar, no mesmo segundo. O snapshot antigo do boot já nasce
+     * vencido e é relido na hora, como antes.
+     */
+    staleTime: CURRENT_TRIP_REFETCH_MS,
   })
 
   /** O `run` do agendador aponta para a mutação do render corrente. */

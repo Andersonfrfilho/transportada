@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { CaptureRegistry } from './captureRegistry.service'
+import { createIdleGate, type CaptureRegistry, type IdleGate } from './captureRegistry.service'
 
 /**
  * Atualização em ponto seguro (plan D2). Antes da primeira captura desta sessão, aplicar sozinho é
@@ -23,16 +23,21 @@ export function handleServiceWorkerUpdateAvailable(gate: ServiceWorkerUpdateGate
   gate.showUpdateBanner()
 }
 
-/** O toque em "Atualizar": aplica se ocioso, senão espera o `close`. */
+/** Um portão por registro: os toques repetidos esperam juntos o mesmo `close`. */
+const IDLE_GATES = new WeakMap<object, IdleGate>()
+
+/**
+ * O toque em "Atualizar": aplica se ocioso (`'now'`), senão espera o `close` (`'deferred'`) — e a
+ * tela diz "Atualiza ao terminar a captura". Spec 189 T9.2 (B4): cada toque com captura aberta
+ * assinava um `onIdle` novo e o `close` aplicava uma vez por toque; o portão guarda um só.
+ */
 export function requestServiceWorkerUpdate(
   gate: Pick<ServiceWorkerUpdateGate, 'apply' | 'captureRegistry'>,
-): void {
-  if (gate.captureRegistry.isIdle()) {
-    gate.apply()
-    return
+): 'deferred' | 'now' {
+  let idleGate = IDLE_GATES.get(gate.captureRegistry)
+  if (idleGate === undefined) {
+    idleGate = createIdleGate(gate.captureRegistry)
+    IDLE_GATES.set(gate.captureRegistry, idleGate)
   }
-  const unsubscribe = gate.captureRegistry.onIdle(() => {
-    unsubscribe()
-    gate.apply()
-  })
+  return idleGate.request(gate.apply)
 }

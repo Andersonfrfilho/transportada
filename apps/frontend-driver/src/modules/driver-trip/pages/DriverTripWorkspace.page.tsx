@@ -111,24 +111,24 @@ export function DriverTripWorkspacePage() {
   >(new Map())
 
   useEffect(() => {
-    let ativo = true
+    let isActive = true
     void readCurrentLocation().then((location) => {
-      if (ativo) setLastKnownLocation(location)
+      if (isActive) setLastKnownLocation(location)
     })
     return () => {
-      ativo = false
+      isActive = false
     }
   }, [])
 
   useEffect(() => {
-    let ativo = true
+    let isActive = true
     void getDriverTripClient()
       .listOccurrenceTypes()
       .then((result) => {
-        if (ativo) setOccurrenceTypes(result)
+        if (isActive) setOccurrenceTypes(result)
       })
     return () => {
-      ativo = false
+      isActive = false
     }
   }, [])
 

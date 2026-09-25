@@ -30,6 +30,10 @@ const SIGNATURE_PAD = new URL(
   import.meta.url,
 )
 const MAIN = new URL('../../src/main.tsx', import.meta.url)
+const UPDATE_NOTICE = new URL(
+  '../../src/modules/driver-trip/components/DriverServiceWorkerUpdateNotice.component.tsx',
+  import.meta.url,
+)
 const DRIVER_TRIP_HOOK = new URL(
   '../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts',
   import.meta.url,
@@ -296,5 +300,34 @@ describe('as quatro capturas registram no capture registry (leitura de fonte, AD
 
     expect(source).toContain("import { registerSW } from 'virtual:pwa-register'")
     expect(source).toContain('handleServiceWorkerUpdateAvailable(')
+  })
+})
+
+/**
+ * Spec 189 T9.2 (B4): cada toque em "Atualizar" com captura aberta assinava um `onIdle` novo — e o
+ * `close` aplicava a atualização uma vez por toque. E a tela não dizia que o toque tinha sido ouvido.
+ */
+describe('o toque em "Atualizar" com captura aberta (B4)', () => {
+  it('dois toques aplicam uma vez só, e o segundo avisa que está esperando', () => {
+    const registry = createCaptureRegistry()
+    registry.open('camera')
+    let applyCalls = 0
+
+    expect(
+      requestServiceWorkerUpdate({ apply: () => (applyCalls += 1), captureRegistry: registry }),
+    ).toBe('deferred')
+    expect(
+      requestServiceWorkerUpdate({ apply: () => (applyCalls += 1), captureRegistry: registry }),
+    ).toBe('deferred')
+
+    registry.close('camera')
+    expect(applyCalls).toBe(1)
+  })
+
+  it('main.tsx mostra "Atualiza ao terminar a captura" quando o toque espera', () => {
+    const source = readFileSync(MAIN, 'utf8')
+
+    expect(source).toContain("=== 'deferred'")
+    expect(readFileSync(UPDATE_NOTICE, 'utf8')).toContain("t('serviceWorkerUpdate.waitingCapture')")
   })
 })

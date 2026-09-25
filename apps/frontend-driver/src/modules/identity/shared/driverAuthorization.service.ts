@@ -11,6 +11,11 @@ export type DriverAuthorizationDependencies = {
   readonly apiBaseUrl: string
   readonly fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   readonly getAccessToken: () => Promise<string>
+  /**
+   * Spec 189 T9.2 (B7): o corpo da resposta autorizada — é o mesmo `GET /me/trips/current` que a
+   * tela leria logo depois, e vira o dado inicial dela. Corpo ilegível não chega aqui.
+   */
+  readonly onAuthorizedPayload?: (payload: unknown) => void
   readonly timeoutMs?: number
 }
 
@@ -34,7 +39,12 @@ export async function checkDriverAuthorization(
       }),
     )
 
-    return response.status === 403 ? 'forbidden' : 'authorized'
+    if (response.status === 403) return 'forbidden'
+    if (response.ok && dependencies.onAuthorizedPayload !== undefined) {
+      const payload: unknown = await response.json().catch(() => undefined)
+      if (payload !== undefined) dependencies.onAuthorizedPayload(payload)
+    }
+    return 'authorized'
   } catch {
     return 'authorized'
   }

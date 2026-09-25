@@ -29,11 +29,15 @@ import {
   handleServiceWorkerUpdateAvailable,
   requestServiceWorkerUpdate,
 } from '@/modules/driver-trip/shared/serviceWorkerUpdate.service'
+import type { DriverTripSnapshot } from '@/modules/driver-trip/shared/driverTrip.types'
+import { toDriverTripSnapshot } from '@/modules/driver-trip/shared/driverTripResponse.validation'
 import {
   claimTripSnapshot,
   hashSubject,
   readLastTripSnapshot,
+  saveTripSnapshot,
   type OwnedTripSnapshot,
+  type StoredTripSnapshot,
 } from '@/modules/driver-trip/shared/tripSnapshot.service'
 import { DriverForbiddenPage } from '@/modules/identity/DriverForbidden.page'
 import { checkDriverAuthorization } from '@/modules/identity/shared/driverAuthorization.service'
@@ -70,6 +74,8 @@ applyEnvironmentBadge({ document, environment: deploymentEnvironment })
  */
 const serviceWorkerUpdateListeners = new Set<() => void>()
 let needsServiceWorkerUpdate = false
+/** B4: o toque foi ouvido com captura aberta — o aviso troca o botão por "Atualiza ao terminar". */
+let isServiceWorkerUpdateWaiting = false
 let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | undefined
 
 function notifyServiceWorkerUpdateListeners(): void {
@@ -93,22 +99,35 @@ if (!isSmokeAuthBypassEnabled()) {
 }
 
 function applyServiceWorkerUpdateNow(): void {
-  needsServiceWorkerUpdate = false
-  notifyServiceWorkerUpdateListeners()
-  requestServiceWorkerUpdate({
-    apply: () => void applyServiceWorkerUpdate?.(true),
+  const outcome = requestServiceWorkerUpdate({
+    apply: () => {
+      needsServiceWorkerUpdate = false
+      isServiceWorkerUpdateWaiting = false
+      notifyServiceWorkerUpdateListeners()
+      void applyServiceWorkerUpdate?.(true)
+    },
     captureRegistry,
   })
+  if (outcome === 'deferred') {
+    isServiceWorkerUpdateWaiting = true
+    notifyServiceWorkerUpdateListeners()
+  }
+}
+
+type ServiceWorkerUpdateBanner = Readonly<{ isWaitingCapture: boolean; needsUpdate: boolean }>
+
+function readServiceWorkerUpdateBanner(): ServiceWorkerUpdateBanner {
+  return { isWaitingCapture: isServiceWorkerUpdateWaiting, needsUpdate: needsServiceWorkerUpdate }
 }
 
 /** O componente relê o módulo a cada notificação — o mesmo padrão de assinatura do captureRegistry. */
-function useServiceWorkerUpdateBanner(): boolean {
-  const [needsUpdate, setNeedsUpdate] = useState(needsServiceWorkerUpdate)
+function useServiceWorkerUpdateBanner(): ServiceWorkerUpdateBanner {
+  const [banner, setBanner] = useState(readServiceWorkerUpdateBanner)
 
   useEffect(() => {
-    setNeedsUpdate(needsServiceWorkerUpdate)
+    setBanner(readServiceWorkerUpdateBanner())
     function handleChange(): void {
-      setNeedsUpdate(needsServiceWorkerUpdate)
+      setBanner(readServiceWorkerUpdateBanner())
     }
     serviceWorkerUpdateListeners.add(handleChange)
     return () => {
@@ -116,20 +135,23 @@ function useServiceWorkerUpdateBanner(): boolean {
     }
   }, [])
 
-  return needsUpdate
+  return banner
 }
 
 type PageFrameProps = Readonly<{ children: ReactNode }>
 
 /** A faixa de ambiente vai no topo de toda página — com sessão ou não. */
 function PageFrame({ children }: PageFrameProps): ReactNode {
-  const needsServiceWorkerUpdateNow = useServiceWorkerUpdateBanner()
+  const serviceWorkerUpdate = useServiceWorkerUpdateBanner()
 
   return (
     <>
       <EnvironmentBanner environment={deploymentEnvironment} />
-      {needsServiceWorkerUpdateNow ? (
-        <DriverServiceWorkerUpdateNotice onApply={applyServiceWorkerUpdateNow} />
+      {serviceWorkerUpdate.needsUpdate ? (
+        <DriverServiceWorkerUpdateNotice
+          isWaitingCapture={serviceWorkerUpdate.isWaitingCapture}
+          onApply={applyServiceWorkerUpdateNow}
+        />
       ) : null}
       {children}
     </>
@@ -210,10 +232,14 @@ async function startAuthenticated(root: Root): Promise<void> {
     subHash,
   }).catch(() => undefined)
 
+  let authorizedPayload: unknown
   const authorization = await checkDriverAuthorization({
     apiBaseUrl: getDriverEnvironment().apiBaseUrl,
     fetch: (input, init) => fetch(input, init),
     getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
+    onAuthorizedPayload: (payload) => {
+      authorizedPayload = payload
+    },
   })
 
   if (authorization === 'forbidden') {
@@ -223,10 +249,38 @@ async function startAuthenticated(root: Root): Promise<void> {
 
   /** O cache da consulta pode ser do snapshot de outra sessão, montado antes deste login. */
   queryClient.clear()
+  const freshSnapshot = await adoptAuthorizedSnapshot({ payload: authorizedPayload, subHash })
   renderScreen(
     root,
-    <DriverShell key={subHash} session={{ canSync: true, initialSnapshot, subHash }} />,
+    <DriverShell
+      key={subHash}
+      session={{ canSync: true, initialSnapshot: freshSnapshot ?? initialSnapshot, subHash }}
+    />,
   )
+}
+
+/**
+ * B7 (spec 189 T9.2): a checagem de autorização já leu `GET /me/trips/current`. A resposta vira o
+ * dado inicial da tela, fresco (`savedAt` agora), e é guardada como snapshot — a consulta não pede
+ * a mesma coisa de novo no mesmo segundo. Corpo que não tem a forma da viagem é ignorado: a tela
+ * cai no snapshot guardado e a consulta lê do jeito de sempre.
+ */
+async function adoptAuthorizedSnapshot(input: {
+  readonly payload: unknown
+  readonly subHash: string
+}): Promise<StoredTripSnapshot | undefined> {
+  if (input.payload === undefined) return undefined
+  let snapshot: DriverTripSnapshot
+  try {
+    snapshot = toDriverTripSnapshot(input.payload)
+  } catch {
+    return undefined
+  }
+  const now = new Date()
+  await saveTripSnapshot({ now, snapshot, store: tripSnapshotStore, subHash: input.subHash }).catch(
+    () => undefined,
+  )
+  return { savedAt: now.toISOString(), snapshot }
 }
 
 /**

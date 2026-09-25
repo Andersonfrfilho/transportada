@@ -7,6 +7,8 @@ import { Icon } from '@/components/ui/icon'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverServiceWorkerUpdateNoticeProps = Readonly<{
+  /** O toque foi ouvido, mas há captura aberta: a versão nova entra quando ela fechar. */
+  isWaitingCapture: boolean
   onApply: () => void
 }>
 
@@ -15,16 +17,23 @@ type DriverServiceWorkerUpdateNoticeProps = Readonly<{
  * pede o toque, e `onApply` só aplica de verdade se o registro de capturas estiver ocioso (senão
  * espera o `close`, em `serviceWorkerUpdate.service.ts`).
  */
-export function DriverServiceWorkerUpdateNotice({ onApply }: DriverServiceWorkerUpdateNoticeProps) {
+export function DriverServiceWorkerUpdateNotice({
+  isWaitingCapture,
+  onApply,
+}: DriverServiceWorkerUpdateNoticeProps) {
   const { t } = useTranslation('driverTrip')
 
   return (
     <div className={styles.queueBanner} role="status">
       <p>{t('serviceWorkerUpdate.available')}</p>
-      <Button onClick={onApply} type="button">
-        <Icon name="refresh" />
-        {t('serviceWorkerUpdate.apply')}
-      </Button>
+      {isWaitingCapture ? (
+        <p>{t('serviceWorkerUpdate.waitingCapture')}</p>
+      ) : (
+        <Button onClick={onApply} type="button">
+          <Icon name="refresh" />
+          {t('serviceWorkerUpdate.apply')}
+        </Button>
+      )}
     </div>
   )
 }
