@@ -87,9 +87,20 @@ function toOutcome(error: unknown): AttachmentSendOutcome {
 }
 
 export function useDriverTrip(
-  store: OfflineQueueStore = createIndexedDbQueueStore(),
-  attachmentStore: AttachmentStore = createIndexedDbAttachmentStore(),
+  providedStore?: OfflineQueueStore,
+  providedAttachmentStore?: AttachmentStore,
 ) {
+  /**
+   * ⚠️ As lojas padrão nascem uma vez por montagem. Como parâmetro padrão, elas eram recriadas a
+   * cada render; o efeito de montagem depende delas, então re-rodava a cada render e disparava uma
+   * drenagem nova — drenagem emendada sem fim, com `isSyncing` preso em verdadeiro.
+   */
+  const [defaultStores] = useState(() => ({
+    attachmentStore: createIndexedDbAttachmentStore(),
+    store: createIndexedDbQueueStore(),
+  }))
+  const store = providedStore ?? defaultStores.store
+  const attachmentStore = providedAttachmentStore ?? defaultStores.attachmentStore
   const queryClient = useQueryClient()
   const [queueView, setQueueView] = useState<readonly EventQueueItemView[] | undefined>(undefined)
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
