@@ -11,9 +11,15 @@ export type DriverAuthorizationDependencies = {
   readonly apiBaseUrl: string
   readonly fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   readonly getAccessToken: () => Promise<string>
+  readonly timeoutMs?: number
 }
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
+/**
+ * Sinal fraco não derruba a conexão, pendura — e o boot com ela, depois do esqueleto. O mesmo
+ * prazo da sonda do Keycloak: sem resposta nele, a app segue como autorizada.
+ */
+export const DRIVER_AUTHORIZATION_TIMEOUT_MS = 5_000
 
 export async function checkDriverAuthorization(
   dependencies: DriverAuthorizationDependencies,
@@ -24,6 +30,7 @@ export async function checkDriverAuthorization(
       new Request(`${dependencies.apiBaseUrl}${CURRENT_TRIP_PATH}`, {
         cache: 'no-store',
         headers: { authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(dependencies.timeoutMs ?? DRIVER_AUTHORIZATION_TIMEOUT_MS),
       }),
     )
 

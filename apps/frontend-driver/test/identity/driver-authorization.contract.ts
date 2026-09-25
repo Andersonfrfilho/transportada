@@ -47,6 +47,29 @@ describe('checkDriverAuthorization', () => {
    * RF6 (boot sem rede) ainda não existe nesta app — sem resposta, a checagem não pode ser quem
    * derruba a tela. A Fase 3 troca este caminho pelo snapshot local.
    */
+  /**
+   * Spec 189 T9.2 (A3): sinal fraco não derruba a conexão — o `fetch` fica pendurado e o boot com
+   * ele. A checagem tem prazo, e sem resposta no prazo a app segue autorizada.
+   */
+  test('a checagem que não responde no prazo é abortada e segue autorizada', async () => {
+    const hangingFetch = (input: RequestInfo | URL): Promise<Response> =>
+      new Promise((_resolve, reject) => {
+        const signal = (input as Request).signal
+        signal.addEventListener('abort', () => reject(new Error('aborted')))
+      })
+    const startedAt = Date.now()
+
+    const result = await checkDriverAuthorization({
+      apiBaseUrl: API_BASE_URL,
+      fetch: hangingFetch,
+      getAccessToken: () => Promise.resolve('access-token'),
+      timeoutMs: 20,
+    })
+
+    expect(result).toBe('authorized')
+    expect(Date.now() - startedAt).toBeLessThan(1_000)
+  })
+
   test('sem rede, a app segue autorizada em vez de travar', async () => {
     const result = await checkDriverAuthorization({
       apiBaseUrl: API_BASE_URL,

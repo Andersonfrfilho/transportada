@@ -93,6 +93,11 @@ export function scheduleAuthenticationOnReconnect(input: {
     })
   }
 
+  /**
+   * ⚠️ Só o sucesso desliga. O `stop()` vinha antes do `authenticate`, e um `init` que rejeitava
+   * (Keycloak caiu entre a sonda e o `init`) apagava a reconexão para sempre: a app ficava no
+   * snapshot sem sessão até alguém recarregar. Rejeitou, o próximo `online` ou tique tenta de novo.
+   */
   async function attempt(): Promise<void> {
     const isReachable = await input.probe()
     if (isSettled || !isReachable) return
@@ -100,8 +105,12 @@ export function scheduleAuthenticationOnReconnect(input: {
       waitForIdle()
       return
     }
-    stop()
-    await input.authenticate()
+    try {
+      await input.authenticate()
+      stop()
+    } catch {
+      /** Continua agendado: o temporizador e o `online` seguem ligados. */
+    }
   }
 
   function handleReconnect(): void {
@@ -116,4 +125,46 @@ export function scheduleAuthenticationOnReconnect(input: {
   const intervalId = input.target.setInterval(handleReconnect, REAUTHENTICATION_RETRY_MS)
 
   return stop
+}
+
+/**
+ * O boot inteiro (spec 189 T9.2 A3), na ordem que a ADR-0075 §8 exige: o esqueleto **antes** de
+ * qualquer espera (a sonda leva até 5 s, e página em branco parece app travada), a sonda e o
+ * snapshot, a decisão, e só então o `init`. Um `init` que rejeita — Keycloak respondeu à sonda e caiu
+ * logo depois — cai no mesmo caminho do boot sem rede: o snapshot válido, ou a tela vazia, e a
+ * autenticação reagendada por quem abre esse caminho. Nunca a página em branco.
+ */
+export async function runDriverBoot(input: {
+  readonly authenticate: () => Promise<void>
+  readonly now: () => Date
+  readonly probe: () => Promise<boolean>
+  readonly readLastSnapshot: () => Promise<OwnedTripSnapshot | undefined>
+  readonly renderLoading: () => void
+  readonly startOffline: (snapshot: OwnedTripSnapshot | undefined) => void
+}): Promise<void> {
+  input.renderLoading()
+
+  const [isReachable, lastSnapshot] = await Promise.all([
+    input.probe(),
+    /** IndexedDB indisponível (aba privada, cota) é o mesmo que não ter snapshot. */
+    input.readLastSnapshot().catch(() => undefined),
+  ])
+
+  function offlineSnapshot(): OwnedTripSnapshot | undefined {
+    const mode = resolveBootMode({ isReachable: false, now: input.now(), snapshot: lastSnapshot })
+    return mode === 'offline-snapshot' ? lastSnapshot : undefined
+  }
+
+  if (
+    resolveBootMode({ isReachable, now: input.now(), snapshot: lastSnapshot }) !== 'authenticate'
+  ) {
+    input.startOffline(offlineSnapshot())
+    return
+  }
+
+  try {
+    await input.authenticate()
+  } catch {
+    input.startOffline(offlineSnapshot())
+  }
 }

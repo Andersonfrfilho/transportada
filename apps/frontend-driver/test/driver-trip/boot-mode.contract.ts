@@ -7,6 +7,7 @@ import {
   IDENTITY_PROBE_TIMEOUT_MS,
   probeIdentityProvider,
   resolveBootMode,
+  runDriverBoot,
   scheduleAuthenticationOnReconnect,
   type ProbeFetch,
   type ReconnectTarget,
@@ -304,6 +305,39 @@ describe('autenticação adiada à volta da rede (plan D4)', () => {
     expect(authenticateCalls).toBe(1)
   })
 
+  /**
+   * Spec 189 T9.2 (A3): o `stop()` vinha antes do `authenticate`. Um `init` que rejeitava (Keycloak
+   * caiu no meio) desligava a reconexão para sempre, e a app ficava sem sessão até recarregar.
+   */
+  it('authenticate rejeitando é tentado de novo no próximo gatilho, e só o sucesso desliga', async () => {
+    const target = createFakeTarget()
+    let authenticateCalls = 0
+
+    scheduleAuthenticationOnReconnect({
+      authenticate: () => {
+        authenticateCalls += 1
+        return authenticateCalls === 1
+          ? Promise.reject(new Error('init failed'))
+          : Promise.resolve()
+      },
+      captureRegistry: createCaptureRegistry(),
+      probe: () => Promise.resolve(true),
+      target,
+    })
+
+    target.fireOnline()
+    await flush()
+    expect(authenticateCalls).toBe(1)
+    expect(target.listenerCount()).toBe(1)
+    expect(target.intervalCount()).toBe(1)
+
+    target.fireInterval()
+    await flush()
+    expect(authenticateCalls).toBe(2)
+    expect(target.listenerCount()).toBe(0)
+    expect(target.intervalCount()).toBe(0)
+  })
+
   it('cancelar desliga o ouvinte e o temporizador', () => {
     const target = createFakeTarget()
 
@@ -320,6 +354,87 @@ describe('autenticação adiada à volta da rede (plan D4)', () => {
   })
 })
 
+describe('o boot nunca fica em branco (spec 189 T9.2 A3)', () => {
+  function bootInput(overrides: Partial<Parameters<typeof runDriverBoot>[0]> = {}) {
+    const events: string[] = []
+    const offlineSnapshots: Array<OwnedTripSnapshot | undefined> = []
+    return {
+      events,
+      input: {
+        authenticate: () => {
+          events.push('authenticate')
+          return Promise.resolve()
+        },
+        now: () => NOW,
+        probe: () => {
+          events.push('probe')
+          return Promise.resolve(true)
+        },
+        readLastSnapshot: () => Promise.resolve(undefined),
+        renderLoading: () => events.push('loading'),
+        startOffline: (snapshot: OwnedTripSnapshot | undefined) => {
+          events.push('offline')
+          offlineSnapshots.push(snapshot)
+        },
+        ...overrides,
+      },
+      offlineSnapshots,
+    }
+  }
+
+  it('o esqueleto aparece antes de qualquer espera do boot', async () => {
+    let resolveProbe: (value: boolean) => void = () => undefined
+    const { events, input } = bootInput()
+    const boot = runDriverBoot({
+      ...input,
+      probe: () => {
+        events.push('probe')
+        return new Promise<boolean>((resolve) => {
+          resolveProbe = resolve
+        })
+      },
+    })
+
+    expect(events).toEqual(['loading', 'probe'])
+    resolveProbe(true)
+    await boot
+    expect(events).toEqual(['loading', 'probe', 'authenticate'])
+  })
+
+  it('init rejeitando cai no snapshot guardado, que reagenda a autenticação', async () => {
+    const snapshot = ownedSnapshot({ hoursAgo: 1 })
+    const { input, offlineSnapshots } = bootInput({
+      authenticate: () => Promise.reject(new Error('init failed')),
+      readLastSnapshot: () => Promise.resolve(snapshot),
+    })
+
+    await runDriverBoot(input)
+
+    expect(offlineSnapshots).toEqual([snapshot])
+  })
+
+  it('init rejeitando sem snapshot abre a tela vazia, nunca a página em branco', async () => {
+    const { input, offlineSnapshots } = bootInput({
+      authenticate: () => Promise.reject(new Error('init failed')),
+    })
+
+    await runDriverBoot(input)
+
+    expect(offlineSnapshots).toEqual([undefined])
+  })
+
+  it('sem Keycloak, o snapshot vencido não abre', async () => {
+    const { input, offlineSnapshots } = bootInput({
+      probe: () => Promise.resolve(false),
+      readLastSnapshot: () => Promise.resolve(ownedSnapshot({ hoursAgo: 25 })),
+    })
+
+    await runDriverBoot(input)
+
+    expect(offlineSnapshots).toEqual([undefined])
+  })
+})
+
 describe('o boot decide antes do keycloak.init (ADR-0075 §8)', () => {
   const main = readFileSync(MAIN, 'utf8')
 
@@ -329,14 +444,12 @@ describe('o boot decide antes do keycloak.init (ADR-0075 §8)', () => {
    */
   it('no boot, a sonda e a decisão vêm antes de qualquer caminho até o init', () => {
     const boot = main.slice(main.indexOf('async function start('))
-    const probeIndex = boot.indexOf('probeKeycloak()')
-    const decisionIndex = boot.indexOf('resolveBootMode(')
-    const authenticateIndex = boot.indexOf('startAuthenticated(root)')
 
+    /** A ordem sonda → decisão → init mora em `runDriverBoot`, provada acima; aqui, a ligação. */
     expect(main).toInclude('probeIdentityProvider(')
-    expect(probeIndex).toBeGreaterThan(-1)
-    expect(decisionIndex).toBeGreaterThan(probeIndex)
-    expect(authenticateIndex).toBeGreaterThan(decisionIndex)
+    expect(boot).toInclude('runDriverBoot(')
+    expect(boot).toInclude('probe: probeKeycloak')
+    expect(boot).toInclude('authenticate: () => startAuthenticated(root)')
     /** O `init` só existe dentro do caminho autenticado — nunca solto no boot. */
     expect(boot).not.toInclude('initializeKeycloakAuth()')
     expect(main.match(/initializeKeycloakAuth\(\)/g)?.length).toBe(1)

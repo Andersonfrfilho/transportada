@@ -15,11 +15,12 @@ import {
   type DriverSession,
 } from '@/modules/driver-trip/hooks/useDriverSession.hook'
 import { useSessionExpiry } from '@/modules/driver-trip/hooks/useSessionExpiry.hook'
+import { DriverBootLoadingPage } from '@/modules/driver-trip/pages/DriverBootLoading.page'
 import { DriverOfflineEmptyPage } from '@/modules/driver-trip/pages/DriverOfflineEmpty.page'
 import { DriverTripWorkspacePage } from '@/modules/driver-trip/pages/DriverTripWorkspace.page'
 import {
   probeIdentityProvider,
-  resolveBootMode,
+  runDriverBoot,
   scheduleAuthenticationOnReconnect,
 } from '@/modules/driver-trip/shared/bootMode.service'
 import { captureRegistry } from '@/modules/driver-trip/shared/captureRegistry.service'
@@ -229,9 +230,10 @@ async function startAuthenticated(root: Root): Promise<void> {
 }
 
 /**
- * Sem Keycloak: o snapshot de quem usou por último, só leitura e com toques enfileiráveis — ou a
- * tela "sem viagem salva". A autenticação fica para quando a rede voltar, e só com o registro de
- * capturas vazio, porque o `keycloak.init` navega a página.
+ * Sem Keycloak — ou com o `init` rejeitando: o snapshot de quem usou por último, só leitura e com
+ * toques enfileiráveis — ou a tela "sem viagem salva". A autenticação fica para quando a rede voltar,
+ * e só com o registro de capturas vazio, porque o `keycloak.init` navega a página; um `init` que
+ * rejeita de novo continua agendado (`scheduleAuthenticationOnReconnect`).
  */
 function startOffline(root: Root, snapshot: OwnedTripSnapshot | undefined): void {
   if (snapshot === undefined) {
@@ -258,25 +260,22 @@ function startOffline(root: Root, snapshot: OwnedTripSnapshot | undefined): void
  * ADR-0075 §8: a decisão vem **antes** do `keycloak.init`. O `check-sso` sem
  * `silentCheckSsoRedirectUri` navega a página inteira quando o Keycloak não responde, e nenhuma
  * exceção chega aqui — por isso a sonda, e não o `onLine` do navegador, que diz `true` com sinal fraco.
+ * A ordem (esqueleto, sonda, decisão, `init`) e a queda para o snapshot quando o `init` rejeita
+ * moram em `runDriverBoot`.
  */
 async function start(): Promise<void> {
   const container = document.getElementById('root')
   if (container === null) throw new Error('DRIVER_ROOT_ELEMENT_MISSING')
   const root = createRoot(container)
 
-  const [isReachable, lastSnapshot] = await Promise.all([
-    probeKeycloak(),
-    /** IndexedDB indisponível (aba privada, cota) é o mesmo que não ter snapshot. */
-    readLastTripSnapshot({ now: new Date(), store: tripSnapshotStore }).catch(() => undefined),
-  ])
-  const bootMode = resolveBootMode({ isReachable, now: new Date(), snapshot: lastSnapshot })
-
-  if (bootMode === 'authenticate') {
-    await startAuthenticated(root)
-    return
-  }
-
-  startOffline(root, bootMode === 'offline-snapshot' ? lastSnapshot : undefined)
+  await runDriverBoot({
+    authenticate: () => startAuthenticated(root),
+    now: () => new Date(),
+    probe: probeKeycloak,
+    readLastSnapshot: () => readLastTripSnapshot({ now: new Date(), store: tripSnapshotStore }),
+    renderLoading: () => renderScreen(root, <DriverBootLoadingPage />),
+    startOffline: (snapshot) => startOffline(root, snapshot),
+  })
 }
 
 void start()
