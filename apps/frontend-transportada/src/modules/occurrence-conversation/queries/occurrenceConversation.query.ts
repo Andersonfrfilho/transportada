@@ -107,8 +107,36 @@ export function useSendContractorMailMutation(occurrenceId: string) {
   const queryClient = useQueryClient()
   const client = getOccurrenceConversationClient()
   return useMutation({
-    mutationFn: (input: Readonly<{ idempotencyKey: string; request: ContractorMailRequest }>) =>
-      client.sendContractorMail({ ...input, occurrenceId }),
+    /**
+     * Spec 183 T702e: os arquivos sobem pelo canal e-mail antes do envio; `uploaded` é o do
+     * rascunho, para o reenvio depois de uma falha reusar os mesmos ids com a mesma chave.
+     */
+    mutationFn: async (
+      input: Readonly<{
+        files: readonly File[]
+        idempotencyKey: string
+        request: ContractorMailRequest
+        uploaded: Map<File, string>
+      }>,
+    ) => {
+      const attachmentIds = await uploadConversationAttachments({
+        files: input.files,
+        putFile: (upload) => client.putConversationUpload(upload),
+        requestUpload: (declared) =>
+          client.requestConversationUpload({
+            ...declared,
+            channel: 'email',
+            occurrenceId,
+            participant: 'contractor',
+          }),
+        uploaded: input.uploaded,
+      })
+      await client.sendContractorMail({
+        idempotencyKey: input.idempotencyKey,
+        occurrenceId,
+        request: { ...input.request, attachmentIds },
+      })
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY] })
       void queryClient.invalidateQueries({ queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY] })

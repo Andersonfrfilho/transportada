@@ -1866,3 +1866,79 @@ migration na API). Um commit por parte.
   - API: contratos **7560 pass, 0 fail**; integração completa sozinha **610 pass, 7 skip, 0 fail**;
   - painel **5255 + 44 pass**;
   - lint, typecheck e formatação da raiz limpos.
+
+## T702e — O e-mail à contratante sai com anexo (verde); a mídia da Meta fica aberta até a T002
+
+- **Decisão do usuário (25/09/2026, pergunta da T702e):**
+  - "Anexar no e-mail": o arquivo vai de verdade no e-mail, com exceção autorizada ao envio do
+    worker da 143.
+  - A mídia do WhatsApp "fica aberta até a T002": é a metade da task que não fecha aqui e segue
+    junto com T503/T506/T602/T605-send.
+- **API:**
+  - O pedido de upload aceita `participant=contractor, channel=email`. O motorista continua só com
+    `app`.
+  - O envio por e-mail aceita `attachmentIds`. Os arquivos ligam à mensagem **da conversa** pela
+    mesma `attachConversationUploads` do app e do portal: bytes conferidos, pedido do mesmo alvo
+    (canal, participante, quem pediu).
+  - Tudo na mesma transação da mensagem da 143 e do outbox: bytes que não conferem desfazem o
+    e-mail inteiro. Os ids entram na impressão digital da idempotência.
+  - Teto novo `CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES = 25 MB` somando os arquivos. O
+    Resend aceita 40 MB por mensagem **depois** do base64. A política é cópia byte a byte no worker
+    e tem paridade no painel.
+- **Worker (exceção da 143 autorizada):**
+  - O gateway Resend ganhou `attachments` (`content` base64, `filename`, `content_type`). Sem
+    anexo, a chave nem vai no corpo.
+  - `sendContractorMailOutboundMessage` recebe a porta `attachments`:
+    - acha os anexos pela `mail_message_id` da mensagem da conversa, filtrando pela empresa do
+      envelope e ignorando objeto apagado;
+    - lê cada objeto do bucket e confere tamanho e `sha256`;
+    - objeto sumido ou trocado é falha **permanente** (`attachment_unavailable`, a mensagem vira
+      `failed` e o Resend não é chamado);
+    - erro de leitura do bucket é transitório: propaga e a mensagem volta à fila.
+  - Nada do anexo vai a log.
+- **Painel:**
+  - O diálogo "Enviar à contratante" ganhou o seletor de anexos do canal e-mail (10 MB por arquivo
+    e o total de 25 MB, com o motivo `total`).
+  - Os arquivos sobem antes do envio, e o reenvio reusa os ids do rascunho.
+  - Os erros de anexo têm frase própria.
+- **Testes, escritos antes e vistos falhando:**
+  - API: `occurrence-mail.contract.ts` (3 novos: alvo e-mail/contratante, impressão com os anexos,
+    total), o pedido de upload por superfície e a rota do e-mail com anexo (**5 fail** antes).
+  - Worker: `outbound-message.contract.ts` (anexos em base64 na ordem, sem anexo sem a chave,
+    objeto sumido/trocado → `failed`, leitura que falha propaga) e `resend-mail-gateway.contract.ts`
+    (**4 fail** antes).
+  - Painel: paridade do teto e do total, recusa pelo total, cliente só manda `attachmentIds`
+    quando há (falhou no import antes).
+- **Integração:**
+  - API `occurrence-conversation-attachment.integration.ts`, caso T702e (Postgres + S3): o PDF
+    subido pelo canal e-mail liga à mensagem da conversa com a `mail_message_id` do e-mail
+    gravado.
+  - Worker `occurrence-conversation-mail-outbound-attachments.integration.ts` (**3 pass**,
+    registrado no `package.json`), contra Postgres e S3:
+    - o corpo que chega ao Resend (falso) leva o PDF em base64 com o nome;
+    - outra empresa não lista os anexos;
+    - objeto fora do bucket deixa a mensagem `failed` sem chamar o Resend.
+- **No navegador, contra a API real (1440 e 390):** o diálogo recusa o SVG, aceita o PDF e mostra
+  o chip (`prints/email-anexo-dialogo-{1440,390}.png`). Enviar:
+  - `POST …/contractor/uploads` **201**;
+  - PUT no S3 **200**;
+  - `POST …/contractor/messages` **202**.
+
+  A mensagem aparece na conversa com o PDF e "NA FILA", e a linha do tempo ganha "Enviou e-mail à
+  contratante" (`prints/email-anexo-enviado.png`). O envio pelo Resend não roda na bancada (sem
+  chave de verdade); a montagem do corpo está provada na integração do worker.
+
+- **Achados no caminho:**
+  - A semente da bancada gravava `secret_envelope = {}`, e todo envio de e-mail dela respondia
+    **500** `CONTRACTOR_MAIL_CREDENTIAL_UNAVAILABLE`. Resolvido na bancada selando um envelope com
+    o chaveiro local e uma chave fictícia.
+  - **Para a Fase 9:** esse 500 não deixou linha nenhuma no log da API; só o corpo da resposta
+    dizia o código. Um erro de credencial que abre em 500 sem log é invisível em produção.
+- **Revisão de design (web.md §15):** o seletor e o chip são os mesmos componentes do compositor
+  do portal e do motorista, com os mesmos tokens. A 390 o texto de apoio corta com reticências e os
+  três botões cabem na linha.
+- **Rodado:**
+  - API: contratos **7563 pass, 0 fail**; integração completa sozinha **611 pass, 7 skip, 0 fail**;
+  - worker: contratos **1451 pass**; integração completa sozinha **141 pass, 4 skip, 0 fail**;
+  - cron **101 pass**; painel **5257 + 44 pass**; portal **80 pass**;
+  - lint, typecheck e formatação da raiz limpos.

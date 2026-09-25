@@ -42,8 +42,8 @@ export function ConversationAttachmentPicker({
   }
 
   function describe(rejection: ConversationAttachmentRejection): string {
-    if (rejection.reason === 'size') {
-      return t('attachment.rejected.size', {
+    if (rejection.reason === 'size' || rejection.reason === 'total') {
+      return t(`attachment.rejected.${rejection.reason}`, {
         max: formatFileSize(rejection.maxBytes),
         name: rejection.fileName,
       })

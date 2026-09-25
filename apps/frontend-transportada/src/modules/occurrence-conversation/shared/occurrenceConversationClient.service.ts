@@ -451,8 +451,9 @@ export function createOccurrenceConversationClient(
       })
     },
     async sendContractorMail({ idempotencyKey, occurrenceId, request }) {
+      const { attachmentIds = [], ...rest } = request
       await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
-        body: request,
+        body: attachmentIds.length === 0 ? rest : { ...rest, attachmentIds },
         headers: { 'idempotency-key': idempotencyKey },
         method: 'POST',
       })

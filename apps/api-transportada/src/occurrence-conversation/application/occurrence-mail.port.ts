@@ -5,6 +5,7 @@
  * 143 — thread por objeto, token derivado, `contractor_mail_messages` e outbox na mesma transação —;
  * esta porta só acrescenta a conversa e a mensagem de conversa que aponta para a mensagem da 143.
  */
+import type { ConversationAttachmentTransactionPort } from './conversation-attachment.port.js'
 import type {
   ContractorContactOccurrenceStage,
   ContractorContactType,
@@ -74,6 +75,8 @@ export type RecordOccurrenceMailInput = {
 }
 
 export type OccurrenceMailTransactionPort = {
+  /** Spec 183 T702e: o anexo do e-mail liga à mensagem da conversa, pela mesma porta do app. */
+  readonly attachments: ConversationAttachmentTransactionPort
   findOccurrenceTarget(params: {
     readonly companyId: string
     readonly occurrenceId: string

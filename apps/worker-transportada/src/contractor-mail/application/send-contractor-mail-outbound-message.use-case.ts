@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { createHash } from 'node:crypto'
+
 import { buildReplyAddress, deriveReplyToken } from '../domain/reply-token.policy.js'
 import {
   ResendInvalidRecipientsError,
@@ -8,10 +10,33 @@ import {
 } from '../domain/resend-provider.error.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
 import type { ContractorMailOutboundWorkerRepository } from '../infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
-import type { ResendMailGateway } from '../infrastructure/resend-mail.gateway.js'
+import type {
+  ResendEmailAttachment,
+  ResendMailGateway,
+} from '../infrastructure/resend-mail.gateway.js'
 import type { ContractorMailOutboundEnvelopeV1 } from '../../messaging/contractor-mail-outbound-envelope.schema.js'
 
+/** Spec 183 T702e: um anexo da mensagem da conversa que aponta para este e-mail. */
+export type ContractorMailOutboundAttachmentRecord = {
+  readonly bucket: string
+  readonly contentType: string
+  readonly fileName: string
+  readonly key: string
+  readonly sha256: string
+  readonly sizeBytes: number
+}
+
+export type ContractorMailOutboundAttachmentsPort = {
+  list(input: {
+    readonly companyId: string
+    readonly messageId: string
+  }): Promise<readonly ContractorMailOutboundAttachmentRecord[]>
+  /** `undefined` quando o objeto não existe; erro de rede ou do bucket **lança** (transitório). */
+  read(input: { readonly bucket: string; readonly key: string }): Promise<Uint8Array | undefined>
+}
+
 export type SendContractorMailOutboundMessageDependencies = {
+  readonly attachments: ContractorMailOutboundAttachmentsPort
   readonly mailGateway: ResendMailGateway
   readonly repository: ContractorMailOutboundWorkerRepository
   readonly secretService: ContractorMailCredentialSecretService
@@ -76,9 +101,21 @@ export async function sendContractorMailOutboundMessage(
       ? {}
       : { 'In-Reply-To': referenceHeaders.rfcMessageId, References: referenceHeaders.rfcMessageId }
 
+  /**
+   * Spec 183 T702e: os bytes saem do bucket e conferem com o `sha256` gravado quando a API os
+   * aceitou. Objeto sumido ou trocado não melhora com nova tentativa: falha permanente, sem enviar
+   * o e-mail pela metade. Nada do anexo (nome, tipo, tamanho) vai a log.
+   */
+  const attachments = await loadAttachments({ companyId, messageId }, dependencies.attachments)
+  if (attachments === 'unavailable') {
+    await dependencies.repository.markMessageFailed({ companyId, messageId })
+    return { outcome: 'failed', reason: 'attachment_unavailable', threadId: message.threadId }
+  }
+
   try {
     const sent = await dependencies.mailGateway.sendEmail({
       apiKey: secret.apiKey,
+      ...(attachments.length === 0 ? {} : { attachments }),
       from: `${settings.senderName} <${settings.senderAddress}>`,
       headers,
       ...(message.bodyHtml === null ? {} : { html: message.bodyHtml }),
@@ -110,4 +147,28 @@ export async function sendContractorMailOutboundMessage(
 
 function deduplicateRecipients(addresses: readonly string[]): string[] {
   return [...new Set(addresses.map((address) => address.toLowerCase()))]
+}
+
+async function loadAttachments(
+  query: { readonly companyId: string; readonly messageId: string },
+  port: ContractorMailOutboundAttachmentsPort,
+): Promise<readonly ResendEmailAttachment[] | 'unavailable'> {
+  const records = await port.list(query)
+  const loaded: ResendEmailAttachment[] = []
+  for (const record of records) {
+    const bytes = await port.read({ bucket: record.bucket, key: record.key })
+    if (
+      bytes === undefined ||
+      bytes.byteLength !== record.sizeBytes ||
+      createHash('sha256').update(bytes).digest('hex') !== record.sha256
+    ) {
+      return 'unavailable'
+    }
+    loaded.push({
+      content: Buffer.from(bytes).toString('base64'),
+      contentType: record.contentType,
+      fileName: record.fileName,
+    })
+  }
+  return loaded
 }

@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +22,7 @@ import {
 } from '../shared/occurrenceConversation.service'
 import { insertQuickReply } from '../shared/quickReplies.service'
 import styles from '../styles/occurrenceConversation.module.css'
+import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
 import { QuickReplyPicker } from './QuickReplyPicker.component'
 
 const KNOWN_ERRORS = new Set([
@@ -31,6 +32,10 @@ const KNOWN_ERRORS = new Set([
   'OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED',
   'OCCURRENCE_CONVERSATION_MAIL_INVALID',
   'OCCURRENCE_CONVERSATION_NO_RECIPIENT',
+  /** Spec 183 T702e: o anexo que não subiu, ou que a API recusou pelos bytes ou pelo total. */
+  'OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED',
+  'OCCURRENCE_CONVERSATION_UPLOAD_FAILED',
+  'OCCURRENCE_CONVERSATION_UPLOAD_INVALID',
 ])
 
 function errorKey(error: unknown): string {
@@ -63,6 +68,9 @@ export function SendToContractorDialog({ onClose, occurrenceId }: SendToContract
   const [body, setBody] = useState('')
   const [contactIds, setContactIds] = useState<readonly string[]>([])
   const [isSubmitted, setSubmitted] = useState(false)
+  /** Spec 183 T702e: os anexos do e-mail e o que já subiu deles (o reenvio reusa os ids). */
+  const [files, setFiles] = useState<readonly File[]>([])
+  const uploaded = useRef(new Map<File, string>())
 
   const { mutate: loadInitialPreview } = initialPreview
   useEffect(() => {
@@ -87,7 +95,12 @@ export function SendToContractorDialog({ onClose, occurrenceId }: SendToContract
     setSubmitted(true)
     if (Object.keys(validateContractorMailDraft(draft)).length > 0) return
     send.mutate(
-      { idempotencyKey, request: buildContractorMailRequest(draft) },
+      {
+        files,
+        idempotencyKey,
+        request: buildContractorMailRequest(draft),
+        uploaded: uploaded.current,
+      },
       { onSuccess: onClose },
     )
   }
@@ -210,6 +223,13 @@ export function SendToContractorDialog({ onClose, occurrenceId }: SendToContract
                 <span className={styles.error}>{t('dialog.bodyRequired')}</span>
               )}
             </label>
+
+            <ConversationAttachmentPicker
+              channel="email"
+              disabled={isBusy}
+              files={files}
+              onChange={setFiles}
+            />
 
             {livePreview.data === undefined ? null : (
               <section aria-labelledby="send-to-contractor-preview" className={styles.panel}>

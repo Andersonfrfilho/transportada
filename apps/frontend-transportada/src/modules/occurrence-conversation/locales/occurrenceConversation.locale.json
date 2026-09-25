@@ -83,7 +83,10 @@
       "OCCURRENCE_CONVERSATION_NO_RECIPIENT": "Nenhum dos contatos escolhidos recebe ocorrências agora. Confira o cadastro e tente de novo.",
       "OCCURRENCE_CONVERSATION_CONTRACTOR_UNKNOWN": "A nota desta ocorrência não tem contratante cadastrada.",
       "OCCURRENCE_CONVERSATION_MAIL_INVALID": "Assunto ou mensagem em branco, ou longos demais.",
-      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "Este envio já foi feito com outro texto. Feche e abra o diálogo de novo."
+      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "Este envio já foi feito com outro texto. Feche e abra o diálogo de novo.",
+      "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "Um dos anexos não é o que diz ser, ou os arquivos passam do total que um e-mail leva. Confira e tente de novo.",
+      "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Não foi possível subir os anexos. Tente de novo em instantes.",
+      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "Um anexo venceu antes do envio. Tire-o e escolha de novo."
     }
   },
   "addContact": {
@@ -182,7 +185,8 @@
     "rejected": {
       "type": "{{name}}: este tipo de arquivo não é aceito.",
       "size": "{{name}}: passa do limite de {{max}} deste canal.",
-      "limit": "{{name}}: são no máximo {{count}} anexos por mensagem."
+      "limit": "{{name}}: são no máximo {{count}} anexos por mensagem.",
+      "total": "{{name}}: somado aos outros, passa do total de {{max}} que um e-mail leva."
     },
     "error": {
       "upload": "Não foi possível subir os anexos. Tente de novo em instantes."

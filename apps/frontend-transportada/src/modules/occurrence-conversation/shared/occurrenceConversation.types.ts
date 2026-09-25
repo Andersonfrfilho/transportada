@@ -131,6 +131,8 @@ export type ContractorMailDraft = Readonly<{
 }>
 
 export type ContractorMailRequest = Readonly<{
+  /** Spec 183 T702e: os arquivos já subidos pelo canal e-mail; vazio não vai no corpo. */
+  attachmentIds?: readonly string[]
   body: string
   channel: 'email'
   contactIds: readonly string[]

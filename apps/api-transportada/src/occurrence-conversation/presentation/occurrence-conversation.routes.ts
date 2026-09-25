@@ -79,8 +79,10 @@ const MAX_RECIPIENTS = 50
 /** O canal decide o corpo: lido primeiro, e o corpo do canal é conferido estrito depois. */
 const channelSchema = z.object({ channel: z.enum(OCCURRENCE_CONVERSATION_CHANNELS) }).passthrough()
 
+/** Desde a T702e, o e-mail também leva anexos (até 10 MB cada, 25 MB somados — no caso de uso). */
 const mailMessageSchema = z
   .object({
+    attachmentIds: conversationAttachmentIdsSchema,
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
     channel: z.literal('email'),
     contactIds: z.array(z.string().uuid()).min(1).max(MAX_RECIPIENTS),
@@ -149,6 +151,7 @@ function parseParticipant(value: string | undefined): OccurrenceConversationPart
 
 type SendInput =
   | {
+      readonly attachmentIds: readonly string[]
       readonly bodyText: string
       readonly contactIds: readonly string[]
       readonly correlationId: string
@@ -208,6 +211,7 @@ export function createOccurrenceConversationRoutes(
         }
         const result = await dependencies.sendMail.send({
           actorUserId: context.scope.userId,
+          attachmentIds: input.attachmentIds,
           bodyText: input.bodyText,
           companyId: context.scope.companyId,
           contactIds: input.contactIds,
@@ -232,6 +236,7 @@ export function createOccurrenceConversationRoutes(
           const body = mailMessageSchema.safeParse(raw)
           if (!body.success) throw invalidRequest()
           return {
+            attachmentIds: body.data.attachmentIds ?? [],
             bodyText: body.data.body,
             contactIds: body.data.contactIds,
             correlationId,

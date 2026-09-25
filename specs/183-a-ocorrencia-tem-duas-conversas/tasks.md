@@ -166,8 +166,11 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
           `migration-test`.
   - [x] **T702d** A foto do motorista: anexar à ocorrência e encaminhar à conversa da contratante
         (itens adiados da T502/T601/T603). Evidência: contratos + integração.
-  - [ ] **T702e** 🙋 E-mail que sai com anexo (muda o envio do worker da 143) e mídia da Meta (depende do
-        envio por WhatsApp). **Pare e pergunte.**
+  - [x] **T702e** 🙋 E-mail que sai com anexo (muda o envio do worker da 143) e mídia da Meta (depende do
+        envio por WhatsApp). **Pare e pergunte.** Perguntado em 25/09/2026: o e-mail anexa de
+        verdade (exceção na 143 autorizada) — feito; a mídia da Meta virou a T702f.
+  - [ ] **T702f** Mídia da Meta no WhatsApp (foto, documento, áudio). ⏸️ Bloqueada pela T002 (modelos e
+        envio da Meta), por decisão do usuário na T702e.
 - [ ] **T703** Selo de status na UI com os horários, destaque de falha e "Reenviar por outro canal".
       Evidência: contrato de mapeamento status → selo (e-mail nunca mostra "lida").
 - [x] **T704** [P] Tokens `--color-bubble-out`, `--color-bubble-contractor`, `--color-bubble-driver`

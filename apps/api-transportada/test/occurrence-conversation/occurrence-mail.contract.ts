@@ -15,6 +15,7 @@ import type {
   RecordOccurrenceMailInput,
   SendOccurrenceMailResult,
 } from '../../src/occurrence-conversation/application/occurrence-mail.port.js'
+import type { ConversationUploadTarget } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
 import { createPreviewOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/preview-occurrence-mail.use-case.js'
 import { createSendOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import { buildOccurrenceMail } from '../../src/occurrence-conversation/domain/occurrence-mail.template.js'
@@ -25,6 +26,9 @@ const OCCURRENCE_ID = '00000000-0000-4000-8000-000000183402'
 const CONTRACTOR_ID = '00000000-0000-4000-8000-000000183403'
 const ACTOR_ID = '00000000-0000-4000-8000-000000183404'
 const NOW = new Date('2026-09-24T18:00:00.000Z')
+const PDF = new TextEncoder().encode('%PDF-1.7 nota de devolução')
+const UPLOAD_A = '00000000-0000-4000-8000-0000001834a1'
+const UPLOAD_B = '00000000-0000-4000-8000-0000001834a2'
 
 const TARGET: OccurrenceMailTarget = {
   contractorId: CONTRACTOR_ID,
@@ -46,8 +50,13 @@ function createFake(
     contacts: readonly { email: string; id: string }[]
     settings: Awaited<ReturnType<OccurrenceMailTransactionPort['findMailSettings']>>
     target: OccurrenceMailTarget | null
+    /** Spec 183 T702e: o tamanho de cada objeto subido, pelo `head()`. */
+    uploadBytes: number
   }> = {},
 ) {
+  const uploadBytes = overrides.uploadBytes ?? PDF.byteLength
+  const locked: { ids: readonly string[]; target: ConversationUploadTarget }[] = []
+  const attached: { messageId: string; uploadId: string }[] = []
   const state: FakeState = {
     conversationMessages: [],
     conversations: [],
@@ -56,6 +65,20 @@ function createFake(
     threadId: undefined,
   }
   const transaction: OccurrenceMailTransactionPort = {
+    attachments: {
+      attachUpload: async (params) => void attached.push(params),
+      lockPendingUploads: async (params) => {
+        locked.push(params)
+        return params.ids.map((id) => ({
+          bucket: 'bucket-test',
+          declaredContentType: 'application/pdf',
+          expiresAt: new Date(NOW.getTime() + 60_000),
+          fileName: 'nota.pdf',
+          id,
+          objectKey: `key-${id}`,
+        }))
+      },
+    },
     async listOccurrenceRecipients() {
       return []
     },
@@ -120,9 +143,15 @@ function createFake(
     secretService: {
       decrypt: async () => ({ apiKey: 're_test', replyTokenSecret: 'a'.repeat(64) }),
     } as never,
+    storage: {
+      createSignedDownload: async ({ key }) => new URL(`https://s3.test/${key}`),
+      createSignedUpload: async ({ key }) => new URL(`https://s3.test/${key}?upload`),
+      getObjectStream: async () => new Blob([PDF]).stream(),
+      headObject: async () => ({ contentLength: uploadBytes }),
+    },
     unitOfWork: { execute: (operation) => operation(transaction) },
   })
-  return { state, useCase }
+  return { attached, locked, state, useCase }
 }
 
 function input(
@@ -393,5 +422,55 @@ describe('a prévia do e-mail (RF7)', () => {
     })
 
     expect(preview).toMatchObject({ bodyText: '', subject: '', suggested: false })
+  })
+})
+
+describe('o e-mail com anexo (spec 183 T702e)', () => {
+  test('os arquivos subidos ligam à mensagem da conversa, com o alvo e-mail e a contratante', async () => {
+    const { attached, locked, useCase } = createFake()
+
+    const result = await useCase.send(input({ attachmentIds: [UPLOAD_A, UPLOAD_B] }))
+
+    expect(locked).toEqual([
+      {
+        ids: [UPLOAD_A, UPLOAD_B],
+        target: {
+          channel: 'email',
+          companyId: COMPANY_ID,
+          occurrenceId: OCCURRENCE_ID,
+          occurrenceKind: 'document',
+          participant: 'contractor',
+          requestedByUserId: ACTOR_ID,
+        },
+      },
+    ])
+    expect(attached.map((row) => [row.uploadId, row.messageId])).toEqual([
+      [UPLOAD_A, result.conversationMessageId],
+      [UPLOAD_B, result.conversationMessageId],
+    ])
+  })
+
+  test('os anexos entram na impressão da idempotência: a mesma chave com outros é 409', async () => {
+    const { attached, useCase } = createFake()
+
+    await useCase.send(input({ attachmentIds: [UPLOAD_A] }))
+    expect(await failure(() => useCase.send(input({ attachmentIds: [UPLOAD_B] })))).toMatchObject({
+      status: 409,
+    })
+    expect(attached).toHaveLength(1)
+  })
+
+  test('acima do total do e-mail somando os arquivos, 422 — cada um cabendo sozinho', async () => {
+    const { useCase } = createFake({ uploadBytes: 9 * 1024 * 1024 })
+
+    expect(
+      await failure(() =>
+        useCase.send(
+          input({
+            attachmentIds: [UPLOAD_A, UPLOAD_B, '00000000-0000-4000-8000-0000001834a3'],
+          }),
+        ),
+      ),
+    ).toMatchObject({ code: 'OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED', status: 422 })
   })
 })

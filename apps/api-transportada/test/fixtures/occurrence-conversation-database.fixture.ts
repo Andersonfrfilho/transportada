@@ -5,6 +5,8 @@
  * verificado, a nota cujo emitente é contratante, três contatos (o terceiro não recebe ocorrências)
  * e a ocorrência de nota registrada pelo caminho de produção.
  */
+import type { ConversationAttachmentStoragePort } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
+import { UNUSED_ATTACHMENT_STORAGE } from './conversation-attachment.fixture.js'
 import { SQL } from 'bun'
 import { eq } from 'drizzle-orm'
 
@@ -136,7 +138,10 @@ export async function seedMailScenario(database: TestDatabase): Promise<Seeded> 
   }
 }
 
-export function createOccurrenceMailUseCase(database: TestDatabase) {
+export function createOccurrenceMailUseCase(
+  database: TestDatabase,
+  storage: ConversationAttachmentStoragePort = UNUSED_ATTACHMENT_STORAGE,
+) {
   return createSendOccurrenceMailUseCase({
     fingerprintService: {
       create: async ({ fields }) =>
@@ -146,6 +151,8 @@ export function createOccurrenceMailUseCase(database: TestDatabase) {
     secretService: {
       decrypt: async () => ({ apiKey: 're_test', replyTokenSecret: 'b'.repeat(64) }),
     } as never,
+    /** Sem anexo, a storage nem é lida; o e-mail com anexo (T702e) passa a de verdade. */
+    storage,
     unitOfWork: new DrizzleOccurrenceMailRepository(database.db),
   })
 }

@@ -5,6 +5,8 @@
  * `company_id`; a thread, a mensagem e o outbox são os da 143 (`contractor_mail_*`), e a conversa
  * só acrescenta a linha que aponta para a mensagem de lá.
  */
+import type { ConversationAttachmentTransactionPort } from '../application/conversation-attachment.port.js'
+import { createConversationAttachmentTransactionPort } from './drizzle-conversation-attachment.repository.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
@@ -238,7 +240,11 @@ export class DrizzleOccurrenceMailRepository implements OccurrenceMailUnitOfWork
 }
 
 class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort {
-  public constructor(private readonly transaction: Transaction) {}
+  public readonly attachments: ConversationAttachmentTransactionPort
+
+  public constructor(private readonly transaction: Transaction) {
+    this.attachments = createConversationAttachmentTransactionPort(transaction)
+  }
 
   public listOccurrenceRecipients(params: {
     readonly companyId: string

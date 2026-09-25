@@ -31,6 +31,8 @@ import {
   OccurrenceConversationNoRecipientError,
 } from '../domain/occurrence-conversation.error.js'
 import { buildOccurrenceMail } from '../domain/occurrence-mail.template.js'
+import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
+import { attachConversationUploads } from './conversation-attachment.service.js'
 import type {
   OccurrenceMailTransactionPort,
   OccurrenceMailUnitOfWorkPort,
@@ -45,6 +47,8 @@ const PUBLIC_REF_BYTES = 18
 
 export type SendOccurrenceMailInput = {
   readonly actorUserId: string
+  /** Spec 183 T702e: os arquivos que o operador subiu pelo canal e-mail. */
+  readonly attachmentIds?: readonly string[]
   readonly bodyText: string
   readonly companyId: string
   readonly contactIds: readonly string[]
@@ -84,6 +88,7 @@ export function createSendOccurrenceMailUseCase(dependencies: {
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly now?: () => Date
   readonly secretService: ContractorMailCredentialSecretService
+  readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: OccurrenceMailUnitOfWorkPort
 }): SendOccurrenceMailUseCase {
   const now = dependencies.now ?? (() => new Date())
@@ -102,6 +107,7 @@ async function executeSend(params: {
   readonly input: SendOccurrenceMailInput
   readonly now: Date
   readonly secretService: ContractorMailCredentialSecretService
+  readonly storage: ConversationAttachmentStoragePort
   readonly transaction: OccurrenceMailTransactionPort
 }): Promise<SendOccurrenceMailResult> {
   const { input, transaction } = params
@@ -123,6 +129,7 @@ async function executeSend(params: {
       [...contactIds].sort().join(','),
       input.subject.trim(),
       input.bodyText.trim(),
+      (input.attachmentIds ?? []).join(','),
     ].map((value) => ENCODER.encode(value)),
     operation: SEND_OCCURRENCE_MAIL_OPERATION,
   })
@@ -214,6 +221,26 @@ async function executeSend(params: {
     conversationId: conversation.id,
     mailMessageId: recorded.messageId,
     queuedAt: params.now.toISOString(),
+  })
+  /**
+   * Spec 183 T702e: o anexo liga à mensagem **da conversa**; o worker o acha pela
+   * `mail_message_id` dela ao montar o envio. Bytes que não conferem desfazem tudo — nem a
+   * mensagem da 143 nem o outbox ficam.
+   */
+  await attachConversationUploads({
+    messageId: conversationMessage.id,
+    now: params.now,
+    storage: params.storage,
+    target: {
+      channel: 'email',
+      companyId,
+      occurrenceId: input.occurrenceId,
+      occurrenceKind: target.kind,
+      participant: 'contractor',
+      requestedByUserId: input.actorUserId,
+    },
+    transaction: transaction.attachments,
+    uploadIds: input.attachmentIds ?? [],
   })
 
   const response: SendOccurrenceMailResult = {

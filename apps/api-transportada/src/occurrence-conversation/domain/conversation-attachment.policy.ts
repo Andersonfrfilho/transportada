@@ -49,6 +49,12 @@ export const CONVERSATION_ATTACHMENT_LIMITS: Readonly<
 /** Mais do que isso numa mensagem só é pasta, não anexo. */
 export const CONVERSATION_ATTACHMENTS_PER_MESSAGE = 5
 
+/**
+ * Spec 183 T702e: o total de um e-mail, somando os arquivos. O Resend aceita 40 MB por mensagem
+ * **depois** do base64 (que cresce um terço); 25 MB de bytes deixam folga para o corpo e cabeçalhos.
+ */
+export const CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES = 25 * MB
+
 /** O nome aparece para quem baixa; o teto e a limpeza evitam caminho, byte nulo e tela quebrada. */
 export const CONVERSATION_ATTACHMENT_FILE_NAME_MAX_LENGTH = 200
 

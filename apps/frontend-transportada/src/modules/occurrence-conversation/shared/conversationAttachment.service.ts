@@ -40,17 +40,21 @@ export const CONVERSATION_ATTACHMENT_CONTENT_TYPES: Readonly<
   'text/csv': 'document',
 }
 
-/** Só os canais que levam anexo nesta fase; e-mail e WhatsApp esperam a T702e. */
-export type ConversationAttachmentChannel = 'app' | 'portal'
+/** Os canais que levam anexo; o WhatsApp espera o envio pela Meta (T002). */
+export type ConversationAttachmentChannel = 'app' | 'email' | 'portal'
 
 export const CONVERSATION_ATTACHMENT_LIMITS: Readonly<
   Record<ConversationAttachmentChannel, Readonly<Record<ConversationAttachmentKind, number>>>
 > = {
   app: { audio: 16 * MB, document: 25 * MB, image: 10 * MB },
+  email: { audio: 10 * MB, document: 10 * MB, image: 10 * MB },
   portal: { audio: 16 * MB, document: 25 * MB, image: 10 * MB },
 }
 
 export const CONVERSATION_ATTACHMENTS_PER_MESSAGE = 5
+
+/** Spec 183 T702e: o total que um e-mail leva, somando os arquivos (a folga do Resend). */
+export const CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES = 25 * MB
 
 /** O `accept` do seletor de arquivo: os tipos e as extensões que o sistema operacional reconhece. */
 export const CONVERSATION_ATTACHMENT_ACCEPT = [
@@ -66,7 +70,7 @@ export const CONVERSATION_ATTACHMENT_ACCEPT = [
 ].join(',')
 
 export type ConversationAttachmentRejection =
-  | Readonly<{ fileName: string; maxBytes: number; reason: 'size' }>
+  | Readonly<{ fileName: string; maxBytes: number; reason: 'size' | 'total' }>
   | Readonly<{ fileName: string; reason: 'limit' | 'type' }>
 
 function limitsOf(channel: ConversationAttachmentChannel): MaxAttachmentSizeBytes {
@@ -83,6 +87,9 @@ export function pickConversationAttachments(input: {
 }): Readonly<{ files: readonly File[]; rejected: readonly ConversationAttachmentRejection[] }> {
   const files = [...input.current]
   const rejected: ConversationAttachmentRejection[] = []
+  const maxTotalBytes =
+    input.channel === 'email' ? CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES : Infinity
+  let totalBytes = files.reduce((sum, file) => sum + file.size, 0)
   for (const file of input.incoming) {
     if (CONVERSATION_ATTACHMENT_CONTENT_TYPES[file.type] === undefined) {
       rejected.push({ fileName: file.name, reason: 'type' })
@@ -97,6 +104,11 @@ export function pickConversationAttachments(input: {
       rejected.push({ fileName: file.name, reason: 'limit' })
       continue
     }
+    if (totalBytes + file.size > maxTotalBytes) {
+      rejected.push({ fileName: file.name, maxBytes: maxTotalBytes, reason: 'total' })
+      continue
+    }
+    totalBytes += file.size
     files.push(file)
   }
   return { files, rejected }

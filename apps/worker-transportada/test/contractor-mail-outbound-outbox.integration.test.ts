@@ -100,6 +100,8 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
         version: 1,
       },
       {
+        /** A mensagem da 143 sem conversa: sem anexo (o da conversa tem integração própria). */
+        attachments: { list: async () => [], read: async () => undefined },
         mailGateway: {
           downloadRawEmail: async () => Buffer.alloc(0),
           fetchReceivedEmail: async () => {

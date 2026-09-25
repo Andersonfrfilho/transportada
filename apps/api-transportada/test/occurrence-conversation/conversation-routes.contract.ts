@@ -199,6 +199,7 @@ describe('POST /trip-occurrences/:id/conversations/:participant/messages (spec 1
       {
         input: {
           actorUserId: COMPANY_CONTEXT.userId,
+          attachmentIds: [],
           bodyText: MAIL_BODY.body,
           companyId: COMPANY_CONTEXT.companyId,
           contactIds: MAIL_BODY.contactIds,

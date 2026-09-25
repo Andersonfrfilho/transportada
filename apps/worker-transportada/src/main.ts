@@ -139,6 +139,7 @@ import { ContractorMailInboundOutboxRelayService } from './contractor-mail/appli
 import { DrizzleContractorMailOutboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-outbox.repository.js'
 import { DrizzleContractorMailInboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-outbox.repository.js'
 import { createDrizzleContractorMailOutboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
+import { createContractorMailOutboundAttachments } from './occurrence-conversation/infrastructure/drizzle-conversation-mail-attachments.repository.js'
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
@@ -998,6 +999,10 @@ export async function startWorkerRuntime(
     contractorMailOutboundConsumer = await contractorMailOutboundStarter({
       config,
       dependencies: {
+        attachments: createContractorMailOutboundAttachments({
+          database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          storage: storageGateway,
+        }),
         mailGateway: createResendMailGateway({ fetch: (target, init) => fetch(target, init) }),
         repository: createDrizzleContractorMailOutboundWorkerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],

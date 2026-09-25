@@ -209,7 +209,7 @@ describe('o anexo nas rotas do operador (spec 183 T702a)', () => {
     ])
   })
 
-  test('e-mail ainda não leva anexo (T702e): o corpo estrito recusa', async () => {
+  test('e-mail leva anexo (T702e): os ids chegam ao envio; id que não é UUID é 400', async () => {
     const calls: Calls = []
     const handle = harness(operatorRoutes(calls), OPERATOR)
 
@@ -227,8 +227,24 @@ describe('o anexo nas rotas do operador (spec 183 T702a)', () => {
       ),
     )
 
-    expect(response.status).toBe(400)
-    expect(calls).toEqual([])
+    expect(response.status).toBe(202)
+    expect(calls).toMatchObject([{ input: { attachmentIds: [UPLOAD_A] }, name: 'sendMail' }])
+
+    const invalid = await handle(
+      post(
+        `/trip-occurrences/${OCCURRENCE_ID}/conversations/contractor/messages`,
+        {
+          attachmentIds: ['nao-e-uuid'],
+          body: 'Segue.',
+          channel: 'email',
+          contactIds: [UPLOAD_B],
+          subject: 'Ocorrência',
+        },
+        'attachment-mail-key-02',
+      ),
+    )
+    expect(invalid.status).toBe(400)
+    expect(calls).toHaveLength(1)
   })
 })
 

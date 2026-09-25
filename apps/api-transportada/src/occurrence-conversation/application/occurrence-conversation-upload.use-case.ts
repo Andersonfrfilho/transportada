@@ -22,10 +22,10 @@ import {
   type RequestConversationUploadResult,
 } from './conversation-attachment.service.js'
 
-/** O canal que leva anexo, por participante. */
-const ATTACHMENT_CHANNEL_BY_PARTICIPANT: Readonly<
-  Record<OccurrenceConversationParticipant, OccurrenceConversationChannel>
-> = { contractor: 'portal', driver: 'app' }
+/** Os canais que levam anexo, por participante (o e-mail desde a T702e). */
+const ATTACHMENT_CHANNELS_BY_PARTICIPANT: Readonly<
+  Record<OccurrenceConversationParticipant, readonly OccurrenceConversationChannel[]>
+> = { contractor: ['portal', 'email'], driver: ['app'] }
 
 export type OccurrenceKindReaderPort = {
   findKind(input: {
@@ -53,7 +53,7 @@ export function createRequestOccurrenceConversationUploadUseCase(dependencies: {
       readonly participant: OccurrenceConversationParticipant
       readonly sizeBytes: number
     }): Promise<RequestConversationUploadResult> {
-      if (ATTACHMENT_CHANNEL_BY_PARTICIPANT[input.participant] !== input.channel) {
+      if (!ATTACHMENT_CHANNELS_BY_PARTICIPANT[input.participant].includes(input.channel)) {
         throw new OccurrenceConversationChannelUnavailableError()
       }
       const occurrenceKind = await dependencies.occurrences.findKind({

@@ -81,6 +81,8 @@ function buildDependenciesStub(
   sendEmail: SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail'],
 ): SendContractorMailOutboundMessageDependencies {
   return {
+    /** Spec 183 T702e: sem anexo nestes casos. */
+    attachments: { list: async () => [], read: async () => undefined },
     mailGateway: {
       downloadRawEmail: async () => Buffer.alloc(0),
       fetchReceivedEmail: async () => {

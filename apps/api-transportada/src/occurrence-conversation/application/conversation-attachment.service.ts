@@ -18,6 +18,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import {
   checkDeclaredConversationAttachment,
   CONVERSATION_ATTACHMENTS_PER_MESSAGE,
+  CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES,
   matchesConversationAttachmentSignature,
   maxConversationAttachmentBytes,
   normalizeConversationAttachmentFileName,
@@ -135,6 +136,13 @@ export async function attachConversationUploads(input: {
     throw new OccurrenceConversationUploadInvalidError()
   }
 
+  /** Spec 183 T702e: o e-mail tem, além do teto por arquivo, um total por mensagem. */
+  const maxTotalBytes =
+    input.target.channel === 'email'
+      ? CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES
+      : Number.POSITIVE_INFINITY
+  let totalBytes = 0
+
   const pending = await input.transaction.lockPendingUploads({
     ids: [...unique],
     target: input.target,
@@ -156,6 +164,13 @@ export async function attachConversationUploads(input: {
     /** O tamanho vem do `head()`: acima do teto, o objeto nem é baixado. */
     if (head.contentLength <= 0 || head.contentLength > maxBytes) {
       throw new OccurrenceConversationAttachmentRejectedError({ maxBytes, reason: 'size' })
+    }
+    totalBytes += head.contentLength
+    if (totalBytes > maxTotalBytes) {
+      throw new OccurrenceConversationAttachmentRejectedError({
+        maxBytes: maxTotalBytes,
+        reason: 'size',
+      })
     }
     const bytes = await readAllBytes(await input.storage.getObjectStream(location))
     if (

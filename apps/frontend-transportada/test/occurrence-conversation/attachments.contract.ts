@@ -11,6 +11,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   CONVERSATION_ATTACHMENT_CONTENT_TYPES,
+  CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES,
   CONVERSATION_ATTACHMENT_LIMITS,
   pickConversationAttachments,
   uploadConversationAttachments,
@@ -40,7 +41,7 @@ function file(name: string, type: string, size: number): File {
 }
 
 describe('a lista e os tetos são os da API (spec 183 T702b)', () => {
-  test('os mesmos tipos, e os tetos do app e do portal', async () => {
+  test('os mesmos tipos, os tetos do app, do e-mail e do portal e o total do e-mail', async () => {
     const policy = await readFile(API_POLICY, 'utf8')
 
     for (const [contentType, kind] of Object.entries(CONVERSATION_ATTACHMENT_CONTENT_TYPES)) {
@@ -50,12 +51,16 @@ describe('a lista e os tetos são os da API (spec 183 T702b)', () => {
     expect(apiTypes.map((match) => match[1]).sort()).toEqual(
       Object.keys(CONVERSATION_ATTACHMENT_CONTENT_TYPES).sort(),
     )
-    for (const channel of ['app', 'portal'] as const) {
+    for (const channel of ['app', 'email', 'portal'] as const) {
       const limits = CONVERSATION_ATTACHMENT_LIMITS[channel]
       expect(policy).toInclude(
         `${channel}: { audio: ${String(limits.audio / MB)} * MB, document: ${String(limits.document / MB)} * MB, image: ${String(limits.image / MB)} * MB }`,
       )
     }
+    /** Spec 183 T702e: o total que um e-mail leva, somando os arquivos. */
+    expect(policy).toInclude(
+      `export const CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES = ${String(CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES / MB)} * MB`,
+    )
   })
 })
 
@@ -76,6 +81,23 @@ describe('escolher os arquivos (spec 183 T702b)', () => {
     expect(picked.rejected).toEqual([
       { fileName: 'desenho.svg', reason: 'type' },
       { fileName: 'grande.png', maxBytes: 10 * MB, reason: 'size' },
+    ])
+  })
+
+  test('spec 183 T702e: no e-mail, o arquivo que passa do total somado é recusado pelo total', () => {
+    const picked = pickConversationAttachments({
+      channel: 'email',
+      current: [file('a.pdf', 'application/pdf', 9 * MB), file('b.pdf', 'application/pdf', 9 * MB)],
+      incoming: [file('c.pdf', 'application/pdf', 9 * MB), file('d.csv', 'text/csv', 1 * MB)],
+    })
+
+    expect(picked.files.map((item) => item.name)).toEqual(['a.pdf', 'b.pdf', 'd.csv'])
+    expect(picked.rejected).toEqual([
+      {
+        fileName: 'c.pdf',
+        maxBytes: CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES,
+        reason: 'total',
+      },
     ])
   })
 
@@ -231,6 +253,34 @@ describe('o cliente do anexo (spec 183 T702b)', () => {
         }),
       ),
     ).toBeInstanceOf(Error)
+  })
+
+  test('spec 183 T702e: o e-mail leva os anexos só quando há', async () => {
+    const requests: Request[] = []
+    const client = createClient(
+      [Response.json({ data: {} }, { status: 202 }), Response.json({ data: {} }, { status: 202 })],
+      requests,
+    )
+    const request = {
+      body: 'Segue.',
+      channel: 'email' as const,
+      contactIds: ['contact-1'],
+      subject: 'Ocorrência',
+    }
+
+    await client.sendContractorMail({
+      idempotencyKey: 'mail:1',
+      occurrenceId: 'occurrence-1',
+      request: { ...request, attachmentIds: ['upload-1'] },
+    })
+    await client.sendContractorMail({
+      idempotencyKey: 'mail:2',
+      occurrenceId: 'occurrence-1',
+      request: { ...request, attachmentIds: [] },
+    })
+
+    expect(await requests[0]?.json()).toEqual({ ...request, attachmentIds: ['upload-1'] })
+    expect(await requests[1]?.json()).toEqual(request)
   })
 
   test('o envio pelo app e pelo portal leva os anexos só quando há', async () => {

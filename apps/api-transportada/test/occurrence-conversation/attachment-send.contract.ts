@@ -322,7 +322,7 @@ describe('o pedido de upload em cada superfície (spec 183 T702a)', () => {
     }
   }
 
-  test('o operador pede para o motorista (app) ou para a contratante (portal); e-mail ainda não', async () => {
+  test('o operador pede para o motorista (app) ou para a contratante (portal e, desde a T702e, e-mail)', async () => {
     const uploads = uploadsFake()
     const useCase = createRequestOccurrenceConversationUploadUseCase({
       bucket: 'bucket-test',
@@ -344,14 +344,16 @@ describe('o pedido de upload em cada superfície (spec 183 T702a)', () => {
 
     await request('driver', 'app')
     await request('contractor', 'portal')
-    await expect(request('contractor', 'email')).rejects.toMatchObject({ status: 422 })
+    await request('contractor', 'email')
     await expect(request('driver', 'portal')).rejects.toMatchObject({ status: 422 })
+    await expect(request('driver', 'email')).rejects.toMatchObject({ status: 422 })
 
     expect(
       uploads.inserted.map((row) => [row.participant, row.channel, row.requestedByUserId]),
     ).toEqual([
       ['driver', 'app', OPERATOR_ID],
       ['contractor', 'portal', OPERATOR_ID],
+      ['contractor', 'email', OPERATOR_ID],
     ])
   })
 

@@ -2880,6 +2880,7 @@ function createApplicationRoutes({
       sendMail: createSendOccurrenceMailUseCase({
         fingerprintService,
         secretService: contractorMailCredentialSecretService,
+        storage: storageGateway,
         unitOfWork: new DrizzleOccurrenceMailRepository(database),
       }),
       sendDriverApp: createSendDriverAppMessageUseCase({

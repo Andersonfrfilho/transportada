@@ -83,7 +83,10 @@
       "OCCURRENCE_CONVERSATION_NO_RECIPIENT": "None of the chosen contacts receives occurrences now. Check the contacts and try again.",
       "OCCURRENCE_CONVERSATION_CONTRACTOR_UNKNOWN": "The invoice of this occurrence has no registered contractor.",
       "OCCURRENCE_CONVERSATION_MAIL_INVALID": "Subject or message is blank or too long.",
-      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "This send was already made with another text. Close and reopen the dialog."
+      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "This send was already made with another text. Close and reopen the dialog.",
+      "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "One of the attachments is not what it claims to be, or the files exceed what an email can carry. Check and try again.",
+      "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Could not upload the attachments. Try again shortly.",
+      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "An attachment expired before sending. Remove it and choose it again."
     }
   },
   "addContact": {
@@ -182,7 +185,8 @@
     "rejected": {
       "type": "{{name}}: this file type is not accepted.",
       "size": "{{name}}: exceeds the {{max}} limit of this channel.",
-      "limit": "{{name}}: at most {{count}} attachments per message."
+      "limit": "{{name}}: at most {{count}} attachments per message.",
+      "total": "{{name}}: together with the others, it exceeds the {{max}} an email can carry."
     },
     "error": {
       "upload": "The attachments could not be uploaded. Try again shortly."

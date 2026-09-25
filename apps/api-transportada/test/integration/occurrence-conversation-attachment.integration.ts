@@ -39,6 +39,7 @@ import {
 import { createDrizzleDriverConversationUnitOfWork } from '../../src/occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
 import { createNfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 import {
+  createOccurrenceMailUseCase,
   seedMailScenario,
   withConversationDatabase,
 } from '../fixtures/occurrence-conversation-database.fixture.js'
@@ -389,6 +390,80 @@ describe('o anexo da conversa contra Postgres e S3 (spec 183 T702a)', () => {
             }),
           ),
         ).toMatchObject({ status: 404 })
+      })
+    },
+    120_000,
+  )
+
+  testWithInfrastructure(
+    'T702e: o operador sobe pelo canal e-mail e o arquivo liga à mensagem da conversa do e-mail',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, userId: operatorId } = seeded.company
+        const flow = setup(database)
+        const storage = createNfeStorageGateway({
+          finalBucket: BUCKET,
+          provider: createProvider(),
+          stagingBucket: BUCKET,
+        })
+
+        const upload = await flow.operatorUpload.request({
+          actorUserId: operatorId,
+          channel: 'email',
+          companyId,
+          contentType: 'application/pdf',
+          fileName: 'nota de devolução.pdf',
+          occurrenceId: seeded.occurrenceId,
+          participant: 'contractor',
+          sizeBytes: PDF.byteLength,
+        })
+        await put(upload.uploadUrl, PDF, 'application/pdf')
+
+        const sent = await createOccurrenceMailUseCase(database, storage).send({
+          actorUserId: operatorId,
+          attachmentIds: [upload.uploadId],
+          bodyText: 'Segue a nota de devolução.',
+          companyId,
+          contactIds: seeded.contactIds.slice(0, 1),
+          correlationId: 'correlation-mail-attachment',
+          idempotencyKey: 'attachment-integration-mail-01',
+          occurrenceId: seeded.occurrenceId,
+          subject: 'Ocorrência',
+        })
+
+        const [linked] = await database.db
+          .select({
+            fileName: occurrenceConversationAttachments.fileName,
+            mailMessageId: occurrenceConversationMessages.mailMessageId,
+          })
+          .from(occurrenceConversationAttachments)
+          .innerJoin(
+            occurrenceConversationMessages,
+            eq(occurrenceConversationMessages.id, occurrenceConversationAttachments.messageId),
+          )
+          .where(eq(occurrenceConversationAttachments.companyId, companyId))
+        expect(linked).toEqual({
+          fileName: 'nota de devolução.pdf',
+          mailMessageId: sent.mailMessageId,
+        })
+
+        /** O pedido do e-mail não serve ao portal: o alvo inclui o canal. */
+        const portalUpload = await flow.operatorUpload.request({
+          actorUserId: operatorId,
+          channel: 'email',
+          companyId,
+          contentType: 'application/pdf',
+          fileName: 'b.pdf',
+          occurrenceId: seeded.occurrenceId,
+          participant: 'contractor',
+          sizeBytes: PDF.byteLength,
+        })
+        const [row] = await database.db
+          .select({ channel: occurrenceConversationUploads.channel })
+          .from(occurrenceConversationUploads)
+          .where(eq(occurrenceConversationUploads.id, portalUpload.uploadId))
+        expect(row).toEqual({ channel: 'email' })
       })
     },
     120_000,
