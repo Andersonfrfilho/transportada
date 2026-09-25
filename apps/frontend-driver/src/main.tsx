@@ -23,7 +23,10 @@ import {
   runDriverBoot,
   scheduleAuthenticationOnReconnect,
 } from '@/modules/driver-trip/shared/bootMode.service'
-import { captureRegistry } from '@/modules/driver-trip/shared/captureRegistry.service'
+import {
+  captureRegistry,
+  createAuthenticationCaptureView,
+} from '@/modules/driver-trip/shared/captureRegistry.service'
 import { createIndexedDbTripSnapshotStore } from '@/modules/driver-trip/shared/indexedDbQueue.service'
 import {
   handleServiceWorkerUpdateAvailable,
@@ -304,7 +307,7 @@ function startOffline(root: Root, snapshot: OwnedTripSnapshot | undefined): void
 
   scheduleAuthenticationOnReconnect({
     authenticate: () => startAuthenticated(root),
-    captureRegistry,
+    captureRegistry: createAuthenticationCaptureView(captureRegistry),
     probe: probeKeycloak,
     target: window,
   })

@@ -3,10 +3,17 @@ import { useEffect, useState } from 'react'
 
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
 
-import { captureRegistry, createIdleGate } from '../shared/captureRegistry.service'
+import {
+  captureRegistry,
+  createAuthenticationCaptureView,
+  createIdleGate,
+} from '../shared/captureRegistry.service'
 
-/** Um portão para a página inteira: "Entrar de novo" navega, e navegar espera a captura fechar. */
-const REAUTHENTICATION_GATE = createIdleGate(captureRegistry)
+/**
+ * Um portão para a página inteira: "Entrar de novo" navega, e navegar espera a captura fechar —
+ * menos o comprovante em preenchimento (N2), que seguraria a sessão para sempre.
+ */
+const REAUTHENTICATION_GATE = createIdleGate(createAuthenticationCaptureView(captureRegistry))
 
 export type SessionExpiryState = 'active' | 'expired' | 'waiting-capture'
 

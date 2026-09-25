@@ -205,7 +205,7 @@
   "serviceWorkerUpdate": {
     "apply": "Update",
     "available": "New version available.",
-    "waitingCapture": "Updates when the capture is finished."
+    "waitingCapture": "Updates when the open capture is finished — photo, signature, crop, occurrence or a proof being filled in."
   },
   "tripSelector": {
     "label": "Your trips",

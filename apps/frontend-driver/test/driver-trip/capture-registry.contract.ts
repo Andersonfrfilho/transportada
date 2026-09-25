@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
+import { scheduleAuthenticationOnReconnect } from '@/modules/driver-trip/shared/bootMode.service'
 import {
+  createAuthenticationCaptureView,
   createCaptureRegistry,
   createIdleGate,
   persistWhileOpen,
@@ -30,6 +32,10 @@ const SIGNATURE_PAD = new URL(
   import.meta.url,
 )
 const MAIN = new URL('../../src/main.tsx', import.meta.url)
+const SESSION_EXPIRY_HOOK = new URL(
+  '../../src/modules/driver-trip/hooks/useSessionExpiry.hook.ts',
+  import.meta.url,
+)
 const UPDATE_NOTICE = new URL(
   '../../src/modules/driver-trip/components/DriverServiceWorkerUpdateNotice.component.tsx',
   import.meta.url,
@@ -329,5 +335,74 @@ describe('o toque em "Atualizar" com captura aberta (B4)', () => {
 
     expect(source).toContain("=== 'deferred'")
     expect(readFileSync(UPDATE_NOTICE, 'utf8')).toContain("t('serviceWorkerUpdate.waitingCapture')")
+  })
+})
+
+/**
+ * Spec 189 T9.2, segunda leitura (N2): o comprovante é opcional, e o motorista que digitou o nome e
+ * seguiu sem anexar deixava `proof-form` aberto para sempre — a reautenticação da volta de rede
+ * nunca rodava e "Entrar de novo" ficava esperando. `proof-form` segura só a atualização do SW.
+ */
+describe('proof-form não segura a reautenticação (N2)', () => {
+  it('a visão de autenticação ignora proof-form, e o registro inteiro não', () => {
+    const registry = createCaptureRegistry()
+    const authentication = createAuthenticationCaptureView(registry)
+    registry.open('proof-form')
+
+    expect(registry.isIdle()).toBe(false)
+    expect(authentication.isIdle()).toBe(true)
+
+    registry.open('camera')
+    expect(authentication.isIdle()).toBe(false)
+  })
+
+  it('o onIdle da visão dispara quando a última captura que conta fecha, com proof-form aberto', () => {
+    const registry = createCaptureRegistry()
+    const authentication = createAuthenticationCaptureView(registry)
+    let idleCalls = 0
+    authentication.onIdle(() => (idleCalls += 1))
+    registry.open('proof-form')
+    registry.open('signature')
+
+    registry.close('signature')
+    expect(idleCalls).toBe(1)
+
+    registry.close('proof-form')
+    expect(idleCalls).toBe(1)
+  })
+
+  it('com proof-form aberto, a volta da rede autentica', async () => {
+    const registry = createCaptureRegistry()
+    registry.open('proof-form')
+    const listeners = new Set<() => void>()
+    let authenticateCalls = 0
+
+    scheduleAuthenticationOnReconnect({
+      authenticate: () => {
+        authenticateCalls += 1
+        return Promise.resolve()
+      },
+      captureRegistry: createAuthenticationCaptureView(registry),
+      probe: () => Promise.resolve(true),
+      target: {
+        addEventListener: (_type, listener) => listeners.add(listener),
+        clearInterval: () => undefined,
+        removeEventListener: (_type, listener) => listeners.delete(listener),
+        setInterval: () => 1,
+      },
+    })
+    for (const listener of [...listeners]) listener()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(authenticateCalls).toBe(1)
+  })
+
+  it('a reconexão e o "Entrar de novo" usam a visão de autenticação', () => {
+    expect(readFileSync(MAIN, 'utf8')).toContain(
+      'captureRegistry: createAuthenticationCaptureView(captureRegistry)',
+    )
+    expect(readFileSync(SESSION_EXPIRY_HOOK, 'utf8')).toContain(
+      'createIdleGate(createAuthenticationCaptureView(captureRegistry))',
+    )
   })
 })

@@ -24,19 +24,23 @@ export type CaptureRegistry = Readonly<{
   close: (kind: CaptureKind) => void
   /** Alguma captura já abriu nesta sessão, mesmo já tendo fechado — nunca volta a `false`. */
   hasOpened: () => boolean
-  isIdle: () => boolean
-  /** Chamado a cada vez que a última captura aberta fecha. Devolve o cancelamento. */
-  onIdle: (listener: () => void) => () => void
+  /** `ignored`: kinds que não contam para esta pergunta (N2: `proof-form` para a autenticação). */
+  isIdle: (ignored?: readonly CaptureKind[]) => boolean
+  /**
+   * Chamado a cada vez que a última captura que conta fecha — fechar um kind ignorado não chama.
+   * Devolve o cancelamento.
+   */
+  onIdle: (listener: () => void, ignored?: readonly CaptureKind[]) => () => void
   open: (kind: CaptureKind) => void
 }>
 
 export function createCaptureRegistry(): CaptureRegistry {
   const openCountByKind = new Map<CaptureKind, number>()
-  const idleListeners = new Set<() => void>()
+  const idleListeners = new Map<() => void, readonly CaptureKind[]>()
   let everOpened = false
 
-  function isIdle(): boolean {
-    return openCountByKind.size === 0
+  function isIdle(ignored: readonly CaptureKind[] = []): boolean {
+    return [...openCountByKind.keys()].every((kind) => ignored.includes(kind))
   }
 
   return {
@@ -45,13 +49,14 @@ export function createCaptureRegistry(): CaptureRegistry {
       if (count === 0) return
       if (count > 1) openCountByKind.set(kind, count - 1)
       else openCountByKind.delete(kind)
-      if (!isIdle()) return
-      for (const listener of [...idleListeners]) listener()
+      for (const [listener, ignored] of [...idleListeners]) {
+        if (!ignored.includes(kind) && isIdle(ignored)) listener()
+      }
     },
     hasOpened: () => everOpened,
     isIdle,
-    onIdle(listener) {
-      idleListeners.add(listener)
+    onIdle(listener, ignored = []) {
+      idleListeners.set(listener, ignored)
       return () => {
         idleListeners.delete(listener)
       }
@@ -60,6 +65,23 @@ export function createCaptureRegistry(): CaptureRegistry {
       everOpened = true
       openCountByKind.set(kind, (openCountByKind.get(kind) ?? 0) + 1)
     },
+  }
+}
+
+/**
+ * Spec 189 T9.2, segunda leitura (N2): o comprovante é opcional, e o nome digitado sem anexo ficava
+ * segurando o registro para sempre. Para quem autentica — a volta da rede e o "Entrar de novo" —
+ * `proof-form` não conta: perder dois campos de texto custa menos que ficar sem sessão. A
+ * atualização do SW continua respeitando tudo.
+ */
+const AUTHENTICATION_IGNORED_CAPTURES: readonly CaptureKind[] = ['proof-form']
+
+export function createAuthenticationCaptureView(
+  registry: Pick<CaptureRegistry, 'isIdle' | 'onIdle'>,
+): Pick<CaptureRegistry, 'isIdle' | 'onIdle'> {
+  return {
+    isIdle: () => registry.isIdle(AUTHENTICATION_IGNORED_CAPTURES),
+    onIdle: (listener) => registry.onIdle(listener, AUTHENTICATION_IGNORED_CAPTURES),
   }
 }
 

@@ -214,7 +214,7 @@
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
     "available": "Nova versão disponível.",
-    "waitingCapture": "Atualiza ao terminar a captura."
+    "waitingCapture": "Atualiza ao terminar a captura aberta — foto, assinatura, recorte, ocorrência ou comprovante em preenchimento."
   },
   "tripSelector": {
     "label": "Suas viagens",
