@@ -31,6 +31,9 @@ export function countPending(input: {
    */
   const blockedEventKeys = new Set<string>()
 
+  /** N3: a drenagem para no primeiro não verificado do dono — o que vem atrás espera junto. */
+  let isBehindUnverified = false
+
   for (const report of input.reports) {
     const key = report.report.idempotencyKey
     if (report.rejectionCause !== undefined) {
@@ -38,6 +41,10 @@ export function countPending(input: {
       blockedEventKeys.add(key)
     } else if (report.isUnverified === true) {
       unverified += 1
+      blockedEventKeys.add(key)
+      isBehindUnverified = true
+    } else if (isBehindUnverified) {
+      blocked += 1
       blockedEventKeys.add(key)
     } else drainable += 1
   }
