@@ -1,6 +1,6 @@
 set -euo pipefail
 
-readonly TARGETS='api frontend client landing worker cron'
+readonly TARGETS='api frontend client driver landing worker cron'
 
 usage() {
   echo "uso: [MARKER_PREFIX=refs/deploy/<env>] BASELINE=<sha> [FORCE_ALL=true] $0" >&2
@@ -13,9 +13,10 @@ paths_of() {
     # exatas — campo novo servido por uma ponta e desconhecido pela outra derruba a tela, e a guarda
     # nao pode ser afrouxada porque ela e defesa contra vazamento de token e de identidade de tenant.
     # A landing fica de fora: ela nao valida corpo da API.
-    api) echo 'apps/api-transportada/ apps/frontend-transportada/ apps/frontend-client/ deploy/api/ deploy/keycloak/ realm/' ;;
+    api) echo 'apps/api-transportada/ apps/frontend-transportada/ apps/frontend-client/ apps/frontend-driver/ deploy/api/ deploy/keycloak/ realm/' ;;
     frontend) echo 'apps/frontend-transportada/ apps/api-transportada/ deploy/frontend/' ;;
     client) echo 'apps/frontend-client/ apps/api-transportada/' ;;
+    driver) echo 'apps/frontend-driver/ apps/api-transportada/' ;;
     landing) echo 'apps/frontend-landing/' ;;
     worker) echo 'apps/worker-transportada/ deploy/worker/' ;;
     cron) echo 'apps/cron-transportada/ deploy/cron/' ;;

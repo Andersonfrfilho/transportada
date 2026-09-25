@@ -18,13 +18,16 @@ describe('o manifesto da app do motorista (ADR-0075 §5)', () => {
    * `scope` na raiz da origem própria: o ícone instalado abre a viagem, nunca o escritório.
    */
   test('tem os campos da ADR', () => {
-    const { icons: _icons, ...fields } = DRIVER_WEB_MANIFEST
+    const fields = Object.fromEntries(
+      Object.entries(DRIVER_WEB_MANIFEST).filter(([field]) => field !== 'icons'),
+    )
 
     expect(fields).toEqual({
       background_color: THEME_COLOR,
       description: 'A viagem do motorista: paradas, entregas e comprovantes.',
       display: 'standalone',
       id: '/',
+      lang: 'pt-BR',
       name: 'Minha viagem',
       scope: '/',
       short_name: 'Viagem',
@@ -54,8 +57,8 @@ describe('o manifesto da app do motorista (ADR-0075 §5)', () => {
     ])
 
     for (const icon of DRIVER_WEB_MANIFEST.icons) {
-      const [width, height] = icon.sizes.split('x').map(Number)
-      expect(await readPngSize(`public${icon.src}`)).toEqual({ width, height })
+      const { width, height } = await readPngSize(`public${icon.src}`)
+      expect(`${width}x${height}`).toBe(icon.sizes)
     }
   })
 

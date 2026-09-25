@@ -21,8 +21,11 @@ const PRECACHE_BUDGET_BYTES = 1.5 * 1024 * 1024
 const FORBIDDEN_ARTIFACT_PATTERN =
   /opencv|background-removal|canhoto-ocr|maplibre|tesseract|pdfjs/iu
 
-/** `{url:"assets/index-abc.js",revision:null}` — o formato que o `injectManifest` inlina no `sw.js`. */
-const PRECACHE_ENTRY_PATTERN = /url:"([^"]+)"/gu
+/**
+ * `{"revision":null,"url":"assets/index-abc.js"}` — o JSON que o `injectManifest` inlina no `sw.js`.
+ * O teste de "o precache existe" é o que pega este padrão envelhecendo: lista vazia não passa.
+ */
+const PRECACHE_ENTRY_PATTERN = /"url":"([^"]+)"/gu
 
 async function listDistributionFiles(directory: string): Promise<readonly string[]> {
   const entries = await readdir(directory, { withFileTypes: true })

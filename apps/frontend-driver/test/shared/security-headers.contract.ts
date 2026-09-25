@@ -4,7 +4,8 @@ import { describe, expect, test } from 'bun:test'
 const SERVER_SOURCE = new URL('../../server.ts', import.meta.url)
 const HEADER_BLOCK_PATTERN =
   /const SECURITY_HEADERS: Readonly<Record<string, string>> = \{\n([\s\S]*?)\n\}/u
-const HEADER_ENTRY_PATTERN = /^\s*'([^']+)': '([^']*)',$/u
+/** O valor é literal entre aspas ou, na CSP, o identificador lido do `dist`. */
+const HEADER_ENTRY_PATTERN = /^\s*'([^']+)': '?([^']+?)'?,$/u
 
 /**
  * O cabeçalho é lido do texto de `server.ts`, não do processo: importar o arquivo sobe um

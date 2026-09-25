@@ -61,7 +61,7 @@ describe('o service worker da app do motorista (ADR-0075 §5)', () => {
 
     expect(worker.match(/skipWaiting\(/gu)?.length).toBe(1)
     expect(worker).toMatch(
-      /if \(event\.data\?\.type === SKIP_WAITING_MESSAGE\) void self\.skipWaiting\(\)/u,
+      /if \((?:event\.)?data\?\.type === SKIP_WAITING_MESSAGE\) void self\.skipWaiting\(\)/u,
     )
     expect(worker).toContain(
       "import { SKIP_WAITING_MESSAGE } from './modules/shared/serviceWorker.constant'",

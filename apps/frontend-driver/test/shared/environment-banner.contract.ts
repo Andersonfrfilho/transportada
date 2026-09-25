@@ -1,4 +1,5 @@
 /* Cópia por valor de apps/frontend-client/test/shared/environment-banner.contract.ts (ADR-0075 §7). */
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
 import { applyEnvironmentBadge } from '../../src/modules/shared/environmentBadge.service'

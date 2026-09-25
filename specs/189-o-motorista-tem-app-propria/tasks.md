@@ -61,7 +61,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** os contratos existem e falham pela razão certa.
 
-- [ ] **T1.2** 🧠 Esqueleto (plan D1 e D2), num **único commit** com as linhas de "T1.2" da tabela D9:
+- [x] **T1.2** 🧠 Esqueleto (plan D1 e D2), num **único commit** com as linhas de "T1.2" da tabela D9:
   - `package.json` (`build` = `vite build && bun test test/dist.contract.test.ts`), `tsconfig.json`,
     `eslint.config.mjs` e `index.html`;
   - `vite.config.ts` (53200, `injectManifest`, `prompt`), `src/sw.ts` e `server.ts`;

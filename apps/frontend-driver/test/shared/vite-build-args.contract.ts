@@ -1,4 +1,5 @@
 /* Cópia por valor de apps/frontend-transportada/test/shared/vite-build-args.contract.ts (ADR-0075 §7). */
+/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 

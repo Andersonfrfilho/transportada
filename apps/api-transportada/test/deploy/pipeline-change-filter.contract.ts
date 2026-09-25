@@ -60,8 +60,9 @@ describe('contrato do filtro de mudança do pipeline', () => {
     )
     const declared = [...(await targetPaths()).values()].flat()
 
-    // Seis desde a spec 063: o portal do contratante é app própria por decisão de segurança (ADR-0050 §1).
-    expect(applications.filter(({ isApplication }) => isApplication)).toHaveLength(6)
+    // Seis desde a spec 063 (o portal do contratante, ADR-0050 §1); sete desde a spec 189, com a app
+    // do motorista (ADR-0075 §1).
+    expect(applications.filter(({ isApplication }) => isApplication)).toHaveLength(7)
     for (const { isApplication, name } of applications) {
       if (isApplication) {
         expect(declared).toContain(`apps/${name}/`)
@@ -191,7 +192,7 @@ describe('a API e as apps de cliente sobem juntas (spec 078)', () => {
     const api = targets.get('api')
 
     expect(api).toBeDefined()
-    for (const client of ['frontend', 'client'] as const) {
+    for (const client of ['frontend', 'client', 'driver'] as const) {
       const paths = targets.get(client) ?? []
       expect(paths).toContain('apps/api-transportada/')
     }
@@ -206,6 +207,8 @@ describe('a API e as apps de cliente sobem juntas (spec 078)', () => {
     const api = targets.get('api') ?? []
 
     expect(api).toContain('apps/frontend-transportada/')
+    expect(api).toContain('apps/frontend-client/')
+    expect(api).toContain('apps/frontend-driver/')
   })
 
   /**
