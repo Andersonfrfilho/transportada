@@ -11,7 +11,7 @@
     "preview": "vite preview --host 0.0.0.0 --port ${FRONTEND_DRIVER_PORT:-53200}",
     "serve": "bun ./server.ts",
     "start": "vite preview --host 0.0.0.0 --port ${PORT:-53200}",
-    "test": "bun test test/shared.contract.test.ts test/identity.contract.test.ts",
+    "test": "bun test test/shared.contract.test.ts test/identity.contract.test.ts test/driver-trip.contract.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
