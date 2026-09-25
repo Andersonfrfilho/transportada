@@ -150,6 +150,7 @@ import { startContractorMailOutboundConsumer } from './runtime/contractor-mail-o
 import { startContractorMailInboundConsumer } from './runtime/contractor-mail-inbound-consumer.service.js'
 import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
+import { createInboundConversationAttachmentStore } from './occurrence-conversation/application/inbound-mail-attachments.service.js'
 import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
 import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
@@ -1008,6 +1009,12 @@ export async function startWorkerRuntime(
     contractorMailInboundConsumer = await contractorMailInboundStarter({
       config,
       dependencies: {
+        /** Spec 183 T702c1: o anexo do e-mail recebido vira anexo da mensagem da conversa. */
+        conversationAttachments: createInboundConversationAttachmentStore({
+          bucket: storageBucket,
+          provider: 'minio',
+          storage: storageGateway,
+        }),
         dkimVerifier: createDkimVerifierGateway({ resolveDns: resolveDkimDnsRecord }),
         mailGateway: createResendMailGateway({ fetch: (target, init) => fetch(target, init) }),
         repository: createDrizzleContractorMailInboundWorkerRepository(

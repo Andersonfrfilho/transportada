@@ -158,9 +158,12 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
         com URL temporária nas três superfícies. Evidência: contratos + integração com S3.
   - [x] **T702b** Telas: anexar e ver anexo no painel, no PWA do motorista e no portal. Evidência:
         contratos + smoke no navegador contra a API real, com prints.
-  - [ ] **T702c** Worker: os anexos do e-mail recebido da contratante viram anexos da mensagem da
-        conversa, a partir do MIME já gravado; e o expurgo dos pedidos de upload vencidos (objeto e
-        linha). Evidência: contratos + integração do worker.
+  - [ ] **T702c** Worker (dividida na execução, um commit por parte):
+    - [x] **T702c1** Os anexos do e-mail recebido da contratante viram anexos da mensagem da
+          conversa, a partir do MIME já baixado. Evidência: contratos + integração do worker.
+    - [ ] **T702c2** O expurgo dos pedidos de upload vencidos (objeto e linha): job novo no catálogo
+          dos quatro apps e migration aditiva na API. Evidência: contratos + integração do worker +
+          `migration-test`.
   - [ ] **T702d** A foto do motorista: anexar à ocorrência e encaminhar à conversa da contratante
         (itens adiados da T502/T601/T603). Evidência: contratos + integração.
   - [ ] **T702e** 🙋 E-mail que sai com anexo (muda o envio do worker da 143) e mídia da Meta (depende do

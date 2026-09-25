@@ -16,6 +16,7 @@ import { extractReplyTokenCandidates } from '../domain/recipient-reply-token.pol
 import { ContractorMailInboundSettingsMissingError } from '../domain/contractor-mail-inbound.error.js'
 import type { DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
 import type { VerifyDkimAlignmentPort } from '../infrastructure/dkim-verifier.gateway.js'
+import type { InboundConversationAttachmentsPort } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
 import type { ContractorMailInboundWorkerRepository } from '../infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import type {
@@ -42,6 +43,8 @@ export type StoreRawEmailPort = {
 }
 
 export type RecordContractorMailInboundMessageDependencies = {
+  /** Spec 183 T702c1: os anexos do e-mail que viram anexo da mensagem da conversa. */
+  readonly conversationAttachments: InboundConversationAttachmentsPort
   readonly dkimVerifier: VerifyDkimAlignmentPort
   readonly mailGateway: ResendMailGateway
   readonly repository: ContractorMailInboundWorkerRepository
@@ -61,6 +64,8 @@ export type RecordContractorMailInboundMessageResult =
   | { readonly outcome: 'already_recorded' }
   | { readonly outcome: 'discarded'; readonly reason: 'multiple_matches' | 'token_unknown' }
   | {
+      /** Spec 183 T702c1: só contagem — o nome do arquivo nunca sai daqui. */
+      readonly attachments: { readonly linked: number; readonly skipped: number }
       readonly dkimResult: DkimAlignmentResult
       readonly outcome: 'recorded'
       readonly threadId: string
@@ -135,29 +140,61 @@ export async function recordContractorMailInboundMessage(
   /** Spec 183 T406 (RF16): endereço para casar com os contatos, nome para quem está fora deles. */
   const sender = parseSenderMailbox(received.from)
 
-  await dependencies.repository.recordInboundMessage({
-    bodyText: normalizeNonEmpty(received.text, FALLBACK_BODY_TEXT),
+  /**
+   * Spec 183 T702c1: os anexos vão ao bucket antes da transação (o bucket não participa dela) e só
+   * quando a thread tem conversa da ocorrência. O que a transação não ligar é apagado aqui.
+   */
+  const attachments = (await dependencies.repository.threadHasOccurrenceConversation({
     companyId,
-    dkimResult,
-    fromAddress: sender.address,
-    fromDisplayName: sender.displayName,
-    inReplyTo: extractInReplyToHeader(received),
-    providerEmailId,
-    raw: {
-      bucket: dependencies.storageBucket,
-      key: objectKey,
-      mimeType: RAW_EMAIL_MIME_TYPE,
-      provider: dependencies.storageProvider,
-      sha256,
-      sizeBytes: rawMessage.byteLength,
-    },
-    rfcMessageId: normalizeOptional(received.message_id),
-    subject: normalizeNonEmpty(received.subject, FALLBACK_SUBJECT),
     threadId: thread.id,
-    toAddresses: received.to,
-  })
+  }))
+    ? await dependencies.conversationAttachments.store(new Uint8Array(rawMessage))
+    : { skipped: 0, stored: [] }
 
-  return { dkimResult, outcome: 'recorded', threadId: thread.id }
+  let recorded: { readonly linkedAttachments: number }
+  try {
+    recorded = await recordInbound()
+  } catch (error: unknown) {
+    if (attachments.stored.length > 0) {
+      await dependencies.conversationAttachments.discard(attachments.stored)
+    }
+    throw error
+  }
+  if (recorded.linkedAttachments === 0 && attachments.stored.length > 0) {
+    await dependencies.conversationAttachments.discard(attachments.stored)
+  }
+
+  return {
+    attachments: { linked: recorded.linkedAttachments, skipped: attachments.skipped },
+    dkimResult,
+    outcome: 'recorded',
+    threadId: thread.id,
+  }
+
+  function recordInbound() {
+    return dependencies.repository.recordInboundMessage({
+      bodyText: normalizeNonEmpty(received.text, FALLBACK_BODY_TEXT),
+      companyId,
+      conversationAttachments: attachments.stored,
+      dkimResult,
+      fromAddress: sender.address,
+      fromDisplayName: sender.displayName,
+      inReplyTo: extractInReplyToHeader(received),
+      providerEmailId,
+      raw: {
+        bucket: dependencies.storageBucket,
+        key: objectKey,
+        mimeType: RAW_EMAIL_MIME_TYPE,
+        provider: dependencies.storageProvider,
+        sha256,
+        sizeBytes: rawMessage.byteLength,
+      },
+      rfcMessageId: normalizeOptional(received.message_id),
+      subject: normalizeNonEmpty(received.subject, FALLBACK_SUBJECT),
+      threadId: thread.id,
+      toAddresses: received.to,
+    })
+  }
 }
 
 function dedupeById<TRecord extends { readonly id: string }>(

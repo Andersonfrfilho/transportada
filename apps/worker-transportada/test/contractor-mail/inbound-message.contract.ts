@@ -102,8 +102,21 @@ async function signSyntheticMessage(input: {
 
 type Deps = RecordContractorMailInboundMessageDependencies
 
+/** Spec 183 T702c1: sem conversa na thread, os anexos nem são extraídos. */
+const UNUSED_ATTACHMENTS: Deps['conversationAttachments'] = {
+  discard: async () => {
+    throw new Error('discard sem anexo guardado')
+  },
+  store: async () => {
+    throw new Error('anexo extraído de thread sem conversa')
+  },
+}
+
 function buildRepository(input: {
   readonly existingMessageId?: string
+  /** Spec 183 T702c1: a thread tem conversa da ocorrência, e quantos anexos a transação ligou. */
+  readonly hasConversation?: boolean
+  readonly linked?: number
   readonly recordCalls: RecordContractorMailInboundMessageInput[]
   readonly threads?: readonly (ContractorMailInboundThreadRecord & {
     readonly companyId: string
@@ -134,7 +147,10 @@ function buildRepository(input: {
     },
     async recordInboundMessage(recordInput) {
       input.recordCalls.push(recordInput)
-      return { id: crypto.randomUUID() }
+      return { id: crypto.randomUUID(), linkedAttachments: input.linked ?? 0 }
+    },
+    async threadHasOccurrenceConversation() {
+      return input.hasConversation ?? false
     },
   }
 }
@@ -178,6 +194,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls }),
       secretService: {
         async decrypt() {
@@ -200,7 +217,12 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
 
     const result = await recordContractorMailInboundMessage(buildEnvelope(), dependencies)
 
-    expect(result).toEqual({ dkimResult: 'aligned', outcome: 'recorded', threadId: THREAD_ID })
+    expect(result).toEqual({
+      attachments: { linked: 0, skipped: 0 },
+      dkimResult: 'aligned',
+      outcome: 'recorded',
+      threadId: THREAD_ID,
+    })
     expect(recordCalls).toHaveLength(1)
     expect(recordCalls[0]).toMatchObject({
       bodyText: 'APROVADO',
@@ -245,6 +267,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls }),
       secretService: {
         async decrypt() {
@@ -301,6 +324,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls }),
       secretService: {
         async decrypt() {
@@ -355,6 +379,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({
         recordCalls,
         threads: [
@@ -417,6 +442,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({
         recordCalls,
         threads: [
@@ -473,6 +499,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ existingMessageId: crypto.randomUUID(), recordCalls }),
       secretService: {
         async decrypt() {
@@ -512,6 +539,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls: [] }),
       secretService: {
         async decrypt() {
@@ -551,6 +579,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls: [] }),
       secretService: {
         async decrypt() {
@@ -591,6 +620,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls: [] }),
       secretService: {
         async decrypt() {
@@ -643,6 +673,7 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
           throw new Error('not used by this contract')
         },
       },
+      conversationAttachments: UNUSED_ATTACHMENTS,
       repository: buildRepository({ recordCalls: [] }),
       secretService: {
         async decrypt() {
@@ -665,5 +696,113 @@ describe('record contractor mail inbound message (spec 143, T010 — revisão do
     await expect(
       recordContractorMailInboundMessage(buildEnvelope(), dependencies),
     ).rejects.toBeInstanceOf(ResendDownloadHostNotAllowedError)
+  })
+})
+
+/**
+ * Spec 183 T702c1: com conversa na thread, os anexos vão ao bucket antes da transação e entram nela
+ * com a mensagem; o que a transação não ligou (a conversa sumiu, a transação falhou) é apagado.
+ */
+describe('os anexos do e-mail recebido (spec 183 T702c1)', () => {
+  const STORED = [
+    {
+      bucket: 'transportada-private',
+      contentType: 'application/pdf',
+      fileName: 'nota.pdf',
+      key: 'occurrence-conversations/token-1',
+      provider: 'minio',
+      sha256: 'a'.repeat(64),
+      sizeBytes: 10,
+    },
+  ] as const
+
+  function dependencies(input: {
+    readonly discarded: unknown[]
+    readonly failRecord?: boolean
+    readonly linked: number
+    readonly recordCalls: RecordContractorMailInboundMessageInput[]
+  }): Deps {
+    const repository = buildRepository({
+      hasConversation: true,
+      linked: input.linked,
+      recordCalls: input.recordCalls,
+    })
+    return {
+      conversationAttachments: {
+        discard: async (stored) => void input.discarded.push(...stored),
+        store: async () => ({ skipped: 2, stored: STORED }),
+      },
+      dkimVerifier: { verify: async () => 'absent' },
+      mailGateway: {
+        downloadRawEmail: async () => Buffer.from('mime'),
+        fetchReceivedEmail: async () => ({
+          from: 'financeiro@contratante.com.br',
+          headers: {},
+          message_id: '<resposta@contratante.com.br>',
+          raw: { download_url: 'https://cdn.resend.com/raw/2', expires_at: '2099-01-01T00:00:00Z' },
+          subject: 'Re',
+          text: 'Segue.',
+          to: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+        }),
+        sendEmail: async () => {
+          throw new Error('not used by this contract')
+        },
+      },
+      repository: input.failRecord
+        ? {
+            ...repository,
+            recordInboundMessage: async () => {
+              throw new Error('transação desfeita')
+            },
+          }
+        : repository,
+      secretService: {
+        decrypt: async () => ({
+          apiKey: 're_test_key',
+          replyTokenSecret: 'a'.repeat(64),
+          webhookSigningSecret: 'whsec_test',
+        }),
+      },
+      storage: { storeObject: async () => undefined },
+      storageBucket: 'transportada-private',
+      storageProvider: 'minio',
+    }
+  }
+
+  test('ligados na transação da mensagem; o resultado só conta', async () => {
+    const recordCalls: RecordContractorMailInboundMessageInput[] = []
+    const discarded: unknown[] = []
+
+    const result = await recordContractorMailInboundMessage(
+      buildEnvelope(),
+      dependencies({ discarded, linked: 1, recordCalls }),
+    )
+
+    expect(recordCalls[0]?.conversationAttachments).toEqual(STORED)
+    expect(result).toMatchObject({ attachments: { linked: 1, skipped: 2 }, outcome: 'recorded' })
+    expect(discarded).toEqual([])
+  })
+
+  test('nada ligado (a conversa não achou a mensagem): os objetos são apagados', async () => {
+    const discarded: unknown[] = []
+
+    await recordContractorMailInboundMessage(
+      buildEnvelope(),
+      dependencies({ discarded, linked: 0, recordCalls: [] }),
+    )
+
+    expect(discarded).toEqual([...STORED])
+  })
+
+  test('transação falhou: os objetos são apagados e o erro segue para o reenvio', async () => {
+    const discarded: unknown[] = []
+
+    expect(
+      await recordContractorMailInboundMessage(
+        buildEnvelope(),
+        dependencies({ discarded, failRecord: true, linked: 0, recordCalls: [] }),
+      ).catch((error: unknown) => error),
+    ).toBeInstanceOf(Error)
+    expect(discarded).toEqual([...STORED])
   })
 })

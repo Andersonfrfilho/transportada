@@ -1715,3 +1715,54 @@ num commit só, não daria para ver qual parte quebrou. A T702e fica aberta até
   (`occurrence_conversation_portal_notice_failed`, sem corpo no log) — a mensagem é gravada igual.
 - **Rodado:** painel **5251 + 44 pass**; portal **80 pass** e build verde; lint, typecheck e
   formatação da raiz limpos.
+
+## T702c1 — O anexo do e-mail recebido vira anexo da mensagem da conversa (verde)
+
+**Divergência técnica, aplicada: a T702c foi dividida em duas** — T702c1 (os anexos do e-mail) e
+T702c2 (o expurgo dos pedidos vencidos, que precisa de job novo no catálogo dos quatro apps e de
+migration na API). Um commit por parte.
+
+- **MIME:** o worker não tinha leitor de MIME. Entrou o `postal-mime@2.7.6` como dependência direta
+  (a mesma versão já instalada como dependência do `resend`; o `bun.lock` ganhou uma linha).
+- **Política:** `occurrence-conversation/domain/conversation-attachment.policy.ts` é **cópia por
+  valor, byte a byte**, da política da API — o contrato compara os dois arquivos inteiros.
+- **O que entra:** o que a API aceitaria pelo canal **e-mail**: tipo da lista conferido pelos bytes,
+  de 1 byte a 10 MB, no máximo cinco. A parte `inline` (o logo da assinatura) não é anexo. Tipo com
+  variação de grafia (`image/jpg`, `image/pjpeg`) vira o canônico. MIME ilegível vira "sem anexo" —
+  a evidência do e-mail é o MIME bruto, já gravado.
+- **Fluxo** (`record-contractor-mail-inbound-message.use-case.ts`):
+  - os anexos só são extraídos quando a thread da 143 tem conversa da ocorrência
+    (`threadHasOccurrenceConversation`, pela empresa do contexto);
+  - vão ao bucket **antes** da transação (o bucket não participa dela), com a chave opaca da API
+    (`occurrence-conversations/<256 bits>`) e o sha256 dos bytes;
+  - dentro da transação da 143, a resposta vira mensagem da conversa e cada anexo vira
+    `stored_objects` (`occurrence_conversation_attachment`) + `occurrence_conversation_attachments`
+    ligado a ela;
+  - o que a transação não ligou (a conversa não achou a mensagem) ou a transação que falhou apaga os
+    objetos; o erro segue para o reenvio;
+  - o log `inbound_email_dkim_verified` ganha só as contagens `attachmentsLinked` e
+    `attachmentsSkipped` — nome, tipo e tamanho do arquivo nunca vão a log.
+- **Cópias de schema no worker:** `occurrence_conversation_attachments` (colunas conferidas contra a
+  API por contrato) e o propósito novo no `StorageObjectPurpose`.
+- **Testes, escritos antes e vistos falhando** (módulo inexistente; depois **4 fail** no caso de
+  uso):
+  - `test/occurrence-conversation/inbound-attachments.contract.ts` (**6 pass**): paridade da
+    política e das colunas; PDF e JPEG entram, logo `inline` fica fora sem contar, SVG, PDF com bytes
+    de JPEG e o sexto aceito contam como recusa; MIME sem anexo e ilegível; nome só com a última
+    parte do caminho; guardar com chave opaca e descartar os mesmos;
+  - `test/contractor-mail/inbound-message.contract.ts` (três casos novos): ligados na transação e o
+    resultado só conta; nada ligado apaga; transação que falha apaga e relança. Os casos que já
+    existiam provam que thread sem conversa nem extrai (a porta falsa lança se for chamada);
+  - `inbound-consumer.contract.ts`: o log com as duas contagens;
+  - integração `occurrence-conversation-mail.integration.ts` (**7 pass**): o anexo entra ligado à
+    mensagem `inbound` da conversa, com `stored_objects` de propósito certo; a thread sem conversa
+    não liga nada; a thread de outra empresa não é achada.
+- **Rodado:**
+  - worker: contratos **1441 pass**; integração completa sozinha (Postgres de verdade, RabbitMQ do
+    compose e o S3 local no lugar do MinIO): **137 pass, 4 skip, 0 fail**.
+  - ⚠️ A **primeira** rodada completa teve **1 fail**: `sigterm.integration.ts`, o worker saiu com
+    código 1 no boot, e o stderr só dizia `worker_startup_failed` — o `catch` do `bootstrap` engole o
+    erro. Não reproduziu em quatro rodadas seguidas (duas do teste sozinho com a mudança, uma na linha
+    de base sem ela, uma completa). A causa não foi estabelecida; fica registrado como está, e o
+    `catch` mudo do boot entra como achado para a revisão da Fase 9.
+  - lint, typecheck e formatação da raiz limpos.

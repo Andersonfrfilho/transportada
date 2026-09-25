@@ -15,11 +15,14 @@ import { and, eq } from 'drizzle-orm'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { contractorMailMessages } from '../../database/contractor-mail.schema.js'
+import { storedObjects } from '../../database/nfe.schema.js'
 import {
   OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH,
+  occurrenceConversationAttachments,
   occurrenceConversationMessages,
   type OccurrenceConversationMessageStatus,
 } from '../../database/occurrence-conversation.schema.js'
+import type { StoredInboundAttachment } from '../application/inbound-mail-attachments.service.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -28,8 +31,8 @@ export type OccurrenceConversationTransaction = Parameters<
 >[0]
 
 /** A thread da 143 pertence a uma conversa quando alguma mensagem enviada dela foi da conversa. */
-async function findConversationByThread(
-  transaction: OccurrenceConversationTransaction,
+export async function findOccurrenceConversationByThread(
+  transaction: Pick<Database, 'select'>,
   input: { readonly companyId: string; readonly threadId: string },
 ): Promise<string | undefined> {
   const [row] = await transaction
@@ -59,25 +62,59 @@ async function findConversationByThread(
 export async function recordOccurrenceConversationMailReply(
   transaction: OccurrenceConversationTransaction,
   input: {
+    /** Spec 183 T702c1: os anexos já no bucket; viram anexo desta mensagem, na mesma transação. */
+    readonly attachments: readonly StoredInboundAttachment[]
     readonly bodyText: string
     readonly companyId: string
     readonly fromAddress: string
     readonly mailMessageId: string
     readonly threadId: string
   },
-): Promise<void> {
-  const conversationId = await findConversationByThread(transaction, input)
-  if (conversationId === undefined) return
+): Promise<number> {
+  const conversationId = await findOccurrenceConversationByThread(transaction, input)
+  if (conversationId === undefined) return 0
 
-  await transaction.insert(occurrenceConversationMessages).values({
-    bodyText: input.bodyText.slice(0, OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH),
-    channel: 'email',
-    companyId: input.companyId,
-    conversationId,
-    direction: 'inbound',
-    mailMessageId: input.mailMessageId,
-    senderAddress: input.fromAddress,
-  })
+  const [message] = await transaction
+    .insert(occurrenceConversationMessages)
+    .values({
+      bodyText: input.bodyText.slice(0, OCCURRENCE_CONVERSATION_BODY_MAX_LENGTH),
+      channel: 'email',
+      companyId: input.companyId,
+      conversationId,
+      direction: 'inbound',
+      mailMessageId: input.mailMessageId,
+      senderAddress: input.fromAddress,
+    })
+    .returning({ id: occurrenceConversationMessages.id })
+  if (message === undefined) throw new Error('occurrence conversation mail reply was not inserted')
+
+  for (const attachment of input.attachments) {
+    const [object] = await transaction
+      .insert(storedObjects)
+      .values({
+        bucket: attachment.bucket,
+        companyId: input.companyId,
+        mimeType: attachment.contentType,
+        objectKey: attachment.key,
+        provider: attachment.provider,
+        purpose: 'occurrence_conversation_attachment',
+        sha256: attachment.sha256,
+        sizeBytes: BigInt(attachment.sizeBytes),
+        status: 'final',
+      })
+      .returning({ id: storedObjects.id })
+    if (object === undefined) throw new Error('occurrence conversation attachment object missing')
+    await transaction.insert(occurrenceConversationAttachments).values({
+      companyId: input.companyId,
+      contentType: attachment.contentType,
+      fileName: attachment.fileName,
+      messageId: message.id,
+      sha256: attachment.sha256,
+      sizeBytes: attachment.sizeBytes,
+      storedObjectId: object.id,
+    })
+  }
+  return input.attachments.length
 }
 
 export async function applyOccurrenceConversationMailStatus(

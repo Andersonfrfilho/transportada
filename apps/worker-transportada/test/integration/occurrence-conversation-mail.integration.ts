@@ -12,7 +12,10 @@ import { describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, sql } from 'drizzle-orm'
 
-import { createDrizzleContractorMailInboundWorkerRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
+import {
+  createDrizzleContractorMailInboundWorkerRepository,
+  type RecordContractorMailInboundMessageInput,
+} from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createDrizzleContractorMailOutboundWorkerRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 import { contractorMailMessages } from '../../src/database/contractor-mail.schema.js'
 import { occurrenceConversationMessages } from '../../src/database/occurrence-conversation.schema.js'
@@ -71,9 +74,15 @@ describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183
     return { companyId, conversationId, mailMessageId, threadId }
   }
 
-  function recordReply(seeded: Seeded, providerEmailId: string, bodyText = 'Podem descarregar.') {
+  function recordReply(
+    seeded: Seeded,
+    providerEmailId: string,
+    bodyText = 'Podem descarregar.',
+    conversationAttachments: RecordContractorMailInboundMessageInput['conversationAttachments'] = [],
+  ) {
     return inbound.recordInboundMessage({
       bodyText,
+      conversationAttachments,
       companyId: seeded.companyId,
       dkimResult: 'aligned',
       fromAddress: 'compras@alfa.example.test',
@@ -160,6 +169,73 @@ describeDatabase('conversa da ocorrência pelo trilho de e-mail da 143 (spec 183
     await recordReply(seeded, `re_${crypto.randomUUID()}`)
 
     expect(await conversationMessages(seeded.companyId)).toEqual([])
+  })
+
+  /** Spec 183 T702c1: o anexo do e-mail vira anexo da mensagem da conversa, na mesma transação. */
+  it('o anexo do e-mail entra ligado à mensagem da conversa; sem conversa, nada liga', async () => {
+    const seeded = await seed({ withConversation: true })
+    const lonely = await seed({ withConversation: false })
+    const attachment = {
+      bucket: 'transportada-test',
+      contentType: 'application/pdf',
+      fileName: 'nota-devolucao.pdf',
+      key: `occurrence-conversations/${crypto.randomUUID()}`,
+      provider: 'minio',
+      sha256: 'b'.repeat(64),
+      sizeBytes: 2048,
+    }
+
+    expect(
+      await inbound.threadHasOccurrenceConversation({
+        companyId: seeded.companyId,
+        threadId: seeded.threadId,
+      }),
+    ).toBe(true)
+    expect(
+      await inbound.threadHasOccurrenceConversation({
+        companyId: lonely.companyId,
+        threadId: lonely.threadId,
+      }),
+    ).toBe(false)
+    /** A thread de outra empresa não é achada pela empresa desta (tenant). */
+    expect(
+      await inbound.threadHasOccurrenceConversation({
+        companyId: lonely.companyId,
+        threadId: seeded.threadId,
+      }),
+    ).toBe(false)
+
+    const recorded = await recordReply(seeded, `re_${crypto.randomUUID()}`, 'Segue a nota.', [
+      attachment,
+    ])
+    const lonelyRecorded = await recordReply(lonely, `re_${crypto.randomUUID()}`, 'x', [
+      { ...attachment, key: `occurrence-conversations/${crypto.randomUUID()}` },
+    ])
+
+    expect(recorded.linkedAttachments).toBe(1)
+    expect(lonelyRecorded.linkedAttachments).toBe(0)
+    const rows = await database.execute(sql`
+      select a.file_name, a.content_type, a.size_bytes, a.sha256, s.purpose, s.object_key, m.direction
+      from occurrence_conversation_attachments a
+      join stored_objects s on s.company_id = a.company_id and s.id = a.stored_object_id
+      join occurrence_conversation_messages m on m.company_id = a.company_id and m.id = a.message_id
+      where a.company_id = ${seeded.companyId}
+    `)
+    expect([...rows]).toEqual([
+      {
+        content_type: 'application/pdf',
+        direction: 'inbound',
+        file_name: 'nota-devolucao.pdf',
+        object_key: attachment.key,
+        purpose: 'occurrence_conversation_attachment',
+        sha256: attachment.sha256,
+        size_bytes: 2048,
+      },
+    ])
+    const lonelyRows = await database.execute(
+      sql`select count(*)::int as total from occurrence_conversation_attachments where company_id = ${lonely.companyId}`,
+    )
+    expect([...lonelyRows]).toEqual([{ total: 0 }])
   })
 
   it('o envio aceito pelo Resend leva a mensagem da conversa a sent, com o id e o horário', async () => {

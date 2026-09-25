@@ -10,7 +10,11 @@ import {
   contractorMailThreads,
 } from '../../database/contractor-mail.schema.js'
 import { storedObjects } from '../../database/nfe.schema.js'
-import { recordOccurrenceConversationMailReply } from '../../occurrence-conversation/infrastructure/drizzle-occurrence-conversation-mail.repository.js'
+import type { StoredInboundAttachment } from '../../occurrence-conversation/application/inbound-mail-attachments.service.js'
+import {
+  findOccurrenceConversationByThread,
+  recordOccurrenceConversationMailReply,
+} from '../../occurrence-conversation/infrastructure/drizzle-occurrence-conversation-mail.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -35,6 +39,11 @@ export type ContractorMailInboundThreadRecord = {
  */
 export type RecordContractorMailInboundMessageInput = {
   readonly bodyText: string
+  /**
+   * Spec 183 T702c1: os anexos do e-mail, já no bucket. Viram anexo da mensagem da conversa na mesma
+   * transação — só quando a resposta vira mensagem da conversa.
+   */
+  readonly conversationAttachments: readonly StoredInboundAttachment[]
   readonly companyId: string
   readonly dkimResult: string
   readonly fromAddress: string
@@ -74,7 +83,15 @@ export type ContractorMailInboundWorkerRepository = {
     readonly companyId: string
     readonly replyTokenHashes: readonly string[]
   }): Promise<readonly ContractorMailInboundThreadRecord[]>
-  recordInboundMessage(input: RecordContractorMailInboundMessageInput): Promise<{ id: string }>
+  /** `linkedAttachments`: quantos anexos viraram anexo da mensagem da conversa (spec 183 T702c1). */
+  recordInboundMessage(
+    input: RecordContractorMailInboundMessageInput,
+  ): Promise<{ readonly id: string; readonly linkedAttachments: number }>
+  /** Spec 183 T702c1: sem conversa na thread, o anexo do e-mail nem é extraído. */
+  threadHasOccurrenceConversation(input: {
+    readonly companyId: string
+    readonly threadId: string
+  }): Promise<boolean>
 }
 
 /**
@@ -202,14 +219,15 @@ export function createDrizzleContractorMailInboundWorkerRepository(
 
         if (message !== undefined) {
           /** Spec 183 T405: só a mensagem que acabou de nascer vira mensagem da conversa. */
-          await recordOccurrenceConversationMailReply(transaction, {
+          const linked = await recordOccurrenceConversationMailReply(transaction, {
+            attachments: input.conversationAttachments,
             bodyText: input.bodyText,
             companyId: input.companyId,
             fromAddress: input.fromAddress,
             mailMessageId: message.id,
             threadId: input.threadId,
           })
-          return { id: message.id }
+          return { id: message.id, linkedAttachments: linked }
         }
 
         const [existing] = await transaction
@@ -227,8 +245,12 @@ export function createDrizzleContractorMailInboundWorkerRepository(
             'contractor mail inbound message reservation lost the race without a winner',
           )
         }
-        return { id: existing.id }
+        return { id: existing.id, linkedAttachments: 0 }
       })
+    },
+
+    async threadHasOccurrenceConversation(input) {
+      return (await findOccurrenceConversationByThread(database, input)) !== undefined
     },
   }
 }
