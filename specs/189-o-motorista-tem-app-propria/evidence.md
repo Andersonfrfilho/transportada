@@ -1333,3 +1333,25 @@ existe uso", não a taxa exata.
 - `bun test ./test/driver-trip.contract.test.ts`: 227 pass / 0 fail (era 226 depois do LOW
   anterior; +1 desta revisão).
 - `bun run typecheck`, `bun run lint`: limpos.
+
+### LOW — teto de tempo na abertura do IndexedDB (`readDriverAppMode`)
+
+Um IndexedDB preso (bloqueado por outra aba, disco sem espaço sem erro imediato) não rejeita — ele
+nunca resolve. O `catch` existente (fila ilegível → `stay`) só pega **erro**, nunca **silêncio**:
+sem teto, o boot travaria antes de qualquer tela aparecer, indefinidamente.
+
+- `readDriverAppMode` corre a leitura das duas lojas contra um `Promise.race` com um teto de
+  `DRIVER_APP_ENTRY_INDEXED_DB_TIMEOUT_MS` (3 s) — vencido, cai no mesmo `stay` do `catch`. A
+  sentinela do timeout é um `Symbol` local, para não se confundir com o que as lojas já podem
+  devolver.
+- A função ganhou `createQueueStore`/`createAttachmentStore`/`timeoutMs` opcionais (padrão: as
+  lojas reais do IndexedDB e os 3 s), no mesmo molde de `useDriverTrip(providedStore?,
+providedAttachmentStore?)` — só para o teste injetar uma loja que nunca resolve, sem esperar 3 s
+  de verdade nem mexer no timeout real de produção.
+- Novo `test/driver-trip/driver-app-entry.contract.ts`, sem DOM (o caminho do teto não toca
+  `window`; o de sucesso tocaria, e por isso não é testado aqui — ver M3 sobre a ausência de um
+  helper de render de componente/hook fora de `test/trip-hooks/`): loja presa além do teto
+  (`timeoutMs: 20`) devolve `stay`; loja rápida termina bem antes do teto (`timeoutMs: 3000`, mas o
+  tempo decorrido fica abaixo de 200 ms).
+- `bun test ./test/driver-trip.contract.test.ts`: 229 pass / 0 fail (era 227; +2 desta revisão).
+- `bun run typecheck`, `bun run lint`: limpos.
