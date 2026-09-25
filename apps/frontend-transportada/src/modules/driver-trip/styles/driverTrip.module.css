@@ -167,13 +167,6 @@
   margin: 0;
 }
 
-.occurrencePreviewKey {
-  color: var(--color-slate);
-  font-family: ui-monospace, monospace;
-  font-size: 0.75rem;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
 
 .proofField {
   display: grid;

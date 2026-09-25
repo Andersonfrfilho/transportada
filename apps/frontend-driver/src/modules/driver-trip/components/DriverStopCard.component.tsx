@@ -990,10 +990,7 @@ function OccurrenceForm({ onSubmit, stop }: OccurrenceFormProps) {
         {preview === null ? (
           <p className={styles.occurrencePreviewText}>{t('occurrencePreview.none')}</p>
         ) : (
-          <>
-            <p className={styles.occurrencePreviewText}>{preview.text}</p>
-            <p className={styles.occurrencePreviewKey}>{preview.templateKey}</p>
-          </>
+          <p className={styles.occurrencePreviewText}>{preview.text}</p>
         )}
       </div>
       {/* ⚠️ A rota da ocorrência não aceita anexo: a foto sobe pelo proof da nota associada. */}
