@@ -35,7 +35,6 @@
     "approvesCharges": "Aprova cobranças",
     "inactive": "Inativo",
     "outside": "Fora dos contatos",
-    "addContact": "Adicionar aos contatos",
     "showCard": "Ver o cartão de {{name}}",
     "arrivedAs": "Chegou de",
     "email": "E-mail",
@@ -91,10 +90,6 @@
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Não foi possível subir os anexos. Tente de novo em instantes.",
       "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez."
     }
-  },
-  "addContact": {
-    "title": "Adicionar aos contatos",
-    "close": "Fechar"
   },
   "unassigned": {
     "title_one": "{{count}} mensagem sem conversa",

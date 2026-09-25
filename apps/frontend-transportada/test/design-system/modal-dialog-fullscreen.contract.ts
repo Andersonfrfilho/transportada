@@ -44,8 +44,14 @@ const MODAL_DIALOG_SHAPES: readonly DialogShape[] = [
     filePath: 'src/modules/delivery-clients/styles/contractorMailSettings.module.css',
     overlay: '.overlay',
   },
+  /** Spec 183 T903 (F5): "Adicionar aos contatos", a ação que `delivery-clients` oferece. */
+  {
+    dialog: '.dialog',
+    filePath: 'src/modules/delivery-clients/styles/contractorContactDialog.module.css',
+    overlay: '.overlay',
+  },
   { dialog: '.dialog', filePath: 'src/modules/fleet/styles/fleet.module.css', overlay: '.overlay' },
-  /** Spec 183 T407: "Enviar à contratante" e "Adicionar aos contatos" dividem o mesmo par. */
+  /** Spec 183 T407: "Enviar à contratante". */
   {
     dialog: '.dialog',
     filePath: 'src/modules/occurrence-conversation/styles/occurrenceConversation.module.css',

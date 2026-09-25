@@ -35,7 +35,6 @@
     "approvesCharges": "Approves charges",
     "inactive": "Inactive",
     "outside": "Not in contacts",
-    "addContact": "Add to contacts",
     "showCard": "Show {{name}}'s card",
     "arrivedAs": "Arrived from",
     "email": "Email",
@@ -91,10 +90,6 @@
       "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Could not upload the attachments. Try again shortly.",
       "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "An attachment expired before sending. Send again — it will upload once more."
     }
-  },
-  "addContact": {
-    "title": "Add to contacts",
-    "close": "Close"
   },
   "unassigned": {
     "title_one": "{{count}} message without a conversation",

@@ -257,5 +257,10 @@
       "6": "Saturday"
     }
   },
-  "kicker": "Registry"
+  "kicker": "Registry",
+  "addContactAction": {
+    "open": "Add to contacts",
+    "title": "Add to contacts",
+    "close": "Close"
+  }
 }

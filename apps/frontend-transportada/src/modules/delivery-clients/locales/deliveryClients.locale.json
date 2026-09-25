@@ -257,5 +257,10 @@
       "6": "Sábado"
     }
   },
-  "kicker": "Cadastros"
+  "kicker": "Cadastros",
+  "addContactAction": {
+    "open": "Adicionar aos contatos",
+    "title": "Adicionar aos contatos",
+    "close": "Fechar"
+  }
 }

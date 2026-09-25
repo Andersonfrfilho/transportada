@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { DateDivider } from '@adatechnology/conversations-ui'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,8 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
+import { AddContractorContactAction } from '@/modules/delivery-clients/components/AddContractorContactAction.component'
 
 import {
+  OCCURRENCE_CONVERSATIONS_QUERY_KEY,
   useMarkConversationReadMutation,
   useOccurrenceConversationsQuery,
   useSendContractorPortalMessageMutation,
@@ -30,7 +33,6 @@ import type {
   OccurrenceConversation,
 } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceConversation.module.css'
-import { AddContractorContactDialog } from './AddContractorContactDialog.component'
 import { ConversationAttachmentPicker } from './ConversationAttachmentPicker.component'
 import { QuickReplyPicker } from './QuickReplyPicker.component'
 import { ConversationMessage } from './ConversationMessage.component'
@@ -109,13 +111,13 @@ type ConversationResend = NonNullable<Parameters<typeof ConversationMessage>[0][
 function ConversationThread({
   canManageContacts,
   messages,
-  onAddContact,
+  renderAddContact,
   renderAttachmentActions,
   resend,
 }: Readonly<{
   canManageContacts: boolean
   messages: OccurrenceConversation['messages']
-  onAddContact: (suggestion: ContractorSenderSuggestion) => void
+  renderAddContact?: (suggestion: ContractorSenderSuggestion) => ReactNode
   renderAttachmentActions?: RenderAttachmentActions
   resend?: ConversationResend
 }>) {
@@ -145,7 +147,7 @@ function ConversationThread({
               canManageContacts={canManageContacts}
               key={message.id}
               message={message}
-              onAddContact={onAddContact}
+              {...(renderAddContact === undefined ? {} : { renderAddContact })}
               {...(renderAttachmentActions === undefined ? {} : { renderAttachmentActions })}
               {...(resend === undefined ? {} : { resend })}
             />
@@ -252,7 +254,6 @@ function DriverConversationPanel({
         <ConversationThread
           canManageContacts={false}
           messages={messages}
-          onAddContact={() => undefined}
           {...(canSend ? { resend } : {})}
           /** Spec 183 T702d: as ações só na mensagem que o motorista mandou. */
           renderAttachmentActions={(attachment, message) =>
@@ -479,7 +480,7 @@ function ContractorConversationPanel({
 }>) {
   const { t } = useTranslation('occurrenceConversation')
   const [isSending, setSending] = useState(false)
-  const [suggestion, setSuggestion] = useState<ContractorSenderSuggestion | null>(null)
+  const queryClient = useQueryClient()
   /** Spec 183 T703: o reenvio leva o texto ao compositor do portal ou ao diálogo do e-mail. */
   const [portalPrefill, setPortalPrefill] = useState<null | { nonce: number; text: string }>(null)
   const [mailBody, setMailBody] = useState<string | undefined>(undefined)
@@ -528,7 +529,22 @@ function ContractorConversationPanel({
         <ConversationThread
           canManageContacts={canManageContacts && contractorId !== null}
           messages={messages}
-          onAddContact={setSuggestion}
+          {...(contractorId === null
+            ? {}
+            : {
+                /** Spec 183 T903 (F5): a ação de `delivery-clients`; gravado, a conversa relê. */
+                renderAddContact: (suggestion: ContractorSenderSuggestion) => (
+                  <AddContractorContactAction
+                    contractorId={contractorId}
+                    onCreated={() =>
+                      void queryClient.invalidateQueries({
+                        queryKey: [OCCURRENCE_CONVERSATIONS_QUERY_KEY],
+                      })
+                    }
+                    suggestion={suggestion}
+                  />
+                ),
+              })}
           {...(canWrite ? { resend } : {})}
         />
       )}
@@ -545,13 +561,6 @@ function ContractorConversationPanel({
             setMailBody(undefined)
           }}
           occurrenceId={occurrenceId}
-        />
-      ) : null}
-      {suggestion !== null && contractorId !== null ? (
-        <AddContractorContactDialog
-          contractorId={contractorId}
-          onClose={() => setSuggestion(null)}
-          suggestion={suggestion}
         />
       ) : null}
     </div>

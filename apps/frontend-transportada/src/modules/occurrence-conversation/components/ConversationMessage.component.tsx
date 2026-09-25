@@ -59,7 +59,11 @@ const TICK_STATUS: Readonly<Partial<Record<string, string>>> = {
 type ConversationMessageProps = Readonly<{
   canManageContacts: boolean
   message: OccurrenceConversationMessage
-  onAddContact: (suggestion: ContractorSenderSuggestion) => void
+  /**
+   * Spec 183 T903 (F5): a ação "Adicionar aos contatos" é de `delivery-clients`; a conversa só
+   * decide quando oferecê-la (remetente fora dos contatos e confirmado).
+   */
+  renderAddContact?: (suggestion: ContractorSenderSuggestion) => ReactNode
   /**
    * Spec 183 T703 (P8): o outro canal da mesma parte para a mensagem que falhou, e o que fazer
    * ao pedir o reenvio (o painel leva o texto ao compositor daquele canal).
@@ -86,7 +90,7 @@ type ConversationMessageProps = Readonly<{
 export function ConversationMessage({
   canManageContacts,
   message,
-  onAddContact,
+  renderAddContact,
   renderAttachmentActions,
   resend,
 }: ConversationMessageProps) {
@@ -187,16 +191,7 @@ export function ConversationMessage({
             {author.unverified ? (
               <span className={styles.hint}>{t('author.unverifiedHint')}</span>
             ) : null}
-            {canManageContacts && !author.unverified ? (
-              <Button
-                onClick={() => onAddContact(author.suggestion)}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                {t('author.addContact')}
-              </Button>
-            ) : null}
+            {canManageContacts && !author.unverified ? renderAddContact?.(author.suggestion) : null}
           </div>
         ) : null}
 
