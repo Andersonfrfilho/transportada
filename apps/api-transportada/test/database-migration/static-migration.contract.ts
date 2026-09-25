@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 
@@ -1668,5 +1669,28 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
+  })
+})
+
+describe('CHECK trocado em tabela grande entra NOT VALID (spec 183 T903, achado C5)', () => {
+  /**
+   * `stored_objects` guarda todo XML, PDF e foto da base: trocar o CHECK de uma vez varre a tabela
+   * sob ACCESS EXCLUSIVE e trava importação e upload durante o deploy. Adiciona `NOT VALID` e
+   * valida em comando próprio, como as migrations irmãs desta spec.
+   */
+  test('a migration dos uploads da conversa não valida stored_objects no mesmo comando', async () => {
+    const sql = await readFile(
+      new URL(
+        '../../drizzle/20260925111600_occurrence_conversation_uploads/migration.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    const add = sql.match(/ADD CONSTRAINT "stored_objects_purpose_check"[^;]*;/u)?.[0] ?? ''
+
+    expect(add).toContain('NOT VALID')
+    expect(sql).toContain(
+      'ALTER TABLE "stored_objects" VALIDATE CONSTRAINT "stored_objects_purpose_check"',
+    )
   })
 })
