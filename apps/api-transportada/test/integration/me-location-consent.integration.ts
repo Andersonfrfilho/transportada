@@ -10,7 +10,9 @@
 import { describe, expect } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
+import { tripLocationPings } from '../../src/database/client-portal.schema.js'
 import { fleetDrivers, userCompanyMemberships } from '../../src/database/database.schema.js'
+import { DrizzleRateLimiterRepository } from '../../src/http/drizzle-rate-limiter.repository.js'
 import { createRequestHandler } from '../../src/http/request-handler.service.js'
 import { createRouter } from '../../src/http/router.service.js'
 import { HealthService } from '../../src/health/health.service.js'
@@ -30,6 +32,7 @@ import { appliedMigrations } from '../fixtures/health.fixture.js'
 import {
   linkDriverMembership,
   seedCompany,
+  seedTrip,
   testWithPostgres,
   withDisposableDatabase,
   type Company,
@@ -87,6 +90,8 @@ function buildHandler(input: {
       identityReadiness: { checkReadiness: async () => true },
       migrationStatus: appliedMigrations(),
     }),
+    /** Segurança M3 (spec 189 T9.2): balde real, prova que o `store: 'postgres'` das rotas sobe. */
+    rateLimitWindows: new DrizzleRateLimiterRepository(input.database.db),
     routes: createMeLocationRoutes({
       readConsent: createReadLocationConsentUseCase({ repository: locations, resolveDriverId }),
       recordLocation: createRecordTripLocationUseCase({ repository: locations }),
@@ -250,6 +255,53 @@ describe('a leitura do consentimento de posição (spec 189 T7.4)', () => {
         (await locations.readConsent({ companyId: other.companyId, driverId: other.firstDriverId }))
           .acceptedAt,
       ).not.toBeNull()
+    })
+  })
+})
+
+/**
+ * Segurança M3 (spec 189 T9.2): o rate limit do Postgres corta abuso, mas não o replay bem
+ * comportado — o mesmo celular reenviando o ping do minuto anterior por causa de retry de rede.
+ * Prova contra o banco real: o segundo ping dentro da janela não vira linha nova em
+ * `trip_location_pings`, e o de depois da janela volta a gravar.
+ */
+describe('o dedup do ping de posição contra o banco (spec 189 T9.2)', () => {
+  testWithPostgres('o ping repetido antes de 55 s não duplica a linha', async () => {
+    await withDisposableDatabase(async (database) => {
+      const company = await seedCompany(database)
+      const trip = await seedTrip(database, company, 'dispatched')
+      const locations = new DrizzleTripLocationRepository(database.db)
+      await locations.setConsent({
+        accepted: true,
+        companyId: company.companyId,
+        driverId: company.firstDriverId,
+      })
+      const recordTripLocation = createRecordTripLocationUseCase({ repository: locations })
+      const ping = {
+        companyId: company.companyId,
+        driverId: company.firstDriverId,
+        latitude: '-21.1767000',
+        longitude: '-47.8208000',
+      }
+
+      expect((await recordTripLocation(ping)).outcome).toBe('recorded')
+      expect((await recordTripLocation(ping)).outcome).toBe('ignored')
+
+      const rowsWithinWindow = await database.db
+        .select()
+        .from(tripLocationPings)
+        .where(eq(tripLocationPings.tripId, trip.tripId))
+      expect(rowsWithinWindow).toHaveLength(1)
+
+      expect(
+        (await recordTripLocation({ ...ping, now: new Date(Date.now() + 60_000) })).outcome,
+      ).toBe('recorded')
+
+      const rowsAfterWindow = await database.db
+        .select()
+        .from(tripLocationPings)
+        .where(eq(tripLocationPings.tripId, trip.tripId))
+      expect(rowsAfterWindow).toHaveLength(2)
     })
   })
 })

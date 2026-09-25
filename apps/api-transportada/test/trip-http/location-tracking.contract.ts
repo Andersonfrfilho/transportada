@@ -192,6 +192,45 @@ describe('o rastro ao vivo do motorista (spec 063 T008)', () => {
     expect(malformed.status).toBe(400)
   })
 
+  /** Segurança L4 (spec 189 T9.2): o regex aceita o formato, mas o globo tem intervalo. */
+  test('recusa coordenada fora do intervalo do globo', async () => {
+    const handle = buildHandler(
+      createMeLocationRoutes({
+        readConsent: async () => ({ acceptedAt: null }),
+        recordLocation: async () => ({ outcome: 'recorded' }),
+        resolveDriverId: async () => DRIVER_ID,
+        setConsent: async () => ({ acceptedAt: null }),
+      }),
+    )
+
+    const latitudeOutOfRange = await handle(
+      jsonRequest({
+        body: { latitude: '90.0000001', longitude: '0' },
+        method: 'POST',
+        path: '/me/trips/current/location',
+      }),
+    )
+    expect(latitudeOutOfRange.status).toBe(400)
+
+    const longitudeOutOfRange = await handle(
+      jsonRequest({
+        body: { latitude: '0', longitude: '180.0000001' },
+        method: 'POST',
+        path: '/me/trips/current/location',
+      }),
+    )
+    expect(longitudeOutOfRange.status).toBe(400)
+
+    const atTheBoundary = await handle(
+      jsonRequest({
+        body: { latitude: '-90', longitude: '180' },
+        method: 'POST',
+        path: '/me/trips/current/location',
+      }),
+    )
+    expect(atTheBoundary.status).toBe(201)
+  })
+
   /** O ignorado responde `202` para o log de produção distinguir sem abrir o banco. */
   test('o ignorado responde 202, e o gravado 201', async () => {
     const handle = buildHandler(
@@ -290,6 +329,55 @@ describe('o teto de idade da viagem (ADR-0056 §2)', () => {
   test('sem data de despacho o ping passa, e quem corta é o expurgo', async () => {
     const { recorded, repository } = buildRepository({
       readCurrentTracking: async () => trackingOf(true, null),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
+  })
+})
+
+/**
+ * Segurança M3 (spec 189 T9.2): o rate limit do Postgres corta abuso, mas não o replay bem
+ * comportado — o mesmo celular reenviando o ping do minuto anterior por causa de retry de rede.
+ */
+describe('o dedup do ping de posição (spec 189 T9.2)', () => {
+  const ping = { companyId: COMPANY_ID, driverId: DRIVER_ID, latitude: '0', longitude: '0' }
+  const NOW = new Date('2026-09-03T18:00:00.000Z')
+  const secondsAgo = (seconds: number) => new Date(NOW.getTime() - seconds * 1000).toISOString()
+
+  test('ignora o ping que repete o anterior antes de 55 s', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true),
+      readLastPing: async () => ({ latitude: '0', longitude: '0', recordedAt: secondsAgo(10) }),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('ignored')
+    expect(recorded).toEqual([])
+  })
+
+  test('grava de novo passados 55 s do último ping', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true),
+      readLastPing: async () => ({ latitude: '0', longitude: '0', recordedAt: secondsAgo(60) }),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
+  })
+
+  test('sem ping anterior, grava normalmente', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true),
+      readLastPing: async () => null,
     })
     const useCase = createRecordTripLocationUseCase({ repository })
 

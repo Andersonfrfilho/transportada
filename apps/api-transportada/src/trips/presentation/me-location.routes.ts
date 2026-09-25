@@ -27,13 +27,48 @@ const REPORT_POLICY = { permission: 'trip.report', scope: 'company' } as const
  */
 const COORDINATE_PATTERN = /^-?[0-9]{1,3}(\.[0-9]{1,7})?$/u
 
+/**
+ * Segurança L4 (spec 189 T9.2): o regex aceita qualquer número de até 3 casas inteiras — o formato
+ * passa, mas `latitude: "200.0000000"` também passava. O intervalo é do globo, não da coluna.
+ */
 const consentSchema = z.object({ accepted: z.boolean() }).strict()
 const locationSchema = z
   .object({
-    latitude: z.string().regex(COORDINATE_PATTERN),
-    longitude: z.string().regex(COORDINATE_PATTERN),
+    latitude: z
+      .string()
+      .regex(COORDINATE_PATTERN)
+      .refine((value) => Math.abs(Number(value)) <= 90, { message: 'latitude out of range' }),
+    longitude: z
+      .string()
+      .regex(COORDINATE_PATTERN)
+      .refine((value) => Math.abs(Number(value)) <= 180, { message: 'longitude out of range' }),
   })
   .strict()
+
+/**
+ * Segurança M3 (spec 189 T9.2): as três rotas não tinham teto — o celular chama o `POST` uma vez
+ * por minuto por desenho, e sem balde nada impede um cliente malicioso de martelar o endpoint. O
+ * `POST` é o mais apertado (escreve a cada chamada, e o dedup da T9.2 já filtra o replay de rede);
+ * `GET`/`PUT` seguem o molde de leitura/escrita de configuração do resto da API.
+ */
+const CONSENT_READ_RATE_LIMIT = {
+  maxRequests: 30,
+  scope: 'me-location-consent-read',
+  store: 'postgres',
+  windowSeconds: 60,
+} as const
+const CONSENT_WRITE_RATE_LIMIT = {
+  maxRequests: 10,
+  scope: 'me-location-consent-write',
+  store: 'postgres',
+  windowSeconds: 60,
+} as const
+const LOCATION_REPORT_RATE_LIMIT = {
+  maxRequests: 3,
+  scope: 'me-location-report',
+  store: 'postgres',
+  windowSeconds: 60,
+} as const
 
 export type MeLocationDependencies = {
   /** Spec 189 T7.4: resolve o motorista pelo vínculo e lança `409` quando não há cadastro. */
@@ -86,6 +121,7 @@ export function createMeLocationRoutes(
       parse: () => undefined,
       pathname: API_ME_LOCATION_CONSENT_PATH,
       policy: REPORT_POLICY,
+      rateLimit: CONSENT_READ_RATE_LIMIT,
     }),
     defineRoute<{ readonly accepted: boolean }>({
       async handle({ context, input }): Promise<Response> {
@@ -102,6 +138,7 @@ export function createMeLocationRoutes(
       parse: async ({ request }) => parseBody(consentSchema, request),
       pathname: API_ME_LOCATION_CONSENT_PATH,
       policy: REPORT_POLICY,
+      rateLimit: CONSENT_WRITE_RATE_LIMIT,
     }),
     defineRoute<{ readonly latitude: string; readonly longitude: string }>({
       async handle({ context, input }): Promise<Response> {
@@ -127,6 +164,7 @@ export function createMeLocationRoutes(
       parse: async ({ request }) => parseBody(locationSchema, request),
       pathname: LOCATION_PATH,
       policy: REPORT_POLICY,
+      rateLimit: LOCATION_REPORT_RATE_LIMIT,
     }),
   ]
 }

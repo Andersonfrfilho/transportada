@@ -255,6 +255,11 @@ export function createTestRouter(input: {
       },
       migrationStatus: appliedMigrations(),
     }),
+    /**
+     * Spec 189 T9.2: `createRouter` recusa subir com rota `store: 'postgres'` sem `rateLimitWindows`
+     * — o dublê sempre permite; o teto de verdade é coisa de teste de integração/rate-limit.
+     */
+    rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: input.routes,
     tenantContext: {
       async resolveCompany() {
