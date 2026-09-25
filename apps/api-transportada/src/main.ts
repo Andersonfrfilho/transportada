@@ -2425,6 +2425,15 @@ function createApplicationRoutes({
   })
   const attachmentReviewRepository =
     createDrizzleAggregateApplicationAttachmentReviewRepository(database)
+  /**
+   * Code B6 (spec 189 T9.2): a mesma resolução para as três rotas de `me-location.routes.ts` — o
+   * `GET` e o `PUT`/`POST` chamavam `findDriverIdByMembership` por dois caminhos separados, e uma
+   * mudança na resolução (ex.: cache, outro repositório) só pegaria um dos dois por engano.
+   */
+  const resolveMeLocationDriverId = (input: {
+    readonly companyId: string
+    readonly membershipId: string
+  }) => currentDriverTripRepository.findDriverIdByMembership(input)
 
   return [
     ...createCompanySettingsRoutes({
@@ -2899,10 +2908,10 @@ function createApplicationRoutes({
     ...createMeLocationRoutes({
       readConsent: createReadLocationConsentUseCase({
         repository: tripLocationRepository,
-        resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+        resolveDriverId: resolveMeLocationDriverId,
       }),
       recordLocation: (input) => recordTripLocation(input),
-      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      resolveDriverId: resolveMeLocationDriverId,
       setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
     ...createWhatsAppPhoneRoutes({
