@@ -137,7 +137,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       `resolveContractorScope` e a visibilidade da 164 D5. Evidência: contratos (id interno recusado
       por texto de fonte; outra contratante e ocorrência não visível respondem igual a inexistente;
       nenhum campo do motorista na resposta).
-- [ ] **T652** Contrato de que nada que a contratante manda pelo portal muda a tratativa; a decisão
+- [x] **T652** Contrato de que nada que a contratante manda pelo portal muda a tratativa; a decisão
       continua pelo `DecisionForm` e pela rota da 164. Evidência: o contrato.
 - [ ] **T653** A conversa na tela "Ocorrências" que o portal já tem (anexo por arquivo, player de áudio, sem
       gravação). Evidência: contratos de serviço puro e de texto de fonte (a app não tem Playwright) + `Permissions-Policy` inalterada.

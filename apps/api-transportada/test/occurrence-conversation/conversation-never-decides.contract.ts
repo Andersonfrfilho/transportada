@@ -16,7 +16,9 @@ import { describe, expect, test } from 'bun:test'
 
 import type { ConversationSession, WhatsAppMessage } from '@adatechnology/meta-whatsapp-contracts'
 
+import { resolveContractorScope } from '../../src/contractor-portal/domain/contractor-scope.policy.js'
 import { createRateLimiter } from '../../src/http/rate-limiter.service.js'
+import { createContractorPortalConversationUseCase } from '../../src/occurrence-conversation/application/contractor-portal-conversation.use-case.js'
 import { createOccurrenceConversationWhatsAppHook } from '../../src/occurrence-conversation/application/whatsapp-conversation-inbound.service.js'
 
 const APPS = new URL('../../../', import.meta.url)
@@ -117,5 +119,96 @@ describe('a conversa nunca decide (spec 183 T504, D4)', () => {
     for (const message of messages) await hook(message, session)
 
     expect(writes).toEqual(['message:Aprovado', 'message:APROVADO'])
+  })
+})
+
+/**
+ * Spec 183 T652 (D4, D9): pelo portal, a contratante conversa e decide em lugares diferentes. O que
+ * ela escreve na conversa só vira mensagem; a decisão continua sendo a rota da 164
+ * (`POST /client/me/occurrences/:id/decision`, `occurrences.decide`) e o `DecisionForm` da tela.
+ */
+describe('pelo portal, a conversa também nunca decide (spec 183 T652)', () => {
+  const PORTAL_REF = 'Qm9hcmQtcmVmZXJlbmNpYS0xMjM0NTY'
+
+  test('"APROVADO" escrito no portal só grava a mensagem e a chave de idempotência', async () => {
+    const writes: string[] = []
+    const useCase = createContractorPortalConversationUseCase({
+      clock: () => new Date('2026-09-25T12:00:00.000Z'),
+      fingerprintService: { create: async ({ operation }) => operation },
+      newRef: () => PORTAL_REF,
+      scopes: {
+        resolveScope: async () =>
+          resolveContractorScope([{ contractorId: 'contractor-alfa', taxId: '11222333000181' }]),
+      },
+      /**
+       * A porta inteira da conversa do portal: nenhuma operação dela alcança a tratativa, a taxa ou
+       * o acerto — o que se prova aqui é que o envio usa só as duas escritas de mensagem.
+       */
+      unitOfWork: {
+        execute: (work) =>
+          work({
+            ensureConversationRefs: async () => {
+              writes.push('ensureConversationRefs')
+              return new Map()
+            },
+            findConversation: async () => ({ id: 'conversation-a' }),
+            findIdempotency: async () => null,
+            insertPortalMessage: async (input) => {
+              writes.push(`message:${input.bodyText}`)
+              return { createdAt: input.createdAt }
+            },
+            listMessages: async () => [],
+            markRead: async () => void writes.push('markRead'),
+            saveIdempotency: async () => void writes.push('idempotency'),
+            unreadCount: async () => 0,
+          }),
+      },
+    })
+
+    for (const bodyText of ['APROVADO', 'Aprovo a devolução, pode cobrar a taxa.']) {
+      await useCase.send({
+        bodyText,
+        context: {
+          companyId: 'company-1',
+          kind: 'company',
+          membershipId: 'membership-portal',
+          permissions: new Set(['deliveries.track', 'occurrences.decide']),
+          roles: ['contractor'],
+          userId: 'portal-user',
+        },
+        idempotencyKey: `portal-decide-key-${bodyText.length}`,
+        ref: PORTAL_REF,
+      })
+    }
+
+    expect(writes).toEqual([
+      'message:APROVADO',
+      'idempotency',
+      'message:Aprovo a devolução, pode cobrar a taxa.',
+      'idempotency',
+    ])
+  })
+
+  test('no portal, só a rota da 164 decide, e a conversa não pede occurrences.decide', async () => {
+    const files = await readdir(new URL('../../src/', import.meta.url), { recursive: true })
+    const routeFiles = files.filter((file) => file.endsWith('.routes.ts'))
+    const deciding: string[] = []
+    for (const file of routeFiles) {
+      const source = await readFile(new URL(`../../src/${file}`, import.meta.url), 'utf8')
+      if (source.includes("'/client/") || source.includes('API_CLIENT_')) {
+        if (source.includes('occurrences.decide')) deciding.push(file)
+      }
+    }
+
+    expect(deciding).toEqual(['contractor-portal/presentation/contractor-occurrence.routes.ts'])
+    const conversationRoutes = await readFile(
+      new URL(
+        '../../src/occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(conversationRoutes).toInclude("permission: 'deliveries.track'")
+    expect(conversationRoutes).not.toInclude('occurrences.decide')
   })
 })

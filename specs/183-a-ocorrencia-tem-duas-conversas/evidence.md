@@ -1267,3 +1267,24 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
     no `package.json` foi escrita sem o `./` das outras e corrigida para `./test/integration/…`, por
     consistência (a rodada mostra que o arquivo rodou);
   - lint e typecheck da raiz limpos.
+
+## T652 — Pelo portal, a conversa também nunca decide (verde)
+
+- `test/occurrence-conversation/conversation-never-decides.contract.ts` ganhou o bloco "pelo portal,
+  a conversa também nunca decide". Ele complementa a prova por texto de fonte da T504, que já varre
+  todo `src/occurrence-conversation` e agora pega as rotas e o caso de uso do portal.
+  - **Comportamento:** "APROVADO" e "Aprovo a devolução, pode cobrar a taxa." enviados pelo portal,
+    por uma conta que **tem** `occurrences.decide`, gravam só a mensagem e a chave de idempotência.
+    A porta inteira da conversa do portal não tem operação que alcance tratativa, taxa ou acerto.
+  - **Texto de fonte:** entre os arquivos de rota da API que servem `/client/`, só
+    `contractor-portal/presentation/contractor-occurrence.routes.ts` (a decisão da 164, que o
+    `DecisionForm` chama) pede `occurrences.decide`. As rotas da conversa pedem `deliveries.track`.
+- **O contrato morde:** com a rota da conversa trocada para `occurrences.decide` (mutação temporária,
+  desfeita), ele reprova, junto com dois contratos da T651. Contra a T651 como está, passa. O
+  código que ele prova é o da T651: esta task é o contrato.
+- **Tela:** o lado do portal (a conversa não importa nem monta a decisão) é contrato da T653, onde a
+  tela nasce.
+- **Rodado:**
+  - API, contratos **7450 pass, 23 skip, 0 fail**;
+  - a integração não muda nesta task (só um arquivo de contrato). A rodada completa da T651, sobre o
+    mesmo código, vale para ela.
