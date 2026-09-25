@@ -21,6 +21,7 @@ import type {
 } from '../application/contractor-portal-message.port.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
+import { createConversationAttachmentTransactionPort } from './drizzle-conversation-attachment.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -34,6 +35,7 @@ async function acquireAdvisoryLock(transaction: Transaction, fields: readonly st
 
 function createTransactionPort(transaction: Transaction): ContractorPortalMessageTransactionPort {
   return {
+    attachments: createConversationAttachmentTransactionPort(transaction),
     async findAudience({ companyId, occurrenceId }) {
       const item = await findTripOccurrenceFeedItem(transaction, { companyId, occurrenceId })
       if (item === null) return { kind: 'not_found' }

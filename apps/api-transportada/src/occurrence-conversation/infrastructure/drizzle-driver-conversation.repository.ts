@@ -22,6 +22,10 @@ import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-memb
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
 import { describeOccurrenceLabel } from '../domain/occurrence-label.policy.js'
+import {
+  createConversationAttachmentTransactionPort,
+  readConversationAttachments,
+} from './drizzle-conversation-attachment.repository.js'
 import type {
   DriverConversationTransactionPort,
   DriverConversationUnitOfWorkPort,
@@ -47,6 +51,8 @@ async function acquireAdvisoryLock(transaction: Transaction, fields: readonly st
 
 function createTransactionPort(transaction: Transaction): DriverConversationTransactionPort {
   return {
+    attachments: createConversationAttachmentTransactionPort(transaction),
+    listAttachments: (input) => readConversationAttachments(transaction, input),
     async applyDriverStatus({ at, companyId, driverUserId, incoming, occurrenceId }) {
       const rows = await transaction
         .select({

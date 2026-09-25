@@ -8,12 +8,15 @@
  */
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
-import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
 import {
   OccurrenceConversationIdempotencyKeyReusedError,
-  OccurrenceConversationMessageInvalidError,
   OccurrenceConversationPortalUnavailableError,
 } from '../domain/occurrence-conversation.error.js'
+import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
+import {
+  attachConversationUploads,
+  normalizeConversationMessageBody,
+} from './conversation-attachment.service.js'
 import type {
   ContractorPortalMessageUnitOfWorkPort,
   ContractorPortalNotifierPort,
@@ -42,24 +45,30 @@ export function createSendContractorPortalMessageUseCase(dependencies: {
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly newRef: () => string
   readonly notifier: ContractorPortalNotifierPort
+  readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: ContractorPortalMessageUnitOfWorkPort
 }) {
   return {
     async send(input: {
       readonly actorUserId: string
+      /** Spec 183 T702a (RF10): pedidos de upload deste operador para esta conversa. */
+      readonly attachmentIds?: readonly string[]
       readonly bodyText: string
       readonly companyId: string
       readonly idempotencyKey: string
       readonly occurrenceId: string
     }): Promise<SendContractorPortalMessageResult> {
-      const bodyText = input.bodyText.trim()
-      if (bodyText === '' || bodyText.length > OCCURRENCE_MAIL_LIMITS.body) {
-        throw new OccurrenceConversationMessageInvalidError()
-      }
+      const attachmentIds = input.attachmentIds ?? []
+      const bodyText = normalizeConversationMessageBody(input.bodyText, attachmentIds)
+      const now = dependencies.clock()
       const fingerprint = await dependencies.fingerprintService.create({
-        fields: [input.companyId, input.occurrenceId, input.actorUserId, bodyText].map((value) =>
-          ENCODER.encode(value),
-        ),
+        fields: [
+          input.companyId,
+          input.occurrenceId,
+          input.actorUserId,
+          bodyText,
+          attachmentIds.join(','),
+        ].map((value) => ENCODER.encode(value)),
         operation: SEND_CONTRACTOR_PORTAL_MESSAGE_OPERATION,
       })
       const key = {
@@ -98,7 +107,22 @@ export function createSendContractorPortalMessageUseCase(dependencies: {
             bodyText,
             companyId: input.companyId,
             conversationId: conversation.id,
-            createdAt: dependencies.clock(),
+            createdAt: now,
+          })
+          await attachConversationUploads({
+            messageId: message.id,
+            now,
+            storage: dependencies.storage,
+            target: {
+              channel: 'portal',
+              companyId: input.companyId,
+              occurrenceId: input.occurrenceId,
+              occurrenceKind: audience.occurrenceKind,
+              participant: 'contractor',
+              requestedByUserId: input.actorUserId,
+            },
+            transaction: transaction.attachments,
+            uploadIds: attachmentIds,
           })
           const result = { conversationId: conversation.id, conversationMessageId: message.id }
           await transaction.saveIdempotency({ ...key, fingerprint, response: result })

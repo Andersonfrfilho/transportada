@@ -511,3 +511,80 @@ export const companyQuickReplies = pgTable(
     ),
   ],
 )
+
+/** Spec 183 T702a (RF10): o ciclo do pedido de upload do anexo. */
+export const OCCURRENCE_CONVERSATION_UPLOAD_STATUSES = ['pending', 'attached', 'expired'] as const
+export type OccurrenceConversationUploadStatus =
+  (typeof OCCURRENCE_CONVERSATION_UPLOAD_STATUSES)[number]
+
+/**
+ * Spec 183 T702a (RF10): o pedido de upload do anexo da conversa. O arquivo sobe direto ao bucket
+ * por URL assinada (a API nunca vê os bytes na subida, como na spec 179); a linha guarda quem pediu,
+ * para qual conversa (ocorrência + participante) e canal, o que foi declarado e até quando vale. No
+ * envio da mensagem, o servidor confere o objeto pelos bytes e só então ele vira anexo (`attached`);
+ * o que vence sem uso vira `expired`, e o objeto sai do bucket.
+ */
+export const occurrenceConversationUploads = pgTable(
+  'occurrence_conversation_uploads',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceKind: text('occurrence_kind').$type<OccurrenceConversationKind>().notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    participant: text().$type<OccurrenceConversationParticipant>().notNull(),
+    channel: text().$type<OccurrenceConversationChannel>().notNull(),
+    requestedByUserId: uuid('requested_by_user_id').notNull(),
+    bucket: text().notNull(),
+    objectKey: text('object_key').notNull(),
+    declaredContentType: text('declared_content_type').notNull(),
+    declaredSizeBytes: integer('declared_size_bytes').notNull(),
+    fileName: text('file_name').notNull().default(''),
+    status: text().$type<OccurrenceConversationUploadStatus>().notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    attachedAt: timestamp('attached_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('occurrence_conversation_uploads_object_key_unique').on(table.objectKey),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'occurrence_conversation_uploads_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.requestedByUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'occurrence_conversation_uploads_requested_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'occurrence_conversation_uploads_status_check',
+      sql`${table.status} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_UPLOAD_STATUSES))})`,
+    ),
+    check(
+      'occurrence_conversation_uploads_channel_check',
+      sql`${table.channel} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_CHANNELS))})`,
+    ),
+    check(
+      'occurrence_conversation_uploads_participant_check',
+      sql`${table.participant} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_PARTICIPANTS))})`,
+    ),
+    check(
+      'occurrence_conversation_uploads_occurrence_kind_check',
+      sql`${table.occurrenceKind} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_KINDS))})`,
+    ),
+    check('occurrence_conversation_uploads_size_check', sql`${table.declaredSizeBytes} > 0`),
+    check(
+      'occurrence_conversation_uploads_file_name_check',
+      sql`char_length(${table.fileName}) <= 200`,
+    ),
+    check(
+      'occurrence_conversation_uploads_attached_check',
+      sql`(${table.status} = 'attached') = (${table.attachedAt} is not null)`,
+    ),
+    index('occurrence_conversation_uploads_status_expires_idx').on(table.status, table.expiresAt),
+  ],
+)

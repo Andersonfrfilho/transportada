@@ -197,6 +197,7 @@ export async function findOccurrenceConversations(
       return {
         id: conversation.id,
         messages: own.map((row) => ({
+          attachments: [],
           author: toAuthor(row, conversation.contractorId, contacts),
           bodyText: row.bodyText,
           channel: row.channel,

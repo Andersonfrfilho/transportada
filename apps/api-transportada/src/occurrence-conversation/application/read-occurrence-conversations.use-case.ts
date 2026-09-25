@@ -7,6 +7,8 @@
  */
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { OccurrenceConversationNotFoundError } from '../domain/occurrence-conversation.error.js'
+import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
+import { signConversationAttachments } from './conversation-attachment.service.js'
 import type {
   OccurrenceConversationReaderPort,
   OccurrenceConversationReadWriterPort,
@@ -27,12 +29,32 @@ export type MarkOccurrenceConversationReadUseCase = Readonly<{
 
 export function createListOccurrenceConversationsUseCase(dependencies: {
   readonly reader: OccurrenceConversationReaderPort
+  readonly storage: Pick<ConversationAttachmentStoragePort, 'createSignedDownload'>
 }): ListOccurrenceConversationsUseCase {
   return {
     async list(input) {
       const view = await dependencies.reader.findConversations(input)
       if (view === null) throw new TripOccurrenceNotFoundError()
-      return view
+      /** Spec 183 T702a: os anexos numa leitura só, assinados por mensagem. */
+      const signed = await signConversationAttachments(
+        dependencies.storage,
+        await dependencies.reader.findAttachments({
+          companyId: input.companyId,
+          messageIds: view.conversations.flatMap((conversation) =>
+            conversation.messages.map((message) => message.id),
+          ),
+        }),
+      )
+      return {
+        ...view,
+        conversations: view.conversations.map((conversation) => ({
+          ...conversation,
+          messages: conversation.messages.map((message) => ({
+            ...message,
+            attachments: signed.get(message.id) ?? [],
+          })),
+        })),
+      }
     },
   }
 }

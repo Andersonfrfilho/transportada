@@ -21,6 +21,10 @@ import {
   NOTIFICATION_CATALOG,
   NOTIFICATION_TEMPLATE_KEY,
 } from '../../src/notification/domain/notification-catalog.constant.js'
+import {
+  NO_ATTACHMENTS,
+  UNUSED_ATTACHMENT_STORAGE,
+} from '../fixtures/conversation-attachment.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const OPERATOR_ID = '00000000-0000-4000-8000-000000000002'
@@ -34,6 +38,7 @@ function createFake(audience: Audience) {
   const notices: unknown[] = []
   const idempotency = new Map<string, { fingerprint: string; response: unknown }>()
   const transaction: ContractorPortalMessageTransactionPort = {
+    attachments: NO_ATTACHMENTS,
     findAudience: async (input) => {
       calls.push({ input, name: 'findAudience' })
       return audience
@@ -58,6 +63,7 @@ function createFake(audience: Audience) {
   }
   const useCase = createSendContractorPortalMessageUseCase({
     clock: () => NOW,
+    storage: UNUSED_ATTACHMENT_STORAGE,
     fingerprintService: {
       create: async ({ fields, operation }) =>
         `${operation}:${fields.map((field) => new TextDecoder().decode(field)).join('|')}`,
@@ -245,6 +251,7 @@ describe('a rota do envio pelo portal (spec 183 T654)', () => {
     expect(calls).toEqual([
       {
         actorUserId: OPERATOR_ID,
+        attachmentIds: [],
         bodyText: 'Recebemos.',
         companyId: COMPANY_ID,
         idempotencyKey: 'portal-operator-key-0001',

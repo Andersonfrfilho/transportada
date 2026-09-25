@@ -32,6 +32,7 @@ import {
   seedCompany,
   testWithPostgres,
 } from '../fixtures/trip-field-office-database.fixture.js'
+import { UNUSED_ATTACHMENT_STORAGE } from '../fixtures/conversation-attachment.fixture.js'
 
 const NOW = new Date('2026-09-24T17:00:00.000Z')
 
@@ -62,6 +63,7 @@ describe('a conversa com o motorista pelo app contra Postgres (spec 183 T601)', 
           clock: () => NOW,
           fingerprintService,
           notifier: { notify: async (input) => void notifications.push(input) },
+          storage: UNUSED_ATTACHMENT_STORAGE,
           unitOfWork,
         })
         const input = {
@@ -113,11 +115,13 @@ describe('a conversa com o motorista pelo app contra Postgres (spec 183 T601)', 
         }
         const list = createListMyOccurrenceConversationUseCase({
           clock: () => new Date('2026-09-24T17:04:00.000Z'),
+          storage: UNUSED_ATTACHMENT_STORAGE,
           unitOfWork,
         })
         const reply = createReplyMyOccurrenceConversationUseCase({
           clock: () => new Date('2026-09-24T17:05:00.000Z'),
           fingerprintService,
+          storage: UNUSED_ATTACHMENT_STORAGE,
           unitOfWork,
         })
         await reply.reply({

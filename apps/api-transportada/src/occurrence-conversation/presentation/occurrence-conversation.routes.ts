@@ -34,9 +34,14 @@ import type {
 } from '../application/read-occurrence-conversations.use-case.js'
 import type { createSendContractorPortalMessageUseCase } from '../application/contractor-portal-message.use-case.js'
 import type { createSendDriverAppMessageUseCase } from '../application/driver-conversation.use-case.js'
+import type { createRequestOccurrenceConversationUploadUseCase } from '../application/occurrence-conversation-upload.use-case.js'
 import type { SendOccurrenceMailUseCase } from '../application/send-occurrence-mail.use-case.js'
 import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
 import { OccurrenceConversationChannelUnavailableError } from '../domain/occurrence-conversation.error.js'
+import {
+  conversationAttachmentIdsSchema,
+  conversationUploadFields,
+} from './conversation-attachment.schema.js'
 
 const READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const WRITE_POLICY = { permission: 'occurrences.resolve', scope: 'company' } as const
@@ -52,6 +57,22 @@ const CONVERSATIONS_PATH = '/trip-occurrences/:id/conversations'
 const MESSAGES_PATH = '/trip-occurrences/:id/conversations/:participant/messages'
 const MAIL_PREVIEW_PATH = '/trip-occurrences/:id/conversations/contractor/mail-preview'
 const READ_PATH = '/occurrence-conversations/:id/read'
+const UPLOADS_PATH = '/trip-occurrences/:id/conversations/:participant/uploads'
+
+/**
+ * Spec 183 T702a: o pedido de upload do operador, num balde próprio — cinco anexos por mensagem,
+ * com folga para refazer um arquivo.
+ */
+export const OCCURRENCE_CONVERSATION_UPLOAD_RATE_LIMIT = {
+  maxRequests: 60,
+  scope: 'occurrence-conversation-upload',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+const operatorUploadSchema = z
+  .object({ ...conversationUploadFields, channel: z.enum(OCCURRENCE_CONVERSATION_CHANNELS) })
+  .strict()
 /** O teto de destinatários do worker da 143 (`to_addresses`, até 50). */
 const MAX_RECIPIENTS = 50
 
@@ -67,17 +88,19 @@ const mailMessageSchema = z
   })
   .strict()
 
-/** Spec 183 T601 (RF11): ao motorista pelo app, só o texto. */
+/** Spec 183 T601 (RF11): ao motorista pelo app — o texto e, desde a T702a, os anexos. */
 const appMessageSchema = z
   .object({
+    attachmentIds: conversationAttachmentIdsSchema,
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
     channel: z.literal('app'),
   })
   .strict()
 
-/** Spec 183 T654 (RF21): à contratante pelo portal, só o texto. */
+/** Spec 183 T654 (RF21): à contratante pelo portal — o texto e, desde a T702a, os anexos. */
 const portalMessageSchema = z
   .object({
+    attachmentIds: conversationAttachmentIdsSchema,
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
     channel: z.literal('portal'),
   })
@@ -94,6 +117,11 @@ export type OccurrenceConversationRoutesDependencies = {
   readonly listConversations: ListOccurrenceConversationsUseCase
   readonly markRead: MarkOccurrenceConversationReadUseCase
   readonly previewMail: PreviewOccurrenceMailUseCase
+  /** Spec 183 T702a: a URL de subida de um anexo. */
+  readonly requestUpload: Pick<
+    ReturnType<typeof createRequestOccurrenceConversationUploadUseCase>,
+    'request'
+  >
   readonly sendMail: SendOccurrenceMailUseCase
   /** Spec 183 T601: ao motorista pelo app. */
   readonly sendDriverApp: Pick<ReturnType<typeof createSendDriverAppMessageUseCase>, 'send'>
@@ -125,15 +153,10 @@ type SendInput =
       readonly subject: string
     }
   | {
+      readonly attachmentIds: readonly string[]
       readonly bodyText: string
       readonly idempotencyKey: string
-      readonly kind: 'app'
-      readonly occurrenceId: string
-    }
-  | {
-      readonly bodyText: string
-      readonly idempotencyKey: string
-      readonly kind: 'portal'
+      readonly kind: 'app' | 'portal'
       readonly occurrenceId: string
     }
 
@@ -159,9 +182,10 @@ export function createOccurrenceConversationRoutes(
     }),
     defineRoute<SendInput>({
       async handle({ context, input }): Promise<Response> {
-        if (input.kind === 'app' || input.kind === 'portal') {
+        if (input.kind !== 'mail') {
           const request = {
             actorUserId: context.scope.userId,
+            attachmentIds: input.attachmentIds,
             bodyText: input.bodyText,
             companyId: context.scope.companyId,
             idempotencyKey: input.idempotencyKey,
@@ -211,12 +235,24 @@ export function createOccurrenceConversationRoutes(
         if (participant === 'contractor' && raw.channel === 'portal') {
           const body = portalMessageSchema.safeParse(raw)
           if (!body.success) throw invalidRequest()
-          return { bodyText: body.data.body, idempotencyKey, kind: 'portal' as const, occurrenceId }
+          return {
+            attachmentIds: body.data.attachmentIds ?? [],
+            bodyText: body.data.body,
+            idempotencyKey,
+            kind: 'portal' as const,
+            occurrenceId,
+          }
         }
         if (participant === 'driver' && raw.channel === 'app') {
           const body = appMessageSchema.safeParse(raw)
           if (!body.success) throw invalidRequest()
-          return { bodyText: body.data.body, idempotencyKey, kind: 'app' as const, occurrenceId }
+          return {
+            attachmentIds: body.data.attachmentIds ?? [],
+            bodyText: body.data.body,
+            idempotencyKey,
+            kind: 'app' as const,
+            occurrenceId,
+          }
         }
         throw new OccurrenceConversationChannelUnavailableError()
       },
@@ -225,6 +261,35 @@ export function createOccurrenceConversationRoutes(
       pathname: MESSAGES_PATH,
       policy: WRITE_POLICY,
       rateLimit: OCCURRENCE_CONVERSATION_RATE_LIMIT,
+    }),
+    defineRoute<{
+      readonly channel: (typeof OCCURRENCE_CONVERSATION_CHANNELS)[number]
+      readonly contentType: string
+      readonly fileName: string
+      readonly occurrenceId: string
+      readonly participant: OccurrenceConversationParticipant
+      readonly sizeBytes: number
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const data = await dependencies.requestUpload.request({
+          ...input,
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ data }, 201)
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
+        const participant = parseParticipant(pathParameters.participant)
+        const body = await parseBody(operatorUploadSchema, request)
+        return { ...body, occurrenceId, participant }
+      },
+      /** `:participant` é `contractor`/`driver`, não UUID; o `:id` é conferido como UUID no `parse`. */
+      pathParameterFormat: 'raw',
+      pathname: UPLOADS_PATH,
+      policy: WRITE_POLICY,
+      rateLimit: OCCURRENCE_CONVERSATION_UPLOAD_RATE_LIMIT,
     }),
     defineRoute<{
       readonly bodyText?: string

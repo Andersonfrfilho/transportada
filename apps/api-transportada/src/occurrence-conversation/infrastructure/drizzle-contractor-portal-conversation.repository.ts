@@ -26,6 +26,10 @@ import type {
   ContractorPortalConversationUnitOfWorkPort,
 } from '../application/contractor-portal-conversation.port.js'
 import { applyMessageStatus } from '../domain/message-status.policy.js'
+import {
+  createConversationAttachmentTransactionPort,
+  readConversationAttachments,
+} from './drizzle-conversation-attachment.repository.js'
 import { markOccurrenceConversationRead } from './occurrence-conversation.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -67,6 +71,8 @@ function createTransactionPort(
   transaction: Transaction,
 ): ContractorPortalConversationTransactionPort {
   return {
+    attachments: createConversationAttachmentTransactionPort(transaction),
+
     async ensureConversationRefs({ companyId, newRef, occurrenceIds, scope, userId }) {
       if (occurrenceIds.length === 0 || scope.contractorIds.length === 0) return new Map()
 
@@ -192,7 +198,11 @@ function createTransactionPort(
     async findConversation({ companyId, ref, scope }) {
       if (scope.contractorIds.length === 0) return null
       const [row] = await transaction
-        .select({ id: occurrenceConversations.id })
+        .select({
+          id: occurrenceConversations.id,
+          occurrenceId: occurrenceConversations.occurrenceId,
+          occurrenceKind: occurrenceConversations.occurrenceKind,
+        })
         .from(occurrenceConversations)
         .where(
           and(
@@ -245,10 +255,15 @@ function createTransactionPort(
           status: null,
           statusTimes: {},
         })
-        .returning({ createdAt: occurrenceConversationMessages.createdAt })
+        .returning({
+          createdAt: occurrenceConversationMessages.createdAt,
+          id: occurrenceConversationMessages.id,
+        })
       if (message === undefined) throw new Error('portal conversation message was not inserted')
       return message
     },
+
+    listAttachments: (input) => readConversationAttachments(transaction, input),
 
     async listMessages({ companyId, conversationId }) {
       return transaction
@@ -258,6 +273,7 @@ function createTransactionPort(
           channel: occurrenceConversationMessages.channel,
           createdAt: occurrenceConversationMessages.createdAt,
           direction: occurrenceConversationMessages.direction,
+          id: occurrenceConversationMessages.id,
         })
         .from(occurrenceConversationMessages)
         .where(

@@ -9,6 +9,7 @@ import { describe, expect, test } from 'bun:test'
 import { createAddressCorrectionRoutes } from '../src/address-correction/presentation/address-correction.routes'
 import { createContractorMailSettingsRoutes } from '../src/contractor-mail/presentation/contractor-mail-settings.routes'
 import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/client-occurrence-conversation.routes'
+import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
 import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
@@ -266,6 +267,40 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         },
         signature: 'POST /trip-occurrences/:id/conversations/:participant/messages',
       },
+      /** Spec 183 T702a: o pedido de upload do anexo, num balde próprio. */
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'occurrence-conversation-upload',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trip-occurrences/:id/conversations/:participant/uploads',
+      },
+    ])
+  })
+
+  /** Spec 183 T702a: o motorista pede upload num balde próprio; ler e responder seguem sem teto. */
+  test('o pedido de upload do motorista conta no Postgres', () => {
+    const routes = createMeOccurrenceConversationRoutes(unusedDependencies() as never)
+
+    expect(
+      routes
+        .filter((route) => route.rateLimit !== undefined)
+        .map((route) => ({
+          rateLimit: route.rateLimit,
+          signature: `${route.method} ${route.pathname}`,
+        })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'driver-occurrence-conversation-upload',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /me/trips/current/occurrences/:id/uploads',
+      },
     ])
   })
 
@@ -299,6 +334,15 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         signature: 'POST /client/me/occurrence-conversations/:ref/messages',
       },
       { rateLimit: read, signature: 'POST /client/me/occurrence-conversations/:ref/read' },
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'contractor-occurrence-conversation-upload',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /client/me/occurrence-conversations/:ref/uploads',
+      },
     ])
   })
 
@@ -315,6 +359,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'contractor-mail/presentation/contractor-mail-settings.routes.ts',
       'contractor-portal/presentation/contractor-occurrence.routes.ts',
       'occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
+      'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
       'trips/presentation/occurrence-case.routes.ts',
       'trips/presentation/occurrence-settlement.routes.ts',

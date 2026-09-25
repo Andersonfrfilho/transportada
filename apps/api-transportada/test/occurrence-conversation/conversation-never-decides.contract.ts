@@ -20,6 +20,11 @@ import { resolveContractorScope } from '../../src/contractor-portal/domain/contr
 import { createRateLimiter } from '../../src/http/rate-limiter.service.js'
 import { createContractorPortalConversationUseCase } from '../../src/occurrence-conversation/application/contractor-portal-conversation.use-case.js'
 import { createOccurrenceConversationWhatsAppHook } from '../../src/occurrence-conversation/application/whatsapp-conversation-inbound.service.js'
+import {
+  listNoAttachments,
+  NO_ATTACHMENTS,
+  UNUSED_ATTACHMENT_STORAGE,
+} from '../fixtures/conversation-attachment.fixture.js'
 
 const APPS = new URL('../../../', import.meta.url)
 
@@ -136,6 +141,7 @@ describe('pelo portal, a conversa também nunca decide (spec 183 T652)', () => {
       clock: () => new Date('2026-09-25T12:00:00.000Z'),
       fingerprintService: { create: async ({ operation }) => operation },
       newRef: () => PORTAL_REF,
+      storage: UNUSED_ATTACHMENT_STORAGE,
       scopes: {
         resolveScope: async () =>
           resolveContractorScope([{ contractorId: 'contractor-alfa', taxId: '11222333000181' }]),
@@ -147,15 +153,21 @@ describe('pelo portal, a conversa também nunca decide (spec 183 T652)', () => {
       unitOfWork: {
         execute: (work) =>
           work({
+            attachments: NO_ATTACHMENTS,
+            listAttachments: listNoAttachments,
             ensureConversationRefs: async () => {
               writes.push('ensureConversationRefs')
               return new Map()
             },
-            findConversation: async () => ({ id: 'conversation-a' }),
+            findConversation: async () => ({
+              id: 'conversation-a',
+              occurrenceId: 'occurrence-a',
+              occurrenceKind: 'document',
+            }),
             findIdempotency: async () => null,
             insertPortalMessage: async (input) => {
               writes.push(`message:${input.bodyText}`)
-              return { createdAt: input.createdAt }
+              return { createdAt: input.createdAt, id: 'message-a' }
             },
             listMessages: async () => [],
             markRead: async () => void writes.push('markRead'),

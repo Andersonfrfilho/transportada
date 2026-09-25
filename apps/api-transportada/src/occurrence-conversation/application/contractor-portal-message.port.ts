@@ -6,6 +6,7 @@
  * contratante; o público é decidido do lado da 164 e chega aqui pronto.
  */
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
+import type { ConversationAttachmentTransactionPort } from './conversation-attachment.port.js'
 
 /** Quem lê pelo portal: a contratante da conversa e as contas do portal ligadas a ela. */
 export type ContractorPortalAudience = {
@@ -17,6 +18,8 @@ export type ContractorPortalAudience = {
 }
 
 export type ContractorPortalMessageTransactionPort = {
+  /** Spec 183 T702a (RF10): o anexo ligado à mensagem, na mesma transação. */
+  readonly attachments: ConversationAttachmentTransactionPort
   /**
    * `not_found` é a ocorrência que não existe na empresa; `unavailable` é a que existe, mas o
    * portal não mostra (tratativa ainda interna, nota sem contratante casada ou ninguém com conta).

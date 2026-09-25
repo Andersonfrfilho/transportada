@@ -104,6 +104,7 @@ function createFixture(params: {
       sendDriverApp: { send: record('sendDriverApp') as never },
       sendPortal: { send: record('sendPortal') as never },
       previewMail: { preview: record('preview') as never },
+      requestUpload: { request: record('requestUpload') as never },
       sendMail: { send: record('send') as never },
     }),
     tenantContext: { resolveCompany: async () => context },
@@ -271,6 +272,7 @@ describe('POST /trip-occurrences/:id/conversations/:participant/messages (spec 1
       {
         input: {
           actorUserId: COMPANY_CONTEXT.userId,
+          attachmentIds: [],
           bodyText: 'Pode aguardar na doca?',
           companyId: COMPANY_CONTEXT.companyId,
           idempotencyKey: 'conversation-key-0003',

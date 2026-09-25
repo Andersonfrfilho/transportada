@@ -61,6 +61,7 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
         channel: 'email',
         createdAt: new Date('2026-09-24T10:00:00.000Z'),
         direction: 'outbound',
+        id: 'message-internal-1',
       },
       {
         authorUserId: null,
@@ -68,6 +69,7 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
         channel: 'whatsapp',
         createdAt: new Date('2026-09-24T11:00:00.000Z'),
         direction: 'inbound',
+        id: 'message-internal-2',
       },
       {
         authorUserId: PORTAL_USER_ID,
@@ -75,10 +77,15 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
         channel: 'portal',
         createdAt: new Date('2026-09-24T11:30:00.000Z'),
         direction: 'inbound',
+        id: 'message-internal-3',
       },
     ],
   }
   const transaction: ContractorPortalConversationTransactionPort = {
+    attachments: {
+      attachUpload: async () => undefined,
+      lockPendingUploads: async () => [],
+    },
     async ensureConversationRefs(input) {
       fake.calls.push({ input, name: 'ensureConversationRefs' })
       return new Map(
@@ -87,14 +94,31 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
     },
     async findConversation(input) {
       fake.calls.push({ input, name: 'findConversation' })
-      return options.found === false ? null : { id: CONVERSATION_ID }
+      return options.found === false
+        ? null
+        : { id: CONVERSATION_ID, occurrenceId: 'occurrence-internal', occurrenceKind: 'document' }
     },
     async findIdempotency({ idempotencyKey }) {
       return fake.idempotency.get(idempotencyKey) ?? null
     },
     async insertPortalMessage(input) {
       fake.calls.push({ input, name: 'insertPortalMessage' })
-      return { createdAt: input.createdAt }
+      return { createdAt: input.createdAt, id: 'message-internal-new' }
+    },
+    /** Spec 183 T702a: um anexo na mensagem da própria conta. */
+    async listAttachments(input) {
+      fake.calls.push({ input, name: 'listAttachments' })
+      return [
+        {
+          bucket: 'bucket-test',
+          contentType: 'application/pdf',
+          fileName: 'devolucao.pdf',
+          id: 'attachment-internal-1',
+          messageId: 'message-internal-3',
+          objectKey: 'occurrence-conversations/token-opaco',
+          sizeBytes: 2048,
+        },
+      ]
     },
     async listMessages(input) {
       fake.calls.push({ input, name: 'listMessages' })
@@ -124,6 +148,12 @@ function createFake(options: { readonly found?: boolean; readonly scopeError?: E
         return SCOPE
       },
     },
+    storage: {
+      createSignedDownload: async ({ key }) => new URL(`https://s3.test/${key}`),
+      createSignedUpload: async ({ key }) => new URL(`https://s3.test/${key}?upload`),
+      getObjectStream: async () => new Blob([]).stream(),
+      headObject: async () => undefined,
+    },
     unitOfWork: { execute: (work) => work(transaction) },
   })
   return { fake, useCase }
@@ -138,6 +168,7 @@ describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)'
     expect(view).toEqual({
       messages: [
         {
+          attachments: [],
           body: 'O recebedor recusou a caixa 3.',
           channel: 'email',
           createdAt: '2026-09-24T10:00:00.000Z',
@@ -145,6 +176,7 @@ describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)'
           side: 'carrier',
         },
         {
+          attachments: [],
           body: 'Pode devolver.',
           channel: 'whatsapp',
           createdAt: '2026-09-24T11:00:00.000Z',
@@ -152,6 +184,14 @@ describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)'
           side: 'contractor',
         },
         {
+          attachments: [
+            {
+              contentType: 'application/pdf',
+              fileName: 'devolucao.pdf',
+              sizeBytes: 2048,
+              url: 'https://s3.test/occurrence-conversations/token-opaco',
+            },
+          ],
           body: 'Mandei a nota de devolução.',
           channel: 'portal',
           createdAt: '2026-09-24T11:30:00.000Z',
@@ -161,6 +201,8 @@ describe('a conversa da contratante pelo portal — caso de uso (spec 183 T651)'
       ],
       unreadCount: 1,
     })
+    /** Nem o id da mensagem, nem o do anexo, nem o da ocorrência saem para o portal (T702a). */
+    expect(JSON.stringify(view)).not.toContain('internal')
     expect(fake.calls[0]).toEqual({
       input: { companyId: COMPANY_ID, ref: REF, scope: SCOPE },
       name: 'findConversation',
@@ -314,10 +356,20 @@ describe('a conversa da contratante pelo portal — rotas (spec 183 T651)', () =
           return { createdAt: NOW.toISOString() }
         },
       },
+      requestUpload: {
+        request: async (input) => {
+          calls.push({ input, name: 'requestUpload' })
+          return {
+            expiresAt: NOW.toISOString(),
+            uploadId: 'upload-1',
+            uploadUrl: 'https://s3.test',
+          }
+        },
+      },
     })
   }
 
-  test('três rotas em /client/me/occurrence-conversations/:ref, todas deliveries.track', () => {
+  test('quatro rotas em /client/me/occurrence-conversations/:ref, todas deliveries.track', () => {
     const routes = routesWith([])
 
     expect(
@@ -341,6 +393,12 @@ describe('a conversa da contratante pelo portal — rotas (spec 183 T651)', () =
         format: 'opaque',
         policy: { permission: 'deliveries.track', scope: 'company' },
         signature: 'POST /client/me/occurrence-conversations/:ref/read',
+      },
+      /** Spec 183 T702a: o pedido de upload do anexo, pela mesma referência. */
+      {
+        format: 'opaque',
+        policy: { permission: 'deliveries.track', scope: 'company' },
+        signature: 'POST /client/me/occurrence-conversations/:ref/uploads',
       },
     ])
   })
@@ -383,6 +441,7 @@ describe('a conversa da contratante pelo portal — rotas (spec 183 T651)', () =
     expect(calls).toEqual([
       {
         input: {
+          attachmentIds: [],
           bodyText: 'Mandei a nota.',
           context: CONTEXT,
           idempotencyKey: 'portal-send-key-0001',

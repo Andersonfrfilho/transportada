@@ -15,6 +15,10 @@ import type {
 } from '../../database/occurrence-conversation.schema.js'
 
 import type { ContractorSenderIdentity } from '../domain/contractor-sender.policy.js'
+import type {
+  ConversationAttachmentRecord,
+  ConversationAttachmentView,
+} from './conversation-attachment.port.js'
 
 export type OccurrenceConversationMessageAuthor =
   | { readonly kind: 'operation'; readonly name: string | null; readonly userId: string }
@@ -30,6 +34,8 @@ export type OccurrenceConversationMessageAuthor =
   | { readonly kind: 'driver'; readonly name: string | null; readonly userId: string }
 
 export type OccurrenceConversationMessageView = {
+  /** Spec 183 T702a (RF10): os anexos da mensagem, com a URL temporária de leitura. */
+  readonly attachments: readonly ConversationAttachmentView[]
   readonly author: OccurrenceConversationMessageAuthor
   readonly bodyText: string
   readonly channel: OccurrenceConversationChannel
@@ -65,6 +71,11 @@ export type OccurrenceConversationReaderPort = {
     readonly occurrenceId: string
     readonly userId: string
   }): Promise<OccurrenceConversationsView | null>
+  /** Spec 183 T702a: os anexos das mensagens lidas, pela empresa do contexto. */
+  findAttachments(params: {
+    readonly companyId: string
+    readonly messageIds: readonly string[]
+  }): Promise<readonly ConversationAttachmentRecord[]>
 }
 
 export type OccurrenceConversationReadWriterPort = {

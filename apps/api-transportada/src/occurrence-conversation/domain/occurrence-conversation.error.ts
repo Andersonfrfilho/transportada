@@ -169,3 +169,42 @@ export class QuickReplyOrderInvalidError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 183 T702a (RF10): o anexo fora do tipo aceito ou acima do teto do canal — recusado antes de
+ * subir, pelo declarado, ou no envio, pelos bytes. O motivo e o teto vão nos detalhes, para a tela
+ * dizer o limite; o nome do arquivo nunca.
+ */
+export class OccurrenceConversationAttachmentRejectedError extends ApiError {
+  public constructor(input: { readonly maxBytes?: number; readonly reason: 'size' | 'type' }) {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED',
+      details: [
+        {
+          field: `attachment.${input.reason}`,
+          message:
+            input.reason === 'type'
+              ? 'this file type is not accepted'
+              : `the file must have from 1 to ${String(input.maxBytes ?? 0)} bytes`,
+        },
+      ],
+      message: 'The attachment was rejected',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 183 T702a: o pedido de upload não serve para esta mensagem — não existe, é de outra pessoa ou
+ * conversa, venceu, já foi usado, se repete, passa de cinco ou o arquivo nunca subiu. A resposta é a
+ * mesma para todos: distinguir diria o que existe.
+ */
+export class OccurrenceConversationUploadInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_UPLOAD_INVALID',
+      message: 'The attachment upload is not available for this message',
+      status: 422,
+    })
+  }
+}

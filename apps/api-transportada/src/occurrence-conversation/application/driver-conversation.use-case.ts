@@ -9,12 +9,21 @@
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
-import { OCCURRENCE_MAIL_LIMITS } from '../domain/occurrence-conversation.constant.js'
 import {
   OccurrenceConversationDriverUnknownError,
   OccurrenceConversationIdempotencyKeyReusedError,
-  OccurrenceConversationMessageInvalidError,
 } from '../domain/occurrence-conversation.error.js'
+import type {
+  ConversationAttachmentStoragePort,
+  ConversationUploadRepositoryPort,
+  ConversationUploadTarget,
+} from './conversation-attachment.port.js'
+import {
+  attachConversationUploads,
+  normalizeConversationMessageBody,
+  requestConversationUpload,
+  signConversationAttachments,
+} from './conversation-attachment.service.js'
 import type {
   DriverConversationNotifierPort,
   DriverConversationTransactionPort,
@@ -25,14 +34,6 @@ export const SEND_DRIVER_APP_MESSAGE_OPERATION = 'occurrence-conversation.app.se
 export const REPLY_DRIVER_APP_MESSAGE_OPERATION = 'occurrence-conversation.app.reply'
 
 const ENCODER = new TextEncoder()
-
-function normalizeBody(bodyText: string): string {
-  const body = bodyText.trim()
-  if (body === '' || body.length > OCCURRENCE_MAIL_LIMITS.body) {
-    throw new OccurrenceConversationMessageInvalidError()
-  }
-  return body
-}
 
 /** A mesma chave com outro pedido é 409; com o mesmo, devolve o que foi gravado. */
 async function replayOrRun<TResult>(input: {
@@ -68,17 +69,21 @@ export function createSendDriverAppMessageUseCase(dependencies: {
   readonly clock: () => Date
   readonly fingerprintService: IdempotencyFingerprintPort
   readonly notifier: DriverConversationNotifierPort
+  readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: DriverConversationUnitOfWorkPort
 }) {
   return {
     async send(input: {
       readonly actorUserId: string
+      /** Spec 183 T702a (RF10): pedidos de upload deste operador para esta conversa. */
+      readonly attachmentIds?: readonly string[]
       readonly bodyText: string
       readonly companyId: string
       readonly idempotencyKey: string
       readonly occurrenceId: string
     }): Promise<SendDriverAppMessageResult> {
-      const bodyText = normalizeBody(input.bodyText)
+      const attachmentIds = input.attachmentIds ?? []
+      const bodyText = normalizeConversationMessageBody(input.bodyText, attachmentIds)
       const now = dependencies.clock()
       const outcome = await dependencies.unitOfWork.execute(async (transaction) => {
         const target = await transaction.findDriverTarget(input)
@@ -88,7 +93,7 @@ export function createSendDriverAppMessageUseCase(dependencies: {
 
         const executed = await replayOrRun({
           companyId: input.companyId,
-          fields: [input.companyId, input.occurrenceId, bodyText],
+          fields: [input.companyId, input.occurrenceId, bodyText, attachmentIds.join(',')],
           fingerprintService: dependencies.fingerprintService,
           idempotencyKey: input.idempotencyKey,
           operation: SEND_DRIVER_APP_MESSAGE_OPERATION,
@@ -111,6 +116,21 @@ export function createSendDriverAppMessageUseCase(dependencies: {
               idempotencyKey: input.idempotencyKey,
               status,
               statusTimes: { [status]: now.toISOString() },
+            })
+            await attachConversationUploads({
+              messageId: message.id,
+              now,
+              storage: dependencies.storage,
+              target: {
+                channel: 'app',
+                companyId: input.companyId,
+                occurrenceId: input.occurrenceId,
+                occurrenceKind: target.occurrenceKind,
+                participant: 'driver',
+                requestedByUserId: input.actorUserId,
+              },
+              transaction: transaction.attachments,
+              uploadIds: attachmentIds,
             })
             return { conversationId: conversation.id, conversationMessageId: message.id }
           },
@@ -146,6 +166,7 @@ type MyOccurrenceInput = {
 
 export function createListMyOccurrenceConversationUseCase(dependencies: {
   readonly clock: () => Date
+  readonly storage: Pick<ConversationAttachmentStoragePort, 'createSignedDownload'>
   readonly unitOfWork: DriverConversationUnitOfWorkPort
 }) {
   return {
@@ -167,8 +188,17 @@ export function createListMyOccurrenceConversationUseCase(dependencies: {
           occurrenceId: input.occurrenceId,
           occurrenceKind: occurrence.occurrenceKind,
         })
+        /** T702a (RF10): os anexos com URL temporária, assinada na leitura. */
+        const attachments = await signConversationAttachments(
+          dependencies.storage,
+          await transaction.listAttachments({
+            companyId: input.companyId,
+            messageIds: messages.map((message) => message.id),
+          }),
+        )
         return messages.map((message) => ({
           ...message,
+          attachments: attachments.get(message.id) ?? [],
           createdAt: message.createdAt.toISOString(),
         }))
       }),
@@ -223,20 +253,33 @@ export function createMarkMyConversationReadUseCase(dependencies: {
 export function createReplyMyOccurrenceConversationUseCase(dependencies: {
   readonly clock: () => Date
   readonly fingerprintService: IdempotencyFingerprintPort
+  readonly storage: ConversationAttachmentStoragePort
   readonly unitOfWork: DriverConversationUnitOfWorkPort
 }) {
   return {
     async reply(
-      input: MyOccurrenceInput & { readonly bodyText: string; readonly idempotencyKey: string },
+      input: MyOccurrenceInput & {
+        /** Spec 183 T702a (RF10): pedidos de upload deste motorista para esta conversa. */
+        readonly attachmentIds?: readonly string[]
+        readonly bodyText: string
+        readonly idempotencyKey: string
+      },
     ): Promise<{ readonly conversationId: string; readonly messageId: string }> {
-      const bodyText = normalizeBody(input.bodyText)
+      const attachmentIds = input.attachmentIds ?? []
+      const bodyText = normalizeConversationMessageBody(input.bodyText, attachmentIds)
       const now = dependencies.clock()
       return dependencies.unitOfWork.execute(async (transaction) => {
         const occurrence = await transaction.findMyOccurrence(input)
         if (occurrence === null) throw new TripOccurrenceNotFoundError()
         const executed = await replayOrRun({
           companyId: input.companyId,
-          fields: [input.companyId, input.occurrenceId, input.driverUserId, bodyText],
+          fields: [
+            input.companyId,
+            input.occurrenceId,
+            input.driverUserId,
+            bodyText,
+            attachmentIds.join(','),
+          ],
           fingerprintService: dependencies.fingerprintService,
           idempotencyKey: input.idempotencyKey,
           operation: REPLY_DRIVER_APP_MESSAGE_OPERATION,
@@ -259,11 +302,73 @@ export function createReplyMyOccurrenceConversationUseCase(dependencies: {
               status: null,
               statusTimes: {},
             })
+            await attachConversationUploads({
+              messageId: message.id,
+              now,
+              storage: dependencies.storage,
+              target: {
+                channel: 'app',
+                companyId: input.companyId,
+                occurrenceId: input.occurrenceId,
+                occurrenceKind: occurrence.occurrenceKind,
+                participant: 'driver',
+                requestedByUserId: input.driverUserId,
+              },
+              transaction: transaction.attachments,
+              uploadIds: attachmentIds,
+            })
             return { conversationId: conversation.id, messageId: message.id }
           },
           transaction,
         })
         return executed.result
+      })
+    },
+  }
+}
+
+/**
+ * Spec 183 T702a (RF10): o motorista pede o upload do anexo da resposta dele — só em ocorrência de
+ * viagem dele, pelo app, para a conversa dele.
+ */
+export function createRequestMyConversationUploadUseCase(dependencies: {
+  readonly bucket: string
+  readonly clock: () => Date
+  readonly newId: () => string
+  readonly repository: ConversationUploadRepositoryPort
+  readonly storage: ConversationAttachmentStoragePort
+  readonly unitOfWork: DriverConversationUnitOfWorkPort
+}) {
+  return {
+    async request(
+      input: MyOccurrenceInput & {
+        readonly contentType: string
+        readonly fileName: string
+        readonly sizeBytes: number
+      },
+    ) {
+      const occurrence = await dependencies.unitOfWork.execute((transaction) =>
+        transaction.findMyOccurrence(input),
+      )
+      if (occurrence === null) throw new TripOccurrenceNotFoundError()
+      const target: ConversationUploadTarget = {
+        channel: 'app',
+        companyId: input.companyId,
+        occurrenceId: input.occurrenceId,
+        occurrenceKind: occurrence.occurrenceKind,
+        participant: 'driver',
+        requestedByUserId: input.driverUserId,
+      }
+      return requestConversationUpload({
+        bucket: dependencies.bucket,
+        contentType: input.contentType,
+        fileName: input.fileName,
+        newId: dependencies.newId,
+        now: dependencies.clock(),
+        repository: dependencies.repository,
+        sizeBytes: input.sizeBytes,
+        storage: dependencies.storage,
+        target,
       })
     },
   }

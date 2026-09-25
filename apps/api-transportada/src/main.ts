@@ -379,7 +379,16 @@ import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-con
 import { createQuickRepliesUseCase } from './occurrence-conversation/application/quick-replies.use-case.js'
 import { createDrizzleQuickRepliesUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-quick-replies.repository.js'
 import { createQuickReplyRoutes } from './occurrence-conversation/presentation/quick-replies.routes.js'
-import { createContractorPortalConversationUseCase } from './occurrence-conversation/application/contractor-portal-conversation.use-case.js'
+import {
+  createContractorPortalConversationUseCase,
+  createRequestPortalConversationUploadUseCase,
+} from './occurrence-conversation/application/contractor-portal-conversation.use-case.js'
+import { createRequestOccurrenceConversationUploadUseCase } from './occurrence-conversation/application/occurrence-conversation-upload.use-case.js'
+import {
+  createDrizzleConversationUploadRepository,
+  findOccurrenceConversationKind,
+  readConversationAttachments,
+} from './occurrence-conversation/infrastructure/drizzle-conversation-attachment.repository.js'
 import { createDrizzleContractorPortalConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
 import { createClientOccurrenceConversationRoutes } from './occurrence-conversation/presentation/client-occurrence-conversation.routes.js'
 import { createOccurrenceConversationUnassignedRoutes } from './occurrence-conversation/presentation/occurrence-conversation-unassigned.routes.js'
@@ -399,6 +408,7 @@ import {
   createListMyOccurrenceConversationUseCase,
   createMarkMyConversationReadUseCase,
   createReplyMyOccurrenceConversationUseCase,
+  createRequestMyConversationUploadUseCase,
   createSendDriverAppMessageUseCase,
 } from './occurrence-conversation/application/driver-conversation.use-case.js'
 import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
@@ -2101,6 +2111,7 @@ function createApplicationRoutes({
     fingerprintService,
     newRef: createPublicRef,
     scopes: contractorPortalRepository,
+    storage: storageGateway,
     unitOfWork: createDrizzleContractorPortalConversationUnitOfWork(database),
   })
   const requestImport = createRequestNfeImportUseCase({
@@ -2842,10 +2853,25 @@ function createApplicationRoutes({
      */
     ...createOccurrenceConversationRoutes({
       listConversations: createListOccurrenceConversationsUseCase({
-        reader: { findConversations: (input) => findOccurrenceConversations(database, input) },
+        reader: {
+          findAttachments: (input) => readConversationAttachments(database, input),
+          findConversations: (input) => findOccurrenceConversations(database, input),
+        },
+        storage: storageGateway,
       }),
       markRead: createMarkOccurrenceConversationReadUseCase({
         writer: { markRead: (input) => markOccurrenceConversationRead(database, input) },
+      }),
+      /** Spec 183 T702a (RF10): a URL de subida do anexo, para o app ou para o portal. */
+      requestUpload: createRequestOccurrenceConversationUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        occurrences: {
+          findKind: (input) => findOccurrenceConversationKind(database, input),
+        },
+        repository: createDrizzleConversationUploadRepository(database),
+        storage: storageGateway,
       }),
       previewMail: createPreviewOccurrenceMailUseCase({
         reader: createOccurrenceMailReader(database),
@@ -2867,6 +2893,7 @@ function createApplicationRoutes({
               locale: NOTIFICATION_DEFAULT_LOCALE,
             } as never),
         }),
+        storage: storageGateway,
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
       /** Spec 183 T654 (RF21): à contratante pelo portal, com o aviso por e-mail sem o corpo. */
@@ -2882,6 +2909,7 @@ function createApplicationRoutes({
               locale: NOTIFICATION_DEFAULT_LOCALE,
             } as never),
         }),
+        storage: storageGateway,
         unitOfWork: createDrizzleContractorPortalMessageUnitOfWork(database),
       }),
     }),
@@ -2893,6 +2921,7 @@ function createApplicationRoutes({
       }),
       list: createListMyOccurrenceConversationUseCase({
         clock: () => new Date(),
+        storage: storageGateway,
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
       markRead: createMarkMyConversationReadUseCase({
@@ -2902,6 +2931,15 @@ function createApplicationRoutes({
       reply: createReplyMyOccurrenceConversationUseCase({
         clock: () => new Date(),
         fingerprintService,
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      requestUpload: createRequestMyConversationUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        repository: createDrizzleConversationUploadRepository(database),
+        storage: storageGateway,
         unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
       }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
@@ -3027,7 +3065,19 @@ function createApplicationRoutes({
           repository: new DrizzleOccurrenceAttachmentRepository(database),
         }),
     }),
-    ...createClientOccurrenceConversationRoutes({ conversation: contractorPortalConversation }),
+    ...createClientOccurrenceConversationRoutes({
+      conversation: contractorPortalConversation,
+      /** Spec 183 T702a (RF10): a contratante sobe o anexo pela referência da conversa. */
+      requestUpload: createRequestPortalConversationUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        repository: createDrizzleConversationUploadRepository(database),
+        scopes: contractorPortalRepository,
+        storage: storageGateway,
+        unitOfWork: createDrizzleContractorPortalConversationUnitOfWork(database),
+      }),
+    }),
     /** Spec 183 T701 (RF12): as respostas rápidas — cadastro e leitura do compositor. */
     ...createQuickReplyRoutes({
       quickReplies: createQuickRepliesUseCase({

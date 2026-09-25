@@ -39,6 +39,7 @@ import {
 import type { Seeded } from '../fixtures/occurrence-conversation-database.fixture.js'
 import { seedCompany, testWithPostgres } from '../fixtures/trip-field-office-database.fixture.js'
 import type { TestDatabase } from '../fixtures/trip-field-office-database.fixture.js'
+import { UNUSED_ATTACHMENT_STORAGE } from '../fixtures/conversation-attachment.fixture.js'
 
 const EMITTER_TAX_ID = '11222333000181'
 
@@ -98,6 +99,7 @@ function createUseCase(
     },
     newRef: createPublicRef,
     scopes: { resolveScope: async () => scopeOf() },
+    storage: UNUSED_ATTACHMENT_STORAGE,
     unitOfWork: createDrizzleContractorPortalConversationUnitOfWork(database.db),
   })
 }
@@ -150,6 +152,7 @@ describe('a conversa da contratante pelo portal contra Postgres (spec 183 T651)'
         expect(before).toEqual({
           messages: [
             {
+              attachments: [],
               body: 'O recebedor recusou a caixa 3.',
               channel: 'email',
               createdAt: expect.any(String),
@@ -320,6 +323,7 @@ describe('a operação escreve pelo portal, contra Postgres (spec 183 T654)', ()
             },
             newRef: createPublicRef,
             notifier: { notify: async (input) => void notices.push(input) },
+            storage: UNUSED_ATTACHMENT_STORAGE,
             unitOfWork: createDrizzleContractorPortalMessageUnitOfWork(database.db),
           }).send({
             actorUserId: operatorUserId,
@@ -388,6 +392,7 @@ describe('a operação escreve pelo portal, contra Postgres (spec 183 T654)', ()
         const read = await portalSide.read({ context: portal, ref })
         expect(read.messages).toEqual([
           {
+            attachments: [],
             body: 'Recebemos a nota de devolução.',
             channel: 'portal',
             createdAt: expect.any(String),

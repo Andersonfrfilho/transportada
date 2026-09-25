@@ -151,7 +151,20 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [x] **T701** [P] `company_quick_replies` + rotas `settings.manage` + tela em Configurações.
       Evidência: contratos.
 - [ ] **T702** Anexos: upload, conferência de tipo pelo conteúdo, limite por canal, URL temporária;
-      extração das recebidas no worker. Evidência: contratos + integração.
+      extração das recebidas no worker. Evidência: contratos + integração. **Dividida na execução
+      (divergência técnica registrada no `evidence.md`), um commit por parte:**
+  - [x] **T702a** API: pedido de upload por URL assinada (operador, motorista e portal), anexo
+        conferido pelos bytes (tipo, tamanho por canal, sha256) e ligado à mensagem no envio; leitura
+        com URL temporária nas três superfícies. Evidência: contratos + integração com S3.
+  - [ ] **T702b** Telas: anexar e ver anexo no painel, no PWA do motorista e no portal. Evidência:
+        contratos + smoke no navegador contra a API real, com prints.
+  - [ ] **T702c** Worker: os anexos do e-mail recebido da contratante viram anexos da mensagem da
+        conversa, a partir do MIME já gravado; e o expurgo dos pedidos de upload vencidos (objeto e
+        linha). Evidência: contratos + integração do worker.
+  - [ ] **T702d** A foto do motorista: anexar à ocorrência e encaminhar à conversa da contratante
+        (itens adiados da T502/T601/T603). Evidência: contratos + integração.
+  - [ ] **T702e** 🙋 E-mail que sai com anexo (muda o envio do worker da 143) e mídia da Meta (depende do
+        envio por WhatsApp). **Pare e pergunte.**
 - [ ] **T703** Selo de status na UI com os horários, destaque de falha e "Reenviar por outro canal".
       Evidência: contrato de mapeamento status → selo (e-mail nunca mostra "lida").
 - [x] **T704** [P] Tokens `--color-bubble-out`, `--color-bubble-contractor`, `--color-bubble-driver`

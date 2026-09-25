@@ -88,6 +88,12 @@ function createFixture(params: {
           return { conversationId: 'conversation-1', messageId: 'message-1' }
         },
       },
+      requestUpload: {
+        request: async (input) => {
+          calls.push({ input, name: 'requestUpload' })
+          return { expiresAt: 'x', uploadId: 'upload-1', uploadUrl: 'https://s3.test' }
+        },
+      },
       resolveDriverId: async () => (params.driverId === undefined ? DRIVER_ID : params.driverId),
     }),
     tenantContext: { resolveCompany: async () => context },
@@ -135,6 +141,7 @@ describe('a conversa da ocorrência no /me do motorista (spec 183 T601)', () => 
     expect(response.status).toBe(201)
     expect(fixture.calls[0]).toEqual({
       input: {
+        attachmentIds: [],
         bodyText: 'Aguardo sim.',
         companyId: COMPANY_CONTEXT.companyId,
         driverId: DRIVER_ID,

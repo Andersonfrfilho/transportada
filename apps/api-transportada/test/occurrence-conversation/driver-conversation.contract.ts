@@ -20,6 +20,11 @@ import {
   createReplyMyOccurrenceConversationUseCase,
   createSendDriverAppMessageUseCase,
 } from '../../src/occurrence-conversation/application/driver-conversation.use-case.js'
+import {
+  listNoAttachments,
+  NO_ATTACHMENTS,
+  UNUSED_ATTACHMENT_STORAGE,
+} from '../fixtures/conversation-attachment.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000184001'
 const OCCURRENCE_ID = '00000000-0000-4000-8000-000000184002'
@@ -53,6 +58,8 @@ function createFake(
   }
   const exists = overrides.occurrenceExists ?? true
   const transaction: DriverConversationTransactionPort = {
+    attachments: NO_ATTACHMENTS,
+    listAttachments: listNoAttachments,
     async applyDriverStatus(input) {
       state.statusCalls.push(input)
     },
@@ -118,16 +125,22 @@ function createFake(
   }
   return {
     inbox: createListMyConversationsUseCase({ clock: () => NOW, unitOfWork }),
-    list: createListMyOccurrenceConversationUseCase({ clock: () => NOW, unitOfWork }),
+    list: createListMyOccurrenceConversationUseCase({
+      clock: () => NOW,
+      storage: UNUSED_ATTACHMENT_STORAGE,
+      unitOfWork,
+    }),
     markRead: createMarkMyConversationReadUseCase({ clock: () => NOW, unitOfWork }),
     reply: createReplyMyOccurrenceConversationUseCase({
       clock: () => NOW,
       fingerprintService,
+      storage: UNUSED_ATTACHMENT_STORAGE,
       unitOfWork,
     }),
     send: createSendDriverAppMessageUseCase({
       clock: () => NOW,
       fingerprintService,
+      storage: UNUSED_ATTACHMENT_STORAGE,
       notifier: {
         notify: async (input) => {
           if (overrides.notifierFails === true) throw new Error('queue down')
@@ -243,6 +256,7 @@ describe('o motorista lê e responde a conversa dele (spec 183 T601)', () => {
         authorName: 'Operadora Lima',
         bodyText: 'Pode aguardar na doca?',
         createdAt: NOW.toISOString(),
+        attachments: [],
         direction: 'outbound',
         id: 'message-1',
         status: 'queued',

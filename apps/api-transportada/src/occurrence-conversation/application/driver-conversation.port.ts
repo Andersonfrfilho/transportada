@@ -6,6 +6,10 @@
  * `/me` é conferido pela ficha da frota dele na tripulação da viagem.
  */
 import type {
+  ConversationAttachmentRecord,
+  ConversationAttachmentTransactionPort,
+} from './conversation-attachment.port.js'
+import type {
   OccurrenceConversationKind,
   OccurrenceConversationMessageStatus,
 } from '../../database/occurrence-conversation.schema.js'
@@ -34,6 +38,13 @@ export type DriverConversationSummaryRecord = {
 }
 
 export type DriverConversationTransactionPort = {
+  /** Spec 183 T702a (RF10): o anexo ligado à mensagem, na mesma transação. */
+  readonly attachments: ConversationAttachmentTransactionPort
+  /** Os anexos das mensagens lidas, antes de assinar a URL. */
+  listAttachments(input: {
+    readonly companyId: string
+    readonly messageIds: readonly string[]
+  }): Promise<readonly ConversationAttachmentRecord[]>
   /**
    * Spec 183 T604 (RF14): aplica o status do app (entregue ao baixar, lida ao abrir) às mensagens da
    * operação nas conversas deste motorista — só nesta ocorrência, ou em todas com `null` — pela

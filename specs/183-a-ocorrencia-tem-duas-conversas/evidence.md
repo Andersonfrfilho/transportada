@@ -1525,3 +1525,100 @@ a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
     iguais à linha de base);
   - painel: **5236 + 44 pass**;
   - lint, typecheck e formatação da raiz limpos.
+
+## T702a — O anexo na API: pedido por URL assinada, conferência pelos bytes, leitura temporária (verde)
+
+**Divergência técnica, aplicada: a T702 foi dividida em cinco partes** (a–e no `tasks.md`), um commit
+por parte. A task original juntava API, três telas, o worker e duas decisões do usuário (T702e);
+num commit só, não daria para ver qual parte quebrou. A T702e fica aberta até a decisão.
+
+- **Banco** (migration `20260925111600_occurrence_conversation_uploads`, aditiva):
+  - tabela `occurrence_conversation_uploads`: o pedido de upload, com o alvo inteiro (empresa, tipo
+    e id da ocorrência, participante, canal e quem pediu), o que o cliente declarou (tipo, tamanho,
+    nome) e o prazo;
+  - CHECKs: status (`pending`/`attached`), canal, participante, tipo, tamanho > 0, nome até 200
+    caracteres, `attached_at` só quando ligado; chave do objeto única; índice `(status, expires_at)`
+    para o expurgo;
+  - `stored_objects.purpose` ganha `occurrence_conversation_attachment`;
+  - o rollback derruba a tabela, restaura o CHECK anterior de `purpose` e apaga a linha do diário.
+  - Rodado: `ENV_FILE=.env.test make migration-test` **110 pass** e `bun run db:check` limpo.
+- **Política** (`domain/conversation-attachment.policy.ts`):
+  - tipos aceitos: PDF, JPEG, PNG, WebP, planilhas (xlsx, xls, csv) e áudio (ogg, mpeg, mp4, webm);
+  - teto por canal: app e portal (imagem 10 MB, documento 25 MB, áudio 16 MB); e-mail 10 MB por
+    arquivo; WhatsApp (imagem 5 MB, documento 100 MB, áudio 16 MB), os limites da Meta;
+  - no máximo cinco por mensagem;
+  - o tipo é conferido **pelos bytes** (assinatura de cada formato), não pela extensão nem pelo
+    `Content-Type` — que a URL assinada do S3 não amarra (comentário do próprio pacote).
+- **Fluxo** (`application/conversation-attachment.service.ts`):
+  1. **pedido**: confere o declarado, grava o pedido e devolve a URL de PUT de 15 minutos. O arquivo
+     nunca passa pela API;
+  2. **ligação**, dentro da transação da mensagem: o pedido tem de ser deste alvo, `pending` e no
+     prazo (travado `FOR UPDATE`); o objeto tem de existir (`head`), caber no teto e ter os bytes do
+     tipo declarado. Só então vira `stored_objects` com o sha256 dos bytes, anexo da mensagem, e o
+     pedido fica `attached`. Qualquer recusa desfaz a mensagem inteira;
+  3. **leitura**: URL temporária de cinco minutos, com o nome do arquivo no download.
+  - A mensagem pode ser só anexo; texto vazio **e** sem anexo segue 422.
+  - O fingerprint da idempotência inclui os ids: a mesma chave com outro anexo é 409, e o reenvio
+    igual não liga de novo.
+- **Divergência técnica, aplicada: a chave do objeto é um token aleatório**
+  (`occurrence-conversations/<256 bits>`), não `tenants/<empresa>/…` como as outras da base. A chave
+  vai dentro da URL assinada que o portal recebe, e o portal não vê id interno. O isolamento nunca
+  dependeu do prefixo: a URL só é assinada depois da consulta pela empresa do contexto.
+  - O portal recebe o `uploadId` do próprio pedido (o id que ele devolve no envio). Não é id de dado
+    da transportadora — é o recibo do que a própria conta pediu, e só volta para ela.
+  - Na leitura do portal, o anexo sai **sem** id (`contentType`, `fileName`, `sizeBytes`, `url`).
+- **Rotas** (toda resposta `no-store`; balde próprio no Postgres, 60 por 300 s):
+  - operador: `POST /trip-occurrences/:id/conversations/:participant/uploads`
+    (`occurrences.resolve`), corpo `{ channel, contentType, fileName, sizeBytes }`. Só o canal que
+    leva anexo nesta fase: `app` para o motorista, `portal` para a contratante; o resto é 422
+    `OCCURRENCE_CONVERSATION_CHANNEL_UNAVAILABLE`. Ocorrência de outra empresa é 404;
+  - motorista: `POST /me/trips/current/occurrences/:id/uploads` (`trip.report`), só a ocorrência da
+    viagem dele;
+  - portal: `POST /client/me/occurrence-conversations/:ref/uploads` (`deliveries.track`), pela
+    referência opaca, com o recorte da 164;
+  - os três envios (operador pelo app e pelo portal, resposta do motorista, envio do portal) aceitam
+    `attachmentIds` (UUID, até cinco). O e-mail **não**: o corpo estrito recusa com 400 até a T702e;
+  - a leitura do operador, do motorista e do portal traz `attachments` por mensagem.
+- **⚠️ Achado do pacote, para decisão do usuário:** o `@adatechnology/object-storage-provider@0.3.0`
+  assina a URL de PUT com `x-amz-checksum-crc32` do corpo **vazio** (o SDK 3.1091 sem
+  `requestChecksumCalculation: 'WHEN_REQUIRED'`). Storage que confere o checksum recusa o upload
+  real com `BadDigest` — medido no S3 local desta sessão (SeaweedFS, que substitui o MinIO porque
+  `quay.io` está bloqueado aqui). A variável padrão do SDK `AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_REQUIRED`
+  resolve (medido: 400 → 200). **Não é deste anexo:** o upload da foto da 179 usa o mesmo método.
+  Não sei se o bucket do Railway confere o checksum. A correção é no pacote (`adatechnology-packages`)
+  ou uma variável nova no ambiente — as duas pedem decisão. Até lá, só o processo da integração liga a
+  variável, com o motivo escrito no arquivo.
+- **Testes, escritos antes e vistos falhando:**
+  - política (`attachment-policy.contract.ts`) e pedido (`attachment-upload.contract.ts`): a
+    chave opaca foi exigida primeiro, e o teste falhou com a chave antiga (1 fail) antes da mudança;
+  - envios e pedidos nas três superfícies (`attachment-send.contract.ts`): não compilava sem os
+    casos de uso novos. Cobre o alvo que vem do contexto, o reenvio que não liga de novo, texto e
+    anexo vazios (422 sem ler nada), outra empresa (404) e a leitura do operador com URL por
+    mensagem;
+  - rotas (`attachment-routes.contract.ts`): **11 fail** antes das rotas. Cobre empresa e ator do
+    contexto, corpo estrito (empresa no corpo, tamanho não inteiro, nome vazio, sem canal), 403 sem a
+    permissão, até cinco ids em UUID e o e-mail que ainda recusa anexo;
+  - schema: `uploads.contract.ts` e o tenant-safety novo
+    (`occurrence-conversation-schema/tenant-safety.contract.ts`): todo `where` e toda junção com a
+    empresa, e o pedido travado só para o próprio alvo. Mutação: tirar o `companyId` do `lock`
+    derruba **2** testes;
+  - contratos atualizados de propósito: o teto no Postgres (três baldes novos, e o arquivo do
+    motorista entra na lista "nenhum outro"), a lista de rotas do portal (quatro), o CHECK de
+    `purpose` e `attachmentIds: []` nos envios que já existiam;
+  - integração `occurrence-conversation-attachment.integration.ts`, contra Postgres **e** S3 de
+    verdade (**1 pass, 16 asserções**, no `package.json`):
+    - o operador pede, sobe pelo PUT assinado e envia ao motorista só o PDF. A URL não contém
+      empresa, ocorrência nem pedido. A mensagem nasce com o anexo, `stored_objects` tem o sha256
+      dos bytes e o pedido fica `attached`; o reenvio da mesma chave devolve o mesmo resultado;
+    - o motorista responde com foto, lê as duas e a URL baixa os mesmos bytes;
+    - PDF declarado com bytes de JPEG: 422 `OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED`, nenhuma
+      mensagem nova e o pedido segue `pending`;
+    - outra empresa: 404; o motorista usando o pedido do operador e o pedido já ligado: 422
+      `OCCURRENCE_CONVERSATION_UPLOAD_INVALID`; outra empresa nem pede upload (404).
+- **Rodado:**
+  - API: contratos **7557 pass, 23 skip, 0 fail**; integração completa sozinha **609 pass, 7 skip, 0 fail**
+    (com o S3 local, as 8 da linha de base do MinIO passam; a nova entra na conta);
+  - lint, typecheck e formatação da raiz limpos.
+- **Fica para as próximas partes:** as telas (T702b), o MIME do e-mail recebido (T702c), a foto do
+  motorista encaminhada (T702d) e o expurgo dos pedidos vencidos, que entra com a T702c no worker
+  (o índice `(status, expires_at)` já existe).

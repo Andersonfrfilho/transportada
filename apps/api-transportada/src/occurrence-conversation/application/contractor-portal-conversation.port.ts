@@ -9,9 +9,14 @@
 import type {
   OccurrenceConversationChannel,
   OccurrenceConversationDirection,
+  OccurrenceConversationKind,
 } from '../../database/occurrence-conversation.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type { ContractorScope } from '../../contractor-portal/domain/contractor-scope.policy.js'
+import type {
+  ConversationAttachmentRecord,
+  ConversationAttachmentTransactionPort,
+} from './conversation-attachment.port.js'
 
 export type PortalConversationMessageRecord = {
   /** Só para saber se foi a própria conta do portal que escreveu; nunca sai na resposta. */
@@ -20,6 +25,8 @@ export type PortalConversationMessageRecord = {
   readonly channel: OccurrenceConversationChannel
   readonly createdAt: Date
   readonly direction: OccurrenceConversationDirection
+  /** Só para achar os anexos; nunca sai na resposta do portal. */
+  readonly id: string
 }
 
 /** Spec 183 T653: a referência da conversa e as mensagens da transportadora que a conta não leu. */
@@ -34,6 +41,8 @@ export type PortalConversationIdempotencyRecord = {
 }
 
 export type ContractorPortalConversationTransactionPort = {
+  /** Spec 183 T702a (RF10): o anexo ligado à mensagem, na mesma transação. */
+  readonly attachments: ConversationAttachmentTransactionPort
   /**
    * A referência de cada ocorrência listada cuja contratante (o emitente da nota) está no recorte.
    * A conversa nasce aqui quando ainda não existe (idempotente): a ocorrência chegou ao portal, e a
@@ -51,7 +60,11 @@ export type ContractorPortalConversationTransactionPort = {
     readonly companyId: string
     readonly ref: string
     readonly scope: ContractorScope
-  }): Promise<{ readonly id: string } | null>
+  }): Promise<{
+    readonly id: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceConversationKind
+  } | null>
   findIdempotency(input: {
     readonly companyId: string
     readonly idempotencyKey: string
@@ -63,7 +76,11 @@ export type ContractorPortalConversationTransactionPort = {
     readonly companyId: string
     readonly conversationId: string
     readonly createdAt: Date
-  }): Promise<{ readonly createdAt: Date }>
+  }): Promise<{ readonly createdAt: Date; readonly id: string }>
+  listAttachments(input: {
+    readonly companyId: string
+    readonly messageIds: readonly string[]
+  }): Promise<readonly ConversationAttachmentRecord[]>
   listMessages(input: {
     readonly companyId: string
     readonly conversationId: string
