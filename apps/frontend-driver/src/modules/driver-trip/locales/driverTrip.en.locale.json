@@ -179,5 +179,18 @@
   },
   "proofPendingWarningTitle": "Proof photo required",
   "proofPendingWarningLead": "Take it here, at delivery time. A photo sent later or away from here costs points on your score.",
-  "proofPendingWarningDetails": "How the photo counts toward your score"
+  "proofPendingWarningDetails": "How the photo counts toward your score",
+  "offline": {
+    "empty": "No saved trip; connect to load your trip.",
+    "emptyTitle": "Offline",
+    "snapshotFrom": "Offline — data from {{time}}. What you record stays in the queue and is sent when the signal returns."
+  },
+  "foreignPending": {
+    "cancel": "Keep",
+    "confirm": "Discard for good",
+    "discard": "Discard",
+    "notice_one": "{{count}} pending item from another account on this phone. It is not sent with your account.",
+    "notice_other": "{{count}} pending items from another account on this phone. They are not sent with your account.",
+    "warning": "Discarding deletes these pending items from the phone for good: whoever recorded them will not be able to send them."
+  }
 }

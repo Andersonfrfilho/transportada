@@ -500,3 +500,106 @@ make check                                    exit 0
 ```
 
 **Commit próprio, T3.3.**
+
+### T3.3a — Boot sem rede, com o snapshot e a fila com dono (plan D4 e D5)
+
+**Contratos antes do código.** Três suítes novas em `apps/frontend-driver/test/driver-trip/`, na lista
+do entrypoint `test/driver-trip.contract.test.ts`:
+
+- `boot-mode.contract.ts` — `probeIdentityProvider` (URL do `openid-configuration` do realm,
+  `cache: 'no-store'`, `AbortSignal`, prazo de 5 s; rede fora, resposta não-`ok` e sonda abortada
+  pelo prazo dão `false`, nunca exceção); `resolveBootMode({ isReachable, snapshot, now })` nos três
+  modos, mais snapshot de 25 h e snapshot só com viagens concluídas caindo em `offline-empty`;
+  `scheduleAuthenticationOnReconnect` (no `online` sonda e autentica com o registro vazio; sem
+  Keycloak continua esperando; **com captura aberta espera o `close`** e sonda de novo; temporizador
+  de sinal fraco; autentica uma vez só; cancelar desliga ouvinte e temporizador); e leitura de fonte:
+  no `start()` do `main.tsx` a sonda e a decisão vêm antes de `startAuthenticated`, o
+  `initializeKeycloakAuth()` só existe uma vez e fora do boot, e `navigator.onLine` não aparece.
+- `trip-snapshot.contract.ts` — `hashSubject` é SHA-256 hex (vetor `abc`); gravar aponta `last`;
+  outro `sub` autentica e o snapshot do anterior sai; o mesmo `sub` mantém o dele como dado inicial;
+  24 h descarta na leitura e no claim; todas as viagens concluídas (ou lista vazia) apaga em vez de
+  gravar; "Sair" limpa tudo, inclusive o ponteiro; o valor do IndexedDB passa por type guard; e
+  leitura de fonte: base na versão 3 com `trip-snapshot` e `last`, e `discardTripSnapshots(` antes
+  do `.logout()` no Perfil.
+- `queue-owner.contract.ts` — o item enfileirado leva o `subHash`; a drenagem só envia evento e anexo
+  do dono; nem o envio manual (`only`) manda item de outra conta; item sem dono conta como de outra
+  conta; a recusa do servidor preserva o dono; `partitionPendingByOwner` separa e conta; "Descartar"
+  apaga só os de outra conta, com o blob junto.
+
+Vistos falhando antes da implementação:
+
+```
+cd apps/frontend-driver && bun test test/driver-trip.contract.test.ts
+  error: Cannot find module '@/modules/driver-trip/shared/tripSnapshot.service'
+  0 pass / 1 fail / 1 error                                  (nenhum serviço existia)
+# depois dos serviços puros, antes de main.tsx/hook/Perfil:
+  263 pass / 3 fail   (as três leituras de fonte: boot, hook e "Sair")
+```
+
+**Implementação** (`apps/frontend-driver/src/`):
+
+- `modules/driver-trip/shared/bootMode.service.ts` — `probeIdentityProvider`, `resolveBootMode`,
+  `scheduleAuthenticationOnReconnect`.
+- `modules/driver-trip/shared/tripSnapshot.service.ts` — dono (`SHA-256(sub)`), prazo de 24 h,
+  "todas concluídas" (`completed`/`cancelled`, lista vazia conta), claim, gravação e descarte.
+- `modules/driver-trip/shared/queueOwner.service.ts` — partição e "Descartar".
+- `modules/driver-trip/shared/captureRegistry.service.ts` — **o mínimo** (`open`, `close`, `isIdle`,
+  `onIdle`) que a volta da rede precisa. Ninguém chama `open` ainda: ligar câmera, recorte,
+  assinatura e diálogo de ocorrência, e o contrato próprio do registro, **ficam para a T3.5**.
+- `indexedDbQueue.service.ts` na versão 3, com o store `trip-snapshot` (chave `subHash` →
+  `{ savedAt, snapshot }`, e `last` → `subHash`); `retainOnly` e `write` numa transação só.
+- `offlineQueue.service.ts`/`offlineAttachments.service.ts`: `subHash?` em `QueuedReport` e
+  `QueuedAttachment`, `enqueueReport({ subHash })` e `drainQueueWithAttachments({ ownerSubHash })`.
+  O campo é opcional para os 20 contratos copiados do painel seguirem intactos; com `ownerSubHash`
+  informado (sempre, pelo hook), item sem dono não sai.
+- `hooks/useDriverSession.hook.ts` (contexto `{ canSync, initialSnapshot, subHash }`) e
+  `useDriverTrip.hook.ts`: `useQuery` com `enabled: session.canSync`, `initialData` e
+  `initialDataUpdatedAt` do snapshot; o `queryFn` grava o snapshot (react-query 5 não tem `onSuccess`
+  em consulta); drenagem suspensa sem token; fila da tela só do dono; `foreignPendingCount`,
+  `discardForeignPending` e `offlineSnapshotSavedAt` no controlador.
+- `main.tsx`: sonda + leitura do último snapshot em paralelo → `resolveBootMode` →
+  `startAuthenticated` (init, `getSubject()` novo no provedor, `hashSubject`, `claimTripSnapshot`,
+  `trip.read`, `queryClient.clear()`) ou `startOffline` (casca com `canSync: false`, ou
+  `DriverOfflineEmptyPage`, e `scheduleAuthenticationOnReconnect` com o `captureRegistry`).
+- Tela: faixa "Sem conexão — dados de HH:MM" na viagem, `DriverForeignPendingNotice` com
+  "Descartar" em dois passos (aviso + "Descartar de vez"), `DriverOfflineEmpty.page.tsx`
+  ("Sem viagem salva; conecte-se…"), chaves `offline.*` e `foreignPending.*` nos dois locales;
+  "Sair" apaga o snapshot antes do `logout()`.
+- `docs/SECURITY.md`: entrada de 2026-09-25 (o que fica no aparelho, a chave, o prazo e o descarte).
+
+**Decisões que o texto não fixava** (registradas para a revisão):
+
+1. **Sonda também por temporizador (30 s)**, além do `online`. Com sinal fraco (CA05-b: `onLine`
+   verdadeiro e `/realms/**` abortado) o evento `online` nunca dispara; sem o temporizador a
+   autenticação nunca voltaria. O intervalo é o mesmo do temporizador de drenagem (plan D5).
+2. **"Todas as viagens concluídas"** = todo status em `completed`/`cancelled`, e lista vazia conta
+   (plan D5: "resposta sem viagem apaga"). A API hoje só devolve viagens abertas, então na prática é
+   a lista vazia.
+3. **Item de fila sem `subHash` é de outra conta**, nunca enviado — a origem é nova, então isso só
+   protege contra dado que não deveria existir.
+4. Com Keycloak alcançável e sessão ativa, o snapshot do mesmo `sub` vira `initialData`: a viagem
+   aparece antes da primeira resposta da API, e a consulta refaz a leitura logo em seguida.
+
+**Não verificado aqui (fica para a T4.1, CA05/CA06):** o fluxo em navegador. Em `offline-snapshot`
+o sino e a leitura dos tipos de ocorrência chamam `getAccessToken()` sem token e falham (o cliente
+dos tipos vira estado `failed`, como já fazia sem rede); "Iniciar trajeto" não é enfileirável e mostra
+a falha de sempre. Nenhum dos dois quebra a tela, mas o Playwright da T4.1 deve olhar.
+
+```
+cd apps/frontend-driver && bun run test
+  342 pass / 0 fail   (307 da T3.3 + 35 novos)
+
+cd apps/frontend-driver && bun run lint && bun run typecheck
+  ok
+
+cd apps/frontend-driver && bun run build
+  precache 13 entries (558.21 KiB, 590.705 bytes) — abaixo do teto de 1,5 MiB
+  dist.contract.test.ts 6 pass / 0 fail
+
+make check                                    exit 0
+  format:check ok · lint ok (7 apps) · typecheck ok (7 apps)
+  testes: 18 · 7281 · 1424 · 101 · 5264 · 51 · 55 · 342 · 111 — todos com 0 fail
+  build das 7 apps ok (driver: dist.contract 6 pass / 0 fail)
+```
+
+**Commit próprio, T3.3a.**

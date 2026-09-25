@@ -28,6 +28,8 @@ export const IDENTITY_SESSION_EXPIRED = 'IDENTITY_SESSION_EXPIRED'
 export type KeycloakAuthProvider = {
   getAccessToken(): Promise<string>
   getProfile(): IdentityProfile
+  /** O `sub` do token — só para derivar o dono do snapshot e da fila (ADR-0075 §8). */
+  getSubject(): string | undefined
   /** `false` quando a etapa de identificação está ligada e ninguém entrou ainda. */
   initialize(): Promise<boolean>
   /** Só com a etapa ligada: leva ao provedor já com o login resolvido. */
@@ -200,6 +202,9 @@ export function createKeycloakAuthProvider(
     },
     getProfile(): IdentityProfile {
       return deriveIdentityProfile(decodeTokenClaims(keycloak.token))
+    },
+    getSubject(): string | undefined {
+      return readClaimString(decodeTokenClaims(keycloak.token), 'sub')
     },
     async loginWith(loginHint: string): Promise<void> {
       persistPostAuthenticationPath()

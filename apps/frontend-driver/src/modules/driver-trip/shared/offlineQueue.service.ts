@@ -26,6 +26,11 @@ export type QueuedReport = Readonly<{
    */
   rejectionCause?: string
   report: DriverFieldReport
+  /**
+   * ADR-0075 §8: `SHA-256(sub)` de quem tocou. A drenagem só envia os do `sub` autenticado — o toque
+   * de outra conta no mesmo aparelho nunca sai com o token desta (`queueOwner.service.ts`).
+   */
+  subHash?: string
 }>
 
 export type OfflineQueueStore = Readonly<{
@@ -65,6 +70,7 @@ export async function enqueueReport(input: {
   readonly now: Date
   readonly report: DriverFieldReport
   readonly store: OfflineQueueStore
+  readonly subHash?: string
 }): Promise<EnqueueReportResult> {
   const limits = input.limits ?? EVENT_QUEUE_LIMIT
   let refused = false
@@ -78,7 +84,15 @@ export async function enqueueReport(input: {
       refused = true
       return queued
     }
-    return [...queued, { attempts: 0, createdAt: input.now.toISOString(), report: input.report }]
+    return [
+      ...queued,
+      {
+        attempts: 0,
+        createdAt: input.now.toISOString(),
+        report: input.report,
+        ...(input.subHash === undefined ? {} : { subHash: input.subHash }),
+      },
+    ]
   })
 
   return refused ? { accepted: false, reason: 'count-limit' } : { accepted: true, queue }

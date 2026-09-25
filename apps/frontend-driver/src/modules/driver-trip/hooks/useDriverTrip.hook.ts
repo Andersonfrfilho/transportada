@@ -14,6 +14,7 @@ import { buildEventQueueView, type EventQueueItemView } from '../shared/eventQue
 import {
   createIndexedDbAttachmentStore,
   createIndexedDbQueueStore,
+  createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
 import {
   applyAttachmentLocation,
@@ -29,11 +30,17 @@ import {
   enqueueReport,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
+import { discardForeignPending, partitionPendingByOwner } from '../shared/queueOwner.service'
+import { saveTripSnapshot } from '../shared/tripSnapshot.service'
+import { useDriverSession } from './useDriverSession.hook'
 
 const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
 /** A viagem muda pelas mãos do escritório também — cancelamento chega no próximo poll, não por push. */
 const CURRENT_TRIP_REFETCH_MS = 30_000
+
+/** O store não guarda estado — cada operação abre a base —, então um só serve a app inteira. */
+const TRIP_SNAPSHOT_STORE = createIndexedDbTripSnapshotStore()
 
 export type DriverProofInput = Readonly<{
   documentId: string
@@ -54,9 +61,15 @@ export type DriverReportOutcome = 'count-limit' | 'queued'
 
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  /** ADR-0075 §8: "Descartar" as pendências de outra conta — o item e o dado saem do aparelho. */
+  discardForeignPending: () => Promise<void>
+  /** Itens da fila de outra conta neste aparelho: nunca enviados com o token desta. */
+  foreignPendingCount: number
   /** `true` até a primeira leitura do IndexedDB voltar — é o que segura o esqueleto da tela. */
   isQueueLoading: boolean
   isSyncing: boolean
+  /** Boot sem rede: a hora do snapshot na tela ("dados de HH:MM"). `undefined` com sessão viva. */
+  offlineSnapshotSavedAt: string | undefined
   /**
    * Spec 159 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
    * tela traduz em linguagem simples ("em dia", "tardia", "longe"). Some ao trocar de sessão: não é
@@ -92,6 +105,8 @@ export function useDriverTrip(
   attachmentStore: AttachmentStore = createIndexedDbAttachmentStore(),
 ) {
   const queryClient = useQueryClient()
+  const session = useDriverSession()
+  const [foreignPendingCount, setForeignPendingCount] = useState(0)
   const [queueView, setQueueView] = useState<readonly EventQueueItemView[] | undefined>(undefined)
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
@@ -99,11 +114,42 @@ export function useDriverTrip(
 
   const refreshQueueView = useCallback(async (): Promise<void> => {
     const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
-    setQueueView(buildEventQueueView({ attachments, queued }))
-  }, [attachmentStore, store])
+    /** ADR-0075 §8: a fila da tela é a do dono da sessão; o resto é "pendência de outra conta". */
+    const pending = partitionPendingByOwner({
+      attachments,
+      ownerSubHash: session.subHash,
+      reports: queued,
+    })
+    setForeignPendingCount(pending.foreignCount)
+    setQueueView(
+      buildEventQueueView({ attachments: pending.ownAttachments, queued: pending.ownReports }),
+    )
+  }, [attachmentStore, session.subHash, store])
 
+  /**
+   * Plan D5: a viagem abre do snapshot guardado (`initialData`, com a hora dele) e a leitura da API
+   * grava o novo. Sem token (boot sem rede) a consulta não roda — o snapshot é a tela inteira.
+   */
+  const initialSnapshot = session.initialSnapshot
   const currentTrip = useQuery({
-    queryFn: () => getDriverTripClient().readCurrent(),
+    enabled: session.canSync,
+    ...(initialSnapshot === undefined
+      ? {}
+      : {
+          initialData: initialSnapshot.snapshot,
+          initialDataUpdatedAt: Date.parse(initialSnapshot.savedAt),
+        }),
+    queryFn: async () => {
+      const snapshot = await getDriverTripClient().readCurrent()
+      /** Falhar ao guardar não derruba a tela: o próximo boot sem rede só abre um snapshot mais velho. */
+      await saveTripSnapshot({
+        now: new Date(),
+        snapshot,
+        store: TRIP_SNAPSHOT_STORE,
+        subHash: session.subHash,
+      }).catch(() => undefined)
+      return snapshot
+    },
     queryKey: CURRENT_TRIP_QUERY_KEY,
     refetchInterval: CURRENT_TRIP_REFETCH_MS,
   })
@@ -119,6 +165,7 @@ export function useDriverTrip(
       return drainQueueWithAttachments({
         attachmentStore,
         ...(only === undefined ? {} : { only }),
+        ownerSubHash: session.subHash,
         send: async (report): Promise<AttachmentSendOutcome> => {
           try {
             await client.send(report)
@@ -216,6 +263,8 @@ export function useDriverTrip(
    */
   const requestDrain = useCallback(
     (only?: string) => {
+      /** Boot sem rede: a drenagem fica suspensa até haver token (plan D4). */
+      if (!session.canSync) return
       if (isDrainingRef.current) {
         hasPendingDrainRef.current = true
         return
@@ -223,7 +272,7 @@ export function useDriverTrip(
       isDrainingRef.current = true
       drain.mutate(only)
     },
-    [drain],
+    [drain, session.canSync],
   )
   requestDrainRef.current = requestDrain
 
@@ -253,7 +302,12 @@ export function useDriverTrip(
   }, [attachmentStore, refreshQueueView])
 
   async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
-    const result = await enqueueReport({ now: new Date(), report: fieldReport, store })
+    const result = await enqueueReport({
+      now: new Date(),
+      report: fieldReport,
+      store,
+      subHash: session.subHash,
+    })
     if (!result.accepted) return result.reason
     await refreshQueueView()
     requestDrain(undefined)
@@ -287,6 +341,7 @@ export function useDriverTrip(
           ? {}
           : { receiverDocument: input.receiverDocument }),
         ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+        subHash: session.subHash,
       },
       attachmentStore,
       store,
@@ -309,12 +364,20 @@ export function useDriverTrip(
     return 'queued'
   }
 
+  async function discardForeign(): Promise<void> {
+    await discardForeignPending({ attachmentStore, ownerSubHash: session.subHash, store })
+    await refreshQueueView()
+  }
+
   const loadedView = queueView ?? []
 
   return {
     attachProof,
+    discardForeignPending: discardForeign,
+    foreignPendingCount,
     isQueueLoading: queueView === undefined,
     isSyncing: drain.isPending,
+    offlineSnapshotSavedAt: session.canSync ? undefined : initialSnapshot?.savedAt,
     proofOutcomeByDocumentId,
     queueView: loadedView,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,

@@ -11,6 +11,8 @@ import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.p
 
 import type { DriverTripSnapshot } from '../shared/driverTrip.types'
 import { listProofPendingDocuments } from '../shared/driverTripView.service'
+import { createIndexedDbTripSnapshotStore } from '../shared/indexedDbQueue.service'
+import { discardTripSnapshots } from '../shared/tripSnapshot.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverProfilePageProps = Readonly<{
@@ -122,7 +124,13 @@ export function DriverProfilePage({
         type="button"
         variant="secondary"
         onClick={() => {
-          void getKeycloakAuthProvider().logout()
+          /**
+           * ADR-0075 §8: "Sair" leva a viagem guardada junto — nada dela fica no aparelho. Falha ao
+           * apagar não segura o logout; o snapshot ainda vence em 24 h e sai no próximo login.
+           */
+          void discardTripSnapshots({ store: createIndexedDbTripSnapshotStore() })
+            .catch(() => undefined)
+            .then(() => getKeycloakAuthProvider().logout())
         }}
       >
         <Icon name="logout" />

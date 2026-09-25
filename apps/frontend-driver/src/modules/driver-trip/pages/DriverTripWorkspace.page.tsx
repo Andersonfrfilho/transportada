@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
+import { DriverForeignPendingNotice } from '../components/DriverForeignPendingNotice.component'
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
 import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice.component'
@@ -292,6 +293,18 @@ export function DriverTripWorkspacePage() {
           )}
         </header>
 
+        {/* ADR-0075 §8: boot sem rede — a viagem é o snapshot, e a tela diz de quando ele é */}
+        {driverTrip.offlineSnapshotSavedAt === undefined ? null : (
+          <p className={styles.queueBanner} role="status">
+            {t('offline.snapshotFrom', {
+              time: new Date(driverTrip.offlineSnapshotSavedAt).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+            })}
+          </p>
+        )}
+
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
 
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
@@ -329,6 +342,14 @@ export function DriverTripWorkspacePage() {
           >
             {t('pendingProofs.open')} ({proofPendingCount})
           </button>
+        ) : null}
+
+        {/* ADR-0075 §8: a fila de outra conta neste celular nunca sai com o token desta */}
+        {driverTrip.foreignPendingCount > 0 ? (
+          <DriverForeignPendingNotice
+            count={driverTrip.foreignPendingCount}
+            onDiscard={() => void driverTrip.discardForeignPending()}
+          />
         ) : null}
 
         {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}

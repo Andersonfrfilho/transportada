@@ -121,6 +121,40 @@ qualquer coisa que apareça no enquadramento — dado pessoal guardado além da 
 
 **Origem:** spec 161, revisão final (achado I6, 2026-09-22) e Fase 5 (T17/T18, 22/09/2026).
 
+### 2026-09-25 — a app do motorista guarda a última viagem no aparelho, para abrir sem rede (spec 189)
+
+**Onde:** `frontend-driver`, IndexedDB `transportada.driver-trip` versão 3, store `trip-snapshot`
+(`src/modules/driver-trip/shared/tripSnapshot.service.ts`, `indexedDbQueue.service.ts`), e as filas
+`field-reports`/`event-attachments` do mesmo banco; boot em `src/main.tsx` (ADR-0075 §8, plan D4/D5).
+
+**O que é (risco aceito):** para o motorista abrir a viagem no subsolo, sem sinal e antes do
+Keycloak responder, a app grava o último `GET /me/trips/current` no aparelho. Ele carrega dado
+pessoal de terceiro — nome do destinatário, rótulo e coordenadas das paradas e número das notas — e fica legível
+por quem tiver o celular desbloqueado e abrir as ferramentas do navegador. Sem rede, a app mostra
+esse snapshot **sem token**: a leitura não passa pelo Keycloak, só pela posse do aparelho.
+
+**Como está contido:**
+
+- **Dono.** A chave é `SHA-256(sub)` em hex (`crypto.subtle`); o `sub` em si não é gravado. O
+  ponteiro `last` diz de quem é o snapshot que o boot sem rede pode abrir.
+- **Descarte.** Sai quando outro `sub` autentica no aparelho, quando passa de **24 h** de
+  `savedAt`, quando nenhuma viagem da resposta está aberta (todas `completed`/`cancelled`, ou lista
+  vazia) e no "Sair". O vencido é apagado na própria leitura do boot.
+- **Fila com dono.** Cada evento e cada anexo enfileirado leva o mesmo `subHash`. A drenagem só
+  envia os do `sub` autenticado — nem o envio manual manda item de outra conta —, e o que é de outra
+  conta aparece como "pendências de outra conta", com "Descartar" e aviso. Nunca sai com o token de
+  quem não tocou.
+- **Sem token no aparelho.** O snapshot não guarda token nem refresh token; a drenagem fica
+  suspensa até haver sessão. Os anexos seguem com o descarte de 7 dias da spec 159.
+- **Só na origem da app.** O IndexedDB é da origem `motorista.<zona>`; nada disso vai para log, URL
+  ou beacon.
+
+**O que falta:** o snapshot e a fila ficam em texto claro no IndexedDB (sem criptografia em repouso
+no aparelho — a chave teria de morar no mesmo aparelho, e só adiaria quem já tem o celular
+desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revisitar.
+
+**Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
+
 ### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)
 
 **Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart

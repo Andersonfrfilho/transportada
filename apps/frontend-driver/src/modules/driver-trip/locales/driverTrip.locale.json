@@ -188,5 +188,18 @@
   "documentOccurrenceWholeDocument": "A nota inteira",
   "proofPendingWarningTitle": "Foto do canhoto obrigatória",
   "proofPendingWarningLead": "Tire aqui, na hora da entrega. Foto enviada depois ou longe daqui tira pontos da sua nota.",
-  "proofPendingWarningDetails": "Como a foto conta na nota"
+  "proofPendingWarningDetails": "Como a foto conta na nota",
+  "offline": {
+    "empty": "Sem viagem salva; conecte-se para carregar a sua viagem.",
+    "emptyTitle": "Sem conexão",
+    "snapshotFrom": "Sem conexão — dados de {{time}}. O que você registrar fica na fila e sobe quando o sinal voltar."
+  },
+  "foreignPending": {
+    "cancel": "Manter",
+    "confirm": "Descartar de vez",
+    "discard": "Descartar",
+    "notice_one": "{{count}} pendência de outra conta neste celular. Ela não é enviada com a sua conta.",
+    "notice_other": "{{count}} pendências de outra conta neste celular. Elas não são enviadas com a sua conta.",
+    "warning": "Descartar apaga essas pendências do celular para sempre: quem as registrou não vai conseguir enviá-las."
+  }
 }

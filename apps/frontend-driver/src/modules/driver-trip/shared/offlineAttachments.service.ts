@@ -41,6 +41,8 @@ export type QueuedAttachment = Readonly<{
    * é o que a tela de pendentes imprime como problema do arquivo. Só o envio manual tenta de novo.
    */
   rejectionCause?: string
+  /** ADR-0075 §8: o dono do anexo, como em `QueuedReport.subHash`. */
+  subHash?: string
 }>
 
 export type AttachmentGroupEntries = readonly (readonly [string, readonly QueuedAttachment[]])[]
@@ -198,6 +200,11 @@ export type AttachmentDrainResult = Readonly<{
 export async function drainQueueWithAttachments(input: {
   readonly attachmentStore: AttachmentStore
   readonly only?: string
+  /**
+   * ADR-0075 §8: com dono, só sai o que é dele — nem o envio manual (`only`) manda item de outra
+   * conta. Sem dono, a drenagem é a de sempre.
+   */
+  readonly ownerSubHash?: string
   readonly send: (report: QueuedReport['report']) => Promise<AttachmentSendOutcome>
   readonly sendAttachment: (attachment: QueuedAttachment) => Promise<AttachmentSendOutcome>
   readonly store: OfflineQueueStore
@@ -214,7 +221,8 @@ export async function drainQueueWithAttachments(input: {
     const key = item.report.idempotencyKey
     const isTargeted = input.only === undefined || key === input.only
     const skipRejected = input.only === undefined && item.rejectionCause !== undefined
-    if (networkDown || !isTargeted || skipRejected) continue
+    const isForeign = input.ownerSubHash !== undefined && item.subHash !== input.ownerSubHash
+    if (networkDown || !isTargeted || skipRejected || isForeign) continue
 
     const outcome = await input.send(item.report)
     if (outcome.kind === 'sent') {
@@ -244,6 +252,7 @@ export async function drainQueueWithAttachments(input: {
             createdAt: item.createdAt,
             rejectionCause: cause,
             report: item.report,
+            ...(item.subHash === undefined ? {} : { subHash: item.subHash }),
           },
         ]
       }
@@ -267,7 +276,9 @@ export async function drainQueueWithAttachments(input: {
       for (const attachment of attachments) {
         const skipRejectedAttachment =
           input.only === undefined && attachment.rejectionCause !== undefined
-        if (skipRejectedAttachment) continue
+        const isForeignAttachment =
+          input.ownerSubHash !== undefined && attachment.subHash !== input.ownerSubHash
+        if (skipRejectedAttachment || isForeignAttachment) continue
 
         const outcome = await input.sendAttachment(attachment)
         if (outcome.kind === 'failed-network') {

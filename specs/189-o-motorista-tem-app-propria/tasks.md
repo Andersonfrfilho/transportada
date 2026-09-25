@@ -174,7 +174,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** contratos verdes; o sino aparece no `make dev`.
 
-- [ ] **T3.3a** 🧠 Boot sem rede, com o snapshot e a fila com dono (plan D4 e D5). Contratos antes:
+- [x] **T3.3a** 🧠 Boot sem rede, com o snapshot e a fila com dono (plan D4 e D5). Contratos antes:
   - `probeIdentityProvider`: `fetch` do `openid-configuration` com `cache: 'no-store'` e timeout de
     ~5 s;
   - `resolveBootMode({ isReachable, snapshot, now })`: alcançável, inalcançável com snapshot válido e

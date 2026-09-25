@@ -6,6 +6,11 @@ import type {
   QueuedAttachment,
 } from './offlineAttachments.service'
 import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
+import {
+  isStoredTripSnapshot,
+  type StoredTripSnapshot,
+  type TripSnapshotStore,
+} from './tripSnapshot.service'
 
 /**
  * A fila sobrevive à tela fechando e à bateria acabando — é o requisito da spec, e é por isso que
@@ -25,13 +30,20 @@ const DATABASE_NAME = 'transportada.driver-trip'
 const STORE_NAME = 'field-reports'
 const ATTACHMENT_STORE_NAME = 'event-attachments'
 const QUEUE_KEY = 'queue'
-const DATABASE_VERSION = 2
+/**
+ * ADR-0075 §8 (plan D5): a versão 3 traz o store `trip-snapshot`. A origem da app do motorista é
+ * nova e nasce sem dados — ela já abre na 3, sem migração de nada.
+ */
+const DATABASE_VERSION = 3
+const TRIP_SNAPSHOT_STORE_NAME = 'trip-snapshot'
+/** Ponteiro para o `subHash` de quem usou por último — é o snapshot que o boot sem rede abre. */
+const LAST_OWNER_KEY = 'last'
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION)
     request.onupgradeneeded = () => {
-      for (const name of [STORE_NAME, ATTACHMENT_STORE_NAME]) {
+      for (const name of [STORE_NAME, ATTACHMENT_STORE_NAME, TRIP_SNAPSHOT_STORE_NAME]) {
         if (!request.result.objectStoreNames.contains(name)) {
           request.result.createObjectStore(name)
         }
@@ -189,5 +201,56 @@ export function createIndexedDbAttachmentStore(): AttachmentStore {
       })
       return next as readonly QueuedAttachment[]
     },
+  }
+}
+
+/** Uma transação `readwrite` no store do snapshot: tudo o que `apply` faz entra junto, ou nada. */
+function writeTripSnapshotStore(apply: (store: IDBObjectStore) => void): Promise<void> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(TRIP_SNAPSHOT_STORE_NAME, 'readwrite')
+        apply(transaction.objectStore(TRIP_SNAPSHOT_STORE_NAME))
+        transaction.oncomplete = () => {
+          resolve()
+          database.close()
+        }
+        const fail = () => {
+          reject(transaction.error ?? new Error('DRIVER_SNAPSHOT_TRANSACTION_FAILED'))
+          database.close()
+        }
+        transaction.onerror = fail
+        transaction.onabort = fail
+      }),
+  )
+}
+
+export function createIndexedDbTripSnapshotStore(): TripSnapshotStore {
+  return {
+    clear: () => writeTripSnapshotStore((store) => store.clear()),
+    async read(subHash) {
+      const stored = await readValue({ key: subHash, storeName: TRIP_SNAPSHOT_STORE_NAME })
+      return isStoredTripSnapshot(stored) ? stored : undefined
+    },
+    async readLastOwner() {
+      const stored = await readValue({ key: LAST_OWNER_KEY, storeName: TRIP_SNAPSHOT_STORE_NAME })
+      return typeof stored === 'string' ? stored : undefined
+    },
+    remove: (subHash) => writeTripSnapshotStore((store) => store.delete(subHash)),
+    retainOnly: (subHash) =>
+      writeTripSnapshotStore((store) => {
+        const keysRequest = store.getAllKeys()
+        keysRequest.onsuccess = () => {
+          for (const key of keysRequest.result) {
+            if (key !== subHash && key !== LAST_OWNER_KEY) store.delete(key)
+          }
+          store.put(subHash, LAST_OWNER_KEY)
+        }
+      }),
+    write: (input: { readonly record: StoredTripSnapshot; readonly subHash: string }) =>
+      writeTripSnapshotStore((store) => {
+        store.put(input.record, input.subHash)
+        store.put(input.subHash, LAST_OWNER_KEY)
+      }),
   }
 }
