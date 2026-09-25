@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { Button, buttonClassName } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
-import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
+import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import {
   selectFieldActionableDocumentIds,
   selectFieldReturnableDocumentIds,

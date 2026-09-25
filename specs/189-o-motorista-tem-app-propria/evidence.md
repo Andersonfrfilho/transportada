@@ -869,3 +869,25 @@ cd apps/api-transportada && bun test ./test/deploy/{migrations-are-applied,stagi
 **Aberto nesta task:** `make check` (fica com o orquestrador, na publicação), o `code-reviewer`
 (`opus`) antes do push e a publicação em staging **sem** a variável com o print de `/minha-viagem`.
 Por isso a T5.2 não está marcada no `tasks.md`.
+
+**Commits próprios, T5.2:** o do painel e o do `.railway/railway.ts`.
+
+### T5.3 — `DriverReturnReason` e `DRIVER_RETURN_REASONS` para `modules/trip/shared/`
+
+- `trip/shared/tripReturnReason.types.ts` novo, com a lista e o tipo;
+- os quatro imports do módulo `trip` trocados: `trip.types.ts`, `TripReturnReasonDialog`,
+  `TripStateActions` e `TripDetail` — `git grep driver-trip/shared/driverTrip.types -- src/modules/trip`
+  vazio;
+- `driverTrip.types.ts` importa e reexporta até a remoção do módulo (T10.2);
+- `test/driver-trip/catalog-parity.contract.ts` passa a ler `DRIVER_RETURN_REASONS` da casa nova,
+  para a paridade com a API continuar vigiando a cópia que fica no escritório. Antes da troca:
+  `Cannot find module '@/modules/trip/shared/tripReturnReason.types'` (0 pass / 1 fail).
+
+```
+cd apps/frontend-transportada && bun run lint && bun run typecheck   ok
+cd apps/frontend-transportada && bun run test
+  contratos 5290 pass / 0 fail · hooks 51 pass / 0 fail
+```
+
+**Aberto:** o `make check` do aceite fica com o orquestrador, na publicação; por isso a T5.3 não
+está marcada.

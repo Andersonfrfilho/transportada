@@ -7,11 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
-import {
-  DRIVER_RETURN_REASONS,
-  type DriverReturnReason,
-} from '@/modules/driver-trip/shared/driverTrip.types'
 
+import { DRIVER_RETURN_REASONS, type DriverReturnReason } from '../shared/tripReturnReason.types'
 import styles from '../styles/trip.module.css'
 
 function isDriverReturnReason(value: string): value is DriverReturnReason {

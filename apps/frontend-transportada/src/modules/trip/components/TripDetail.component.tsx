@@ -48,7 +48,7 @@ import {
   resolveDefaultOnBehalfDriverId,
   selectFieldReturnableDocumentIds,
 } from '../shared/tripFieldActions.service'
-import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
+import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
+import type { DriverReturnReason } from './tripReturnReason.types'
 import type {
   CoverableSuggestionStop,
   LeftoverStop,
