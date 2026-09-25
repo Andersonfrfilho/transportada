@@ -54,6 +54,10 @@
       "done": "Tudo enviado. Agora é só abrir o app novo.",
       "go": "Ir para o app novo",
       "intro": "O app do motorista mudou de endereço. Antes de ir para o app novo, termine de enviar o que ficou neste aparelho."
+    },
+    "sessionExpired": {
+      "message": "Sua sessão expirou. Entre novamente para continuar enviando.",
+      "reload": "Entrar novamente"
     }
   },
   "loadSheet": {

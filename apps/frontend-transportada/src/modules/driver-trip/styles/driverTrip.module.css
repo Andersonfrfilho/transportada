@@ -666,6 +666,23 @@
   min-height: 2.75rem;
 }
 
+/*
+ * Revisão M3: esta tela nasce fora do `ApplicationShell`, então o aviso de sessão expirada não
+ * herda o dele — o mesmo tom de `.application-session-banner` (`src/styles/index.css`), copiado
+ * aqui porque é CSS Module por módulo, não token de app. `width: 100%` já vem de
+ * `.legacyPendingShell > *`, acima.
+ */
+.sessionExpiredBanner {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+
 .stopDistance {
   align-self: center;
   color: var(--color-slate);

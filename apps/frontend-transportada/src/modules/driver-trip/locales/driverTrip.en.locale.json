@@ -66,6 +66,10 @@
       "done": "Everything was sent. You can open the new app now.",
       "go": "Go to the new app",
       "intro": "The driver app moved to a new address. Before going to the new app, finish sending what is left on this device."
+    },
+    "sessionExpired": {
+      "message": "Your session expired. Sign in again to keep sending.",
+      "reload": "Sign in again"
     }
   },
   "loadSheet": {

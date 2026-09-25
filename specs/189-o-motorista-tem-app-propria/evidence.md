@@ -1195,3 +1195,32 @@ IDENTITY_CONFIGURATION_INVALID_VITE_DRIVER_APP_URL`, lançado de dentro do
 - `bun test ./test/driver-trip.contract.test.ts`: 225 pass / 0 fail (era 217 depois do M4; +8 desta
   revisão).
 - `bun run typecheck` e `bun run lint`: limpos.
+
+### M3 — aviso de sessão expirada em `DriverLegacyPending.page.tsx`
+
+Esta tela nasce fora do `ApplicationShell` (`renderDriverAppScreen`, `main.tsx`) — é a única do
+painel que drena a fila antiga sem o aviso de sessão expirada que o `ApplicationShell` já tem
+(`main.tsx:453-455`, `getKeycloakAuthProvider().onSessionExpired`). Sem isto, uma sessão expirada
+no meio da drenagem falhava calada: `toOutcome` classifica o erro como `REQUEST_FAILED`
+(revisão M2 trata isso como infraestrutura, não descartável), e nada na tela dizia ao motorista
+que era preciso entrar de novo.
+
+- `DriverLegacyPending.page.tsx` assina `getKeycloakAuthProvider().onSessionExpired` no mesmo
+  molde do `ApplicationShell`, e mostra o aviso com `role="alert"` e um botão "Entrar novamente"
+  que **recarrega a página** (`window.location.reload()`) — não `restartAuthentication()`: esta
+  tela é boot de página inteira (`renderDriverAppScreen`), fora de qualquer roteador, e recarregar
+  devolve o boot ao `check-sso` do zero (o mesmo padrão de `onGoToDriverApp` já usado aqui,
+  `main.tsx:881`, e de `AuthenticationNavigation.reloadApplication` em
+  `KeycloakAuthProvider.provider.ts:250-254`).
+- Textos novos em `legacy.sessionExpired.{message,reload}`, pt-BR acentuado e en, ao lado de
+  `legacy.pending`/`legacy.install`.
+- `.sessionExpiredBanner` em `driverTrip.module.css`, no mesmo tom de
+  `.application-session-banner` (`src/styles/index.css`) — CSS Module por módulo, não token de
+  app, porque esta tela não importa estilo do painel.
+- Sem contrato novo: a task não pede um (diferente de M1/M2/M4/M5), e o mecanismo que ela usa
+  (`getKeycloakAuthProvider().onSessionExpired`) já é coberto por
+  `test/keycloak-auth-provider.test.ts:68,102`. Não existe hoje um helper de render de componente
+  completo (com DOM) neste app — só de hooks (`test/trip-hooks/`) — e criar um só para esta tela
+  seria escopo maior do que a revisão pediu.
+- `bun run typecheck`, `bun run lint`: limpos. `bun run test` (contrato + hooks): 5319 + 54 pass /
+  0 fail — nenhuma suíte quebrou com o import novo de `KeycloakAuthProvider.provider` na tela.
