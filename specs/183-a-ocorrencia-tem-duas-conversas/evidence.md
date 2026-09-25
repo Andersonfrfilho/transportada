@@ -2310,3 +2310,98 @@ migration na API). Um commit por parte.
   - **Clientes** (importante, pedido do usuário): página fora do padrão no celular.
   - **D3** (importante, da segunda rodada): quadro da tabela de clientes sem foco.
 - As correções, com o commit de cada uma, estão na tabela da T903.
+
+## T903 — Os achados corrigidos, um commit por achado, e a página revista (verde)
+
+Nenhum achado bloqueante. Todo importante está corrigido, com teste escrito antes e visto falhando,
+e conferido no navegador quando tem tela. Os menores ficaram de dois jeitos: corrigidos no mesmo
+molde, ou aceitos com o motivo.
+
+**Corrigidos:**
+
+| Achado   | Gravidade  | O que era                                                                                  | Commit                             | Prova                                                                                                                                                          |
+| -------- | ---------- | ------------------------------------------------------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1       | importante | metadados do balão com 2,3–4,4:1                                                           | `6d8d2130`                         | `bubble-contrast.contract.ts` e o contrato do portal; axe 0 nas 50 capturas                                                                                    |
+| D2       | importante | mensagem nova sem anúncio; a leitura parava sem pendente                                   | `97bf9de2`                         | `live-region.contract.ts`; no navegador, o portal escreve e o painel anuncia "1 mensagem nova na conversa"                                                     |
+| C5       | importante | CHECK de `stored_objects` validando a tabela inteira sob lock                              | `ff7d36ab`                         | `static-migration.contract.ts`; `make migration-test` 111 pass                                                                                                 |
+| Clientes | importante | página de clientes fora do padrão a 360 px                                                 | `fedcde75`                         | `workspace-layout.contract.ts`; 0 px de estouro e campo de 48 px a 360 e 1280, nos dois temas (`clientes-corrigido-*`)                                         |
+| C3       | importante | corrida no primeiro e-mail da ocorrência virava 500 (23505)                                | `06595a06`                         | contrato do lock visto falhando; a integração da corrida passa, mas **não reproduz a corrida sem a correção** (registrado)                                     |
+| C4/S4    | importante | aviso automático do lote: até 50 transações ao mesmo tempo contra um pool de 10            | `9d8b1843`                         | contrato com pico de 1                                                                                                                                         |
+| S3       | menor      | resposta do motorista sem limite de taxa                                                   | `80859e7b`                         | `rate-limited-routes.contract.test.ts`                                                                                                                         |
+| F1       | importante | e-mail com anexo apagado saía sem o arquivo                                                | `e2bc4ff1`                         | contrato e integração do worker (4 pass)                                                                                                                       |
+| F6       | importante | clique duplo em "Gravar" abria dois microfones                                             | `b6539d54`                         | no navegador, 2 `getUserMedia` antes e 1 depois                                                                                                                |
+| F2/F3    | importante | upload vencido e chave repetida prendiam o reenvio para sempre                             | `425741c7`                         | `send-recovery.contract.ts`, visto falhando                                                                                                                    |
+| F4       | importante | "encaminhar"/"anexar" feito por outra pessoa mostrava erro                                 | `ffa52d3c`                         | `forward-attach.contract.ts`, visto falhando                                                                                                                   |
+| S1       | importante | o PUT tardio na URL de subida trocava o arquivo já conferido                               | `171fe796`                         | integração contra S3 **falha sem a correção** (o download devolvia os bytes trocados) e passa com ela                                                          |
+| S2       | importante | e-mail sem DKIM alinhado aparecia como o contato cadastrado                                | `28aa50ce`                         | integração contra Postgres falha sem a correção; no navegador, selo "Remetente não confirmado" sem cadastro (`s2-remetente-nao-confirmado-*`)                  |
+| C1       | importante | conversa presa ao primeiro motorista; o co-motorista respondia sem ver                     | `62e40e52`                         | integração falha sem a correção; 409 `OCCURRENCE_CONVERSATION_DRIVER_CHANGED` com mensagem no app                                                              |
+| D3       | importante | quadro da tabela de clientes sem foco (regressão da correção da página)                    | `0956ecd4`, `1dfb3009`             | no navegador, a seta rola o quadro; axe 0 e estouro 0 nos dois temas                                                                                           |
+| F5       | importante | a conversa importava hook e formulário internos de `delivery-clients`; ciclo com `trip`    | `5781a6fa`, `5a105f03`, `0c0060b9` | `module-boundary.contract.ts`; no navegador, o diálogo abre preenchido e o balão vira contato (`f5-*`)                                                         |
+| F9       | menor      | "Anexar à ocorrência" relia a aplicação inteira                                            | `ef9a2207`                         | no navegador, só saem os GET de `/trip-occurrences/:id`, `/timeline` e `/attachments`                                                                          |
+| F13      | menor      | caixa do portal editável durante o envio (o texto sumia)                                   | `ebf498a4`                         | no navegador, com o POST segurado 2 s: desabilitada, e volta vazia (`f13-portal-enviando-390.png`)                                                             |
+| F11      | menor      | nome do contato e "fechar" abaixo do alvo de toque; `aria-controls` para lista inexistente | `55ba8900`                         | toque emulado a 390: 44 px e 44×44; `aria-controls` só com a lista aberta                                                                                      |
+| C2       | importante | nenhuma conversa fecha: quase todo WhatsApp caía em "não atribuída"                        | `80038173`                         | duas integrações falham sem a correção; o contrato D4 segue sem exceção (a leitura da tratativa mora em `trips`); a fila no navegador (`c2-fila-candidatas-*`) |
+
+- **C2 em detalhe.** "Conversa aberta" usa a definição de ocorrência aberta da própria spec (T206):
+  a tratativa ainda não chegou a estado terminal.
+  - A atribuição automática exige, além disso, que a conversa já tenha mensagem.
+  - A escolha do operador mantém a conversa sem mensagem, porque pode ser justamente a ocorrência de
+    que a contratante fala.
+  - Nada fecha nem é escrito: é só leitura.
+- **F5 em parte.** A tela do app do motorista (`driver-trip`) continua compondo a conversa com
+  peças de `occurrence-conversation`.
+  - Ela depende do layout do próprio app (`shell`, `documentList`, `eventQueue*`), e movê-la só
+    inverteria a dependência.
+  - A regra escrita trata de **ações**. O certo é uma API pública do módulo (um `index` com a tela
+    e o contador), e fica como proposta.
+  - O que a regra proíbe de fato, que é importar diálogo e hook internos de outro módulo, foi
+    corrigido, e o ciclo pelas guardas também.
+
+**Aceitos, com o motivo:**
+
+- **S5 (menor): o motorista alcança a conversa de viagem encerrada.**
+  - É intencional: a ocorrência costuma se resolver depois da entrega, e o motorista precisa
+    responder.
+  - O alcance continua recortado pela tripulação daquela viagem.
+- **C6 (menor): a migration `20260924163726` entra sem `NOT VALID` em `contractor_contacts`.**
+  - A tabela é pequena, e a migration já está aplicada nos ambientes.
+  - Reescrevê-la mudaria o checksum de uma migration publicada.
+- **Menores de desempenho, para uma task própria:**
+  - **C7:** N+1 na lista de conversas do app.
+  - **C8:** corte de 1000 mensagens somando as duas conversas.
+  - **C9:** o resumo traz todas as mensagens da página.
+  - **C16:** índices `(company_id, participant, driver_user_id)` e `(company_id,
+mail_message_id)`.
+  - Nenhum afeta a correção dos dados. Pedem medição e migration própria.
+- **Menores de robustez, para uma task própria:**
+  - **C10:** `errorCode: 'UNEXPECTED'` sem nome nem código do Postgres.
+  - **C11:** `new Error` cru, hoje inalcançável.
+  - **C12:** leitura do S3 dentro da transação.
+  - **C13:** posição duplicada nas respostas rápidas em POST simultâneo.
+  - **C14:** atualização perdida em PATCH simultâneo do contato.
+  - **C15:** fingerprint do e-mail e do app sem o ator. As chaves são UUID do cliente, então a
+    colisão não é realista.
+  - **F7:** URL de blob não revogada ao desmontar durante a gravação.
+  - **F8:** o cache de URL assinada pode fixar uma URL vencida por até cerca de 3 min.
+  - **F10:** objetos órfãos no bucket quando o 3º anexo do e-mail recebido falha.
+- **F12 = D2**, já corrigido.
+
+**Revisão refeita das páginas tocadas:**
+
+- A segunda rodada da matriz (50 capturas) veio depois das correções de D1, D2, clientes, S2 e C1.
+- D3, F5, F9, F11, F13 e C2 foram conferidos cada um no navegador depois do commit (prints `d3`,
+  `f5`, `f13` e `c2`).
+- A matriz final ficou com axe 0 e estouro 0 no painel e no app. O estouro de 64 px do portal é
+  anterior à 183.
+
+**Rodado no fim da fase:**
+
+- **API:** contratos **7585 pass, 0 fail**; integração completa sozinha, depois do C2, **620 pass,
+  7 skip, 0 fail**.
+  - Uma rodada anterior falhou 1 vez na integração nova do C1. As duas mensagens nasciam no mesmo
+    instante, e a ordem caía no id aleatório. Era defeito do teste, não do produto: o relógio passou
+    a andar (`fc07a462`), três rodadas seguidas saíram verdes e a completa também.
+- **Worker:** contratos **1452 pass**; integração **142 pass, 4 skip, 0 fail**.
+- **Painel** **5311 + 44 pass**; **portal** **86 pass**.
+- **Migrations:** `ENV_FILE=.env.test make migration-test` **111 pass**; `bun run db:check` limpo.
+- **Raiz:** lint, typecheck e `format:check` limpos.
