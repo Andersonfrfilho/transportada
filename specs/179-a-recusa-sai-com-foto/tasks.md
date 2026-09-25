@@ -81,7 +81,7 @@ implementam esse encadeamento do zero: plugam a captura de imagem e a UI de esta
 
 - **T401** ✅ O editor de tipos de ocorrência oferece a marca de comprovante obrigatório, em pt-BR e
   en. (CA01, RF10)
-- **T402** 🧠 Revisão de design e usabilidade com print, em 375px e no desktop (web.md §15). (CA09)
+- **T402** ✅ 🧠 Revisão de design e usabilidade com print, em 375px e no desktop (web.md §15). (CA09)
 
 ## Prompt de execução
 

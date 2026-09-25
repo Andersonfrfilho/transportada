@@ -700,3 +700,43 @@ $ bunx tsc --noEmit                                   # frontend-transportada: s
 $ bun run lint                                        # sem saída
 $ bun run test                                        # 5345 pass · 0 fail · hooks 54 pass · 0 fail
 ```
+
+## T402 — revisão de design com print (CA09, `web.md` §15)
+
+Prints em `prints/` (28 PNGs: 375 px e 1280 px, temas escuro e claro), gerados por
+`apps/frontend-driver/test/spec-179-prints.smoke.spec.ts` — fora do smoke da CI, roda com
+`PLAYWRIGHT_TEST_MATCH=spec-179-prints.smoke.spec.ts` e o bypass de fumaça: 12 passed.
+
+- `nao-entreguei-vazio-*`, `nao-entreguei-confirmar-bloqueado-*`: o confirmar desabilitado (cobre
+  apagado) e, logo acima, "Para confirmar, falta: o motivo, o tipo de ocorrência, a foto." em cobre
+  — aviso, não erro.
+- `nao-entreguei-completo-*`: motivo e tipo selecionados no cobre dos chips de sempre (mesmo
+  `occurrenceChip` da ocorrência de parada), miniatura com "Foto da ocorrência anexada" em verde,
+  "Refazer" e "Anexar" do mesmo tamanho, observação no mesmo campo dos outros (`--field-*`).
+- `cartao-na-fila-*` / `cartao-enviada-*`: a linha de estado na nota — relógio e cobre na fila,
+  visto e verde quando subiu.
+- `canhoto-botoes-*` / `canhoto-anexada-*`: "Canhoto", "Tirar foto \*" e "Anexar" lado a lado, com a
+  mesma largura, e "Colher assinatura" (ícone de caneta) na linha inteira; depois de anexar,
+  miniatura, "Foto do canhoto anexada" e "Refazer".
+
+Comparação com os vizinhos: todo botão é o `Button` do design system (`ui-button-ghost`, 44 px —
+os smokes medem 44×44 em 375 px com o formulário aberto); chips, título de grupo e texto de apoio
+reusam as classes da ocorrência de parada e do comprovante. Nenhum campo cru ao lado de primitivo.
+
+Um defeito do próprio print, não da tela: o fim do cartão saía coberto pela barra de navegação fixa.
+Medido (`getBoundingClientRect`): o botão mais baixo cabe dentro do cartão; o print agora centraliza
+o elemento antes de fotografar.
+
+### Pendências explícitas
+
+1. **Tema claro**: a app do motorista só tem o tema escuro; os prints `-light` saem iguais aos
+   `-dark` (o `emulateMedia` não muda nada). Não é regressão desta spec.
+2. **Segundo toque enquanto está na fila**: com a ocorrência e a devolução na fila, "Entreguei" e
+   "Não entreguei" continuam oferecidos na nota até a leitura seguinte — o mesmo comportamento de
+   hoje com "Entreguei" enfileirado (o snapshot só muda depois de subir). A linha "na fila" avisa;
+   esconder as ações é decisão de produto que não tomei aqui.
+3. **Print do painel (T401)**: não gerei — o painel está sendo mexido por outro executor e o smoke
+   dele é outro build. A tela está coberta por contrato (`occurrence-type-attachment-mode.contract.ts`);
+   o print entra no molde de `spec-185-prints.smoke.spec.ts` (mesmo dublê de
+   `/company-settings/occurrence-types`, com `attachmentMode` no tipo de rua).
+4. **Pendência de API**: ver T303 — `attachmentMode` em `GET /me/trips/current/occurrence-types`.
