@@ -17,6 +17,7 @@ import {
   occurrenceConversationUnassigned,
 } from '../../database/database.schema.js'
 import { toWhatsAppPhoneKey } from '../../whatsapp-commands/domain/whatsapp-phone-key.policy.js'
+import { attributableContractorConversation } from './attributable-conversation.query.js'
 import type {
   UnassignedAssignmentTransactionPort,
   UnassignedAssignmentUnitOfWorkPort,
@@ -128,7 +129,8 @@ async function readOpenConversations(
       and(
         eq(occurrenceConversations.companyId, companyId),
         eq(occurrenceConversations.participant, 'contractor'),
-        eq(occurrenceConversations.status, 'open'),
+        /** T903 (C2): ocorrência com a tratativa encerrada não é mais candidata. */
+        attributableContractorConversation({ requireMessage: false }),
         inArray(occurrenceConversations.contractorId, [...new Set(contractorIds)]),
       ),
     )

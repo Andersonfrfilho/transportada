@@ -59,3 +59,31 @@ describe('conversation attachment tenant safety (spec 183 T702a)', () => {
     expect(attach).toInclude('eq(occurrenceConversationUploads.companyId, input.companyId)')
   })
 })
+
+/**
+ * Spec 183 T903 (achado C2): o critério de conversa aberta lê a mensagem e a tratativa por
+ * subconsulta — cada uma amarrada à empresa **da conversa**, nunca solta; senão a tratativa de uma
+ * empresa fecharia a conversa de outra que tivesse o mesmo id de ocorrência.
+ */
+describe('attributable conversation tenant safety (spec 183 T903, C2)', () => {
+  const QUERY = readFileSync(
+    new URL(
+      '../../src/occurrence-conversation/infrastructure/attributable-conversation.query.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  const TERMINAL = readFileSync(
+    new URL('../../src/trips/infrastructure/terminal-occurrence-case.query.ts', import.meta.url),
+    'utf8',
+  )
+
+  test('both subqueries join on the company of the conversation', () => {
+    expect(QUERY).toContain(
+      'eq(occurrenceConversationMessages.companyId, occurrenceConversations.companyId)',
+    )
+    expect(QUERY).toContain('companyId: occurrenceConversations.companyId,')
+    expect(TERMINAL).toContain('eq(tripOccurrenceCases.companyId, input.companyId)')
+  })
+})

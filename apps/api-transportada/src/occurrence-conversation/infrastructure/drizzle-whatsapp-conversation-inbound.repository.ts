@@ -19,11 +19,11 @@ import {
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { toWhatsAppPhoneKey } from '../../whatsapp-commands/domain/whatsapp-phone-key.policy.js'
 import type { WhatsAppConversationInboundPort } from '../application/whatsapp-conversation-inbound.port.js'
+import { attributableContractorConversation } from './attributable-conversation.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const ACTIVE_CONTACT_STATUS = 'active'
-const OPEN_CONVERSATION_STATUS = 'open'
 
 export function createDrizzleWhatsAppConversationInboundRepository(
   database: Database,
@@ -113,7 +113,8 @@ export function createDrizzleWhatsAppConversationInboundRepository(
                   and(
                     eq(occurrenceConversations.companyId, companyId),
                     eq(occurrenceConversations.participant, 'contractor'),
-                    eq(occurrenceConversations.status, OPEN_CONVERSATION_STATUS),
+                    /** T903 (C2): aberta = com mensagem e ocorrência sem tratativa encerrada. */
+                    attributableContractorConversation({ requireMessage: true }),
                     inArray(occurrenceConversations.contractorId, optedInContractorIds),
                   ),
                 )

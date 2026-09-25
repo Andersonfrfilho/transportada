@@ -14,6 +14,7 @@ import {
   occurrenceConversationMessages,
   occurrenceConversations,
   occurrenceConversationUnassigned,
+  tripOccurrenceCases,
 } from '../../src/database/database.schema.js'
 import { createAssignUnassignedMessageUseCase } from '../../src/occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
 import {
@@ -138,6 +139,85 @@ describe('a fila de mensagens sem conversa contra Postgres (spec 183 T505)', () 
           },
         ])
         expect(await reader.listPending({ companyId })).toEqual([])
+      })
+    },
+    30_000,
+  )
+
+  /**
+   * Spec 183 T903 (achado C2): a ocorrência cuja tratativa chegou a estado terminal sai das
+   * candidatas — nenhuma conversa fecha, e sem isso a lista crescia para sempre. A conversa que só
+   * foi criada continua candidata na escolha do operador.
+   */
+  testWithPostgres(
+    'C2: ocorrência com a tratativa encerrada sai das candidatas',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, userId } = seeded.company
+        await database.db
+          .update(contractorContacts)
+          .set({ phone: PHONE, whatsappOptInAt: new Date(), whatsappOptInByUserId: userId })
+          .where(eq(contractorContacts.id, seeded.contactIds[0] ?? ''))
+        const sent = await createOccurrenceMailUseCase(database).send({
+          actorUserId: userId,
+          bodyText: 'Autorizam a descarga?',
+          companyId,
+          contactIds: seeded.contactIds.slice(0, 1),
+          correlationId: 'correlation-c2',
+          idempotencyKey: 'conversation-unassigned-c2',
+          occurrenceId: seeded.occurrenceId,
+          subject: 'Ocorrência',
+        })
+        const [first] = await database.db
+          .select({ contractorId: occurrenceConversations.contractorId })
+          .from(occurrenceConversations)
+          .where(eq(occurrenceConversations.id, sent.conversationId))
+        const [created] = await database.db
+          .insert(occurrenceConversations)
+          .values({
+            companyId,
+            contractorId: first?.contractorId ?? null,
+            occurrenceId: crypto.randomUUID(),
+            occurrenceKind: 'document',
+            participant: 'contractor',
+            publicRef: `ref${crypto.randomUUID().replaceAll('-', '')}`,
+          })
+          .returning({ id: occurrenceConversations.id })
+        await database.db.insert(occurrenceConversationUnassigned).values({
+          bodyText: 'Qual das duas?',
+          channel: 'whatsapp',
+          companyId,
+          providerMessageId: 'wamid.c2',
+          receivedAt: new Date('2026-09-24T15:00:00.000Z'),
+          senderAddress: PHONE,
+        })
+        const reader = createDrizzleOccurrenceConversationUnassignedReader(database.db)
+        const candidates = async () =>
+          ((await reader.listPending({ companyId }))[0]?.candidates ?? [])
+            .map((candidate) => candidate.conversationId)
+            .sort()
+        expect(await candidates()).toEqual([sent.conversationId, created?.id ?? ''].sort())
+
+        const [existingCase] = await database.db
+          .select({ id: tripOccurrenceCases.id })
+          .from(tripOccurrenceCases)
+          .where(eq(tripOccurrenceCases.occurrenceId, seeded.occurrenceId))
+        if (existingCase === undefined) {
+          await database.db.insert(tripOccurrenceCases).values({
+            companyId,
+            occurrenceId: seeded.occurrenceId,
+            redeliveryPolicy: 'blocked',
+            resolvedAt: new Date(),
+            status: 'returned_to_warehouse',
+          })
+        } else {
+          await database.db
+            .update(tripOccurrenceCases)
+            .set({ resolvedAt: new Date(), status: 'returned_to_warehouse' })
+            .where(eq(tripOccurrenceCases.id, existingCase.id))
+        }
+        expect(await candidates()).toEqual([created?.id ?? ''])
       })
     },
     30_000,

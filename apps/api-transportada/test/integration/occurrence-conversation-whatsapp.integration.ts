@@ -17,6 +17,7 @@ import {
   occurrenceConversationMessages,
   occurrenceConversations,
   occurrenceConversationUnassigned,
+  tripOccurrenceCases,
 } from '../../src/database/database.schema.js'
 import { createRateLimiter } from '../../src/http/rate-limiter.service.js'
 import { createOccurrenceConversationWhatsAppHook } from '../../src/occurrence-conversation/application/whatsapp-conversation-inbound.service.js'
@@ -71,6 +72,40 @@ async function seedWhatsAppContact(database: TestDatabase) {
     subject: 'Ocorrência',
   })
   return { ...seeded, conversationId: sent.conversationId }
+}
+
+/** Outra conversa da mesma contratante, com uma mensagem — conversa de verdade, não só criada. */
+async function insertConversationWithMessage(
+  database: TestDatabase,
+  companyId: string,
+  contractorId: null | string,
+  options: { readonly withMessage?: boolean } = {},
+): Promise<string> {
+  const [created] = await database.db
+    .insert(occurrenceConversations)
+    .values({
+      companyId,
+      contractorId,
+      occurrenceId: crypto.randomUUID(),
+      occurrenceKind: 'document',
+      participant: 'contractor',
+      publicRef: `ref${crypto.randomUUID().replaceAll('-', '')}`,
+    })
+    .returning({ id: occurrenceConversations.id })
+  const conversationId = created?.id ?? ''
+  if (options.withMessage !== false) await insertMessage(database, companyId, conversationId)
+  return conversationId
+}
+
+async function insertMessage(database: TestDatabase, companyId: string, conversationId: string) {
+  await database.db.insert(occurrenceConversationMessages).values({
+    bodyText: 'Sobre a outra nota.',
+    channel: 'email',
+    companyId,
+    conversationId,
+    direction: 'inbound',
+    senderAddress: 'compras@alfa.example.test',
+  })
 }
 
 function createHook(database: TestDatabase, forwarded: unknown[]) {
@@ -141,14 +176,7 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
           .select({ contractorId: occurrenceConversations.contractorId })
           .from(occurrenceConversations)
           .where(eq(occurrenceConversations.id, seeded.conversationId))
-        await database.db.insert(occurrenceConversations).values({
-          companyId,
-          contractorId: conversation?.contractorId ?? null,
-          occurrenceId: crypto.randomUUID(),
-          occurrenceKind: 'document',
-          participant: 'contractor',
-          publicRef: `ref${crypto.randomUUID().replaceAll('-', '')}`,
-        })
+        await insertConversationWithMessage(database, companyId, conversation?.contractorId ?? null)
         const forwarded: unknown[] = []
         const hook = createHook(database, forwarded)
 
@@ -237,6 +265,69 @@ describe('a conversa pelo WhatsApp contra Postgres (spec 183 T502)', () => {
           },
         })
         expect(await read()).toEqual(afterRead)
+      })
+    },
+    30_000,
+  )
+
+  /**
+   * Spec 183 T903 (achado C2): nenhuma conversa fecha, e o portal cria a conversa de cada ocorrência
+   * visível já na leitura. Contar toda conversa `open` como candidata mandava quase todo WhatsApp
+   * para "não atribuída". Conta como aberta, para a atribuição (RF9), a conversa que tem mensagem e
+   * cuja ocorrência está aberta na definição da própria spec (T206): a tratativa ainda não chegou a
+   * estado terminal. Só leitura — a conversa continua sem escrever na tratativa (D4).
+   */
+  testWithPostgres(
+    'C2: conversa só criada e ocorrência encerrada não contam como aberta',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedWhatsAppContact(database)
+        const { companyId } = seeded.company
+        const [conversation] = await database.db
+          .select({ contractorId: occurrenceConversations.contractorId })
+          .from(occurrenceConversations)
+          .where(eq(occurrenceConversations.id, seeded.conversationId))
+        const contractorId = conversation?.contractorId ?? null
+        const hook = createHook(database, [])
+        const whatsappIn = async (id: string) => {
+          await hook({ from: PHONE, id, text: { body: id }, type: 'text' }, session(companyId))
+          const [row] = await database.db
+            .select({ conversationId: occurrenceConversationMessages.conversationId })
+            .from(occurrenceConversationMessages)
+            .where(eq(occurrenceConversationMessages.bodyText, id))
+          return row?.conversationId ?? 'unassigned'
+        }
+
+        /** 1. A outra conversa só foi criada (a leitura do portal cria): não conta. */
+        const other = await insertConversationWithMessage(database, companyId, contractorId, {
+          withMessage: false,
+        })
+        expect(await whatsappIn('wamid.c2-1')).toBe(seeded.conversationId)
+
+        /** 2. Com mensagem, ela conta: duas abertas, vai para "não atribuída". */
+        await insertMessage(database, companyId, other)
+        expect(await whatsappIn('wamid.c2-2')).toBe('unassigned')
+
+        /** 3. A tratativa da primeira chega a estado terminal: só a outra está aberta. */
+        const [existingCase] = await database.db
+          .select({ id: tripOccurrenceCases.id })
+          .from(tripOccurrenceCases)
+          .where(eq(tripOccurrenceCases.occurrenceId, seeded.occurrenceId))
+        if (existingCase === undefined) {
+          await database.db.insert(tripOccurrenceCases).values({
+            companyId,
+            occurrenceId: seeded.occurrenceId,
+            redeliveryPolicy: 'blocked',
+            resolvedAt: new Date(),
+            status: 'returned_to_warehouse',
+          })
+        } else {
+          await database.db
+            .update(tripOccurrenceCases)
+            .set({ resolvedAt: new Date(), status: 'returned_to_warehouse' })
+            .where(eq(tripOccurrenceCases.id, existingCase.id))
+        }
+        expect(await whatsappIn('wamid.c2-3')).toBe(other)
       })
     },
     30_000,
