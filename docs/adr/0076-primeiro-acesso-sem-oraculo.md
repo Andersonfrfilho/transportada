@@ -1,6 +1,6 @@
 # ADR-0076 — Primeiro acesso por autoatendimento, sem oráculo
 
-- **Status:** proposta (passa a aceita na T0.1 da spec 191)
+- **Status:** aceita (2026-09-25, T0.1 da spec 191, conferida contra o código)
 - **Data:** 2026-09-25
 - **Decisores:**
   - usuário, em 2026-09-25: link separado, reenvio público com resposta neutra, anti-robô só se houver

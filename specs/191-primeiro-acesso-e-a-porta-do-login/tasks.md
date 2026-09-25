@@ -24,7 +24,7 @@ com `rollback.sql` e fecha com `make migration-test`.
 
 > 🤖 Modelo: `opus`
 
-- [ ] **T0.1** Conferir a ADR-0076 (`Status: proposta`) contra o código e passá-la a `aceita` sem
+- [x] **T0.1** Conferir a ADR-0076 (`Status: proposta`) contra o código e passá-la a `aceita` sem
       mudar decisão. Se algo divergir, pare e pergunte.
       Conferir também que 191 e 0076 seguem livres: `git fetch && git log --all --oneline -- 'specs/191*' 'docs/adr/0076*'`.
 - [ ] **T0.2** **Medir a remoção de vínculo com histórico.**
