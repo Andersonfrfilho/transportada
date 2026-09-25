@@ -234,3 +234,40 @@ describe('a nota que carrega a foto da ocorrência', () => {
     expect(source).not.toInclude('stop.documents.find((item) => !isDocumentSettled(item))')
   })
 })
+
+/**
+ * Spec 179 T200 passou a exigir `Idempotency-Key` na ocorrência de nota do motorista. Sem ela a API
+ * responde 400 e o toque do motorista não registra nada — e cada toque é uma chave nova, porque
+ * repetir o toque depois de uma falha é o conserto.
+ */
+describe('a ocorrência de nota leva a chave de idempotência', () => {
+  const input = { documentId: 'document-1', occurrenceTypeId: 'type-1', productCode: 'SKU-1' }
+
+  it('o pedido carrega o cabeçalho idempotency-key', async () => {
+    const { client, seen } = buildClient(new Response('{"data":{}}', { status: 201 }))
+
+    await client.registerDocumentOccurrence(input)
+
+    const key = seen[0]?.headers.get('idempotency-key') ?? ''
+    expect(key.trim()).not.toBe('')
+  })
+
+  it('dois toques são duas chaves', async () => {
+    const seen: Request[] = []
+    const client = createDriverTripClient({
+      apiUrl: 'https://api.test',
+      fetch: (request) => {
+        seen.push(request as Request)
+        return Promise.resolve(new Response('{"data":{}}', { status: 201 }))
+      },
+      getAccessToken: () => Promise.resolve('token-de-mentira'),
+    })
+
+    await client.registerDocumentOccurrence(input)
+    await client.registerDocumentOccurrence(input)
+
+    expect(seen[0]?.headers.get('idempotency-key')).not.toBe(
+      seen[1]?.headers.get('idempotency-key'),
+    )
+  })
+})
