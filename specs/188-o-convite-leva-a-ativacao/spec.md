@@ -29,5 +29,5 @@ caminho que funcionava era o administrador clicar em "Ativar agora" e definir a 
 
 - [x] `test/code-email/activation-link.contract.ts` (worker)
 - [x] `test/identity/user-activation.contract.ts` e `public-route.contract.ts` (painel)
-- [ ] Em staging: convite reenviado chega no Mailpit com o botão, e o link abre `/ativar` com o
+- [x] Em staging: convite reenviado chega no Mailpit com o botão, e o link abre `/ativar` com o
       código preenchido

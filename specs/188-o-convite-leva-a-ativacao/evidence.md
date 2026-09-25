@@ -10,3 +10,8 @@
 - `bun run --cwd apps/frontend-transportada test` — 5262 + 51 pass, 0 fail
 - `bun run --cwd apps/worker-transportada test` — 1424 pass, 0 fail
 - `prettier --check .` — ok; build do frontend e do worker — ok
+- T003: deploy `711b36bcc` verde (api, worker, frontend). Convite reenviado pela tela de Usuários
+  às 03:08 UTC; no Mailpit de staging o e-mail traz o botão "Ativar meu acesso" e a linha
+  `Ativar meu acesso: https://app.staging.fernandes-transportadora.com.br/ativar#codigo=…`. O link
+  abre "Ativar acesso" com o código preenchido, as senhas vazias, e a barra de endereço já sem o
+  fragmento.

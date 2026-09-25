@@ -8,4 +8,4 @@
       no canal do convite
 - [x] T002 Contratos da tela (cliente, fragmento, rota pública antes do Keycloak), vistos vermelhos;
       `userActivationClient`, `useUserActivation`, `UserActivation.page`, rota `/ativar`, textos
-- [ ] T003 Gates, push para staging, reenviar o convite e abrir o link no navegador (print)
+- [x] T003 Gates, push para staging, reenviar o convite e abrir o link no navegador (print)
