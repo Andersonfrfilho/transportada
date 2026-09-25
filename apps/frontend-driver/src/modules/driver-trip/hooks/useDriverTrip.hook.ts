@@ -33,7 +33,11 @@ import {
   enqueueReport,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
-import { countPending, scheduleQueueDrainTriggers } from '../shared/pendingQueue.service'
+import {
+  countPending,
+  createDrainScheduler,
+  scheduleQueueDrainTriggers,
+} from '../shared/pendingQueue.service'
 import { discardForeignPending, partitionPendingByOwner } from '../shared/queueOwner.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { saveTripSnapshot } from '../shared/tripSnapshot.service'
@@ -194,9 +198,11 @@ export function useDriverTrip(
     refetchInterval: CURRENT_TRIP_REFETCH_MS,
   })
 
-  const isDrainingRef = useRef(false)
-  const hasPendingDrainRef = useRef(false)
-  const requestDrainRef = useRef<(only?: string) => void>(() => undefined)
+  /** O `run` do agendador aponta para a mutação do render corrente. */
+  const runDrainRef = useRef<(only: string | undefined) => void>(() => undefined)
+  const [drainScheduler] = useState(() =>
+    createDrainScheduler({ run: (only) => runDrainRef.current(only) }),
+  )
 
   /** A drenagem é uma só — automática e manual entram pela mesma porta, `only` restringe. */
   const drain = useMutation({
@@ -265,8 +271,8 @@ export function useDriverTrip(
      * travava a fila para sempre.** Os callbacks passados a `mutate(vars, {...})` não rodam se o
      * observador for desmontado antes de a mutação terminar, e o `useEffect` de montagem roda duas
      * vezes sob StrictMode: a primeira drenagem terminava com o observador dela já descartado, o
-     * `onSettled` nunca disparava, e `isDrainingRef` — que é `useRef` e sobrevive à remontagem —
-     * ficava `true` pelo resto da vida da tela. Toda drenagem seguinte era engolida pelo guarda,
+     * `onSettled` nunca disparava, e a trava (hoje o `isRunning` de `createDrainScheduler`, que vive
+     * num `useState` e sobrevive à remontagem) ficava ligada pelo resto da vida da tela. Toda drenagem seguinte era engolida pelo guarda,
      * com a tela dizendo "aguardando envio" e a rede perfeita.
      *
      * O `onSettled` da mutação é da mutação, não de quem a chamou: ele roda mesmo que o chamador
@@ -275,46 +281,29 @@ export function useDriverTrip(
      * deixaria a fila trancada do mesmo jeito.
      */
     onSettled: () => {
-      isDrainingRef.current = false
-      if (!hasPendingDrainRef.current) return
-      hasPendingDrainRef.current = false
-      requestDrainRef.current(undefined)
+      drainScheduler.settled()
     },
   })
+  runDrainRef.current = (only) => drain.mutate(only)
 
   /**
    * Spec 082 (revisão): **uma drenagem por vez** — duas em paralelo mandariam o mesmo evento duas
    * vezes, e a idempotência do servidor existe para o reenvio, não para a corrida.
    *
-   * ⚠️ **Mas o pedido que chega durante uma drenagem não pode ser descartado, e era.** A versão
-   * anterior o ignorava confiando em "o gatilho seguinte pega o que sobrou" — só que os gatilhos
-   * são a rede voltando e a montagem da tela, e nenhum dos dois acontece com a rede boa. O toque
-   * do motorista caía exatamente nessa janela: `report()` enfileira e pede a drenagem enquanto a
-   * drenagem de montagem ainda está em voo, o pedido era engolido, e a confirmação ficava parada
-   * na fila **indefinidamente**, com a tela dizendo "1 confirmação aguardando envio" e a rede
-   * perfeita. Medido pelo smoke do motorista, que reprovava por isso.
-   *
-   * O conserto é coalescer com execução final: o pedido que chega ocupado marca uma repetição, e
-   * ela roda assim que a atual termina. Continua sendo uma por vez.
-   *
-   * ⚠️ A repetição vai **sem `only`** de propósito: ela é a rede de segurança de tudo o que entrou
-   * durante a drenagem anterior, não de um item específico. Drenar o superconjunto é sempre seguro
-   * — o que já foi enviado não está mais na fila.
+   * ⚠️ **Mas o pedido que chega durante uma drenagem não pode ser descartado, e era.** O toque do
+   * motorista caía exatamente na janela da drenagem de montagem, o pedido era engolido, e a
+   * confirmação ficava parada na fila com a rede perfeita. `createDrainScheduler` coalesce com
+   * execução final — e, desde a spec 189 T9.2 (M3), guarda cada `only` do "Enviar agora" num `Set`,
+   * porque a repetição geral pula os recusados e engolia o reenvio manual deles.
    */
   const requestDrain = useCallback(
     (only?: string) => {
       /** Boot sem rede: a drenagem fica suspensa até haver token (plan D4). */
       if (!session.canSync) return
-      if (isDrainingRef.current) {
-        hasPendingDrainRef.current = true
-        return
-      }
-      isDrainingRef.current = true
-      drain.mutate(only)
+      drainScheduler.request(only)
     },
-    [drain, session.canSync],
+    [drainScheduler, session.canSync],
   )
-  requestDrainRef.current = requestDrain
 
   /**
    * A rede voltando é evento do navegador — é o gatilho de drenagem, e o único `useEffect` daqui.

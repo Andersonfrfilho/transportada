@@ -5,6 +5,7 @@ import type { QueuedAttachment } from '@/modules/driver-trip/shared/offlineAttac
 import type { QueuedReport } from '@/modules/driver-trip/shared/offlineQueue.service'
 import {
   countPending,
+  createDrainScheduler,
   QUEUE_DRAIN_INTERVAL_MS,
   scheduleQueueDrainTriggers,
   type DrainTriggerTarget,
@@ -282,5 +283,57 @@ describe('scheduleQueueDrainTriggers (plan D5)', () => {
     target.firePageshow()
     target.fireVisibilityChange()
     expect(target.intervalCount()).toBe(0)
+  })
+})
+
+/**
+ * Spec 189 T9.2 (M3): "Enviar agora" de um item recusado durante uma drenagem em voo era engolido —
+ * a repetição ia sem `only`, e a drenagem sem `only` pula os recusados. Cada pedido específico fica
+ * guardado e roda na sua vez, um por vez.
+ */
+describe('o agendador da drenagem (M3)', () => {
+  it('uma por vez: o pedido que chega ocupado espera o fim da atual', () => {
+    const runs: Array<string | undefined> = []
+    const scheduler = createDrainScheduler({ run: (only) => runs.push(only) })
+
+    scheduler.request(undefined)
+    scheduler.request(undefined)
+    expect(runs).toEqual([undefined])
+
+    scheduler.settled()
+    expect(runs).toEqual([undefined, undefined])
+    scheduler.settled()
+    expect(runs).toEqual([undefined, undefined])
+  })
+
+  it('cada "Enviar agora" pedido durante a drenagem roda com o seu only, na sua vez', () => {
+    const runs: Array<string | undefined> = []
+    const scheduler = createDrainScheduler({ run: (only) => runs.push(only) })
+
+    scheduler.request(undefined)
+    scheduler.request('chave-a')
+    scheduler.request('chave-b')
+    scheduler.request('chave-a')
+    expect(runs).toEqual([undefined])
+
+    scheduler.settled()
+    expect(runs).toEqual([undefined, 'chave-a'])
+    scheduler.settled()
+    expect(runs).toEqual([undefined, 'chave-a', 'chave-b'])
+    scheduler.settled()
+    expect(runs).toEqual([undefined, 'chave-a', 'chave-b'])
+  })
+
+  it('pedido geral e específico juntos: os dois rodam', () => {
+    const runs: Array<string | undefined> = []
+    const scheduler = createDrainScheduler({ run: (only) => runs.push(only) })
+
+    scheduler.request('chave-a')
+    scheduler.request(undefined)
+    scheduler.request('chave-b')
+    scheduler.settled()
+    scheduler.settled()
+
+    expect(runs).toEqual(['chave-a', undefined, 'chave-b'])
   })
 })

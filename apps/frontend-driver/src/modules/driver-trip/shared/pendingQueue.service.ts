@@ -125,3 +125,51 @@ export function scheduleQueueDrainTriggers(input: {
     stopInterval()
   }
 }
+
+export type DrainScheduler = Readonly<{
+  request: (only?: string) => void
+  /** Quem roda a drenagem chama isto quando ela termina, dando certo ou não. */
+  settled: () => void
+}>
+
+/**
+ * Uma drenagem por vez (spec 082): duas em paralelo mandariam o mesmo evento duas vezes. O pedido
+ * que chega ocupado não é descartado — o geral vira uma repetição, e cada "Enviar agora" (`only`)
+ * fica guardado num `Set` e roda na sua vez. Spec 189 T9.2 (M3): a repetição sem `only` engolia o
+ * envio manual de um item recusado, que só drena com o `only` dele.
+ */
+export function createDrainScheduler(input: {
+  readonly run: (only: string | undefined) => void
+}): DrainScheduler {
+  let isRunning = false
+  let hasPendingFullDrain = false
+  const pendingKeys = new Set<string>()
+
+  function start(only: string | undefined): void {
+    isRunning = true
+    input.run(only)
+  }
+
+  return {
+    request(only) {
+      if (!isRunning) {
+        start(only)
+        return
+      }
+      if (only === undefined) hasPendingFullDrain = true
+      else pendingKeys.add(only)
+    },
+    settled() {
+      isRunning = false
+      if (hasPendingFullDrain) {
+        hasPendingFullDrain = false
+        start(undefined)
+        return
+      }
+      const [nextKey] = pendingKeys
+      if (nextKey === undefined) return
+      pendingKeys.delete(nextKey)
+      start(nextKey)
+    },
+  }
+}

@@ -93,12 +93,11 @@ describe('a fila offline no hook (revisão 082)', () => {
    * ela roda quando a atual termina. Continua sendo uma por vez.
    */
   it('a drenagem é single-flight, e o pedido concorrente reexecuta em vez de sumir', () => {
-    expect(hook).toInclude('isDrainingRef')
-    expect(hook).toInclude('hasPendingDrainRef')
+    /** Spec 189 T9.2 (M3): a regra mora em `createDrainScheduler`, provada em pending-queue. */
+    expect(hook).toInclude('createDrainScheduler(')
+    expect(hook).toInclude('drainScheduler.request(only)')
     expect(hook).toInclude('requestDrain')
     expect(hook).not.toInclude('drain.mutate(undefined)')
-    /** O que não pode voltar: largar o pedido sem deixar rastro de que ele existiu. */
-    expect(hook).not.toInclude('if (isDrainingRef.current) return\n')
   })
 
   /**
@@ -122,7 +121,7 @@ describe('a fila offline no hook (revisão 082)', () => {
       hook.indexOf('const requestDrain = useCallback'),
     )
     expect(mutacao).toInclude('onSettled')
-    expect(mutacao).toInclude('isDrainingRef.current = false')
+    expect(mutacao).toInclude('drainScheduler.settled()')
   })
 
   /**
