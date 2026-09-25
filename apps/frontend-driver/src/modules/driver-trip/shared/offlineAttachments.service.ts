@@ -28,6 +28,8 @@ export type QueuedAttachment = Readonly<{
   capturedAt: string
   documentId: string
   fileName: string
+  /** Spec 189 T9.2 ("Confirmar em lote"): capturado sem sessão — só sobe depois da confirmação. */
+  isUnverified?: true
   kind: 'photo' | 'signature'
   /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — dado pessoal, nunca em log. */
   accuracyMeters?: number
@@ -78,6 +80,8 @@ export function documentAttachmentKey(documentId: string): string {
 export async function enqueueAttachment(input: {
   readonly attachment: QueuedAttachment
   readonly attachmentStore: AttachmentStore
+  /** Boot sem rede (`canSync: false`): o anexo espera a confirmação do dono para subir. */
+  readonly isUnverified?: boolean
   readonly limits?: AttachmentLimits
   readonly store: OfflineQueueStore
 }): Promise<EnqueueAttachmentResult> {
@@ -99,7 +103,12 @@ export async function enqueueAttachment(input: {
 
   await input.attachmentStore.update({
     eventKey,
-    mutate: (existing) => [...existing, input.attachment],
+    mutate: (existing) => [
+      ...existing,
+      input.isUnverified === true
+        ? { ...input.attachment, isUnverified: true as const }
+        : input.attachment,
+    ],
   })
 
   return { accepted: true, eventKey }
@@ -222,7 +231,9 @@ export async function drainQueueWithAttachments(input: {
     const isTargeted = input.only === undefined || key === input.only
     const skipRejected = input.only === undefined && item.rejectionCause !== undefined
     const isForeign = input.ownerSubHash !== undefined && item.subHash !== input.ownerSubHash
-    if (networkDown || !isTargeted || skipRejected || isForeign) continue
+    /** Gravado sem sessão: nem o envio manual leva — só a confirmação do dono tira a marca. */
+    const isUnverified = item.isUnverified === true
+    if (networkDown || !isTargeted || skipRejected || isForeign || isUnverified) continue
 
     const outcome = await input.send(item.report)
     if (outcome.kind === 'sent') {
@@ -250,6 +261,7 @@ export async function drainQueueWithAttachments(input: {
           {
             attempts: item.attempts,
             createdAt: item.createdAt,
+            ...(item.isUnverified === true ? { isUnverified: true as const } : {}),
             rejectionCause: cause,
             report: item.report,
             ...(item.subHash === undefined ? {} : { subHash: item.subHash }),
@@ -278,7 +290,9 @@ export async function drainQueueWithAttachments(input: {
           input.only === undefined && attachment.rejectionCause !== undefined
         const isForeignAttachment =
           input.ownerSubHash !== undefined && attachment.subHash !== input.ownerSubHash
-        if (skipRejectedAttachment || isForeignAttachment) continue
+        if (skipRejectedAttachment || isForeignAttachment || attachment.isUnverified === true) {
+          continue
+        }
 
         const outcome = await input.sendAttachment(attachment)
         if (outcome.kind === 'failed-network') {

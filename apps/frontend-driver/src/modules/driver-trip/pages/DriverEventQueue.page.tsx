@@ -46,6 +46,7 @@ export function DriverEventQueuePage({
     if (item.status.state === 'rejected') {
       return t('eventQueue.status.rejected', { cause: item.status.cause })
     }
+    if (item.status.state === 'unverified') return t('eventQueue.status.unverified')
     if (item.status.state === 'failed') {
       return t('eventQueue.status.failed', { count: item.status.attempts })
     }

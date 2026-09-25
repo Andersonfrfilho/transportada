@@ -146,6 +146,15 @@ esse snapshot **sem token**: a leitura não passa pelo Keycloak, só pela posse 
   quem não tocou.
 - **Sem token no aparelho.** O snapshot não guarda token nem refresh token; a drenagem fica
   suspensa até haver sessão. Os anexos seguem com o descarte de 7 dias da spec 159.
+- **"Confirmar em lote" (decisão do usuário, spec 189 T9.2).** Sem rede, a posse do celular basta
+  para registrar em nome de quem usou por último — "Cheguei", "Entreguei", "Devolvi", ocorrência e
+  foto. Tudo o que é gravado com `canSync: false` sai marcado `isUnverified` (evento e anexo), e a
+  drenagem **não** o envia, nem pelo "Enviar agora". Depois de autenticar, o dono vê "N registros
+  feitos sem rede às HH:MM — enviar?": um toque tira a marca e drena
+  (`unverifiedPending.service.ts:confirmUnverifiedPending`); "Descartar", com confirmação, apaga
+  evento, blob, documento do recebedor e posição, e o anexo pendurado num evento descartado vai
+  junto (`discardUnverifiedPending`). Quem autentica com outro `sub` vê esses itens como pendência
+  de outra conta, nunca como seus.
 - **Só na origem da app.** O IndexedDB é da origem `motorista.<zona>`; nada disso vai para log, URL
   ou beacon.
 

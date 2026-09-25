@@ -41,6 +41,12 @@ import {
 import { discardForeignPending, partitionPendingByOwner } from '../shared/queueOwner.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { saveTripSnapshot } from '../shared/tripSnapshot.service'
+import {
+  confirmUnverifiedPending,
+  discardUnverifiedPending,
+  summarizeUnverifiedPending,
+  type UnverifiedSummary,
+} from '../shared/unverifiedPending.service'
 import { useDriverSession } from './useDriverSession.hook'
 
 /** Gatilhos da drenagem (plan D5): `visibilitychange` é do `document`, o resto é do `window`. */
@@ -81,6 +87,10 @@ export type DriverReportOutcome = 'count-limit' | 'queued'
 
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  /** "Confirmar em lote": tira a marca do que foi feito sem rede e drena. */
+  confirmUnverifiedPending: () => Promise<void>
+  /** Descarta o que foi feito sem rede — o item e o dado saem do aparelho. */
+  discardUnverifiedPending: () => Promise<void>
   /** ADR-0075 §8: "Descartar" as pendências de outra conta — o item e o dado saem do aparelho. */
   discardForeignPending: () => Promise<void>
   /** Itens da fila de outra conta neste aparelho: nunca enviados com o token desta. */
@@ -116,6 +126,8 @@ export type DriverTripController = Readonly<{
   sendNow: (idempotencyKey: string) => void
   snapshot: DriverTripSnapshot | undefined
   status: 'error' | 'loading' | 'ready'
+  /** O que o dono fez sem rede e ainda não confirmou — só com sessão viva. */
+  unverifiedPending: UnverifiedSummary | undefined
 }>
 
 export function useDriverTrip(
@@ -140,6 +152,9 @@ export function useDriverTrip(
   const queryClient = useQueryClient()
   const session = useDriverSession()
   const [foreignPendingCount, setForeignPendingCount] = useState(0)
+  const [unverifiedPending, setUnverifiedPending] = useState<UnverifiedSummary | undefined>(
+    undefined,
+  )
   const [queueView, setQueueView] = useState<readonly EventQueueItemView[] | undefined>(undefined)
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
@@ -158,6 +173,9 @@ export function useDriverTrip(
       reports: queued,
     })
     setForeignPendingCount(pending.foreignCount)
+    setUnverifiedPending(
+      summarizeUnverifiedPending({ attachments, ownerSubHash: session.subHash, reports: queued }),
+    )
     setQueueView(
       buildEventQueueView({ attachments: pending.ownAttachments, queued: pending.ownReports }),
     )
@@ -342,6 +360,7 @@ export function useDriverTrip(
   function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
     return persistWhileOpen(captureRegistry, async () => {
       const result = await enqueueReport({
+        isUnverified: !session.canSync,
         now: new Date(),
         report: fieldReport,
         store,
@@ -367,6 +386,7 @@ export function useDriverTrip(
     return persistWhileOpen(captureRegistry, async () => {
       const fieldReport = build(null)
       const result = await enqueueReport({
+        isUnverified: !session.canSync,
         now: new Date(),
         report: fieldReport,
         store,
@@ -420,6 +440,7 @@ export function useDriverTrip(
         subHash: session.subHash,
       },
       attachmentStore,
+      isUnverified: !session.canSync,
       store,
     })
     if (!result.accepted) return result.reason
@@ -445,11 +466,25 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  /** "Confirmar em lote": o dono autenticado assume o que foi feito sem rede, e a drenagem leva. */
+  async function confirmUnverified(): Promise<void> {
+    await confirmUnverifiedPending({ attachmentStore, ownerSubHash: session.subHash, store })
+    await refreshQueueView()
+    requestDrain(undefined)
+  }
+
+  async function discardUnverified(): Promise<void> {
+    await discardUnverifiedPending({ attachmentStore, ownerSubHash: session.subHash, store })
+    await refreshQueueView()
+  }
+
   const loadedView = queueView ?? []
 
   return {
     attachProof,
+    confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
+    discardUnverifiedPending: discardUnverified,
     foreignPendingCount,
     isQueueLoading: queueView === undefined,
     isSyncing: drain.isPending,
@@ -470,6 +505,8 @@ export function useDriverTrip(
     sendAllNow: () => requestDrain(undefined),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
     snapshot: currentTrip.data,
+    /** Sem sessão não há quem confirme: a faixa só aparece depois de entrar. */
+    unverifiedPending: session.canSync ? unverifiedPending : undefined,
     status: resolveTripViewStatus({
       hasData: currentTrip.data !== undefined,
       isError: currentTrip.isError,

@@ -17,6 +17,7 @@ import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
+import { DriverUnverifiedPendingNotice } from '../components/DriverUnverifiedPendingNotice.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
@@ -359,6 +360,16 @@ export function DriverTripWorkspacePage() {
             {t('pendingProofs.open')} ({proofPendingCount})
           </button>
         ) : null}
+
+        {/* Spec 189 T9.2: o que foi feito sem rede, sem sessão, sobe só com a confirmação do dono */}
+        {driverTrip.unverifiedPending === undefined ? null : (
+          <DriverUnverifiedPendingNotice
+            count={driverTrip.unverifiedPending.count}
+            firstRecordedAt={driverTrip.unverifiedPending.firstRecordedAt}
+            onConfirm={() => void driverTrip.confirmUnverifiedPending()}
+            onDiscard={() => void driverTrip.discardUnverifiedPending()}
+          />
+        )}
 
         {/* ADR-0075 §8: a fila de outra conta neste celular nunca sai com o token desta */}
         {driverTrip.foreignPendingCount > 0 ? (

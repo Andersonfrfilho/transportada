@@ -22,26 +22,47 @@ export function countPending(input: {
 
   let drainable = 0
   let rejected = 0
+  let unverified = 0
+  /** Anexo parado atrás de um evento que não sobe: pendente (entra no total), não drenável. */
+  let blocked = 0
+  /**
+   * Spec 189 T9.2 (B1): o grupo de anexos espera o evento dele. Evento recusado ou não verificado
+   * não sobe na drenagem automática, e os anexos de trás também não — contá-los como drenáveis
+   * deixava o relógio de 30 s ligado para sempre.
+   */
+  const blockedEventKeys = new Set<string>()
 
   for (const report of input.reports) {
     if (!isOwned(report)) continue
-    if (report.rejectionCause === undefined) drainable += 1
-    else rejected += 1
+    const key = report.report.idempotencyKey
+    if (report.rejectionCause !== undefined) {
+      rejected += 1
+      blockedEventKeys.add(key)
+    } else if (report.isUnverified === true) {
+      unverified += 1
+      blockedEventKeys.add(key)
+    } else drainable += 1
   }
 
-  for (const [, items] of input.attachments) {
+  for (const [eventKey, items] of input.attachments) {
+    const isBlocked = blockedEventKeys.has(eventKey)
     for (const attachment of items) {
       if (!isOwned(attachment)) continue
       if (attachment.rejectionCause !== undefined) {
         rejected += 1
         continue
       }
+      if (attachment.isUnverified === true) {
+        unverified += 1
+        continue
+      }
       if (isAttachmentDiscardable({ attachment, now: input.now })) continue
-      drainable += 1
+      if (isBlocked) blocked += 1
+      else drainable += 1
     }
   }
 
-  return { drainable, rejected, total: drainable + rejected }
+  return { drainable, rejected, total: drainable + rejected + unverified + blocked }
 }
 
 /** O mesmo intervalo da sonda de reconexão (plan D5, `bootMode.service.ts`). */

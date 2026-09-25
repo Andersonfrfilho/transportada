@@ -12,6 +12,8 @@ export type EventQueueItemStatus =
   | Readonly<{ attempts: number; state: 'failed' }>
   | Readonly<{ cause: string; state: 'rejected' }>
   | Readonly<{ state: 'queued' }>
+  /** Spec 189 T9.2: gravado sem rede, esperando o dono confirmar ("Confirmar em lote"). */
+  | Readonly<{ state: 'unverified' }>
 
 export type EventQueueItemView = Readonly<{
   attachmentCount: number
@@ -29,6 +31,7 @@ export type EventQueueItemView = Readonly<{
 
 function toStatus(item: QueuedReport): EventQueueItemStatus {
   if (item.rejectionCause !== undefined) return { cause: item.rejectionCause, state: 'rejected' }
+  if (item.isUnverified === true) return { state: 'unverified' }
   if (item.attempts > 0) return { attempts: item.attempts, state: 'failed' }
   return { state: 'queued' }
 }
@@ -68,14 +71,24 @@ export function buildEventQueueView(input: {
         idempotencyKey: eventKey,
         kind: 'proof',
         queuedAt: group[0]?.capturedAt ?? '',
-        status: cause === undefined ? { state: 'queued' } : { cause, state: 'rejected' },
+        status:
+          cause !== undefined
+            ? { cause, state: 'rejected' }
+            : group.some((attachment) => attachment.isUnverified === true)
+              ? { state: 'unverified' }
+              : { state: 'queued' },
       }
     })
 
   return [...eventViews, ...orphanViews]
 }
 
-/** "Enviar todos" só faz sentido com algo enviável — rejeitado é decisão do servidor, item a item. */
+/**
+ * "Enviar todos" só faz sentido com algo enviável — rejeitado é decisão do servidor, item a item, e
+ * o não verificado espera a confirmação do dono, na faixa própria.
+ */
 export function hasSendableEvents(items: readonly EventQueueItemView[]): boolean {
-  return items.some((item) => item.status.state !== 'rejected')
+  return items.some(
+    (item) => item.status.state !== 'rejected' && item.status.state !== 'unverified',
+  )
 }

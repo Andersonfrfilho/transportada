@@ -337,3 +337,27 @@ describe('o agendador da drenagem (M3)', () => {
     expect(runs).toEqual(['chave-a', undefined, 'chave-b'])
   })
 })
+
+/** Spec 189 T9.2 (B1): anexo de evento recusado não sai na drenagem — não pode ligar o relógio. */
+describe('countPending e o evento do grupo (B1)', () => {
+  it('grupo cujo evento está recusado não é drenável', () => {
+    const counts = countPending({
+      attachments: [['chave-1', [attachment({ key: 'anexo-1' })]]],
+      now: NOW,
+      reports: [report({ key: 'chave-1', rejectionCause: '409 TRIP_CLOSED' })],
+    })
+
+    /** O anexo continua pendente (entra no total), só não liga o relógio. */
+    expect(counts).toEqual({ drainable: 0, rejected: 1, total: 2 })
+  })
+
+  it('grupo cujo evento ainda vai subir continua drenável', () => {
+    const counts = countPending({
+      attachments: [['chave-1', [attachment({ key: 'anexo-1' })]]],
+      now: NOW,
+      reports: [report({ key: 'chave-1' })],
+    })
+
+    expect(counts.drainable).toBe(2)
+  })
+})

@@ -45,7 +45,8 @@
       "failed_one": "Failed {{count}} time — no network on the last attempt",
       "failed_other": "Failed {{count}} times — no network on the last attempt",
       "queued": "Queued",
-      "rejected": "Rejected by the server: {{cause}}"
+      "rejected": "Rejected by the server: {{cause}}",
+      "unverified": "Recorded offline — waiting for your confirmation"
     },
     "title": "Pending events"
   },
@@ -218,6 +219,7 @@
     "off": "Off",
     "loadFailed": "Could not read your choice right now. Sharing stays off.",
     "saveFailed": "Could not save your choice. Try again.",
+    "retry": "Try again",
     "indicator": "Sharing your location with the shipper.",
     "unavailable": "Location unavailable on this device. Nothing is being sent."
   },
@@ -225,5 +227,14 @@
     "notice": "Your session expired. What is queued stays on the phone and uploads after you sign in.",
     "signIn": "Sign in again",
     "waitingCapture": "You will sign in again as soon as the open capture is finished."
+  },
+  "unverifiedPending": {
+    "cancel": "Keep",
+    "confirmDiscard": "Discard for good",
+    "discard": "Discard",
+    "notice_one": "{{count}} record made offline at {{time}} — send it?",
+    "notice_other": "{{count}} records made offline at {{time}} — send them?",
+    "send": "Send",
+    "warning": "Discarding erases these records from the phone for good — none of it reaches the office."
   }
 }

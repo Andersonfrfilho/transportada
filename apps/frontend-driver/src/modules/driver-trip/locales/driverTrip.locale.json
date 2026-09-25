@@ -33,7 +33,8 @@
       "failed_one": "Falhou {{count}} vez — sem rede na última tentativa",
       "failed_other": "Falhou {{count}} vezes — sem rede na última tentativa",
       "queued": "Na fila",
-      "rejected": "Rejeitado pelo servidor: {{cause}}"
+      "rejected": "Rejeitado pelo servidor: {{cause}}",
+      "unverified": "Feito sem rede — aguardando sua confirmação"
     },
     "title": "Eventos pendentes"
   },
@@ -227,6 +228,7 @@
     "off": "Desligado",
     "loadFailed": "Não foi possível ler a sua escolha agora. O compartilhamento fica desligado.",
     "saveFailed": "Não foi possível salvar a sua escolha. Tente de novo.",
+    "retry": "Tentar novamente",
     "indicator": "Compartilhando sua posição com o contratante.",
     "unavailable": "Posição indisponível no aparelho. Nada está sendo enviado."
   },
@@ -234,5 +236,14 @@
     "notice": "Sua sessão venceu. O que está na fila continua no celular e sobe depois que você entrar.",
     "signIn": "Entrar de novo",
     "waitingCapture": "Você entra de novo assim que terminar a captura aberta."
+  },
+  "unverifiedPending": {
+    "cancel": "Manter",
+    "confirmDiscard": "Descartar de vez",
+    "discard": "Descartar",
+    "notice_one": "{{count}} registro feito sem rede às {{time}} — enviar?",
+    "notice_other": "{{count}} registros feitos sem rede às {{time}} — enviar?",
+    "send": "Enviar",
+    "warning": "Descartar apaga esses registros do celular para sempre — nada deles chega ao escritório."
   }
 }

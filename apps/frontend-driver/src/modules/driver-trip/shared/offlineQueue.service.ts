@@ -21,6 +21,11 @@ export type QueuedReport = Readonly<{
   attempts: number
   createdAt: string
   /**
+   * Spec 189 T9.2 ("Confirmar em lote"): gravado no boot sem rede, sem token — a drenagem não envia
+   * até o dono autenticado confirmar (`unverifiedPending.service.ts`).
+   */
+  isUnverified?: true
+  /**
    * Spec 082 D7: a causa legível da recusa do servidor. Preenchida, o item fica **à vista** como
    * rejeitado em vez de sumir — e só o envio manual o tenta de novo (limpando a causa antes).
    */
@@ -66,6 +71,8 @@ export type DrainResult = Readonly<{
 }>
 
 export async function enqueueReport(input: {
+  /** Boot sem rede (`canSync: false`): o item espera a confirmação do dono para subir. */
+  readonly isUnverified?: boolean
   readonly limits?: EventQueueLimits
   readonly now: Date
   readonly report: DriverFieldReport
@@ -89,6 +96,7 @@ export async function enqueueReport(input: {
       {
         attempts: 0,
         createdAt: input.now.toISOString(),
+        ...(input.isUnverified === true ? { isUnverified: true as const } : {}),
         report: input.report,
         ...(input.subHash === undefined ? {} : { subHash: input.subHash }),
       },

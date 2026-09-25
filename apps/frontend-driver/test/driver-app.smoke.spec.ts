@@ -299,7 +299,54 @@ test('CA05(b): sinal fraco mostra a viagem salva e drena quando o Keycloak volta
   await page.unroute('**/realms/**')
   await page.evaluate(() => window.dispatchEvent(new Event('online')))
 
+  /**
+   * Spec 189 T9.2 ("Confirmar em lote"): o toque foi gravado sem sessão — quem tinha o celular na mão
+   * registrou em nome do último usuário. Depois de entrar, nada sobe sozinho: o dono confirma.
+   */
+  await expect(page.getByText(/1 registro feito sem rede às \d.* — enviar\?/u)).toBeVisible({
+    timeout: 20_000,
+  })
+  expect(api.reports()).toEqual([])
+  await page.getByRole('button', { exact: true, name: 'Enviar' }).click()
+
   await expect.poll(() => api.reports().length, { timeout: 20_000 }).toBe(1)
+  await expect(page.getByText('feito sem rede', { exact: false })).toHaveCount(0)
+})
+
+/**
+ * Spec 189 T9.2 ("Confirmar em lote"): o dono que não reconhece o que foi feito sem rede descarta —
+ * com a confirmação de sempre —, e nada chega ao servidor.
+ */
+test('confirmar em lote: o registro feito sem rede pode ser descartado depois de entrar', async ({
+  page,
+}) => {
+  const api = await openTrip(page)
+
+  await page.route('**/realms/**', async (route) => {
+    await route.abort()
+  })
+  await page.reload()
+  await expect(page.getByText(/Sem conexão — dados de \d/u)).toBeVisible()
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
+
+  await page.unroute('**/realms/**')
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+
+  await expect(page.getByText(/1 registro feito sem rede às \d.* — enviar\?/u)).toBeVisible({
+    timeout: 20_000,
+  })
+  await page.getByRole('button', { exact: true, name: 'Descartar' }).click()
+  await expect(
+    page.getByText('apaga esses registros do celular para sempre', { exact: false }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Descartar de vez' }).click()
+
+  await expect(page.getByText('feito sem rede', { exact: false })).toHaveCount(0)
+  await expect(page.getByText('confirmação aguardando envio', { exact: false })).toHaveCount(0)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+  await page.waitForTimeout(500)
+  expect(api.reports()).toEqual([])
 })
 
 /**
