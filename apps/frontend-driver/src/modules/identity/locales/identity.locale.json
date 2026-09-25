@@ -1,4 +1,16 @@
 {
+  "login": {
+    "title": "Entrar",
+    "subtitle": "Digite seu e-mail, CPF, CNPJ ou telefone cadastrado para continuar.",
+    "identifierLabel": "Identificador",
+    "identifierHint": "Aceita e-mail, CPF, CNPJ ou telefone cadastrado.",
+    "submit": "Continuar",
+    "submitting": "Enviando…"
+  },
+  "forbidden": {
+    "title": "Sem acesso",
+    "message": "Esta conta não é de motorista; use o painel da transportadora."
+  },
   "whatsappPhone": {
     "dialogTitle": "Vincular WhatsApp",
     "close": "Fechar",

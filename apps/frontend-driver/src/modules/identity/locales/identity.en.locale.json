@@ -1,4 +1,16 @@
 {
+  "login": {
+    "title": "Sign in",
+    "subtitle": "Enter your registered email, CPF, CNPJ, or phone number to continue.",
+    "identifierLabel": "Identifier",
+    "identifierHint": "Accepts a registered email, CPF, CNPJ, or phone number.",
+    "submit": "Continue",
+    "submitting": "Sending…"
+  },
+  "forbidden": {
+    "title": "No access",
+    "message": "This account is not a driver's; use the carrier's panel."
+  },
   "whatsappPhone": {
     "dialogTitle": "Link WhatsApp",
     "close": "Close",

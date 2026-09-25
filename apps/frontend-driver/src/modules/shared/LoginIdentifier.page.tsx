@@ -1,6 +1,9 @@
 /* Cópia por valor de apps/frontend-client/src/modules/shared/LoginIdentifier.page.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/ui/button'
 
 import { getKeycloakAuthProvider } from './KeycloakAuthProvider.provider'
 import { resolveLoginHint } from './loginHintClient.service'
@@ -15,6 +18,7 @@ import { resolveLoginHint } from './loginHintClient.service'
  * no fluxo de browser com PKCE. O que muda é só o campo já chegar preenchido do outro lado.
  */
 export function LoginIdentifierPage() {
+  const { t } = useTranslation('identity')
   const [identifier, setIdentifier] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
 
@@ -41,27 +45,26 @@ export function LoginIdentifierPage() {
           void submit()
         }}
       >
-        <h1 className="page__title">Entrar</h1>
-        <p className="page__subtitle">
-          Digite seu e-mail, CPF, CNPJ ou telefone cadastrado para continuar.
-        </p>
+        <h1 className="page__title">{t('login.title')}</h1>
+        <p className="page__subtitle">{t('login.subtitle')}</p>
 
         <label className="panel__row" htmlFor="login-identifier">
-          <span className="panel__label">Identificador</span>
+          <span className="panel__label">{t('login.identifierLabel')}</span>
         </label>
         <input
           autoComplete="username"
           autoFocus
+          className="panel__input"
           id="login-identifier"
           onChange={(event) => setIdentifier(event.target.value)}
           type="text"
           value={identifier}
         />
-        <p className="page__subtitle">Aceita e-mail, CPF, CNPJ ou telefone cadastrado.</p>
+        <p className="page__subtitle">{t('login.identifierHint')}</p>
 
-        <button disabled={identifier.trim() === '' || isSubmitting} type="submit">
-          {isSubmitting ? 'Enviando…' : 'Continuar'}
-        </button>
+        <Button disabled={identifier.trim() === '' || isSubmitting} type="submit">
+          {isSubmitting ? t('login.submitting') : t('login.submit')}
+        </Button>
       </form>
     </main>
   )
