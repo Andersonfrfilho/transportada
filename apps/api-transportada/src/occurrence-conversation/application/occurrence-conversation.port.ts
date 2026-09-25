@@ -21,6 +21,8 @@ import type {
 } from './conversation-attachment.port.js'
 
 export type OccurrenceConversationMessageAuthor =
+  /** Spec 183 T802: o aviso que o tipo da ocorrência mandou sozinho — sem autor humano. */
+  | { readonly kind: 'automatic' }
   | { readonly kind: 'operation'; readonly name: string | null; readonly userId: string }
   | {
       /**

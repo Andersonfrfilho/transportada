@@ -57,7 +57,8 @@ export type OccurrenceMailIdempotencyRecord = {
 }
 
 export type RecordOccurrenceMailInput = {
-  readonly actorUserId: string
+  /** `null` só no aviso automático do tipo (spec 183 T802): ator `system`. */
+  readonly actorUserId: null | string
   readonly bodyHtml: string
   readonly bodyText: string
   readonly companyId: string
@@ -128,7 +129,9 @@ export type OccurrenceMailTransactionPort = {
   recordMail(params: RecordOccurrenceMailInput): Promise<{ readonly messageId: string }>
   /** A mensagem da conversa nasce no status inicial do e-mail (`queued`, T402), com o horário. */
   recordConversationMessage(params: {
-    readonly authorUserId: string
+    /** `null` com `automatic` — o aviso do tipo da ocorrência, sem autor humano (T802). */
+    readonly authorUserId: null | string
+    readonly automatic?: boolean
     readonly bodyText: string
     readonly companyId: string
     readonly conversationId: string

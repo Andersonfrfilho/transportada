@@ -48,7 +48,8 @@
     "channel": {
       "email": "Email",
       "whatsapp": "WhatsApp"
-    }
+    },
+    "automatic": "Automatic notice from the occurrence type"
   },
   "status": {
     "queued": "Queued",

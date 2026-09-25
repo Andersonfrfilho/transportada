@@ -161,6 +161,11 @@ export const occurrenceConversationMessages = pgTable(
     direction: text().$type<OccurrenceConversationDirection>().notNull(),
     /** Enviada: o operador. Recebida pelo portal: a conta do portal da contratante (D9). */
     authorUserId: uuid('author_user_id'),
+    /**
+     * Spec 183 T802: o aviso que o tipo da ocorrência manda sozinho (`emails_contractor`). É a única
+     * enviada sem autor humano — o CHECK de autor só aceita `author_user_id` nulo com ela.
+     */
+    automatic: boolean().notNull().default(false),
     /** Recebida do contato da contratante reconhecido na escrita (WhatsApp com aceite, D6). */
     contractorContactId: uuid('contractor_contact_id'),
     /** Recebida do motorista (app ou WhatsApp verificado). */
@@ -245,8 +250,8 @@ export const occurrenceConversationMessages = pgTable(
      */
     check(
       'occurrence_conversation_messages_author_check',
-      sql`(${table.direction} = 'outbound' and ${table.authorUserId} is not null and ${table.driverUserId} is null and ${table.senderAddress} is null and ${table.contractorContactId} is null)
-        or (${table.direction} = 'inbound' and num_nonnulls(${table.authorUserId}, ${table.driverUserId}, ${table.senderAddress}) = 1
+      sql`(${table.direction} = 'outbound' and (${table.authorUserId} is not null) <> ${table.automatic} and ${table.driverUserId} is null and ${table.senderAddress} is null and ${table.contractorContactId} is null)
+        or (${table.direction} = 'inbound' and not ${table.automatic} and num_nonnulls(${table.authorUserId}, ${table.driverUserId}, ${table.senderAddress}) = 1
           and (${table.authorUserId} is null or ${table.channel} = 'portal')
           and (${table.senderAddress} is null or ${table.channel} in ('email', 'whatsapp')))`,
     ),

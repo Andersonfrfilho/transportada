@@ -59,6 +59,8 @@ export type ContractorSenderIdentity =
     }>
 
 export type OccurrenceConversationAuthor =
+  /** Spec 183 T802: o aviso que o tipo da ocorrência mandou sozinho — sem pessoa. */
+  | Readonly<{ kind: 'automatic' }>
   | Readonly<{ kind: 'operation'; name: null | string; userId: string }>
   | Readonly<{
       identity: ContractorSenderIdentity | null

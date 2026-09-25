@@ -254,3 +254,13 @@ describe('a mensagem ao motorista (spec 183 T603)', () => {
     )
   })
 })
+
+describe('o aviso automático do tipo (spec 183 T802)', () => {
+  test('sai do nosso lado, sem nome de pessoa: quem mandou foi o tipo da ocorrência', () => {
+    expect(describeConversationMessage(message({ author: { kind: 'automatic' } }))).toMatchObject({
+      author: { kind: 'automatic' },
+      side: 'mine',
+      tone: 'outbound',
+    })
+  })
+})

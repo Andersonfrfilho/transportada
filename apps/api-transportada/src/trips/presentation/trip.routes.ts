@@ -229,6 +229,8 @@ type SaveOccurrenceTypeInput = {
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
   readonly emailBody: string
+  /** Spec 183 T802: ausente é "não mexa". */
+  readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
   readonly name: string

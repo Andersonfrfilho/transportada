@@ -190,7 +190,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 - [x] **T801** Lista em cartões e detalhe em abas abaixo de 768 px, alvos de toque ≥
       `--touch-target`. Evidência: smoke Playwright em viewport de celular.
-- [ ] **T802** Envio automático por tipo de ocorrência (143 T025) pelo canal preferido do contato.
+- [x] **T802** Envio automático por tipo de ocorrência (143 T025) pelo canal preferido do contato.
       Evidência: teste de caso de uso.
 
 ## Fase 9 — Fechamento

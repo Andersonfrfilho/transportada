@@ -113,6 +113,8 @@ export type OccurrenceTypeRecord = {
   readonly id: string
   readonly name: string
   readonly notifies: boolean
+  /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
+  readonly emailsContractor?: boolean
   /**
    * Spec 164 T4 (RF3): decide se o registro abre uma tratativa (`trip_occurrence_cases`).
    * Ausente é tratado como `'unset'` — não abre; existe como opcional só para os dublês de teste

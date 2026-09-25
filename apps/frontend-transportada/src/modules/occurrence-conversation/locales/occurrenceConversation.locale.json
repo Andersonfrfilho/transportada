@@ -48,7 +48,8 @@
     "channel": {
       "email": "E-mail",
       "whatsapp": "WhatsApp"
-    }
+    },
+    "automatic": "Aviso automático do tipo de ocorrência"
   },
   "status": {
     "queued": "Na fila",

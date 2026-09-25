@@ -627,6 +627,7 @@ export async function findOccurrenceType(
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
+      emailsContractor: companyOccurrenceTypes.emailsContractor,
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
@@ -754,6 +755,7 @@ export async function listOccurrenceTypes(
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
+      emailsContractor: companyOccurrenceTypes.emailsContractor,
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
@@ -778,6 +780,8 @@ export async function saveOccurrenceType(
     readonly emailBody: string
     readonly emailSubject: string
     readonly emailTemplateKey: null | string
+    /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
+    readonly emailsContractor?: boolean | undefined
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
@@ -810,8 +814,10 @@ export async function saveOccurrenceType(
     stage: input.stage,
   }
 
-  const attachmentModeChange =
-    input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }
+  const attachmentModeChange = {
+    ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
+    ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+  }
 
   const [saved] =
     input.occurrenceTypeId === null
@@ -839,6 +845,7 @@ export async function saveOccurrenceType(
     emailBody: saved.emailBody,
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
+    emailsContractor: saved.emailsContractor,
     id: saved.id,
     name: saved.name,
     notifies: saved.notifies,

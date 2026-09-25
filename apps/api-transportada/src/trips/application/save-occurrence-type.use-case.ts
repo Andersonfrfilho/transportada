@@ -30,6 +30,8 @@ export type SaveOccurrenceTypeValues = {
    */
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly emailBody: string
+  /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
+  readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
   readonly name: string

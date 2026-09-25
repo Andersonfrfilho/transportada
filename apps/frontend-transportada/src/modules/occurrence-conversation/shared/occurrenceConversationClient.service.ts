@@ -99,6 +99,7 @@ function includes<TValue extends string>(list: readonly TValue[], value: unknown
  */
 function isAuthor(value: unknown): value is OccurrenceConversationMessage['author'] {
   if (!isRecord(value)) return false
+  if (value.kind === 'automatic') return true
   if (value.kind === 'operation' || value.kind === 'driver') {
     return isString(value.userId) && (value.name === null || isString(value.name))
   }

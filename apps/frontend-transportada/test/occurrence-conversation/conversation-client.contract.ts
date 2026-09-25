@@ -65,6 +65,30 @@ describe('cliente da conversa da ocorrência (spec 183 T407)', () => {
     expect(requests[0]?.headers.get('authorization')).toBe('Bearer synthetic-token')
   })
 
+  test('o aviso automático do tipo (autor sem pessoa) é lido, não descartado (spec 183 T802)', async () => {
+    const client = createClient(
+      Response.json({
+        data: {
+          conversations: [
+            {
+              id: 'conversation-1',
+              messages: [{ ...OUTBOUND, author: { kind: 'automatic' }, id: 'automatic-1' }],
+              participant: 'contractor',
+              status: 'open',
+              unreadCount: 0,
+            },
+          ],
+        },
+      }),
+    )
+
+    const { conversations } = await client.listConversations({ occurrenceId: OCCURRENCE_ID })
+
+    expect(conversations[0]?.messages.map((message) => message.author)).toEqual([
+      { kind: 'automatic' },
+    ])
+  })
+
   test('a leitura diz se o canal Portal está aberto (spec 183 T654)', async () => {
     const client = createClient(
       Response.json({ data: { contractorPortal: { available: true }, conversations: [] } }),

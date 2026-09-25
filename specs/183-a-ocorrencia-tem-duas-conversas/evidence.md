@@ -2118,3 +2118,76 @@ migration na API). Um commit por parte.
 - **Achado de medição (não do app):** o screenshot `fullPage` do Playwright desfaz a emulação de
   toque (`pointer: coarse` passa a `false`). A medida dos alvos foi feita antes dele.
 - **Rodado:** painel **5284 + 44 pass**; lint, typecheck e formatação da raiz limpos.
+
+## T802 — O aviso automático à contratante pelo tipo de ocorrência (verde; a tela do interruptor fica pendente)
+
+- **O que existia:** a coluna `company_occurrence_types.emails_contractor` (143 P4) sem leitor
+  nenhum. O `notifies` só avisa o despachante no app, e nada mandava e-mail à contratante.
+- **Caso de uso** `send-automatic-occurrence-mail.use-case.ts`:
+  - Entra em ação na ocorrência de nota (nunca de parada) cujo tipo tem `emails_contractor`.
+  - Manda o texto do tipo (079) aos contatos ativos que recebem ocorrência **daquela etapa**.
+  - Canal preferido e-mail sai por e-mail. WhatsApp ainda não envia (T002): quem o prefere e tem
+    e-mail recebe por e-mail, e o resultado conta (`whatsappFallbackCount`); sem e-mail não recebe
+    (`whatsappUnreachableCount`). Nada é silencioso.
+  - O aviso é um por ocorrência (chave `occurrence-auto-mail:<id>`), sem autor humano, e não
+    decide nada (D4).
+  - Motivo para não enviar é resultado, não erro: `not_document`, `type_off`, `no_template`,
+    `no_recipient`, `mail_not_ready`.
+- **Envio:** reusa `send-occurrence-mail` (mesma transação: thread, e-mail da 143, outbox e
+  mensagem da conversa) com `actorUserId: null` e `automatic: true`. O caso de uso recusa sem autor
+  fora do automático (`OCCURRENCE_MAIL_AUTHOR_REQUIRED`). A assinatura não leva nome de operador, e
+  o aviso não leva anexo.
+- **Banco:**
+  - Migration aditiva `20260925185207_occurrence_conversation_automatic_message`: coluna `automatic`
+    (padrão `false`), e o CHECK de autor recriado `NOT VALID` e validado. Enviada sem autor **só**
+    com `automatic`; recebida nunca `automatic`.
+  - O rollback recusa rodar se já houver aviso automático gravado; histórico não se reescreve.
+  - Registrada em `static-migration.contract.ts`.
+- **Gancho do registro** (`automatic-occurrence-mail.hook.ts`):
+  - Dispara e esquece, depois do commit, nos **cinco** caminhos de registro: app, escritório (lote),
+    separação e os dois do WhatsApp.
+  - Um único ponto de montagem no `main.ts` (`buildAutomaticOccurrenceMailHook`,
+    `announcingOccurrence`).
+  - Falha vira log de código (`occurrence_automatic_mail_failed` com `errorCode`); o registro nunca
+    cai.
+  - Log só com ids, contagens e motivo; nenhum endereço, texto nem mensagem de erro.
+- **Cadastro do tipo:** `emailsContractor` no `PUT /company-settings/occurrence-types`, na leitura e
+  na gravação. Ausente é "não mexa", como o `attachmentMode`, para um cliente antigo não desligar o
+  aviso de carona.
+- **Leitura:** a mensagem sai com autor `{ kind: 'automatic' }`. O painel a aceita (antes seria
+  descartada pela validação) e mostra "Aviso automático do tipo de ocorrência".
+- **Testes, escritos antes e vistos falhando:**
+  - API `automatic-mail.contract.ts`: canal preferido, etapa, fallback, os cinco motivos,
+    não-configurado vs. erro inesperado, gancho que nunca lança e não loga PII;
+  - `occurrence-mail.contract.ts`: sem autor só com automático;
+  - `attachment-mode-schema.contract.ts`: `emailsContractor` ausente, `true`, inválido;
+  - painel `conversation-view` e `conversation-client`: autor automático lido e descrito.
+- **Integração** `occurrence-automatic-mail.integration.ts` (**3 pass**, no `package.json`), contra
+  Postgres:
+  - tipo ligado grava o e-mail da 143 sem ator, um evento no outbox e a mensagem `automatic` sem
+    autor; a leitura devolve o autor `automatic`; repetir devolve o mesmo resultado sem duplicar;
+  - tipo desligado não grava nada;
+  - o banco recusa a enviada sem autor que não é automática.
+- **Migration:** `ENV_FILE=.env.test make migration-test` **110 pass**; `bun run db:check` limpo.
+- **No navegador, contra a API real:**
+  - O interruptor foi ligado por SQL na bancada: o painel não tem editor de tipo, pendência abaixo.
+  - O escritório registrou "Recebedor ausente" em nome do motorista
+    (`POST /trips/:id/documents/field-occurrences` **201**).
+  - No banco nasceu a mensagem `email`, `automatic`, sem autor, `queued`, com o texto do tipo e a
+    observação. A API logou `occurrence_automatic_mail_sent`.
+  - O painel mostra o balão "Aviso automático do tipo de ocorrência" (E-MAIL, NA FILA), e a linha
+    do tempo mostra "Sistema: Aviso automático enviado à contratante"
+    (`prints/aviso-automatico-painel.png`, `aviso-automatico-registro.png`).
+- **Pendente, com motivo:** a **tela** do interruptor. O painel não tem editor de tipo de ocorrência
+  nenhum (o `PUT /company-settings/occurrence-types` nunca teve consumidor no frontend — nota no
+  `CLAUDE.md` da API). Criar esse editor é uma tela nova inteira, fora do escopo da T802, cuja
+  evidência pedida é o teste de caso de uso. Fica na lista de dependências da entrega final.
+- **Achado no caminho, virou tarefa separada:** o app do motorista registra ocorrência de nota
+  **sem** `idempotency-key`, e a API responde 400 desde a spec 156. O motorista não consegue
+  registrar ocorrência de nota pelo app hoje; é anterior à 183.
+- **Rodado:**
+  - API: contratos **7574 pass, 0 fail**; integração completa sozinha **615 pass, 7 skip, 0 fail**;
+  - worker: integração completa sozinha **141 pass, 4 skip, 0 fail** (o CHECK mudou numa tabela que
+    ele grava);
+  - painel **5286 + 44 pass**;
+  - lint, typecheck e formatação da raiz limpos.

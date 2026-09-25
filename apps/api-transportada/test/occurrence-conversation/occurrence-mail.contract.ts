@@ -474,3 +474,24 @@ describe('o e-mail com anexo (spec 183 T702e)', () => {
     ).toMatchObject({ code: 'OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED', status: 422 })
   })
 })
+
+describe('o aviso automático, sem autor humano (spec 183 T802)', () => {
+  test('a mensagem da conversa nasce sem autor e marcada automática; a da 143 também sem ator', async () => {
+    const { state, useCase } = createFake()
+
+    await useCase.send(input({ actorUserId: null, automatic: true }))
+
+    expect(state.mails[0]?.actorUserId).toBeNull()
+    expect(state.conversationMessages[0]).toMatchObject({ authorUserId: null, automatic: true })
+    /** A assinatura não leva nome de operador: quem mandou foi o tipo da ocorrência. */
+    expect(state.mails[0]?.bodyText).not.toContain('Operadora Lima')
+  })
+
+  test('sem autor só com a marca de automático — nunca um envio manual anônimo', async () => {
+    const { useCase } = createFake()
+
+    expect(await failure(() => useCase.send(input({ actorUserId: null })))).toMatchObject({
+      message: 'OCCURRENCE_MAIL_AUTHOR_REQUIRED',
+    })
+  })
+})

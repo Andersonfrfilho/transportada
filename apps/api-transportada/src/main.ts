@@ -419,8 +419,14 @@ import {
 import {
   createOccurrenceMailReader,
   createOccurrenceSuggestedMailReader,
+  createAutomaticOccurrenceMailReader,
   DrizzleOccurrenceMailRepository,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
+import {
+  createAutomaticOccurrenceMailHook,
+  type AutomaticOccurrenceMailHook,
+} from './occurrence-conversation/application/automatic-occurrence-mail.hook.js'
+import { createSendAutomaticOccurrenceMailUseCase } from './occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import {
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
@@ -754,6 +760,50 @@ import { startFieldTrip } from './trips/application/start-field-trip.use-case.js
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
 
+/**
+ * Spec 183 T802: o aviso automático à contratante, montado uma vez e usado pelos cinco caminhos de
+ * registro de ocorrência (app, escritório, separação e os dois do WhatsApp), sempre depois do commit.
+ * O aviso não leva anexo, então a storage dele recusa qualquer uso.
+ */
+function buildAutomaticOccurrenceMailHook(input: {
+  readonly database: ReturnType<typeof createDatabaseProvider>['db']
+  readonly envelopeKeyRing: Parameters<typeof createSecretEnvelopeProvider>[0]
+  readonly idempotencyHmacKey: Uint8Array
+  readonly logger: ReturnType<typeof createApiLogger>
+}): AutomaticOccurrenceMailHook {
+  const noAttachmentStorage = () => Promise.reject(new Error('AUTOMATIC_MAIL_HAS_NO_ATTACHMENT'))
+  return createAutomaticOccurrenceMailHook({
+    logger: input.logger,
+    useCase: createSendAutomaticOccurrenceMailUseCase({
+      reader: createAutomaticOccurrenceMailReader(input.database),
+      sendMail: createSendOccurrenceMailUseCase({
+        fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
+        secretService: createContractorMailCredentialSecretService({
+          envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
+        }),
+        storage: {
+          createSignedDownload: noAttachmentStorage,
+          createSignedUpload: noAttachmentStorage,
+          getObjectStream: noAttachmentStorage,
+          headObject: noAttachmentStorage,
+        },
+        unitOfWork: new DrizzleOccurrenceMailRepository(input.database),
+      }),
+    }),
+  })
+}
+
+/** Anuncia a ocorrência que acabou de ser gravada e devolve o registro intacto (T802). */
+async function announcingOccurrence<TOccurrence extends { readonly id: string }>(
+  hook: AutomaticOccurrenceMailHook,
+  companyId: string,
+  registration: Promise<TOccurrence>,
+): Promise<TOccurrence> {
+  const occurrence = await registration
+  hook.announce({ companyId, occurrenceIds: [occurrence.id] })
+  return occurrence
+}
+
 export function bootstrap(): Bun.Server<undefined> {
   const config = parseEnvironment(process.env)
   const logger = createApiLogger(config)
@@ -766,6 +816,12 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
+  const automaticOccurrenceMail = buildAutomaticOccurrenceMailHook({
+    database: database.db,
+    envelopeKeyRing: config.cryptography.envelopeKeyRing,
+    idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+    logger,
+  })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
     verifier: identityGateway,
@@ -904,8 +960,8 @@ export function bootstrap(): Bun.Server<undefined> {
       }),
     listOccurrenceTypes: (input) =>
       listOccurrenceTypes(database.db, { companyId: input.companyId }),
-    registerOccurrence: (input) =>
-      registerDriverOccurrence({
+    registerOccurrence: async (input) => {
+      const occurrence = await registerDriverOccurrence({
         ...input,
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         repository: {
@@ -916,7 +972,14 @@ export function bootstrap(): Bun.Server<undefined> {
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         },
         unitOfWork: whatsappDriverFieldReports,
-      }),
+      })
+      /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
+      automaticOccurrenceMail.announce({
+        companyId: input.companyId,
+        occurrenceIds: [occurrence.id],
+      })
+      return occurrence
+    },
     reportDelivery: (input) =>
       reportDocumentDelivery({
         ...input,
@@ -1050,7 +1113,7 @@ export function bootstrap(): Bun.Server<undefined> {
      * chamada cria) e `media-id` muda a cada reenvio; sha256 é o único identificador estável.
      */
     registerOccurrence: (input) => {
-      const perform = () =>
+      const register = () =>
         registerTripOccurrence({
           actorUserId: input.actorUserId,
           ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
@@ -1108,6 +1171,9 @@ export function bootstrap(): Bun.Server<undefined> {
           tripId: input.tripId,
         })
 
+      /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
+      const perform = () =>
+        announcingOccurrence(automaticOccurrenceMail, input.companyId, register())
       if (input.attachment === undefined) return perform()
 
       const attachmentSha256 = sha256Hex(input.attachment.bytes)
@@ -1355,6 +1421,7 @@ export function bootstrap(): Bun.Server<undefined> {
     routes: [
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
+        automaticOccurrenceMail,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         contractorMailRateLimit: config.contractorMailRateLimit,
@@ -1675,6 +1742,8 @@ function createAnonymousRoutes({
 }
 
 type CreateApplicationRoutesParams = {
+  /** Spec 183 T802: o aviso automático à contratante, chamado depois de cada registro. */
+  readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
   /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
   readonly apiPublicUrl: string | undefined
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
@@ -1709,6 +1778,7 @@ type CreateApplicationRoutesParams = {
 
 function createApplicationRoutes({
   apiPublicUrl,
+  automaticOccurrenceMail,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
   contractorMailRateLimit,
@@ -3168,8 +3238,8 @@ function createApplicationRoutes({
        * motorista acabou de contar por rádio. O aviso configurável é do registro feito no
        * escritório.
        */
-      registerDriverOccurrence: (input) =>
-        registerDriverOccurrence({
+      registerDriverOccurrence: async (input) => {
+        const occurrence = await registerDriverOccurrence({
           ...input,
           repository: {
             findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
@@ -3178,7 +3248,14 @@ function createApplicationRoutes({
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
           unitOfWork: driverFieldReports,
-        }),
+        })
+        /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */
+        automaticOccurrenceMail.announce({
+          companyId: input.companyId,
+          occurrenceIds: [occurrence.id],
+        })
+        return occurrence
+      },
       /**
        * Spec 179 T202 (RF2): o arquivo nunca chega até aqui — só o pedido da URL e, depois, a
        * confirmação. As duas passam pela mesma consulta de alcance de `registerDriverOccurrence`
@@ -3340,8 +3417,8 @@ function createApplicationRoutes({
           repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
         }),
       /** Spec 156 T7b, D9: a mesma foto para as N notas — um `stored_objects` só, no molde do canhoto. */
-      registerOccurrences: (input) =>
-        registerOfficeDocumentOccurrences({
+      registerOccurrences: async (input) => {
+        const registered = await registerOfficeDocumentOccurrences({
           ...input,
           attachment: {
             newObjectId: () => crypto.randomUUID(),
@@ -3354,7 +3431,14 @@ function createApplicationRoutes({
             readLabels: (query) => readOccurrenceLabelsForDocuments(database, query),
           },
           unitOfWork: officeOccurrenceBatches,
-        }),
+        })
+        /** Spec 183 T802: um aviso por nota; a repetição do lote é idempotente pela ocorrência. */
+        automaticOccurrenceMail.announce({
+          companyId: input.companyId,
+          occurrenceIds: registered.items.map((item) => item.id),
+        })
+        return registered
+      },
       targets: fieldTripTargetRepository,
     }),
     ...createTripRoutes({
@@ -3391,6 +3475,7 @@ function createApplicationRoutes({
               attachmentMode: input.attachmentMode,
               emailBody: input.emailBody,
               emailSubject: input.emailSubject,
+              emailsContractor: input.emailsContractor,
               emailTemplateKey: input.emailTemplateKey,
               name: input.name,
               notifies: input.notifies,
@@ -3477,82 +3562,86 @@ function createApplicationRoutes({
               transaction: fieldReportGuardTransaction,
             },
             perform: async () =>
-              registerTripOccurrence({
-                actorUserId: input.context.userId,
-                attachment: input.attachment,
-                companyId: input.context.companyId,
-                documentId: input.documentId,
-                note: input.note,
-                /**
-                 * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da
-                 * configuração acontece por registro — é uma consulta pequena, por empresa, e
-                 * cacheá-la faria a escolha recém-salva demorar a valer sem ninguém entender por
-                 * quê.
-                 */
-                notificationParameters: {
-                  ...(await readOccurrenceLabels(database, {
-                    companyId: input.context.companyId,
-                    documentId: input.documentId,
-                    tripId: input.tripId,
-                  })),
+              announcingOccurrence(
+                automaticOccurrenceMail,
+                input.context.companyId,
+                registerTripOccurrence({
+                  actorUserId: input.context.userId,
+                  attachment: input.attachment,
+                  companyId: input.context.companyId,
                   documentId: input.documentId,
-                  /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
-                  occurrenceType: '',
-                  tripId: input.tripId,
-                },
-                notifier: occurrenceNotifier,
-                occurrenceTypeId: input.occurrenceTypeId,
-                /** A data que o modelo imprime é a de agora — a ocorrência é registrada quando
-                 * acontece. */
-                occurredOn: new Date().toLocaleDateString('pt-BR'),
-                productCode: input.productCode,
-                productCodes: input.productCodes,
-                productQuantities: input.productQuantities,
-                productQuantityUnits: input.productQuantityUnits,
-                repository: {
-                  findOccurrenceType: (query) => findOccurrenceType(database, query),
-                  listDocumentProducts: (query) => listDocumentProducts(database, query),
-                  listOccurrences: (query) => listTripOccurrences(database, query),
-                  readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
+                  note: input.note,
                   /**
-                   * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem
-                   * o original e a miniatura opcional e grava a linha de anexo, tudo na transação
-                   * de `DrizzleSeparationOccurrenceUnitOfWork`. Se algo falhar depois do upload,
-                   * `runWithStoredObjectCleanup` desfaz o que subiu.
+                   * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da
+                   * configuração acontece por registro — é uma consulta pequena, por empresa, e
+                   * cacheá-la faria a escolha recém-salva demorar a valer sem ninguém entender por
+                   * quê.
                    */
-                  saveOccurrence: (query) =>
-                    persistSeparationOccurrenceWithAttachment({
-                      attachment: query.attachment,
-                      input: {
-                        actorUserId: query.actorUserId,
-                        companyId: query.companyId,
-                        documentId: query.documentId,
-                        items: query.items,
-                        note: query.note,
-                        occurrenceTypeId: query.occurrenceTypeId,
-                        productCode: query.productCode,
-                        productCodes: query.productCodes,
-                        ...(query.redeliveryPolicy === undefined
-                          ? {}
-                          : { redeliveryPolicy: query.redeliveryPolicy }),
-                        stage: query.stage,
-                        tripId: query.tripId,
-                        typeName: query.typeName,
-                      },
-                      newObjectId: () => crypto.randomUUID(),
-                      now: () => new Date(),
-                      storage: createDeliveryProofStorage({
-                        bucket: storageBucket,
-                        storage: storageGateway,
+                  notificationParameters: {
+                    ...(await readOccurrenceLabels(database, {
+                      companyId: input.context.companyId,
+                      documentId: input.documentId,
+                      tripId: input.tripId,
+                    })),
+                    documentId: input.documentId,
+                    /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
+                    occurrenceType: '',
+                    tripId: input.tripId,
+                  },
+                  notifier: occurrenceNotifier,
+                  occurrenceTypeId: input.occurrenceTypeId,
+                  /** A data que o modelo imprime é a de agora — a ocorrência é registrada quando
+                   * acontece. */
+                  occurredOn: new Date().toLocaleDateString('pt-BR'),
+                  productCode: input.productCode,
+                  productCodes: input.productCodes,
+                  productQuantities: input.productQuantities,
+                  productQuantityUnits: input.productQuantityUnits,
+                  repository: {
+                    findOccurrenceType: (query) => findOccurrenceType(database, query),
+                    listDocumentProducts: (query) => listDocumentProducts(database, query),
+                    listOccurrences: (query) => listTripOccurrences(database, query),
+                    readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
+                    /**
+                     * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem
+                     * o original e a miniatura opcional e grava a linha de anexo, tudo na transação
+                     * de `DrizzleSeparationOccurrenceUnitOfWork`. Se algo falhar depois do upload,
+                     * `runWithStoredObjectCleanup` desfaz o que subiu.
+                     */
+                    saveOccurrence: (query) =>
+                      persistSeparationOccurrenceWithAttachment({
+                        attachment: query.attachment,
+                        input: {
+                          actorUserId: query.actorUserId,
+                          companyId: query.companyId,
+                          documentId: query.documentId,
+                          items: query.items,
+                          note: query.note,
+                          occurrenceTypeId: query.occurrenceTypeId,
+                          productCode: query.productCode,
+                          productCodes: query.productCodes,
+                          ...(query.redeliveryPolicy === undefined
+                            ? {}
+                            : { redeliveryPolicy: query.redeliveryPolicy }),
+                          stage: query.stage,
+                          tripId: query.tripId,
+                          typeName: query.typeName,
+                        },
+                        newObjectId: () => crypto.randomUUID(),
+                        now: () => new Date(),
+                        storage: createDeliveryProofStorage({
+                          bucket: storageBucket,
+                          storage: storageGateway,
+                        }),
+                        unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(
+                          database,
+                          storageBucket,
+                        ),
                       }),
-                      unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(
-                        database,
-                        storageBucket,
-                      ),
-                    }),
-                },
-                tripId: input.tripId,
-              }),
+                  },
+                  tripId: input.tripId,
+                }),
+              ),
             recall: async (resultId) => {
               const occurrence = await findTripOccurrenceById(database, {
                 companyId: input.context.companyId,

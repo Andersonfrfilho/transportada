@@ -286,6 +286,11 @@ const occurrenceTypeSchema = z
      */
     attachmentMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**
+     * Spec 183 T802: o tipo avisa a contratante sozinho no registro. Opcional sem `default` pelo
+     * mesmo motivo do `attachmentMode`: ausente é "não mexa", nunca desligar o aviso de carona.
+     */
+    emailsContractor: z.boolean().optional(),
+    /**
      * ⚠️ **Marcador desconhecido é recusado aqui, no cadastro.** Deixar passar faria o e-mail sair
      * com `{{numeroNF}}` cru para o cliente, e quem escreveu o modelo só descobriria pelo SAC dele.
      */

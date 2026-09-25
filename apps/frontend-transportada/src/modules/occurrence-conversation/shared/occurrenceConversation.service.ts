@@ -15,6 +15,7 @@ import type {
 } from './occurrenceConversation.types'
 
 export type ConversationMessageAuthorView =
+  | Readonly<{ kind: 'automatic' }>
   | Readonly<{ kind: 'operation'; name: string }>
   | Readonly<{ kind: 'driver'; name: string }>
   | Readonly<{
@@ -44,6 +45,7 @@ export type ConversationMessageView = Readonly<{
 
 function describeAuthor(message: OccurrenceConversationMessage): ConversationMessageAuthorView {
   const { author } = message
+  if (author.kind === 'automatic') return { kind: 'automatic' }
   if (author.kind === 'operation') return { kind: 'operation', name: author.name ?? '' }
   if (author.kind === 'driver') return { kind: 'driver', name: author.name ?? '' }
   const { identity } = author

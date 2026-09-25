@@ -46,6 +46,7 @@ import type {
   RecordOccurrenceMailInput,
   SendOccurrenceMailResult,
 } from '../application/occurrence-mail.port.js'
+import type { AutomaticOccurrenceMailReaderPort } from '../application/send-automatic-occurrence-mail.use-case.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import {
   OCCURRENCE_THREAD_SUBJECT_TYPE,
@@ -222,6 +223,79 @@ export function createOccurrenceSuggestedMailReader(
       return {
         bodyText: renderOccurrenceTemplate({ template: row.emailBody, values }),
         subject: renderOccurrenceTemplate({ template: row.emailSubject, values }),
+      }
+    },
+  }
+}
+
+/**
+ * Spec 183 T802: o que o aviso automático precisa saber da ocorrência, em leituras sem transação —
+ * o envio em si abre a dele. A contratante e a etapa vêm da mesma leitura da listagem; o interruptor,
+ * do tipo; o texto, do mesmo leitor da prévia (079); os contatos, dos que recebem ocorrência.
+ */
+export function createAutomaticOccurrenceMailReader(
+  database: TripQueryable,
+): AutomaticOccurrenceMailReaderPort {
+  const suggested = createOccurrenceSuggestedMailReader(database)
+  return {
+    async findPlan(params) {
+      const target = await findOccurrenceTarget(database, params)
+      if (
+        target === null ||
+        target.kind !== 'document' ||
+        target.contractorId === null ||
+        target.stage === 'stop'
+      ) {
+        return null
+      }
+      const [type] = await database
+        .select({ emailsContractor: companyOccurrenceTypes.emailsContractor })
+        .from(tripDocumentOccurrences)
+        .innerJoin(
+          companyOccurrenceTypes,
+          and(
+            eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+            eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+          ),
+        )
+        .where(
+          and(
+            eq(tripDocumentOccurrences.companyId, params.companyId),
+            eq(tripDocumentOccurrences.id, params.occurrenceId),
+          ),
+        )
+        .limit(1)
+      if (type === undefined) return null
+      const emailsContractor = type.emailsContractor
+      const contacts = emailsContractor
+        ? await database
+            .select({
+              email: contractorContacts.email,
+              id: contractorContacts.id,
+              occurrenceStages: contractorContacts.occurrenceStages,
+              preferredChannel: contractorContacts.preferredChannel,
+            })
+            .from(contractorContacts)
+            .where(
+              and(
+                eq(contractorContacts.companyId, params.companyId),
+                eq(contractorContacts.contractorId, target.contractorId),
+                eq(contractorContacts.status, ACTIVE_CONTACT_STATUS),
+                eq(contractorContacts.receivesOccurrences, true),
+              ),
+            )
+            .orderBy(asc(contractorContacts.createdAt), asc(contractorContacts.id))
+        : []
+      return {
+        emailsContractor,
+        recipients: contacts.map((contact) => ({
+          contactId: contact.id,
+          email: contact.email.trim() === '' ? null : contact.email,
+          preferredChannel: contact.preferredChannel === 'whatsapp' ? 'whatsapp' : 'email',
+          stages: contact.occurrenceStages,
+        })),
+        stage: target.stage,
+        suggested: emailsContractor ? await suggested.readSuggestedMail(params) : null,
       }
     },
   }
@@ -454,7 +528,8 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
   }
 
   public async recordConversationMessage(params: {
-    readonly authorUserId: string
+    readonly authorUserId: null | string
+    readonly automatic?: boolean
     readonly bodyText: string
     readonly companyId: string
     readonly conversationId: string
@@ -466,6 +541,7 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
       .insert(occurrenceConversationMessages)
       .values({
         authorUserId: params.authorUserId,
+        automatic: params.automatic === true,
         bodyText: params.bodyText,
         channel: 'email',
         companyId: params.companyId,

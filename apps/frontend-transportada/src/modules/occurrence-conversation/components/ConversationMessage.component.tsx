@@ -115,6 +115,7 @@ export function ConversationMessage({
           .join(' ')}
       >
         <header className={styles.author}>
+          {author.kind === 'automatic' ? <span>{t('author.automatic')}</span> : null}
           {author.kind === 'operation' ? (
             <span>
               {author.name === ''

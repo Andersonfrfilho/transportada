@@ -46,7 +46,12 @@ const UNSAFE_EMAIL_CHARACTERS = /[\r\n,<>]/u
 const PUBLIC_REF_BYTES = 18
 
 export type SendOccurrenceMailInput = {
-  readonly actorUserId: string
+  /**
+   * Quem escreveu. `null` só com `automatic`: o aviso que o tipo da ocorrência manda sozinho
+   * (spec 183 T802), sem autor humano — nunca um envio manual anônimo.
+   */
+  readonly actorUserId: null | string
+  readonly automatic?: boolean
   /** Spec 183 T702e: os arquivos que o operador subiu pelo canal e-mail. */
   readonly attachmentIds?: readonly string[]
   readonly bodyText: string
@@ -94,6 +99,9 @@ export function createSendOccurrenceMailUseCase(dependencies: {
   const now = dependencies.now ?? (() => new Date())
   return {
     send: async (input) => {
+      if ((input.actorUserId === null) !== (input.automatic === true)) {
+        throw new Error('OCCURRENCE_MAIL_AUTHOR_REQUIRED')
+      }
       assertMailContent(input)
       return dependencies.unitOfWork.execute((transaction) =>
         executeSend({ ...dependencies, input, now: now(), transaction }),
@@ -167,7 +175,9 @@ async function executeSend(params: {
 
   const [carrierName, operatorName] = await Promise.all([
     transaction.findCarrierName({ companyId }),
-    transaction.findOperatorName({ companyId, userId: input.actorUserId }),
+    input.actorUserId === null
+      ? Promise.resolve(null)
+      : transaction.findOperatorName({ companyId, userId: input.actorUserId }),
   ])
   const mail = buildOccurrenceMail({
     bodyText: input.bodyText,
@@ -216,6 +226,7 @@ async function executeSend(params: {
   })
   const conversationMessage = await transaction.recordConversationMessage({
     authorUserId: input.actorUserId,
+    ...(input.automatic === true ? { automatic: true } : {}),
     bodyText: input.bodyText.trim(),
     companyId,
     conversationId: conversation.id,
@@ -227,21 +238,24 @@ async function executeSend(params: {
    * `mail_message_id` dela ao montar o envio. Bytes que não conferem desfazem tudo — nem a
    * mensagem da 143 nem o outbox ficam.
    */
-  await attachConversationUploads({
-    messageId: conversationMessage.id,
-    now: params.now,
-    storage: params.storage,
-    target: {
-      channel: 'email',
-      companyId,
-      occurrenceId: input.occurrenceId,
-      occurrenceKind: target.kind,
-      participant: 'contractor',
-      requestedByUserId: input.actorUserId,
-    },
-    transaction: transaction.attachments,
-    uploadIds: input.attachmentIds ?? [],
-  })
+  /** O aviso automático não leva anexo: anexo é sempre de quem pediu o upload. */
+  if (input.actorUserId !== null) {
+    await attachConversationUploads({
+      messageId: conversationMessage.id,
+      now: params.now,
+      storage: params.storage,
+      target: {
+        channel: 'email',
+        companyId,
+        occurrenceId: input.occurrenceId,
+        occurrenceKind: target.kind,
+        participant: 'contractor',
+        requestedByUserId: input.actorUserId,
+      },
+      transaction: transaction.attachments,
+      uploadIds: input.attachmentIds ?? [],
+    })
+  }
 
   const response: SendOccurrenceMailResult = {
     conversationId: conversation.id,

@@ -40,6 +40,7 @@ const MESSAGE_LIMIT = 1000
 type MessageRow = {
   readonly authorName: null | string
   readonly authorUserId: null | string
+  readonly automatic: boolean
   readonly bodyText: string
   readonly channel: OccurrenceConversationMessageView['channel']
   readonly contractorContactId: null | string
@@ -61,7 +62,8 @@ function toAuthor(
   contacts: readonly ContractorSenderContact[],
 ): OccurrenceConversationMessageAuthor {
   if (row.direction === 'outbound') {
-    return { kind: 'operation', name: row.authorName, userId: row.authorUserId ?? '' }
+    if (row.automatic || row.authorUserId === null) return { kind: 'automatic' }
+    return { kind: 'operation', name: row.authorName, userId: row.authorUserId }
   }
   if (row.driverUserId !== null) {
     return { kind: 'driver', name: row.driverName, userId: row.driverUserId }
@@ -122,6 +124,7 @@ async function readMessages(
     .select({
       authorName: authorProfile.name,
       authorUserId: occurrenceConversationMessages.authorUserId,
+      automatic: occurrenceConversationMessages.automatic,
       bodyText: occurrenceConversationMessages.bodyText,
       channel: occurrenceConversationMessages.channel,
       contractorContactId: occurrenceConversationMessages.contractorContactId,
