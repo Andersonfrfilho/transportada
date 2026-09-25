@@ -280,8 +280,11 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
-  /** Spec 183 T702a: o motorista pede upload num balde próprio; ler e responder seguem sem teto. */
-  test('o pedido de upload do motorista conta no Postgres', () => {
+  /**
+   * Spec 183 T702a: o motorista pede upload num balde próprio. T903 (achado S3): responder também —
+   * cada resposta pode ler até 5 × 25 MB do bucket numa transação; ler segue sem teto.
+   */
+  test('o pedido de upload e a resposta do motorista contam no Postgres', () => {
     const routes = createMeOccurrenceConversationRoutes(unusedDependencies() as never)
 
     expect(
@@ -300,6 +303,15 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
           windowSeconds: 300,
         },
         signature: 'POST /me/trips/current/occurrences/:id/uploads',
+      },
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'driver-occurrence-conversation-send',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /me/trips/current/occurrences/:id/messages',
       },
     ])
   })

@@ -40,6 +40,17 @@ export const DRIVER_CONVERSATION_UPLOAD_RATE_LIMIT = {
   windowSeconds: 300,
 } as const
 
+/**
+ * Spec 183 T903 (achado S3): a resposta do motorista tem o próprio balde — cada envio pode ler até
+ * 5 × 25 MB do bucket dentro da transação, e sem teto um app em loop esgotaria o pool.
+ */
+export const DRIVER_CONVERSATION_SEND_RATE_LIMIT = {
+  maxRequests: 30,
+  scope: 'driver-occurrence-conversation-send',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
 const replySchema = z
   .object({
     attachmentIds: conversationAttachmentIdsSchema,
@@ -190,6 +201,7 @@ export function createMeOccurrenceConversationRoutes(dependencies: {
       },
       pathname: MESSAGES_PATH,
       policy: REPORT_POLICY,
+      rateLimit: DRIVER_CONVERSATION_SEND_RATE_LIMIT,
     }),
   ]
 }
