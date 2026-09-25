@@ -1934,3 +1934,76 @@ bun run typecheck && bun run lint   (raiz)   sem erro
 
 **Aberto:** o "Sair" sem rede apaga snapshot e fila, mas não encerra a sessão SSO do Keycloak (não
 há como sem rede); quem abrir a app com rede entra sem senha. Registrado no `docs/SECURITY.md`.
+
+### API, consentimento, telas e infra
+
+Correções dos achados fora do núcleo da app (o outro executor, acima, mexeu em
+`main.tsx`/`KeycloakAuthProvider`/`useDriverTrip`/`offline*`/`pendingQueue`/`bootMode`/
+`captureRegistry`/`tripSnapshot`/`DriverStopCard`/`DriverTripWorkspace`/`DriverProfile`/
+`DriverEventQueue` — nenhum destes arquivos foi tocado aqui). Cada correção começou pelo contrato,
+visto falhando antes da implementação (a rota já existia; o teste novo falhava contra o
+comportamento anterior — RGB descrito por item).
+
+| Achado                                                                                                                                                                                                          | Commit      | Contrato                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Segurança M3 — rate limit no Postgres nas três rotas de posição + dedup do ping (<55s)                                                                                                                          | `c82396bb5` | `rate-limited-routes.contract.test.ts` (rota nova no balde), `trip-http/location-tracking.contract.ts` (dedup, unitário), `integration/me-location-consent.integration.ts` (dedup contra Postgres real)                                                  |
+| Segurança L4 — latitude/longitude fora do intervalo do globo (regex aceitava, refine recusa)                                                                                                                    | `c82396bb5` | `trip-http/location-tracking.contract.ts`                                                                                                                                                                                                                |
+| Code B6 — `resolveDriverId` único para GET/PUT/POST em `main.ts`                                                                                                                                                | `0898a4b78` | Mesma suíte acima (nenhum caminho de teste muda; é `resolveMeLocationDriverId` reusado)                                                                                                                                                                  |
+| Code M6 — `POSITION_UNAVAILABLE` (código 2) transitório, só `PERMISSION_DENIED` é definitivo                                                                                                                    | `9e9fd9764` | `driver-trip/location-sharing.contract.ts` (dois testes novos: mantém o watch, e desligar durante a espera cancela)                                                                                                                                      |
+| Code M4/M5, Segurança L3 — "desligar" nunca desabilitado; `cancelQueries` no `onMutate`; revogação falha fica desligada (`isLocallyRevoked`) com "Tentar novamente"                                             | `4377a4878` | Sem contrato automatizado — a app não tem `@testing-library/react`/`happy-dom` para hooks de TanStack Query nem para componentes (`frontend-driver`/`frontend-client` testam só serviço puro e texto de fonte; ver o `check` do gate abaixo)             |
+| Code B5 — `409 DRIVER_NOT_REGISTERED` sem retry automático no `useQuery`                                                                                                                                        | `4377a4878` | Idem acima                                                                                                                                                                                                                                               |
+| Code M7 — `LoginIdentifier`/`DriverForbidden` com i18n (`identity.locale.json`) e `Button`; `.page__subtitle`/`.panel`/`.panel__row`/`.panel__label`/`.panel__input` completam a folha de estilo (não existiam) | `7a0d8a08`  | Sem contrato automatizado (mesma limitação de infra); ver "Aberto" abaixo                                                                                                                                                                                |
+| Segurança L7 — `resolveAsset` com `try/catch` → `400` com revalidate                                                                                                                                            | `8edd68ceb` | `shared/security-headers.contract.ts` (texto-fonte, molde do arquivo — `server.ts` não é importável no teste)                                                                                                                                            |
+| Segurança L5 — beacon `/_driver-legacy-served` só conta `sec-fetch-site: same-origin`                                                                                                                           | `82a21b644` | `apps/frontend-transportada/test/driver-trip/legacy-beacon.contract.ts` (`describe` isolado, servidor próprio)                                                                                                                                           |
+| Segurança L2 — remove `driver-staging-38bf.up.railway.app` de `redirectUris`/`webOrigins`                                                                                                                       | `430ac48b4` | `apps/api-transportada/test/deploy/keycloak-redirect-uris.contract.ts` (não precisou mudar — checa por substring `motorista.`, não pelo domínio gerado); `test/keycloak-realm.contract.test.ts` na raiz (não referencia este arquivo; confirmado abaixo) |
+| Code M8 — `deploy-driver` não publica em produção antes do serviço existir (guarda `needs.target.outputs.environment != 'production'`)                                                                          | `e3715de77` | `apps/api-transportada/test/deploy/pipeline-triggers.contract.ts` (teste novo)                                                                                                                                                                           |
+| Segurança L1/L9/L10 — `docs/SECURITY.md`                                                                                                                                                                        | `6f71a038`  | —                                                                                                                                                                                                                                                        |
+
+**Gates:**
+
+```
+bun run typecheck && bun run lint            (raiz, 7 apps)              sem erro
+
+apps/api-transportada:
+  bun --env-file=../../.env.test test --timeout 120000        7301 pass, 0 fail (183 arquivos)
+  bun --env-file=../../.env.test run test:integration          607 pass, 7 fail (112 arquivos)
+    — os 7 fail são todos em trip-occurrence-settlement.integration.ts (timeout de 5000ms sob a
+      carga da suíte inteira), arquivo não tocado por esta task; isolado ele passa 7/7 em 13.4s
+      (confirmado, comando abaixo) — contenção de recursos da corrida completa, não regressão:
+      bun --env-file=../../.env.test test ./test/integration/trip-occurrence-settlement.integration.ts --timeout 120000
+
+apps/frontend-driver:
+  bun run check   $ eslint .                    sem erro
+                  $ tsc --noEmit                 sem erro
+                  bun test (3 entrypoints)       469 pass, 0 fail
+                  vite build + dist.contract     6 pass, 0 fail
+
+apps/frontend-transportada:
+  bun run test                                   5323 pass, 1 fail (29 arquivos)
+    — o único fail (`driver-trip.contract.test.ts` > "é a mesma definição da app do motorista, pelo
+      texto de fonte") é `pendingQueue.service.ts` do outro executor: `countPending` mudou em
+      `frontend-driver` (achado B1, commit `d4b3d2923`) e a cópia espelhada em `frontend-transportada`
+      ainda não foi atualizada — arquivo fora do escopo desta task, não tocado aqui.
+
+bun test ./test/keycloak-realm.contract.test.ts   (raiz)      18 pass, 0 fail
+```
+
+**Aberto:**
+
+- Nenhum contrato automatizado cobre M4/M5/L3/B5 (hook `useLocationConsent`) nem M7
+  (`LoginIdentifier`/`DriverForbidden`): a app não tem `@testing-library/react`/DOM registrado para
+  testar hook de TanStack Query nem render de página — o padrão do repositório (`frontend-client`,
+  `frontend-driver`) é testar só serviço puro e texto de fonte (ver `frontend-client/CLAUDE.md`).
+  Introduzir a infraestrutura de teste é decisão maior que esta task; registrado para o orquestrador
+  decidir se vale abrir.
+- Revisão de design (`web.md` §15, print em 375/768px, claro/escuro) de `LoginIdentifier`/
+  `DriverForbidden`/`DriverLocationConsentCard` não foi feita nesta task — o CSS completado é cópia
+  por valor de uma folha já em produção em `frontend-client` (`.panel`/`.panel__row`/`.panel__label`/
+  `.page__subtitle`), e o `Button` já é o primitivo usado no resto da tela de Perfil, mas a
+  comparação visual formal fica para a T9.1 (revisão de design) ou uma passada dedicada.
+- `docs/SECURITY.md` L9 (CI sem `bun audit`) foi só **registrado**, não fechado — nenhum job de
+  auditoria foi acrescentado ao `ci.yml`.
+- `realm/spa-redirect-uris.json`: a remoção do domínio gerado é só no arquivo declarativo. O
+  `keycloak-reconcile.sh` só faz união (nunca remove) — se o domínio já estiver cadastrado no
+  Keycloak de staging, ele continua lá até uma ação manual de admin; o arquivo só impede que ele
+  volte a ser pedido nas próximas reconciliações.
