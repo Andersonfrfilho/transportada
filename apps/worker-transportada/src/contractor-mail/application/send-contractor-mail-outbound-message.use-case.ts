@@ -18,6 +18,11 @@ import type { ContractorMailOutboundEnvelopeV1 } from '../../messaging/contracto
 
 /** Spec 183 T702e: um anexo da mensagem da conversa que aponta para este e-mail. */
 export type ContractorMailOutboundAttachmentRecord = {
+  /**
+   * Spec 183 T903 (F1): `false` quando o objeto foi apagado (expurgo). O anexo continua na lista
+   * para o envio falhar — filtrá-lo fazia o e-mail sair sem o arquivo, com status `sent`.
+   */
+  readonly available: boolean
   readonly bucket: string
   readonly contentType: string
   readonly fileName: string
@@ -156,6 +161,7 @@ async function loadAttachments(
   const records = await port.list(query)
   const loaded: ResendEmailAttachment[] = []
   for (const record of records) {
+    if (!record.available) return 'unavailable'
     const bytes = await port.read({ bucket: record.bucket, key: record.key })
     if (
       bytes === undefined ||

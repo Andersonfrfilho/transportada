@@ -372,6 +372,7 @@ describe('o e-mail da conversa sai com os anexos (spec 183 T702e)', () => {
     contentType: string,
     fileName: string,
   ): ContractorMailOutboundAttachmentRecord => ({
+    available: true,
     bucket: 'bucket-privado',
     contentType,
     fileName,
@@ -458,6 +459,30 @@ describe('o e-mail da conversa sai com os anexos (spec 183 T702e)', () => {
       expect(sentCalls).toEqual([])
       expect(failedCalls).toEqual([{ companyId: COMPANY_ID, messageId: MESSAGE_ID }])
     }
+  })
+
+  test('T903 (F1): anexo cujo objeto foi apagado falha o envio, nunca sai sem ele', async () => {
+    let sends = 0
+    const { dependencies, failedCalls } = buildDependencies({
+      attachments: [
+        {
+          ...record('occurrence-conversations/a', PDF, 'application/pdf', 'nota.pdf'),
+          available: false,
+        },
+      ],
+      objects: new Map([['occurrence-conversations/a', PDF]]),
+      sendEmail: async () => {
+        sends += 1
+        return { id: 'nunca' }
+      },
+    })
+
+    expect(await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)).toMatchObject({
+      outcome: 'failed',
+      reason: 'attachment_unavailable',
+    })
+    expect(sends).toBe(0)
+    expect(failedCalls).toHaveLength(1)
   })
 
   test('falha de leitura do bucket é transitória: propaga, sem marcar falha', async () => {

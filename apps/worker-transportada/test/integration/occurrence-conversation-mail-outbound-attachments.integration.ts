@@ -182,4 +182,16 @@ describeIntegration('o e-mail da conversa sai com os anexos (spec 183 T702e)', (
     )
     expect(row?.delivery_status).toBe('failed')
   })
+
+  test('T903 (F1): objeto apagado pelo expurgo falha o envio, nunca sai sem o anexo', async () => {
+    const seeded = await seed({ uploadObject: true })
+    await database.execute(sql`
+      update stored_objects set status = 'deleted', deleted_at = now()
+      where company_id = ${seeded.companyId} and purpose = 'occurrence_conversation_attachment'
+    `)
+
+    const { bodies, run } = send(seeded)
+    expect(await run).toMatchObject({ outcome: 'failed', reason: 'attachment_unavailable' })
+    expect(bodies).toEqual([])
+  })
 })

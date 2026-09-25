@@ -3,11 +3,11 @@
  *
  * Spec 183 T702e: os anexos que saem no e-mail à contratante. O e-mail da 143 não tem anexo próprio:
  * a API liga os arquivos à mensagem **da conversa**, que aponta para o e-mail por `mail_message_id`.
- * Tudo filtra pela empresa do envelope na mesma condição; objeto apagado (retenção) não entra — e,
- * faltando, o envio falha em vez de sair sem o arquivo.
+ * Tudo filtra pela empresa do envelope na mesma condição; objeto apagado (retenção) vem marcado
+ * indisponível, e o envio falha em vez de sair sem o arquivo.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq, isNull, ne } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import type { ContractorMailOutboundAttachmentsPort } from '../../contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import { storedObjects } from '../../database/nfe.schema.js'
@@ -28,6 +28,8 @@ export function createContractorMailOutboundAttachments(dependencies: {
       const rows = await dependencies.database
         .select({
           bucket: storedObjects.bucket,
+          deletedAt: storedObjects.deletedAt,
+          status: storedObjects.status,
           contentType: occurrenceConversationAttachments.contentType,
           fileName: occurrenceConversationAttachments.fileName,
           key: storedObjects.objectKey,
@@ -56,15 +58,17 @@ export function createContractorMailOutboundAttachments(dependencies: {
           and(
             eq(occurrenceConversationMessages.companyId, companyId),
             eq(occurrenceConversationMessages.mailMessageId, messageId),
-            ne(storedObjects.status, 'deleted'),
-            isNull(storedObjects.deletedAt),
           ),
         )
         .orderBy(
           asc(occurrenceConversationAttachments.createdAt),
           asc(occurrenceConversationAttachments.id),
         )
-      return rows
+      /** Apagado continua na lista, marcado: o envio falha em vez de sair sem o arquivo (F1). */
+      return rows.map(({ deletedAt, status, ...row }) => ({
+        ...row,
+        available: status !== 'deleted' && deletedAt === null,
+      }))
     },
 
     async read(location) {
