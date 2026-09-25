@@ -1170,3 +1170,21 @@ E a contratante que só recebeu e-mail nosso não precisa saber que um WhatsApp 
 a frase por "só se a operação mandou mensagem pelo WhatsApp naquela janela".
 
 - **Rodado:** API, contrato da conversa **140 pass**.
+
+## T650 — O `CLAUDE.md` do portal registra que a app cresceu (verde)
+
+- `apps/frontend-client/CLAUDE.md` e a cópia de consulta `docs/ai-context/frontend-client.md`
+  ganharam o parágrafo "A app cresceu uma vez, por escrito", depois de "Crescer a app é decidir
+  isso de novo, por escrito". O diff é só de acréscimo (+24 em cada). Ele registra:
+  - que a conversa fica ao lado do `DecisionForm` e nunca decide;
+  - que `Permissions-Policy` e `connect-src` não mudam;
+  - a `conversationRef` no lugar de id interno, e a dívida da rota de decisão da 164;
+  - o serializador sem motorista nem funcionário;
+  - o aviso por e-mail sem corpo;
+  - que a app continua sem design system e sem Playwright.
+- **Divergência técnica registrada:** a ADR-0073 §1 manda importar o `styles.css` do pacote. O
+  `CLAUDE.md` do portal diz que ele **não** é importado, pelo mesmo achado da T407 (regra global
+  `:where(*)`/`:root` e `MessageBubble` só com Tailwind). O balão é nosso, e os tokens de balão são
+  cópia por valor dos do painel. Proposta de correção à ADR-0073 §1, igual à da ADR-0051 §1 na T407:
+  "peças do pacote, sem o `styles.css`".
+- **Rodado:** `frontend-client` **55 pass**; prettier limpo nos dois arquivos.

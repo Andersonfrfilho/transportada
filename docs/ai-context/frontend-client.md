@@ -44,6 +44,30 @@ valor, campos nativos (inclusive `datetime-local`, que o painel proíbe), e nenh
 que se prova é serviço puro e texto de fonte. Crescer a app é decidir isso de novo, por escrito.
 Envs: `VITE_API_URL`, `VITE_CLIENT_APP_URL`, `VITE_KEYCLOAK_*`.
 
+**A app cresceu uma vez, por escrito: a conversa da ocorrência** (ADR-0073, spec 183, aceita em
+24/09/2026). A tela "Ocorrências" da 164 ganha a conversa com a transportadora **ao lado** do
+`DecisionForm`, que continua sendo o único jeito de decidir pelo portal — a conversa nunca decide.
+O que a ADR fixa, e que continua valendo para quem mexer aqui:
+
+- **Nenhuma política nova:** `Permissions-Policy` (câmera, microfone e posição negados) e
+  `connect-src` ficam iguais. A contratante anexa por seletor de arquivo e ouve áudio; não grava nem
+  fotografa. Liberar microfone é ADR nova.
+- **Nenhum id interno:** a conversa é nomeada pela `conversationRef` (`public_ref` aleatória) que
+  `GET /client/me/occurrences` passa a devolver; rotas em `/client/me/occurrence-conversations/:ref`,
+  recorte só por `resolveContractorScope`, e só nas ocorrências que a 164 D5 mostra ao portal. A rota
+  de decisão da 164 recebe o id interno da ocorrência — dívida da 164, registrada fora da ADR.
+- **Serializador próprio:** nenhum campo do motorista (nome, telefone, foto) nem do funcionário; a
+  transportadora aparece como empresa. O aviso de mensagem nova ao usuário do portal sai por e-mail
+  **sem o corpo**.
+- **Peças do `@adatechnology/conversations-ui`, estilo nosso, sem Tailwind e sem o `styles.css` do
+  pacote.** A ADR-0073 §1 previa importar o `styles.css`; o painel descobriu na spec 183 (T407) que
+  ele traz regra global (`:where(*) { border-color }` e `:root`), que repintaria a app inteira, e que
+  o `MessageBubble` só tem forma com Tailwind. Então o balão é nosso, com `MessageText`/`StatusTicks`/
+  `DateDivider` dentro, e os tokens de balão são cópia por valor dos do painel (`--color-bubble-*`).
+- **Continua sem design system e sem Playwright:** a prova é serviço puro e texto de fonte, mais o
+  contrato de que `Permissions-Policy` e `connect-src` não mudaram. O tamanho do bundle antes e
+  depois do pacote fica no `evidence.md` da spec 183 (T653).
+
 ## Documento fiscal: o CNPJ tem letra
 
 CNPJ alfanumérico (IN RFB 2229/2024, NT Conjunta DF-e 2025.001, em produção desde 01/07/2026):

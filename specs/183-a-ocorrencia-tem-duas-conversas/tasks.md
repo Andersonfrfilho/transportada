@@ -130,7 +130,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `sonnet` · T651 é 🧠 (superfície externa)
 
-- [ ] **T650** Atualizar `apps/frontend-client/CLAUDE.md` com a decisão de crescer a app (ADR-0073,
+- [x] **T650** Atualizar `apps/frontend-client/CLAUDE.md` com a decisão de crescer a app (ADR-0073,
       aceita na T001). Evidência: o diff.
 - [ ] **T651** 🧠 `conversationRef` na resposta de `GET /client/me/occurrences` (164) e as rotas
       `/client/me/occurrence-conversations/:ref` (mensagens, envio, lida, anexo) com
