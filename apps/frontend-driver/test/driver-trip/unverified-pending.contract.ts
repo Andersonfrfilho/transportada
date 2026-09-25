@@ -217,4 +217,68 @@ describe('registros feitos sem rede esperam a confirmação do dono', () => {
 
     expect(hook.match(/isUnverified: !session\.canSync/gu)?.length).toBe(3)
   })
+
+  /**
+   * Segunda leitura (N3): "Cheguei" sem rede (não verificado) e "Entreguei" depois de entrar. Drenar
+   * o segundo antes do primeiro entregava numa parada em que o servidor não sabe que ele chegou — e
+   * o "Cheguei" confirmado depois levava 409. A drenagem para no primeiro não verificado do dono.
+   */
+  it('a drenagem para no primeiro não verificado do dono e preserva a ordem', async () => {
+    const store = createMemoryQueue([
+      queued({ isUnverified: true, key: 'arrive-offline' }),
+      queued({ key: 'deliver-online' }),
+    ])
+    const attachmentStore = createMemoryAttachments([
+      ['deliver-online', [photo({ key: 'photo-of-deliver' })]],
+    ])
+    const sender = sendingEverything()
+
+    await drainQueueWithAttachments({ attachmentStore, ownerSubHash: OWNER, store, ...sender })
+    await drainQueueWithAttachments({
+      attachmentStore,
+      only: 'deliver-online',
+      ownerSubHash: OWNER,
+      store,
+      ...sender,
+    })
+    expect(sender.sentReports).toEqual([])
+    expect(sender.sentAttachments).toEqual([])
+
+    await confirmUnverifiedPending({ attachmentStore, ownerSubHash: OWNER, store })
+    await drainQueueWithAttachments({ attachmentStore, ownerSubHash: OWNER, store, ...sender })
+
+    expect(sender.sentReports).toEqual(['arrive-offline', 'deliver-online'])
+    expect(sender.sentAttachments).toEqual(['photo-of-deliver'])
+  })
+
+  it('o item de outra conta não segura a fila do dono', async () => {
+    const store = createMemoryQueue([
+      queued({ isUnverified: true, key: 'foreign-offline', subHash: OTHER }),
+      queued({ key: 'own-online' }),
+    ])
+    const sender = sendingEverything()
+
+    await drainQueueWithAttachments({
+      attachmentStore: createMemoryAttachments(),
+      ownerSubHash: OWNER,
+      store,
+      ...sender,
+    })
+
+    expect(sender.sentReports).toEqual(['own-online'])
+  })
+
+  it('o que fica atrás do não verificado não é drenável: o relógio não liga por ele', () => {
+    const counts = countPending({
+      attachments: [['deliver-online', [photo({ key: 'photo-of-deliver' })]]],
+      now: NOW,
+      ownerSubHash: OWNER,
+      reports: [
+        queued({ isUnverified: true, key: 'arrive-offline' }),
+        queued({ key: 'deliver-online' }),
+      ],
+    })
+
+    expect(counts).toEqual({ drainable: 0, rejected: 0, total: 3 })
+  })
 })

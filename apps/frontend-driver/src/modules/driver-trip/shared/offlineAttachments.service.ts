@@ -249,15 +249,21 @@ export async function drainQueueWithAttachments(input: {
   let sent = 0
   let rejected = 0
   let networkDown = false
+  let blockedByUnverified = false
 
   for (const item of queued) {
     const key = item.report.idempotencyKey
     const isTargeted = input.only === undefined || key === input.only
     const skipRejected = input.only === undefined && item.rejectionCause !== undefined
     const isForeign = input.ownerSubHash !== undefined && item.subHash !== input.ownerSubHash
-    /** Gravado sem sessão: nem o envio manual leva — só a confirmação do dono tira a marca. */
-    const isUnverified = item.isUnverified === true
-    if (networkDown || !isTargeted || skipRejected || isForeign || isUnverified) continue
+    if (isForeign) continue
+    /**
+     * Gravado sem sessão: nem o envio manual leva — só a confirmação do dono tira a marca. E o que
+     * vem **depois** dele espera também (N3): "Entreguei" drenado antes do "Cheguei" não verificado
+     * entregaria numa parada em que o servidor não sabe que ele chegou.
+     */
+    if (item.isUnverified === true) blockedByUnverified = true
+    if (networkDown || blockedByUnverified || !isTargeted || skipRejected) continue
 
     const outcome = await input.send(item.report)
     if (outcome.kind === 'sent') {
