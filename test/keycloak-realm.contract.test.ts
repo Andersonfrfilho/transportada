@@ -244,7 +244,7 @@ describe('local Keycloak realm contract', () => {
      * precisa de alguém escrevendo que a quis.
      */
     expect(spaClient.attributes?.['post.logout.redirect.uris']).toBe(
-      'http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100',
+      'http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100##http://localhost:53200/*##http://localhost:53200',
     )
     /**
      * ⚠️ **A landing (53003) é a terceira origem, e ela entrou pelo realm sem passar por aqui** — o
@@ -259,11 +259,13 @@ describe('local Keycloak realm contract', () => {
       'http://localhost:53000/auth/callback',
       'http://localhost:53100/auth/callback',
       'http://localhost:53003/auth/callback',
+      'http://localhost:53200/auth/callback',
     ])
     expect(spaClient.webOrigins).toEqual([
       'http://localhost:53000',
       'http://localhost:53100',
       'http://localhost:53003',
+      'http://localhost:53200',
     ])
     expect(apiClient).toMatchObject({
       directAccessGrantsEnabled: false,

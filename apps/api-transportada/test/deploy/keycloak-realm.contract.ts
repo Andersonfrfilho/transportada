@@ -34,8 +34,13 @@ type FakeKeycloak = {
   readonly writes: string[]
   /** O que foi escrito de permissão de troca de login, na ordem em que chegou. */
   readonly usernameWrites: boolean[]
-  /** Cada PUT de callback, como chegou — é nele que se lê se algo foi removido. */
+  /**
+   * Cada PUT de callback, como chegou — é nele que se lê se algo foi removido, e agora também se
+   * `pkce.code.challenge.method` sobreviveu: um PUT parcial de atributos apagaria a flag, e o
+   * Keycloak aceitaria sem erro (ADR-0075 §2).
+   */
   readonly clientWrites: {
+    readonly attributes: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }[]
@@ -48,9 +53,15 @@ type FakeKeycloak = {
  * de tema, e o que a página de login **serve**. Um deploy sem o tema na imagem tem o primeiro sem o
  * segundo, e foi exatamente esse par que ficou quatro dias divergente em produção.
  */
+/** Valor real do `transportada-spa` hoje: toda instância nasce com PKCE S256 já configurado. */
+const DEFAULT_SPA_CLIENT_ATTRIBUTES: Readonly<Record<string, string>> = {
+  'pkce.code.challenge.method': 'S256',
+}
+
 function startFakeKeycloak(input: {
   readonly loginThemeInHtml: string | undefined
   readonly spaClient?: {
+    readonly attributes?: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }
@@ -59,18 +70,27 @@ function startFakeKeycloak(input: {
 }): FakeKeycloak {
   const state: {
     loginThemeInHtml: string | undefined
-    spaClient: { readonly redirectUris: readonly string[]; readonly webOrigins: readonly string[] }
+    spaClient: {
+      readonly attributes: Readonly<Record<string, string>>
+      readonly redirectUris: readonly string[]
+      readonly webOrigins: readonly string[]
+    }
     storedLoginTheme: string | undefined
     storedEditUsernameAllowed: boolean
   } = {
     loginThemeInHtml: input.loginThemeInHtml,
-    spaClient: input.spaClient ?? { redirectUris: [], webOrigins: [] },
+    spaClient: {
+      attributes: input.spaClient?.attributes ?? DEFAULT_SPA_CLIENT_ATTRIBUTES,
+      redirectUris: input.spaClient?.redirectUris ?? [],
+      webOrigins: input.spaClient?.webOrigins ?? [],
+    },
     storedEditUsernameAllowed: input.storedEditUsernameAllowed ?? true,
     storedLoginTheme: input.storedLoginTheme,
   }
   const writes: string[] = []
   const usernameWrites: boolean[] = []
   const clientWrites: {
+    readonly attributes: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }[] = []
@@ -136,11 +156,21 @@ function startFakeKeycloak(input: {
       }
       if (pathname === `/admin/realms/${REALM}/clients/spa-uuid` && request.method === 'PUT') {
         const body = (await request.json()) as {
+          readonly attributes?: Readonly<Record<string, string>>
           readonly redirectUris: readonly string[]
           readonly webOrigins: readonly string[]
         }
-        clientWrites.push(body)
-        state.spaClient = { redirectUris: body.redirectUris, webOrigins: body.webOrigins }
+        const attributes = body.attributes ?? {}
+        clientWrites.push({
+          attributes,
+          redirectUris: body.redirectUris,
+          webOrigins: body.webOrigins,
+        })
+        state.spaClient = {
+          attributes,
+          redirectUris: body.redirectUris,
+          webOrigins: body.webOrigins,
+        }
         return new Response(null, { status: 204 })
       }
       return new Response('não encontrado', { status: 404 })
@@ -167,6 +197,7 @@ function startFakeKeycloak(input: {
 type RunResult = {
   readonly exitCode: number
   readonly clientWrites: {
+    readonly attributes: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }[]
@@ -179,6 +210,7 @@ async function runReconcile(input: {
   readonly storedEditUsernameAllowed?: boolean
   readonly loginThemeInHtml: string | undefined
   readonly spaClient?: {
+    readonly attributes?: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }
@@ -221,6 +253,11 @@ async function runReconcile(input: {
     usernameWrites,
     writes,
   }
+}
+
+/** O mesmo cálculo do script: cada origem declarada vira dois valores de pós-logout, separador `##`. */
+function buildWantedPostLogoutRedirectUris(webOrigins: readonly string[]): readonly string[] {
+  return webOrigins.flatMap((origin) => [`${origin}/*`, origin])
 }
 
 /**
@@ -298,6 +335,12 @@ describe('contrato de reconciliação do realm', () => {
     const result = await runReconcile({
       loginThemeInHtml: LOGIN_THEME,
       spaClient: {
+        attributes: {
+          'pkce.code.challenge.method': 'S256',
+          'post.logout.redirect.uris': buildWantedPostLogoutRedirectUris(
+            wanted?.webOrigins ?? [],
+          ).join('##'),
+        },
         redirectUris: wanted?.redirectUris ?? [],
         webOrigins: wanted?.webOrigins ?? [],
       },
@@ -306,6 +349,88 @@ describe('contrato de reconciliação do realm', () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.clientWrites).toEqual([])
+  })
+
+  /** O `PUT` regrava o objeto inteiro: sem preservar `pkce.code.challenge.method`, o Keycloak aceita
+   * sem erro e o client fica público sem PKCE (ADR-0075 §2). */
+  test('o corpo do PUT preserva pkce.code.challenge.method', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: { redirectUris: [], webOrigins: [] },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.clientWrites[0]?.attributes['pkce.code.challenge.method']).toBe('S256')
+  })
+
+  /**
+   * A reconciliação passa a unir também `post.logout.redirect.uris` — hoje só o script manual unia
+   * (ADR-0075 §2). Cada origem declarada em `spa-redirect-uris.json` vira `<origem>/*` e `<origem>`.
+   */
+  test('o corpo do PUT contém o pós-logout novo', async () => {
+    const declared = (await Bun.file(
+      new URL('../../../../realm/spa-redirect-uris.json', import.meta.url).pathname,
+    ).json()) as Record<string, Record<string, { redirectUris: string[]; webOrigins: string[] }>>
+    const wanted = declared.staging?.['transportada-spa']
+
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: { redirectUris: [], webOrigins: [] },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    const postLogout = result.clientWrites[0]?.attributes['post.logout.redirect.uris'] ?? ''
+    for (const uri of buildWantedPostLogoutRedirectUris(wanted?.webOrigins ?? [])) {
+      expect(postLogout).toContain(uri)
+    }
+  })
+
+  /**
+   * A mesma regra do redirect URI vale para o pós-logout: acrescenta, nunca remove. Um pós-logout
+   * cadastrado só à mão (fora deste arquivo) sobrevive à reconciliação.
+   */
+  test('o pós-logout que já existia continua', async () => {
+    const soleInPanel = 'https://cadastrado-a-mao.example/auth/callback'
+    const existingOrigin = 'https://cadastrado-a-mao.example'
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: {
+        attributes: {
+          'pkce.code.challenge.method': 'S256',
+          'post.logout.redirect.uris': `${existingOrigin}/*##${existingOrigin}`,
+        },
+        redirectUris: [soleInPanel],
+        webOrigins: [],
+      },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    const postLogout = result.clientWrites[0]?.attributes['post.logout.redirect.uris'] ?? ''
+    expect(postLogout).toContain(`${existingOrigin}/*`)
+    expect(postLogout).toContain(existingOrigin)
+  })
+
+  /**
+   * A verificação depois do `PUT` não confia só no `204`: ela relê o client e confere o pós-logout
+   * **e** `pkce.code.challenge.method`. Um client que já chegou sem PKCE (mudado à mão no painel)
+   * precisa derrubar o deploy, não passar em silêncio.
+   */
+  test('a verificação depois do PUT reprova quando pkce não é S256', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: {
+        attributes: { 'post.logout.redirect.uris': '' },
+        redirectUris: [],
+        webOrigins: [],
+      },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).not.toBe(0)
+    expect(result.output).toContain('pkce.code.challenge.method')
   })
 
   /**
