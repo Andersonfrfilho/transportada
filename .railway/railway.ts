@@ -602,6 +602,12 @@ export default defineRailway((ctx) => {
       VITE_KEYCLOAK_CLIENT_ID: preserve(),
       VITE_KEYCLOAK_REALM: preserve(),
       VITE_KEYCLOAK_URL: preserve(),
+      /**
+       * A origem do bucket (spec 164 T9, spec 183 T702b): a CSP do portal nasce no build com ela —
+       * foto em `img-src`, upload do anexo em `connect-src`, áudio em `media-src`. Inlinada no build:
+       * vazia, a foto some e o anexo não sobe, sem erro de rede nenhum.
+       */
+      VITE_STORAGE_URL: preserve(),
     },
   })
 

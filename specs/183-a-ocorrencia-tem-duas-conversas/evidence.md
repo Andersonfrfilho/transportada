@@ -1648,3 +1648,31 @@ num commit só, não daria para ver qual parte quebrou. A T702e fica aberta até
   em `media-src` (áudio). A alternativa é subir pela API, com teto de corpo próprio de até 25 MB.
 - **Falta:** a CSP (depois da decisão), o portal (cliente, leitura e envio), o smoke no navegador
   contra a API real com prints e a revisão de design.
+
+### T702b — decisão do usuário (25/09/2026) e o que entrou com ela
+
+- **O bucket entra no `connect-src` e no `media-src`, no painel e no portal** (resposta do usuário:
+  "pode seguir com o bucket no connect-src"). Painel: pela `VITE_OBJECT_STORAGE_URL` que já existia;
+  o contrato da revisão da 161 ("o bucket não entra em connect-src") foi reescrito com o motivo
+  novo, e visto falhando (3 fail) antes da mudança. Portal: pela `VITE_STORAGE_URL` que já existia
+  desde a 164 — **não houve variável nova** —; contrato visto falhando (2 fail) antes da mudança;
+  `EXTERNAL_CONNECT_ORIGIN` segue vazia (terceiro continua fora).
+- **Emenda escrita à ADR-0073** (`docs/adr/0073-…md`, "Emenda de 2026-09-25") e o `CLAUDE.md` do
+  portal (com o espelho em `docs/ai-context/frontend-client.md`).
+- **Defeito anterior achado de passagem:** `VITE_STORAGE_URL` era lida pelo `vite.config.ts` do
+  portal, mas não tinha `ARG` no `Dockerfile` nem estava no `.env.example` nem no `railway.ts` — a CSP
+  do portal saía sem o bucket, e a foto da ocorrência da 164 não aparecia, sem erro de rede nenhum.
+  O contrato `build-arguments` só olhava o código da tela; agora lê também o `readEnvironment` do
+  `vite.config.ts` (visto falhando sem o `ARG`, passando com ele). Entraram o `ARG`, a linha no
+  `.env.example` e o `preserve()` no serviço `client` do `railway.ts`. **O valor no Railway é do
+  usuário.**
+- **Portal:** o serviço `conversationAttachment.service.ts` (cópia por valor, paridade com a API),
+  pedido de URL pela referência, PUT sem o token, envio com `attachmentIds`, leitura do anexo **sem
+  id**, e a tela com o seletor nativo (sem `capture`, sem microfone), a lista escolhida com "Tirar", o
+  motivo de cada recusa, e o anexo no balão (miniatura, áudio, link de download). Testes
+  `test/occurrences/attachments.contract.ts` (**8 pass**, vistos falhando com o módulo inexistente);
+  suíte do portal **80 pass**; build do portal verde.
+- **Nova dependência de infraestrutura, para o usuário:** o PUT do navegador ao bucket passa pela
+  pré-verificação de CORS. O bucket do Railway precisa aceitar `PUT` (e o cabeçalho `content-type`)
+  das origens do painel e do portal. `<img>` nunca precisou disso; `fetch` precisa.
+

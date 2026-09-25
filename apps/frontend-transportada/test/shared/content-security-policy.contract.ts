@@ -226,7 +226,7 @@ describe('the policy reaches the served response', () => {
  * ⚠️ Medido em staging às 20:45: a URL assinada era válida (assinatura presente, 300 s de vida) e o
  * host respondia; quem barrava era a própria política que o bundle serve.
  */
-describe('o bucket do anexo entra em img-src (revisão spec 161)', () => {
+describe('o bucket do anexo entra em img-src (revisão spec 161), connect-src e media-src (spec 183)', () => {
   const BUCKET_URL = 'https://transportada-staging-zjeaet.t3.storageapi.dev'
 
   test('a origem do bucket declarada entra na diretiva de imagem', () => {
@@ -242,10 +242,13 @@ describe('o bucket do anexo entra em img-src (revisão spec 161)', () => {
   })
 
   /**
-   * O bucket serve imagem, não chamada de dado: ampliar `connect-src` com ele seria permissão dada
-   * de graça, do mesmo jeito que o provedor de identidade não entra em `img-src`.
+   * Spec 183 T702b (decisão do usuário em 25/09/2026, que substitui a desta revisão): o anexo da
+   * conversa sobe do navegador **direto** ao bucket, pela URL assinada de PUT que a API emite — o
+   * arquivo nunca passa pela API, que mantém o teto de 1 MiB por requisição. Por isso o bucket entra
+   * em `connect-src`. A permissão é estreita: a URL só aceita aquele objeto, aquele tamanho, por 15
+   * minutos, e nada vale até a API conferir os bytes no envio da mensagem.
    */
-  test('o bucket não entra em connect-src', () => {
+  test('o bucket entra em connect-src (upload direto do anexo)', () => {
     const policy = buildContentSecurityPolicy({
       allowsInlineScript: false,
       apiBaseUrl: API_BASE_URL,
@@ -254,7 +257,20 @@ describe('o bucket do anexo entra em img-src (revisão spec 161)', () => {
       objectStorageUrl: BUCKET_URL,
     })
 
-    expect(directiveOf(policy, 'connect-src')).not.toContain('storageapi.dev')
+    expect(directiveOf(policy, 'connect-src')).toContain(BUCKET_URL)
+  })
+
+  /** Spec 183 T702b/T705: o áudio do anexo toca pelo `<audio>`, que é `media-src`. */
+  test('o bucket entra em media-src, e só ele além da própria origem', () => {
+    const policy = buildContentSecurityPolicy({
+      allowsInlineScript: false,
+      apiBaseUrl: API_BASE_URL,
+      keycloakUrl: KEYCLOAK_URL,
+      mapTilesUrl: undefined,
+      objectStorageUrl: BUCKET_URL,
+    })
+
+    expect(directiveOf(policy, 'media-src')).toBe(`media-src 'self' ${BUCKET_URL}`)
   })
 
   /** Sem a variável — instalação que serve o anexo pelo próprio domínio — nada é acrescentado. */
@@ -268,5 +284,7 @@ describe('o bucket do anexo entra em img-src (revisão spec 161)', () => {
     })
 
     expect(directiveOf(policy, 'img-src')).toBe(`img-src 'self' blob: ${API_BASE_URL}`)
+    expect(directiveOf(policy, 'media-src')).toBe(`media-src 'self'`)
+    expect(directiveOf(policy, 'connect-src')).not.toContain('storageapi.dev')
   })
 })

@@ -30,7 +30,8 @@ cliente vê `latitude`/`longitude`/`recordedAt`, nunca quem dirige. Sem consenti
 respondem igual ao celular (`202`, contra `201` do gravado). ⚠️ **Nada expira o rastro de viagem que
 nunca fecha**, e não há limite de frequência de ping.
 
-**A app não fala com terceiro nenhum**: `connect-src` é a própria origem, a API e o Keycloak — o
+**A app não fala com terceiro nenhum**: `connect-src` é a própria origem, a API, o Keycloak e o bucket
+da própria instalação (spec 183) — o
 painel tem quatro destinos externos, aqui são zero, e um contrato varre `https://` no código. Câmera,
 posição e microfone são **todos negados** na `Permissions-Policy` (o painel abre a câmera para o
 separador). O provedor de autenticação é cópia do painel **menos** o bypass de fumaça, e o contrato
@@ -49,9 +50,13 @@ Envs: `VITE_API_URL`, `VITE_CLIENT_APP_URL`, `VITE_KEYCLOAK_*`.
 `DecisionForm`, que continua sendo o único jeito de decidir pelo portal — a conversa nunca decide.
 O que a ADR fixa, e que continua valendo para quem mexer aqui:
 
-- **Nenhuma política nova:** `Permissions-Policy` (câmera, microfone e posição negados) e
-  `connect-src` ficam iguais. A contratante anexa por seletor de arquivo e ouve áudio; não grava nem
-  fotografa. Liberar microfone é ADR nova.
+- **`Permissions-Policy` igual:** câmera, microfone e posição negados. A contratante anexa por
+  seletor de arquivo e ouve áudio; não grava nem fotografa. Liberar microfone é ADR nova.
+- **O bucket entrou no `connect-src` e no `media-src`** (emenda de 25/09/2026 à ADR-0073, spec 183
+  T702b): o anexo sobe direto ao bucket pela URL assinada de PUT, sem o token, e o áudio toca pelo
+  `<audio>`. É a mesma origem do `img-src` (`VITE_STORAGE_URL`), que agora tem `ARG` no
+  `Dockerfile` — antes não tinha, e a CSP saía sem o bucket sem erro nenhum. Terceiro continua
+  fora: `EXTERNAL_CONNECT_ORIGIN` segue vazia.
 - **Nenhum id interno:** a conversa é nomeada pela `conversationRef` (`public_ref` aleatória) que
   `GET /client/me/occurrences` passa a devolver; rotas em `/client/me/occurrence-conversations/:ref`,
   recorte só por `resolveContractorScope`, e só nas ocorrências que a 164 D5 mostra ao portal. A rota
@@ -65,7 +70,7 @@ O que a ADR fixa, e que continua valendo para quem mexer aqui:
   o `MessageBubble` só tem forma com Tailwind. Então o balão é nosso, com `MessageText`/`StatusTicks`/
   `DateDivider` dentro, e os tokens de balão são cópia por valor dos do painel (`--color-bubble-*`).
 - **Continua sem design system e sem Playwright:** a prova é serviço puro e texto de fonte, mais o
-  contrato de que `Permissions-Policy` e `connect-src` não mudaram. O tamanho do bundle antes e
+  contrato de que a `Permissions-Policy` não mudou e de que o `connect-src` só ganhou o bucket. O tamanho do bundle antes e
   depois do pacote fica no `evidence.md` da spec 183 (T653).
 
 ## Documento fiscal: o CNPJ tem letra

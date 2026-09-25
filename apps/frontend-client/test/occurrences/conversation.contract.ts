@@ -24,6 +24,7 @@ const REF = 'Qm9hcmQtcmVmZXJlbmNpYS0xMjM0NTY'
 
 function message(overrides: Partial<PortalConversationMessage> = {}): PortalConversationMessage {
   return {
+    attachments: [],
     body: 'O recebedor recusou a caixa 3.',
     channel: 'email',
     createdAt: '2026-09-24T13:00:00.000Z',

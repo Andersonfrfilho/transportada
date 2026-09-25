@@ -45,8 +45,17 @@ export type PortalClient = Readonly<{
   listDeliveries: () => Promise<readonly Delivery[]>
   listOccurrences: () => Promise<readonly Occurrence[]>
   markConversationRead: (ref: string) => Promise<void>
+  /** Spec 183 T702b: o PUT direto ao bucket, sem o token — a URL assinada já é a autorização. */
+  putConversationUpload: (input: { readonly file: File; readonly url: string }) => Promise<void>
   readConversation: (ref: string) => Promise<PortalConversation>
   readLocation: (accessKey: string) => Promise<DeliveryLocation | null>
+  /** Spec 183 T702b: a URL de subida do anexo, pela referência da conversa. */
+  requestConversationUpload: (input: {
+    readonly contentType: string
+    readonly fileName: string
+    readonly ref: string
+    readonly sizeBytes: number
+  }) => Promise<Readonly<{ uploadId: string; uploadUrl: string }>>
   schedule: (input: ScheduleInput) => Promise<DeliverySchedule | null>
   sendConversationMessage: (input: PortalConversationMessageInput) => Promise<void>
 }>
@@ -152,9 +161,43 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
         }),
       )
     },
-    async sendConversationMessage({ body, idempotencyKey, ref }) {
+    async putConversationUpload({ file, url }) {
+      const response = await dependencies.fetch(url, {
+        body: file,
+        headers: { 'content-type': file.type },
+        method: 'PUT',
+      })
+      if (!response.ok) throw new PortalRequestError('UPLOAD_FAILED', response.status)
+    },
+    async requestConversationUpload({ ref, ...declared }) {
+      const payload = await request({
+        body: declared,
+        method: 'POST',
+        path: `${CONVERSATIONS_PATH}/${encodeURIComponent(ref)}/uploads`,
+      })
+      const data: unknown =
+        typeof payload === 'object' && payload !== null && 'data' in payload
+          ? payload.data
+          : undefined
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        !('uploadId' in data) ||
+        !('uploadUrl' in data) ||
+        typeof data.uploadId !== 'string' ||
+        typeof data.uploadUrl !== 'string'
+      ) {
+        throw new PortalRequestError('RESPONSE_INVALID', 200)
+      }
+      const upload = { uploadId: data.uploadId, uploadUrl: data.uploadUrl }
+      return { uploadId: upload.uploadId, uploadUrl: upload.uploadUrl }
+    },
+    async sendConversationMessage({ attachmentIds, body, idempotencyKey, ref }) {
       await request({
-        body: { body },
+        body:
+          attachmentIds === undefined || attachmentIds.length === 0
+            ? { body }
+            : { attachmentIds, body },
         idempotencyKey,
         method: 'POST',
         path: `${CONVERSATIONS_PATH}/${encodeURIComponent(ref)}/messages`,

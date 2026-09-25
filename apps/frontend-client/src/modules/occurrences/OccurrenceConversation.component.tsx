@@ -1,10 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { DateDivider, MessageText, type MessagePayload } from '@adatechnology/conversations-ui'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import type { PortalClient } from '@/modules/shared/portalClient.service'
-import type { PortalConversationMessage } from '@/modules/shared/portal.types'
+import type {
+  PortalConversationAttachment,
+  PortalConversationMessage,
+} from '@/modules/shared/portal.types'
 import {
   useMarkConversationRead,
   useOccurrenceConversation,
@@ -17,6 +20,13 @@ import {
   groupConversationByDay,
   validateConversationDraft,
 } from './shared/occurrenceConversation.service'
+import {
+  formatFileSize,
+  pickPortalAttachments,
+  PORTAL_ATTACHMENT_ACCEPT,
+  PORTAL_ATTACHMENTS_PER_MESSAGE,
+  portalAttachmentKind,
+} from './shared/conversationAttachment.service'
 
 const timeFormatter = new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' })
 
@@ -37,6 +47,56 @@ function toPayload(message: PortalConversationMessage, index: number): MessagePa
   }
 }
 
+/**
+ * Spec 183 T702b: os anexos dentro do balão. Imagem em miniatura (o bucket está no `img-src`),
+ * áudio pelo `<audio>` (`media-src`) e o resto como link de download com nome e tamanho.
+ */
+function MessageAttachments({
+  attachments,
+}: Readonly<{ attachments: readonly PortalConversationAttachment[] }>) {
+  if (attachments.length === 0) return null
+  return (
+    <ul aria-label="Anexos da mensagem" className="conversation__attachments">
+      {attachments.map((attachment, index) => {
+        const kind = portalAttachmentKind(attachment.contentType)
+        return (
+          <li key={`${attachment.url}-${index}`}>
+            {kind === 'image' ? (
+              <a
+                className="conversation__image"
+                href={attachment.url}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                <img alt={attachment.fileName} loading="lazy" src={attachment.url} />
+              </a>
+            ) : kind === 'audio' ? (
+              <audio
+                aria-label={attachment.fileName}
+                controls
+                preload="none"
+                src={attachment.url}
+              />
+            ) : (
+              <a
+                className="conversation__file"
+                download={attachment.fileName}
+                href={attachment.url}
+                rel="noopener noreferrer"
+              >
+                <span className="conversation__file-name">{attachment.fileName}</span>
+                <span className="conversation__file-size">
+                  {formatFileSize(attachment.sizeBytes)}
+                </span>
+              </a>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 type OccurrenceConversationProps = Readonly<{
   client: PortalClient
   conversationRef: string
@@ -47,7 +107,8 @@ type OccurrenceConversationProps = Readonly<{
  * Spec 183 T653 (RF21, D9, ADR-0073): a conversa com a transportadora no cartão da ocorrência, ao
  * lado da decisão — que continua sendo o formulário da 164. Fechada por padrão; abrir lê o fio e
  * marca como lida. O balão é nosso (tokens copiados do painel), com as peças do pacote dentro; o
- * `styles.css` do pacote não entra (regra global). Anexo e áudio chegam com a T702/T705.
+ * `styles.css` do pacote não entra (regra global). O anexo chegou com a T702b; o áudio gravado, com a
+ * T705 (o portal só ouve — não grava).
  */
 export function OccurrenceConversation({
   client,
@@ -58,7 +119,12 @@ export function OccurrenceConversation({
   const [draft, setDraft] = useState('')
   const [draftError, setDraftError] = useState<string | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState(createConversationIdempotencyKey)
+  /** Spec 183 T702b: os arquivos do rascunho, as recusas e o que já subiu dele. */
+  const [files, setFiles] = useState<readonly File[]>([])
+  const [fileMessages, setFileMessages] = useState<readonly string[]>([])
+  const uploaded = useRef(new Map<File, string>())
   const fieldId = useId()
+  const fileFieldId = useId()
   const conversation = useOccurrenceConversation(client, {
     enabled: isOpen,
     ref: conversationRef,
@@ -74,17 +140,26 @@ export function OccurrenceConversation({
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    const validated = validateConversationDraft(draft)
+    const validated = validateConversationDraft(draft, files.length)
     if (!validated.ok) {
       setDraftError(validated.message)
       return
     }
     setDraftError(null)
     send.mutate(
-      { body: validated.body, idempotencyKey, ref: conversationRef },
+      {
+        body: validated.body,
+        files,
+        idempotencyKey,
+        ref: conversationRef,
+        uploaded: uploaded.current,
+      },
       {
         onSuccess: () => {
           setDraft('')
+          setFiles([])
+          setFileMessages([])
+          uploaded.current = new Map()
           setIdempotencyKey(createConversationIdempotencyKey())
         },
       },
@@ -127,7 +202,10 @@ export function OccurrenceConversation({
                   >
                     <article className={`conversation__bubble conversation__bubble--${view.tone}`}>
                       <p className="conversation__author">{view.author}</p>
-                      <MessageText message={toPayload(message, index)} />
+                      {message.body === '' ? null : (
+                        <MessageText message={toPayload(message, index)} />
+                      )}
+                      <MessageAttachments attachments={message.attachments} />
                       <p className="conversation__meta">
                         <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>{' '}
                         {view.channel}
@@ -149,6 +227,49 @@ export function OccurrenceConversation({
               value={draft}
             />
             {draftError !== null && <p className="panel__label">{draftError}</p>}
+            <label className="panel__label" htmlFor={fileFieldId}>
+              Anexos (opcional, até {PORTAL_ATTACHMENTS_PER_MESSAGE})
+            </label>
+            <input
+              accept={PORTAL_ATTACHMENT_ACCEPT}
+              disabled={send.isPending || files.length >= PORTAL_ATTACHMENTS_PER_MESSAGE}
+              id={fileFieldId}
+              multiple
+              onChange={(event) => {
+                const picked = pickPortalAttachments(files, Array.from(event.target.files ?? []))
+                setFiles(picked.files)
+                setFileMessages(picked.messages)
+                event.target.value = ''
+              }}
+              type="file"
+            />
+            {files.length > 0 && (
+              <ul aria-label="Anexos escolhidos" className="conversation__chosen">
+                {files.map((file, index) => (
+                  <li key={`${file.name}-${index}`}>
+                    <span className="conversation__file-name">{file.name}</span>
+                    <span className="conversation__file-size">{formatFileSize(file.size)}</span>
+                    <button
+                      aria-label={`Tirar ${file.name}`}
+                      className="secondary"
+                      disabled={send.isPending}
+                      onClick={() => {
+                        setFiles(files.filter((_, position) => position !== index))
+                        setFileMessages([])
+                      }}
+                      type="button"
+                    >
+                      Tirar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {fileMessages.map((text) => (
+              <p className="panel__label" key={text} role="alert">
+                {text}
+              </p>
+            ))}
             {send.isError && (
               <p className="panel__label">Não foi possível enviar agora. Tente de novo.</p>
             )}

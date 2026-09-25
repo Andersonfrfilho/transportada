@@ -113,7 +113,16 @@ export type PortalConversationChannel = 'email' | 'portal' | 'whatsapp'
  * A mensagem como o portal a recebe: sem id, sem autor da transportadora e sem nada do motorista
  * (ADR-0073 §5). `mine` diz se foi esta conta que escreveu.
  */
+/** Spec 183 T702b: o anexo como o portal o recebe — sem id; a URL vale cinco minutos. */
+export type PortalConversationAttachment = Readonly<{
+  contentType: string
+  fileName: string
+  sizeBytes: number
+  url: string
+}>
+
 export type PortalConversationMessage = Readonly<{
+  attachments: readonly PortalConversationAttachment[]
   body: string
   channel: PortalConversationChannel
   createdAt: string
@@ -127,6 +136,8 @@ export type PortalConversation = Readonly<{
 }>
 
 export type PortalConversationMessageInput = Readonly<{
+  /** Spec 183 T702b: os pedidos de upload desta conta, na ordem da escolha. */
+  attachmentIds?: readonly string[]
   body: string
   idempotencyKey: string
   ref: string

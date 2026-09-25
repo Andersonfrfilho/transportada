@@ -10,6 +10,7 @@ import type {
   OccurrenceDecisionKind,
   OccurrenceDecisionResult,
   PortalConversation,
+  PortalConversationAttachment,
   PortalConversationChannel,
   PortalConversationMessage,
 } from './portal.types'
@@ -191,11 +192,26 @@ export function toOccurrenceDecisionResult(payload: unknown): OccurrenceDecision
 
 const CONVERSATION_CHANNELS: readonly PortalConversationChannel[] = ['email', 'portal', 'whatsapp']
 
+/** Spec 183 T702b: campo a campo — o id que viesse a mais não chega à tela. */
+function toConversationAttachments(value: unknown): PortalConversationAttachment[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(isRecord).flatMap((row) => {
+    const { contentType, fileName, sizeBytes, url } = row
+    return typeof contentType === 'string' &&
+      typeof fileName === 'string' &&
+      typeof sizeBytes === 'number' &&
+      typeof url === 'string'
+      ? [{ contentType, fileName, sizeBytes, url }]
+      : []
+  })
+}
+
 function toConversationMessage(row: Record<string, unknown>): PortalConversationMessage | null {
   const { channel, side } = row
   if (side !== 'carrier' && side !== 'contractor') return null
   if (!CONVERSATION_CHANNELS.includes(channel as PortalConversationChannel)) return null
   return {
+    attachments: toConversationAttachments(row.attachments),
     body: readString(row, 'body'),
     channel: channel as PortalConversationChannel,
     createdAt: readString(row, 'createdAt'),

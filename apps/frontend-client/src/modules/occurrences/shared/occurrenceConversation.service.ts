@@ -9,9 +9,10 @@ export type ConversationDraft =
   | Readonly<{ message: string; ok: false }>
 
 /** O rascunho sai aparado; em branco ou longo demais, a frase do que falta — sem ir à API. */
-export function validateConversationDraft(text: string): ConversationDraft {
+/** Spec 183 T702b: com anexo, o texto pode ficar vazio. */
+export function validateConversationDraft(text: string, attachmentCount = 0): ConversationDraft {
   const body = text.trim()
-  if (body === '') return { message: 'Escreva a mensagem.', ok: false }
+  if (body === '' && attachmentCount === 0) return { message: 'Escreva a mensagem.', ok: false }
   if (body.length > MESSAGE_LIMIT) {
     return { message: 'A mensagem passa de 8.000 caracteres.', ok: false }
   }

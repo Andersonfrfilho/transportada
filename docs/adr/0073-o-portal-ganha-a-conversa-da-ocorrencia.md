@@ -22,7 +22,7 @@ decide.
 2. **A `Permissions-Policy` não muda.** Câmera, microfone e posição continuam negados. A
    contratante anexa por seletor de arquivo e **ouve** áudio, mas não grava áudio nem fotografa pelo
    portal. Liberar microfone para gravar é decisão nova, com ADR própria.
-3. **O `connect-src` não muda.** Anexo e áudio são servidos pela API com URL temporária da própria
+3. **O `connect-src` não muda** (⚠️ emendado em 2026-09-25, abaixo: o bucket entra). Anexo e áudio são servidos pela API com URL temporária da própria
    origem permitida. O pacote vem no bundle e não chama terceiro nenhum.
 4. **Nenhum id interno nas rotas**, como já é no portal: a ocorrência é nomeada pela chave de acesso
    da nota e pela `public_ref` aleatória da conversa. O recorte vem só de `resolveContractorScope`.
@@ -44,6 +44,27 @@ Staging já tem, pela spec 164, a tela "Ocorrências" do portal com o formulári
   regra do portal; isso é da 164 e fica registrado fora desta ADR;
 - o estilo da conversa no portal segue a ADR-0072 revisada: peças do pacote, estilo nosso, sem
   Tailwind.
+
+## Emenda de 2026-09-25: o bucket entra no `connect-src` (spec 183 T702b)
+
+O item 3 supunha que o anexo passaria pela API. A T702a desenhou outro caminho: o navegador pede à
+API uma URL assinada de PUT, envia o arquivo **direto** ao bucket da própria instalação e só então
+manda a mensagem com o id do pedido; a API confere os bytes antes de gravar. O teto de 1 MiB por
+requisição da API continua valendo para todas as rotas, e ela não segura arquivo de 25 MB na
+memória.
+
+Decisão do usuário, em 25/09/2026, entre esse caminho e o upload pela API com teto próprio:
+
+- o bucket entra no `connect-src` (upload) e no `media-src` (áudio) do portal, pela mesma origem que
+  já estava no `img-src` desde a spec 164 (`VITE_STORAGE_URL`). **Terceiro continua fora:** a lista
+  de destino externo segue vazia, e o bucket é da instalação;
+- a URL só aceita aquele objeto e aquele tamanho por 15 minutos, e nada vale até a API conferir os
+  bytes no envio da mensagem;
+- a mesma mudança vale para o painel, que tinha o contrato "o bucket não entra em connect-src" desde
+  a revisão da spec 161.
+
+O item 2 (`Permissions-Policy`) não muda: a contratante anexa pelo seletor de arquivo, sem câmera,
+e ouve áudio sem gravar.
 
 ## Consequências
 

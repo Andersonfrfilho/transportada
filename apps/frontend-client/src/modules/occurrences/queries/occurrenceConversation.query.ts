@@ -5,6 +5,12 @@ import { OCCURRENCES_KEY } from '@/modules/deliveries/queries/portal.query'
 import type { PortalClient } from '@/modules/shared/portalClient.service'
 import type { PortalConversationMessageInput } from '@/modules/shared/portal.types'
 
+import { uploadPortalAttachments } from '../shared/conversationAttachment.service'
+
+/** Spec 183 T702b: a mensagem com os arquivos do rascunho e o que já subiu dele. */
+export type PortalConversationDraft = PortalConversationMessageInput &
+  Readonly<{ files: readonly File[]; uploaded: Map<File, string> }>
+
 function conversationKey(ref: string) {
   return ['client', 'occurrence-conversation', ref] as const
 }
@@ -25,7 +31,16 @@ export function useSendConversationMessage(client: PortalClient) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (input: PortalConversationMessageInput) => client.sendConversationMessage(input),
+    mutationFn: async ({ files, uploaded, ...input }: PortalConversationDraft) => {
+      const attachmentIds = await uploadPortalAttachments({
+        files,
+        putFile: (upload) => client.putConversationUpload(upload),
+        requestUpload: (declared) =>
+          client.requestConversationUpload({ ...declared, ref: input.ref }),
+        uploaded,
+      })
+      await client.sendConversationMessage({ ...input, attachmentIds })
+    },
     onSuccess: (_result, input) => {
       void queryClient.invalidateQueries({ queryKey: conversationKey(input.ref) })
     },

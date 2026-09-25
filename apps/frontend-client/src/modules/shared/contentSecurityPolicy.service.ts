@@ -6,7 +6,8 @@
  * ⚠️ Este arquivo é **cópia por valor** do equivalente em `frontend-transportada` — as duas apps não
  * importam código uma da outra. A diferença não é acidental e é o ponto da separação (ADR-0050 §1):
  * **o portal do cliente não tem destino externo nenhum.** O painel tem quatro (BrasilAPI, Photon,
- * IBGE); aqui o `connect-src` é a própria origem, a API e o Keycloak, e ponto. O cliente não busca
+ * IBGE); aqui o `connect-src` é a própria origem, a API, o Keycloak e — desde a spec 183, para o
+ * anexo da conversa — o bucket da própria instalação, e ponto. O cliente não busca
  * CEP, não busca rua e não carrega mapa de terceiro — o mapa é desenhado por nós (ADR-0050 §5).
  */
 
@@ -57,12 +58,20 @@ export function buildContentSecurityPolicy({
   const configured = [toOrigin(apiBaseUrl), toOrigin(keycloakUrl)].filter(
     (origin): origin is string => origin !== undefined,
   )
+  const storageOrigin = toOrigin(storageBaseUrl)
+  const storage = storageOrigin === undefined ? [] : [storageOrigin]
+  /**
+   * Spec 183 T702b (emenda à ADR-0073, 25/09/2026): o anexo da contratante sobe direto ao bucket da
+   * própria instalação, pela URL assinada de PUT. O bucket não é terceiro — a lista externa segue
+   * vazia —, e a URL só aceita aquele objeto e aquele tamanho por 15 minutos.
+   */
   const connectSource = [
     SELF,
-    ...[...new Set([...configured, ...EXTERNAL_CONNECT_ORIGIN])].sort(),
+    ...[...new Set([...configured, ...EXTERNAL_CONNECT_ORIGIN]), ...storage].sort(),
   ].join(' ')
-  const storageOrigin = toOrigin(storageBaseUrl)
-  const imageSource = [SELF, ...(storageOrigin === undefined ? [] : [storageOrigin])].join(' ')
+  const imageSource = [SELF, ...storage].join(' ')
+  /** O áudio do anexo toca por `<audio>`, que é `media-src` (spec 183 T702b/T705). */
+  const mediaSource = [SELF, ...storage].join(' ')
   const scriptSource = allowsInlineScript ? `${SELF} ${UNSAFE_INLINE}` : SELF
 
   return [
@@ -75,6 +84,7 @@ export function buildContentSecurityPolicy({
     `frame-src ${NONE}`,
     `img-src ${imageSource}`,
     `manifest-src ${SELF}`,
+    `media-src ${mediaSource}`,
     `object-src ${NONE}`,
     `script-src ${scriptSource}`,
     /**

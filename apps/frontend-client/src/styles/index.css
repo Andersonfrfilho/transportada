@@ -299,6 +299,58 @@ select {
   gap: var(--space-2);
 }
 
+/* Spec 183 T702b: o anexo — o que se escolhe no formulário e o que chega no balão. */
+.conversation__attachments,
+.conversation__chosen {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+}
+
+.conversation__chosen li,
+.conversation__file {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.conversation__file {
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: var(--radius-panel);
+  color: inherit;
+  padding: var(--space-2);
+  text-decoration: none;
+}
+
+.conversation__file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation__file-size {
+  font-size: 0.75rem;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.conversation__image img {
+  display: block;
+  max-height: 16rem;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.conversation__attachments audio {
+  max-width: 100%;
+  width: 18rem;
+}
+
 @media (min-width: 40rem) {
   .page__title {
     font-size: 2.25rem;
