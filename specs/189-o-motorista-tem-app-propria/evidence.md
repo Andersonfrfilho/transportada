@@ -1680,3 +1680,49 @@ cd apps/frontend-driver && PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false bun run
   driver-service-worker.smoke.spec.ts   2 passed
   driver-app.smoke.spec.ts             14 passed
 ```
+
+### T7.4 — API `GET /me/location-consent` (plan D8)
+
+Testes antes, vermelhos pela razão certa (`Cannot find module
+'../../src/trips/application/read-location-consent.use-case.js'`, no contrato e na integração).
+
+- **Contrato** (`test/trip-http/location-tracking.contract.ts`, bloco "a leitura do consentimento"):
+  `200 { data: { acceptedAt } }` com `cache-control: no-store` e o caso de uso recebendo só
+  `companyId`/`membershipId` do contexto; nunca consentiu → `null`; sem `trip.report` → `403` no
+  `GET` **e** no `PUT`; sem cadastro de motorista → `409 DRIVER_NOT_REGISTERED` no `GET` **e** no
+  `PUT`; o caso de uso lê o consentimento do motorista que o vínculo resolveu.
+- **Integração** (`test/integration/me-location-consent.integration.ts`, na lista de
+  `test:integration`), pelo caminho HTTP inteiro com `AuthorizationService` e os repositórios Drizzle
+  reais: nulo → aceito (ISO válido) → retirado (nulo), lidos pelo `GET` depois de cada `PUT`; conta
+  sem cadastro de motorista → `409` no `GET` e no `PUT`; sem `trip.report` → `403`; **outra
+  empresa**: o consentimento da empresa B não aparece para o motorista da A, o vínculo da B usado
+  com o contexto da A dá `409`, e `readConsent` com `companyId` da A e o motorista da B devolve nulo.
+- **Implementação**: `readConsent` na porta e em `DrizzleTripLocationRepository` (filtra por
+  `companyId` **e** `driverId`); `createReadLocationConsentUseCase` (resolve o motorista pelo
+  vínculo, lança `DriverNotRegisteredError`); a rota `GET` em `me-location.routes.ts` com a
+  `REPORT_POLICY` do `PUT`; a composição em `main.ts`. O `PUT` já respondia `409` sem cadastro — o
+  contrato agora prova. Sem migration: a coluna `location_sharing_consent_at` já existia.
+- **OpenAPI**: desvio igual ao da spec 159 — a API não gera documento OpenAPI (`git grep -i openapi --
+apps/api-transportada/src` vazio). A rota está documentada aqui e no contrato.
+- Sem `git rebase` (o briefing do orquestrador proíbe; quem publica rebaseia).
+
+```
+cd apps/api-transportada && bun --env-file=../../.env.test test test/trip-http.contract.test.ts
+  146 pass / 0 fail
+cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000
+  7296 pass / 23 skip / 1 todo / 0 fail — 7320 testes em 183 arquivos
+cd apps/api-transportada && bun --env-file=../../.env.test run test:integration
+  620 testes em 112 arquivos: 612 pass / 7 skip / 1 fail — a falha foi o timeout de 30 s de
+  `nfe-document-listing-order` ("a paginação por cursor…"), arquivo que esta task não toca; sozinho
+  ele passa (3 pass / 0 fail, 6,45 s)
+  rodado de novo em duas metades da mesma lista (a suíte inteira passa dos 10 min do terminal):
+    metade 1 (56 arquivos, inclui me-location-consent): 291 pass / 0 fail
+    metade 2 (56 arquivos): 322 pass / 7 skip / 0 fail
+  → 613 pass / 7 skip / 0 fail
+  me-location-consent.integration.ts sozinho: 4 pass / 0 fail / 0 skip
+cd apps/api-transportada && bun run lint   ok
+cd apps/api-transportada && bun run typecheck
+  1 erro, fora desta task: test/deploy/keycloak-redirect-uris.contract.ts(77,8) TS2554 — o
+  `test.todo` da T6.4 (commit 452d2cd5c); o orquestrador confirmou que é conhecido e está com outro
+  executor. Nenhum erro nos arquivos da T7.4.
+```

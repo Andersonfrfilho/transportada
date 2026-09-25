@@ -36,6 +36,11 @@ const locationSchema = z
   .strict()
 
 export type MeLocationDependencies = {
+  /** Spec 189 T7.4: resolve o motorista pelo vínculo e lança `409` quando não há cadastro. */
+  readonly readConsent: (input: {
+    readonly companyId: string
+    readonly membershipId: string
+  }) => Promise<{ readonly acceptedAt: string | null }>
   readonly recordLocation: (input: {
     readonly companyId: string
     readonly driverId: string
@@ -68,6 +73,20 @@ export function createMeLocationRoutes(
   }
 
   return [
+    defineRoute({
+      async handle({ context }): Promise<Response> {
+        const consent = await dependencies.readConsent({
+          companyId: context.scope.companyId,
+          membershipId: context.scope.membershipId,
+        })
+
+        return jsonResponse({ body: { data: consent }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: API_ME_LOCATION_CONSENT_PATH,
+      policy: REPORT_POLICY,
+    }),
     defineRoute<{ readonly accepted: boolean }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)

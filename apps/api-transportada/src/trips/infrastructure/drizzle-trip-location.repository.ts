@@ -117,6 +117,19 @@ export class DrizzleTripLocationRepository implements TripLocationRepositoryPort
     }
   }
 
+  public async readConsent(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<{ readonly acceptedAt: string | null }> {
+    const [row] = await this.database
+      .select({ acceptedAt: fleetDrivers.locationSharingConsentAt })
+      .from(fleetDrivers)
+      .where(and(eq(fleetDrivers.companyId, input.companyId), eq(fleetDrivers.id, input.driverId)))
+      .limit(1)
+
+    return { acceptedAt: row?.acceptedAt?.toISOString() ?? null }
+  }
+
   public async readLastPing(input: {
     readonly companyId: string
     readonly tripId: string

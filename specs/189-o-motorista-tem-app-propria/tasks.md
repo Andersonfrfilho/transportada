@@ -390,7 +390,7 @@ Cada task publica pelo fluxo normal: staging direto e produção por PR.
 
   **Aceite:** verde; aparece no Playwright.
 
-- [ ] **T7.4** 🧠 API `GET /me/location-consent` (plan D8).
+- [x] **T7.4** 🧠 API `GET /me/location-consent` (plan D8).
   - Antes: `git fetch && git rebase origin/staging` e `bun install --frozen-lockfile`.
   - Contrato de rota: esquema, `trip.report` e `409 DRIVER_NOT_REGISTERED`. O `PUT` também é
     conferido e, se preciso, alinhado.

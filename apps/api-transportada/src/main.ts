@@ -504,6 +504,7 @@ import { createContractorPortalBindingRoutes } from './contractor-portal/present
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
 import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
+import { createReadLocationConsentUseCase } from './trips/application/read-location-consent.use-case.js'
 import { createRecordTripLocationUseCase } from './trips/application/record-trip-location.use-case.js'
 import { DrizzleTripLocationRepository } from './trips/infrastructure/drizzle-trip-location.repository.js'
 import { createScheduleContractorDeliveryUseCase } from './contractor-portal/application/schedule-contractor-delivery.use-case.js'
@@ -2896,6 +2897,10 @@ function createApplicationRoutes({
       },
     }),
     ...createMeLocationRoutes({
+      readConsent: createReadLocationConsentUseCase({
+        repository: tripLocationRepository,
+        resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      }),
       recordLocation: (input) => recordTripLocation(input),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
       setConsent: (input) => tripLocationRepository.setConsent(input),
