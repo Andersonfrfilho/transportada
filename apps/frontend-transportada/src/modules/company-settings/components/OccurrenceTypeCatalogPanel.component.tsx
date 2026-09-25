@@ -15,6 +15,7 @@ import {
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
+  OccurrenceAttachmentMode,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
   TripOccurrenceStage,
@@ -35,6 +36,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
     readonly active: boolean
     /** Spec 166 RF9: desligado, o campo de item na tela de registro vira seleção única. */
     readonly allowsMultipleItems: boolean
+    /** Spec 179 RF1: só tem efeito em tipo de rua — é o motorista quem tira a foto. */
+    readonly attachmentMode: OccurrenceAttachmentMode
     readonly emailTemplateKey: null | string
     /** Spec 185 T6.1 (D2, RF6): só vale para `stage: 'separation'` — o CHECK do banco recusa em `delivery`. */
     readonly leavesDocumentBehind: boolean
@@ -83,6 +86,14 @@ export function OccurrenceTypeCatalogPanel({
   )
   /** Spec 185 D2/RF6: padrão desligado — nenhum tipo novo tira nota da viagem sem decisão explícita. */
   const [leavesDocumentBehind, setLeavesDocumentBehind] = useState(false)
+  /** Spec 179 RF1: nasce `off` — nenhum tipo novo passa a exigir foto sem decisão explícita. */
+  const [attachmentMode, setAttachmentMode] = useState<OccurrenceAttachmentMode>('off')
+
+  const attachmentModeOptions = [
+    { label: t('occurrenceTypeCatalog.attachmentModeOff'), value: 'off' },
+    { label: t('occurrenceTypeCatalog.attachmentModeOptional'), value: 'optional' },
+    { label: t('occurrenceTypeCatalog.attachmentModeRequired'), value: 'required' },
+  ]
 
   const redeliveryPolicyOptions = [
     {
@@ -119,6 +130,7 @@ export function OccurrenceTypeCatalogPanel({
     onSave({
       active: true,
       allowsMultipleItems,
+      attachmentMode: stage === TRIP_OCCURRENCE_STAGE.delivery ? attachmentMode : 'off',
       emailTemplateKey: emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : emailTemplateKey,
       leavesDocumentBehind: stage === TRIP_OCCURRENCE_STAGE.separation && leavesDocumentBehind,
       name,
@@ -133,6 +145,7 @@ export function OccurrenceTypeCatalogPanel({
     setAllowsMultipleItems(true)
     setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
     setLeavesDocumentBehind(false)
+    setAttachmentMode('off')
   }
 
   function handleEditTemplates() {
@@ -174,6 +187,7 @@ export function OccurrenceTypeCatalogPanel({
                     onSave({
                       active: type.active,
                       allowsMultipleItems: type.allowsMultipleItems,
+                      attachmentMode: type.attachmentMode,
                       emailTemplateKey: type.emailTemplateKey,
                       leavesDocumentBehind: type.leavesDocumentBehind,
                       name: type.name,
@@ -192,6 +206,7 @@ export function OccurrenceTypeCatalogPanel({
                     onSave({
                       active: value,
                       allowsMultipleItems: type.allowsMultipleItems,
+                      attachmentMode: type.attachmentMode,
                       emailTemplateKey: type.emailTemplateKey,
                       leavesDocumentBehind: type.leavesDocumentBehind,
                       name: type.name,
@@ -210,6 +225,7 @@ export function OccurrenceTypeCatalogPanel({
                     onSave({
                       active: type.active,
                       allowsMultipleItems: value,
+                      attachmentMode: type.attachmentMode,
                       emailTemplateKey: type.emailTemplateKey,
                       leavesDocumentBehind: type.leavesDocumentBehind,
                       name: type.name,
@@ -227,6 +243,7 @@ export function OccurrenceTypeCatalogPanel({
                     onSave({
                       active: type.active,
                       allowsMultipleItems: type.allowsMultipleItems,
+                      attachmentMode: type.attachmentMode,
                       emailTemplateKey: type.emailTemplateKey,
                       leavesDocumentBehind: type.leavesDocumentBehind,
                       name: type.name,
@@ -239,6 +256,31 @@ export function OccurrenceTypeCatalogPanel({
                   options={redeliveryPolicyOptions}
                   value={type.redeliveryPolicy}
                 />
+                {/* Spec 179 T401: só em tipo de rua — é o motorista quem tira a foto na hora. */}
+                {type.stage === TRIP_OCCURRENCE_STAGE.delivery ? (
+                  <Tooltip label={t('occurrenceTypeCatalog.attachmentModeHint')}>
+                    <Select
+                      ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
+                      disabled={!canManage || isSaving}
+                      onChange={(value) =>
+                        onSave({
+                          active: type.active,
+                          allowsMultipleItems: type.allowsMultipleItems,
+                          attachmentMode: value as OccurrenceAttachmentMode,
+                          emailTemplateKey: type.emailTemplateKey,
+                          leavesDocumentBehind: type.leavesDocumentBehind,
+                          name: type.name,
+                          notifies: type.notifies,
+                          occurrenceTypeId: type.id,
+                          redeliveryPolicy: type.redeliveryPolicy,
+                          stage: type.stage,
+                        })
+                      }
+                      options={attachmentModeOptions}
+                      value={type.attachmentMode}
+                    />
+                  </Tooltip>
+                ) : null}
                 {/* Spec 185 T6.1 (D2/RF6): só para tipos de separação — o CHECK do banco recusa em `delivery`. */}
                 {type.stage === TRIP_OCCURRENCE_STAGE.separation ? (
                   <Tooltip label={t('occurrenceTypeCatalog.leavesDocumentBehindHint')}>
@@ -250,6 +292,7 @@ export function OccurrenceTypeCatalogPanel({
                         onSave({
                           active: type.active,
                           allowsMultipleItems: type.allowsMultipleItems,
+                          attachmentMode: type.attachmentMode,
                           emailTemplateKey: type.emailTemplateKey,
                           leavesDocumentBehind: value,
                           name: type.name,
@@ -308,6 +351,16 @@ export function OccurrenceTypeCatalogPanel({
             options={redeliveryPolicyOptions}
             value={redeliveryPolicy}
           />
+          {stage === TRIP_OCCURRENCE_STAGE.delivery ? (
+            <Tooltip label={t('occurrenceTypeCatalog.attachmentModeHint')}>
+              <Select
+                ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
+                onChange={(value) => setAttachmentMode(value as OccurrenceAttachmentMode)}
+                options={attachmentModeOptions}
+                value={attachmentMode}
+              />
+            </Tooltip>
+          ) : null}
           {/* Spec 185 T6.1 (D2/RF6): só para tipos de separação — o CHECK do banco recusa em `delivery`. */}
           {stage === TRIP_OCCURRENCE_STAGE.separation ? (
             <Tooltip label={t('occurrenceTypeCatalog.leavesDocumentBehindHint')}>

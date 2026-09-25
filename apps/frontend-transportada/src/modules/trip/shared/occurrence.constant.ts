@@ -28,6 +28,14 @@ export const OCCURRENCE_REDELIVERY_POLICY = {
 export type OccurrenceRedeliveryPolicy =
   (typeof OCCURRENCE_REDELIVERY_POLICY)[keyof typeof OCCURRENCE_REDELIVERY_POLICY]
 
+/**
+ * Spec 179 RF1: se o tipo exige comprovante (foto) no registro do motorista — o mesmo vocabulário
+ * do canhoto (`DELIVERY_PROOF_FIELD_MODES`). Nasce `off`; `required` exige foto e observação.
+ */
+export const OCCURRENCE_ATTACHMENT_MODES = ['off', 'optional', 'required'] as const
+
+export type OccurrenceAttachmentMode = (typeof OCCURRENCE_ATTACHMENT_MODES)[number]
+
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
   active: boolean
@@ -37,6 +45,8 @@ export type OccurrenceType = Readonly<{
    * `true` preserva o comportamento de hoje.
    */
   allowsMultipleItems: boolean
+  /** Spec 179 RF1: a exigência de comprovante no registro do motorista. Ausente na API é `off`. */
+  attachmentMode: OccurrenceAttachmentMode
   /** Legado: o e-mail digitado no próprio tipo, antes de o texto morar no módulo de notificações. */
   emailBody: string
   emailSubject: string

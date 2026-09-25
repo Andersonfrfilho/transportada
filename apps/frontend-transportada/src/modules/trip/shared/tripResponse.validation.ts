@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
-import type { OccurrenceType } from './occurrence.constant'
+import { OCCURRENCE_ATTACHMENT_MODES, type OccurrenceType } from './occurrence.constant'
 import { TRIP_FIELD_CHANNELS, TRIP_TIMELINE_KINDS } from './trip.types'
 import type {
   FieldOccurrenceType,
@@ -1445,7 +1445,7 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  */
 type RawOccurrenceType = Omit<
   OccurrenceType,
-  'allowsMultipleItems' | 'leavesDocumentBehind' | 'redeliveryPolicy'
+  'allowsMultipleItems' | 'attachmentMode' | 'leavesDocumentBehind' | 'redeliveryPolicy'
 > &
   Readonly<{
     allowsMultipleItems?: unknown
@@ -1458,10 +1458,9 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
     !hasKeys(value, {
       /**
-       * Spec 179: `attachmentMode` já sai da API (`/company-settings/occurrence-types`) e o editor
-       * ainda não o consome. Sem ele aqui, o guard de chave exata reprova a resposta inteira e a aba
-       * de tipos de ocorrência para de carregar — frontend tolerante primeiro, como a spec 180 RF8
-       * exige e esta spec esqueceu.
+       * Spec 179: `attachmentMode` sai da API (`/company-settings/occurrence-types`) e o editor o
+       * consome (T401). Ausente é API anterior ao campo e vira `off` em `toOccurrenceType`;
+       * presente, só o vocabulário do comprovante passa.
        */
       allowed: [
         ...OCCURRENCE_TYPE_REQUIRED_KEYS,
@@ -1479,6 +1478,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   return (
     isBoolean(value.active) &&
     (value.allowsMultipleItems === undefined || isBoolean(value.allowsMultipleItems)) &&
+    (value.attachmentMode === undefined ||
+      isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES)) &&
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
@@ -1498,10 +1499,12 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
  * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`.
  * `leavesDocumentBehind` nasce `false` (spec 185 T6.1 D2), o mesmo padrão do banco. */
 function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
-  const { allowsMultipleItems, leavesDocumentBehind, redeliveryPolicy, ...rest } = raw
+  const { allowsMultipleItems, attachmentMode, leavesDocumentBehind, redeliveryPolicy, ...rest } =
+    raw
   return {
     ...rest,
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
+    attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     leavesDocumentBehind: isBoolean(leavesDocumentBehind) ? leavesDocumentBehind : false,
     redeliveryPolicy:
       redeliveryPolicy === 'allowed' ||

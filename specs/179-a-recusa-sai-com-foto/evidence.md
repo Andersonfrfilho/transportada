@@ -683,3 +683,20 @@ TRIP_OCCURRENCE_NOTE_REQUIRED` — a devolução sobe, e a ocorrência fica recu
 pendentes. A app já lê o campo quando ele vier (`isDriverOccurrenceType` aceita `off|optional|
 required` e recusa o resto); a mudança é acrescentar `attachmentMode: type.attachmentMode ?? 'off'`
 ao `map` do use case e ao tipo `FieldOccurrenceType`, com contrato. Aditiva, sem migration.
+
+## T401 — a marca no editor de tipos (CA01, RF1, RF10)
+
+`OccurrenceTypeCatalogPanel.component.tsx` ganha o `Select` do design system "Foto do comprovante"
+(Sem foto / Foto opcional / Foto obrigatória), com dica (`Tooltip`) dizendo que vale para o registro
+do motorista e que obrigatória exige foto **e** observação. Só em tipo de rua (`delivery`), na linha
+de cada tipo e no formulário de tipo novo — o painel não oferece o que a tela não cumpre (spec,
+"Empresa marca `required` num tipo de separação"). Toda gravação do painel leva a marca que o tipo
+já tinha (mexer no aviso não desliga a foto), e tipo novo nasce `off`. A leitura aceita o campo
+(`OCCURRENCE_ATTACHMENT_MODES`, o vocabulário do canhoto), recusa valor fora dele e trata ausência
+como `off` (CA07/CA08). O `PUT /company-settings/occurrence-types` já aceitava o campo (T103).
+
+```
+$ bunx tsc --noEmit                                   # frontend-transportada: sem saída
+$ bun run lint                                        # sem saída
+$ bun run test                                        # 5345 pass · 0 fail · hooks 54 pass · 0 fail
+```
