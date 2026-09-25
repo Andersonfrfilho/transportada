@@ -35,7 +35,7 @@ export function ConversationAudioRecorder({
 }: Readonly<{ disabled: boolean; onRecorded: (file: File) => void }>) {
   const { t } = useTranslation('occurrenceConversation')
   const [format] = useState(supportedFormat)
-  const [state, setState] = useState<'failed' | 'idle' | 'recording'>('idle')
+  const [state, setState] = useState<'failed' | 'idle' | 'recording' | 'starting'>('idle')
   const [elapsed, setElapsed] = useState(0)
   const [recorded, setRecorded] = useState<Recorded | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -57,7 +57,13 @@ export function ConversationAudioRecorder({
   if (format === undefined) return null
 
   async function start(): Promise<void> {
-    if (format === undefined) return
+    if (format === undefined || recorderRef.current !== null) return
+    /**
+     * Spec 183 T903 (F6): enquanto o navegador pede a permissão, o botão fica desabilitado — dois
+     * cliques abriam dois fluxos, e o primeiro nunca recebia `stop()` (a luz do microfone ficava
+     * acesa até fechar a aba).
+     */
+    setState('starting')
     let stream: MediaStream
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -138,7 +144,7 @@ export function ConversationAudioRecorder({
         </>
       ) : (
         <Button
-          disabled={disabled}
+          disabled={disabled || state === 'starting'}
           onClick={() => void start()}
           size="sm"
           type="button"

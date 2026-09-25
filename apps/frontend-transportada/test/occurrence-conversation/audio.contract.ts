@@ -5,6 +5,8 @@
  * teto do pacote (5 min). O arquivo gravado é um anexo como outro qualquer: o mesmo seletor, os
  * mesmos tetos por canal. O player troca a velocidade em 1×, 1,5× e 2×.
  */
+import { readFile } from 'node:fs/promises'
+
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_MAX_RECORDING_MILLISECONDS } from '@adatechnology/conversations-ui'
 
@@ -104,3 +106,19 @@ describe('a URL do anexo não muda a cada leitura (spec 183 T705)', () => {
     expect(ATTACHMENT_URL_REUSE_MS).toBeLessThan(5 * 60 * 1000)
   })
 })
+
+describe('o microfone não fica ligado de carona (spec 183 T903, achado F6)', () => {
+  test('enquanto o navegador pede o microfone, o botão de gravar fica desabilitado', async () => {
+    const component = await readFile(
+      new URL(
+        '../../src/modules/occurrence-conversation/components/ConversationAudioRecorder.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    expect(component).toContain("setState('starting')")
+    expect(component).toMatch(/disabled=\{disabled \|\| state === 'starting'\}/u)
+  })
+})
+
