@@ -121,4 +121,3 @@ describe('o microfone não fica ligado de carona (spec 183 T903, achado F6)', ()
     expect(component).toMatch(/disabled=\{disabled \|\| state === 'starting'\}/u)
   })
 })
-
