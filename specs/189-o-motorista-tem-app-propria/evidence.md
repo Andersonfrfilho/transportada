@@ -208,3 +208,85 @@ make check      exit 0 — ver saída consolidada abaixo, junto da T2.3
 ```
 
 **Commit próprio, T2.2.**
+
+### T2.3 — Autenticação na app (plan D3 e D4)
+
+Copiados por valor do portal (`apps/frontend-client/src/modules/shared/`), para
+`apps/frontend-driver/src/modules/shared/`: `KeycloakAuthProvider.provider.ts` (adaptado para
+`getDriverEnvironment`/`readTrustedUrl`, prefixo de erro `DRIVER_CONFIGURATION_*`, janela de retorno
+`transportada-driver:return-to:`), `LoginIdentifier.page.tsx`, `loginHintClient.service.ts`. Testes
+copiados e adaptados de `apps/frontend-client/test/{keycloak-auth-provider,login-hint-client}.test.ts`
+para `apps/frontend-driver/test/identity/{keycloak-auth-provider,login-hint-client}.contract.ts`.
+
+Copiado por valor de `apps/frontend-transportada/src/modules/identity/shared/smokeAuthBypass.service.ts`
+para `apps/frontend-driver/src/modules/identity/shared/smokeAuthBypass.service.ts`, com as duas
+travas (flag **e** hostname local) — contrato próprio em `test/identity/smoke-auth-bypass.contract.ts`.
+⚠️ Não wireado no `KeycloakAuthProvider` nesta task: o bypass só ganha consumidor na T4.1
+(Playwright), e wireá-lo agora seria código morto fora do que a task pede.
+
+Novo (RF3, ADR-0075 §2): `src/modules/identity/shared/driverAuthorization.service.ts`
+(`checkDriverAuthorization`, chama `GET /me/trips/current` com o token; `403` → `forbidden`; qualquer
+outra resposta ou falha de rede → `authorized`, porque RF6/boot-sem-rede ainda não existe e barrar
+aqui seria antecipar essa decisão) e `src/modules/identity/DriverForbidden.page.tsx` ("Sem acesso —
+Esta conta não é de motorista; use o painel da transportadora"). `main.tsx` ganhou `PageFrame`
+(molde do portal, para a faixa de ambiente continuar aparecendo **uma vez** em cada tela — o teste
+`environment-banner.contract.ts` exige isso) e a sequência: `initializeKeycloakAuth` →
+`checkDriverAuthorization` → `App` provisória ou `DriverForbiddenPage`. `package.json`: `test` ganhou
+`test/identity.contract.test.ts`.
+
+```
+cd apps/frontend-driver && bun run typecheck && bun run lint
+  ok
+
+cd apps/frontend-driver && bun run test
+  65 pass / 0 fail / 137 expect()   (shared.contract.test.ts + identity.contract.test.ts)
+
+cd apps/frontend-driver && bun run build
+  vite build ok · precache 13 arquivos, 248.829 bytes · dist.contract.test.ts 6 pass / 0 fail
+
+bun run typecheck / bun run lint (raiz, 7 apps)   ok
+```
+
+**Verificação end-to-end de verdade** (`make dev`, stack local completa, Keycloak recriado com o
+realm da T2.2 — os containers `transportada-local-*` já estavam de pé; só os processos de app foram
+subidos e depois derrubados por este executor com `kill -TERM` no fim), pelo Browser pane:
+
+- **Login local na `53200`** com a conta `local-user` (papel `driver`, entre outros, do seed
+  `local-identity-seed.service.ts`; identificador `local-user` — o e-mail do seed
+  `operador@local.test` não resolve login hint nenhum e produz "Usuário ou senha inválidos", porque o
+  e-mail do ator do seed não é o e-mail da conta do Keycloak): a tela de identificação encaminhou para
+  o Keycloak **real** (`http://localhost:58080`), PKCE `S256` aceito, login com a senha de
+  `KEYCLOAK_LOCAL_USER_PASSWORD` (o valor no `.env` local ainda é o placeholder do `.env.example`) e
+  volta para `53200` mostrando "Minha viagem" — prova o `checkDriverAuthorization` real contra
+  `GET /me/trips/current` (`200`, autorizado, porque `local-user` tem o papel `driver`).
+- **Logout volta à `53200`**: `GET http://localhost:58080/.../logout?client_id=transportada-spa&
+post_logout_redirect_uri=http://localhost:53200` — Keycloak aceitou o `post_logout_redirect_uri`
+  (mostrou a confirmação "Deseja sair?" em vez de recusar o parâmetro) e, confirmado, redirecionou
+  para `53200`, que mostrou a tela de identificação (sessão encerrada). Prova viva de que a `53200`
+  está em `post.logout.redirect.uris` do realm local (T2.2) — repetido duas vezes na sessão, as duas
+  com o mesmo resultado.
+- **Conta de escritório vê o `403`**: criado localmente via API (token do `local-user`, que tem
+  `company-admin`/`users.manage`), sem passar pelo Keycloak à mão —
+  `POST /company-users` (`channel: email`, `roles: ['operator']`, sem `driver`/`aggregate`) seguido de
+  `POST /company-users/:id/activation` (senha imediata, ativação manual — o convite por e-mail exigiria
+  Mailpit e a tela `/ativar` da spec 188, fora do escopo desta task). Login em `53200` com essa conta
+  (`escritorio.local`) autenticou no Keycloak e a app mostrou **"SEM ACESSO — Esta conta não é de
+  motorista; use o painel da transportadora"** — o texto exato da RF3.
+- **SSO**: com a sessão do `local-user` ativa (aberta em `53200`), naveguei para `53000` (painel) e
+  ele entrou **sem pedir senha** (workspace de NF-e direto) — confirma `check-sso` compartilhando a
+  mesma sessão do Keycloak entre `app.` e `motorista.` (ADR-0075 §2).
+
+```
+make check                                    exit 0
+  format:check ok · lint ok · typecheck ok
+  api 7290 pass (+23 skip) · worker 1424 · cron 101 · frontend 5264+51 · client 55 ·
+  driver 65+6 · landing 111 · build ok (driver precache 13 arquivos ~248 KiB)
+
+cd apps/api-transportada && bun --env-file=../../.env.test test test/deploy.contract.test.ts --timeout 120000
+  182 pass / 0 fail / 650 expect()
+
+cd apps/api-transportada && bun --env-file=../../.env.test run test:integration
+  (não roda nesta task — T2.3 não mexe em test/integration/**)
+```
+
+**Commit próprio, T2.3.**

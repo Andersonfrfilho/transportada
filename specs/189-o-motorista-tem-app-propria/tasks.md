@@ -122,7 +122,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** T2.1 verde; `make config` e `make check` verdes.
 
-- [ ] **T2.3** Autenticação na app (plan D3 e D4):
+- [x] **T2.3** Autenticação na app (plan D3 e D4):
   - `KeycloakAuthProvider`, `LoginIdentifier` e `loginHintClient` copiados do portal;
   - `smokeAuthBypass.service.ts`, com as duas travas;
   - a tela de `403` para quem não tem `trip.read`.
