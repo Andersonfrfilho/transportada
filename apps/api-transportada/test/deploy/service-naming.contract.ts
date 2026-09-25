@@ -82,6 +82,20 @@ describe('contrato de nome de serviço e de domínio', () => {
   })
 
   /**
+   * O serviço `driver` (spec 189, ADR-0075 §3) nasce declarado na tabela antes de o pipeline
+   * publicá-lo — a T6.2 acrescenta a linha; só a T6.4 liga o job `deploy-driver` e soma ele à
+   * contagem do teste acima.
+   */
+  test('o serviço driver está declarado na tabela de build', async () => {
+    const document = await readDocument()
+    const declared = new Set(
+      [...document.matchAll(BUILD_TABLE_SERVICE_PATTERN)].map(([, apps, deploy]) => apps ?? deploy),
+    )
+
+    expect(declared).toContain('driver')
+  })
+
+  /**
    * O domínio gerado carrega o ambiente (`api-production-1a2b`), e production não diz o ambiente:
    * é o endereço que o cliente digita. Trocar depois troca a URL que ele já usa, o `FRONTEND_ORIGIN`
    * da API, o `redirect_uri` do frontend e os `redirectUris` do client no Keycloak.

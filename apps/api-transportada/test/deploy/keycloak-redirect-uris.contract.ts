@@ -21,8 +21,15 @@ const ENVIRONMENTS = ['production', 'staging'] as const
 const SPA_CLIENT = 'transportada-spa'
 const CALLBACK_SUFFIX = '/auth/callback'
 
-/** As duas apps que autenticam: o painel e o portal do contratante (ADR-0050 §1). */
-const AUTHENTICATED_APPS = ['app.', 'cliente.'] as const
+/**
+ * As apps que autenticam: o painel e o portal do contratante (ADR-0050 §1), mais o app do
+ * motorista (ADR-0075 §2). `motorista.` só ganha callback em `spa-redirect-uris.json` na T6.4 da
+ * spec 189 — até lá, `PENDING_APPS` abaixo tira ela da asserção que roda de verdade.
+ */
+const AUTHENTICATED_APPS = ['app.', 'cliente.', 'motorista.'] as const
+
+/** Apps declaradas acima que ainda não têm callback no arquivo. Some daqui na T6.4. */
+const PENDING_APPS: ReadonlySet<string> = new Set(['motorista.'])
 
 type ClientRedirects = Readonly<{
   redirectUris: readonly string[]
@@ -56,10 +63,18 @@ describe('callbacks OAuth declarados por ambiente', () => {
     for (const environment of ENVIRONMENTS) {
       const uris = declaration[environment]?.[SPA_CLIENT]?.redirectUris ?? []
       for (const app of AUTHENTICATED_APPS) {
+        if (PENDING_APPS.has(app)) continue
         expect(uris.some((uri) => uri.includes(app))).toBe(true)
       }
     }
   })
+
+  /**
+   * Fecha na T6.4 (spec 189): quando `spa-redirect-uris.json` ganha a origem `motorista.` nos dois
+   * ambientes, remove `motorista.` de `PENDING_APPS` (o teste acima passa a cobri-la) e troca este
+   * `test.todo` por uma asserção de verdade, ou apague-o.
+   */
+  test.todo('motorista tem callback nos dois ambientes (spec 189 T6.4)')
 
   /** O Keycloak casa a URL inteira: caminho errado recusa igual a domínio errado. */
   test('todo callback é https e termina no caminho que o cliente usa', async () => {
