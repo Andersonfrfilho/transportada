@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { cn } from '@/lib/utils'
 
 import styles from '../styles/driverTrip.module.css'
 
@@ -19,10 +20,8 @@ export function DriverAppInstallPage({ driverAppUrl }: DriverAppInstallPageProps
   const { t } = useTranslation('driverTrip')
 
   return (
-    <main className={styles.shell}>
-      <header className={styles.header}>
-        <h1>{t('legacy.install.title')}</h1>
-      </header>
+    <main className={cn(styles.shell, styles.legacyInstallShell)}>
+      <h1 className={styles.eventQueueTitle}>{t('legacy.install.title')}</h1>
       <div className={styles.legacyNotice}>
         <p>{t('legacy.install.body')}</p>
         <p>{t('legacy.install.address', { address: new URL(driverAppUrl).host })}</p>

@@ -613,6 +613,16 @@
   min-height: 2.75rem;
 }
 
+/* Com "Descartar" e a confirmação, o item quebra em linhas: lado a lado passava de 375 px. */
+.eventQueueItemWithDiscard {
+  flex-wrap: wrap;
+}
+
+.eventQueueItemWithDiscard .eventQueueItemBody {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
 .eventQueueItemActions {
   display: flex;
   flex-wrap: wrap;
@@ -627,10 +637,24 @@
 
 /* ADR-0075 §6: a tela de pendências do painel, com a casa nova à vista quando a fila esvazia. */
 .legacyNotice {
+  align-content: start;
   background: color-mix(in srgb, var(--color-copper) 18%, transparent);
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
+}
+
+/*
+ * Com a fila vazia, a lista não tem largura própria e o `margin: auto` do `.shell` a encolhia ao
+ * texto — o título ia parar no meio da tela, desalinhado do aviso de cima.
+ */
+.legacyPendingShell > * {
+  width: 100%;
+}
+
+/* A moldura pública estica a altura: sem isto as três linhas da tela se espalham pela página. */
+.legacyInstallShell {
+  align-content: start;
 }
 
 .legacyNotice p {

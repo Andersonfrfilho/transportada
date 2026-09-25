@@ -891,3 +891,64 @@ cd apps/frontend-transportada && bun run test
 
 **Aberto:** o `make check` do aceite fica com o orquestrador, na publicação; por isso a T5.3 não
 está marcada.
+
+**Commit próprio, T5.3.**
+
+### T5.4 — Smokes do painel (plan D6)
+
+- `test/authenticated-smoke.helper.ts:69-74`: o comentário do destino do motorista — com o
+  interruptor ligado ele sai do painel, e os smokes dele moram em `apps/frontend-driver`.
+- `test/responsive.smoke.spec.ts`: saem os seis smokes do motorista (`~1185-1331`: entrada na
+  viagem, tipos de ocorrência, lista vazia, falha e nova tentativa, sem sinal, romaneio). Entram três:
+  - **redirecionamento**: a raiz de quem é do campo e `/minha-viagem` com a fila vazia terminam em
+    `VITE_DRIVER_APP_URL` (a casa nova é atendida por uma página mínima via `page.route`);
+  - **pendências**: a fila antiga é semeada no IndexedDB da origem do painel, numa página estática
+    (`/offline.html`) antes do boot. O beacon sai com `pending-screen`; só a fila aparece (sem
+    romaneio); a chegada drena (1 envio, com a chave semeada); o recusado mostra "Descartar", que
+    abre o aviso "A entrega não foi registrada; fale com o escritório." e só apaga em "Descartar
+    mesmo assim"; sem overflow em 375 px; a fila vazia **não** redireciona sozinha, e "Ir para o
+    app novo" leva à casa nova;
+  - **instalação**: com `(display-mode: standalone)` respondido no navegador, `/minha-viagem` mostra
+    "Instale o app novo", o link aponta para a casa nova, tem ≥ 44 px e não há overflow.
+- `test/spec-159-prints.smoke.spec.ts`: saem os prints do motorista (e o que só eles usavam); ficam
+  os do escritório. Ele é fora do smoke da CI e grava PNGs versionados da spec 159, então não foi
+  rodado; `playwright test --list` lista os 8 do escritório.
+- Não há smoke "sem a variável": o build do Playwright é um só e carrega a variável (local e CI, pelo
+  `.env.example`). O caso fica no contrato da T5.1.
+
+**O que o smoke achou, corrigido nesta task:**
+
+1. "Descartar" ficava desabilitado para sempre: `isSyncing` não voltava a `false`, sem nenhum pedido
+   de rede em voo (medido com `page.on('request')`). Causa: o padrão de `useDriverTrip` cria lojas
+   novas a cada render, e o efeito de montagem depende delas — ele roda de novo a cada render e
+   emenda uma drenagem na outra. A tela de pendências passa lojas estáveis (`useState`). **O mesmo
+   padrão existe em `DriverTripWorkspacePage` do painel e na cópia de `apps/frontend-driver`**; não
+   foi mexido aqui (muda o comportamento de hoje e é de outra app) — fica registrado para o
+   orquestrador.
+2. Overflow em 375 px com a confirmação aberta (a página ia a 456 px): o item com descarte quebra em
+   linhas (`.eventQueueItemWithDiscard`), só quando há `onDiscard` — a fila de sempre não muda.
+3. Revisão de design pelos prints (375 px, tema do smoke): a tela de instalar esticava as três
+   linhas pela altura da moldura pública (`align-content: start`) e o título usava o `h1` gigante;
+   passou ao mesmo título da fila de pendências. Com a fila vazia, a lista encolhia ao texto e o
+   título ia ao meio da tela; a tela de pendências dá largura cheia aos filhos. Os botões da tela de
+   pendências seguem os vizinhos da fila (mesmo `Button`, 44 px).
+
+```
+cd apps/frontend-transportada && bun run lint && bun run typecheck   ok
+cd apps/frontend-transportada && bun run test
+  contratos 5290 pass / 0 fail · hooks 51 pass / 0 fail
+cd apps/frontend-transportada && (. ../../.env) VITE_SMOKE_AUTH_BYPASS=true \
+  PLAYWRIGHT_TEST_MATCH=responsive.smoke.spec.ts bunx playwright test
+  51 passed (1.3m)
+cd apps/frontend-transportada && (. ../../.env) VITE_SMOKE_AUTH_BYPASS=true bunx playwright test
+  (a lista do smoke da CI: responsive, field-delivery, field-delivery-cargo, trip-timeline)
+  1ª tentativa: "Timed out waiting 180000ms from config.webServer" — build do painel sob carga,
+  com o Playwright da Fase 4 rodando em paralelo; 2ª tentativa: 62 passed (1.6m)
+```
+
+⚠️ A lista do smoke da CI regrava prints versionados de outras specs (`field-delivery-cargo` →
+`specs/184-…/prints/`, `trip-timeline` → `specs/158-…/prints/`). Depois da rodada eles foram
+restaurados com `git checkout --` e não entram em commit nenhum.
+
+**Aberto:** o `make smoke` do aceite (healthchecks e o Playwright das outras apps) fica com o
+orquestrador; por isso a T5.4 não está marcada.

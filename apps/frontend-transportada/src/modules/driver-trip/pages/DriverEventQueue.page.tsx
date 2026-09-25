@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 import { hasSendableEvents, type EventQueueItemView } from '../shared/eventQueueView.service'
 import styles from '../styles/driverTrip.module.css'
@@ -109,7 +110,13 @@ export function DriverEventQueuePage({
           </Button>
           <ul className={styles.eventQueueList}>
             {items.map((item) => (
-              <li className={styles.eventQueueItem} key={item.idempotencyKey}>
+              <li
+                className={cn(
+                  styles.eventQueueItem,
+                  onDiscard === undefined ? undefined : styles.eventQueueItemWithDiscard,
+                )}
+                key={item.idempotencyKey}
+              >
                 <div className={styles.eventQueueItemBody}>
                   <p className={styles.eventQueueItemTitle}>
                     {t(KIND_LABEL_KEYS[item.kind])}
