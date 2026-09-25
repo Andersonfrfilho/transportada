@@ -171,13 +171,6 @@
   min-width: 0;
 }
 
-.stopHeaderRight {
-  align-items: center;
-  display: flex;
-  flex-shrink: 0;
-  gap: var(--space-2);
-}
-
 .stopExpandIcon {
   color: var(--color-slate);
   transition: transform 150ms ease;
@@ -233,12 +226,21 @@
 
 /* O `<h2>` só embrulha o botão do cabeçalho (padrão WAI-ARIA de acordeão) — sem tamanho próprio,
    para não vazar `font-size` para o resto do botão por herança (`.stopHeader` usa `font: inherit`). */
+/* O `<h2>` só dá a semântica: sem isso o tamanho de título do navegador vaza para o botão inteiro. */
 .stopLabel {
+  font-size: inherit;
+  font-weight: inherit;
   margin: 0;
+}
+
+.stopHeader {
+  text-align: start;
+  width: 100%;
 }
 
 .stopHeaderLabelText {
   font-size: 1.125rem;
+  font-weight: 700;
 }
 
 .stopMeta {

@@ -237,61 +237,60 @@ export function DriverStopCard({
           onClick={onToggle}
           type="button"
         >
+          {/* Só a seta fica à direita: os selos na mesma linha espremiam o endereço em uma coluna. */}
           <span className={styles.stopHeaderTop}>
             <span className={styles.stopHeaderTitle}>
-              <p className={styles.stopMeta}>{t('stopTitle', { sequence: stop.sequence })}</p>
+              <span className={styles.stopMeta}>{t('stopTitle', { sequence: stop.sequence })}</span>
               <span className={styles.stopHeaderLabelText}>{stop.label}</span>
             </span>
-            <span className={styles.stopHeaderRight}>
-              <span className={styles.stopChips}>
-                <span
-                  className={`${styles.stopChip} ${stopChipView === 'current' ? styles.stopChipCurrent : ''} ${stopChipView === 'completed' ? styles.stopChipCompleted : ''}`}
-                >
-                  {stopChipView === 'completed' ? (
-                    <Icon aria-hidden="true" name="check" size="sm" />
-                  ) : null}
-                  {t(`stopState.${stopChipView}`)}
-                </span>
-                {hasOccurrenceMarker ? (
-                  <span className={`${styles.stopChip} ${styles.stopChipOccurrence}`}>
-                    <Icon aria-hidden="true" name="alert" size="sm" />
-                    {t('activity.occurrenceMarker')}
-                  </span>
-                ) : null}
-              </span>
-              <Icon
-                aria-hidden="true"
-                className={`${styles.stopExpandIcon} ${isOpen ? styles.stopExpandIconOpen : ''}`}
-                name="chevron-down"
-              />
+            <Icon
+              aria-hidden="true"
+              className={`${styles.stopExpandIcon} ${isOpen ? styles.stopExpandIconOpen : ''}`}
+              name="chevron-down"
+            />
+          </span>
+          <span className={styles.stopChips}>
+            <span
+              className={`${styles.stopChip} ${stopChipView === 'current' ? styles.stopChipCurrent : ''} ${stopChipView === 'completed' ? styles.stopChipCompleted : ''}`}
+            >
+              {stopChipView === 'completed' ? (
+                <Icon aria-hidden="true" name="check" size="sm" />
+              ) : null}
+              {t(`stopState.${stopChipView}`)}
             </span>
+            {hasOccurrenceMarker ? (
+              <span className={`${styles.stopChip} ${styles.stopChipOccurrence}`}>
+                <Icon aria-hidden="true" name="alert" size="sm" />
+                {t('activity.occurrenceMarker')}
+              </span>
+            ) : null}
           </span>
           {/*
           Spec 060 D3: hora e protocolo **antes do endereço**. É o que o porteiro pede, e quem chega
           sem o número volta com a carga — o endereço ele já sabe, porque está lá.
         */}
           {stop.schedule === null ? null : (
-            <p className={styles.stopSchedule}>
+            <span className={styles.stopSchedule}>
               {t('schedule.at', { time: formatScheduleTime(stop.schedule.scheduledAt) })}
               {stop.schedule.protocol === ''
                 ? ''
                 : ` · ${t('schedule.protocol', { protocol: stop.schedule.protocol })}`}
-            </p>
+            </span>
           )}
           {/* RF13 (ADR-0075 §8): a janela vem junto da hora marcada — é o que decide se ele entra. */}
           {deliveryWindow === undefined ? null : (
-            <p className={styles.stopSchedule}>
+            <span className={styles.stopSchedule}>
               {t(DELIVERY_WINDOW_KEYS[deliveryWindow.kind], deliveryWindow)}
-            </p>
+            </span>
           )}
-          <p className={styles.stopMeta}>
+          <span className={styles.stopMeta}>
             {isCompleted
               ? t('stopCompleted')
               : t('documentsPending', { count: countPendingDocuments(stop) })}
-          </p>
+          </span>
           {/* Status da parada no cabeçalho, não entre os botões: lá ele ficava solto e desalinhado */}
           {stop.arrivedAt === null && distanceLabel === null ? null : (
-            <p className={styles.stopStatus}>
+            <span className={styles.stopStatus}>
               {stop.arrivedAt === null ? null : (
                 <span className={styles.stopArrived}>
                   <Icon aria-hidden="true" name="check" size="sm" />
@@ -302,7 +301,7 @@ export function DriverStopCard({
               {distanceLabel === null ? null : (
                 <span className={styles.stopDistance}>{distanceLabel}</span>
               )}
-            </p>
+            </span>
           )}
         </button>
       </h2>
