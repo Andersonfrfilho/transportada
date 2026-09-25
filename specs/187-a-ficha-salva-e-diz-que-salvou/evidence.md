@@ -11,3 +11,6 @@
 - api `bun --env-file=../../.env.test test --timeout 120000` — 7283 pass, 0 fail
 - Causa confirmada no navegador de staging: `GET /fleet/drivers/f5fafaad…/regions` devolve
   `"city":"","state":""` em `scope: "region"`
+- T003: deploy de staging `7b4950241` verde (gates, api, frontend). No navegador, "Editar" do
+  motorista `f5fafaad…` agora lista as 29 rotas inteiras gravadas — antes abria "Nenhuma região
+  escolhida". Na mesma `api`, `GET /postal-codes/14403000` levou 171 ms (spec 186; antes ~2084 ms).
