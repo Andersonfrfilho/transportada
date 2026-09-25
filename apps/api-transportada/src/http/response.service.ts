@@ -15,7 +15,7 @@ import { CORRELATION_ID_HEADER, HTTP_ERROR, JSON_CONTENT_TYPE } from '../shared/
 import { ApiError } from '../shared/api.error'
 import type { ApiLogger, ErrorResponse } from '../shared/api.types'
 import { describeErrorForLog } from '../logging/error-descriptor.service'
-import { safeLogError } from '../logging/safe-logger.service'
+import { safeLogError, safeLogWarn } from '../logging/safe-logger.service'
 
 type ErrorResponseParams = {
   /** Só o desconhecido interessa: 4xx de domínio é resposta esperada, não incidente. */
@@ -23,6 +23,25 @@ type ErrorResponseParams = {
   readonly correlationId: string
   readonly error: unknown
   readonly logger: ApiLogger
+}
+
+type LogRejectedFieldsParams = {
+  readonly correlationId: string
+  readonly error: ApiError
+  readonly logger: ApiLogger
+}
+
+/**
+ * O 400 de validação diz ao navegador quais campos recusou, e o log só guardava o status. Vai o
+ * **nome** do campo; a mensagem fica de fora porque pode citar o que foi digitado.
+ */
+function logRejectedFields({ correlationId, error, logger }: LogRejectedFieldsParams): void {
+  if (error.details === undefined || error.details.length === 0) return
+  safeLogWarn({
+    logger,
+    message: 'http_request_rejected',
+    metadata: { correlationId, fields: error.details.map((detail) => detail.field) },
+  })
 }
 
 export function createErrorResponse({
@@ -53,6 +72,7 @@ export function createErrorResponse({
     return knownErrorResponse({ correlationId, error: HTTP_ERROR.storageUnavailable })
   }
   if (error instanceof ApiError) {
+    logRejectedFields({ correlationId, error, logger })
     return jsonResponse({
       body: {
         error: {

@@ -106,7 +106,7 @@ jobs:
       # Reservá-las é dizer ao kernel para nunca sorteá-las; nenhuma delas é de saída.
       - name: Reservar as portas da stack local
         run: |
-          ports=51025,53000-53002,53100-53102,54000-54999,55432,55672-55673,58025,58080,59000-59002
+          ports=51025,53000-53002,53100-53102,53112,53200,54000-54999,55432,55672-55673,58025,58080,59000-59002
           sudo sysctl -w "net.ipv4.ip_local_reserved_ports=$ports"
       - uses: oven-sh/setup-bun@v2
         with:
@@ -116,7 +116,10 @@ jobs:
       - name: Install Playwright Chromium
         run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
       - run: make migration-test
-      - run: make up
+      # Sem MinIO: a MinIO tirou as imagens públicas (2026-09-24), e os dois testes de integração que
+      # usavam storage passaram ao dublê em memória (`test/fixtures/in-memory-object-storage.fixture.ts`).
+      # A lista explícita é o que tira o MinIO — `make up` sem `SERVICES` sobe todos.
+      - run: make up SERVICES="postgres rabbitmq keycloak mailpit"
       - name: API and worker integrations
         run: |
           set -a
@@ -127,7 +130,7 @@ jobs:
       - run: make identity-bootstrap
       - name: Local authenticated smoke
         run: |
-          make dev >"$RUNNER_TEMP/transportada-dev.log" 2>&1 &
+          make dev SERVICES="postgres rabbitmq keycloak mailpit" >"$RUNNER_TEMP/transportada-dev.log" 2>&1 &
           dev_pid=$!
           cleanup() {
             kill "$dev_pid" 2>/dev/null || true

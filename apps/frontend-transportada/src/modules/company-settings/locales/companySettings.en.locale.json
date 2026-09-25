@@ -299,6 +299,8 @@
     "redeliveryPolicy": "Allows redelivery",
     "redeliveryPolicyUnset": "Unset (no case opens)",
     "redeliveryPolicyAllowed": "Allows redelivery",
-    "redeliveryPolicyBlocked": "Blocks redelivery"
+    "redeliveryPolicyBlocked": "Blocks redelivery",
+    "leavesDocumentBehind": "The trip leaves without the document",
+    "leavesDocumentBehindHint": "Applies to a whole-document case. The document leaves the trip at dispatch."
   }
 }

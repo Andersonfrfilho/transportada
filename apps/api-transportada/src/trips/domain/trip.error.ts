@@ -296,6 +296,20 @@ export class TripHasUnscheduledStopsError extends ApiError {
   public readonly stopIds: readonly string[]
 }
 
+/**
+ * Spec 185 (RF4, ADR-0074 §3): `force` libera o que falta e `loadRemaining` carrega o que falta —
+ * respostas opostas à mesma pergunta. Juntas, escolher uma em silêncio faria o que ninguém pediu.
+ */
+export class TripDispatchLoadRemainingWithForceError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DISPATCH_LOAD_REMAINING_WITH_FORCE',
+      message: 'Dispatch either loads the remaining documents or forces them out, never both.',
+      status: 400,
+    })
+  }
+}
+
 /** Espelha `trip_dispatch_snapshots_force_reason_check`: forçado exige motivo, e só ele. */
 export class TripDispatchForceReasonRequiredError extends ApiError {
   public constructor() {
@@ -545,6 +559,21 @@ export class OccurrenceEmailTemplateNotFoundError extends ApiError {
     super({
       code: 'OCCURRENCE_EMAIL_TEMPLATE_NOT_FOUND',
       message: 'There is no active email template with this key for the company.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota" só faz sentido para tipo de separação —
+ * é o galpão que decide não esperar a nota, na hora de fechar a carga. Um tipo de entrega com a
+ * marca ligada não teria onde ser lido (a conta de despacho só olha ocorrência de separação).
+ */
+export class OccurrenceTypeLeavesDocumentBehindRequiresSeparationError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_LEAVES_BEHIND_REQUIRES_SEPARATION',
+      message: 'Only separation-stage occurrence types can leave the document behind.',
       status: 422,
     })
   }

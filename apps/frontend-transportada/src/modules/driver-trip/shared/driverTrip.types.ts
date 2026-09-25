@@ -1,4 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  DRIVER_RETURN_REASONS,
+  type DriverReturnReason,
+} from '@/modules/trip/shared/tripReturnReason.types'
 
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
 export type DriverTripDocument = Readonly<{
@@ -115,15 +119,8 @@ export const PROOF_PUNCTUALITY_VALUES = [
 ] as const
 export type ProofPunctuality = (typeof PROOF_PUNCTUALITY_VALUES)[number]
 
-/** ⚠️ Cópia por valor de `driver-return-reason.policy.ts`; a paridade é assertada por contrato. */
-export const DRIVER_RETURN_REASONS = [
-  'recipient_absent',
-  'recipient_refused',
-  'address_not_found',
-  'damaged_goods',
-  'establishment_closed',
-] as const
-export type DriverReturnReason = (typeof DRIVER_RETURN_REASONS)[number]
+/** ADR-0075 §6: os motivos mudaram para o módulo `trip`; o reexporte vive até a remoção deste. */
+export { DRIVER_RETURN_REASONS, type DriverReturnReason }
 
 /**
  * ⚠️ Cópia por valor de `TRIP_STOP_OCCURRENCE_KINDS`.

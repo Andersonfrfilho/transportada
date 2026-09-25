@@ -6,6 +6,7 @@ import {
   currentFieldDeliveryDocument,
   fieldDeliveryWizardReducer,
   isFieldDeliveryWizardFinished,
+  type FieldDeliveryCargoPhotoDraft,
   type FieldDeliveryDraft,
 } from '../../src/modules/trip/shared/fieldDeliveryWizard.service'
 
@@ -16,7 +17,12 @@ const DOCUMENTS = [
 ] as const
 
 function draftFor(documentId: string): FieldDeliveryDraft {
-  return { deliveredAt: '2026-09-18T12:00:00.000Z', documentId, imageBlob: new Blob() }
+  return {
+    cargoImageBlobs: [],
+    deliveredAt: '2026-09-18T12:00:00.000Z',
+    documentId,
+    imageBlob: new Blob(),
+  }
 }
 
 /**
@@ -174,5 +180,81 @@ describe('máquina de passos do assistente de baixa (spec 156 D5)', () => {
       'doc-1',
       'doc-3',
     ])
+  })
+})
+
+function cargoPhoto(id: string): FieldDeliveryCargoPhotoDraft {
+  return { id, imageBlob: new Blob(), previewUrl: `blob:${id}` }
+}
+
+/**
+ * Achado de revisão (spec 184): as fotos da carga viviam só no `useState` local de
+ * `FieldDeliveryReviewStep` — "Tirar outra foto" (`retakeRequested`) desmonta o passo de revisão e
+ * apagava tudo sem avisar. Subir para o estado do assistente (onde o rascunho da nota vive) faz as
+ * fotos sobreviverem ao retake e reaparecerem ao reabrir a revisão.
+ */
+describe('fotos da carga sobrevivem ao "Tirar outra foto" (achado de revisão spec 184)', () => {
+  it('nasce vazio', () => {
+    const state = createInitialFieldDeliveryWizardState(DOCUMENTS)
+    expect(state.cargoPhotosByDocumentId).toEqual({})
+  })
+
+  it('cargoPhotosAdded acumula por nota', () => {
+    const state = createInitialFieldDeliveryWizardState(DOCUMENTS)
+    const withOne = fieldDeliveryWizardReducer(state, {
+      documentId: 'doc-1',
+      kind: 'cargoPhotosAdded',
+      photos: [cargoPhoto('a')],
+    })
+    const withTwo = fieldDeliveryWizardReducer(withOne, {
+      documentId: 'doc-1',
+      kind: 'cargoPhotosAdded',
+      photos: [cargoPhoto('b')],
+    })
+    expect(withTwo.cargoPhotosByDocumentId['doc-1']).toEqual([cargoPhoto('a'), cargoPhoto('b')])
+  })
+
+  it('cargoPhotoRemoved tira só a foto pedida, mantém as outras e as de outra nota', () => {
+    const state = createInitialFieldDeliveryWizardState(DOCUMENTS)
+    const withPhotos = fieldDeliveryWizardReducer(
+      fieldDeliveryWizardReducer(state, {
+        documentId: 'doc-1',
+        kind: 'cargoPhotosAdded',
+        photos: [cargoPhoto('a'), cargoPhoto('b')],
+      }),
+      { documentId: 'doc-2', kind: 'cargoPhotosAdded', photos: [cargoPhoto('c')] },
+    )
+    const afterRemove = fieldDeliveryWizardReducer(withPhotos, {
+      documentId: 'doc-1',
+      kind: 'cargoPhotoRemoved',
+      photoId: 'a',
+    })
+    expect(afterRemove.cargoPhotosByDocumentId['doc-1']).toEqual([cargoPhoto('b')])
+    expect(afterRemove.cargoPhotosByDocumentId['doc-2']).toEqual([cargoPhoto('c')])
+  })
+
+  it('retakeRequested preserva as fotos já adicionadas da nota atual', () => {
+    const state = createInitialFieldDeliveryWizardState(DOCUMENTS)
+    const withPhotos = fieldDeliveryWizardReducer(state, {
+      documentId: 'doc-1',
+      kind: 'cargoPhotosAdded',
+      photos: [cargoPhoto('a')],
+    })
+    const retaken = fieldDeliveryWizardReducer(withPhotos, { kind: 'retakeRequested' })
+    expect(retaken.cargoPhotosByDocumentId['doc-1']).toEqual([cargoPhoto('a')])
+  })
+
+  it('confirmar a nota limpa as fotos de carga dela (já foram para o rascunho)', () => {
+    const state = createInitialFieldDeliveryWizardState(DOCUMENTS)
+    const withPhotos = fieldDeliveryWizardReducer(state, {
+      documentId: 'doc-1',
+      kind: 'cargoPhotosAdded',
+      photos: [cargoPhoto('a')],
+    })
+    const confirmed = fieldDeliveryWizardReducer(withPhotos, {
+      draft: { ...draftFor('doc-1'), cargoImageBlobs: [new Blob()] },
+      kind: 'confirmRequested',
+    })
+    expect(confirmed.cargoPhotosByDocumentId['doc-1']).toBeUndefined()
   })
 })

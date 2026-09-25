@@ -5,10 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { Button, buttonClassName } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
-import type { DriverReturnReason } from '@/modules/driver-trip/shared/driverTrip.types'
 
 import type { TripDocumentSelectionController } from '../hooks/useTripDocumentSelection.hook'
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
+import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import {
   selectFieldActionableDocumentIds,
   selectFieldReturnableDocumentIds,
@@ -26,6 +26,8 @@ export type TripStateActionsProps = Readonly<{
   /** Spec 156 T8b: "Devolver" em massa mostra quando ao menos uma nota selecionada aceita `fieldReturn`. */
   capabilities: FieldActionCapabilities
   isBatchPending: boolean
+  /** O que da seleção ainda aceita carregar — resolvido em `batchTransitionSelection.service.ts`. */
+  loadableSelection: readonly string[]
   isBatchReturnPending: boolean
   onBatch: (input: { readonly action: 'load' | 'separate' }) => void
   onBatchReturn: (reason: DriverReturnReason) => void
@@ -34,6 +36,8 @@ export type TripStateActionsProps = Readonly<{
   /** Spec 156 T11/T15: abre `FieldDeliveryWizard` só com as notas do maço que têm `fieldDelivery`. */
   onOpenFieldDeliveryBatch: (documentIds: readonly string[]) => void
   selection: TripDocumentSelectionController
+  /** O que da seleção ainda aceita separar — mesma origem de `loadableSelection`. */
+  separableSelection: readonly string[]
   /** O que da seleção ainda tem CT-e a emitir — resolvido em `cteSelection.service.ts`. */
   pendingCteSelection: readonly string[]
   isGeneratingCteBatch: boolean
@@ -59,11 +63,13 @@ export function TripStateActions({
   capabilities,
   isBatchPending,
   isBatchReturnPending,
+  loadableSelection,
   onBatch,
   onBatchReturn,
   onOpenFieldDeliveryBatch,
   onOpenFieldOccurrenceBatch,
   selection,
+  separableSelection,
   pendingCteSelection,
   isGeneratingCteBatch,
   onGenerateCteSelection,
@@ -120,14 +126,14 @@ export function TripStateActions({
       <h3>{t('stateActions.title')}</h3>
 
       {hasSelection &&
-      (canSeparateOrLoad ||
+      ((canSeparateOrLoad && (separableSelection.length > 0 || loadableSelection.length > 0)) ||
         canReturnSelection ||
         canFieldOccurrenceBatch ||
         canFieldDeliveryBatch ||
         pendingCteSelection.length > 0 ||
         pendingNfseSelection.length > 0) ? (
         <div className={styles.actionActions}>
-          {canSeparateOrLoad ? (
+          {canSeparateOrLoad && separableSelection.length > 0 ? (
             <Button
               disabled={isBatchPending}
               onClick={() => onBatch({ action: 'separate' })}
@@ -135,10 +141,10 @@ export function TripStateActions({
               type="button"
             >
               <Icon name="check" />
-              {t('stateActions.batchSeparate', { count: selection.selectedIds.size })}
+              {t('stateActions.batchSeparate', { count: separableSelection.length })}
             </Button>
           ) : null}
-          {canSeparateOrLoad ? (
+          {canSeparateOrLoad && loadableSelection.length > 0 ? (
             <Button
               disabled={isBatchPending}
               onClick={() => onBatch({ action: 'load' })}
@@ -146,7 +152,7 @@ export function TripStateActions({
               type="button"
             >
               <Icon name="truck" />
-              {t('stateActions.batchLoad', { count: selection.selectedIds.size })}
+              {t('stateActions.batchLoad', { count: loadableSelection.length })}
             </Button>
           ) : null}
           {/* Emitir pela seleção: o botão só existe quando o que está marcado tem CT-e a emitir —

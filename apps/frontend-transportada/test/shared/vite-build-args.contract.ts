@@ -66,6 +66,17 @@ describe('toda VITE_* lida pelo código chega ao bundle', () => {
     expect(faltando).toEqual([])
   })
 
+  /**
+   * ADR-0075 §6: o interruptor da casa nova do motorista. O `ARG` entra **antes** da variável: o
+   * código publica desligado, e ligar é definir a variável no serviço e reimplantar — sem o `ARG`,
+   * definir não ligaria nada, e o rollback (remover e reimplantar) pareceria funcionar sem ter feito
+   * coisa alguma.
+   */
+  test('o interruptor do motorista é lido pelo código e tem ARG no Dockerfile', () => {
+    expect(readVariables()).toContain('VITE_DRIVER_APP_URL')
+    expect(DOCKERFILE).toMatch(/^ARG VITE_DRIVER_APP_URL\s*$/mu)
+  })
+
   /** A varredura tem de estar achando algo: um `src/` renomeado a esvaziaria e o teste passaria. */
   test('a varredura encontra as variáveis de verdade', () => {
     const found = readVariables()

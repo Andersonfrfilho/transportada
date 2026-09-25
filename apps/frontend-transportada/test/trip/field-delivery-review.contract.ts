@@ -2,6 +2,12 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  canAddFieldDeliveryCargoPhoto,
+  FIELD_DELIVERY_CARGO_PHOTO_LIMIT,
+  processFieldDeliveryCargoPhotoFiles,
+  splitFieldDeliveryCargoPhotoSelection,
+} from '@/modules/trip/shared/fieldDeliveryCargoPhoto.service'
+import {
   formatCanhotoOcrNumber,
   formatFieldDeliveryDocumentName,
   resolveFieldDeliveryIdentificationMessage,
@@ -123,5 +129,84 @@ describe('"Pular nota" no bloqueio (spec 156 T16)', () => {
     const back = fieldDeliveryWizardReducer(finished, { kind: 'previousRequested' })
     expect(back.step.kind).toBe('capturing')
     expect(back.currentIndex).toBe(0)
+  })
+})
+
+describe('limite de fotos da carga (spec 184 D3, T3.2)', () => {
+  test('teto de cinco — espelha TRIP_DELIVERY_PROOF_CARGO_LIMIT da API', () => {
+    expect(FIELD_DELIVERY_CARGO_PHOTO_LIMIT).toBe(5)
+  })
+
+  test('a sexta foto não é oferecida', () => {
+    expect(canAddFieldDeliveryCargoPhoto(4)).toBe(true)
+    expect(canAddFieldDeliveryCargoPhoto(5)).toBe(false)
+    expect(canAddFieldDeliveryCargoPhoto(6)).toBe(false)
+  })
+
+  test('seleção que cabe inteira: nada sobra', () => {
+    expect(splitFieldDeliveryCargoPhotoSelection({ currentCount: 2, selectedCount: 3 })).toEqual({
+      accepted: 3,
+      overflow: 0,
+    })
+  })
+
+  test('escolher mais do que cabe: só entra o que cabe, o resto vira aviso', () => {
+    expect(splitFieldDeliveryCargoPhotoSelection({ currentCount: 3, selectedCount: 4 })).toEqual({
+      accepted: 2,
+      overflow: 2,
+    })
+  })
+
+  test('já no teto: a seleção inteira é overflow', () => {
+    expect(splitFieldDeliveryCargoPhotoSelection({ currentCount: 5, selectedCount: 1 })).toEqual({
+      accepted: 0,
+      overflow: 1,
+    })
+  })
+})
+
+/**
+ * Achado de revisão (spec 184): `handleCargoPhotosSelected` só tinha `try/finally` — um arquivo que
+ * a imagem não decodifica (HEIC, corrompido) derrubava o lote inteiro em silêncio, perdendo as fotos
+ * boas do mesmo lote. `processFieldDeliveryCargoPhotoFiles` isola cada arquivo.
+ */
+describe('processamento de cada foto da carga isoladamente (achado de revisão spec 184)', () => {
+  function fileNamed(name: string): File {
+    return new File(['x'], name, { type: 'image/jpeg' })
+  }
+
+  test('todos os arquivos legíveis: nenhum descartado', async () => {
+    const result = await processFieldDeliveryCargoPhotoFiles({
+      files: [fileNamed('a.jpg'), fileNamed('b.jpg')],
+      processFile: (file) => Promise.resolve(file.name.toUpperCase()),
+    })
+    expect(result).toEqual({ photos: ['A.JPG', 'B.JPG'], unreadableCount: 0 })
+  })
+
+  test('um arquivo ilegível no meio do lote não descarta os que deram certo', async () => {
+    const result = await processFieldDeliveryCargoPhotoFiles({
+      files: [fileNamed('a.jpg'), fileNamed('corrompido.heic'), fileNamed('b.jpg')],
+      processFile: (file) =>
+        file.name.endsWith('.heic')
+          ? Promise.reject(new Error('FIELD_DELIVERY_IMAGE_LOAD_FAILED'))
+          : Promise.resolve(file.name.toUpperCase()),
+    })
+    expect(result).toEqual({ photos: ['A.JPG', 'B.JPG'], unreadableCount: 1 })
+  })
+
+  test('lote inteiro ilegível: nenhuma foto, contagem bate com o total', async () => {
+    const result = await processFieldDeliveryCargoPhotoFiles({
+      files: [fileNamed('a.heic'), fileNamed('b.heic')],
+      processFile: () => Promise.reject(new Error('FIELD_DELIVERY_IMAGE_LOAD_FAILED')),
+    })
+    expect(result).toEqual({ photos: [], unreadableCount: 2 })
+  })
+
+  test('seleção vazia: nada processado', async () => {
+    const result = await processFieldDeliveryCargoPhotoFiles({
+      files: [],
+      processFile: (file) => Promise.resolve(file.name),
+    })
+    expect(result).toEqual({ photos: [], unreadableCount: 0 })
   })
 })

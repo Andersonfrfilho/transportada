@@ -291,6 +291,15 @@ const occurrenceTypeSchema = z
      */
     emailsContractor: z.boolean().optional(),
     /**
+     * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota" — só para tipo de separação
+     * (`stage: 'separation'`); um tipo de entrega com `true` é recusado no caso de uso, 422.
+     *
+     * ⚠️ **Opcional sem `default`, pelo mesmo motivo de `attachmentMode` acima.** O UPDATE deste
+     * cadastro sobrescreve o registro inteiro; com `default(false)`, editar o e-mail de um tipo
+     * marcado "segue sem a nota" desligaria a marca sem erro nenhum. Ausente é "não mexa".
+     */
+    leavesDocumentBehind: z.boolean().optional(),
+    /**
      * ⚠️ **Marcador desconhecido é recusado aqui, no cadastro.** Deixar passar faria o e-mail sair
      * com `{{numeroNF}}` cru para o cliente, e quem escreveu o modelo só descobriria pelo SAC dele.
      */

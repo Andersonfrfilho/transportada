@@ -100,6 +100,7 @@ const documentDetail = (overrides: Partial<TripDocument> = {}): TripDocumentDeta
   freightAmount: null,
   freightRuleName: null,
   freightSource: 'missing',
+  leavesBehindOnDispatch: false,
   nfeIssuedAt: null,
   nfeNumber: null,
   nfeSeries: null,

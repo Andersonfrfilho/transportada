@@ -4,6 +4,7 @@
 - **Estado:** aceita
 - **Revisa:** quem pode chamar `dispatch` (spec 056 deu a ação a `trip.manage`)
 - **Spec:** 082
+- Revisada por ADR-0074 (despacho derivado quando a carga fecha)
 
 ## Contexto
 

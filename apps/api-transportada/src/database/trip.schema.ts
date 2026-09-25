@@ -1356,7 +1356,12 @@ export const tripFieldReports = pgTable(
  * e trilha próprias — desproporcional ao ganho, porque quando a disputa acontece é o canhoto em
  * papel que a resolve. Não há coluna para ele aqui, e essa ausência é a decisão.
  */
-export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature'] as const
+/**
+ * Spec 184: `cargo` é a foto da mercadoria, separada do canhoto (`photo`). Ao contrário dos outros
+ * dois, ela **soma** — por isso fica de fora da unicidade por entrega e tipo, logo abaixo.
+ */
+export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature', 'cargo'] as const
+export const TRIP_DELIVERY_PROOF_CARGO_KIND = 'cargo'
 export type TripDeliveryProofKind = (typeof TRIP_DELIVERY_PROOF_KINDS)[number]
 
 /**
@@ -1479,12 +1484,15 @@ export const tripDeliveryProofs = pgTable(
     index('trip_delivery_proofs_located_created_at_idx')
       .on(table.createdAt)
       .where(sql`${table.latitude} is not null`),
-    /** Um comprovante de cada tipo por entrega: o segundo é correção, e correção substitui. */
-    unique('trip_delivery_proofs_company_event_kind_unique').on(
-      table.companyId,
-      table.stopEventId,
-      table.kind,
-    ),
+    /**
+     * Um comprovante de cada tipo por entrega: o segundo é correção, e correção substitui. A foto
+     * da carga é a exceção (spec 184) — a segunda **soma** —, então o índice é parcial. Quem faz
+     * `ON CONFLICT` sobre estas colunas repete o predicado em `targetWhere`, ou o Postgres não acha
+     * o árbitro e recusa a escrita.
+     */
+    uniqueIndex('trip_delivery_proofs_company_event_kind_unique')
+      .on(table.companyId, table.stopEventId, table.kind)
+      .where(sql`${table.kind} <> ${raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))}`),
     check(
       'trip_delivery_proofs_kind_check',
       sql`${table.kind} in (${raw(inList(TRIP_DELIVERY_PROOF_KINDS))})`,
@@ -1938,6 +1946,14 @@ export const companyOccurrenceTypes = pgTable(
       .$type<DeliveryProofFieldMode>()
       .notNull()
       .default('off'),
+    /**
+     * Spec 185 (RF6, ADR-0074 §4): só para tipo de separação — ocorrência aberta deste tipo, sobre
+     * a nota inteira, tira a nota da conta de "carga fechada" (`dispatch-readiness.policy.ts`) e o
+     * despacho a libera da viagem. Padrão `false`: nenhuma instalação passa a soltar nota nenhuma ao
+     * aplicar esta migration. O CHECK abaixo é a rede; a validação de negócio mora no caso de uso
+     * (`save-occurrence-type.use-case.ts`).
+     */
+    leavesDocumentBehind: boolean('leaves_document_behind').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1961,6 +1977,10 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_attachment_mode_check',
       sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_leaves_document_behind_check',
+      sql`${table.stage} = 'separation' or not ${table.leavesDocumentBehind}`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],

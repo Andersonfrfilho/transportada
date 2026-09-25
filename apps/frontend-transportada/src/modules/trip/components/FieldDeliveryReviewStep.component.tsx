@@ -1,13 +1,24 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 
+import {
+  canAddFieldDeliveryCargoPhoto,
+  FIELD_DELIVERY_CARGO_PHOTO_LIMIT,
+  processFieldDeliveryCargoPhotoFiles,
+  splitFieldDeliveryCargoPhotoSelection,
+} from '../shared/fieldDeliveryCargoPhoto.service'
+import {
+  loadImageFromFile,
+  reduceFieldDeliveryImageToJpeg,
+} from '../shared/fieldDeliveryImage.service'
 import {
   resolveFieldDeliveryDeliveredAtIso,
   validateFieldDeliveryDeliveredAt,
@@ -22,6 +33,7 @@ import {
 import { FIELD_DELIVERY_FOCUS_ATTRIBUTE } from '../shared/fieldDeliveryWizardFocus.service'
 import type {
   FieldDeliveryCapturedPhoto,
+  FieldDeliveryCargoPhotoDraft,
   FieldDeliveryDraft,
   FieldDeliveryWizardDocument,
 } from '../shared/fieldDeliveryWizard.service'
@@ -29,11 +41,16 @@ import styles from '../styles/fieldDeliveryWizard.module.css'
 
 export type FieldDeliveryReviewStepProps = Readonly<{
   capture: FieldDeliveryCapturedPhoto
+  /** Achado de revisão (spec 184): controlado pelo assistente (`cargoPhotosByDocumentId`), para
+   * sobreviver ao "Tirar outra foto" — este componente só cria/revoga o que ele mesmo adiciona. */
+  cargoPhotos: readonly FieldDeliveryCargoPhotoDraft[]
   currentDocument: FieldDeliveryWizardDocument
   documents: readonly FieldDeliveryWizardDocument[]
   driverId?: string
   dispatchedAt: null | string
+  onCargoPhotosAdded: (photos: readonly FieldDeliveryCargoPhotoDraft[]) => void
   onConfirm: (draft: FieldDeliveryDraft) => void
+  onRemoveCargoPhoto: (photoId: string) => void
   onRetake: () => void
 }>
 
@@ -49,11 +66,14 @@ function toDatetimeLocalValue(date: Date): string {
  */
 export function FieldDeliveryReviewStep({
   capture,
+  cargoPhotos,
   currentDocument,
   documents,
   dispatchedAt,
   driverId,
+  onCargoPhotosAdded,
   onConfirm,
+  onRemoveCargoPhoto,
   onRetake,
 }: FieldDeliveryReviewStepProps) {
   const { t } = useTranslation('trip')
@@ -69,6 +89,69 @@ export function FieldDeliveryReviewStep({
   const imageUrl = useMemo(() => URL.createObjectURL(capture.imageBlob), [capture.imageBlob])
 
   useEffect(() => () => URL.revokeObjectURL(imageUrl), [imageUrl])
+
+  /** RF7/D4: até cinco fotos da carga, reduzidas do mesmo jeito que o canhoto — entram no rascunho
+   * só ao confirmar o passo (aceite CA07: 375px sem rolagem horizontal, ver o CSS do grid).
+   * Achado de revisão (spec 184): a lista em si vive no assistente (`cargoPhotos` prop) — este
+   * componente só cuida do que só existe montado (processamento em curso, desmontagem no meio
+   * dele). */
+  const [isProcessingCargoPhotos, setIsProcessingCargoPhotos] = useState(false)
+  const [cargoOverflow, setCargoOverflow] = useState(false)
+  const [cargoUnreadableCount, setCargoUnreadableCount] = useState(0)
+  /** Achado de revisão (spec 184): se o componente desmonta (troca de nota, fecha o assistente)
+   * enquanto `handleCargoPhotosSelected` ainda está processando, as fotos que terminarem depois
+   * disso não podem ser entregues ao estado do pai — o URL já criado para elas é revogado na hora. */
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  async function handleCargoPhotosSelected(files: readonly File[]): Promise<void> {
+    if (files.length === 0) return
+    const { accepted, overflow } = splitFieldDeliveryCargoPhotoSelection({
+      currentCount: cargoPhotos.length,
+      selectedCount: files.length,
+    })
+    setCargoOverflow(overflow > 0)
+    setIsProcessingCargoPhotos(true)
+    try {
+      const acceptedFiles = files.slice(0, accepted)
+      const { photos, unreadableCount } = await processFieldDeliveryCargoPhotoFiles({
+        files: acceptedFiles,
+        processFile: async (file) => {
+          const image = await loadImageFromFile(file)
+          const imageBlob = await reduceFieldDeliveryImageToJpeg(image, {
+            height: image.naturalHeight,
+            width: image.naturalWidth,
+          })
+          return {
+            id: crypto.randomUUID(),
+            imageBlob,
+            previewUrl: URL.createObjectURL(imageBlob),
+          }
+        },
+      })
+      if (isMountedRef.current) {
+        setCargoUnreadableCount(unreadableCount)
+        if (photos.length > 0) onCargoPhotosAdded(photos)
+      } else {
+        for (const photo of photos) URL.revokeObjectURL(photo.previewUrl)
+      }
+    } finally {
+      if (isMountedRef.current) setIsProcessingCargoPhotos(false)
+    }
+  }
+
+  function handleRemoveCargoPhoto(photoId: string): void {
+    const removed = cargoPhotos.find((photo) => photo.id === photoId)
+    if (removed !== undefined) URL.revokeObjectURL(removed.previewUrl)
+    onRemoveCargoPhoto(photoId)
+    setCargoOverflow(false)
+  }
+
+  const canAddCargoPhoto = canAddFieldDeliveryCargoPhoto(cargoPhotos.length)
 
   const deliveredAtIso = resolveFieldDeliveryDeliveredAtIso(deliveredAt)
   const deliveredAtError = validateFieldDeliveryDeliveredAt({
@@ -94,6 +177,7 @@ export function FieldDeliveryReviewStep({
     const receiverDocumentInput =
       canonicalReceiverDocument === '' ? {} : { receiverDocument: canonicalReceiverDocument }
     onConfirm({
+      cargoImageBlobs: cargoPhotos.map((photo) => photo.imageBlob),
       deliveredAt: deliveredAtIso,
       documentId: targetDocumentId,
       imageBlob: capture.imageBlob,
@@ -188,6 +272,73 @@ export function FieldDeliveryReviewStep({
           />
         </label>
       </div>
+
+      {/* RF7/D4: fotos da carga — opcional, entram no rascunho só ao confirmar. */}
+      <div className={styles.cargoPhotosSection}>
+        <p className={styles.cargoPhotosLabel}>
+          {t('fieldDelivery.cargoPhotosLabel')}
+          <span className={styles.cargoPhotosCount}>
+            {t('fieldDelivery.cargoCount', {
+              count: cargoPhotos.length,
+              limit: FIELD_DELIVERY_CARGO_PHOTO_LIMIT,
+            })}
+          </span>
+        </p>
+
+        {cargoPhotos.length === 0 ? null : (
+          <ul className={styles.cargoPhotosGrid}>
+            {cargoPhotos.map((photo, index) => (
+              <li className={styles.cargoPhotoThumb} key={photo.id}>
+                <img
+                  alt={t('fieldDelivery.cargoPhotosThumbAlt', { position: index + 1 })}
+                  src={photo.previewUrl}
+                />
+                <button
+                  aria-label={t('fieldDelivery.cargoPhotosRemove', { position: index + 1 })}
+                  className={styles.cargoPhotoRemove}
+                  onClick={() => handleRemoveCargoPhoto(photo.id)}
+                  type="button"
+                >
+                  <Icon name="trash" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {cargoOverflow ? (
+          <p className={styles.notice} role="alert">
+            {t('fieldDelivery.cargoOverflowNotice')}
+          </p>
+        ) : null}
+
+        {cargoUnreadableCount === 0 ? null : (
+          <p className={styles.notice} role="alert">
+            {t('fieldDelivery.cargoUnreadableNotice', { count: cargoUnreadableCount })}
+          </p>
+        )}
+
+        {canAddCargoPhoto ? (
+          <FileField
+            accept="image/*"
+            actionLabel={t('fieldDelivery.cargoAdd')}
+            capture="environment"
+            className={styles.cargoPhotosUpload}
+            disabled={isProcessingCargoPhotos}
+            label={t('fieldDelivery.cargoPhotosLabel')}
+            multiple
+            onSelect={() => undefined}
+            onSelectMany={(files) => void handleCargoPhotosSelected(files)}
+            placeholder={t('fieldDelivery.uploadEmpty')}
+            resetAfterSelect
+          />
+        ) : (
+          <p className={styles.notice}>
+            {t('fieldDelivery.cargoLimitReached', { limit: FIELD_DELIVERY_CARGO_PHOTO_LIMIT })}
+          </p>
+        )}
+      </div>
+
       {deliveredAtError === undefined ? null : (
         <p className={styles.notice} role="alert">
           {t(`fieldDelivery.deliveredAtError.${deliveredAtError}`)}

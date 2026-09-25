@@ -4,10 +4,12 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 
+import { inList } from '../../database/schema-check.constant.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   companyOccurrenceTypes,
+  TRIP_DELIVERY_PROOF_CARGO_KIND,
   tripDeliveryProofs,
   tripDispatchSnapshots,
   tripDocumentOccurrences,
@@ -640,6 +642,11 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
           tripDeliveryProofs.stopEventId,
           tripDeliveryProofs.kind,
         ],
+        /**
+         * Repete o predicado do índice parcial (spec 184): sem ele o Postgres não acha o árbitro. Literal,
+         * não parâmetro — com `$1` a inferência do índice falha do mesmo jeito.
+         */
+        targetWhere: sql`${tripDeliveryProofs.kind} <> ${sql.raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))}`,
       })
       .returning({ id: tripDeliveryProofs.id })
 
@@ -668,6 +675,38 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .limit(1)
 
     return record?.id ?? null
+  }
+
+  public async countProofsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<number> {
+    /**
+     * Contar e depois inserir, em READ COMMITTED, deixava dois envios simultâneos lerem a mesma
+     * contagem e gravarem os dois — o teto de cinco virava seis. A trava na linha do evento faz o
+     * segundo esperar o primeiro terminar e contar a foto que ele gravou (revisão da spec 184).
+     */
+    await this.transaction
+      .select({ id: tripStopEvents.id })
+      .from(tripStopEvents)
+      .where(
+        and(eq(tripStopEvents.companyId, input.companyId), eq(tripStopEvents.id, input.eventId)),
+      )
+      .for('no key update')
+
+    const [record] = await this.transaction
+      .select({ total: sql<number>`count(*)::int` })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+        ),
+      )
+
+    return record?.total ?? 0
   }
 
   public async findProofExistsForEvent(input: {

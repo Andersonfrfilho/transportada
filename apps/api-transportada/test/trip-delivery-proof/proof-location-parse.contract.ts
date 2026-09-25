@@ -110,3 +110,21 @@ describe('posição e horário da foto no multipart (spec 159 T11)', () => {
     await expectInvalid(fields)
   })
 })
+
+/**
+ * Revisão da spec 184 (ALTO): `TRIP_DELIVERY_PROOF_KINDS` ganhou `cargo`, e esta rota validava
+ * contra aquela lista — o app do motorista passou a aceitar foto de carga sem o teto de cinco e sem
+ * a deduplicação do escritório, e um retry em laço gravaria linhas e objetos sem fim. A foto de
+ * carga pelo motorista está fora do escopo da 182: a rota dele conhece só canhoto e assinatura.
+ */
+describe('tipos que a rota do motorista aceita (spec 184)', () => {
+  test.each(['photo', 'signature'])('aceita %s', async (kind) => {
+    const upload = await parseDeliveryProofUpload(proofRequest({ kind }))
+
+    expect(upload.kind).toBe(kind)
+  })
+
+  test('recusa cargo com 400', async () => {
+    await expectInvalid({ kind: 'cargo' })
+  })
+})

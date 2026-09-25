@@ -10,6 +10,11 @@ import {
 } from '../domain/trip-state.policy.js'
 import { TripDocumentReturnReasonRequiredError, TripNotFoundError } from '../domain/trip.error.js'
 import type { TripTransitionBlock } from '../domain/trip-state.policy.js'
+import {
+  tryAutoDispatchTrip,
+  type AutoDispatchDependencies,
+  type TryAutoDispatchTripResult,
+} from './try-auto-dispatch-trip.use-case.js'
 import type { TripDocument } from './trip.port.js'
 
 export type TripDocumentSnapshotById = ReadonlyMap<
@@ -60,6 +65,11 @@ export type TripDocumentBatchTransitionPort = {
 export type TransitionTripDocumentsBatchInput = {
   readonly action: TripDocumentAction
   readonly actorUserId: string
+  /**
+   * Spec 185 (D4, RF2): ausente é instalação sem o gatilho automático ligado. Presente, só é
+   * consultado quando `action === 'load'` e ao menos uma nota do lote foi de fato aplicada.
+   */
+  readonly autoDispatch?: AutoDispatchDependencies
   readonly channel: TripFieldChannel
   readonly companyId: string
   readonly documentIds: readonly string[]
@@ -82,6 +92,8 @@ export type TripDocumentBatchItemOutcome =
   | { readonly documentId: string; readonly outcome: 'unchanged' }
 
 export type TransitionTripDocumentsBatchResult = {
+  /** Spec 185 (RF2/RF3): ausente quando a carga ainda não fechou, ou a ação não era `load`. */
+  readonly autoDispatch?: TryAutoDispatchTripResult
   readonly items: readonly TripDocumentBatchItemOutcome[]
   readonly tripStatus: TripStatus
 }
@@ -169,14 +181,36 @@ export async function transitionTripDocumentsBatch(
   })
 
   const racedIds = new Set(written.racedDocumentIds)
+  let appliedCount = 0
   for (const item of toApply) {
+    const raced = racedIds.has(item.documentId)
+    if (!raced) appliedCount += 1
     preWriteOutcomes.set(item.documentId, {
       documentId: item.documentId,
-      outcome: racedIds.has(item.documentId) ? 'raced' : 'applied',
+      outcome: raced ? 'raced' : 'applied',
     })
   }
 
+  /**
+   * Spec 185 (D4, ADR-0074 §1): a corrida perdida (nenhuma aplicada de fato) não é escrita desta
+   * chamada — quem venceu já tenta o próprio gatilho. Só quem realmente carregou nota tenta.
+   */
+  const autoDispatch =
+    input.action === TRIP_DOCUMENT_ACTION.load &&
+    appliedCount > 0 &&
+    input.autoDispatch !== undefined
+      ? await tryAutoDispatchTrip({
+          ...input.autoDispatch,
+          actorUserId: input.actorUserId,
+          channel: input.channel,
+          companyId: input.companyId,
+          onBehalfOfDriverId: input.onBehalfOfDriverId ?? null,
+          tripId: input.tripId,
+        })
+      : undefined
+
   return {
+    ...(autoDispatch === undefined ? {} : { autoDispatch }),
     items: input.documentIds.map(
       (documentId) =>
         preWriteOutcomes.get(documentId) ?? {
@@ -184,6 +218,7 @@ export async function transitionTripDocumentsBatch(
           outcome: 'not_found',
         },
     ),
-    tripStatus: written.tripStatus,
+    // O status lido na escrita do lote é anterior ao gatilho: quem despachou foi ele.
+    tripStatus: autoDispatch?.outcome === 'dispatched' ? 'dispatched' : written.tripStatus,
   }
 }

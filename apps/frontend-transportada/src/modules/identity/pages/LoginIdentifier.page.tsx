@@ -16,6 +16,10 @@ import {
   writeCachedInstallationBrand,
 } from '../shared/installationBrandCache.service'
 import { resolveLoginHint } from '../shared/loginHintClient.service'
+import {
+  readRememberedLoginIdentifier,
+  rememberLoginIdentifier,
+} from '../shared/loginIdentifierMemory.service'
 import styles from '../styles/loginIdentifier.module.css'
 
 /**
@@ -28,7 +32,8 @@ import styles from '../styles/loginIdentifier.module.css'
  */
 export function LoginIdentifierPage() {
   const { t } = useTranslation('identity')
-  const [identifier, setIdentifier] = useState('')
+  /** Quem voltou pelo "Trocar de usuário" encontra o que digitou, para corrigir em vez de redigitar. */
+  const [identifier, setIdentifier] = useState(readRememberedLoginIdentifier)
   const [isSubmitting, setSubmitting] = useState(false)
   /** A marca da última visita é o primeiro quadro: sem ela, a tela nascia com o produto e trocava. */
   const [brand, setBrand] = useState<InstallationBrand | undefined>(readCachedInstallationBrand)
@@ -55,6 +60,7 @@ export function LoginIdentifierPage() {
     if (typed === '' || isSubmitting) return
 
     setSubmitting(true)
+    rememberLoginIdentifier(typed)
     /**
      * A resolução é conveniência, nunca porteiro: se a API não responder, seguimos com o que a
      * pessoa digitou. Barrar a entrada porque uma consulta de conforto falhou seria trocar um
@@ -105,6 +111,8 @@ export function LoginIdentifierPage() {
             autoComplete="username"
             autoFocus
             onChange={(event) => setIdentifier(event.target.value)}
+            /** Selecionado, o valor lembrado some ao primeiro caractere de quem vai digitar outro. */
+            onFocus={(event) => event.currentTarget.select()}
             type="text"
             value={identifier}
           />

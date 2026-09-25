@@ -5,9 +5,16 @@
  * de upload — duas URLs com tipos diferentes e o mesmo tamanho saem idênticas — então é aqui, com o
  * objeto já enviado, que o servidor confere tipo, tamanho e sha256 de verdade (`head()` mais os
  * bytes), antes de o objeto virar `stored_objects` e poder ser referenciado por uma ocorrência.
+ *
+ * Os bytes conferidos são copiados para uma chave final nova: a URL de subida vale 15 minutos e
+ * seguiria valendo depois da confirmação — apontar o registro para ela deixaria um PUT tardio do
+ * mesmo tamanho trocar o arquivo já conferido. A chave da subida sai depois de o registro gravado.
  */
+import { randomBytes } from 'node:crypto'
+
 import {
   assertOccurrenceAttachmentAccepted,
+  buildOccurrenceUploadFinalObjectKey,
   OCCURRENCE_PDF_MAX_BYTES,
   OCCURRENCE_PHOTO_MAX_BYTES,
   isOccurrencePdf,
@@ -58,7 +65,8 @@ export type OccurrenceUploadConfirmationPort = {
   }): Promise<null | PendingOccurrenceUpload>
 }
 
-export type OccurrenceUploadReadStoragePort = {
+export type OccurrenceUploadConfirmationStoragePort = {
+  deleteObject(input: { readonly bucket: string; readonly key: string }): Promise<void>
   getObjectStream(input: {
     readonly bucket: string
     readonly key: string
@@ -67,15 +75,74 @@ export type OccurrenceUploadReadStoragePort = {
     readonly bucket: string
     readonly key: string
   }): Promise<{ readonly contentLength: number } | undefined>
+  storeObject(input: {
+    readonly body: Uint8Array
+    readonly bucket: string
+    readonly contentLength: number
+    readonly contentType: string
+    readonly key: string
+    readonly sha256: string
+  }): Promise<unknown>
 }
 
 export type ConfirmOccurrenceUploadInput = {
   readonly companyId: string
   readonly id: string
+  /** Só para teste; em produção, 256 bits aleatórios. */
+  readonly newObjectToken?: () => string
   readonly now: Date
   readonly repository: OccurrenceUploadConfirmationPort
-  readonly storage: OccurrenceUploadReadStoragePort
+  readonly storage: OccurrenceUploadConfirmationStoragePort
   readonly tripId: string
+}
+
+function newOccurrenceObjectToken(): string {
+  return randomBytes(32).toString('base64url')
+}
+
+type ObjectLocation = { readonly bucket: string; readonly key: string }
+
+/** Grava a cópia final dos bytes conferidos e aponta o registro para ela. */
+async function confirmIntoFinalCopy(params: {
+  readonly bytes: Uint8Array
+  readonly input: ConfirmOccurrenceUploadInput
+  readonly pending: PendingOccurrenceUpload
+}): Promise<{ readonly confirmed: boolean; readonly finalLocation: ObjectLocation }> {
+  const { bytes, input, pending } = params
+  const sha256 = sha256Hex(bytes)
+  const finalLocation = {
+    bucket: pending.bucket,
+    key: buildOccurrenceUploadFinalObjectKey({
+      companyId: input.companyId,
+      token: (input.newObjectToken ?? newOccurrenceObjectToken)(),
+      tripId: input.tripId,
+    }),
+  }
+  await input.storage.storeObject({
+    ...finalLocation,
+    body: bytes,
+    contentLength: bytes.byteLength,
+    contentType: pending.mimeType,
+    sha256,
+  })
+
+  try {
+    const outcome = await input.repository.confirmUpload({
+      bucket: pending.bucket,
+      companyId: input.companyId,
+      id: input.id,
+      mimeType: pending.mimeType,
+      now: input.now,
+      objectKey: finalLocation.key,
+      sha256,
+      sizeBytes: bytes.byteLength,
+    })
+    return { confirmed: outcome.confirmed, finalLocation }
+  } catch (error) {
+    /** A cópia final sem registro não tem dono: sai do bucket, melhor esforço. */
+    await Promise.allSettled([input.storage.deleteObject(finalLocation)])
+    throw error
+  }
 }
 
 export type ConfirmOccurrenceUploadResult = { readonly id: string }
@@ -139,23 +206,20 @@ export async function confirmOccurrenceUpload(
     mimeType: pending.mimeType,
   })
 
-  const outcome = await input.repository.confirmUpload({
-    bucket: pending.bucket,
-    companyId: input.companyId,
-    id: input.id,
-    mimeType: pending.mimeType,
-    now: input.now,
-    objectKey: pending.objectKey,
-    sha256: sha256Hex(bytes),
-    sizeBytes: bytes.byteLength,
-  })
-  if (outcome.confirmed) return { id: input.id }
+  const outcome = await confirmIntoFinalCopy({ bytes, input, pending })
+  if (outcome.confirmed) {
+    /** Falha em apagar deixa um objeto que nada referencia — nunca o registro apontando para ele. */
+    await Promise.allSettled([input.storage.deleteObject(location)])
+    return { id: input.id }
+  }
 
   /**
    * Achado [2]: perdeu a corrida — outra confirmação concorrente já fechou `pending → confirmed`
    * entre a leitura acima e este `UPDATE`. O mesmo recall do achado [1] devolve o resultado da
-   * vencedora em vez de um 500 de violação de chave única.
+   * vencedora em vez de um 500 de violação de chave única. A cópia final desta chamada não virou
+   * registro e sai do bucket; a chave da subida é da vencedora apagar.
    */
+  await Promise.allSettled([input.storage.deleteObject(outcome.finalLocation)])
   const wonByConcurrentCall = await input.repository.findConfirmedUpload({
     companyId: input.companyId,
     id: input.id,

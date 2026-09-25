@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'bun:test'
 
 import {
@@ -186,5 +188,28 @@ describe('a fila offline', () => {
 
     expect(calls).toBe(0)
     expect(result).toEqual({ rejected: [], remaining: 0, sent: 0 })
+  })
+})
+
+/**
+ * Loja criada em parâmetro padrão nasce de novo a cada render; o efeito de montagem depende dela,
+ * re-roda a cada render e emenda drenagens sem fim (`isSyncing` preso). Achado pelo smoke da spec
+ * 189 (T5.4).
+ */
+describe('as lojas da fila são estáveis entre renders', () => {
+  const HOOK = new URL('../../src/modules/driver-trip/hooks/useDriverTrip.hook.ts', import.meta.url)
+
+  it('nenhuma loja é criada em parâmetro padrão do hook', () => {
+    const source = readFileSync(HOOK, 'utf8')
+    const signature = source.slice(
+      source.indexOf('export function useDriverTrip('),
+      source.indexOf(') {', source.indexOf('export function useDriverTrip(')),
+    )
+    expect(signature).not.toContain('= createIndexedDb')
+  })
+
+  it('as lojas padrão nascem uma vez, no inicializador do estado', () => {
+    const source = readFileSync(HOOK, 'utf8')
+    expect(source).toMatch(/useState\(\(\) => \(\{[\s\S]*?createIndexedDbQueueStore\(\)/u)
   })
 })

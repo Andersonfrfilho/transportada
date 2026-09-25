@@ -6,10 +6,19 @@ Levantado em 2026-09-13 por leitura do commit da 144 (`work/spec-144`) e do `dis
 `@adatechnology/notification-module`. **Nada foi medido em execução.** A primeira task de cada fase
 confere a premissa dela antes de construir.
 
+⚠️ **Emenda (spec 189/ADR-0075, T8.3, 2026-09-25):** o PWA do motorista deixou de ser
+`apps/frontend-transportada` (o painel) e virou `apps/frontend-driver`, uma app própria. A premissa
+abaixo "o service worker é `generateSW`" descrevia o painel em 13/09 e **não vale mais** para onde a
+Fase 3 (T007–T011) executa: `apps/frontend-driver/src/sw.ts` já nasce `injectManifest`, com
+`registerType: 'prompt'` — ver `apps/frontend-driver/CLAUDE.md` e a ADR-0075 §5. T008 passa a ser só
+"acrescentar `push`/`notificationclick`", sem troca de modo. T006 (tela do código) e T010 (inscrição)
+também mudam de alvo — ver a nota no topo do `tasks.md`.
+
 - O INBOX é síncrono: `sendNotification` grava a entrega como `sent` e publica no realtime em memória.
 - O corpo da notificação é gravado em texto puro, em `notification.notifications` (`body` e `payload`).
 - `PUSH_DRIVER` conhece só `expo` e `fcm`, e `notification.devices` já aceita `platform: 'web'`.
-- O service worker é `generateSW` (`vite.config.ts:79-120`), sem `importScripts`.
+- ~~O service worker é `generateSW` (`vite.config.ts:79-120`), sem `importScripts`.~~ Superada pela
+  emenda acima: hoje é `injectManifest`, em `apps/frontend-driver`.
 - A CSP já tem `worker-src 'self'` e `manifest-src 'self'`, e o Web Push por VAPID não exige mudar o
   `connect-src`.
 
@@ -80,8 +89,10 @@ Todas aditivas, com rollback ao lado:
 
 ## Riscos
 
-- A troca de `generateSW` para `injectManifest` pode quebrar o PWA inteiro. É uma task isolada, com o
-  smoke do PWA verde antes de seguir.
+- ~~A troca de `generateSW` para `injectManifest` pode quebrar o PWA inteiro.~~ Não se aplica mais
+  (emenda spec 189/ADR-0075, T8.3): `apps/frontend-driver/src/sw.ts` já é `injectManifest`, então a
+  T008 só acrescenta handlers. Mesmo assim, o smoke do PWA fica verde antes de seguir — é o service
+  worker de uma app inteira que muda.
 - A dependência de Web Push no Bun (D4): decidida em ADR na T007, antes de qualquer código de envio.
 - O primeiro deploy liga o código nas quatro operações do WhatsApp para quem já usa o bot (D1). O
   lançamento precisa avisar.

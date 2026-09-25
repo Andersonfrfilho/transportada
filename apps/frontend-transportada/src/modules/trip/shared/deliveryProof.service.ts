@@ -10,7 +10,7 @@
  * O serviço é puro porque o teste desta app não tem DOM: o comportamento se prova na função.
  */
 
-export type DeliveryProofKind = 'photo' | 'signature'
+export type DeliveryProofKind = 'photo' | 'signature' | 'cargo'
 
 export type DeliveryProof = Readonly<{
   createdAt: string
@@ -36,6 +36,7 @@ export type DeliveryProofState =
   | 'returned'
 
 export type DeliveryProofView = Readonly<{
+  cargoPhotos: readonly DeliveryProof[]
   deliveredAt: null | string
   photos: readonly DeliveryProof[]
   receiverName: null | string
@@ -48,9 +49,14 @@ export type DeliveryProofView = Readonly<{
  * Devolvida é o quarto fato, e **não é entrega**: chamá-la de "entregue sem comprovante" seria
  * mentira sobre o que aconteceu na rua.
  *
- * O nome de quem recebeu sai **só da assinatura**. Foto de canhoto não tem quem assine — o CHECK
- * `trip_delivery_proofs_receiver_check` já garante isso no banco —, e preencher o nome a partir de
- * uma foto seria inventar a identidade de um terceiro.
+ * O nome de quem recebeu sai, nesta ordem, da **assinatura digital** (app do motorista, onde o
+ * recebedor está) e do **canhoto do escritório**. O escritório não colhe assinatura (ADR-0067 §5):
+ * cumpre a exigência com a foto do canhoto assinado e o nome que o operador digita — e o CHECK
+ * `trip_delivery_proofs_receiver_check` garante que `photo` só carrega nome quando o canal é
+ * `office`, então ler o nome dali não inventa a identidade de ninguém. Foto de carga **nunca**
+ * fornece nome: é registro da mercadoria, não de quem a recebeu.
+ *
+ * Pelo mesmo motivo, foto de carga sozinha não faz a entrega contar como "com comprovante".
  */
 export function resolveDeliveryProofView(input: {
   readonly document: DeliveryProofDocument
@@ -58,10 +64,17 @@ export function resolveDeliveryProofView(input: {
 }): DeliveryProofView {
   const photos = input.proofs.filter((proof) => proof.kind === 'photo')
   const signatures = input.proofs.filter((proof) => proof.kind === 'signature')
-  const receiverName = signatures.find((proof) => proof.receiverName !== '')?.receiverName ?? null
+  const cargoPhotos = input.proofs.filter((proof) => proof.kind === 'cargo')
+
+  // Prioridade: assinatura > photo > nada. Foto de carga nunca fornece nome (ADR-0067 §5).
+  const receiverName =
+    signatures.find((proof) => proof.receiverName !== '')?.receiverName ??
+    photos.find((proof) => proof.receiverName !== '')?.receiverName ??
+    null
 
   if (input.document.returnedAt !== null) {
     return {
+      cargoPhotos,
       deliveredAt: null,
       photos,
       receiverName,
@@ -72,14 +85,23 @@ export function resolveDeliveryProofView(input: {
   }
 
   if (input.document.deliveredAt === null) {
-    return { deliveredAt: null, photos, receiverName, signatures, state: 'not-delivered' }
+    return {
+      cargoPhotos,
+      deliveredAt: null,
+      photos,
+      receiverName,
+      signatures,
+      state: 'not-delivered',
+    }
   }
 
   return {
+    cargoPhotos,
     deliveredAt: input.document.deliveredAt,
     photos,
     receiverName,
     signatures,
-    state: input.proofs.length === 0 ? 'delivered-without-proof' : 'delivered-with-proof',
+    state:
+      photos.length + signatures.length === 0 ? 'delivered-without-proof' : 'delivered-with-proof',
   }
 }

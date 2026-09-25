@@ -3,6 +3,12 @@
 - **Status:** aceito
 - **Data:** 2026-08-27
 - **Contexto:** spec 063. Consome a 060 (agendamento e repasse) e a 057 (execução de campo).
+- **Revisada por:** ADR-0075 (spec 189). O padrão de app separada por perfil, usado aqui para o
+  portal do contratante, foi estendido ao motorista: o "PWA do motorista" citado no §1 e nas
+  Consequências deixou de ser uma superfície do painel (`/minha-viagem`) e passa a ser
+  `apps/frontend-driver`, com bundle, domínio e deploy próprios. O consentimento e o expurgo do
+  rastro ao vivo do §5 continuam os mesmos — a ADR-0075 §8 só acrescenta a leitura que faltava
+  (`GET /me/location-consent`, spec 189 T7.4) ao `PUT` que já existia aqui.
 
 ## Contexto
 

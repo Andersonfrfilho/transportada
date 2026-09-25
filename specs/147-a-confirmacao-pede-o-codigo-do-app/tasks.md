@@ -5,6 +5,27 @@
 conferir que `apps/api-transportada/src/whatsapp-commands/` existe. Se não existir, **pare**: a 144
 ainda não foi publicada.
 
+⚠️ **Emendada pela spec 189 (ADR-0075, T8.3) — o PWA do motorista virou `apps/frontend-driver`.**
+Três tasks mudam de alvo:
+
+- **T006** vale para as **duas** apps (`apps/frontend-transportada` e `apps/frontend-driver`), mas só
+  na **tela do código** — a leitura de `GET /me/whatsapp-confirmation-codes/current` e a exibição
+  "mostra uma vez" entram nas duas, cada uma com sua própria cópia (`apps/frontend-driver` copia por
+  valor, com o cabeçalho da ADR-0075 §7).
+- **T008** deixa de ser "trocar `generateSW` por `injectManifest` no painel": `apps/frontend-driver`
+  **já nasce** `injectManifest` (ADR-0075 §5), então a T008 passa a ser "acrescentar `push` e
+  `notificationclick` a `apps/frontend-driver/src/sw.ts`". O painel não ganha Web Push — ele fica só
+  com o sino (`@adatechnology/notification-ui`), e migrar o SW dele é spec futura. O risco descrito no
+  `plan.md` ("a troca de `generateSW` para `injectManifest` pode quebrar o PWA inteiro") não existe
+  mais: não há troca de modo, só handlers novos num `sw.ts` que já é `injectManifest`.
+- **T010** (inscrição de Web Push por gesto do usuário) roda **só** em `apps/frontend-driver` — é lá
+  que o app instalado importa para o iPhone (iOS 16.4+ só entrega Web Push a PWA instalado), e é o
+  motivo original da separação da spec 189.
+
+`plan.md` mantém a premissa "o service worker é `generateSW`" como estava no levantamento original
+(13/09), porque descrevia `apps/frontend-transportada` na época; ela não vale mais para onde a T008
+executa hoje — ver a nota acima.
+
 Todas as decisões estão fechadas (D1, D2, D4 e D6 respondidas pelo usuário em 2026-09-13; ver
 `spec.md`).
 
@@ -42,8 +63,11 @@ Todas as decisões estão fechadas (D1, D2, D4 e D6 respondidas pelo usuário em
 - [ ] **T005** Template só INBOX `whatsapp.confirmation-code`, sem o valor no corpo, e a lista de
       canais só com INBOX (o catálogo hoje herda o e-mail). Contrato do AC5.
 - [ ] **T006** `GET /me/whatsapp-confirmation-codes/current` na allowlist por extenso da T005b da 144,
-      abrindo o selado só para o próprio ator e só com o código vivo. A tela do código no painel e no
-      PWA, com esqueleto, contagem e "mostra uma vez". Contratos de dono, de estado e de não exposição.
+      abrindo o selado só para o próprio ator e só com o código vivo. A tela do código, com esqueleto,
+      contagem e "mostra uma vez" — em `apps/frontend-transportada` (painel) **e** em
+      `apps/frontend-driver` (emenda spec 189/ADR-0075, T8.3: o PWA do motorista é outra app hoje;
+      cada uma ganha sua própria cópia da tela). Contratos de dono, de estado e de não exposição, nas
+      duas apps.
 
 ## Fase 3 — Web Push
 
@@ -52,14 +76,18 @@ Todas as decisões estão fechadas (D1, D2, D4 e D6 respondidas pelo usuário em
 - [ ] **T007** 🧠 Medir `web-push` (npm) no Bun: gerar par VAPID, cifrar `aes128gcm` e mandar para um
       endpoint fake. Se falhar, implementar com `crypto` nativo (RFC 8291/8292). ADR com a decisão e a
       medida **antes** de qualquer código de envio.
-- [ ] **T008** 🧠 `generateSW` → `injectManifest` com `src/sw.ts`: o precache atual, `push` e
-      `notificationclick` abrindo a tela do código. Smoke do PWA verde, e o `Cache-Control` do `sw.js`
-      no `server.ts` conferido. Contrato do service worker.
+- [ ] **T008** 🧠 (emenda spec 189/ADR-0075, T8.3) O SW da **app do motorista**
+      (`apps/frontend-driver/src/sw.ts`, que já é `injectManifest` desde que a app nasceu): acrescentar
+      `push` e `notificationclick`, abrindo a tela do código. Smoke do PWA verde, e o `Cache-Control` do
+      `sw.js` no `server.ts` do motorista conferido. Contrato do service worker. Sem troca de modo — o
+      risco do `plan.md` ("`generateSW` → `injectManifest` pode quebrar o PWA inteiro") não se aplica
+      mais.
 - [ ] **T009** Chaves VAPID no ambiente, validadas no boot (a privada nunca chega ao bundle), e a rota
       da chave pública.
 - [ ] **T010** Inscrição por gesto do usuário: `POST`/`DELETE /me/web-push-subscriptions`, em
       `notification.devices` com `platform: 'web'`, na allowlist da T005b. Aviso de que no iPhone é
-      preciso instalar o app.
+      preciso instalar o app. (Emenda spec 189/ADR-0075, T8.3: a inscrição entra **só** em
+      `apps/frontend-driver` — é o app que o motorista instala; o painel fica sem Web Push.)
 - [ ] **T011** Driver de envio `web`, que manda só "Há um código de confirmação", nunca o valor. As
       inscrições expiradas (410) são removidas. Integração do AC6.
 

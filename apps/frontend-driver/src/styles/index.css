@@ -1,0 +1,262 @@
+/* Cópia por valor de apps/frontend-client/src/styles/index.css (ADR-0075 §7). */
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+/**
+ * Os tokens são os do painel (`frontend-transportada/src/styles/index.css`), pela cópia do portal.
+ * O design system do painel chega com o módulo da viagem (ADR-0075 §7); esta folha só sustenta a
+ * tela provisória.
+ */
+:root {
+  color-scheme: dark;
+  --color-alert: #ff5f57;
+  --color-asphalt: #10222c;
+  --color-copper: #d58a47;
+  --color-fog: #f0f2ee;
+  --color-graphite: #1c2b33;
+  --color-ready: #6aae8c;
+  --color-slate: #8fa3ad;
+  /* O texto que senta sobre o cobre: cópia do token do painel (ui-button-default). */
+  --color-ink-on-accent: #10222c;
+  --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+  --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  --font-utility: 'SFMono-Regular', Consolas, monospace;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --layout-gutter: var(--space-8);
+  --layout-max-width: 60rem;
+  --layout-width: min(100% - var(--layout-gutter), var(--layout-max-width));
+  --radius-panel: 0.75rem;
+  /* Cópia dos tokens de campo/controle do painel (ADR-0075 §7) — o design system caseiro usa os dois. */
+  --field-height: 3rem;
+  --field-height-compact: 2.4rem;
+  --field-padding: var(--space-3);
+  --field-padding-compact: var(--space-2) var(--space-3);
+  --field-font-size: 0.9rem;
+  --field-font-size-compact: 0.82rem;
+  --control-height: var(--field-height);
+  /* Alvo de toque de 44px do `web.md` §10 — sem variante compacta nesta app (T3.6). */
+  --touch-target: 2.75rem;
+  --icon-size-sm: 0.9rem;
+  --icon-size-md: 1.1rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--color-asphalt);
+  color: var(--color-fog);
+  font-family: var(--font-body);
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Ícone e rótulo no mesmo eixo, separados pelo token — cópia por valor do painel (`web.md` §9). */
+button:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.ui-button:hover {
+  transform: translateY(-1px);
+}
+
+.ui-button-size-default {
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-5);
+}
+
+.ui-button-default {
+  border-color: var(--color-copper);
+  color: var(--color-ink-on-accent);
+  background: var(--color-copper);
+}
+
+.ui-button-secondary {
+  border-color: color-mix(in srgb, var(--color-slate) 30%, transparent);
+  color: var(--color-fog);
+  background: color-mix(in srgb, var(--color-graphite) 85%, transparent);
+}
+
+.ui-button-ghost {
+  border-color: color-mix(in srgb, var(--color-slate) 20%, transparent);
+  color: color-mix(in srgb, var(--color-fog) 88%, var(--color-slate) 12%);
+  background: color-mix(in srgb, var(--color-asphalt) 48%, transparent);
+}
+
+.ui-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
+.environment-banner {
+  width: var(--layout-width);
+  margin: var(--space-4) auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  color: var(--color-fog);
+}
+
+.page {
+  margin-inline: auto;
+  padding-block: var(--space-8);
+  width: var(--layout-width);
+}
+
+.page__title {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  letter-spacing: 0.02em;
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+}
+
+.page__lead {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+/**
+ * Code M7 (spec 189 T9.2): `LoginIdentifier`/`DriverForbidden` (a mesma tela provisória do
+ * comentário acima) usavam `.page__subtitle`/`.panel`/`.panel__row`/`.panel__label` e o `input` cru
+ * sem que nenhuma das cinco existisse aqui — cópia por valor incompleta de
+ * `frontend-client/src/styles/index.css`, que as tem todas. Completando, não inventando.
+ */
+.page__subtitle {
+  color: var(--color-slate);
+  margin: 0 0 var(--space-6);
+}
+
+.panel {
+  background: var(--color-graphite);
+  border-radius: var(--radius-panel);
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+}
+
+.panel__row {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.panel__label {
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+/**
+ * Classe, não o seletor de elemento cru (`input {}`): a app já tem `<input>` sem `className` em
+ * `WhatsAppPhonePanel`/`DriverStopCard`, estilizados por regra própria do módulo deles
+ * (`.field input`, `.proofField input[type='text']`) — um `input {}` global reskinaria os dois sem
+ * pedido nenhum. Esta classe só alcança quem a usa.
+ */
+.panel__input {
+  background: var(--color-asphalt);
+  border: 1px solid var(--color-slate);
+  border-radius: 0.5rem;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  width: 100%;
+}
+
+/**
+ * A entrada é a primeira metade do login; a segunda é o tema do Keycloak
+ * (`deploy/keycloak/theme/login`). As duas têm a mesma cara: marca no alto, textos no centro e
+ * campo de canto reto (o `.field-input` de lá).
+ */
+.login__panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+}
+
+.login__brand {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: center;
+  margin-bottom: var(--space-2);
+  text-align: center;
+}
+
+.login__logo {
+  height: 3rem;
+  max-width: 100%;
+  object-fit: contain;
+  width: auto;
+}
+
+.login__name {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.login__title {
+  margin: 0;
+  text-align: center;
+}
+
+.login__subtitle {
+  margin: 0 0 var(--space-2);
+  text-align: center;
+}
+
+.login__label {
+  margin-top: var(--space-2);
+}
+
+.login__input {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+}
+
+.login__hint {
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  margin: 0;
+  text-align: center;
+}
+
+.login__submit {
+  width: 100%;
+}

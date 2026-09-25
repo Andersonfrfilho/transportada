@@ -29,6 +29,13 @@
     "attachments_one": "{{count}} attachment",
     "attachments_other": "{{count}} attachments",
     "back": "Back",
+    "discard": {
+      "confirm": "Discard anyway",
+      "failed": "Could not discard right now. Try again.",
+      "keep": "Keep",
+      "open": "Discard",
+      "warning": "The delivery was not recorded; talk to the office. Discarding removes this item from the device."
+    },
     "empty": "Nothing waiting to be sent.",
     "kind": {
       "arrive": "Arrival",
@@ -48,6 +55,23 @@
       "rejected": "Rejected by the server: {{cause}}"
     },
     "title": "Pending events"
+  },
+  "legacy": {
+    "install": {
+      "address": "New address: {{address}}",
+      "body": "The driver app now has its own address, and this icon belongs to the old app. Open the new address in the browser, install the app from the home screen and remove this icon.",
+      "open": "Open the new app",
+      "title": "Install the new app"
+    },
+    "pending": {
+      "done": "Everything was sent. You can open the new app now.",
+      "go": "Go to the new app",
+      "intro": "The driver app moved to a new address. Before going to the new app, finish sending what is left on this device."
+    },
+    "sessionExpired": {
+      "message": "Your session expired. Sign in again to keep sending.",
+      "reload": "Sign in again"
+    }
   },
   "loadSheet": {
     "barcodeLabel": "Barcode for the access key of NF-e {{number}}",

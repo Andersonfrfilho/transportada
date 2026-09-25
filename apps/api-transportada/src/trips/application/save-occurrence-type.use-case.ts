@@ -5,7 +5,10 @@
  * o texto do e-mail mora só lá. Assunto/corpo próprios são legado: continuam gravados na linha
  * antiga, e o cadastro com chave os zera de propósito, porque o template manda.
  */
-import { OccurrenceEmailTemplateNotFoundError } from '../domain/trip.error.js'
+import {
+  OccurrenceEmailTemplateNotFoundError,
+  OccurrenceTypeLeavesDocumentBehindRequiresSeparationError,
+} from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
@@ -34,6 +37,12 @@ export type SaveOccurrenceTypeValues = {
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
+  /**
+   * Spec 185 (RF6, ADR-0074 §4): só tipo de separação pode "deixar a nota para trás" —
+   * `saveOccurrenceTypeWithTemplate` recusa `true` com `stage !== 'separation'` antes de gravar.
+   * Ausente é "não mexa", nunca `false` — mesmo motivo de `attachmentMode` acima.
+   */
+  readonly leavesDocumentBehind?: boolean | undefined
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
@@ -58,6 +67,10 @@ export type SaveOccurrenceTypeWithTemplateInput = {
 export async function saveOccurrenceTypeWithTemplate(
   input: SaveOccurrenceTypeWithTemplateInput,
 ): Promise<OccurrenceTypeRecord> {
+  if (input.values.leavesDocumentBehind === true && input.values.stage !== 'separation') {
+    throw new OccurrenceTypeLeavesDocumentBehindRequiresSeparationError()
+  }
+
   const { emailTemplateKey } = input.values
   if (emailTemplateKey === null) return input.save(input.values)
 

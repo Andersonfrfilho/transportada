@@ -577,6 +577,7 @@ import { createContractorPortalBindingRoutes } from './contractor-portal/present
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
 import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
+import { createReadLocationConsentUseCase } from './trips/application/read-location-consent.use-case.js'
 import { createRecordTripLocationUseCase } from './trips/application/record-trip-location.use-case.js'
 import { DrizzleTripLocationRepository } from './trips/infrastructure/drizzle-trip-location.repository.js'
 import { createScheduleContractorDeliveryUseCase } from './contractor-portal/application/schedule-contractor-delivery.use-case.js'
@@ -1070,6 +1071,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocumentsBatch({
         action: input.action,
         actorUserId: input.context.userId,
+        autoDispatch: { logger, repository: whatsappTripRouteRepository },
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentIds: input.documentIds,
@@ -1095,6 +1097,7 @@ export function bootstrap(): Bun.Server<undefined> {
       transitionTripDocument({
         action: 'load',
         actorUserId: input.context.userId,
+        autoDispatch: { logger, repository: whatsappTripRouteRepository },
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         companyId: input.context.companyId,
         documentId: input.documentId,
@@ -1119,6 +1122,11 @@ export function bootstrap(): Bun.Server<undefined> {
         registerTripOccurrence({
           actorUserId: input.actorUserId,
           ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
+          autoDispatch: {
+            channel: TRIP_FIELD_CHANNELS.whatsapp,
+            logger,
+            repository: whatsappTripRouteRepository,
+          },
           companyId: input.companyId,
           documentId: input.documentId,
           note: input.note,
@@ -2126,6 +2134,7 @@ function createApplicationRoutes({
     deliveryAddressOverrideRepository,
     documentRepository: tripDocumentRepository,
     locationRepository: tripStopLookupRepository,
+    logger,
     routeRepository: tripRouteRepository,
     stopRepository: tripStopLookupRepository,
     suggestCharges: suggestDeliveryCharges,
@@ -2585,6 +2594,15 @@ function createApplicationRoutes({
   })
   const attachmentReviewRepository =
     createDrizzleAggregateApplicationAttachmentReviewRepository(database)
+  /**
+   * Code B6 (spec 189 T9.2): a mesma resolução para as três rotas de `me-location.routes.ts` — o
+   * `GET` e o `PUT`/`POST` chamavam `findDriverIdByMembership` por dois caminhos separados, e uma
+   * mudança na resolução (ex.: cache, outro repositório) só pegaria um dos dois por engano.
+   */
+  const resolveMeLocationDriverId = (input: {
+    readonly companyId: string
+    readonly membershipId: string
+  }) => currentDriverTripRepository.findDriverIdByMembership(input)
 
   return [
     ...createCompanySettingsRoutes({
@@ -3193,8 +3211,12 @@ function createApplicationRoutes({
       },
     }),
     ...createMeLocationRoutes({
+      readConsent: createReadLocationConsentUseCase({
+        repository: tripLocationRepository,
+        resolveDriverId: resolveMeLocationDriverId,
+      }),
       recordLocation: (input) => recordTripLocation(input),
-      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      resolveDriverId: resolveMeLocationDriverId,
       setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
     ...createWhatsAppPhoneRoutes({
@@ -3362,6 +3384,7 @@ function createApplicationRoutes({
           companyId: input.companyId,
           documentId: input.documentId,
           idempotencyKey: input.idempotencyKey,
+          kind: input.kind,
           officeAudit: input.officeAudit,
           target: input.target,
           unitOfWork: driverFieldReports,
@@ -3479,6 +3502,7 @@ function createApplicationRoutes({
               emailSubject: input.emailSubject,
               emailsContractor: input.emailsContractor,
               emailTemplateKey: input.emailTemplateKey,
+              leavesDocumentBehind: input.leavesDocumentBehind,
               name: input.name,
               notifies: input.notifies,
               occurrenceTypeId: input.occurrenceTypeId,
@@ -3570,6 +3594,11 @@ function createApplicationRoutes({
                 registerTripOccurrence({
                   actorUserId: input.context.userId,
                   attachment: input.attachment,
+                  autoDispatch: {
+                    channel: TRIP_FIELD_CHANNELS.backoffice,
+                    logger,
+                    repository: tripRouteRepository,
+                  },
                   companyId: input.context.companyId,
                   documentId: input.documentId,
                   note: input.note,

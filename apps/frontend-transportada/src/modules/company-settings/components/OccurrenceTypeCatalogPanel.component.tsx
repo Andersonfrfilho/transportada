@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
+import { Tooltip } from '@/components/ui/tooltip'
 
 import {
   OCCURRENCE_REDELIVERY_POLICY,
@@ -35,6 +36,8 @@ export type OccurrenceTypeCatalogPanelProps = Readonly<{
     /** Spec 166 RF9: desligado, o campo de item na tela de registro vira seleção única. */
     readonly allowsMultipleItems: boolean
     readonly emailTemplateKey: null | string
+    /** Spec 185 T6.1 (D2, RF6): só vale para `stage: 'separation'` — o CHECK do banco recusa em `delivery`. */
+    readonly leavesDocumentBehind: boolean
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
@@ -78,6 +81,8 @@ export function OccurrenceTypeCatalogPanel({
   const [redeliveryPolicy, setRedeliveryPolicy] = useState<OccurrenceRedeliveryPolicy>(
     OCCURRENCE_REDELIVERY_POLICY.unset,
   )
+  /** Spec 185 D2/RF6: padrão desligado — nenhum tipo novo tira nota da viagem sem decisão explícita. */
+  const [leavesDocumentBehind, setLeavesDocumentBehind] = useState(false)
 
   const redeliveryPolicyOptions = [
     {
@@ -115,6 +120,7 @@ export function OccurrenceTypeCatalogPanel({
       active: true,
       allowsMultipleItems,
       emailTemplateKey: emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : emailTemplateKey,
+      leavesDocumentBehind: stage === TRIP_OCCURRENCE_STAGE.separation && leavesDocumentBehind,
       name,
       notifies,
       occurrenceTypeId: null,
@@ -126,6 +132,7 @@ export function OccurrenceTypeCatalogPanel({
     setEmailTemplateKey(OCCURRENCE_TEMPLATE_NONE)
     setAllowsMultipleItems(true)
     setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
+    setLeavesDocumentBehind(false)
   }
 
   function handleEditTemplates() {
@@ -168,6 +175,7 @@ export function OccurrenceTypeCatalogPanel({
                       active: type.active,
                       allowsMultipleItems: type.allowsMultipleItems,
                       emailTemplateKey: type.emailTemplateKey,
+                      leavesDocumentBehind: type.leavesDocumentBehind,
                       name: type.name,
                       notifies: value,
                       occurrenceTypeId: type.id,
@@ -185,6 +193,7 @@ export function OccurrenceTypeCatalogPanel({
                       active: value,
                       allowsMultipleItems: type.allowsMultipleItems,
                       emailTemplateKey: type.emailTemplateKey,
+                      leavesDocumentBehind: type.leavesDocumentBehind,
                       name: type.name,
                       notifies: type.notifies,
                       occurrenceTypeId: type.id,
@@ -202,6 +211,7 @@ export function OccurrenceTypeCatalogPanel({
                       active: type.active,
                       allowsMultipleItems: value,
                       emailTemplateKey: type.emailTemplateKey,
+                      leavesDocumentBehind: type.leavesDocumentBehind,
                       name: type.name,
                       notifies: type.notifies,
                       occurrenceTypeId: type.id,
@@ -218,6 +228,7 @@ export function OccurrenceTypeCatalogPanel({
                       active: type.active,
                       allowsMultipleItems: type.allowsMultipleItems,
                       emailTemplateKey: type.emailTemplateKey,
+                      leavesDocumentBehind: type.leavesDocumentBehind,
                       name: type.name,
                       notifies: type.notifies,
                       occurrenceTypeId: type.id,
@@ -228,6 +239,29 @@ export function OccurrenceTypeCatalogPanel({
                   options={redeliveryPolicyOptions}
                   value={type.redeliveryPolicy}
                 />
+                {/* Spec 185 T6.1 (D2/RF6): só para tipos de separação — o CHECK do banco recusa em `delivery`. */}
+                {type.stage === TRIP_OCCURRENCE_STAGE.separation ? (
+                  <Tooltip label={t('occurrenceTypeCatalog.leavesDocumentBehindHint')}>
+                    <Checkbox
+                      checked={type.leavesDocumentBehind}
+                      disabled={!canManage || isSaving}
+                      label={t('occurrenceTypeCatalog.leavesDocumentBehind')}
+                      onChange={(value) =>
+                        onSave({
+                          active: type.active,
+                          allowsMultipleItems: type.allowsMultipleItems,
+                          emailTemplateKey: type.emailTemplateKey,
+                          leavesDocumentBehind: value,
+                          name: type.name,
+                          notifies: type.notifies,
+                          occurrenceTypeId: type.id,
+                          redeliveryPolicy: type.redeliveryPolicy,
+                          stage: type.stage,
+                        })
+                      }
+                    />
+                  </Tooltip>
+                ) : null}
               </div>
             ))}
           </fieldset>
@@ -274,6 +308,16 @@ export function OccurrenceTypeCatalogPanel({
             options={redeliveryPolicyOptions}
             value={redeliveryPolicy}
           />
+          {/* Spec 185 T6.1 (D2/RF6): só para tipos de separação — o CHECK do banco recusa em `delivery`. */}
+          {stage === TRIP_OCCURRENCE_STAGE.separation ? (
+            <Tooltip label={t('occurrenceTypeCatalog.leavesDocumentBehindHint')}>
+              <Checkbox
+                checked={leavesDocumentBehind}
+                label={t('occurrenceTypeCatalog.leavesDocumentBehind')}
+                onChange={setLeavesDocumentBehind}
+              />
+            </Tooltip>
+          ) : null}
           <Select
             ariaLabel={t('occurrenceTypeCatalog.emailTemplate')}
             onChange={setEmailTemplateKey}

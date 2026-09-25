@@ -119,6 +119,40 @@ engano:
 - O roteirizador tem teto de paradas e marca a qualidade da otimização (`optimizationQuality`);
   10 mil paradas numa instância só segue fora de alcance (memória da matriz).
 
+## O motorista ganhou app própria (spec 189, ADR-0075)
+
+O módulo `driver-trip` (a tela `/minha-viagem`) continua aqui, mas deixou de ser o destino final: a
+spec 189 copiou tudo por valor para `apps/frontend-driver` (ver o CLAUDE.md dela) e este painel
+agora só **encaminha** para lá. `VITE_DRIVER_APP_URL` é interruptor, não configuração — lido sozinho
+por `readDriverAppUrl()` (`identityEnvironment.config.ts`), fora de `getIdentityEnvironment()`, para
+uma variável ausente não derrubar o boot em nenhum contexto. Ausente, `/minha-viagem` funciona como
+sempre. `resolveDriverAppRedirect` (`driver-trip/shared/driverAppRedirect.service.ts`, função pura)
+decide entre quatro modos, só quando a entrada é do motorista (`/minha-viagem`, ou a raiz com
+`isFieldOnlyUser`):
+
+- `stay` — sem a variável, ou fora da entrada do motorista;
+- `redirect` — fila antiga (IndexedDB desta origem) vazia: `main.tsx` confere
+  `isDriverAppUrlOwnOrigin` (rede de segurança em runtime contra laço de redirect consigo mesmo,
+  além da checagem já feita no build por `assertDriverAppUrlBuildsClean`) e faz
+  `window.location.replace(driverAppUrl)`;
+- `install-screen` — aberto pelo ícone antigo instalado (`standalone`): `DriverAppInstall.page.tsx`
+  explica e linka, porque um `location.replace` para outra origem sairia do `scope` do PWA antigo;
+- `pending-screen` — há o que enviar da fila antiga: `DriverLegacyPending.page.tsx` mostra a fila
+  (`DriverEventQueue.page.tsx`) com "Enviar"/"Enviar tudo" e "Descartar" por item recusado; quando
+  `pendingCounts.total` zera, "Ir para o app novo" recarrega a página, que decide de novo.
+
+O **beacon** mede quem ainda depende do módulo antigo, para autorizar a remoção por medida (nunca
+por calendário): `sendDriverLegacyBeacon` (mesmo arquivo) dispara `navigator.sendBeacon
+('/_driver-legacy-served', 'pending-screen')` só dentro do caso `pending-screen`, antes mesmo de
+checar autenticação. A rota em `server.ts` é pública, sem auth, aceita só o valor enumerado num
+corpo de até 32 bytes, sempre responde `204`, e loga
+`{"event":"driver_legacy_served","mode":"pending-screen"}` só na primeira ocorrência de uma janela
+de 60 s — sem usuário nem IP. Critério de remoção (tasks.md Fase 10, T10.1): zero ocorrências em 14
+dias seguidos de log de produção, conferido e autorizado pelo usuário.
+`test/driver-trip/driver-app-redirect.contract.ts`, `test/driver-trip/legacy-beacon.contract.ts`.
+Histórico completo (por que o interruptor é lido fora da config, a revisão M1 da rede de segurança
+em runtime): `docs/ai-context/frontend-transportada.md`.
+
 ## CSP, ambiente e tema de login
 
 **A CSP nasce no build** — `shared/contentSecurityPolicy.service.ts` é a fonte única, o plugin
@@ -138,7 +172,8 @@ copiados por valor (não importa código nosso) — mudou cor/fonte/escala aqui?
 completo do tema (incluindo as armadilhas do FreeMarker) em `docs/frontend/login-theme.md` e no
 histórico.
 
-Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
+Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_DRIVER_APP_URL` (opcional — interruptor, não
+configuração; ver seção abaixo), `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
 
 Segurança: `Permissions-Policy: camera=(self), geolocation=(self), microphone=(self)` — `()` nega

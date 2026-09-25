@@ -38,6 +38,24 @@ const OPENCV_CHUNK_PATTERN = /^\/assets\/opencv-[^/]+\.js$/u
  * `scripts/fetch-canhoto-ocr.ts` gera os `.br`/`.gz` ao lado de cada `.wasm.js`/`worker.min.js`.
  */
 const CANHOTO_OCR_PREFIX = '/canhoto-ocr/'
+/**
+ * ADR-0075 §6: a medida que autoriza remover o módulo antigo do motorista — zero destes em 14 dias
+ * de log de produção. A rota é **pública** (ninguém autentica um `sendBeacon`), então ela aceita só
+ * o valor enumerado, lê no máximo ~32 bytes e responde `204` sempre: quem pergunta não distingue
+ * válido de inválido, e valor arbitrário não vira linha de log.
+ */
+const DRIVER_LEGACY_BEACON_PATH = '/_driver-legacy-served'
+const DRIVER_LEGACY_BEACON_MODE = 'pending-screen'
+const DRIVER_LEGACY_BEACON_MAX_BYTES = 32
+/**
+ * Revisão LOW: um pico de recarregamentos (deploy, reconexão em massa) não pode virar uma linha de
+ * log por pedido — a medida só precisa saber que o módulo antigo ainda está em uso, não a taxa
+ * exata. Overridável só para o teste apertar a janela; a variável não entra em `Dockerfile` nem em
+ * `vite-build-args.contract.ts` — não é `VITE_*`, e o padrão de produção nunca muda.
+ */
+const DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS = Number(
+  Bun.env.DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS ?? '60000',
+)
 
 // A diretiva é composta no build, onde as origens da API e do Keycloak existem — aqui elas não
 // chegam, porque `VITE_*` é inlinado no bundle. Sem o arquivo o servidor não sobe: publicar sem CSP
@@ -68,12 +86,53 @@ const SECURITY_HEADERS: Readonly<Record<string, string>> = {
 
 const port = Number(Bun.env.PORT ?? DEFAULT_PORT)
 
+let driverLegacyBeaconPendingCount = 0
+let driverLegacyBeaconLastLoggedAt: number | undefined
+
+/**
+ * A primeira ocorrência de uma janela loga na hora — é o caso comum, um pedido isolado. As
+ * seguintes só somam ao contador; saem juntas na próxima ocorrência depois da janela, no máximo
+ * uma linha a cada `DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS`. Contador em memória: reinicia com o
+ * processo, e isso é aceitável — a medida é "ainda existe uso", não uma série contínua.
+ */
+function registerDriverLegacyBeaconHit(now: number): void {
+  driverLegacyBeaconPendingCount += 1
+  const elapsedSinceLastLog =
+    driverLegacyBeaconLastLoggedAt === undefined ? Infinity : now - driverLegacyBeaconLastLoggedAt
+  if (elapsedSinceLastLog < DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS) return
+
+  console.log(
+    JSON.stringify({
+      at: new Date(now).toISOString(),
+      count: driverLegacyBeaconPendingCount,
+      event: 'driver_legacy_served',
+      mode: DRIVER_LEGACY_BEACON_MODE,
+    }),
+  )
+  driverLegacyBeaconPendingCount = 0
+  driverLegacyBeaconLastLoggedAt = now
+}
+
 Bun.serve({
   port,
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
     if (url.pathname === HEALTH_PATH) {
       return respond(new Response('ok'), REVALIDATE_CACHE_CONTROL)
+    }
+    if (url.pathname === DRIVER_LEGACY_BEACON_PATH) {
+      if (
+        request.method === 'POST' &&
+        // Segurança L5 (spec 189 T9.2): a rota é pública, sem auth — sem isto, qualquer site de
+        // terceiro poderia inflar a medida com um `fetch` (ou `sendBeacon`, que não exige CORS)
+        // cross-origin, e a T10.1 nunca veria zero. `sec-fetch-site` é da fronteira Fetch Metadata:
+        // o navegador escreve sozinho, script nenhum consegue forjar o valor.
+        request.headers.get('sec-fetch-site') === 'same-origin' &&
+        (await readSmallBody(request)) === DRIVER_LEGACY_BEACON_MODE
+      ) {
+        registerDriverLegacyBeaconHit(Date.now())
+      }
+      return respond(new Response(null, { status: 204 }), REVALIDATE_CACHE_CONTROL)
     }
 
     const asset = resolveAsset(url.pathname)
@@ -189,6 +248,38 @@ async function precompressedResponse(
   const fallback = new Response(original)
   fallback.headers.set('Vary', 'Accept-Encoding')
   return fallback
+}
+
+/**
+ * O corpo do beacon, ou `undefined` se passar de `DRIVER_LEGACY_BEACON_MAX_BYTES` ou se a leitura
+ * falhar — corpo abortado (aba fechada no meio do `sendBeacon`) é o mesmo caminho do valor
+ * inválido, nunca uma exceção subindo até a rota: ela responde `204` sempre. O `Content-Length`
+ * declarado grande nem é lido; sem ele (corpo em partes), a leitura para no primeiro byte além do
+ * teto. `reader.cancel()` sai no `finally` — solta o leitor em toda saída, inclusive erro.
+ */
+async function readSmallBody(request: Request): Promise<string | undefined> {
+  const declaredLength = Number(request.headers.get('content-length') ?? '0')
+  if (declaredLength > DRIVER_LEGACY_BEACON_MAX_BYTES) return undefined
+  if (request.body === null) return ''
+
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+  try {
+    reader = request.body.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > DRIVER_LEGACY_BEACON_MAX_BYTES) return undefined
+      chunks.push(value)
+    }
+    return new TextDecoder().decode(Buffer.concat(chunks))
+  } catch {
+    return undefined
+  } finally {
+    await reader?.cancel().catch(() => undefined)
+  }
 }
 
 function resolveAsset(pathname: string): Bun.BunFile {

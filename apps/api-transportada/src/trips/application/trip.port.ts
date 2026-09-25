@@ -106,6 +106,12 @@ export type TripDocumentDetail = TripDocument & {
    */
   readonly openOccurrenceCase: boolean
   /**
+   * Spec 185 T6.1 (D1/ADR-0074 §4): `true` quando esta nota está em `leftBehind` pela mesma conta
+   * de `resolveDispatchReadiness` que o despacho usa — ela sairia da viagem se despachasse agora.
+   * Alimenta o diálogo "leva todas" (RF9), que conta só as notas que o botão vai carregar.
+   */
+  readonly leavesBehindOnDispatch: boolean
+  /**
    * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
    * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
    * ser o caminho normal.

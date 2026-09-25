@@ -1,18 +1,27 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
-import { hasSendableEvents, type EventQueueItemView } from '../shared/eventQueueView.service'
+import {
+  hasSendableEvents,
+  isEventQueueItemDiscardable,
+  type EventQueueItemView,
+} from '../shared/eventQueueView.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
   isLoading: boolean
   isSyncing: boolean
   items: readonly EventQueueItemView[]
-  onBack: () => void
+  /** Ausente na tela de pendências do painel (ADR-0075 §6): ali não há viagem para onde voltar. */
+  onBack?: () => void
+  /** ADR-0075 §6, "descartar com ciência": só a tela de pendências do painel oferece o descarte. */
+  onDiscard?: (idempotencyKey: string) => void
   onSendAll: () => void
   onSendOne: (idempotencyKey: string) => void
 }>
@@ -36,10 +45,13 @@ export function DriverEventQueuePage({
   isSyncing,
   items,
   onBack,
+  onDiscard,
   onSendAll,
   onSendOne,
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
+  /** O descarte não se desfaz: o primeiro toque só abre o aviso, e o segundo é que apaga. */
+  const [confirmingDiscardKey, setConfirmingDiscardKey] = useState<string | undefined>(undefined)
 
   function statusLabel(item: EventQueueItemView): string {
     if (item.status.state === 'rejected') {
@@ -51,12 +63,27 @@ export function DriverEventQueuePage({
     return t('eventQueue.status.queued')
   }
 
+  function sendNowButton(item: EventQueueItemView) {
+    return (
+      <Button
+        disabled={isSyncing}
+        type="button"
+        variant="secondary"
+        onClick={() => onSendOne(item.idempotencyKey)}
+      >
+        {t('eventQueue.sendNow')}
+      </Button>
+    )
+  }
+
   return (
     <main className={styles.shell}>
       <header className={styles.eventQueueHeader}>
-        <Button type="button" variant="secondary" onClick={onBack}>
-          {t('eventQueue.back')}
-        </Button>
+        {onBack === undefined ? null : (
+          <Button type="button" variant="secondary" onClick={onBack}>
+            {t('eventQueue.back')}
+          </Button>
+        )}
         <h1 className={styles.eventQueueTitle}>{t('eventQueue.title')}</h1>
       </header>
 
@@ -82,7 +109,13 @@ export function DriverEventQueuePage({
           </Button>
           <ul className={styles.eventQueueList}>
             {items.map((item) => (
-              <li className={styles.eventQueueItem} key={item.idempotencyKey}>
+              <li
+                className={cn(
+                  styles.eventQueueItem,
+                  onDiscard === undefined ? undefined : styles.eventQueueItemWithDiscard,
+                )}
+                key={item.idempotencyKey}
+              >
                 <div className={styles.eventQueueItemBody}>
                   <p className={styles.eventQueueItemTitle}>
                     {t(KIND_LABEL_KEYS[item.kind])}
@@ -115,15 +148,52 @@ export function DriverEventQueuePage({
                   >
                     {statusLabel(item)}
                   </p>
+                  {onDiscard !== undefined && confirmingDiscardKey === item.idempotencyKey ? (
+                    <div className={styles.eventQueueDiscardConfirm}>
+                      <p className={styles.eventQueueStatusRejected} role="alert">
+                        {t('eventQueue.discard.warning')}
+                      </p>
+                      <div className={styles.eventQueueItemActions}>
+                        <Button
+                          disabled={isSyncing}
+                          type="button"
+                          onClick={() => {
+                            setConfirmingDiscardKey(undefined)
+                            onDiscard(item.idempotencyKey)
+                          }}
+                        >
+                          <Icon name="trash" />
+                          {t('eventQueue.discard.confirm')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setConfirmingDiscardKey(undefined)}
+                        >
+                          {t('eventQueue.discard.keep')}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                <Button
-                  disabled={isSyncing}
-                  type="button"
-                  variant="secondary"
-                  onClick={() => onSendOne(item.idempotencyKey)}
-                >
-                  {t('eventQueue.sendNow')}
-                </Button>
+                {/* Sem descarte (a viagem de sempre), a marcação continua a de antes: só o envio. */}
+                {onDiscard === undefined ? (
+                  sendNowButton(item)
+                ) : (
+                  <div className={styles.eventQueueItemActions}>
+                    {sendNowButton(item)}
+                    {isEventQueueItemDiscardable(item) ? (
+                      <Button
+                        disabled={isSyncing}
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setConfirmingDiscardKey(item.idempotencyKey)}
+                      >
+                        {t('eventQueue.discard.open')}
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

@@ -233,6 +233,11 @@ type SaveOccurrenceTypeInput = {
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
+  /**
+   * Spec 185 (RF6): "a viagem segue sem a nota". Ausente é "não mexa" — ver
+   * `save-occurrence-type.use-case.ts`.
+   */
+  readonly leavesDocumentBehind?: boolean | undefined
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
@@ -376,6 +381,7 @@ type BatchStatusInput = {
 type DispatchInput = {
   readonly force: boolean
   readonly forceReason: string | null
+  readonly loadRemaining: boolean
   readonly tripId: string
 }
 type TripIdInput = { readonly tripId: string }
@@ -1575,6 +1581,7 @@ export function createTripRoutes(
         return {
           force: body.force,
           forceReason: body.forceReason,
+          loadRemaining: body.loadRemaining,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }
       },
@@ -1917,6 +1924,7 @@ function serializeTripDocumentDetail(input: {
     freightAmount: document.freightAmount,
     freightRuleName: document.freightRuleName,
     freightSource: document.freightSource,
+    leavesBehindOnDispatch: document.leavesBehindOnDispatch,
     nfeIssuedAt: document.nfeIssuedAt,
     nfeNumber: document.nfeNumber,
     nfeSeries: document.nfeSeries,
@@ -1952,11 +1960,19 @@ function serializeReturnedWithActiveCteEntry(
 }
 
 function serializeTransitionResult(result: TransitionTripDocumentResult): object {
-  return { document: serializeTripDocument(result.document), tripStatus: result.tripStatus }
+  return {
+    ...(result.autoDispatch === undefined ? {} : { autoDispatch: result.autoDispatch }),
+    document: serializeTripDocument(result.document),
+    tripStatus: result.tripStatus,
+  }
 }
 
 function serializeBatchResult(result: TransitionTripDocumentsBatchResult): object {
-  return { items: result.items.map(serializeBatchItem), tripStatus: result.tripStatus }
+  return {
+    ...(result.autoDispatch === undefined ? {} : { autoDispatch: result.autoDispatch }),
+    items: result.items.map(serializeBatchItem),
+    tripStatus: result.tripStatus,
+  }
 }
 
 function serializeBatchItem(item: TripDocumentBatchItemOutcome): object {

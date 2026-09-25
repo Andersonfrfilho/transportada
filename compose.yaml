@@ -32,7 +32,10 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
 
   minio:
-    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    # A MinIO tirou as imagens do Docker Hub (2026-09-11) e do quay.io (2026-09-24), e os binários de
+    # dl.min.io respondem 410. Esta é a mesma versão compilada do código-fonte (`infra/minio/`),
+    # num pacote privado do GHCR: `make up` numa máquina limpa pede `docker login ghcr.io` antes.
+    image: ghcr.io/andersonfrfilho/minio:RELEASE.2025-09-07T16-13-09Z@sha256:ae545f7ab1916752c2895dbcd7d07eab74ab12e0b84595c8d2f5307c0ae2c1b6
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minio

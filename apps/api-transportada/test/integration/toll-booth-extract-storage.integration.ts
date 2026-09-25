@@ -12,11 +12,9 @@ import { createHash } from 'node:crypto'
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import {
-  createObjectStorageProvider,
-  type ObjectStorageProvider,
-} from '@adatechnology/object-storage-provider'
+import { type ObjectStorageProvider } from '@adatechnology/object-storage-provider'
 
+import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { createCreateTollBoothExtractUseCase } from '../../src/toll-booths/application/create-toll-booth-extract.use-case.js'
 import {
@@ -33,22 +31,12 @@ const databaseUrl =
   process.env.API_TEST_DATABASE_URL ??
   process.env.DATABASE_URL
 
-const endpoint = process.env.OBJECT_STORAGE_ENDPOINT ?? process.env.STORAGE_ENDPOINT
-const bucket = process.env.OBJECT_STORAGE_BUCKET ?? process.env.STORAGE_BUCKET
-const accessKeyId = process.env.OBJECT_STORAGE_ACCESS_KEY ?? process.env.STORAGE_ACCESS_KEY
-const secretAccessKey = process.env.OBJECT_STORAGE_SECRET_KEY ?? process.env.STORAGE_SECRET_KEY
-const region = process.env.OBJECT_STORAGE_REGION ?? process.env.STORAGE_REGION ?? 'us-east-1'
 const MAX_OBJECT_SIZE_BYTES = 25 * 1024 * 1024
 
-const hasInfrastructure =
-  databaseUrl !== undefined &&
-  [endpoint, bucket, accessKeyId, secretAccessKey].every(
-    (value) => value !== undefined && value.trim() !== '',
-  )
+/** Só o banco é infraestrutura real aqui: o storage é o dublê em memória, que o CI não precisa subir. */
+const testWithInfrastructure = databaseUrl !== undefined ? test : test.skip
 
-const testWithInfrastructure = hasInfrastructure ? test : test.skip
-
-const BUCKET = bucket ?? ''
+const BUCKET = 'transportada-test'
 const USER_ID = '44444444-4444-4444-4444-444444444444'
 
 const BOOTH_ROW = {
@@ -66,15 +54,7 @@ function extractBytes(booths: readonly (typeof BOOTH_ROW)[]): Uint8Array {
 }
 
 function createProvider(): ObjectStorageProvider {
-  return createObjectStorageProvider({
-    accessKeyId: accessKeyId ?? '',
-    endpoint: new URL(endpoint ?? ''),
-    forcePathStyle: true,
-    healthCheckBucket: BUCKET,
-    maxObjectSizeBytes: MAX_OBJECT_SIZE_BYTES,
-    region,
-    secretAccessKey: secretAccessKey ?? '',
-  })
+  return createInMemoryObjectStorageProvider({ maxObjectSizeBytes: MAX_OBJECT_SIZE_BYTES })
 }
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>

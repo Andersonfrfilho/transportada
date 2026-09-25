@@ -1,0 +1,366 @@
+/* Cópia por valor de apps/frontend-client/src/modules/shared/KeycloakAuthProvider.provider.ts (ADR-0075 §7). */
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+/**
+ * ⚠️ **Cópia por valor** do provedor do portal. As duas apps não importam código uma da outra, e a
+ * autenticação é a parte em que isso mais dói de duplicar — mas é também a parte em que compartilhar
+ * um bundle anularia a separação da ADR-0075 §1. O login é sempre real, pelo Keycloak: **este
+ * provedor não tem atalho de autenticação**. O `smokeAuthBypass.service.ts` desta app (cópia do
+ * painel, com as duas travas) só desliga o service worker e troca a fonte do `/auth/me` do Perfil
+ * no Playwright — nunca a autenticação —, e o `Dockerfile` nunca declara o `ARG` dele
+ * (`test/shared/vite-build-args.contract.ts`). Os desvios deliberados do portal são o erro de
+ * transporte tipado no refresh (`IdentityUnreachableError`) e o caminho de volta sanitizado.
+ */
+import Keycloak from 'keycloak-js'
+
+import { getDriverEnvironment, isIdentifierFirstLoginEnabled } from './environment.config'
+
+const TOKEN_MINIMUM_VALIDITY_SECONDS = 30
+const AUTHENTICATION_CALLBACK_PATH = '/auth/callback'
+const POST_AUTHENTICATION_PATH_WINDOW_NAME_PREFIX = 'transportada-driver:return-to:'
+
+export type IdentityProfile = {
+  readonly displayName: string
+  readonly initials: string
+  readonly pictureUrl: string | undefined
+  readonly subtitle: string | undefined
+}
+
+export const IDENTITY_SESSION_EXPIRED = 'IDENTITY_SESSION_EXPIRED'
+export const IDENTITY_UNREACHABLE = 'IDENTITY_UNREACHABLE'
+
+/** O refresh morreu no transporte: a sessão continua válida, só não deu para falar com o Keycloak. */
+export class IdentityUnreachableError extends Error {
+  public readonly isOffline = true
+
+  public constructor() {
+    super(IDENTITY_UNREACHABLE)
+    this.name = 'IdentityUnreachableError'
+  }
+}
+
+/** Todo erro que esta camada lança começa assim — quem drena a fila trata como "tente depois". */
+export function isIdentityError(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith('IDENTITY_')
+}
+
+/**
+ * ⚠️ O keycloak-js 26.2.4 só limpa o token quando o endpoint responde `400` (refresh recusado).
+ * `TypeError` do `fetch`, timeout e 5xx são o subsolo: expirar a sessão aí mandaria o motorista
+ * entrar de novo sem rede. Qualquer outro erro (sem refresh token, por exemplo) é sessão vencida.
+ */
+function isRefreshTransportFailure(error: unknown): boolean {
+  if (error instanceof TypeError) return true
+  if (error instanceof DOMException) return true
+  if (typeof error !== 'object' || error === null || !('response' in error)) return false
+  const response = (error as { readonly response?: { readonly status?: unknown } }).response
+  return response?.status !== 400
+}
+
+export type KeycloakAuthProvider = {
+  getAccessToken(): Promise<string>
+  getProfile(): IdentityProfile
+  /** O `sub` do token — só para derivar o dono do snapshot e da fila (ADR-0075 §8). */
+  getSubject(): string | undefined
+  /** `false` quando a etapa de identificação está ligada e ninguém entrou ainda. */
+  initialize(): Promise<boolean>
+  /** Só com a etapa ligada: leva ao provedor já com o login resolvido. */
+  loginWith(loginHint: string): Promise<void>
+  logout(): Promise<void>
+  onSessionExpired(listener: () => void): () => void
+  restartAuthentication(): Promise<void>
+}
+
+const FALLBACK_PROFILE: IdentityProfile = {
+  displayName: 'Usuário',
+  initials: 'U',
+  pictureUrl: undefined,
+  subtitle: undefined,
+}
+
+function readClaimString(claims: Record<string, unknown>, key: string): string | undefined {
+  const value = claims[key]
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+}
+
+function deriveInitials(displayName: string): string {
+  const parts = displayName.split(/\s+/).filter((part) => part.length > 0)
+  const first = parts[0]?.charAt(0) ?? 'U'
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.charAt(0) ?? '') : ''
+  return `${first}${last}`.toUpperCase()
+}
+
+function decodeTokenClaims(token: string | undefined): Record<string, unknown> {
+  const payload = token?.split('.')[1]
+  if (payload === undefined) {
+    return {}
+  }
+
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const parsed: unknown = JSON.parse(atob(normalized))
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+export function deriveIdentityProfile(claims: Record<string, unknown>): IdentityProfile {
+  const email = readClaimString(claims, 'email')
+  const preferredUsername = readClaimString(claims, 'preferred_username')
+  const displayName =
+    readClaimString(claims, 'name') ?? preferredUsername ?? email ?? FALLBACK_PROFILE.displayName
+  const subtitle = email !== undefined && email !== displayName ? email : preferredUsername
+
+  return {
+    displayName,
+    initials: deriveInitials(displayName),
+    pictureUrl: readClaimString(claims, 'picture'),
+    subtitle: subtitle !== displayName ? subtitle : undefined,
+  }
+}
+
+export type KeycloakClient = Pick<
+  Keycloak,
+  'clearToken' | 'init' | 'login' | 'logout' | 'token' | 'updateToken'
+>
+
+function getAuthenticationCallbackUrl(): string {
+  return `${getDriverEnvironment().appBaseUrl}${AUTHENTICATION_CALLBACK_PATH}`
+}
+
+function getCurrentApplicationPath(): string {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`
+}
+
+function canUseBrowserNavigation(): boolean {
+  return typeof window !== 'undefined'
+}
+
+function readWindowName(): string {
+  return typeof window.name === 'string' ? window.name : ''
+}
+
+function writeWindowName(value: string): void {
+  window.name = value
+}
+
+function persistPostAuthenticationPath(): void {
+  if (!canUseBrowserNavigation()) {
+    return
+  }
+
+  if (window.location.pathname === AUTHENTICATION_CALLBACK_PATH) {
+    return
+  }
+
+  writeWindowName(`${POST_AUTHENTICATION_PATH_WINDOW_NAME_PREFIX}${getCurrentApplicationPath()}`)
+}
+
+/**
+ * Spec 189 T9.2 (L8): `window.name` sobrevive à navegação e qualquer página que passe pela aba pode
+ * escrevê-lo. Só volta caminho da própria app — começa com `/`, e não com `//` nem `/\` (que o
+ * navegador lê como outra origem).
+ */
+export function sanitizePostAuthenticationPath(path: string): string {
+  if (!path.startsWith('/')) return '/'
+  if (path.startsWith('//') || path.startsWith('/\\')) return '/'
+  return path
+}
+
+function resolvePostAuthenticationPath(): string {
+  if (!canUseBrowserNavigation()) {
+    return '/'
+  }
+
+  const persistedPath = readWindowName()
+  if (!persistedPath.startsWith(POST_AUTHENTICATION_PATH_WINDOW_NAME_PREFIX)) {
+    return '/'
+  }
+
+  writeWindowName('')
+  return sanitizePostAuthenticationPath(
+    persistedPath.slice(POST_AUTHENTICATION_PATH_WINDOW_NAME_PREFIX.length),
+  )
+}
+
+function restoreApplicationPathAfterAuthentication(): void {
+  if (!canUseBrowserNavigation()) {
+    return
+  }
+
+  if (window.location.pathname !== AUTHENTICATION_CALLBACK_PATH) {
+    return
+  }
+
+  window.history.replaceState(window.history.state, '', resolvePostAuthenticationPath())
+}
+
+async function restartAuthentication(
+  keycloak: KeycloakClient,
+  redirectUri: string,
+): Promise<never> {
+  persistPostAuthenticationPath()
+  keycloak.clearToken()
+  await keycloak.login({ redirectUri })
+  throw new Error('IDENTITY_REFRESH_FAILED')
+}
+
+export type AuthenticationNavigation = {
+  /** Recarregar devolve o boot ao `check-sso`, e sem sessão ele termina na tela de identificação. */
+  readonly reloadApplication: () => void
+}
+
+const BROWSER_NAVIGATION: AuthenticationNavigation = {
+  reloadApplication: () => window.location.reload(),
+}
+
+export function createKeycloakAuthProvider(
+  keycloak: KeycloakClient,
+  redirectUri: string,
+  navigation: AuthenticationNavigation = BROWSER_NAVIGATION,
+): KeycloakAuthProvider {
+  const sessionExpiryListeners = new Set<() => void>()
+
+  /** Redirecionar aqui abortaria o `fetch` em voo — a tela decide quando reautenticar. */
+  function expireSession(): never {
+    keycloak.clearToken()
+    for (const listener of sessionExpiryListeners) listener()
+    throw new Error(IDENTITY_SESSION_EXPIRED)
+  }
+
+  return {
+    async getAccessToken(): Promise<string> {
+      try {
+        await keycloak.updateToken(TOKEN_MINIMUM_VALIDITY_SECONDS)
+      } catch (error: unknown) {
+        if (isRefreshTransportFailure(error)) throw new IdentityUnreachableError()
+        return expireSession()
+      }
+
+      if (keycloak.token === undefined) {
+        return expireSession()
+      }
+
+      return keycloak.token
+    },
+    getProfile(): IdentityProfile {
+      return deriveIdentityProfile(decodeTokenClaims(keycloak.token))
+    },
+    getSubject(): string | undefined {
+      return readClaimString(decodeTokenClaims(keycloak.token), 'sub')
+    },
+    async loginWith(loginHint: string): Promise<void> {
+      persistPostAuthenticationPath()
+      await keycloak.login({ loginHint, redirectUri })
+    },
+    async initialize(): Promise<boolean> {
+      persistPostAuthenticationPath()
+      const identifierFirst = isIdentifierFirstLoginEnabled()
+
+      try {
+        /**
+         * `check-sso` só olha se já existe sessão e volta; `login-required` redireciona sozinho,
+         * antes de a aplicação renderizar qualquer coisa. Com a etapa ligada é preciso voltar sem
+         * sessão para a tela de identificação poder existir.
+         */
+        const isAuthenticated = await keycloak.init({
+          checkLoginIframe: false,
+          onLoad: identifierFirst ? 'check-sso' : 'login-required',
+          pkceMethod: 'S256',
+          redirectUri,
+        })
+
+        /** Sem sessão e com a etapa ligada: quem decide o próximo passo é a tela, não o provedor. */
+        if (!isAuthenticated && identifierFirst) return false
+
+        if (!isAuthenticated) {
+          await restartAuthentication(keycloak, redirectUri)
+        }
+
+        restoreApplicationPathAfterAuthentication()
+        return true
+      } catch (error: unknown) {
+        if (error instanceof Error && error.message.includes('3rd party check iframe')) {
+          /** Recarregar repetiria o mesmo erro: a tela de identificação é o destino, não o provedor. */
+          if (identifierFirst) return false
+          await restartAuthentication(keycloak, redirectUri)
+        }
+
+        throw error
+      }
+    },
+    /** O token vive até o redirect: sem ele não há `id_token_hint` e a sessão SSO sobrevive. */
+    async logout(): Promise<void> {
+      await keycloak.logout({ redirectUri: new URL(redirectUri).origin })
+    },
+    onSessionExpired(listener: () => void): () => void {
+      sessionExpiryListeners.add(listener)
+      return () => {
+        sessionExpiryListeners.delete(listener)
+      }
+    },
+    /**
+     * ⚠️ Com a etapa ligada, reautenticar **nunca** vai direto ao provedor: a pessoa pode ter
+     * entrado por CPF ou telefone, e o Keycloak só entende o username. A página recarrega no mesmo
+     * endereço, o `initialize` guarda o caminho de volta e, sem sessão, a tela de identificação
+     * aparece — o contato não viaja por URL nem por armazenamento.
+     */
+    async restartAuthentication(): Promise<void> {
+      persistPostAuthenticationPath()
+      if (isIdentifierFirstLoginEnabled()) {
+        keycloak.clearToken()
+        navigation.reloadApplication()
+        return
+      }
+      keycloak.clearToken()
+      await keycloak.login({ redirectUri })
+    },
+  }
+}
+
+export type KeycloakAuthSession = Readonly<{
+  getProvider: () => KeycloakAuthProvider
+  /** O `init` do provedor corrente — ou de um novo, se o corrente já tentou uma vez. */
+  initialize: () => Promise<boolean>
+}>
+
+/**
+ * Spec 189 T9.2, segunda leitura (N1): o keycloak-js 26.2.4 marca `didInitialize` antes de qualquer
+ * `await` do `init`, e uma instância que tentou uma vez nunca mais inicializa ("can only be
+ * initialized once"). Com o provedor singleton, o `init` que rejeitou (Keycloak caiu entre a sonda e
+ * o `init`) condenava toda reconexão de 30 s: a app ficava no snapshot sem sessão para sempre. Cada
+ * nova tentativa ganha uma instância nova; quem pega o provedor depois pega a nova.
+ */
+export function createKeycloakAuthSession(
+  createProvider: () => KeycloakAuthProvider,
+): KeycloakAuthSession {
+  let provider: KeycloakAuthProvider | undefined
+  let hasStartedInitialization = false
+
+  return {
+    getProvider() {
+      provider ??= createProvider()
+      return provider
+    },
+    initialize() {
+      if (provider === undefined || hasStartedInitialization) provider = createProvider()
+      hasStartedInitialization = true
+      return provider.initialize()
+    },
+  }
+}
+
+const AUTH_SESSION = createKeycloakAuthSession(() =>
+  createKeycloakAuthProvider(
+    new Keycloak(getDriverEnvironment().keycloak),
+    getAuthenticationCallbackUrl(),
+  ),
+)
+
+export function getKeycloakAuthProvider(): KeycloakAuthProvider {
+  return AUTH_SESSION.getProvider()
+}
+
+export async function initializeKeycloakAuth(): Promise<boolean> {
+  return AUTH_SESSION.initialize()
+}

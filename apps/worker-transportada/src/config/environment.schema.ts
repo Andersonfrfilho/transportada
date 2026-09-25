@@ -163,10 +163,18 @@ const workerEnvironmentSchema = z
       })
     }
 
+    /**
+     * `API_BASE_URL` sozinha não conta: ela serve também à baixa de comandos do WhatsApp e à marca
+     * do e-mail. O MDF-e automático liga pelas credenciais do Keycloak, e declarada uma delas, as
+     * quatro são exigidas.
+     */
+    const declaredAutoIssueCredentials = MDFE_AUTO_ISSUE_KEYS.filter(
+      (key) => key !== 'API_BASE_URL' && environment[key] !== undefined,
+    ).length
     const declaredAutoIssueKeys = MDFE_AUTO_ISSUE_KEYS.filter(
       (key) => environment[key] !== undefined,
     ).length
-    if (declaredAutoIssueKeys > 0 && declaredAutoIssueKeys < MDFE_AUTO_ISSUE_KEYS.length) {
+    if (declaredAutoIssueCredentials > 0 && declaredAutoIssueKeys < MDFE_AUTO_ISSUE_KEYS.length) {
       context.addIssue({
         code: 'custom',
         message: 'The automatic MDF-e trigger requires every credential or none',

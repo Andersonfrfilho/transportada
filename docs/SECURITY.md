@@ -153,6 +153,68 @@ qualquer coisa que apareça no enquadramento — dado pessoal guardado além da 
 
 **Origem:** spec 161, revisão final (achado I6, 2026-09-22) e Fase 5 (T17/T18, 22/09/2026).
 
+### 2026-09-25 — a app do motorista guarda a última viagem no aparelho, para abrir sem rede (spec 189)
+
+**Onde:** `frontend-driver`, IndexedDB `transportada.driver-trip` versão 3, store `trip-snapshot`
+(`src/modules/driver-trip/shared/tripSnapshot.service.ts`, `indexedDbQueue.service.ts`), e as filas
+`field-reports`/`event-attachments` do mesmo banco; boot em `src/main.tsx` (ADR-0075 §8, plan D4/D5).
+
+**O que é (risco aceito):** para o motorista abrir a viagem no subsolo, sem sinal e antes do
+Keycloak responder, a app grava o último `GET /me/trips/current` no aparelho. Ele carrega dado
+pessoal de terceiro e dado comercial — nome do destinatário, rótulo e coordenadas das paradas,
+número, chave de acesso (`accessKey`) e valor (`totalAmount`) das notas, e a placa do veículo
+(`vehiclePlate`) — e fica legível por quem tiver o celular desbloqueado e abrir as ferramentas do
+navegador. A fila offline (`field-reports`/`event-attachments`) guarda ainda a posição de cada
+toque, a foto e a assinatura do comprovante e o documento e o nome de quem recebeu
+(`receiverDocument`/`receiverName`). Sem rede, a app mostra esse snapshot **sem token**: a leitura
+não passa pelo Keycloak, só pela posse do aparelho.
+
+**Como está contido:**
+
+- **Dono.** A chave é `SHA-256(sub)` em hex (`crypto.subtle`); o `sub` em si não é gravado. O
+  ponteiro `last` diz de quem é o snapshot que o boot sem rede pode abrir.
+- **Descarte.** Sai quando outro `sub` autentica no aparelho, quando passa de **24 h** de
+  `savedAt`, quando nenhuma viagem da resposta está aberta (todas `completed`/`cancelled`, ou lista
+  vazia) e no "Sair". O vencido é apagado na própria leitura do boot.
+- **Fila com dono.** Cada evento e cada anexo enfileirado leva o mesmo `subHash`. A drenagem só
+  envia os do `sub` autenticado — nem o envio manual manda item de outra conta —, e o que é de outra
+  conta aparece como "pendências de outra conta", com "Descartar" e aviso. Nunca sai com o token de
+  quem não tocou.
+- **Sem token no aparelho.** O snapshot não guarda token nem refresh token; a drenagem fica
+  suspensa até haver sessão. Os anexos seguem com o descarte de 7 dias da spec 159, e desde a spec
+  189 T9.2 os eventos parados também (`discardStaleAttachments` com a fila de eventos, pelo
+  `createdAt`), levando junto os anexos pendurados neles.
+- **"Sair" com pendência própria.** Antes de sair, a app avisa "N registros seus ainda não
+  subiram" e oferece "Enviar agora" (com sessão) ou "Descartar e sair" — o descarte
+  (`queueOwner.service.ts:discardOwnPending`) apaga evento, blob, documento e nome do recebedor e
+  posição, só do dono. Sem rede, o logout do Keycloak rejeita e a app recarrega para "sem viagem
+  salva" (`signOut.service.ts`). ⚠️ Nesse caso a sessão SSO do Keycloak continua viva até o próximo
+  logout com rede: o snapshot e a fila já saíram, mas quem abrir a app com rede entra sem senha.
+- **Retirada do consentimento de posição que falhou (risco aceito).** Desligar o interruptor para o
+  GPS e o envio **na hora**, antes da resposta do `PUT /me/location-consent`
+  (`useLocationConsent.hook.ts`, `isRevokeFailed`). Se o `PUT { accepted: false }` não chega ao
+  servidor, a tela avisa ("Não foi possível salvar a sua escolha") e oferece tentar de novo — mas
+  a marca de falha vive só em memória: ao recarregar a app, o servidor ainda diz `acceptedAt`, o
+  interruptor volta ligado e a posição volta a subir. O motorista vê o interruptor ligado no
+  Perfil e o indicador na tela da viagem; o conserto é desligar de novo com rede.
+- **"Confirmar em lote" (decisão do usuário, spec 189 T9.2).** Sem rede, a posse do celular basta
+  para registrar em nome de quem usou por último — "Cheguei", "Entreguei", "Devolvi", ocorrência e
+  foto. Tudo o que é gravado com `canSync: false` sai marcado `isUnverified` (evento e anexo), e a
+  drenagem **não** o envia, nem pelo "Enviar agora". Depois de autenticar, o dono vê "N registros
+  feitos sem rede às HH:MM — enviar?": um toque tira a marca e drena
+  (`unverifiedPending.service.ts:confirmUnverifiedPending`); "Descartar", com confirmação, apaga
+  evento, blob, documento do recebedor e posição, e o anexo pendurado num evento descartado vai
+  junto (`discardUnverifiedPending`). Quem autentica com outro `sub` vê esses itens como pendência
+  de outra conta, nunca como seus.
+- **Só na origem da app.** O IndexedDB é da origem `motorista.<zona>`; nada disso vai para log, URL
+  ou beacon.
+
+**O que falta:** o snapshot e a fila ficam em texto claro no IndexedDB (sem criptografia em repouso
+no aparelho — a chave teria de morar no mesmo aparelho, e só adiaria quem já tem o celular
+desbloqueado). Se o produto passar a guardar mais do que a viagem corrente, revisitar.
+
+**Origem:** spec 189 T3.3a (boot sem rede, snapshot e fila com dono). Registrado em 2026-09-25.
+
 ### 2026-09-18 — posição e horário da foto do comprovante são declarados pelo aparelho (spec 159)
 
 **Onde:** `api-transportada`, `POST /me/trips/current/documents/:documentId/proof` (multipart
@@ -1041,6 +1103,18 @@ cache curto de CEP por empresa reduziria a chamada externa, mas não substitui o
 **Decisão:** **ADR-0040**, item 5 — a rota sobe assim, com o achado datado. O saldo é positivo (o
 volume de transferência ao provedor cai) e o preço está escrito em vez de descoberto depois.
 
+**Atualização 2026-09-24 (spec 186):** a busca passou a correr em paralelo — banco e provedores
+partem juntos, e entre os provedores entra a AwesomeAPI (`cep.awesomeapi.com.br`). Duas frases acima
+deixam de valer: agora **todo CEP consultado sai para os três provedores** configurados
+(`brasilapi.com.br`, `cep.awesomeapi.com.br`, `viacep.com.br`), inclusive quando a base sabia, e um
+cliente em laço vira **três** chamadas externas por requisição, não uma. O que sai continua sendo
+oito dígitos de CEP e nada mais — a porta do provedor não recebe `companyId`, e os perdedores da
+corrida são abortados. Com `GOOGLE_MAPS_API_KEY` presente, `maps.googleapis.com` é o quarto destino:
+**cada busca é uma chamada paga** (um laço aqui é custo, não só volume), e o resultado preenche campo
+que é gravado, o que os termos do Google Maps Platform não permitem guardar para sempre (ADR-0044
+§3) — risco aceito por decisão do usuário, spec 186. O limitador que falta passou a pesar três vezes mais; a prioridade dele não
+muda, mas este é o argumento mais forte que ele tem hoje.
+
 **Origem:** spec 050, T7.2.
 
 ### 2026-08-20 — endereço do motorista sai do navegador para quatro terceiros, sem CSP para conter
@@ -1295,6 +1369,94 @@ Reavaliar a anonimização se algum dia staging for aberto a alguém de fora do 
 **Origem:** pedido de operação, 2026-08-25. O risco foi levantado e a cópia idêntica foi decidida
 conscientemente.
 
+### 2026-09-25 — `style-src 'unsafe-inline'` na app do motorista (risco aceito)
+
+**Onde:** `apps/frontend-driver`, `src/modules/shared/contentSecurityPolicy.service.ts`
+(`buildContentSecurityPolicy`), cópia por valor de `apps/frontend-client` (ADR-0075 §7).
+
+**O que é:** a CSP emitida declara `style-src 'self' 'unsafe-inline'`, em vez de restringir só a
+`style-src-attr` (a diretiva mais estreita, que cobriria o atributo `style=""` sem abrir `<style>`
+solto). A folha já traz o motivo escrito ao lado da linha: `style-src-attr` é ignorada pelo Safari
+< 15.4, e sem `style-src` declarando `unsafe-inline` o navegador que não reconhece a diretiva mais
+nova cai para bloquear inline por completo — e a app do motorista é aberta no celular, onde Safari
+antigo ainda existe em campo.
+
+**Por que foi aceito assim:** apertar para `style-src-attr` sozinho troca um risco conhecido e
+contido (inline permitido, sem `<style>` externo controlado por atacante — o `object-src`/`frame-
+src none` e o `script-src` sem `unsafe-inline` continuam de pé) por uma quebra silenciosa: Safari
+antigo perde todo estilo inline da app (React `style={{...}}`, os poucos usos de `style` do design
+system copiado) sem aviso nenhum na tela, pior que manter a exceção.
+
+**O que limita o estrago:** `unsafe-inline` aqui só afeta `style-src` — `script-src` continua sem
+ele fora do smoke autenticado (`allowsInlineScript`), e é `script-src` que carrega o risco real de
+XSS. CSS injetado por essa via não executa código; o pior caso é desfiguração visual, não
+exfiltração.
+
+**O que falta:** revisitar quando o piso de Safari suportado subir de 15.4 — aí `style-src-attr`
+some sozinho da lista de "ignorado" e a diretiva mais estreita passa a valer sem quebrar ninguém.
+
+**Origem:** spec 189, T9.2 (revisão final, achado L1). Registrado em 2026-09-25.
+
+### 2026-09-25 — CI não roda `bun audit` (pendência, com os números)
+
+**Onde:** `.github/workflows/ci.yml` e `deploy.yml` — nenhum job chama `bun audit` nem equivalente.
+
+**O que é:** a auditoria de dependência exigida por `security.md` §4 ("CI roda auditoria de
+dependência e falha em vulnerabilidade alta/crítica sem exceção registrada") não existe neste
+repositório. Rodado à mão em 25/09/2026 contra o lockfile atual:
+
+```
+$ bun audit
+44 vulnerabilities (29 high, 12 moderate, 3 low)
+```
+
+em 10 pacotes transitivos: `@xmldom/xmldom` (via `@adatechnology/fiscal-provider`),
+`brace-expansion` (via `eslint`/`typescript-eslint`/`vite-plugin-pwa`), `mailauth`/`nodemailer` (via
+o worker), `nanoid` e `postcss` (via `vite` do portal), `sharp` (via `@vite-pwa/assets-generator`),
+`fast-xml-parser` (via a API e o pacote fiscal), `joi` (via `mailauth`), `fast-uri` (via `eslint` e
+`vite-plugin-pwa`) e `browserslist` (via `@vitejs/plugin-react`/`vite-plugin-pwa`). Todos
+transitivos de ferramenta de build/lint ou de um pacote de terceiro (`mailauth`, usado pelo
+worker para DKIM/DMARC) — nenhum é dependência direta do produto, e nenhum destes CVEs tem
+caminho de exploração conhecido a partir de entrada do usuário nesta base (a maioria é
+`ReDoS`/DoS em parser de XML/URI que não recebe payload externo não confiável, ou vulnerabilidade
+de ferramenta de build que roda só no CI, nunca em produção).
+
+**O que falta:** um job de auditoria no `ci.yml` (gate de qualidade), com `--audit-level` no piso
+que a instalação aceitar e uma lista de exceção registrada por CVE (`--ignore`) para o que for
+avaliado e aceito — este achado não fecha a lacuna, só documenta que ela existe e dá o número atual
+para comparar na próxima medição.
+
+**Origem:** spec 189, T9.2 (revisão final, achado L9). Registrado em 2026-09-25.
+
+### 2026-09-25 — o link "navegar até a parada" manda o endereço para o Google (risco aceito)
+
+**Onde:** `apps/frontend-driver`, `driverTripView.service.ts:buildNavigationHref`, chamado por
+`DriverStopCard.component.tsx` (`window.open`, `NON_FETCH_ORIGIN` inclui `https://maps.google.com`
+em `contentSecurityPolicy.service.ts`).
+
+**O que é:** o botão "Navegar" da parada monta `https://maps.google.com/?q=<coordenada ou
+endereço>` e abre numa aba nova — o endereço de entrega (ou a coordenada, quando existe) do
+destinatário vai na query string para o Google, um terceiro fora do produto. O destinatário é
+pessoa física em boa parte das entregas, e o endereço é dado dele, não do motorista.
+
+**Por que foi aceito assim (ADR-0045 §8):** "navegar é delegar" — a app não implementa roteirização
+turn-by-turn própria; ela entrega a parada ao aplicativo de mapa que o motorista já tem instalado,
+e não há como abrir navegação nativa sem passar o destino por algum canal. É `window.open` de um
+gesto do próprio motorista (não um `fetch` em segundo plano, não some do controle do usuário), e
+`maps.google.com` está declarado à parte em `NON_FETCH_ORIGIN`, justamente para não entrar em
+`connect-src` — o bundle nomeia a origem sem nunca buscar nela.
+
+**O que limita o estrago:** só o endereço/coordenada da parada viaja, nunca nome do destinatário,
+documento, telefone ou qualquer outro campo — os mesmos que a API já não expõe a quem não tem
+`fleet.read`. O Google já processa a mesma classe de dado quando qualquer pessoa cola um endereço
+na própria busca; não é um canal novo de vazamento em massa, é uma consulta pontual por toque.
+
+**O que falta:** nada de código pendente — é decisão de produto (delegar navegação), não defeito.
+Revisitar só se o produto um dia trocar por navegação própria ou por um provedor de mapa sem esse
+acoplamento.
+
+**Origem:** spec 189, T9.2 (revisão final, achado L10); ADR-0045 §8. Registrado em 2026-09-25.
+
 ## CPF em claro no Keycloak, para casar a pessoa dos dois lados
 
 **Data:** 2026-08-29 · **Decidido conscientemente**
@@ -1322,6 +1484,39 @@ substitui o conjunto inteiro de atributos.
 cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
 ## Fechados
+
+### 2026-09-25 — PUT tardio na URL de subida trocava a foto da ocorrência já conferida (spec 179)
+
+**Onde:** `api-transportada`, `trips/application/confirm-occurrence-upload.use-case.ts` e
+`trips/domain/occurrence-attachment.policy.ts` (`buildOccurrenceUploadFinalObjectKey`). Mesmo defeito
+de forma do achado S1 da spec 183 (T903, anexo da conversa da ocorrência), achado depois ali e
+procurado aqui.
+
+**O que era:** a URL de PUT assinada da foto/PDF da ocorrência do motorista vale 15 minutos e segue
+valendo depois da confirmação — a assinatura cobre chave e `Content-Length`, não um "uso único".
+`confirmOccurrenceUpload` lia o objeto na chave da subida, conferia tipo pela assinatura dos bytes,
+teto e sha256, e gravava `stored_objects.object_key` **na mesma chave**. Um PUT tardio com outro
+arquivo do mesmo tamanho trocava os bytes já conferidos: o download passava a devolver o arquivo
+novo, com tipo nunca conferido e sha256 que não bate mais com o registrado. Medido contra o MinIO
+local antes da correção: o download devolveu o byte trocado.
+
+**Corrigido:** a confirmação grava os bytes que acabou de conferir numa chave final nova
+(`tenants/<empresa>/trip-occurrence-attachments/<viagem>/<token>`, 256 bits aleatórios em base64url),
+que nenhuma URL assinada alcança, e aponta o registro para ela. A chave da subida só é apagada
+**depois** de o registro gravado. Falha na gravação do registro apaga a cópia final (melhor esforço)
+e sobe o erro; a chamada que perde a corrida de confirmação concorrente (achado [2]) apaga a própria
+cópia e deixa a chave da subida para a vencedora. Contrato em
+`test/trip-occurrence/upload.contract.ts` (ordem `store → confirm → delete`, limpeza na falha e na
+corrida perdida); integração contra Postgres e S3 em
+`test/integration/trip-occurrence-upload-confirm.integration.ts` (PUT tardio na mesma URL não muda o
+download).
+
+**Residual aceito:** o PUT tardio ainda **escreve** — recria a chave da subida com bytes que nada
+referencia. `trip.occurrence-upload.expire` só varre linhas `pending`, e a linha já está
+`confirmed`, então esse objeto fica órfão no bucket. Mesmo destino de uma falha ao apagar a chave da
+subida depois da confirmação. Só quem recebeu a URL (o próprio motorista) consegue fazer isso, dentro
+dos 15 minutos, com o tamanho declarado — nunca muda o anexo. ⚠️ A integração pula quando o S3 não
+responde, e a CI não sobe o MinIO: a prova contra storage real só roda localmente.
 
 ### 2026-09-24 — objeto do upload de ocorrência sem dono no bucket, sem expurgo (spec 179)
 

@@ -13,7 +13,7 @@ import {
   confirmOccurrenceUpload,
   type ConfirmOccurrenceUploadResult,
   type OccurrenceUploadConfirmationPort,
-  type OccurrenceUploadReadStoragePort,
+  type OccurrenceUploadConfirmationStoragePort,
 } from './confirm-occurrence-upload.use-case.js'
 import {
   createOccurrenceUpload,
@@ -75,7 +75,7 @@ export type ConfirmReachableOccurrenceUploadInput = {
   readonly id: string
   readonly now: Date
   readonly repository: OccurrenceUploadConfirmationPort & ReachableDocumentPort
-  readonly storage: OccurrenceUploadReadStoragePort
+  readonly storage: OccurrenceUploadConfirmationStoragePort
 }
 
 export async function confirmReachableOccurrenceUpload(

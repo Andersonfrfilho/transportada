@@ -4,6 +4,7 @@
 - **Estado:** aceita
 - **Contexto:** acrescenta um estado a `TRIP_STATUSES` e duas transições manuais à máquina da
   **ADR-0043**, que hoje deriva `in_transit` e `completed` do estado das notas.
+- Revisada por ADR-0074 (despacho derivado quando a carga fecha)
 
 ## Contexto
 

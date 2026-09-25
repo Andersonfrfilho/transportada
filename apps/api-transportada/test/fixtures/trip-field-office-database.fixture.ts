@@ -28,6 +28,7 @@ import {
   tripDocuments,
   tripDrivers,
   tripStops,
+  type TripStatus,
 } from '../../src/database/trip.schema.js'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
 import type {
@@ -254,6 +255,7 @@ export function wireRoutes(
         companyId: input.companyId,
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
+        kind: input.kind,
         officeAudit: input.officeAudit,
         target: input.target,
         unitOfWork: driverFieldReports,
@@ -322,7 +324,7 @@ export async function seedCompany(database: TestDatabase): Promise<Company> {
 export async function seedTrip(
   database: TestDatabase,
   company: Company,
-  status: 'in_transit',
+  status: TripStatus,
 ): Promise<SeededTrip> {
   const tripId = crypto.randomUUID()
   const stopId = crypto.randomUUID()

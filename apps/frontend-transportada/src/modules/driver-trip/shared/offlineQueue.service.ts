@@ -20,6 +20,11 @@ export type QueuedReport = Readonly<{
   attempts: number
   createdAt: string
   /**
+   * Spec 189 T9.2: sempre ausente no painel, que nunca grava sem sessão. Existe para a contagem de
+   * pendência ser a mesma definição da app do motorista (contrato de paridade de `countPending`).
+   */
+  isUnverified?: true
+  /**
    * Spec 082 D7: a causa legível da recusa do servidor. Preenchida, o item fica **à vista** como
    * rejeitado em vez de sumir — e só o envio manual o tenta de novo (limpando a causa antes).
    */

@@ -34,8 +34,15 @@ type FakeKeycloak = {
   readonly writes: string[]
   /** O que foi escrito de permissão de troca de login, na ordem em que chegou. */
   readonly usernameWrites: boolean[]
-  /** Cada PUT de callback, como chegou — é nele que se lê se algo foi removido. */
+  /** Cada PUT do "Continuar conectado", com os três campos que ele leva juntos. */
+  readonly rememberMeWrites: RememberMeSettings[]
+  /**
+   * Cada PUT de callback, como chegou — é nele que se lê se algo foi removido, e agora também se
+   * `pkce.code.challenge.method` sobreviveu: um PUT parcial de atributos apagaria a flag, e o
+   * Keycloak aceitaria sem erro (ADR-0075 §2).
+   */
   readonly clientWrites: {
+    readonly attributes: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }[]
@@ -48,29 +55,61 @@ type FakeKeycloak = {
  * de tema, e o que a página de login **serve**. Um deploy sem o tema na imagem tem o primeiro sem o
  * segundo, e foi exatamente esse par que ficou quatro dias divergente em produção.
  */
+type RememberMeSettings = {
+  readonly rememberMe: boolean
+  readonly ssoSessionIdleTimeoutRememberMe: number
+  readonly ssoSessionMaxLifespanRememberMe: number
+}
+
+/** O padrão do Keycloak: desligado, e prazos zerados (que caem nos da sessão comum). */
+const KEYCLOAK_DEFAULT_REMEMBER_ME: RememberMeSettings = {
+  rememberMe: false,
+  ssoSessionIdleTimeoutRememberMe: 0,
+  ssoSessionMaxLifespanRememberMe: 0,
+}
+
+/** Valor real do `transportada-spa` hoje: toda instância nasce com PKCE S256 já configurado. */
+const DEFAULT_SPA_CLIENT_ATTRIBUTES: Readonly<Record<string, string>> = {
+  'pkce.code.challenge.method': 'S256',
+}
+
 function startFakeKeycloak(input: {
   readonly loginThemeInHtml: string | undefined
   readonly spaClient?: {
+    readonly attributes?: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }
   readonly storedLoginTheme: string | undefined
   readonly storedEditUsernameAllowed?: boolean
+  readonly storedRememberMe?: RememberMeSettings
 }): FakeKeycloak {
   const state: {
     loginThemeInHtml: string | undefined
-    spaClient: { readonly redirectUris: readonly string[]; readonly webOrigins: readonly string[] }
+    spaClient: {
+      readonly attributes: Readonly<Record<string, string>>
+      readonly redirectUris: readonly string[]
+      readonly webOrigins: readonly string[]
+    }
     storedLoginTheme: string | undefined
     storedEditUsernameAllowed: boolean
+    storedRememberMe: RememberMeSettings
   } = {
     loginThemeInHtml: input.loginThemeInHtml,
-    spaClient: input.spaClient ?? { redirectUris: [], webOrigins: [] },
+    spaClient: {
+      attributes: input.spaClient?.attributes ?? DEFAULT_SPA_CLIENT_ATTRIBUTES,
+      redirectUris: input.spaClient?.redirectUris ?? [],
+      webOrigins: input.spaClient?.webOrigins ?? [],
+    },
     storedEditUsernameAllowed: input.storedEditUsernameAllowed ?? true,
+    storedRememberMe: input.storedRememberMe ?? KEYCLOAK_DEFAULT_REMEMBER_ME,
     storedLoginTheme: input.storedLoginTheme,
   }
   const writes: string[] = []
   const usernameWrites: boolean[] = []
+  const rememberMeWrites: RememberMeSettings[] = []
   const clientWrites: {
+    readonly attributes: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }[] = []
@@ -88,6 +127,9 @@ function startFakeKeycloak(input: {
           const body = (await request.json()) as {
             readonly editUsernameAllowed?: boolean
             readonly loginTheme?: string
+            readonly rememberMe?: boolean
+            readonly ssoSessionIdleTimeoutRememberMe?: number
+            readonly ssoSessionMaxLifespanRememberMe?: number
           }
           /** Cada ajuste manda o campo dele: um PUT com o outro campo apagaria o que não foi tocado. */
           if (body.loginTheme !== undefined) {
@@ -98,11 +140,21 @@ function startFakeKeycloak(input: {
             usernameWrites.push(body.editUsernameAllowed)
             state.storedEditUsernameAllowed = body.editUsernameAllowed
           }
+          if (body.rememberMe !== undefined) {
+            const written = {
+              rememberMe: body.rememberMe,
+              ssoSessionIdleTimeoutRememberMe: body.ssoSessionIdleTimeoutRememberMe ?? 0,
+              ssoSessionMaxLifespanRememberMe: body.ssoSessionMaxLifespanRememberMe ?? 0,
+            }
+            rememberMeWrites.push(written)
+            state.storedRememberMe = written
+          }
           return new Response(null, { status: 204 })
         }
         return Response.json({
           editUsernameAllowed: state.storedEditUsernameAllowed,
           realm: REALM,
+          ...state.storedRememberMe,
           ...(state.storedLoginTheme === undefined ? {} : { loginTheme: state.storedLoginTheme }),
         })
       }
@@ -136,11 +188,21 @@ function startFakeKeycloak(input: {
       }
       if (pathname === `/admin/realms/${REALM}/clients/spa-uuid` && request.method === 'PUT') {
         const body = (await request.json()) as {
+          readonly attributes?: Readonly<Record<string, string>>
           readonly redirectUris: readonly string[]
           readonly webOrigins: readonly string[]
         }
-        clientWrites.push(body)
-        state.spaClient = { redirectUris: body.redirectUris, webOrigins: body.webOrigins }
+        const attributes = body.attributes ?? {}
+        clientWrites.push({
+          attributes,
+          redirectUris: body.redirectUris,
+          webOrigins: body.webOrigins,
+        })
+        state.spaClient = {
+          attributes,
+          redirectUris: body.redirectUris,
+          webOrigins: body.webOrigins,
+        }
         return new Response(null, { status: 204 })
       }
       return new Response('não encontrado', { status: 404 })
@@ -156,6 +218,7 @@ function startFakeKeycloak(input: {
     stop: async () => {
       await server.stop(true)
     },
+    rememberMeWrites,
     usernameWrites,
     get storedLoginTheme() {
       return state.storedLoginTheme
@@ -167,18 +230,22 @@ function startFakeKeycloak(input: {
 type RunResult = {
   readonly exitCode: number
   readonly clientWrites: {
+    readonly attributes: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }[]
   readonly output: string
+  readonly rememberMeWrites: readonly RememberMeSettings[]
   readonly usernameWrites: readonly boolean[]
   readonly writes: readonly string[]
 }
 
 async function runReconcile(input: {
   readonly storedEditUsernameAllowed?: boolean
+  readonly storedRememberMe?: RememberMeSettings
   readonly loginThemeInHtml: string | undefined
   readonly spaClient?: {
+    readonly attributes?: Readonly<Record<string, string>>
     readonly redirectUris: readonly string[]
     readonly webOrigins: readonly string[]
   }
@@ -211,6 +278,7 @@ async function runReconcile(input: {
   ])
   const writes = [...keycloak.writes]
   const usernameWrites = [...keycloak.usernameWrites]
+  const rememberMeWrites = [...keycloak.rememberMeWrites]
   await keycloak.stop()
   await rm(home, { force: true, recursive: true })
 
@@ -218,9 +286,15 @@ async function runReconcile(input: {
     clientWrites: keycloak.clientWrites,
     exitCode,
     output: `${stdout}${stderr}`,
+    rememberMeWrites,
     usernameWrites,
     writes,
   }
+}
+
+/** O mesmo cálculo do script: cada origem declarada vira dois valores de pós-logout, separador `##`. */
+function buildWantedPostLogoutRedirectUris(webOrigins: readonly string[]): readonly string[] {
+  return webOrigins.flatMap((origin) => [`${origin}/*`, origin])
 }
 
 /**
@@ -298,6 +372,12 @@ describe('contrato de reconciliação do realm', () => {
     const result = await runReconcile({
       loginThemeInHtml: LOGIN_THEME,
       spaClient: {
+        attributes: {
+          'pkce.code.challenge.method': 'S256',
+          'post.logout.redirect.uris': buildWantedPostLogoutRedirectUris(
+            wanted?.webOrigins ?? [],
+          ).join('##'),
+        },
         redirectUris: wanted?.redirectUris ?? [],
         webOrigins: wanted?.webOrigins ?? [],
       },
@@ -306,6 +386,88 @@ describe('contrato de reconciliação do realm', () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.clientWrites).toEqual([])
+  })
+
+  /** O `PUT` regrava o objeto inteiro: sem preservar `pkce.code.challenge.method`, o Keycloak aceita
+   * sem erro e o client fica público sem PKCE (ADR-0075 §2). */
+  test('o corpo do PUT preserva pkce.code.challenge.method', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: { redirectUris: [], webOrigins: [] },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.clientWrites[0]?.attributes['pkce.code.challenge.method']).toBe('S256')
+  })
+
+  /**
+   * A reconciliação passa a unir também `post.logout.redirect.uris` — hoje só o script manual unia
+   * (ADR-0075 §2). Cada origem declarada em `spa-redirect-uris.json` vira `<origem>/*` e `<origem>`.
+   */
+  test('o corpo do PUT contém o pós-logout novo', async () => {
+    const declared = (await Bun.file(
+      new URL('../../../../realm/spa-redirect-uris.json', import.meta.url).pathname,
+    ).json()) as Record<string, Record<string, { redirectUris: string[]; webOrigins: string[] }>>
+    const wanted = declared.staging?.['transportada-spa']
+
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: { redirectUris: [], webOrigins: [] },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    const postLogout = result.clientWrites[0]?.attributes['post.logout.redirect.uris'] ?? ''
+    for (const uri of buildWantedPostLogoutRedirectUris(wanted?.webOrigins ?? [])) {
+      expect(postLogout).toContain(uri)
+    }
+  })
+
+  /**
+   * A mesma regra do redirect URI vale para o pós-logout: acrescenta, nunca remove. Um pós-logout
+   * cadastrado só à mão (fora deste arquivo) sobrevive à reconciliação.
+   */
+  test('o pós-logout que já existia continua', async () => {
+    const soleInPanel = 'https://cadastrado-a-mao.example/auth/callback'
+    const existingOrigin = 'https://cadastrado-a-mao.example'
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: {
+        attributes: {
+          'pkce.code.challenge.method': 'S256',
+          'post.logout.redirect.uris': `${existingOrigin}/*##${existingOrigin}`,
+        },
+        redirectUris: [soleInPanel],
+        webOrigins: [],
+      },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    const postLogout = result.clientWrites[0]?.attributes['post.logout.redirect.uris'] ?? ''
+    expect(postLogout).toContain(`${existingOrigin}/*`)
+    expect(postLogout).toContain(existingOrigin)
+  })
+
+  /**
+   * A verificação depois do `PUT` não confia só no `204`: ela relê o client e confere o pós-logout
+   * **e** `pkce.code.challenge.method`. Um client que já chegou sem PKCE (mudado à mão no painel)
+   * precisa derrubar o deploy, não passar em silêncio.
+   */
+  test('a verificação depois do PUT reprova quando pkce não é S256', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: {
+        attributes: { 'post.logout.redirect.uris': '' },
+        redirectUris: [],
+        webOrigins: [],
+      },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).not.toBe(0)
+    expect(result.output).toContain('pkce.code.challenge.method')
   })
 
   /**
@@ -382,6 +544,67 @@ describe('contrato de reconciliação — troca de login', () => {
     })
 
     expect(result.writes).toEqual([])
+  })
+})
+
+/**
+ * O "Continuar conectado" da tela de senha só aparece com `rememberMe` ligado no realm, e ele vem
+ * desligado. Os dois prazos vão junto: zerados, o Keycloak usa os da sessão comum, e a sessão
+ * "lembrada" morreria nos mesmos 30 minutos de inatividade — o botão marcado e nada lembrado.
+ */
+describe('contrato de reconciliação — continuar conectado', () => {
+  async function readDeclaredRememberMe(): Promise<RememberMeSettings> {
+    const realm = (await Bun.file(REALM_PATH).json()) as RememberMeSettings
+    return {
+      rememberMe: realm.rememberMe,
+      ssoSessionIdleTimeoutRememberMe: realm.ssoSessionIdleTimeoutRememberMe,
+      ssoSessionMaxLifespanRememberMe: realm.ssoSessionMaxLifespanRememberMe,
+    }
+  }
+
+  test('o realm declara a opção ligada, com prazos próprios', async () => {
+    const declared = await readDeclaredRememberMe()
+
+    expect(declared.rememberMe).toBe(true)
+    expect(declared.ssoSessionIdleTimeoutRememberMe).toBeGreaterThan(0)
+    expect(declared.ssoSessionMaxLifespanRememberMe).toBeGreaterThanOrEqual(
+      declared.ssoSessionIdleTimeoutRememberMe,
+    )
+  })
+
+  test('realm com a opção desligada recebe o que o arquivo declara', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      storedLoginTheme: LOGIN_THEME,
+      storedRememberMe: KEYCLOAK_DEFAULT_REMEMBER_ME,
+    })
+
+    expect(result.rememberMeWrites).toEqual([await readDeclaredRememberMe()])
+    expect(result.writes).toEqual([])
+    expect(result.usernameWrites).toEqual([])
+    expect(result.exitCode).toBe(0)
+  })
+
+  test('realm já igual ao arquivo não é escrito de novo', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      storedLoginTheme: LOGIN_THEME,
+      storedRememberMe: await readDeclaredRememberMe(),
+    })
+
+    expect(result.rememberMeWrites).toEqual([])
+  })
+
+  /** Prazo mexido no painel conta como divergência: o arquivo é quem decide quanto tempo dura. */
+  test('prazo divergente do arquivo é regravado', async () => {
+    const declared = await readDeclaredRememberMe()
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      storedLoginTheme: LOGIN_THEME,
+      storedRememberMe: { ...declared, ssoSessionMaxLifespanRememberMe: 60 },
+    })
+
+    expect(result.rememberMeWrites).toEqual([declared])
   })
 })
 

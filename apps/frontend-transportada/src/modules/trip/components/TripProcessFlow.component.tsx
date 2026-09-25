@@ -3,13 +3,17 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 
-import type { TripDocumentDetail } from '../shared/trip.types'
+import type { TripDocumentDetail, TripStatus } from '../shared/trip.types'
 import { buildTripProcessFlow, type TripProcessStage } from '../shared/tripProcessFlow.service'
 import type { TripProgress } from '../shared/tripProgress.service'
 import styles from '../styles/trip.module.css'
 
-const STAGE_ICON: Readonly<Record<TripProcessStage, 'check' | 'columns' | 'send' | 'truck'>> = {
+const STAGE_ICON: Readonly<
+  Record<TripProcessStage, 'check' | 'columns' | 'send' | 'target' | 'truck'>
+> = {
   delivered: 'check',
+  /** Spec 185 (ADR-0074 §6): a fase é um marco alcançado pela viagem, não uma ação — sem verbo. */
+  dispatched: 'target',
   loaded: 'truck',
   pending: 'columns',
   separated: 'send',
@@ -19,6 +23,8 @@ type TripProcessFlowProps = Readonly<{
   documents: readonly TripDocumentDetail[]
   /** Spec 079 T011: `null` quando não há ritmo medido — e aí a tela **diz** que não há previsão. */
   progress: null | TripProgress
+  /** Spec 185 T6.1: quem decide se a fase "despachada" foi alcançada — não vem de nota nenhuma. */
+  tripStatus: TripStatus
 }>
 
 const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -34,9 +40,13 @@ const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
  * A fase alcançada acende; a atual pulsa. Quem pediu menos movimento não recebe nenhum, e a
  * informação continua inteira sem a animação — ela é reforço, nunca o canal.
  */
-export function TripProcessFlow({ documents, progress: tripProgress }: TripProcessFlowProps) {
+export function TripProcessFlow({
+  documents,
+  progress: tripProgress,
+  tripStatus,
+}: TripProcessFlowProps) {
   const { t } = useTranslation('trip')
-  const flow = buildTripProcessFlow(documents)
+  const flow = buildTripProcessFlow(documents, tripStatus)
 
   if (flow === null) return null
 

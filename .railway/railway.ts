@@ -111,6 +111,7 @@ export default defineRailway((ctx) => {
       OBJECT_STORAGE_REGION: preserve(),
       OBJECT_STORAGE_SECRET_KEY: preserve(),
       PORT: preserve(),
+      POSTAL_CODE_AWESOME_API_URL: preserve(),
       POSTAL_CODE_BRASIL_API_URL: preserve(),
       POSTAL_CODE_VIA_CEP_URL: preserve(),
       PROVISION_COMPANY_ID: preserve(),
@@ -136,6 +137,7 @@ export default defineRailway((ctx) => {
       ANEEL_TIMEOUT_MS: preserve(),
       ANP_BASE_URL: preserve(),
       ANP_TIMEOUT_MS: preserve(),
+      API_BASE_URL: preserve(),
       APP_BASE_URL: preserve(),
       APP_ENV: preserve(),
       CTE_TECHNICAL_RESPONSIBLE_CNPJ: preserve(),
@@ -198,6 +200,11 @@ export default defineRailway((ctx) => {
       VITE_API_URL: preserve(),
       VITE_APP_ENV: preserve(),
       VITE_APP_URL: preserve(),
+      /**
+       * Interruptor da ADR-0075 §6; definido só com `motorista.<env>` no ar. Ausente, o painel serve
+       * `/minha-viagem` como sempre — e o rollback é remover a variável e reimplantar o painel.
+       */
+      VITE_DRIVER_APP_URL: preserve(),
       VITE_EMAIL_FROM: preserve(),
       /**
        * A tela de identificação (e-mail, CPF, CNPJ ou telefone antes da senha) é o caminho de entrada
@@ -220,6 +227,8 @@ export default defineRailway((ctx) => {
        * painel, não só reiniciar.
        */
       VITE_MAP_TILES_URL: preserve(),
+      /** Lida no build (`vite.config.ts`, `objectStorageUrl`); estava viva no painel e fora daqui. */
+      VITE_OBJECT_STORAGE_URL: preserve(),
     },
   })
 
@@ -611,6 +620,51 @@ export default defineRailway((ctx) => {
     },
   })
 
+  /**
+   * O app do motorista (ADR-0075 §3, spec 189): serviço próprio, no molde do `client`. O domínio
+   * `motorista.<zona>` **não** se declara aqui ainda — ele nasce no painel na T6.3 (👤 Railway) e
+   * volta ao arquivo por `railway config pull` depois de criado; declará-lo agora faria o `plan`
+   * tentar registrar domínio por código, que a Railway recusa.
+   *
+   * Sem `source`: como `api`/`worker`/`panel`/`landing`/`keycloak`/`cron`, o deploy é só pelo CI
+   * (`railway up`, T6.4) — conectar o repositório do GitHub aqui disparia auto-deploy sem passar
+   * pelo gate.
+   */
+  const driver = service('driver', {
+    build: { builder: 'DOCKERFILE', dockerfilePath: 'apps/frontend-driver/Dockerfile' },
+    deploy: {
+      healthcheckPath: '/health/live',
+      healthcheckTimeout: 120,
+      restartPolicyType: 'ON_FAILURE',
+    },
+    replicas: { sfo: 1 },
+    env: {
+      DEPLOYED_REVISION: preserve(),
+      PORT: preserve(),
+      RAILWAY_DOCKERFILE_PATH: preserve(),
+      /**
+       * `VITE_*` literal por ambiente, nunca `preserve()` (ADR-0075 §3, no molde de
+       * `VITE_IDENTIFIER_FIRST_LOGIN` do `client` acima): é pública, inlinada no build, e uma
+       * esquecida no painel gera build verde que quebra no celular. Valores conferidos com
+       * `railway variables --service client --environment <env> --json` em 25/09/2026 (filtrando só
+       * `VITE_*`), trocando `VITE_CLIENT_APP_URL` pelo domínio do motorista.
+       */
+      VITE_API_URL: isProduction
+        ? 'https://api.fernandes-transportadora.com.br'
+        : 'https://api.staging.fernandes-transportadora.com.br',
+      VITE_APP_ENV: isProduction ? 'production' : 'staging',
+      VITE_DRIVER_APP_URL: isProduction
+        ? 'https://motorista.fernandes-transportadora.com.br'
+        : 'https://motorista.staging.fernandes-transportadora.com.br',
+      VITE_IDENTIFIER_FIRST_LOGIN: 'true',
+      VITE_KEYCLOAK_CLIENT_ID: 'transportada-spa',
+      VITE_KEYCLOAK_REALM: 'transportada',
+      VITE_KEYCLOAK_URL: isProduction
+        ? 'https://transportada-afr-fernandes-auth.up.railway.app'
+        : 'https://auth.staging.fernandes-transportadora.com.br',
+    },
+  })
+
   const shared = [
     api,
     worker,
@@ -621,6 +675,7 @@ export default defineRailway((ctx) => {
     rabbitmq,
     vector,
     client,
+    driver,
     applicationDatabase,
     identityDatabase,
     applicationVolume,

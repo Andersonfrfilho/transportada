@@ -233,4 +233,21 @@ describe('contrato do grafo de deploy', () => {
 
     expect(workflow).toMatch(/strategy:\s+fail-fast: false/)
   })
+
+  /**
+   * Code M8 (spec 189 T9.2): `changes` nunca filtra produção, então `deploy-driver` dispararia em
+   * todo push a `main` que toque `apps/frontend-driver` — e o serviço `driver` ainda não existe na
+   * Railway de produção (T6.9, pendente). Sem a guarda, `railway-deploy.sh` bateria num serviço
+   * inexistente e reprovaria o deploy inteiro por causa de uma app que produção ainda não tem.
+   */
+  test('o app do motorista não publica em produção antes do serviço existir lá (T6.9)', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+    const job = workflow.slice(
+      workflow.indexOf('deploy-driver:'),
+      workflow.indexOf('deploy-services:'),
+    )
+
+    expect(needsOf(workflow, 'deploy-driver')).toContain('target')
+    expect(job).toContain("needs.target.outputs.environment != 'production'")
+  })
 })

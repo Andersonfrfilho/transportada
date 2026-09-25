@@ -1,17 +1,15 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 154, T302: Postgres descartável + MinIO de `make e2e-up`, com os casos de uso **reais** de
- * subida e recarga. `createDatabaseProvider` (`prepare: false`), nunca o provider cru: com ele a
+ * Spec 154, T302: Postgres descartável + storage em memória, com os casos de uso **reais** de
+ * subida e recarga. O storage era o MinIO; desde que a MinIO tirou as imagens públicas (2026-09-24)
+ * a CI não o sobe, e o provedor é o dublê de `in-memory-object-storage.fixture.ts`. `createDatabaseProvider` (`prepare: false`), nunca o provider cru: com ele a
  * transação da recarga parava ociosa (spec 137, `apps/api-transportada/CLAUDE.md`).
  */
 import { createHash } from 'node:crypto'
 
 import { SQL } from 'bun'
-import {
-  createObjectStorageProvider,
-  type ObjectStorageProvider,
-} from '@adatechnology/object-storage-provider'
+import type { ObjectStorageProvider } from '@adatechnology/object-storage-provider'
 
 import { createDatabaseProvider } from '../../src/database/database-client.service.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
@@ -28,22 +26,17 @@ import { createDrizzleTollBoothExtractRepository } from '../../src/toll-booths/i
 import { createInMemoryTollBoothAxleChargeGapCache } from '../../src/toll-booths/infrastructure/in-memory-toll-booth-axle-charge-gap-cache.js'
 import { buildExtractObjectKey } from '../../src/toll-booths/domain/toll-booth-extract.policy.js'
 import { createTollBoothExtractStorageGateway } from '../../src/toll-booths/infrastructure/toll-booth-extract-storage.gateway.js'
+import { createInMemoryObjectStorageProvider } from './in-memory-object-storage.fixture.js'
 
 export const reloadDatabaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
   process.env.API_TEST_DATABASE_URL ??
   process.env.DATABASE_URL
 
-const endpoint = process.env.OBJECT_STORAGE_ENDPOINT ?? process.env.STORAGE_ENDPOINT
-const bucket = process.env.OBJECT_STORAGE_BUCKET ?? process.env.STORAGE_BUCKET ?? ''
-const accessKeyId = process.env.OBJECT_STORAGE_ACCESS_KEY ?? process.env.STORAGE_ACCESS_KEY
-const secretAccessKey = process.env.OBJECT_STORAGE_SECRET_KEY ?? process.env.STORAGE_SECRET_KEY
+const bucket = 'transportada-test'
 
-export const hasReloadInfrastructure =
-  reloadDatabaseUrl !== undefined &&
-  [endpoint, bucket, accessKeyId, secretAccessKey].every(
-    (value) => value !== undefined && value.trim() !== '',
-  )
+/** Só o banco é infraestrutura real: o storage é o dublê em memória, que ninguém precisa subir. */
+export const hasReloadInfrastructure = reloadDatabaseUrl !== undefined
 
 export const RELOAD_BUCKET = bucket
 
@@ -58,14 +51,8 @@ async function createReloadWorld(url: string) {
     pool: { connectTimeoutSeconds: 10, max: 5, queryTimeoutMs: 20_000 },
     url,
   })
-  const provider: ObjectStorageProvider = createObjectStorageProvider({
-    accessKeyId: accessKeyId ?? '',
-    endpoint: new URL(endpoint ?? ''),
-    forcePathStyle: true,
-    healthCheckBucket: bucket,
+  const provider: ObjectStorageProvider = createInMemoryObjectStorageProvider({
     maxObjectSizeBytes: 25 * 1024 * 1024,
-    region: process.env.OBJECT_STORAGE_REGION ?? process.env.STORAGE_REGION ?? 'us-east-1',
-    secretAccessKey: secretAccessKey ?? '',
   })
   const companyId = crypto.randomUUID()
   const userId = crypto.randomUUID()

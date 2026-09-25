@@ -299,6 +299,8 @@
     "redeliveryPolicy": "Admite reentrega",
     "redeliveryPolicyUnset": "Indefinido (não abre tratativa)",
     "redeliveryPolicyAllowed": "Admite reentrega",
-    "redeliveryPolicyBlocked": "Não admite reentrega"
+    "redeliveryPolicyBlocked": "Não admite reentrega",
+    "leavesDocumentBehind": "A viagem segue sem a nota",
+    "leavesDocumentBehindHint": "Vale para ocorrência da nota inteira. A nota sai da viagem no despacho."
   }
 }

@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
-import type { FieldDeliveryController } from '../hooks/useFieldDelivery.hook'
+import type {
+  FieldDeliveryController,
+  FieldDeliverySendStatus,
+} from '../hooks/useFieldDelivery.hook'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import { toTripDocumentLabelSource } from '../shared/fieldDeliveryDocument.service'
 import type { FieldDeliveryWizardDocument } from '../shared/fieldDeliveryWizard.service'
@@ -32,6 +35,21 @@ function statusStyle(kind: string): string {
   return styles.sendStatusNeutral ?? ''
 }
 
+/** Spec 184 D5: só `delivered`/`alreadySettled` carregam `cargoPending`/`cargoRejected` — a baixa
+ * nunca falha por causa de uma foto de carga. */
+function resolveCargoPendingCount(status: FieldDeliverySendStatus | undefined): number {
+  if (status === undefined) return 0
+  if (status.kind !== 'delivered' && status.kind !== 'alreadySettled') return 0
+  return status.cargoPending ?? 0
+}
+
+/** Achado de revisão (spec 184): recusa terminal (400/422) — nunca some no "tentar de novo". */
+function resolveCargoRejectedCount(status: FieldDeliverySendStatus | undefined): number {
+  if (status === undefined) return 0
+  if (status.kind !== 'delivered' && status.kind !== 'alreadySettled') return 0
+  return status.cargoRejected ?? 0
+}
+
 /**
  * Spec 156 T12 (aceites 5, 7, 12): a tela final do assistente — o resultado nota a nota depois do
  * envio (`useFieldDelivery`), com "tentar de novo" só para as que falharam. `documents` é a mesma
@@ -56,6 +74,11 @@ export function FieldDeliverySendStep({
   const retryableFailedCount = statuses.filter(
     (status) => status.kind === 'failed' && status.retryable,
   ).length
+  /** Spec 184 D5: nota entregue com foto de carga pendente também entra no "tentar de novo". */
+  const cargoPendingDocumentCount = statuses.filter(
+    (status) => resolveCargoPendingCount(status) > 0,
+  ).length
+  const retryableCount = retryableFailedCount + cargoPendingDocumentCount
 
   function statusLabel(documentId: string): string {
     const status = fieldDelivery.statusByDocumentId[documentId]
@@ -103,6 +126,16 @@ export function FieldDeliverySendStep({
                 <Icon name={STATUS_ICON[kind] ?? 'clock'} />
                 {statusLabel(document.documentId)}
               </span>
+              {resolveCargoPendingCount(status) > 0 ? (
+                <span className={styles.summaryFailed ?? ''} role="alert">
+                  {t('fieldDelivery.cargoPending', { count: resolveCargoPendingCount(status) })}
+                </span>
+              ) : null}
+              {resolveCargoRejectedCount(status) > 0 ? (
+                <span className={styles.summaryFailed ?? ''} role="alert">
+                  {t('fieldDelivery.cargoRejected', { count: resolveCargoRejectedCount(status) })}
+                </span>
+              ) : null}
             </li>
           )
         })}
@@ -113,14 +146,14 @@ export function FieldDeliverySendStep({
           <Icon name="close" />
           {t('fieldDelivery.close')}
         </Button>
-        {retryableFailedCount > 0 && !fieldDelivery.isSubmitting ? (
+        {retryableCount > 0 && !fieldDelivery.isSubmitting ? (
           <Button
             onClick={fieldDelivery.retryFailed}
             type="button"
             {...{ [FIELD_DELIVERY_FOCUS_ATTRIBUTE]: '' }}
           >
             <Icon name="refresh" />
-            {t('fieldDelivery.sendRetry', { count: retryableFailedCount })}
+            {t('fieldDelivery.sendRetry', { count: retryableCount })}
           </Button>
         ) : null}
       </div>

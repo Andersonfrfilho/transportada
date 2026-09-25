@@ -629,6 +629,8 @@ export async function findOccurrenceType(
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       id: companyOccurrenceTypes.id,
+      /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
+      leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
@@ -757,6 +759,7 @@ export async function listOccurrenceTypes(
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       id: companyOccurrenceTypes.id,
+      leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
       stage: companyOccurrenceTypes.stage,
@@ -782,6 +785,12 @@ export async function saveOccurrenceType(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    /**
+     * Spec 185 (RF6, ADR-0074 §4): ausente é `false` — o padrão da coluna. Opcional pelo mesmo
+     * motivo de `attachmentMode` acima: o UPDATE sobrescreve o registro inteiro e o editor do
+     * painel ainda não manda o campo.
+     */
+    readonly leavesDocumentBehind?: boolean | undefined
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
@@ -818,16 +827,31 @@ export async function saveOccurrenceType(
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
   }
+  /**
+   * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar
+   * o campo, bateria na CHECK e viraria 500. `true` fora de separação já foi recusado no caso de uso.
+   */
+  const leavesDocumentBehindChange =
+    input.stage !== 'separation'
+      ? { leavesDocumentBehind: false }
+      : input.leavesDocumentBehind === undefined
+        ? {}
+        : { leavesDocumentBehind: input.leavesDocumentBehind }
 
   const [saved] =
     input.occurrenceTypeId === null
       ? await queryable
           .insert(companyOccurrenceTypes)
-          .values({ ...values, ...attachmentModeChange })
+          .values({ ...values, ...attachmentModeChange, ...leavesDocumentBehindChange })
           .returning()
       : await queryable
           .update(companyOccurrenceTypes)
-          .set({ ...values, ...attachmentModeChange, updatedAt: sql`now()` })
+          .set({
+            ...values,
+            ...attachmentModeChange,
+            ...leavesDocumentBehindChange,
+            updatedAt: sql`now()`,
+          })
           .where(
             and(
               eq(companyOccurrenceTypes.companyId, input.companyId),
@@ -847,6 +871,7 @@ export async function saveOccurrenceType(
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
     id: saved.id,
+    leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,
     notifies: saved.notifies,
     redeliveryPolicy: saved.redeliveryPolicy,

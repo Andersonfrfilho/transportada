@@ -8,6 +8,7 @@ trips.status ...]`) e substitui o ciclo `open|closed` que a spec 027 implementou
   provisória. O resto da ADR-0023 (§1, §2, §3, §5) continua valendo integralmente
 - Fecha a decisão da spec 056
 - Base das specs 057, 058, 059, 060 e 061
+- Revisada por ADR-0074 (despacho derivado quando a carga fecha)
 
 ## Contexto
 

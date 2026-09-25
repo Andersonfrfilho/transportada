@@ -135,9 +135,8 @@ function resolveTripLevelActions(input: {
   const managed: readonly TripAction[] = input.capabilities.canManage
     ? [TRIP_ACTION.planRoute, TRIP_ACTION.dispatch, TRIP_ACTION.cancel]
     : []
-  const field: readonly TripAction[] = canReportInField(input)
-    ? [TRIP_ACTION.confirmLoad, TRIP_ACTION.startRoute]
-    : []
+  /** ADR-0074 §5: "Conferir carga" some da lista — o carregamento já é a conferência. */
+  const field: readonly TripAction[] = canReportInField(input) ? [TRIP_ACTION.startRoute] : []
 
   return [...managed, ...field].filter(
     (action) =>
@@ -146,12 +145,21 @@ function resolveTripLevelActions(input: {
   )
 }
 
+/**
+ * Spec 182 RF1 (decisão do usuário em 24/09): a ocorrência de parada deixa de exigir a viagem na
+ * estrada — a avaria, a caixa faltando ou o produto trocado acontecem no barracão também. A
+ * chegada continua exigindo `isTripOnRoad`: não se chega aonde não se foi (P3/CA02). As duas
+ * seguem exigindo que a viagem não tenha terminado (CA06: "o que terminou não recebe registro
+ * novo").
+ */
 function resolveStopActions(input: {
   readonly capabilities: TripActionCapabilities
   readonly stop: AllowedActionsStop
   readonly trip: AllowedActionsTripSnapshot
 }): readonly StopAllowedAction[] {
-  if (!canReportInField(input) || !isTripOnRoad(input.trip.status)) return []
+  if (!canReportInField(input) || isTripEnded(input.trip.status)) return []
+
+  if (!isTripOnRoad(input.trip.status)) return [STOP_ALLOWED_ACTION.occurrence]
 
   return input.stop.arrivedAt === null
     ? [STOP_ALLOWED_ACTION.arrive, STOP_ALLOWED_ACTION.occurrence]
@@ -194,6 +202,13 @@ function resolveWarehouseDocumentActions(input: {
     : transitions
 }
 
+/**
+ * Spec 182 RF2 (decisão do usuário em 24/09): `fieldOccurrence` deixa de exigir `isTripDispatched`
+ * — a ocorrência na linha da nota já faz sentido com a viagem ainda no barracão (RF2, CA01).
+ * `fieldProof` (substituir o canhoto) continua atrelado ao despacho: só existe canhoto depois de
+ * entregue na rua, e a baixa antecipada (RF3) não muda isso. `fieldDelivery`/`fieldReturn` seguem
+ * só o que a máquina aplicaria agora (`trip-state.policy.ts`).
+ */
 function resolveFieldDocumentActions(input: {
   readonly document: AllowedActionsDocument
   readonly trip: AllowedActionsTripSnapshot
@@ -205,9 +220,14 @@ function resolveFieldDocumentActions(input: {
   if (isDocumentTransitionApplied({ action: TRIP_DOCUMENT_ACTION.return, input })) {
     actions.push(DOCUMENT_ALLOWED_ACTION.fieldReturn)
   }
-  if (!isTripDispatched(input.trip.status)) return actions
+  /**
+   * `completed` não sai daqui (spec 156): uma viagem que terminou com a nota entregue ainda
+   * oferece `fieldProof`/`fieldOccurrence` — comportamento pré-existente, fora do escopo da 182.
+   * Só `cancelled` corta.
+   */
+  if (input.trip.status === 'cancelled') return actions
 
-  if (input.document.separationStatus === 'delivered') {
+  if (isTripDispatched(input.trip.status) && input.document.separationStatus === 'delivered') {
     actions.push(DOCUMENT_ALLOWED_ACTION.fieldProof)
   }
   actions.push(DOCUMENT_ALLOWED_ACTION.fieldOccurrence)
@@ -239,6 +259,11 @@ function canReportInField(input: {
 
 function isTripOnRoad(status: TripStatus): boolean {
   return (TRIP_ON_ROAD_STATUSES as readonly TripStatus[]).includes(status)
+}
+
+/** CA06 (spec 182): "o que terminou não recebe registro novo" — cancelada ou concluída. */
+function isTripEnded(status: TripStatus): boolean {
+  return status === 'cancelled' || status === 'completed'
 }
 
 function collectByIdentifier<TAction>(

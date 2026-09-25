@@ -1,10 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
-import {
-  DRIVER_OCCURRENCE_KINDS,
-  DRIVER_RETURN_REASONS,
-} from '@/modules/driver-trip/shared/driverTrip.types'
+import { DRIVER_OCCURRENCE_KINDS } from '@/modules/driver-trip/shared/driverTrip.types'
+/** ADR-0075 §6: os motivos moram no módulo `trip`, que fica no escritório depois da remoção. */
+import { DRIVER_RETURN_REASONS } from '@/modules/trip/shared/tripReturnReason.types'
 
 /**
  * As duas listas são cópia por valor da API — o bundle não carrega código de lá. Restatá-las aqui

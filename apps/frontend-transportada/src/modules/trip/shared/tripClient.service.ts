@@ -31,6 +31,7 @@ import {
 } from './multiVehicleSuggestion.validation'
 import type {
   AcceptedMultiVehicleSuggestion,
+  AttachFieldProofInput,
   CreateMultiVehicleSuggestionInput,
   MultiVehicleProposal,
   MultiVehicleSuggestion,
@@ -38,7 +39,6 @@ import type {
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
-  ConfirmLoadTripInput,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
@@ -117,8 +117,6 @@ export type TripClient = Readonly<{
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   /** Spec 156 T8c: `reason` é obrigatório só quando a viagem tem nota em aberto (a tela decide). */
   closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
-  /** Spec 156 T5: `POST /trips/:id/confirm-load` — o mesmo caso de uso do motorista, com o alvo. */
-  confirmLoadTrip: (input: ConfirmLoadTripInput) => Promise<FieldTripStepResult>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   /**
    * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
@@ -236,6 +234,8 @@ export type TripClient = Readonly<{
       /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
       allowsMultipleItems: boolean
       emailTemplateKey: null | string
+      /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
+      leavesDocumentBehind: boolean
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
@@ -327,18 +327,38 @@ export type TripClient = Readonly<{
    * `receiverDocument`, `driverId` opcionais, `file` sempre presente nesta tela).
    */
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
+  /**
+   * Spec 184 D5: `POST /trips/:id/documents/:documentId/field-proof` — anexa a uma entrega já
+   * feita. É por aqui que a foto da carga do assistente sobe, depois da baixa confirmada.
+   */
+  attachFieldProof: (input: AttachFieldProofInput) => Promise<FieldReportIdResult>
   transitionTripDocument: (
     input: TransitionTripDocumentInput,
   ) => Promise<TransitionTripDocumentResult>
 }>
 
-/** M13a (spec 156 T15): carrega o status HTTP junto com o código de negócio — sem ele, quem recebe
- * o erro não distingue uma falha transitória (rede/5xx/429, reenviável) de uma terminal (400/422). */
-export type TripRequestError = Error & { readonly status?: number }
+/**
+ * M13a (spec 156 T15): carrega o status HTTP junto com o código de negócio — sem ele, quem recebe
+ * o erro não distingue uma falha transitória (rede/5xx/429, reenviável) de uma terminal (400/422).
+ * Spec 185 RF8: `details` carrega `error.details[]` quando o servidor manda (`TripHasUnscheduledStopsError`,
+ * `TripStateTransitionNotAllowedError`) — é o que deixa a tela nomear a parada, em vez do genérico.
+ */
+export type TripRequestError = Error & {
+  readonly details?: readonly Readonly<{ field: string; message: string }>[]
+  readonly status?: number
+}
 
-function requestError(code: string, status?: number): TripRequestError {
+function requestError(
+  code: string,
+  status?: number,
+  details?: readonly Readonly<{ field: string; message: string }>[],
+): TripRequestError {
   const error = new Error(code) as TripRequestError
-  return status === undefined ? error : Object.assign(error, { status })
+  return Object.assign(
+    error,
+    status === undefined ? {} : { status },
+    details === undefined ? {} : { details },
+  )
 }
 
 /** Lê o status HTTP de um erro lançado por este cliente — `undefined` cobre falha de rede (nunca
@@ -354,6 +374,19 @@ function readErrorCode(payload: unknown): string {
     return payload.error.code
   }
   return TRIP_ERROR.REQUEST_FAILED
+}
+
+/** Spec 185 RF8: `[{field, message}]` quando o servidor manda; ausente ou malformado vira `undefined`. */
+function readErrorDetails(
+  payload: unknown,
+): readonly Readonly<{ field: string; message: string }>[] | undefined {
+  if (!isRecord(payload) || !isRecord(payload.error) || !Array.isArray(payload.error.details)) {
+    return undefined
+  }
+  const details: readonly unknown[] = payload.error.details
+  const isDetail = (detail: unknown): detail is Readonly<{ field: string; message: string }> =>
+    isRecord(detail) && isString(detail.field) && isString(detail.message)
+  return details.every(isDetail) ? details : undefined
 }
 
 async function requestJson(
@@ -374,7 +407,9 @@ async function requestJson(
   } catch {
     throw requestError(response.ok ? TRIP_ERROR.RESPONSE_INVALID : TRIP_ERROR.REQUEST_FAILED)
   }
-  if (!response.ok) throw requestError(readErrorCode(payload), response.status)
+  if (!response.ok) {
+    throw requestError(readErrorCode(payload), response.status, readErrorDetails(payload))
+  }
   return payload
 }
 
@@ -502,15 +537,6 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
     },
-    async confirmLoadTrip(input) {
-      const response = await authorizedRequest({
-        ...officeDriverSelectionBody(input.driverId),
-        dependencies,
-        method: 'POST',
-        path: `${TRIPS_PATH}/${input.tripId}/confirm-load`,
-      })
-      return adapters.fieldTripStepResultFromApi(readEnvelopeData(response))
-    },
     async startFieldTrip(input) {
       const response = await authorizedRequest({
         ...officeDriverSelectionBody(input.driverId),
@@ -588,6 +614,22 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       return adapters.reportFieldDeliveryResultFromApi(readEnvelopeData(response))
+    },
+    async attachFieldProof(input) {
+      const form = new FormData()
+      form.set('file', input.imageBlob)
+      form.set('kind', input.kind)
+      if (input.driverId !== undefined) form.set('driverId', input.driverId)
+
+      const response = await authorizedRequest({
+        dependencies,
+        form,
+        idempotencyKey: input.idempotencyKey,
+        method: 'POST',
+        path: `${documentPath(input)}/field-proof`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.fieldReportIdResultFromApi(readEnvelopeData(response))
     },
     async readTripAllowedActions(input) {
       const response = await authorizedRequest({
@@ -738,6 +780,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           active: input.active,
           allowsMultipleItems: input.allowsMultipleItems,
           emailTemplateKey: input.emailTemplateKey,
+          leavesDocumentBehind: input.leavesDocumentBehind,
           name: input.name,
           notifies: input.notifies,
           occurrenceTypeId: input.occurrenceTypeId,
@@ -1047,9 +1090,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async dispatchTrip(input) {
       const response = await authorizedRequest({
+        /**
+         * Spec 185 RF4/RF9: `loadRemaining` e `force` são mutuamente exclusivos (400 do servidor
+         * com os dois) — o escritório manda um ou outro, nunca os dois com valor.
+         */
         body: JSON.stringify({
-          force: input.force ?? false,
-          forceReason: input.forceReason ?? null,
+          ...(input.force === undefined ? {} : { force: input.force }),
+          ...(input.forceReason === undefined ? {} : { forceReason: input.forceReason }),
+          ...(input.loadRemaining === undefined ? {} : { loadRemaining: input.loadRemaining }),
         }),
         dependencies,
         method: 'POST',

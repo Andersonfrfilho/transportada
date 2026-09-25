@@ -706,6 +706,113 @@ describe('FlowActions do operador — Viagens do armazém (spec 144 T016)', () =
     expect(sent).toEqual([{ body: '1 de 1 notas atualizadas. ✅', kind: 'text' }])
   })
 
+  /**
+   * Spec 185 T4.1/T4.2 (CA01, ADR-0074 §1): carregar a última nota pode fechar a carga sozinha —
+   * a confirmação da carga vem primeiro, e o desfecho do gatilho automático é uma mensagem à parte
+   * (conversation-flow.md §5, uma ideia por mensagem).
+   */
+  test('carregar chama loadDocument e, sem autoDispatch, manda só a confirmação da carga', async () => {
+    const { channel, sent } = buildChannel()
+    await callAction({
+      channel,
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      deps: buildDeps(),
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(sent).toEqual([{ body: 'Carregamento registrado. ✅', kind: 'text' }])
+  })
+
+  test('carregar a última nota despacha: "Viagem despachada." chega numa segunda mensagem', async () => {
+    const { channel, sent } = buildChannel()
+    await callAction({
+      channel,
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      deps: buildDeps({
+        loadDocument: async () => ({
+          autoDispatch: { outcome: 'dispatched' },
+          document: { id: DOCUMENT_ID } as never,
+          tripStatus: 'dispatched',
+        }),
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(sent).toEqual([
+      { body: 'Carregamento registrado. ✅', kind: 'text' },
+      { body: 'Viagem despachada. 🚚', kind: 'text' },
+    ])
+  })
+
+  test('carregar a última nota com gate recusado: a frase de bloqueio chega numa segunda mensagem', async () => {
+    const { channel, sent } = buildChannel()
+    await callAction({
+      channel,
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      deps: buildDeps({
+        loadDocument: async () => ({
+          autoDispatch: {
+            code: 'TRIP_HAS_UNSCHEDULED_STOPS',
+            details: { stopIds: ['stop-1'] },
+            outcome: 'blocked',
+          },
+          document: { id: DOCUMENT_ID } as never,
+          tripStatus: 'loading',
+        }),
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(sent).toEqual([
+      { body: 'Carregamento registrado. ✅', kind: 'text' },
+      { body: 'A viagem não saiu: parada aguardando agendamento.', kind: 'text' },
+    ])
+  })
+
+  test('"Todas as pendentes" para carregar e despachar: a segunda mensagem é "Viagem despachada."', async () => {
+    const { channel, sent } = buildChannel()
+    await callAction({
+      channel,
+      context: {
+        [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'load',
+        [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: 'all_pending',
+        [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+      },
+      deps: buildDeps({
+        batchTransition: async () => ({
+          autoDispatch: { outcome: 'dispatched' },
+          items: [{ documentId: DOCUMENT_ID, outcome: 'applied' }],
+          tripStatus: 'dispatched',
+        }),
+        listWarehouseTrips: async () => [
+          buildTrip({
+            documents: [
+              { id: DOCUMENT_ID, number: '1', recipientName: 'X', separationStatus: 'separated' },
+            ],
+          }),
+        ],
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(sent).toEqual([
+      { body: '1 de 1 notas atualizadas. ✅', kind: 'text' },
+      { body: 'Viagem despachada. 🚚', kind: 'text' },
+    ])
+  })
+
   test('escolher "ocorrência" para uma nota segue para o catálogo de tipos de estágio "separation"', async () => {
     const { channel, sent } = buildChannel()
     const result = await callAction({
@@ -870,6 +977,67 @@ describe('FlowAction do passo de foto do operador (spec 161 T15)', () => {
       },
       next: OPERATOR_FLOW_NODE.photoEntry,
     })
+  })
+
+  /**
+   * Revisão da spec 185 (RF2, ADR-0074 §4): a ocorrência que deixa a última nota para trás pode
+   * despachar a viagem — o desfecho do gatilho chega numa mensagem à parte, depois de "Foto 1
+   * anexada" (conversation-flow.md §5, uma ideia por mensagem).
+   */
+  for (const [autoDispatch, expected] of [
+    [{ outcome: 'dispatched' }, 'Viagem despachada. 🚚'],
+    [
+      { code: 'TRIP_AUTO_DISPATCH_FAILED', outcome: 'blocked' },
+      'A viagem não saiu sozinha — use Despachar.',
+    ],
+  ] as const) {
+    test(`primeira foto com gatilho ${autoDispatch.outcome}: "${expected}" depois de "Foto 1 anexada"`, async () => {
+      const { channel, sent } = await buildChannelWithMedia(1024)
+      await callAction({
+        channel,
+        context: { ...PHOTO_CONTEXT, ...withImage() },
+        deps: buildDeps({
+          registerOccurrence: async () => ({
+            autoDispatch,
+            createdAt: NOW.toISOString(),
+            id: 'occurrence-1',
+            note: '',
+            occurrenceTypeId: OCCURRENCE_TYPE_ID,
+            productCode: '',
+            stage: 'separation',
+            typeName: 'Item faltante',
+          }),
+        }),
+        kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+      })
+
+      expect(sent.map((message) => message.body)).toEqual([
+        'Foto 1 anexada. Envie outra, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
+        expected,
+      ])
+    })
+  }
+
+  test('primeira foto sem gatilho: só "Foto 1 anexada"', async () => {
+    const { channel, sent } = await buildChannelWithMedia(1024)
+    await callAction({
+      channel,
+      context: { ...PHOTO_CONTEXT, ...withImage() },
+      deps: buildDeps({
+        registerOccurrence: async () => ({
+          createdAt: NOW.toISOString(),
+          id: 'occurrence-1',
+          note: '',
+          occurrenceTypeId: OCCURRENCE_TYPE_ID,
+          productCode: '',
+          stage: 'separation',
+          typeName: 'Item faltante',
+        }),
+      }),
+      kind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
+    })
+
+    expect(sent).toHaveLength(1)
   })
 
   test('foto grande demais: a recusa da persistência vira mensagem com o motivo e o limite, nada muda no fluxo', async () => {

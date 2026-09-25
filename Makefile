@@ -10,6 +10,7 @@ BUN_VERSION := 1.3.14
 FRONTEND_PORT := $(or $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null),53000)
 FRONTEND_LANDING_PORT := $(or $(shell sed -n 's/^FRONTEND_LANDING_PORT=//p' $(ENV_FILE) 2>/dev/null),53003)
 FRONTEND_CLIENT_PORT := $(or $(shell sed -n 's/^FRONTEND_CLIENT_PORT=//p' $(ENV_FILE) 2>/dev/null),53100)
+FRONTEND_DRIVER_PORT := $(or $(shell sed -n 's/^FRONTEND_DRIVER_PORT=//p' $(ENV_FILE) 2>/dev/null),53200)
 FRONTEND_ORIGIN := $(shell sed -n 's/^FRONTEND_ORIGIN=//p' $(ENV_FILE) 2>/dev/null)
 API_PORT := $(or $(shell sed -n 's/^APP_PORT=//p' $(ENV_FILE) 2>/dev/null),53001)
 WORKER_PORT := $(or $(shell sed -n 's/^WORKER_PORT=//p' $(ENV_FILE) 2>/dev/null),53002)
@@ -158,15 +159,17 @@ dev: identity-bootstrap up migrate ## 💻 Inicia somente frontend, API e worker
 		export FRONTEND_PORT="$(FRONTEND_PORT)"; \
 		export FRONTEND_LANDING_PORT="$(FRONTEND_LANDING_PORT)"; \
 		export FRONTEND_CLIENT_PORT="$(FRONTEND_CLIENT_PORT)"; \
+		export FRONTEND_DRIVER_PORT="$(FRONTEND_DRIVER_PORT)"; \
 		export QUEUE_PREFIX="$(PROJECT_NAME)_$(APP_ENV)"; \
 		bun run --cwd apps/api-transportada dev & api_process_id=$$!; \
 		bun run --cwd apps/worker-transportada dev & worker_process_id=$$!; \
 		bun run --cwd apps/frontend-transportada dev & frontend_process_id=$$!; \
 		bun run --cwd apps/frontend-landing dev & frontend_landing_process_id=$$!; \
 		bun run --cwd apps/frontend-client dev & frontend_client_process_id=$$!; \
+		bun run --cwd apps/frontend-driver dev & frontend_driver_process_id=$$!; \
 		cleanup() { \
 			trap - INT TERM EXIT; \
-			kill $$api_process_id $$worker_process_id $$frontend_process_id $$frontend_landing_process_id $$frontend_client_process_id 2>/dev/null || true; \
+			kill $$api_process_id $$worker_process_id $$frontend_process_id $$frontend_landing_process_id $$frontend_client_process_id $$frontend_driver_process_id 2>/dev/null || true; \
 		}; \
 		trap 'cleanup; exit 130' INT TERM; \
 		trap cleanup EXIT; \
@@ -218,6 +221,8 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	check_url "http://localhost:$(FRONTEND_LANDING_PORT)/manifest.webmanifest"; \
 	check_url "http://localhost:$(FRONTEND_CLIENT_PORT)/"; \
 	check_url "http://localhost:$(FRONTEND_CLIENT_PORT)/manifest.webmanifest"; \
+	check_url "http://localhost:$(FRONTEND_DRIVER_PORT)/"; \
+	check_url "http://localhost:$(FRONTEND_DRIVER_PORT)/manifest.webmanifest"; \
 	check_url "http://localhost:$(API_PORT)/health/live"; \
 	check_url "http://localhost:$(API_PORT)/health/ready"; \
 	check_url "http://localhost:$(WORKER_PORT)/health/live"; \
@@ -239,6 +244,16 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 		PLAYWRIGHT_LANDING_PORT="$${PLAYWRIGHT_LANDING_PORT:-53111}" \
 		PLAYWRIGHT_REUSE_EXISTING_LANDING_SERVER=false \
 		bun run --cwd apps/frontend-landing smoke
+# ⚠️ A app do motorista faz login de verdade no Keycloak (T4.1: ela não tem o atalho de
+# autenticação do painel, ADR-0075 §7) — o preview do Playwright não pode ficar na faixa 53110+
+# sem mais, porque o `redirect_uri` é `VITE_DRIVER_APP_URL`, gravado no build. O script `smoke` da
+# app resolve isso sozinho: builda com `VITE_DRIVER_APP_URL=http://localhost:53112` (a origem local
+# extra do realm, ao lado da `53200` de sempre — `realm/transportada-local-realm.json`) e serve na
+# própria `53112`, então preview e `redirect_uri` sempre apontam para o mesmo lugar.
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		PLAYWRIGHT_DRIVER_PORT="$${PLAYWRIGHT_DRIVER_PORT:-53112}" \
+		PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false \
+		bun run --cwd apps/frontend-driver smoke
 
 map-refresh: ## 🗺️  Reconstrói mapa e rota juntos, na data fixada em .railway/railway.ts
 	@date="$$(sed -n 's|.*sudeste-\([0-9]\{6\}\)\.osm\.pbf.*|\1|p' .railway/railway.ts | head -1)"; \
@@ -280,7 +295,9 @@ e2e-ps: e2e-bootstrap ## 🧪 Exibe os serviços do ambiente dedicado de E2E
 test-ps: e2e-ps ## 🧪 Alias compatível para exibir os serviços do ambiente dedicado de E2E
 
 worker-integration: bootstrap ## 🧪 Roda a integração comum do worker usando o ambiente local
-	@SERVICES="postgres rabbitmq minio" $(MAKE) up
+	@# Sem MinIO: nenhum teste do worker toca o storage, e o boot dele só cria o cliente, sem
+	@# conectar — o MinIO ficou fora da CI quando a MinIO tirou as imagens públicas (2026-09-24).
+	@SERVICES="postgres rabbitmq" $(MAKE) up
 	@# O OSRM é opt-in: sem `make routing-fixture` + `routing-up`, os testes dele **pulam** em vez de
 	@# falhar — a integração comum não pode exigir um dataset de centenas de MB (ver spec 058).
 	@set -a; . "./$(ENV_FILE)"; set +a; \

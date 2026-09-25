@@ -89,7 +89,12 @@ const server = startApiServer({
     notificationWebhookSecret: undefined,
     port: 0,
     routingMatrixUrl: undefined,
-    postalCodeProviders: { brasilApiUrl: undefined, viaCepUrl: undefined },
+    postalCodeProviders: {
+      awesomeApiUrl: undefined,
+      brasilApiUrl: undefined,
+      googleApiKey: undefined,
+      viaCepUrl: undefined,
+    },
     logSinkUrl: undefined,
     sentryDsn: undefined,
     sentryEnvironment: 'test',

@@ -12,12 +12,19 @@
  * `stored_objects` com o mesmo `id` (PK) — violação de unicidade, 500 genérico. O `UPDATE` agora
  * corre primeiro, condicionado a `status = 'pending'`, e só quem afeta a linha chega ao `INSERT`.
  */
+import { createHash } from 'node:crypto'
+
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import {
+  createObjectStorageProvider,
+  type ObjectStorageProvider,
+} from '@adatechnology/object-storage-provider'
 import { and, eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { createNfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 import { companies, fleetVehicles, storedObjects } from '../../src/database/database.schema.js'
 import { tripOccurrenceUploads, trips } from '../../src/database/trip.schema.js'
 import { confirmOccurrenceUpload } from '../../src/trips/application/confirm-occurrence-upload.use-case.js'
@@ -37,16 +44,66 @@ const NOW = new Date('2026-09-23T12:00:00.000Z')
 /** Um JPEG de verdade e mínimo (assinatura `FF D8 FF`), pequeno o bastante para caber no teto. */
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0])
 
+/** Um JPEG mínimo de verdade, com bytes suficientes para o PUT tardio trocar só o último. */
+const REAL_JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1])
+
+const storageEndpoint = process.env.OBJECT_STORAGE_ENDPOINT ?? process.env.STORAGE_ENDPOINT
+const storageBucket = process.env.OBJECT_STORAGE_BUCKET ?? process.env.STORAGE_BUCKET
+const storageAccessKey = process.env.OBJECT_STORAGE_ACCESS_KEY ?? process.env.STORAGE_ACCESS_KEY
+const storageSecretKey = process.env.OBJECT_STORAGE_SECRET_KEY ?? process.env.STORAGE_SECRET_KEY
+const storageRegion = process.env.OBJECT_STORAGE_REGION ?? process.env.STORAGE_REGION ?? 'us-east-1'
+const STORAGE_BUCKET = storageBucket ?? ''
+
+/**
+ * A CI carrega o `.env.example` (com `STORAGE_ENDPOINT`) sem subir o MinIO: a variável sozinha não
+ * diz que o S3 está de pé. Qualquer resposta HTTP do endpoint conta como alcançável.
+ */
+async function isStorageReachable(): Promise<boolean> {
+  const configured = [storageEndpoint, storageBucket, storageAccessKey, storageSecretKey].every(
+    (value) => value !== undefined && value.trim() !== '',
+  )
+  if (!configured || databaseUrl === undefined) return false
+  try {
+    await fetch(storageEndpoint ?? '', { signal: AbortSignal.timeout(2_000) })
+    return true
+  } catch {
+    return false
+  }
+}
+const testWithStorage = (await isStorageReachable()) ? test : test.skip
+
+/**
+ * O `object-storage-provider@0.3.0` assina o PUT com o checksum do corpo vazio sem esta variável, e
+ * o storage que confere o checksum recusa o upload real — o mesmo achado da spec 183 T702a.
+ */
+process.env.AWS_REQUEST_CHECKSUM_CALCULATION ??= 'WHEN_REQUIRED'
+
+function createStorageProvider(): ObjectStorageProvider {
+  return createObjectStorageProvider({
+    accessKeyId: storageAccessKey ?? '',
+    endpoint: new URL(storageEndpoint ?? ''),
+    forcePathStyle: true,
+    healthCheckBucket: STORAGE_BUCKET,
+    maxObjectSizeBytes: 25 * 1024 * 1024,
+    region: storageRegion,
+    secretAccessKey: storageSecretKey ?? '',
+  })
+}
+
 type Company = { readonly companyId: string; readonly vehicleId: string }
 type SeededTrip = { readonly tripId: string }
 
 function fakeStorage() {
   return {
+    async deleteObject() {},
     async getObjectStream() {
       return new Response(JPEG_BYTES).body as ReadableStream<Uint8Array>
     },
     async headObject() {
       return { contentLength: JPEG_BYTES.byteLength }
+    },
+    async storeObject() {
+      return undefined
     },
   }
 }
@@ -172,6 +229,92 @@ describe('confirmar o upload de ocorrência contra o Postgres (achados [1] e [2]
   )
 })
 
+/**
+ * A URL de PUT assinada vale 15 minutos e segue valendo depois da confirmação. Contra o S3 de
+ * verdade: um PUT tardio na mesma URL, com outros bytes do mesmo tamanho, não muda o que o registro
+ * confirmado devolve — ele aponta para a cópia final dos bytes conferidos, não para a chave da
+ * subida. Pula quando o S3 local não responde (a CI não sobe o MinIO).
+ */
+describe('o PUT tardio na URL de subida não troca o anexo confirmado (S3 local)', () => {
+  testWithStorage(
+    'depois de confirmar, o download devolve os bytes conferidos, não os do PUT tardio',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const storage = createNfeStorageGateway({
+          finalBucket: STORAGE_BUCKET,
+          provider: createStorageProvider(),
+          stagingBucket: STORAGE_BUCKET,
+        })
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company)
+        const objectId = crypto.randomUUID()
+        const stagingKey = `tenants/${company.companyId}/trip-occurrence-uploads/${trip.tripId}/${objectId}`
+        await seedPendingUpload(database, company, trip, objectId, STORAGE_BUCKET)
+        const uploadUrl = await storage.createSignedUpload({
+          bucket: STORAGE_BUCKET,
+          contentLength: REAL_JPEG.byteLength,
+          contentType: 'image/jpeg',
+          expiresInSeconds: 900,
+          key: stagingKey,
+        })
+        let finalKey: string | undefined
+        try {
+          await put(uploadUrl, REAL_JPEG)
+
+          await confirmOccurrenceUpload({
+            companyId: company.companyId,
+            id: objectId,
+            now: NOW,
+            repository: new DrizzleOccurrenceUploadRepository(database.db),
+            storage,
+            tripId: trip.tripId,
+          })
+
+          const [stored] = await database.db
+            .select({ objectKey: storedObjects.objectKey, sha256: storedObjects.sha256 })
+            .from(storedObjects)
+            .where(eq(storedObjects.id, objectId))
+          finalKey = stored?.objectKey
+          expect(finalKey).toBeDefined()
+          expect(finalKey).not.toBe(stagingKey)
+          expect(stored?.sha256).toBe(createHash('sha256').update(REAL_JPEG).digest('hex'))
+          expect(
+            await storage.headObject({ bucket: STORAGE_BUCKET, key: stagingKey }),
+          ).toBeUndefined()
+
+          const swapped = REAL_JPEG.map((byte, index) =>
+            index === REAL_JPEG.byteLength - 1 ? 0x58 : byte,
+          )
+          await put(uploadUrl, swapped)
+
+          const downloaded = new Uint8Array(
+            await new Response(
+              await storage.getObjectStream({ bucket: STORAGE_BUCKET, key: finalKey ?? '' }),
+            ).arrayBuffer(),
+          )
+          expect(downloaded).toEqual(REAL_JPEG)
+        } finally {
+          const keys = [stagingKey, ...(finalKey === undefined ? [] : [finalKey])]
+          await Promise.allSettled(
+            keys.map((key) => storage.deleteObject({ bucket: STORAGE_BUCKET, key })),
+          )
+        }
+      })
+    },
+  )
+})
+
+async function put(url: URL, bytes: Uint8Array): Promise<void> {
+  const response = await fetch(url, {
+    body: bytes,
+    headers: { 'content-length': String(bytes.byteLength), 'content-type': 'image/jpeg' },
+    method: 'PUT',
+  })
+  if (!response.ok) {
+    throw new Error(`UPLOAD_FAILED_${String(response.status)} ${await response.text()}`)
+  }
+}
+
 async function seedCompany(database: TestDatabase): Promise<Company> {
   const companyId = crypto.randomUUID()
   const vehicleId = crypto.randomUUID()
@@ -208,9 +351,10 @@ async function seedPendingUpload(
   company: Company,
   trip: SeededTrip,
   objectId: string,
+  bucket = 'test-bucket',
 ): Promise<void> {
   await database.db.insert(tripOccurrenceUploads).values({
-    bucket: 'test-bucket',
+    bucket,
     companyId: company.companyId,
     declaredSizeBytes: BigInt(JPEG_BYTES.byteLength),
     driverId: crypto.randomUUID(),

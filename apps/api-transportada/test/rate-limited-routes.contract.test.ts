@@ -12,6 +12,7 @@ import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conv
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createContractorOccurrenceRoutes } from '../src/contractor-portal/presentation/contractor-occurrence.routes'
+import { createMeLocationRoutes } from '../src/trips/presentation/me-location.routes'
 import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripFieldOfficeRoutes } from '../src/trips/presentation/trip-field-office.routes'
@@ -358,6 +359,54 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
+  /**
+   * Segurança M3 (spec 189 T9.2): as três rotas do rastro ao vivo não tinham teto — o `POST` é
+   * chamado por um relógio no celular, e sem balde nada impede uma cópia maliciosa do app de
+   * martelar o endpoint. O `POST` fica mais apertado que o `GET`/`PUT` porque escreve a cada
+   * chamada, mesmo com o dedup da T9.2 já filtrando o replay de rede.
+   */
+  test('as três rotas do rastro ao vivo têm teto no Postgres, cada uma no seu balde', () => {
+    const unused = unusedDependencies() as never
+    const routes = createMeLocationRoutes(unused)
+
+    const limited = routes
+      .filter((route) => route.rateLimit !== undefined)
+      .map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      }))
+
+    expect(limited).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'me-location-consent-read',
+          store: 'postgres',
+          windowSeconds: 60,
+        },
+        signature: 'GET /me/location-consent',
+      },
+      {
+        rateLimit: {
+          maxRequests: 10,
+          scope: 'me-location-consent-write',
+          store: 'postgres',
+          windowSeconds: 60,
+        },
+        signature: 'PUT /me/location-consent',
+      },
+      {
+        rateLimit: {
+          maxRequests: 3,
+          scope: 'me-location-report',
+          store: 'postgres',
+          windowSeconds: 60,
+        },
+        signature: 'POST /me/trips/current/location',
+      },
+    ])
+  })
+
   test('nenhum outro arquivo da API declara teto no Postgres', async () => {
     const files = await listSourceFiles(SOURCE_DIRECTORY)
     const declaring: string[] = []
@@ -373,6 +422,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
+      'trips/presentation/me-location.routes.ts',
       'trips/presentation/occurrence-case.routes.ts',
       'trips/presentation/occurrence-settlement.routes.ts',
       'trips/presentation/redelivery-application.routes.ts',
