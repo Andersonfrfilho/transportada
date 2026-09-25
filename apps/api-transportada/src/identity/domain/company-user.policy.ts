@@ -81,13 +81,17 @@ type MaskContactAddressParams = {
 /**
  * `invited` é derivado, não persistido: existe convite pendente ou não existe — o vínculo em si
  * já nasce `active` (§ user-invitation.schema.ts) mesmo antes da pessoa trocar o código por senha.
+ *
+ * A membership manda sobre o convite (ADR-0076 §8, achado I7 do `critic`): suspender **não** revoga
+ * o convite pendente, então as duas condições convivem, e a listagem precisa dizer "suspenso" —
+ * nunca "convidado" — para quem foi suspenso antes de ativar.
  */
 export function deriveCompanyUserStatus({
   hasPendingInvitation,
   membershipStatus,
 }: DeriveCompanyUserStatusParams): CompanyUserStatus {
-  if (hasPendingInvitation) return 'invited'
-  return membershipStatus === 'active' ? 'active' : 'suspended'
+  if (membershipStatus !== 'active') return 'suspended'
+  return hasPendingInvitation ? 'invited' : 'active'
 }
 
 /**
