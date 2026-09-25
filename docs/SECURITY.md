@@ -1330,6 +1330,94 @@ Reavaliar a anonimização se algum dia staging for aberto a alguém de fora do 
 **Origem:** pedido de operação, 2026-08-25. O risco foi levantado e a cópia idêntica foi decidida
 conscientemente.
 
+### 2026-09-25 — `style-src 'unsafe-inline'` na app do motorista (risco aceito)
+
+**Onde:** `apps/frontend-driver`, `src/modules/shared/contentSecurityPolicy.service.ts`
+(`buildContentSecurityPolicy`), cópia por valor de `apps/frontend-client` (ADR-0075 §7).
+
+**O que é:** a CSP emitida declara `style-src 'self' 'unsafe-inline'`, em vez de restringir só a
+`style-src-attr` (a diretiva mais estreita, que cobriria o atributo `style=""` sem abrir `<style>`
+solto). A folha já traz o motivo escrito ao lado da linha: `style-src-attr` é ignorada pelo Safari
+< 15.4, e sem `style-src` declarando `unsafe-inline` o navegador que não reconhece a diretiva mais
+nova cai para bloquear inline por completo — e a app do motorista é aberta no celular, onde Safari
+antigo ainda existe em campo.
+
+**Por que foi aceito assim:** apertar para `style-src-attr` sozinho troca um risco conhecido e
+contido (inline permitido, sem `<style>` externo controlado por atacante — o `object-src`/`frame-
+src none` e o `script-src` sem `unsafe-inline` continuam de pé) por uma quebra silenciosa: Safari
+antigo perde todo estilo inline da app (React `style={{...}}`, os poucos usos de `style` do design
+system copiado) sem aviso nenhum na tela, pior que manter a exceção.
+
+**O que limita o estrago:** `unsafe-inline` aqui só afeta `style-src` — `script-src` continua sem
+ele fora do smoke autenticado (`allowsInlineScript`), e é `script-src` que carrega o risco real de
+XSS. CSS injetado por essa via não executa código; o pior caso é desfiguração visual, não
+exfiltração.
+
+**O que falta:** revisitar quando o piso de Safari suportado subir de 15.4 — aí `style-src-attr`
+some sozinho da lista de "ignorado" e a diretiva mais estreita passa a valer sem quebrar ninguém.
+
+**Origem:** spec 189, T9.2 (revisão final, achado L1). Registrado em 2026-09-25.
+
+### 2026-09-25 — CI não roda `bun audit` (pendência, com os números)
+
+**Onde:** `.github/workflows/ci.yml` e `deploy.yml` — nenhum job chama `bun audit` nem equivalente.
+
+**O que é:** a auditoria de dependência exigida por `security.md` §4 ("CI roda auditoria de
+dependência e falha em vulnerabilidade alta/crítica sem exceção registrada") não existe neste
+repositório. Rodado à mão em 25/09/2026 contra o lockfile atual:
+
+```
+$ bun audit
+44 vulnerabilities (29 high, 12 moderate, 3 low)
+```
+
+em 10 pacotes transitivos: `@xmldom/xmldom` (via `@adatechnology/fiscal-provider`),
+`brace-expansion` (via `eslint`/`typescript-eslint`/`vite-plugin-pwa`), `mailauth`/`nodemailer` (via
+o worker), `nanoid` e `postcss` (via `vite` do portal), `sharp` (via `@vite-pwa/assets-generator`),
+`fast-xml-parser` (via a API e o pacote fiscal), `joi` (via `mailauth`), `fast-uri` (via `eslint` e
+`vite-plugin-pwa`) e `browserslist` (via `@vitejs/plugin-react`/`vite-plugin-pwa`). Todos
+transitivos de ferramenta de build/lint ou de um pacote de terceiro (`mailauth`, usado pelo
+worker para DKIM/DMARC) — nenhum é dependência direta do produto, e nenhum destes CVEs tem
+caminho de exploração conhecido a partir de entrada do usuário nesta base (a maioria é
+`ReDoS`/DoS em parser de XML/URI que não recebe payload externo não confiável, ou vulnerabilidade
+de ferramenta de build que roda só no CI, nunca em produção).
+
+**O que falta:** um job de auditoria no `ci.yml` (gate de qualidade), com `--audit-level` no piso
+que a instalação aceitar e uma lista de exceção registrada por CVE (`--ignore`) para o que for
+avaliado e aceito — este achado não fecha a lacuna, só documenta que ela existe e dá o número atual
+para comparar na próxima medição.
+
+**Origem:** spec 189, T9.2 (revisão final, achado L9). Registrado em 2026-09-25.
+
+### 2026-09-25 — o link "navegar até a parada" manda o endereço para o Google (risco aceito)
+
+**Onde:** `apps/frontend-driver`, `driverTripView.service.ts:buildNavigationHref`, chamado por
+`DriverStopCard.component.tsx` (`window.open`, `NON_FETCH_ORIGIN` inclui `https://maps.google.com`
+em `contentSecurityPolicy.service.ts`).
+
+**O que é:** o botão "Navegar" da parada monta `https://maps.google.com/?q=<coordenada ou
+endereço>` e abre numa aba nova — o endereço de entrega (ou a coordenada, quando existe) do
+destinatário vai na query string para o Google, um terceiro fora do produto. O destinatário é
+pessoa física em boa parte das entregas, e o endereço é dado dele, não do motorista.
+
+**Por que foi aceito assim (ADR-0045 §8):** "navegar é delegar" — a app não implementa roteirização
+turn-by-turn própria; ela entrega a parada ao aplicativo de mapa que o motorista já tem instalado,
+e não há como abrir navegação nativa sem passar o destino por algum canal. É `window.open` de um
+gesto do próprio motorista (não um `fetch` em segundo plano, não some do controle do usuário), e
+`maps.google.com` está declarado à parte em `NON_FETCH_ORIGIN`, justamente para não entrar em
+`connect-src` — o bundle nomeia a origem sem nunca buscar nela.
+
+**O que limita o estrago:** só o endereço/coordenada da parada viaja, nunca nome do destinatário,
+documento, telefone ou qualquer outro campo — os mesmos que a API já não expõe a quem não tem
+`fleet.read`. O Google já processa a mesma classe de dado quando qualquer pessoa cola um endereço
+na própria busca; não é um canal novo de vazamento em massa, é uma consulta pontual por toque.
+
+**O que falta:** nada de código pendente — é decisão de produto (delegar navegação), não defeito.
+Revisitar só se o produto um dia trocar por navegação própria ou por um provedor de mapa sem esse
+acoplamento.
+
+**Origem:** spec 189, T9.2 (revisão final, achado L10); ADR-0045 §8. Registrado em 2026-09-25.
+
 ## CPF em claro no Keycloak, para casar a pessoa dos dois lados
 
 **Data:** 2026-08-29 · **Decidido conscientemente**
