@@ -244,6 +244,16 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 		PLAYWRIGHT_LANDING_PORT="$${PLAYWRIGHT_LANDING_PORT:-53111}" \
 		PLAYWRIGHT_REUSE_EXISTING_LANDING_SERVER=false \
 		bun run --cwd apps/frontend-landing smoke
+# ⚠️ A app do motorista faz login de verdade no Keycloak (T4.1: ela não tem o atalho de
+# autenticação do painel, ADR-0075 §7) — o preview do Playwright não pode ficar na faixa 53110+
+# sem mais, porque o `redirect_uri` é `VITE_DRIVER_APP_URL`, gravado no build. O script `smoke` da
+# app resolve isso sozinho: builda com `VITE_DRIVER_APP_URL=http://localhost:53112` (a origem local
+# extra do realm, ao lado da `53200` de sempre — `realm/transportada-local-realm.json`) e serve na
+# própria `53112`, então preview e `redirect_uri` sempre apontam para o mesmo lugar.
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		PLAYWRIGHT_DRIVER_PORT="$${PLAYWRIGHT_DRIVER_PORT:-53112}" \
+		PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false \
+		bun run --cwd apps/frontend-driver smoke
 
 map-refresh: ## 🗺️  Reconstrói mapa e rota juntos, na data fixada em .railway/railway.ts
 	@date="$$(sed -n 's|.*sudeste-\([0-9]\{6\}\)\.osm\.pbf.*|\1|p' .railway/railway.ts | head -1)"; \

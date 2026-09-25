@@ -244,7 +244,7 @@ describe('local Keycloak realm contract', () => {
      * precisa de alguém escrevendo que a quis.
      */
     expect(spaClient.attributes?.['post.logout.redirect.uris']).toBe(
-      'http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100##http://localhost:53200/*##http://localhost:53200',
+      'http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100##http://localhost:53200/*##http://localhost:53200##http://localhost:53112/*##http://localhost:53112',
     )
     /**
      * ⚠️ **A landing (53003) é a terceira origem, e ela entrou pelo realm sem passar por aqui** — o
@@ -254,18 +254,27 @@ describe('local Keycloak realm contract', () => {
      *
      * ⚠️ Ela **não** está em `post.logout.redirect.uris`, e a assimetria é do realm, não deste
      * teste: dali não se faz logout. Quem for acrescentá-la lá acrescenta aqui também.
+     *
+     * **`53112` é a quinta origem, quista de propósito** (spec 189 T4.1): a app do motorista não
+     * tem o atalho de autenticação do painel — o login no Playwright é sempre real, e o
+     * `redirect_uri` é `VITE_DRIVER_APP_URL`, gravado no build. O smoke precisa de um preview
+     * isolado (fora da `53200` de sempre, que `make dev` já ocupa), então o build do smoke aponta
+     * `VITE_DRIVER_APP_URL` para `53112` — e o Keycloak só aceita o redirecionamento de volta se a
+     * origem estiver aqui.
      */
     expect(spaClient.redirectUris).toEqual([
       'http://localhost:53000/auth/callback',
       'http://localhost:53100/auth/callback',
       'http://localhost:53003/auth/callback',
       'http://localhost:53200/auth/callback',
+      'http://localhost:53112/auth/callback',
     ])
     expect(spaClient.webOrigins).toEqual([
       'http://localhost:53000',
       'http://localhost:53100',
       'http://localhost:53003',
       'http://localhost:53200',
+      'http://localhost:53112',
     ])
     expect(apiClient).toMatchObject({
       directAccessGrantsEnabled: false,
