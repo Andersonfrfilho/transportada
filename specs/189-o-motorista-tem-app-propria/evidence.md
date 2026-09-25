@@ -1776,3 +1776,116 @@ cd apps/frontend-driver && PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false bun run
 
 Aberto: o print de design (web.md §15) do Perfil com o interruptor e do indicador fica com a T9.1,
 que já lista "o Perfil, com o consentimento".
+
+## Fase 8 — Documentação viva e emendas
+
+### T8.1 — `apps/frontend-driver/CLAUDE.md` e `docs/ai-context/frontend-driver.md`
+
+Conferido no código (leitura direta, sem execução — task só de documentação):
+
+- **Auth/SSO**: `realm/spa-redirect-uris.json` (terceira origem do client único
+  `transportada-spa`); `src/modules/shared/KeycloakAuthProvider.provider.ts`,
+  `LoginIdentifier.page.tsx`, `loginHintClient.service.ts` (cabeçalho "Cópia por valor de
+  `apps/frontend-client/...`"); `src/modules/identity/shared/driverAuthorization.service.ts` (só
+  interpreta `403`); `smokeAuthBypass.service.ts` e `test/shared/vite-build-args.contract.ts`
+  (`VITE_SMOKE_AUTH_BYPASS` sem `ARG` no `Dockerfile`).
+- **Boot sem rede + sonda**: `src/modules/driver-trip/shared/bootMode.service.ts`
+  (`probeIdentityProvider`, `IDENTITY_PROBE_TIMEOUT_MS = 5_000`, `resolveBootMode`,
+  `scheduleAuthenticationOnReconnect`, `REAUTHENTICATION_RETRY_MS = 30_000`).
+- **Snapshot e fila com dono**: `tripSnapshot.service.ts` (`hashSubject` SHA-256, ponteiro `last`,
+  `TRIP_SNAPSHOT_MAX_AGE_MS = 24h`, `claimTripSnapshot`, `discardTripSnapshots`);
+  `queueOwner.service.ts` (`isOwnedBy`, `partitionPendingByOwner`, `discardForeignPending`);
+  `pendingQueue.service.ts` (`countPending`).
+- **Drenagem**: `pendingQueue.service.ts:scheduleQueueDrainTriggers`
+  (`QUEUE_DRAIN_INTERVAL_MS = 30_000`, gatilhos `online`/`pageshow`/`visibilitychange`); o `kind`
+  `documentOccurrence` em `driverTrip.types.ts` e o `switch` de `driverTripClient.service.ts`.
+- **`captureRegistry` e atualização em ponto seguro**: `captureRegistry.service.ts` (`CAPTURE_KINDS`,
+  `isIdle`, `onIdle`, `hasOpened`); `serviceWorkerUpdate.service.ts`
+  (`handleServiceWorkerUpdateAvailable`, `requestServiceWorkerUpdate`); `src/sw.ts`
+  (`injectManifest`, `SKIP_WAITING_MESSAGE`).
+- **44 px**: `test/shared/touch-target.contract.ts`.
+- **Sino**: `package.json` (`@adatechnology/notification-client` 0.1.0-rc.3,
+  `@adatechnology/notification-ui` 0.1.0-rc.9); `src/modules/notification/`.
+- **Seletor e janela**: `driverTripSelection.service.ts:resolveSelectedTrip`;
+  `deliveryWindow.service.ts`/`driverTripResponse.validation.ts`; `DriverStopCard.component.tsx`.
+- **Consentimento/rastreamento**: `driverTripClient.service.ts` (`GET`/`PUT /me/location-consent`,
+  `POST /me/trips/current/location`); `locationSharing.service.ts`
+  (`LOCATION_SHARING_INTERVAL_MS = 60_000`, `shouldShareLocation`); `DriverLocationConsentCard`/
+  `DriverLocationSharingIndicator`; e, do lado da API,
+  `apps/api-transportada/src/trips/presentation/me-location.routes.ts` +
+  `application/read-location-consent.use-case.ts` (`REPORT_POLICY`, `DriverNotRegisteredError`).
+- **Testes/Playwright/portas**: `package.json` (scripts `test`/`build`/`check`/`smoke`/`dev`),
+  `FRONTEND_DRIVER_PORT=53200`, `.env.example`, `Makefile`; `test/authenticated-smoke.helper.ts`
+  (confirma que `53112` é origem sintética do smoke, não porta de serviço).
+- **CSP/headers**: `server.ts` (`SECURITY_HEADERS`, `Strict-Transport-Security` sem
+  `includeSubDomains`/`preload`), `Dockerfile` (`ARG VITE_*`).
+- **O que a 147/179 acrescentam**: comentário de `src/sw.ts` (147, ainda sem handler `push`
+  implementado); `documentOccurrence` no `switch` (179, upload dentro do `send`, ainda sem a origem
+  do storage no `connect-src`/`img-src` e sem a captura de imagem na tela — Fase 3 da 179 pendente).
+- **Cópia por valor**: `test/driver-trip/copy-by-value-header.contract.ts` (mapa fixo, ~60 arquivos
+  de `frontend-transportada`; os de `frontend-client` têm o cabeçalho, mas não estão nesse mapa).
+
+Dois exploradores em paralelo (`Explore`) conferiram independentemente o mesmo terreno — um por
+leitura direta do `frontend-driver`, outro pelos pontos de contato em `frontend-transportada` e
+`api-transportada` — e os dois bateram com a leitura direta feita aqui, inclusive a correção de que
+`53112` não é uma segunda porta de serviço.
+
+**Aceite:** os dois arquivos existem e citam a ADR-0075 (`apps/frontend-driver/CLAUDE.md` já citava;
+`docs/ai-context/frontend-driver.md` cita na abertura e em cada seção de fase).
+
+```
+bunx prettier --check apps/frontend-driver/CLAUDE.md docs/ai-context/frontend-driver.md
+  All matched files use Prettier code style!
+```
+
+### T8.2 — Documentação existente atualizada
+
+- `CLAUDE.md` da raiz: `frontend-driver` na seção Estrutura, porta `53200` (com a nota de que
+  `53112` é origem de smoke, não porta), e o parágrafo "o motorista deixou de ser só uma rota do
+  painel".
+- `apps/frontend-transportada/CLAUDE.md` e `docs/ai-context/frontend-transportada.md`: seção "O
+  motorista ganhou app própria" (o interruptor `VITE_DRIVER_APP_URL` lido fora de
+  `getIdentityEnvironment()`, os quatro modos de `resolveDriverAppRedirect`, a tela de pendências
+  `DriverLegacyPending.page.tsx` e o beacon `driver_legacy_served` com o throttle de 60 s); envs com
+  `VITE_DRIVER_APP_URL`.
+- `docs/spec/railway.md`: `driver` (e `client`) na lista de `Topologia`; nota sobre `VITE_*` literais
+  do serviço `driver` (nunca `preserve()`) e o contraste com o interruptor `preserve()` do painel.
+- `docs/adr/0050-o-cliente-tem-portal.md`: campo "Revisada por: ADR-0075" no cabeçalho.
+- `apps/api-transportada/CLAUDE.md`: parágrafo sobre `GET`/`PUT /me/location-consent` e `POST
+/me/trips/current/location` na seção "Viagem (trips)".
+
+**Aceite:**
+
+```
+bunx prettier --check CLAUDE.md apps/frontend-transportada/CLAUDE.md \
+  docs/ai-context/frontend-transportada.md docs/spec/railway.md \
+  docs/adr/0050-o-cliente-tem-portal.md apps/api-transportada/CLAUDE.md
+  All matched files use Prettier code style!
+bun run format:check
+  $ bunx prettier --check .
+  All matched files use Prettier code style!
+```
+
+### T8.3 — Emendas às specs 147 e 179
+
+- `specs/147-a-confirmacao-pede-o-codigo-do-app/tasks.md`: nota de emenda no topo (T006 vale para
+  `apps/frontend-transportada` **e** `apps/frontend-driver`, só na tela do código; T008 passa a ser
+  "`push`/`notificationclick` em `apps/frontend-driver/src/sw.ts`", que já é `injectManifest` — sem
+  troca de modo; T010 roda só em `apps/frontend-driver`) e as três tasks (T006, T008, T010) editadas
+  com a mesma nota embutida.
+- `specs/147-a-confirmacao-pede-o-codigo-do-app/plan.md`: nota de emenda na seção de premissas
+  (a premissa "service worker é `generateSW`" não vale mais para onde a Fase 3 executa) e a
+  atualização do item correspondente em "Riscos".
+- `specs/179-a-recusa-sai-com-foto/tasks.md`: nota de emenda na Fase 3 (T301/T302/T303 executam em
+  `apps/frontend-driver`, não mais em `apps/frontend-transportada`) registrando o ponto de extensão
+  que a spec 189 deixou pronto — o `kind` `documentOccurrence` já sobe e confirma o anexo dentro do
+  `send`, antes do `POST` — e que falta a origem do storage no `connect-src`/`img-src`.
+
+**Aceite:** diff revisado (leitura própria, sem `code-reviewer` — task de documentação).
+
+```
+bunx prettier --check specs/147-a-confirmacao-pede-o-codigo-do-app/tasks.md \
+  specs/147-a-confirmacao-pede-o-codigo-do-app/plan.md \
+  specs/179-a-recusa-sai-com-foto/tasks.md
+  All matched files use Prettier code style!
+```
