@@ -2,10 +2,14 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 
 import {
+  isDriverAppUrlOwnOrigin,
   resolveDriverAppRedirect,
   type DriverAppRedirectInput,
 } from '@/modules/driver-trip/shared/driverAppRedirect.service'
-import { readDriverAppUrl } from '@/modules/identity/shared/identityEnvironment.config'
+import {
+  assertDriverAppUrlBuildsClean,
+  readDriverAppUrl,
+} from '@/modules/identity/shared/identityEnvironment.config'
 
 const DRIVER_APP_URL = 'https://motorista.staging.example.com.br'
 
@@ -118,5 +122,88 @@ describe('para onde o painel manda o motorista', () => {
     for (const pathname of ['/trips', '/notificacoes', '/minha-viagem/outra']) {
       expect(resolveDriverAppRedirect({ ...FIELD_OPENING, pathname })).toBe('stay')
     }
+  })
+})
+
+/**
+ * ADR-0075 §6, revisão M1: `VITE_DRIVER_APP_URL` já é validada no build contra `VITE_APP_URL`
+ * (`vite.config.ts`), mas a rede de segurança em runtime é o que impede o laço se o valor de um
+ * serviço mudar depois do build.
+ */
+describe('isDriverAppUrlOwnOrigin (revisão M1)', () => {
+  it('origem diferente não é a própria', () => {
+    expect(
+      isDriverAppUrlOwnOrigin({
+        driverAppUrl: DRIVER_APP_URL,
+        origin: 'https://app.example.com.br',
+      }),
+    ).toBe(false)
+  })
+
+  it('mesma origem é a própria, mesmo com caminho diferente', () => {
+    expect(
+      isDriverAppUrlOwnOrigin({
+        driverAppUrl: `${DRIVER_APP_URL}/minha-viagem`,
+        origin: DRIVER_APP_URL,
+      }),
+    ).toBe(true)
+  })
+
+  /** URL ilegível conta como "é a própria origem" — não redirecionar é sempre o lado seguro. */
+  it('URL ilegível conta como a própria origem', () => {
+    expect(isDriverAppUrlOwnOrigin({ driverAppUrl: 'não é url', origin: DRIVER_APP_URL })).toBe(
+      true,
+    )
+  })
+})
+
+/**
+ * ADR-0075 §6, revisão M1: falhar o `vite build` antes do bundle existir, em vez de só em runtime
+ * dentro do navegador do motorista.
+ */
+describe('assertDriverAppUrlBuildsClean (revisão M1)', () => {
+  it('ausente ou vazia não valida nada — o interruptor desligado é silencioso', () => {
+    expect(() =>
+      assertDriverAppUrlBuildsClean({
+        appUrl: 'https://app.example.com.br',
+        driverAppUrl: undefined,
+      }),
+    ).not.toThrow()
+    expect(() =>
+      assertDriverAppUrlBuildsClean({ appUrl: 'https://app.example.com.br', driverAppUrl: '  ' }),
+    ).not.toThrow()
+  })
+
+  it('inválida falha o build, como `readTrustedUrl`', () => {
+    expect(() =>
+      assertDriverAppUrlBuildsClean({
+        appUrl: 'https://app.example.com.br',
+        driverAppUrl: 'http://motorista.example.com.br',
+      }),
+    ).toThrow('IDENTITY_CONFIGURATION_INVALID_VITE_DRIVER_APP_URL')
+  })
+
+  it('igual a VITE_APP_URL falha o build — laço de redirect consigo mesmo', () => {
+    expect(() =>
+      assertDriverAppUrlBuildsClean({
+        appUrl: 'https://app.example.com.br',
+        driverAppUrl: 'https://app.example.com.br/',
+      }),
+    ).toThrow('IDENTITY_CONFIGURATION_DRIVER_APP_URL_LOOP')
+  })
+
+  it('diferente de VITE_APP_URL passa', () => {
+    expect(() =>
+      assertDriverAppUrlBuildsClean({
+        appUrl: 'https://app.example.com.br',
+        driverAppUrl: DRIVER_APP_URL,
+      }),
+    ).not.toThrow()
+  })
+
+  it('sem VITE_APP_URL para comparar, só valida a própria', () => {
+    expect(() =>
+      assertDriverAppUrlBuildsClean({ appUrl: undefined, driverAppUrl: DRIVER_APP_URL }),
+    ).not.toThrow()
   })
 })

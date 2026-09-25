@@ -38,6 +38,23 @@ export function resolveDriverAppRedirect(input: DriverAppRedirectInput): DriverA
   return 'redirect'
 }
 
+/**
+ * Rede de segurança em runtime (revisão M1): `VITE_DRIVER_APP_URL` já é validada no build contra
+ * `VITE_APP_URL` (`vite.config.ts`, `assertDriverAppUrlBuildsClean`), mas o valor de um serviço
+ * pode mudar entre o build e o deploy do painel. Comparar a origem aqui, antes de todo
+ * `location.replace(driverAppUrl)` automático, evita um laço de redirect consigo mesmo — URL
+ * ilegível conta como "é a própria origem", porque não redirecionar é sempre o lado seguro.
+ */
+export function isDriverAppUrlOwnOrigin(
+  input: Readonly<{ driverAppUrl: string; origin: string }>,
+): boolean {
+  try {
+    return new URL(input.driverAppUrl).origin === input.origin
+  } catch {
+    return true
+  }
+}
+
 /** O ícone antigo instalado abre o painel sem barra de endereço; no iOS o sinal é `standalone`. */
 export function isStandaloneDisplay(
   target: Readonly<{

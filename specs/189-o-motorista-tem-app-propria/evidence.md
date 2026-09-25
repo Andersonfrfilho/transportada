@@ -1153,3 +1153,45 @@ liga o temporizador até o próximo gatilho externo.
   revisão).
 - `bun run --cwd apps/frontend-transportada test`: 217 + 54 pass / 0 fail.
 - `bun run typecheck` e `bun run lint`: limpos.
+
+### M1 — `VITE_DRIVER_APP_URL` validada no build, laço de redirect coberto em runtime
+
+Antes, uma `VITE_DRIVER_APP_URL` inválida ou igual a `VITE_APP_URL` só falhava dentro do navegador
+do motorista, na primeira vez que `readDriverAppUrl()` rodasse — o build ficava verde com uma
+variável que quebraria em produção.
+
+- `assertDriverAppUrlBuildsClean` (nova, `identityEnvironment.config.ts`, ao lado de
+  `readTrustedUrl`/`readDriverAppUrl`): ausente ou vazia não valida nada (o interruptor desligado é
+  silencioso); presente e inválida lança `IDENTITY_CONFIGURATION_INVALID_VITE_DRIVER_APP_URL`
+  (mesmo erro do `readTrustedUrl`); igual a `VITE_APP_URL` lança
+  `IDENTITY_CONFIGURATION_DRIVER_APP_URL_LOOP`; sem `VITE_APP_URL` para comparar, só valida a
+  própria.
+- `vite.config.ts` ganha `driverAppUrlValidationPlugin()`, no molde do
+  `contentSecurityPolicyPlugin()` (lê `config.env` em `configResolved`, tipado): chama
+  `assertDriverAppUrlBuildsClean` com os valores brutos de `VITE_DRIVER_APP_URL` e `VITE_APP_URL`.
+  Um `configResolved` que lança falha o `vite build` inteiro, antes do bundle existir.
+- Rede em runtime (`main.tsx:490-506` e `takeOverDriverEntry`, antes `:864`/`:930`, agora um pouco
+  mais abaixo pelas linhas acrescentadas): `readDriverAppUrl()` continua lançando se a variável
+  mudar depois do build (deploy do painel sem rebuild, por exemplo). Nova função
+  `isDriverAppUrlOwnOrigin` (`driverAppRedirect.service.ts`) compara a origem de `driverAppUrl`
+  com `window.location.origin` antes de todo `location.replace(driverAppUrl)` automático (modo
+  `redirect`, nos dois pontos de `main.tsx`) — mesma origem, ou URL ilegível, vira "fica" em vez de
+  redirecionar, evitando o laço. `install-screen` e `pending-screen` não precisam da checagem: não
+  fazem `location.replace` automático, só mostram a URL como link.
+- Teste em `test/driver-trip/driver-app-redirect.contract.ts`: `isDriverAppUrlOwnOrigin` (origem
+  diferente não é a própria; mesma origem com caminho diferente é; URL ilegível conta como a
+  própria — o lado seguro); `assertDriverAppUrlBuildsClean` (5 casos: ausente/vazia silenciosa,
+  inválida lança, igual a `VITE_APP_URL` lança o laço, diferente passa, sem `VITE_APP_URL` passa).
+- **Build de verdade, os três casos que a task pede** (`apps/frontend-transportada`, com o `.env`
+  local: `VITE_APP_URL=http://localhost:53000`, `VITE_DRIVER_APP_URL=http://localhost:53200`):
+  - Válida e diferente (`.env` como está): `bun run build` — verde, `✓ built in 18.97s`, PWA
+    `precache 151 entries (5059.54 KiB)`.
+  - Inválida (`VITE_DRIVER_APP_URL=http://motorista.example.com.br`, `http:` fora de `localhost`):
+    `bun run build` — vermelho, `error during build: Error:
+IDENTITY_CONFIGURATION_INVALID_VITE_DRIVER_APP_URL`, lançado de dentro do
+    `configResolved` do plugin novo.
+  - Igual a `VITE_APP_URL` (`VITE_DRIVER_APP_URL=http://localhost:53000`): `bun run build` —
+    vermelho, `error during build: Error: IDENTITY_CONFIGURATION_DRIVER_APP_URL_LOOP`.
+- `bun test ./test/driver-trip.contract.test.ts`: 225 pass / 0 fail (era 217 depois do M4; +8 desta
+  revisão).
+- `bun run typecheck` e `bun run lint`: limpos.

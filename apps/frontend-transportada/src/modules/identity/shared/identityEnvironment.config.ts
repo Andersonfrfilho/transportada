@@ -76,3 +76,26 @@ export function readDriverAppUrl(): string | undefined {
 
   return readTrustedUrl(value, 'VITE_DRIVER_APP_URL')
 }
+
+/**
+ * ADR-0075 §6, revisão M1: valida `VITE_DRIVER_APP_URL` no **build**, não só em runtime — o
+ * `vite.config.ts` chama isto com os valores brutos de `config.env`, e o build falha antes do
+ * bundle existir. Ausente ou vazia não valida nada: o interruptor desligado é silencioso por
+ * definição, como `readDriverAppUrl` acima. Igual a `VITE_APP_URL` fecharia o painel num laço de
+ * redirect consigo mesmo; `readDriverAppUrl` continua sendo a rede em runtime, caso a variável
+ * mude entre o build e o deploy.
+ */
+export function assertDriverAppUrlBuildsClean(input: {
+  readonly appUrl: string | undefined
+  readonly driverAppUrl: string | undefined
+}): void {
+  if (input.driverAppUrl === undefined || input.driverAppUrl.trim() === '') return
+
+  const driverAppUrl = readTrustedUrl(input.driverAppUrl, 'VITE_DRIVER_APP_URL')
+  if (input.appUrl === undefined || input.appUrl.trim() === '') return
+
+  const appUrl = readTrustedUrl(input.appUrl, 'VITE_APP_URL')
+  if (driverAppUrl === appUrl) {
+    throw new Error('IDENTITY_CONFIGURATION_DRIVER_APP_URL_LOOP')
+  }
+}

@@ -22,7 +22,10 @@ import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFo
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
 import { readDriverAppMode } from '@/modules/driver-trip/shared/driverAppEntry.service'
-import { sendDriverLegacyBeacon } from '@/modules/driver-trip/shared/driverAppRedirect.service'
+import {
+  isDriverAppUrlOwnOrigin,
+  sendDriverLegacyBeacon,
+} from '@/modules/driver-trip/shared/driverAppRedirect.service'
 import {
   DRIVER_TRIP_PATH,
   isFieldOnlyUser,
@@ -499,9 +502,20 @@ function ApplicationShell(): ReactNode {
      * a navegação de página inteira leva.
      */
     void readDriverAppMode({ driverAppUrl, isFieldOnlyUser: true }).then((mode) => {
-      if (mode === 'redirect') window.location.replace(driverAppUrl)
-      else if (mode === 'stay') enterDriverTrip()
-      else window.location.replace(DRIVER_TRIP_PATH)
+      /**
+       * Revisão M1: a origem própria em `redirect` viraria um `location.replace` para a página que
+       * já está aberta — a rede de segurança é ficar, exatamente como sem o interruptor.
+       */
+      if (
+        mode === 'redirect' &&
+        !isDriverAppUrlOwnOrigin({ driverAppUrl, origin: window.location.origin })
+      ) {
+        window.location.replace(driverAppUrl)
+      } else if (mode === 'stay' || mode === 'redirect') {
+        enterDriverTrip()
+      } else {
+        window.location.replace(DRIVER_TRIP_PATH)
+      }
     })
   }, [permissions])
 
@@ -868,6 +882,11 @@ async function takeOverDriverEntry(
   const mode = await readDriverAppMode({ driverAppUrl, isFieldOnlyUser: false })
   switch (mode) {
     case 'redirect':
+      /**
+       * Revisão M1: a origem própria viraria um `location.replace` para a mesma página — a rede de
+       * segurança é servir `/minha-viagem` como sem o interruptor, e não fechar o laço.
+       */
+      if (isDriverAppUrlOwnOrigin({ driverAppUrl, origin: window.location.origin })) return false
       window.location.replace(driverAppUrl)
       return true
     case 'install-screen':
