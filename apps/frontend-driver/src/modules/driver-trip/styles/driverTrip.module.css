@@ -18,25 +18,34 @@
   margin: 0;
 }
 
-/* RF12: uma viagem por botão, lado a lado enquanto couber — com duas, o polegar alcança as duas. */
+/* RF12: uma viagem por botão, um embaixo do outro e na largura toda — o caminho precisa caber. */
 .tripSelector {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: var(--space-2);
+}
+
+.tripSelectorButton {
+  justify-content: flex-start;
+  width: 100%;
 }
 
 /* O caminho em cima, a placa — linha de apoio, menor — embaixo. */
 .tripSelectorOption {
   display: grid;
   gap: 0;
+  min-width: 0;
   text-align: left;
+  width: 100%;
 }
 
+/* Quebra em até duas linhas em vez de cortar: é o que diferencia uma viagem da outra. */
 .tripSelectorPath {
-  max-width: 11rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .tripSelectorPlate {

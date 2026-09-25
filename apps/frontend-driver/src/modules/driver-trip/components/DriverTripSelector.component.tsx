@@ -33,6 +33,7 @@ export function DriverTripSelector({ onSelect, selectedTripId, trips }: DriverTr
         return (
           <Button
             aria-pressed={trip.id === selectedTripId}
+            className={styles.tripSelectorButton}
             key={trip.id}
             type="button"
             variant={trip.id === selectedTripId ? 'default' : 'secondary'}
