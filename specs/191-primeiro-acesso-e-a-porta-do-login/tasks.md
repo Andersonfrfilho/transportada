@@ -62,7 +62,7 @@ com `rollback.sql` e fecha com `make migration-test`.
       - `rg 'resolveClientIp\(' src` só mostra chamadas com o resolvedor injetado;
       - a entrada 2026-09-18 do `docs/SECURITY.md` (`:304-326`) fica "fechado", com data.
 
-- [ ] **T1.2** 🧠 **Limitador anônimo em dois estágios, por IP e por alvo.**
+- [x] **T1.2** 🧠 **Limitador anônimo em dois estágios, por IP e por alvo.**
       Contrato primeiro, em `test/rate-limit/anonymous-rate-limit.contract.ts`: - rota anônima com `rateLimit: { store: 'postgres', scope, maxRequests, windowSeconds }`
       consome o IP **antes** do `parse`: primeiro o balde em memória da réplica, com o mesmo
       `maxRequests`, depois o Postgres; - **acima do teto em memória, `consume` do store não é chamado**; - com `target: { scope, maxRequests, windowSeconds, key(input) }`, o alvo é consumido

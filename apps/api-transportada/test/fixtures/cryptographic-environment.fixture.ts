@@ -5,6 +5,7 @@ export const ACTIVE_ENCRYPTION_KEY = Buffer.alloc(32, 1).toString('base64')
 export const PREVIOUS_ENCRYPTION_KEY = Buffer.alloc(32, 2).toString('base64')
 export const IDEMPOTENCY_HMAC_KEY = Buffer.alloc(32, 3).toString('base64')
 export const NOTIFICATION_SUPPRESSION_HMAC_KEY = Buffer.alloc(32, 9).toString('base64')
+export const RATE_LIMIT_SUBJECT_HMAC_KEY = Buffer.alloc(32, 11).toString('hex')
 
 export const CRYPTOGRAPHIC_ENVIRONMENT = {
   ENCRYPTION_ACTIVE_KEY_ID: 'local-v2',
@@ -14,6 +15,7 @@ export const CRYPTOGRAPHIC_ENVIRONMENT = {
   }),
   IDEMPOTENCY_HMAC_KEY,
   NOTIFICATION_SUPPRESSION_HMAC_KEY,
+  RATE_LIMIT_SUBJECT_HMAC_KEY,
 } as const
 
 export const CRYPTOGRAPHIC_CONFIGURATION = {
@@ -26,6 +28,7 @@ export const CRYPTOGRAPHIC_CONFIGURATION = {
   },
   idempotencyHmacKey: Uint8Array.from(Buffer.from(IDEMPOTENCY_HMAC_KEY, 'base64')),
   notificationSuppressionHmacKey: NOTIFICATION_SUPPRESSION_HMAC_KEY,
+  rateLimitSubjectHmacKey: Uint8Array.from(Buffer.from(RATE_LIMIT_SUBJECT_HMAC_KEY, 'hex')),
 } as const
 
 export const API_ENVIRONMENT = {

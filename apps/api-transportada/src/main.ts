@@ -175,6 +175,7 @@ import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-wh
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 import { type ClientIpResolver, createClientIpResolver } from './http/client-ip.service.js'
 import { createRateLimiter } from './http/rate-limiter.service.js'
+import { createRateLimitSubjectService } from './http/rate-limit-subject.service.js'
 import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
 import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
@@ -1378,6 +1379,9 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
+    rateLimitSubjects: createRateLimitSubjectService({
+      key: config.cryptography.rateLimitSubjectHmacKey,
+    }),
     rateLimitWindows: new DrizzleRateLimiterRepository(database.db),
     resolveClientIp,
     moduleRouters: [

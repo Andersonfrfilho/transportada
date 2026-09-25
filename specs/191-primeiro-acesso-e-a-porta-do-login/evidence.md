@@ -110,3 +110,48 @@ Gates:
 
 `docs/SECURITY.md`: a entrada 2026-09-18 passou a "fechado em 2026-09-25". A medição em staging se
 repete na T7.4.
+
+## T1.2 — limitador anônimo em dois estágios, por IP e por alvo (2026-09-25)
+
+Contrato primeiro, em `test/rate-limit/anonymous-rate-limit.contract.ts` (router) e
+`test/rate-limit/subject.contract.ts` (HMAC e chave no boot), agregados em
+`test/rate-limit.contract.test.ts`. Visto vermelho: `bun test ./test/rate-limit.contract.test.ts` →
+0 pass, 1 fail, 1 erro (`rate-limit-subject.service.js` não existia).
+
+O que passou a valer:
+
+- `AnonymousRouterRoute.rateLimit` aceita `{ store: 'postgres', scope, maxRequests, windowSeconds,
+target? }`. O IP conta antes do `parse`; o alvo (`target.key(input)`), depois do `parse` e antes do
+  `handle`. A T4.1 põe o desafio entre os dois.
+- Cada estágio é memória da réplica (mesmo teto; recusa sem chamar o store) e depois
+  `rate_limit_windows` (`src/http/anonymous-rate-limit.service.ts`). 429 com `Retry-After`. Store
+  fora do ar dá 500 (sem try/catch).
+- `subject_key` é `ip:<HMAC>` ou `target:<HMAC>`: HMAC-SHA256 com domínio
+  `transportada:rate-limit:v1:<scope>`, saída base64url, 43 caracteres
+  (`src/http/rate-limit-subject.service.ts`).
+- Guarda de boot: rota anônima `postgres` sem store → `postgres rate limit without a store`; sem a
+  chave do HMAC → `anonymous postgres rate limit without a subject key`.
+- A rota anônima em memória (`{ maxRequests, windowMs }`) segue igual, por IP no processo.
+- `RATE_LIMIT_SUBJECT_HMAC_KEY` obrigatória em `cryptographic-configuration.schema.ts`, em
+  **hexadecimal minúsculo de 64 caracteres** (32 bytes), recusada se repetir a do envelope, a de
+  idempotência ou a de supressão.
+
+Arquivos de configuração: `Makefile` (`grep -q`), `.railway/railway.ts` (`preserve()` no bloco da
+`api`), `docs/spec/railway.md`, `test/fixtures/cryptographic-environment.fixture.ts`, `.env.example`
+e `.env.test.example` (`0b` × 32, distinta das outras chaves canônicas).
+
+Aceite:
+
+- contrato verde: `bun test ./test/rate-limit.contract.test.ts` → 53 pass, 0 fail;
+- o `subjectKey` recebido pelo store falso casa `^ip:[A-Za-z0-9_-]{43}$` e
+  `^target:[A-Za-z0-9_-]{43}$`, sem o IP nem o texto digitado (testes "não carrega … em claro");
+- `make config` com o `.env` real → exit 0; com uma cópia do `.env.example` → exit 0; sem a linha
+  da chave → `make: *** [config] Error 1`; com a chave em base64 →
+  `CryptographicConfigurationError`.
+
+Gates:
+
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo) → 7370 pass, 23 skip,
+  0 fail, 184 arquivos.
+- Integração: `server`, `auth-me`, `rate-limiter` → 8 pass, 0 fail.
+- `bun run typecheck` e `bun run lint` na raiz → exit 0.

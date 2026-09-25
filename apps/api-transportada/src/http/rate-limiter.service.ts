@@ -25,6 +25,28 @@ export type PostgresRateLimitPolicy = RateLimitCeiling &
     store: 'postgres'
   }>
 
+/**
+ * Spec 191 RF12: o alvo de uma rota anônima — o texto que a pessoa digitou, normalizado pela rota.
+ * Conta depois do `parse` e antes do `handle`, e vira HMAC antes de chegar ao balde.
+ */
+export type AnonymousTargetRateLimit<TInput> = RateLimitCeiling &
+  Readonly<{
+    key: (input: TInput) => string
+    scope: string
+  }>
+
+/**
+ * Spec 191 RF12, ADR-0076 §3: teto da rota anônima no Postgres, por IP e, se declarado, por alvo.
+ * Os dois contam em dois estágios: o balde em memória da réplica, com o mesmo teto, e depois o
+ * Postgres, que soma entre réplicas.
+ */
+export type AnonymousRateLimitPolicy<TInput> = PostgresRateLimitPolicy &
+  Readonly<{ target?: AnonymousTargetRateLimit<TInput> }>
+
+/** O que o roteador enxerga da rota registrada: o teto do alvo sem a função que o extrai. */
+export type RegisteredAnonymousRateLimitPolicy = PostgresRateLimitPolicy &
+  Readonly<{ target?: RateLimitCeiling & Readonly<{ scope: string }> }>
+
 /** O teto que a rota autenticada declara: em memória do processo ou compartilhado no Postgres. */
 export type RouteRateLimitPolicy =
   | (RateLimitPolicy & Readonly<{ store: 'memory' }>)

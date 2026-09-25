@@ -118,6 +118,8 @@ export default defineRailway((ctx) => {
       QUEUE_PREFIX: preserve(),
       RABBITMQ_URL: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
+      /** ADR-0076 §3: só a API lê; o worker não conhece o limitador anônimo. */
+      RATE_LIMIT_SUBJECT_HMAC_KEY: preserve(),
       ROUTING_MATRIX_URL: preserve(),
       SCHEDULED_DISTRIBUTION_CRON: preserve(),
       SENTRY_DSN: preserve(),
