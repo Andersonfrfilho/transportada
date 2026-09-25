@@ -465,9 +465,20 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.identified-user .panel-link {
+.identified-user-switch {
   justify-self: start;
-  text-align: left;
+  margin-top: var(--transportada-space-2);
+  text-decoration: none;
+}
+
+/* O `display` de `.action` venceria o `[hidden]` do navegador, e o botão sairia com `href="#"`. */
+.identified-user-switch[hidden] {
+  display: none;
+}
+
+.identified-user-switch svg {
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .panel-footnote {

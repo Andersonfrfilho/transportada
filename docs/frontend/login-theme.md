@@ -239,7 +239,19 @@ CPF nem o telefone que acabou de ser digitado.
   form data, e o FreeMarker o lê em `login.username`. O `login.ftl` faz
   `<#assign identifiedUsername = (login.username)!''>` e, com conteúdo, troca o campo de usuário por
   texto (`Entrando como` + o username, nenhum outro dado), um `<input type="hidden" name="username">` e
-  o link **"Não é você?"**. A senha ganha o `autofocus`.
+  o botão **"Trocar de usuário"** (`action action-quiet`, com a seta de voltar). A senha ganha o
+  `autofocus`.
+- **Trocar de usuário é botão, não link discreto** (relato de 2026-09-25). Quem digitou o usuário de
+  outra pessoa descobre pela senha recusada, e era justamente nessa tela que a saída sumia. ⚠️ O
+  destino **não** é o `url.loginRestartFlowUrl`: medido no Keycloak 26.5.2, o restart guarda o
+  `login_hint` e devolve a mesma tela, com o mesmo usuário. O `#reset-login` do `template.ftl`
+  também não serve de saída: ele só renderiza com `auth.showUsername()`, que sai falso no
+  `UsernamePasswordForm`. O que funciona é voltar à identificação do app.
+- ⚠️ **Senha errada tira o `redirect_uri` da URL.** O formulário reenvia para
+  `login-actions/authenticate?execution=…&client_id=…&tab_id=…&client_data=…`, e o script que só lia
+  `redirect_uri` deixava o botão (e o "Esqueci minha senha" do app) escondidos. O Keycloak 26 carrega
+  o endereço no `client_data`, base64url de `{"ru": …}`, e o `password-reset-link.js` lê o `ru` quando
+  o `redirect_uri` falta.
 - **O link volta para a identificação do app**, que é a raiz do app sem sessão — painel ou portal,
   o que valer para quem entrou. ⚠️ **Quem manda é o `redirect_uri` da própria requisição de login,
   não `applicationOrigin`.** Um só realm serve os dois apps, cada um com o próprio client e o próprio
@@ -256,7 +268,7 @@ CPF nem o telefone que acabou de ser digitado.
   traz o username do campo oculto.
 - ⚠️ **O template não distingue o hint do username reenviado.** No acesso direto, senha errada também
   volta só com a senha e o username que a pessoa digitou. O que ela vê é o próprio texto que digitou,
-  e o "Não é você?" leva à identificação do app. O fluxo de autenticação do realm não foi mudado, e
+  e o "Trocar de usuário" leva à identificação do app. O fluxo de autenticação do realm não foi mudado, e
   nada no FreeMarker diferencia os dois casos.
 
 Conferido em container de sonda (`quay.io/keycloak/keycloak:26.5.2`, tema montado): com

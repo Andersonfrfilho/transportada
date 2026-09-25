@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { runInNewContext } from 'node:vm'
+
 import { describe, expect, test } from 'bun:test'
 
 const REPOSITORY_ROOT = new URL('../../../..', import.meta.url)
@@ -29,6 +31,34 @@ async function readUsernameBranches(): Promise<{ identified: string; typed: stri
   return { identified: login.slice(start, typedStart), typed: login.slice(typedStart, typedEnd) }
 }
 
+type ThemeLink = { hidden: boolean; href: string; dataset: Record<string, string> }
+
+/** Roda o script do tema de verdade, sobre um `document` mínimo com os dois links do `login.ftl`. */
+async function runApplicationLinksScript(
+  search: string,
+): Promise<{ restart: ThemeLink; reset: ThemeLink }> {
+  const source = await repositoryFile(THEME_APPLICATION_LINKS).text()
+  const restart: ThemeLink = { hidden: true, href: '#', dataset: {} }
+  const reset: ThemeLink = { hidden: true, href: '#', dataset: {} }
+  const links: Record<string, ThemeLink> = {
+    '[data-identity-restart]': restart,
+    '[data-password-reset]': reset,
+  }
+  const document = {
+    readyState: 'complete',
+    querySelector: (selector: string) => links[selector] ?? null,
+  }
+
+  runInNewContext(source, {
+    window: { location: { search } },
+    document,
+    URL,
+    URLSearchParams,
+    atob,
+  })
+  return { restart, reset }
+}
+
 /**
  * A tela do app pergunta qualquer contato cadastrado e resolve quem é; o Keycloak recebe o username
  * por `login_hint`. Pedir o usuário de novo aqui é perguntar duas vezes — e, pior, num campo que
@@ -56,7 +86,8 @@ describe('login theme password only contract', () => {
     const { identified } = await readUsernameBranches()
 
     expect(identified).toContain('data-identity-restart')
-    expect(identified).toContain('${msg("transportadaNotYou")}')
+    expect(identified).toContain('${msg("transportadaSwitchUser")}')
+    expect(identified).not.toContain('transportadaNotYou')
     // A URL do app vem da configuração do deploy, nunca cravada por ambiente.
     expect(identified).toContain('applicationOrigin?starts_with("http")')
     expect(identified).not.toMatch(/https?:\/\/[a-z]/i)
@@ -75,6 +106,21 @@ describe('login theme password only contract', () => {
     expect(identified).toContain('data-identity-restart hidden href="#"')
     expect(identified).toContain('data-fallback-origin="${applicationOrigin}"')
     expect(identified).not.toContain('href="${applicationOrigin}')
+  })
+
+  /**
+   * Quem digitou o usuário de outra pessoa costuma descobrir pela senha recusada — e é justamente a
+   * tela de erro que perdia a saída: um link discreto, e escondido. Trocar de usuário é ação, com a
+   * mesma moldura dos botões do tema, e o `loginRestartFlowUrl` não serve de destino: o restart
+   * guarda o `login_hint` e devolve a mesma tela, com o mesmo usuário (medido no Keycloak 26.5.2).
+   */
+  test('switching user is a themed button that never restarts into the same user', async () => {
+    const { identified } = await readUsernameBranches()
+
+    expect(identified).toContain(
+      'class="action action-quiet identified-user-switch" data-identity-restart',
+    )
+    expect(identified).not.toContain('${url.loginRestartFlowUrl}')
   })
 
   test('without a user, the screen keeps the username and password fields', async () => {
@@ -114,13 +160,40 @@ describe('login theme password only contract', () => {
     expect(redirectUriIndex).toBeLessThan(fallbackOriginIndex)
   })
 
+  /**
+   * Senha errada reenvia o formulário para `login-actions/authenticate`, cuja URL não traz
+   * `redirect_uri` — só o `client_data` (base64url de `{"ru": …}`) que o Keycloak 26 acrescenta.
+   * Sem lê-lo, o botão sumia exatamente na tela em que a pessoa percebe que errou de usuário.
+   */
+  test('after a refused password, reveals the switch from the client_data redirect', async () => {
+    const clientData = Buffer.from(
+      JSON.stringify({ ru: 'https://painel.example.test/auth/callback', rt: 'code' }),
+    ).toString('base64url')
+
+    const links = await runApplicationLinksScript(
+      `?execution=x&client_id=transportada-spa&tab_id=y&client_data=${clientData}`,
+    )
+
+    expect(links.restart.hidden).toBe(false)
+    expect(links.restart.href).toBe('https://painel.example.test/')
+    expect(links.reset.hidden).toBe(false)
+    expect(links.reset.href).toBe('https://painel.example.test/recuperar-senha')
+  })
+
+  test('keeps the switch hidden when neither the request nor the deployment names an origin', async () => {
+    const links = await runApplicationLinksScript('?client_data=not-json')
+
+    expect(links.restart.hidden).toBe(true)
+    expect(links.restart.href).toBe('#')
+  })
+
   test('says it in both message bundles', async () => {
     const bundles = await Promise.all(
       THEME_MESSAGE_BUNDLES.map((bundle) => repositoryFile(bundle).text()),
     )
 
     for (const bundle of bundles) {
-      expect(bundle).toContain('transportadaNotYou=Não é você?\n')
+      expect(bundle).toContain('transportadaSwitchUser=Trocar de usuário\n')
       expect(bundle).toContain('transportadaIdentifiedAs=Entrando como\n')
     }
   })
