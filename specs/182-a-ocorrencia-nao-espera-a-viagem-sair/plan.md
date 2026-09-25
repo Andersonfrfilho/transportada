@@ -64,7 +64,7 @@ spec 156, fora do escopo daqui).
   separar as duas ações, com `deliver` aplicável em qualquer estado não-terminal e `return` só em
   `DISPATCHED_STATUSES`.
 - `test/trip-allowed-actions/policy.contract.ts`: `'parada fora da rua (antes do despacho ou
-  concluída) não tem ação'` some (loading passa a ter `['occurrence']`); novos casos para RF1/RF2/RF3
+concluída) não tem ação'` some (loading passa a ter `['occurrence']`); novos casos para RF1/RF2/RF3
   cobrindo `draft` com nota vinculada, `loading`, `cancelled`, `completed` explicitamente (RNF da
   spec: "cobrir cada estado explicitamente").
 - Novo teste de integração (`test/integration/trip-field-office.integration.ts`): `field-delivery`

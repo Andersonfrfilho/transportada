@@ -208,6 +208,18 @@ opcional), `…/stops/:stopId/occurrences`, `…/documents/:documentId/field-del
 (multipart) e `…/documents/field-occurrences` (lote multipart); leituras `GET /trips/:id/allowed-actions`
 (`anyPermission`), `GET /trips/:id/field-delivery-documents` e `GET /trips/field-delivery-settings`.
 
+⚠️ **A baixa de entrega não espera o despacho** (spec 182 RF3, decisão do usuário em 24/09):
+`checkTripAcceptsDocumentWork` (`trip-state.policy.ts`) parou de exigir `isTripDispatched` para
+`deliver` — `field-delivery` responde 200/201 com a viagem em `route_planned`/`separating`/`loading`,
+não só depois do despacho. Deliberadamente contraria a leitura física do estado: serve para corrigir
+registro ou lançar entrega feita por fora da viagem. `return` (`field-return`) **não mudou** —
+devolução continua exigindo rua. `trips.status` não avança sozinho nesse caminho (a derivação só
+promove a `on_delivery_route`/`completed` a partir de `isTripDispatched`); despachar continua
+sendo o gesto do barracão. A ocorrência na linha da nota (`fieldOccurrence`) e na parada
+(`STOP_ALLOWED_ACTION.occurrence`) também deixaram de exigir despacho/rua
+(`trip-allowed-actions.policy.ts`, RF1/RF2) — só a chegada (`arrive`) continua exigindo
+`isTripOnRoad`.
+
 - Todo registro grava `channel` (`driver_app | office | whatsapp`, e `backoffice` em
   `trip_status_events`) e, no `office`, `on_behalf_of_driver_id` (CHECK + FK composta com índice
   parcial); `actor_user_id` é sempre quem clicou. `operation` em `trip_field_reports` com prefixo
