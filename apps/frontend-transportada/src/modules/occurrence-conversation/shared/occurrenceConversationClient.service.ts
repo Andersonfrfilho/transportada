@@ -4,7 +4,7 @@
  * mensagem que o guard não reconhece sai da lista, e a aba continua de pé —; o envio leva a
  * `Idempotency-Key` do diálogo; o erro da API chega pelo `code`, nunca pelo texto.
  */
-import { isRecord, isString } from '@/modules/trip/shared/tripGuards.validation'
+import { isRecord, isString } from './occurrenceConversationGuards.validation'
 
 import {
   toConversationAttachments,

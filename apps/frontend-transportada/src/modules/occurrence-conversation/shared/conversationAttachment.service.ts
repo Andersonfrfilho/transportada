@@ -16,7 +16,7 @@ import {
   type MaxAttachmentSizeBytes,
 } from '@adatechnology/conversations-ui'
 
-import { isRecord, isString } from '@/modules/trip/shared/tripGuards.validation'
+import { isRecord, isString } from './occurrenceConversationGuards.validation'
 
 import type { OccurrenceConversationAttachment } from './occurrenceConversation.types'
 

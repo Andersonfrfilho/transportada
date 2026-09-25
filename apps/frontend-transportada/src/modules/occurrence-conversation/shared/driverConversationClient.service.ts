@@ -4,7 +4,7 @@
  * lista e a conversa é o que o servidor registra como "entregue"; abrir chama a leitura; responder
  * leva a chave. A leitura é tolerante: item malformado sai da lista, sem derrubar a tela.
  */
-import { isRecord, isString } from '@/modules/trip/shared/tripGuards.validation'
+import { isRecord, isString } from './occurrenceConversationGuards.validation'
 
 import { toConversationAttachments } from './conversationAttachment.service'
 import {

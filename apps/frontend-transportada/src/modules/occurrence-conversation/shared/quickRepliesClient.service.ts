@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { isRecord, isString } from '@/modules/trip/shared/tripGuards.validation'
+import { isRecord, isString } from './occurrenceConversationGuards.validation'
 
 import type { QuickReply, QuickReplyAudience } from './occurrenceConversation.types'
 import { requestJson, type ClientDependencies } from './occurrenceConversationClient.service'

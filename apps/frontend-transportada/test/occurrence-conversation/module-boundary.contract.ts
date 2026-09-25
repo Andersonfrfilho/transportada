@@ -44,4 +44,16 @@ describe('a fronteira entre a conversa e os contatos (spec 183 T903, F5)', () =>
     expect(action).toContain('<ContactForm')
     expect(action).toContain('createPortal(')
   })
+
+  /**
+   * A conversa lia `isRecord`/`isString` de `trip/shared/tripGuards`, e `trip` importa a conversa:
+   * ciclo. Cada módulo tem o próprio arquivo de guardas (`fleetGuards`, `nfseInvoiceGuards`…).
+   */
+  test('a conversa tem as próprias guardas, sem ciclo com trip por elas', async () => {
+    const offenders = (await sourcesOf('occurrence-conversation'))
+      .filter(([, source]) => source.includes('@/modules/trip/shared/tripGuards.validation'))
+      .map(([file]) => file)
+    expect(offenders).toEqual([])
+  })
 })
+
