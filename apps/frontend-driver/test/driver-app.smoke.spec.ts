@@ -395,6 +395,32 @@ test('CA07: o temporizador drena sozinho e para quando não há mais pendência'
   expect(api.reports().length).toBe(reportsAfterDrain)
 })
 
+/**
+ * Spec 189 T9.2 (A2): a releitura de 30 s que falha (subsolo, sinal fraco) mantém a viagem em
+ * memória na tela, e a faixa diz de quando ela é — nunca troca a viagem pela tela de erro.
+ */
+test('A2: a releitura que falha mantém a viagem na tela, com a hora do dado', async ({ page }) => {
+  await page.clock.install()
+  const api = await openTrip(page)
+  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+
+  api.setTripReadFailing(true)
+  // O tique de 30 s, e depois as três novas tentativas do TanStack (1 s, 2 s, 4 s).
+  for (let step = 0; step < 6; step += 1) {
+    await page.clock.fastForward('00:31')
+    await page.waitForTimeout(200)
+  }
+
+  await expect(page.getByText(/Sem atualização — dados de \d/u)).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cheguei' })).toBeVisible()
+  await expect(
+    page.getByText('Não foi possível carregar sua viagem', { exact: false }),
+  ).toHaveCount(0)
+  await assertNoHorizontalOverflow(page)
+})
+
 /** CA08: o sino aparece no cabeçalho, leva a Notificações e tem alvo de toque de 44 px. */
 test('CA08: o sino leva a Notificações e tem 44 px', async ({ page }) => {
   await openTrip(page)

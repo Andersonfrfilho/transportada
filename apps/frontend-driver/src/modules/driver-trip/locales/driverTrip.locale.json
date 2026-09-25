@@ -192,7 +192,8 @@
   "offline": {
     "empty": "Sem viagem salva; conecte-se para carregar a sua viagem.",
     "emptyTitle": "Sem conexão",
-    "snapshotFrom": "Sem conexão — dados de {{time}}. O que você registrar fica na fila e sobe quando o sinal voltar."
+    "snapshotFrom": "Sem conexão — dados de {{time}}. O que você registrar fica na fila e sobe quando o sinal voltar.",
+    "refetchFailed": "Sem atualização — dados de {{time}}. O que você registrar fica na fila e sobe quando o sinal voltar."
   },
   "foreignPending": {
     "cancel": "Manter",

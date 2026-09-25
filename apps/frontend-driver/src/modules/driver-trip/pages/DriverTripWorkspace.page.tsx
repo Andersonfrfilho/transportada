@@ -309,11 +309,14 @@ export function DriverTripWorkspacePage() {
 
         <DriverLocationSharingIndicator status={locationSharingStatus} />
 
-        {/* ADR-0075 §8: boot sem rede — a viagem é o snapshot, e a tela diz de quando ele é */}
-        {driverTrip.offlineSnapshotSavedAt === undefined ? null : (
+        {/*
+          ADR-0075 §8: boot sem rede, ou releitura que falhou com a viagem em memória — a tela
+          continua com o dado e diz de quando ele é
+        */}
+        {driverTrip.dataSavedAt === undefined ? null : (
           <p className={styles.queueBanner} role="status">
-            {t('offline.snapshotFrom', {
-              time: new Date(driverTrip.offlineSnapshotSavedAt).toLocaleTimeString([], {
+            {t(driverTrip.isOfflineBoot ? 'offline.snapshotFrom' : 'offline.refetchFailed', {
+              time: new Date(driverTrip.dataSavedAt).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
               }),

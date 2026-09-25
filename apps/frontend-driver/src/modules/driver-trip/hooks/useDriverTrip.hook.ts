@@ -32,6 +32,7 @@ import {
 } from '../shared/offlineQueue.service'
 import { countPending, scheduleQueueDrainTriggers } from '../shared/pendingQueue.service'
 import { discardForeignPending, partitionPendingByOwner } from '../shared/queueOwner.service'
+import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { saveTripSnapshot } from '../shared/tripSnapshot.service'
 import { useDriverSession } from './useDriverSession.hook'
 
@@ -80,8 +81,13 @@ export type DriverTripController = Readonly<{
   /** `true` até a primeira leitura do IndexedDB voltar — é o que segura o esqueleto da tela. */
   isQueueLoading: boolean
   isSyncing: boolean
-  /** Boot sem rede: a hora do snapshot na tela ("dados de HH:MM"). `undefined` com sessão viva. */
-  offlineSnapshotSavedAt: string | undefined
+  /**
+   * A hora do dado na tela ("dados de HH:MM"): a do snapshot no boot sem rede, ou a da última
+   * leitura boa quando a releitura falhou com sessão viva. `undefined` com a leitura em dia.
+   */
+  dataSavedAt: string | undefined
+  /** `true` no boot sem rede — a faixa diz "sem conexão"; com sessão viva, "sem atualização". */
+  isOfflineBoot: boolean
   /**
    * Spec 159 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
    * tela traduz em linguagem simples ("em dia", "tardia", "longe"). Some ao trocar de sessão: não é
@@ -412,7 +418,13 @@ export function useDriverTrip(
     foreignPendingCount,
     isQueueLoading: queueView === undefined,
     isSyncing: drain.isPending,
-    offlineSnapshotSavedAt: session.canSync ? undefined : initialSnapshot?.savedAt,
+    dataSavedAt: resolveTripDataSavedAt({
+      canSync: session.canSync,
+      dataUpdatedAt: currentTrip.dataUpdatedAt,
+      initialSavedAt: initialSnapshot?.savedAt,
+      isRefetchError: currentTrip.isRefetchError,
+    }),
+    isOfflineBoot: !session.canSync,
     proofOutcomeByDocumentId,
     queueView: loadedView,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,
@@ -422,6 +434,10 @@ export function useDriverTrip(
     sendAllNow: () => requestDrain(undefined),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
     snapshot: currentTrip.data,
-    status: currentTrip.isLoading ? 'loading' : currentTrip.isError ? 'error' : 'ready',
+    status: resolveTripViewStatus({
+      hasData: currentTrip.data !== undefined,
+      isError: currentTrip.isError,
+      isLoading: currentTrip.isLoading,
+    }),
   } satisfies DriverTripController
 }

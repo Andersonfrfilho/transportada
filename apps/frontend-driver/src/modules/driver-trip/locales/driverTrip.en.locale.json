@@ -183,7 +183,8 @@
   "offline": {
     "empty": "No saved trip; connect to load your trip.",
     "emptyTitle": "Offline",
-    "snapshotFrom": "Offline — data from {{time}}. What you record stays in the queue and is sent when the signal returns."
+    "snapshotFrom": "Offline — data from {{time}}. What you record stays in the queue and is sent when the signal returns.",
+    "refetchFailed": "Not updated — data from {{time}}. What you record stays in the queue and is sent when the signal returns."
   },
   "foreignPending": {
     "cancel": "Keep",

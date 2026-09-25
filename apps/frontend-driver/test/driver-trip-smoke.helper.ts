@@ -106,6 +106,8 @@ export type DriverTripApiMock = Readonly<{
   reports: () => readonly Readonly<{ idempotencyKey: string; path: string }>[]
   /** Liga e desliga o sinal no meio do teste — a fila offline é o que se quer fotografar. */
   setOffline: (isOffline: boolean) => void
+  /** Spec 189 T9.2 (A2): a leitura da viagem passa a responder 500 — a releitura de 30 s falha. */
+  setTripReadFailing: (isFailing: boolean) => void
   /**
    * **Booleano, não contador:** falha até o teste mandar parar, qualquer que seja o número de
    * leituras. No build de produção a tela lê os tipos uma vez; sob um `vite` de dev (StrictMode) lê
@@ -128,10 +130,15 @@ export async function mockDriverTripApi(
   let isOffline = input.isOffline === true
   const provedDocumentIds = new Set<string>()
   let occurrenceTypesFailing = input.occurrenceTypesFailing === true
+  let tripReadFailing = false
 
   await input.page.route(/\/me\/trips\/current$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    if (tripReadFailing) {
+      await fulfillJson(route, { error: { code: 'INTERNAL' } }, 500)
       return
     }
     await fulfillJson(
@@ -224,6 +231,9 @@ export async function mockDriverTripApi(
     },
     setOffline: (next) => {
       isOffline = next
+    },
+    setTripReadFailing: (next) => {
+      tripReadFailing = next
     },
   }
 }
