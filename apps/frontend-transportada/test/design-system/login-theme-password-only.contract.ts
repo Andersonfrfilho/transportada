@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 const REPOSITORY_ROOT = new URL('../../../..', import.meta.url)
 const THEME_LOGIN = 'deploy/keycloak/theme/login/login.ftl'
+const THEME_STYLES = 'deploy/keycloak/theme/login/resources/css/login.css'
 const THEME_PROPERTIES = 'deploy/keycloak/theme/login/theme.properties'
 const THEME_APPLICATION_LINKS = 'deploy/keycloak/theme/login/resources/js/password-reset-link.js'
 const THEME_MESSAGE_BUNDLES = [
@@ -87,7 +88,6 @@ describe('login theme password only contract', () => {
 
     expect(identified).toContain('data-identity-restart')
     expect(identified).toContain('${msg("transportadaSwitchUser")}')
-    expect(identified).not.toContain('transportadaNotYou')
     // A URL do app vem da configuração do deploy, nunca cravada por ambiente.
     expect(identified).toContain('applicationOrigin?starts_with("http")')
     expect(identified).not.toMatch(/https?:\/\/[a-z]/i)
@@ -109,18 +109,38 @@ describe('login theme password only contract', () => {
   })
 
   /**
-   * Quem digitou o usuário de outra pessoa costuma descobrir pela senha recusada — e é justamente a
-   * tela de erro que perdia a saída: um link discreto, e escondido. Trocar de usuário é ação, com a
-   * mesma moldura dos botões do tema, e o `loginRestartFlowUrl` não serve de destino: o restart
-   * guarda o `login_hint` e devolve a mesma tela, com o mesmo usuário (medido no Keycloak 26.5.2).
+   * Quem digitou o usuário de outra pessoa costuma descobrir pela senha recusada — e era justamente a
+   * tela de erro que perdia a saída. Ela é **texto** na linha do usuário ("Não é você? Trocar de
+   * usuário"), e não botão: a tela tem uma ação só, o "Entrar". O `loginRestartFlowUrl` não serve de
+   * destino: o restart guarda o `login_hint` e devolve a mesma tela, com o mesmo usuário (medido no
+   * Keycloak 26.5.2).
    */
-  test('switching user is a themed button that never restarts into the same user', async () => {
+  test('switching user is a text link on the identified user line, never a button', async () => {
     const { identified } = await readUsernameBranches()
-
-    expect(identified).toContain(
-      'class="action action-quiet identified-user-switch" data-identity-restart',
+    const switchStart = identified.indexOf(
+      '<a class="identified-user-switch" data-identity-restart',
     )
+    const switchLink = identified.slice(switchStart, identified.indexOf('</a>', switchStart))
+
+    expect(switchStart).toBeGreaterThan(-1)
+    expect(switchLink).not.toContain('action')
+    expect(switchLink).not.toContain('<svg')
+    expect(identified).toContain('${msg("transportadaNotYou")}')
     expect(identified).not.toContain('${url.loginRestartFlowUrl}')
+  })
+
+  /** Link sem moldura ainda precisa de 44px de toque no celular, e o sublinhado marca foco e hover. */
+  test('the text link keeps a touch target and the theme accent', async () => {
+    const css = await repositoryFile(THEME_STYLES).text()
+    const rule = css.slice(
+      css.indexOf('.identified-user-switch {'),
+      css.indexOf('}', css.indexOf('.identified-user-switch {')),
+    )
+
+    expect(rule).toContain('color: var(--transportada-copper)')
+    expect(rule).toContain('min-height: 2.75rem')
+    expect(rule).not.toContain('border:')
+    expect(css).toContain('.identified-user-switch:focus-visible')
   })
 
   test('without a user, the screen keeps the username and password fields', async () => {
@@ -194,6 +214,7 @@ describe('login theme password only contract', () => {
 
     for (const bundle of bundles) {
       expect(bundle).toContain('transportadaSwitchUser=Trocar de usuário\n')
+      expect(bundle).toContain('transportadaNotYou=Não é você?\n')
       expect(bundle).toContain('transportadaIdentifiedAs=Entrando como\n')
     }
   })

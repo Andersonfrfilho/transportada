@@ -239,10 +239,13 @@ CPF nem o telefone que acabou de ser digitado.
   form data, e o FreeMarker o lê em `login.username`. O `login.ftl` faz
   `<#assign identifiedUsername = (login.username)!''>` e, com conteúdo, troca o campo de usuário por
   texto (`Entrando como` + o username, nenhum outro dado), um `<input type="hidden" name="username">` e
-  o botão **"Trocar de usuário"** (`action action-quiet`, com a seta de voltar). A senha ganha o
-  `autofocus`.
-- **Trocar de usuário é botão, não link discreto** (relato de 2026-09-25). Quem digitou o usuário de
-  outra pessoa descobre pela senha recusada, e era justamente nessa tela que a saída sumia. ⚠️ O
+  a linha "`<usuário>` Não é você? **Trocar de usuário**". A senha ganha o `autofocus`.
+- **Trocar de usuário é link de texto, na linha do usuário** (relato de 2026-09-25; a primeira versão
+  foi botão `action-quiet` e o usuário pediu texto — a tela tem uma ação só, o "Entrar"). Cobre do
+  tema, sem borda nem fundo, sublinhado no hover e no foco, e `min-height: 2.75rem` para os 44px de
+  toque no celular. Contraste medido: 4,99 no claro e 5,24 no escuro. Quando o link fica escondido
+  (sem origem), o "Não é você?" sai junto, por `:has()`. Quem digitou o usuário de outra pessoa
+  descobre pela senha recusada, e era justamente nessa tela que a saída sumia. ⚠️ O
   destino **não** é o `url.loginRestartFlowUrl`: medido no Keycloak 26.5.2, o restart guarda o
   `login_hint` e devolve a mesma tela, com o mesmo usuário. O `#reset-login` do `template.ftl`
   também não serve de saída: ele só renderiza com `auth.showUsername()`, que sai falso no

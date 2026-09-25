@@ -77,3 +77,23 @@ com continuar conectado  → reaberto em /, painel "NF-e Workspace … Local Use
 Revisão de design: a caixa é o `.field-inline` do tema (marcação em cobre, texto `slate`), entre o erro
 e o "Entrar"; o campo da identificação volta com o valor selecionado. Prints:
 `evidence/senha-lembrar-{desktop,mobile}.png`, `evidence/identificador-preenchido-{desktop,mobile}.png`.
+
+## Fase 3 — Link de texto
+
+Contrato antes: **10 pass, 3 fail**; depois, os contratos do tema: **35 pass, 0 fail**.
+
+Sonda do Keycloak 26.5.2 + Vite do worktree (53010). A tela de senha é aberta pela mesma URL que o
+`loginAgain` monta na sessão expirada (`login_hint=anderson.fernandes`), com senha recusada e Enter
+no link via teclado:
+
+```
+light desktop|mobile senha { line: 'anderson.fernandes Não é você? Trocar de usuário', tag: 'A', height: 44,
+                             border: '0px', background: transparente, color: rgb(163,89,31), svg: false, contrast: 4.99 }
+dark  desktop|mobile senha { … color: rgb(213,138,71), contrast: 5.24 }
+todos → depois do Enter { url: 'http://localhost:53010/auth/callback', value: '', loginHintInUrl: false }
+```
+
+A suspeita de que "trocar" voltaria à mesma tela de senha **não se confirma**: o `href` é a raiz do
+app, o token não é persistido, o boot faz `check-sso` sem sessão e cai na identificação. O
+`login_hint` com o usuário anterior vem do `loginAgain` (sessão expirada), que é outro caminho.
+Prints: `evidence/senha-link-{light,dark}-{desktop,mobile}.png`.
