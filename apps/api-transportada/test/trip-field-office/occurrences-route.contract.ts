@@ -8,6 +8,10 @@
 import { describe, expect, it } from 'bun:test'
 
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
+import {
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from '../../src/http/client-ip.service.js'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
 import { resolveCompanyPermissions } from '../../src/identity/domain/authorization.policy.js'
 import type {
@@ -82,6 +86,7 @@ function buildDependencies() {
         items: input.documentIds.map((documentId) => ({ documentId, id: `occ-${documentId}` })),
       }
     },
+    resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
     targets: {
       findTripCrew: async () => ({
         drivers: [{ driverId: DRIVER_ID, position: 1 }],

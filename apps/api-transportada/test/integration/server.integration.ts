@@ -66,6 +66,7 @@ const server = startApiServer({
     driverAddressLookupUrl: undefined,
     appEnv: 'test',
     bootstrapToken: undefined,
+    clientIpPolicy: { source: 'x-real-ip', trustedProxyHops: 1 },
     cargoLayoutTimeBudgetMs: 60_000,
     companyId: undefined,
     contractorMailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },

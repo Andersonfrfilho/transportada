@@ -5,6 +5,11 @@ import { z } from 'zod'
 
 import { DATABASE_POOL_DEFAULTS } from '../database/database-pool.constant'
 import { REQUEST_TIMEOUT_SECONDS } from '../shared/api.constant'
+import {
+  CLIENT_IP_SOURCES,
+  DEFAULT_CLIENT_IP_POLICY,
+  MAX_TRUSTED_PROXY_HOPS,
+} from '../shared/client-ip.constant'
 import type { ApiEnvironment } from '../shared/api.types'
 import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
 
@@ -126,6 +131,17 @@ const environmentSchema = z.object({
     .min(60)
     .max(86_400)
     .default(3_600),
+  // ADR-0076 §6: de qual cabeçalho sai o IP do cliente (a chave do rate limit anônimo e o IP da
+  // trilha). O padrão é a topologia medida — só o edge do Railway, que escreve `x-real-ip`.
+  // Cloudflare com proxy ligado na frente pede `cf-connecting-ip`; outro proxy que anexa a
+  // `x-forwarded-for` pede a cadeia com `TRUSTED_PROXY_HOPS` saltos contados do fim.
+  CLIENT_IP_SOURCE: z.enum(CLIENT_IP_SOURCES).default(DEFAULT_CLIENT_IP_POLICY.source),
+  TRUSTED_PROXY_HOPS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_TRUSTED_PROXY_HOPS)
+    .default(DEFAULT_CLIENT_IP_POLICY.trustedProxyHops),
   // Sem token: a BrasilAPI que espelha a tabela FIPE é pública.
   FLEET_VEHICLE_CATALOG_URL: z
     .string()
@@ -295,6 +311,10 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     appEnv: parsed.APP_ENV,
     bootstrapToken: parsed.BOOTSTRAP_TOKEN,
     cargoLayoutTimeBudgetMs: parsed.CARGO_LAYOUT_TIME_BUDGET_MS,
+    clientIpPolicy: {
+      source: parsed.CLIENT_IP_SOURCE,
+      trustedProxyHops: parsed.TRUSTED_PROXY_HOPS,
+    },
     companyId: parsed.PROVISION_COMPANY_ID,
     contractorMailRateLimit: {
       maxRequests: parsed.RATE_LIMIT_CONTRACTOR_MAIL_MAX,

@@ -39,7 +39,7 @@ com `rollback.sql` e fecha com `make migration-test`.
 
 > 🤖 Modelo: `opus` (segurança de borda: o IP e a chave do limitador são o que o atacante controla)
 
-- [ ] **T1.1** 🧠 **IP do salto conhecido.** Portar o desenho de `51cd186c6` (`git show 51cd186c6`,
+- [x] **T1.1** 🧠 **IP do salto conhecido.** Portar o desenho de `51cd186c6` (`git show 51cd186c6`,
       branch `fix/client-ip-trusted-proxy`, nunca mesclado) sobre o código atual, sem cherry-pick
       cego.
       O que vem do branch: - `CLIENT_IP_SOURCE`: `x-real-ip` (padrão), `cf-connecting-ip` ou `x-forwarded-for` com

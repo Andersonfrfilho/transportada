@@ -126,6 +126,36 @@ describe(`POST ${PUBLIC_AGGREGATE_APPLICATIONS_PATH} HTTP contract`, () => {
     expect(otherIp.status).toBe(202)
   })
 
+  /** ADR-0076 §6: trocar o começo de `x-forwarded-for` a cada requisição não abre balde novo. */
+  test('still rate limits when the client rotates a forged x-forwarded-for', async () => {
+    const fixture = await createAggregateApplicationHttpFixture()
+    const send = (taxId: string, forgedIp: string) =>
+      fixture.handle(
+        new Request(`http://localhost:53001${PUBLIC_AGGREGATE_APPLICATIONS_PATH}`, {
+          body: submitBody(taxId),
+          headers: {
+            'content-type': 'application/json',
+            'x-forwarded-for': `${forgedIp}, 198.51.100.7`,
+            'x-real-ip': '198.51.100.7',
+          },
+          method: 'POST',
+        }),
+      )
+
+    for (const [index, taxId] of [
+      '11111111113',
+      '22222222224',
+      '33333333335',
+      '44444444446',
+      '55555555557',
+    ].entries()) {
+      expect((await send(taxId, `203.0.113.${100 + index}`)).status).toBe(202)
+    }
+
+    const sixth = await send('66666666668', '203.0.113.200')
+    expect(sixth.status).toBe(429)
+  })
+
   test('rejects submission when configured with Turnstile and the token fails verification', async () => {
     const fixture = await createAggregateApplicationHttpFixture({
       turnstileSecretKey: 'test-secret',

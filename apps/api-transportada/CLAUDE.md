@@ -30,6 +30,14 @@ tipo (spec 150 T401/T402, `resolveMailSendReadiness`). ⚠️ **Rota que dispara
 `rateLimit: { store: 'postgres', scope, maxRequests, windowSeconds }`** e aparece em
 `test/rate-limited-routes.contract.test.ts` — hoje só as duas de `contractor-mail` (spec 150 T406).
 
+**O IP do cliente vem do salto conhecido** (ADR-0076 §6, spec 191): `createClientIpResolver` lê só o
+cabeçalho de `CLIENT_IP_SOURCE` — padrão `x-real-ip`, que o edge do Railway sobrescreve (medido).
+Nunca o começo de `x-forwarded-for`, que é do cliente; `cf-connecting-ip` só com Cloudflare
+obrigatória (hoje ela é só DNS). Ausente ou não-IP vira o balde único `unknown`. O resolvedor do
+ambiente é **injetado** (`resolveClientIp` nas dependências da rota) em todo ponto que grava IP em
+trilha ou chaveia limite — nenhuma rota importa um resolvedor próprio. O limitador em memória tem
+teto de 50 000 baldes.
+
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
 2 MiB) → `http/request-handler.service.ts` (correlation-id, 1 MiB → 413, CORS) →
 `http/router.service.ts`: autentica → `matchRoute` → `tenantContext.resolveCompany` → `authorize` →

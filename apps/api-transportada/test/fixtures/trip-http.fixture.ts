@@ -5,6 +5,11 @@ import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixtu
 import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
+import {
+  type ClientIpResolver,
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from '../../src/http/client-ip.service'
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
@@ -29,6 +34,7 @@ type TransitionResult = { readonly document: typeof TRIP_DOCUMENT; readonly trip
 type TripStatusResult = { readonly tripStatus: string }
 
 type RouteDependencies = {
+  readonly resolveClientIp: ClientIpResolver
   readonly batchStatus: { execute(input: ExecuteCall): Promise<unknown> }
   readonly cancelTrip: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly closeTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
@@ -227,6 +233,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   })
 
   const routes = await loadRoutes({
+    resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
     batchStatus: {
       async execute(input) {
         batchStatusCalls.push(structuredClone(input))

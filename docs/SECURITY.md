@@ -400,7 +400,7 @@ ou do campo (recortar pelo vínculo de motorista/agregado), com contrato negativ
 **Origem:** revisão de segurança da spec 156 (T15), ao corrigir a frase sobre `trip.read` no
 `CLAUDE.md` da API. Registrado em 2026-09-18.
 
-### 2026-09-18 — o IP da auditoria vem de `x-forwarded-for`, que o cliente pode forjar (pré-existente)
+### 2026-09-18 — o IP da auditoria vem de `x-forwarded-for`, que o cliente pode forjar (pré-existente, fechado em 2026-09-25)
 
 **Onde:** `api-transportada`, `http/client-ip.service.ts` (`resolveClientIp`), usado pela trilha
 das rotas do escritório em nome do motorista (`audit_logs.metadata.ipAddress`, spec 156) e pelos
@@ -417,9 +417,18 @@ escritório para dentro da transação.
 tetos das escritas do escritório contam por empresa e usuário no Postgres, não por IP. O IP é dado
 de apoio da investigação, não a identidade.
 
-**O que falta:** confiar só no endereço que o proxy conhecido acrescentou (o último de
-`x-forwarded-for`, ou o cabeçalho próprio do provedor, como `cf-connecting-ip`), configurável por
-ambiente, e um contrato que prenda o comportamento com uma cadeia forjada.
+**Fechado em 2026-09-25 (spec 191 T1.1, ADR-0076 §6):** o desenho do branch nunca mesclado
+`fix/client-ip-trusted-proxy` (`51cd186c6`) foi portado. `createClientIpResolver` lê só o cabeçalho
+de `CLIENT_IP_SOURCE`: `x-real-ip` por padrão, que o edge do Railway sobrescreve (medido em
+2026-09-14: 429 no 13º pedido com `X-Real-IP` forjado rotativo); `cf-connecting-ip` só com a
+Cloudflare obrigatória; `x-forwarded-for` com `TRUSTED_PROXY_HOPS` contados do fim. Valor ausente ou
+que não é IP cai no balde único `unknown`. O resolvedor do ambiente é injetado nos oito pontos que
+gravam IP em trilha ou chaveiam limite (`router.service.ts`, `trip.routes.ts`, as três rotas de
+`trip-field-office-trip.routes.ts`, `trip-field-office-occurrence.routes.ts`,
+`trip-field-office-document.routes.ts` e `aggregate-account.routes.ts`), e o limitador em memória
+ganhou teto de 50 000 baldes. Contratos em `test/client-ip/` (cadeia forjada nos oito pontos) e
+`test/fleet-http/aggregate-applications.contract.ts` (XFF rotativo continua levando `429`). A
+medição em staging com `x-forwarded-for` e `x-real-ip` forjados se repete na T7.4 da spec 191.
 
 **Origem:** revisão de segurança da spec 156 (T15). Registrado em 2026-09-18.
 

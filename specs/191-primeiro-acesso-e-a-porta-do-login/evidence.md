@@ -62,3 +62,51 @@ O teste fica vermelho até a T2.2. ⚠️ Enquanto isso, `bun run test:integrati
 esperadas.
 
 Gates: `bun run typecheck` (exit 0) e `bun run lint` (exit 0) na raiz.
+
+## T1.1 — IP do salto conhecido (2026-09-25)
+
+Portado de `51cd186c6` (`fix/client-ip-trusted-proxy`) sobre o código atual, sem cherry-pick: toda
+menção a "ADR-0065" virou "ADR-0076 §6". Vieram do branch: `src/shared/client-ip.constant.ts`,
+`createClientIpResolver` (`x-real-ip` padrão, `cf-connecting-ip`, `x-forwarded-for` com
+`TRUSTED_PROXY_HOPS`; não-IP vira `unknown`), `CLIENT_IP_SOURCE`/`TRUSTED_PROXY_HOPS` no
+`environment.schema.ts` e no `.env.example`, `clientIpPolicy` no `ApiEnvironment`, e o `Map` do
+limitador com teto de 50 000 baldes (o código atual já media cada balde pela própria janela; o teto
+substituiu o `SWEEP_THRESHOLD_ENTRIES`).
+
+Diferença do branch: lá só o roteador e o agregado recebiam o resolvedor. Aqui um resolvedor só é
+criado no `main.ts` e injetado como `resolveClientIp` nas dependências dos oito pontos. O campo é
+**obrigatório** nas dependências das rotas; no `createRouter` é opcional com o padrão, como no branch.
+
+Visto vermelho antes de implementar: `bun test ./test/client-ip.contract.test.ts
+./test/fleet-http.contract.test.ts` → 101 pass, 2 fail, 1 erro de import (o `createClientIpResolver`
+não existia; XFF rotativo recebia 202 em vez de 429).
+
+```text
+$ grep -rn 'resolveClientIp(' src   # só chamadas com o resolvedor injetado
+src/http/router.service.ts:224                              (parâmetro do createRouter)
+src/fleet/presentation/aggregate-account.routes.ts:65       dependencies.resolveClientIp
+src/trips/presentation/trip-field-office-trip.routes.ts:138 dependencies.resolveClientIp
+src/trips/presentation/trip-field-office-trip.routes.ts:189 dependencies.resolveClientIp
+src/trips/presentation/trip-field-office-trip.routes.ts:246 dependencies.resolveClientIp
+src/trips/presentation/trip.routes.ts:1256                  dependencies.resolveClientIp
+src/trips/presentation/trip-field-office-occurrence.routes.ts:128 dependencies.resolveClientIp
+src/trips/presentation/trip-field-office-document.routes.ts:108   input.resolveClientIp (vem das dependências)
+```
+
+`test/client-ip/call-sites.contract.ts` manda `x-forwarded-for: 203.0.113.1, 198.51.100.7` com
+`x-real-ip: 198.51.100.7` a cada um dos oito pontos e confere que o IP resolvido é o do `x-real-ip`
+(no roteador, o segundo pedido com XFF trocado leva 429).
+
+Gates:
+
+- `bun test ./test/client-ip.contract.test.ts` → 33 pass, 0 fail.
+- `bun test ./test/fleet-http.contract.test.ts ./test/contractor-mail.contract.test.ts
+./test/trip-field-office.contract.test.ts` → 344 pass, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000` (contrato completo) → 7341 pass, 23 skip,
+  0 fail, 184 arquivos.
+- Integração dos arquivos tocados: `server`, `auth-me`, `trip-field-office-router`,
+  `trip-field-office`, `trip-timeline` → 52 pass, 0 fail.
+- `bun run typecheck` (raiz) exit 0; `bun run --cwd apps/api-transportada lint` exit 0.
+
+`docs/SECURITY.md`: a entrada 2026-09-18 passou a "fechado em 2026-09-25". A medição em staging se
+repete na T7.4.

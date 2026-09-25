@@ -173,6 +173,7 @@ import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/d
 import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-webhook.routes.js'
 import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
+import { type ClientIpResolver, createClientIpResolver } from './http/client-ip.service.js'
 import { createRateLimiter } from './http/rate-limiter.service.js'
 import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
@@ -1362,11 +1363,14 @@ export function bootstrap(): Bun.Server<undefined> {
           companyId: config.companyId,
           db: database.db,
         })
+  // ADR-0076 §6: um resolvedor só, do ambiente, para o limitador anônimo e para toda trilha com IP.
+  const resolveClientIp = createClientIpResolver(config.clientIpPolicy)
   const router = createRouter({
     anonymousRoutes: createAnonymousRoutes({
       config,
       database: database.db,
       logger,
+      resolveClientIp,
       userModule,
       whatsappCommandHook,
     }),
@@ -1375,6 +1379,7 @@ export function bootstrap(): Bun.Server<undefined> {
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
     rateLimitWindows: new DrizzleRateLimiterRepository(database.db),
+    resolveClientIp,
     moduleRouters: [
       // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar
       // assinatura, aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
@@ -1445,6 +1450,7 @@ export function bootstrap(): Bun.Server<undefined> {
         keycloak: config.keycloak,
         logger,
         postalCodeProviders: config.postalCodeProviders,
+        resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
         routeOptimizationQueue,
         vehicleCatalog: config.vehicleCatalog,
@@ -1500,6 +1506,7 @@ type CreateAnonymousRoutesParams = {
   readonly config: ApiEnvironment
   readonly database: CompanySettingsDatabase
   readonly logger: ApiLogger
+  readonly resolveClientIp: ClientIpResolver
   /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
   readonly userModule: UserModule | undefined
   readonly whatsappCommandHook: WhatsAppCommandHookFactory
@@ -1518,6 +1525,7 @@ function createAnonymousRoutes({
   config,
   database,
   logger,
+  resolveClientIp,
   userModule,
   whatsappCommandHook,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
@@ -1669,6 +1677,7 @@ function createAnonymousRoutes({
             repository: createDrizzleAggregateAccountRepository(database),
             userModule,
           }),
+          resolveClientIp,
         })
   if (config.companyId === undefined) {
     return [
@@ -1780,6 +1789,7 @@ type CreateApplicationRoutesParams = {
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
+  readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
   /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
   readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
@@ -1802,6 +1812,7 @@ function createApplicationRoutes({
   keycloak,
   logger,
   postalCodeProviders,
+  resolveClientIp,
   routingMatrixUrl,
   routeOptimizationQueue,
   vehicleCatalog,
@@ -3373,6 +3384,7 @@ function createApplicationRoutes({
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
     ...createTripFieldOfficeRoutes({
+      resolveClientIp,
       /**
        * Spec 156 T6/T15 M2: reserva da chave (`office.document.proof`), evento, upload e comprovante
        * numa transação só. O canhoto do escritório não classifica pontualidade (spec 159 T11).
@@ -3436,6 +3448,7 @@ function createApplicationRoutes({
       targets: fieldTripTargetRepository,
     }),
     ...createTripFieldOfficeOccurrenceRoutes({
+      resolveClientIp,
       listFieldOccurrenceTypes: (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
@@ -3467,6 +3480,7 @@ function createApplicationRoutes({
       targets: fieldTripTargetRepository,
     }),
     ...createTripRoutes({
+      resolveClientIp,
       batchStatus: { execute: (input) => tripLifecycle.batchStatus.execute(input) },
       cancelTrip: { execute: (input) => tripLifecycle.cancel.execute(input) },
       closeTrip: { execute: (input) => trips.close(input) },

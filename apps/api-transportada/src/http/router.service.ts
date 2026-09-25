@@ -22,7 +22,11 @@ import {
 } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
 import type { AuthMeResponse, HealthResponse } from '../shared/api.types'
-import { resolveClientIp } from './client-ip.service'
+import {
+  type ClientIpResolver,
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from './client-ip.service'
 import type { RateLimitWindowStorePort } from './rate-limit-window.port'
 import {
   createRateLimiter,
@@ -176,6 +180,8 @@ type CreateRouterParams = {
    * qualquer rota que o declare — teto que não conta é porta aberta calada.
    */
   readonly rateLimitWindows?: RateLimitWindowStorePort
+  /** Ausente, vale `DEFAULT_CLIENT_IP_POLICY` — o mesmo padrão do ambiente (ADR-0076 §6). */
+  readonly resolveClientIp?: ClientIpResolver
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
   readonly userPictureExistence: UserPictureExistencePort
@@ -189,6 +195,7 @@ export function createRouter({
   healthService,
   moduleRouters = [],
   rateLimitWindows,
+  resolveClientIp = createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
   routes,
   tenantContext,
   userPictureExistence,
