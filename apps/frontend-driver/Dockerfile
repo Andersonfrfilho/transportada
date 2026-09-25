@@ -23,6 +23,7 @@ ARG VITE_IDENTIFIER_FIRST_LOGIN
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_URL
+ARG VITE_OBJECT_STORAGE_URL
 # O `build` roda o `vite build` e o `dist.contract.test.ts`: o orçamento de precache reprova a imagem.
 RUN bun run --cwd apps/frontend-driver build
 

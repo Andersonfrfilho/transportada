@@ -265,10 +265,8 @@
   "notDelivered": {
     "occurrenceTypeLegend": "Which occurrence to record?",
     "photoLabel": "Occurrence photo",
-    "takePhoto": "Take photo",
-    "chooseFromGallery": "Choose from gallery",
-    "galleryHint": "If the camera does not open or access was denied, choose the photo from the gallery.",
-    "noPhoto": "No photo yet",
+    "galleryHint": "If the camera does not open or access was denied, use Attach and pick the photo from the gallery.",
+    "photoAttached": "Occurrence photo attached",
     "photoPreview": "Occurrence photo preview",
     "photoReading": "Preparing the photo…",
     "photoTooLarge": "The photo is over 512 KB even after reducing it. Take another one, closer to what matters.",

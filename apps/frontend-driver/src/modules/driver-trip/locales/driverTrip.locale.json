@@ -274,10 +274,8 @@
   "notDelivered": {
     "occurrenceTypeLegend": "Qual ocorrência registrar?",
     "photoLabel": "Foto da ocorrência",
-    "takePhoto": "Tirar foto",
-    "chooseFromGallery": "Escolher da galeria",
-    "galleryHint": "Se a câmera não abrir ou o acesso foi negado, escolha a foto da galeria.",
-    "noPhoto": "Nenhuma foto ainda",
+    "galleryHint": "Se a câmera não abrir ou o acesso foi negado, use Anexar e escolha a foto da galeria.",
+    "photoAttached": "Foto da ocorrência anexada",
     "photoPreview": "Prévia da foto da ocorrência",
     "photoReading": "Preparando a foto…",
     "photoTooLarge": "A foto passou de 512 KB mesmo reduzida. Tire outra, mais perto do que importa.",

@@ -970,16 +970,6 @@
   margin: 0;
 }
 
-/* A foto tirada, antes de confirmar: cabe na largura e não empurra o confirmar para fora da tela. */
-.notDeliveredPhotoPreview {
-  border: 1px solid var(--color-slate);
-  display: block;
-  height: auto;
-  max-height: calc(var(--space-16) * 3);
-  max-width: 100%;
-  object-fit: contain;
-}
-
 /* O que falta para confirmar: cobre, como aviso — ainda não é erro, é o caminho até o confirmar. */
 .notDeliveredMissing {
   color: var(--color-copper);

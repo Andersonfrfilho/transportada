@@ -1,7 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 
 import { useCaptureRegistration } from './useCaptureRegistration.hook'
+import { usePhotoPreviewUrl } from './usePhotoPreviewUrl.hook'
 import type {
   DriverOccurrencePhoto,
   DriverOccurrenceType,
@@ -20,15 +21,13 @@ import { reduceOccurrencePhotoToJpeg } from '../shared/occurrencePhotoImage.serv
 /** O que acontece com a foto escolhida antes de ela virar anexo. */
 export type NotDeliveredPhotoState = 'failed' | 'idle' | 'reading' | 'too-large'
 
-type SelectedPhoto = Readonly<{ photo: DriverOccurrencePhoto; previewUrl: string }>
-
 export type NotDeliveredForm = Readonly<{
   availableTypes: readonly DriverOccurrenceType[] | undefined
   canConfirm: boolean
   draft: NotDeliveredDraft
   handleNoteChange: (note: string) => void
   handleOccurrenceTypeSelect: (occurrenceTypeId: string) => void
-  handlePhotoSelect: (file: File | undefined) => void
+  handlePhotoSelect: (file: File) => void
   handleReasonSelect: (reason: DriverReturnReason) => void
   isNoteRequired: boolean
   missing: readonly NotDeliveredField[]
@@ -45,25 +44,17 @@ export function useNotDeliveredForm(occurrenceTypes: DriverOccurrenceTypesState)
   const [reason, setReason] = useState<DriverReturnReason | undefined>(undefined)
   const [occurrenceTypeId, setOccurrenceTypeId] = useState<string | undefined>(undefined)
   const [note, setNote] = useState('')
-  const [selectedPhoto, setSelectedPhoto] = useState<SelectedPhoto | undefined>(undefined)
+  const [photo, setPhoto] = useState<DriverOccurrencePhoto | undefined>(undefined)
   const [photoState, setPhotoState] = useState<NotDeliveredPhotoState>('idle')
-  /** A URL da prévia é recurso do navegador: some ao trocar de foto e ao fechar o formulário. */
-  const previewUrlRef = useRef<string | undefined>(undefined)
+  const photoPreview = usePhotoPreviewUrl()
 
   /** Plan D2: o formulário aberto é captura — nem o SW novo nem a reautenticação navegam no meio. */
   useCaptureRegistration('occurrence-dialog', true)
 
-  useEffect(
-    () => () => {
-      if (previewUrlRef.current !== undefined) URL.revokeObjectURL(previewUrlRef.current)
-    },
-    [],
-  )
-
   const draft: NotDeliveredDraft = {
     note,
     occurrenceTypeId,
-    photo: selectedPhoto?.photo,
+    photo,
     reason,
   }
   const missing = listMissingNotDeliveredFields({ draft, occurrenceTypes })
@@ -73,15 +64,13 @@ export function useNotDeliveredForm(occurrenceTypes: DriverOccurrenceTypesState)
   async function readPhoto(file: File): Promise<void> {
     setPhotoState('reading')
     try {
-      const photo = await reduceOccurrencePhotoToJpeg(file)
-      if (!isOccurrencePhotoWithinLimit(photo.blob)) {
+      const reduced = await reduceOccurrencePhotoToJpeg(file)
+      if (!isOccurrencePhotoWithinLimit(reduced.blob)) {
         setPhotoState('too-large')
         return
       }
-      if (previewUrlRef.current !== undefined) URL.revokeObjectURL(previewUrlRef.current)
-      const previewUrl = URL.createObjectURL(photo.blob)
-      previewUrlRef.current = previewUrl
-      setSelectedPhoto({ photo, previewUrl })
+      photoPreview.showPhoto(reduced.blob)
+      setPhoto(reduced)
       setPhotoState('idle')
     } catch {
       setPhotoState('failed')
@@ -94,13 +83,11 @@ export function useNotDeliveredForm(occurrenceTypes: DriverOccurrenceTypesState)
     draft,
     handleNoteChange: setNote,
     handleOccurrenceTypeSelect: setOccurrenceTypeId,
-    handlePhotoSelect: (file) => {
-      if (file !== undefined) void readPhoto(file)
-    },
+    handlePhotoSelect: (file) => void readPhoto(file),
     handleReasonSelect: setReason,
     isNoteRequired: selectedType?.attachmentMode === 'required',
     missing,
-    photoPreviewUrl: selectedPhoto?.previewUrl,
+    photoPreviewUrl: photoPreview.previewUrl,
     photoState,
   }
 }

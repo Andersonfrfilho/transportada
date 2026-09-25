@@ -753,3 +753,94 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
   await assertNoHorizontalOverflow(page)
   expect(await listSmallTouchTargets(page)).toEqual([])
 })
+
+/**
+ * Spec 179 (T302/T303), pedido do usuário de 25/09: "Não entreguei" registra a ocorrência com foto
+ * e a devolução. Preenche motivo, tipo e foto pela câmera; o confirmar só habilita completo.
+ */
+async function fillNotDelivered(page: Page): Promise<void> {
+  await page.getByRole('button', { exact: true, name: 'Não entreguei' }).click()
+  const confirm = page.getByRole('button', { exact: true, name: 'Confirmar' })
+  await expect(confirm).toBeDisabled()
+  await expect(
+    page.getByText('Para confirmar, falta: o motivo, o tipo de ocorrência, a foto.'),
+  ).toBeVisible()
+
+  await page.getByRole('radio', { name: 'Recusa' }).click()
+  await page.getByRole('radio', { name: 'Cliente ausente' }).click()
+  await expect(page.getByText('Para confirmar, falta: a foto.')).toBeVisible()
+  await expect(confirm).toBeDisabled()
+
+  const form = page.locator('fieldset', { hasText: 'Por que não entregou?' })
+  const chooser = page.waitForEvent('filechooser')
+  await form.getByRole('button', { name: /^Tirar foto/u }).click()
+  expect(await (await chooser).element().getAttribute('capture')).toBe('environment')
+  await (await chooser).setFiles(SMOKE_PHOTO)
+  await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
+  await expect(form.getByRole('button', { exact: true, name: 'Anexar' })).toBeVisible()
+  await expect(confirm).toBeEnabled()
+  await assertNoHorizontalOverflow(page)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+  await confirm.click()
+}
+
+test('Não entreguei: ocorrência com foto sobe direto ao storage, depois a devolução', async ({
+  page,
+}) => {
+  const api = await openTrip(page)
+
+  await fillNotDelivered(page)
+
+  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
+  expect(paths).toEqual([
+    '/me/trips/current/documents/:id/occurrence-uploads',
+    '/me/trips/current/documents/:id/occurrence-uploads/:id/confirm',
+    '/me/trips/current/documents/:id/occurrences',
+    '/me/trips/current/documents/:id/return',
+  ])
+  expect(api.storageUploads()).toHaveLength(1)
+  expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
+  expect(api.storageUploads()[0]?.bytes).toBeGreaterThan(0)
+  const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[1]?.path ?? '')
+  expect(api.reports()[2]?.body).toMatchObject({
+    attachmentObjectId: confirmedId?.[1],
+    occurrenceTypeId: '00000000-0000-4000-8000-0000000000e1',
+  })
+  expect(api.reports()[3]?.body).toMatchObject({ reason: 'recipient_refused' })
+  expect(api.reports()[2]?.idempotencyKey).not.toBe(api.reports()[3]?.idempotencyKey)
+})
+
+test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depois de subir', async ({
+  page,
+}) => {
+  const api = await openTrip(page)
+  api.setOffline(true)
+
+  await fillNotDelivered(page)
+
+  await expect(
+    page.getByText('Ocorrência com foto na fila — sobe quando o sinal voltar.'),
+  ).toBeVisible()
+  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
+  await expect(page.getByText('Ocorrência com foto enviada.')).toHaveCount(0)
+  expect(api.storageUploads()).toEqual([])
+  expect(api.reports().filter((report) => report.path.endsWith('/occurrences'))).toEqual([])
+
+  await page.getByRole('button', { name: /confirmações aguardando envio/u }).click()
+  await expect(page.getByText('Ocorrência com foto')).toBeVisible()
+  await expect(page.getByText('1 anexo')).toBeVisible()
+  await page.getByRole('button', { name: 'Voltar' }).click()
+
+  api.setOffline(false)
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+
+  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  expect(api.storageUploads()).toHaveLength(1)
+  expect(api.reports().map((report) => report.path.split('/').at(-1))).toEqual([
+    'occurrence-uploads',
+    'confirm',
+    'occurrences',
+    'return',
+  ])
+})

@@ -71,12 +71,24 @@ vez por quem monta, antes de agendar o resto) e um temporizador de 30 s
 do Chromium só acordaria a página já aberta, que os gatilhos acima cobrem, o Safari não tem o
 evento, e drenar com a app fechada exigiria token no service worker — proibido por
 `security.md` §8 e reservado ao nativo (ADR-0056). A ocorrência de nota com foto é o `kind`
-`documentOccurrence` em `DriverFieldReport`: dentro do próprio `send`
-(`driverTripClient.service.ts`), pede a URL assinada, sobe o blob, confirma o upload e só então
-`POST .../documents/:id/occurrences` com `attachmentObjectId` — a drenagem de eventos e depois
-anexos (`offlineAttachments.service.ts`) exigiria a ordem inversa, e a 179 T203 recusa `required`
-sem anexo. `test/driver-trip/offline-queue.contract.ts`,
-`test/driver-trip/offline-attachments.contract.ts`.
+`documentOccurrence` em `DriverFieldReport` (spec 179 T301 — a 189 o dava como pronto, e ele não
+existia): o `Blob` da foto mora no próprio item, e dentro do `send` (`driverTripClient.service.ts`)
+pede a URL assinada, faz o `PUT` direto ao storage **sem** o token da API, confirma e só então `POST
+.../documents/:id/occurrences` com `attachmentObjectId` e a chave do toque — a drenagem de eventos e
+depois anexos (`offlineAttachments.service.ts`) exigiria a ordem inversa, e a 179 T203 recusa
+`required` sem anexo. A foto conta no teto de bytes dos anexos (`sumReportPhotoBytes`).
+`test/driver-trip/offline-queue.contract.ts`, `test/driver-trip/offline-attachments.contract.ts`,
+`test/driver-trip/occurrence-upload.contract.ts`.
+
+**"Não entreguei" é ocorrência com foto e devolução** (spec 179, pedido do usuário de 25/09,
+`notDelivered.service.ts`). A devolução (`/return`, `DRIVER_RETURN_REASONS`) é o que fecha nota,
+parada e viagem; a ocorrência (tipo do cadastro, com a foto) é a prova e abre a tratativa da spec
+164, mas não muda `separation_status` (spec 164 RF19). O motivo não se deduz do tipo (seria comparar
+nome), então o formulário pergunta os dois. Confirmar grava os dois itens numa transação só
+(`enqueueReports`), ocorrência antes. Sem lista de tipos (falha sem cópia em
+`occurrenceTypesCache.service.ts`, ou empresa sem tipo de rua), a devolução segue só com o motivo. O
+cartão diz "na fila" pelo que está na fila e "enviado" só pela chave que a drenagem viu o servidor
+aceitar (`resolveNotDeliveredStatus`). `test/driver-trip/not-delivered*.contract.ts`.
 
 ## `captureRegistry` e atualização em ponto seguro
 
@@ -187,12 +199,21 @@ indicador de posição) e CA15 (44 px em 375 px). `make smoke` da raiz roda o Pl
   `push` e `notificationclick` a ele — não há troca de modo para fazer aqui. `POST`/`DELETE
 /me/web-push-subscriptions` entram como inscrição por gesto do usuário, só neste app (o painel
   fica com o sino, sem Web Push).
-- **179 (recusa sai com foto).** O `kind` `documentOccurrence` já existe em `DriverFieldReport` e no
-  `switch` exaustivo de `driverTripClient.service.ts` — a fila já sobe o anexo dentro do `send`,
-  antes do `POST` (ver "Drenagem" acima). Falta a origem do storage: `VITE_STORAGE_URL` (`ARG` e
-  contrato de build) somando ao `connect-src` e ao `img-src`. A captura da imagem e a distinção
-  "na fila" / "enviado" na tela de ocorrência (T302/T303 da spec 179, emendadas pela T8.3 da 189)
-  rodam **nesta app**, não mais em `apps/frontend-transportada`.
+- **179 (recusa sai com foto).** Feita nesta app (T301–T303): ver "Drenagem" acima. A origem do
+  storage é `VITE_OBJECT_STORAGE_URL` (o mesmo nome do painel), lida só pelo `vite.config.ts` para a
+  CSP, com `ARG` no `Dockerfile` (`test/shared/vite-build-args.contract.ts`) — entra **só no
+  `connect-src`**: a foto sobe por `PUT`, e nada aqui exibe imagem do bucket. Sem ela no ambiente, o
+  navegador recusa o `PUT` e o item fica recusado na fila.
+
+## Foto: botão, não campo de arquivo
+
+O canhoto e a foto da ocorrência usam `FilePickerButton` (`src/components/ui/file-picker-button.tsx`):
+um `Button` do design system que clica num `<input type="file">` fora da vista e da tabulação.
+"Tirar foto" leva `capture="environment"` (câmera na hora), "Anexar" não leva (galeria e arquivos, a
+saída quando a câmera não abre ou foi negada). No canhoto, "Colher assinatura" tem ícone próprio
+(`pen`) e ocupa a linha inteira; as duas portas da foto dividem a linha de cima. Depois de anexar:
+miniatura (`usePhotoPreviewUrl`), "anexada" e "Refazer". O `FileField` ficou para a foto da
+ocorrência de parada. `test/driver-trip/proof-capture.contract.ts`.
 
 ## Cópia por valor: o que veio de onde
 

@@ -67,6 +67,21 @@ describe('toda VITE_* lida pelo código chega ao bundle', () => {
     expect(found).toContain('VITE_DRIVER_APP_URL')
   })
 
+  /**
+   * Spec 179: a CSP nasce no `vite.config.ts`, que lê as origens por `config.env` — não por
+   * `import.meta.env`, então a varredura acima não as vê. Sem `ARG`, a origem do storage não
+   * chega ao build da imagem e o `PUT` da foto é recusado pelo navegador.
+   */
+  test('as origens que o vite.config lê para a CSP também têm ARG', () => {
+    const viteConfig = readFileSync(join(ROOT, 'vite.config.ts'), 'utf8')
+    const read = [...viteConfig.matchAll(/readEnvironment\('(VITE_[A-Z_]+)'\)/gu)].map(
+      (match) => match[1],
+    )
+
+    expect(read).toContain('VITE_OBJECT_STORAGE_URL')
+    expect(read.filter((name) => !readDeclaredArguments().has(name))).toEqual([])
+  })
+
   /** ADR-0075 §7: o bypass de fumaça nunca entra numa imagem publicada. */
   test('o Dockerfile nunca declara o bypass de fumaça', () => {
     for (const name of SOMENTE_EM_TESTE) {

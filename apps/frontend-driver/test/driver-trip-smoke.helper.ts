@@ -14,6 +14,8 @@ const CORS_HEADERS = {
 }
 
 export const DRIVER_STOP_ID = '00000000-0000-4000-8000-000000000101'
+/** Spec 179: o caminho do dublê do bucket, na origem da API. */
+const OBJECT_STORAGE_PATH = '/__object-storage/'
 export const DRIVER_DOCUMENT_ID = '00000000-0000-4000-8000-000000000102'
 /** Chave sintética de 44 dígitos — nenhuma nota real entra em fixture. */
 export const DRIVER_ACCESS_KEY = '35260712345678000195550010009001231000000017'
@@ -112,8 +114,13 @@ export type DriverTripApiMock = Readonly<{
   consentWrites: () => readonly boolean[]
   /** Spec 189 T7.5: cada `POST /me/trips/current/location`, com as coordenadas em texto. */
   locationPosts: () => readonly Readonly<{ latitude: string; longitude: string }>[]
-  /** O que o aparelho enviou: o caminho e a chave de idempotência, que é o que importa aqui. */
-  reports: () => readonly Readonly<{ idempotencyKey: string; path: string }>[]
+  /**
+   * O que o aparelho enviou: o caminho, a chave de idempotência e o corpo JSON (quando houver) —
+   * a ocorrência com foto confere ali o `attachmentObjectId`.
+   */
+  reports: () => readonly Readonly<{ body: unknown; idempotencyKey: string; path: string }>[]
+  /** Spec 179: cada `PUT` direto ao storage pela URL assinada — os bytes que chegaram lá. */
+  storageUploads: () => readonly Readonly<{ bytes: number; contentType: string }>[]
   /** Liga e desliga o sinal no meio do teste — a fila offline é o que se quer fotografar. */
   setOffline: (isOffline: boolean) => void
   /** Spec 189 T9.2 (A2): a leitura da viagem passa a responder 500 — a releitura de 30 s falha. */
@@ -135,7 +142,8 @@ export async function mockDriverTripApi(
     scenario?: DriverTripProofScenario
   }>,
 ): Promise<DriverTripApiMock> {
-  const reports: Array<{ idempotencyKey: string; path: string }> = []
+  const reports: Array<{ body: unknown; idempotencyKey: string; path: string }> = []
+  const storageUploads: Array<{ bytes: number; contentType: string }> = []
   let arrived = false
   let isOffline = input.isOffline === true
   const provedDocumentIds = new Set<string>()
@@ -183,12 +191,33 @@ export async function mockDriverTripApi(
       await route.abort('internetdisconnected')
       return
     }
-    const path = new URL(route.request().url()).pathname
+    const requestUrl = new URL(route.request().url())
+    const path = requestUrl.pathname
+    const rawBody = route.request().postData()
     reports.push({
+      body: rawBody === null || rawBody.startsWith('{') === false ? null : JSON.parse(rawBody),
       idempotencyKey: route.request().headers()['idempotency-key'] ?? '',
       path,
     })
     arrived = true
+    /**
+     * Spec 179: a URL assinada aponta para a própria origem da API — é a que a CSP do smoke já
+     * libera no `connect-src` —, num caminho que só o dublê do storage abaixo atende.
+     */
+    if (path.endsWith('/occurrence-uploads')) {
+      const id = crypto.randomUUID()
+      await fulfillJson(
+        route,
+        { data: { id, uploadUrl: `${requestUrl.origin}${OBJECT_STORAGE_PATH}${id}` } },
+        201,
+      )
+      return
+    }
+    const uploadId = /\/occurrence-uploads\/([^/]+)\/confirm$/u.exec(path)?.[1]
+    if (uploadId !== undefined) {
+      await fulfillJson(route, { data: { id: uploadId } })
+      return
+    }
     const deliveredDocumentId = /\/documents\/([^/]+)\/deliver$/u.exec(path)?.[1]
     if (deliveredDocumentId !== undefined && input.scenario?.settlesDeliveries === true) {
       deliveredDocumentIds.add(deliveredDocumentId)
@@ -204,6 +233,26 @@ export async function mockDriverTripApi(
               input.scenario?.punctualityByDocumentId?.[proofDocumentId] ?? 'not_required',
           }
     await fulfillJson(route, { data }, 201)
+  })
+
+  /** Spec 179: o bucket. Sem sinal ele também não responde — a foto fica na fila com a ocorrência. */
+  await input.page.route(new RegExp(`${OBJECT_STORAGE_PATH}`, 'u'), async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({
+        headers: { ...CORS_HEADERS, 'access-control-allow-origin': '*' },
+        status: 204,
+      })
+      return
+    }
+    if (isOffline) {
+      await route.abort('internetdisconnected')
+      return
+    }
+    storageUploads.push({
+      bytes: route.request().postDataBuffer()?.length ?? 0,
+      contentType: route.request().headers()['content-type'] ?? '',
+    })
+    await route.fulfill({ headers: { 'access-control-allow-origin': '*' }, status: 200 })
   })
 
   /**
@@ -241,6 +290,7 @@ export async function mockDriverTripApi(
     consentWrites: () => consentWrites,
     locationPosts: () => locationPosts,
     reports: () => reports,
+    storageUploads: () => storageUploads,
     setOccurrenceTypesFailing: (next) => {
       occurrenceTypesFailing = next
     },

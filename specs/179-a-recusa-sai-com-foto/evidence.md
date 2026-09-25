@@ -634,3 +634,52 @@ caminhos que marcam `isUnverified` — o quarto é este.
 $ bun run typecheck && bun run lint        # sem saída
 $ bun run test                             # 546 pass · 0 fail
 ```
+
+### T303 — a fila leva a foto, e a tela distingue "na fila" de "enviado" (CA05, RF5)
+
+- O `Blob` da foto mora no próprio item `documentOccurrence` (IndexedDB guarda `Blob` por clone
+  estruturado, como já guardava os anexos do canhoto). Sem sinal, os dois itens ficam na fila; a
+  ocorrência vai antes, então rede caída nela segura a devolução junto.
+- O cartão diz **"Ocorrência com foto na fila — sobe quando o sinal voltar."** enquanto o item está
+  na fila (inclusive depois de recarregar: a fila sabe a nota), **"enviada"** só quando a drenagem
+  viu o servidor aceitar aquela chave (`sentReportKeys`, colhido no `send` do hook), e
+  **"recusou"** quando o servidor recusou. Item descartado não vira "enviado".
+- A tela de pendentes mostra "Ocorrência com foto" com "1 anexo".
+- A origem do bucket entra no `connect-src` por `VITE_OBJECT_STORAGE_URL` (o nome que o painel já
+  usa), lida no `vite.config.ts`, com `ARG` no `Dockerfile` e contrato que cobra o `ARG` das
+  origens lidas pelo `vite.config` (a varredura antiga só via `import.meta.env`). Só `connect-src`:
+  nada desta app exibe imagem do bucket.
+- Smoke (`driver-app.smoke.spec.ts`): "Não entreguei" online — `occurrence-uploads` → `PUT` no
+  dublê do bucket (JPEG, bytes > 0, sem token) → `confirm` → `occurrences` com o
+  `attachmentObjectId` confirmado → `return` com `recipient_refused`, chaves diferentes; e sem sinal
+  — "na fila", "2 confirmações aguardando envio", nada no bucket nem em `/occurrences`, a fila de
+  pendentes com "Ocorrência com foto · 1 anexo", e depois do `online` o "enviada" e a mesma ordem
+  de caminhos. Os dois conferem 44 px e ausência de rolagem horizontal em 375 px com o formulário
+  aberto.
+
+### Pedido do usuário no meio (25/09): o canhoto com três botões
+
+Fora da 179, pedido com prioridade no mesmo cartão: "Tirar foto" (câmera, `capture`), "Anexar"
+(galeria e arquivos, sem `capture`) e "Colher assinatura" (ícone próprio `pen`), do mesmo tamanho,
+sem o rótulo solto "Anexar canhoto". Em 375 px, as duas portas da foto dividem a linha e a
+assinatura ocupa a linha de baixo inteira — escolhido por deixar cada rótulo numa linha só e a foto
+(a prova da nota) primeiro. `FilePickerButton` (`src/components/ui/file-picker-button.tsx`) é o
+botão do design system que clica no input nativo fora da vista e da tabulação; a foto da ocorrência
+do "Não entreguei" usa o mesmo par. Commits próprios: `6aef92ab6`, `3df16b9c3`, `5f1af16f6`.
+
+### Gates (T303)
+
+```
+$ bun run --cwd apps/frontend-driver check   # lint + typecheck + 556 pass · 0 fail + build (precache 13 arquivos, 641 KiB) + dist 6 pass
+$ bun run --cwd apps/frontend-driver smoke   # service worker 2 passed · app 21 passed
+```
+
+### Pendência de API (não mexi — outro executor está na API)
+
+`GET /me/trips/current/occurrence-types` devolve só `id` e `name`
+(`list-field-occurrence-types.use-case.ts`). Sem `attachmentMode`, a tela não sabe quando a
+observação é obrigatória: num tipo `required`, a observação vazia chega ao servidor e volta `422
+TRIP_OCCURRENCE_NOTE_REQUIRED` — a devolução sobe, e a ocorrência fica recusada à vista na fila de
+pendentes. A app já lê o campo quando ele vier (`isDriverOccurrenceType` aceita `off|optional|
+required` e recusa o resto); a mudança é acrescentar `attachmentMode: type.attachmentMode ?? 'off'`
+ao `map` do use case e ao tipo `FieldOccurrenceType`, com contrato. Aditiva, sem migration.

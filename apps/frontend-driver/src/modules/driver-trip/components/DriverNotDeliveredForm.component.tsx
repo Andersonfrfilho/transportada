@@ -3,7 +3,7 @@ import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { FileField } from '@/components/ui/file-field'
+import { FilePickerButton } from '@/components/ui/file-picker-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
@@ -120,38 +120,44 @@ export function DriverNotDeliveredForm({
 
       {form.availableTypes === undefined ? null : (
         <>
-          <div className={styles.proofField}>
-            <p className={styles.notDeliveredLegend}>{`${t('notDelivered.photoLabel')} *`}</p>
+          {/* O mesmo par do canhoto: "Tirar foto" abre a câmera, "Anexar" a galeria e os arquivos. */}
+          <div className={styles.proofCapture}>
+            <p className={styles.proofCaptureTitle}>{`${t('notDelivered.photoLabel')} *`}</p>
             {form.photoPreviewUrl === undefined ? null : (
-              <img
-                alt={t('notDelivered.photoPreview')}
-                className={styles.notDeliveredPhotoPreview}
-                src={form.photoPreviewUrl}
-              />
+              <div className={styles.proofCaptureAttached} role="status">
+                <img
+                  alt={t('notDelivered.photoPreview')}
+                  className={styles.proofCaptureThumbnail}
+                  src={form.photoPreviewUrl}
+                />
+                <span className={styles.proofCaptureAttachedText}>
+                  <Icon name="check" />
+                  {t('notDelivered.photoAttached')}
+                </span>
+              </div>
             )}
-            <FileField
-              resetAfterSelect
-              accept="image/*"
-              actionLabel={t('notDelivered.takePhoto')}
-              capture="environment"
-              inputRef={cameraFieldRef}
-              label={t('notDelivered.takePhoto')}
-              placeholder={
-                form.draft.photo === undefined
-                  ? t('notDelivered.noPhoto')
-                  : form.draft.photo.fileName
-              }
-              onSelect={form.handlePhotoSelect}
-            />
-            <FileField
-              resetAfterSelect
-              accept="image/*"
-              actionLabel={t('notDelivered.chooseFromGallery')}
-              inputRef={galleryFieldRef}
-              label={t('notDelivered.chooseFromGallery')}
-              placeholder={t('notDelivered.galleryHint')}
-              onSelect={form.handlePhotoSelect}
-            />
+            <div className={styles.proofCaptureGrid}>
+              <FilePickerButton
+                accept="image/*"
+                capture="environment"
+                className={styles.proofCaptureAction}
+                inputRef={cameraFieldRef}
+                onSelect={form.handlePhotoSelect}
+              >
+                <Icon name="camera" />
+                {form.draft.photo === undefined ? t('choosePhoto') : t('proofCapture.retake')}
+              </FilePickerButton>
+              <FilePickerButton
+                accept="image/*"
+                className={styles.proofCaptureAction}
+                inputRef={galleryFieldRef}
+                onSelect={form.handlePhotoSelect}
+              >
+                <Icon name="upload" />
+                {t('proofCapture.attach')}
+              </FilePickerButton>
+            </div>
+            <p className={styles.stopMeta}>{t('notDelivered.galleryHint')}</p>
             {form.photoState === 'reading' ? (
               <p className={styles.stopMeta} role="status">
                 {t('notDelivered.photoReading')}
