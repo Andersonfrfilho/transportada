@@ -481,3 +481,71 @@ esta parte tocou, isolado contra Postgres e MinIO reais, é limpo.
 O resíduo `apps/cron-transportada/src/nfe-distribution-pull/nfe-distribution-pull.job.ts`
 (`runNfeDistributionPullJob`, nunca chamado de `main.ts`) continua como estava — fora do escopo desta
 correção, e o orquestrador pediu explicitamente para não tocar.
+
+## 25/09 — PUT tardio na URL de subida trocava a foto já conferida
+
+Mesmo defeito de forma do achado S1 da spec 183 (T903, anexo da conversa), procurado aqui depois de
+achado lá. A URL de PUT assinada vale 15 minutos e segue valendo depois da confirmação;
+`confirmOccurrenceUpload` gravava `stored_objects.object_key` na **mesma** chave da subida, então um
+PUT tardio com outro arquivo do mesmo tamanho trocava os bytes já conferidos por tipo e sha256.
+
+### Implementação
+
+- `trips/domain/occurrence-attachment.policy.ts`: `buildOccurrenceUploadFinalObjectKey` —
+  `tenants/<empresa>/trip-occurrence-attachments/<viagem>/<token>`, token de 256 bits em base64url.
+- `trips/application/confirm-occurrence-upload.use-case.ts`: depois de conferir, `storeObject` dos
+  bytes na chave final, `confirmUpload` apontando para ela e só então `deleteObject` da chave da
+  subida. Falha em `confirmUpload` apaga a cópia final (melhor esforço) e sobe o erro; a chamada que
+  perde a corrida do achado [2] apaga a própria cópia e deixa a chave da subida para a vencedora. A
+  porta de storage passou a `OccurrenceUploadConfirmationStoragePort` (ganhou `storeObject` e
+  `deleteObject`; o `storageGateway` de `main.ts` já os tinha).
+- `docs/SECURITY.md`: entrada em "Fechados", com o residual aceito (o PUT tardio recria a chave da
+  subida como objeto órfão, fora do alcance de `trip.occurrence-upload.expire`, que só varre
+  `pending`).
+
+### Contrato antes da implementação
+
+`test/trip-occurrence/upload.contract.ts`, cinco casos novos: ordem `store → confirm → delete` com a
+chave final ≠ chave da subida; chave aleatória sem token injetado; limpeza da cópia quando
+`confirmUpload` falha; limpeza da cópia na corrida perdida; bytes recusados não copiam nem apagam.
+Antes da implementação: **4 fail** (o de bytes recusados já era verde).
+
+### Integração contra Postgres e S3 (MinIO local)
+
+`test/integration/trip-occurrence-upload-confirm.integration.ts`, caso novo: sobe o JPEG pela URL
+assinada, confirma, confere que `stored_objects.object_key` ≠ chave da subida, sha256 dos bytes
+originais e chave da subida apagada; faz o PUT tardio na mesma URL com o último byte trocado e baixa
+pela chave registrada.
+
+- Sem a correção (caso de uso de `HEAD`): falha — primeiro na chave igual; com as asserções de chave
+  removidas numa cópia temporária, o download devolveu o byte trocado (`88` no lugar de `1`).
+- Com a correção: **4 pass · 0 fail** (base `main` e base `origin/staging`).
+
+⚠️ O caso pula quando o S3 não responde (sonda HTTP no endpoint, não só a variável): a CI carrega o
+`.env.example` com `STORAGE_ENDPOINT` mas não sobe o MinIO. A prova contra storage real só roda
+localmente.
+
+### Gates
+
+```
+$ bun run typecheck                                               # sem erro
+$ bun run lint                                                    # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000            # api (base main): 7234 pass · 23 skip · 0 fail
+$ bun --env-file=../../.env.test run test:integration             # api (base main): 576 pass · 7 skip · 0 fail
+$ make check                                                      # base origin/staging: exit 0
+$ bun --env-file=../../.env.test test --timeout 120000            # api (após rebase em staging): 7312 pass · 23 skip · 0 fail
+```
+
+Na base `origin/staging`, a integração completa mostrou timeouts de 5 s em
+`field-trip-target`, `me-location-consent` e `me-trip` (specs 057/156/189, nenhum toca upload de
+ocorrência) e foi interrompida; os três arquivos isolados, com esta correção: **21 pass · 0 fail**.
+Mesmo padrão de carga no Postgres de teste já registrado acima.
+
+### Staging
+
+Commit `45c5e0e94`. Deploy
+[36193206752](https://github.com/Andersonfrfilho/transportada/actions/runs/36193206752) verde de ponta
+a ponta (gates, integração e smoke da CI, sete deploys). Implantação ativa da API
+`2636d914` = `45c5e0e94`; pre-deploy `migrated=true`; `/health/live` e `/health/ready` 200;
+`POST …/occurrence-uploads/:id/confirm` sem token → 401; nenhuma linha de erro no log desde a subida.
+Não exercitei o fluxo autenticado do motorista em staging.
