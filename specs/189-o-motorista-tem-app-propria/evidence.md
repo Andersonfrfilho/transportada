@@ -603,3 +603,36 @@ make check                                    exit 0
 ```
 
 **Commit próprio, T3.3a.**
+
+### T3.4 — Pendência e drenagem (plan D5)
+
+**Contrato antes do código.** `test/driver-trip/pending-queue.contract.ts`, na lista do entrypoint
+`test/driver-trip.contract.test.ts`:
+
+- `countPending`: `drainable` soma eventos e anexos não recusados e não vencidos; `rejected` soma os
+  recusados ainda na fila; `total = drainable + rejected`; anexo com mais de 7 dias não entra em
+  nenhuma contagem; anexo vencido **e** de outra conta (`ownerSubHash`) fica fora pelos dois motivos,
+  nunca contado; item de outra conta não entra em nenhuma contagem quando `ownerSubHash` é informado.
+- `scheduleQueueDrainTriggers`: `online`, `pageshow` e `visibilitychange` visível chamam `drain`;
+  `visibilitychange` invisível não chama; o temporizador só existe com `drainable > 0`, liga já na
+  montagem quando a fila já tem pendência, liga de novo quando um gatilho encontra `drainable > 0`
+  depois de ter começado em zero, e se desliga sozinho quando a fila zera; cancelar desliga os três
+  ouvintes e o temporizador — disparar os eventos depois não religa nada.
+
+**Implementação** (`apps/frontend-driver/src/modules/driver-trip/shared/pendingQueue.service.ts`):
+`countPending` e `scheduleQueueDrainTriggers` (a mesma dupla `setInterval`/`clearInterval` do
+`bootMode.service.ts`, plan D5 — mesmo intervalo de 30 s). `useDriverTrip.hook.ts` passa a calcular
+`drainableCountRef` a cada `refreshQueueView` (a mesma leitura de `store`/`attachmentStore` que já
+existia) e troca o `useEffect` de um único ouvinte `online` por `scheduleQueueDrainTriggers`, com um
+alvo que roteia `visibilitychange` para `document` e o resto para `window`. "Abertura" continua sendo
+a chamada direta de `drain()` na montagem, antes de agendar os outros gatilhos.
+
+```
+cd apps/frontend-driver && bun run lint && bun run typecheck
+  ok
+
+cd apps/frontend-driver && bun run test
+  355 pass / 0 fail   (279 do driver-trip.contract.test.ts, incluindo os 24 novos de pending-queue)
+```
+
+**Commit próprio, T3.4.**

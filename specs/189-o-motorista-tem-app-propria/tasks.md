@@ -195,7 +195,7 @@ consentimento, vem **depois da virada** e não a segura.
 
   **Aceite:** contratos verdes; `make check` verde. O Playwright desta task está na T4.1 (CA05 e CA06).
 
-- [ ] **T3.4** Pendência e drenagem (plan D5):
+- [x] **T3.4** Pendência e drenagem (plan D5):
   - contrato de `countPending`, com `drainable`, `rejected` e `total`, e anexo vencido fora da conta;
   - contrato dos gatilhos: `visibilitychange`, `pageshow` e temporizador só com `drainable > 0`, que
     para quando zera;
