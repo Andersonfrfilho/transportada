@@ -1310,3 +1310,26 @@ fazia `reader.read()` rejeitar sem ninguém pegando, e o leitor nunca era libera
   `driver-trip-drain-triggers.contract.ts` (revisão M4) e em `event-queue.contract.ts`.
 - `bun run typecheck`, `bun run lint`: limpos. `bun run test` (contrato + hooks): 5320 + 54 pass /
   0 fail — nenhuma suíte quebrou com a assinatura nova de `useDriverTrip()` nesta tela.
+
+### LOW — o beacon não inunda o log sob rajada (`server.ts`)
+
+Cada pedido válido gerava uma linha, sempre. Um pico de recarregamentos (deploy, reconexão em
+massa depois de uma queda de rede) viraria uma linha por pedido — a medida só precisa saber "ainda
+existe uso", não a taxa exata.
+
+- `registerDriverLegacyBeaconHit(now)`: contador em memória (`driverLegacyBeaconPendingCount`) e a
+  hora do último log (`driverLegacyBeaconLastLoggedAt`). A primeira ocorrência de uma janela loga
+  na hora, com `count: 1`; as seguintes só somam ao contador; a próxima ocorrência **depois** da
+  janela funde tudo numa linha só, com o `count` acumulado, e reinicia. No máximo uma linha a cada
+  `DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS` (60 s em produção).
+- `DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS`: overridável por `Bun.env`, só para o teste apertar a
+  janela — não é `VITE_*`, não entra no `Dockerfile` nem em `vite-build-args.contract.ts`, e o
+  padrão de produção nunca muda.
+- Novo `describe` em `legacy-beacon.contract.ts`, com um servidor próprio (env
+  `DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS=100`): três pedidos seguidos, depois um quarto passada a
+  janela — resultado: duas linhas, `count: 1` e `count: 3`. O teste existente ("só o valor
+  enumerado gera log") ganhou `count: 1` na lista de chaves esperadas — um pedido isolado (primeira
+  ocorrência de uma janela nova) continua logando na hora, comportamento que não mudou.
+- `bun test ./test/driver-trip.contract.test.ts`: 227 pass / 0 fail (era 226 depois do LOW
+  anterior; +1 desta revisão).
+- `bun run typecheck`, `bun run lint`: limpos.

@@ -202,7 +202,8 @@ describe('a rota /_driver-legacy-served do server.ts', () => {
   /**
    * Valor válido gera **uma** linha, sem usuário e sem IP. Os outros pedidos dos dois testes
    * anteriores não geram nada — inclusive o corpo abortado — log de valor arbitrário seria um
-   * jeito de escrever no log de produção por uma rota sem autenticação.
+   * jeito de escrever no log de produção por uma rota sem autenticação. Pedido isolado (primeiro
+   * de uma janela nova) loga na hora, com `count: 1` — revisão LOW.
    */
   it('só o valor enumerado gera log, e a linha não carrega quem mandou', async () => {
     const lines = await readLogLines()
@@ -210,11 +211,97 @@ describe('a rota /_driver-legacy-served do server.ts', () => {
 
     expect(beaconLines).toHaveLength(1)
     const entry = JSON.parse(beaconLines[0] ?? '{}') as Record<string, unknown>
-    expect(Object.keys(entry).sort()).toEqual(['at', 'event', 'mode'])
+    expect(Object.keys(entry).sort()).toEqual(['at', 'count', 'event', 'mode'])
+    expect(entry.count).toBe(1)
     expect(entry.event).toBe('driver_legacy_served')
     expect(entry.mode).toBe('pending-screen')
     expect(Number.isNaN(Date.parse(String(entry.at)))).toBe(false)
     expect(lines.join('\n')).not.toContain('install-screen')
     expect(lines.join('\n')).not.toContain('xxxx')
+  })
+})
+
+/**
+ * ADR-0075 §6, revisão LOW: um pico de recarregamentos não pode virar uma linha de log por
+ * pedido. `DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS` aperta a janela só para este teste — em produção
+ * ela é sempre 60 s (o padrão do `server.ts`, sem override no `Dockerfile`).
+ */
+describe('o beacon não inunda o log sob rajada', () => {
+  let workingDirectory = ''
+  let serverProcess: ReturnType<typeof Bun.spawn> | undefined
+  let baseUrl = ''
+  const LOG_INTERVAL_MS = 100
+
+  beforeAll(async () => {
+    workingDirectory = await mkdtemp(join(tmpdir(), 'driver-legacy-beacon-flood-'))
+    await mkdir(join(workingDirectory, 'dist'))
+    await copyFile(SERVER_SOURCE, join(workingDirectory, 'server.ts'))
+    await writeFile(
+      join(workingDirectory, 'dist', 'content-security-policy.txt'),
+      "default-src 'self'",
+    )
+    await writeFile(join(workingDirectory, 'dist', 'index.html'), '<!doctype html><title>t</title>')
+
+    const probe = Bun.serve({ fetch: () => new Response(null), port: 0 })
+    const port = probe.port
+    await probe.stop(true)
+    baseUrl = `http://127.0.0.1:${port}`
+
+    serverProcess = Bun.spawn(['bun', './server.ts'], {
+      cwd: workingDirectory,
+      env: {
+        ...process.env,
+        DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS: String(LOG_INTERVAL_MS),
+        PORT: String(port),
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    })
+
+    const deadline = Date.now() + SERVER_BOOT_TIMEOUT_MS
+    while (Date.now() < deadline) {
+      const isReady = await fetch(`${baseUrl}/health/live`).then(
+        (response) => response.ok,
+        () => false,
+      )
+      if (isReady) return
+      await Bun.sleep(50)
+    }
+    throw new Error('DRIVER_LEGACY_BEACON_FLOOD_SERVER_DID_NOT_START')
+  })
+
+  afterAll(async () => {
+    serverProcess?.kill()
+    await serverProcess?.exited
+    await rm(workingDirectory, { force: true, recursive: true })
+  })
+
+  function post(): Promise<Response> {
+    return fetch(`${baseUrl}/_driver-legacy-served`, {
+      body: DRIVER_LEGACY_BEACON_MODE,
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      method: 'POST',
+    })
+  }
+
+  it('a primeira ocorrência loga na hora; a rajada seguinte sai numa linha só, com a soma', async () => {
+    // Três seguidas: a primeira loga (count: 1, janela nova); as outras duas só somam ao contador.
+    await post()
+    await post()
+    await post()
+
+    // Passada a janela, a quarta funde as duas silenciosas com ela: uma linha, count: 3.
+    await Bun.sleep(LOG_INTERVAL_MS * 2)
+    await post()
+
+    serverProcess?.kill()
+    await serverProcess?.exited
+    const stdout = serverProcess?.stdout
+    const text = stdout instanceof ReadableStream ? await new Response(stdout).text() : ''
+    const lines = text.split('\n').filter((line) => line.includes('driver_legacy_served'))
+
+    expect(lines).toHaveLength(2)
+    const entries = lines.map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(entries.map((entry) => entry.count)).toEqual([1, 3])
   })
 })

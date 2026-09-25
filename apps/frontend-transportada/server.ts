@@ -47,6 +47,15 @@ const CANHOTO_OCR_PREFIX = '/canhoto-ocr/'
 const DRIVER_LEGACY_BEACON_PATH = '/_driver-legacy-served'
 const DRIVER_LEGACY_BEACON_MODE = 'pending-screen'
 const DRIVER_LEGACY_BEACON_MAX_BYTES = 32
+/**
+ * Revisão LOW: um pico de recarregamentos (deploy, reconexão em massa) não pode virar uma linha de
+ * log por pedido — a medida só precisa saber que o módulo antigo ainda está em uso, não a taxa
+ * exata. Overridável só para o teste apertar a janela; a variável não entra em `Dockerfile` nem em
+ * `vite-build-args.contract.ts` — não é `VITE_*`, e o padrão de produção nunca muda.
+ */
+const DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS = Number(
+  Bun.env.DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS ?? '60000',
+)
 
 // A diretiva é composta no build, onde as origens da API e do Keycloak existem — aqui elas não
 // chegam, porque `VITE_*` é inlinado no bundle. Sem o arquivo o servidor não sobe: publicar sem CSP
@@ -75,6 +84,33 @@ const SECURITY_HEADERS: Readonly<Record<string, string>> = {
 
 const port = Number(Bun.env.PORT ?? DEFAULT_PORT)
 
+let driverLegacyBeaconPendingCount = 0
+let driverLegacyBeaconLastLoggedAt: number | undefined
+
+/**
+ * A primeira ocorrência de uma janela loga na hora — é o caso comum, um pedido isolado. As
+ * seguintes só somam ao contador; saem juntas na próxima ocorrência depois da janela, no máximo
+ * uma linha a cada `DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS`. Contador em memória: reinicia com o
+ * processo, e isso é aceitável — a medida é "ainda existe uso", não uma série contínua.
+ */
+function registerDriverLegacyBeaconHit(now: number): void {
+  driverLegacyBeaconPendingCount += 1
+  const elapsedSinceLastLog =
+    driverLegacyBeaconLastLoggedAt === undefined ? Infinity : now - driverLegacyBeaconLastLoggedAt
+  if (elapsedSinceLastLog < DRIVER_LEGACY_BEACON_LOG_INTERVAL_MS) return
+
+  console.log(
+    JSON.stringify({
+      at: new Date(now).toISOString(),
+      count: driverLegacyBeaconPendingCount,
+      event: 'driver_legacy_served',
+      mode: DRIVER_LEGACY_BEACON_MODE,
+    }),
+  )
+  driverLegacyBeaconPendingCount = 0
+  driverLegacyBeaconLastLoggedAt = now
+}
+
 Bun.serve({
   port,
   async fetch(request: Request): Promise<Response> {
@@ -87,13 +123,7 @@ Bun.serve({
         request.method === 'POST' &&
         (await readSmallBody(request)) === DRIVER_LEGACY_BEACON_MODE
       ) {
-        console.log(
-          JSON.stringify({
-            at: new Date().toISOString(),
-            event: 'driver_legacy_served',
-            mode: DRIVER_LEGACY_BEACON_MODE,
-          }),
-        )
+        registerDriverLegacyBeaconHit(Date.now())
       }
       return respond(new Response(null, { status: 204 }), REVALIDATE_CACHE_CONTROL)
     }
