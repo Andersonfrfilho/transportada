@@ -952,3 +952,119 @@ restaurados com `git checkout --` e não entram em commit nenhum.
 
 **Aberto:** o `make smoke` do aceite (healthchecks e o Playwright das outras apps) fica com o
 orquestrador; por isso a T5.4 não está marcada.
+
+## Fase 4 — Playwright da app
+
+### T4.1 — Montar o Playwright da app
+
+**Login é sempre real — a app não tem o atalho de autenticação do painel** (ADR-0075 §7,
+`KeycloakAuthProvider.provider.ts`, comentário de cabeçalho). `test/authenticated-smoke.helper.ts`
+(cópia por valor, adaptada) faz o login pela tela de identificação: digita `local-user`, segue para
+o Keycloak real, senha de `KEYCLOAK_LOCAL_USER_PASSWORD`. ⚠️ **Achado**: com `login_hint`, o tema do
+Keycloak pré-resolve quem é ("Entrando como local-user") e o `#username` vira `type="hidden"` — só
+o `#password` fica visível. O helper do painel preenche `#username`; aqui isso trava até estourar o
+timeout. Corrigido: só `#password` + `#kc-login`.
+
+**Duas portas locais para a app, não uma** (`realm/transportada-local-realm.json`,
+`test/keycloak-realm.contract.test.ts`): `53200` é a de sempre (`make dev`), e `53112` — reservada
+desde a T1.3 em `ci.yml:109` e no Makefile — passa a ser a quinta origem aceita pelo cliente
+`transportada-spa`. O motivo: o smoke faz `vite build` próprio, e o `redirect_uri` do Keycloak é
+`VITE_DRIVER_APP_URL`, gravado nesse build — não dá para reaproveitar a `53200` sem disputar a porta
+com o processo real do `make dev`, que `make smoke` já espera de pé. O script `smoke`
+(`package.json`) builda com `VITE_DRIVER_APP_URL=http://localhost:53112` e serve na própria `53112`,
+então preview e `redirect_uri` sempre apontam para o mesmo lugar. Testado com um servidor ocupando a
+`53200` durante o smoke inteiro — sem conflito. **Keycloak local recriado**
+(`make identity-bootstrap`) para o realm novo entrar em vigor (`--import-realm` ignora realm já
+existente).
+
+**Dois builds, não um** (`playwright.config.ts`, `package.json`): CA05(a) —
+`context.setOffline(true)` — e CA09 só funcionam com o service worker de verdade precacheando a
+casca (`sw.ts`), e o SW só registra fora do bypass de fumaça (`main.tsx`,
+`isSmokeAuthBypassEnabled`). `driver-service-worker.smoke.spec.ts` roda primeiro, sem
+`VITE_SMOKE_AUTH_BYPASS`; `driver-app.smoke.spec.ts` roda depois, com o bypass ligado (SW desligado,
+para o `page.route` mockar a API sem disputa com um SW real) — o script `smoke` encadeia os dois
+`playwright test`, cada um com o próprio `vite build`.
+
+- `driver-trip-smoke.helper.ts`, `notification-smoke.helper.ts`, `installation-brand-smoke.helper.ts`:
+  cópia por valor dos homônimos do painel. O de viagem sai sem o mock de foto (`DriverShellHeader`
+  desenha iniciais, nunca busca `/company-users/*/picture`) e sem `/auth/me` (`checkDriverAuthorization`
+  já usa `GET /me/trips/current`, a mesma rota mockada).
+- `driver-app.smoke.spec.ts`: os seis do bloco copiado
+  (`apps/frontend-transportada/test/responsive.smoke.spec.ts:1185-1330`, rota `/` em vez de
+  `/minha-viagem` — `DRIVER_ROUTE_PATH.trip = '/'` nesta app), CA05(b) (sinal fraco:
+  `page.route('**/realms/**', route => route.abort())` com `onLine` verdadeiro), CA06 (pendência de
+  outra conta — semeada direto no `IndexedDB`, `subHash` estranho, sem precisar de uma segunda conta
+  real de motorista; e snapshot com mais de 24 h descartado no boot sem rede), CA07 (drenagem em
+  `visibilitychange` e pelo temporizador — `page.clock` avança o relógio 31 s em vez de esperar de
+  verdade; o temporizador para de fato quando a fila zera), CA08 (sino, "Notificações", 44 px), CA15
+  (varredura de alvo de toque ≥ 44×44 px na tela da viagem).
+- `driver-service-worker.smoke.spec.ts`: CA05(a) (recarregar sem rede de verdade — espera
+  `navigator.serviceWorker.controller` antes de derrubar a rede) e CA09 (a atualização não recarrega
+  com "Deu problema" aberto — que registra em `captureRegistry`; muda `dist/sw.js` por bytes,
+  `registration.update()`, sem rebuildar; aplica sozinha ao fechar a captura). `dist/` não é
+  versionado, e o `dist/sw.js` mutado nunca sobrevive a um `vite build` novo (rodado antes de
+  commitar).
+- `spec-159-prints.smoke.spec.ts`: cópia reduzida — só os "PWA: …" (card com aviso, fotos
+  pendentes, pontualidade, perfil com/sem nota); os "Escritório: …" ficam no painel (T5.4). Fora do
+  `testMatch` padrão, roda com `PLAYWRIGHT_TEST_MATCH=spec-159-prints.smoke.spec.ts`. Rodado uma vez
+  para provar que existe (10/10 passou); os PNGs gravados em `specs/159-…/prints/` foram restaurados
+  com `git checkout --` depois, mesma disciplina da T5.4 — não são evidência desta task.
+- `Makefile`: `make smoke` ganha o bloco da app, com `PLAYWRIGHT_DRIVER_PORT` default `53112` e
+  `PLAYWRIGHT_REUSE_EXISTING_DRIVER_SERVER=false`.
+
+**Achado aberto, não investigado a fundo (fora do escopo desta task):**
+`DriverTripWorkspacePage.page.tsx:118-128` (efeito de `listOccurrenceTypes`) dispara mais de uma
+requisição automática ao montar, sem clique nenhum — medido 1 e 2 vezes em corridas diferentes,
+sempre pelo caminho de login real (tela de identificação → Keycloak). Não é o double-effect do
+`StrictMode` (bundle de produção, sem `__DEV__`/avisos de dev). `mockDriverTripApi` trocou o
+parâmetro de contagem (`occurrenceTypesFailures: N`) por um interruptor
+(`occurrenceTypesFailing`/`setOccurrenceTypesFailing`) para o teste de CA5/RF5 não depender de
+quantas vezes o efeito dispara. Sessão separada aberta para investigar
+(`task_483df53a`, spawn_task desta sessão).
+
+**Achado do coordenador, corrigido nesta task (commit próprio):**
+`useDriverTrip(store = createIndexedDbQueueStore(), attachmentStore = createIndexedDbAttachmentStore())`
+criava uma loja nova a cada chamada sem argumento — e a produção chama sem argumento. A loja nova
+muda a identidade a cada render, o `useCallback`/`useEffect` que dependem dela rodam de novo, e uma
+drenagem emenda na outra sem fim (`isSyncing` nunca volta a `false`, achado que já bateu no CA07
+abaixo). Corrigido com `useState` de inicializador preguiçoso (`defaultStores`, uma vez por
+instância) e `??` para quem passar loja própria (os contratos); contrato de fonte novo,
+`test/driver-trip/stable-stores.contract.ts`, reprova `= createIndexedDb` voltando à assinatura.
+
+**Achado do próprio Playwright, no CA07 — o temporizador não nasce sozinho:**
+`scheduleQueueDrainTriggers` só chama `setInterval` na montagem ou num gatilho
+(`online`/`pageshow`/`visibilitychange`) — nunca quando um toque enfileira algo no meio da sessão.
+Medido com o IndexedDB direto: enfileirar por clique e avançar o relógio (`page.clock`) direto não
+dispara requisição nenhuma além do envio imediato do próprio `report()`. O teste do temporizador
+dispara um `visibilitychange` primeiro (ainda sem sinal — tenta, falha, mas é isso que liga o
+temporizador) antes de usar `page.clock.fastForward` para provar os tiques seguintes; o relógio
+falso também precisa ser instalado **antes** da viagem montar, porque instalado depois ele não
+adota o `setInterval` já agendado com o `setInterval` real.
+
+```
+cd apps/frontend-driver && bun run lint && bun run typecheck   ok
+cd apps/frontend-driver && bun run test
+  374 pass / 0 fail / 743 expect()   (+2 do stable-stores.contract.ts)
+cd apps/frontend-driver && bun run build
+  vite build ok · precache 13 arquivos, 601.195 bytes · dist.contract.test.ts 6 pass / 0 fail
+bun test test/keycloak-realm.contract.test.ts (raiz)
+  18 pass / 0 fail / 99 expect()
+bun run --cwd apps/frontend-driver smoke
+  driver-service-worker.smoke.spec.ts   2 passed
+  driver-app.smoke.spec.ts             13 passed
+  (rodado repetidas vezes ao longo da task, com build novo a cada vez — 15/15 estável ao final,
+  depois de corrigir a corrida de CA05(a) — page.evaluate destruído por navegação real — e o CA07
+  do temporizador acima)
+```
+
+**Aberto:**
+
+- `make check` da raiz e `make smoke` do aceite (healthchecks + Playwright das outras apps) ficam
+  com o orquestrador na publicação, porque a Fase 5 estava em andamento em paralelo nesta mesma
+  árvore (`apps/frontend-transportada`) durante a T4.1 — rodar `make check`/typecheck/lint da raiz
+  aqui pegaria o WIP alheio.
+- CI (`ci.yml`): o job `integration` já instala Chromium a partir de `frontend-transportada` e o
+  cache é compartilhado entre as três apps (mesma versão `1.58.2`) — não medido em CI de verdade
+  nesta task, só localmente.
+- `realm/spa-redirect-uris.json` (staging/produção) **não muda** — a porta `53112` é só do realm
+  local, nunca sai de `localhost`.
