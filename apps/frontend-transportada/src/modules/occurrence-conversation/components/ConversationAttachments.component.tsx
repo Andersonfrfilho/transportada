@@ -5,6 +5,7 @@
  * temporária (cinco minutos) — a leitura da conversa assina de novo a cada busca.
  */
 import { formatFileSize } from '@adatechnology/conversations-ui'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
@@ -15,7 +16,12 @@ import styles from '../styles/occurrenceConversation.module.css'
 
 export function ConversationAttachments({
   attachments,
-}: Readonly<{ attachments: readonly OccurrenceConversationAttachment[] }>) {
+  renderActions,
+}: Readonly<{
+  attachments: readonly OccurrenceConversationAttachment[]
+  /** Spec 183 T702d: as ações sobre o anexo (anexar à ocorrência, encaminhar), quando há. */
+  renderActions?: (attachment: OccurrenceConversationAttachment) => ReactNode
+}>) {
   const { t } = useTranslation('occurrenceConversation')
   if (attachments.length === 0) return null
 
@@ -56,6 +62,9 @@ export function ConversationAttachments({
                 </span>
                 <Icon name="download" size="sm" />
               </a>
+            )}
+            {renderActions === undefined ? null : (
+              <div className={styles.attachmentActions}>{renderActions(attachment)}</div>
             )}
           </li>
         )

@@ -8,7 +8,9 @@
  */
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
+import { CONVERSATION_ATTACHMENTS_PER_MESSAGE } from '../domain/conversation-attachment.policy.js'
 import {
+  OccurrenceConversationForwardInvalidError,
   OccurrenceConversationIdempotencyKeyReusedError,
   OccurrenceConversationPortalUnavailableError,
 } from '../domain/occurrence-conversation.error.js'
@@ -55,11 +57,23 @@ export function createSendContractorPortalMessageUseCase(dependencies: {
       readonly attachmentIds?: readonly string[]
       readonly bodyText: string
       readonly companyId: string
+      /** Spec 183 T702d: anexos da conversa do motorista desta ocorrência, encaminhados. */
+      readonly forwardAttachmentIds?: readonly string[]
       readonly idempotencyKey: string
       readonly occurrenceId: string
     }): Promise<SendContractorPortalMessageResult> {
       const attachmentIds = input.attachmentIds ?? []
-      const bodyText = normalizeConversationMessageBody(input.bodyText, attachmentIds)
+      const forwardAttachmentIds = input.forwardAttachmentIds ?? []
+      if (
+        new Set(forwardAttachmentIds).size !== forwardAttachmentIds.length ||
+        attachmentIds.length + forwardAttachmentIds.length > CONVERSATION_ATTACHMENTS_PER_MESSAGE
+      ) {
+        throw new OccurrenceConversationForwardInvalidError()
+      }
+      const bodyText = normalizeConversationMessageBody(input.bodyText, [
+        ...attachmentIds,
+        ...forwardAttachmentIds,
+      ])
       const now = dependencies.clock()
       const fingerprint = await dependencies.fingerprintService.create({
         fields: [
@@ -68,6 +82,7 @@ export function createSendContractorPortalMessageUseCase(dependencies: {
           input.actorUserId,
           bodyText,
           attachmentIds.join(','),
+          forwardAttachmentIds.join(','),
         ].map((value) => ENCODER.encode(value)),
         operation: SEND_CONTRACTOR_PORTAL_MESSAGE_OPERATION,
       })
@@ -124,6 +139,18 @@ export function createSendContractorPortalMessageUseCase(dependencies: {
             transaction: transaction.attachments,
             uploadIds: attachmentIds,
           })
+          if (forwardAttachmentIds.length > 0) {
+            const forwarded = await transaction.forwardDriverAttachments({
+              attachmentIds: forwardAttachmentIds,
+              companyId: input.companyId,
+              messageId: message.id,
+              occurrenceId: input.occurrenceId,
+            })
+            /** Menos que o pedido desfaz a mensagem inteira (a transação lança). */
+            if (forwarded !== forwardAttachmentIds.length) {
+              throw new OccurrenceConversationForwardInvalidError()
+            }
+          }
           const result = { conversationId: conversation.id, conversationMessageId: message.id }
           await transaction.saveIdempotency({ ...key, fingerprint, response: result })
           return {

@@ -164,7 +164,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
     - [x] **T702c2** O expurgo dos pedidos de upload vencidos (objeto e linha): job novo no catálogo
           dos quatro apps e migration aditiva na API. Evidência: contratos + integração do worker +
           `migration-test`.
-  - [ ] **T702d** A foto do motorista: anexar à ocorrência e encaminhar à conversa da contratante
+  - [x] **T702d** A foto do motorista: anexar à ocorrência e encaminhar à conversa da contratante
         (itens adiados da T502/T601/T603). Evidência: contratos + integração.
   - [ ] **T702e** 🙋 E-mail que sai com anexo (muda o envio do worker da 143) e mídia da Meta (depende do
         envio por WhatsApp). **Pare e pergunte.**

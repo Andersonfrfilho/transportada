@@ -1402,6 +1402,12 @@
     },
     "conversations": {
       "title": "Conversations"
+    },
+    "conversationPhoto": {
+      "attach": "Attach to occurrence",
+      "attaching": "Attaching…",
+      "attached": "Attached to the occurrence.",
+      "error": "Could not attach: the occurrence may already have five photos. Try again shortly."
     }
   },
   "occurrenceTimeline": {

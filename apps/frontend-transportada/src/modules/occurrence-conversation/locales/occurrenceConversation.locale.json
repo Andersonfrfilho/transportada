@@ -186,6 +186,10 @@
     },
     "error": {
       "upload": "Não foi possível subir os anexos. Tente de novo em instantes."
-    }
+    },
+    "forward": "Encaminhar à contratante",
+    "forwarding": "Encaminhando…",
+    "forwarded": "Encaminhada à contratante pelo portal.",
+    "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
   }
 }

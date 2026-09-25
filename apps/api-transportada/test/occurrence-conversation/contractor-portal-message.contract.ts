@@ -44,6 +44,8 @@ function createFake(audience: Audience) {
       return audience
     },
     findIdempotency: async ({ idempotencyKey }) => idempotency.get(idempotencyKey) ?? null,
+    /** Spec 183 T702d: sem encaminhamento nestes casos. */
+    forwardDriverAttachments: async () => 0,
     findOrCreateContractorConversation: async (input) => {
       calls.push({ input, name: 'findOrCreateContractorConversation' })
       return { id: 'conversation-1' }
@@ -254,6 +256,7 @@ describe('a rota do envio pelo portal (spec 183 T654)', () => {
         attachmentIds: [],
         bodyText: 'Recebemos.',
         companyId: COMPANY_ID,
+        forwardAttachmentIds: [],
         idempotencyKey: 'portal-operator-key-0001',
         occurrenceId: OCCURRENCE_ID,
       },
@@ -261,5 +264,16 @@ describe('a rota do envio pelo portal (spec 183 T654)', () => {
     await expect(post({ body: 'x', channel: 'portal', subject: 'y' })).rejects.toMatchObject({
       status: 400,
     })
+
+    /** Spec 183 T702d: o anexo do motorista encaminhado passa ao caso de uso; id que não é UUID, não. */
+    const forwarded = '00000000-0000-4000-8000-0000000000f1'
+    calls.length = 0
+    expect(
+      (await post({ body: '', channel: 'portal', forwardAttachmentIds: [forwarded] })).status,
+    ).toBe(202)
+    expect(calls).toMatchObject([{ attachmentIds: [], forwardAttachmentIds: [forwarded] }])
+    await expect(
+      post({ body: '', channel: 'portal', forwardAttachmentIds: ['nao-e-uuid'] }),
+    ).rejects.toMatchObject({ status: 400 })
   })
 })

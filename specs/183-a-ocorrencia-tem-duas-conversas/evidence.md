@@ -1802,3 +1802,67 @@ migration na API). Um commit por parte.
   - worker: contratos **1446 pass**; integração completa sozinha **138 pass, 4 skip, 0 fail**;
   - cron **101 pass**; painel **5251 + 44 pass**;
   - lint, typecheck e formatação da raiz limpos.
+
+## T702d — A foto do motorista vai à contratante e vira anexo da ocorrência (verde)
+
+- **Encaminhar à contratante (API):** o envio pelo portal aceita `forwardAttachmentIds` além dos
+  `attachmentIds`. O caso de uso confere antes de qualquer escrita que não há repetido e que os dois
+  somam no máximo cinco. Dentro da transação da mensagem, `forwardDriverAttachments` faz um
+  `insert … select`: liga à mensagem da contratante uma linha nova de anexo **com o mesmo objeto do
+  bucket** (nenhum byte copiado). Só entra anexo que satisfaz as três condições: é da conversa
+  `participant = 'driver'`, é **desta** ocorrência e é **desta** empresa (a do contexto). Contou menos
+  que o pedido → `OCCURRENCE_CONVERSATION_FORWARD_INVALID` (422) e a transação desfaz a mensagem
+  inteira. É uma resposta só para anexo de outra empresa, de outra ocorrência ou de outra conversa,
+  pela mesma razão do upload (T702a). Os ids encaminhados entram na impressão digital da
+  idempotência.
+- **Anexar à ocorrência (painel):** a foto baixada pela URL temporária passa pelo mesmo
+  `buildOccurrencePhotoAttachment` e pela mesma rota de anexo da spec 161. Não existe segundo
+  caminho de gravação, e o teto de cinco fotos da ocorrência vale igual.
+  - Para montar o caminho da rota, o bloco `document` do detalhe/feed da ocorrência ganhou
+    `tripDocumentId`. É aditivo: `document` segue `null` sem nota.
+  - O botão só aparece em ocorrência de nota com etapa (`isForwardableToOccurrence`).
+- **Fronteira de módulos:** `occurrence-conversation` expõe `renderAttachmentActions`. O botão
+  "Anexar à ocorrência" é um componente de ação autocontido do módulo `trip`
+  (`ConversationPhotoToOccurrenceAction`), passado pela página de detalhe (padrão
+  `NfseEmissionAction`). Ações só em mensagem `inbound` da conversa do motorista, e "Encaminhar"
+  só com o portal disponível.
+- **Testes, escritos antes e vistos falhando:**
+  - API `attachment-send.contract.ts`, describe "encaminhar o anexo do motorista à contratante":
+    **3 fail** antes, **3 pass** depois;
+  - rota do portal (`contractor-portal-message.contract.ts`): passa `forwardAttachmentIds` e recusa
+    id que não é UUID;
+  - painel `forward-attach.contract.ts`: **4 pass**.
+  - A integração foi escrita junto com a implementação (não vista falhando antes):
+    - `occurrence-conversation-portal.integration.ts`, caso T702d, contra Postgres. Anexo de outra
+      empresa dá 422 sem mensagem nenhuma. A foto do motorista vira anexo da mensagem do portal com o
+      mesmo `stored_object_id`. O anexo que já é da conversa da contratante não é "do motorista" e dá 422.
+    - `trip-occurrence-feed-document.integration.ts`: `document.tripDocumentId` é a nota da viagem.
+- **No navegador, contra a API real** (painel 53000, portal 53100, API 53001, S3 local):
+  - **1440:** o balão da foto do motorista mostra "Encaminhar à contratante" e "Anexar à
+    ocorrência" (`prints/encaminhar-acoes-1440.png`).
+  - **Encaminhar:** `POST …/conversations/contractor/messages` **202**
+    (`prints/encaminhar-contratante.png`).
+  - **Anexar:** `POST /trips/…/documents/…/occurrences/…/attachments` **201**. A foto aparece no
+    Resumo da ocorrência, a linha do tempo ganha "Anexou 1 foto" e o balão diz "Anexada à
+    ocorrência." (`prints/encaminhar-anexar-ocorrencia.png`).
+  - **Portal a 390:** a contratante vê a foto da transportadora no fim da conversa
+    (`prints/encaminhar-portal-390.png`).
+- **Revisão de design (web.md §15):**
+  - Os dois botões são `Button variant=secondary size=compact` com ícone (`send`, `image`), iguais
+    ao "Tentar de novo" e ao "Abrir viagem" da mesma tela.
+  - A 390 eles quebram em duas linhas dentro do balão, sem estourar
+    (`prints/encaminhar-acoes-390.png`).
+  - **Defeito achado e corrigido nesta task:** a 390 o chip do PDF no balão enviado alargava o
+    balão para fora da lista, cortando a hora e o "LIDO". O balão é item de flex/grid com
+    `min-width: auto`, e o nome em `nowrap` ditava a largura. Corrigido com `min-width: 0` e a
+    trilha `minmax(0, 1fr)` no balão e na lista de anexos: o nome corta com reticências e a hora
+    volta. O print refeito é o mesmo arquivo.
+- **Registrado para a Fase 9:**
+  - Voltar à aba "Motorista" depois de encaminhar mostra "Encaminhar" de novo, porque o estado é do
+    componente. A chave de idempotência `portal-forward:<id>` faz o segundo clique devolver o mesmo
+    resultado, sem mensagem nova, mas a UI não diz que já foi.
+  - O anexo pela rota da 161 grava a autoria com o canal `driver_app` (achado já registrado).
+- **Rodado:**
+  - API: contratos **7560 pass, 0 fail**; integração completa sozinha **610 pass, 7 skip, 0 fail**;
+  - painel **5255 + 44 pass**;
+  - lint, typecheck e formatação da raiz limpos.

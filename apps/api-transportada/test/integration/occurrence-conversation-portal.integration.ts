@@ -18,8 +18,10 @@ import {
   contractorPortalBindings,
   contractors,
   identityUsers,
+  occurrenceConversationAttachments,
   occurrenceConversationMessages,
   occurrenceConversations,
+  storedObjects,
   tripOccurrenceCases,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
@@ -58,6 +60,67 @@ async function seedPortalUser(database: TestDatabase, companyId: string): Promis
     roles: ['contractor'],
     userId,
   }
+}
+
+/**
+ * Spec 183 T702d: uma foto que o motorista mandou pela conversa **dele** desta ocorrência — linhas
+ * diretas, porque o que se prova aqui é o encaminhamento, não o upload (T702a).
+ */
+async function seedDriverPhoto(
+  database: TestDatabase,
+  input: {
+    readonly companyId: string
+    readonly driverUserId: string
+    readonly occurrenceId: string
+  },
+): Promise<{ readonly attachmentId: string; readonly storedObjectId: string }> {
+  const [conversation] = await database.db
+    .insert(occurrenceConversations)
+    .values({
+      companyId: input.companyId,
+      driverUserId: input.driverUserId,
+      occurrenceId: input.occurrenceId,
+      occurrenceKind: 'document',
+      participant: 'driver',
+    })
+    .returning({ id: occurrenceConversations.id })
+  const [message] = await database.db
+    .insert(occurrenceConversationMessages)
+    .values({
+      bodyText: 'Caixa amassada.',
+      channel: 'app',
+      companyId: input.companyId,
+      conversationId: conversation?.id ?? '',
+      direction: 'inbound',
+      driverUserId: input.driverUserId,
+    })
+    .returning({ id: occurrenceConversationMessages.id })
+  const storedObjectId = crypto.randomUUID()
+  await database.db.insert(storedObjects).values({
+    bucket: 'bucket-privado',
+    companyId: input.companyId,
+    id: storedObjectId,
+    mimeType: 'image/jpeg',
+    objectKey: `occurrence-conversations/${crypto.randomUUID()}`,
+    provider: 's3',
+    purpose: 'occurrence_conversation_attachment',
+    sha256: 'a'.repeat(64),
+    sizeBytes: 12n,
+    status: 'final',
+  })
+  const [attachment] = await database.db
+    .insert(occurrenceConversationAttachments)
+    .values({
+      companyId: input.companyId,
+      contentType: 'image/jpeg',
+      fileName: 'caixa.jpg',
+      messageId: message?.id ?? '',
+      sha256: 'a'.repeat(64),
+      sizeBytes: 12,
+      storedObjectId,
+    })
+    .returning({ id: occurrenceConversationAttachments.id })
+  return { attachmentId: attachment?.id ?? '', storedObjectId }
 }
 
 async function contractorIdOf(database: TestDatabase, companyId: string): Promise<string> {
@@ -412,6 +475,90 @@ describe('a operação escreve pelo portal, contra Postgres (spec 183 T654)', ()
         expect(afterRead?.status).toBe('read')
         expect(typeof afterRead?.statusTimes.read).toBe('string')
         expect(afterRead?.statusTimes.delivered).toBe(stored?.statusTimes.delivered)
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'T702d: a foto do motorista vai à contratante pelo mesmo objeto; de outra ocorrência ou empresa, não',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const other = await seedMailScenario(database)
+        const { companyId, userId: operatorUserId } = seeded.company
+        const contractorId = await contractorIdOf(database, companyId)
+        const portal = await seedPortalUser(database, companyId)
+        await setCaseStatus(database, seeded, 'awaiting_contractor')
+        await database.db
+          .insert(contractorPortalBindings)
+          .values({ companyId, contractorId, membershipId: portal.membershipId })
+        const photo = await seedDriverPhoto(database, {
+          companyId,
+          driverUserId: operatorUserId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        const foreign = await seedDriverPhoto(database, {
+          companyId: other.company.companyId,
+          driverUserId: other.company.userId,
+          occurrenceId: other.occurrenceId,
+        })
+        const send = (forwardAttachmentIds: readonly string[], idempotencyKey: string) =>
+          createSendContractorPortalMessageUseCase({
+            clock: () => new Date(),
+            fingerprintService: {
+              create: async ({ fields, operation }) =>
+                `${operation}:${fields.map((field) => new TextDecoder().decode(field)).join('|')}`,
+            },
+            newRef: createPublicRef,
+            notifier: { notify: async () => undefined },
+            storage: UNUSED_ATTACHMENT_STORAGE,
+            unitOfWork: createDrizzleContractorPortalMessageUnitOfWork(database.db),
+          }).send({
+            actorUserId: operatorUserId,
+            bodyText: '',
+            companyId,
+            forwardAttachmentIds,
+            idempotencyKey,
+            occurrenceId: seeded.occurrenceId,
+          })
+        const portalMessages = async () =>
+          database.db
+            .select({ id: occurrenceConversationMessages.id })
+            .from(occurrenceConversationMessages)
+            .where(
+              and(
+                eq(occurrenceConversationMessages.companyId, companyId),
+                eq(occurrenceConversationMessages.channel, 'portal'),
+              ),
+            )
+
+        /** Anexo de outra empresa: 422 e nenhuma mensagem fica. */
+        await expect(send([foreign.attachmentId], 'forward-key-0001')).rejects.toMatchObject({
+          code: 'OCCURRENCE_CONVERSATION_FORWARD_INVALID',
+          status: 422,
+        })
+        expect(await portalMessages()).toEqual([])
+
+        const sent = await send([photo.attachmentId], 'forward-key-0002')
+        const forwarded = await database.db
+          .select({
+            fileName: occurrenceConversationAttachments.fileName,
+            storedObjectId: occurrenceConversationAttachments.storedObjectId,
+          })
+          .from(occurrenceConversationAttachments)
+          .where(eq(occurrenceConversationAttachments.messageId, sent.conversationMessageId))
+        expect(forwarded).toEqual([{ fileName: 'caixa.jpg', storedObjectId: photo.storedObjectId }])
+
+        /** Anexo que já é da conversa da contratante não é "do motorista": não se encaminha. */
+        const [contractorCopy] = await database.db
+          .select({ id: occurrenceConversationAttachments.id })
+          .from(occurrenceConversationAttachments)
+          .where(eq(occurrenceConversationAttachments.messageId, sent.conversationMessageId))
+        await expect(send([contractorCopy?.id ?? ''], 'forward-key-0003')).rejects.toMatchObject({
+          status: 422,
+        })
+        expect(await portalMessages()).toHaveLength(1)
       })
     },
     30_000,

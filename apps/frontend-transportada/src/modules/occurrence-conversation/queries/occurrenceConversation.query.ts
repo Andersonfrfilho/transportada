@@ -19,6 +19,8 @@ import type { ContractorMailRequest } from '../shared/occurrenceConversation.typ
 export type ConversationMessageDraft = Readonly<{
   body: string
   files: readonly File[]
+  /** Spec 183 T702d: anexos da conversa do motorista encaminhados à contratante (só pelo portal). */
+  forwardAttachmentIds?: readonly string[]
   idempotencyKey: string
   uploaded: Map<File, string>
 }>
@@ -46,6 +48,9 @@ async function sendWithAttachments(
   const message = {
     attachmentIds,
     body: input.body,
+    ...(input.forwardAttachmentIds === undefined
+      ? {}
+      : { forwardAttachmentIds: input.forwardAttachmentIds }),
     idempotencyKey: input.idempotencyKey,
     occurrenceId: input.occurrenceId,
   }

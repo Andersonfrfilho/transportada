@@ -28,6 +28,7 @@ export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
     },
     nfeDocumentId: '00000000-0000-4000-8000-00000000b002',
     totalValue: '48320.0000',
+    tripDocumentId: '00000000-0000-4000-8000-00000000b003',
   },
   driver: {
     driverId: '00000000-0000-4000-8000-00000000f001',

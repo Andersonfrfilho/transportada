@@ -97,12 +97,17 @@ const appMessageSchema = z
   })
   .strict()
 
-/** Spec 183 T654 (RF21): à contratante pelo portal — o texto e, desde a T702a, os anexos. */
+/**
+ * Spec 183 T654 (RF21): à contratante pelo portal — o texto e, desde a T702a, os anexos. Desde a
+ * T702d, também os anexos da conversa do motorista encaminhados (`forwardAttachmentIds`); o teto
+ * de cinco vale para a soma, conferida no caso de uso.
+ */
 const portalMessageSchema = z
   .object({
     attachmentIds: conversationAttachmentIdsSchema,
     body: z.string().max(OCCURRENCE_MAIL_LIMITS.body),
     channel: z.literal('portal'),
+    forwardAttachmentIds: conversationAttachmentIdsSchema,
   })
   .strict()
 
@@ -155,6 +160,7 @@ type SendInput =
   | {
       readonly attachmentIds: readonly string[]
       readonly bodyText: string
+      readonly forwardAttachmentIds?: readonly string[]
       readonly idempotencyKey: string
       readonly kind: 'app' | 'portal'
       readonly occurrenceId: string
@@ -194,7 +200,10 @@ export function createOccurrenceConversationRoutes(
           const result =
             input.kind === 'app'
               ? await dependencies.sendDriverApp.send(request)
-              : await dependencies.sendPortal.send(request)
+              : await dependencies.sendPortal.send({
+                  ...request,
+                  forwardAttachmentIds: input.forwardAttachmentIds ?? [],
+                })
           return jsonResponse({ data: result }, 202)
         }
         const result = await dependencies.sendMail.send({
@@ -238,6 +247,7 @@ export function createOccurrenceConversationRoutes(
           return {
             attachmentIds: body.data.attachmentIds ?? [],
             bodyText: body.data.body,
+            forwardAttachmentIds: body.data.forwardAttachmentIds ?? [],
             idempotencyKey,
             kind: 'portal' as const,
             occurrenceId,

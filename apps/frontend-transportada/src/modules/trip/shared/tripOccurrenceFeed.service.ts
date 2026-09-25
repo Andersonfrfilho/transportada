@@ -161,6 +161,11 @@ export type TripOccurrenceDocument = Readonly<{
   }> | null
   nfeDocumentId: string
   totalValue: string
+  /**
+   * Spec 183 T702d: a nota **da viagem** (`trip_documents.id`), que a rota da foto da ocorrência pede
+   * no caminho. Ausente na API anterior — sem ela, "Anexar à ocorrência" não aparece.
+   */
+  tripDocumentId?: null | string
 }>
 
 /** Spec 183 RF3: o motorista da viagem, para o escritório falar com ele. */

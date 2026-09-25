@@ -208,3 +208,17 @@ export class OccurrenceConversationUploadInvalidError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 183 T702d: o anexo a encaminhar não é da conversa do motorista **desta** ocorrência, se repete
+ * ou passa do teto de cinco junto com os subidos. Uma resposta só, pela mesma razão do upload.
+ */
+export class OccurrenceConversationForwardInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONVERSATION_FORWARD_INVALID',
+      message: 'The attachment cannot be forwarded to this conversation',
+      status: 422,
+    })
+  }
+}

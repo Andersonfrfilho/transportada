@@ -232,7 +232,8 @@ function isOccurrenceDocument(value: unknown): value is TripOccurrenceDocument {
     isDestination &&
     isString(value.nfeDocumentId) &&
     isString(value.totalValue) &&
-    /^-?\d+(\.\d+)?$/u.test(value.totalValue)
+    /^-?\d+(\.\d+)?$/u.test(value.totalValue) &&
+    (value.tripDocumentId === undefined || isNullableString(value.tripDocumentId))
   )
 }
 

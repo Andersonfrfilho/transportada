@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { MessageText, StatusTicks, type MessagePayload } from '@adatechnology/conversations-ui'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { formatContractorContactPhone } from '@/modules/delivery-clients/shared/
 
 import { describeConversationMessage } from '../shared/occurrenceConversation.service'
 import type {
+  OccurrenceConversationAttachment,
   ContractorSenderSuggestion,
   OccurrenceConversationMessage,
 } from '../shared/occurrenceConversation.types'
@@ -55,6 +56,11 @@ type ConversationMessageProps = Readonly<{
   canManageContacts: boolean
   message: OccurrenceConversationMessage
   onAddContact: (suggestion: ContractorSenderSuggestion) => void
+  /** Spec 183 T702d: as ações sobre cada anexo desta mensagem. */
+  renderAttachmentActions?: (
+    attachment: OccurrenceConversationAttachment,
+    message: OccurrenceConversationMessage,
+  ) => ReactNode
 }>
 
 /**
@@ -66,6 +72,7 @@ export function ConversationMessage({
   canManageContacts,
   message,
   onAddContact,
+  renderAttachmentActions,
 }: ConversationMessageProps) {
   const { t } = useTranslation('occurrenceConversation')
   const [isCardOpen, setCardOpen] = useState(false)
@@ -175,7 +182,12 @@ export function ConversationMessage({
             <MessageText message={toPayload(message)} />
           </div>
         )}
-        <ConversationAttachments attachments={message.attachments} />
+        <ConversationAttachments
+          attachments={message.attachments}
+          {...(renderAttachmentActions === undefined
+            ? {}
+            : { renderActions: (attachment) => renderAttachmentActions(attachment, message) })}
+        />
 
         <footer className={styles.meta}>
           <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>

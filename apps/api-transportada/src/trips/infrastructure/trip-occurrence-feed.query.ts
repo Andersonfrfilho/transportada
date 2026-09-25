@@ -71,6 +71,7 @@ type FeedRow = Omit<TripOccurrenceFeedItem, 'conversation' | 'createdAt' | 'docu
   readonly createdAt: Date
   readonly nfeDocumentId: null | string
   readonly totalValue: null | string
+  readonly tripDocumentId: null | string
 }
 
 /**
@@ -211,6 +212,7 @@ async function listDocumentOccurrenceRows(
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
       nfeDocumentId: nfeDocuments.id,
+      tripDocumentId: tripDocuments.id,
       totalValue: nfeDocuments.totalValue,
       driverName: tripDrivers.driverName,
       /**
@@ -320,6 +322,7 @@ async function listDocumentOccurrenceRows(
     createdAt: row.createdAt,
     description: row.description,
     nfeDocumentId: row.nfeDocumentId ?? null,
+    tripDocumentId: row.tripDocumentId ?? null,
     totalValue: row.totalValue ?? null,
     driverName: row.driverName ?? '',
     hasAttachment: Boolean(row.hasAttachment),
@@ -419,6 +422,7 @@ async function listStopOccurrenceRows(
       createdAt: tripStopOccurrences.createdAt,
       description: tripStopOccurrences.description,
       nfeDocumentId: nfeDocuments.id,
+      tripDocumentId: tripDocuments.id,
       totalValue: nfeDocuments.totalValue,
       driverName: tripDrivers.driverName,
       id: tripStopOccurrences.id,
@@ -493,6 +497,7 @@ async function listStopOccurrenceRows(
     createdAt: row.createdAt,
     description: row.description,
     nfeDocumentId: row.nfeDocumentId ?? null,
+    tripDocumentId: row.tripDocumentId ?? null,
     totalValue: row.totalValue ?? null,
     driverName: row.driverName ?? '',
     hasAttachment: row.attachmentObjectId !== null,
@@ -581,14 +586,14 @@ async function toFeedItems(
     ...(viewerUserId === undefined ? {} : { viewerUserId }),
   })
 
-  return rows.map(({ nfeDocumentId, totalValue, ...row }) => {
+  return rows.map(({ nfeDocumentId, totalValue, tripDocumentId, ...row }) => {
     const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)
     return {
       ...row,
       conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
       createdAt: row.createdAt.toISOString(),
       document:
-        nfeDocumentId === null || totalValue === null
+        nfeDocumentId === null || totalValue === null || tripDocumentId === null
           ? null
           : {
               contractor: emitters.get(nfeDocumentId) ?? null,
@@ -605,6 +610,7 @@ async function toFeedItems(
                     },
               nfeDocumentId,
               totalValue,
+              tripDocumentId,
             },
     }
   })

@@ -210,6 +210,8 @@ describe('a listagem mostra a nota da ocorrência (spec 183 T203)', () => {
           },
           nfeDocumentId,
           totalValue: '10000.0000',
+          /** Spec 183 T702d: a foto da conversa vira anexo da ocorrência pela nota da viagem. */
+          tripDocumentId: trip.documentId,
         })
       })
     },

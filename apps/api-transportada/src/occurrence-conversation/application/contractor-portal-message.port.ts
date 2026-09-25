@@ -37,6 +37,17 @@ export type ContractorPortalMessageTransactionPort = {
     readonly idempotencyKey: string
     readonly operation: string
   }): Promise<{ readonly fingerprint: string; readonly response: unknown } | null>
+  /**
+   * Spec 183 T702d: liga à mensagem da contratante os anexos da conversa do **motorista** da mesma
+   * ocorrência, pelo mesmo objeto (nenhum byte copiado). Devolve quantos ligou; anexo de outra
+   * conversa, de outra ocorrência ou de outra empresa não entra na conta.
+   */
+  forwardDriverAttachments(input: {
+    readonly attachmentIds: readonly string[]
+    readonly companyId: string
+    readonly messageId: string
+    readonly occurrenceId: string
+  }): Promise<number>
   findOrCreateContractorConversation(input: {
     readonly companyId: string
     readonly contractorId: string

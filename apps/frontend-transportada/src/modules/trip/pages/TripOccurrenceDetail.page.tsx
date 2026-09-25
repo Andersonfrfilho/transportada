@@ -28,6 +28,8 @@ import {
 import { navigateToTripOccurrences } from '../shared/tripOccurrenceRoute.service'
 import { navigateToTrip } from '../shared/tripRoute.service'
 import styles from '../styles/trip.module.css'
+import { ConversationPhotoToOccurrenceAction } from '../components/ConversationPhotoToOccurrenceAction.component'
+import { isForwardableToOccurrence } from '../shared/conversationPhotoToOccurrence.service'
 
 /** A mesma permissão da lista: o detalhe não abre para quem a lista não abre (spec 183 RF1). */
 const TRIP_READ_PERMISSION = 'fleet.read'
@@ -410,6 +412,22 @@ export function TripOccurrenceDetailPage({ occurrenceId }: Readonly<{ occurrence
                 driverName={occurrence.driver === null ? null : occurrence.driver.name}
                 hasDocument={occurrence.document !== null}
                 occurrenceId={occurrence.id}
+                /** Spec 183 T702d: a foto do motorista pode virar foto da ocorrência. */
+                renderAttachmentActions={(attachment) => {
+                  const tripDocumentId = occurrence.document?.tripDocumentId ?? null
+                  return tripDocumentId !== null &&
+                    isForwardableToOccurrence(attachment, {
+                      stage: occurrence.stage,
+                      tripDocumentId,
+                    }) ? (
+                    <ConversationPhotoToOccurrenceAction
+                      attachment={attachment}
+                      occurrenceId={occurrence.id}
+                      tripDocumentId={tripDocumentId}
+                      tripId={occurrence.tripId}
+                    />
+                  ) : null
+                }}
               />
             </section>
             <OccurrenceTimelinePanel

@@ -1630,6 +1630,12 @@
     },
     "conversations": {
       "title": "Conversas"
+    },
+    "conversationPhoto": {
+      "attach": "Anexar à ocorrência",
+      "attaching": "Anexando…",
+      "attached": "Anexada à ocorrência.",
+      "error": "Não foi possível anexar: a ocorrência pode já ter cinco fotos. Tente de novo em instantes."
     }
   },
   "occurrenceTimeline": {

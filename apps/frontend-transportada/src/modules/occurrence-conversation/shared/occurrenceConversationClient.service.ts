@@ -71,6 +71,8 @@ export type OccurrenceConversationClient = Readonly<{
   sendContractorPortalMessage: (input: {
     attachmentIds?: readonly string[]
     body: string
+    /** Spec 183 T702d: anexos da conversa do motorista, encaminhados com o mesmo objeto. */
+    forwardAttachmentIds?: readonly string[]
     idempotencyKey: string
     occurrenceId: string
   }) => Promise<void>
@@ -426,9 +428,24 @@ export function createOccurrenceConversationClient(
         method: 'POST',
       })
     },
-    async sendContractorPortalMessage({ attachmentIds, body, idempotencyKey, occurrenceId }) {
+    async sendContractorPortalMessage({
+      attachmentIds,
+      body,
+      forwardAttachmentIds,
+      idempotencyKey,
+      occurrenceId,
+    }) {
       await requestJson(dependencies, `${occurrencePath(occurrenceId)}/contractor/messages`, {
-        body: withAttachments({ body, channel: 'portal' }, attachmentIds),
+        body: withAttachments(
+          {
+            body,
+            channel: 'portal',
+            ...(forwardAttachmentIds === undefined || forwardAttachmentIds.length === 0
+              ? {}
+              : { forwardAttachmentIds }),
+          },
+          attachmentIds,
+        ),
         headers: { 'idempotency-key': idempotencyKey },
         method: 'POST',
       })

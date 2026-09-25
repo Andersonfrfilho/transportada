@@ -225,6 +225,7 @@ describe('o anexo nos envios (spec 183 T702a)', () => {
               kind: 'available',
             }),
             findOrCreateContractorConversation: async () => ({ id: 'conversation-contractor' }),
+            forwardDriverAttachments: async () => 0,
             insertPortalMessage: async () => ({ id: 'message-2' }),
           }),
       },
@@ -524,5 +525,102 @@ describe('a leitura do operador com anexo (spec 183 T702a)', () => {
         },
       ],
     ])
+  })
+})
+
+describe('encaminhar o anexo do motorista à contratante (spec 183 T702d)', () => {
+  function portalUseCase(input: {
+    readonly forwarded: { input: unknown }[]
+    readonly forwardable: number
+    readonly inserted: string[]
+  }) {
+    return createSendContractorPortalMessageUseCase({
+      clock: () => NOW,
+      fingerprintService,
+      newRef: () => REF,
+      notifier: { notify: async () => undefined },
+      storage,
+      unitOfWork: {
+        execute: (work) =>
+          work({
+            ...idempotency(),
+            attachments: attachmentsFake().port,
+            findAudience: async () => ({
+              audience: {
+                contractorId: 'contractor-alfa',
+                occurrenceKind: 'document',
+                occurrenceLabel: 'NF 4512/1',
+                userIds: ['portal-user'],
+              },
+              kind: 'available',
+            }),
+            findOrCreateContractorConversation: async () => ({ id: 'conversation-contractor' }),
+            forwardDriverAttachments: async (forwardInput) => {
+              input.forwarded.push({ input: forwardInput })
+              return input.forwardable
+            },
+            insertPortalMessage: async (message) => {
+              input.inserted.push(message.bodyText)
+              return { id: 'message-forward' }
+            },
+          }),
+      },
+    })
+  }
+
+  test('a foto do motorista vai junto, pela mesma ocorrência, sem texto obrigatório', async () => {
+    const forwarded: { input: unknown }[] = []
+    const inserted: string[] = []
+
+    await portalUseCase({ forwardable: 1, forwarded, inserted }).send({
+      actorUserId: OPERATOR_ID,
+      bodyText: '',
+      companyId: COMPANY_ID,
+      forwardAttachmentIds: ['attachment-driver-1'],
+      idempotencyKey: 'portal-forward-key-01',
+      occurrenceId: OCCURRENCE_ID,
+    })
+
+    expect(inserted).toEqual([''])
+    expect(forwarded).toEqual([
+      {
+        input: {
+          attachmentIds: ['attachment-driver-1'],
+          companyId: COMPANY_ID,
+          messageId: 'message-forward',
+          occurrenceId: OCCURRENCE_ID,
+        },
+      },
+    ])
+  })
+
+  test('anexo que não é da conversa do motorista desta ocorrência: 422', async () => {
+    await expect(
+      portalUseCase({ forwardable: 0, forwarded: [], inserted: [] }).send({
+        actorUserId: OPERATOR_ID,
+        bodyText: 'Segue.',
+        companyId: COMPANY_ID,
+        forwardAttachmentIds: ['attachment-other'],
+        idempotencyKey: 'portal-forward-key-02',
+        occurrenceId: OCCURRENCE_ID,
+      }),
+    ).rejects.toMatchObject({ code: 'OCCURRENCE_CONVERSATION_FORWARD_INVALID', status: 422 })
+  })
+
+  test('mais de cinco somando subidos e encaminhados: 422 sem gravar', async () => {
+    const inserted: string[] = []
+
+    await expect(
+      portalUseCase({ forwardable: 3, forwarded: [], inserted }).send({
+        actorUserId: OPERATOR_ID,
+        attachmentIds: ['u-1', 'u-2', 'u-3'],
+        bodyText: '',
+        companyId: COMPANY_ID,
+        forwardAttachmentIds: ['a-1', 'a-2', 'a-3'],
+        idempotencyKey: 'portal-forward-key-03',
+        occurrenceId: OCCURRENCE_ID,
+      }),
+    ).rejects.toMatchObject({ status: 422 })
+    expect(inserted).toEqual([])
   })
 })

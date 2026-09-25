@@ -4249,3 +4249,10 @@ button.occurrenceCaseBadge {
   font-family: var(--font-utility);
   font-weight: 700;
 }
+
+/* Spec 183 T702d: a recusa de "Anexar à ocorrência" (teto de cinco, etapa, rede), ao lado do botão. */
+.conversationPhotoError {
+  color: var(--color-alert);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}

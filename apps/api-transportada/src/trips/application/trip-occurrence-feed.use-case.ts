@@ -74,6 +74,8 @@ export type TripOccurrenceFeedDocument = {
   } | null
   readonly nfeDocumentId: string
   readonly totalValue: string
+  /** Spec 183 T702d: a nota **da viagem** — o caminho da rota de anexo da ocorrência (161). */
+  readonly tripDocumentId: string
 }
 
 export type TripOccurrenceFeedItem = {

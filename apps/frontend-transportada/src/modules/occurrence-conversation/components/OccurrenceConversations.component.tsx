@@ -1,9 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { DateDivider } from '@adatechnology/conversations-ui'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
 
@@ -22,6 +23,8 @@ import {
 } from '../shared/occurrenceConversation.service'
 import { insertQuickReply } from '../shared/quickReplies.service'
 import type {
+  OccurrenceConversationAttachment,
+  OccurrenceConversationMessage,
   ContractorSenderSuggestion,
   OccurrenceConversation,
 } from '../shared/occurrenceConversation.types'
@@ -44,15 +47,63 @@ function dayKey(iso: string): string {
   return Number.isNaN(moment.getTime()) ? iso.slice(0, 10) : dayKeyFormatter.format(moment)
 }
 
+/** Spec 183 T702d: a ação sobre um anexo, montada por quem sabe fazê-la. */
+export type RenderAttachmentActions = (
+  attachment: OccurrenceConversationAttachment,
+  message: OccurrenceConversationMessage,
+) => ReactNode
+
+/**
+ * Spec 183 T702d (P7): encaminhar à contratante o anexo que o motorista mandou — uma mensagem pelo
+ * portal com o mesmo objeto. A chave vem do anexo: o segundo clique é o mesmo envio, nunca outro.
+ */
+function ForwardToContractorAction({
+  attachmentId,
+  occurrenceId,
+}: Readonly<{ attachmentId: string; occurrenceId: string }>) {
+  const { t } = useTranslation('occurrenceConversation')
+  const send = useSendContractorPortalMessageMutation(occurrenceId)
+  if (send.isSuccess) return <span className={styles.hint}>{t('attachment.forwarded')}</span>
+  return (
+    <>
+      <Button
+        disabled={send.isPending}
+        onClick={() =>
+          send.mutate({
+            body: '',
+            files: [],
+            forwardAttachmentIds: [attachmentId],
+            idempotencyKey: `portal-forward:${attachmentId}`,
+            uploaded: new Map(),
+          })
+        }
+        size="sm"
+        type="button"
+        variant="secondary"
+      >
+        <Icon name="send" size="sm" />
+        {send.isPending ? t('attachment.forwarding') : t('attachment.forward')}
+      </Button>
+      {send.isError ? (
+        <span className={styles.error} role="alert">
+          {t('attachment.forwardError')}
+        </span>
+      ) : null}
+    </>
+  )
+}
+
 /** O fio da conversa por dia, nas duas abas. */
 function ConversationThread({
   canManageContacts,
   messages,
   onAddContact,
+  renderAttachmentActions,
 }: Readonly<{
   canManageContacts: boolean
   messages: OccurrenceConversation['messages']
   onAddContact: (suggestion: ContractorSenderSuggestion) => void
+  renderAttachmentActions?: RenderAttachmentActions
 }>) {
   return (
     <div className={styles.thread}>
@@ -68,6 +119,7 @@ function ConversationThread({
               key={message.id}
               message={message}
               onAddContact={onAddContact}
+              {...(renderAttachmentActions === undefined ? {} : { renderAttachmentActions })}
             />
           ))}
         </section>
@@ -96,11 +148,16 @@ function DriverConversationPanel({
   conversation,
   driverName,
   occurrenceId,
+  portalAvailable,
+  renderAttachmentActions,
 }: Readonly<{
   canSend: boolean
   conversation: OccurrenceConversation | undefined
   driverName: string
   occurrenceId: string
+  /** Spec 183 T702d: sem o canal Portal aberto, não há como encaminhar (e-mail com anexo é a T702e). */
+  portalAvailable: boolean
+  renderAttachmentActions?: RenderAttachmentActions
 }>) {
   const { t } = useTranslation('occurrenceConversation')
   const send = useSendDriverAppMessageMutation(occurrenceId)
@@ -149,6 +206,20 @@ function DriverConversationPanel({
           canManageContacts={false}
           messages={messages}
           onAddContact={() => undefined}
+          /** Spec 183 T702d: as ações só na mensagem que o motorista mandou. */
+          renderAttachmentActions={(attachment, message) =>
+            message.direction === 'inbound' ? (
+              <>
+                {canSend && portalAvailable ? (
+                  <ForwardToContractorAction
+                    attachmentId={attachment.id}
+                    occurrenceId={occurrenceId}
+                  />
+                ) : null}
+                {renderAttachmentActions?.(attachment, message)}
+              </>
+            ) : null
+          }
         />
       )}
       {canSend ? (
@@ -211,6 +282,11 @@ type OccurrenceConversationsProps = Readonly<{
   driverName: null | string
   hasDocument: boolean
   occurrenceId: string
+  /**
+   * Spec 183 T702d: a ação que o dono da ocorrência monta sobre a foto do motorista ("Anexar à
+   * ocorrência", do módulo `trip`) — a conversa só decide onde ela aparece.
+   */
+  renderAttachmentActions?: RenderAttachmentActions
 }>
 
 /**
@@ -389,6 +465,7 @@ export function OccurrenceConversations({
   driverName,
   hasDocument,
   occurrenceId,
+  renderAttachmentActions,
 }: OccurrenceConversationsProps) {
   const { t } = useTranslation('occurrenceConversation')
   const [tab, setTab] = useState('contractor')
@@ -458,6 +535,8 @@ export function OccurrenceConversations({
                     conversation={driverConversation}
                     driverName={driverName}
                     occurrenceId={occurrenceId}
+                    portalAvailable={query.data?.contractorPortal.available ?? false}
+                    {...(renderAttachmentActions === undefined ? {} : { renderAttachmentActions })}
                   />
                 ),
               },

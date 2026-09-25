@@ -108,6 +108,34 @@ function createTransactionPort(transaction: Transaction): ContractorPortalMessag
       return row
     },
 
+    async forwardDriverAttachments({ attachmentIds, companyId, messageId, occurrenceId }) {
+      /**
+       * Spec 183 T702d: o mesmo objeto do bucket, uma linha nova de anexo. Só entra anexo cuja
+       * mensagem é da conversa do **motorista** desta ocorrência, nesta empresa — o resto não conta,
+       * e o caso de uso desfaz a mensagem inteira pela diferença.
+       */
+      const rows = await transaction.execute(sql`
+        insert into occurrence_conversation_attachments
+          (company_id, message_id, stored_object_id, sha256, size_bytes, content_type, file_name, duration_ms)
+        select source.company_id, ${messageId}::uuid, source.stored_object_id, source.sha256,
+               source.size_bytes, source.content_type, source.file_name, source.duration_ms
+          from occurrence_conversation_attachments source
+          join occurrence_conversation_messages message
+            on message.company_id = source.company_id and message.id = source.message_id
+          join occurrence_conversations conversation
+            on conversation.company_id = message.company_id and conversation.id = message.conversation_id
+         where source.company_id = ${companyId}::uuid
+           and source.id in (${sql.join(
+             attachmentIds.map((id) => sql`${id}::uuid`),
+             sql`, `,
+           )})
+           and conversation.occurrence_id = ${occurrenceId}::uuid
+           and conversation.participant = 'driver'
+        returning id
+      `)
+      return rows.length
+    },
+
     async insertPortalMessage(input) {
       const status = initialOutboundStatus('portal')
       const [message] = await transaction

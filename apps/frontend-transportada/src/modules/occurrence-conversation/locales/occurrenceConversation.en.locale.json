@@ -186,6 +186,10 @@
     },
     "error": {
       "upload": "The attachments could not be uploaded. Try again shortly."
-    }
+    },
+    "forward": "Forward to contractor",
+    "forwarding": "Forwarding…",
+    "forwarded": "Forwarded to the contractor through the portal.",
+    "forwardError": "Could not forward. Try again shortly."
   }
 }
