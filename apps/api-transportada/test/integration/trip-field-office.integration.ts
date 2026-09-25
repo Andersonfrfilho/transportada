@@ -309,6 +309,55 @@ describe('field-delivery, field-return e field-proof contra o Postgres (spec 156
   )
 
   testWithPostgres(
+    'spec 182 RF3: field-delivery numa viagem em loading (antes do despacho) responde 201 e grava delivered',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const company = await seedCompany(database)
+        const trip = await seedTrip(database, company, 'loading')
+        const [, , , , deliverRoute] = wireRoutes(database)
+        const deliveredAt = '2026-09-18T09:00:00.000Z'
+
+        const response = await deliverRoute!.execute({
+          context: fakeContext(company),
+          correlationId: 'integration-correlation-delivery-before-dispatch-rf3',
+          pathParameters: { id: trip.tripId, documentId: trip.documentId },
+          request: multipartRequest({
+            fields: { deliveredAt, receiverName: 'João da Silva' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-field-delivery-loading',
+          }),
+        })
+
+        expect(response.status).toBe(201)
+        const body = (await response.json()) as { data: { alreadySettled: boolean } }
+        expect(body.data.alreadySettled).toBe(false)
+
+        const [documentRow] = await database.db
+          .select({
+            deliveredAt: tripDocuments.deliveredAt,
+            status: tripDocuments.separationStatus,
+          })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, trip.documentId))
+        expect(documentRow?.status).toBe('delivered')
+        expect(documentRow?.deliveredAt?.toISOString()).toBe(deliveredAt)
+
+        /**
+         * `deriveTripStatus`/`advanceTripFromSettledDocuments` só promovem a viagem para
+         * `on_delivery_route`/`completed` a partir de `isTripDispatched` — a baixa antecipada
+         * (RF3) grava a nota `delivered`, mas não empurra `trips.status` sozinha; despachar segue
+         * sendo o gesto do barracão (`TRIP_ACTION.dispatch`).
+         */
+        const [tripRow] = await database.db
+          .select({ status: trips.status })
+          .from(trips)
+          .where(eq(trips.id, trip.tripId))
+        expect(tripRow?.status).toBe('loading')
+      })
+    },
+  )
+
+  testWithPostgres(
     'aceite 12: baixa repetida no canal office responde 409 DOCUMENT_ALREADY_SETTLED, sem evento novo',
     async () => {
       await withDisposableDatabase(async (database) => {
