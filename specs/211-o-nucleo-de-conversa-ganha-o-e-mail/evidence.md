@@ -28,3 +28,23 @@ os cinco commits de documentação trazidos por cherry-pick (commit `f338a7533`)
 - Os cinco vocabulários ficam fixos **na ordem** e congelados em runtime; acrescentar é minor,
   trocar ou tirar é major. `ATTACHMENT_KIND` = `audio | document | image`, o
   `ConversationAttachmentKind` da 183.
+
+### T102 ⚙️ — o pacote nasce
+
+- **Modelo:** Haiku 4.5 (`claude-haiku-4-5-20251001`).
+- **Commit:** `fc114f6` (`packages/backend/conversation-contracts/{package.json, tsup.config.ts, tsconfig.json, CLAUDE.md, pnpm-lock.yaml}`).
+- **Arquivos criados:** `package.json` (ESM+CJS exports, `sideEffects: false`, única dep `zod`), `tsup.config.ts` (molde notification-contracts), `tsconfig.json` (extends tsconfig.base.json), `CLAUDE.md` (8 invariantes do núcleo).
+- **Teste (esperado falhar):** `pnpm --filter @adatechnology/conversation-contracts run test`
+
+  ```
+  bun test v1.3.14 (0d9b296a)
+
+  src/vocabulary.test.ts:
+
+  # Unhandled error between tests
+  error: Cannot find module './vocabulary' from '...conversation-contracts/src/vocabulary.test.ts'
+
+   0 pass
+   1 fail
+   1 error
+  ```

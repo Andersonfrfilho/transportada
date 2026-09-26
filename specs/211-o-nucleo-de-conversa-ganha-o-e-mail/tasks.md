@@ -39,7 +39,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       de DKIM e tipo de anexo, com os nomes que a 183 já usa. **O teste vem antes do tipo.** É Opus
       porque estes nomes viram contrato de host: renomear depois quebra quem instalou (RNF7).
       (RF1, RNF7)
-- [ ] **T102** ⚙️ `haiku` — O pacote nasce: `package.json` no molde do `notification-contracts`
+- [x] **T102** ⚙️ `haiku` — O pacote nasce: `package.json` no molde do `notification-contracts`
       (ESM+CJS, `dts`, `files: ["dist"]`, `sideEffects: false`, dependência única `zod`),
       `tsup.config.ts`, `tsconfig.json`, `CLAUDE.md` com as invariantes. Molde copiado, sem decisão.
       (RF1, RNF5)
