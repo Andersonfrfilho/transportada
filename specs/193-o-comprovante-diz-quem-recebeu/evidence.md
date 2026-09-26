@@ -214,3 +214,49 @@ dois casos dela esperam que `deliveryProofsFromApi` **lance** com item inválido
 o item inválido sai sozinho e a lista fica. Na árvore com o WIP da 205, esses dois casos da 205
 falham (1700 pass, 2 fail); os casos da 193 passam. O arquivo da 205 não foi tocado. Quem fechar a
 205 ajusta os dois casos para "sai da lista".
+
+Gates da T3.1 (árvore com o WIP da 205):
+
+```
+$ bun run --cwd apps/frontend-transportada typecheck  → tsc --noEmit sem erros
+$ bun run --cwd apps/frontend-transportada lint       → eslint . sem erros
+$ bun run --cwd apps/frontend-transportada test       → 5356 pass, 2 fail (os dois casos da 205 acima)
+$ bun run --cwd apps/frontend-transportada test:hooks → 54 pass, 0 fail
+```
+
+Variante do commit conferida isolada (cópia de `9add71a0c` só com `apps/frontend-transportada`):
+`tsc --noEmit` limpo e `test/trip.contract.test.ts` com 1688 pass e 6 fail. As seis falhas são
+contratos de paridade que leem arquivos de fora da cópia (`apps/api-transportada`, `specs/`). Não
+têm relação com a T3.1.
+
+### T3.2 — testes antes (vistos falhar)
+
+`test/trip-delivery-proof/received-by.contract.ts` (entrypoint `test/trip-delivery-proof.contract.test.ts`):
+
+- `normalizeReceivedBy`:
+  - ausente vira nulo;
+  - aplica trim e remove `\p{Cc}`;
+  - corta em 120;
+  - código fora da lista vira nulo;
+  - detalhe sem relação é descartado;
+  - `other`/`other_relative` sem detalhe gravam assim mesmo;
+  - nunca lança, seja com `null`, número, objeto, lista ou vazio.
+- `parseReceivedByStrict`:
+  - devolve 400 `INVALID_REQUEST` com `details[].field` nestes casos: código fora da lista; detalhe
+    sem relação; detalhe com mais de 120; `other` ou `other_relative` sem detalhe.
+- `applyReceivedBySettings`:
+  - `off` descarta nos dois canais;
+  - `optional` guarda;
+  - `required` no motorista grava nulo;
+  - `required` no escritório sem relação responde 422 `TRIP_DELIVERY_PROOF_RECEIVED_BY_REQUIRED`.
+- Configuração:
+  - `optional` de fábrica, na geral e no resolvido por nota;
+  - o `PUT` geral e a exceção aceitam o campo ausente e o presente;
+  - modo inválido é recusado;
+  - a exceção vence por inteiro.
+
+```
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts --timeout 120000
+error: Cannot find module '../../src/trips/domain/received-by.policy.js'
+ 0 pass, 1 fail, 1 error
+```
