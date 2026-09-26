@@ -21,6 +21,7 @@ import {
   companies,
   fleetDrivers,
   fleetVehicles,
+  geocodedAddresses,
   identityUsers,
   nfeAddresses,
   nfeDocuments,
@@ -723,6 +724,40 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       await expect(attempt).rejects.toThrow()
     })
   })
+
+  /**
+   * Spec 199: a coordenada da parada mora em `geocoded_addresses`, casada pela `address_key` —
+   * `trip_stops.latitude/longitude` existem e nunca são escritas (spec 079 T009). Sem esta leitura a
+   * distância até a parada no app do motorista (spec 082 D2) nunca aparece.
+   */
+  testWithPostgres(
+    'a parada geocodificada chega com coordenada, e a sem pino chega vazia',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db.insert(geocodedAddresses).values({
+          addressKey: '3550308|01001000|100',
+          latitude: '-23.5503099',
+          longitude: '-46.6342009',
+          precision: 'rooftop',
+          source: 'manual',
+        })
+
+        const opened = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: NOW,
+          repository: new DrizzleCurrentDriverTripRepository(database.db),
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+
+        const stops = opened.trips[0]?.stops ?? []
+        expect(stops.map((stop) => stop.id)).toEqual([...world.stopIds])
+        expect(stops[0]).toMatchObject({ latitude: '-23.5503099', longitude: '-46.6342009' })
+        expect(stops[1]).toMatchObject({ latitude: null, longitude: null })
+      })
+    },
+  )
 
   /**
    * Spec 082 D9 / ADR-0058: o motorista vinculado abre a porta do despacho. O congelamento do
