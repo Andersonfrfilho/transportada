@@ -58,12 +58,23 @@ const bucket = process.env.OBJECT_STORAGE_BUCKET ?? process.env.STORAGE_BUCKET
 const accessKeyId = process.env.OBJECT_STORAGE_ACCESS_KEY ?? process.env.STORAGE_ACCESS_KEY
 const secretAccessKey = process.env.OBJECT_STORAGE_SECRET_KEY ?? process.env.STORAGE_SECRET_KEY
 const region = process.env.OBJECT_STORAGE_REGION ?? process.env.STORAGE_REGION ?? 'us-east-1'
-const hasInfrastructure =
-  databaseUrl !== undefined &&
-  [endpoint, bucket, accessKeyId, secretAccessKey].every(
+/**
+ * A CI carrega o `.env.example` (com `STORAGE_ENDPOINT`) sem subir o MinIO: a variável sozinha não
+ * diz que o S3 está de pé. Qualquer resposta HTTP do endpoint conta como alcançável.
+ */
+async function hasInfrastructure(): Promise<boolean> {
+  const configured = [endpoint, bucket, accessKeyId, secretAccessKey].every(
     (value) => value !== undefined && value.trim() !== '',
   )
-const testWithInfrastructure = hasInfrastructure ? test : test.skip
+  if (!configured || databaseUrl === undefined) return false
+  try {
+    await fetch(endpoint ?? '', { signal: AbortSignal.timeout(2_000) })
+    return true
+  } catch {
+    return false
+  }
+}
+const testWithInfrastructure = (await hasInfrastructure()) ? test : test.skip
 const BUCKET = bucket ?? ''
 
 const PDF = new TextEncoder().encode('%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n')
