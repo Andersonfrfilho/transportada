@@ -1559,6 +1559,93 @@ substitui o conjunto inteiro de atributos.
 **O que falta:** decidir a retenção do atributo no realm (hoje nada o expira), e reavaliar o índice
 cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
+## CPF do destinatário no aparelho do motorista, para a busca dentro da viagem
+
+**Data:** 2026-09-26 · **Decidido conscientemente** · **Spec 214** · **ADR-0090 §3**
+
+**Amplia** o achado "snapshot e fila offline no aparelho do motorista" (2026-09-25, spec 189 T3.3a,
+mais acima nesta seção). Aquele achado descreve o cofre; este diz o que passou a entrar nele.
+
+**Onde:** `api-transportada`,
+`trips/infrastructure/drizzle-current-driver-trip.repository.ts` (`toDriverDocument`) e
+`trips/application/find-current-driver-trip.use-case.ts` (`DriverTripDocument.recipientTaxId`);
+`frontend-driver`, IndexedDB `transportada.driver-trip` versão 3, store `trip-snapshot`.
+
+**Que dado passa a ficar no aparelho.** O documento do destinatário de cada nota da viagem —
+**CNPJ e CPF**, em texto claro. Até aqui o snapshot levava nome do destinatário
+(`recipientName`, `recipientDisplayName`), rótulo e coordenada das paradas, número, chave de acesso e
+valor das notas; o documento era o único campo que o mapper buscava do banco e **descartava de
+propósito**, e o use case dizia por escrito "o documento nunca sai". Passa a sair. O bairro da parada
+(`district`) desce junto, só para casar busca.
+
+**Por quanto tempo.** Até 24 h (`TRIP_SNAPSHOT_MAX_AGE_MS`), e menos que isso na prática: o registro é
+apagado quando todas as viagens ficam concluídas, o que é reavaliado a cada 30 s de leitura.
+
+**Quem apaga.** As mesmas travas do achado de 2026-09-25, que são cegas ao conteúdo e portanto já
+valem para o campo novo: `retainOnly` apaga o snapshot de qualquer outro dono quando um `sub`
+autentica; o vencido é removido do disco, não só ignorado; viagem concluída apaga em vez de gravar;
+"Sair" faz `clear()` da store inteira **antes** do `logout()`; e o snapshot é montado por allowlist
+explícita, então a API mandar o campo não basta — ele tem de ser admitido de propósito.
+
+**O que não guarda uma segunda cópia.** Não há cache de API no service worker (`sw.ts` sem
+`runtimeCaching`, cliente com `cache: 'no-store'`, vigiado por
+`test/shared/service-worker.contract.ts`), e nada disso vai para log, URL ou beacon. A única cópia
+persistida é a store `trip-snapshot`.
+
+**Se o motorista perder o telefone.** Aparelho bloqueado: nada, o IndexedDB é da origem
+`motorista.<zona>` e não há como abri-lo sem desbloquear. **Aparelho desbloqueado, e é o cenário que
+importa:** quem o tiver abre a app sem rede e vê a viagem **sem token** — a leitura passa só pela posse
+(`readLastTripSnapshot`). A mitigação desta spec é que **o CPF nunca é renderizado**: ele é chave de
+busca, não conteúdo de tela (ADR-0090 §3.2), então a tela não o escreve em lugar nenhum. Sobra a
+leitura pelas ferramentas do navegador, que continua possível. E o expurgo das 24 h é **preguiçoso**:
+num aparelho que nunca mais for aberto, nada roda para apagar — a spec 214 acrescenta uma varredura de
+vencidos no boot, que melhora isso mas não alcança o aparelho nunca aberto.
+
+**A alternativa que foi oferecida e recusada.** A ADR-0090 propunha descer **só o CNPJ** (registro
+público da Receita) e deixar o CPF fora, ao custo de buscar por CPF não achar nada — recusa parcial do
+pedido. O dono do produto decidiu o contrário em 2026-09-26, com o custo declarado no texto que leu:
+_"o CPF de cada destinatário pessoa física da viagem passa a ficar guardado no celular […] e isso entra
+no `docs/SECURITY.md` como ampliação do que se compartilha"_. As razões que sustentam a decisão: ele é
+o responsável pelo tratamento e pesa finalidade contra risco; o motorista está entregando para aquela
+pessoa e o DANFE impresso que ele carrega já traz o CPF; e o dado já vinha do `select` hoje, de modo
+que a proteção que caiu era o descarte de um valor que o sistema já buscava.
+
+**Travas que a spec 214 cria, porque faltavam.** Contrato que enumera os campos de dado pessoal
+admitidos no snapshot e reprova campo novo não declarado (não existia: `isStoredTripSnapshot` só
+confere que `trips` e `pendingProofs` são arrays); varredura de registros vencidos no boot, de qualquer
+dono; e proibição de o documento do destinatário ser copiado para `field-reports` ou
+`event-attachments` — a fila sobrevive ao "Sair" e tem prazo de 7 dias, e já há precedente de campo do
+destinatário vazando para ela (`recipientDisplayName` alimenta `receivedBy`). O documento que a fila
+carrega continua sendo só o de **quem recebeu**.
+
+**O que falta:**
+
+1. **Criptografia em repouso do IndexedDB — e a gravação em disco foi decidida, não omitida.** O CPF
+   fica em texto claro, e o achado de 2026-09-25 já dizia "se o produto passar a guardar mais do que a
+   viagem corrente, revisitar": este é o gatilho, e ele **foi** olhado. O dono do produto decidiu em
+   2026-09-26 **gravar o documento no snapshot em disco**, nomeando o custo na própria frase com que
+   aceitou: _"Buscar por CPF funciona no meio do nada, sem sinal, que é o cenário real do motorista. Em
+   troca, o número fica no aparelho por até 24 h (menos, se a viagem fechar antes) e um telefone
+   desbloqueado nas mãos erradas o entrega a quem souber abrir as ferramentas do navegador."_ A
+   alternativa **descartada** foi manter o documento **só em memória**, retirando-o antes de persistir o
+   snapshot: o CPF nunca tocaria o disco, mas buscar por CPF passaria a exigir sinal — e sem rede é o
+   cenário do motorista, então uma busca que só funciona com sinal não serve para o campo. Registro em
+   ADR-0090 §3.5. **A mitigação que sustenta a decisão é F10: o documento nunca é renderizado** — a tela
+   não escreve o número em lugar nenhum, então o alcance do risco é quem souber abrir as ferramentas do
+   navegador num aparelho desbloqueado, não quem simplesmente pegar o telefone. O que continua faltando
+   é a criptografia em si, e ela segue sem conserto barato (a chave teria de morar no mesmo aparelho).
+2. **`taxid` não está na lista de chaves redigidas do logger.** `DEFAULT_REDACTED_KEYS` de
+   `@adatechnology/logger` tem `cpf` e `cnpj`, e casa por igualdade ou sufixo — `recipienttaxid` não
+   casa nenhum dos dois. O valor bem-formado ainda é redigido pela camada de padrão (CPF de 11 dígitos,
+   CNPJ de 14, com ou sem pontuação), mas documento truncado ou com espaços passaria. `createApiLogger`
+   (`main.ts:1373-1381`) não passa `extraKeys`, então não há conserto por configuração neste
+   repositório: a spec 214 garante que nada aqui coloque o campo em objeto de log, e o conserto durável
+   é `taxid` entrar na lista do pacote, no repositório `adatechnology-packages`.
+3. **Retenção no aparelho nunca aberto.** As 24 h são validade lógica, não expurgo garantido.
+
+**Origem:** spec 214 (busca dentro da viagem, na app do motorista), ADR-0090 §3. Registrado em
+2026-09-26.
+
 ## Fechados
 
 ### 2026-09-25 — PUT tardio na URL de subida trocava a foto da ocorrência já conferida (spec 179)
