@@ -4,14 +4,14 @@
 
 > 🤖 Modelo: `sonnet` (T2 é 🧠 — validar o snapshot à mão com `opus` antes do commit)
 
-- [ ] **T1** Contrato estático (CA2): reprova se `tripStops` declarar `latitude`, `longitude` ou
+- [x] **T1** Contrato estático (CA2): reprova se `tripStops` declarar `latitude`, `longitude` ou
       `geocodingPrecision` — `test/trip-schema/*.contract.ts` + lista do `package.json` — evidência:
       vermelho antes de T2.
-- [ ] **T2** 🧠 Remover as três colunas e os quatro `check`s de `trip.schema.ts`; migration à mão
+- [x] **T2** 🧠 Remover as três colunas e os quatro `check`s de `trip.schema.ts`; migration à mão
       com `snapshot.json` do schema novo e SQL/rollback sem efeito — `drizzle/<ts>_trip_stops_forget_dead_coordinates/`
       — evidência: `db:generate` = `no_changes`, `schema-snapshot.contract.ts` verde,
       `make migration-test` verde.
-- [ ] **T3** Comentários do RF3 — quatro arquivos citados na spec — evidência: `grep` sem
+- [x] **T3** Comentários do RF3 — quatro arquivos citados na spec — evidência: `grep` sem
       "existem e nunca são escrit".
 - [ ] **T4** Gates da fase A: typecheck, lint, contrato e integração da API; commit isolado; push para
       staging; deploy verde.

@@ -1223,10 +1223,10 @@ async function readTripDetail(
   const stopRecords = await queryable
     .select({
       /**
-       * Spec 079 T012: a coordenada vem de `geocoded_addresses` pela `address_key`, **não** de
-       * `trip_stops.latitude/longitude` — essas colunas existem e nunca são escritas (achado da
-       * T009), e lê-las devolveria nulo em toda parada. `left join` porque endereço ainda não
-       * geocodificado é o caso normal, e a tela o nomeia fora do mapa.
+       * Spec 079 T012: a coordenada vem de `geocoded_addresses` pela `address_key`, o único lugar
+       * onde ela existe — a 215 tirou de `trip_stops` as colunas que nunca foram escritas e
+       * devolviam nulo em toda parada. `left join` porque endereço ainda não geocodificado é o
+       * caso normal, e a tela o nomeia fora do mapa.
        *
        * ⚠️ `geocoded_addresses` **não tem tenant** de propósito (ADR-0044): é cache de endereço
        * público, e o recorte por empresa está na parada, que é o lado de cima da junção.

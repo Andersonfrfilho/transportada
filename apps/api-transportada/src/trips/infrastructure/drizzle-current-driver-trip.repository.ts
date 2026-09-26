@@ -673,9 +673,10 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
-   * A coordenada sai de `geocoded_addresses` pela `address_key`, nunca de `trip_stops.latitude`,
-   * que nunca é escrita (spec 199). A tabela não tem tenant (ADR-0044): o recorte fica no `where`
-   * de `trip_stops`, e `address_key` é a PK dela, então o `left join` não multiplica parada.
+   * A coordenada sai de `geocoded_addresses` pela `address_key`, o único lugar onde ela existe
+   * (spec 199; a 215 tirou as colunas mortas de `trip_stops`). A tabela não tem tenant (ADR-0044):
+   * o recorte fica no `where` de `trip_stops`, e `address_key` é a PK dela, então o `left join` não
+   * multiplica parada.
    */
   private async listStops(input: { readonly companyId: string; readonly tripIds: string[] }) {
     return this.database
