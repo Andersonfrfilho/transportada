@@ -42,7 +42,7 @@ entrada literal ao lado da derivada — sem migration, sem CHECK novo, sem mexer
 ## Critérios de aceite
 
 - CA1. `OCCURRENCE_TYPE_CATALOG` contém a entrada `{ name: 'Cliente pediu segunda via do boleto',
-  stage: 'delivery' }`.
+stage: 'delivery' }`.
 - CA2. Prova contra Postgres real: depois do seed, a linha gravada para esse tipo tem
   `attachment_mode = 'off'` e `leaves_document_behind = false` (os defaults de coluna, sem
   escrita explícita).

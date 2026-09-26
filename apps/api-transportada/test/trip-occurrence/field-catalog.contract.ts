@@ -40,7 +40,11 @@ describe('o catálogo do motorista informa se o tipo exige comprovante (spec 179
     })
 
     expect(types).toEqual([
-      { attachmentMode: 'required', id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' },
+      {
+        attachmentMode: 'required',
+        id: '00000000-0000-4000-8000-0000000000e1',
+        name: 'Cliente ausente',
+      },
     ])
   })
 
@@ -56,7 +60,11 @@ describe('o catálogo do motorista informa se o tipo exige comprovante (spec 179
     })
 
     expect(types).toEqual([
-      { attachmentMode: 'off', id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' },
+      {
+        attachmentMode: 'off',
+        id: '00000000-0000-4000-8000-0000000000e1',
+        name: 'Cliente ausente',
+      },
     ])
   })
 })

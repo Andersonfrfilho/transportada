@@ -12,7 +12,7 @@
 2. Não tocar em `TRIP_OCCURRENCE_TYPES`, na migration do CHECK, nem na cópia do
    `frontend-transportada` — nenhum dos três é alimentado pelo catálogo de bootstrap.
 3. `insertOccurrenceTypes` (repositório do seed) já grava só `{ companyId, name, stage }» — os
-   defaults de coluna (`attachment_mode = 'off'`, `leaves_document_behind = false`) cobrem os dois
+defaults de coluna (`attachment_mode = 'off'`, `leaves_document_behind = false`) cobrem os dois
    requisitos do pedido sem campo novo no tipo do catálogo.
 4. Teste de contrato (`catalog-seed.contract.ts`) antes do código: a entrada existe com a etapa
    certa.

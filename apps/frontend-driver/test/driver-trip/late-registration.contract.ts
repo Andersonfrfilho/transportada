@@ -57,9 +57,7 @@ function buildStop(overrides: Partial<DriverTripStop> = {}): DriverTripStop {
  */
 describe('"Registrar entrega depois" (pedido do usuário 25/09)', () => {
   it('parada travada com nota pendente: oferece o link', () => {
-    expect(
-      canOfferLateRegistration({ canActOnDocuments: false, stop: buildStop() }),
-    ).toBe(true)
+    expect(canOfferLateRegistration({ canActOnDocuments: false, stop: buildStop() })).toBe(true)
   })
 
   it('ações já liberadas (chegada ou confirmação anterior): não oferece', () => {
@@ -94,23 +92,21 @@ describe('o campo `lateRegistration` só sai atrás do interruptor', () => {
   })
 
   it('desligado: nunca envia, mesmo com o motorista tendo confirmado', () => {
-    expect(
-      shouldSendLateRegistration({ isFieldEnabled: false, lateRegistration: true }),
-    ).toBe(false)
+    expect(shouldSendLateRegistration({ isFieldEnabled: false, lateRegistration: true })).toBe(
+      false,
+    )
   })
 
   it('ligado, mas o motorista não confirmou: não envia', () => {
-    expect(
-      shouldSendLateRegistration({ isFieldEnabled: true, lateRegistration: undefined }),
-    ).toBe(false)
+    expect(shouldSendLateRegistration({ isFieldEnabled: true, lateRegistration: undefined })).toBe(
+      false,
+    )
     expect(shouldSendLateRegistration({ isFieldEnabled: true, lateRegistration: false })).toBe(
       false,
     )
   })
 
   it('ligado e confirmado: envia', () => {
-    expect(shouldSendLateRegistration({ isFieldEnabled: true, lateRegistration: true })).toBe(
-      true,
-    )
+    expect(shouldSendLateRegistration({ isFieldEnabled: true, lateRegistration: true })).toBe(true)
   })
 })

@@ -197,15 +197,11 @@ describe('marcador de ocorrência no cabeçalho da parada', () => {
  */
 describe('chegada da parada libera as ações das notas (pedido do usuário 25/09)', () => {
   it('sem `arrivedAt` e sem "Cheguei" na fila: chegada não registrada', () => {
-    expect(
-      isStopArrivalRecorded({ arrivedAt: null, queueView: [], stopId: 'stop-1' }),
-    ).toBe(false)
+    expect(isStopArrivalRecorded({ arrivedAt: null, queueView: [], stopId: 'stop-1' })).toBe(false)
   })
 
   it('`arrivedAt` do snapshot já confirma, mesmo sem nada na fila', () => {
-    expect(
-      isStopArrivalRecorded({ arrivedAt: NOW, queueView: [], stopId: 'stop-1' }),
-    ).toBe(true)
+    expect(isStopArrivalRecorded({ arrivedAt: NOW, queueView: [], stopId: 'stop-1' })).toBe(true)
   })
 
   it('"Cheguei" na fila desta parada libera na hora, sem esperar o servidor', () => {
@@ -246,8 +242,8 @@ describe('chegada da parada libera as ações das notas (pedido do usuário 25/0
    */
   it('parada atual com chegada registrada abre sozinha, sem sobrescrita nenhuma', () => {
     expect(isStopArrivalRecorded({ arrivedAt: NOW, queueView: [], stopId: 'stop-1' })).toBe(true)
-    expect(
-      isStopOpen({ currentStopId: 'stop-1', overrides: new Map(), stopId: 'stop-1' }),
-    ).toBe(true)
+    expect(isStopOpen({ currentStopId: 'stop-1', overrides: new Map(), stopId: 'stop-1' })).toBe(
+      true,
+    )
   })
 })

@@ -334,9 +334,7 @@ export function DriverTripWorkspacePage() {
       createIdempotencyKey,
       documentId: input.documentId,
       draft: input.draft,
-      ...(input.lateRegistration === undefined
-        ? {}
-        : { lateRegistration: input.lateRegistration }),
+      ...(input.lateRegistration === undefined ? {} : { lateRegistration: input.lateRegistration }),
       occurrenceTypes,
     })
     const outcome = await driverTrip.reportNotDelivered(reports)

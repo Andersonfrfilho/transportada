@@ -72,7 +72,7 @@ bun --env-file=../../.env.test test ./test/integration/occurrence-type-catalog-s
   skip, 0 fail**, 24758 expect() calls.
 - **Typecheck**: `bun run typecheck` (`tsc --noEmit`) → sem saída, sem erro.
 - **Lint**: `bun run lint` (`eslint src test drizzle.config.ts eslint.config.js
-  --max-warnings=0`) → sem saída, sem erro.
+--max-warnings=0`) → sem saída, sem erro.
 - **Integração do arquivo tocado, isolada**:
   `bun --env-file=../../.env.test test ./test/integration/occurrence-type-catalog-seed.integration.ts`
   → **1 pass, 0 fail**, 10 expect() calls (T2 acima).
