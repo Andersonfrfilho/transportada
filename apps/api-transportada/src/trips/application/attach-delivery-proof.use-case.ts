@@ -92,12 +92,11 @@ export type DeliveryProofPort = {
   }): Promise<DeliveryProofPunctualitySettings>
   /**
    * ADR-0070 §5, spec 159 RF5/RF6: o que `classifyProofPunctuality` precisa do evento de entrega —
-   * quando aconteceu e onde (evento e parada). Lido pelo `eventId` já resolvido, não pela nota.
+   * quando e onde a baixa aconteceu. Lido pelo `eventId` já resolvido, não pela nota.
    */
   findDeliveryContext(input: { readonly companyId: string; readonly eventId: string }): Promise<{
     readonly deliveredAt: Date
     readonly deliveryEventPosition: Coordinate | undefined
-    readonly stopPosition: Coordinate | undefined
   }>
   /** `null` quando nenhum comprovante daquele evento+tipo foi gravado com esta chave. */
   findProofIdByAttachmentKey(input: {
@@ -318,6 +317,5 @@ async function classifyPhotoPunctuality(params: {
     proofRadiusMeters: punctualitySettings.proofRadiusMeters,
     proofWindowMinutes: punctualitySettings.proofWindowMinutes,
     receivedAt: input.now,
-    stopPosition: context.stopPosition,
   })
 }

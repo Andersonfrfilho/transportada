@@ -450,6 +450,95 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   )
 
   /**
+   * Emenda 2026-09-25 da ADR-0070 §4: a referência do raio é a posição da baixa, não o pino de
+   * `geocoded_addresses`. A parada ganha um pino a ~360 km da entrega: a foto tirada onde a baixa
+   * aconteceu continua pontual, e a tirada em cima do pino conta como longe.
+   */
+  testWithPostgres(
+    'o pino geocodificado da parada não é a referência do raio da foto (ADR-0070)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        const stopPin = { latitude: '-22.9068467', longitude: '-43.1728965' } as const
+        await database.db.insert(geocodedAddresses).values({
+          addressKey: '3550308|01001000|100',
+          latitude: stopPin.latitude,
+          longitude: stopPin.longitude,
+          precision: 'rooftop',
+          source: 'manual',
+        })
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: world.companyId, photo: 'required' })
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+        const repository = new DrizzleDeliveryProofRepository(database.db, 'test-bucket')
+        const storage = { store: async () => ({ sha256: '0'.repeat(64) }) }
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+        const photoTakenAt = new Date(NOW.getTime() + 5 * 60 * 1000)
+        const attachPhotoAt = (
+          documentId: string,
+          position: { readonly latitude: string; readonly longitude: string },
+        ) =>
+          attachDeliveryProof({
+            actorUserId: world.userId,
+            companyId: world.companyId,
+            documentId,
+            driverId: world.driverId,
+            newObjectId: () => crypto.randomUUID(),
+            newProofId: () => crypto.randomUUID(),
+            now: photoTakenAt,
+            repository,
+            sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+            storage,
+            upload: {
+              attachmentKey: '',
+              bytes: new Uint8Array([1, 2, 3]),
+              capturedAt: photoTakenAt,
+              kind: 'photo',
+              mimeType: 'image/jpeg',
+              position,
+              receiverDocument: '',
+              receiverName: '',
+            },
+          })
+
+        const deliver = (documentId: string, idempotencyKey: string) =>
+          reportDocumentDelivery({
+            ...context,
+            documentId,
+            idempotencyKey,
+            location: LOCATION,
+            now: NOW,
+            unitOfWork,
+          })
+        await reportStopArrival({
+          ...context,
+          idempotencyKey: 'chegada-com-pino',
+          location: LOCATION,
+          now: NOW,
+          stopId: world.stopIds[0] ?? '',
+          unitOfWork,
+        })
+        await deliver(world.documentIds[0] ?? '', 'entrega-com-pino-1')
+        await deliver(world.documentIds[1] ?? '', 'entrega-com-pino-2')
+
+        const atDelivery = await attachPhotoAt(world.documentIds[0] ?? '', {
+          latitude: LOCATION.latitude,
+          longitude: LOCATION.longitude,
+        })
+        const atStopPin = await attachPhotoAt(world.documentIds[1] ?? '', stopPin)
+
+        expect(atDelivery.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
+        expect(atStopPin.punctuality).toBe(PROOF_PUNCTUALITY.away)
+      })
+    },
+  )
+
+  /**
    * Spec 159 T6, ADR-0070 §1: `/deliver` responde `proofPending`, e o snapshot mostra o mesmo aviso
    * por documento até a foto chegar — nunca recusando a entrega. Contra Postgres de verdade porque
    * a leitura do snapshot é SQL próprio (`listDeliveryPhotoPresence`).

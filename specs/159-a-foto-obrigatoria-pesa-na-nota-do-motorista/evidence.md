@@ -864,3 +864,24 @@ $ bun run --cwd apps/frontend-transportada build    # ok
 
 Regressão conferida: a suíte original `spec-159-prints.smoke.spec.ts` (22 testes, T12) segue passando
 com a coluna "Nota" reordenada — nenhum teste depende da ordem das colunas.
+
+## 2026-09-25 — a referência do raio é a posição da baixa (emenda da ADR-0070)
+
+`findDeliveryContext` lia `trip_stops.latitude/longitude` como `stopPosition`, colunas que nunca são
+escritas (spec 079 T009); a política sempre caía na posição do evento. O usuário decidiu que a
+referência **é** a posição do evento de entrega, não o pino de `geocoded_addresses`. A leitura morta,
+o `inner join` em `trip_stops` que só existia para ela e o `stopPosition` do contrato da política
+saíram. Comportamento gravado não muda.
+
+Teste novo contra Postgres (`me-trip.integration.ts`): a parada ganha pino `rooftop` a ~360 km da
+baixa; a foto tirada na baixa sai `on_time` e a tirada em cima do pino sai `away`.
+
+```
+$ bun run typecheck                                                     # raiz — 0 erros
+$ bun run lint                                                          # raiz — 0 erros
+$ bun --env-file=../../.env.test test --timeout 120000                  # 7312 pass / 23 skip / 0 fail (183 arquivos)
+$ bun --env-file=../../.env.test run test:integration                   # 616 pass / 7 skip / 0 fail (112 arquivos)
+```
+
+Os contratos `test/*-schema/tenant-safety.contract.ts` estão na primeira suíte. A query continua
+recortada por `trip_stop_events.company_id`.

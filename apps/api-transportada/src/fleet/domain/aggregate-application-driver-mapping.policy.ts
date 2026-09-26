@@ -299,6 +299,23 @@ export function hasDeclaredVehicle(
 }
 
 /**
+ * `fleet_vehicles_vehicle_type_check` exige `role = 'traction'` exatamente quando `vehicleType`
+ * está na lista fechada — "implemento não tem tipo". O veículo do agregado é o que ele dirige, quase
+ * sempre tração; sem o tipo declarado, `'other'` é o mesmo escape que a SEFAZ já publica para o que
+ * a lista não nomeia (o par com `bodyType ?? '00'` logo abaixo, "não aplicável" do MDF-e). Um
+ * `role: 'trailer'` declarado, ao contrário, nunca carrega tipo — a candidatura não teria como
+ * escolher os dois ao mesmo tempo na tela, mas a simetria vale de qualquer forma.
+ */
+function resolveVehicleRoleFields(vehicle: AggregateApplicationDeclaredVehicle): Readonly<{
+  role: FleetVehicleRole
+  vehicleType: VehicleType | ''
+}> {
+  const role = vehicle.role ?? 'traction'
+  if (role !== 'traction') return { role, vehicleType: '' }
+  return { role, vehicleType: vehicle.vehicleType ?? 'other' }
+}
+
+/**
  * `fleet_vehicles_state_check` exige UF válida na placa — sempre, sem exceção de "não preenchido".
  * Quando a candidatura não declarou a UF do veículo, a UF do endereço do próprio motorista é o
  * melhor palpite disponível (o veículo normalmente está emplacado onde o agregado mora); ainda
@@ -308,6 +325,8 @@ export function mapDeclaredDataToVehicleInput(
   vehicle: AggregateApplicationDeclaredVehicle,
   fallbackState: string = '',
 ): MappedFleetVehicleInput {
+  const roleFields = resolveVehicleRoleFields(vehicle)
+
   return {
     axleCount: vehicle.axleCount ?? 0,
     bodyType: vehicle.bodyType ?? '00',
@@ -320,10 +339,10 @@ export function mapDeclaredDataToVehicleInput(
     modelYear: vehicle.modelYear ?? 0,
     plate: vehicle.plate ?? '',
     renavam: vehicle.renavam ?? '',
-    role: vehicle.role ?? 'traction',
+    role: roleFields.role,
     state: vehicle.state ?? (fallbackState.length > 0 ? fallbackState : 'SP'),
     tareWeightKilograms: vehicle.tareWeightKilograms ?? '0',
-    vehicleType: vehicle.vehicleType ?? '',
+    vehicleType: roleFields.vehicleType,
   }
 }
 

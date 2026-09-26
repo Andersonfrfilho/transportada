@@ -37,7 +37,10 @@ export type ClassifyProofPunctualityParams = {
   /** Quando o servidor recebeu a foto. */
   readonly receivedAt: Date
   readonly photoPosition: ProofPosition | undefined
-  readonly stopPosition: Coordinate | undefined
+  /**
+   * A referência do raio: onde o motorista deu a baixa (emenda 2026-09-25 da ADR-0070 §4). O pino
+   * geocodificado da parada não entra — a foto prova o lugar da entrega registrada.
+   */
   readonly deliveryEventPosition: Coordinate | undefined
   readonly proofWindowMinutes: number
   readonly proofRadiusMeters: number
@@ -77,16 +80,14 @@ function isLate(params: ClassifyProofPunctualityParams, timeReference: Date): bo
 
 /**
  * RF6: sem posição da foto, conta como longe — o motorista precisa compartilhar a localização para
- * provar que estava no local. Sem referência nenhuma de local (parada nem evento), a distância não
- * pesa: não há como julgar.
+ * provar que estava no local. Sem posição no evento de entrega, a distância não pesa: não há como
+ * julgar.
  */
 function isAway(params: ClassifyProofPunctualityParams): boolean {
   if (params.photoPosition === undefined) return true
+  if (params.deliveryEventPosition === undefined) return false
 
-  const locationReference = params.stopPosition ?? params.deliveryEventPosition
-  if (locationReference === undefined) return false
-
-  const distance = distanceInMetres(params.photoPosition, locationReference)
+  const distance = distanceInMetres(params.photoPosition, params.deliveryEventPosition)
   if (distance === null) return false
 
   /**
