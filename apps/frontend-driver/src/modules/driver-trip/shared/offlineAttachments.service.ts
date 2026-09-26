@@ -37,6 +37,11 @@ export type QueuedAttachment = Readonly<{
   accuracyMeters?: number
   latitude?: number
   longitude?: number
+  /**
+   * Spec 212: a foto gravada ainda não reduzida — nenhuma drenagem a leva, nem o envio manual. A
+   * redução troca o arquivo e tira a marca; a falha dela também tira, e o original sobe.
+   */
+  pendingReduction?: true
   /** Spec 193 D1: quem recebeu, em relação ao destinatário — código de `RECEIVED_BY_OPTIONS`. */
   receivedBy?: string
   /** Spec 193 D1: o detalhe curto — nunca em log, mesmo espírito do nome e do documento. */
@@ -418,7 +423,12 @@ export async function drainQueueWithAttachments(input: {
           input.only === undefined && attachment.rejectionCause !== undefined
         const isForeignAttachment =
           input.ownerSubHash !== undefined && attachment.subHash !== input.ownerSubHash
-        if (skipRejectedAttachment || isForeignAttachment || attachment.isUnverified === true) {
+        if (
+          skipRejectedAttachment ||
+          isForeignAttachment ||
+          attachment.isUnverified === true ||
+          attachment.pendingReduction === true
+        ) {
           continue
         }
 

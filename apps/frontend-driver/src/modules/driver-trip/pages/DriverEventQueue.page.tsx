@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { hasSendableEvents, type EventQueueItemView } from '../shared/eventQueueView.service'
+import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
@@ -48,9 +49,15 @@ export function DriverEventQueuePage({
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
 
+  /** Spec 212: a causa conhecida sai em texto humano; a desconhecida, crua como veio. */
+  function causeLabel(cause: string): string {
+    const key = resolveRejectionCauseLabelKey(cause)
+    return key === undefined ? cause : t(key)
+  }
+
   function statusLabel(item: EventQueueItemView): string {
     if (item.status.state === 'rejected') {
-      return t('eventQueue.status.rejected', { cause: item.status.cause })
+      return t('eventQueue.status.rejected', { cause: causeLabel(item.status.cause) })
     }
     if (item.status.state === 'unverified') return t('eventQueue.status.unverified')
     if (item.status.state === 'failed') {
@@ -111,7 +118,7 @@ export function DriverEventQueuePage({
                   {item.attachmentRejectionCause === undefined ? null : (
                     <p className={styles.eventQueueStatusRejected}>
                       {t('eventQueue.status.attachmentRejected', {
-                        cause: item.attachmentRejectionCause,
+                        cause: causeLabel(item.attachmentRejectionCause),
                       })}
                     </p>
                   )}

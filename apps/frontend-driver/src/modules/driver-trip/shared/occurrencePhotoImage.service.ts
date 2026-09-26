@@ -21,15 +21,19 @@ const OCCURRENCE_PHOTO_MIME_TYPE = 'image/jpeg'
 
 export type OccurrencePhotoImageSize = Readonly<{ height: number; width: number }>
 
-/** Pura: escala para o lado maior caber em `OCCURRENCE_PHOTO_MAX_SIDE`, sem aumentar foto pequena. */
+/**
+ * Pura: escala para o lado maior caber em `maxSide` (padrão `OCCURRENCE_PHOTO_MAX_SIDE`), sem
+ * aumentar foto pequena. Spec 212: o canhoto passa o lado dele (2000 px, e menos se não couber).
+ */
 export function computeOccurrencePhotoOriginalDimensions({
   height,
+  maxSide = OCCURRENCE_PHOTO_MAX_SIDE,
   width,
-}: OccurrencePhotoImageSize): OccurrencePhotoImageSize {
+}: OccurrencePhotoImageSize & { readonly maxSide?: number }): OccurrencePhotoImageSize {
   const largestSide = Math.max(height, width)
-  if (largestSide <= OCCURRENCE_PHOTO_MAX_SIDE) return { height, width }
+  if (largestSide <= maxSide) return { height, width }
 
-  const scale = OCCURRENCE_PHOTO_MAX_SIDE / largestSide
+  const scale = maxSide / largestSide
   return {
     height: Math.max(1, Math.round(height * scale)),
     width: Math.max(1, Math.round(width * scale)),
@@ -52,7 +56,7 @@ export function buildOccurrencePhotoQualitySequence(
   return sequence
 }
 
-function loadImageFromFile(file: File): Promise<HTMLImageElement> {
+export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const image = new Image()
@@ -80,30 +84,45 @@ function encodeCanvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise
 }
 
 /**
- * Impura: reencoda pelo canvas em degraus de qualidade até o alvo ou o piso de legibilidade — o
- * canvas descarta o EXIF sozinho, inclusive o GPS da foto (D12/RF29). Devolve a menor tentativa;
- * quem chama confere o teto do servidor (`isOccurrencePhotoWithinLimit`).
+ * Impura: reencoda pelo canvas em degraus de qualidade até `targetBytes` ou o piso de legibilidade
+ * — o canvas descarta o EXIF sozinho, inclusive o GPS da foto (D12/RF29). Devolve a menor
+ * tentativa; quem chama confere o teto do servidor.
  */
-export async function reduceOccurrencePhotoToJpeg(file: File): Promise<DriverOccurrencePhoto> {
-  const image = await loadImageFromFile(file)
+export async function encodeImageToJpeg(input: {
+  readonly image: HTMLImageElement
+  readonly maxSide: number
+  readonly targetBytes: number
+}): Promise<Blob> {
   const size = computeOccurrencePhotoOriginalDimensions({
-    height: image.naturalHeight,
-    width: image.naturalWidth,
+    height: input.image.naturalHeight,
+    maxSide: input.maxSide,
+    width: input.image.naturalWidth,
   })
   const canvas = document.createElement('canvas')
   canvas.width = size.width
   canvas.height = size.height
   const context = canvas.getContext('2d')
   if (context === null) throw new Error('OCCURRENCE_PHOTO_CANVAS_UNAVAILABLE')
-  context.drawImage(image, 0, 0, size.width, size.height)
+  context.drawImage(input.image, 0, 0, size.width, size.height)
 
   let smallest: Blob | undefined
   for (const quality of buildOccurrencePhotoQualitySequence()) {
     const blob = await encodeCanvasToJpeg(canvas, quality)
     if (smallest === undefined || blob.size < smallest.size) smallest = blob
-    if (blob.size <= OCCURRENCE_PHOTO_TARGET_BYTES) break
+    if (blob.size <= input.targetBytes) break
   }
   if (smallest === undefined) throw new Error('OCCURRENCE_PHOTO_ENCODE_FAILED')
+  return smallest
+}
+
+/** A foto da ocorrência: 1600 px e ~400 KiB (D12) — quem chama confere `isOccurrencePhotoWithinLimit`. */
+export async function reduceOccurrencePhotoToJpeg(file: File): Promise<DriverOccurrencePhoto> {
+  const image = await loadImageFromFile(file)
+  const smallest = await encodeImageToJpeg({
+    image,
+    maxSide: OCCURRENCE_PHOTO_MAX_SIDE,
+    targetBytes: OCCURRENCE_PHOTO_TARGET_BYTES,
+  })
 
   const baseName = file.name.replace(/\.[^./\\]+$/u, '') || 'ocorrencia'
   return { blob: smallest, fileName: `${baseName}.jpg` }

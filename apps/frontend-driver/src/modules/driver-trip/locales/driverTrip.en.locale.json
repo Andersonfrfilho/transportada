@@ -31,6 +31,9 @@
     "attachments_one": "{{count}} attachment",
     "attachments_other": "{{count}} attachments",
     "back": "Back",
+    "cause": {
+      "tooLarge": "the photo is larger than the server accepts"
+    },
     "empty": "Nothing waiting to be sent.",
     "kind": {
       "arrive": "Arrival",

@@ -44,8 +44,15 @@ import {
   scheduleQueueDrainTriggers,
   selectPendingTotal,
 } from '../shared/pendingQueue.service'
-import { reduceOccurrencePhotoToJpeg } from '../shared/occurrencePhotoImage.service'
-import { replaceAttachmentBlob, shouldReduceProofFile } from '../shared/proofPhotoReduction.service'
+import {
+  reduceProofPhotoToJpeg,
+  shouldReduceProofFile,
+} from '../shared/proofPhotoReduction.service'
+import {
+  recoverQueuedProofPhotos,
+  reduceQueuedProofPhoto,
+  type ProofPhotoReductions,
+} from '../shared/proofPhotoRecovery.service'
 import { buildProofReceiverReport } from '../shared/proofReceiver.service'
 import {
   discardForeignPending,
@@ -295,9 +302,22 @@ export function useDriverTrip(
     createDrainScheduler({ run: (only) => runDrainRef.current(only) }),
   )
 
+  /** Spec 212: as reduções do canhoto em voo — a varredura e a drenagem esperam por elas. */
+  const [proofPhotoReductions] = useState<ProofPhotoReductions>(() => new Map())
+  const recoverProofPhotos = useCallback(async (): Promise<void> => {
+    const recovered = await recoverQueuedProofPhotos({
+      attachmentStore,
+      reduce: reduceProofPhotoToJpeg,
+      reductions: proofPhotoReductions,
+    })
+    if (recovered > 0) await refreshQueueView()
+  }, [attachmentStore, proofPhotoReductions, refreshQueueView])
+
   /** A drenagem é uma só — automática e manual entram pela mesma porta, `only` restringe. */
   const drain = useMutation({
     mutationFn: async (only?: string) => {
+      /** Spec 212: a foto grande presa (413) volta reduzida e sem causa antes de a fila ser lida. */
+      await recoverProofPhotos()
       const client = getDriverTripClient()
       /** O que o servidor aceitou nesta drenagem, chave a chave — é isso que a tela chama de enviado. */
       const sentKeys: string[] = []
@@ -438,9 +458,10 @@ export function useDriverTrip(
      * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
      * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
      */
-    void discardStaleAttachments({ attachmentStore, now: new Date(), store }).then(() =>
-      refreshQueueView(),
-    )
+    void discardStaleAttachments({ attachmentStore, now: new Date(), store })
+      .then(() => refreshQueueView())
+      /** Spec 212: também sem rede — a foto já sai reduzida quando a drenagem puder levá-la. */
+      .then(() => recoverProofPhotos())
     /** "Abertura" (plan D5): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
     drainRef.current(undefined)
 
@@ -456,7 +477,7 @@ export function useDriverTrip(
       syncDrainTimerRef.current = () => undefined
       cancelTriggers()
     }
-  }, [attachmentStore, refreshQueueView, store])
+  }, [attachmentStore, recoverProofPhotos, refreshQueueView, store])
 
   /** A4: a gravação conta como captura aberta até o IndexedDB confirmar — nada navega no meio. */
   function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
@@ -609,27 +630,25 @@ export function useDriverTrip(
   async function enqueueProof(input: DriverProofInput): Promise<DriverProofOutcome> {
     /* Spec 207: usa a chave da tela quando ela vem — é a mesma que "Remover" vai pedir depois. */
     const attachmentKey = input.attachmentKey ?? createIdempotencyKey()
+    /** Spec 212: a foto nasce marcada — nenhuma drenagem a leva antes da versão leve. */
+    const shouldReduce = shouldReduceProofFile({ file: input.file, kind: input.kind })
+    const attachment: QueuedAttachment = {
+      attachmentKey,
+      blob: input.file,
+      capturedAt: new Date().toISOString(),
+      documentId: input.documentId,
+      fileName: input.file.name,
+      kind: input.kind,
+      ...(shouldReduce ? { pendingReduction: true as const } : {}),
+      ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
+      ...(input.receivedByDetail === undefined ? {} : { receivedByDetail: input.receivedByDetail }),
+      ...(input.receiverDocument === undefined ? {} : { receiverDocument: input.receiverDocument }),
+      ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+      ...(input.lateRegistration === undefined ? {} : { lateRegistration: input.lateRegistration }),
+      subHash: session.subHash,
+    }
     const result = await enqueueAttachment({
-      attachment: {
-        attachmentKey,
-        blob: input.file,
-        capturedAt: new Date().toISOString(),
-        documentId: input.documentId,
-        fileName: input.file.name,
-        kind: input.kind,
-        ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
-        ...(input.receivedByDetail === undefined
-          ? {}
-          : { receivedByDetail: input.receivedByDetail }),
-        ...(input.receiverDocument === undefined
-          ? {}
-          : { receiverDocument: input.receiverDocument }),
-        ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
-        ...(input.lateRegistration === undefined
-          ? {}
-          : { lateRegistration: input.lateRegistration }),
-        subHash: session.subHash,
-      },
+      attachment,
       attachmentStore,
       isUnverified: !session.canSync,
       store,
@@ -638,8 +657,14 @@ export function useDriverTrip(
 
     const eventKey = result.eventKey
     /* Grava primeiro (spec 203) e só então reduz: a versão leve troca o arquivo no mesmo item. */
-    const reduction = shouldReduceProofFile({ file: input.file, kind: input.kind })
-      ? reduceQueuedProofPhoto({ attachmentKey, eventKey, file: input.file })
+    const reduction = shouldReduce
+      ? reduceQueuedProofPhoto({
+          attachment,
+          attachmentStore,
+          eventKey,
+          reduce: reduceProofPhotoToJpeg,
+          reductions: proofPhotoReductions,
+        })
       : Promise.resolve()
     void readCurrentLocation().then((location) => {
       if (location === null) return
@@ -652,29 +677,9 @@ export function useDriverTrip(
     })
 
     await refreshQueueView()
-    // O envio espera a versão leve: o original da câmera (3–5 MB) bate no teto de 2 MB da API.
+    // O envio espera a versão leve: o original da câmera (3–5 MB) passa do corpo de 1 MiB da API.
     void reduction.finally(() => requestDrain(undefined))
     return 'queued'
-  }
-
-  /** Falhar a redução nunca perde a foto: o original continua no item e sobe como está. */
-  async function reduceQueuedProofPhoto(input: {
-    attachmentKey: string
-    eventKey: string
-    file: File
-  }): Promise<void> {
-    const reduced = await reduceOccurrencePhotoToJpeg(input.file).catch(() => undefined)
-    if (reduced === undefined || reduced.blob.size >= input.file.size) return
-    await attachmentStore.update({
-      eventKey: input.eventKey,
-      mutate: (items) =>
-        replaceAttachmentBlob({
-          attachmentKey: input.attachmentKey,
-          blob: reduced.blob,
-          fileName: reduced.fileName,
-          items,
-        }),
-    })
   }
 
   /**

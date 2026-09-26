@@ -10,6 +10,7 @@ import {
 } from '@/modules/driver-trip/shared/proofPhotoReduction.service'
 
 const HOOK = 'src/modules/driver-trip/hooks/useDriverTrip.hook.ts'
+const RECOVERY = 'src/modules/driver-trip/shared/proofPhotoRecovery.service.ts'
 
 function queued(attachmentKey: string, blob: Blob): QueuedAttachment {
   return {
@@ -53,13 +54,13 @@ describe('a foto do comprovante sai leve do aparelho (pedido de 26/09)', () => {
   it('grava primeiro, reduz depois e só então libera o envio; falha na redução mantém o original', () => {
     const hook = readFileSync(HOOK, 'utf8')
     const enqueueAt = hook.indexOf('await enqueueAttachment(')
-    const reduceAt = hook.indexOf(
-      'reduceQueuedProofPhoto({ attachmentKey, eventKey, file: input.file })',
-    )
+    const reduceAt = hook.indexOf('reduceQueuedProofPhoto({', enqueueAt)
+    const recovery = readFileSync(RECOVERY, 'utf8')
 
     expect(enqueueAt).toBeGreaterThan(-1)
     expect(reduceAt).toBeGreaterThan(enqueueAt)
     expect(hook).toInclude('void reduction.finally(() => requestDrain(undefined))')
-    expect(hook).toInclude('reduceOccurrencePhotoToJpeg(input.file).catch(() => undefined)')
+    expect(recovery).toInclude('await input.reduce(source).catch(() => undefined)')
+    expect(recovery).toInclude('clearPendingReduction(')
   })
 })

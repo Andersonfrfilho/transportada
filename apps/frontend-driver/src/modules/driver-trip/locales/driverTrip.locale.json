@@ -19,6 +19,9 @@
     "attachments_one": "{{count}} anexo",
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
+    "cause": {
+      "tooLarge": "a foto passou do tamanho aceito pelo servidor"
+    },
     "empty": "Nada aguardando envio.",
     "kind": {
       "arrive": "Chegada",
