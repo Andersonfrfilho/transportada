@@ -73,6 +73,10 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
       messageId,
       correlationId: 'contractor-mail-outbound-outbox-integration',
       payload: {},
+      // O claim ordena por created_at e limita no banco inteiro: a linha semeada precisa vir primeiro.
+      createdAt: sql`coalesce((select min(created_at) from contractor_mail_outbox), now()) - interval '1 minute'`,
+      // `now()` do banco tem microssegundo e o `new Date()` do claim, milissegundo — no mesmo ms, não venceu.
+      nextAttemptAt: sql`now() - interval '1 minute'`,
     })
 
     return { companyId, eventId, messageId, threadId }
@@ -146,7 +150,7 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
     const claimed = await repository.claimDueEntries({
       claimOwner,
       leaseMs: 30_000,
-      limit: 10,
+      limit: 1,
       now: new Date(),
     })
     const entry = claimed.find((row) => row.eventId === seeded.eventId)
@@ -188,7 +192,7 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
     const firstClaim = await repository.claimDueEntries({
       claimOwner: `integration-a-${crypto.randomUUID()}`,
       leaseMs: 30_000,
-      limit: 10,
+      limit: 1,
       now: new Date(),
     })
     expect(firstClaim.some((row) => row.eventId === seeded.eventId)).toBe(true)
