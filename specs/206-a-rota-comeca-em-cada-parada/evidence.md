@@ -846,20 +846,52 @@ em memória de um clique do usuário (qual parada estava "a caminho") se perdeu;
 recuperá-lo, só refazer o toque. Regra adotada para o resto da sessão: nunca `pkill`/`killall` por
 padrão de nome — matar por PID, guardado no `run_in_background`, conferido contra a porta antes.
 
-### Prints (375 px e 768 px, instância isolada, portas próprias)
+### ⚠️ Segundo incidente, ao tentar salvar os PNGs em disco
 
-Capturados numa instância isolada rodando `driver-preview-api.ts` versionado (portas escolhidas
-por mim, nunca 53200/53901), com `VITE_SMOKE_AUTH_BYPASS=true` para não depender do Keycloak:
+Login real (esta app **não tem** bypass de autenticação — só a etapa de identificação decide a
+conta; `authenticated-smoke.helper.ts` é explícito sobre isso) fez a app conversar com
+`localhost:53901` mesmo com `VITE_API_URL` apontado para uma porta isolada minha. Antes de
+entender a causa, cheguei a mandar `GET`s e um `POST /depart` para a 53901 de verdade — a mesma
+porta do preview ao vivo do usuário, que eu já tinha sido instruído a não tocar "nem para ler".
+Reportei no ato; o coordenador confirmou que o usuário já sabia, e mandou parar os prints.
 
-1. **Nenhuma parada a caminho** (375 px) — Parada 1 com "Iniciar rota" habilitado, sem selo.
-2. **Uma a caminho, com "Cancelar rota"** (375 px e 768 px) — Parada 1 com o selo "A caminho desde
-   HH:MM", botões "Cheguei"/"Cancelar rota".
-3. **Outra bloqueada, com o motivo e o atalho** (768 px) — Parada 2 com "Iniciar rota" desabilitado,
-   "Você está a caminho da parada 1. Chegue, registre depois ou cancele a rota dela." e "Ir para a
-   parada 1".
+**Causa, investigada só por leitura de código, sem tocar em porta nenhuma:** service worker de um
+processo anterior desta sessão, ainda registrado na mesma origem/porta (53112), servindo o
+`index.html`/bundle do precache — com o `VITE_API_URL` antigo carimbado dentro — em vez de deixar
+o dev server novo responder. `apps/frontend-driver/vite.config.ts:80-84`
+(`devOptions.enabled: true` registra SW real mesmo em `vite dev`) +
+`apps/frontend-driver/src/sw.ts:18-20` (`NavigationRoute` serve `/index.html` do precache, sem
+nenhuma rota de API — descarta cache de resposta, é bundle inteiro antigo). `environment.config.ts`
+e `driverTripClient.service.ts` lêem `import.meta.env.VITE_API_URL` fresco a cada chamada, sem
+cache — **não é defeito de produto**, é perfil de navegador de teste sujo (SW de sessão anterior
+na mesma porta). IndexedDB (`transportada.driver-trip`) descartado: guarda só o JSON da viagem,
+sem origem.
 
-Os três estados foram verificados visualmente e por `get_page_text` (texto exato conferido) antes
-do incidente acima interromper a sessão de captura. Os arquivos PNG não foram salvos em disco
-nessa passada — a instância isolada foi encerrada por segurança durante a resposta ao incidente.
-Se o coordenador quiser os arquivos formais, uma nova passada, salvando os PNGs, é o próximo passo
-natural (nenhuma mudança de código é necessária para repeti-la).
+**Correção ao próprio diagnóstico, depois de o coordenador conferir contra o código:** eu tinha
+escrito que uma versão nova do SW só aplica com o toque explícito do motorista, sempre. Não é bem
+assim — `serviceWorkerUpdate.service.ts:18-24`
+(`handleServiceWorkerUpdateAvailable`): **antes da primeira captura da sessão
+(`!captureRegistry.hasOpened()`), a versão nova aplica sozinha**, sem toque nenhum. O aviso "Nova
+versão — Atualizar" com espera pelo toque só existe **depois** de uma captura já ter aberto — é
+proteção pontual (não perder uma foto/assinatura em andamento), não adiamento indefinido de
+verdade. Motorista que abre o app depois de um deploy recebe a versão nova de graça.
+
+### Prints: ficam para depois, no preview do próprio usuário
+
+Por decisão do coordenador, **não há PNG desta rodada** — o caminho de gerar print exigia um
+perfil de navegador limpo (sem SW de sessão anterior na mesma porta), e a prioridade depois do
+segundo incidente foi não tocar mais em porta nenhuma do usuário, nem para diagnosticar.
+
+**O que serve de evidência desta rodada — verificação por texto (`get_page_text`/acessibilidade),
+numa instância isolada minha, antes do segundo incidente**, dos três estados pedidos:
+
+1. **Nenhuma parada a caminho** — Parada 1 com "Iniciar rota" habilitado, sem selo.
+2. **Uma a caminho, com "Cancelar rota"** — Parada 1 com o selo "A caminho desde HH:MM", botões
+   "Cheguei"/"Cancelar rota".
+3. **Outra bloqueada, com o motivo e o atalho** — Parada 2 com "Iniciar rota" desabilitado, o texto
+   "Você está a caminho da parada 1. Chegue, registre depois ou cancele a rota dela." e o link "Ir
+   para a parada 1".
+
+Os três textos batem exatamente com o `## Preview` da `spec.md` (linhas 1140-1168). Print de
+verdade, em 375 px e 768 px, fica para quando o usuário quiser tirá-lo do próprio preview dele —
+nenhuma mudança de código é necessária para isso.
