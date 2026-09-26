@@ -54,6 +54,7 @@ import {
   DELIVERY_PROOF_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
+  DELIVERY_PROOF_OPTIONAL_KEYS,
   TRIP_DOCUMENT_PRODUCT_KEYS,
   TRIP_OCCURRENCE_KEYS,
   TRIP_CARGO_WEIGHT_KEYS,
@@ -81,6 +82,7 @@ import {
   FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS,
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
   TRIP_TIMELINE_ITEM_KEYS,
+  TRIP_TIMELINE_ITEM_OPTIONAL_KEYS,
   TRIP_TIMELINE_STOP_REFERENCE_KEYS,
   TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
@@ -1121,11 +1123,18 @@ function isOccupancy(value: unknown): boolean {
   )
 }
 
-/** Spec 193 T3.1: quem recebeu entra por `hasKeys`, e chave desconhecida continua recusada. */
+/**
+ * Spec 193 T3.1: quem recebeu entra por `hasKeys`, e chave desconhecida continua recusada. Spec 205
+ * RF8: o registro tardio e a máscara do documento entram do mesmo jeito.
+ */
 function isDeliveryProof(value: unknown): value is DeliveryProof {
   if (
     !hasKeys(value, {
-      allowed: [...DELIVERY_PROOF_KEYS, ...DELIVERY_PROOF_RECEIVED_BY_KEYS],
+      allowed: [
+        ...DELIVERY_PROOF_KEYS,
+        ...DELIVERY_PROOF_OPTIONAL_KEYS,
+        ...DELIVERY_PROOF_RECEIVED_BY_KEYS,
+      ],
       required: DELIVERY_PROOF_KEYS,
     })
   ) {
@@ -1141,6 +1150,8 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
       value.receivedBy === null ||
       isOneOf(value.receivedBy, DELIVERY_PROOF_RECEIVED_BY_OPTIONS)) &&
     (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
+    (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    (value.receiverDocument === undefined || isString(value.receiverDocument)) &&
     isString(value.receiverName)
   )
 }
@@ -1301,8 +1312,16 @@ function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOcc
  * nunca fazem parte de `TRIP_TIMELINE_ITEM_KEYS`, então uma chave a mais já reprova por si.
  */
 function isTimelineItem(value: unknown): value is TripTimelineItem {
-  if (!hasExactKeys(value, TRIP_TIMELINE_ITEM_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_TIMELINE_ITEM_KEYS, ...TRIP_TIMELINE_ITEM_OPTIONAL_KEYS],
+      required: TRIP_TIMELINE_ITEM_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
+    (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     isNullableString(value.actorName) &&
     (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isNullableString(value.closeReason) &&

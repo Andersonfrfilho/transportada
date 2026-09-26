@@ -24,6 +24,8 @@ const LATITUDE_FIELD = 'latitude'
 const LONGITUDE_FIELD = 'longitude'
 const ACCURACY_METERS_FIELD = 'accuracyMeters'
 const CAPTURED_AT_FIELD = 'capturedAt'
+/** Spec 205 RF3: o "Registrar entrega depois" — texto `true`/`false`, ausente ou vazio é `false`. */
+const LATE_REGISTRATION_FIELD = 'lateRegistration'
 
 /**
  * Spec 159 T11 (itens 4 e 10): texto com teto e forma decimal **antes** de virar número — `Number()`
@@ -138,11 +140,20 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
     bytes: new Uint8Array(await file.arrayBuffer()),
     capturedAt: location.capturedAt,
     kind,
+    lateRegistration: parseLateRegistration(readOptionalField(form, LATE_REGISTRATION_FIELD)),
     mimeType: file.type,
     position: location.position,
     receiverDocument: parseReceiverDocument(form.get(RECEIVER_DOCUMENT_FIELD)),
     receiverName: typeof receiverName === 'string' ? receiverName : '',
   }
+}
+
+/** O multipart só carrega texto: fora de `true`/`false` é `400`, nunca um booleano adivinhado. */
+function parseLateRegistration(value: unknown): boolean {
+  if (value === undefined || value === 'false') return false
+  if (value === 'true') return true
+
+  throw new ApiError(HTTP_ERROR.invalidRequest)
 }
 
 /** Vazio é o caso de fábrica; presente, ele precisa ser CPF ou CNPJ na forma canônica. */

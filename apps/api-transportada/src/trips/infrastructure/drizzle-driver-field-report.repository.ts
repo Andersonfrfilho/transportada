@@ -386,7 +386,6 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   public async completeStopIfSettled(input: {
     readonly at: Date
     readonly companyId: string
-    readonly fillMissingArrival: boolean
     readonly stopId: string
   }): Promise<boolean> {
     const stopDocuments = and(
@@ -417,11 +416,12 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     const completed = await this.transaction
       .update(tripStops)
       .set({
-        ...(input.fillMissingArrival
-          ? {
-              arrivedAt: sql`coalesce(${tripStops.arrivedAt}, (${firstSettledAt}), ${timestamptzParameter(input.at)})`,
-            }
-          : {}),
+        /**
+         * Spec 156 T15 C1 e spec 205: a parada fecha com a chegada que ninguém tocou — a menor hora
+         * de entrega/devolução da parada, só se estiver vazia. Sem isso a última baixa sem "Cheguei"
+         * violava `trip_stops_completed_requires_arrived_check` e voltava 500 para sempre.
+         */
+        arrivedAt: sql`coalesce(${tripStops.arrivedAt}, (${firstSettledAt}), ${timestamptzParameter(input.at)})`,
         completedAt: sql`coalesce((${lastSettledAt}), ${timestamptzParameter(input.at)})`,
         updatedAt: input.at,
       })
@@ -579,6 +579,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         ...(input.occurredAt === undefined ? {} : { createdAt: input.occurredAt }),
         kind: input.kind,
         latitude: input.location?.latitude ?? null,
+        lateRegistration: input.lateRegistration ?? false,
         longitude: input.location?.longitude ?? null,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),
@@ -636,7 +637,8 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         stopEventId: input.eventId,
       })
       .onConflictDoUpdate({
-        set: buildProofUpsertSet(input),
+        /** Spec 205 D1: o escritório nunca registra depois — o `or` do upsert preserva o do motorista. */
+        set: buildProofUpsertSet({ ...input, lateRegistration: false }),
         target: [
           tripDeliveryProofs.companyId,
           tripDeliveryProofs.stopEventId,

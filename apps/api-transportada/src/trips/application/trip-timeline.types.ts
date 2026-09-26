@@ -91,6 +91,11 @@ export type TripTimelineItem = {
   readonly fromStatus: string | null
   readonly id: string
   readonly kind: TripTimelineKind
+  /**
+   * Spec 205 RF6: a baixa veio pelo "Registrar entrega depois" da app do motorista — só pode ser
+   * `true` em `document.delivered`/`document.returned`. Dado, não rótulo: a tela não o interpreta.
+   */
+  readonly lateRegistration: boolean
   readonly occurrence: TripTimelineOccurrenceReference | null
   readonly occurredAt: string
   readonly onBehalfOfDriverName: string | null

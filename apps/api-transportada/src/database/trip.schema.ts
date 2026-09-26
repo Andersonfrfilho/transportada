@@ -1021,6 +1021,12 @@ export const tripStopEvents = pgTable(
      */
     reportedByDriverId: uuid('reported_by_driver_id'),
     /**
+     * Spec 205 D1: a baixa (`delivered`/`returned`) veio pelo "Registrar entrega depois" da app do
+     * motorista. A foto obrigatória dessa entrega é `late` (`classifyProofPunctuality`); a devolução
+     * só grava o fato — a nota não a lê (D3). Sem backfill: o default descreve o histórico.
+     */
+    lateRegistration: boolean('late_registration').notNull().default(false),
+    /**
      * ADR-0067 §3: hoje `created_at` faz os dois papéis (quando aconteceu e quando foi gravado). A
      * baixa retroativa do escritório muda `created_at` para a hora da entrega e grava aqui a hora
      * real do registro.
@@ -1476,6 +1482,11 @@ export const tripDeliveryProofs = pgTable(
       .notNull()
       .default('not_required')
       .$type<TripDeliveryProofPunctuality>(),
+    /**
+     * Spec 205 D1/D5: o envio do comprovante veio pelo "Registrar entrega depois". A substituta
+     * nunca o desfaz (`or` no upsert), como a pontualidade nunca melhora (spec 159 T11, D3b).
+     */
+    lateRegistration: boolean('late_registration').notNull().default(false),
   },
   (table) => [
     foreignKey({

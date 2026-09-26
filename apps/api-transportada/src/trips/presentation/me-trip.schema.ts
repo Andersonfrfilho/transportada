@@ -30,10 +30,20 @@ const locationSchema = z
   })
   .strict()
 
+/**
+ * Spec 205 RF1/RF2: o "Registrar entrega depois" da app do motorista. Opcional — ausente é o toque
+ * na hora, e é o que todo cliente anterior ao campo manda.
+ */
+const lateRegistrationSchema = z.boolean().optional()
+
 const reportSchema = z.object({ location: locationSchema.nullish() }).strict()
+
+/** Só a baixa da nota aceita o registro tardio — a chegada continua recusando o campo. */
+const deliverySchema = reportSchema.extend({ lateRegistration: lateRegistrationSchema }).strict()
 
 const returnSchema = z
   .object({
+    lateRegistration: lateRegistrationSchema,
     location: locationSchema.nullish(),
     reason: z.enum(DRIVER_RETURN_REASONS),
   })
@@ -95,13 +105,31 @@ export async function parseFieldReportRequest(
   return { location: toReportedLocation(body.location) }
 }
 
+/** Spec 205 RF1: o corpo do `/deliver` — o da chegada mais o registro tardio. */
+export async function parseDocumentDeliveryRequest(request: Request): Promise<{
+  readonly lateRegistration: boolean
+  readonly location: ReportedLocation | null
+}> {
+  const body = await parseOptionalBody(deliverySchema, request)
+
+  return {
+    lateRegistration: body.lateRegistration ?? false,
+    location: toReportedLocation(body.location),
+  }
+}
+
 export async function parseDocumentReturnRequest(request: Request): Promise<{
+  readonly lateRegistration: boolean
   readonly location: ReportedLocation | null
   readonly reason: (typeof DRIVER_RETURN_REASONS)[number]
 }> {
   const body = await parseBody(returnSchema, request)
 
-  return { location: toReportedLocation(body.location), reason: body.reason }
+  return {
+    lateRegistration: body.lateRegistration ?? false,
+    location: toReportedLocation(body.location),
+    reason: body.reason,
+  }
 }
 
 export async function parseStopOccurrenceRequest(request: Request): Promise<{

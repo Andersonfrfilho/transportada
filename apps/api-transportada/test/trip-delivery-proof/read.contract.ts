@@ -14,6 +14,7 @@ const PROOF = {
   createdAt: '2026-09-02T12:00:00.000Z',
   id: '00000000-0000-4000-8000-0000000000a1',
   kind: 'signature' as const,
+  lateRegistration: false,
   mimeType: 'image/png',
   objectKey: 'companies/1/proofs/a1.png',
   /** ADR-0057 §3: o que a linha carrega já é a máscara — a leitura nunca vê o valor em claro. */
@@ -79,6 +80,7 @@ describe('read delivery proofs contract', () => {
         expiresAt: '2026-09-02T12:05:00.000Z',
         id: PROOF.id,
         kind: 'signature',
+        lateRegistration: false,
         receiverDocument: '***.938.570-**',
         receiverName: 'Portaria',
       },

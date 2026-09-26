@@ -36,6 +36,7 @@ import {
 } from './occurrence.schema.js'
 import {
   parseDispatchCurrentTripRequest,
+  parseDocumentDeliveryRequest,
   parseDocumentReturnRequest,
   parseFieldReportRequest,
   parseIdempotencyKey,
@@ -102,6 +103,12 @@ type DriverActionInput = DriverContextInput & {
   readonly location: ReportedLocation | null
 }
 
+/** Spec 205 RF1/RF2: a baixa da nota diz se veio pelo "Registrar entrega depois". */
+type DriverDocumentOutcomeInput = DriverActionInput & {
+  readonly documentId: string
+  readonly lateRegistration: boolean
+}
+
 export type MeTripDependencies = {
   readonly findCurrentTrip: (input: {
     readonly companyId: string
@@ -119,7 +126,7 @@ export type MeTripDependencies = {
     input: DriverContextInput & { readonly step: FieldTripStep },
   ) => Promise<StartFieldTripResult>
   readonly reportDelivery: (
-    input: DriverActionInput & { readonly documentId: string },
+    input: DriverDocumentOutcomeInput,
   ) => Promise<ReportDocumentOutcomeResult>
   readonly reportOccurrence: (
     input: DriverContextInput & {
@@ -133,10 +140,7 @@ export type MeTripDependencies = {
     },
   ) => Promise<ReportStopOccurrenceResult>
   readonly reportReturn: (
-    input: DriverActionInput & {
-      readonly documentId: string
-      readonly reason: DriverReturnReason
-    },
+    input: DriverDocumentOutcomeInput & { readonly reason: DriverReturnReason },
   ) => Promise<ReportDocumentOutcomeResult>
   readonly registerDriverOccurrence: (input: {
     readonly actorUserId: string
@@ -355,6 +359,7 @@ export function createMeTripRoutes(
     defineRoute<{
       readonly documentId: string
       readonly idempotencyKey: string
+      readonly lateRegistration: boolean
       readonly location: ReportedLocation | null
     }>({
       async handle({ context, input }): Promise<Response> {
@@ -365,6 +370,7 @@ export function createMeTripRoutes(
           documentId: input.documentId,
           driverId,
           idempotencyKey: input.idempotencyKey,
+          lateRegistration: input.lateRegistration,
           location: input.location,
         })
 
@@ -372,10 +378,11 @@ export function createMeTripRoutes(
       },
       method: 'POST',
       async parse({ pathParameters, request }) {
-        const body = await parseFieldReportRequest(request)
+        const body = await parseDocumentDeliveryRequest(request)
         return {
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
+          lateRegistration: body.lateRegistration,
           location: body.location,
         }
       },
@@ -385,6 +392,7 @@ export function createMeTripRoutes(
     defineRoute<{
       readonly documentId: string
       readonly idempotencyKey: string
+      readonly lateRegistration: boolean
       readonly location: ReportedLocation | null
       readonly reason: DriverReturnReason
     }>({
@@ -396,6 +404,7 @@ export function createMeTripRoutes(
           documentId: input.documentId,
           driverId,
           idempotencyKey: input.idempotencyKey,
+          lateRegistration: input.lateRegistration,
           location: input.location,
           reason: input.reason,
         })
@@ -408,6 +417,7 @@ export function createMeTripRoutes(
         return {
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
+          lateRegistration: body.lateRegistration,
           location: body.location,
           reason: body.reason,
         }

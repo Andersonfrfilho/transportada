@@ -305,6 +305,8 @@ export type TripTimelineItem = Readonly<{
   fromStatus: null | string
   id: string
   kind: TripTimelineKind
+  /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
+  lateRegistration?: boolean
   occurrence: null | TripTimelineOccurrenceReference
   occurredAt: string
   onBehalfOfDriverName: null | string

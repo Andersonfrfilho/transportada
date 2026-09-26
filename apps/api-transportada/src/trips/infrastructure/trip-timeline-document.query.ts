@@ -146,6 +146,7 @@ export async function listDocumentOccurrenceRows(
     fromStatus: null,
     id: row.id,
     kind: 'document.occurrence' as const,
+    lateRegistration: false,
     occurrence: {
       attachmentCount: Number(row.attachmentCount),
       note: row.note,
@@ -249,6 +250,7 @@ export async function listDocumentStatusChangedRows(
       fromStatus: row.fromStatus,
       id: row.id,
       kind: 'document.status_changed' as const,
+      lateRegistration: false,
       occurrence: null,
       occurredAt: row.occurredAt,
       occurredAtKey: row.occurredAtKey,

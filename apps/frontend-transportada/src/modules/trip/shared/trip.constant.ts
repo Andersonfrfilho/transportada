@@ -432,6 +432,12 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
   'toStatus',
 ] as const
 
+/**
+ * Spec 205 RF8: o registro tardio do motorista, só como dado. Opcional porque a API anterior ao campo
+ * não o manda — a chave exata recusaria a página inteira na janela entre as duas subidas.
+ */
+export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['lateRegistration'] as const
+
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
 export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const
@@ -481,6 +487,12 @@ export const DELIVERY_PROOF_KEYS = [
   'kind',
   'receiverName',
 ] as const
+
+/**
+ * Spec 205 RF8: `lateRegistration` é o registro tardio, só como dado. `receiverDocument` (sempre a
+ * máscara) já saía da API desde a spec 082 e a chave exata recusava a lista inteira por ele.
+ */
+export const DELIVERY_PROOF_OPTIONAL_KEYS = ['lateRegistration', 'receiverDocument'] as const
 
 export const TRIP_CARGO_WEIGHT_KEYS = [
   'documentsWithoutWeight',

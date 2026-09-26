@@ -203,12 +203,14 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }): Promise<{
     readonly deliveredAt: Date
     readonly deliveryEventPosition: Coordinate | undefined
+    readonly lateRegistration: boolean
   }> {
     const [record] = await this.database
       .select({
         capturedAt: tripStopEvents.capturedAt,
         eventLatitude: tripStopEvents.latitude,
         eventLongitude: tripStopEvents.longitude,
+        lateRegistration: tripStopEvents.lateRegistration,
         recordedAt: tripStopEvents.recordedAt,
       })
       .from(tripStopEvents)
@@ -222,6 +224,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return {
       deliveredAt: record.capturedAt ?? record.recordedAt,
       deliveryEventPosition: toCoordinate(record.eventLatitude, record.eventLongitude),
+      lateRegistration: record.lateRegistration,
     }
   }
 
@@ -299,6 +302,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
           companyId: input.companyId,
           id: input.id,
           kind: input.kind,
+          lateRegistration: input.lateRegistration,
           latitude: input.latitude,
           longitude: input.longitude,
           onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
@@ -353,6 +357,8 @@ type SaveProofInput = {
   readonly eventId: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
+  /** Spec 205 D1: o envio veio pelo "Registrar entrega depois". */
+  readonly lateRegistration: boolean
   readonly latitude: string | null
   readonly longitude: string | null
   readonly mimeType: string
@@ -385,6 +391,8 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     attachmentKey: input.attachmentKey,
     capturedAt: input.capturedAt,
     channel: input.authorship.channel,
+    /** Spec 205 D5: a substituta não lava o registro tardio da foto anterior. */
+    lateRegistration: sql`${tripDeliveryProofs.lateRegistration} or excluded.late_registration`,
     latitude: input.latitude,
     longitude: input.longitude,
     objectId: input.objectId,

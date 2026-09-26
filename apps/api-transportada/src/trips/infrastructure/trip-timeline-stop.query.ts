@@ -76,6 +76,7 @@ export async function listStopEventRows(
       invoiceNumber: nfeDocuments.number,
       invoiceSeries: nfeDocuments.series,
       kind: tripStopEvents.kind,
+      lateRegistration: tripStopEvents.lateRegistration,
       occurredAt: tripStopEvents.createdAt,
       occurredAtKey: formatTimelineTimestampKey(tripStopEvents.createdAt),
       onBehalfOfDriverName: timelineOnBehalfDriver.name,
@@ -139,6 +140,7 @@ export async function listStopEventRows(
     kind: STOP_EVENT_KIND_TO_TIMELINE_KIND[
       row.kind as keyof typeof STOP_EVENT_KIND_TO_TIMELINE_KIND
     ],
+    lateRegistration: row.lateRegistration,
     occurrence: null,
     occurredAt: row.occurredAt,
     occurredAtKey: row.occurredAtKey,
@@ -228,6 +230,7 @@ export async function listStopOccurrenceRows(
     fromStatus: null,
     id: row.id,
     kind: 'stop.occurrence' as const,
+    lateRegistration: false,
     occurrence: {
       attachmentCount: row.attachmentObjectId === null ? 0 : 1,
       note: row.description,

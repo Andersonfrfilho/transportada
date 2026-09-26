@@ -79,6 +79,8 @@ export async function listDeliveryProofs(
       createdAt: tripDeliveryProofs.createdAt,
       id: tripDeliveryProofs.id,
       kind: tripDeliveryProofs.kind,
+      /** Spec 205 RF7: o envio disse, ou a entrega a que ele pertence disse. */
+      lateRegistration: sql<boolean>`${tripDeliveryProofs.lateRegistration} or ${tripStopEvents.lateRegistration}`,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
       receiverDocumentMasked: tripDeliveryProofs.receiverDocumentMasked,
@@ -122,6 +124,7 @@ export async function listDeliveryProofs(
     createdAt: row.createdAt.toISOString(),
     id: row.id,
     kind: row.kind,
+    lateRegistration: row.lateRegistration,
     mimeType: row.mimeType,
     objectKey: row.objectKey,
     receiverDocumentMasked: row.receiverDocumentMasked,

@@ -22,6 +22,10 @@ export type DeliveryProof = Readonly<{
   expiresAt: string
   id: string
   kind: DeliveryProofKind
+  /** Spec 205 RF8: o comprovante (ou a entrega dele) foi registrado depois. Ausente na API anterior. */
+  lateRegistration?: boolean
+  /** ADR-0057 §3: sempre a máscara; esta tela não o mostra. */
+  receiverDocument?: string
   /** Spec 193 D3: quem recebeu, da mesma linha do nome. Ausente na API anterior; `null` no antigo. */
   receivedBy?: DeliveryProofReceivedBy | null
   receivedByDetail?: null | string

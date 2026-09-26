@@ -14,6 +14,8 @@ export type DeliveryProofRecord = {
   readonly createdAt: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
+  /** Spec 205 RF7: o envio ou a entrega dele veio pelo "Registrar entrega depois". */
+  readonly lateRegistration: boolean
   readonly mimeType: string
   readonly objectKey: string
   /** ADR-0057 §3: **sempre** a máscara (`***.938.570-**`). O valor em claro não sai da coluna selada. */
@@ -45,6 +47,8 @@ export type DeliveryProofView = {
   readonly expiresAt: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
+  /** Spec 205 RF7: só como dado — a tela não o interpreta. */
+  readonly lateRegistration: boolean
   /** ADR-0057 §3: mascarado em toda leitura. Vazio quando a empresa não colhe documento. */
   readonly receiverDocument: string
   readonly receiverName: string
@@ -90,6 +94,7 @@ export async function readDeliveryProofs({
         expiresAt: download.expiresAt,
         id: record.id,
         kind: record.kind,
+        lateRegistration: record.lateRegistration,
         receiverDocument: record.receiverDocumentMasked,
         receiverName: record.receiverName,
       }

@@ -18,6 +18,8 @@ export type FieldReportState = {
   readonly documentOccurrences: Map<string, TripOccurrence>
   readonly documents: Map<string, DriverDocumentReference>
   readonly events: Map<string, { readonly id: string }>
+  /** Spec 205 RF4: `eventId` → o `lateRegistration` que a baixa gravou (ausente cai em `false`). */
+  readonly eventLateRegistrations: Map<string, boolean>
   /** Spec 159 T11: `documentId:kind` → o último evento gravado daquela nota e tipo. */
   readonly latestEvents: Map<string, { readonly id: string }>
   readonly occurrences: Map<string, { readonly id: string }>
@@ -43,6 +45,7 @@ export function createFieldReportState(
     documentOccurrences: new Map(),
     documents: new Map(),
     events: new Map(),
+    eventLateRegistrations: new Map(),
     latestEvents: new Map(),
     occurrences: new Map(),
     proofsByAttachmentKey: new Map(),
@@ -137,6 +140,7 @@ export function createFieldReportUnitOfWork(
       state.calls.push(`recordEvent:${input.kind}:${input.location === null ? 'no-gps' : 'gps'}`)
       const event = { id: nextIdentifier('event') }
       state.events.set(event.id, event)
+      state.eventLateRegistrations.set(event.id, input.lateRegistration ?? false)
       if (input.documentId !== null)
         state.latestEvents.set(`${input.documentId}:${input.kind}`, event)
       return event

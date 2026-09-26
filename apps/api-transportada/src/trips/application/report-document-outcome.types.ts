@@ -35,6 +35,11 @@ export type ReportDocumentOutcomeInput = FieldTripLocator & {
   readonly companyId: string
   readonly documentId: string
   readonly idempotencyKey: string
+  /**
+   * Spec 205 RF4: a baixa veio pelo "Registrar entrega depois" da app do motorista. Só as rotas
+   * `/me` mandam; ausente é `false`. O replay nunca o reescreve (D5): o evento já gravado responde.
+   */
+  readonly lateRegistration?: boolean
   readonly location: ReportedLocation | null
   /** Quando aconteceu. O motorista manda agora; o escritório, a hora informada (ADR-0067 §3). */
   readonly now: Date

@@ -269,6 +269,7 @@ describe('o upsert do comprovante (spec 082 — revisão, item 4)', () => {
     eventId: EVENT_ID,
     id: PROOF_ID,
     kind: 'signature' as const,
+    lateRegistration: false,
     latitude: null,
     longitude: null,
     mimeType: 'image/png',

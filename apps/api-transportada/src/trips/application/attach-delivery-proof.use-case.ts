@@ -49,6 +49,11 @@ export type DeliveryProofUpload = {
   /** ADR-0070 §3, spec 159 RF3/RF5: o que o aparelho diz ter tirado a foto — não confiável sozinho. */
   readonly capturedAt: Date | undefined
   readonly kind: TripDeliveryProofKind
+  /**
+   * Spec 205 RF3: o envio veio pelo "Registrar entrega depois" da app do motorista. Ausente é
+   * `false` — o canhoto do escritório nunca o manda.
+   */
+  readonly lateRegistration?: boolean
   readonly mimeType: string
   /** ADR-0070 §4, spec 159 RF3/RF6: onde o aparelho leu a posição ao tirar a foto. */
   readonly position: ProofPosition | undefined
@@ -97,6 +102,8 @@ export type DeliveryProofPort = {
   findDeliveryContext(input: { readonly companyId: string; readonly eventId: string }): Promise<{
     readonly deliveredAt: Date
     readonly deliveryEventPosition: Coordinate | undefined
+    /** Spec 205 D2: a entrega foi registrada depois (`trip_stop_events.late_registration`). */
+    readonly lateRegistration?: boolean
   }>
   /** `null` quando nenhum comprovante daquele evento+tipo foi gravado com esta chave. */
   findProofIdByAttachmentKey(input: {
@@ -124,6 +131,8 @@ export type DeliveryProofPort = {
     readonly eventId: string
     readonly id: string
     readonly kind: TripDeliveryProofKind
+    /** Spec 205 D1: o que este envio disse — o fato da entrega mora no evento. */
+    readonly lateRegistration: boolean
     readonly latitude: string | null
     readonly longitude: string | null
     readonly mimeType: string
@@ -257,6 +266,7 @@ export async function attachDeliveryProof(
     eventId,
     id: proofId,
     kind: input.upload.kind,
+    lateRegistration: input.upload.lateRegistration ?? false,
     latitude: input.upload.position?.latitude ?? null,
     longitude: input.upload.position?.longitude ?? null,
     mimeType: input.upload.mimeType,
@@ -295,6 +305,9 @@ async function classifyUploadPunctuality(params: {
 /**
  * RF4-RF6: junta a configuração de pontualidade da empresa com o contexto do evento de entrega
  * (quando e onde aconteceu) e aplica `classifyProofPunctuality`. Só chamada para `kind = 'photo'`.
+ *
+ * Spec 205 D2: registro tardio no envio **ou** na entrega — a app pode esquecer o campo no segundo
+ * toque, e a entrega já disse.
  */
 async function classifyPhotoPunctuality(params: {
   readonly eventId: string
@@ -311,6 +324,7 @@ async function classifyPhotoPunctuality(params: {
     capturedAt: input.upload.capturedAt,
     deliveredAt: context.deliveredAt,
     deliveryEventPosition: context.deliveryEventPosition,
+    lateRegistration: input.upload.lateRegistration === true || context.lateRegistration === true,
     missingAfterHours: punctualitySettings.missingAfterHours,
     photoMode: settings.photo,
     photoPosition: input.upload.position,

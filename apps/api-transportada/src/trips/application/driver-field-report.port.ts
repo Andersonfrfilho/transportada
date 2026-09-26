@@ -140,11 +140,6 @@ export type DriverFieldReportTransactionPort = {
   completeStopIfSettled(input: {
     readonly at: Date
     readonly companyId: string
-    /**
-     * Spec 156 T15 C1: o escritório dá baixa sem chegada registrada — o motorista não tocou em
-     * "cheguei". A chegada vira a menor hora de entrega/devolução da parada, só se estiver vazia.
-     */
-    readonly fillMissingArrival: boolean
     readonly stopId: string
   }): Promise<boolean>
   /** Fecha a viagem quando a última parada fechou (spec 056 D1). Devolve se fechou. */
@@ -180,6 +175,8 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly documentId: string | null
     readonly kind: TripStopEventKind
+    /** Spec 205 RF4: a baixa veio pelo "Registrar entrega depois". Ausente cai no default `false`. */
+    readonly lateRegistration?: boolean
     readonly location: ReportedLocation | null
     /**
      * ADR-0067 §3: quando aconteceu. Ausente para o motorista (a coluna cai no `defaultNow()`, e as
