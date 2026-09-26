@@ -50,7 +50,7 @@ export function findVehicleOwnerDriver(
   )
 }
 
-/** O motorista que o operador escolheu (ou cadastrou) como proprietário nesta ficha do veículo. */
+/** O motorista que o operador cadastrou, pela ficha do veículo, como proprietário dele. */
 export type VehicleOwnerDriverChoice = Readonly<{ driverId: string; ownerTaxId: string }>
 
 type ResolveOwnerDriverToLinkParams = Readonly<{
@@ -59,8 +59,8 @@ type ResolveOwnerDriverToLinkParams = Readonly<{
 }>
 
 /**
- * Quem o operador pôs como proprietário é quem dirige o veículo — sem isso ele salvava o veículo e
- * voltava à ficha do motorista para marcá-lo à mão. Só vale a escolha explícita, e só enquanto a
+ * O motorista cadastrado pela ficha do veículo é quem o dirige — sem isso o operador salvava o veículo e
+ * voltava à ficha do motorista para marcá-lo à mão. Só vale o cadastro feito ali, e só enquanto a
  * ficha ainda afirma aquele proprietário: o documento lido depois pode tê-lo trocado.
  */
 export function resolveOwnerDriverToLink(

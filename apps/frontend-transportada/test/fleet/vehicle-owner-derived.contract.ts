@@ -131,12 +131,7 @@ describe('o proprietário do veículo é derivado do motorista', () => {
     const source = await readOwnerFields()
 
     for (const removed of REMOVED_INPUTS) expect(source).not.toContain(removed)
-    const hook = await Bun.file(
-      new URL('src/modules/fleet/hooks/useVehicleForm.hook.ts', APPLICATION_ROOT),
-    ).text()
-    // O proprietário sai da ficha do motorista pelo formulário, que também guarda quem é para o vínculo
-    expect(source).toContain('chooseOwnerDriver')
-    expect(hook).toContain('toVehicleOwnerFields')
+    expect(source).toContain('toVehicleOwnerFields')
     expect(source).toContain('styles.ownerSummary')
   })
 })

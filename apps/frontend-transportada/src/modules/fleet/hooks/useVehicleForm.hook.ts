@@ -30,7 +30,6 @@ import {
 } from '../shared/vehicleOwner.service'
 
 const OWNER_INCOMPLETE_FEEDBACK_KEY = 'ownerIncompleteFeedback'
-const OWNER_DRIVER_LINK_FAILED_FEEDBACK_KEY = 'ownerDriverLinkFailed'
 const VEHICLE_DRAFT_STORAGE_KEY = 'transportada.fleet.vehicle-draft'
 
 type UseVehicleFormInput = Readonly<{
@@ -52,8 +51,8 @@ type UseVehicleFormInput = Readonly<{
 
 export type VehicleFormController = Readonly<{
   applyDocument: (values: Partial<FleetVehicleFormState>) => void
-  /** Preenche o proprietário a partir da ficha do motorista e lembra quem ele é, para o vínculo. */
-  chooseOwnerDriver: (driver: FleetDriverDetail) => void
+  /** O motorista cadastrado pela ficha do veículo vira proprietário e é lembrado para o vínculo. */
+  applyCreatedOwnerDriver: (driver: FleetDriverDetail) => void
   clear: () => void
   /** Os campos que vieram do documento, e que o formulário marca como tal — spec 048. */
   documentFields: ReadonlySet<string>
@@ -88,8 +87,6 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
   const [suggestedFields, setSuggestedFields] = useState<ReadonlySet<string>>(() => new Set())
   const [suggestionOrigin, setSuggestionOrigin] = useState<VehicleSuggestionOrigin | null>(null)
   const [ownerDriverChoice, setOwnerDriverChoice] = useState<VehicleOwnerDriverChoice | null>(null)
-  /** Veículo já gravado cujo vínculo falhou: salvar de novo refaz só o vínculo, não o veículo. */
-  const [unlinkedVehicleId, setUnlinkedVehicleId] = useState<string | null>(null)
   const {
     onCreate,
     onLinkOwnerDriver,
@@ -155,7 +152,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
     setDocumentFields(new Set(Object.keys(values)))
   }
 
-  function chooseOwnerDriver(driver: FleetDriverDetail): void {
+  function applyCreatedOwnerDriver(driver: FleetDriverDetail): void {
     const owner = toVehicleOwnerFields(driver)
     patch(owner)
     setOwnerDriverChoice({ driverId: driver.id, ownerTaxId: owner.ownerTaxId })
@@ -183,28 +180,33 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
     })
   }
 
+  /**
+   * O vínculo é conveniência do cadastro cruzado, não condição do veículo: se ele falhar, o veículo
+   * já está gravado e o operador ainda pode vincular pela ficha do motorista.
+   */
+  async function linkCreatedOwnerDriver(vehicleId: string): Promise<void> {
+    const driverId = resolveOwnerDriverToLink({ choice: ownerDriverChoice, state })
+    if (driverId === undefined || onLinkOwnerDriver === undefined) return
+    try {
+      await onLinkOwnerDriver({ driverId, vehicleId })
+    } catch {
+      // falhar aqui não pode transformar um veículo salvo em erro de cadastro
+    }
+  }
+
   async function submit(): Promise<void> {
     if (listIncompleteVehicleOwnerFields(state).length > 0) {
       setFeedbackKey(OWNER_INCOMPLETE_FEEDBACK_KEY)
       return
     }
-    const ownerDriverId = resolveOwnerDriverToLink({ choice: ownerDriverChoice, state })
-    let savedVehicleId = unlinkedVehicleId
     setIsSaving(true)
     try {
-      savedVehicleId ??= (await saveVehicle()).id
-      if (ownerDriverId !== undefined && onLinkOwnerDriver !== undefined) {
-        await onLinkOwnerDriver({ driverId: ownerDriverId, vehicleId: savedVehicleId })
-      }
+      const saved = await saveVehicle()
+      await linkCreatedOwnerDriver(saved.id)
       clearFormDraft({ storage, storageKey: VEHICLE_DRAFT_STORAGE_KEY })
       onSaved()
     } catch (error) {
-      setUnlinkedVehicleId(savedVehicleId)
-      setFeedbackKey(
-        savedVehicleId === null
-          ? resolveFleetFeedbackKey(error)
-          : OWNER_DRIVER_LINK_FAILED_FEEDBACK_KEY,
-      )
+      setFeedbackKey(resolveFleetFeedbackKey(error))
     } finally {
       setIsSaving(false)
     }
@@ -212,7 +214,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
 
   return {
     applyDocument,
-    chooseOwnerDriver,
+    applyCreatedOwnerDriver,
     clear,
     documentFields,
     feedbackKey,

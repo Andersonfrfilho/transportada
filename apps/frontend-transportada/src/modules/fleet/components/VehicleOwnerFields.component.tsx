@@ -23,6 +23,7 @@ import {
   findVehicleOwnerDriver,
   listIncompleteVehicleOwnerFields,
   resolveVehicleOwnerFixField,
+  toVehicleOwnerFields,
 } from '../shared/vehicleOwner.service'
 import styles from '../styles/fleet.module.css'
 import { DriverQuickCreateDialog } from './DriverQuickCreateDialog.component'
@@ -37,8 +38,8 @@ type DriverDialogRequest = Readonly<{
 
 type VehicleOwnerFieldsProps = Readonly<{
   drivers: readonly FleetDriverDetail[]
-  /** O motorista escolhido passa pelo formulário, que o lembra para vincular o veículo a ele. */
-  form: Pick<VehicleFormController, 'chooseOwnerDriver' | 'patch' | 'state'>
+  /** O motorista cadastrado aqui passa pelo formulário, que o lembra para vincular o veículo a ele. */
+  form: Pick<VehicleFormController, 'applyCreatedOwnerDriver' | 'patch' | 'state'>
   onCreateDriver: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   onUpdateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
 }>
@@ -50,7 +51,7 @@ export function VehicleOwnerFields({
   onUpdateDriver,
 }: VehicleOwnerFieldsProps) {
   const { t } = useTranslation('fleet')
-  const { chooseOwnerDriver, state } = form
+  const { applyCreatedOwnerDriver, state } = form
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
@@ -75,7 +76,8 @@ export function VehicleOwnerFields({
   function applyDriver(driverId: string): void {
     const driver = drivers.find((candidate) => candidate.id === driverId)
     if (driver === undefined) return
-    chooseOwnerDriver(driver)
+    // Escolher um motorista que já existe só preenche a posse: o vínculo é do cadastro feito aqui
+    form.patch(toVehicleOwnerFields(driver))
   }
 
   return (
@@ -196,7 +198,7 @@ export function VehicleOwnerFields({
           regions={driverRegions}
           vehicles={driverVehicles}
           onCreated={(driver) => {
-            chooseOwnerDriver(driver)
+            applyCreatedOwnerDriver(driver)
             setDriverDialog(null)
           }}
         />

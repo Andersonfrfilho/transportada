@@ -22,7 +22,7 @@ function readApplicationFile(filePath: string): Promise<string> {
 }
 
 describe('o motorista escolhido como proprietário fica vinculado ao veículo', () => {
-  test('vincula o motorista que o operador escolheu ou cadastrou na ficha do veículo', () => {
+  test('vincula o motorista que o operador cadastrou pela ficha do veículo', () => {
     expect(
       resolveOwnerDriverToLink({
         choice: CHOICE,
@@ -75,29 +75,27 @@ describe('o motorista escolhido como proprietário fica vinculado ao veículo', 
     expect(workspace).toContain('onLinkOwnerDriver={driverVehicles.linkVehicle}')
   })
 
-  test('escolher no seletor e cadastrar pelo diálogo passam pelo mesmo caminho', async () => {
+  test('só o motorista cadastrado pelo diálogo vincula; escolher no seletor só preenche a posse', async () => {
     const owner = await readApplicationFile(
       'src/modules/fleet/components/VehicleOwnerFields.component.tsx',
     )
+    const picker = owner.slice(owner.indexOf('function applyDriver'), owner.indexOf('return ('))
+    const dialog = owner.slice(owner.indexOf('onCreated={'))
 
-    const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleForm.hook.ts')
-
-    expect(owner.match(/chooseOwnerDriver\(/g)?.length).toBe(2)
-    expect(owner).not.toContain('toVehicleOwnerFields')
-    expect(hook).toContain('patch(owner)')
+    expect(picker).toContain('form.patch(toVehicleOwnerFields(driver))')
+    expect(picker).not.toContain('applyCreatedOwnerDriver')
+    expect(dialog).toContain('applyCreatedOwnerDriver(driver)')
   })
 
-  test('a falha do vínculo depois do veículo salvo tem aviso próprio nos dois idiomas', async () => {
-    const locales = await Promise.all(
-      ['fleet.locale.json', 'fleet.en.locale.json'].map(
-        async (fileName) =>
-          JSON.parse(await readApplicationFile(`src/modules/fleet/locales/${fileName}`)) as Record<
-            string,
-            unknown
-          >,
-      ),
+  test('a falha do vínculo não vira erro: o veículo salvo fecha a ficha normalmente', async () => {
+    const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleForm.hook.ts')
+    const link = hook.slice(
+      hook.indexOf('async function linkCreatedOwnerDriver'),
+      hook.indexOf('async function submit'),
     )
 
-    for (const locale of locales) expect(typeof locale.ownerDriverLinkFailed).toBe('string')
+    expect(link).toContain('catch')
+    expect(link).not.toContain('setFeedbackKey')
+    expect(hook).not.toContain('ownerDriverLinkFailed')
   })
 })
