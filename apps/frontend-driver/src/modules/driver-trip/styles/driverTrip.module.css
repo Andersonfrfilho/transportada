@@ -295,9 +295,14 @@
   padding: 0;
 }
 
+/* Cada nota é um bloco próprio: duas notas na mesma parada se confundiam quando vinham coladas. */
 .document {
+  background: color-mix(in srgb, var(--color-slate) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  border-radius: var(--space-2);
   display: grid;
   gap: var(--space-2);
+  padding: var(--space-3);
 }
 
 .documentSettled {
