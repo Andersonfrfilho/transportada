@@ -6,6 +6,8 @@
  * `where` do anexo que completa uma vez, o recorte por empresa/viagem/motorista do upload, e que
  * nada disto encosta em `trip_delivery_proofs` (a pontualidade e a nota do motorista).
  */
+import { createHash } from 'node:crypto'
+
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -27,8 +29,10 @@ import {
   tripStops,
   trips,
 } from '../../src/database/trip.schema.js'
+import { createNfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 import { confirmOccurrenceUpload } from '../../src/trips/application/confirm-occurrence-upload.use-case.js'
 import { reportStopOccurrence } from '../../src/trips/application/report-stop-occurrence.use-case.js'
+import { OCCURRENCE_PHOTO_MAX_BYTES } from '../../src/trips/domain/occurrence-attachment.policy.js'
 import {
   TripOccurrenceUploadNotReachableError,
   TripStopNotReachableError,
@@ -39,6 +43,7 @@ import {
   attachUploadToStopOccurrence,
   findDriverReachableStop,
 } from '../../src/trips/infrastructure/stop-occurrence-attachment.query.js'
+import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -208,30 +213,49 @@ async function readAttachment(database: TestDatabase, occurrenceId: string) {
   return row?.attachmentObjectId
 }
 
-/** O caminho da 179 de verdade: pedido `pending` e a confirmação que grava `stored_objects`. */
+/**
+ * O caminho da 179 de verdade: pedido `pending` e a confirmação que grava `stored_objects`. A
+ * confirmação (spec 179) copia os bytes conferidos para uma chave final, então o dublê precisa das
+ * quatro operações do `OccurrenceUploadConfirmationStoragePort` — reusa o dublê em memória do
+ * provedor de objeto, no molde do `occurrence-conversation-attachment.integration.ts`.
+ */
 async function seedConfirmedUpload(database: TestDatabase, world: World): Promise<string> {
   const id = crypto.randomUUID()
+  const bucket = 'test-bucket'
+  const objectKey = `tenants/${world.companyId}/trip-occurrence-uploads/${world.tripId}/${id}`
   await database.db.insert(tripOccurrenceUploads).values({
-    bucket: 'test-bucket',
+    bucket,
     companyId: world.companyId,
     declaredSizeBytes: BigInt(JPEG_BYTES.byteLength),
     driverId: world.driverId,
     expiresAt: new Date(NOW.getTime() + 60_000),
     id,
     mimeType: 'image/jpeg',
-    objectKey: `tenants/${world.companyId}/trip-occurrence-uploads/${world.tripId}/${id}`,
+    objectKey,
     status: 'pending',
     tripId: world.tripId,
   })
+
+  const storage = createNfeStorageGateway({
+    finalBucket: bucket,
+    provider: createInMemoryObjectStorageProvider({ maxObjectSizeBytes: OCCURRENCE_PHOTO_MAX_BYTES }),
+    stagingBucket: bucket,
+  })
+  await storage.storeObject({
+    body: JPEG_BYTES,
+    bucket,
+    contentLength: JPEG_BYTES.byteLength,
+    contentType: 'image/jpeg',
+    key: objectKey,
+    sha256: createHash('sha256').update(JPEG_BYTES).digest('hex'),
+  })
+
   await confirmOccurrenceUpload({
     companyId: world.companyId,
     id,
     now: NOW,
     repository: new DrizzleOccurrenceUploadRepository(database.db),
-    storage: {
-      getObjectStream: async () => new Response(JPEG_BYTES).body as ReadableStream<Uint8Array>,
-      headObject: async () => ({ contentLength: JPEG_BYTES.byteLength }),
-    },
+    storage,
     tripId: world.tripId,
   })
   return id

@@ -78,9 +78,12 @@ describe('pedir e confirmar o upload amarrados à parada (spec 209 RF1)', () => 
   }
 
   const signing = { createSignedUpload: async () => new URL('https://storage.test/upload') }
+  /** A confirmação (spec 179) grava a cópia final e apaga a pendência: as quatro operações do port. */
   const reading = {
+    deleteObject: async () => {},
     getObjectStream: async () => new Response(JPEG_BYTES).body as ReadableStream<Uint8Array>,
     headObject: async () => ({ contentLength: JPEG_BYTES.byteLength }),
+    storeObject: async () => undefined,
   }
 
   test('parada alcançável: a URL nasce escopada pela viagem resolvida e pelo motorista', async () => {
