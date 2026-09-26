@@ -52,3 +52,37 @@ $ bun test test/shared.contract.test.ts test/identity.contract.test.ts test/driv
 $ bun run --cwd apps/frontend-driver build
   precache: 13 arquivos, 669511 bytes — dist.contract 6 pass, 0 fail
 ```
+
+### T1.3 — smoke e prints
+
+Caso novo no `driver-app.smoke.spec.ts`: "CA13 (193): a fila presa mostra o selo no cabeçalho e o
+toque abre a fila" — API sem sinal, um "Cheguei" preso, `Fila de envio, 1 pendente` com selo `1` e
+≥ 44×44 px em viagem, `/fotos` e `/perfil`; o toque abre `/fila` (h1 "Eventos pendentes"), o botão
+continua ali, nenhum relato subiu, sem rolagem lateral.
+
+**Defeito achado pelo smoke e corrigido nesta task:** com a fila ao lado do sino, a 375 px o
+cabeçalho media 403 px (medido por `getBoundingClientRect`) e a tela inteira rolava de lado — 13
+casos do smoke caíam no `assertNoHorizontalOverflow`. Causa: `.moduleHeader` é item da grade de
+`.moduleShell` e o nome da empresa (`white-space: nowrap`) ditava o mínimo da coluna. Correção:
+`min-width: 0` em `.moduleHeader` e `.moduleCompanyName` (o nome corta com reticências) e
+`flex-shrink: 0` na fila e no avatar (o avatar encolhia para 36 px). Depois: cabeçalho de 16 a 359 px,
+fila 44×44, sino 44×44, avatar 40×40.
+
+```
+$ bunx playwright test (driver-app.smoke.spec.ts, bypass, porta 53112) --grep "CA13|CA15|CA08|sem sinal, a confirma"
+  4 passed (8.8s)
+```
+
+⚠️ **O smoke completo não é evidência nesta rodada.** A partir do meio da T1.3 outro executor passou
+a editar a mesma árvore (`DriverStopCard`, `useDriverTrip`, locales, workspace, CSS, o próprio
+`driver-app.smoke.spec.ts`), e o build do Playwright leva esse WIP junto. Medido: o
+`driver-service-worker.smoke.spec.ts` passa 2/2 numa cópia de `1e512a9b9` (duas vezes, 53112) e cai
+na árvore atual por falta do botão "Entreguei" na parada — comportamento do WIP da parada, não do
+cabeçalho. O smoke completo fica para quando a árvore estiver só com commits.
+
+Prints (build de smoke, API mockada, 375 e 768 px) em `prints/`: `t1.3-cabecalho-zero-*.png` (sem
+selo), `t1.3-viagem-fila-*.png` (selo `1`) e `t1.3-fila-*.png` (a fila aberta pelo ícone).
+
+**Preview do usuário:** não mexido (53200 e 53901 seguem no ar, mesmos PIDs). O
+`PREVIEW_HOLD_QUEUE=1` da API de demonstração não foi aplicado: exigiria reiniciar a 53901, que é do
+usuário. **Pendente: o ok do usuário nos prints.**

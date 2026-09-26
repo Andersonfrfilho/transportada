@@ -641,6 +641,7 @@
   padding-bottom: var(--space-16);
 }
 
+/* Item de grade: sem `min-width: 0` o nome da empresa alarga a coluna e a tela rola de lado. */
 .moduleHeader {
   align-items: center;
   background: var(--color-graphite);
@@ -649,6 +650,7 @@
   display: flex;
   gap: var(--space-3);
   justify-content: space-between;
+  min-width: 0;
   padding: var(--space-3) var(--space-4);
 }
 
@@ -670,9 +672,11 @@
   min-width: 0;
 }
 
+/* Spec 193 D13: com a fila ao lado do sino, o nome é quem cede espaço — e corta com reticências. */
 .moduleCompanyName {
   color: var(--color-slate);
   font-size: var(--field-font-size-compact);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -690,6 +694,7 @@
   color: inherit;
   cursor: pointer;
   display: inline-flex;
+  flex-shrink: 0;
   justify-content: center;
   margin-inline-start: auto;
   min-height: var(--touch-target);
@@ -729,6 +734,7 @@
   border: 1px solid var(--color-copper);
   border-radius: 0;
   display: inline-flex;
+  flex-shrink: 0;
   font-weight: 700;
   height: var(--space-10);
   justify-content: center;

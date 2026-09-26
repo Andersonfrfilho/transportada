@@ -528,6 +528,41 @@ test('CA08: o sino leva a Notificações e tem 44 px', async ({ page }) => {
   expect(new URL(page.url()).pathname).toBe('/notificacoes')
 })
 
+/**
+ * Spec 193 CA13: a fila presa aparece no cabeçalho em viagem, `/fotos`, `/perfil` e `/fila`, com o
+ * selo da contagem, e o toque abre `/fila`. O relato não sobe porque a API está sem sinal.
+ */
+test('CA13 (193): a fila presa mostra o selo no cabeçalho e o toque abre a fila', async ({
+  page,
+}) => {
+  const api = await openTrip(page)
+  api.setOffline(true)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
+
+  const queueButton = page.getByRole('button', { name: 'Fila de envio, 1 pendente' })
+  await expect(queueButton).toBeVisible()
+  await expect(queueButton).toHaveText('1')
+  const box = await queueButton.boundingBox()
+  expect(box?.width).toBeGreaterThanOrEqual(44)
+  expect(box?.height).toBeGreaterThanOrEqual(44)
+
+  for (const path of ['/fotos', '/perfil']) {
+    await page.evaluate((next) => {
+      window.history.pushState({}, '', next)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }, path)
+    await expect(page.getByRole('button', { name: 'Fila de envio, 1 pendente' })).toBeVisible()
+  }
+
+  await page.getByRole('button', { name: 'Fila de envio, 1 pendente' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Eventos pendentes' })).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/fila')
+  await expect(page.getByRole('button', { name: 'Fila de envio, 1 pendente' })).toBeVisible()
+  expect(api.reports()).toEqual([])
+  await assertNoHorizontalOverflow(page)
+})
+
 /** CA15: nenhum interativo visível abaixo de 44×44 px em 375 px. */
 test('CA15: nenhum interativo abaixo de 44x44 px em 375 px', async ({ page }) => {
   await openTrip(page)
