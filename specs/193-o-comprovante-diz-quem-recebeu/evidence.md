@@ -86,3 +86,28 @@ selo), `t1.3-viagem-fila-*.png` (selo `1`) e `t1.3-fila-*.png` (a fila aberta pe
 **Preview do usuário:** não mexido (53200 e 53901 seguem no ar, mesmos PIDs). O
 `PREVIEW_HOLD_QUEUE=1` da API de demonstração não foi aplicado: exigiria reiniciar a 53901, que é do
 usuário. **Pendente: o ok do usuário nos prints.**
+
+## Fase 2 — O banco guarda quem recebeu
+
+⚠️ **Árvore compartilhada com a spec 205** ("o registro tardio pesa como foto atrasada"): outro
+executor edita, sem commit, `trip.schema.ts` (`late_registration` em `trip_delivery_proofs` e
+`trip_stop_events`), `attach-delivery-proof.use-case.ts`, `delivery-proof-read.support.ts`,
+`drizzle-delivery-proof.repository.ts`, `static-migration.contract.ts`, `me-trip.integration.ts` e
+criou `drizzle/20260926001939_late_registration/` (não versionada). Os commits desta spec levam só os
+trechos da 193 (blob montado a partir do HEAD); os testes rodam sobre a árvore com o WIP da 205.
+
+### T2.1 — testes antes (vistos falhar)
+
+`test/trip-schema/received-by.contract.ts` (importado em `test/trip-schema.contract.test.ts`): os dez
+códigos na ordem da D1, os dois que pedem detalhe, `varchar(16)`/`varchar(120)` anuláveis, os três
+CHECKs (lista ou nulo; detalhe só com relação; `cargo` sem nada), o `receiver_check` novo
+(`kind <> 'cargo' or length(receiver_name) = 0`), nenhum CHECK de detalhe obrigatório e
+`received_by` `optional` + CHECK nas duas tabelas de configuração. Tenant-safety:
+`trip-schema/tenant-safety.contract.ts` (as colunas ficam na linha do comprovante, nunca como FK) e
+`delivery-proof-settings-tenant-safety.contract.ts` (o modo mora nas linhas do tenant).
+
+```
+$ bun --env-file=../../.env.test test ./test/trip-schema.contract.test.ts --timeout 120000
+SyntaxError: Export named 'RECEIVED_BY_OPTIONS' not found in module '.../src/database/database.schema.ts'.
+ 0 pass, 1 fail, 1 error
+```
