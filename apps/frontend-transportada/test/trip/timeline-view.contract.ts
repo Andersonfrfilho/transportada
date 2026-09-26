@@ -9,6 +9,8 @@ import {
   resolveTripTimelineTone,
 } from '../../src/modules/trip/shared/tripTimeline.service'
 import type { TripTimelineItem } from '../../src/modules/trip/shared/trip.types'
+import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
+import tripPt from '../../src/modules/trip/locales/trip.locale.json'
 
 const BASE_ITEM: TripTimelineItem = {
   actorName: 'Marina Alves',
@@ -376,5 +378,81 @@ describe('animação de entrada da linha do tempo (spec 171)', () => {
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)\s*{\s*\.itemEnter\s*{\s*animation:\s*none/,
     )
+  })
+})
+
+/**
+ * Spec 206 T0.3 (D12): os dois rótulos novos da linha do tempo. O escritório pergunta "ele está vindo
+ * para cá?", e é isto que responde. O tom fica `progress` nos dois: cancelar a rota é fato de operação,
+ * não erro (ADR-0088 §2b, e nenhuma penalidade nasce aqui — ADR-0070).
+ */
+describe('rótulos da saída da parada (spec 206 T0.3 / D12)', () => {
+  it('stop.departed traz a sequência da parada', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      channel: 'driver_app',
+      kind: 'stop.departed',
+      stop: { id: 'stop-1', sequence: 3 },
+      toStatus: null,
+    }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.stopDeparted(sequence=3)',
+    )
+  })
+
+  it('stop.departure_cancelled traz a sequência da parada', () => {
+    const item: TripTimelineItem = {
+      ...BASE_ITEM,
+      channel: 'driver_app',
+      kind: 'stop.departure_cancelled',
+      stop: { id: 'stop-1', sequence: 3 },
+      toStatus: null,
+    }
+    expect(resolveTripTimelineTitle(item, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.stopDepartureCancelled(sequence=3)',
+    )
+  })
+
+  it('sem parada, os dois caem no título sem sequência — nunca no código cru', () => {
+    const departed: TripTimelineItem = {
+      ...BASE_ITEM,
+      kind: 'stop.departed',
+      stop: null,
+      toStatus: null,
+    }
+    const cancelled: TripTimelineItem = {
+      ...BASE_ITEM,
+      kind: 'stop.departure_cancelled',
+      stop: null,
+      toStatus: null,
+    }
+    expect(resolveTripTimelineTitle(departed, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.stopDepartedUnknown',
+    )
+    expect(resolveTripTimelineTitle(cancelled, fakeTranslate)).toBe(
+      'eventTimeline.itemTitle.stopDepartureCancelledUnknown',
+    )
+  })
+
+  it('o tom dos dois é progress — cancelar não é problema', () => {
+    expect(resolveTripTimelineTone({ ...BASE_ITEM, kind: 'stop.departed', toStatus: null })).toBe(
+      'progress',
+    )
+    expect(
+      resolveTripTimelineTone({ ...BASE_ITEM, kind: 'stop.departure_cancelled', toStatus: null }),
+    ).toBe('progress')
+  })
+
+  it('os quatro rótulos existem em pt e en, com {{sequence}} onde cabe', () => {
+    const pt = tripPt.eventTimeline.itemTitle
+    const en = tripEn.eventTimeline.itemTitle
+    expect(pt.stopDeparted).toBe('A caminho da parada {{sequence}}')
+    expect(pt.stopDepartureCancelled).toBe('Cancelou a rota da parada {{sequence}}')
+    expect(pt.stopDepartedUnknown).toBe('A caminho de parada')
+    expect(pt.stopDepartureCancelledUnknown).toBe('Cancelou a rota de parada')
+    expect(en.stopDeparted).toBe('On the way to stop {{sequence}}')
+    expect(en.stopDepartureCancelled).toBe('Cancelled the route to stop {{sequence}}')
+    expect(en.stopDepartedUnknown).toBe('On the way to a stop')
+    expect(en.stopDepartureCancelledUnknown).toBe('Cancelled the route to a stop')
   })
 })

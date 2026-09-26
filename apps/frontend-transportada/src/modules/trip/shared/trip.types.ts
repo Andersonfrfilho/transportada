@@ -268,6 +268,9 @@ export const TRIP_TIMELINE_KINDS = [
   'trip.dispatched',
   'trip.status_changed',
   'stop.arrived',
+  /** Spec 206 D12: a saída para a parada e o cancelamento dela. Prioridade 0 na API, como `stop.arrived`. */
+  'stop.departed',
+  'stop.departure_cancelled',
   'document.delivered',
   'document.returned',
   'stop.occurrence',

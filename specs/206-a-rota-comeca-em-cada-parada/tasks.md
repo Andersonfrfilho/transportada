@@ -97,7 +97,12 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
 
   **Aceite:** o roteiro revisado pelo `architect` (opus), e o parecer colado no `evidence.md`.
 
-- [ ] **T0.3** Painel tolerante (D12).
+- [x] **T0.3** Painel tolerante (D12). **Feita em 2026-09-26**, pelo caminho longo ("Senão") — a 192
+      T0.2 não está em `origin/staging`. Evidência em `evidence.md` § "T0.3". ⚠️ Precisou também dos dois
+      kinds e da prioridade 0 em `apps/api-transportada/src/trips/application/trip-timeline.types.ts`: o
+      contrato de **paridade exata** entre a lista do painel e a da API
+      (`test/trip/timeline.contract.ts:233-243`) não deixa publicar um lado sem o outro. O mapeamento de
+      `listStopEventRows` **segue na Fase 2**.
   - **Se a 192 T0.2 já estiver em `origin/staging`,** basta acrescentar `stop.departed` e
     `stop.departure_cancelled` a `TRIP_TIMELINE_KINDS` (`trip.types.ts:267-277`), com os rótulos.
   - **Senão:**

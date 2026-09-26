@@ -576,6 +576,10 @@
       "statusChanged": "Situação da viagem alterada ({{status}})",
       "stopArrived": "Chegada na parada {{sequence}}",
       "stopArrivedUnknown": "Chegada em parada",
+      "stopDeparted": "A caminho da parada {{sequence}}",
+      "stopDepartedUnknown": "A caminho de parada",
+      "stopDepartureCancelled": "Cancelou a rota da parada {{sequence}}",
+      "stopDepartureCancelledUnknown": "Cancelou a rota de parada",
       "stopOccurrence": "Ocorrência: {{type}}",
       "tripCreated": "Viagem criada",
       "tripStatus": {

@@ -467,6 +467,10 @@
       "statusChanged": "Trip status changed ({{status}})",
       "stopArrived": "Arrival at stop {{sequence}}",
       "stopArrivedUnknown": "Arrival at stop",
+      "stopDeparted": "On the way to stop {{sequence}}",
+      "stopDepartedUnknown": "On the way to a stop",
+      "stopDepartureCancelled": "Cancelled the route to stop {{sequence}}",
+      "stopDepartureCancelledUnknown": "Cancelled the route to a stop",
       "stopOccurrence": "Occurrence: {{type}}",
       "tripStatus": {
         "cancelled": "Trip cancelled",

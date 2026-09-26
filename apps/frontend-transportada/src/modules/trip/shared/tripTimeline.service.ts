@@ -112,6 +112,14 @@ export function resolveTripTimelineTitle(item: TripTimelineItem, t: Translate): 
       return item.stop === null
         ? t('eventTimeline.itemTitle.stopArrivedUnknown')
         : t('eventTimeline.itemTitle.stopArrived', { sequence: item.stop.sequence })
+    case 'stop.departed':
+      return item.stop === null
+        ? t('eventTimeline.itemTitle.stopDepartedUnknown')
+        : t('eventTimeline.itemTitle.stopDeparted', { sequence: item.stop.sequence })
+    case 'stop.departure_cancelled':
+      return item.stop === null
+        ? t('eventTimeline.itemTitle.stopDepartureCancelledUnknown')
+        : t('eventTimeline.itemTitle.stopDepartureCancelled', { sequence: item.stop.sequence })
     case 'document.delivered':
       return t('eventTimeline.itemTitle.documentDelivered', {
         document: formatTripTimelineDocumentLabel(item.document, t),
