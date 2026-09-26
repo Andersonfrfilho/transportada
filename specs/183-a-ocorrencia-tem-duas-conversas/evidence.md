@@ -2459,3 +2459,19 @@ spec: todas esperam uma decisão ou uma ação do usuário.
 | **T605**         | A política da janela está pronta e testada. O job e o aviso de troca de canal são um modelo da T002.                                                                                | T002.                                |
 | **T702 / T702f** | A T702 fecha quando fechar a T702f (mídia da Meta: foto, documento e áudio pelo WhatsApp). O usuário decidiu na T702e que ela espera o envio pela Meta. T702a–e estão `[x]`.        | T002 e T503.                         |
 | **T706** 🔒      | A transcrição de áudio tem `[NEEDS CLARIFICATION]` na spec: que provedor, e se a voz pode sair para ele (LGPD: base legal, retenção, região). Nada se implementa com dúvida aberta. | A decisão do provedor, que vira ADR. |
+
+## A suíte do anexo roda na CI pelo dublê de storage (2026-09-26)
+
+O `2842f4c54` fez `test/integration/occurrence-conversation-attachment.integration.ts` pular quando o
+S3 não responde. Na CI, que não sobe o MinIO, os três casos deixaram de rodar. Agora a suíte escolhe:
+S3 real quando o endpoint responde (a mesma sondagem), e o dublê em memória
+(`createInMemoryObjectStorageProvider`) quando não. No dublê, o PUT e o download pela URL assinada são
+simulados lendo `<bucket>/<chave>` da URL, com o PUT sobrescrevendo a chave como o S3. O caso T903 S1
+(PUT tardio depois do envio) continua provado nos dois modos.
+
+```text
+endpoint sem serviço (a CI): 3 pass / 0 fail — dublê
+MinIO local na 59000:        3 pass / 0 fail — S3 real
+```
+
+O dublê não prova a assinatura da URL nem o `BadDigest` da T702a; isso continua só no modo S3 real.
