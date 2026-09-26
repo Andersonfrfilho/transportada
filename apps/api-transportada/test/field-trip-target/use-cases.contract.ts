@@ -104,7 +104,6 @@ function buildProofRepository() {
     findDeliveryContext: async () => ({
       deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
       deliveryEventPosition: undefined,
-      stopPosition: undefined,
     }),
     findDeliveryEventId: async (input) => {
       lookups.push(input)

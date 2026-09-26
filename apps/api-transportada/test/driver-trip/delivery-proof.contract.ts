@@ -36,7 +36,6 @@ function buildWorld(
     readonly deliveryEventPosition?: Coordinate
     readonly eventId?: string | null
     readonly existingProofByKey?: Readonly<Record<string, ProofPunctuality>>
-    readonly stopPosition?: Coordinate
   } = {},
 ) {
   const saved: SavedProof[] = []
@@ -47,7 +46,6 @@ function buildWorld(
       Promise.resolve({
         deliveredAt: input.deliveredAt ?? DELIVERED_AT,
         deliveryEventPosition: input.deliveryEventPosition,
-        stopPosition: input.stopPosition,
       }),
     findDeliveryEventId: () =>
       Promise.resolve(input.eventId === undefined ? EVENT_ID : input.eventId),
@@ -255,17 +253,20 @@ describe('o comprovante da entrega', () => {
     }
 
     it('foto no local e dentro da janela é on_time (aceite 3)', async () => {
-      const stopPosition: Coordinate = { latitude: '-23.5500000', longitude: '-46.6300000' }
+      const deliveryEventPosition: Coordinate = {
+        latitude: '-23.5500000',
+        longitude: '-46.6300000',
+      }
       const world = buildWorld({
         deliveredAt: DELIVERED_AT,
-        stopPosition,
+        deliveryEventPosition,
       })
       await withPhotoMode(world, 'required')
 
       const result = await attachDeliveryProof(
         buildInput(world, {
           capturedAt: new Date(DELIVERED_AT.getTime() + 10 * 60 * 1000),
-          position: { ...stopPosition, accuracyMeters: 5 },
+          position: { ...deliveryEventPosition, accuracyMeters: 5 },
         }),
       )
 
@@ -274,13 +275,16 @@ describe('o comprovante da entrega', () => {
     })
 
     it('foto 2h depois da janela de 60min é late (aceite 4)', async () => {
-      const stopPosition: Coordinate = { latitude: '-23.5500000', longitude: '-46.6300000' }
-      const world = buildWorld({ deliveredAt: DELIVERED_AT, stopPosition })
+      const deliveryEventPosition: Coordinate = {
+        latitude: '-23.5500000',
+        longitude: '-46.6300000',
+      }
+      const world = buildWorld({ deliveredAt: DELIVERED_AT, deliveryEventPosition })
       await withPhotoMode(world, 'required')
       const capturedAt = new Date(DELIVERED_AT.getTime() + 2 * 60 * 60 * 1000)
 
       const result = await attachDeliveryProof(
-        buildInput(world, { capturedAt, position: stopPosition }, capturedAt),
+        buildInput(world, { capturedAt, position: deliveryEventPosition }, capturedAt),
       )
 
       expect(result.punctuality).toBe(PROOF_PUNCTUALITY.late)
@@ -289,7 +293,7 @@ describe('o comprovante da entrega', () => {
     it('foto sem posição é away, mesmo dentro da janela (aceite 4)', async () => {
       const world = buildWorld({
         deliveredAt: DELIVERED_AT,
-        stopPosition: { latitude: '-23.5500000', longitude: '-46.6300000' },
+        deliveryEventPosition: { latitude: '-23.5500000', longitude: '-46.6300000' },
       })
       await withPhotoMode(world, 'required')
 
@@ -317,8 +321,11 @@ describe('o comprovante da entrega', () => {
      * continua `late`, senão bastava tirar outra foto no lugar certo para apagar o atraso.
      */
     it('foto pontual que substitui a tardia continua late', async () => {
-      const stopPosition: Coordinate = { latitude: '-23.5500000', longitude: '-46.6300000' }
-      const world = buildWorld({ deliveredAt: DELIVERED_AT, stopPosition })
+      const deliveryEventPosition: Coordinate = {
+        latitude: '-23.5500000',
+        longitude: '-46.6300000',
+      }
+      const world = buildWorld({ deliveredAt: DELIVERED_AT, deliveryEventPosition })
       await withPhotoMode(world, 'required')
       const lateCapturedAt = new Date(DELIVERED_AT.getTime() + 2 * 60 * 60 * 1000)
 
@@ -332,7 +339,7 @@ describe('o comprovante da entrega', () => {
       const second = await attachDeliveryProof(
         buildInput(
           world,
-          { attachmentKey: 'second', capturedAt: lateCapturedAt, position: stopPosition },
+          { attachmentKey: 'second', capturedAt: lateCapturedAt, position: deliveryEventPosition },
           lateCapturedAt,
         ),
       )
@@ -340,7 +347,7 @@ describe('o comprovante da entrega', () => {
         buildInput(world, {
           attachmentKey: 'third',
           capturedAt: new Date(DELIVERED_AT.getTime() + 10 * 60 * 1000),
-          position: stopPosition,
+          position: deliveryEventPosition,
         }),
       )
 
@@ -354,22 +361,25 @@ describe('o comprovante da entrega', () => {
     })
 
     it('foto substituída (upsert por evento+tipo) fica com a pior pontualidade', async () => {
-      const stopPosition: Coordinate = { latitude: '-23.5500000', longitude: '-46.6300000' }
-      const world = buildWorld({ deliveredAt: DELIVERED_AT, stopPosition })
+      const deliveryEventPosition: Coordinate = {
+        latitude: '-23.5500000',
+        longitude: '-46.6300000',
+      }
+      const world = buildWorld({ deliveredAt: DELIVERED_AT, deliveryEventPosition })
       await withPhotoMode(world, 'required')
 
       await attachDeliveryProof(
         buildInput(world, {
           attachmentKey: 'first',
           capturedAt: new Date(DELIVERED_AT.getTime() + 10 * 60 * 1000),
-          position: stopPosition,
+          position: deliveryEventPosition,
         }),
       )
       const lateCapturedAt = new Date(DELIVERED_AT.getTime() + 2 * 60 * 60 * 1000)
       const second = await attachDeliveryProof(
         buildInput(
           world,
-          { attachmentKey: 'second', capturedAt: lateCapturedAt, position: stopPosition },
+          { attachmentKey: 'second', capturedAt: lateCapturedAt, position: deliveryEventPosition },
           lateCapturedAt,
         ),
       )

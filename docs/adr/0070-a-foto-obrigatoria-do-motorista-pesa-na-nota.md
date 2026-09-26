@@ -75,3 +75,25 @@ E, sem decisão nova, a revisão consertou: a precisão soma ao raio no máximo 
 a ser gravado nele (`reported_by_driver_id`), e desligar o acesso ao app não apaga o histórico; as
 fotos pendentes de viagem concluída aparecem em `pendingProofs` no snapshot; a posição da foto cai
 aos 90 dias com a do evento. Riscos aceitos em `docs/SECURITY.md` (2026-09-18, spec 159).
+
+## Emenda 2026-09-25 — a referência do raio é a posição da baixa (decisão do usuário)
+
+O §4 e a RF6 da spec 159 mediam "longe" contra a coordenada da parada em
+`trip_stops.latitude/longitude`, com o evento de entrega só como plano B. Essas colunas nunca são
+escritas (spec 079 T009): a coordenada viva da parada mora em `geocoded_addresses`, pela
+`address_key`. Na prática o plano B sempre foi a regra — sem ninguém ter decidido.
+
+Posta a escolha entre o pino geocodificado e a posição do evento, o usuário decidiu: **a referência é
+a geolocalização capturada no próprio evento de entrega** (`trip_stop_events.latitude/longitude`). A
+foto prova que foi tirada onde a baixa foi registrada; o pino da parada não entra na conta.
+
+- O §4 passa a ler: **Longe** é a foto a mais de `proofRadiusMeters + precisão` da posição do evento de
+  entrega. Evento sem posição não dá referência, e a distância não pesa. Foto sem posição continua
+  contando como longe.
+- A leitura morta de `trip_stops` saiu de `findDeliveryContext`, e `stopPosition` saiu do contrato da
+  política — o pino não volta por engano: um teste de integração dá à parada um pino a ~360 km da
+  baixa e confere que a foto tirada na baixa é `on_time` e a tirada no pino é `away`.
+- Sem efeito retroativo nem mudança de comportamento: a pontualidade é gravada quando a foto chega,
+  e o que se gravava até hoje já era contra o evento.
+- Um centroide de CEP ou de município (ADR-0044 §5) nunca vira referência — não há risco de punir o
+  motorista pela geocodificação ruim de um endereço.
