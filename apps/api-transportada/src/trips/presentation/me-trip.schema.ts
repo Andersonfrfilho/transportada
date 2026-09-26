@@ -51,6 +51,11 @@ const returnSchema = z
 
 const occurrenceSchema = z
   .object({
+    /**
+     * Spec 209 RF2: a foto do "Deu problema", em qualquer motivo — o id do upload confirmado da 179,
+     * nunca o arquivo. Ausente é a ocorrência sem foto, que é o que todo cliente anterior manda.
+     */
+    attachmentObjectId: z.uuid().nullish(),
     description: z.string().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).optional(),
     /**
      * ADR-0057 §3: metros entre o motorista e a parada, medidos no aparelho. Ausente é **não
@@ -133,6 +138,7 @@ export async function parseDocumentReturnRequest(request: Request): Promise<{
 }
 
 export async function parseStopOccurrenceRequest(request: Request): Promise<{
+  readonly attachmentObjectId: string | null
   readonly description: string
   readonly distanceMeters: number | null
   readonly documentId: string | null
@@ -141,6 +147,7 @@ export async function parseStopOccurrenceRequest(request: Request): Promise<{
   const body = await parseBody(occurrenceSchema, request)
 
   return {
+    attachmentObjectId: body.attachmentObjectId ?? null,
     description: body.description ?? '',
     /* Ausente e nulo dizem a mesma coisa — não aferida —, e viram o mesmo valor aqui. */
     distanceMeters: body.distanceMeters ?? null,

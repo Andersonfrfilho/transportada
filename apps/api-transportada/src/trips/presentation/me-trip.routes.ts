@@ -68,6 +68,12 @@ const DOCUMENT_OCCURRENCE_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documen
 const DOCUMENT_OCCURRENCE_UPLOAD_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/occurrence-uploads`
 const DOCUMENT_OCCURRENCE_UPLOAD_CONFIRM_PATH = `${DOCUMENT_OCCURRENCE_UPLOAD_PATH}/:uploadId/confirm`
 /**
+ * Spec 209 RF1: a mesma URL assinada, pela parada — a foto do "Deu problema" não tem nota. A parada
+ * resolve a viagem na rua dele, como a nota resolve na 179.
+ */
+const STOP_OCCURRENCE_UPLOAD_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/occurrence-uploads`
+const STOP_OCCURRENCE_UPLOAD_CONFIRM_PATH = `${STOP_OCCURRENCE_UPLOAD_PATH}/:uploadId/confirm`
+/**
  * O manifesto sai por id, e o id vem da própria viagem que o motorista acabou de ler — ele não
  * procura manifesto, ele abre o da carga que está levando. A escala dele é a condição da consulta:
  * manifesto de outra viagem responde 404, como se não existisse.
@@ -109,6 +115,12 @@ type DriverDocumentOutcomeInput = DriverActionInput & {
   readonly lateRegistration: boolean
 }
 
+/**
+ * O que resolve a viagem do upload: a nota da ocorrência de nota (179) ou a parada do "Deu
+ * problema" (209). Uma dependência só para as duas — o mecanismo é o mesmo, muda quem acha a viagem.
+ */
+export type OccurrenceUploadTarget = { readonly documentId: string } | { readonly stopId: string }
+
 export type MeTripDependencies = {
   readonly findCurrentTrip: (input: {
     readonly companyId: string
@@ -130,6 +142,8 @@ export type MeTripDependencies = {
   ) => Promise<ReportDocumentOutcomeResult>
   readonly reportOccurrence: (
     input: DriverContextInput & {
+      /** Spec 209 RF2: o upload confirmado da foto — `null` é a ocorrência sem foto. */
+      readonly attachmentObjectId: string | null
       readonly description: string
       /** ADR-0057 §3: `null` é não aferida — e ela é aceita, não recusada. */
       readonly distanceMeters: number | null
@@ -157,17 +171,17 @@ export type MeTripDependencies = {
   /** Spec 179 T202 (RF2): a URL assinada — o arquivo nunca passa por aqui. */
   readonly createOccurrenceUpload: (input: {
     readonly companyId: string
-    readonly documentId: string
     readonly driverId: string
     readonly mimeType: string
     readonly sizeBytes: number
+    readonly target: OccurrenceUploadTarget
   }) => Promise<{ readonly id: string; readonly uploadUrl: URL }>
   /** Spec 179 T202 (RF2a): confere o objeto de verdade e só então ele existe em `stored_objects`. */
   readonly confirmOccurrenceUpload: (input: {
     readonly companyId: string
-    readonly documentId: string
     readonly driverId: string
     readonly id: string
+    readonly target: OccurrenceUploadTarget
   }) => Promise<{ readonly id: string }>
   readonly dispatchCurrentTrip: (input: {
     readonly actorUserId: string
@@ -522,10 +536,10 @@ export function createMeTripRoutes(
         const driverId = await resolveDriver(context.scope)
         const upload = await dependencies.createOccurrenceUpload({
           companyId: context.scope.companyId,
-          documentId: input.documentId,
           driverId,
           mimeType: input.mimeType,
           sizeBytes: input.sizeBytes,
+          target: { documentId: input.documentId },
         })
 
         return jsonResponse({
@@ -550,9 +564,9 @@ export function createMeTripRoutes(
         const driverId = await resolveDriver(context.scope)
         const confirmed = await dependencies.confirmOccurrenceUpload({
           companyId: context.scope.companyId,
-          documentId: input.documentId,
           driverId,
           id: input.uploadId,
+          target: { documentId: input.documentId },
         })
 
         return jsonResponse({ body: { data: confirmed }, status: 200 })
@@ -563,6 +577,58 @@ export function createMeTripRoutes(
         uploadId: parseUuidPathIdentifier(pathParameters.uploadId ?? ''),
       }),
       pathname: DOCUMENT_OCCURRENCE_UPLOAD_CONFIRM_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{
+      readonly mimeType: string
+      readonly sizeBytes: number
+      readonly stopId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const upload = await dependencies.createOccurrenceUpload({
+          companyId: context.scope.companyId,
+          driverId,
+          mimeType: input.mimeType,
+          sizeBytes: input.sizeBytes,
+          target: { stopId: input.stopId },
+        })
+
+        return jsonResponse({
+          body: { data: { id: upload.id, uploadUrl: upload.uploadUrl.toString() } },
+          status: 201,
+        })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseCreateOccurrenceUploadRequest(request)
+        return {
+          mimeType: body.mimeType,
+          sizeBytes: body.sizeBytes,
+          stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
+        }
+      },
+      pathname: STOP_OCCURRENCE_UPLOAD_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{ readonly stopId: string; readonly uploadId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const confirmed = await dependencies.confirmOccurrenceUpload({
+          companyId: context.scope.companyId,
+          driverId,
+          id: input.uploadId,
+          target: { stopId: input.stopId },
+        })
+
+        return jsonResponse({ body: { data: confirmed }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
+        uploadId: parseUuidPathIdentifier(pathParameters.uploadId ?? ''),
+      }),
+      pathname: STOP_OCCURRENCE_UPLOAD_CONFIRM_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<undefined>({
@@ -580,6 +646,7 @@ export function createMeTripRoutes(
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<{
+      readonly attachmentObjectId: string | null
       readonly description: string
       readonly distanceMeters: number | null
       readonly documentId: string | null
@@ -591,6 +658,7 @@ export function createMeTripRoutes(
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.reportOccurrence({
           actorUserId: context.scope.userId,
+          attachmentObjectId: input.attachmentObjectId,
           companyId: context.scope.companyId,
           description: input.description,
           distanceMeters: input.distanceMeters,
@@ -607,6 +675,7 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseStopOccurrenceRequest(request)
         return {
+          attachmentObjectId: body.attachmentObjectId,
           description: body.description,
           distanceMeters: body.distanceMeters ?? null,
           documentId: body.documentId,

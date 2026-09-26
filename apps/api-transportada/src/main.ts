@@ -240,7 +240,15 @@ import {
   confirmReachableOccurrenceUpload,
   requestOccurrenceUpload,
 } from './trips/application/request-occurrence-upload.use-case.js'
+import {
+  confirmReachableStopOccurrenceUpload,
+  requestStopOccurrenceUpload,
+} from './trips/application/request-stop-occurrence-upload.use-case.js'
 import { DrizzleOccurrenceUploadRepository } from './trips/infrastructure/drizzle-occurrence-upload.repository.js'
+import {
+  attachUploadToStopOccurrence,
+  findDriverReachableStop,
+} from './trips/infrastructure/stop-occurrence-attachment.query.js'
 import { readTripActionSnapshot } from './trips/application/read-trip-action-snapshot.use-case.js'
 import { readTripActionSnapshot as readTripActionSnapshotQuery } from './trips/infrastructure/trip-action-snapshot.query.js'
 import { readTripFieldDeliveryDocuments as readTripFieldDeliveryDocumentsQuery } from './trips/infrastructure/trip-field-delivery-documents.query.js'
@@ -3309,30 +3317,70 @@ function createApplicationRoutes({
        * confirmação. As duas passam pela mesma consulta de alcance de `registerDriverOccurrence`
        * (RF2b): a nota fora da viagem dele nunca vira objeto de ninguém.
        */
-      createOccurrenceUpload: (input) =>
-        requestOccurrenceUpload({
+      /** Spec 209 RF1: a parada do "Deu problema" resolve a viagem como a nota resolve na 179. */
+      createOccurrenceUpload: ({ target, ...input }) => {
+        const upload = {
           ...input,
           bucket: storageBucket,
           newObjectId: () => crypto.randomUUID(),
           now: new Date(),
-          repository: {
-            findReachableDocument: (query) => findDriverReachableDocument(database, query),
-            insertPendingUpload: (query) => occurrenceUploadRepository.insertPendingUpload(query),
-          },
           storage: storageGateway,
-        }),
-      confirmOccurrenceUpload: (input) =>
-        confirmReachableOccurrenceUpload({
+        }
+        const insertPendingUpload = occurrenceUploadRepository.insertPendingUpload.bind(
+          occurrenceUploadRepository,
+        )
+        return 'stopId' in target
+          ? requestStopOccurrenceUpload({
+              ...upload,
+              repository: {
+                findReachableStop: (query) => findDriverReachableStop(database, query),
+                insertPendingUpload,
+              },
+              stopId: target.stopId,
+            })
+          : requestOccurrenceUpload({
+              ...upload,
+              documentId: target.documentId,
+              repository: {
+                findReachableDocument: (query) => findDriverReachableDocument(database, query),
+                insertPendingUpload,
+              },
+            })
+      },
+      confirmOccurrenceUpload: ({ target, ...input }) => {
+        const confirmation = {
           ...input,
           now: new Date(),
-          repository: {
-            confirmUpload: (query) => occurrenceUploadRepository.confirmUpload(query),
-            findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
-            findPendingUpload: (query) => occurrenceUploadRepository.findPendingUpload(query),
-            findReachableDocument: (query) => findDriverReachableDocument(database, query),
-          },
           storage: storageGateway,
-        }),
+        }
+        const uploads = {
+          confirmUpload: (query: Parameters<typeof occurrenceUploadRepository.confirmUpload>[0]) =>
+            occurrenceUploadRepository.confirmUpload(query),
+          findConfirmedUpload: (
+            query: Parameters<typeof occurrenceUploadRepository.findConfirmedUpload>[0],
+          ) => occurrenceUploadRepository.findConfirmedUpload(query),
+          findPendingUpload: (
+            query: Parameters<typeof occurrenceUploadRepository.findPendingUpload>[0],
+          ) => occurrenceUploadRepository.findPendingUpload(query),
+        }
+        return 'stopId' in target
+          ? confirmReachableStopOccurrenceUpload({
+              ...confirmation,
+              repository: {
+                ...uploads,
+                findReachableStop: (query) => findDriverReachableStop(database, query),
+              },
+              stopId: target.stopId,
+            })
+          : confirmReachableOccurrenceUpload({
+              ...confirmation,
+              documentId: target.documentId,
+              repository: {
+                ...uploads,
+                findReachableDocument: (query) => findDriverReachableDocument(database, query),
+              },
+            })
+      },
       attachProof: (input) =>
         attachDeliveryProof({
           ...input,
@@ -3385,11 +3433,15 @@ function createApplicationRoutes({
             deliveryProofRepository.resolveProofFieldSettings(settings),
           unitOfWork: driverFieldReports,
         }),
+      /** Spec 209 RF2/RF3: a foto do "Deu problema" é anexo da ocorrência, nunca canhoto. */
       reportOccurrence: (input) =>
         reportStopOccurrence({
           ...input,
           ...stopOccurrenceFollowUp,
-          attachmentObjectId: null,
+          attachmentUploads: {
+            attachUploadToStopOccurrence: (query) => attachUploadToStopOccurrence(database, query),
+            findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
+          },
           unitOfWork: driverFieldReports,
         }),
       reportReturn: (input) =>
