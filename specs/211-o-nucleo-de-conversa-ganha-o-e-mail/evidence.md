@@ -172,3 +172,36 @@ provedor)` é do banco (T202, `unique` da 183); esta função pura nunca vê o i
    109 expect() calls
   Ran 23 tests across 3 files. [17.00ms]
   ```
+
+### T108 — as portas
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `0cbc0b4` (`packages/backend/conversation-contracts/src/{ports.ts,ports.test.ts,index.ts}`).
+- Só assinatura, sem comportamento de runtime: `ConversationChannelPort` (`sendText`,
+  `sendAttachment`, devolve id opaco do provedor); `ConversationEmailTransportPort`
+  (`deriveReplyAddress` — a fórmula HMAC da 143, com `replyAddressPrefix` como parâmetro do host;
+  `verifyReplyToken` — comparação de tempo constante, porque HMAC não se inverte, a busca da
+  candidata por hash continua sendo do host, como `findThreadByReplyTokenHash` da 143;
+  `sendEmail` — `In-Reply-To`/`References` e `Idempotency-Key` = id da nossa mensagem;
+  `recordRawInboundEmail` — MIME bruto e `sha256` antes de qualquer interpretação; `verifyDkim` —
+  devolve `DkimResult`); `ClockPort` (`now(): Date`); `ObjectStoragePort` (`put`, `get`, `delete`,
+  `createSignedDownload`, `createSignedUpload` — nomes espelham `object-storage-provider`, **sem
+  importá-lo**, conferido por `grep` não encontrar a string do pacote em `src/`); `TranscriberPort`
+  (opcional — ausência é anexo sem texto, ADR-0074).
+- `src/ports.test.ts`: dublês simples de cada porta, compilando sob `strict` — não exercita
+  comportamento (a porta é assinatura), só prova que a forma dos métodos é implementável.
+- **Contrato das palavras proibidas (auto-conferido antes da T109):**
+  `grep -rniE "occurrence|contractor|driver" src/` → nenhuma ocorrência.
+- **Gate:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-contracts run check
+  (sem saída — 0 erros)
+
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+   26 pass
+   0 fail
+   115 expect() calls
+  Ran 26 tests across 4 files. [25.00ms]
+  ```
