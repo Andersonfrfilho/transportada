@@ -1,11 +1,15 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/styles/driverTrip.module.css (ADR-0075 §7). */
 /* A tela é do motorista, não do analista: alvo grande, contraste alto e uma coluna só. */
 .shell {
+  box-sizing: border-box;
   display: grid;
   gap: var(--space-4);
+  /* Coluna fixa na largura da tela: sem isso ela acompanhava o conteúdo e a parada aberta alargava tudo. */
+  grid-template-columns: minmax(0, 1fr);
   margin: 0 auto;
   max-width: 40rem;
   padding: var(--space-4);
+  width: 100%;
 }
 
 .header {
@@ -115,6 +119,7 @@
 .stopList {
   display: grid;
   gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -132,7 +137,8 @@
 /* A parada de agora é a que ele está fazendo: sem isso ele varre a lista com o caminhão parado. */
 .stopCurrent {
   border-color: var(--color-copper);
-  border-width: 2px;
+  /* O destaque vai por fora: borda mais grossa comia o espaço interno e desalinhava das outras. */
+  box-shadow: 0 0 0 1px var(--color-copper);
 }
 
 .stopDone {
