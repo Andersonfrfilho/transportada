@@ -2537,3 +2537,17 @@ spec: todas esperam uma decisão ou uma ação do usuário.
     - produção: `https://transportada-production-vosp8e.t3.storageapi.dev`, com o bucket e o
       `FORCE_PATH_STYLE=false` conferidos antes no serviço `api`.
   - O valor vai em `VITE_OBJECT_STORAGE_URL` no painel e em `VITE_STORAGE_URL` no portal.
+- **CORS do bucket (26/09/2026):**
+  - O upload direto (`fetch` PUT) e o download da foto em "Anexar à ocorrência" (`fetch` GET)
+    precisam de CORS; `<img>` e `<audio>` não.
+  - Os dois buckets não tinham regra nenhuma: o `get-bucket-cors` voltou vazio.
+  - O usuário gravou, pela CLI, a mesma regra em cada bucket:
+    - origens `https://app.<zona>` e `https://cliente.<zona>` do ambiente;
+    - métodos `GET`, `HEAD` e `PUT`;
+    - cabeçalho `content-type`;
+    - expõe `ETag`;
+    - `MaxAge` de 3600.
+  - Conferido por preflight, sem credencial:
+    - `200`, com `Access-Control-Allow-Origin` igual à origem pedida, para painel e portal em
+      staging e em produção;
+    - `403`, sem o cabeçalho, para uma origem estranha.
