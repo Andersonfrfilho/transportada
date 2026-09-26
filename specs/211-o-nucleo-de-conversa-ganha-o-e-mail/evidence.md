@@ -1012,3 +1012,39 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
 - **Formato de `Message-ID` aceito:** `local-part@domain`, com ou sem os `< >` do cabeçalho — não
   valida contra a RFC 5322 inteira (que aceita comentários e `folding whitespace`), só recusa entrada
   claramente crua (sem `@`, com espaço) para nunca deixar lixo entrar no cabeçalho de saída.
+
+### T305 — teste do MIME bruto
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`) — classe pedida `sonnet`, atendida.
+- **Commit:** `e067b7e` (`packages/backend/conversation-module/src/domain/rawEmail.test.ts`).
+- **Visto falhar:** `Cannot find module './rawEmail'` → `0 pass / 1 fail`.
+- **Prova de byte-exatidão:** MIME sintético com quebra de linha CRLF e LF misturadas e um cabeçalho
+  `=?utf-8?Q?...?=` — dois pontos em que interpretar o conteúdo (parsear, decodificar o cabeçalho,
+  normalizar a quebra de linha) produz bytes diferentes dos originais. O teste compara o hash da
+  função com o `sha256` calculado direto sobre os bytes originais, e prova que normalizar a quebra de
+  linha como um parser faria **muda** o hash — a função não normaliza nada.
+
+### T306 — o MIME bruto e a extração de anexo
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `a64e7bb` (`src/domain/rawEmail.ts`, `src/domain/emailMime.ts` +
+  `emailMime.test.ts`, exportados no barrel).
+- **Verde:** `113 pass / 0 fail` (`conversation-module`, CA01 incluso), `38 pass / 0 fail`
+  (`conversation-contracts`), `check` com 0 erros nos dois.
+- **`rawEmail.ts`:** só o cálculo do `sha256` (`createHash('sha256').update(rawMime)`) — sem I/O;
+  quem grava os bytes e o hash no bucket é o host, pela `ObjectStoragePort`, como a porta já
+  documenta.
+- **`emailMime.ts`:** o parse do multipart e a extração de anexo, **reaproveitando**
+  `attachmentKindOf`/`matchesAttachmentSignature`/`normalizeAttachmentFileName` de
+  `attachmentType.ts` (T210) sem reescrever a política de tipo, e o teto de
+  `CHANNEL_CAPABILITIES.email.attachments` (T105) para o tamanho. Anexo que mente sobre o tipo ou
+  passa do teto é recusado e só contado em `skippedAttachments` — nunca lançado; quem decide se a
+  mensagem inteira falha é o host. Parte `inline` (ex.: logo da assinatura) nunca vira anexo.
+- **Dependência escolhida:** `postal-mime` (`^2.7.6`), a mesma versão já em uso no ecossistema
+  (`apps/worker-transportada`, `inbound-mail-attachments.service.ts` da spec 183) — preferida a
+  escrever um parser de MIME à mão, como a task pediu. Já estava resolvida transitivamente no
+  `pnpm-lock.yaml` deste repositório (via `resend`); a mudança no lockfile é só a promoção a
+  dependência direta de `conversation-module`, três linhas.
+- **Achado no caminho:** nenhum — o teste de tipo mentindo, o de anexo acima do teto do canal e o de
+  variação de grafia do `content-type` (`image/jpg` → `image/jpeg`) passaram de primeira, porque a
+  política reaproveitada da T210 já cobria os três casos.

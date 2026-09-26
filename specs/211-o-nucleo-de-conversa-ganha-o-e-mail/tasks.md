@@ -99,9 +99,9 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T303** `sonnet` — Teste do threading: `In-Reply-To` e `References` da última mensagem
       recebida, `Idempotency-Key` igual ao id da nossa mensagem. (RF14, CA07)
 - [x] **T304** `sonnet` — O threading. (RF14)
-- [ ] **T305** `sonnet` — Teste do MIME bruto: gravado com `sha256` **antes de qualquer
+- [x] **T305** `sonnet` — Teste do MIME bruto: gravado com `sha256` **antes de qualquer
       interpretação**. (RF14)
-- [ ] **T306** `sonnet` — O MIME bruto e a extração de anexo a partir dele. (RF14, RF8)
+- [x] **T306** `sonnet` — O MIME bruto e a extração de anexo a partir dele. (RF14, RF8)
 - [ ] **T307** 🧠 `opus` — Teste de DKIM com fixtures **sintéticas** (chave de teste, resolvedor
       de DNS injetado): alinhada, desalinhada, corpo adulterado, sem assinatura, DNS fora do ar.
       E-mail real anonimizado **não serve** — anonimizar quebra a assinatura. Assinatura
