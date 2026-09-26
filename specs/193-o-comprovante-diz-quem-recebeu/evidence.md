@@ -402,7 +402,7 @@ Implementação:
   - `withFieldReport` com a operação `document.proof-receiver`. O reenvio devolve `changed: false`
     e o mesmo id.
 - `DriverFieldReportTransactionPort.updateDriverProofReceiverWithinTransaction`: `SELECT … FOR NO KEY
-  UPDATE` nas linhas `photo`/`signature` de `driver_app` daquele evento, e `UPDATE` só quando algo
+UPDATE` nas linhas `photo`/`signature` de `driver_app` daquele evento, e `UPDATE` só quando algo
   mudou. Sem linha, devolve `null` e o caso de uso responde 404.
 - `TripDeliveryProofNotFoundError` (404), composição no `main.ts` e o dublê
   `field-report.double.ts` com `proofReceivers`.
@@ -460,3 +460,104 @@ $ bun --env-file=../../.env.test run test:integration   (117 arquivos, 778 s)
 
 O HEAD da T3.5 (`3d2e918c2`), extraído sozinho, compila com `tsc --noEmit`. Isso confere o blob do
 `main.ts`, montado a partir do HEAD.
+
+## Rodada 2 — Fase 4 (2026-09-25, mesma sessão/worktree)
+
+### T4.0 — pré-requisitos, decisão mantida da rodada 1
+
+Conferido de novo: `git merge-base --is-ancestor 1e512a9b9 HEAD` → `YES` (o P0, spec 203, está na
+branch). `git log --oneline origin/staging -- .../DriverStopCard.component.tsx` não traz nenhum
+commit da 193/203/194 — a 194 fases 1–3 **não** está em `origin/staging`, e o P0 também não (só na
+branch local). **Decisão mantida**: a inversão de ordem 193 → 194 já registrada na rodada 1 (a
+pedido do usuário, "que quer ver o select") segue valendo nesta rodada — não parei. A T4.3 (preview
+com `motorista-api-demo`) e a publicação em staging seguem bloqueadas pela mesma condição.
+
+### T4.1/T4.2 — testes e implementação (juntos, testes vieram prontos)
+
+Os testes de `test/driver-trip/received-by.contract.ts` (proof-fields, offline-attachments,
+catalog-parity, driverTripClient) chegaram escritos de uma rodada anterior
+(`/private/tmp/claude-502/p193/fase4-received-by.contract.ts` e
+`fase4-t41-testes.patch`). Vermelho visto antes de existir `receivedBy.constant.ts`, `proofReceiver.service.ts`
+e os campos novos:
+
+```
+$ bun test ./test/driver-trip/proof-fields.contract.ts (antes)
+SyntaxError: Export named 'DEFAULT_PROOF_SETTINGS' ... (campo receivedBy ausente do tipo)
+```
+
+Implementado: `receivedBy` no `DriverDeliveryProofSettings`, `recipientDisplayName`/
+`recipientIsCompany` na nota; `toDeliveryProof` com fallback por campo (nunca mais `null` por um
+campo só); `proofFormPlan.service.ts` ganha `rendersReceivedBy`, `rendersRecipientShortcut`,
+`applyRecipientShortcut`, `listPendingReceiverFields` (nunca em `blockedByFields`) e
+`buildReceiverFields` (trim, sem `\p{Cc}`, detalhe sem relação descartado — extraído do cartão);
+`receivedBy.constant.ts` novo (cópia por valor de `RECEIVED_BY_OPTIONS` da API, vigiada por
+`catalog-parity.contract.ts`); `offlineAttachments.service.ts` ganha `receivedBy`/`receivedByDetail`
+no `QueuedAttachment`, `applyAttachmentReceiverFields` estendido e `detectReceiverDrift` (a edição
+durante o envio vira `receiverDrift` no resultado da drenagem); `proofReceiver.service.ts` novo
+(`buildProofReceiverReport`) + `driverTripClient.service.ts` (`PATCH .../proof/receiver`, método
+novo no `request()`); `useDriverTrip.hook.ts` (`updateProofFields` decide entre atualizar o item na
+fila ou enfileirar `proofReceiver`; a drenagem enfileira o PATCH da diferença apurada).
+
+Tela (`DriverStopCard.component.tsx`, `DeliveryProofSection`): ordem D7 — os três botões de captura
+primeiro, depois "Quem recebeu" (botão "O próprio cliente recebeu", select compacto nativo — R1 —,
+"Detalhes" `maxLength={120}`), e só então nome e documento. O botão rápido usa
+`applyRecipientShortcut`; para destinatário PJ (`recipientIsCompany`), o nome preenchido recebe foco
+e seleção (`useEffect` + `nameInputRef`, um tick depois do `setState`) para o motorista digitar por
+cima; para PF, só preenche. A pendência de `receivedBy`/`receivedByDetail` é `role="status"`,
+calculada a cada render (nunca guardada em estado) e **fora** da fatia de `blockedByFields` — o
+contrato que lê o código-fonte entre `function blockedByFields(` e `function attach(` confere isso
+de propósito (por isso o cálculo foi movido para depois de `handleRecipientShortcut`, antes do
+`return`). `DriverPendingProofs.page.tsx` ganhou `onProofFieldsUpdate` e os dois campos novos, para
+reaproveitar o mesmo formulário na tela "Fotos pendentes".
+
+Dois contratos existentes quebraram pela renomeação de `receiverFields()` → `currentFields()` (a
+canonicalização do documento saiu do cartão para `buildReceiverFields`, em
+`proofFormPlan.service.ts`): `proof-attach-queue-first.contract.ts` (`'...receiverFields(),'` →
+`'...currentFields(),'`) e `proof-fields.contract.ts` (a asserção que lia `canonicalReceiverDocument`
+no cartão passou a ler `buildReceiverFields`, a função que herdou a responsabilidade).
+
+```
+$ bun run --cwd apps/frontend-driver lint       → eslint . sem erros
+$ bun run --cwd apps/frontend-driver typecheck  → tsc --noEmit sem erros
+$ bun run --cwd apps/frontend-driver test       → 645 pass, 0 fail, 1315 expect() calls
+$ bun run --cwd apps/frontend-driver check      → lint + typecheck + test + build, tudo verde
+  (precache 13 arquivos, 681779 bytes — dentro do teto de 1,5 MiB)
+$ bun run --cwd apps/frontend-driver smoke      → 2 + 23 = 25 passed (30,9s)
+```
+
+### D14 — API, commit próprio
+
+`resolveRecipientIsCompany(taxId)` em `delivery-contact.policy.ts` (14 dígitos → CNPJ/PJ; qualquer
+outra contagem → PF), testado antes de existir (`SyntaxError: Export named
+'resolveRecipientIsCompany' not found`). `recipientIsCompany: boolean` entra em
+`DriverTripDocument`/`DriverPendingProof` (`find-current-driver-trip.use-case.ts`) e é calculado nos
+dois pontos de leitura de `drizzle-current-driver-trip.repository.ts` a partir de
+`row.recipientTaxId ?? ''` — o mesmo campo que já alimentava `resolveProofSettingsForRecipient`, sem
+consulta nova. O fixture `seedNfeDocument` (`me-trip.integration.ts`) ganhou
+`taxId: '11222333000181'` no participante `recipient`, e as duas asserções de `toMatchObject`
+existentes ganharam `recipientIsCompany: true`.
+
+```
+$ bun --env-file=../../.env.test test --timeout 120000                       → 7505 pass, 23 skip, 0 fail
+$ bun --env-file=../../.env.test test ./test/integration/me-trip.integration.ts → 11 pass, 0 fail
+$ bun --env-file=../../.env.test run test:integration (117 arquivos, 872 s)
+  641 pass, 7 skip, 1 fail — package-box-measurement-export estourou 60 s por carga concorrente
+  (outras sessões na mesma árvore); isolado: 2 pass, 0 fail em 3,26 s. Sem relação com a spec 193.
+```
+
+### Preview — pendente, API de demonstração editada mas não recarregada
+
+A API de demonstração
+(`/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada--claude-worktrees-pensive-borg-f59971/bb453e02-a58a-48b5-833a-3401376ec42e/scratchpad/driver-preview-api.ts`,
+fora do repositório) ganhou: `Document.recipientDisplayName`/`recipientIsCompany` (a nota 3, "Farmácia
+Bem Estar", virou PF de propósito — "Fernanda Souza", `recipientIsCompany: false` — as demais ficam
+PJ, mesmo nome do `recipientName`); a primeira parada ganhou `deliveryProof.receivedBy = 'required'`;
+rota nova `PATCH .../documents/:id/proof/receiver` (sempre `{ changed: true }`, 200); e `PATCH` na
+lista de `access-control-allow-methods` do CORS (faltava, e sem ele o preflight do PATCH cairia).
+Sintaxe conferida com `bun build --target=bun` (bundла sem executar). **Arquivo só editado, servidor
+não reiniciado** — pedido explícito da tarefa era não tocar o processo do usuário
+(`http://localhost:53901`). O usuário reinicia quando quiser ver o select.
+
+**Pendente para a próxima rodada:** T4.3 completa (preview com a API de demonstração recarregada,
+prints em 375/768 e o ok do usuário), e as duas condições da T4.0 que continuam falsas —
+`origin/staging` sem o P0 e sem a 194 fases 1–3.
