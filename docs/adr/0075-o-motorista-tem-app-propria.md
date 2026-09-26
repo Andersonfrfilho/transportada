@@ -16,6 +16,9 @@
   nota), ADR-0074 (sem "Conferir carga")
 - **Emenda:** spec 147 (o Web Push e o `sw.ts` passam a ser do app do motorista) e spec 179 (T302 e
   T303 passam a ser em `apps/frontend-driver`)
+- **Emendada por:** ADR-0078 (2026-09-25, proposta) — §4 ganha `'wasm-unsafe-eval'` (no worker do OCR,
+  ou no documento se a sonda reprovar) e §5 ganha uma segunda rota no `sw.ts` (`CacheFirst` só em
+  `/canhoto-ocr/<versão>/`) e o chunk do Tesseract no precache; o orçamento de 1,5 MiB não muda
 
 ## Contexto
 

@@ -1,7 +1,13 @@
 # ADR-0057 — O endereço errado é ocorrência, e ela conserta o cadastro
 
 - **Data:** 2026-09-03
-- **Estado:** aceita
+- **Estado:** aceita — **emendada pela ADR-0080** (2026-09-25, spec 195):
+  - Contexto item 1 e §3: no relato de `wrong_address` o motorista está na porta **certa**, e a
+    distância entre o ponto dele e o pino continua sendo a medida do erro;
+  - §2: sem permissão de localização, `wrong_address` sai sem ponto em vez de bloquear;
+  - §4: o relato dispara aviso **interno** ao escritório (sino), que não é o aviso ao contratante do §5;
+  - §5: o ponto do motorista corrige a coordenada da chave em `geocoded_addresses`; o texto segue pelo
+    desvio e pela spec 150, e o aviso ao contratante continua sendo ação do operador.
 - **Contexto:** acrescenta um tipo a `TRIP_STOP_OCCURRENCE_KINDS` e fecha a ponta que a **ADR-0045 §6**
   deixou aberta ao chamar a ocorrência de "matéria-prima". Usa o desvio de endereço que a spec 056
   já criou (`delivery_address_overrides`) e o papel do contratante da **ADR-0050**.
