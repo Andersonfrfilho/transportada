@@ -315,14 +315,25 @@
   gap: var(--space-1);
 }
 
+.documentDetailsRecipient,
+.documentDetailsMeta,
+.documentDetailsAmount {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.documentDetailsRecipient {
+  font-weight: 700;
+}
+
 .documentDetailsMeta {
   color: var(--color-slate);
-  margin: 0;
 }
 
 .documentDetailsAmount {
   font-weight: 700;
-  margin: 0;
 }
 
 /* A chave fica recolhida atrás do toque — ela não cabe numa linha sem empurrar o resto do cartão. */

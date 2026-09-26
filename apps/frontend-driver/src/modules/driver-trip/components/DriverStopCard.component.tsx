@@ -567,7 +567,6 @@ function DocumentRow({
   if (isFieldWorkBlocked) {
     return (
       <li className={styles.document}>
-        <span>{document.recipientName}</span>
         <DocumentDetails document={document} />
       </li>
     )
@@ -576,7 +575,6 @@ function DocumentRow({
   if (isDocumentSettled(document)) {
     return (
       <li className={`${styles.document} ${styles.documentSettled}`}>
-        <span>{document.recipientName}</span>
         <DocumentDetails document={document} />
         <span>
           {document.separationStatus === 'delivered'
@@ -611,7 +609,6 @@ function DocumentRow({
 
   return (
     <li className={styles.document}>
-      <span>{document.recipientName}</span>
       <DocumentDetails document={document} />
       <DriverNotDeliveredStatus status={notDeliveredStatus} />
       {documentOccurrenceRecordedAt === undefined ? null : (
@@ -802,14 +799,24 @@ function DocumentDetails({ document }: DocumentDetailsProps) {
 
   return (
     <div className={styles.documentDetails}>
+      {/* Pedido do usuário (25/09): cada dado com o ícone ao lado, para ler de relance. */}
+      <p className={styles.documentDetailsRecipient}>
+        <Icon aria-hidden="true" name="organization" size="sm" />
+        {document.recipientName}
+      </p>
       <p className={styles.documentDetailsMeta}>
+        <Icon aria-hidden="true" name="invoice" size="sm" />
         {t('loadSheet.note', { number: document.number, series: document.series })}
       </p>
       <p className={styles.documentDetailsMeta}>
+        <Icon aria-hidden="true" name="package" size="sm" />
         {t('loadSheet.volumes', { count: Number(document.volumeCount) })} ·{' '}
         {t('loadSheet.weight', { weight: formatDocumentWeight(document.grossWeight) })}
       </p>
-      <p className={styles.documentDetailsAmount}>{formatDocumentAmount(document.totalAmount)}</p>
+      <p className={styles.documentDetailsAmount}>
+        <Icon aria-hidden="true" name="money" size="sm" />
+        {formatDocumentAmount(document.totalAmount)}
+      </p>
       <button
         aria-controls={keyId}
         aria-expanded={isKeyVisible}

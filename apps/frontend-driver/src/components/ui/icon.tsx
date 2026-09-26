@@ -21,9 +21,13 @@ export type IconName =
   | 'copy'
   | 'document'
   | 'download'
+  | 'invoice'
   | 'link'
   | 'logout'
   | 'message'
+  | 'money'
+  | 'organization'
+  | 'package'
   | 'pen'
   | 'printer'
   | 'refresh'
@@ -56,6 +60,7 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   copy: ['M9 9h11v11H9z', 'M15 9V4H4v11h5'],
   document: ['M13 3H6v18h12V8z', 'M13 3v5h5', 'M9 13h6', 'M9 17h6'],
   download: ['M12 4v11', 'M7 11l5 5 5-5', 'M5 20h14'],
+  invoice: ['M6 3h12v18l-3-2-3 2-3-2-3 2z', 'M9 8h6', 'M9 12h6'],
   link: [
     'M9 15l6-6',
     'M13 5.5 15 3.5a3.5 3.5 0 0 1 5 5L18 10.5',
@@ -64,6 +69,22 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   logout: ['M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', 'M10 16l4-4-4-4', 'M14 12H4'],
   /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
   message: ['M4 5h16v11H9l-4 4v-4H4V5z'],
+  /** Mesmo traçado de `workspace-billing` do painel: a moeda com o cifrão. */
+  money: [
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
+    'M12 7v10',
+    'M15 9.5c-.7-1-1.7-1.5-3-1.5-1.7 0-3 1-.8 3 1.7 0 3 .8 3 2.5s-1.3 3-3 3c-1.3 0-2.3-.5-3-1.5',
+  ],
+  organization: [
+    'M4 21V5.6a.6.6 0 0 1 .6-.6h8.8a.6.6 0 0 1 .6.6V21',
+    'M14 21V11h5.4a.6.6 0 0 1 .6.6V21',
+    'M7.4 8.6h3.2',
+    'M7.4 12.4h3.2',
+    'M7.6 21v-4.4h2.8V21',
+    'M3 21h18',
+  ],
+  /** Só deste app: o painel não tem caixa, e volumes/peso da nota pedem uma. */
+  package: ['M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z', 'M3 7.5l9 4.5 9-4.5', 'M12 12v9'],
   /** Caneta com o traço embaixo: colher a assinatura de quem recebeu — não é "salvar". */
   pen: ['M4 20h16', 'M15.5 4.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z'],
   /** A impressora: papel entrando por cima, corpo no meio, folha saindo por baixo. */
