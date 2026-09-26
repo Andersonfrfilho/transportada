@@ -267,6 +267,17 @@
   text-transform: uppercase;
 }
 
+.tripIdBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  color: var(--color-fog);
+}
+
 .statusReady {
   border-color: color-mix(in srgb, var(--color-ready) 65%, transparent);
   color: var(--color-ready);

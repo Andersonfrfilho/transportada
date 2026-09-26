@@ -182,6 +182,25 @@ export function TripTable({
     return plate === undefined ? trip.vehicleId : formatVehiclePlate(plate)
   }
 
+  /**
+   * Coluna fixa, fora das colunas configuráveis: é identificação, não um dado para ordenar ou
+   * esconder — mesmo lugar de `actions` na grade. Os 8 primeiros caracteres bastam para anotar ou
+   * imprimir; o botão copia o UUID inteiro para quem precisa colar em outro sistema.
+   */
+  function renderTripId(trip: Trip) {
+    return (
+      <span className={styles.tripIdCell}>
+        <code>{trip.id.slice(0, 8)}</code>
+        <CopyButton
+          copiedLabel={t('table.tripIdCopied')}
+          label={t('table.copyTripId')}
+          value={trip.id}
+          variant="inline"
+        />
+      </span>
+    )
+  }
+
   function sortIndicator(column: TripColumnKey): string {
     if (table.sort === null || table.sort.column !== column) return ''
     return table.sort.direction === 'asc' ? '▲' : '▼'
@@ -233,6 +252,7 @@ export function TripTable({
                   />
                 </th>
               ) : null}
+              <th scope="col">{t('columns.id')}</th>
               {table.columns.map((column) => (
                 <th key={column} scope="col">
                   <button
@@ -266,6 +286,7 @@ export function TripTable({
                     ) : null}
                   </td>
                 ) : null}
+                <td>{renderTripId(trip)}</td>
                 {table.columns.map((column) => (
                   <td key={column}>{renderCell(trip, column)}</td>
                 ))}

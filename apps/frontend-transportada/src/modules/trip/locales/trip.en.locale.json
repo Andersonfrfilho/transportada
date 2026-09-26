@@ -279,6 +279,7 @@
   "columns": {
     "cargoValue": "Cargo value",
     "createdAt": "Created at",
+    "id": "Identifier",
     "revenue": "Revenue",
     "status": "Status",
     "updatedAt": "Updated at",
@@ -398,12 +399,15 @@
   "detail": {
     "closedManually": "Closed manually on {{moment}}",
     "closedManuallyBy": "Closed manually by {{name}} on {{moment}}",
+    "copyId": "Copy the trip identifier",
     "deliveredColumn": "Delivery",
     "documentColumn": "Document",
     "documentsEmpty": "No document linked to this trip",
     "drivers": "Drivers",
     "fiscalStatusColumn": "Fiscal status",
     "fiscalWarning": "Invalid fiscal document — check its status before proceeding",
+    "id": "Trip identifier",
+    "idCopied": "Identifier copied",
     "linkDocumentTitle": "Link document",
     "linkMode": "Reference type",
     "linkModeFreight": "Freight calculation",
@@ -1189,10 +1193,12 @@
   },
   "table": {
     "copyPlate": "Copy plate {{plate}}",
+    "copyTripId": "Copy the trip identifier",
     "noAmount": "—",
     "plateCopied": "Plate copied",
     "revenueEstimated": "forecast",
     "revenueMissing": "no rule",
+    "tripIdCopied": "Identifier copied",
     "withoutDriver": "No driver"
   },
   "timeline": {
