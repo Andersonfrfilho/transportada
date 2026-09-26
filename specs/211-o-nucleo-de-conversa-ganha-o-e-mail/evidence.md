@@ -388,3 +388,62 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
   — os schemas de corpo não existem, e o arquivo importa de `./requestSchemas` (que será criado
   naquela task). A falha é esperada: `Cannot find module './requestSchemas'`. Não rode o `check`
   como gate desta task.
+
+### T204 — repositórios atrás de porta
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-module/src/repositories/` e `src/testing/`.
+- **Commit:** `f3cb36d` (`feat(conversation-module): repositórios atrás de porta, um por agregado (T204)`).
+- Um tipo de porta por agregado em `repositories/ports.ts` — `ConversationRepositoryPort`
+  (conversas+participantes), `MessageRepositoryPort` (mensagens+status), `AttachmentRepositoryPort`
+  (anexos+uploads), `ReadRepositoryPort`, `UnassignedRepositoryPort`, `QuickReplyRepositoryPort` —
+  e a implementação Drizzle de cada uma sobre o schema da T202, recebendo o `db` do host por
+  construtor. Toda consulta carrega `eq(<tabela>.companyId, ...)`, no molde de
+  `notification-module/repositories/NotificationRepository.ts`.
+  - `ConversationRepository.findBySubject` resolve a idempotência da conversa **com** assunto
+    (`company_id, subject_type, subject_id, audience`); `findOpenByParticipant` resolve a
+    idempotência da conversa **sem** assunto, pelo `(canal, identificador)` do participante —
+    junta `conversations` com `participants` e filtra `subject_type is null and status = 'open'`,
+    nunca "a mais recente" (D7).
+  - `MessageRepository.list` pagina por cursor `(created_at, id)` — `repositories/cursor.ts`, cópia
+    adaptada de `notification-module/repositories/cursor.ts`.
+  - `AttachmentRepository` cobre as duas tabelas do fluxo de upload em dois passos (`attachments` e
+    `uploads`) que a T209/T210 vão usar; aqui só a forma, sem regra de negócio.
+- Os dublês em memória que a T205 vai consumir foram para `src/testing/inMemoryRepositories.ts`,
+  exportados por `src/testing/index.ts` e pelo subpath `./testing` do `package.json` (adicionado
+  `exports["./testing"]`, `tsup.config.ts` ganhou `src/testing/index.ts` como segundo entrypoint —
+  mesmo desenho de `notification-module/testing`).
+- Teste (`repositories/ports.test.ts`) declara cada dublê com o tipo da porta
+  (`const port: ConversationRepositoryPort = createInMemoryConversations()`) e exercita o
+  comportamento mínimo de cada agregado — a prova de forma que a task pede. A prova de que a
+  implementação Drizzle atende à mesma porta é de tipo (`implements` na classe); a prova contra
+  Postgres real é a T212, como a task deixa explícito.
+- **Verde:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run check
+  tsc -p tsconfig.json --noEmit   (sem saída)
+
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+   19 pass
+   0 fail
+   639 expect() calls
+  Ran 19 tests across 3 files. [38.00ms]
+
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+   29 pass
+   1 fail
+   1 error
+   122 expect() calls
+  Ran 30 tests across 6 files. [24.00ms]
+  ```
+
+  O `1 fail`/`1 error` do `conversation-contracts` é o mesmo vermelho da T203, esperado até a T206
+  fechar o `requestSchemas.ts` — não regrediu nada.
+
+- Decisão: não criei um `UploadRepositoryPort` separado — o `AttachmentRepositoryPort` cobre as
+  duas tabelas (`attachments` e `uploads`) porque são o mesmo agregado no fluxo de anexo (RF8), e
+  a task lista "anexos+uploads" como um único item.
