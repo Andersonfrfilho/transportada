@@ -2528,3 +2528,12 @@ spec: todas esperam uma decisão ou uma ação do usuário.
     - contra o SeaweedFS, o PUT dava 400 `BadDigest` antes e dá 200 depois;
     - changeset `patch`, que leva a versão a 0.3.1.
   - Quando a 0.3.1 for publicada, a API sobe de versão, e a variável sai junto com o contrato.
+- **A origem do bucket nos frontends (26/09/2026):**
+  - O `transportada-frontend` lia `VITE_OBJECT_STORAGE_URL` sem declará-la no `railway.ts`, e no
+    IaC omitir é apagar. Ela foi declarada (`b0c6bcdf`), e um contrato novo confere que todo
+    `ARG VITE_*` dos Dockerfiles dos frontends está no serviço.
+  - O usuário gravou os valores pela CLI e conferiu:
+    - staging: `https://transportada-staging-zjeaet.t3.storageapi.dev`;
+    - produção: `https://transportada-production-vosp8e.t3.storageapi.dev`, com o bucket e o
+      `FORCE_PATH_STYLE=false` conferidos antes no serviço `api`.
+  - O valor vai em `VITE_OBJECT_STORAGE_URL` no painel e em `VITE_STORAGE_URL` no portal.
