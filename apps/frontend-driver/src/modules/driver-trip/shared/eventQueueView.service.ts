@@ -25,14 +25,19 @@ export type EventQueueItemView = Readonly<{
   /**
    * Spec 179 (T303): a nota da ocorrência com foto — é por ela que o cartão diz "na fila". Spec
    * 207: o mesmo campo, para o grupo órfão `kind: 'proof'` — é o que diz de qual nota é a foto ou
-   * assinatura do canhoto ainda pendente, para oferecer "Remover" só enquanto ela está aqui.
+   * assinatura do canhoto ainda pendente, para oferecer "Remover" só enquanto ela está aqui. Spec
+   * 206: também em `deliver`/`return` — é o que `resolveEnRouteStopId` usa para saber se as notas
+   * pendentes da parada a caminho já foram todas resolvidas na fila (D9).
    */
   documentId?: string
   idempotencyKey: string
   /** `proof` é o grupo de anexos cujo evento já subiu — só os arquivos ainda aguardam. */
   kind: DriverFieldReport['kind'] | 'proof'
   queuedAt: string
-  /** Spec 082 (revisão), pedido do usuário (25/09): só no `arrive` — é o que "Cheguei" libera. */
+  /**
+   * Pedido do usuário (25/09), spec 082: em `arrive` — é o que "Cheguei" libera. Spec 206: também em
+   * `depart`/`cancelDeparture` — é o que `resolveEnRouteStopId` segue sem esperar o servidor.
+   */
   stopId?: string
   status: EventQueueItemStatus
 }>
@@ -64,11 +69,17 @@ export function buildEventQueueView(input: {
     return {
       attachmentCount: group.length + (carriesPhoto ? 1 : 0),
       ...(attachmentCause === undefined ? {} : { attachmentRejectionCause: attachmentCause }),
-      ...(report.kind === 'documentOccurrence' ? { documentId: report.documentId } : {}),
+      ...(report.kind === 'documentOccurrence' ||
+      report.kind === 'deliver' ||
+      report.kind === 'return'
+        ? { documentId: report.documentId }
+        : {}),
       idempotencyKey: item.report.idempotencyKey,
       kind: item.report.kind,
       queuedAt: item.createdAt,
-      ...(report.kind === 'arrive' ? { stopId: report.stopId } : {}),
+      ...(report.kind === 'arrive' || report.kind === 'depart' || report.kind === 'cancelDeparture'
+        ? { stopId: report.stopId }
+        : {}),
       status: toStatus(item),
     }
   })

@@ -1028,6 +1028,53 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Spec 206: o selo "A caminho" — mesma cor do chip "atual" (copper), para ler junto do resto. */
+.stopEnRoute {
+  align-items: center;
+  color: var(--color-copper);
+  display: inline-flex;
+  font-weight: 700;
+  gap: var(--space-1);
+}
+
+/*
+ * Spec 206 D6 (Revisão 2): o motivo do "Iniciar rota" bloqueado — visível, nunca escondido, com o
+ * atalho para a parada aberta. Cobre suave (não é erro), borda à esquerda como o resto dos avisos.
+ */
+.departBlocked {
+  align-items: start;
+  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+  border-left: var(--space-1) solid var(--color-copper);
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.departBlockedShortcut {
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--color-copper);
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 700;
+  gap: var(--space-1);
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* Spec 206 D18: a confirmação de "Cancelar rota", no próprio cartão — nomeia o efeito no cliente. */
+.cancelDepartureConfirm {
+  border-left: var(--space-1) solid var(--color-alert);
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
 .proofSection {
   display: grid;
   gap: var(--space-2);

@@ -65,6 +65,15 @@ export type DriverTripStop = Readonly<{
   deliveryWindowEnd: string | null
   deliveryWindowStart: string | null
   documents: readonly DriverTripDocument[]
+  /**
+   * Spec 206 D9: a hora em que o SERVIDOR processou o "Iniciar rota" desta parada — `null` enquanto
+   * nenhuma está a caminho. A **ausência da chave** (API antiga, spec 206 D17) é outra coisa: o
+   * validador marca isso em `isLegacyEnRouteTracking`, nunca aqui. Opcional para não quebrar toda
+   * fixture de teste existente que monta `DriverTripStop` à mão — ausente equivale a `null`.
+   */
+  enRouteSince?: string | null
+  /** Spec 206 D9: a hora do TOQUE no aparelho — a 207 usa como âncora, com `enRouteSince` de reserva. */
+  enRouteTappedAt?: string | null
   id: string
   label: string
   latitude: string | null
@@ -84,6 +93,13 @@ export type DriverTripManifest = Readonly<{
 
 export type DriverTrip = Readonly<{
   id: string
+  /**
+   * Spec 206 D17: `true` quando o snapshot não trouxe `enRouteSince`/`enRouteTappedAt` em NENHUMA
+   * parada — API antiga. Nesse caso "Cheguei" segue como antes (sem a trava da D6), e "Iniciar
+   * rota" não aparece: só o servidor sabe que a viagem está `on_delivery_route`. Opcional pelo mesmo
+   * motivo do par acima — ausente equivale a `false` (API nova, sem nenhuma parada a caminho).
+   */
+  isLegacyEnRouteTracking?: boolean
   manifest: DriverTripManifest | null
   status: string
   stops: readonly DriverTripStop[]
@@ -176,6 +192,26 @@ export type DriverFieldReport =
       kind: 'arrive'
       location: DriverReportedLocation | null
       stopId: string
+    }>
+  /**
+   * Spec 206 D1/D2: "Iniciar rota" da PARADA — substitui o antigo botão da viagem (D10). A hora do
+   * toque (`tappedAt`) é o que o servidor usa para decidir quem chegou primeiro entre toques
+   * concorrentes (D3); a data nasce no toque, nunca no envio.
+   */
+  | Readonly<{
+      idempotencyKey: string
+      kind: 'depart'
+      location: DriverReportedLocation | null
+      stopId: string
+      tappedAt: string
+    }>
+  /** Spec 206 D18: desfaz o "Iniciar rota" desta parada, a qualquer momento antes do "Cheguei". */
+  | Readonly<{
+      idempotencyKey: string
+      kind: 'cancelDeparture'
+      location: DriverReportedLocation | null
+      stopId: string
+      tappedAt: string
     }>
   | Readonly<{
       documentId: string

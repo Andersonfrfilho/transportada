@@ -43,6 +43,7 @@ import {
   isDocumentSettled,
   isProofPendingWarningDue,
 } from '../shared/driverTripView.service'
+import type { StartRouteBlock } from '../shared/enRouteStop.service'
 import type { EventQueueItemView } from '../shared/eventQueueView.service'
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
@@ -138,9 +139,20 @@ export type DriverProofFieldsUpdate = Readonly<{
 }>
 
 type DriverStopCardProps = Readonly<{
+  /**
+   * Spec 206 D9: o número da parada bloqueante — o cartão só tem a própria parada, nunca a lista
+   * inteira; sem isto o motivo não teria "N" para nomear (D6).
+   */
+  blockingStopSequence?: number
+  /** Spec 206 D6/D9: pode ficar em branco (bloqueado, com o atalho) ou liberado, sem escolher UI. */
+  canStartRoute: StartRouteBlock
   /** Pedido do usuário (25/09): "entrega guardada" — a foto/nota que veio de `onDocumentOccurrence`. */
   deliverActivityByDocumentId: ReadonlyMap<string, DocumentActivityView>
+  /** Spec 206 D6: "Cheguei" só aparece aqui — parada a caminho, ou qualquer uma na API antiga (D17). */
+  canReportArrival: boolean
   isCurrent: boolean
+  /** Spec 206 D9: esta é a parada com o "Iniciar rota" ativo — mostra o selo e "Cancelar rota". */
+  isEnRoute: boolean
   /**
    * Spec 082 (revisão): viagem `route_planned` chega à tela, mas as ações de campo ficam trancadas
    * até o motorista iniciar o trajeto — a API recusa essas escritas, e a fila offline não pode
@@ -152,7 +164,18 @@ type DriverStopCardProps = Readonly<{
   /** Spec 082 D2: a última posição conhecida — sem ela, a distância simplesmente não aparece. */
   lastKnownLocation: DriverReportedLocation | null
   onArrive: (stopId: string) => void
+  /** Spec 206 D18: desfaz o "Iniciar rota" desta parada — só existe enquanto ela está a caminho. */
+  onCancelDeparture: (stopId: string) => void
   onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
+  /** Spec 206 D6: "Iniciar rota" desta parada — a API recebe a hora do TOQUE, não a do envio. */
+  onDepart: (stopId: string) => void
+  /**
+   * Spec 206 D6: o atalho do motivo de bloqueio — rola até o cartão da parada a caminho e põe o
+   * foco nele (`scrollTo` + `focus()`, `web.md` §11.3). Nunca inicia nada: só leva até lá.
+   */
+  onFocusStop: (stopId: string) => void
+  /** Spec 206: o cabeçalho se registra aqui — é o alvo do `scrollTo`/`focus()` de `onFocusStop`. */
+  onHeaderRef: (stopId: string, element: HTMLButtonElement | null) => void
   /** `Promise<boolean>`: sucesso acende a linha e o aviso transitório no cartão, nunca à cega. */
   onDocumentOccurrence: (input: {
     documentId: string
@@ -192,14 +215,22 @@ type DriverStopCardProps = Readonly<{
 }>
 
 export function DriverStopCard({
+  blockingStopSequence,
+  canReportArrival,
+  canStartRoute,
   deliverActivityByDocumentId,
   isCurrent,
+  isEnRoute,
   isFieldWorkBlocked,
   isOpen,
   lastKnownLocation,
   notDeliveredStatusByDocumentId,
   onArrive,
+  onCancelDeparture,
   onDeliver,
+  onDepart,
+  onFocusStop,
+  onHeaderRef,
   occurrenceTypes,
   onDocumentOccurrence,
   onNotDelivered,
@@ -216,6 +247,7 @@ export function DriverStopCard({
 }: DriverStopCardProps) {
   const { t } = useTranslation('driverTrip')
   const [openOccurrence, setOpenOccurrence] = useState(false)
+  const [isConfirmingCancelDeparture, setIsConfirmingCancelDeparture] = useState(false)
   /** Pedido do usuário (25/09): quem registra vê — um aviso que some sozinho, perto do que ele tocou. */
   const { announce, notice } = useTransientNotice()
   /** Painel "Registrar ocorrência" da nota (`onDocumentOccurrence`): chamada direta, sem fila offline. */
@@ -229,6 +261,8 @@ export function DriverStopCard({
   const [isLateRegistration, setIsLateRegistration] = useState(false)
   const [isConfirmingLateRegistration, setIsConfirmingLateRegistration] = useState(false)
   const isCompleted = stop.completedAt !== null
+  /** Spec 206 D9: `enRouteTappedAt` (hora do toque) é a âncora; `enRouteSince` é a reserva. */
+  const enRouteAnchor = stop.enRouteTappedAt ?? stop.enRouteSince ?? undefined
   const distanceLabel = formatStopDistance({ location: lastKnownLocation, stop })
   const deliveryWindow = describeDeliveryWindow({
     end: stop.deliveryWindowEnd,
@@ -290,6 +324,7 @@ export function DriverStopCard({
           aria-expanded={isOpen}
           className={styles.stopHeader}
           onClick={onToggle}
+          ref={(element) => onHeaderRef(stop.id, element)}
           type="button"
         >
           {/* Só a seta fica à direita: os selos na mesma linha espremiam o endereço em uma coluna. */}
@@ -349,6 +384,17 @@ export function DriverStopCard({
               ? t('stopCompleted')
               : t('documentsPending', { count: countPendingDocuments(stop) })}
           </span>
+          {/* Spec 206: o selo "A caminho" — na hora, mesmo enquanto o toque ainda está na fila. */}
+          {isEnRoute && stop.arrivedAt === null ? (
+            <span className={styles.stopStatus}>
+              <span className={styles.stopEnRoute}>
+                <Icon aria-hidden="true" name="workspace-driver-trip" size="sm" />
+                {enRouteAnchor === undefined
+                  ? t('enRoute.queued')
+                  : t('enRoute.since', { time: formatActivityTime(enRouteAnchor) })}
+              </span>
+            </span>
+          ) : null}
           {/* Status da parada no cabeçalho, não entre os botões: lá ele ficava solto e desalinhado */}
           {stop.arrivedAt === null && distanceLabel === null ? null : (
             <span className={styles.stopStatus}>
@@ -385,11 +431,21 @@ export function DriverStopCard({
             <Icon name="link" />
             {t('navigate')}
           </Button>
-          {/* Trancado até o despacho: a API recusa `arrive` fora de dispatched/in_transit */}
-          {isFieldWorkBlocked || stop.arrivedAt !== null ? null : (
+          {/* Trancado até o despacho: a API recusa `arrive`/`depart` fora de dispatched/in_transit */}
+          {isFieldWorkBlocked || stop.arrivedAt !== null ? null : canReportArrival ? (
             <Button onClick={() => onArrive(stop.id)} type="button">
               <Icon name="check" />
               {t('arrive')}
+            </Button>
+          ) : (
+            <Button
+              aria-disabled={!canStartRoute.enabled}
+              disabled={!canStartRoute.enabled}
+              onClick={() => onDepart(stop.id)}
+              type="button"
+            >
+              <Icon aria-hidden="true" name="workspace-driver-trip" />
+              {t('depart.start')}
             </Button>
           )}
           {isFieldWorkBlocked ? null : (
@@ -403,6 +459,69 @@ export function DriverStopCard({
             </Button>
           )}
         </div>
+
+        {/*
+         * Spec 206 D6 (Revisão 2): o "Iniciar rota" fica desabilitado e VISÍVEL — nunca escondido —
+         * com o motivo em texto (não só `title`) e o atalho que rola até o cartão da parada aberta.
+         * O atalho não inicia nada: ele só leva até lá (D6, D18).
+         */}
+        {!isFieldWorkBlocked && !canStartRoute.enabled ? (
+          <p className={styles.departBlocked} role="status">
+            <Icon aria-hidden="true" name="alert" size="sm" />
+            <span>
+              {t('departBlocked.reason', { sequence: blockingStopSequence })}{' '}
+              {t('departBlocked.hint')}
+            </span>
+            <button
+              className={styles.departBlockedShortcut}
+              onClick={() => onFocusStop(canStartRoute.blockingStopId)}
+              type="button"
+            >
+              <Icon aria-hidden="true" name="link" size="sm" />
+              {t('departBlocked.shortcut', { sequence: blockingStopSequence })}
+            </button>
+          </p>
+        ) : null}
+
+        {/* Spec 206 D18: só existe na parada a caminho, e some assim que o "Cheguei" chega. */}
+        {!isFieldWorkBlocked && isEnRoute && stop.arrivedAt === null ? (
+          isConfirmingCancelDeparture ? (
+            <div className={styles.cancelDepartureConfirm} role="alertdialog">
+              <p>{t('cancelDeparture.confirmTitle', { sequence: stop.sequence })}</p>
+              <p>{t('cancelDeparture.confirmBody')}</p>
+              <div className={styles.actions}>
+                <Button
+                  onClick={() => {
+                    onCancelDeparture(stop.id)
+                    setIsConfirmingCancelDeparture(false)
+                  }}
+                  type="button"
+                >
+                  <Icon name="close" />
+                  {t('cancelDeparture.confirm')}
+                </Button>
+                <Button
+                  onClick={() => setIsConfirmingCancelDeparture(false)}
+                  type="button"
+                  variant="ghost"
+                >
+                  {t('cancelDeparture.back')}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.actions}>
+              <Button
+                onClick={() => setIsConfirmingCancelDeparture(true)}
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="close" />
+                {t('cancelDeparture.open')}
+              </Button>
+            </div>
+          )
+        ) : null}
 
         {isFieldWorkBlocked ? <p className={styles.stopMeta}>{t('dispatch.waiting')}</p> : null}
 

@@ -125,8 +125,6 @@ export type DriverTripClient = Readonly<{
    * que abre o portão.
    */
   dispatchTrip: (input: { tripId: string }) => Promise<void>
-  /** `POST /me/trips/current/start-route`: o servidor resolve a viagem, e repetir o toque converge. */
-  startRoute: () => Promise<void>
   /**
    * Spec 079: o que aconteceu **sem** a carga voltar. Não passa pela fila de relatos: ao contrário
    * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
@@ -179,6 +177,10 @@ function reportPath(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/arrive`
+    case 'depart':
+      return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/depart`
+    case 'cancelDeparture':
+      return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/cancel-departure`
     case 'deliver':
       return `${CURRENT_TRIP_PATH}/documents/${report.documentId}/deliver`
     case 'return':
@@ -197,6 +199,9 @@ export function reportBody(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
       return JSON.stringify({ location: report.location })
+    case 'depart':
+    case 'cancelDeparture':
+      return JSON.stringify({ location: report.location, tappedAt: report.tappedAt })
     case 'deliver':
       return JSON.stringify({
         location: report.location,
@@ -267,9 +272,6 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/dispatch`,
       })
-    },
-    async startRoute() {
-      await request({ dependencies, method: 'POST', path: `${CURRENT_TRIP_PATH}/start-route` })
     },
     async registerDocumentOccurrence(input) {
       await request({

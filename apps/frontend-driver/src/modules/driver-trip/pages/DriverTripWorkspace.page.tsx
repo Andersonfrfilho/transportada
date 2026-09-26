@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,6 @@ import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
 import { useStopExpansion } from '../hooks/useStopExpansion.hook'
 import type { StopOccurrenceDraft } from '../hooks/useStopOccurrenceForm.hook'
-import { useTransientNotice } from '../hooks/useTransientNotice.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
@@ -65,11 +64,15 @@ import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.servic
 import {
   findCurrentStop,
   findProofDocumentLabel,
-  canStartRoute,
   isAwaitingDispatch,
   listProofPendingDocuments,
   type ProofDocumentLabel,
 } from '../shared/driverTripView.service'
+import {
+  canReportArrival,
+  canStartRouteAtStop,
+  resolveEnRouteStopId,
+} from '../shared/enRouteStop.service'
 import styles from '../styles/driverTrip.module.css'
 
 /**
@@ -114,10 +117,6 @@ export function DriverTripWorkspacePage() {
   /** Iniciar trajeto: falhar não muda nada no servidor — repetir o toque é o conserto. */
   const [isDispatching, setIsDispatching] = useState(false)
   const [dispatchFailed, setDispatchFailed] = useState(false)
-  const [isStartingRoute, setIsStartingRoute] = useState(false)
-  const [startRouteFailed, setStartRouteFailed] = useState(false)
-  /** Sem isto o toque em "Iniciar rota" só fazia o botão sumir — e o motorista achava que nada aconteceu. */
-  const startRouteNotice = useTransientNotice()
   /**
    * Os tipos cadastrados pela empresa. Spec 157 RF5: falha e lista vazia de verdade são estados
    * diferentes — o painel avisa a falha e oferece tentar de novo; entregar e devolver nunca
@@ -193,9 +192,42 @@ export function DriverTripWorkspacePage() {
   const { selectTrip, trip } = useSelectedDriverTrip(snapshot?.trips ?? [])
   /** RF15: roda em qualquer seção, porque o que conta é a app estar na tela, não a aba aberta. */
   const locationSharingStatus = useLocationSharing(snapshot?.trips ?? [])
-  /** Pedido do usuário (25/09): a parada atual abre sozinha — o hook só guarda o que o motorista tocou. */
-  const currentStopId = trip === undefined ? undefined : findCurrentStop(trip)?.id
+  /**
+   * Spec 206 D9: a parada a caminho, aplicando por cima os toques ainda na fila — sempre local e
+   * imediato, funciona sem sinal (`enRouteStop.service.ts`).
+   */
+  const enRouteStopId =
+    trip === undefined
+      ? undefined
+      : resolveEnRouteStopId({ queueView: driverTrip.queueView, stops: trip.stops })
+  /** Pedido do usuário (25/09): a parada atual abre sozinha — agora é a que está a caminho (D9). */
+  const currentStopId =
+    trip === undefined ? undefined : findCurrentStop({ enRouteStopId, trip })?.id
   const stopExpansion = useStopExpansion(currentStopId)
+  /**
+   * Spec 206 D6: o alvo do atalho "Ir para a parada N" — rola até o cabeçalho da parada a caminho e
+   * põe o foco nele (`scrollTo` + `focus()`, `web.md` §11.3). Um `Map` porque o registro é por
+   * `stopId`, e as paradas somem/reaparecem quando o motorista troca de viagem.
+   */
+  const stopHeaderRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
+
+  function registerStopHeaderRef(stopId: string, element: HTMLButtonElement | null): void {
+    if (element === null) stopHeaderRefs.current.delete(stopId)
+    else stopHeaderRefs.current.set(stopId, element)
+  }
+
+  function focusStop(stopId: string): void {
+    const wasClosed = !stopExpansion.isOpen(stopId)
+    if (wasClosed) stopExpansion.toggle(stopId)
+    // A parada fechada abre nesta mesma passada de estado — o scroll/foco espera o React desenhar
+    // o corpo dela antes de medir a posição, senão mira no cartão ainda recolhido.
+    requestAnimationFrame(() => {
+      const element = stopHeaderRefs.current.get(stopId)
+      if (element === null || element === undefined) return
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      element.focus()
+    })
+  }
 
   if (driverTrip.status === 'loading') {
     return (
@@ -502,24 +534,28 @@ export function DriverTripWorkspacePage() {
     }
   }
 
-  /** O "saí" do motorista: a API grava o evento na linha do tempo; o snapshot novo tira o botão. */
-  async function startRoute(): Promise<void> {
-    setStartRouteFailed(false)
-    setIsStartingRoute(true)
-    try {
-      await getDriverTripClient().startRoute()
-      startRouteNotice.announce(
-        'start-route',
-        t('startRoute.done', {
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }),
-      )
-      driverTrip.refetchTrip()
-    } catch {
-      setStartRouteFailed(true)
-    } finally {
-      setIsStartingRoute(false)
-    }
+  /** Spec 206 D6/D1: o toque nasce com a hora dele — é ela, não a do envio, que decide quem chegou primeiro (D3). */
+  function departStop(stopId: string): void {
+    const tappedAt = new Date().toISOString()
+    void report((location) => ({
+      idempotencyKey: createIdempotencyKey(),
+      kind: 'depart',
+      location,
+      stopId,
+      tappedAt,
+    }))
+  }
+
+  /** Spec 206 D18: desfaz o "Iniciar rota" desta parada — libera as outras na hora, sem sinal. */
+  function cancelStopDeparture(stopId: string): void {
+    const tappedAt = new Date().toISOString()
+    void report((location) => ({
+      idempotencyKey: createIdempotencyKey(),
+      kind: 'cancelDeparture',
+      location,
+      stopId,
+      tappedAt,
+    }))
   }
 
   const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
@@ -584,25 +620,6 @@ export function DriverTripWorkspacePage() {
             </Button>
             <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
           </div>
-        ) : null}
-        {trip !== undefined && canStartRoute(trip) ? (
-          <div className={styles.actions}>
-            <Button disabled={isStartingRoute} onClick={() => void startRoute()} type="button">
-              <Icon aria-hidden="true" name="workspace-driver-trip" />
-              {t('startRoute.start')}
-            </Button>
-          </div>
-        ) : null}
-        {startRouteNotice.notice === undefined ? null : (
-          <p className={styles.activityNotice} role="status">
-            <Icon aria-hidden="true" name="check" size="sm" />
-            {startRouteNotice.notice.message}
-          </p>
-        )}
-        {startRouteFailed ? (
-          <p className={styles.alert} role="alert">
-            {t('startRoute.failed')}
-          </p>
         ) : null}
         {dispatchFailed ? (
           <p className={styles.alert} role="alert">
@@ -727,51 +744,70 @@ export function DriverTripWorkspacePage() {
           )
         ) : (
           <ul className={styles.stopList}>
-            {trip.stops.map((stop) => (
-              <DriverStopCard
-                deliverActivityByDocumentId={deliverActivityByDocumentId}
-                isCurrent={stop.id === currentStopId}
-                isFieldWorkBlocked={isTripAwaitingDispatch}
-                isOpen={stopExpansion.isOpen(stop.id)}
-                key={stop.id}
-                lastKnownLocation={lastKnownLocation}
-                queueView={driverTrip.queueView}
-                returnActivityByDocumentId={returnActivityByDocumentId}
-                stop={stop}
-                stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
-                onArrive={(stopId) =>
-                  void report((location) => ({
-                    idempotencyKey: createIdempotencyKey(),
-                    kind: 'arrive',
-                    location,
-                    stopId,
-                  }))
-                }
-                onDeliver={deliverDocument}
-                onProof={handleProof}
-                onProofFieldsUpdate={handleProofFieldsUpdate}
-                onRemoveProof={handleRemoveProof}
-                occurrenceTypes={occurrenceTypes}
-                onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
-                onToggle={() => stopExpansion.toggle(stop.id)}
-                onDocumentOccurrence={(input: {
-                  documentId: string
-                  occurrenceTypeId: string
-                  productCode: string
-                }) =>
-                  getDriverTripClient()
-                    .registerDocumentOccurrence(input)
-                    .then(() => true)
-                    .catch(() => {
-                      setOccurrenceFailed(true)
-                      return false
-                    })
-                }
-                onOccurrence={reportStopOccurrence}
-                notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
-                onNotDelivered={(input) => void reportNotDelivered(input)}
-              />
-            ))}
+            {trip.stops.map((stop) => {
+              const startRouteBlock = canStartRouteAtStop({ enRouteStopId, stopId: stop.id })
+              const blockingStopSequence = startRouteBlock.enabled
+                ? undefined
+                : trip.stops.find((candidate) => candidate.id === startRouteBlock.blockingStopId)
+                    ?.sequence
+              return (
+                <DriverStopCard
+                  {...(blockingStopSequence === undefined ? {} : { blockingStopSequence })}
+                  canReportArrival={canReportArrival({
+                    enRouteStopId,
+                    isLegacyEnRouteTracking: trip.isLegacyEnRouteTracking ?? false,
+                    stop,
+                  })}
+                  canStartRoute={startRouteBlock}
+                  deliverActivityByDocumentId={deliverActivityByDocumentId}
+                  isCurrent={stop.id === currentStopId}
+                  isEnRoute={stop.id === enRouteStopId}
+                  isFieldWorkBlocked={isTripAwaitingDispatch}
+                  isOpen={stopExpansion.isOpen(stop.id)}
+                  key={stop.id}
+                  lastKnownLocation={lastKnownLocation}
+                  queueView={driverTrip.queueView}
+                  returnActivityByDocumentId={returnActivityByDocumentId}
+                  stop={stop}
+                  stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
+                  onArrive={(stopId) =>
+                    void report((location) => ({
+                      idempotencyKey: createIdempotencyKey(),
+                      kind: 'arrive',
+                      location,
+                      stopId,
+                    }))
+                  }
+                  onCancelDeparture={cancelStopDeparture}
+                  onDeliver={deliverDocument}
+                  onDepart={departStop}
+                  onFocusStop={focusStop}
+                  onHeaderRef={registerStopHeaderRef}
+                  onProof={handleProof}
+                  onProofFieldsUpdate={handleProofFieldsUpdate}
+                  onRemoveProof={handleRemoveProof}
+                  occurrenceTypes={occurrenceTypes}
+                  onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
+                  onToggle={() => stopExpansion.toggle(stop.id)}
+                  onDocumentOccurrence={(input: {
+                    documentId: string
+                    occurrenceTypeId: string
+                    productCode: string
+                  }) =>
+                    getDriverTripClient()
+                      .registerDocumentOccurrence(input)
+                      .then(() => true)
+                      .catch(() => {
+                        setOccurrenceFailed(true)
+                        return false
+                      })
+                  }
+                  onOccurrence={reportStopOccurrence}
+                  notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
+                  onNotDelivered={(input) => void reportNotDelivered(input)}
+                />
+              )
+            })}
           </ul>
         )}
       </main>

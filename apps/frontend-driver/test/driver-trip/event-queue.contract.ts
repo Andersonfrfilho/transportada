@@ -61,6 +61,8 @@ describe('a tela de eventos pendentes (D7)', () => {
     expect(views).toEqual([
       {
         attachmentCount: 2,
+        /** Spec 206: `deliver`/`return` também carregam `documentId` — é o que `resolveEnRouteStopId` lê (D9). */
+        documentId: 'document-1',
         idempotencyKey: 'chave-1',
         kind: 'deliver',
         queuedAt: NOW,
@@ -68,6 +70,7 @@ describe('a tela de eventos pendentes (D7)', () => {
       },
       {
         attachmentCount: 0,
+        documentId: 'document-1',
         idempotencyKey: 'chave-2',
         kind: 'deliver',
         queuedAt: NOW,

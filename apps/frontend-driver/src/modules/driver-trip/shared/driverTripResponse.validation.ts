@@ -151,6 +151,11 @@ function toDeliveryProof(value: unknown): DriverDeliveryProofSettings | null {
   }
 }
 
+/** Spec 206 D9/D17: a chave PRESENTE no JSON (mesmo `null`) é API nova — ausente por completo é antiga. */
+function isEnRouteFieldPresent(value: Record<string, unknown>): boolean {
+  return 'enRouteSince' in value || 'enRouteTappedAt' in value
+}
+
 function toStop(value: unknown): DriverTripStop {
   if (!isRecord(value) || !Array.isArray(value.documents)) throw new DriverTripResponseError()
   if (typeof value.sequence !== 'number') throw new DriverTripResponseError()
@@ -162,6 +167,8 @@ function toStop(value: unknown): DriverTripStop {
     deliveryWindowEnd: readNullableString(value.deliveryWindowEnd),
     deliveryWindowStart: readNullableString(value.deliveryWindowStart),
     documents: value.documents.map(toDocument),
+    enRouteSince: readNullableString(value.enRouteSince),
+    enRouteTappedAt: readNullableString(value.enRouteTappedAt),
     id: readString(value.id),
     label: readString(value.label),
     latitude: readNullableString(value.latitude),
@@ -201,8 +208,17 @@ function toPendingProofs(value: unknown): readonly PendingProofDocument[] {
 function toTrip(value: unknown): DriverTrip {
   if (!isRecord(value) || !Array.isArray(value.stops)) throw new DriverTripResponseError()
 
+  /**
+   * Spec 206 D17: nenhuma parada trazendo a chave é o sinal de API antiga — o app cai no
+   * comportamento anterior (Cheguei sem a trava da D6, sem "Iniciar rota" nenhum).
+   */
+  const isLegacyEnRouteTracking = !value.stops.some(
+    (stop) => isRecord(stop) && isEnRouteFieldPresent(stop),
+  )
+
   return {
     id: readString(value.id),
+    isLegacyEnRouteTracking,
     manifest: toManifest(value.manifest),
     status: readString(value.status),
     stops: value.stops.map(toStop),

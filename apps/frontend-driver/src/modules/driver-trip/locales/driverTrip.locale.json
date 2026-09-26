@@ -27,6 +27,8 @@
     "empty": "Nada aguardando envio.",
     "kind": {
       "arrive": "Chegada",
+      "cancelDeparture": "Cancelamento de rota",
+      "depart": "Iniciar rota",
       "deliver": "Entrega",
       "documentOccurrence": "Ocorrência com foto",
       "occurrence": "Ocorrência",
@@ -369,10 +371,27 @@
     }
   },
   "startRoute": {
-    "failed": "Não foi possível iniciar a rota. Toque de novo.",
-    "start": "Iniciar rota",
-    "done": "Rota iniciada às {{time}}. Boa viagem!",
     "onRoute": "Em rota de entrega"
+  },
+  "depart": {
+    "start": "Iniciar rota"
+  },
+  "enRoute": {
+    "since": "A caminho desde {{time}}",
+    "queued": "A caminho — na fila"
+  },
+  "departBlocked": {
+    "reason": "Você está a caminho da parada {{sequence}}.",
+    "hint": "Chegue, registre depois ou cancele a rota dela.",
+    "shortcut": "Ir para a parada {{sequence}}",
+    "queueReason": "Outra parada está a caminho — feche a parada {{sequence}}."
+  },
+  "cancelDeparture": {
+    "open": "Cancelar rota",
+    "confirmTitle": "Cancelar a rota da parada {{sequence}}?",
+    "confirmBody": "O cliente será avisado de que você não vem mais.",
+    "confirm": "Cancelar rota",
+    "back": "Voltar"
   },
   "activity": {
     "delivered": "Entregue às {{time}}",

@@ -21,6 +21,10 @@ type DriverEventQueuePageProps = Readonly<{
 
 const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   arrive: 'eventQueue.kind.arrive',
+  /** Spec 206 D1: "Iniciar rota" — o rótulo carrega a sequência da parada, à parte (RF8). */
+  depart: 'eventQueue.kind.depart',
+  /** Spec 206 D18: desfaz o "Iniciar rota" — mesmo molde do `depart` acima. */
+  cancelDeparture: 'eventQueue.kind.cancelDeparture',
   deliver: 'eventQueue.kind.deliver',
   /** Spec 179: a ocorrência da nota com a foto — os dois sobem juntos, no mesmo item. */
   documentOccurrence: 'eventQueue.kind.documentOccurrence',

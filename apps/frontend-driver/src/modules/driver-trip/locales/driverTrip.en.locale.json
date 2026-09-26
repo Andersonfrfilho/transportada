@@ -39,6 +39,8 @@
     "empty": "Nothing waiting to be sent.",
     "kind": {
       "arrive": "Arrival",
+      "cancelDeparture": "Route cancellation",
+      "depart": "Start route",
       "deliver": "Delivery",
       "documentOccurrence": "Occurrence with photo",
       "occurrence": "Occurrence",
@@ -360,10 +362,27 @@
     }
   },
   "startRoute": {
-    "failed": "Could not start the route. Tap again.",
-    "start": "Start route",
-    "done": "Route started at {{time}}. Have a good trip!",
     "onRoute": "On the delivery route"
+  },
+  "depart": {
+    "start": "Start route"
+  },
+  "enRoute": {
+    "since": "En route since {{time}}",
+    "queued": "En route — queued"
+  },
+  "departBlocked": {
+    "reason": "You are en route to stop {{sequence}}.",
+    "hint": "Arrive, register later or cancel that stop's route.",
+    "shortcut": "Go to stop {{sequence}}",
+    "queueReason": "Another stop is en route — close stop {{sequence}} first."
+  },
+  "cancelDeparture": {
+    "open": "Cancel route",
+    "confirmTitle": "Cancel the route for stop {{sequence}}?",
+    "confirmBody": "The customer will be told you are not coming anymore.",
+    "confirm": "Cancel route",
+    "back": "Back"
   },
   "activity": {
     "delivered": "Delivered at {{time}}",

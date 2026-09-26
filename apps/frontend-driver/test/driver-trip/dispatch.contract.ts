@@ -6,10 +6,7 @@ import { describe, expect, it } from 'bun:test'
 import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
 import driverTripEn from '../../src/modules/driver-trip/locales/driverTrip.en.locale.json'
 import { createDriverTripClient } from '../../src/modules/driver-trip/shared/driverTripClient.service'
-import {
-  canStartRoute,
-  isAwaitingDispatch,
-} from '../../src/modules/driver-trip/shared/driverTripView.service'
+import { isAwaitingDispatch } from '../../src/modules/driver-trip/shared/driverTripView.service'
 
 const WORKSPACE = new URL(
   '../../src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx',
@@ -165,50 +162,29 @@ describe('o attachmentKey no multipart de comprovante', () => {
 })
 
 /**
- * O "saí" do motorista (ADR-0058, mantido pela ADR-0074): da viagem despachada ou carregando para
- * `on_delivery_route`, por `POST /me/trips/current/start-route`. A API grava o evento na linha do
- * tempo com canal `driver_app`; a app nunca tinha chamado essa rota.
+ * Spec 206 D10: o "saí" do motorista (ADR-0058, mantido pela ADR-0074) deixou de ser um botão da
+ * viagem — agora é "Iniciar rota" EM CADA PARADA (`enRouteStop.service.ts`, `depart.contract.ts`).
+ * `POST /me/trips/current/start-route` fica no cliente antigo, idempotente, mas a app nova não o
+ * chama mais.
  */
-describe('iniciar rota', () => {
-  const trip = { id: 't', manifest: null, status: 'dispatched', stops: [], vehiclePlate: 'A' }
-
-  it('só dispatched e in_transit podem iniciar a rota', () => {
-    expect(canStartRoute(trip)).toBe(true)
-    expect(canStartRoute({ ...trip, status: 'in_transit' })).toBe(true)
-    expect(canStartRoute({ ...trip, status: 'route_planned' })).toBe(false)
-    expect(canStartRoute({ ...trip, status: 'on_delivery_route' })).toBe(false)
-    expect(canStartRoute({ ...trip, status: 'completed' })).toBe(false)
-  })
-
-  it('o cliente inicia a rota por POST /me/trips/current/start-route, sem corpo', async () => {
-    const requests: Request[] = []
-    await createCapturingClient(requests).startRoute()
-
-    expect(requests[0]?.url).toBe('https://api.test/me/trips/current/start-route')
-    expect(requests[0]?.method).toBe('POST')
-  })
-
-  it('a tela oferece "Iniciar rota" e refaz o snapshot no sucesso', () => {
+describe('o botão de viagem sumiu (spec 206 D10)', () => {
+  it('a tela não chama mais /start-route, e o cliente não oferece o método', () => {
     const workspace = readFileSync(WORKSPACE, 'utf8')
-    expect(workspace).toInclude('canStartRoute(trip)')
-    expect(workspace).toInclude("t('startRoute.start')")
-    expect(workspace).toInclude('startRoute()')
+    expect(workspace).not.toInclude('startRoute()')
+    expect(workspace).not.toInclude("t('startRoute.start')")
   })
 
-  it('o toque dá retorno: aviso com a hora e o estado "em rota" no cabeçalho', () => {
+  it('o selo "Em rota de entrega" continua, lido do status', () => {
     const workspace = readFileSync(WORKSPACE, 'utf8')
-    expect(workspace).toInclude('startRouteNotice.announce(')
-    expect(workspace).toInclude("t('startRoute.done'")
     expect(workspace).toInclude("trip?.status === 'on_delivery_route'")
     expect(workspace).toInclude("t('startRoute.onRoute')")
-    expect(driverTrip.startRoute.done).toInclude('{{time}}')
-    expect(driverTripEn.startRoute.done).toInclude('{{time}}')
     expect(driverTrip.startRoute.onRoute).toBe('Em rota de entrega')
   })
 
-  it('os dois idiomas têm os textos, e o despacho deixa de se chamar "Iniciar trajeto"', () => {
-    expect(driverTrip.startRoute.start).toBe('Iniciar rota')
-    expect(driverTripEn.startRoute.start).toBe('Start route')
-    expect(driverTrip.dispatch.start).not.toBe('Iniciar trajeto')
+  it('as chaves de iniciar/concluir saíram do locale dos dois idiomas', () => {
+    expect(driverTrip.startRoute).not.toHaveProperty('start')
+    expect(driverTrip.startRoute).not.toHaveProperty('done')
+    expect(driverTrip.startRoute).not.toHaveProperty('failed')
+    expect(driverTripEn.startRoute).not.toHaveProperty('start')
   })
 })
