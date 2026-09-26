@@ -660,6 +660,65 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
   `unassigned.assign` com os três campos (`assignedMessageId`/`assignedByUserId`/`assignedAt`)
   juntos numa única chamada de porta — nunca dois `UPDATE` separados que pudessem deixar o
   `num_nonnulls(...) in (0, 3)` do schema (T202) pela metade.
+
+### T209 — teste do anexo
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-module/src/domain/` e `src/use-cases/`.
+- **Commit:** `9f052e3`
+  (`test(conversation-module): contrato do anexo — tipo pelos bytes, teto por canal, upload em dois passos (T209)`).
+- Li `conversation-attachment.policy.ts` e `conversation-attachment.service.ts` (spec 183, só
+  leitura) para portar a **regra**, não o vocabulário — a tabela de teto por `(canal × tipo)` da
+  origem **não** foi portada: a T105 já decidiu teto só por canal em `CHANNEL_CAPABILITIES`
+  (`attachments.maxBytes`/`maxTotalBytes`), e a T209 usa essa fonte, sem reabrir a decisão.
+- `domain/attachmentType.test.ts`: `attachmentKindOf` (content-type → `audio|document|image` do
+  vocabulário fechado — fora da lista é `undefined`), `matchesAttachmentSignature` (assinatura de
+  bytes copiada da origem: PNG/PDF/JPEG por magic number; **PNG declarado como
+  `application/pdf` é recusado** — é o teste que prova "tipo pelo conteúdo, não pela extensão"),
+  `normalizeAttachmentFileName` (só o último segmento do caminho, nome vazio/`.`/`..` vira
+  "anexo").
+- `use-cases/Attachment.use-cases.test.ts`:
+  - `RequestAttachmentUploadUseCase` — chave opaca **sem** id interno (o teste confere que
+    `objectKey` não contém `conversationId` nem `requestedByUserId`); recusa content-type fora do
+    vocabulário (`AttachmentTypeMismatchError`) e tamanho acima do teto do canal
+    (`AttachmentTooLargeError`, testado no `webchat`, que tem o menor teto —10 MB); sem
+    `objectStorage`, `AttachmentsDisabledError`.
+  - `LinkAttachmentUploadsUseCase` — liga o pedido `pending`, calcula `sha256` de verdade (o teste
+    confere o formato hex de 64 caracteres), **copia para uma chave final nova e apaga a da
+    subida** (dois asserts no dublê de storage: a chave antiga sumiu, a nova existe); um teste à
+    parte prova que **nenhum byte vai para o banco** — as chaves do registro persistido nunca
+    incluem `bytes`/`body`; tipo mentindo (PDF declarado, bytes de PNG) é recusado; pedido
+    expirado é recusado (`UploadExpiredError`); bytes acima do teto do canal são recusados mesmo
+    que o `declaredSizeBytes` batesse; sem `objectStorage`, desligado.
+  - `CreateAttachmentDownloadUrlUseCase` — devolve `URL`.
+- **Visto falhar (esperado até a T210):**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+
+  src/use-cases/Attachment.use-cases.test.ts:
+  # Unhandled error between tests
+  error: Cannot find module './Attachment.use-cases' from '.../Attachment.use-cases.test.ts'
+
+  src/domain/attachmentType.test.ts:
+  # Unhandled error between tests
+  error: Cannot find module './attachmentType' from '.../attachmentType.test.ts'
+
+   44 pass
+   2 fail
+   2 errors
+   689 expect() calls
+  Ran 46 tests across 9 files. [55–65ms]
+  ```
+
+  `check` também falha por desenho (módulos ausentes) — mesmo padrão das tasks de teste
+  anteriores, não é regressão.
+
+- Também `createInMemoryObjectStorage` em `testing/inMemoryRepositories.ts`: dublê do
+  `ObjectStoragePort` que guarda bytes em memória por `bucket/key`, exportado por
+  `testing/index.ts`.
 - `createConversationModule` ganhou `providers.filterCandidates?` (opcional, RF7) e os dois casos
   de uso novos em `useCases`; `UnassignedRepository` passou a ser instanciado no factory (antes só
   os três repositórios que T206 usava).

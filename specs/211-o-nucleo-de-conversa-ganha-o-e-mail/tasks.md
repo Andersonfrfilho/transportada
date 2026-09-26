@@ -78,7 +78,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       conversa aberta mais recente do identificador; ambígua → fila de não atribuídas. **Nunca
       palpite.** (RF7, D7, CA06)
 - [x] **T208** `sonnet` — A atribuição genérica. (RF7)
-- [ ] **T209** `sonnet` — Teste do anexo: `sha256`, tipo conferido **pelo conteúdo** (extensão
+- [x] **T209** `sonnet` — Teste do anexo: `sha256`, tipo conferido **pelo conteúdo** (extensão
       mentindo é recusada), teto **por canal**, nenhum byte no banco. (RF8)
 - [ ] **T210** `sonnet` — O anexo. (RF8)
 - [ ] **T211** ⚙️ `haiku` — Respostas rápidas por público, com posição e ativo. CRUD sem regra
