@@ -21,6 +21,8 @@ export const NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD: Readonly<Record<string, stri
   /** Spec 183 T654: o aviso por e-mail ao portal (e o da caixa do motorista, T601). */
   occurrenceLabel: 'NF 4512/1',
   plate: 'RTA2E19',
+  /** Spec 183 RF21: o acesso ao portal no aviso por e-mail. */
+  portalAccess: 'Acesse o portal para ler e responder.',
   reason: 'Certificado vencido',
   rejectionReason: 'Alíquota fora do intervalo permitido',
 }

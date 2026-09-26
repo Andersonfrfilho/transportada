@@ -151,6 +151,18 @@ const environmentSchema = z.object({
   // de perfil. Não é adivinhável a partir do request: atrás de proxy o `Host` é o do proxy, e o
   // realm guardaria um endereço interno que ninguém alcança. Vazio significa foto gravada aqui e
   // atributo não escrito — a tela continua mostrando o avatar.
+  /**
+   * Spec 183 RF21: a URL pública do portal da contratante, para o aviso por e-mail levar o link
+   * direto a "Ocorrências". Não é segredo. Vazio é "aviso sem link", que diz onde ler.
+   */
+  CLIENT_PORTAL_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'CLIENT_PORTAL_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   API_PUBLIC_URL: z
     .string()
     .trim()
@@ -319,6 +331,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
         ? undefined
         : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
     apiPublicUrl: parsed.API_PUBLIC_URL,
+    clientPortalUrl: parsed.CLIENT_PORTAL_URL,
     driverAddressLookupUrl: parsed.DRIVER_ADDRESS_LOOKUP_URL,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,

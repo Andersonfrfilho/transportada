@@ -17,6 +17,7 @@ import {
 } from '@/modules/shared/KeycloakAuthProvider.provider'
 import { LoginIdentifierPage } from '@/modules/shared/LoginIdentifier.page'
 import { createPortalClient } from '@/modules/shared/portalClient.service'
+import { initialPortalTab, type PortalTab } from '@/modules/shared/portalTab.service'
 import '@/styles/index.css'
 
 /**
@@ -31,7 +32,7 @@ const deploymentEnvironment = getDeploymentEnvironment()
 
 applyEnvironmentBadge({ document, environment: deploymentEnvironment })
 
-type Tab = 'charges' | 'deliveries' | 'occurrences'
+type Tab = PortalTab
 
 type PageFrameProps = Readonly<{ children: ReactNode }>
 
@@ -46,7 +47,8 @@ function PageFrame({ children }: PageFrameProps): ReactNode {
 }
 
 function App() {
-  const [tab, setTab] = useState<Tab>('deliveries')
+  /** Spec 183 RF21: o link do aviso por e-mail abre direto na aba dele (`?aba=ocorrencias`). */
+  const [tab, setTab] = useState<Tab>(() => initialPortalTab(window.location.search))
   const client = createPortalClient({
     apiUrl: getClientEnvironment().apiBaseUrl,
     fetch: (input, init) => fetch(input, init),

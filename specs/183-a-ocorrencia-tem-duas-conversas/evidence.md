@@ -2476,3 +2476,37 @@ spec: todas esperam uma decisão ou uma ação do usuário.
 - **Registro:** a ADR-0074 guarda a decisão; a `[NEEDS CLARIFICATION]` da spec foi resolvida e a
   RF18 atualizada.
 - **Ainda falta:** a implementação da T706.
+
+## RF21 — o aviso por e-mail ao portal leva o link (decisão de 26/09/2026)
+
+- **O que o dono do projeto decidiu:** criar `CLIENT_PORTAL_URL` na API com os domínios que o
+  `.railway/railway.ts` já declara para o serviço `client`:
+  - produção: `https://cliente.fernandes-transportadora.com.br`;
+  - staging: `https://cliente.staging.fernandes-transportadora.com.br`;
+  - local: `http://localhost:53100`, no `.env.example`.
+- **O que mudou:**
+  - A API lê a variável como opcional e a valida como HTTPS (ou HTTP em localhost), como as outras
+    URLs públicas. Endereço não confiável derruba o boot.
+  - O modelo `trip.contractor-portal-message` ganha `{{portalAccess}}`:
+    - com a URL: "Acesse `<portal>/?aba=ocorrencias` para ler e responder.";
+    - sem ela: a frase de antes, sem link (`describePortalAccess`).
+  - O portal abre na aba do link (`initialPortalTab`), e o login preserva a busca.
+  - No `railway.ts`, a variável vai literal por ambiente, não `preserve()`, porque não é segredo e,
+    esquecida no painel, o aviso sairia sem link. **Vale ao rodar `railway config apply`.**
+- **Testes, escritos antes e vistos falhando:**
+  - API `portal-link.contract.ts`: esquema, `.env.example` e o texto com e sem URL;
+  - o contrato do aviso T654, atualizado para os dois marcadores, ainda sem o corpo da mensagem;
+  - portal `portal-tab.contract.ts`.
+  - O exemplo do preview (API e painel) é curto e sem URL, como o contrato do preview e a CSP do
+    painel pedem.
+- **No navegador:** `http://localhost:53100/?aba=ocorrencias` → login → o portal abre com
+  "Ocorrências" marcada e a conversa à vista (`prints/portal-link-aviso-390.png`).
+- **O que saber antes do deploy:**
+  - o seed de modelos só cria o que não existe;
+  - este modelo ainda não foi publicado em staging nem em produção, então nasce com o texto novo;
+  - numa instalação onde ele já existisse, o texto antigo ficaria até ser editado no painel de
+    notificações.
+- **Rodado:**
+  - API: contratos **7595 pass**;
+  - painel: **5311 + 44 pass**;
+  - portal: **92 pass**.

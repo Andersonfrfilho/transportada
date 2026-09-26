@@ -188,7 +188,10 @@ describe('o aviso ao portal (spec 183 T654)', () => {
         category: 'trip',
         companyId: COMPANY_ID,
         dedupeKey: `${NOTIFICATION_TEMPLATE_KEY.TRIP_CONTRACTOR_PORTAL_MESSAGE}:message-1:portal-user-1`,
-        payload: { occurrenceLabel: 'NF 4512/1' },
+        payload: {
+          occurrenceLabel: 'NF 4512/1',
+          portalAccess: 'Entre no portal de acompanhamento, em Ocorrências, para ler e responder.',
+        },
         recipientUserId: 'portal-user-1',
         templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_CONTRACTOR_PORTAL_MESSAGE,
       },
@@ -201,17 +204,17 @@ describe('o aviso ao portal (spec 183 T654)', () => {
     ])
   })
 
-  test('o modelo é só e-mail, com a nota como único marcador e nenhum corpo de mensagem', () => {
+  test('o modelo é só e-mail, com a nota e o acesso ao portal como marcadores e nenhum corpo de mensagem', () => {
     const entry = NOTIFICATION_CATALOG.find(
       (item) => item.templateKey === NOTIFICATION_TEMPLATE_KEY.TRIP_CONTRACTOR_PORTAL_MESSAGE,
     )
 
     expect(entry?.channels).toEqual([NOTIFICATION_CHANNEL.EMAIL])
-    expect(entry?.placeholders).toEqual(['occurrenceLabel'])
+    expect(entry?.placeholders).toEqual(['occurrenceLabel', 'portalAccess'])
     expect(entry?.templateKey).toStartWith('trip.')
     expect(entry?.templates.email?.subject).toContain('{{occurrenceLabel}}')
-    expect(entry?.templates.email?.body).toContain('portal')
-    expect(entry?.templates.email?.body).not.toMatch(/\{\{(?!occurrenceLabel)/u)
+    expect(entry?.templates.email?.body).toContain('{{portalAccess}}')
+    expect(entry?.templates.email?.body).not.toMatch(/\{\{(?!occurrenceLabel|portalAccess)/u)
   })
 })
 

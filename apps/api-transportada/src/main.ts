@@ -1423,6 +1423,7 @@ export function bootstrap(): Bun.Server<undefined> {
     routes: [
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
+        clientPortalUrl: config.clientPortalUrl,
         automaticOccurrenceMail,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
@@ -1748,6 +1749,8 @@ type CreateApplicationRoutesParams = {
   readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
   /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
   readonly apiPublicUrl: string | undefined
+  /** Spec 183 RF21: o link do aviso por e-mail ao portal; ausente, o aviso diz onde ler. */
+  readonly clientPortalUrl: string | undefined
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
   readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
   /** Spec 145 D14: a API reabre planta parada pelo mesmo lease que o worker deriva deste número. */
@@ -1780,6 +1783,7 @@ type CreateApplicationRoutesParams = {
 
 function createApplicationRoutes({
   apiPublicUrl,
+  clientPortalUrl,
   automaticOccurrenceMail,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
@@ -2976,6 +2980,7 @@ function createApplicationRoutes({
         newRef: createPublicRef,
         notifier: createContractorPortalNotifier({
           logger,
+          portalUrl: clientPortalUrl,
           send: (params) =>
             notifications.useCases.sendNotification.execute({
               ...params,

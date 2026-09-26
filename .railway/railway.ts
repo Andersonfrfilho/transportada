@@ -78,6 +78,13 @@ export default defineRailway((ctx) => {
     env: {
       AGGREGATE_DOCUMENT_OCR_URL: preserve(),
       API_PUBLIC_URL: preserve(),
+      /**
+       * Spec 183 RF21: o link do aviso por e-mail ao portal. Literal, e não `preserve()`: é o domínio
+       * do serviço `client` abaixo, não segredo, e esquecida no painel o aviso sairia sem link.
+       */
+      CLIENT_PORTAL_URL: isProduction
+        ? 'https://cliente.fernandes-transportadora.com.br'
+        : 'https://cliente.staging.fernandes-transportadora.com.br',
       APP_ENV: preserve(),
       APP_PORT: preserve(),
       BOOTSTRAP_TOKEN: preserve(),

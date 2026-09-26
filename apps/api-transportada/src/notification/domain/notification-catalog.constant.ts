@@ -98,18 +98,18 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
   },
   /**
    * Spec 183 T654 (RF21): a mensagem da operação à contratante pelo portal vira aviso por e-mail às
-   * contas do portal dela. O texto diz a nota e onde ler; o que foi escrito fica no portal. ⚠️ Sem
-   * o link do portal: nem a API nem o worker conhecem a URL dele hoje (só o build do portal, em
-   * `VITE_CLIENT_APP_URL`), e uma variável nova é decisão do dono da instalação.
+   * contas do portal dela. O texto diz a nota e onde ler; o que foi escrito fica no portal.
+   * `{{portalAccess}}` é o link direto a Ocorrências quando a instalação declara
+   * `CLIENT_PORTAL_URL`, e a frase "entre no portal" quando não (`describePortalAccess`).
    */
   {
     category: NOTIFICATION_CATEGORY.TRIP,
     channels: [NOTIFICATION_CHANNEL.EMAIL],
-    placeholders: ['occurrenceLabel'],
+    placeholders: ['occurrenceLabel', 'portalAccess'],
     templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_CONTRACTOR_PORTAL_MESSAGE,
     templates: {
       email: {
-        body: 'A transportadora mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Entre no portal de acompanhamento, em Ocorrências, para ler e responder.',
+        body: 'A transportadora mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. {{portalAccess}}',
         subject: 'Nova mensagem sobre a ocorrência {{occurrenceLabel}}',
       },
     },

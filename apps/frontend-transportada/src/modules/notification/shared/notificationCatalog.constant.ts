@@ -76,6 +76,8 @@ export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
   occurrenceLabel: 'NF 4512/1',
   occurrenceType: 'Recusa do destinatário',
   plate: 'RTA2E19',
+  /** Spec 183 RF21: o acesso ao portal no aviso por e-mail (curto e sem URL: é só o preview). */
+  portalAccess: 'Acesse o portal para ler e responder.',
   reason: 'Certificado vencido',
   rejectionReason: 'Alíquota fora do intervalo permitido',
   // O exemplo leva **número**: é a mesma regra do rótulo da parada, que imprimia rua sem ele.
