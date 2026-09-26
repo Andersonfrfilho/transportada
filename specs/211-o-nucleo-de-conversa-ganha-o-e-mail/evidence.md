@@ -814,3 +814,19 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
   (a task explicita isso), e o CHECK do schema (`messages_author_check`, T202) já restringe
   `sender_address` a `email|whatsapp|webchat`. Host que precisar atribuir mensagem de canal com
   conta própria (`app`/`portal`) usa `ReceiveMessageUseCase` (T206) direto, não esta atribuição.
+
+### Revisão depois da T210 — o CA01 não cobria o módulo
+
+- **Modelo:** Opus 5.5 (`claude-opus-5-5`), revisão do orquestrador.
+- **Commit:** `ccb42eb`.
+- **Achado:** a varredura da T109 só olhava a raiz de `conversation-contracts/src/`, sem entrar em
+  subpasta, e o `conversation-module` não tinha varredura nenhuma. O módulo já citava nome de
+  produto em dois testes (`authorUserId` de exemplo), em dois comentários que apontavam o arquivo e
+  os campos da origem, e usava "driver" no sentido de conector de banco. O CA01 diz "código do
+  núcleo", que são os dois pacotes.
+- **Correção:** varredura recursiva nos dois pacotes, com `__dirname` (o `import.meta` não compila
+  no `module` do `tsconfig.base.json`, e por isso a T109 tinha saído com `@ts-expect-error`). Os
+  exemplos viraram `customer-*`, e os comentários deixaram de citar a origem por nome.
+- **Vista falhar:** uma sonda `src/domain/probe/__probe.ts` no módulo → `65 pass / 1 fail`,
+  apontando `domain/probe/__probe.ts`. Sem a sonda: contracts `38 pass / 0 fail`, módulo
+  `66 pass / 0 fail`, e `check` com 0 erros nos dois.
