@@ -106,7 +106,10 @@ jobs:
       # Reservá-las é dizer ao kernel para nunca sorteá-las; nenhuma delas é de saída.
       - name: Reservar as portas da stack local
         run: |
-          ports=51025,53000-53002,53100-53102,53112,53200,54000-54999,55432,55672-55673,58025,58080,59000-59002
+          # 53003 é a landing do `make dev`, e 53110-53111 são os previews que o Playwright sobe
+          # (painel e landing). Ficaram de fora quando a 53112 do motorista entrou, e porta
+          # publicada fora da reserva é porta que o kernel pode sortear como origem.
+          ports=51025,53000-53003,53100-53102,53110-53112,53200,54000-54999,55432,55672-55673,58025,58080,59000-59002
           sudo sysctl -w "net.ipv4.ip_local_reserved_ports=$ports"
       - uses: oven-sh/setup-bun@v2
         with:
@@ -153,6 +156,6 @@ jobs:
             exit 1
           fi
 
-          PLAYWRIGHT_REUSE_EXISTING_SERVER=true make smoke
+          make smoke
       - if: always()
         run: make down

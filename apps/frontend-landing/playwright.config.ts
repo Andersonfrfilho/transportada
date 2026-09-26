@@ -25,13 +25,19 @@ export default defineConfig({
     video: 'off',
   },
   /**
+   * ⚠️ **`url:`, nunca `port:`, e a porta por `env`.** Mesmo defeito medido no painel em
+   * 2026-09-26: `port:` aceita qualquer socket TCP na porta e abriu o smoke sem servidor, e o
+   * `--port` daqui somava ao `--port ${FRONTEND_LANDING_PORT:-5174}` do script `preview`.
+   */
+  /**
    * Só a landing: a leitura do CCMEI acontece **no navegador** e não toca a API (spec 066, P2). Um
    * smoke que subisse a API junto passaria a depender dela para provar algo que não a envolve.
    */
   webServer: [
     {
-      command: `bun run build && bun run preview -- --port ${FRONTEND_PORT}`,
-      port: FRONTEND_PORT,
+      command: 'bun run build && bun run preview -- --strictPort',
+      env: { FRONTEND_LANDING_PORT: String(FRONTEND_PORT) },
+      url: `http://localhost:${FRONTEND_PORT}/`,
       reuseExistingServer: shouldReuseExistingServer('PLAYWRIGHT_REUSE_EXISTING_LANDING_SERVER'),
       timeout: WEB_SERVER_TIMEOUT_MS,
     },
