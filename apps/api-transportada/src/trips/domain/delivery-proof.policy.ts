@@ -3,13 +3,6 @@
  */
 
 /**
- * ADR-0045 §7: foto é cara em 3G ruim. O teto é declarado, e acima dele a recusa é **explícita e
- * não trava a entrega** — a nota já foi entregue, e perder a confirmação por causa do anexo seria
- * punir o motorista pelo aparelho dele.
- */
-export const DELIVERY_PROOF_MAX_BYTES = 2_000_000
-
-/**
  * Spec 156 T15 M7: o teto do arquivo nas rotas multipart do escritório. O corpo inteiro da
  * requisição para em `APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES` (1 MiB, 413 antes da rota), e o
  * roteador não tem teto por rota — então o arquivo para 64 KiB abaixo, a folga dos campos e das
@@ -17,6 +10,15 @@ export const DELIVERY_PROOF_MAX_BYTES = 2_000_000
  * que a tela sabe explicar. A tela reduz a foto para ~900 KB antes de enviar.
  */
 export const OFFICE_PROOF_MAX_BYTES = 960 * 1024
+
+/**
+ * ADR-0045 §7: foto é cara em 3G ruim. O teto é declarado, e acima dele a recusa é **explícita e
+ * não trava a entrega** — a nota já foi entregue, e perder a confirmação por causa do anexo seria
+ * punir o motorista pelo aparelho dele. Spec 212: o mesmo teto do escritório, pelo mesmo motivo —
+ * os 2 MB de antes ficavam acima do corpo de 1 MiB, e a foto grande voltava 413 sem código que a
+ * app soubesse explicar; o 422 `TOO_LARGE` nunca era alcançado.
+ */
+export const DELIVERY_PROOF_MAX_BYTES = OFFICE_PROOF_MAX_BYTES
 
 /** O que o celular produz: foto comprimida e o traço da assinatura. Nada de PDF nem de vídeo. */
 export const DELIVERY_PROOF_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
