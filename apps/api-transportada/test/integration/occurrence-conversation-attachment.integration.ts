@@ -70,15 +70,6 @@ const PDF = new TextEncoder().encode('%PDF-1.7\n1 0 obj << /Type /Catalog >> end
 /** Um JPEG mínimo de verdade (assinatura `FF D8 FF`). */
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1])
 
-/**
- * ⚠️ O `@adatechnology/object-storage-provider@0.3.0` assina a URL de PUT com o `x-amz-checksum-crc32`
- * do corpo **vazio** (padrão do SDK 3.1091 sem `requestChecksumCalculation: 'WHEN_REQUIRED'`), e o
- * storage que confere o checksum recusa o upload real com `BadDigest` — medido no S3 local desta
- * sessão (SeaweedFS, 25/09/2026). Não é deste anexo: o upload da foto da 179 usa o mesmo método. A
- * correção é do pacote ou do ambiente (decisão registrada em `evidence.md` da 183, T702a); aqui o
- * processo de teste liga a variável padrão do SDK para exercitar o fluxo, sem mascarar o achado.
- */
-process.env.AWS_REQUEST_CHECKSUM_CALCULATION ??= 'WHEN_REQUIRED'
 
 function createProvider(): ObjectStorageProvider {
   return createObjectStorageProvider({

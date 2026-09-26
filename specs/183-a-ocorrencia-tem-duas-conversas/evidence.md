@@ -2526,7 +2526,18 @@ spec: todas esperam uma decisão ou uma ação do usuário.
     - um teste de contrato novo, sem a variável, confere a URL;
     - contra o SeaweedFS, o PUT dava 400 `BadDigest` antes e dá 200 depois;
     - changeset `patch`, que leva a versão a 0.3.1.
-  - Quando a 0.3.1 for publicada, a API sobe de versão, e a variável sai junto com o contrato.
+  - **Fechado em 26/09/2026.** O PR foi mergeado (`877e461`, squash em `main`), o CI #388 passou e o
+    workflow "Publish packages" #259 publicou a **0.3.1**, conferida por `npm view` e no `dist`
+    instalado (`WHEN_REQUIRED` presente no artefato publicado, não só no número da versão).
+  - Com isso **o paliativo saiu inteiro**: a API subiu para a 0.3.1, e sumiram
+    `AWS_REQUEST_CHECKSUM_CALCULATION` do `.railway/railway.ts` e do `.env.example`, o contrato
+    `test/deploy/signed-upload-checksum.contract.ts` (com o import dele no
+    `test/deploy.contract.test.ts`) e a linha que ligava a variável no processo de teste de
+    `occurrence-conversation-attachment.integration.ts`. Os dois contratos que fixam a versão
+    auditada do pacote (`certificate-validation-gateway`, `nfe-storage-gateway`) passaram para
+    `0.3.1`. O `bun.lock` mudou **só** esse pacote — conferido no diff.
+  - ⚠️ O `worker-transportada` segue em `0.2.0-rc.0` deste pacote. Não foi tocado aqui: quem assina
+    a URL de upload é a API. Fica anotado como dívida à parte.
 - **A origem do bucket nos frontends (26/09/2026):**
   - O `transportada-frontend` lia `VITE_OBJECT_STORAGE_URL` sem declará-la no `railway.ts`, e no
     IaC omitir é apagar. Ela foi declarada (`b0c6bcdf`), e um contrato novo confere que todo

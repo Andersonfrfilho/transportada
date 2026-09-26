@@ -79,12 +79,6 @@ export default defineRailway((ctx) => {
       AGGREGATE_DOCUMENT_OCR_URL: preserve(),
       API_PUBLIC_URL: preserve(),
       /**
-       * Spec 183: o object-storage-provider 0.3.0 assina o PUT com o CRC32 do corpo vazio, e o
-       * storage que confere o checksum recusa o upload direto. Sai quando a API subir para a 0.3.1,
-       * que corrige no pacote (`test/deploy/signed-upload-checksum.contract.ts`).
-       */
-      AWS_REQUEST_CHECKSUM_CALCULATION: 'WHEN_REQUIRED',
-      /**
        * Spec 183 RF21: o link do aviso por e-mail ao portal. Literal, e não `preserve()`: é o domínio
        * do serviço `client` abaixo, não segredo, e esquecida no painel o aviso sairia sem link.
        */

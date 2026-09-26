@@ -20,7 +20,7 @@ describe('public fiscal certificate validation gateway contract', () => {
     }
 
     expect(packageManifest.dependencies?.['@adatechnology/fiscal-provider']).toBe('0.3.2')
-    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.3.0')
+    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.3.1')
   })
 
   test('compiles validateCertificate and its result type from the package root', async () => {

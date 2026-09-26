@@ -174,7 +174,7 @@ describe('api nfe storage gateway contract', () => {
     ).json()) as {
       readonly dependencies?: Readonly<Record<string, string>>
     }
-    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.3.0')
+    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.3.1')
   })
 
   test('builds opaque tenant-safe keys for staging and final object flows', () => {
