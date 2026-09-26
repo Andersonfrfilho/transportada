@@ -70,3 +70,57 @@ os cinco commits de documentação trazidos por cherry-pick (commit `f338a7533`)
    40 expect() calls
   Ran 7 tests across 1 file. [25.00ms]
   ```
+
+### T104 — contrato da tabela de capacidades
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `9447084` (`packages/backend/conversation-contracts/src/channelCapabilities.test.ts`).
+- Fixa RF2/D3/D4: `confirmsRead`, `sessionWindowHours`, `attachments` (`accepted`, `maxBytes`,
+  `maxTotalBytes`), `audio` (`plays`, `records`), `quickReplies`, `requiresTransport` e
+  `reachableStatuses`, para os cinco canais. `email` nunca alcança `read`; `portal` ouve e não
+  grava áudio e só alcança `delivered|read`; `whatsapp` tem janela de 24h.
+- **Decisão de forma (não estava no `plan.md`, registrada no comentário do teste):**
+  `attachments.maxBytes` é um número só por canal — o maior tipo aceito, lido de
+  `CONVERSATION_ATTACHMENT_LIMITS` da 183 — porque o contrato do RF2 não abre por tipo de anexo.
+  `webchat` não tem política de origem (nasce nesta spec); seu teto é o menor entre os tetos dos
+  outros quatro canais, como o enunciado da task pediu, e ele alcança
+  `queued | delivered | failed` — o mesmo formato de `app` (sem `read`, porque não confirma
+  leitura) trocando `read` por `failed` (não confirma leitura, mas o transporte pode falhar).
+  `quickReplies` saiu `true` para os cinco: a resposta rápida (183 T701) é texto que o operador
+  ainda edita antes de mandar (D4), sem coluna de canal na tabela de origem
+  (`company_quick_replies`) — não é capacidade de transporte.
+- **Visto falhar:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+  src/channelCapabilities.test.ts:
+  # Unhandled error between tests
+  error: Cannot find module './channelCapabilities' from '...src/channelCapabilities.test.ts'
+   7 pass
+   1 fail
+   1 error
+  Ran 8 tests across 2 files. [25.00ms]
+  ```
+
+  (os 7 pass são o `vocabulary.test.ts` da T101, que continuou verde.)
+
+### T105 — a tabela de capacidades
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `fd1e6b2` (`packages/backend/conversation-contracts/src/{channelCapabilities.ts,index.ts}`).
+- `CHANNEL_CAPABILITIES` congelada (o objeto e cada `attachments`/`audio`/`reachableStatuses`
+  interno) e `getChannelCapabilities(channel)`. Exportada no barrel.
+- **Gate:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-contracts run check
+  (sem saída — 0 erros)
+
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+   15 pass
+   0 fail
+   95 expect() calls
+  Ran 15 tests across 2 files. [17.00ms]
+  ```

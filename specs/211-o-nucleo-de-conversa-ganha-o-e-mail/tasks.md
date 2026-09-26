@@ -45,10 +45,10 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       (RF1, RNF5)
 - [x] **T103** `sonnet` — Os tipos do T101. Barrel explícito em `src/index.ts`, sem `export *`.
       (RF1)
-- [ ] **T104** `sonnet` — Teste de contrato da **tabela de capacidades** (`plan.md` § Fase 1),
+- [x] **T104** `sonnet` — Teste de contrato da **tabela de capacidades** (`plan.md` § Fase 1),
       incluindo as duas linhas que a tela usa para não mentir: `email` não confirma leitura, `portal`
       não grava áudio. (RF2, D3, D4)
-- [ ] **T105** `sonnet` — A tabela de capacidades. (RF2)
+- [x] **T105** `sonnet` — A tabela de capacidades. (RF2)
 - [ ] **T106** `sonnet` — Teste da **máquina de status**: só avança, guarda horário por transição,
       idempotente por `(canal, id do provedor)`, e evento fora de ordem não inventa horário.
       (RF3, D6)
