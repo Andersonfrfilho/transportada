@@ -152,6 +152,23 @@ export type MappedFleetDriverInput = Readonly<{
  * ficha aprovada com só nome e CPF não emite MDF-e nenhum. Tudo que a candidatura não declarou
  * chega como texto vazio, o mesmo "não preenchido ainda" que uma ficha criada manualmente carrega.
  */
+/**
+ * `fleet_drivers_pix_key_check` exige as duas colunas preenchidas juntas, ou nenhuma. A candidatura
+ * aceita as duas de forma independente (a landing não obriga escolher o tipo para digitar a chave),
+ * e uma só das duas preenchida travava o `INSERT` da aprovação inteira com 500 — sem forma de o
+ * operador contornar pela tela. Sem o par completo não dá para saber que tipo de chave é, então a
+ * aprovação descarta a chave em vez de inventar um tipo; o operador completa na ficha depois.
+ */
+function resolvePixKeyFields(driver: AggregateApplicationDeclaredDriver | undefined): Readonly<{
+  pixKey: string
+  pixKeyType: PixKeyType | ''
+}> {
+  const pixKey = driver?.pixKey ?? ''
+  const pixKeyType = driver?.pixKeyType ?? ''
+  if ((pixKey === '') !== (pixKeyType === '')) return { pixKey: '', pixKeyType: '' }
+  return { pixKey, pixKeyType }
+}
+
 export function mapDeclaredDataToDriverInput(input: {
   readonly declaredData: AggregateApplicationDeclaredData
   readonly email: string
@@ -162,6 +179,7 @@ export function mapDeclaredDataToDriverInput(input: {
   const driver = input.declaredData.driver
   const address = addressFields(driver?.address)
   const linkedAddress = addressFields(driver?.linkedAddress)
+  const pix = resolvePixKeyFields(driver)
 
   return {
     anttCategory: driver?.anttCategory ?? '',
@@ -196,8 +214,8 @@ export function mapDeclaredDataToDriverInput(input: {
     nationality: driver?.nationality ?? '',
     number: address.number,
     phone: input.phone,
-    pixKey: driver?.pixKey ?? '',
-    pixKeyType: driver?.pixKeyType ?? '',
+    pixKey: pix.pixKey,
+    pixKeyType: pix.pixKeyType,
     postalCode: address.postalCode,
     rntrc: driver?.rntrc ?? '',
     state: address.state,

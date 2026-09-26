@@ -75,6 +75,29 @@ describe(`POST ${PUBLIC_AGGREGATE_APPLICATIONS_PATH} HTTP contract`, () => {
     expect(fixture.repository.rows).toHaveLength(0)
   })
 
+  test('rejects PIX key declared without its type — half a PIX pair breaks the approval later', async () => {
+    const fixture = await createAggregateApplicationHttpFixture()
+
+    const response = await fixture.handle(
+      aggregateApplicationRequest({
+        authenticated: false,
+        body: JSON.stringify({
+          companyId: COMPANY_ID,
+          declaredData: { driver: { pixKey: '12345678901' } },
+          email: 'candidato@example.com',
+          name: 'Fulano de Tal',
+          phone: '11988887777',
+          taxId: '12345678901',
+        }),
+        method: 'POST',
+        pathname: PUBLIC_AGGREGATE_APPLICATIONS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.repository.rows).toHaveLength(0)
+  })
+
   test('rate limits repeated submissions from the same IP', async () => {
     const fixture = await createAggregateApplicationHttpFixture()
     const send = (taxId: string) =>
