@@ -297,7 +297,9 @@
   },
   "startRoute": {
     "failed": "Could not start the route. Tap again.",
-    "start": "Start route"
+    "start": "Start route",
+    "done": "Route started at {{time}}. Have a good trip!",
+    "onRoute": "On the delivery route"
   },
   "activity": {
     "delivered": "Delivered at {{time}}",

@@ -23,6 +23,7 @@ import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
 import { useStopExpansion } from '../hooks/useStopExpansion.hook'
+import { useTransientNotice } from '../hooks/useTransientNotice.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
@@ -111,6 +112,8 @@ export function DriverTripWorkspacePage() {
   const [dispatchFailed, setDispatchFailed] = useState(false)
   const [isStartingRoute, setIsStartingRoute] = useState(false)
   const [startRouteFailed, setStartRouteFailed] = useState(false)
+  /** Sem isto o toque em "Iniciar rota" só fazia o botão sumir — e o motorista achava que nada aconteceu. */
+  const startRouteNotice = useTransientNotice()
   /**
    * Os tipos cadastrados pela empresa. Spec 157 RF5: falha e lista vazia de verdade são estados
    * diferentes — o painel avisa a falha e oferece tentar de novo; entregar e devolver nunca
@@ -472,6 +475,12 @@ export function DriverTripWorkspacePage() {
     setIsStartingRoute(true)
     try {
       await getDriverTripClient().startRoute()
+      startRouteNotice.announce(
+        'start-route',
+        t('startRoute.done', {
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }),
+      )
       driverTrip.refetchTrip()
     } catch {
       setStartRouteFailed(true)
@@ -496,6 +505,12 @@ export function DriverTripWorkspacePage() {
           {trip === undefined ? null : (
             <p className={styles.vehicle}>{t('vehicle', { plate: trip.vehiclePlate })}</p>
           )}
+          {trip?.status === 'on_delivery_route' ? (
+            <p className={styles.tripOnRoute}>
+              <Icon aria-hidden="true" name="workspace-driver-trip" size="sm" />
+              {t('startRoute.onRoute')}
+            </p>
+          ) : null}
         </header>
 
         <DriverTripSelector
@@ -540,11 +555,17 @@ export function DriverTripWorkspacePage() {
         {trip !== undefined && canStartRoute(trip) ? (
           <div className={styles.actions}>
             <Button disabled={isStartingRoute} onClick={() => void startRoute()} type="button">
-              <Icon name="check" />
+              <Icon aria-hidden="true" name="workspace-driver-trip" />
               {t('startRoute.start')}
             </Button>
           </div>
         ) : null}
+        {startRouteNotice.notice === undefined ? null : (
+          <p className={styles.activityNotice} role="status">
+            <Icon aria-hidden="true" name="check" size="sm" />
+            {startRouteNotice.notice.message}
+          </p>
+        )}
         {startRouteFailed ? (
           <p className={styles.alert} role="alert">
             {t('startRoute.failed')}

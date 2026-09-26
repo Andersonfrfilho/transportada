@@ -306,7 +306,9 @@
   },
   "startRoute": {
     "failed": "Não foi possível iniciar a rota. Toque de novo.",
-    "start": "Iniciar rota"
+    "start": "Iniciar rota",
+    "done": "Rota iniciada às {{time}}. Boa viagem!",
+    "onRoute": "Em rota de entrega"
   },
   "activity": {
     "delivered": "Entregue às {{time}}",

@@ -194,6 +194,17 @@ describe('iniciar rota', () => {
     expect(workspace).toInclude('startRoute()')
   })
 
+  it('o toque dá retorno: aviso com a hora e o estado "em rota" no cabeçalho', () => {
+    const workspace = readFileSync(WORKSPACE, 'utf8')
+    expect(workspace).toInclude('startRouteNotice.announce(')
+    expect(workspace).toInclude("t('startRoute.done'")
+    expect(workspace).toInclude("trip?.status === 'on_delivery_route'")
+    expect(workspace).toInclude("t('startRoute.onRoute')")
+    expect(driverTrip.startRoute.done).toInclude('{{time}}')
+    expect(driverTripEn.startRoute.done).toInclude('{{time}}')
+    expect(driverTrip.startRoute.onRoute).toBe('Em rota de entrega')
+  })
+
   it('os dois idiomas têm os textos, e o despacho deixa de se chamar "Iniciar trajeto"', () => {
     expect(driverTrip.startRoute.start).toBe('Iniciar rota')
     expect(driverTripEn.startRoute.start).toBe('Start route')
