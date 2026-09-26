@@ -96,10 +96,11 @@ a foto obrigatória, de onde anexa em lote — e a foto entra na **fila offline*
   folga de 2 min é a da
   `field-delivery-timing.policy.ts`); sem `capturedAt`, o recebimento no servidor. **Tardia** = referência
   mais de `proofWindowMinutes` depois de `trip_stop_events.captured_at ?? recorded_at` da entrega.
-- **RF6** **Longe** = distância haversine entre a posição da foto e a da parada (`trip_stops.latitude/
-longitude`) maior que `proofRadiusMeters + accuracyMeters da foto`. Parada sem coordenada usa a
-  posição do evento de entrega; sem nenhuma das duas referências, não há como julgar a distância e ela
-  não pesa. A precisão soma ao raio no máximo um raio (`min(accuracyMeters, proofRadiusMeters)`, T11). **Foto sem posição conta como longe** — o motorista precisa compartilhar a localização para
+- **RF6** **Longe** = distância haversine entre a posição da foto e a do evento de entrega
+  (`trip_stop_events.latitude/longitude`) maior que `proofRadiusMeters + accuracyMeters da foto`.
+  Evento sem posição não dá referência, e a distância não pesa. (Emenda 2026-09-25 da ADR-0070: a
+  redação original media contra `trip_stops.latitude/longitude`, que nunca é escrita — spec 079 T009 —,
+  e o usuário decidiu que a referência é a baixa, não o pino de `geocoded_addresses`.) A precisão soma ao raio no máximo um raio (`min(accuracyMeters, proofRadiusMeters)`, T11). **Foto sem posição conta como longe** — o motorista precisa compartilhar a localização para
   provar que estava no local.
 - **RF7** Parâmetros por empresa, junto da configuração do comprovante (`GET/PUT
 /company-settings/delivery-proof`): `proofWindowMinutes` (padrão 60, 5–1440), `proofRadiusMeters`

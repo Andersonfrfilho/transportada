@@ -55,7 +55,6 @@ function buildWorld(settings: Partial<DeliveryProofFieldSettings> = {}) {
       Promise.resolve({
         deliveredAt: new Date('2026-09-18T12:00:00.000Z'),
         deliveryEventPosition: undefined,
-        stopPosition: undefined,
       }),
     findDeliveryEventId: () => Promise.resolve(EVENT_ID),
     findProofIdByAttachmentKey: () => Promise.resolve(null),
