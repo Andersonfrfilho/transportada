@@ -352,3 +352,39 @@ subject_id, coalesce(audience, ''))` `where subject_type is not null`, via `uniq
   "nenhuma migration carrega parâmetro de bind — DDL é sempre literal", que reprova qualquer
   `$<n>`no SQL embarcado. Verde final:`check`limpo (o`getName()`do T201 também foi corrigido
 em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fail** (626`expect()`), `build`ok.`git status --short`: limpo depois do commit.
+
+### T203 ⚙️ — companyId nunca no corpo
+
+- **Modelo:** Haiku 4.5 (`claude-haiku-4-5-20251001`).
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-contracts/src/`.
+- **Commit:** `36d5597` (`packages/backend/conversation-contracts/src/strictness.test.ts`).
+- Molde do `notification-contracts` adaptado aos quatro schemas de corpo do conversation-module
+  (`openConversationBodySchema`, `sendMessageBodySchema`, `markConversationReadBodySchema`,
+  `quickReplyBodySchema`). Oito testes, um para cada schema + `companyId` / `company_id`, verificando
+  que nenhuma delas entra no dado parseado (schema `.strict()` recusa ou strip remove; aceita qualquer
+  das duas desde que o campo não apareça no resultado).
+- **Visto falhar (esperado até T206):**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+
+  src/strictness.test.ts:
+
+  # Unhandled error between tests
+  error: Cannot find module './requestSchemas' from '...src/strictness.test.ts'
+
+   29 pass
+   1 fail
+   1 error
+   122 expect() calls
+  Ran 30 tests across 6 files. [42.00ms]
+  ```
+
+  (os 29 pass são os testes anteriores das Fases 1–2, que continuaram verdes.)
+
+- ⚠️ **`pnpm --filter @adatechnology/conversation-module run check` vai **falhar** até a T206**
+  — os schemas de corpo não existem, e o arquivo importa de `./requestSchemas` (que será criado
+  naquela task). A falha é esperada: `Cannot find module './requestSchemas'`. Não rode o `check`
+  como gate desta task.

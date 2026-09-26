@@ -66,7 +66,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T202** `sonnet` — Schema e migrations, a partir do da 183 com os dois cortes do `plan.md`
       § Fase 2. Mantém o CHECK de autoria, o `unique` do status idempotente e o `sha256` do anexo.
       (RF5)
-- [ ] **T203** ⚙️ `haiku` — Teste de que `companyId` **nunca** é aceito do corpo da requisição —
+- [x] **T203** ⚙️ `haiku` — Teste de que `companyId` **nunca** é aceito do corpo da requisição —
       o mesmo `strictness.test.ts` que o `notification-contracts` tem, copiado e adaptado. (RNF3)
 - [ ] **T204** `sonnet` — Repositórios atrás de porta. (RF6)
 - [ ] **T205** `sonnet` — Teste dos casos de uso: abrir, enviar, receber, atualizar status, marcar
