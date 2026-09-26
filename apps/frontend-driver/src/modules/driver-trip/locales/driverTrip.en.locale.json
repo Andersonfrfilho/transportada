@@ -37,6 +37,9 @@
       "tooLarge": "the photo is larger than the server accepts"
     },
     "empty": "Nothing waiting to be sent.",
+    "itemTitle": {
+      "depart": "Start route — stop {{sequence}}"
+    },
     "kind": {
       "arrive": "Arrival",
       "cancelDeparture": "Route cancellation",

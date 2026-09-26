@@ -25,6 +25,9 @@
       "tooLarge": "a foto passou do tamanho aceito pelo servidor"
     },
     "empty": "Nada aguardando envio.",
+    "itemTitle": {
+      "depart": "Iniciar rota — parada {{sequence}}"
+    },
     "kind": {
       "arrive": "Chegada",
       "cancelDeparture": "Cancelamento de rota",

@@ -268,12 +268,15 @@ export function DriverTripWorkspacePage() {
       <div className={styles.moduleShell}>
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverEventQueuePage
+          {...(enRouteStopId === undefined ? {} : { enRouteStopId })}
           isLoading={driverTrip.isQueueLoading}
           isSyncing={driverTrip.isSyncing}
           items={driverTrip.queueView}
           onBack={() => window.history.back()}
+          onFocusStop={focusStop}
           onSendAll={() => driverTrip.sendAllNow()}
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
+          stops={trip?.stops ?? []}
         />
         <DriverBottomBar
           section={section}

@@ -15,7 +15,11 @@ const REJECTION_CAUSE_LABEL_KEYS: Readonly<Record<string, string>> = {
   TRIP_STOP_NOT_REACHABLE: 'eventQueue.cause.stopNotReachable',
 }
 
+/** Spec 206 RF8b: o mesmo split, exposto — o "recusado por X" precisa comparar o código, não o texto. */
+export function resolveRejectionCauseCode(cause: string): string {
+  return cause.split(' ').at(-1) ?? cause
+}
+
 export function resolveRejectionCauseLabelKey(cause: string): string | undefined {
-  const code = cause.split(' ').at(-1) ?? cause
-  return REJECTION_CAUSE_LABEL_KEYS[code]
+  return REJECTION_CAUSE_LABEL_KEYS[resolveRejectionCauseCode(cause)]
 }

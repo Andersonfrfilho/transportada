@@ -1,8 +1,12 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/eventQueueView.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverFieldReport } from './driverTrip.types'
+import type { DriverFieldReport, DriverTripStop } from './driverTrip.types'
 import type { AttachmentGroupEntries } from './offlineAttachments.service'
-import type { QueuedReport } from './offlineQueue.service'
+import type { DriverTripErrorDetail, QueuedReport } from './offlineQueue.service'
+import { resolveRejectionCauseCode } from './rejectionCauseLabel.service'
+
+/** Spec 206 RF8b: só este código dispara o motivo e o atalho — qualquer outra recusa fica genérica. */
+const DEPART_BLOCKED_CODE = 'TRIP_HAS_STOP_EN_ROUTE'
 
 /**
  * Spec 082 D7: o que a tela de eventos pendentes imprime, derivado da fila sem tocar em DOM. O
@@ -10,7 +14,12 @@ import type { QueuedReport } from './offlineQueue.service'
  */
 export type EventQueueItemStatus =
   | Readonly<{ attempts: number; state: 'failed' }>
-  | Readonly<{ cause: string; state: 'rejected' }>
+  | Readonly<{
+      cause: string
+      /** Spec 206 D9/RF8b: `error.details` da recusa (409 en-route), quando a API os manda. */
+      details?: readonly DriverTripErrorDetail[]
+      state: 'rejected'
+    }>
   | Readonly<{ state: 'queued' }>
   /** Spec 189 T9.2: gravado sem rede, esperando o dono confirmar ("Confirmar em lote"). */
   | Readonly<{ state: 'unverified' }>
@@ -43,7 +52,13 @@ export type EventQueueItemView = Readonly<{
 }>
 
 function toStatus(item: QueuedReport): EventQueueItemStatus {
-  if (item.rejectionCause !== undefined) return { cause: item.rejectionCause, state: 'rejected' }
+  if (item.rejectionCause !== undefined) {
+    return {
+      cause: item.rejectionCause,
+      ...(item.rejectionDetails === undefined ? {} : { details: item.rejectionDetails }),
+      state: 'rejected',
+    }
+  }
   if (item.isUnverified === true) return { state: 'unverified' }
   if (item.attempts > 0) return { attempts: item.attempts, state: 'failed' }
   return { state: 'queued' }
@@ -118,4 +133,83 @@ export function hasSendableEvents(items: readonly EventQueueItemView[]): boolean
   return items.some(
     (item) => item.status.state !== 'rejected' && item.status.state !== 'unverified',
   )
+}
+
+/**
+ * Spec 206 RF8: o número da parada do item ("Iniciar rota — parada N") — `undefined` quando a
+ * parada saiu do snapshot (viagem trocada, cartão sumido); a tela cai no rótulo sem número.
+ */
+export function resolveEventQueueStopSequence(input: {
+  readonly item: EventQueueItemView
+  readonly stops: readonly DriverTripStop[]
+}): number | undefined {
+  if (input.item.stopId === undefined) return undefined
+  return input.stops.find((stop) => stop.id === input.item.stopId)?.sequence
+}
+
+export type EventQueueDepartBlock = Readonly<{
+  blockingStopId: string
+  blockingStopSequence: number
+}>
+
+function detailValue(
+  details: readonly DriverTripErrorDetail[] | undefined,
+  field: string,
+): string | undefined {
+  return details?.find((detail) => detail.field === field)?.message
+}
+
+/**
+ * Spec 206 D9/RF8b: a `blockingStopId` que o `409` mandou em `error.details` — o caso em que a
+ * tela não viu o bloqueio (outro aparelho, item enfileirado antes do snapshot que trouxe o "a
+ * caminho"). `resolveEnRouteStopId` local não sabe disso: só o servidor sabia, no instante da
+ * recusa. A sequência prefere a do snapshot atual (mais fresca); sem a parada ali (saiu da
+ * viagem), cai na que o próprio servidor mandou.
+ */
+function resolveServerDepartBlock(input: {
+  readonly details: readonly DriverTripErrorDetail[] | undefined
+  readonly stops: readonly DriverTripStop[]
+}): EventQueueDepartBlock | undefined {
+  const blockingStopId = detailValue(input.details, 'enRouteStopId')
+  if (blockingStopId === undefined) return undefined
+
+  const knownStop = input.stops.find((stop) => stop.id === blockingStopId)
+  if (knownStop !== undefined) {
+    return { blockingStopId, blockingStopSequence: knownStop.sequence }
+  }
+
+  const sequenceFromServer = Number(detailValue(input.details, 'enRouteStopSequence'))
+  if (!Number.isFinite(sequenceFromServer)) return undefined
+  return { blockingStopId, blockingStopSequence: sequenceFromServer }
+}
+
+/**
+ * Spec 206 RF8b: o `depart` recusado por `409 TRIP_HAS_STOP_EN_ROUTE` não pode sumir calado — a
+ * tela precisa do motivo ("Outra parada está a caminho — feche a parada N") e do atalho até ela.
+ *
+ * Duas fontes, nesta ordem: 1) o `blockingStopId` que o próprio `409` mandou em `error.details` —
+ * o único jeito de acertar a parada quando a tela não viu o bloqueio (D9); 2) sem isso (resposta
+ * antiga, sem `details`), a parada que `resolveEnRouteStopId` (D9) diz estar a caminho AGORA — que
+ * cobre o caso comum, mas pode devolver `undefined` se ela já fechou entre a recusa e agora.
+ */
+export function resolveEventQueueDepartBlock(input: {
+  readonly enRouteStopId: string | undefined
+  readonly item: EventQueueItemView
+  readonly stops: readonly DriverTripStop[]
+}): EventQueueDepartBlock | undefined {
+  if (input.item.kind !== 'depart') return undefined
+  if (input.item.status.state !== 'rejected') return undefined
+  if (resolveRejectionCauseCode(input.item.status.cause) !== DEPART_BLOCKED_CODE) return undefined
+
+  const fromServer = resolveServerDepartBlock({
+    details: input.item.status.details,
+    stops: input.stops,
+  })
+  if (fromServer !== undefined) return fromServer
+
+  if (input.enRouteStopId === undefined) return undefined
+  const blockingStop = input.stops.find((stop) => stop.id === input.enRouteStopId)
+  if (blockingStop === undefined) return undefined
+
+  return { blockingStopId: blockingStop.id, blockingStopSequence: blockingStop.sequence }
 }
