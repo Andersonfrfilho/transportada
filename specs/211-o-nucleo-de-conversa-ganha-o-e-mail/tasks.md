@@ -96,9 +96,9 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       perde a resposta. (RF14, CA07)
 - [x] **T302** 🧠 `opus` — O token derivado, com prefixo parametrizado. HMAC — gate de Opus.
       (RF14)
-- [ ] **T303** `sonnet` — Teste do threading: `In-Reply-To` e `References` da última mensagem
+- [x] **T303** `sonnet` — Teste do threading: `In-Reply-To` e `References` da última mensagem
       recebida, `Idempotency-Key` igual ao id da nossa mensagem. (RF14, CA07)
-- [ ] **T304** `sonnet` — O threading. (RF14)
+- [x] **T304** `sonnet` — O threading. (RF14)
 - [ ] **T305** `sonnet` — Teste do MIME bruto: gravado com `sha256` **antes de qualquer
       interpretação**. (RF14)
 - [ ] **T306** `sonnet` — O MIME bruto e a extração de anexo a partir dele. (RF14, RF8)

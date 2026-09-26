@@ -982,3 +982,33 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
   - `verifyReplyToken` é novo e compara **digests de tamanho fixo** com `timingSafeEqual`: comparar
     os tokens direto vazaria pelo tempo quantos caracteres um palpite acertou, e `timingSafeEqual`
     lançaria com entrada de outro tamanho (o teste cobre vazio, curto, longo e caixa alta).
+
+### T303 — teste do threading
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`) — classe pedida `sonnet`, atendida.
+- **Commit:** `f934cbf` (`packages/backend/conversation-module/src/domain/emailThreading.test.ts`).
+- **Visto falhar:** `Cannot find module './emailThreading'` → `0 pass / 1 fail`.
+- **Cobertura:** sem mensagem recebida anterior, `In-Reply-To`/`References` **ausentes** (não string
+  vazia); `In-Reply-To` = `Message-ID` da última mensagem recebida; `References` = as dela mais ela
+  própria, na ordem, sem duplicar; `Idempotency-Key` = o id da nossa mensagem, estável para o mesmo
+  id; `Message-ID` fora do formato `local@domínio` é ignorado, mesmo vindo entre `< >`; teto de
+  tamanho de `References` (mais antigo cai primeiro, a mensagem respondida nunca sai).
+- **Decisão registrada no teste:** a origem (spec 143) não acumula cadeia de `References` — ela só
+  repete o `Message-ID` da última mensagem recebida em `In-Reply-To` **e** `References`, sem olhar
+  as `References` que aquela mensagem trazia. Não há teto para portar. O teste generaliza para a
+  cadeia inteira (RFC 5322 recomenda preservar a árvore da conversa) e fixa um teto próprio: **50
+  entradas**, valor citado com frequência como o que clientes de e-mail populares aplicam para
+  limitar o cabeçalho sem cortar conversas de uso normal.
+
+### T304 — o threading
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `c99bbc6` (`src/domain/emailThreading.ts`, exportado no barrel).
+- **Verde:** `105 pass / 0 fail` (`conversation-module`), `38 pass / 0 fail`
+  (`conversation-contracts`), `check` com 0 erros nos dois.
+- **Achado no caminho:** a primeira versão do comentário citava a origem pelo nome do módulo
+  (`contractor-mail`), e o CA01 reprovou — a palavra de produto estava dentro do comentário. Reescrito
+  para "a origem (spec 143)", sem o nome do módulo.
+- **Formato de `Message-ID` aceito:** `local-part@domain`, com ou sem os `< >` do cabeçalho — não
+  valida contra a RFC 5322 inteira (que aceita comentários e `folding whitespace`), só recusa entrada
+  claramente crua (sem `@`, com espaço) para nunca deixar lixo entrar no cabeçalho de saída.
