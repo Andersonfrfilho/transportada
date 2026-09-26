@@ -111,3 +111,52 @@ $ bun --env-file=../../.env.test test ./test/trip-schema.contract.test.ts --time
 SyntaxError: Export named 'RECEIVED_BY_OPTIONS' not found in module '.../src/database/database.schema.ts'.
  0 pass, 1 fail, 1 error
 ```
+
+### T2.2 🧠 — migration `20260926002743_delivery_proof_received_by`
+
+- Schema: `RECEIVED_BY_OPTIONS`, `RECEIVED_BY_OPTIONS_REQUIRING_DETAIL` e
+  `RECEIVED_BY_DETAIL_MAX_LENGTH` em `src/database/trip.schema.ts` (sem importar `trips/domain`);
+  `received_by varchar(16)` e `received_by_detail varchar(120)` anuláveis; CHECKs
+  `trip_delivery_proofs_received_by_check` (lista ou nulo), `_received_by_detail_check` (detalhe só
+  com relação) e `_received_by_kind_check` (`cargo` sem os dois); `receiver_check` passa a
+  `"kind" <> 'cargo' or length("receiver_name") = 0`. `received_by text not null default
+'optional'` + CHECK de modo em `company_delivery_proof_settings` e
+  `delivery_proof_setting_overrides`. O detalhe obrigatório em `other`/`other_relative` **não** é
+  CHECK (D2).
+- `migration.sql`: SQL do `db:generate`, conferido à mão, com um `DO $$ … RAISE EXCEPTION` **antes**
+  de tudo: aborta se existir `cargo` com `receiver_name` (o único caso em que o CHECK novo é mais
+  estreito que o antigo — o canal `office` podia gravá-lo).
+- `rollback.sql` à mão ("Manual rollback only"): recusa, sem desfazer nada, se houver relação ou
+  detalhe gravados, foto do motorista com nome (o CHECK antigo a recusaria) ou configuração com
+  `received_by` diferente de `optional`; sem dado, volta o CHECK antigo, derruba os três CHECKs e as
+  colunas e apaga a própria linha do journal (exatamente uma).
+- `static-migration.contract.ts`: a pasta nova na lista e um caso que prova a ordem (verificação
+  antes da troca do CHECK, recusas antes do `DROP COLUMN`).
+
+**Conferência 🧠 do CHECK relaxado e do rollback com dado** — feita pela asserção da T2.3 contra
+Postgres, antes de fechar esta task (e um teste de mutação: trocar o texto esperado da verificação
+prévia por `MUTANTE` derruba a suíte com `Expected to contain: "MUTANTE"`, 74 pass / 1 fail).
+
+**Snapshot com a 205 na árvore.** O `db:generate` rodou com a migration não versionada da 205
+(`20260926001939_late_registration`) presente, então o `snapshot.json` da árvore encadeia nela e
+leva as duas colunas `late_registration`. **O commit leva outra variante**, coerente com o HEAD:
+`prevIds` = snapshot de `20260924201710_occurrence_type_leaves_document_behind` e sem as duas
+colunas da 205 (4398 entradas de `ddl` contra 4400). Na árvore fica a variante que encadeia na 205,
+para o trabalho dela seguir com `no_changes`. **Quem chega depois regenera:** a 205 precisa refazer a
+migration dela depois desta (timestamp maior que `20260926002743`) e, nesse momento, o
+`snapshot.json` desta pasta volta ao do HEAD.
+
+⚠️ **Incidente, corrigido na hora:** um script meu abriu
+`test/database-migration/static-migration.contract.ts` para escrita antes de lê-lo e zerou o
+arquivo, que tinha uma linha não versionada da 205 (`'20260926001939_late_registration',`). O
+arquivo foi refeito a partir do HEAD mais essa linha — o diff da 205 era exatamente essa linha, e
+voltou idêntico — antes de aplicar a mudança da 193.
+
+```
+$ bun --env-file=../../.env.test test ./test/database-migration.contract.test.ts ./test/trip-schema.contract.test.ts --timeout 120000
+  189 pass, 0 fail
+$ bun run db:generate --name should_be_empty   → {"status":"no_changes","dialect":"postgresql"}
+$ bun run db:check                             → Everything's fine
+$ make migration-test   (Postgres do Docker, 55432, bancos descartáveis por execução — funcionando)
+  111 pass, 0 fail, 1458 expect() calls (1432 antes da asserção da T2.3)
+```

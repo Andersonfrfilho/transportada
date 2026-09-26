@@ -306,6 +306,7 @@ describe('Drizzle migrations', () => {
       '20260925111600_occurrence_conversation_uploads',
       '20260925152805_occurrence_conversation_upload_expire_job',
       '20260925185207_occurrence_conversation_automatic_message',
+      '20260926002743_delivery_proof_received_by',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1109,6 +1110,33 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 193 D4: o `receiver_check` novo é mais estreito que o antigo num caso só (`cargo` com nome,
+   * que o canal `office` podia gravar). A verificação vem antes da troca, e o rollback recusa o que
+   * apagaria — relação gravada, nome na foto do motorista, escolha de configuração.
+   */
+  test('versions who received the delivery with a pre-check and a rollback that refuses data', async () => {
+    const directory = '20260926002743_delivery_proof_received_by'
+    const migrationSql = await readMigrationFile(directory, 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory, 'rollback.sql')
+
+    expect(migrationSql.indexOf('RAISE EXCEPTION')).toBeGreaterThan(-1)
+    expect(migrationSql.indexOf('RAISE EXCEPTION')).toBeLessThan(
+      migrationSql.indexOf('DROP CONSTRAINT "trip_delivery_proofs_receiver_check"'),
+    )
+    expect(migrationSql).not.toMatch(/\bdrop (table|column)\b/i)
+    expect(rollbackSql).toStartWith('-- Copyright')
+    expect(rollbackSql).toContain('Manual rollback only')
+    for (const refusal of [
+      'has received_by data',
+      'has driver photos with receiver_name',
+      'have a received_by choice',
+    ]) {
+      expect(rollbackSql.indexOf(refusal)).toBeGreaterThan(-1)
+      expect(rollbackSql.indexOf(refusal)).toBeLessThan(rollbackSql.indexOf('DROP COLUMN'))
+    }
   })
 
   test('does not run migrations from the API startup path', async () => {

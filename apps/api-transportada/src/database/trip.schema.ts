@@ -1379,6 +1379,37 @@ export const TRIP_DELIVERY_PROOF_PUNCTUALITIES = [
 ] as const
 export type TripDeliveryProofPunctuality = (typeof TRIP_DELIVERY_PROOF_PUNCTUALITIES)[number]
 
+/**
+ * Spec 193 D1 (ADR-0079 Parte A): quem recebeu, em relação ao destinatário — lista fechada, nesta
+ * ordem (é a ordem do seletor). Mora aqui, e não em `trips/domain`, pelo mesmo motivo de
+ * `TRIP_DELIVERY_PROOF_PUNCTUALITIES`: o fechamento de imports do pre-deploy.
+ */
+export const RECEIVED_BY_OPTIONS = [
+  'recipient',
+  'spouse',
+  'child',
+  'parent',
+  'sibling',
+  'other_relative',
+  'neighbor',
+  'doorman',
+  'employee',
+  'other',
+] as const
+export type ReceivedBy = (typeof RECEIVED_BY_OPTIONS)[number]
+
+/**
+ * Spec 193 D1/D2: estes pedem o detalhe. A falta **não** vira CHECK nem recusa — o motorista grava
+ * sem, e a tela marca a pendência (C1: nada do formulário derruba a foto).
+ */
+export const RECEIVED_BY_OPTIONS_REQUIRING_DETAIL = [
+  'other_relative',
+  'other',
+] as const satisfies readonly ReceivedBy[]
+
+/** Spec 193 D1: o detalhe é texto curto; a normalização corta aqui antes de gravar. */
+export const RECEIVED_BY_DETAIL_MAX_LENGTH = 120
+
 export const tripDeliveryProofs = pgTable(
   'trip_delivery_proofs',
   {
@@ -1388,9 +1419,9 @@ export const tripDeliveryProofs = pgTable(
     kind: text().notNull().$type<TripDeliveryProofKind>(),
     objectId: uuid('object_id').notNull(),
     /**
-     * Nome de quem recebeu. Normalmente só na assinatura — mas o canal `office` também o carrega em
-     * `kind: 'photo'` (ADR-0067 §5, emenda 2026-09-18, spec 156 T6): o escritório não colhe
-     * assinatura, e cumpre "assinatura obrigatória" com a foto do canhoto assinado + este nome.
+     * Nome de quem recebeu, na assinatura e no canhoto (`photo`) dos dois canais — nunca na foto da
+     * carga. O escritório o carrega desde a ADR-0067 §5 (emenda 2026-09-18); a foto do motorista
+     * passou a carregá-lo com a spec 193 D4 (ADR-0079 §A2), que revisa aquela emenda.
      */
     receiverName: text('receiver_name').notNull().default(''),
     /**
@@ -1401,6 +1432,13 @@ export const tripDeliveryProofs = pgTable(
     receiverDocumentEnvelope: jsonb('receiver_document_envelope'),
     /** A forma que toda leitura devolve (`***.938.570-**`). O valor em claro não tem coluna. */
     receiverDocumentMasked: text('receiver_document_masked').notNull().default(''),
+    /**
+     * Spec 193 D1/D3 (ADR-0079 §A1): quem recebeu em relação ao destinatário, e um detalhe curto
+     * ("casa 12"). Só em `photo`/`signature`; `null` nos comprovantes antigos (D11, sem backfill).
+     * ⚠️ D10: nunca vai para log, auditoria, notificação nem linha do tempo.
+     */
+    receivedBy: varchar('received_by', { length: 16 }).$type<ReceivedBy>(),
+    receivedByDetail: varchar('received_by_detail', { length: 120 }),
     /**
      * Spec 082 (revisão, item 5): chave de idempotência do anexo, mandada pelo app. Reenvio com a
      * mesma chave para o mesmo evento+tipo converge na linha existente — o unique de
@@ -1498,13 +1536,25 @@ export const tripDeliveryProofs = pgTable(
       sql`${table.kind} in (${raw(inList(TRIP_DELIVERY_PROOF_KINDS))})`,
     ),
     /**
-     * Nome só faz sentido em assinatura, ou no canhoto do escritório (ADR-0067 §5, emenda
-     * 2026-09-18): ele nunca colhe assinatura, e o nome do recebedor é como cumpre a exigência.
-     * Relaxado por migration aditiva da spec 156 T6 — o motorista continua sem essa saída.
+     * Spec 193 D4 (revisa a ADR-0067 §5, emenda 2026-09-18): o nome vale para qualquer tipo menos a
+     * foto da carga — a assinatura, e o canhoto dos dois canais. A migration confere antes que não
+     * há `cargo` com nome, porque este CHECK é mais estreito que o antigo nesse caso.
      */
     check(
       'trip_delivery_proofs_receiver_check',
-      sql`${table.kind} = 'signature' or ${table.channel} = 'office' or length(${table.receiverName}) = 0`,
+      sql`${table.kind} <> ${raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))} or length(${table.receiverName}) = 0`,
+    ),
+    check(
+      'trip_delivery_proofs_received_by_check',
+      sql`${table.receivedBy} is null or ${table.receivedBy} in (${raw(inList(RECEIVED_BY_OPTIONS))})`,
+    ),
+    check(
+      'trip_delivery_proofs_received_by_detail_check',
+      sql`${table.receivedByDetail} is null or ${table.receivedBy} is not null`,
+    ),
+    check(
+      'trip_delivery_proofs_received_by_kind_check',
+      sql`${table.kind} <> ${raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))} or (${table.receivedBy} is null and ${table.receivedByDetail} is null)`,
     ),
     /**
      * O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita.
