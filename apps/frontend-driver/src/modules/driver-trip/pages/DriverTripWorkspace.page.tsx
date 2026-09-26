@@ -279,6 +279,11 @@ export function DriverTripWorkspacePage() {
     void driverTrip.updateProofFields(input)
   }
 
+  /** Spec 207: "Remover" a foto/assinatura ainda na fila, pelo attachmentKey do item escolhido. */
+  function handleRemoveProof(attachmentKey: string): void {
+    void driverTrip.removeProof(attachmentKey)
+  }
+
   if (isPendingProofsOpen) {
     return (
       <div className={styles.moduleShell}>
@@ -287,6 +292,7 @@ export function DriverTripWorkspacePage() {
           onBack={() => window.history.back()}
           onProof={handleProof}
           onProofFieldsUpdate={handleProofFieldsUpdate}
+          onRemoveProof={handleRemoveProof}
           proofOutcomeByDocumentId={driverTrip.proofOutcomeByDocumentId}
           queueView={driverTrip.queueView}
           snapshot={snapshot}
@@ -738,6 +744,7 @@ export function DriverTripWorkspacePage() {
                 onDeliver={deliverDocument}
                 onProof={handleProof}
                 onProofFieldsUpdate={handleProofFieldsUpdate}
+                onRemoveProof={handleRemoveProof}
                 occurrenceTypes={occurrenceTypes}
                 onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                 onToggle={() => stopExpansion.toggle(stop.id)}

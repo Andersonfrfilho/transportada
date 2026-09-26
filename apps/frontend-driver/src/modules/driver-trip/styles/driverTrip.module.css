@@ -1074,8 +1074,7 @@
 }
 
 /* O campo do recebedor segue os tokens de campo — cru, ele media 21px de altura no celular. */
-.proofField input[type='text'],
-.proofField select {
+.proofField input[type='text'] {
   background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
   border-radius: 0;
@@ -1087,23 +1086,47 @@
   width: 100%;
 }
 
-/* "Quem recebeu": o select nativo vinha fino e branco ao lado dos campos — a seta é desenhada aqui. */
-.proofField select {
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--color-slate) 50%),
-    linear-gradient(135deg, var(--color-slate) 50%, transparent 50%);
-  background-position:
-    calc(100% - var(--space-5)) 50%,
-    calc(100% - var(--space-4)) 50%;
-  background-repeat: no-repeat;
-  background-size: var(--space-1) var(--space-1);
-  padding-right: var(--space-8);
+/* Pedido do usuário (25/09, spec 207): a miniatura é o próprio gatilho de "Ver" — sem moldura de
+   botão nenhuma, só o cursor de ponteiro e o realce no foco/hover, que já vêm do Button ao lado. */
+.proofCaptureThumbnailButton {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  padding: 0;
 }
 
-.proofField select option {
-  background: var(--color-graphite);
-  color: var(--color-fog);
+.proofCaptureThumbnailButton:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+/* "Ver imagem" (spec 207): tela cheia, fundo escuro, imagem contida — nunca cortada. */
+.imageLightboxBackdrop {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-asphalt) 92%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inset: 0;
+  justify-content: center;
+  padding: var(--space-4);
+  position: fixed;
+  z-index: 80;
+}
+
+.imageLightboxFrame {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  max-height: 100%;
+  max-width: 100%;
+}
+
+.imageLightboxImage {
+  max-height: 80vh;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 /* Spec 159 T12: cada nota pendente é um cartão, como a parada — sem ele os itens se emendavam. */

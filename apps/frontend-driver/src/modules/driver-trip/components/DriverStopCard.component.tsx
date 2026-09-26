@@ -6,12 +6,14 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FilePickerButton } from '@/components/ui/file-picker-button'
 import { Icon, type IconName } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverStopOccurrenceForm } from './DriverStopOccurrenceForm.component'
 import { ProofCrop } from './ProofCrop.component'
+import { ProofImageLightbox } from './ProofImageLightbox.component'
 import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
@@ -47,6 +49,7 @@ import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDeliver
 import {
   applyRecipientShortcut,
   buildReceiverFields,
+  listAllPendingFields,
   listMissingProofFields,
   listPendingReceiverFields,
   maskReceiverDocument,
@@ -111,6 +114,11 @@ const DELIVERY_WINDOW_KEYS = {
 } as const
 
 export type DriverProofAttachment = Readonly<{
+  /**
+   * Spec 207: gerado aqui (não no hook) para a tela já saber a própria chave — é o que permite
+   * "Remover" alcançar só este item, nunca todo anexo desta nota (spec 211 traz mais de um).
+   */
+  attachmentKey?: string
   documentId: string
   file: File
   kind: 'photo' | 'signature'
@@ -158,6 +166,8 @@ type DriverStopCardProps = Readonly<{
   onProof: (input: DriverProofAttachment) => void
   /** Spec 203: campo do recebedor preenchido depois do anexo já estar na fila — atualiza o mesmo item. */
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
+  /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
+  onRemoveProof?: (documentId: string) => void
   /** Spec 209: a foto é da ocorrência, e vai junto dela — nunca pelo comprovante de uma nota. */
   onOccurrence: (input: StopOccurrenceDraft & { stopId: string }) => void
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
@@ -199,6 +209,7 @@ export function DriverStopCard({
   onOccurrence,
   onProof,
   onProofFieldsUpdate,
+  onRemoveProof,
   onRetryOccurrenceTypes,
   onToggle,
   queueView,
@@ -443,7 +454,9 @@ export function DriverStopCard({
               onNotDelivered={onNotDelivered}
               onProof={onProof}
               {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
+              {...(onRemoveProof === undefined ? {} : { onRemoveProof })}
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+              queueView={queueView}
               returnActivity={returnActivityByDocumentId.get(document.id)}
               stopProofSettings={stop.deliveryProof}
             />
@@ -521,7 +534,11 @@ type DocumentRowProps = Readonly<{
   }) => void
   onProof: (input: DriverProofAttachment) => void
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
+  /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
+  onRemoveProof?: (documentId: string) => void
   onRetryOccurrenceTypes: () => void
+  /** Spec 207: para saber se o anexo desta nota ainda está na fila (oferece "Remover") ou já subiu. */
+  queueView: readonly EventQueueItemView[]
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", mesmo retorno de fila da entrega. */
   returnActivity: DocumentReturnActivityView | undefined
   stopProofSettings: DriverDeliveryProofSettings | null
@@ -542,7 +559,9 @@ function DocumentRow({
   onNotDelivered,
   onProof,
   onProofFieldsUpdate,
+  onRemoveProof,
   onRetryOccurrenceTypes,
+  queueView,
   returnActivity,
   stopProofSettings,
 }: DocumentRowProps) {
@@ -595,7 +614,9 @@ function DocumentRow({
             {...(isLateRegistration ? { lateRegistration: true } : {})}
             onProof={onProof}
             {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
+            {...(onRemoveProof === undefined ? {} : { onRemoveProof })}
             proofSettings={proofSettings}
+            queueView={queueView}
             recipientDisplayName={document.recipientDisplayName}
             recipientIsCompany={document.recipientIsCompany}
           />
@@ -838,7 +859,11 @@ export type DeliveryProofSectionProps = Readonly<{
   lateRegistration?: boolean
   onProof: (input: DriverProofAttachment) => void
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
+  /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
+  onRemoveProof?: (documentId: string) => void
   proofSettings: DriverDeliveryProofSettings | null
+  /** Spec 207: diz se o anexo desta nota ainda está na fila — oferece "Remover" só nesse caso. */
+  queueView?: readonly EventQueueItemView[]
   /** Spec 193 D14: o nome que "O próprio cliente recebeu" preenche. Ausente (API anterior) é vazio. */
   recipientDisplayName?: string
   /** Spec 193 D14: PJ seleciona o nome preenchido (foco + seleção); PF só o deixa no campo. */
@@ -858,7 +883,9 @@ export function DeliveryProofSection({
   lateRegistration,
   onProof,
   onProofFieldsUpdate,
+  onRemoveProof,
   proofSettings,
+  queueView = [],
   recipientDisplayName,
   recipientIsCompany,
 }: DeliveryProofSectionProps) {
@@ -876,6 +903,20 @@ export function DeliveryProofSection({
     photo: false,
     signature: false,
   })
+  /** Spec 207: qual dos dois foi anexado por último — decide o texto/alt da miniatura compartilhada. */
+  const [attachedKind, setAttachedKind] = useState<'photo' | 'signature' | undefined>(undefined)
+  /** Spec 207: a chave do anexo atual — "Remover" precisa dela para alcançar só este item. */
+  const [attachedKey, setAttachedKey] = useState<string | undefined>(undefined)
+  /** Spec 207: "Remover" apagou o anexo local — a miniatura some mesmo com `photoPreview` intacto. */
+  const [isRemoved, setIsRemoved] = useState(false)
+  const [isImageOpen, setIsImageOpen] = useState(false)
+  /** Spec 207: "Concluir" — estado só da tela, por nota; nunca `localStorage` (derivado seria melhor,
+   * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
+  const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
+  /** Spec 207: enquanto o anexo está aqui, "Remover" é seguro — enviado, só "Substituir". */
+  const isProofQueued = queueView.some(
+    (item) => item.kind === 'proof' && item.documentId === documentId,
+  )
   const canSign = plan.rendersSignature && isSignatureCaptureSupported()
   const rendersPhotoCapture = plan.rendersPhoto || (plan.rendersSignature && !canSign)
   const cameraFieldRef = useCameraCaptureFieldRef()
@@ -947,8 +988,15 @@ export function DeliveryProofSection({
   function attach(kind: 'photo' | 'signature', file: File): void {
     const next = { ...attached, [kind]: true }
     setAttached(next)
-    if (kind === 'photo') photoPreview.showPhoto(file)
+    setAttachedKind(kind)
+    setIsRemoved(false)
+    /* Spec 207: gerada aqui — é a chave que "Remover" vai pedir de volta, por item, nunca por nota. */
+    const attachmentKey = crypto.randomUUID()
+    setAttachedKey(attachmentKey)
+    /* A miniatura vale para os dois — a assinatura não gravava a própria, só a foto. */
+    photoPreview.showPhoto(file)
     onProof({
+      attachmentKey,
       documentId,
       file,
       kind,
@@ -965,6 +1013,50 @@ export function DeliveryProofSection({
     if (attached.photo || attached.signature) {
       onProofFieldsUpdate?.({ documentId, ...currentFields(overrides) })
     }
+  }
+
+  /**
+   * Pedido do usuário (25/09, spec 207): "Remover" só cabe com o anexo ainda na fila — enviado, a
+   * tela nunca oferece o botão (mostra "Substituir" no lugar do "Refazer"). Sempre pede confirmação
+   * explícita antes de descartar. Pela `attachmentKey` do item, nunca pelo documento — a nota pode
+   * ter mais de um anexo (spec 211), e apagar pelo documento levaria os outros junto.
+   */
+  function handleRemove(): void {
+    if (!window.confirm(t('proofCapture.confirmRemove'))) return
+    if (attachedKey !== undefined) onRemoveProof?.(attachedKey)
+    setAttached({ photo: false, signature: false })
+    setAttachedKind(undefined)
+    setAttachedKey(undefined)
+    setIsRemoved(true)
+    setMissing((current) => current.filter((field) => field !== 'photo' && field !== 'signature'))
+  }
+
+  /**
+   * Pedido do usuário (25/09, spec 207): "Concluir" nunca trava (spec 203) — com pendência
+   * obrigatória, pede confirmação nomeando o que falta; a foto/assinatura já guardada não é
+   * descartada em nenhum dos dois caminhos. Antes de fechar, garante que edições digitadas e ainda
+   * não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
+   */
+  function handleComplete(): void {
+    pushLateFieldUpdate()
+    const pending = listAllPendingFields({
+      plan,
+      values: {
+        hasPhoto: attached.photo,
+        hasSignature: attached.signature,
+        receivedBy,
+        receivedByDetail,
+        receiverDocument,
+        receiverName,
+      },
+    })
+    if (pending.length > 0) {
+      const fieldsText = pending
+        .map((field) => t(`proofFields.missing.${field}`))
+        .join(', ')
+      if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
+    }
+    setConcludedAt(new Date().toISOString())
   }
 
   /**
@@ -996,77 +1088,111 @@ export function DeliveryProofSection({
     values: { receivedBy, receivedByDetail },
   })
 
+  /** Spec 207: "Refazer" enquanto o anexo pode ser trocado sem custo; enviado, é "Substituir". */
+  const retakeLabel = isProofQueued ? t('proofCapture.retake') : t('proofCapture.replace')
+
   return (
     <div className={styles.proofSection}>
-      {/*
-       * Pedido do usuário (25/09): três botões iguais — "Tirar foto" abre a câmera na hora,
-       * "Anexar" abre galeria e arquivos, "Colher assinatura" abre o quadro. Em 375 px: as duas
-       * portas da foto lado a lado e a assinatura na linha inteira, abaixo — cada rótulo cabe
-       * numa linha, e a foto (que é a prova da nota) vem primeiro.
-       */}
-      {rendersPhotoCapture || canSign ? (
-        <div className={styles.proofCapture}>
-          <p className={styles.proofCaptureTitle}>{t('proofCapture.title')}</p>
-          {photoPreview.previewUrl === undefined ? null : (
-            <div className={styles.proofCaptureAttached} role="status">
-              <img
-                alt={t('proofCapture.thumbnail')}
-                className={styles.proofCaptureThumbnail}
-                src={photoPreview.previewUrl}
-              />
-              <span className={styles.proofCaptureAttachedText}>
-                <Icon name="check" />
-                {t('proofCapture.attached')}
-              </span>
+      {concludedAt === undefined ? (
+        <>
+          {/*
+           * Pedido do usuário (25/09): três botões iguais — "Tirar foto" abre a câmera na hora,
+           * "Anexar" abre galeria e arquivos, "Colher assinatura" abre o quadro. Em 375 px: as duas
+           * portas da foto lado a lado e a assinatura na linha inteira, abaixo — cada rótulo cabe
+           * numa linha, e a foto (que é a prova da nota) vem primeiro.
+           */}
+          {rendersPhotoCapture || canSign ? (
+            <div className={styles.proofCapture}>
+              <p className={styles.proofCaptureTitle}>{t('proofCapture.title')}</p>
+              {photoPreview.previewUrl === undefined || isRemoved ? null : (
+                <div className={styles.proofCaptureAttached} role="status">
+                  <button
+                    aria-label={t('proofCapture.view')}
+                    className={styles.proofCaptureThumbnailButton}
+                    onClick={() => setIsImageOpen(true)}
+                    type="button"
+                  >
+                    <img
+                      alt={
+                        attachedKind === 'signature'
+                          ? t('signature.thumbnail')
+                          : t('proofCapture.thumbnail')
+                      }
+                      className={styles.proofCaptureThumbnail}
+                      src={photoPreview.previewUrl}
+                    />
+                  </button>
+                  <span className={styles.proofCaptureAttachedText}>
+                    <Icon name="check" />
+                    {attachedKind === 'signature'
+                      ? t('signature.attached')
+                      : t('proofCapture.attached')}
+                  </span>
+                  <div className={styles.actions}>
+                    <Button onClick={() => setIsImageOpen(true)} type="button" variant="ghost">
+                      <Icon name="eye" />
+                      {t('proofCapture.view')}
+                    </Button>
+                    {isProofQueued ? (
+                      <Button onClick={handleRemove} type="button" variant="ghost">
+                        <Icon name="trash" />
+                        {t('proofCapture.remove')}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+              <div className={styles.proofCaptureGrid}>
+                {rendersPhotoCapture ? (
+                  <>
+                    <FilePickerButton
+                      accept="image/*"
+                      capture="environment"
+                      className={styles.proofCaptureAction}
+                      inputRef={cameraFieldRef}
+                      onSelect={setCropFile}
+                    >
+                      <Icon name="camera" />
+                      {attached.photo ? retakeLabel : t('choosePhoto')}
+                      {plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}
+                    </FilePickerButton>
+                    <FilePickerButton
+                      accept="image/*"
+                      className={styles.proofCaptureAction}
+                      inputRef={galleryFieldRef}
+                      onSelect={setCropFile}
+                    >
+                      <Icon name="upload" />
+                      {t('proofCapture.attach')}
+                    </FilePickerButton>
+                  </>
+                ) : null}
+                {canSign ? (
+                  <Button
+                    className={`${styles.proofCaptureAction} ${styles.proofCaptureWide}`}
+                    onClick={() => setOpenSignature((open) => !open)}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Icon name="pen" />
+                    {attached.signature ? retakeLabel : t('signature.open')}
+                    {plan.fields.signature === 'required' && !attached.signature ? ' *' : ''}
+                  </Button>
+                ) : null}
+              </div>
+              {/* Enviado ao servidor não há rota de exclusão — só "Substituir" (spec 082/207). */}
+              {(attached.photo || attached.signature) && !isProofQueued ? (
+                <p className={styles.stopMeta}>{t('proofCapture.replaceHint')}</p>
+              ) : null}
+              {missing.includes('photo') || missing.includes('signature') ? (
+                <span className={styles.proofFieldError} role="status">
+                  {t('proofFields.pendingField')}
+                </span>
+              ) : null}
             </div>
-          )}
-          <div className={styles.proofCaptureGrid}>
-            {rendersPhotoCapture ? (
-              <>
-                <FilePickerButton
-                  accept="image/*"
-                  capture="environment"
-                  className={styles.proofCaptureAction}
-                  inputRef={cameraFieldRef}
-                  onSelect={setCropFile}
-                >
-                  <Icon name="camera" />
-                  {attached.photo ? t('proofCapture.retake') : t('choosePhoto')}
-                  {plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}
-                </FilePickerButton>
-                <FilePickerButton
-                  accept="image/*"
-                  className={styles.proofCaptureAction}
-                  inputRef={galleryFieldRef}
-                  onSelect={setCropFile}
-                >
-                  <Icon name="upload" />
-                  {t('proofCapture.attach')}
-                </FilePickerButton>
-              </>
-            ) : null}
-            {canSign ? (
-              <Button
-                className={`${styles.proofCaptureAction} ${styles.proofCaptureWide}`}
-                onClick={() => setOpenSignature((open) => !open)}
-                type="button"
-                variant="ghost"
-              >
-                <Icon name="pen" />
-                {t('signature.open')}
-                {plan.fields.signature === 'required' && !attached.signature ? ' *' : ''}
-              </Button>
-            ) : null}
-          </div>
-          {missing.includes('photo') || missing.includes('signature') ? (
-            <span className={styles.proofFieldError} role="status">
-              {t('proofFields.pendingField')}
-            </span>
           ) : null}
-        </div>
-      ) : null}
 
-      {/*
+          {/*
        * Spec 193 D7: "Quem recebeu" vem depois da captura — a foto nunca espera por este bloco
        * (C1). Botão rápido, select compacto (R1) e "Detalhes"; nome e documento seguem abaixo.
        */}
@@ -1083,20 +1209,20 @@ export function DeliveryProofSection({
               {t('proofFields.receivedBy')}
               {plan.fields.receivedBy === 'required' ? ' *' : ''}
             </span>
-            <select
-              onChange={(event) => {
-                setReceivedBy(event.target.value)
-                pushLateFieldUpdate({ receivedBy: event.target.value })
+            <Select
+              ariaLabel={t('proofFields.receivedBy')}
+              clearable
+              onChange={(value) => {
+                setReceivedBy(value)
+                pushLateFieldUpdate({ receivedBy: value })
               }}
+              options={RECEIVED_BY_OPTIONS.map((option) => ({
+                label: t(`proofFields.receivedByOption.${option}`),
+                value: option,
+              }))}
+              placeholder={t('proofFields.receivedByPlaceholder')}
               value={receivedBy}
-            >
-              <option value="">{t('proofFields.receivedByPlaceholder')}</option>
-              {RECEIVED_BY_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {t(`proofFields.receivedByOption.${option}`)}
-                </option>
-              ))}
-            </select>
+            />
             {pendingReceiverFields.includes('receivedBy') ? (
               <span className={styles.proofFieldError} role="status">
                 {t('proofFields.pendingReceivedBy')}
@@ -1151,31 +1277,64 @@ export function DeliveryProofSection({
           ) : null}
         </label>
       ) : null}
-      {plan.rendersReceiverDocument ? (
-        <label className={styles.proofField}>
-          <span>
-            {t('proofFields.receiverDocument')}
-            {plan.fields.receiverDocument === 'required' ? ' *' : ''}
+      {/*
+       * Pedido do usuário (25/09, spec 207): o documento aparece SEMPRE, como opcional por
+       * padrão — "off"/"optional" nunca escondem o campo, só "required" muda o rótulo/pendência
+       * (`resolveProofFormPlan`: `rendersReceiverDocument` é sempre `true`). Sem inputMode numeric:
+       * CNPJ e RG podem ter letra, e o teclado numérico do celular a esconde.
+       */}
+      <label className={styles.proofField}>
+        <span>
+          {t('proofFields.receiverDocument')}
+          {plan.fields.receiverDocument === 'required' ? ' *' : ''}
+        </span>
+        <input
+          aria-invalid={missing.includes('receiverDocument')}
+          autoCapitalize="characters"
+          maxLength={18}
+          type="text"
+          value={receiverDocument}
+          onBlur={() => pushLateFieldUpdate()}
+          onChange={(event) => {
+            setReceiverDocument(maskReceiverDocument(event.target.value))
+            setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
+          }}
+        />
+        {missing.includes('receiverDocument') ? (
+          <span className={styles.proofFieldError} role="status">
+            {t('proofFields.pendingField')}
           </span>
-          {/* Sem inputMode numeric: CNPJ tem letra, e o teclado numérico do celular a esconde */}
-          <input
-            aria-invalid={missing.includes('receiverDocument')}
-            autoCapitalize="characters"
-            maxLength={18}
-            type="text"
-            value={receiverDocument}
-            onBlur={() => pushLateFieldUpdate()}
-            onChange={(event) => {
-              setReceiverDocument(maskReceiverDocument(event.target.value))
-              setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
-            }}
+        ) : null}
+      </label>
+
+      <div className={styles.actions}>
+        <Button onClick={handleComplete} type="button">
+          <Icon name="check" />
+          {t('proofFields.complete')}
+        </Button>
+      </div>
+        </>
+      ) : (
+        <>
+          <ActivityStatusLine
+            status="sent"
+            text={t('proofFields.completedAt', { time: formatActivityTime(concludedAt) })}
           />
-          {missing.includes('receiverDocument') ? (
-            <span className={styles.proofFieldError} role="status">
-              {t('proofFields.pendingField')}
-            </span>
-          ) : null}
-        </label>
+          <Button onClick={() => setConcludedAt(undefined)} type="button" variant="ghost">
+            <Icon name="pen" />
+            {t('proofFields.edit')}
+          </Button>
+        </>
+      )}
+
+      {isImageOpen && photoPreview.previewUrl !== undefined ? (
+        <ProofImageLightbox
+          alt={
+            attachedKind === 'signature' ? t('signature.thumbnail') : t('proofCapture.thumbnail')
+          }
+          onClose={() => setIsImageOpen(false)}
+          src={photoPreview.previewUrl}
+        />
       ) : null}
 
       {openSignature ? (

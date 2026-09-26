@@ -161,8 +161,14 @@
     "title": "Canhoto",
     "attach": "Anexar",
     "retake": "Refazer",
+    "replace": "Substituir",
     "attached": "Foto do canhoto anexada",
-    "thumbnail": "Miniatura da foto do canhoto"
+    "thumbnail": "Miniatura da foto do canhoto",
+    "view": "Ver",
+    "close": "Fechar",
+    "remove": "Remover",
+    "confirmRemove": "Remover a foto do canhoto?",
+    "replaceHint": "A foto enviada só pode ser substituída."
   },
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
   "proofFields": {
@@ -188,7 +194,19 @@
     "receivedByDetailPlaceholderNeighbor": "Onde a carga ficou (ex.: casa 12)",
     "pendingReceivedBy": "Falta dizer quem recebeu. O comprovante já está guardado.",
     "pendingReceivedByDetail": "Diga mais sobre quem recebeu. O comprovante já está guardado.",
-    "recipientShortcut": "O próprio cliente recebeu"
+    "recipientShortcut": "O próprio cliente recebeu",
+    "complete": "Concluir",
+    "completedAt": "Comprovante concluído às {{time}}",
+    "edit": "Editar",
+    "completeMissing": "Faltam: {{fields}}. Concluir assim mesmo?",
+    "missing": {
+      "photo": "a foto",
+      "signature": "a assinatura",
+      "receiverName": "o nome de quem recebeu",
+      "receiverDocument": "o documento de quem recebeu",
+      "receivedBy": "quem recebeu",
+      "receivedByDetail": "o detalhe de quem recebeu"
+    }
   },
   "signature": {
     "cancel": "Cancelar",
@@ -197,7 +215,9 @@
     "confirm": "Confirmar assinatura",
     "exitFullscreen": "Sair da tela inteira",
     "fullscreen": "Tela inteira",
-    "open": "Colher assinatura"
+    "open": "Colher assinatura",
+    "attached": "Assinatura colhida",
+    "thumbnail": "Miniatura da assinatura"
   },
   "crop": {
     "cancel": "Cancelar",

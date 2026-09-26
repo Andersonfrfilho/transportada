@@ -27,9 +27,11 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
     expect(plan.rendersSignature).toBe(true)
   })
 
-  it('sem configuração no snapshot vale o padrão: documento desligado, o resto opcional', () => {
+  it('sem configuração no snapshot vale o padrão: documento sempre visível, opcional (spec 207)', () => {
     const plan = resolveProofFormPlan(null)
-    expect(plan.rendersReceiverDocument).toBe(false)
+    /* Spec 207 (pedido do usuário, 25/09): o documento aparece sempre — "off" deixou de esconder. */
+    expect(plan.rendersReceiverDocument).toBe(true)
+    expect(plan.fields.receiverDocument).toBe('off')
     expect(plan.fields.receiverName).toBe('optional')
   })
 

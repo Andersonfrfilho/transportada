@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
+
 import { captureRegistry } from '../shared/captureRegistry.service'
 import {
   enterSignatureFullscreen,
@@ -27,6 +29,9 @@ type SignaturePadProps = Readonly<{
  */
 export function SignaturePad({ onCancel, onConfirm }: SignaturePadProps) {
   const { t } = useTranslation('driverTrip')
+  /** Pedido do usuário (25/09, spec 207): abrir a assinatura rola até ela e foca no canvas — sem
+   * isso, quem está fora da dobra não vê nada acontecer ao tocar "Colher assinatura". */
+  const { panelRef } = useRevealedPanel<HTMLDivElement>()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const isDrawingRef = useRef(false)
@@ -127,12 +132,19 @@ export function SignaturePad({ onCancel, onConfirm }: SignaturePadProps) {
   ].join(' ')
 
   return (
-    <div className={containerClassName} ref={containerRef}>
+    <div
+      className={containerClassName}
+      ref={(element) => {
+        containerRef.current = element
+        panelRef.current = element
+      }}
+    >
       <canvas
         aria-label={t('signature.canvasLabel')}
         className={styles.signatureCanvas}
         height={SIGNATURE_HEIGHT}
         ref={canvasRef}
+        tabIndex={-1}
         width={SIGNATURE_WIDTH}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

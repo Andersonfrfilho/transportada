@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
+import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
+
 import { captureRegistry } from '../shared/captureRegistry.service'
 import {
   boundsToCorners,
@@ -33,6 +35,9 @@ type ProofCropProps = Readonly<{
  */
 export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
   const { t } = useTranslation('driverTrip')
+  /** Pedido do usuário (25/09, spec 207): abrir o recorte rola até ele e foca — sem isso, quem
+   * está fora da dobra não vê nada acontecer ao tocar "Anexar"/"Tirar foto". */
+  const { panelRef } = useRevealedPanel<HTMLDivElement>()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
   const draggingRef = useRef<CornerKey | null>(null)
@@ -110,7 +115,7 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
   }
 
   return (
-    <div className={styles.proofCrop}>
+    <div className={styles.proofCrop} ref={panelRef}>
       <div
         className={styles.proofCropStage}
         onPointerMove={handlePointerMove}
@@ -118,7 +123,7 @@ export function ProofCrop({ file, onCancel, onConfirm }: ProofCropProps) {
           draggingRef.current = null
         }}
       >
-        <canvas aria-label={t('crop.previewLabel')} ref={canvasRef} />
+        <canvas aria-label={t('crop.previewLabel')} ref={canvasRef} tabIndex={-1} />
         {corners === null
           ? null
           : (Object.keys(corners) as readonly CornerKey[]).map((key) => (

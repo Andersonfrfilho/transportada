@@ -153,8 +153,14 @@
     "title": "Delivery receipt",
     "attach": "Attach",
     "retake": "Retake",
+    "replace": "Replace",
     "attached": "Receipt photo attached",
-    "thumbnail": "Receipt photo thumbnail"
+    "thumbnail": "Receipt photo thumbnail",
+    "view": "View",
+    "close": "Close",
+    "remove": "Remove",
+    "confirmRemove": "Remove the receipt photo?",
+    "replaceHint": "A photo that was already sent can only be replaced."
   },
   "proofFailed": "The file could not be attached. The delivery is still recorded.",
   "proofFields": {
@@ -180,7 +186,19 @@
     "receivedByDetailPlaceholderNeighbor": "Where the load was left (e.g.: unit 12)",
     "pendingReceivedBy": "Who received it is still missing. The proof is already saved.",
     "pendingReceivedByDetail": "Say more about who received it. The proof is already saved.",
-    "recipientShortcut": "The customer received it"
+    "recipientShortcut": "The customer received it",
+    "complete": "Complete",
+    "completedAt": "Proof completed at {{time}}",
+    "edit": "Edit",
+    "completeMissing": "Missing: {{fields}}. Complete anyway?",
+    "missing": {
+      "photo": "the photo",
+      "signature": "the signature",
+      "receiverName": "the receiver's name",
+      "receiverDocument": "the receiver's document",
+      "receivedBy": "who received it",
+      "receivedByDetail": "the detail about who received it"
+    }
   },
   "queueHeader": {
     "label_one": "Send queue, {{count}} pending",
@@ -210,7 +228,9 @@
     "confirm": "Confirm signature",
     "exitFullscreen": "Exit full screen",
     "fullscreen": "Full screen",
-    "open": "Collect signature"
+    "open": "Collect signature",
+    "attached": "Signature collected",
+    "thumbnail": "Signature thumbnail"
   },
   "stopCompleted": "Stop completed",
   "stopState": {

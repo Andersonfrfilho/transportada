@@ -21,6 +21,7 @@ export type IconName =
   | 'copy'
   | 'document'
   | 'download'
+  | 'eye'
   | 'invoice'
   | 'link'
   | 'logout'
@@ -32,6 +33,7 @@ export type IconName =
   | 'printer'
   | 'refresh'
   | 'save'
+  | 'search'
   | 'trash'
   | 'upload'
   | 'workspace-driver-trip'
@@ -60,6 +62,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   copy: ['M9 9h11v11H9z', 'M15 9V4H4v11h5'],
   document: ['M13 3H6v18h12V8z', 'M13 3v5h5', 'M9 13h6', 'M9 17h6'],
   download: ['M12 4v11', 'M7 11l5 5 5-5', 'M5 20h14'],
+  /** Só deste app: "Ver" abre a miniatura do canhoto/assinatura em tela cheia. */
+  eye: ['M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
   invoice: ['M6 3h12v18l-3-2-3 2-3-2-3 2z', 'M9 8h6', 'M9 12h6'],
   link: [
     'M9 15l6-6',
@@ -91,6 +95,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   printer: ['M6 8V4h12v4', 'M4 8h16v8H4z', 'M7 16h10v4H7z'],
   refresh: ['M20 12a8 8 0 1 1-2.6-5.9', 'M20 4v5h-5'],
   save: ['M5 4h11l3 3v13H5z', 'M8 4v5h7', 'M8 14h8v6H8z'],
+  /** Só deste app: o painel de "Quem recebeu" (Select) usa a busca da lista. */
+  search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'M20 20l-4-4'],
   trash: ['M5 7h14', 'M10 7V4h4v3', 'M7 7l1 13h8l1-13'],
   upload: ['M12 20V9', 'M7 13l5-5 5 5', 'M5 4h14'],
   /** O volante: a tela de quem está com as mãos nele, e não a de quem monta a viagem. */

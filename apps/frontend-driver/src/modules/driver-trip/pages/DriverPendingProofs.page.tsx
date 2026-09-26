@@ -21,6 +21,8 @@ type DriverPendingProofsPageProps = Readonly<{
   onProof: (input: DriverProofAttachment) => void
   /** Spec 193 D7: a edição depois da captura vale aqui também — o mesmo caminho do cartão da parada. */
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
+  /** Spec 207: "Remover" a foto/assinatura ainda na fila — mesmo caminho do cartão da parada. */
+  onRemoveProof?: (documentId: string) => void
   proofOutcomeByDocumentId: ReadonlyMap<string, ProofPunctuality>
   /** Spec 159 (T11): diz quais documentos já têm anexo na fila, aguardando envio. */
   queueView: readonly EventQueueItemView[]
@@ -47,6 +49,7 @@ export function DriverPendingProofsPage({
   onBack,
   onProof,
   onProofFieldsUpdate,
+  onRemoveProof,
   proofOutcomeByDocumentId,
   queueView,
   snapshot,
@@ -103,7 +106,9 @@ export function DriverPendingProofsPage({
                     documentId={entry.documentId}
                     onProof={onProof}
                     {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
+                    {...(onRemoveProof === undefined ? {} : { onRemoveProof })}
                     proofSettings={entry.deliveryProof}
+                    queueView={queueView}
                     recipientDisplayName={entry.recipientDisplayName}
                     recipientIsCompany={entry.recipientIsCompany}
                   />

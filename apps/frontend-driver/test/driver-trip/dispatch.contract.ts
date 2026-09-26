@@ -132,7 +132,8 @@ describe('a fila offline no hook (revisão 082)', () => {
    * não existe mais rota multipart direta fora da fila (aceite 8: sempre fila, mesmo nota entregue).
    */
   it('a chave do anexo nasce na captura e acompanha o envio pela fila', () => {
-    expect(hook).toInclude('const attachmentKey = createIdempotencyKey()')
+    /* Spec 207: a tela pode gerar a própria chave ("Remover" precisa dela) — `??` cede a ela. */
+    expect(hook).toInclude('const attachmentKey = input.attachmentKey ?? createIdempotencyKey()')
     expect(hook).toInclude('attachmentKey: attachment.attachmentKey')
     expect(hook).not.toInclude('event-not-queued')
   })

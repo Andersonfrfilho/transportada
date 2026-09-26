@@ -25,6 +25,7 @@ import {
   discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
+  removeQueuedAttachmentByKey,
   type AttachmentSendOutcome,
   type AttachmentStore,
   type QueuedAttachment,
@@ -82,6 +83,8 @@ const CURRENT_TRIP_REFETCH_MS = 30_000
 const TRIP_SNAPSHOT_STORE = createIndexedDbTripSnapshotStore()
 
 export type DriverProofInput = Readonly<{
+  /** Spec 207: gerada na tela — é o que "Remover" (por item, nunca por nota) precisa depois. */
+  attachmentKey?: string
   documentId: string
   file: File
   kind: 'photo' | 'signature'
@@ -124,6 +127,13 @@ export type DriverTripController = Readonly<{
     receiverDocument?: string
     receiverName?: string
   }) => Promise<void>
+  /**
+   * Pedido do usuário (25/09, spec 207): "Remover" a foto/assinatura ainda na fila, pelo
+   * `attachmentKey` do item escolhido (nunca por `documentId` — a nota pode ter mais de um anexo,
+   * spec 211). Sem o item (já enviado) é no-op — a tela não oferece "Remover" nesse caso, só
+   * "Substituir".
+   */
+  removeProof: (attachmentKey: string) => Promise<void>
   /** "Confirmar em lote": tira a marca do que foi feito sem rede e drena. */
   confirmUnverifiedPending: () => Promise<void>
   /** Descarta o que foi feito sem rede — o item e o dado saem do aparelho. */
@@ -597,7 +607,8 @@ export function useDriverTrip(
   }
 
   async function enqueueProof(input: DriverProofInput): Promise<DriverProofOutcome> {
-    const attachmentKey = createIdempotencyKey()
+    /* Spec 207: usa a chave da tela quando ela vem — é a mesma que "Remover" vai pedir depois. */
+    const attachmentKey = input.attachmentKey ?? createIdempotencyKey()
     const result = await enqueueAttachment({
       attachment: {
         attachmentKey,
@@ -721,6 +732,29 @@ export function useDriverTrip(
     )
   }
 
+  /**
+   * Pedido do usuário (25/09, spec 207): "Remover" a foto/assinatura do canhoto — só cabe com o
+   * anexo ainda na fila (mesma varredura de `updateProofFields`). Enviado ao servidor, o grupo já
+   * não existe mais em `attachmentStore` (não há rota de exclusão — spec 082: pontualidade e
+   * auditoria já leram aquele anexo), e esta função não tem o que fazer.
+   *
+   * ⚠️ Por `attachmentKey`, nunca por `documentId` (achado de revisão, spec 211 traz mais de um
+   * anexo por nota) — remover pelo documento apagaria os outros anexos dela junto.
+   */
+  async function removeProof(attachmentKey: string): Promise<void> {
+    const groups = await attachmentStore.readAll()
+    const target = groups.find(([, items]) =>
+      items.some((item) => item.attachmentKey === attachmentKey),
+    )
+    if (target === undefined) return
+    const [eventKey] = target
+    await attachmentStore.update({
+      eventKey,
+      mutate: (items) => removeQueuedAttachmentByKey({ attachmentKey, items }),
+    })
+    await refreshQueueView()
+  }
+
   async function discardForeign(): Promise<void> {
     await discardForeignPending({ attachmentStore, ownerSubHash: session.subHash, store })
     await refreshQueueView()
@@ -749,6 +783,7 @@ export function useDriverTrip(
   return {
     attachProof,
     updateProofFields,
+    removeProof,
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,

@@ -177,6 +177,22 @@ export function applyAttachmentReceiverFields(input: {
   )
 }
 
+/**
+ * Pedido do usuário (25/09, spec 207): "Remover" a foto/assinatura do canhoto — só cabe enquanto o
+ * anexo ainda está na fila (nunca depois de enviado: não há rota de exclusão no servidor, e apagar
+ * mexeria em pontualidade e auditoria já gravadas — spec 082).
+ *
+ * ⚠️ Casa por `attachmentKey`, nunca por `documentId`: a mesma nota pode ter mais de um anexo (spec
+ * 211 traz foto de mercadoria além do canhoto) — filtrar pelo documento apagaria os outros anexos
+ * dela junto, não só o que o motorista escolheu remover.
+ */
+export function removeQueuedAttachmentByKey(input: {
+  readonly attachmentKey: string
+  readonly items: readonly QueuedAttachment[]
+}): readonly QueuedAttachment[] {
+  return input.items.filter((item) => item.attachmentKey !== input.attachmentKey)
+}
+
 /** Spec 193 D7: o que o PATCH `.../proof/receiver` leva — `null` apaga o que estava gravado. */
 export type ReceiverDriftFields = Readonly<{
   receivedBy?: string | null

@@ -112,6 +112,8 @@ describe('a tela de eventos pendentes (D7)', () => {
       {
         attachmentCount: 1,
         attachmentRejectionCause: '413 PROOF_FILE_TOO_LARGE',
+        /* Spec 207: o grupo órfão leva o documentId do anexo — "Remover" precisa saber de qual nota é. */
+        documentId: 'document-1',
         idempotencyKey: 'chave-1',
         kind: 'proof',
         queuedAt: NOW,
@@ -119,6 +121,7 @@ describe('a tela de eventos pendentes (D7)', () => {
       },
       {
         attachmentCount: 1,
+        documentId: 'document-1',
         idempotencyKey: 'chave-2',
         kind: 'proof',
         queuedAt: NOW,

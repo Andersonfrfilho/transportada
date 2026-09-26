@@ -185,6 +185,29 @@ const COPIED_FILES: ReadonlyArray<readonly [path: string, origin: string]> = [
     'src/components/ui/copy-button.module.css',
     'apps/frontend-transportada/src/components/ui/copy-button.module.css',
   ],
+  // "Quem recebeu" deixou de ser select nativo (spec 207) — Select do design system, por valor
+  ['src/components/ui/select.tsx', 'apps/frontend-transportada/src/components/ui/select.tsx'],
+  [
+    'src/components/ui/select.module.css',
+    'apps/frontend-transportada/src/components/ui/select.module.css',
+  ],
+  [
+    'src/components/ui/select.service.ts',
+    'apps/frontend-transportada/src/components/ui/select.service.ts',
+  ],
+  [
+    'src/components/ui/searchableSelect.service.ts',
+    'apps/frontend-transportada/src/components/ui/searchableSelect.service.ts',
+  ],
+  // Foco ao abrir recorte/assinatura, e o diálogo modal do "Ver imagem" (spec 207)
+  [
+    'src/modules/shared/useRevealedPanel.hook.ts',
+    'apps/frontend-transportada/src/modules/shared/useRevealedPanel.hook.ts',
+  ],
+  [
+    'src/modules/shared/useModalDialog.hook.ts',
+    'apps/frontend-transportada/src/modules/shared/useModalDialog.hook.ts',
+  ],
   // identidade: marca da instalação, WhatsApp e utilitários compartilhados
   [
     'src/modules/identity/components/InstallationBrandMark.component.tsx',

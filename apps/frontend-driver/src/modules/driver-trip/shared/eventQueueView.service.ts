@@ -22,7 +22,11 @@ export type EventQueueItemView = Readonly<{
    * lado como problema do arquivo — o reenvio manual só re-POSTa o anexo.
    */
   attachmentRejectionCause?: string
-  /** Spec 179 (T303): a nota da ocorrência com foto — é por ela que o cartão diz "na fila". */
+  /**
+   * Spec 179 (T303): a nota da ocorrência com foto — é por ela que o cartão diz "na fila". Spec
+   * 207: o mesmo campo, para o grupo órfão `kind: 'proof'` — é o que diz de qual nota é a foto ou
+   * assinatura do canhoto ainda pendente, para oferecer "Remover" só enquanto ela está aqui.
+   */
   documentId?: string
   idempotencyKey: string
   /** `proof` é o grupo de anexos cujo evento já subiu — só os arquivos ainda aguardam. */
@@ -79,6 +83,7 @@ export function buildEventQueueView(input: {
       return {
         attachmentCount: group.length,
         ...(cause === undefined ? {} : { attachmentRejectionCause: cause }),
+        ...(group[0]?.documentId === undefined ? {} : { documentId: group[0].documentId }),
         idempotencyKey: eventKey,
         kind: 'proof',
         queuedAt: group[0]?.capturedAt ?? '',
