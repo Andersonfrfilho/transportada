@@ -10,20 +10,19 @@ import { formatTaxId } from '@/modules/shared/taxId.service'
 
 import { useDriverRegions } from '../hooks/useDriverRegions.hook'
 import { useDriverVehicles } from '../hooks/useDriverVehicles.hook'
+import type { VehicleFormController } from '../hooks/useVehicleForm.hook'
 import {
   FLEET_VEHICLE_OWNERSHIP,
   type FleetDriverBody,
   type FleetDriverCreateBody,
   type FleetDriverDetail,
   type FleetDriverVersionInput,
-  type FleetVehicleFormState,
 } from '../shared/fleet.types'
 import { type DriverFocusField } from '../shared/driverFieldFocus.service'
 import {
   findVehicleOwnerDriver,
   listIncompleteVehicleOwnerFields,
   resolveVehicleOwnerFixField,
-  toVehicleOwnerFields,
 } from '../shared/vehicleOwner.service'
 import styles from '../styles/fleet.module.css'
 import { DriverQuickCreateDialog } from './DriverQuickCreateDialog.component'
@@ -38,20 +37,20 @@ type DriverDialogRequest = Readonly<{
 
 type VehicleOwnerFieldsProps = Readonly<{
   drivers: readonly FleetDriverDetail[]
-  onChange: (values: Partial<FleetVehicleFormState>) => void
+  /** O motorista escolhido passa pelo formulário, que o lembra para vincular o veículo a ele. */
+  form: Pick<VehicleFormController, 'chooseOwnerDriver' | 'patch' | 'state'>
   onCreateDriver: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   onUpdateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
-  state: FleetVehicleFormState
 }>
 
 export function VehicleOwnerFields({
   drivers,
-  onChange,
+  form,
   onCreateDriver,
   onUpdateDriver,
-  state,
 }: VehicleOwnerFieldsProps) {
   const { t } = useTranslation('fleet')
+  const { chooseOwnerDriver, state } = form
   const authQuery = useAuthMeQuery()
   const permissions = authQuery.data?.data.permissions ?? []
   const companyId = authQuery.data?.data.company.id
@@ -76,7 +75,7 @@ export function VehicleOwnerFields({
   function applyDriver(driverId: string): void {
     const driver = drivers.find((candidate) => candidate.id === driverId)
     if (driver === undefined) return
-    onChange(toVehicleOwnerFields(driver))
+    chooseOwnerDriver(driver)
   }
 
   return (
@@ -88,7 +87,7 @@ export function VehicleOwnerFields({
           optionLabelKey="ownershipOption"
           options={FLEET_VEHICLE_OWNERSHIP}
           value={state.ownership}
-          onChange={(ownership) => onChange({ ownership })}
+          onChange={(ownership) => form.patch({ ownership })}
         />
       </div>
       {state.ownership === 'own' ? null : (
@@ -197,7 +196,7 @@ export function VehicleOwnerFields({
           regions={driverRegions}
           vehicles={driverVehicles}
           onCreated={(driver) => {
-            onChange(toVehicleOwnerFields(driver))
+            chooseOwnerDriver(driver)
             setDriverDialog(null)
           }}
         />

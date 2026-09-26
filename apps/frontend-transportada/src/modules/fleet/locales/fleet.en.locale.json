@@ -486,6 +486,7 @@
   "ownerDriverPickerPlaceholder": "Search driver by name or tax id",
   "ownerDriverPickerSearchPlaceholder": "Type the name or tax id",
   "ownerIncompleteFeedback": "The owner driver record is incomplete: complete it before saving the vehicle.",
+  "ownerDriverLinkFailed": "The vehicle was saved, but it could not be linked to the owner driver. Save again to retry only the link.",
   "ownerIncompleteFixButton": "Complete driver record",
   "ownerIncompleteHint": "The driver record has no {{fields}} — the MDF-e owner group requires these fields. Complete the record right here, without leaving the vehicle form.",
   "ownerIncompleteUnknownDriver": "The owner document matches no registered driver — pick the driver in the list above to complete the record.",

@@ -27,3 +27,15 @@ export function shouldReplaceDriverVehicles(
 ): boolean {
   return input.hasOperatorChoice || input.isReady
 }
+
+/**
+ * A API só troca a lista inteira: somar um veículo é reenviar os atuais mais ele. Já vinculado,
+ * não há o que gravar — reenviar a mesma lista seria uma escrita sem efeito.
+ */
+export function appendDriverVehicle(
+  input: Readonly<{ links: readonly FleetDriverVehicleLink[]; vehicleId: string }>,
+): readonly string[] | undefined {
+  const current = toSelectedVehicleIds(input.links)
+  if (current.includes(input.vehicleId)) return undefined
+  return [...current, input.vehicleId]
+}

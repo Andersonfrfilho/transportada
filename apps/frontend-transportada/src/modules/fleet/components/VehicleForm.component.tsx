@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/icon'
 import { DocumentIntakeDropZone } from '@/modules/document-intake/components/DocumentIntakeDropZone.component'
 import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
+import type { LinkDriverVehicleInput } from '../hooks/useDriverVehicles.hook'
 import type { VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import type { VehicleReference } from '../shared/vehicleSuggestion.service'
 import { useVehicleForm } from '../hooks/useVehicleForm.hook'
@@ -41,6 +42,7 @@ type VehicleFormProps = Readonly<{
   onEditVehicle: (vehicle: FleetVehicleDetail) => void
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
   onCreateDriver: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
+  onLinkOwnerDriver: (input: LinkDriverVehicleInput) => Promise<void>
   onUpdateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
   /** Spec 093: o catálogo de mercado que sugere a medida do baú quando a frota não tem igual. */
@@ -56,6 +58,7 @@ export function VehicleForm({
   onCreate,
   onCreateDriver,
   onEditVehicle,
+  onLinkOwnerDriver,
   onUpdateDriver,
   onUpdate,
   references,
@@ -67,6 +70,7 @@ export function VehicleForm({
   const plateMatch = useVehiclePlateMatch()
   const form = useVehicleForm({
     onCreate,
+    onLinkOwnerDriver,
     onSaved: onCancel,
     onUpdate,
     references,
@@ -126,8 +130,7 @@ export function VehicleForm({
       />
       <VehicleOwnerFields
         drivers={drivers}
-        state={form.state}
-        onChange={form.patch}
+        form={form}
         onCreateDriver={onCreateDriver}
         onUpdateDriver={onUpdateDriver}
       />

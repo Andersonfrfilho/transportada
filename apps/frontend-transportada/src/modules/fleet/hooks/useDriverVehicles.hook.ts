@@ -1,7 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { FLEET_VEHICLE_OPTIONS_PAGE_SIZE } from '../shared/fleet.constant'
+import { appendDriverVehicle } from '../shared/driverVehicles.service'
+import {
+  FLEET_VEHICLE_OPTIONS_PAGE_SIZE,
+  FLEET_VEHICLE_OPTIONS_QUERY_KEY,
+} from '../shared/fleet.constant'
 import type {
   FleetDriverVehicleLink,
   FleetReplaceDriverVehiclesInput,
@@ -10,7 +14,6 @@ import type {
 import { createFleetController, getFleetClient } from './useFleet.hook'
 
 const FLEET_DRIVER_VEHICLES_QUERY_KEY = 'fleet-driver-vehicles'
-const FLEET_VEHICLE_OPTIONS_QUERY_KEY = 'fleet-vehicle-options'
 
 export type DriverVehiclesController = Readonly<{
   /**
@@ -19,9 +22,13 @@ export type DriverVehiclesController = Readonly<{
    */
   isReady: boolean
   links: readonly FleetDriverVehicleLink[]
+  /** Soma um veículo aos que o motorista já dirige, sem soltar nenhum dos outros. */
+  linkVehicle: (input: LinkDriverVehicleInput) => Promise<void>
   options: readonly FleetVehicleDetail[]
   replace: (input: FleetReplaceDriverVehiclesInput) => Promise<readonly FleetDriverVehicleLink[]>
 }>
+
+export type LinkDriverVehicleInput = Readonly<{ driverId: string; vehicleId: string }>
 
 /**
  * A lista de opções tem chave própria: os filtros da aba de veículos não podem esconder um
@@ -66,9 +73,25 @@ export function useDriverVehicles(
     onSuccess: () => queryClient.invalidateQueries({ queryKey: linksScopeKey }),
   })
 
+  /**
+   * A lista vem do servidor na hora, nunca do cache: a troca é da lista inteira, e uma cópia velha
+   * soltaria o veículo que outra tela vinculou nesse meio-tempo.
+   */
+  async function linkVehicle(link: LinkDriverVehicleInput): Promise<void> {
+    const links = await queryClient.fetchQuery({
+      queryFn: () => controller.listDriverVehicles({ driverId: link.driverId }),
+      queryKey: [FLEET_DRIVER_VEHICLES_QUERY_KEY, input.companyId, link.driverId],
+      staleTime: 0,
+    })
+    const vehicleIds = appendDriverVehicle({ links, vehicleId: link.vehicleId })
+    if (vehicleIds === undefined) return
+    await replaceMutation.mutateAsync({ driverId: link.driverId, vehicleIds })
+  }
+
   return {
     isReady: driverId === undefined || linksQuery.isFetched,
     links: linksQuery.data ?? [],
+    linkVehicle,
     options: optionsQuery.data?.items ?? [],
     replace: (body) => replaceMutation.mutateAsync(body),
   }

@@ -131,6 +131,7 @@ function FleetEditorPanel({
         onCancel={onClose}
         onCreate={(body) => workspace.createVehicleMutation.mutateAsync(body)}
         onEditVehicle={onEditVehicle}
+        onLinkOwnerDriver={driverVehicles.linkVehicle}
         onCreateDriver={(body) => workspace.createDriverMutation.mutateAsync(body)}
         onUpdateDriver={(input) => workspace.updateDriverMutation.mutateAsync(input)}
         onUpdate={(input) => workspace.updateVehicleMutation.mutateAsync(input)}
