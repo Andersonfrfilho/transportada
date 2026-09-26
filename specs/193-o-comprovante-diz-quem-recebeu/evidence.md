@@ -160,3 +160,26 @@ $ bun run db:check                             → Everything's fine
 $ make migration-test   (Postgres do Docker, 55432, bancos descartáveis por execução — funcionando)
   111 pass, 0 fail, 1458 expect() calls (1432 antes da asserção da T2.3)
 ```
+
+### T2.3 — `delivery-proof-received-by.assertion.ts` (CA08, CA14)
+
+Ligada em `test/database-migration/database-migration.integration.ts`, logo depois da asserção da
+foto da carga. Prova, contra Postgres, numa parada/evento de sonda:
+
+- os CHECKs recusam (`23514`, com o nome do constraint): `cargo` com relação
+  (`_received_by_kind_check`), `cargo` com nome (`_receiver_check`), relação fora da lista
+  (`_received_by_check`), detalhe sem relação (`_received_by_detail_check`) e modo inválido na
+  configuração (`company_delivery_proof_settings_received_by_check`);
+- a foto do motorista (`driver_app`) grava nome + `neighbor` + "casa 12", e a assinatura grava
+  `other` **sem** detalhe (D2);
+- o rollback recusa com relação gravada (e as duas linhas continuam lá), depois com nome na foto do
+  motorista, depois com `received_by = 'required'` na configuração — as três mensagens conferidas;
+- sem dado, o rollback passa; um `cargo` com nome gravado pelo escritório (aceito pelo CHECK antigo)
+  faz `runDatabaseMigrations` abortar com `refusing spec 193 receiver_check`; apagado o `cargo`, a
+  migration reaplica e o journal volta. A sonda limpa tudo o que criou (objetos das inserções
+  recusadas inclusive) antes do rollback completo da suíte.
+
+```
+$ make migration-test
+  111 pass, 0 fail, 1458 expect() calls — as asserções novas somam 26 expect() (1432 → 1458)
+```
