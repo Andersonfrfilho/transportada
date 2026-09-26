@@ -17,7 +17,6 @@ import {
   tripDeliveryProofs,
   tripDocuments,
   tripStopEvents,
-  tripStops,
   TRIP_DELIVERY_PROOF_CARGO_KIND,
   trips,
   type TripDeliveryProofKind,
@@ -196,7 +195,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   /**
    * ADR-0070 §5-6, spec 159 RF5/RF6: quando e onde a entrega aconteceu — o evento já resolvido por
    * `findDeliveryEventId`, nunca a nota (uma nota pode ter mais de uma entrega ao longo do tempo,
-   * ainda que rara).
+   * ainda que rara). A posição é a do evento, nunca o pino da parada (emenda 2026-09-25 da ADR-0070).
    */
   public async findDeliveryContext(input: {
     readonly companyId: string
@@ -204,7 +203,6 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }): Promise<{
     readonly deliveredAt: Date
     readonly deliveryEventPosition: Coordinate | undefined
-    readonly stopPosition: Coordinate | undefined
   }> {
     const [record] = await this.database
       .select({
@@ -212,17 +210,8 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         eventLatitude: tripStopEvents.latitude,
         eventLongitude: tripStopEvents.longitude,
         recordedAt: tripStopEvents.recordedAt,
-        stopLatitude: tripStops.latitude,
-        stopLongitude: tripStops.longitude,
       })
       .from(tripStopEvents)
-      .innerJoin(
-        tripStops,
-        and(
-          eq(tripStops.companyId, tripStopEvents.companyId),
-          eq(tripStops.id, tripStopEvents.stopId),
-        ),
-      )
       .where(
         and(eq(tripStopEvents.companyId, input.companyId), eq(tripStopEvents.id, input.eventId)),
       )
@@ -233,7 +222,6 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return {
       deliveredAt: record.capturedAt ?? record.recordedAt,
       deliveryEventPosition: toCoordinate(record.eventLatitude, record.eventLongitude),
-      stopPosition: toCoordinate(record.stopLatitude, record.stopLongitude),
     }
   }
 
