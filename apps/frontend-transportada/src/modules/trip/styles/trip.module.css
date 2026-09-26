@@ -1590,6 +1590,24 @@ button.occurrenceCaseBadge {
 }
 
 /*
+ * Item 9 da spec 183: o nome do tipo e o botão de renomear — ou, renomeando, o campo e os dois
+ * botões — numa linha que quebra no celular em vez de espremer o nome.
+ */
+.occurrenceRename {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.occurrenceRename > span,
+.occurrenceRename > input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+/*
  * Tipo + item lado a lado do tablet para cima (revisão spec 161, item 11) — mesmo padrão de
  * `.cargoMeasures`. `min-width: 0` pela mesma razão do `.mdfeGateHeader` acima: item de grid sem
  * isto herda o min-content do nome mais longo do tipo de ocorrência como piso de largura.

@@ -28,7 +28,9 @@ import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailT
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import {
+  OCCURRENCE_TYPE_NAME_MAX_LENGTH,
   occurrenceTypeEdit,
+  resolveOccurrenceTypeRename,
   type OccurrenceTypeSaveInput,
 } from '@/modules/company-settings/shared/occurrenceTypeEdit.service'
 import styles from '@/modules/trip/styles/trip.module.css'
@@ -67,6 +69,8 @@ export function OccurrenceTypeCatalogPanel({
   const [name, setName] = useState('')
   const [stage, setStage] = useState<TripOccurrenceStage>(TRIP_OCCURRENCE_STAGE.separation)
   const [notifies, setNotifies] = useState(false)
+  /** Item 9 da spec 183: um tipo por vez em renomeação, com o rascunho do nome. */
+  const [renaming, setRenaming] = useState<null | Readonly<{ draft: string; id: string }>>(null)
   /** Spec 183 T802: o padrão é não avisar a contratante — como o aviso ao despachante. */
   const [emailsContractor, setEmailsContractor] = useState(false)
   const [emailTemplateKey, setEmailTemplateKey] = useState<string>(OCCURRENCE_TEMPLATE_NONE)
@@ -150,6 +154,13 @@ export function OccurrenceTypeCatalogPanel({
     setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
   }
 
+  function handleRename(type: OccurrenceType) {
+    if (renaming === null) return
+    const name = resolveOccurrenceTypeRename({ current: type.name, draft: renaming.draft })
+    setRenaming(null)
+    if (name !== null) onSave(occurrenceTypeEdit(type, { name }))
+  }
+
   function handleEditTemplates() {
     const navigator = createBrowserWorkspaceNavigator()
     navigator.pushPath(NOTIFICATION_SETTINGS_HREF)
@@ -179,7 +190,55 @@ export function OccurrenceTypeCatalogPanel({
             </legend>
             {doGrupo.map((type) => (
               <div className={styles.occurrenceForm} key={type.id}>
-                <span>{type.name}</span>
+                {renaming?.id === type.id ? (
+                  <form
+                    className={styles.occurrenceRename}
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      handleRename(type)
+                    }}
+                  >
+                    <input
+                      aria-label={t('occurrenceTypeCatalog.name')}
+                      autoFocus
+                      maxLength={OCCURRENCE_TYPE_NAME_MAX_LENGTH}
+                      onChange={(event) => setRenaming({ draft: event.target.value, id: type.id })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') setRenaming(null)
+                      }}
+                      type="text"
+                      value={renaming.draft}
+                    />
+                    <Button disabled={isSaving} size="sm" type="submit">
+                      <Icon name="check" />
+                      {t('occurrenceTypeCatalog.renameSave')}
+                    </Button>
+                    <Button
+                      onClick={() => setRenaming(null)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {t('occurrenceTypeCatalog.renameCancel')}
+                    </Button>
+                  </form>
+                ) : (
+                  <div className={styles.occurrenceRename}>
+                    <span>{type.name}</span>
+                    {canManage ? (
+                      <Button
+                        disabled={isSaving}
+                        onClick={() => setRenaming({ draft: type.name, id: type.id })}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Icon name="edit" />
+                        {t('occurrenceTypeCatalog.rename')}
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
                 <span className={styles.hint}>{templateLabelOf(type)}</span>
                 <Checkbox
                   checked={type.notifies}

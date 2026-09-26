@@ -305,6 +305,9 @@
     "attachmentMode": "Photo on record",
     "attachmentModeOff": "No photo",
     "attachmentModeOptional": "Optional photo",
-    "attachmentModeRequired": "Photo required"
+    "attachmentModeRequired": "Photo required",
+    "rename": "Rename",
+    "renameSave": "Save name",
+    "renameCancel": "Cancel"
   }
 }

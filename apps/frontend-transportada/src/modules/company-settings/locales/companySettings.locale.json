@@ -305,6 +305,9 @@
     "attachmentMode": "Foto no registro",
     "attachmentModeOff": "Não pede foto",
     "attachmentModeOptional": "Foto opcional",
-    "attachmentModeRequired": "Foto obrigatória"
+    "attachmentModeRequired": "Foto obrigatória",
+    "rename": "Renomear",
+    "renameSave": "Salvar nome",
+    "renameCancel": "Cancelar"
   }
 }

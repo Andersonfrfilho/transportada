@@ -43,3 +43,18 @@ export function occurrenceTypeEdit(
     ...change,
   }
 }
+
+/** O teto do `name` no schema da API (`occurrence.schema.ts`, 1–60). */
+export const OCCURRENCE_TYPE_NAME_MAX_LENGTH = 60
+
+/**
+ * Item 9 da spec 183: o nome que a renomeação grava, ou `null` quando não há o que gravar — vazio,
+ * acima do teto da API ou igual ao atual (um PUT que não muda nada só gastaria uma ida).
+ */
+export function resolveOccurrenceTypeRename(
+  input: Readonly<{ current: string; draft: string }>,
+): null | string {
+  const name = input.draft.trim()
+  if (name === '' || name.length > OCCURRENCE_TYPE_NAME_MAX_LENGTH) return null
+  return name === input.current.trim() ? null : name
+}
