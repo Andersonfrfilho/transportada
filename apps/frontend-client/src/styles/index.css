@@ -171,8 +171,13 @@ select {
 
 .nav {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-6);
+}
+
+.nav__logout {
+  margin-inline-start: auto;
 }
 
 .skeleton {
