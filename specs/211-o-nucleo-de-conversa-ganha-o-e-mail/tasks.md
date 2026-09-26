@@ -81,7 +81,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T209** `sonnet` — Teste do anexo: `sha256`, tipo conferido **pelo conteúdo** (extensão
       mentindo é recusada), teto **por canal**, nenhum byte no banco. (RF8)
 - [x] **T210** `sonnet` — O anexo. (RF8)
-- [ ] **T211** ⚙️ `haiku` — Respostas rápidas por público, com posição e ativo. CRUD sem regra
+- [x] **T211** ⚙️ `haiku` — Respostas rápidas por público, com posição e ativo. CRUD sem regra
       nova. (RF9)
 - [ ] **T212** `sonnet` — Teste de integração contra Postgres real: conversa com assunto e sem
       assunto, status idempotente, atribuição ambígua. (CA02, CA05, CA06)

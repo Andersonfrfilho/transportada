@@ -830,3 +830,41 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
 - **Vista falhar:** uma sonda `src/domain/probe/__probe.ts` no módulo → `65 pass / 1 fail`,
   apontando `domain/probe/__probe.ts`. Sem a sonda: contracts `38 pass / 0 fail`, módulo
   `66 pass / 0 fail`, e `check` com 0 erros nos dois.
+
+### T211 ⚙️ — respostas rápidas por público
+
+- **Modelo:** Haiku 4.5 (`claude-haiku-4-5-20251001`).
+- **Commit:** `6f1dbe2` (conversation-core, branch `feat/conversation-core`).
+- **Visto falhar:** `pnpm --filter @adatechnology/conversation-module run test` → `Cannot find module './QuickReply.use-cases'`, 66 pass / 1 fail / 1 error.
+- **Implementação:** quatro casos de uso (`CreateQuickReplyUseCase`, `ListAllQuickRepliesUseCase`, `ListQuickRepliesForComposerUseCase`, `UpdateQuickReplyUseCase`), com:
+  - Validação de texto (branco ou acima de 500 caracteres) em novo método `normalizeText()`.
+  - Dois erros tipados: `QuickReplyInvalidError` (422) e `QuickReplyNotFoundError` (404).
+  - Nova porta `listByCompany(params)` na `QuickReplyRepositoryPort` para listar todas as respostas da empresa (gestão); `listByAudience` continua para listar do compositor.
+  - Implementação no repositório em memória e no `QuickReplyRepository` (Drizzle), ambos ordenando por `position`.
+  - Isolamento por `companyId` em todo método.
+- **Teste:** 88 suítes (22 novos para QuickReply), 0 fail. Arquivo `QuickReply.use-cases.test.ts` com casos de:
+  - Criação com posição automática e whitespace normalizado.
+  - Rejeição de texto em branco ou acima de 500 caracteres.
+  - Listagem separada (gestão vs compositor) ordenada por posição.
+  - Edição (texto, posição, ativo/inativo) e isolamento de tenant.
+- **Integração:** `ConversationModule.ts` agora instancia `QuickReplyRepository` na factory e expõe os quatro casos de uso em `useCases`.
+- **Verde:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run check
+  tsc -p tsconfig.json --noEmit   (sem saída)
+
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+   88 pass
+   0 fail
+   773 expect() calls
+  Ran 88 tests across 11 files. [84–85ms]
+
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+   38 pass
+   0 fail
+   131 expect() calls
+  Ran 38 tests across 6 files. [38ms]
+  ```
