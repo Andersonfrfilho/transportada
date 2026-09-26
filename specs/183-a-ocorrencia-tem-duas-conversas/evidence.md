@@ -2603,8 +2603,9 @@ Decisão do usuário: "Tela completa dos tipos" — ver, cadastrar, renomear e a
     para o repositório);
   - API: contratos **7600 pass, 23 skip, 0 fail**; `occurrence-type-save.integration.ts` sozinho
     **1 pass** contra Postgres real;
-  - ⚠️ **integração completa: em andamento, arquivo por arquivo.** O container reiniciou e derrubou
-    a infraestrutura de teste; o MinIO de teste não sobe de novo (a rede bloqueia `quay.io`), então
-    subiram só Postgres e RabbitMQ de teste, com o SeaweedFS no lugar do MinIO. A primeira passada
-    inteira ficou sem saída por mais de 30 minutos e foi interrompida; a passada arquivo por
-    arquivo, com tempo limite em cada um, está rodando. O resultado entra aqui quando terminar.
+  - integração completa, arquivo por arquivo (os 122 da lista `test:integration`, cada um num
+    processo com tempo limite de 240 s): **621 pass, 7 skip, 0 fail**, nenhum arquivo estourou o
+    limite. O container reiniciou e derrubou a infraestrutura de teste; o MinIO de teste não sobe
+    de novo (a rede bloqueia `quay.io`), então rodou com Postgres e RabbitMQ de teste e o
+    SeaweedFS no lugar do MinIO. A primeira passada num processo só, ainda sem o RabbitMQ, ficou
+    sem saída por mais de 30 minutos e foi interrompida — a arquivo por arquivo a substitui.
