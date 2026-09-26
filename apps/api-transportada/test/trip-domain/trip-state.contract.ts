@@ -366,8 +366,17 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
   })
 
   /** defineCrew só faz sentido enquanto falta tripulação — em qualquer outro status, é 409. */
-  test('defineCrew only applies to awaiting_crew, and respects the terminal statuses', () => {
-    for (const tripStatus of ['draft', ...WAREHOUSE_STATUSES, ...DISPATCHED_STATUSES] as const) {
+  /**
+   * defineCrew também troca motorista/veículo enquanto a viagem está `draft` — antes do roteiro
+   * planejado, nada calculado a partir do veículo (pedágio) foi congelado, então a troca não deixa
+   * número velho para trás. A partir de `route_planned` a troca fica bloqueada.
+   */
+  test('defineCrew swaps crew in place while draft, and refuses once the route is planned', () => {
+    expect(
+      checkTripTransition({ action: TRIP_ACTION.defineCrew, hasRoute: false, tripStatus: 'draft' }),
+    ).toEqual({ outcome: 'unchanged' })
+
+    for (const tripStatus of [...WAREHOUSE_STATUSES, ...DISPATCHED_STATUSES] as const) {
       expect(
         checkTripTransition({ action: TRIP_ACTION.defineCrew, hasRoute: false, tripStatus }),
       ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined })

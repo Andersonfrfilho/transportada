@@ -258,6 +258,12 @@ describe('separator role contract', () => {
        * devolve só a planta e o estado do cálculo — nada de receita, custo ou ficha de pessoa.
        */
       'GET /trips/cargo-layouts/:layoutId',
+      /**
+       * Spec 216: mesma `trip.manage` de `POST /trips` (criar) acima — o separador já monta a
+       * tripulação na criação; corrigi-la antes do roteiro planejado é o mesmo trabalho, não um
+       * novo. Bloqueada a partir de `route_planned` pela própria máquina de estados.
+       */
+      'PATCH /trips/:id/crew',
       'PATCH /trips/:id/stops/order',
       // Spec 155 (G004): a mesma cargo.measure de GET .../:id/siblings, acima.
       'POST /nfe-package-boxes/:id/replicate',

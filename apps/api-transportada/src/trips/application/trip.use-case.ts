@@ -75,6 +75,13 @@ export type ReleaseTripDocumentInput = {
   readonly tripId: string
 }
 
+export type UpdateTripCrewInput = {
+  readonly context: TripCompanyContext
+  readonly driverIds: readonly string[]
+  readonly tripId: string
+  readonly vehicleId: string | undefined
+}
+
 export type TripUseCase = {
   close(input: CloseTripInput): Promise<TripDetail>
   create(input: CreateTripInput): Promise<TripDetail>
@@ -82,6 +89,7 @@ export type TripUseCase = {
   linkDocument(input: LinkTripDocumentInput): Promise<TripDocument>
   list(input: ListTripsInput): Promise<TripPage>
   releaseDocument(input: ReleaseTripDocumentInput): Promise<TripDocument>
+  updateCrew(input: UpdateTripCrewInput): Promise<TripDetail>
 }
 
 export function createTripUseCase(dependencies: {
@@ -223,6 +231,40 @@ export function createTripUseCase(dependencies: {
       if (released === null) throw new TripDocumentAlreadyDeliveredError()
       await freezeRouteGracefully({ companyId, routeFreezer, tripId })
       return released
+    },
+
+    /**
+     * Spec 216: define a tripulação de `awaiting_crew` (vira `draft`) ou troca a de uma viagem já
+     * `draft` — antes do roteiro planejado, nada calculado a partir do veículo (pedágio) foi
+     * congelado ainda. `checkTripTransition` aqui é a checagem prévia (UX); `repository.updateCrew`
+     * reconfere sob lock, porque este status é anterior à transação (mesmo padrão de `close`).
+     */
+    async updateCrew({ context, driverIds, tripId, vehicleId }) {
+      const companyId = context.companyId
+      const trip = await findTripOrThrow({ companyId, repository, tripId })
+
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.defineCrew,
+        hasRoute: false,
+        tripStatus: trip.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+
+      const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
+      const crew = await resolveTripCrewForCreation({ companyId, driverIds, repository })
+
+      const updated = await repository.updateCrew({
+        actorUserId: context.userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew,
+        tripId,
+        vehicleId: vehicle?.id ?? null,
+      })
+      if (updated === null) throw new TripNotFoundError()
+      return updated
     },
   }
 }

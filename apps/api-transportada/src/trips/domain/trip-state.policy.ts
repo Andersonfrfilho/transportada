@@ -277,9 +277,13 @@ export function checkTripTransition({
 }
 
 /**
- * Spec 216: a única porta de saída de `awaiting_crew` além do cancelamento. Fora dali, `defineCrew`
- * não tem o que fazer — a tripulação já foi definida uma vez, e trocar depois é ação separada
- * (fora do escopo desta spec, decisão do dono do produto em 2026-09-26).
+ * Spec 216: a porta de saída de `awaiting_crew` além do cancelamento. Decisão do dono do produto em
+ * 2026-09-26 (revista no mesmo dia): `defineCrew` também serve para TROCAR motorista/veículo
+ * enquanto a viagem ainda está em `draft` — antes de o roteiro ser planejado, nada calculado a
+ * partir do veículo (pedágio) foi congelado ainda, então a troca não deixa número velho para trás.
+ * A partir de `route_planned` a troca fica bloqueada: `trips.planned_toll` já foi congelado com o
+ * eixo do veículo antigo (`freezeTripPlannedRoute`), e só um replanejamento de rota o corrige — CA
+ * fora do escopo desta ação.
  */
 function checkDefineCrew(tripStatus: TripStatus): TripTransition<TripStatus> {
   if (tripStatus === 'cancelled') {
@@ -288,11 +292,10 @@ function checkDefineCrew(tripStatus: TripStatus): TripTransition<TripStatus> {
   if (tripStatus === 'completed') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted }
   }
-  if (tripStatus !== 'awaiting_crew') {
-    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined }
-  }
+  if (tripStatus === 'awaiting_crew') return { outcome: 'applied', nextStatus: 'draft' }
+  if (tripStatus === 'draft') return { outcome: 'unchanged' }
 
-  return { outcome: 'applied', nextStatus: 'draft' }
+  return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined }
 }
 
 /**
