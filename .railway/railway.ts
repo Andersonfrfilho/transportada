@@ -233,6 +233,13 @@ export default defineRailway((ctx) => {
        * painel, não só reiniciar.
        */
       VITE_MAP_TILES_URL: preserve(),
+      /**
+       * A origem do bucket na CSP do painel: a foto da ocorrência e, desde a spec 183, o anexo e o
+       * áudio da conversa (`img-src`, `connect-src`, `media-src`). Inlinada no build, e não estava
+       * declarada: o próximo `apply` a apagaria, e a foto sumiria sem erro nenhum. Mesmo valor que
+       * o `VITE_STORAGE_URL` do portal (`test/deploy/frontend-build-args.contract.ts`).
+       */
+      VITE_OBJECT_STORAGE_URL: preserve(),
     },
   })
 
