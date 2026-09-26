@@ -84,7 +84,7 @@ function App() {
                 Ocorrências
               </button>
               <button
-                className="secondary"
+                className="secondary nav__logout"
                 onClick={() => void getKeycloakAuthProvider().logout()}
                 type="button"
               >
