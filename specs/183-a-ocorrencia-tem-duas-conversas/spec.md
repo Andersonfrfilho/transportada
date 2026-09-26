@@ -106,9 +106,10 @@ parte.
 ### D5 — A janela de 24 horas manda no WhatsApp
 
 Fora da janela de atendimento de 24h aberta pela última mensagem do contato, a Meta só aceita
-**modelo aprovado**. O produto não tenta mandar texto livre fora da janela: o seletor mostra o
-estado da janela e, fechada, oferece só os modelos aprovados da empresa. Vale para a contratante e
-para o motorista: iniciar conversa pelo WhatsApp é sempre por modelo.
+**modelo aprovado**. **Decisão do dono do projeto (26/09/2026): o produto não usa modelo.** O
+WhatsApp só fala com a pessoa **dentro** da janela, em texto livre e mídia; fechada, o seletor mostra
+o canal indisponível e a conversa segue pelo canal seguinte (RF20). Iniciar conversa pelo WhatsApp
+não existe: quem abre a janela é a contratante ou o motorista, escrevendo.
 
 Quando a janela está para fechar, o produto **avisa e troca de canal** em vez de deixar a conversa
 morrer (RF20): com o motorista, a conversa segue pelo **app (PWA)**; com a contratante, pelo
@@ -378,8 +379,8 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
     desligado por padrão para a contratante; a empresa muda os dois;
   - **fechou:** o canal padrão da conversa passa para o app (motorista) ou, na contratante, para o
     **portal** se ela tiver usuário ativo no portal e a ocorrência estiver visível lá (D9), senão
-    para o **e-mail** do contato, e sem e-mail
-    só modelo aprovado. O aviso automático diz o canal escolhido. Entra um evento de sistema na conversa
+    para o **e-mail** do contato; sem e-mail nem portal, a conversa fica sem canal de saída até a
+    contratante escrever de novo (sem modelo, decisão de 26/09/2026), e a caixa de envio diz isso. O aviso automático diz o canal escolhido. Entra um evento de sistema na conversa
     e na linha do tempo; o rascunho não se perde;
   - o motorista sem PWA instalado continua recebendo pela inbox (RF11); a troca nunca deixa a
     mensagem sem destino.
@@ -518,6 +519,11 @@ spec.
 
 Resolvidas em 2026-09-24 pelo dono do projeto: respostas rápidas são **cadastradas por empresa**
 (RF12), e os **cinco tipos** de contato do RF5 são os da operação.
+
+Resolvida em 2026-09-26 pelo dono do projeto: **nenhum modelo de WhatsApp na Meta**. O WhatsApp é
+usado só dentro da janela de 24h aberta pela pessoa; fora dela, a conversa segue pelo app
+(motorista), portal ou e-mail (contratante). A T002 deixa de existir, e as tasks que dependiam dela
+passam a valer só dentro da janela (D5, RF20).
 
 - [NEEDS CLARIFICATION: qual provedor transcreve o áudio (RF18), e se a voz de contratante e de
   motorista pode sair para ele (LGPD: base legal, retenção no provedor, região)? Decidido, vira

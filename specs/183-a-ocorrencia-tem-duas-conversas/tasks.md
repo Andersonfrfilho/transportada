@@ -15,7 +15,9 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [x] **T001** Passar a ADR-0072 e a ADR-0073 para `aceito` e confirmar que a única
       `[NEEDS CLARIFICATION]` que resta (provedor de transcrição) só bloqueia a T706. Evidência: as
       ADRs com status e data.
-- [ ] **T002** 🙋 O usuário submete à Meta os modelos de WhatsApp da contratante (abertura de
+- [x] **T002** 🙋 ~~O usuário submete à Meta os modelos de WhatsApp~~ **Dispensada em 26/09/2026
+      pelo dono do projeto: sem modelo, WhatsApp só dentro da janela de 24h** (spec § Dúvidas, D5).
+      Texto original: modelos da contratante (abertura de
       ocorrência; aviso de que há decisão pendente no portal — sem botão de decisão, D4) e do
       motorista (aviso de mensagem nova; aviso de troca para o app). **Pare e pergunte** — é conta da empresa na Meta. Evidência: nomes e
       estado dos modelos no `evidence.md`.
@@ -100,8 +102,9 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 - [x] **T502** 🧠 Webhook: ramo "contato de contratante com aceite" (D6), status da Meta e
       recebidas com mídia. Evidência: contratos (número sem aceite segue recusado) + integração do
       status até `read`, idempotente.
-- [ ] **T503** Envio por WhatsApp no worker pelo `SendMessageUseCase` do módulo (RF8): modelo fora da
-      janela, texto e mídia dentro. Evidência: teste de caso de uso com o provider falso.
+- [ ] **T503** Envio por WhatsApp no worker pelo `SendMessageUseCase` do módulo (RF8): texto e
+      mídia **só dentro da janela**; fora dela o envio é recusado como `window_closed`, sem modelo
+      (decisão de 26/09/2026). Evidência: teste de caso de uso com o provider falso.
 - [x] **T504** Contrato de que nada que chega pelo WhatsApp (texto, botão, áudio, transcrição) muda a
       tratativa, a taxa ou o acerto (D4). Evidência: o contrato.
 - [x] **T505** Fila de não atribuídas (rota + tela simples). Evidência: contratos.
