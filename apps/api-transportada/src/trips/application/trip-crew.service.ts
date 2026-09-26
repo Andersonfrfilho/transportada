@@ -6,11 +6,18 @@ import { resolveTripCrew, resolveTripVehicle, type TripDriverLine } from '../dom
 import type { TripRepositoryPort } from './trip.port.js'
 import type { TripVehicleCandidate } from '../domain/trip.policy.js'
 
+/**
+ * Spec 216: sem `vehicleId`, a viagem nasce `awaiting_crew` — a ausência é o próprio resultado,
+ * e nem chega a consultar o repositório. `vehicleId` presente e não encontrado continua erro
+ * (`resolveTripVehicle` lança); só a ausência do campo é "sem veículo ainda".
+ */
 export async function resolveTripVehicleForCreation(input: {
   readonly companyId: string
   readonly repository: TripRepositoryPort
-  readonly vehicleId: string
-}): Promise<TripVehicleCandidate> {
+  readonly vehicleId: string | undefined
+}): Promise<TripVehicleCandidate | null> {
+  if (input.vehicleId === undefined) return null
+
   const vehicle = await input.repository.findVehicle({
     companyId: input.companyId,
     vehicleId: input.vehicleId,

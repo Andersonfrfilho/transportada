@@ -68,6 +68,21 @@ export async function assertTripConstraints(
     values (${otherTripId}, ${companyId}, ${vehicleId})
   `
 
+  // Spec 216: sem veículo é o caminho de "aguardando definição" — a viagem nasce, o FK composto
+  // não se aplica a uma coluna nula (MATCH SIMPLE), e nenhum trigger antigo perde essa linha.
+  const awaitingVehicleTripId = crypto.randomUUID()
+  await database`
+    insert into trips (id, company_id, vehicle_id)
+    values (${awaitingVehicleTripId}, ${companyId}, null)
+  `
+  const [awaitingVehicleTrip] = await database`
+    select vehicle_id from trips where id = ${awaitingVehicleTripId}
+  `
+  expect(awaitingVehicleTrip.vehicle_id).toBeNull()
+  // O ciclo de rollback mais adiante neste teste reimpõe NOT NULL em vehicle_id — sem apagar esta
+  // linha, o rollback da própria migration que a permite falharia contra o dado que ela criou.
+  await database`delete from trips where id = ${awaitingVehicleTripId}`
+
   await expectQueryToFail(
     database`insert into trips (company_id, vehicle_id) values (${otherCompanyId}, ${vehicleId})`,
     '23503',

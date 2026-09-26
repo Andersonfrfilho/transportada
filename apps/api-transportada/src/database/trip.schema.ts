@@ -202,7 +202,11 @@ export const trips = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    vehicleId: uuid('vehicle_id').notNull(),
+    /**
+     * Spec 216: `null` é "aguardando definição" (`status: 'awaiting_crew'`) — a viagem pode nascer
+     * sem veículo quando motorista/agregado ainda não está pronto.
+     */
+    vehicleId: uuid('vehicle_id'),
     status: text().$type<TripStatus>().notNull().default('draft'),
     fiscalReadinessState: text('fiscal_readiness_state')
       .$type<TripFiscalReadinessState>()
