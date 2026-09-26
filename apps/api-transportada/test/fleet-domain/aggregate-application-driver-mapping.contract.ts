@@ -82,6 +82,24 @@ describe('aggregate application declared data mapping', () => {
     expect(vehicle.capacityKilograms).toBe('0')
   })
 
+  test('placa declarada sem o tipo do veículo cai em "other" — evita violar fleet_vehicles_vehicle_type_check na aprovação', () => {
+    const vehicle = mapDeclaredDataToVehicleInput({ plate: 'ABC1D23' })
+
+    expect(vehicle.role).toBe('traction')
+    expect(vehicle.vehicleType).toBe('other')
+  })
+
+  test('veículo declarado como reboque nunca carrega tipo, mesmo se algo tiver declarado um', () => {
+    const vehicle = mapDeclaredDataToVehicleInput({
+      plate: 'ABC1D23',
+      role: 'trailer',
+      vehicleType: 'truck',
+    })
+
+    expect(vehicle.role).toBe('trailer')
+    expect(vehicle.vehicleType).toBe('')
+  })
+
   test('sem UF declarada no veículo, usa a UF do endereço do motorista', () => {
     const vehicle = mapDeclaredDataToVehicleInput({ plate: 'ABC1D23' }, 'SP')
     expect(vehicle.state).toBe('SP')
