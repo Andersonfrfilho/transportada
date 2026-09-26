@@ -49,17 +49,15 @@ export function DecisionForm({ isSubmitting, onSubmit }: DecisionFormProps) {
     <div className="panel">
       <p className="panel__label">O que você decide sobre esta ocorrência?</p>
       {DECISION_OPTIONS.map((option) => (
-        <label className="panel__row" key={option.kind}>
-          <span>
-            <input
-              checked={selected === option.kind}
-              name="occurrence-decision"
-              onChange={() => setSelected(option.kind)}
-              type="radio"
-              value={option.kind}
-            />{' '}
-            {option.label}
-          </span>
+        <label className="choice" key={option.kind}>
+          <input
+            checked={selected === option.kind}
+            name="occurrence-decision"
+            onChange={() => setSelected(option.kind)}
+            type="radio"
+            value={option.kind}
+          />
+          <span>{option.label}</span>
         </label>
       ))}
       {selectedOption !== null && <p className="panel__label">{selectedOption.explanation}</p>}

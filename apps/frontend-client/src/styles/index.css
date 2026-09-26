@@ -35,6 +35,8 @@
   --field-padding: var(--space-3);
   --field-font-size: 1rem;
   --control-height: var(--field-height);
+  /* Alvo de toque mínimo, cópia por valor do painel. */
+  --touch-target: 2.75rem;
   --radius-panel: 0.75rem;
   /* Spec 183 T653: os balões da conversa — cópia por valor dos tokens escuros do painel (T704). */
   --color-bubble-out: #8c5527;
@@ -91,6 +93,22 @@ body {
   border-radius: var(--radius-panel);
   margin-bottom: var(--space-4);
   padding: var(--space-4);
+}
+
+.choice {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-3);
+  min-height: var(--touch-target);
+}
+
+.choice input {
+  accent-color: var(--color-copper);
+  flex: none;
+  height: 1.25rem;
+  margin: 0;
+  width: 1.25rem;
 }
 
 .panel__row {
@@ -155,7 +173,8 @@ button.secondary {
   color: var(--color-fog);
 }
 
-input,
+/* O `radio` e o `checkbox` ficam fora: com a métrica de campo, cada bolinha virava uma caixa. */
+input:not([type='radio'], [type='checkbox']),
 textarea,
 select {
   background: var(--color-asphalt);
