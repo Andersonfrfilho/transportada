@@ -99,7 +99,11 @@ import {
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
-import type { OccurrenceRedeliveryPolicy, OccurrenceType } from './occurrence.constant'
+import type {
+  OccurrenceAttachmentMode,
+  OccurrenceRedeliveryPolicy,
+  OccurrenceType,
+} from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
@@ -235,11 +239,15 @@ export type TripClient = Readonly<{
       active: boolean
       /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
       allowsMultipleItems: boolean
+      /** Spec 179 RF1: ausente não vai no corpo, e a API mantém o valor gravado ("não mexa"). */
+      attachmentMode?: OccurrenceAttachmentMode
       emailTemplateKey: null | string
+      /** Spec 183 T802: ausente não vai no corpo, e a API mantém o valor gravado ("não mexa"). */
+      emailsContractor?: boolean
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
-      /** Spec 164 RF1: conjunto completo — ausente aqui é a própria chamada regravando `unset`. */
+      /** Spec 164 RF1: sempre enviado — a tela conhece o valor de cada tipo que edita. */
       redeliveryPolicy: OccurrenceRedeliveryPolicy
       stage: 'delivery' | 'separation'
     }>,
@@ -737,7 +745,11 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         body: JSON.stringify({
           active: input.active,
           allowsMultipleItems: input.allowsMultipleItems,
+          ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
           emailTemplateKey: input.emailTemplateKey,
+          ...(input.emailsContractor === undefined
+            ? {}
+            : { emailsContractor: input.emailsContractor }),
           name: input.name,
           notifies: input.notifies,
           occurrenceTypeId: input.occurrenceTypeId,

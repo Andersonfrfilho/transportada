@@ -281,14 +281,14 @@
   },
   "occurrenceTypeCatalog": {
     "title": "Occurrence types",
-    "hint": "Register the types the operation uses. The alert goes to whoever dispatched the trip, and only for checked types — the default is not to notify.",
+    "hint": "Register the types the operation uses. Each type decides who is notified when it happens — whoever dispatched the trip, the contracting company by email — and the default is to notify no one.",
     "empty": "No type registered yet. Register the first one to be able to log occurrences.",
     "add": "Register type",
     "name": "Type name",
     "stage": "Where it happens",
     "stageSeparation": "At the yard",
     "stageDelivery": "On the road",
-    "notifies": "Notify when it happens",
+    "notifies": "Notify whoever dispatched the trip",
     "active": "In use",
     "emailTemplate": "Email template",
     "emailTemplateNone": "No email",
@@ -299,6 +299,8 @@
     "redeliveryPolicy": "Allows redelivery",
     "redeliveryPolicyUnset": "Unset (no case opens)",
     "redeliveryPolicyAllowed": "Allows redelivery",
-    "redeliveryPolicyBlocked": "Blocks redelivery"
+    "redeliveryPolicyBlocked": "Blocks redelivery",
+    "emailsContractor": "Email the contracting company",
+    "withoutTemplateContractor": "No email template: the contracting company gets the occurrence's suggested text."
   }
 }

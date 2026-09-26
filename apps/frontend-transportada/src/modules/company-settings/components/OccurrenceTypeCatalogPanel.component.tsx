@@ -25,23 +25,17 @@ import {
 import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailTemplates.query'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
+import {
+  occurrenceTypeEdit,
+  type OccurrenceTypeSaveInput,
+} from '@/modules/company-settings/shared/occurrenceTypeEdit.service'
 import styles from '@/modules/trip/styles/trip.module.css'
 
 export type OccurrenceTypeCatalogPanelProps = Readonly<{
   canManage: boolean
   isSaving: boolean
-  onSave: (input: {
-    readonly active: boolean
-    /** Spec 166 RF9: desligado, o campo de item na tela de registro vira seleção única. */
-    readonly allowsMultipleItems: boolean
-    readonly emailTemplateKey: null | string
-    readonly name: string
-    readonly notifies: boolean
-    readonly occurrenceTypeId: null | string
-    /** Spec 164 RF1: conjunto completo — sempre enviado, nunca omitido no `PUT`. */
-    readonly redeliveryPolicy: OccurrenceRedeliveryPolicy
-    readonly stage: TripOccurrenceStage
-  }) => void
+  /** Spec 164 RF1: `redeliveryPolicy` sempre enviado; os campos tardios, sempre na edição. */
+  onSave: (input: OccurrenceTypeSaveInput) => void
   types: readonly OccurrenceType[]
 }>
 
@@ -71,6 +65,8 @@ export function OccurrenceTypeCatalogPanel({
   const [name, setName] = useState('')
   const [stage, setStage] = useState<TripOccurrenceStage>(TRIP_OCCURRENCE_STAGE.separation)
   const [notifies, setNotifies] = useState(false)
+  /** Spec 183 T802: o padrão é não avisar a contratante — como o aviso ao despachante. */
+  const [emailsContractor, setEmailsContractor] = useState(false)
   const [emailTemplateKey, setEmailTemplateKey] = useState<string>(OCCURRENCE_TEMPLATE_NONE)
   /** RF3: o padrão é aceitar vários itens — preserva o comportamento de hoje. */
   const [allowsMultipleItems, setAllowsMultipleItems] = useState(true)
@@ -106,7 +102,10 @@ export function OccurrenceTypeCatalogPanel({
     if (type.emailSubject !== '') {
       return t('occurrenceTypeCatalog.legacyTemplate', { subject: type.emailSubject })
     }
-    return t('occurrenceTypeCatalog.withoutTemplate')
+    /** O aviso automático (spec 183 T802) sai com o texto sugerido da conversa, sem modelo. */
+    return type.emailsContractor
+      ? t('occurrenceTypeCatalog.withoutTemplateContractor')
+      : t('occurrenceTypeCatalog.withoutTemplate')
   }
 
   function handleAdd() {
@@ -115,6 +114,7 @@ export function OccurrenceTypeCatalogPanel({
       active: true,
       allowsMultipleItems,
       emailTemplateKey: emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : emailTemplateKey,
+      emailsContractor,
       name,
       notifies,
       occurrenceTypeId: null,
@@ -123,6 +123,7 @@ export function OccurrenceTypeCatalogPanel({
     })
     setName('')
     setNotifies(false)
+    setEmailsContractor(false)
     setEmailTemplateKey(OCCURRENCE_TEMPLATE_NONE)
     setAllowsMultipleItems(true)
     setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
@@ -163,67 +164,39 @@ export function OccurrenceTypeCatalogPanel({
                   checked={type.notifies}
                   disabled={!canManage || isSaving}
                   label={t('occurrenceTypeCatalog.notifies')}
+                  onChange={(value) => onSave(occurrenceTypeEdit(type, { notifies: value }))}
+                />
+                <Checkbox
+                  checked={type.emailsContractor}
+                  disabled={!canManage || isSaving}
+                  label={t('occurrenceTypeCatalog.emailsContractor')}
                   onChange={(value) =>
-                    onSave({
-                      active: type.active,
-                      allowsMultipleItems: type.allowsMultipleItems,
-                      emailTemplateKey: type.emailTemplateKey,
-                      name: type.name,
-                      notifies: value,
-                      occurrenceTypeId: type.id,
-                      redeliveryPolicy: type.redeliveryPolicy,
-                      stage: type.stage,
-                    })
+                    onSave(occurrenceTypeEdit(type, { emailsContractor: value }))
                   }
                 />
                 <Checkbox
                   checked={type.active}
                   disabled={!canManage || isSaving}
                   label={t('occurrenceTypeCatalog.active')}
-                  onChange={(value) =>
-                    onSave({
-                      active: value,
-                      allowsMultipleItems: type.allowsMultipleItems,
-                      emailTemplateKey: type.emailTemplateKey,
-                      name: type.name,
-                      notifies: type.notifies,
-                      occurrenceTypeId: type.id,
-                      redeliveryPolicy: type.redeliveryPolicy,
-                      stage: type.stage,
-                    })
-                  }
+                  onChange={(value) => onSave(occurrenceTypeEdit(type, { active: value }))}
                 />
                 <Checkbox
                   checked={type.allowsMultipleItems}
                   disabled={!canManage || isSaving}
                   label={t('occurrenceTypeCatalog.allowsMultipleItems')}
                   onChange={(value) =>
-                    onSave({
-                      active: type.active,
-                      allowsMultipleItems: value,
-                      emailTemplateKey: type.emailTemplateKey,
-                      name: type.name,
-                      notifies: type.notifies,
-                      occurrenceTypeId: type.id,
-                      redeliveryPolicy: type.redeliveryPolicy,
-                      stage: type.stage,
-                    })
+                    onSave(occurrenceTypeEdit(type, { allowsMultipleItems: value }))
                   }
                 />
                 <Select
                   ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
                   disabled={!canManage || isSaving}
                   onChange={(value) =>
-                    onSave({
-                      active: type.active,
-                      allowsMultipleItems: type.allowsMultipleItems,
-                      emailTemplateKey: type.emailTemplateKey,
-                      name: type.name,
-                      notifies: type.notifies,
-                      occurrenceTypeId: type.id,
-                      redeliveryPolicy: value as OccurrenceRedeliveryPolicy,
-                      stage: type.stage,
-                    })
+                    onSave(
+                      occurrenceTypeEdit(type, {
+                        redeliveryPolicy: value as OccurrenceRedeliveryPolicy,
+                      }),
+                    )
                   }
                   options={redeliveryPolicyOptions}
                   value={type.redeliveryPolicy}
@@ -262,6 +235,11 @@ export function OccurrenceTypeCatalogPanel({
             checked={notifies}
             label={t('occurrenceTypeCatalog.notifies')}
             onChange={setNotifies}
+          />
+          <Checkbox
+            checked={emailsContractor}
+            label={t('occurrenceTypeCatalog.emailsContractor')}
+            onChange={setEmailsContractor}
           />
           <Checkbox
             checked={allowsMultipleItems}

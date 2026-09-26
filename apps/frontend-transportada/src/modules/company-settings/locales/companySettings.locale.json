@@ -281,14 +281,14 @@
   },
   "occurrenceTypeCatalog": {
     "title": "Tipos de ocorrência",
-    "hint": "Cadastre os tipos que a operação usa. O aviso vai para quem despachou a viagem, e só nos tipos marcados — o padrão é não avisar.",
+    "hint": "Cadastre os tipos que a operação usa. Cada tipo decide quem é avisado quando acontece — quem despachou a viagem, a contratante por e-mail — e o padrão é não avisar ninguém.",
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
     "add": "Cadastrar tipo",
     "name": "Nome do tipo",
     "stage": "Onde acontece",
     "stageSeparation": "No galpão",
     "stageDelivery": "Na rua",
-    "notifies": "Avisar quando acontecer",
+    "notifies": "Avisar quem despachou a viagem",
     "active": "Em uso",
     "emailTemplate": "Modelo de e-mail",
     "emailTemplateNone": "Sem e-mail",
@@ -299,6 +299,8 @@
     "redeliveryPolicy": "Admite reentrega",
     "redeliveryPolicyUnset": "Indefinido (não abre tratativa)",
     "redeliveryPolicyAllowed": "Admite reentrega",
-    "redeliveryPolicyBlocked": "Não admite reentrega"
+    "redeliveryPolicyBlocked": "Não admite reentrega",
+    "emailsContractor": "Avisar a contratante por e-mail",
+    "withoutTemplateContractor": "Sem modelo de e-mail: a contratante recebe o texto sugerido da ocorrência."
   }
 }
