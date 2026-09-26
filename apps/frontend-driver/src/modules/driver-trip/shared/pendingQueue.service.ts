@@ -72,6 +72,25 @@ export function countPending(input: {
   return { drainable, rejected, total: drainable + rejected + unverified + blocked }
 }
 
+/** Spec 193 D13: o número do cabeçalho é o `total` do dono — o mesmo que a tela da fila lista. */
+export function selectPendingTotal(input: {
+  readonly attachments: AttachmentGroupEntries
+  readonly now: Date
+  readonly ownerSubHash: string
+  readonly reports: readonly QueuedReport[]
+}): number {
+  return countPending(input).total
+}
+
+const QUEUE_BADGE_MAX = 99
+
+/** Spec 193 D13: zero não tem selo; acima de 99 o selo não cresce. */
+export function formatQueueBadge(total: number): string {
+  if (total <= 0) return ''
+  if (total > QUEUE_BADGE_MAX) return `${QUEUE_BADGE_MAX}+`
+  return String(total)
+}
+
 /** O mesmo intervalo da sonda de reconexão (plan D5, `bootMode.service.ts`). */
 export const QUEUE_DRAIN_INTERVAL_MS = 30_000
 

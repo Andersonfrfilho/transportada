@@ -28,3 +28,27 @@ SyntaxError: Export named 'formatQueueBadge' not found in module '.../pendingQue
 $ bun test test/driver-trip.contract.test.ts test/shared.contract.test.ts
  60 pass, 2 fail, 1 error   (o import quebrado derruba o entrypoint inteiro do driver-trip)
 ```
+
+### T1.2 — implementação
+
+- `pendingQueue.service.ts`: `selectPendingTotal` (o `total` de `countPending` com `ownerSubHash`) e
+  `formatQueueBadge` (`''`, o número, `'99+'`).
+- `useDriverTrip.hook.ts`: `pendingTotal` como estado da mesma leitura que alimenta o temporizador.
+- `DriverShellHeader.component.tsx`: prop `pendingCount`; botão entre a marca e o sino, ícone
+  `upload` (já no mapa), selo cobre com tinta escura, `aria-label` "Fila de envio, N pendentes",
+  toque → `navigateToDriverSection('queue')`. As seis montagens do workspace passam
+  `driverTrip.pendingTotal`. `/notificacoes` fica de fora (D13).
+- CSS `.queueButton` no molde do `.adn-bell` (44 px, `--touch-target`) e `margin-inline-start: auto`,
+  que agrupa fila, sino e avatar à direita. O `prettier --write` do arquivo também tirou uma linha em
+  branco dupla que já estava no HEAD (`.occurrencePreviewText`), sem outra mudança.
+- Locale pt-BR e en: `queueHeader.label_zero|_one|_other` (conferido no i18next: 0 → "nada
+  pendente", 1 → "1 pendente", 3 → "3 pendentes", 120 → "120 pendentes").
+
+```
+$ bun run --cwd apps/frontend-driver lint        → eslint . sem erros
+$ bun run --cwd apps/frontend-driver typecheck   → tsc --noEmit sem erros
+$ bun test test/shared.contract.test.ts test/identity.contract.test.ts test/driver-trip.contract.test.ts
+  592 pass, 0 fail, 1209 expect() calls
+$ bun run --cwd apps/frontend-driver build
+  precache: 13 arquivos, 669511 bytes — dist.contract 6 pass, 0 fail
+```

@@ -41,6 +41,7 @@ import {
   countPending,
   createDrainScheduler,
   scheduleQueueDrainTriggers,
+  selectPendingTotal,
 } from '../shared/pendingQueue.service'
 import {
   discardForeignPending,
@@ -130,6 +131,8 @@ export type DriverTripController = Readonly<{
   isOfflineBoot: boolean
   /** Tudo o que é do dono e ainda está no aparelho — o "Sair" avisa antes de deixar para trás. */
   ownPendingCount: number
+  /** Spec 193 D13: o número do ícone da fila no cabeçalho (`selectPendingTotal`). */
+  pendingTotal: number
   /**
    * Spec 159 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
    * tela traduz em linguagem simples ("em dia", "tardia", "longe"). Some ao trocar de sessão: não é
@@ -189,6 +192,7 @@ export function useDriverTrip(
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
   const [sentReportKeys, setSentReportKeys] = useState<ReadonlySet<string>>(new Set())
+  const [pendingTotal, setPendingTotal] = useState(0)
   /** Plan D5: o temporizador da drenagem só corre enquanto isto for maior que zero. */
   const drainableCountRef = useRef(0)
   /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
@@ -209,12 +213,16 @@ export function useDriverTrip(
     setQueueView(
       buildEventQueueView({ attachments: pending.ownAttachments, queued: pending.ownReports }),
     )
+    const now = new Date()
     drainableCountRef.current = countPending({
       attachments,
-      now: new Date(),
+      now,
       ownerSubHash: session.subHash,
       reports: queued,
     }).drainable
+    setPendingTotal(
+      selectPendingTotal({ attachments, now, ownerSubHash: session.subHash, reports: queued }),
+    )
     syncDrainTimerRef.current()
   }, [attachmentStore, session.subHash, store])
 
@@ -619,6 +627,7 @@ export function useDriverTrip(
     }),
     isOfflineBoot: !session.canSync,
     ownPendingCount: loadedView.length,
+    pendingTotal,
     proofOutcomeByDocumentId,
     queueView: loadedView,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,

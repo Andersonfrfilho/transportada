@@ -196,7 +196,7 @@ export function DriverTripWorkspacePage() {
   if (driverTrip.status === 'loading') {
     return (
       <div className={styles.moduleShell}>
-        <DriverShellHeader />
+        <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <main className={styles.shell}>
           <SkeletonGroup label={t('loading')}>
             <Skeleton variant="text" />
@@ -215,7 +215,7 @@ export function DriverTripWorkspacePage() {
   if (driverTrip.status === 'error') {
     return (
       <div className={styles.moduleShell}>
-        <DriverShellHeader />
+        <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <main className={styles.shell}>
           <p role="alert">{t('error')}</p>
         </main>
@@ -230,7 +230,7 @@ export function DriverTripWorkspacePage() {
   if (isQueueOpen) {
     return (
       <div className={styles.moduleShell}>
-        <DriverShellHeader />
+        <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverEventQueuePage
           isLoading={driverTrip.isQueueLoading}
           isSyncing={driverTrip.isSyncing}
@@ -274,7 +274,7 @@ export function DriverTripWorkspacePage() {
   if (isPendingProofsOpen) {
     return (
       <div className={styles.moduleShell}>
-        <DriverShellHeader />
+        <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverPendingProofsPage
           onBack={() => window.history.back()}
           onProof={handleProof}
@@ -293,7 +293,7 @@ export function DriverTripWorkspacePage() {
   if (section === 'profile') {
     return (
       <div className={styles.moduleShell}>
-        <DriverShellHeader />
+        <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverProfilePage
           canSync={!driverTrip.isOfflineBoot}
           onDiscardOwnPending={() => driverTrip.discardOwnPending()}
@@ -507,7 +507,7 @@ export function DriverTripWorkspacePage() {
 
   return (
     <div className={styles.moduleShell}>
-      <DriverShellHeader />
+      <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
       <main className={styles.shell}>
         <header className={styles.header}>
           <h1>{t('title')}</h1>

@@ -380,7 +380,6 @@
   margin: 0;
 }
 
-
 .proofField {
   display: grid;
   gap: var(--space-1);
@@ -671,6 +670,51 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * Spec 193 D13: a fila de envio, entre a marca e o sino, no mesmo alvo e na mesma forma do sino
+ * (`.adn-bell` do pacote). A margem automática agrupa as ações à direita, ao lado do sino.
+ */
+.queueButton {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--space-2);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  margin-inline-start: auto;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  padding: var(--space-2);
+  position: relative;
+}
+
+.queueButton:hover {
+  background: color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
+.queueButton:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+/* Pendência não é erro: o selo é cobre, com a tinta escura do acento — não o vermelho do sino. */
+.queueBadge {
+  background: var(--color-copper);
+  border-radius: 9999px;
+  color: var(--color-ink-on-accent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.125rem;
+  min-width: 1.125rem;
+  padding: 0 var(--space-1);
+  position: absolute;
+  right: var(--space-1);
+  text-align: center;
+  top: var(--space-1);
 }
 
 .driverAvatar {

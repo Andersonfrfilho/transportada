@@ -151,6 +151,11 @@
     "receiverName": "Receiver name",
     "pendingField": "Fill in this field. The proof is already saved and uploads once you complete it."
   },
+  "queueHeader": {
+    "label_one": "Send queue, {{count}} pending",
+    "label_other": "Send queue, {{count}} pending",
+    "label_zero": "Send queue, nothing pending"
+  },
   "queued_one": "{{count}} confirmation waiting to be sent",
   "queued_other": "{{count}} confirmations waiting to be sent",
   "rejected": "The office changed this invoice while you were offline. Check before moving on.",

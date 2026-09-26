@@ -180,6 +180,11 @@
     "useCrop": "Usar recorte",
     "useOriginal": "Usar sem recorte"
   },
+  "queueHeader": {
+    "label_one": "Fila de envio, {{count}} pendente",
+    "label_other": "Fila de envio, {{count}} pendentes",
+    "label_zero": "Fila de envio, nada pendente"
+  },
   "queued_one": "{{count}} confirmação aguardando envio",
   "queued_other": "{{count}} confirmações aguardando envio",
   "rejected": "O escritório mudou esta nota enquanto você estava sem sinal. Confira antes de seguir.",
