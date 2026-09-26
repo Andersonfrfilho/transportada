@@ -21,6 +21,7 @@ import {
 import {
   ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
+  applyAttachmentReceiverFields,
   discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
@@ -97,6 +98,16 @@ export type DriverNotDeliveredOutcome = DriverReportOutcome | 'size-limit'
 
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  /**
+   * Spec 203: o motorista completou nome/documento depois do anexo já estar na fila — atualiza o(s)
+   * item(ns) daquele documento in place. Sem grupo na fila (o anexo já subiu), não faz nada: o
+   * campo tardio de um anexo já enviado fica para o PATCH da spec 193.
+   */
+  updateProofFields: (input: {
+    documentId: string
+    receiverDocument?: string
+    receiverName?: string
+  }) => Promise<void>
   /** "Confirmar em lote": tira a marca do que foi feito sem rede e drena. */
   confirmUnverifiedPending: () => Promise<void>
   /** Descarta o que foi feito sem rede — o item e o dado saem do aparelho. */
@@ -534,6 +545,37 @@ export function useDriverTrip(
     return 'queued'
   }
 
+  /**
+   * Spec 203: mesma varredura de grupos que a drenagem usa (`attachmentStore.readAll()`) — acha o
+   * grupo que tem um item deste documento e aplica os campos in place, pela `eventKey` do grupo.
+   */
+  async function updateProofFields(input: {
+    documentId: string
+    receiverDocument?: string
+    receiverName?: string
+  }): Promise<void> {
+    const groups = await attachmentStore.readAll()
+    const target = groups.find(([, items]) =>
+      items.some((item) => item.documentId === input.documentId),
+    )
+    if (target === undefined) return
+
+    const [eventKey] = target
+    await attachmentStore.update({
+      eventKey,
+      mutate: (items) =>
+        applyAttachmentReceiverFields({
+          documentId: input.documentId,
+          items,
+          ...(input.receiverDocument === undefined
+            ? {}
+            : { receiverDocument: input.receiverDocument }),
+          ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+        }),
+    })
+    await refreshQueueView()
+  }
+
   async function discardForeign(): Promise<void> {
     await discardForeignPending({ attachmentStore, ownerSubHash: session.subHash, store })
     await refreshQueueView()
@@ -561,6 +603,7 @@ export function useDriverTrip(
 
   return {
     attachProof,
+    updateProofFields,
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,

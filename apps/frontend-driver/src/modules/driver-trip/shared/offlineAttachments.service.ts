@@ -139,6 +139,32 @@ export function applyAttachmentLocation(input: {
 }
 
 /**
+ * Spec 203 (o attach nunca descarta a foto): campo obrigatório vazio não pode jogar o anexo
+ * fora — ele entra na fila do jeito que está, e quando o motorista completa nome/documento depois,
+ * esta função alcança os itens do mesmo documento, igual `applyAttachmentLocation` alcança pela
+ * `attachmentKey`. Casa por `documentId`, não por `attachmentKey`: a captura não devolve a chave
+ * gerada ao formulário, e cobre foto e assinatura do mesmo documento na mesma chamada.
+ */
+export function applyAttachmentReceiverFields(input: {
+  readonly documentId: string
+  readonly items: readonly QueuedAttachment[]
+  readonly receiverDocument?: string
+  readonly receiverName?: string
+}): readonly QueuedAttachment[] {
+  return input.items.map((item) =>
+    item.documentId === input.documentId
+      ? {
+          ...item,
+          ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+          ...(input.receiverDocument === undefined
+            ? {}
+            : { receiverDocument: input.receiverDocument }),
+        }
+      : item,
+  )
+}
+
+/**
  * Spec 159 (T11, item 4): anexo recusado ou simplesmente parado — nunca enviado — expira aos 7
  * dias. Risco aceito registrado em `docs/SECURITY.md`: a fila offline guarda posição, e ela não
  * pode ficar indefinidamente no aparelho.

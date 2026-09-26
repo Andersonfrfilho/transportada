@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 import type { DriverFieldReport } from '@/modules/driver-trip/shared/driverTrip.types'
 import {
   applyAttachmentLocation,
+  applyAttachmentReceiverFields,
   ATTACHMENT_DISCARD_AFTER_MS,
   discardStaleAttachments,
   drainQueueWithAttachments,
@@ -479,6 +480,68 @@ describe('a posição chega depois do anexo (T11, item 6)', () => {
 
     expect(next[0]?.accuracyMeters).toBeUndefined()
     expect(next[0]?.latitude).toBe(-23.5)
+  })
+})
+
+/**
+ * Spec 203 (o attach nunca descarta a foto): o nome/documento de quem recebeu chega DEPOIS de a
+ * foto já estar na fila (campo obrigatório vazio na hora do toque) — esta função alcança os itens
+ * do mesmo documento pela `documentId`, igual `applyAttachmentLocation` alcança pela
+ * `attachmentKey`. Casa por documento porque a captura não devolve a `attachmentKey` gerada ao
+ * formulário, e cobre foto e assinatura do mesmo documento numa só chamada.
+ */
+describe('o campo do recebedor chega depois do anexo (spec 203)', () => {
+  it('atualiza só os itens do documento informado, preservando os de outro documento', () => {
+    const mine = photo('document-1', 10, 'anexo-1')
+    const other = photo('document-2', 10, 'anexo-2')
+
+    const next = applyAttachmentReceiverFields({
+      documentId: 'document-1',
+      items: [mine, other],
+      receiverDocument: '39053344705',
+      receiverName: 'Maria',
+    })
+
+    expect(next[0]).toEqual({
+      ...mine,
+      receiverDocument: '39053344705',
+      receiverName: 'Maria',
+    })
+    expect(next[1]).toEqual(other)
+  })
+
+  it('atualiza foto e assinatura do mesmo documento na mesma chamada', () => {
+    const picture = { ...photo('document-1', 10, 'anexo-1'), kind: 'photo' as const }
+    const signature = { ...photo('document-1', 10, 'anexo-2'), kind: 'signature' as const }
+
+    const next = applyAttachmentReceiverFields({
+      documentId: 'document-1',
+      items: [picture, signature],
+      receiverName: 'Maria',
+    })
+
+    expect(next[0]?.receiverName).toBe('Maria')
+    expect(next[1]?.receiverName).toBe('Maria')
+  })
+
+  it('sem receiverName/receiverDocument informado, o campo existente não é apagado', () => {
+    const withName = { ...photo('document-1', 10, 'anexo-1'), receiverName: 'Maria' }
+
+    const next = applyAttachmentReceiverFields({ documentId: 'document-1', items: [withName] })
+
+    expect(next[0]?.receiverName).toBe('Maria')
+  })
+
+  it('documento sem item nenhum na lista devolve os itens intocados', () => {
+    const items = [photo('document-1', 10, 'anexo-1')]
+
+    const next = applyAttachmentReceiverFields({
+      documentId: 'document-inexistente',
+      items,
+      receiverName: 'Maria',
+    })
+
+    expect(next).toEqual(items)
   })
 })
 

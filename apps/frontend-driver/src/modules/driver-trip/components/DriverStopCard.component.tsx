@@ -113,6 +113,13 @@ export type DriverProofAttachment = Readonly<{
   receiverName?: string
 }>
 
+/** Spec 203: o mesmo par de campos de `DriverProofAttachment`, sem o arquivo — só a atualização tardia. */
+export type DriverProofFieldsUpdate = Readonly<{
+  documentId: string
+  receiverDocument?: string
+  receiverName?: string
+}>
+
 type DriverStopCardProps = Readonly<{
   /** Pedido do usuário (25/09): "entrega guardada" — a foto/nota que veio de `onDocumentOccurrence`. */
   deliverActivityByDocumentId: ReadonlyMap<string, DocumentActivityView>
@@ -137,6 +144,8 @@ type DriverStopCardProps = Readonly<{
   }) => Promise<boolean>
   occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => void
+  /** Spec 203: campo do recebedor preenchido depois do anexo já estar na fila — atualiza o mesmo item. */
+  onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
   /**
    * ⚠️ A rota de ocorrência de parada não aceita anexo: a foto do local/carga sobe pelo caminho de
@@ -173,6 +182,7 @@ export function DriverStopCard({
   onOccurrence,
   onOccurrencePhoto,
   onProof,
+  onProofFieldsUpdate,
   onRetryOccurrenceTypes,
   onToggle,
   returnActivityByDocumentId,
@@ -394,6 +404,7 @@ export function DriverStopCard({
               onDocumentOccurrence={handleDocumentOccurrence}
               onNotDelivered={onNotDelivered}
               onProof={onProof}
+              {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
               returnActivity={returnActivityByDocumentId.get(document.id)}
               stopProofSettings={stop.deliveryProof}
@@ -425,6 +436,7 @@ type DocumentRowProps = Readonly<{
   occurrenceTypes: DriverOccurrenceTypesState
   onNotDelivered: (input: { documentId: string; draft: NotDeliveredDraft }) => void
   onProof: (input: DriverProofAttachment) => void
+  onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   onRetryOccurrenceTypes: () => void
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", mesmo retorno de fila da entrega. */
   returnActivity: DocumentReturnActivityView | undefined
@@ -443,6 +455,7 @@ function DocumentRow({
   onDocumentOccurrence,
   onNotDelivered,
   onProof,
+  onProofFieldsUpdate,
   onRetryOccurrenceTypes,
   returnActivity,
   stopProofSettings,
@@ -493,6 +506,7 @@ function DocumentRow({
           <DeliveryProofSection
             documentId={document.id}
             onProof={onProof}
+            {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
             proofSettings={proofSettings}
           />
         ) : null}
@@ -705,6 +719,7 @@ function DocumentDetails({ document }: DocumentDetailsProps) {
 export type DeliveryProofSectionProps = Readonly<{
   documentId: string
   onProof: (input: DriverProofAttachment) => void
+  onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   proofSettings: DriverDeliveryProofSettings | null
 }>
 
@@ -719,6 +734,7 @@ export type DeliveryProofSectionProps = Readonly<{
 export function DeliveryProofSection({
   documentId,
   onProof,
+  onProofFieldsUpdate,
   proofSettings,
 }: DeliveryProofSectionProps) {
   const { t } = useTranslation('driverTrip')
@@ -756,8 +772,9 @@ export function DeliveryProofSection({
   }
 
   /**
-   * O veredito do serviço manda, campo a campo: **todo** faltante bloqueia e é pintado — inclusive
-   * assinatura e foto obrigatórias, não só os campos de texto.
+   * O veredito do serviço manda, campo a campo: **todo** faltante é pintado — inclusive assinatura
+   * e foto obrigatórias, não só os campos de texto. Spec 203: nunca bloqueia mais o anexo — só
+   * alimenta o aviso não-intrusivo (`role="status"`) de que falta completar o comprovante.
    */
   function blockedByFields(next: { photo: boolean; signature: boolean }): boolean {
     const failures = listMissingProofFields({
@@ -773,12 +790,23 @@ export function DeliveryProofSection({
     return failures.length > 0
   }
 
+  /**
+   * Spec 203 (o attach nunca descarta a foto): a foto é a prova nº 1 do usuário — entra na fila
+   * incondicionalmente, **antes** de qualquer veredito de campo. Campo obrigatório vazio vira aviso
+   * visível (`missing`), nunca motivo para jogar fora o que o motorista já fotografou.
+   */
   function attach(kind: 'photo' | 'signature', file: File): void {
     const next = { ...attached, [kind]: true }
-    if (blockedByFields(next)) return
     setAttached(next)
     if (kind === 'photo') photoPreview.showPhoto(file)
     onProof({ documentId, file, kind, ...receiverFields() })
+    blockedByFields(next)
+  }
+
+  /** Spec 203: o campo chega depois do anexo — alcança o mesmo item na fila, se ele ainda estiver lá. */
+  function handleReceiverFieldBlur(): void {
+    if (attached.photo || attached.signature)
+      onProofFieldsUpdate?.({ documentId, ...receiverFields() })
   }
 
   return (
@@ -794,14 +822,15 @@ export function DeliveryProofSection({
             maxLength={120}
             type="text"
             value={receiverName}
+            onBlur={handleReceiverFieldBlur}
             onChange={(event) => {
               setReceiverName(event.target.value)
               setMissing((current) => current.filter((field) => field !== 'receiverName'))
             }}
           />
           {missing.includes('receiverName') ? (
-            <span className={styles.proofFieldError} role="alert">
-              {t('proofFields.requiredField')}
+            <span className={styles.proofFieldError} role="status">
+              {t('proofFields.pendingField')}
             </span>
           ) : null}
         </label>
@@ -819,14 +848,15 @@ export function DeliveryProofSection({
             maxLength={18}
             type="text"
             value={receiverDocument}
+            onBlur={handleReceiverFieldBlur}
             onChange={(event) => {
               setReceiverDocument(maskReceiverDocument(event.target.value))
               setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
             }}
           />
           {missing.includes('receiverDocument') ? (
-            <span className={styles.proofFieldError} role="alert">
-              {t('proofFields.requiredField')}
+            <span className={styles.proofFieldError} role="status">
+              {t('proofFields.pendingField')}
             </span>
           ) : null}
         </label>
@@ -893,8 +923,8 @@ export function DeliveryProofSection({
             ) : null}
           </div>
           {missing.includes('photo') || missing.includes('signature') ? (
-            <span className={styles.proofFieldError} role="alert">
-              {t('proofFields.requiredField')}
+            <span className={styles.proofFieldError} role="status">
+              {t('proofFields.pendingField')}
             </span>
           ) : null}
         </div>

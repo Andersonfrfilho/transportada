@@ -262,6 +262,15 @@ export function DriverTripWorkspacePage() {
       .catch(() => setProofFailed(true))
   }
 
+  /** Spec 203: o campo obrigatório preenchido depois do anexo já estar na fila alcança o mesmo item. */
+  function handleProofFieldsUpdate(input: {
+    documentId: string
+    receiverDocument?: string
+    receiverName?: string
+  }): void {
+    void driverTrip.updateProofFields(input)
+  }
+
   if (isPendingProofsOpen) {
     return (
       <div className={styles.moduleShell}>
@@ -704,6 +713,7 @@ export function DriverTripWorkspacePage() {
                 }
                 onDeliver={deliverDocument}
                 onProof={handleProof}
+                onProofFieldsUpdate={handleProofFieldsUpdate}
                 occurrenceTypes={occurrenceTypes}
                 onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                 onToggle={() => stopExpansion.toggle(stop.id)}

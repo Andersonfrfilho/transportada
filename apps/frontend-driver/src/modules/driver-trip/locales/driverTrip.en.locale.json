@@ -149,7 +149,7 @@
   "proofFields": {
     "receiverDocument": "Receiver document",
     "receiverName": "Receiver name",
-    "requiredField": "Fill in this field before attaching the proof."
+    "pendingField": "Fill in this field. The proof is already saved and uploads once you complete it."
   },
   "queued_one": "{{count}} confirmation waiting to be sent",
   "queued_other": "{{count}} confirmations waiting to be sent",

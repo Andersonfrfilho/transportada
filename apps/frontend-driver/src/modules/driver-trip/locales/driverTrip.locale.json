@@ -157,7 +157,7 @@
   "proofFields": {
     "receiverDocument": "Documento de quem recebeu",
     "receiverName": "Nome de quem recebeu",
-    "requiredField": "Preencha este campo antes de anexar o comprovante."
+    "pendingField": "Preencha este campo. O comprovante já está guardado e sobe assim que completar."
   },
   "signature": {
     "cancel": "Cancelar",
