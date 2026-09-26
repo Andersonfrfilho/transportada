@@ -28,7 +28,7 @@
     "webhookUrlLabel": "URL do webhook",
     "webhookCopyLabel": "Copiar a URL do webhook",
     "webhookCopiedLabel": "Copiada",
-    "webhookInstructions": "No painel do Resend, crie um webhook para o evento email.received apontando para essa URL, e cole aqui o Signing secret que ele mostrar.",
+    "webhookInstructions": "No painel do Resend, crie um webhook apontando para essa URL com os eventos email.received (a resposta da contratante) e email.sent, email.delivered, email.bounced e email.failed (o selo de status da conversa), e cole aqui o Signing secret que ele mostrar.",
     "webhookPendingFirstSave": "Salve primeiro para receber a URL do webhook.",
     "checklistTitle": "Lista de verificação",
     "checklistLoading": "Carregando a lista de verificação…",

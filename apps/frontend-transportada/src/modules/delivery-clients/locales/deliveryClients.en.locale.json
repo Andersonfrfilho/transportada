@@ -28,7 +28,7 @@
     "webhookUrlLabel": "Webhook URL",
     "webhookCopyLabel": "Copy the webhook URL",
     "webhookCopiedLabel": "Copied",
-    "webhookInstructions": "In the Resend dashboard, create a webhook for the email.received event pointing at this URL, and paste the Signing secret it shows here.",
+    "webhookInstructions": "In the Resend dashboard, create a webhook pointing at this URL with the events email.received (the contractor's reply) and email.sent, email.delivered, email.bounced and email.failed (the conversation status badge), and paste the Signing secret it shows here.",
     "webhookPendingFirstSave": "Save first to get the webhook URL.",
     "checklistTitle": "Checklist",
     "checklistLoading": "Loading the checklist…",
