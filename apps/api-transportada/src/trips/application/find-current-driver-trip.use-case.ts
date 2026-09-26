@@ -45,6 +45,12 @@ export type DriverTripDocument = {
    * `resolveRecipientDisplayName`). É o que "O próprio cliente recebeu" preenche no nome.
    */
   readonly recipientDisplayName: string
+  /**
+   * Spec 193 D14: PF ou PJ, só pelo tamanho do documento (`resolveRecipientIsCompany`). O documento
+   * nunca sai — este booleano decide se "O próprio cliente recebeu" seleciona o nome preenchido
+   * (PJ, para o motorista digitar por cima) ou só o deixa no fim do campo (PF).
+   */
+  readonly recipientIsCompany: boolean
   /** Nome de quem recebe. É o mínimo para entregar — e nada além disso vem junto. */
   readonly recipientName: string
   readonly returnReason: string | null
@@ -116,6 +122,8 @@ export type DriverPendingProof = {
   readonly documentSeries: string
   /** Spec 193 D14: a mesma de `DriverTripDocument.recipientDisplayName` ("Fotos pendentes"). */
   readonly recipientDisplayName: string
+  /** Spec 193 D14: a mesma de `DriverTripDocument.recipientIsCompany` ("Fotos pendentes"). */
+  readonly recipientIsCompany: boolean
   readonly recipientName: string
   readonly tripId: string
   readonly tripStatus: string

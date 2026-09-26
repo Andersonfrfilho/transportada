@@ -124,6 +124,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         deliveryProof: { receivedBy: 'optional' },
         number: '1',
         recipientDisplayName: 'Destinatario 1',
+        recipientIsCompany: true,
         recipientName: 'Destinatario 1',
         series: '1',
         volumeCount: '0',
@@ -737,6 +738,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
           documentNumber: '3',
           documentSeries: '1',
           recipientDisplayName: 'Destinatario 3',
+          recipientIsCompany: true,
           recipientName: 'Destinatario 3',
           tripId: world.tripId,
           tripStatus: 'completed',
@@ -1448,6 +1450,8 @@ async function seedNfeDocument(
     id: participantId,
     legalName: `Destinatario ${input.suffix}`,
     role: 'recipient',
+    // Spec 193 D14: CNPJ (14 dígitos) — o destinatário deste fixture é sempre PJ.
+    taxId: '11222333000181',
   })
   await database.db.insert(nfeAddresses).values({
     city: 'Sao Paulo',

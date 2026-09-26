@@ -15,6 +15,8 @@
 const RECIPIENT_ROLES = new Set(['delivery', 'recipient'])
 const LANDLINE_DIGITS = 10
 const MOBILE_DIGITS = 11
+/** Spec 193 D14: 14 dígitos é CNPJ (pessoa jurídica); qualquer outra contagem é tratada como PF. */
+const CNPJ_DIGITS = 14
 
 export type DeliveryParty = {
   readonly legalName: string
@@ -66,6 +68,15 @@ export function resolveRecipientDisplayName(input: {
   readonly tradeName: string
 }): string {
   return input.tradeName === '' ? input.legalName : input.tradeName
+}
+
+/**
+ * Spec 193 D14: PF ou PJ do destinatário, só pelo tamanho do documento — 14 dígitos é CNPJ, 11 é
+ * CPF. O documento em si nunca sai da API; só este booleano. Documento fora do padrão (vazio, com
+ * dígito verificador que não bate, formato estranho) cai em `false` — nunca lança.
+ */
+export function resolveRecipientIsCompany(taxId: string): boolean {
+  return taxId.replace(/\D/gu, '').length === CNPJ_DIGITS
 }
 
 /**

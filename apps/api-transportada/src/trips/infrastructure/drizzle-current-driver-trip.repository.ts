@@ -38,7 +38,10 @@ import {
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
-import { resolveRecipientDisplayName } from '../domain/delivery-contact.policy.js'
+import {
+  resolveRecipientDisplayName,
+  resolveRecipientIsCompany,
+} from '../domain/delivery-contact.policy.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
@@ -328,6 +331,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
             legalName: row.recipientName ?? '',
             tradeName: row.recipientTradeName ?? '',
           }),
+          recipientIsCompany: resolveRecipientIsCompany(row.recipientTaxId ?? ''),
           recipientName: row.recipientName ?? '',
           tripId: row.tripId,
           tripStatus: row.tripStatus,
@@ -840,6 +844,7 @@ function toDriverDocument(
       legalName: row.recipientName ?? '',
       tradeName: row.recipientTradeName ?? '',
     }),
+    recipientIsCompany: resolveRecipientIsCompany(row.recipientTaxId ?? ''),
     recipientName: row.recipientName ?? '',
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,
