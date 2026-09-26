@@ -37,6 +37,10 @@ export type QueuedAttachment = Readonly<{
   accuracyMeters?: number
   latitude?: number
   longitude?: number
+  /** Spec 193 D1: quem recebeu, em relação ao destinatário — código de `RECEIVED_BY_OPTIONS`. */
+  receivedBy?: string
+  /** Spec 193 D1: o detalhe curto — nunca em log, mesmo espírito do nome e do documento. */
+  receivedByDetail?: string
   /** ⚠️ Canônico e nunca em log: é o dado da ADR da spec 082 D4 — a API o criptografa. */
   receiverDocument?: string
   receiverName?: string
@@ -150,6 +154,9 @@ export function applyAttachmentLocation(input: {
 export function applyAttachmentReceiverFields(input: {
   readonly documentId: string
   readonly items: readonly QueuedAttachment[]
+  /** Spec 193 D7: a relação e o detalhe, alcançando o mesmo item pela `documentId`. */
+  readonly receivedBy?: string
+  readonly receivedByDetail?: string
   readonly receiverDocument?: string
   readonly receiverName?: string
 }): readonly QueuedAttachment[] {
@@ -161,9 +168,44 @@ export function applyAttachmentReceiverFields(input: {
           ...(input.receiverDocument === undefined
             ? {}
             : { receiverDocument: input.receiverDocument }),
+          ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
+          ...(input.receivedByDetail === undefined
+            ? {}
+            : { receivedByDetail: input.receivedByDetail }),
         }
       : item,
   )
+}
+
+/** Spec 193 D7: o que o PATCH `.../proof/receiver` leva — `null` apaga o que estava gravado. */
+export type ReceiverDriftFields = Readonly<{
+  receivedBy?: string | null
+  receivedByDetail?: string | null
+  receiverName?: string | null
+}>
+
+/**
+ * Spec 193 D7 (CA12): a edição que chegou **durante** o envio do anexo não se perde — a drenagem
+ * compara o que foi mandado (`sent`, a foto de antes de chamar `sendAttachment`) com o que está
+ * gravado agora (`stored`, depois de `sendAttachment` ter mutado a fila), e devolve a diferença.
+ * `receivedBy` e `receivedByDetail` viajam juntos no PATCH — mudou um dos dois, os dois vão.
+ */
+export function detectReceiverDrift(input: {
+  readonly sent: QueuedAttachment
+  readonly stored: QueuedAttachment
+}): ReceiverDriftFields | undefined {
+  const { sent, stored } = input
+  const receivedByChanged = sent.receivedBy !== stored.receivedBy
+  const detailChanged = sent.receivedByDetail !== stored.receivedByDetail
+  const nameChanged = sent.receiverName !== stored.receiverName
+  if (!receivedByChanged && !detailChanged && !nameChanged) return undefined
+
+  return {
+    ...(nameChanged ? { receiverName: stored.receiverName ?? null } : {}),
+    ...(receivedByChanged || detailChanged
+      ? { receivedBy: stored.receivedBy ?? null, receivedByDetail: stored.receivedByDetail ?? null }
+      : {}),
+  }
 }
 
 /**
@@ -240,8 +282,16 @@ export type AttachmentSendOutcome =
 export type AttachmentDrainResult = Readonly<{
   /** Anexos que o servidor recusou: causa própria, sem contaminar o evento já aceito. */
   attachmentsRejected: number
-  /** Spec 159 (P6): a pontualidade de cada foto que subiu nesta drenagem — a tela traduz em linguagem simples. */
-  attachmentsSent: readonly Readonly<{ documentId: string; punctuality?: ProofPunctuality }>[]
+  /**
+   * Spec 159 (P6): a pontualidade de cada foto que subiu nesta drenagem — a tela traduz em
+   * linguagem simples. Spec 193 (D7): `receiverDrift` é o que mudou entre o envio e a gravação —
+   * quem chama enfileira um `proofReceiver` quando ele vier preenchido.
+   */
+  attachmentsSent: readonly Readonly<{
+    documentId: string
+    punctuality?: ProofPunctuality
+    receiverDrift?: ReceiverDriftFields
+  }>[]
   rejected: number
   remaining: number
   sent: number
@@ -332,7 +382,11 @@ export async function drainQueueWithAttachments(input: {
   )
 
   let attachmentsRejected = 0
-  const attachmentsSent: { documentId: string; punctuality?: ProofPunctuality }[] = []
+  const attachmentsSent: {
+    documentId: string
+    punctuality?: ProofPunctuality
+    receiverDrift?: ReceiverDriftFields
+  }[] = []
   if (!networkDown) {
     const queuedEventKeys = new Set(remainingQueue.map((item) => item.report.idempotencyKey))
     const groups = await input.attachmentStore.readAll()
@@ -357,22 +411,35 @@ export async function drainQueueWithAttachments(input: {
           networkDown = true
           break
         }
+        /**
+         * Spec 193 D7: capturado **dentro** do `mutate`, antes de remover o item — é aqui que a
+         * fila ainda tem o estado gravado no exato instante do envio, mesmo que `sendAttachment`
+         * (acima) tenha mutado a fila por fora enquanto o anexo subia.
+         */
+        let sentDrift: ReceiverDriftFields | undefined
         await input.attachmentStore.update({
           eventKey,
-          mutate: (current) =>
-            outcome.kind === 'sent'
-              ? current.filter((item) => item.attachmentKey !== attachment.attachmentKey)
-              : current.map((item) =>
-                  item.attachmentKey === attachment.attachmentKey
-                    ? { ...item, rejectionCause: outcome.cause }
-                    : item,
-                ),
+          mutate: (current) => {
+            if (outcome.kind === 'sent') {
+              const stored = current.find((item) => item.attachmentKey === attachment.attachmentKey)
+              if (stored !== undefined) {
+                sentDrift = detectReceiverDrift({ sent: attachment, stored })
+              }
+              return current.filter((item) => item.attachmentKey !== attachment.attachmentKey)
+            }
+            return current.map((item) =>
+              item.attachmentKey === attachment.attachmentKey
+                ? { ...item, rejectionCause: outcome.cause }
+                : item,
+            )
+          },
         })
         if (outcome.kind === 'rejected') attachmentsRejected += 1
         if (outcome.kind === 'sent') {
           attachmentsSent.push({
             documentId: attachment.documentId,
             ...(outcome.punctuality === undefined ? {} : { punctuality: outcome.punctuality }),
+            ...(sentDrift === undefined ? {} : { receiverDrift: sentDrift }),
           })
         }
       }

@@ -16,6 +16,17 @@ export type DriverTripDocument = Readonly<{
   number: string
   /** Spec 159 RF1/RF2: foto obrigatória (`deliveryProof.photo === 'required'`) que ainda não chegou. */
   proofPending: boolean
+  /**
+   * Spec 193 D14: como o destinatário é chamado — nome fantasia, senão razão social. É o que "O
+   * próprio cliente recebeu" preenche no nome. Ausente (API anterior) vira vazio.
+   */
+  recipientDisplayName: string
+  /**
+   * Spec 193 D14: PF ou PJ, pelo tamanho do documento — nunca o documento em si. Decide se "O
+   * próprio cliente recebeu" seleciona o nome preenchido (PJ) ou só o deixa no campo (PF). Ausente
+   * vira `false`.
+   */
+  recipientIsCompany: boolean
   recipientName: string
   returnReason: string | null
   separationStatus: string
@@ -39,6 +50,8 @@ export type ProofFieldRequirement = 'off' | 'optional' | 'required'
 
 export type DriverDeliveryProofSettings = Readonly<{
   photo: ProofFieldRequirement
+  /** Spec 193 D6: quem recebeu, resolvido por nota. Ausente (API anterior) vale `optional`. */
+  receivedBy: ProofFieldRequirement
   receiverDocument: ProofFieldRequirement
   receiverName: ProofFieldRequirement
   signature: ProofFieldRequirement
@@ -88,6 +101,10 @@ export type PendingProofDocument = Readonly<{
   documentId: string
   documentNumber: string
   documentSeries: string
+  /** Spec 193 D14: a mesma de `DriverTripDocument.recipientDisplayName` ("Fotos pendentes"). */
+  recipientDisplayName: string
+  /** Spec 193 D14: a mesma de `DriverTripDocument.recipientIsCompany` ("Fotos pendentes"). */
+  recipientIsCompany: boolean
   recipientName: string
   tripId: string
   tripStatus: string
@@ -217,6 +234,21 @@ export type DriverFieldReport =
       occurrenceKind: DriverOccurrenceKind
       photo: DriverOccurrencePhoto
       stopId: string
+    }>
+  /**
+   * Spec 193 D7: quem recebeu, chegado depois do anexo — anexo já enviado, ou editado durante o
+   * envio (comparação no `sent`). Vira `PATCH .../documents/:documentId/proof/receiver`, idempotente
+   * pela chave do toque. `null` em qualquer campo apaga o que estava gravado.
+   */
+  | Readonly<{
+      documentId: string
+      fields: Readonly<{
+        receivedBy?: string | null
+        receivedByDetail?: string | null
+        receiverName?: string | null
+      }>
+      idempotencyKey: string
+      kind: 'proofReceiver'
     }>
 
 /** A foto já reencodada (JPEG, sem EXIF) — o `Blob` vai inteiro para o IndexedDB. */

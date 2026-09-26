@@ -48,7 +48,7 @@ describe('o attach nunca descarta a foto (spec 203)', () => {
     expect(body).toInclude('documentId,')
     expect(body).toInclude('file,')
     expect(body).toInclude('kind,')
-    expect(body).toInclude('...receiverFields(),')
+    expect(body).toInclude('...currentFields(),')
     /* As duas capturas passam pela mesma `attach()` — não há uma segunda cópia da regra. */
     expect(CARD.match(/attach\('photo', file\)/gu)).toHaveLength(1)
     expect(CARD.match(/attach\('signature', new File/gu)).toHaveLength(1)

@@ -113,6 +113,9 @@ export type DriverTripClient = Readonly<{
     lateRegistration?: boolean
     latitude?: number
     longitude?: number
+    /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
+    receivedBy?: string
+    receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
   }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
@@ -164,10 +167,12 @@ export type LocationConsent = Readonly<{ acceptedAt: string | null }>
 
 type DocumentOccurrenceReport = Extract<DriverFieldReport, { kind: 'documentOccurrence' }>
 type StopOccurrencePhotoReport = Extract<DriverFieldReport, { kind: 'stopOccurrencePhoto' }>
-/** Os relatos que são um `POST` JSON só — os que levam foto têm caminho próprio. */
+/** Spec 193 D7: o PATCH `.../proof/receiver` — tem caminho e método próprios, fora do POST comum. */
+type ProofReceiverReport = Extract<DriverFieldReport, { kind: 'proofReceiver' }>
+/** Os relatos que são um `POST` JSON só — os que levam foto ou usam outro método têm caminho próprio. */
 type JsonFieldReport = Exclude<
   DriverFieldReport,
-  DocumentOccurrenceReport | StopOccurrencePhotoReport
+  DocumentOccurrenceReport | StopOccurrencePhotoReport | ProofReceiverReport
 >
 
 function reportPath(report: JsonFieldReport): string {
@@ -229,6 +234,8 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       form.set('file', input.file)
       form.set('kind', input.kind)
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
+      if (input.receivedBy !== undefined) form.set('receivedBy', input.receivedBy)
+      if (input.receivedByDetail !== undefined) form.set('receivedByDetail', input.receivedByDetail)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
       if (input.latitude !== undefined) form.set('latitude', String(input.latitude))
@@ -347,6 +354,16 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       }
       if (report.kind === 'stopOccurrencePhoto') {
         await sendStopOccurrencePhoto({ dependencies, report })
+        return
+      }
+      if (report.kind === 'proofReceiver') {
+        await request({
+          body: JSON.stringify(report.fields),
+          dependencies,
+          idempotencyKey: report.idempotencyKey,
+          method: 'PATCH',
+          path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/proof/receiver`,
+        })
         return
       }
       await request({
@@ -638,7 +655,7 @@ async function request(
     dependencies: ClientDependencies
     form?: FormData
     idempotencyKey?: string
-    method: 'GET' | 'POST' | 'PUT'
+    method: 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
     signal?: AbortSignal
   }>,

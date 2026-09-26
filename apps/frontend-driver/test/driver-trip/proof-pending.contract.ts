@@ -30,6 +30,8 @@ function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripD
     id: 'document-1',
     number: '123',
     proofPending: false,
+    recipientDisplayName: 'Cliente',
+    recipientIsCompany: false,
     recipientName: 'Cliente',
     returnReason: null,
     separationStatus: 'pending',
@@ -47,6 +49,8 @@ function buildPendingProof(overrides: Partial<PendingProofDocument> = {}): Pendi
     documentId: 'document-1',
     documentNumber: '123',
     documentSeries: '1',
+    recipientDisplayName: 'Cliente',
+    recipientIsCompany: false,
     recipientName: 'Cliente',
     tripId: 'trip-1',
     tripStatus: 'in_transit',
@@ -129,6 +133,7 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
         document: buildDocument({ deliveryProof: null, separationStatus: 'pending' }),
         stopProofSettings: {
           photo: 'required',
+          receivedBy: 'optional',
           receiverDocument: 'off',
           receiverName: 'optional',
           signature: 'optional',
@@ -143,6 +148,7 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
         document: buildDocument(),
         stopProofSettings: {
           photo: 'optional',
+          receivedBy: 'optional',
           receiverDocument: 'off',
           receiverName: 'optional',
           signature: 'optional',
@@ -157,6 +163,7 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
         document: buildDocument({ separationStatus: 'delivered' }),
         stopProofSettings: {
           photo: 'required',
+          receivedBy: 'optional',
           receiverDocument: 'off',
           receiverName: 'optional',
           signature: 'optional',
@@ -236,6 +243,7 @@ describe('a resposta do snapshot com pendingProofs na raiz (T11)', () => {
         deliveredAt: '2026-09-18T12:00:00.000Z',
         deliveryProof: {
           photo: 'required',
+          receivedBy: 'optional',
           receiverDocument: 'off',
           receiverName: 'optional',
           signature: 'optional',
@@ -243,6 +251,8 @@ describe('a resposta do snapshot com pendingProofs na raiz (T11)', () => {
         documentId: 'document-1',
         documentNumber: '1234',
         documentSeries: '1',
+        recipientDisplayName: '',
+        recipientIsCompany: false,
         recipientName: 'Cliente',
         tripId: 'trip-1',
         tripStatus: 'completed',

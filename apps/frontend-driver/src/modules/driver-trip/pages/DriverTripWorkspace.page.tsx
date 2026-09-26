@@ -265,9 +265,14 @@ export function DriverTripWorkspacePage() {
       .catch(() => setProofFailed(true))
   }
 
-  /** Spec 203: o campo obrigatório preenchido depois do anexo já estar na fila alcança o mesmo item. */
+  /**
+   * Spec 203/193: o campo preenchido depois do anexo já estar na fila alcança o mesmo item, ou —
+   * anexo já enviado — vira o PATCH `.../proof/receiver` enfileirado (D7).
+   */
   function handleProofFieldsUpdate(input: {
     documentId: string
+    receivedBy?: string
+    receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
   }): void {
@@ -281,6 +286,7 @@ export function DriverTripWorkspacePage() {
         <DriverPendingProofsPage
           onBack={() => window.history.back()}
           onProof={handleProof}
+          onProofFieldsUpdate={handleProofFieldsUpdate}
           proofOutcomeByDocumentId={driverTrip.proofOutcomeByDocumentId}
           queueView={driverTrip.queueView}
           snapshot={snapshot}

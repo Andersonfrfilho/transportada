@@ -28,6 +28,8 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   stopOccurrencePhoto: 'eventQueue.kind.stopOccurrencePhoto',
   /** Grupo de anexos cujo evento já subiu — só os arquivos aguardam. */
   proof: 'eventQueue.kind.proof',
+  /** Spec 193 D7: quem recebeu chegado depois do anexo — o PATCH `.../proof/receiver`. */
+  proofReceiver: 'eventQueue.kind.proofReceiver',
   return: 'eventQueue.kind.return',
 }
 

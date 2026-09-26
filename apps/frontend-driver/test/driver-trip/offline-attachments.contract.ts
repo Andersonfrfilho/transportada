@@ -82,6 +82,61 @@ function photo(documentId = 'document-1', size = 10, attachmentKey = 'anexo-1'):
   }
 }
 
+/**
+ * Spec 193 D7 (CA12): quem recebeu editado **durante** o envio do anexo não se perde — a drenagem
+ * compara o que mandou com o que está gravado e devolve a diferença, que vira `proofReceiver`. E o
+ * item antigo, gravado antes do campo existir, drena como sempre.
+ */
+describe('quem recebeu e a drenagem (spec 193 D7)', () => {
+  it('a edição que chegou durante o envio sai como diferença do anexo enviado', async () => {
+    const store = createMemoryQueue([queuedDelivery('chave-1')])
+    const attachmentStore = createMemoryAttachments()
+    await enqueueAttachment({ attachment: photo(), attachmentStore, store })
+
+    const result = await drainQueueWithAttachments({
+      attachmentStore,
+      send: () => Promise.resolve({ kind: 'sent' }),
+      sendAttachment: async (attachment) => {
+        await attachmentStore.update({
+          eventKey: 'chave-1',
+          mutate: (items) =>
+            applyAttachmentReceiverFields({
+              documentId: attachment.documentId,
+              items,
+              receivedBy: 'neighbor',
+              receivedByDetail: 'casa 12',
+            }),
+        })
+        return { kind: 'sent' }
+      },
+      store,
+    })
+
+    expect(result.attachmentsSent).toEqual([
+      {
+        documentId: 'document-1',
+        receiverDrift: { receivedBy: 'neighbor', receivedByDetail: 'casa 12' },
+      },
+    ])
+  })
+
+  it('o item antigo, sem os campos novos, drena sem diferença', async () => {
+    const store = createMemoryQueue([queuedDelivery('chave-1')])
+    const attachmentStore = createMemoryAttachments()
+    await enqueueAttachment({ attachment: photo(), attachmentStore, store })
+
+    const result = await drainQueueWithAttachments({
+      attachmentStore,
+      send: () => Promise.resolve({ kind: 'sent' }),
+      sendAttachment: () => Promise.resolve({ kind: 'sent' }),
+      store,
+    })
+
+    expect(result.attachmentsSent).toEqual([{ documentId: 'document-1' }])
+    expect(attachmentStore.entries().size).toBe(0)
+  })
+})
+
 describe('a fila offline com anexos (D6)', () => {
   it('grava o anexo referenciado pela chave do evento de entrega que ainda está na fila', async () => {
     const store = createMemoryQueue([queuedDelivery('chave-1')])

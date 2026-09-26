@@ -43,6 +43,7 @@ import {
   scheduleQueueDrainTriggers,
   selectPendingTotal,
 } from '../shared/pendingQueue.service'
+import { buildProofReceiverReport } from '../shared/proofReceiver.service'
 import {
   discardForeignPending,
   discardOwnPending,
@@ -84,6 +85,9 @@ export type DriverProofInput = Readonly<{
   kind: 'photo' | 'signature'
   /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
   lateRegistration?: boolean
+  /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
+  receivedBy?: string
+  receivedByDetail?: string
   receiverDocument?: string
   receiverName?: string
 }>
@@ -106,12 +110,15 @@ export type DriverStopOccurrenceOutcome = DriverReportOutcome | 'photo-dropped'
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
   /**
-   * Spec 203: o motorista completou nome/documento depois do anexo já estar na fila — atualiza o(s)
-   * item(ns) daquele documento in place. Sem grupo na fila (o anexo já subiu), não faz nada: o
-   * campo tardio de um anexo já enviado fica para o PATCH da spec 193.
+   * Spec 203/193: o motorista completou um campo depois do anexo já estar na fila — atualiza o(s)
+   * item(ns) daquele documento in place. Sem grupo na fila (o anexo já subiu), vira `proofReceiver`
+   * — o PATCH `.../proof/receiver`, enfileirado como evento (D7). `receiverDocument` só se aplica
+   * com o item ainda na fila: o PATCH não o aceita.
    */
   updateProofFields: (input: {
     documentId: string
+    receivedBy?: string
+    receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
   }) => Promise<void>
@@ -310,6 +317,10 @@ export function useDriverTrip(
               ...(attachment.accuracyMeters === undefined
                 ? {}
                 : { accuracyMeters: attachment.accuracyMeters }),
+              ...(attachment.receivedBy === undefined ? {} : { receivedBy: attachment.receivedBy }),
+              ...(attachment.receivedByDetail === undefined
+                ? {}
+                : { receivedByDetail: attachment.receivedByDetail }),
               ...(attachment.receiverDocument === undefined
                 ? {}
                 : { receiverDocument: attachment.receiverDocument }),
@@ -342,6 +353,21 @@ export function useDriverTrip(
           }
           return next
         })
+        /**
+         * Spec 193 D7: a edição que chegou **durante** o envio não se perde — a drenagem já
+         * comparou o que mandou com o que ficou gravado (`receiverDrift`), e aqui só falta subir a
+         * diferença pelo mesmo PATCH da atualização tardia.
+         */
+        for (const item of result.attachmentsSent) {
+          if (item.receiverDrift === undefined) continue
+          void report(
+            buildProofReceiverReport({
+              documentId: item.documentId,
+              fields: item.receiverDrift,
+              idempotencyKey: createIdempotencyKey(),
+            }),
+          )
+        }
       }
       /* Spec 159 (T12): foto enviada tira a nota de `pendingProofs` — sem reler, a contagem mentia. */
       if (result.sent > 0 || result.rejected > 0 || result.attachmentsSent.length > 0) {
@@ -578,6 +604,10 @@ export function useDriverTrip(
         documentId: input.documentId,
         fileName: input.file.name,
         kind: input.kind,
+        ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
+        ...(input.receivedByDetail === undefined
+          ? {}
+          : { receivedByDetail: input.receivedByDetail }),
         ...(input.receiverDocument === undefined
           ? {}
           : { receiverDocument: input.receiverDocument }),
@@ -610,11 +640,16 @@ export function useDriverTrip(
   }
 
   /**
-   * Spec 203: mesma varredura de grupos que a drenagem usa (`attachmentStore.readAll()`) — acha o
-   * grupo que tem um item deste documento e aplica os campos in place, pela `eventKey` do grupo.
+   * Spec 203/193 (D7): mesma varredura de grupos que a drenagem usa (`attachmentStore.readAll()`)
+   * — achou o grupo com um item deste documento, aplica os campos in place, pela `eventKey` do
+   * grupo. **Sem grupo** (o anexo já subiu): o que sobrar de `receivedBy`/`receivedByDetail`/
+   * `receiverName` vira `proofReceiver`, o PATCH enfileirado — `receiverDocument` não viaja por
+   * aqui, porque o PATCH não o aceita.
    */
   async function updateProofFields(input: {
     documentId: string
+    receivedBy?: string
+    receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
   }): Promise<void> {
@@ -622,22 +657,43 @@ export function useDriverTrip(
     const target = groups.find(([, items]) =>
       items.some((item) => item.documentId === input.documentId),
     )
-    if (target === undefined) return
+    if (target !== undefined) {
+      const [eventKey] = target
+      await attachmentStore.update({
+        eventKey,
+        mutate: (items) =>
+          applyAttachmentReceiverFields({
+            documentId: input.documentId,
+            items,
+            ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
+            ...(input.receivedByDetail === undefined
+              ? {}
+              : { receivedByDetail: input.receivedByDetail }),
+            ...(input.receiverDocument === undefined
+              ? {}
+              : { receiverDocument: input.receiverDocument }),
+            ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+          }),
+      })
+      await refreshQueueView()
+      return
+    }
 
-    const [eventKey] = target
-    await attachmentStore.update({
-      eventKey,
-      mutate: (items) =>
-        applyAttachmentReceiverFields({
-          documentId: input.documentId,
-          items,
-          ...(input.receiverDocument === undefined
-            ? {}
-            : { receiverDocument: input.receiverDocument }),
-          ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
-        }),
-    })
-    await refreshQueueView()
+    const fields = {
+      ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
+      ...(input.receivedByDetail === undefined
+        ? {}
+        : { receivedByDetail: input.receivedByDetail }),
+      ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+    }
+    if (Object.keys(fields).length === 0) return
+    await report(
+      buildProofReceiverReport({
+        documentId: input.documentId,
+        fields,
+        idempotencyKey: createIdempotencyKey(),
+      }),
+    )
   }
 
   async function discardForeign(): Promise<void> {

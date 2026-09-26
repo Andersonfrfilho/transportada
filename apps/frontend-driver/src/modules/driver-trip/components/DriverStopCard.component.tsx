@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/components/DriverStopCard.component.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -45,12 +45,18 @@ import type { EventQueueItemView } from '../shared/eventQueueView.service'
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
 import {
-  canonicalReceiverDocument,
+  applyRecipientShortcut,
+  buildReceiverFields,
   listMissingProofFields,
+  listPendingReceiverFields,
   maskReceiverDocument,
   resolveProofFormPlan,
   type ProofFieldKey,
 } from '../shared/proofFormPlan.service'
+import {
+  RECEIVED_BY_DETAIL_MAX_LENGTH,
+  RECEIVED_BY_OPTIONS,
+} from '../shared/receivedBy.constant'
 import { isSignatureCaptureSupported } from '../shared/signatureCapture.service'
 import styles from '../styles/driverTrip.module.css'
 
@@ -110,13 +116,18 @@ export type DriverProofAttachment = Readonly<{
   kind: 'photo' | 'signature'
   /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
   lateRegistration?: boolean
+  /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
+  receivedBy?: string
+  receivedByDetail?: string
   receiverDocument?: string
   receiverName?: string
 }>
 
-/** Spec 203: o mesmo par de campos de `DriverProofAttachment`, sem o arquivo — só a atualização tardia. */
+/** Spec 203/193: o mesmo conjunto de campos de `DriverProofAttachment`, sem o arquivo — só a atualização tardia. */
 export type DriverProofFieldsUpdate = Readonly<{
   documentId: string
+  receivedBy?: string
+  receivedByDetail?: string
   receiverDocument?: string
   receiverName?: string
 }>
@@ -585,6 +596,8 @@ function DocumentRow({
             onProof={onProof}
             {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
             proofSettings={proofSettings}
+            recipientDisplayName={document.recipientDisplayName}
+            recipientIsCompany={document.recipientIsCompany}
           />
         ) : null}
       </li>
@@ -826,6 +839,10 @@ export type DeliveryProofSectionProps = Readonly<{
   onProof: (input: DriverProofAttachment) => void
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   proofSettings: DriverDeliveryProofSettings | null
+  /** Spec 193 D14: o nome que "O próprio cliente recebeu" preenche. Ausente (API anterior) é vazio. */
+  recipientDisplayName?: string
+  /** Spec 193 D14: PJ seleciona o nome preenchido (foco + seleção); PF só o deixa no campo. */
+  recipientIsCompany?: boolean
 }>
 
 /**
@@ -842,11 +859,16 @@ export function DeliveryProofSection({
   onProof,
   onProofFieldsUpdate,
   proofSettings,
+  recipientDisplayName,
+  recipientIsCompany,
 }: DeliveryProofSectionProps) {
   const { t } = useTranslation('driverTrip')
   const plan = resolveProofFormPlan(proofSettings)
   const [receiverName, setReceiverName] = useState('')
   const [receiverDocument, setReceiverDocument] = useState('')
+  /** Spec 193 D1: quem recebeu e o detalhe — o select compacto (R1) e o campo "Detalhes". */
+  const [receivedBy, setReceivedBy] = useState('')
+  const [receivedByDetail, setReceivedByDetail] = useState('')
   const [missing, setMissing] = useState<readonly ProofFieldKey[]>([])
   const [openSignature, setOpenSignature] = useState(false)
   const [cropFile, setCropFile] = useState<File | null>(null)
@@ -859,22 +881,43 @@ export function DeliveryProofSection({
   const cameraFieldRef = useCameraCaptureFieldRef()
   const galleryFieldRef = useCameraCaptureFieldRef()
   const photoPreview = usePhotoPreviewUrl()
+  const nameInputRef = useRef<HTMLInputElement>(null)
+  /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
+  const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
+  useEffect(() => {
+    if (!selectNameOnNextRender) return
+    nameInputRef.current?.focus()
+    nameInputRef.current?.select()
+    setSelectNameOnNextRender(false)
+  }, [selectNameOnNextRender])
   /**
    * M10: nome ou documento digitados e nada anexado ainda é trabalho em andamento — recarregar
    * para o SW novo jogaria fora. Anexou, o texto foi junto com o anexo, e o formulário não segura.
    */
   const hasUnattachedText =
-    (receiverName.trim() !== '' || receiverDocument !== '') &&
+    (receiverName.trim() !== '' ||
+      receiverDocument !== '' ||
+      receivedBy !== '' ||
+      receivedByDetail.trim() !== '') &&
     !attached.photo &&
     !attached.signature
   useCaptureRegistration('proof-form', hasUnattachedText)
 
-  function receiverFields(): Pick<DriverProofAttachment, 'receiverDocument' | 'receiverName'> {
-    const canonical = canonicalReceiverDocument(receiverDocument)
-    return {
-      ...(receiverName.trim() === '' ? {} : { receiverName: receiverName.trim() }),
-      ...(canonical === '' ? {} : { receiverDocument: canonical }),
-    }
+  function currentFields(
+    overrides: Readonly<{
+      receivedBy?: string
+      receiverName?: string
+    }> = {},
+  ): Pick<
+    DriverProofAttachment,
+    'receivedBy' | 'receivedByDetail' | 'receiverDocument' | 'receiverName'
+  > {
+    return buildReceiverFields({
+      receivedBy: overrides.receivedBy ?? receivedBy,
+      receivedByDetail,
+      receiverDocument,
+      receiverName: overrides.receiverName ?? receiverName,
+    })
   }
 
   /**
@@ -910,70 +953,51 @@ export function DeliveryProofSection({
       file,
       kind,
       ...(lateRegistration === true ? { lateRegistration: true } : {}),
-      ...receiverFields(),
+      ...currentFields(),
     })
     blockedByFields(next)
   }
 
-  /** Spec 203: o campo chega depois do anexo — alcança o mesmo item na fila, se ele ainda estiver lá. */
-  function handleReceiverFieldBlur(): void {
-    if (attached.photo || attached.signature)
-      onProofFieldsUpdate?.({ documentId, ...receiverFields() })
+  /** Spec 203/193: o campo chega depois do anexo — alcança o mesmo item na fila, se ele ainda estiver lá. */
+  function pushLateFieldUpdate(
+    overrides: Readonly<{ receivedBy?: string; receiverName?: string }> = {},
+  ): void {
+    if (attached.photo || attached.signature) {
+      onProofFieldsUpdate?.({ documentId, ...currentFields(overrides) })
+    }
   }
+
+  /**
+   * Spec 193 D14: "O próprio cliente recebeu" marca `recipient` (quando o campo renderiza) e
+   * preenche o nome com `recipientDisplayName`. Para destinatário PJ, o nome fica selecionado com
+   * o foco no campo — o motorista digita o nome de quem assinou por cima; para PF, o nome só entra.
+   */
+  function handleRecipientShortcut(): void {
+    const shortcut = applyRecipientShortcut({
+      plan,
+      recipientDisplayName: recipientDisplayName ?? '',
+    })
+    setReceiverName(shortcut.receiverName)
+    if (shortcut.receivedBy !== undefined) setReceivedBy(shortcut.receivedBy)
+    pushLateFieldUpdate({
+      receiverName: shortcut.receiverName,
+      ...(shortcut.receivedBy === undefined ? {} : { receivedBy: shortcut.receivedBy }),
+    })
+    if (recipientIsCompany === true) setSelectNameOnNextRender(true)
+  }
+
+  /**
+   * Spec 193 R2/C1: quem recebeu **nunca** entra em `blockedByFields` — é pendência visível, à
+   * parte, computada a cada render (nunca guardada em estado: nunca bloqueia, então não precisa
+   * sobreviver a um "toque" como o `missing` acima).
+   */
+  const pendingReceiverFields = listPendingReceiverFields({
+    plan,
+    values: { receivedBy, receivedByDetail },
+  })
 
   return (
     <div className={styles.proofSection}>
-      {plan.rendersReceiverName ? (
-        <label className={styles.proofField}>
-          <span>
-            {t('proofFields.receiverName')}
-            {plan.fields.receiverName === 'required' ? ' *' : ''}
-          </span>
-          <input
-            aria-invalid={missing.includes('receiverName')}
-            maxLength={120}
-            type="text"
-            value={receiverName}
-            onBlur={handleReceiverFieldBlur}
-            onChange={(event) => {
-              setReceiverName(event.target.value)
-              setMissing((current) => current.filter((field) => field !== 'receiverName'))
-            }}
-          />
-          {missing.includes('receiverName') ? (
-            <span className={styles.proofFieldError} role="status">
-              {t('proofFields.pendingField')}
-            </span>
-          ) : null}
-        </label>
-      ) : null}
-      {plan.rendersReceiverDocument ? (
-        <label className={styles.proofField}>
-          <span>
-            {t('proofFields.receiverDocument')}
-            {plan.fields.receiverDocument === 'required' ? ' *' : ''}
-          </span>
-          {/* Sem inputMode numeric: CNPJ tem letra, e o teclado numérico do celular a esconde */}
-          <input
-            aria-invalid={missing.includes('receiverDocument')}
-            autoCapitalize="characters"
-            maxLength={18}
-            type="text"
-            value={receiverDocument}
-            onBlur={handleReceiverFieldBlur}
-            onChange={(event) => {
-              setReceiverDocument(maskReceiverDocument(event.target.value))
-              setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
-            }}
-          />
-          {missing.includes('receiverDocument') ? (
-            <span className={styles.proofFieldError} role="status">
-              {t('proofFields.pendingField')}
-            </span>
-          ) : null}
-        </label>
-      ) : null}
-
       {/*
        * Pedido do usuário (25/09): três botões iguais — "Tirar foto" abre a câmera na hora,
        * "Anexar" abre galeria e arquivos, "Colher assinatura" abre o quadro. Em 375 px: as duas
@@ -1040,6 +1064,118 @@ export function DeliveryProofSection({
             </span>
           ) : null}
         </div>
+      ) : null}
+
+      {/*
+       * Spec 193 D7: "Quem recebeu" vem depois da captura — a foto nunca espera por este bloco
+       * (C1). Botão rápido, select compacto (R1) e "Detalhes"; nome e documento seguem abaixo.
+       */}
+      {plan.rendersReceivedBy ? (
+        <div className={styles.proofSection}>
+          {plan.rendersRecipientShortcut && (recipientDisplayName ?? '') !== '' ? (
+            <Button onClick={handleRecipientShortcut} type="button" variant="ghost">
+              <Icon name="check" />
+              {t('proofFields.recipientShortcut')}
+            </Button>
+          ) : null}
+          <label className={styles.proofField}>
+            <span>
+              {t('proofFields.receivedBy')}
+              {plan.fields.receivedBy === 'required' ? ' *' : ''}
+            </span>
+            <select
+              onChange={(event) => {
+                setReceivedBy(event.target.value)
+                pushLateFieldUpdate({ receivedBy: event.target.value })
+              }}
+              value={receivedBy}
+            >
+              <option value="">{t('proofFields.receivedByPlaceholder')}</option>
+              {RECEIVED_BY_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {t(`proofFields.receivedByOption.${option}`)}
+                </option>
+              ))}
+            </select>
+            {pendingReceiverFields.includes('receivedBy') ? (
+              <span className={styles.proofFieldError} role="status">
+                {t('proofFields.pendingReceivedBy')}
+              </span>
+            ) : null}
+          </label>
+          <label className={styles.proofField}>
+            <span>{t('proofFields.receivedByDetail')}</span>
+            <input
+              maxLength={RECEIVED_BY_DETAIL_MAX_LENGTH}
+              onBlur={() => pushLateFieldUpdate()}
+              onChange={(event) => setReceivedByDetail(event.target.value)}
+              placeholder={t(
+                receivedBy === 'neighbor'
+                  ? 'proofFields.receivedByDetailPlaceholderNeighbor'
+                  : 'proofFields.receivedByDetailPlaceholder',
+              )}
+              type="text"
+              value={receivedByDetail}
+            />
+            {pendingReceiverFields.includes('receivedByDetail') ? (
+              <span className={styles.proofFieldError} role="status">
+                {t('proofFields.pendingReceivedByDetail')}
+              </span>
+            ) : null}
+          </label>
+        </div>
+      ) : null}
+
+      {plan.rendersReceiverName ? (
+        <label className={styles.proofField}>
+          <span>
+            {t('proofFields.receiverName')}
+            {plan.fields.receiverName === 'required' ? ' *' : ''}
+          </span>
+          <input
+            aria-invalid={missing.includes('receiverName')}
+            maxLength={120}
+            ref={nameInputRef}
+            type="text"
+            value={receiverName}
+            onBlur={() => pushLateFieldUpdate()}
+            onChange={(event) => {
+              setReceiverName(event.target.value)
+              setMissing((current) => current.filter((field) => field !== 'receiverName'))
+            }}
+          />
+          {missing.includes('receiverName') ? (
+            <span className={styles.proofFieldError} role="status">
+              {t('proofFields.pendingField')}
+            </span>
+          ) : null}
+        </label>
+      ) : null}
+      {plan.rendersReceiverDocument ? (
+        <label className={styles.proofField}>
+          <span>
+            {t('proofFields.receiverDocument')}
+            {plan.fields.receiverDocument === 'required' ? ' *' : ''}
+          </span>
+          {/* Sem inputMode numeric: CNPJ tem letra, e o teclado numérico do celular a esconde */}
+          <input
+            aria-invalid={missing.includes('receiverDocument')}
+            autoCapitalize="characters"
+            maxLength={18}
+            type="text"
+            value={receiverDocument}
+            onBlur={() => pushLateFieldUpdate()}
+            onChange={(event) => {
+              setReceiverDocument(maskReceiverDocument(event.target.value))
+              setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
+            }}
+          />
+          {missing.includes('receiverDocument') ? (
+            <span className={styles.proofFieldError} role="status">
+              {t('proofFields.pendingField')}
+            </span>
+          ) : null}
+        </label>
       ) : null}
 
       {openSignature ? (

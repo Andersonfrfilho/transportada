@@ -38,6 +38,7 @@
       "documentOccurrence": "Occurrence with photo",
       "occurrence": "Occurrence",
       "proof": "Proof",
+      "proofReceiver": "Who received",
       "stopOccurrencePhoto": "Stop occurrence photo",
       "return": "Return"
     },
@@ -159,7 +160,27 @@
   "proofFields": {
     "receiverDocument": "Receiver document",
     "receiverName": "Receiver name",
-    "pendingField": "Fill in this field. The proof is already saved and uploads once you complete it."
+    "pendingField": "Fill in this field. The proof is already saved and uploads once you complete it.",
+    "receivedBy": "Who received",
+    "receivedByPlaceholder": "Select",
+    "receivedByOption": {
+      "recipient": "The addressee themself",
+      "spouse": "Spouse",
+      "child": "Child",
+      "parent": "Parent",
+      "sibling": "Sibling",
+      "other_relative": "Other relative",
+      "neighbor": "Neighbor",
+      "doorman": "Doorman/Front desk",
+      "employee": "Employee on site",
+      "other": "Other"
+    },
+    "receivedByDetail": "Details",
+    "receivedByDetailPlaceholder": "Details (optional)",
+    "receivedByDetailPlaceholderNeighbor": "Where the load was left (e.g.: unit 12)",
+    "pendingReceivedBy": "Who received it is still missing. The proof is already saved.",
+    "pendingReceivedByDetail": "Say more about who received it. The proof is already saved.",
+    "recipientShortcut": "The customer received it"
   },
   "queueHeader": {
     "label_one": "Send queue, {{count}} pending",

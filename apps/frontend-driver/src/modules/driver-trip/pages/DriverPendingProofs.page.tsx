@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon'
 import {
   DeliveryProofSection,
   type DriverProofAttachment,
+  type DriverProofFieldsUpdate,
 } from '../components/DriverStopCard.component'
 import type { EventQueueItemView } from '../shared/eventQueueView.service'
 import { documentAttachmentKey } from '../shared/offlineAttachments.service'
@@ -18,6 +19,8 @@ import styles from '../styles/driverTrip.module.css'
 type DriverPendingProofsPageProps = Readonly<{
   onBack: () => void
   onProof: (input: DriverProofAttachment) => void
+  /** Spec 193 D7: a edição depois da captura vale aqui também — o mesmo caminho do cartão da parada. */
+  onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   proofOutcomeByDocumentId: ReadonlyMap<string, ProofPunctuality>
   /** Spec 159 (T11): diz quais documentos já têm anexo na fila, aguardando envio. */
   queueView: readonly EventQueueItemView[]
@@ -43,6 +46,7 @@ export function isProofAlreadyQueued(input: {
 export function DriverPendingProofsPage({
   onBack,
   onProof,
+  onProofFieldsUpdate,
   proofOutcomeByDocumentId,
   queueView,
   snapshot,
@@ -98,7 +102,10 @@ export function DriverPendingProofsPage({
                   <DeliveryProofSection
                     documentId={entry.documentId}
                     onProof={onProof}
+                    {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
                     proofSettings={entry.deliveryProof}
+                    recipientDisplayName={entry.recipientDisplayName}
+                    recipientIsCompany={entry.recipientIsCompany}
                   />
                 )}
               </li>

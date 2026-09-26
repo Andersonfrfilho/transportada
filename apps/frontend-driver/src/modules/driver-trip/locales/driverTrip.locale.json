@@ -26,6 +26,7 @@
       "documentOccurrence": "Ocorrência com foto",
       "occurrence": "Ocorrência",
       "proof": "Comprovante",
+      "proofReceiver": "Quem recebeu",
       "stopOccurrencePhoto": "Foto da ocorrência da parada",
       "return": "Devolução"
     },
@@ -167,7 +168,27 @@
   "proofFields": {
     "receiverDocument": "Documento de quem recebeu",
     "receiverName": "Nome de quem recebeu",
-    "pendingField": "Preencha este campo. O comprovante já está guardado e sobe assim que completar."
+    "pendingField": "Preencha este campo. O comprovante já está guardado e sobe assim que completar.",
+    "receivedBy": "Quem recebeu",
+    "receivedByPlaceholder": "Selecione",
+    "receivedByOption": {
+      "recipient": "Próprio destinatário",
+      "spouse": "Cônjuge",
+      "child": "Filho(a)",
+      "parent": "Pai/Mãe",
+      "sibling": "Irmão(ã)",
+      "other_relative": "Outro familiar",
+      "neighbor": "Vizinho(a)",
+      "doorman": "Porteiro/Portaria",
+      "employee": "Funcionário(a) do local",
+      "other": "Outro"
+    },
+    "receivedByDetail": "Detalhes",
+    "receivedByDetailPlaceholder": "Detalhes (opcional)",
+    "receivedByDetailPlaceholderNeighbor": "Onde a carga ficou (ex.: casa 12)",
+    "pendingReceivedBy": "Falta dizer quem recebeu. O comprovante já está guardado.",
+    "pendingReceivedByDetail": "Diga mais sobre quem recebeu. O comprovante já está guardado.",
+    "recipientShortcut": "O próprio cliente recebeu"
   },
   "signature": {
     "cancel": "Cancelar",

@@ -190,6 +190,8 @@ function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripD
     id: 'document-1',
     number: '1001',
     proofPending: false,
+    recipientDisplayName: 'Destinatário',
+    recipientIsCompany: false,
     recipientName: 'Destinatário',
     returnReason: null,
     separationStatus: 'loaded',
