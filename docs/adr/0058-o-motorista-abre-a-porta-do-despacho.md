@@ -5,6 +5,8 @@
 - **Revisa:** quem pode chamar `dispatch` (spec 056 deu a ação a `trip.manage`)
 - **Spec:** 082
 - Revisada por ADR-0074 (despacho derivado quando a carga fecha)
+- **Emendada por ADR-0088** (a rota começa em cada parada): citada pelo caminho — o despacho continua
+  como está, e o "Iniciar rota" que saiu da viagem não é este toque.
 
 ## Contexto
 

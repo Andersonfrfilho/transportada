@@ -230,6 +230,19 @@ do usuário. A API não é revertida com a app nova no ar.
 - [ ] **T5.3** Toque direto: `readDirectTapLocation` (`Promise.race` com o relógio da app de 3 s,
       `enableHighAccuracy: false`, `maximumAge` de 5 min) e "Despachar"/"Iniciar rota" com corpo.
       Aceite: contratos verdes; `check` verde.
+
+  > ⚠️ **Aviso da spec 206 (ADR-0088, 2026-09-26).** O "Iniciar rota" **deixou de ser toque direto**: ele
+  > virou um toque por parada (`POST /me/trips/current/stops/:stopId/depart`) e passou à **fila**, com
+  > `tappedAt`. A app nova não chama mais `POST /me/trips/current/start-route` — a rota segue aceita só
+  > para a versão antiga. Consequências para esta task e para a T5.4:
+  >
+  > - o alvo de **3,2 s** do toque direto de "Iniciar rota" perde o objeto; o que resta de toque direto
+  >   é o "Despachar". Medir o prazo no "Iniciar rota" passa a medir o enfileiramento, não o GPS;
+  > - a §5 da ADR-0081 foi emendada pela ADR-0088 (Iniciar rota passa à fila), e na tabela "Finalidade"
+  >   o ponto do Iniciar rota é a base do tempo de trajeto **da parada**;
+  > - o `location` do Iniciar rota continua existindo, mas chega pelo corpo do item de fila, no caminho
+  >   do "Cheguei", não pelo `readDirectTapLocation`.
+
 - [ ] **T5.4** Preview e smoke:
   - a API de demonstração aceita e guarda em memória, **sem imprimir**, o `location` das quatro rotas
     e o expõe numa rota de depuração local;

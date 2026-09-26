@@ -56,7 +56,10 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
 
 > 🤖 Modelo: `opus` (T0.3 é `sonnet`)
 
-- [ ] **T0.1** 🧠 Conferir a ADR-0088 contra o código e passá-la a `aceita`.
+- [x] **T0.1** 🧠 Conferir a ADR-0088 contra o código e passá-la a `aceita`. **Feita em 2026-09-26** —
+      evidência em `evidence.md` § "T0.1". O rebase pedido aqui **não** foi possível (árvore com WIP de
+      outras sessões): as onze premissas foram conferidas contra `origin/staging` por `git grep <ref>`,
+      e a divergência da árvore ficou registrada em `evidence.md` § "Base da árvore".
   - **Antes de tudo, alinhar a ADR-0088 com a Revisão 2** (é a única mudança de decisão permitida
     aqui): o `docs/adr/0088-a-rota-comeca-em-cada-parada.md` ainda diz "esta ADR decide o desenho:
     evento, estado, fila, **troca**, travas…" (`:10`) e "**Tocar noutra parada troca, sem recusar.** A

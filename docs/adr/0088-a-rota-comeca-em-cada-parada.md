@@ -1,7 +1,9 @@
 # ADR-0088 — A rota começa em cada parada
 
-- **Status:** proposta (2026-09-25), revisada no mesmo dia depois da crítica. Passa a `aceita` na T0.1
-  da spec 206, conferida contra o código.
+- **Status:** **aceita** (2026-09-26, T0.1 da spec 206), proposta em 2026-09-25 e revisada no mesmo dia
+  depois da crítica. As onze premissas do `plan.md` foram conferidas contra `origin/staging`, com
+  arquivo:linha em `specs/206-a-rota-comeca-em-cada-parada/evidence.md`. Nenhuma divergiu; a premissa 8
+  ficou **melhor** do que o escrito (a API da 205 já está publicada).
 - **Data:** 2026-09-25
 - **Decisores:**
   - o usuário, em 2026-09-25: "o iniciar rota é em cada item da viagem"; o fluxo Iniciar rota →

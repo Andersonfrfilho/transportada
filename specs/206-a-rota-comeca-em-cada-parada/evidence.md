@@ -108,4 +108,90 @@ A crítica reprovou a primeira versão. O que mudou, por achado:
 
 ## Tasks
 
-_a preencher na execução_
+### T0.1 — ADR-0088 conferida e `aceita` (2026-09-26)
+
+**Árvore:** `work/driver-app`, HEAD `af049bb73`, worktree
+`.claude/worktrees/pensive-borg-f59971`. `origin/staging` em `16c4ad780`.
+`git rev-list --left-right --count HEAD...origin/staging` → **75 à frente, 184 atrás**.
+
+**⚠️ O rebase que esta task pedia não aconteceu, e não podia acontecer.** A árvore tem trabalho não
+commitado de outras sessões (`apps/frontend-driver/src/.../DriverStopCard.component.tsx`, os dois
+`driverTrip*.locale.json`, `received-by.contract.ts`, `.claude/launch.json`,
+`specs/PERGUNTAS-ABERTAS.md`) e, no índice, deleções preparadas dos `.md` das specs 206/207 e da
+ADR-0088 com os arquivos de volta como não rastreados. Com a árvore suja o `git rebase` recusa, e
+`git stash` está proibido (pilha compartilhada). Por isso **as premissas foram conferidas contra
+`origin/staging` por `git grep <ref>`**, que é mais forte do que conferir contra a árvore local
+atrasada. Consequências para as tasks seguintes em "Base da árvore", abaixo.
+
+**A ADR-0088 já estava alinhada com as Revisões 2 a 5** quando esta task começou — o texto foi
+emendado ainda em 2026-09-26, antes desta sessão, e o conteúdo é **byte a byte igual ao de
+`origin/staging`**. Conferido item por item do aceite:
+
+- `:24` diz "evento, estado, fila, **bloqueio**, cancelamento, travas, medição, teto, supressão e a
+  porta de saída do aviso" — sem "troca";
+- `:73-78` é o bloqueio: "A parada aberta bloqueia as outras — tocar noutra é recusado, não troca",
+  com `409 TRIP_HAS_STOP_EN_ROUTE`, `{ enRouteStopId, enRouteStopSequence }`, sem tocar a parada
+  aberta, sem liquidar a chave, e a recusa **depois** do no-op por toque velho;
+- `:79-83` dá à trava a justificativa nova (serializar a leitura de "alguma parada a caminho?");
+- `:89-112` é a §2b inteira do "Cancelar rota", com `departure_cancelled`,
+  `409 TRIP_STOP_DEPARTURE_NOT_CANCELLABLE`, "cancelar não inicia parada nenhuma" e a amostra
+  descartada;
+- `:166-180` é o aviso de cancelamento com a supressão nos 2 min, o "cada Iniciar rota avisa", a
+  unicidade por saída e a vaga reservada por obrigação em aberto (D19);
+- `:185-211` é a §7b: nasce desligado por configuração de empresa, "desligado é não existir", o aviso
+  como evento com destinos, uma porta e um adaptador, teto por canal (D20);
+- decisores `:10-23`: os quatro pedidos de 2026-09-26 estão citados.
+- **A linha desatualizada que a task mandava conferir nas alternativas descartadas já não existe.** No
+  lugar de "Recusar a segunda parada a caminho" está "Trocar a parada a caminho no segundo toque →
+  Decisão do usuário em 2026-09-26: a parada aberta bloqueia as outras" (`:239`). As três menções
+  restantes a "troca" são **históricas ou descartadas** (`:12`, `:95`, `:239`), nunca a decisão
+  vigente — que é como o aceite "sem nenhuma menção a troca de parada" pode ser cumprido sem apagar o
+  registro de que a decisão mudou.
+
+**Status:** `proposta` → **`aceita`** (`0088:3-6`).
+
+#### As onze premissas do `plan.md`, conferidas em `origin/staging`
+
+| #   | Premissa                                                                                      | Conferido em `origin/staging`                                                                                                                                                                                                                                                                                                                                                                                         | Resultado                                                                                                                                                                                                                                              |
+| --- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `TRIP_STOP_EVENT_KINDS` = `arrived\|delivered\|returned\|occurrence`, `kind` `text` com CHECK | `apps/api-transportada/src/database/trip.schema.ts:986`; CHECK `trip_stop_events_kind_check` em `:1104-1107`; contrato do CHECK em `test/database-migration/trip-constraints.assertion.ts:489` (o `'chegou'` recusado)                                                                                                                                                                                                | **confere**                                                                                                                                                                                                                                            |
+| 2   | Idempotência em `trip_field_reports`, unique `(company_id, idempotency_key)`                  | `trip.schema.ts:1294`, `:1342` (`trip_field_reports_company_key_unique`), `:1343`                                                                                                                                                                                                                                                                                                                                     | **confere**                                                                                                                                                                                                                                            |
+| 3   | `start-route` ignora o corpo; `updateStatus` abre a própria transação                         | `me-trip.routes.ts:48` (`TRIP_START_ROUTE_PATH`)                                                                                                                                                                                                                                                                                                                                                                      | **confere**                                                                                                                                                                                                                                            |
+| 4   | Chegada exige `TRIP_ON_ROAD_STATUSES`; `dispatched → in_transit` por `markTripInTransit`      | `drizzle-driver-field-report.repository.ts:50`, `:61` (`FIELD_REPORTABLE_TRIP_STATUSES`), `:312`                                                                                                                                                                                                                                                                                                                      | **confere**                                                                                                                                                                                                                                            |
+| 5   | Só dois escritores de `arrived_at`/`completed_at`                                             | `drizzle-driver-field-report.repository.ts:265` (`markStopArrived`) e `:419-427` (`completeStopIfSettled`, com `fillMissingArrival` em `:426`). Os sete `update(tripStops)` do `src` foram listados: os quatro de `drizzle-trip-route.repository.ts` (`:240`, `:379`, `:385`, `:735`) não tocam essas colunas, e o terceiro do repositório de campo (`:291`, `shiftPendingStops`) grava **só** `estimated_arrival_at` | **confere** — e o terceiro escritor, que a premissa não nomeava, foi conferido e está fora                                                                                                                                                             |
+| 6   | A app manda `start-route` direto; a drenagem mantém o item recusado                           | `apps/frontend-driver/.../driverTripClient.service.ts:128`, `:272`; `DriverTripWorkspace.page.tsx:511`; `offlineAttachments.service.ts:332` (`drainQueueWithAttachments`)                                                                                                                                                                                                                                             | **confere**                                                                                                                                                                                                                                            |
+| 7   | O painel recusa a página da linha do tempo com um kind desconhecido                           | `apps/frontend-transportada/src/modules/trip/shared/tripResponse.validation.ts:1331` — `isOneOf(value.kind, TRIP_TIMELINE_KINDS)` dentro de `isTimelineItem`, sem descarte; `TRIP_TIMELINE_KINDS` em `shared/trip.types.ts:267-278`, nove kinds, **sem** `stop.departed`                                                                                                                                              | **confere — e a 192 T0.2 não está publicada**: a T0.3 vai pelo caminho longo ("Senão"), não pelo curto                                                                                                                                                 |
+| 8   | `3e3730732` local; a API da 205 sem commit; migration `20260926003822_late_registration`      | `git branch -r --contains 3e3730732` → vazio (segue local). **A API da 205 já está em `origin/staging`** (`lateRegistration` em `trip.schema.ts`, `attach-delivery-proof.use-case.ts`, `document-outcome-steps.service.ts`, `driver-field-report.port.ts`, `read-delivery-proof.use-case.ts`). Última migration de `origin/staging`: `20260926003822_late_registration`                                               | **divergiu para melhor** — a premissa era "a API da 205 continua sem commit", e ela subiu. Nada do desenho depende disso; o que muda é que a Fase 4 perde metade da espera, e o caso (b) da T2.2 (`completed_requires_arrived`) já pode ser exercitado |
+| 9   | A 196 não está implementada: `location_state` não existe no `src`                             | `git grep -l 'location_state\|locationState' origin/staging -- apps/api-transportada/src` → vazio                                                                                                                                                                                                                                                                                                                     | **confere**                                                                                                                                                                                                                                            |
+| 10  | O e-mail do destinatário não é gravado                                                        | `git grep -n email origin/staging -- 'apps/api-transportada/src/database/nfe*.schema.ts'` → vazio. A Fase 7 segue dependente da 193 T6.5                                                                                                                                                                                                                                                                              | **confere**                                                                                                                                                                                                                                            |
+| 11  | O interruptor da leitura do canhoto                                                           | `company-delivery-proof-settings.schema.ts:59` (`canhotoOcrEnabled`, `default false`)                                                                                                                                                                                                                                                                                                                                 | **confere**                                                                                                                                                                                                                                            |
+
+#### Emendas commitadas nesta task
+
+- `docs/adr/0088-a-rota-comeca-em-cada-parada.md:3-6` — status `aceita`.
+- `docs/adr/0081-todo-toque-do-motorista-carimba-onde-aconteceu.md:46-47` — a linha "Iniciar rota /
+  Conferir carga" da tabela "Finalidade" virou duas: "Conferir carga → marcar onde a viagem começou" e
+  "Iniciar rota (ADR-0088) → base do tempo de trajeto **da parada**".
+- `docs/adr/0058-a-viagem-comeca-e-termina-por-toque-do-motorista.md` e
+  `docs/adr/0058-o-motorista-abre-a-porta-do-despacho.md` — "**Emendada por ADR-0088**" no cabeçalho.
+- `specs/196-todo-evento-carrega-onde-aconteceu/tasks.md`, T5.3 — aviso de que o "Iniciar rota" saiu do
+  toque direto e foi para a fila, e que o alvo de 3,2 s perde o objeto.
+
+#### Base da árvore — o que isto bloqueia (aberto para o usuário decidir)
+
+`git diff --name-only HEAD origin/staging` sobre os arquivos das Fases 0 e 1:
+
+- **`apps/api-transportada/src/database/trip.schema.ts` é idêntico** nos dois lados, e
+  `test/database-migration/trip-constraints.assertion.ts` também. Estas partes da Fase 1 são seguras.
+- **`apps/frontend-transportada` divergiu em 112 arquivos (+14 102/−334 linhas)**, incluindo o
+  `tripResponse.validation.ts` da T0.3, que em `origin/staging` mudou até de diretório
+  (`modules/trip/shared/`, não `modules/trip/validations/`) e de linha (`:1331`, não `:1299-1325`).
+  Implementar a T0.3 nesta árvore produz um diff que não se publica.
+- **A cadeia de migrations divergiu.** `origin/staging` tem sete migrations que esta árvore não tem
+  (`20260924201711_contractor_contact_channels` … `20260925185207_occurrence_conversation_automatic_message`),
+  e por isso o `snapshot.json` da última pasta comum (`20260926003822_late_registration`) é **diferente**
+  nos dois lados. O `drizzle-kit@1.0.0-rc.4` gera o snapshot novo diffando contra o último da cadeia:
+  gerado aqui, ele nasce sem as tabelas daquelas sete migrations e, depois do rebase, o
+  `bun run db:generate` **não** diria `no_changes` — ele quereria criar `occurrence_conversation*` de
+  novo. É exatamente o gate que a T1.2 exige. A numeração, essa, está livre: nenhuma outra sessão
+  numerou depois de `20260926003822`.
