@@ -286,7 +286,8 @@ a {
 }
 
 .application-shell-sidebar-collapsed .sidebar-brand {
-  justify-items: center;
+  flex-direction: column;
+  align-items: center;
   padding-inline: 0;
 }
 
@@ -376,18 +377,20 @@ a {
 }
 
 .sidebar-close-button {
-  position: absolute;
-  top: 0;
-  right: 0;
+  flex: none;
   transition:
     transform 180ms ease,
     color 150ms ease,
     background-color 150ms ease;
 }
 
+/* Flex, não grid: o botão precisa disputar espaço com o nome da marca, nunca sobrepor. */
 .sidebar-brand {
   position: relative;
-  display: grid;
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3) var(--space-5);
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
@@ -414,21 +417,29 @@ a {
 
 .sidebar-brand-identity {
   display: inline-flex;
+  flex: 1;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 /* Sem medida própria o logo cresce com a caixa — a mesma razão da marca do rodapé. */
 .sidebar-brand-logo {
+  flex: none;
   width: var(--space-8);
   height: var(--space-8);
   object-fit: contain;
 }
 
+/* Nome de instalação longo trunca em vez de quebrar linha e invadir o botão ao lado. */
 .sidebar-brand strong {
+  overflow: hidden;
+  min-width: 0;
   color: var(--color-fog);
   font-size: 1.35rem;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* No trilho recolhido o logo é o que sobra da marca: ele fica, e o nome sai. */
@@ -1230,6 +1241,7 @@ button:has([data-count-badge]) {
   display: inline-flex;
   width: fit-content;
   align-items: center;
+  gap: var(--space-1);
   min-height: 1.5rem;
   padding: 0 var(--space-3);
   border: 1px solid transparent;
@@ -1255,6 +1267,18 @@ button:has([data-count-badge]) {
   border-color: color-mix(in srgb, var(--color-ready) 40%, transparent);
   color: var(--color-ready);
   background: color-mix(in srgb, var(--color-ready) 14%, transparent);
+}
+
+.ui-badge-warning {
+  border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+}
+
+.ui-badge-info {
+  border-color: color-mix(in srgb, var(--color-slate) 65%, transparent);
+  color: var(--color-slate);
+  background: color-mix(in srgb, var(--color-slate) 12%, transparent);
 }
 
 .foundation-shell {
@@ -1366,9 +1390,6 @@ h2 {
   }
 
   .application-shell-sidebar-collapsed .sidebar-close-button {
-    position: relative;
-    top: auto;
-    right: auto;
     transform: rotate(180deg);
   }
 

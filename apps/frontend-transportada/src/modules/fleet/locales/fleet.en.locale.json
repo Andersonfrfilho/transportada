@@ -67,11 +67,14 @@
     },
     "duplicateBadge": "Already registered",
     "empty": "No pending applications",
+    "filterName": "Name contains",
     "linkButton": "Link",
     "loading": "Loading applications",
     "rejectButton": "Reject",
+    "rejectDialogTitle": "Reject application",
     "rejectionReasonLabel": "Rejection reason",
     "resubmittedBadge": "Resent",
+    "shownOfTotal": "{{shown}} of {{total}} applications",
     "status": {
       "approved": "Approved",
       "pending": "Pending",
@@ -210,11 +213,13 @@
       "plate": "Plate",
       "renavam": "RENAVAM"
     },
+    "filterTaxId": "Document contains",
     "loading": "Loading attachments",
     "openButton": "Open",
     "rejectButton": "Reject",
     "rejectDialogTitle": "Reject attachment",
     "rejectReasonLabel": "Rejection reason (the aggregate will read it)",
+    "shownOfTotal": "{{shown}} of {{total}} attachments",
     "status": {
       "approved": "Approved",
       "pending": "Pending",
