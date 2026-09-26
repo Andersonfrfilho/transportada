@@ -2510,3 +2510,21 @@ spec: todas esperam uma decisão ou uma ação do usuário.
   - API: contratos **7595 pass**;
   - painel: **5311 + 44 pass**;
   - portal: **92 pass**.
+
+## Pendências do usuário — andamento (26/09/2026)
+
+- **Eventos do webhook do Resend:**
+  - O usuário marcou `email.received`, `email.sent`, `email.delivered`, `email.bounced` e
+    `email.failed` no webhook de staging e de produção.
+  - A instrução da tela listava só `email.received` e foi corrigida (`06712a93`), com um contrato
+    que confere o texto contra os eventos que a API trata.
+- **Checksum do upload assinado** (decisão: corrigir no pacote e, enquanto isso, a variável):
+  - O paliativo, commit `fb7884c2`, liga `AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_REQUIRED` na API.
+    Vai literal no `railway.ts` e está no `.env.example`, cobrado por
+    `test/deploy/signed-upload-checksum.contract.ts`.
+  - A correção no pacote é o PR Andersonfrfilho/adatechnology-packages#114:
+    - o `S3Client` passa a usar checksum `WHEN_REQUIRED`;
+    - um teste de contrato novo, sem a variável, confere a URL;
+    - contra o SeaweedFS, o PUT dava 400 `BadDigest` antes e dá 200 depois;
+    - changeset `patch`, que leva a versão a 0.3.1.
+  - Quando a 0.3.1 for publicada, a API sobe de versão, e a variável sai junto com o contrato.
