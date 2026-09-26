@@ -376,6 +376,7 @@
   "columns": {
     "cargoValue": "Valor da carga",
     "createdAt": "Criada em",
+    "id": "Identificador",
     "revenue": "Ganho",
     "status": "Situação",
     "updatedAt": "Atualizada em",
@@ -501,6 +502,7 @@
   "detail": {
     "closedManually": "Encerrada manualmente em {{moment}}",
     "closedManuallyBy": "Encerrada manualmente por {{name}} em {{moment}}",
+    "copyId": "Copiar identificador da viagem",
     "deliveredColumn": "Entrega",
     "documentColumn": "Nota",
     "documentsEmpty": "Nenhuma nota vinculada a esta viagem",
@@ -509,6 +511,8 @@
     "errorUnavailable": "O servidor demorou além do limite. Tente de novo em instantes.",
     "fiscalStatusColumn": "Situação fiscal",
     "fiscalWarning": "Documento fiscal inválido — confira a situação antes de seguir",
+    "id": "Identificador da viagem",
+    "idCopied": "Identificador copiado",
     "linkDocumentTitle": "Vincular nota",
     "linkMode": "Tipo de referência",
     "linkModeFreight": "Cálculo de frete",
@@ -1406,10 +1410,12 @@
   },
   "table": {
     "copyPlate": "Copiar a placa {{plate}}",
+    "copyTripId": "Copiar identificador da viagem",
     "noAmount": "—",
     "plateCopied": "Placa copiada",
     "revenueEstimated": "previsto",
     "revenueMissing": "sem regra",
+    "tripIdCopied": "Identificador copiado",
     "withoutDriver": "Sem motorista"
   },
   "tabs": {
