@@ -157,7 +157,7 @@ describe('o bloco "Quem recebeu" (spec 193 R1, R2, D14)', () => {
     expect(blocked).not.toContain('receivedBy')
   })
 
-  it('"O próprio cliente recebeu" marca recipient e preenche o nome do cliente', () => {
+  it('escolher "Próprio destinatário" marca recipient e preenche o nome do cliente', () => {
     expect(
       applyRecipientShortcut({
         plan: resolveProofFormPlan(settings()),
@@ -170,6 +170,20 @@ describe('o bloco "Quem recebeu" (spec 193 R1, R2, D14)', () => {
         recipientDisplayName: 'Maria da Silva',
       }),
     ).toEqual({ receiverName: 'Maria da Silva' })
+  })
+
+  /**
+   * Pedido do usuário (26/09): o botão "O próprio cliente recebeu" e a opção "Próprio destinatário"
+   * faziam a mesma coisa. Ficou a opção — e nenhum botão de atalho ao lado dela.
+   */
+  it('não sobrou botão de atalho: quem preenche o nome é a opção do select', () => {
+    const card = readFileSync(
+      'src/modules/driver-trip/components/DriverStopCard.component.tsx',
+      'utf8',
+    )
+    expect(card).not.toInclude('proofFields.recipientShortcut')
+    expect(card).toInclude("value === 'recipient'")
+    expect(card).toInclude('fillNameWithRecipient()')
   })
 
   it('os campos que sobem: trim, sem caractere de controle, e detalhe sem relação fica de fora', () => {

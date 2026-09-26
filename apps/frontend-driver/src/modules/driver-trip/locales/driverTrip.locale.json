@@ -197,7 +197,6 @@
     "receivedByDetailPlaceholderNeighbor": "Onde a carga ficou (ex.: casa 12)",
     "pendingReceivedBy": "Falta dizer quem recebeu. O comprovante já está guardado.",
     "pendingReceivedByDetail": "Diga mais sobre quem recebeu. O comprovante já está guardado.",
-    "recipientShortcut": "O próprio cliente recebeu",
     "complete": "Concluir",
     "completedAt": "Comprovante concluído às {{time}}",
     "edit": "Editar",

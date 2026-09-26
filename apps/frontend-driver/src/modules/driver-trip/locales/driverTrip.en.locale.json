@@ -189,7 +189,6 @@
     "receivedByDetailPlaceholderNeighbor": "Where the load was left (e.g.: unit 12)",
     "pendingReceivedBy": "Who received it is still missing. The proof is already saved.",
     "pendingReceivedByDetail": "Say more about who received it. The proof is already saved.",
-    "recipientShortcut": "The customer received it",
     "complete": "Complete",
     "completedAt": "Proof completed at {{time}}",
     "edit": "Edit",

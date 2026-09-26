@@ -1062,17 +1062,20 @@ export function DeliveryProofSection({
   }
 
   /**
-   * Spec 193 D14: "O próprio cliente recebeu" marca `recipient` (quando o campo renderiza) e
-   * preenche o nome com `recipientDisplayName`. Para destinatário PJ, o nome fica selecionado com
-   * o foco no campo — o motorista digita o nome de quem assinou por cima; para PF, o nome só entra.
+   * Spec 193 D14: escolher "Próprio destinatário" preenche o nome com `recipientDisplayName`. Para
+   * destinatário PJ, o nome fica selecionado com o foco no campo — o motorista digita o nome de
+   * quem assinou por cima; para PF, o nome só entra.
+   *
+   * ⚠️ Pedido do usuário (26/09): isto era um botão "O próprio cliente recebeu" **ao lado** do
+   * select, e os dois faziam a mesma coisa. Ficou a opção do select, que herdou o preenchimento do
+   * nome — o único trabalho que só o botão fazia.
    */
-  function handleRecipientShortcut(): void {
+  function fillNameWithRecipient(): void {
     const shortcut = applyRecipientShortcut({
       plan,
       recipientDisplayName: recipientDisplayName ?? '',
     })
     setReceiverName(shortcut.receiverName)
-    if (shortcut.receivedBy !== undefined) setReceivedBy(shortcut.receivedBy)
     pushLateFieldUpdate({
       receiverName: shortcut.receiverName,
       ...(shortcut.receivedBy === undefined ? {} : { receivedBy: shortcut.receivedBy }),
@@ -1205,12 +1208,6 @@ export function DeliveryProofSection({
        */}
       {plan.rendersReceivedBy ? (
         <div className={styles.proofSection}>
-          {plan.rendersRecipientShortcut && (recipientDisplayName ?? '') !== '' ? (
-            <Button onClick={handleRecipientShortcut} type="button" variant="ghost">
-              <Icon name="check" />
-              {t('proofFields.recipientShortcut')}
-            </Button>
-          ) : null}
           <label className={styles.proofField}>
             <span>
               {t('proofFields.receivedBy')}
@@ -1221,6 +1218,14 @@ export function DeliveryProofSection({
               clearable
               onChange={(value) => {
                 setReceivedBy(value)
+                if (
+                  value === 'recipient' &&
+                  plan.rendersRecipientShortcut &&
+                  (recipientDisplayName ?? '') !== ''
+                ) {
+                  fillNameWithRecipient()
+                  return
+                }
                 pushLateFieldUpdate({ receivedBy: value })
               }}
               options={RECEIVED_BY_OPTIONS.map((option) => ({
