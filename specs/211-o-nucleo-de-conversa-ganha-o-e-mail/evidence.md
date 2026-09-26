@@ -950,3 +950,35 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
    773 expect() calls
   Ran 99 tests across 12 files. [47ms]
   ```
+
+## Fase 3 — o transporte do canal `email`
+
+> ⚠️ **A sessão trocou de versão no meio da fase 2, de Opus 5.5 para Opus 5.** As duas são classe
+> `opus`, que é o que a marca 🧠 pede (`tasks.md` § "A marca pede a classe, não uma versão"), então
+> não há achado. A versão exata de cada task continua registrada abaixo.
+
+### T301 🧠 — o token derivado, fixado byte a byte
+
+- **Modelo:** Opus 5 (`claude-opus-5`) — classe pedida `opus`, atendida.
+- **Commit:** `58f28d6` (`packages/backend/conversation-module/src/domain/replyToken.test.ts`).
+- **Vetores:** três, **gerados rodando a implementação que está em produção** no produto de origem
+  (`contractor-mail/domain/reply-token.policy.ts`) com segredos de teste (bytes repetidos) e ids
+  fixos. O teste fixa token, hash e endereço; enquanto passar, o pacote é substituto exato.
+- **Visto falhar:** `Cannot find module './replyToken'` → `88 pass / 1 fail`.
+- **Achado no caminho:** a primeira versão do teste trazia o prefixo de origem como literal, e o
+  contrato do CA01 reprovou (a palavra de produto está dentro do prefixo). O prefixo passou a ser
+  montado em runtime — `88 pass / 2 fail` antes, `1 fail` depois.
+
+### T302 🧠 — a implementação do token
+
+- **Modelo:** Opus 5 (`claude-opus-5`).
+- **Commit:** `176ab57` (`src/domain/replyToken.ts`, exportado no barrel).
+- **Verde:** `98 pass / 0 fail`, `check` com 0 erros.
+- **O que mudou em relação à origem, e por quê:**
+  - o prefixo virou parâmetro (`prefix`), porque o pacote é genérico e o da origem tem o nome do
+    produto dentro; o host fornece exatamente a string de hoje;
+  - `hashReplyToken` passou de `Bun.CryptoHasher` para `node:crypto`, porque o pacote roda em Bun e
+    em Node; a saída é a mesma (provada pelos vetores);
+  - `verifyReplyToken` é novo e compara **digests de tamanho fixo** com `timingSafeEqual`: comparar
+    os tokens direto vazaria pelo tempo quantos caracteres um palpite acertou, e `timingSafeEqual`
+    lançaria com entrada de outro tamanho (o teste cobre vazio, curto, longo e caixa alta).

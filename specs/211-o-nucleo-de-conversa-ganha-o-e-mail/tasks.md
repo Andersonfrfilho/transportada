@@ -91,10 +91,10 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 > ⚠️ **Fase de criptografia.** O `agent-strategy.md` põe criptografia como gate de Opus, e aqui a
 > conta é literal: errar o token perde toda conversa em andamento.
 
-- [ ] **T301** 🧠 `opus` — Teste do **token derivado**, fixando byte a byte o token que a 143
+- [x] **T301** 🧠 `opus` — Teste do **token derivado**, fixando byte a byte o token que a 143
       gera hoje, com o prefixo como parâmetro. Se este teste passar, nenhuma conversa em andamento
       perde a resposta. (RF14, CA07)
-- [ ] **T302** 🧠 `opus` — O token derivado, com prefixo parametrizado. HMAC — gate de Opus.
+- [x] **T302** 🧠 `opus` — O token derivado, com prefixo parametrizado. HMAC — gate de Opus.
       (RF14)
 - [ ] **T303** `sonnet` — Teste do threading: `In-Reply-To` e `References` da última mensagem
       recebida, `Idempotency-Key` igual ao id da nossa mensagem. (RF14, CA07)
