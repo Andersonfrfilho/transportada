@@ -79,6 +79,8 @@ export const DRIVER_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlo
   TRIP_ALREADY_DISPATCHED: 'A viagem já está na rua e não aceita mais mudanças por aqui.',
   TRIP_CANCELLED: 'Esta viagem foi cancelada.',
   TRIP_COMPLETED: 'Esta viagem já foi concluída.',
+  TRIP_CREW_ALREADY_DEFINED: 'A tripulação desta viagem já foi definida.',
+  TRIP_CREW_NOT_DEFINED: 'Esta viagem ainda não tem motorista ou veículo definido.',
   TRIP_DOCUMENT_ALREADY_CLOSED: 'Esta nota já foi entregue ou devolvida.',
   TRIP_DOCUMENT_NOT_LOADED: 'Esta nota ainda não foi carregada.',
   TRIP_DOCUMENT_NOT_SEPARATED: 'Esta nota ainda não foi separada.',

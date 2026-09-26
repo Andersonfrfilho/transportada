@@ -43,7 +43,11 @@ import {
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
-import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
+import type {
+  TripDriverCandidate,
+  TripDriverLine,
+  TripVehicleCandidate,
+} from '../domain/trip.policy.js'
 import {
   TRIP_ACTION,
   TRIP_DISPATCHED_STATUSES,
@@ -277,6 +281,85 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         tripId: input.tripId,
         cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
         packageBoxLookup: this.packageBoxLookup,
+      })
+    })
+  }
+
+  /**
+   * Spec 216: `awaiting_crew → draft` (primeira definição) ou troca em `draft` (mesmo status).
+   * Reconfere `checkTripTransition` sob o lock — o status que o caso de uso leu é anterior à
+   * transação (ADR-0068, mesmo motivo de `close`).
+   */
+  public async updateCrew(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly crew: readonly TripDriverLine[]
+    readonly tripId: string
+    readonly vehicleId: string | null
+  }): Promise<TripDetail | null> {
+    return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('no key update')
+        .limit(1)
+      if (tripRow === undefined) return null
+
+      const transition = checkTripTransition({
+        action: TRIP_ACTION.defineCrew,
+        hasRoute: false,
+        tripStatus: tripRow.status,
+      })
+      if (transition.outcome === 'blocked') {
+        throw new TripStateTransitionNotAllowedError(transition.reason)
+      }
+
+      await transaction
+        .delete(tripDrivers)
+        .where(
+          and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)),
+        )
+      if (input.crew.length > 0) {
+        await transaction.insert(tripDrivers).values(
+          input.crew.map((driver) => ({
+            companyId: input.companyId,
+            driverId: driver.driverId,
+            driverName: driver.driverName,
+            driverTaxId: driver.driverTaxId,
+            position: BigInt(driver.position),
+            tripId: input.tripId,
+          })),
+        )
+      }
+
+      await transaction
+        .update(trips)
+        .set({
+          status: transition.outcome === 'applied' ? transition.nextStatus : tripRow.status,
+          updatedAt: sql`now()`,
+          vehicleId: input.vehicleId,
+        })
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+
+      if (transition.outcome === 'applied') {
+        await recordTripStatusChange(transaction, {
+          actorUserId: input.actorUserId,
+          channel: input.channel,
+          companyId: input.companyId,
+          fromStatus: tripRow.status,
+          onBehalfOfDriverId: null,
+          toStatus: transition.nextStatus,
+          tripId: input.tripId,
+        })
+      }
+
+      return readTripDetail(transaction, {
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+        packageBoxLookup: this.packageBoxLookup,
+        companyId: input.companyId,
+        tripId: input.tripId,
       })
     })
   }

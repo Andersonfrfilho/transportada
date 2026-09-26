@@ -15,6 +15,7 @@ import type { PlanTripRouteTollFreezer } from '../../src/trips/application/plan-
 import {
   TripCloseReasonRequiredError,
   TripDocumentAlreadyLinkedError,
+  TripStateTransitionNotAllowedError,
 } from '../../src/trips/domain/trip.error.js'
 import type {
   TripDriverCandidate,
@@ -124,6 +125,7 @@ function createFixture(params: FixtureParams = {}) {
   const linkCalls: object[] = []
   const listCalls: object[] = []
   const releaseCalls: object[] = []
+  const updateCrewCalls: object[] = []
 
   const repository: TripRepositoryPort = {
     async close(input) {
@@ -172,9 +174,29 @@ function createFixture(params: FixtureParams = {}) {
         ? document({ releasedAt: '2026-08-02T10:00:00.000Z' })
         : params.releaseResult
     },
+    async updateCrew(input) {
+      updateCrewCalls.push(input)
+      const trip = params.stored === undefined ? openTrip() : params.stored
+      return trip === null
+        ? null
+        : {
+            ...trip,
+            drivers: input.crew.map((member) => ({ ...member, driverEmail: '', driverPhone: '' })),
+            status: 'draft',
+            vehicleId: input.vehicleId,
+          }
+    },
   }
 
-  return { closeCalls, createCalls, linkCalls, listCalls, releaseCalls, repository }
+  return {
+    closeCalls,
+    createCalls,
+    linkCalls,
+    listCalls,
+    releaseCalls,
+    repository,
+    updateCrewCalls,
+  }
 }
 
 describe('trip use case contract', () => {
@@ -555,6 +577,65 @@ describe('trip use case contract', () => {
     })
 
     expect(purged).toEqual([{ companyId: CONTEXT.companyId, tripId: TRIP_ID }])
+  })
+
+  /**
+   * Spec 216: define/troca a tripulação enquanto a viagem está `awaiting_crew` ou `draft` — antes
+   * do roteiro planejado, nada calculado a partir do veículo (pedágio) foi congelado ainda.
+   */
+  test('updates the crew of a draft trip, resolving the new vehicle and driver ordering', async () => {
+    const fixture = createFixture({ stored: openTrip({ status: 'draft' }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const trip = await useCase.updateCrew({
+      context: CONTEXT,
+      driverIds: [SECOND_DRIVER_ID],
+      tripId: TRIP_ID,
+      vehicleId: VEHICLE_ID,
+    })
+
+    expect(trip.status).toBe('draft')
+    expect(trip.drivers).toEqual([
+      {
+        driverEmail: '',
+        driverId: SECOND_DRIVER_ID,
+        driverName: 'Bruno Lima',
+        driverPhone: '',
+        driverTaxId: '98765432100',
+        position: 1,
+      },
+    ])
+    expect(fixture.updateCrewCalls).toEqual([
+      {
+        actorUserId: USER_ID,
+        channel: 'backoffice',
+        companyId: COMPANY_ID,
+        crew: trip.drivers.map((driver) => ({
+          driverId: driver.driverId,
+          driverName: driver.driverName,
+          driverTaxId: driver.driverTaxId,
+          position: driver.position,
+        })),
+        tripId: TRIP_ID,
+        vehicleId: VEHICLE_ID,
+      },
+    ])
+  })
+
+  /** Depois do roteiro planejado, o pedágio já foi congelado a partir do veículo antigo. */
+  test('refuses to update the crew once the route is planned, without touching the repository', async () => {
+    const fixture = createFixture({ stored: openTrip({ status: 'route_planned' }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await expect(
+      useCase.updateCrew({
+        context: CONTEXT,
+        driverIds: [SECOND_DRIVER_ID],
+        tripId: TRIP_ID,
+        vehicleId: VEHICLE_ID,
+      }),
+    ).rejects.toThrow(TripStateTransitionNotAllowedError)
+    expect(fixture.updateCrewCalls).toEqual([])
   })
 })
 
