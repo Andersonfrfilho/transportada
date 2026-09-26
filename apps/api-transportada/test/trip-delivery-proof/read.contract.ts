@@ -20,6 +20,9 @@ const PROOF = {
   /** ADR-0057 §3: o que a linha carrega já é a máscara — a leitura nunca vê o valor em claro. */
   receiverDocumentMasked: '***.938.570-**',
   receiverName: 'Portaria',
+  /** Spec 193 D11: o comprovante antigo, sem quem recebeu. */
+  receivedBy: null,
+  receivedByDetail: null,
 }
 
 function repository(proofs: readonly (typeof PROOF)[] = [PROOF]) {
@@ -83,6 +86,8 @@ describe('read delivery proofs contract', () => {
         lateRegistration: false,
         receiverDocument: '***.938.570-**',
         receiverName: 'Portaria',
+        receivedBy: null,
+        receivedByDetail: null,
       },
     ])
     expect(JSON.stringify(proofs)).not.toInclude('"objectKey"')

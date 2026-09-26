@@ -15,6 +15,7 @@ import { attachDeliveryProof } from '../../src/trips/application/attach-delivery
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
 import { updateDriverProofReceiver } from '../../src/trips/application/update-driver-proof-receiver.use-case.js'
 import type { DeliveryProofFieldMode } from '../../src/trips/domain/delivery-proof-settings.policy.js'
+import { listDeliveryProofs } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { parseDeliveryProofUpload } from '../../src/trips/presentation/delivery-proof.schema.js'
@@ -205,6 +206,44 @@ describe('quem recebeu pela foto do motorista (spec 193 CA03, CA04, CA05, CA07)'
       })
     },
   )
+})
+
+describe('a leitura do comprovante devolve quem recebeu (spec 193 CA09)', () => {
+  testWithPostgres('relação e detalhe da mesma linha do nome, e null no antigo', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedDeliveredByDriver(database, 'optional')
+      await attachFromDriverForm(world, {
+        kind: 'photo',
+        receivedBy: 'neighbor',
+        receivedByDetail: 'casa 12',
+        receiverName: 'Maria',
+      })
+      await attachFromDriverForm(world, { kind: 'signature', receiverName: 'Maria' })
+
+      const proofs = await listDeliveryProofs(database.db, {
+        companyId: world.company.companyId,
+        documentId: world.trip.documentId,
+        tripId: world.trip.tripId,
+      })
+
+      expect(
+        proofs.map(({ kind, receivedBy, receivedByDetail, receiverName }) => ({
+          kind,
+          receivedBy,
+          receivedByDetail,
+          receiverName,
+        })),
+      ).toEqual([
+        {
+          kind: 'photo',
+          receivedBy: 'neighbor',
+          receivedByDetail: 'casa 12',
+          receiverName: 'Maria',
+        },
+        { kind: 'signature', receivedBy: null, receivedByDetail: null, receiverName: 'Maria' },
+      ])
+    })
+  })
 })
 
 describe('quem recebeu pelo canhoto do escritório (spec 193 CA05)', () => {

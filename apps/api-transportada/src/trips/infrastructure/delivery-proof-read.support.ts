@@ -85,6 +85,8 @@ export async function listDeliveryProofs(
       objectKey: storedObjects.objectKey,
       receiverDocumentMasked: tripDeliveryProofs.receiverDocumentMasked,
       receiverName: tripDeliveryProofs.receiverName,
+      receivedBy: tripDeliveryProofs.receivedBy,
+      receivedByDetail: tripDeliveryProofs.receivedByDetail,
     })
     .from(tripDeliveryProofs)
     .innerJoin(
@@ -129,6 +131,8 @@ export async function listDeliveryProofs(
     objectKey: row.objectKey,
     receiverDocumentMasked: row.receiverDocumentMasked,
     receiverName: row.receiverName,
+    receivedBy: row.receivedBy,
+    receivedByDetail: row.receivedByDetail,
   }))
 }
 

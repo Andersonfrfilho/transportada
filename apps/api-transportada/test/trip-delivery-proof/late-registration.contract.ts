@@ -510,6 +510,8 @@ describe('a leitura do comprovante no painel (spec 205 RF7)', () => {
             objectKey: 'k',
             receiverDocumentMasked: '',
             receiverName: '',
+            receivedBy: null,
+            receivedByDetail: null,
           },
         ],
       },

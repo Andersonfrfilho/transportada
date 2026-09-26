@@ -422,3 +422,41 @@ $ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.t
 $ bun --env-file=../../.env.test test ./test/integration/delivery-proof-received-by.integration.ts → 9 pass, 0 fail
 $ bun --env-file=../../.env.test test --timeout 120000 → 7496 pass, 23 skip, 0 fail
 ```
+
+### T3.6 — leitura e contratos negativos (CA09, CA10, CA11)
+
+Testes antes, em `test/trip-delivery-proof/received-by-read.contract.ts`:
+
+- CA09: `readDeliveryProofs` devolve `receivedBy`/`receivedByDetail` da mesma linha do nome, e
+  `null` no comprovante antigo. A consulta lê as duas colunas.
+- CA10: nenhum arquivo de `src/contractor-portal/` cita `receivedBy`/`received_by`.
+- CA11, log: nenhum arquivo de `src/` que cite `receivedByDetail` ou `recipientContact` chama
+  `logger.*`, `log.*` ou `console.*`.
+- CA11, auditoria: nenhum `buildOfficeAuditEntry({ … })`, nem a porta ou a persistência da trilha
+  do escritório, leva `receivedBy`/`received_by`.
+
+```
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts   (antes)
+(fail) … relação e detalhe saem da mesma linha do nome; o antigo sai com null
+(fail) … a consulta lê as duas colunas do comprovante
+ 168 pass, 2 fail
+```
+
+Implementação: `DeliveryProofRecord`/`DeliveryProofView` e `listDeliveryProofs` levam as duas
+colunas. As fixtures de leitura (`read.contract.ts` e `late-registration.contract.ts`) ganham os dois
+`null`. Na integração entra o CA09, com `listDeliveryProofs` contra o Postgres: a foto com relação e
+detalhe, e a assinatura antiga com `null`.
+
+Gates ao fechar a Fase 3 (árvore com WIP das specs 205 e 209):
+
+```
+$ bunx tsc --noEmit -p apps/api-transportada → sem erros;  bun run lint (api) → sem erros
+$ bun --env-file=../../.env.test test --timeout 120000
+  7500 pass, 23 skip, 1 fail — toll-booth-catalog-repository estourou 120 s (load 8,6); isolado 9 pass / 0 fail
+$ bun --env-file=../../.env.test test ./test/integration/delivery-proof-received-by.integration.ts → 10 pass, 0 fail
+$ bun --env-file=../../.env.test run test:integration   (117 arquivos, 778 s)
+  641 pass, 7 skip, 1 fail — aggregate-attachment-outbox estourou 60 s; isolado 2 pass / 0 fail
+```
+
+O HEAD da T3.5 (`3d2e918c2`), extraído sozinho, compila com `tsc --noEmit`. Isso confere o blob do
+`main.ts`, montado a partir do HEAD.
