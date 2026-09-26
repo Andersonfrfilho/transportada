@@ -1074,15 +1074,36 @@
 }
 
 /* O campo do recebedor segue os tokens de campo — cru, ele media 21px de altura no celular. */
-.proofField input[type='text'] {
+.proofField input[type='text'],
+.proofField select {
   background: color-mix(in srgb, var(--color-asphalt) 82%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-slate) 28%, transparent);
+  border-radius: 0;
   color: var(--color-fog);
   font: inherit;
   font-size: var(--field-font-size);
   min-height: var(--field-height);
   padding: var(--field-padding);
   width: 100%;
+}
+
+/* "Quem recebeu": o select nativo vinha fino e branco ao lado dos campos — a seta é desenhada aqui. */
+.proofField select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-slate) 50%),
+    linear-gradient(135deg, var(--color-slate) 50%, transparent 50%);
+  background-position:
+    calc(100% - var(--space-5)) 50%,
+    calc(100% - var(--space-4)) 50%;
+  background-repeat: no-repeat;
+  background-size: var(--space-1) var(--space-1);
+  padding-right: var(--space-8);
+}
+
+.proofField select option {
+  background: var(--color-graphite);
+  color: var(--color-fog);
 }
 
 /* Spec 159 T12: cada nota pendente é um cartão, como a parada — sem ele os itens se emendavam. */
