@@ -15,6 +15,7 @@ import {
   createIndexedDbQueueStore,
 } from '../shared/indexedDbQueue.service'
 import {
+  ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
   discardStaleAttachments,
   drainQueueWithAttachments,
@@ -26,6 +27,8 @@ import {
 import {
   createIdempotencyKey,
   enqueueReport,
+  enqueueReports,
+  sumReportPhotoBytes,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
 import {
@@ -35,6 +38,7 @@ import {
   type PendingCounts,
 } from '../shared/pendingQueue.service'
 import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
+import { fitStopOccurrenceReports, withoutPhotos } from '../shared/stopOccurrencePhoto.service'
 
 const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
@@ -69,6 +73,9 @@ export type DriverProofOutcome = 'count-limit' | 'queued' | 'size-limit'
 /** Spec 082 (revisão): o teto da fila de eventos recusa tipado, nunca `QuotaExceededError` cru. */
 export type DriverReportOutcome = 'count-limit' | 'queued'
 
+/** Spec 209 (D3): a foto do "Deu problema" que não coube saiu — o relato entrou mesmo assim. */
+export type DriverStopOccurrenceOutcome = DriverReportOutcome | 'photo-dropped'
+
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
   /** ADR-0075 §6: o recusado sai da fila antiga só pela mão do motorista, com confirmação na tela. */
@@ -91,6 +98,10 @@ export type DriverTripController = Readonly<{
   refetchTrip: () => void
   rejectedCount: number
   report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
+  /** Spec 209: o "Deu problema" — a ocorrência sempre entra; a foto, se couber. */
+  reportStopOccurrence: (
+    reports: readonly DriverFieldReport[],
+  ) => Promise<DriverStopOccurrenceOutcome>
   sendAllNow: () => void
   sendNow: (idempotencyKey: string) => void
   snapshot: DriverTripSnapshot | undefined
@@ -311,6 +322,39 @@ export function useDriverTrip(
   }
 
   /**
+   * Spec 209 (D3): a ocorrência e, atrás dela, a foto. Fila cheia derruba a foto, nunca o relato —
+   * pelo teto de bytes dos anexos, ou pela contagem quando os dois não cabem juntos.
+   */
+  async function reportStopOccurrence(
+    reports: readonly DriverFieldReport[],
+  ): Promise<DriverStopOccurrenceOutcome> {
+    const [queued, attachmentTotals] = await Promise.all([
+      store.read(),
+      attachmentStore.readTotals(),
+    ])
+    const fitted = fitStopOccurrenceReports({
+      maxBytes: ATTACHMENT_QUEUE_LIMIT.maxTotalBytes,
+      reports,
+      usedBytes:
+        attachmentTotals.totalBytes + sumReportPhotoBytes(queued.map((item) => item.report)),
+    })
+    let isPhotoDropped = fitted.isPhotoDropped
+    let result = await enqueueReports({ now: new Date(), reports: fitted.reports, store })
+    if (!result.accepted && fitted.reports.length > 1) {
+      isPhotoDropped = true
+      result = await enqueueReports({
+        now: new Date(),
+        reports: withoutPhotos(fitted.reports),
+        store,
+      })
+    }
+    if (!result.accepted) return result.reason
+    await refreshQueueView()
+    requestDrain(undefined)
+    return isPhotoDropped ? 'photo-dropped' : 'queued'
+  }
+
+  /**
    * Spec 159 (revisão D6): o comprovante **sempre** entra na fila offline, com a entrega ainda na
    * fila ou já aceita — nunca mais pela rota multipart direta. Isso é o que garante o aceite 8: a
    * foto de uma nota já entregue segue offline como qualquer outro anexo, e sobe na próxima
@@ -378,6 +422,7 @@ export function useDriverTrip(
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
+    reportStopOccurrence,
     sendAllNow: () => requestDrain(undefined),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
     snapshot: currentTrip.data,
