@@ -32,6 +32,11 @@ export type QueuedAttachment = Readonly<{
   accuracyMeters?: number
   latitude?: number
   longitude?: number
+  /**
+   * Spec 212: a foto gravada ainda não reduzida — nenhuma drenagem a leva, nem o envio manual. A
+   * redução troca o arquivo e tira a marca; a falha dela também tira, e o original sobe.
+   */
+  pendingReduction?: true
   /** ⚠️ Canônico e nunca em log: é o dado da ADR da spec 082 D4 — a API o criptografa. */
   receiverDocument?: string
   receiverName?: string
@@ -271,7 +276,7 @@ export async function drainQueueWithAttachments(input: {
       for (const attachment of attachments) {
         const skipRejectedAttachment =
           input.only === undefined && attachment.rejectionCause !== undefined
-        if (skipRejectedAttachment) continue
+        if (skipRejectedAttachment || attachment.pendingReduction === true) continue
 
         const outcome = await input.sendAttachment(attachment)
         if (outcome.kind === 'failed-network') {
