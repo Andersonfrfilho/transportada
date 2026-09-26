@@ -138,8 +138,8 @@ rastrear a contratante sem ela saber. Então no e-mail não existe "lida" — o 
 Áudio entra e sai pelo WhatsApp (contratante e motorista) e pelo app do motorista. Ele é guardado
 como anexo, com `sha256`, como qualquer outro (RF10). A transcrição é gerada por máquina e aparece
 **marcada como tal**, embaixo do player. Ela nunca decide nada, nunca vira sugestão de decisão e
-nunca substitui o áudio, que continua sendo o registro. Transcrever manda a voz de terceiros a um
-provedor, e isso exige ADR própria antes de entrar no produto (RF18).
+nunca substitui o áudio, que continua sendo o registro. A transcrição roda na nossa infraestrutura,
+com o whisper local, e a voz de terceiros não sai para provedor nenhum (ADR-0074, RF18).
 
 ### D9 — A contratante também conversa pelo portal
 
@@ -351,7 +351,7 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   (T705) — não se presume. A duração máxima e o tamanho são conferidos antes de subir. No e-mail, áudio
   só vai como anexo comum.
 - **RF18** Transcrição: o worker transcreve o áudio recebido **depois** de gravá-lo, por uma porta de
-  aplicação (`speech-to-text.port.ts`) com um provedor ainda a decidir. O texto fica ligado ao anexo,
+  aplicação (`speech-to-text.port.ts`) com o whisper local (ADR-0074). O texto fica ligado ao anexo,
   com o provedor, o idioma e o horário, e **nunca** passa pela política de decisão (D4) nem pela de
   interpretação da 143. Falha de transcrição não falha a mensagem: o player aparece sem o texto.
   Uma empresa pode desligar a transcrição. O `meta-whatsapp-module` já tem a porta
@@ -525,9 +525,11 @@ usado só dentro da janela de 24h aberta pela pessoa; fora dela, a conversa segu
 (motorista), portal ou e-mail (contratante). A T002 deixa de existir, e as tasks que dependiam dela
 passam a valer só dentro da janela (D5, RF20).
 
-- [NEEDS CLARIFICATION: qual provedor transcreve o áudio (RF18), e se a voz de contratante e de
-  motorista pode sair para ele (LGPD: base legal, retenção no provedor, região)? Decidido, vira
-  ADR. Enquanto isso, o áudio funciona sem transcrição.]
+- ~~[NEEDS CLARIFICATION: qual provedor transcreve o áudio (RF18)?]~~ **Resolvida em 2026-09-26
+  pelo dono do projeto (ADR-0074):**
+  - o motor é o **whisper local** do `@adatechnology/audio-transcription-provider`, o mesmo do
+    quickcart, na nossa infraestrutura, e a voz não sai para provedor nenhum;
+  - a transcrição é **ligada por padrão**, com interruptor por empresa.
 
 Resolvidas em 2026-09-24 (segunda rodada), depois da auditoria contra staging: (1) todas as
 correções de divergência de `evidence.md` entram — a conversa não decide, o detalhe hospeda a

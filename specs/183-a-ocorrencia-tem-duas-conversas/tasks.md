@@ -184,8 +184,8 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       pelo WhatsApp e pelo app, recebido pelos dois. Evidência: contratos (formato, duração e tamanho
       máximos) + integração do recebido até o anexo com `sha256`.
 - [ ] **T706** 🔒 Transcrição (RF18): porta `speech-to-text.port.ts`, transcrição no worker depois
-      de gravar, texto ligado ao anexo, interruptor por empresa. **Bloqueada** até a dúvida do
-      provedor virar ADR. Evidência: teste de que transcrição nunca decide + provider falso.
+      de gravar, texto ligado ao anexo, interruptor por empresa (**ligado por padrão**). Motor:
+      whisper local, ADR-0074 (26/09/2026). Destravada. Evidência: teste de que transcrição nunca decide + provider falso.
 
 ## Fase 8 — PWA e fumaça (P11)
 

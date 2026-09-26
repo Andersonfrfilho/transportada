@@ -2450,14 +2450,13 @@ mail_message_id)`.
 Todas as outras estão `[x]` com evidência acima. Nenhuma das abertas é bloqueada por código desta
 spec: todas esperam uma decisão ou uma ação do usuário.
 
-| Task             | Por que fica aberta                                                                                                                                                                 | O que destrava                       |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| **T503**         | Fora da janela de 24 h, o WhatsApp só sai por modelo aprovado.                                                                                                                      | Só implementação (sem Meta, 26/09).  |
-| **T506**         | O canal WhatsApp na aba Contratante e no diálogo depende do envio (T503).                                                                                                           | T503 (sem Meta, 26/09).              |
-| **T602** 🧠      | O WhatsApp do motorista fora da janela também exige modelo aprovado.                                                                                                                | Só implementação (sem Meta, 26/09).  |
-| **T605**         | A política da janela está pronta e testada. O job e o aviso de troca de canal são um modelo da T002.                                                                                | Só implementação (sem Meta, 26/09).  |
-| **T702 / T702f** | A T702 fecha quando fechar a T702f (mídia da Meta: foto, documento e áudio pelo WhatsApp). O usuário decidiu na T702e que ela espera o envio pela Meta. T702a–e estão `[x]`.        | T503 (sem Meta, 26/09).              |
-| **T706** 🔒      | A transcrição de áudio tem `[NEEDS CLARIFICATION]` na spec: que provedor, e se a voz pode sair para ele (LGPD: base legal, retenção, região). Nada se implementa com dúvida aberta. | A decisão do provedor, que vira ADR. |
+| Task             | Por que fica aberta                                                                                                                                                          | O que destrava                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **T503**         | Fora da janela de 24 h, o WhatsApp só sai por modelo aprovado.                                                                                                               | Só implementação (sem Meta, 26/09). |
+| **T506**         | O canal WhatsApp na aba Contratante e no diálogo depende do envio (T503).                                                                                                    | T503 (sem Meta, 26/09).             |
+| **T602** 🧠      | O WhatsApp do motorista fora da janela também exige modelo aprovado.                                                                                                         | Só implementação (sem Meta, 26/09). |
+| **T605**         | A política da janela está pronta e testada. O job e o aviso de troca de canal são um modelo da T002.                                                                         | Só implementação (sem Meta, 26/09). |
+| **T702 / T702f** | A T702 fecha quando fechar a T702f (mídia da Meta: foto, documento e áudio pelo WhatsApp). O usuário decidiu na T702e que ela espera o envio pela Meta. T702a–e estão `[x]`. | T503 (sem Meta, 26/09).             |
 
 ## T002 — dispensada: sem modelo da Meta (decisão de 26/09/2026)
 
@@ -2467,3 +2466,13 @@ spec: todas esperam uma decisão ou uma ação do usuário.
 - Registrado na spec (D5, RF20 e § Dúvidas). A T503 passou a ser "texto e mídia só dentro da
   janela; fora, `window_closed`". T506, T602, T605 e T702f deixam de esperar a Meta e seguem pelo
   mesmo recorte.
+
+## T706 — destravada: o motor é o whisper local (decisão de 26/09/2026, ADR-0074)
+
+- **O que ficou decidido:** o dono do projeto apontou o quickcart como molde e escolheu **só o
+  whisper local** do `@adatechnology/audio-transcription-provider`, sem o Groq. A voz não sai da
+  nossa infraestrutura, então não há transferência internacional nem segredo novo.
+- **Padrão:** a transcrição é ligada por padrão, com interruptor por empresa.
+- **Registro:** a ADR-0074 guarda a decisão; a `[NEEDS CLARIFICATION]` da spec foi resolvida e a
+  RF18 atualizada.
+- **Ainda falta:** a implementação da T706.
