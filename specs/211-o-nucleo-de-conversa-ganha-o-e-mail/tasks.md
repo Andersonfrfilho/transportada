@@ -102,11 +102,11 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T305** `sonnet` — Teste do MIME bruto: gravado com `sha256` **antes de qualquer
       interpretação**. (RF14)
 - [x] **T306** `sonnet` — O MIME bruto e a extração de anexo a partir dele. (RF14, RF8)
-- [ ] **T307** 🧠 `opus` — Teste de DKIM com fixtures **sintéticas** (chave de teste, resolvedor
+- [x] **T307** 🧠 `opus` — Teste de DKIM com fixtures **sintéticas** (chave de teste, resolvedor
       de DNS injetado): alinhada, desalinhada, corpo adulterado, sem assinatura, DNS fora do ar.
       E-mail real anonimizado **não serve** — anonimizar quebra a assinatura. Assinatura
       criptográfica: gate de Opus. (RF14)
-- [ ] **T308** 🧠 `opus` — O DKIM por `mailauth`, com `unverifiable` que **não se refaz
+- [x] **T308** 🧠 `opus` — O DKIM por `mailauth`, com `unverifiable` que **não se refaz
       depois**. (RF14)
 - [ ] **T309** `sonnet` — Teste de que ligar o canal `email` **sem transporte falha na subida**,
       nomeando a peça que falta. (D5, CA03)

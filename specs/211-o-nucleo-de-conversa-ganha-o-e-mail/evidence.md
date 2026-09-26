@@ -1048,3 +1048,31 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
 - **Achado no caminho:** nenhum — o teste de tipo mentindo, o de anexo acima do teto do canal e o de
   variação de grafia do `content-type` (`image/jpg` → `image/jpeg`) passaram de primeira, porque a
   política reaproveitada da T210 já cobria os três casos.
+
+### T307 🧠 — DKIM com fixtures sintéticas
+
+- **Modelo:** Opus 5 (`claude-opus-5`) — classe pedida `opus`, atendida.
+- **Commit:** `e501aab` (`src/domain/dkim.test.ts`, `mailauth@5.0.3` como dependência do pacote — a
+  mesma versão que o worker do produto de origem já roda).
+- **Visto falhar:** `Cannot find module './dkim'` → `113 pass / 1 fail`.
+- **Fixtures:** um par de chaves RSA-2048 gerado no próprio teste assina mensagens montadas ali, e o
+  DNS é um resolvedor injetado que devolve o registro TXT. Nenhum segredo no repositório, nenhuma
+  chamada de rede. Casos: alinhada, assinada por outro domínio, corpo adulterado depois da
+  assinatura, sem assinatura, chave publicada diferente da que assinou, DNS que lança, e DNS que não
+  responde no prazo.
+
+### T308 🧠 — o veredito de DKIM
+
+- **Modelo:** Opus 5 (`claude-opus-5`).
+- **Commit:** `f070814` (`src/domain/dkim.ts`, exportado no barrel).
+- **Verde:** `126 pass / 0 fail`, `check` com 0 erros, `build` ok.
+- **A assimetria que o arquivo existe para garantir:** falha transitória (`temperror`, e o timeout do
+  resolvedor, que a `mailauth` classifica igual) é `unverifiable`; só o que ela verificou e reprovou
+  é `not_aligned`. Uma assinatura sem veredito impede concluir que nenhuma servia — ela podia ser a
+  decisiva. O veredito **não se refaz depois**: a chave pode ter girado.
+- ⚠️ **Defeito na tipagem da `mailauth@5.0.3`, achado aqui:** o `.d.ts` declara `dkimSign`
+  recebendo **uma** assinatura no objeto raiz, e a implementação só assina o que vem em
+  `signatureData: [...]`. Seguir a declaração compila e devolve **mensagem sem assinatura nenhuma** —
+  foi o que fez o teste dizer `absent` em tudo. O teste declara a forma que a implementação aceita,
+  com o porquê escrito ao lado. Só o teste assina; o pacote apenas verifica, e a verificação é
+  tipada como o `.d.ts` diz.
