@@ -2178,10 +2178,9 @@ migration na API). Um commit por parte.
   - O painel mostra o balão "Aviso automático do tipo de ocorrência" (E-MAIL, NA FILA), e a linha
     do tempo mostra "Sistema: Aviso automático enviado à contratante"
     (`prints/aviso-automatico-painel.png`, `aviso-automatico-registro.png`).
-- **Pendente, com motivo:** a **tela** do interruptor. O painel não tem editor de tipo de ocorrência
-  nenhum (o `PUT /company-settings/occurrence-types` nunca teve consumidor no frontend — nota no
-  `CLAUDE.md` da API). Criar esse editor é uma tela nova inteira, fora do escopo da T802, cuja
-  evidência pedida é o teste de caso de uso. Fica na lista de dependências da entrega final.
+- **Pendente, com motivo:** a **tela** do interruptor. ⚠️ **A premissa estava errada** (corrigida
+  em 26/09/2026, item 9 abaixo): o editor existia — a aba **Tipos de ocorrência** de Configurações —
+  e estava quebrado. A nota do `CLAUDE.md` da API que dizia o contrário foi corrigida.
 - **Achado no caminho, virou tarefa separada:** o app do motorista registra ocorrência de nota
   **sem** `idempotency-key`, e a API responde 400 desde a spec 156. O motorista não consegue
   registrar ocorrência de nota pelo app hoje; é anterior à 183.
@@ -2551,3 +2550,61 @@ spec: todas esperam uma decisão ou uma ação do usuário.
     - `200`, com `Access-Control-Allow-Origin` igual à origem pedida, para painel e portal em
       staging e em produção;
     - `403`, sem o cabeçalho, para uma origem estranha.
+
+## Item 9 — A tela completa dos tipos de ocorrência (26/09/2026)
+
+Decisão do usuário: "Tela completa dos tipos" — ver, cadastrar, renomear e aposentar tipos, e ligar
+"avisar o despachante" e "avisar a contratante por e-mail".
+
+- **O que havia:** a aba **Tipos de ocorrência** existia (`OccurrenceTypeCatalogPanel`) e estava
+  quebrada de dois lados, medido no navegador contra a bancada
+  (`prints/tipos-ocorrencia-antes-1280.png`):
+  - o GET voltava **200** e a aba dizia "Nenhum tipo cadastrado ainda": a T802 pôs
+    `emailsContractor` na resposta, e a guarda de chave exata do painel reprovava a lista inteira;
+  - o PUT voltava **400** em todo cadastro e toda edição: o painel mandava `redeliveryPolicy`
+    (spec 164), que o `strict()` do schema recusava. E o GET não devolvia a política, e o UPDATE
+    a zerava para `unset`.
+- **Commits, um achado cada:**
+  - `6d38fa04`: o painel aceita `emailsContractor` e `attachmentMode`, validados quando presentes e
+    no padrão da coluna quando ausentes (como o B7). Contrato
+    `test/trip/occurrence-type-tolerance.contract.ts`, visto falhar (3) antes; a lista voltou
+    (`prints/tipos-ocorrencia-lista-1280.png`).
+  - `4b823c33`: o schema aceita `redeliveryPolicy` opcional sem `default`, o GET a devolve e o UPDATE
+    sem ela a preserva ("não mexa", como `attachmentMode` e `emailsContractor`). Contrato de schema
+    e `test/integration/occurrence-type-save.integration.ts` (Postgres real: grava os três campos
+    tardios, renomeia sem eles e confere que ficaram), vistos falhar antes. No navegador, o
+    cadastro "Mercadoria recusada" deu PUT **200** e apareceu na lista.
+  - `951dc84c`: `occurrenceTypeEdit` regrava o tipo inteiro a partir do lido — cada interruptor
+    montava o próprio corpo, e os campos tardios ficavam fora de todos. Interruptor "Avisar a
+    contratante por e-mail" na linha e no cadastro; "Avisar quando acontecer" virou "Avisar quem
+    despachou a viagem", porque os dois avisos ficam lado a lado. Tipo sem modelo com o aviso
+    ligado deixou de dizer "Sem e-mail" (o aviso sai com o texto sugerido da ocorrência).
+    Contrato `test/company-settings/occurrence-type-edit.contract.ts`; no navegador o PUT levou o
+    tipo inteiro, com `redeliveryPolicy: blocked` preservado
+    (`prints/tipos-ocorrencia-aviso-contratante-1280.png`).
+  - `0d3ad574`: **spec 179 T401** — "Foto no registro" (não pede, opcional, obrigatória) na linha e
+    no cadastro, pt-BR e en. Contrato `occurrence-type-attachment-mode.contract.ts`; no navegador
+    "Recebedor ausente" passou a "Foto obrigatória" e continuou assim depois de recarregar
+    (`prints/tipos-ocorrencia-foto-{1280,375}.png`).
+  - `2c0f1079`: renomear na linha (campo, "Salvar nome", "Cancelar", Esc); vazio, igual ao atual ou
+    acima de 60 caracteres (o teto da API) não grava. Contrato
+    `occurrence-type-rename.contract.ts`; no navegador renomeado e desfeito, PUT **200** nos dois
+    (`prints/tipos-ocorrencia-renomeando-{1280,375}.png`, `tipos-ocorrencia-renomeado-1280.png`).
+- **Aposentar** já existia ("Em uso"), e agora grava sem 400.
+- **Revisão de design (web.md §15):** os controles novos são os primitivos da linha (`Checkbox`,
+  `Select`, `Button` `sm`/`ghost`, o mesmo campo de texto do cadastro); em 375 px o nome e
+  "Renomear" quebram em vez de espremer, sem rolagem lateral. A coluna "03 Ambiente" que desce ao
+  lado é o layout da página, anterior a esta tela.
+- **Spec 179 T402** (revisão de design com print em 375 px e no desktop) fica coberta pelos prints
+  acima para a parte do editor; a tela de registro com foto é da própria 179.
+- **Rodado:**
+  - painel: **5331 + 44 pass, 0 fail**; typecheck, eslint e formatação dos arquivos tocados limpos
+    (o único erro de lint da raiz é o `playwright.local-183.tmp.config.ts` temporário, que não vai
+    para o repositório);
+  - API: contratos **7600 pass, 23 skip, 0 fail**; `occurrence-type-save.integration.ts` sozinho
+    **1 pass** contra Postgres real;
+  - ⚠️ **integração completa: em andamento, arquivo por arquivo.** O container reiniciou e derrubou
+    a infraestrutura de teste; o MinIO de teste não sobe de novo (a rede bloqueia `quay.io`), então
+    subiram só Postgres e RabbitMQ de teste, com o SeaweedFS no lugar do MinIO. A primeira passada
+    inteira ficou sem saída por mais de 30 minutos e foi interrompida; a passada arquivo por
+    arquivo, com tempo limite em cada um, está rodando. O resultado entra aqui quando terminar.

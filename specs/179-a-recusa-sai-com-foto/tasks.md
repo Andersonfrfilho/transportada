@@ -66,7 +66,7 @@ DIAGNOSTICS ROW_COUNT`. `make migration-test` verde.
 
 > 🤖 Modelo: `sonnet` (T402 é 🧠 — revisão de design com print)
 
-- **T401** O editor de tipos de ocorrência oferece a marca de comprovante obrigatório, em pt-BR e
+- **T401** ✅ O editor de tipos de ocorrência oferece a marca de comprovante obrigatório, em pt-BR e
   en. (CA01, RF10)
 - **T402** 🧠 Revisão de design e usabilidade com print, em 375px e no desktop (web.md §15). (CA09)
 

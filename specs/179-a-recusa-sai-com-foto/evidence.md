@@ -481,3 +481,21 @@ esta parte tocou, isolado contra Postgres e MinIO reais, é limpo.
 O resíduo `apps/cron-transportada/src/nfe-distribution-pull/nfe-distribution-pull.job.ts`
 (`runNfeDistributionPullJob`, nunca chamado de `main.ts`) continua como estava — fora do escopo desta
 correção, e o orquestrador pediu explicitamente para não tocar.
+
+## T401 — O editor de tipos oferece a exigência de foto (26/09/2026, feito pela spec 183 item 9)
+
+- Commit `0d3ad574`: "Foto no registro" (não pede · opcional · obrigatória / No photo · Optional
+  photo · Photo required) na linha de cada tipo e no cadastro, pelo `Select` do design system. O
+  tipo novo nasce "não pede foto"; a edição de outro campo não mexe na exigência
+  (`occurrenceTypeEdit`, commit `951dc84c`).
+- A aba estava quebrada antes (lista vazia com GET 200, PUT 400) — corrigida nos commits
+  `6d38fa04` e no da API do mesmo item; detalhe em
+  `specs/183-a-ocorrencia-tem-duas-conversas/evidence.md` § "Item 9".
+- Teste: `apps/frontend-transportada/test/company-settings/occurrence-type-attachment-mode.contract.ts`,
+  visto falhar (3) antes; painel `bun run test` verde.
+- Navegador, bancada real: "Recebedor ausente" passou a "Foto obrigatória", o PUT levou
+  `attachmentMode: "required"` com o resto do tipo, e o valor ficou depois de recarregar. Prints
+  `specs/183-a-ocorrencia-tem-duas-conversas/prints/tipos-ocorrencia-foto-{1280,375}.png`.
+- **T402 segue aberta:** os prints cobrem o editor; a revisão de design da tela de registro com
+  foto (CA09) é desta spec e não foi feita aqui.
+
