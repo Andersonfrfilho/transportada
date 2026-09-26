@@ -138,6 +138,7 @@ export function DriverProfilePage({
           variant="secondary"
           onClick={onOpenQueue}
         >
+          <Icon name="clipboard-list" />
           {t('eventQueue.open')}
         </Button>
       </section>

@@ -120,6 +120,8 @@ export function buildNotDeliveredReports(input: {
   readonly createIdempotencyKey: () => string
   readonly documentId: string
   readonly draft: NotDeliveredDraft
+  /** Pedido do usuário (25/09): "Registrar entrega depois" — só a devolução leva a marca. */
+  readonly lateRegistration?: boolean
   readonly occurrenceTypes: DriverOccurrenceTypesState
 }): readonly DriverFieldReport[] {
   const { draft } = input
@@ -130,6 +132,7 @@ export function buildNotDeliveredReports(input: {
     documentId: input.documentId,
     idempotencyKey: input.createIdempotencyKey(),
     kind: 'return',
+    ...(input.lateRegistration === undefined ? {} : { lateRegistration: input.lateRegistration }),
     location: null,
     reason: draft.reason,
   }

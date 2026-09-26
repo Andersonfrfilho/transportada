@@ -125,6 +125,8 @@ async function assertNoHorizontalOverflow(page: Page): Promise<void> {
 for (const theme of THEMES) {
   test(`PWA: card da parada com o aviso de foto obrigatória (${theme})`, async ({ page }) => {
     await openDriverApp({ page, scenario: { stopDeliveryProof: PHOTO_REQUIRED }, theme })
+    // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei".
+    await page.getByRole('button', { name: 'Cheguei' }).click()
     const warning = page.getByText('Foto do canhoto obrigatória').first()
     await warning.scrollIntoViewIfNeeded()
     await expect(page.getByRole('button', { exact: true, name: 'Entreguei' })).toBeEnabled()

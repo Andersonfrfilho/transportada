@@ -59,6 +59,7 @@ export function DriverEventQueuePage({
     <main className={styles.shell}>
       <header className={styles.eventQueueHeader}>
         <Button type="button" variant="secondary" onClick={onBack}>
+          <Icon name="close" />
           {t('eventQueue.back')}
         </Button>
         <h1 className={styles.eventQueueTitle}>{t('eventQueue.title')}</h1>
@@ -128,6 +129,7 @@ export function DriverEventQueuePage({
                     variant="secondary"
                     onClick={() => onSendOne(item.idempotencyKey)}
                   >
+                    <Icon name="upload" />
                     {t('eventQueue.sendNow')}
                   </Button>
                 )}

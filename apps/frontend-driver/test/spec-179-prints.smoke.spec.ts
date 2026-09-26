@@ -64,6 +64,8 @@ for (const theme of THEMES) {
   for (const [label, viewport] of VIEWPORTS) {
     test(`print: "Não entreguei" vazio e completo (${label} ${theme})`, async ({ page }) => {
       await openDriverApp({ page, theme, viewport })
+      // Pedido do usuário (25/09): "Não entreguei" só existe depois de "Cheguei".
+      await page.getByRole('button', { name: 'Cheguei' }).click()
       await page.getByRole('button', { exact: true, name: 'Não entreguei' }).click()
       const form = page.locator('fieldset', { hasText: 'Por que não entregou?' })
       await expect(form.getByText(/Para confirmar, falta:/u)).toBeVisible()
@@ -98,6 +100,8 @@ for (const theme of THEMES) {
     test(`print: cartão "na fila" e "enviada" (${label} ${theme})`, async ({ page }) => {
       const api = await openDriverApp({ page, theme, viewport })
       api.setOffline(true)
+      // Pedido do usuário (25/09): "Não entreguei" só existe depois de "Cheguei".
+      await page.getByRole('button', { name: 'Cheguei' }).click()
       await page.getByRole('button', { exact: true, name: 'Não entreguei' }).click()
       const form = page.locator('fieldset', { hasText: 'Por que não entregou?' })
       await form.getByRole('radio', { name: 'Recusa' }).click()
@@ -140,6 +144,8 @@ for (const theme of THEMES) {
         theme,
         viewport,
       })
+      // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei".
+      await page.getByRole('button', { name: 'Cheguei' }).click()
       await page.getByRole('button', { exact: true, name: 'Entreguei' }).click()
       const item = page.locator('li', { hasText: 'Mercearia do Centro' }).last()
       await expect(item.getByRole('button', { exact: true, name: 'Anexar' })).toBeVisible()

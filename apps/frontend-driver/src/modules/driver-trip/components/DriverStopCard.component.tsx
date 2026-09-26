@@ -20,6 +20,7 @@ import { useTransientNotice } from '../hooks/useTransientNotice.hook'
 import { captureRegistry } from '../shared/captureRegistry.service'
 import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
 import {
+  isStopArrivalRecorded,
   stopHasOccurrenceMarker,
   type DocumentActivityStatus,
   type DocumentActivityView,
@@ -43,6 +44,8 @@ import {
   isDocumentSettled,
   isProofPendingWarningDue,
 } from '../shared/driverTripView.service'
+import type { EventQueueItemView } from '../shared/eventQueueView.service'
+import { canOfferLateRegistration } from '../shared/lateRegistration.service'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
 import { renderOccurrenceNoticePreview } from '../shared/occurrenceNoticePreview.service'
 import {
@@ -109,6 +112,8 @@ export type DriverProofAttachment = Readonly<{
   documentId: string
   file: File
   kind: 'photo' | 'signature'
+  /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
+  lateRegistration?: boolean
   receiverDocument?: string
   receiverName?: string
 }>
@@ -135,7 +140,7 @@ type DriverStopCardProps = Readonly<{
   /** Spec 082 D2: a última posição conhecida — sem ela, a distância simplesmente não aparece. */
   lastKnownLocation: DriverReportedLocation | null
   onArrive: (stopId: string) => void
-  onDeliver: (documentId: string) => void
+  onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
   /** `Promise<boolean>`: sucesso acende a linha e o aviso transitório no cartão, nunca à cega. */
   onDocumentOccurrence: (input: {
     documentId: string
@@ -153,11 +158,20 @@ type DriverStopCardProps = Readonly<{
    */
   onOccurrencePhoto: (input: { documentId: string; file: File }) => void
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
-  onNotDelivered: (input: { documentId: string; draft: NotDeliveredDraft }) => void
+  onNotDelivered: (input: {
+    documentId: string
+    draft: NotDeliveredDraft
+    lateRegistration: boolean
+  }) => void
   /** Pedido do usuário (25/09): o toque no cabeçalho abre/fecha — o aberto vem da página, derivado. */
   onToggle: () => void
   /** Spec 179 RF5: por nota, "na fila" / "enviado" / "recusado" da ocorrência com foto. */
   notDeliveredStatusByDocumentId: ReadonlyMap<string, NotDeliveredStatus>
+  /**
+   * Pedido do usuário (25/09): "Cheguei" libera a entrega — a mesma fila que o resto do cartão lê,
+   * só para saber se ESTA parada já tem uma chegada, na hora, mesmo sem o servidor ter confirmado.
+   */
+  queueView: readonly EventQueueItemView[]
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", com o mesmo retorno de fila. */
   returnActivityByDocumentId: ReadonlyMap<string, DocumentReturnActivityView>
   /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
@@ -185,6 +199,7 @@ export function DriverStopCard({
   onProofFieldsUpdate,
   onRetryOccurrenceTypes,
   onToggle,
+  queueView,
   returnActivityByDocumentId,
   stop,
   stopOccurrenceActivity,
@@ -196,6 +211,13 @@ export function DriverStopCard({
   /** Painel "Registrar ocorrência" da nota (`onDocumentOccurrence`): chamada direta, sem fila offline. */
   const [documentOccurrenceRecordedAtByDocumentId, setDocumentOccurrenceRecordedAtByDocumentId] =
     useState<ReadonlyMap<string, string>>(new Map())
+  /**
+   * Pedido do usuário (25/09): "Registrar entrega depois" — escape hatch de quem não tocou
+   * "Cheguei" na hora. Vale só para ESTA parada, e só no estado da página (nunca `localStorage`):
+   * o `key={stop.id}` do `.map()` que monta o cartão já dá o "por stopId" de graça.
+   */
+  const [isLateRegistration, setIsLateRegistration] = useState(false)
+  const [isConfirmingLateRegistration, setIsConfirmingLateRegistration] = useState(false)
   const isCompleted = stop.completedAt !== null
   const distanceLabel = formatStopDistance({ location: lastKnownLocation, stop })
   const deliveryWindow = describeDeliveryWindow({
@@ -218,6 +240,19 @@ export function DriverStopCard({
     documentOccurrenceIds: documentIdsWithOccurrence,
     stopOccurrenceKey: stopOccurrenceActivity === undefined ? undefined : 'present',
   })
+  /** Pedido do usuário (25/09): "Cheguei" libera a entrega — no toque, na hora, mesmo sem sinal. */
+  const isArrivalRecorded = isStopArrivalRecorded({
+    arrivedAt: stop.arrivedAt,
+    queueView,
+    stopId: stop.id,
+  })
+  const canActOnDocuments = isArrivalRecorded || isLateRegistration
+  const offersLateRegistration = canOfferLateRegistration({ canActOnDocuments, stop })
+
+  function handleConfirmLateRegistration(): void {
+    setIsLateRegistration(true)
+    setIsConfirmingLateRegistration(false)
+  }
 
   function handleDocumentOccurrence(input: {
     documentId: string
@@ -272,6 +307,12 @@ export function DriverStopCard({
               <span className={`${styles.stopChip} ${styles.stopChipOccurrence}`}>
                 <Icon aria-hidden="true" name="alert" size="sm" />
                 {t('activity.occurrenceMarker')}
+              </span>
+            ) : null}
+            {isLateRegistration ? (
+              <span className={`${styles.stopChip} ${styles.stopChipOccurrence}`}>
+                <Icon aria-hidden="true" name="clock" size="sm" />
+                {t('lateRegistration.badge')}
               </span>
             ) : null}
           </span>
@@ -390,12 +431,14 @@ export function DriverStopCard({
         <ul className={styles.documentList}>
           {stop.documents.map((document) => (
             <DocumentRow
+              canActOnDocuments={canActOnDocuments}
               deliverActivity={deliverActivityByDocumentId.get(document.id)}
               document={document}
               documentOccurrenceRecordedAt={documentOccurrenceRecordedAtByDocumentId.get(
                 document.id,
               )}
               isFieldWorkBlocked={isFieldWorkBlocked}
+              isLateRegistration={isLateRegistration}
               key={document.id}
               notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
               onAnnounce={(message) => announce(document.id, message)}
@@ -411,22 +454,64 @@ export function DriverStopCard({
             />
           ))}
         </ul>
+
+        {/*
+         * Pedido do usuário (25/09): quem não tocou "Cheguei" na hora ainda registra a entrega —
+         * só na parada que ainda está travada e tem nota para agir. O aviso reduz a nota do
+         * motorista de propósito: é o preço de pular a chegada, não um erro a esconder.
+         */}
+        {isFieldWorkBlocked || !offersLateRegistration ? null : isConfirmingLateRegistration ? (
+          <div role="alertdialog">
+            <p role="alert">{t('lateRegistration.warning')}</p>
+            <div className={styles.actions}>
+              <Button onClick={handleConfirmLateRegistration} type="button">
+                <Icon name="check" />
+                {t('lateRegistration.confirm')}
+              </Button>
+              <Button
+                onClick={() => setIsConfirmingLateRegistration(false)}
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="close" />
+                {t('lateRegistration.cancel')}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            onClick={() => setIsConfirmingLateRegistration(true)}
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="clock" />
+            {t('lateRegistration.open')}
+          </Button>
+        )}
       </div>
     </li>
   )
 }
 
 type DocumentRowProps = Readonly<{
+  /**
+   * Pedido do usuário (25/09): "Cheguei" libera a entrega — `isArrivalRecorded` da parada, OU
+   * `isLateRegistration` confirmado pelo escape hatch. Sem nenhum dos dois, Entreguei/Não
+   * entreguei/Registrar ocorrência simplesmente não entram no DOM.
+   */
+  canActOnDocuments: boolean
   /** Pedido do usuário (25/09): "entregue às HH:MM" — mesmo retorno de fila da devolução/ocorrência. */
   deliverActivity: DocumentActivityView | undefined
   document: DriverTripDocument
   /** Painel "Registrar ocorrência" (chamada direta): hora da última confirmação, se houve. */
   documentOccurrenceRecordedAt: string | undefined
   isFieldWorkBlocked: boolean
+  /** Pedido do usuário (25/09): carimba `lateRegistration` no deliver/return/proof desta parada. */
+  isLateRegistration: boolean
   notDeliveredStatus: NotDeliveredStatus | undefined
   /** O aviso transitório do cartão inteiro — um por parada, anunciado pela nota que agiu. */
   onAnnounce: (message: string) => void
-  onDeliver: (documentId: string) => void
+  onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
   /** Spec 079: o que aconteceu **sem** a carga voltar. O tipo vem do cadastro da empresa. */
   onDocumentOccurrence: (input: {
     documentId: string
@@ -434,7 +519,11 @@ type DocumentRowProps = Readonly<{
     productCode: string
   }) => void
   occurrenceTypes: DriverOccurrenceTypesState
-  onNotDelivered: (input: { documentId: string; draft: NotDeliveredDraft }) => void
+  onNotDelivered: (input: {
+    documentId: string
+    draft: NotDeliveredDraft
+    lateRegistration: boolean
+  }) => void
   onProof: (input: DriverProofAttachment) => void
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   onRetryOccurrenceTypes: () => void
@@ -444,10 +533,12 @@ type DocumentRowProps = Readonly<{
 }>
 
 function DocumentRow({
+  canActOnDocuments,
   deliverActivity,
   document,
   documentOccurrenceRecordedAt,
   isFieldWorkBlocked,
+  isLateRegistration,
   notDeliveredStatus,
   occurrenceTypes,
   onAnnounce,
@@ -501,10 +592,14 @@ function DocumentRow({
             })}
           />
         )}
-        {/* O canhoto anexa depois: a entrega já está confirmada, e o arquivo não a desfaz */}
+        {/*
+         * O canhoto anexa depois: a entrega já está confirmada, e o arquivo não a desfaz — por
+         * isso nunca trava atrás de "Cheguei" (nota já entregue, foto pendente de verdade).
+         */}
         {document.separationStatus === 'delivered' ? (
           <DeliveryProofSection
             documentId={document.id}
+            {...(isLateRegistration ? { lateRegistration: true } : {})}
             onProof={onProof}
             {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
             proofSettings={proofSettings}
@@ -576,100 +671,117 @@ function DocumentRow({
           </details>
         </div>
       ) : null}
-      <div className={styles.actions}>
-        <Button
-          onClick={() => {
-            onAnnounce(t('activity.toast.delivered'))
-            onDeliver(document.id)
-          }}
-          type="button"
-        >
-          <Icon name="check" />
-          {t('deliver')}
-        </Button>
-        <Button onClick={() => setOpenReturn((open) => !open)} type="button" variant="ghost">
-          <Icon name="close" />
-          {t('return')}
-        </Button>
-        {/*
-         * ⚠️ Isto **não** é devolver, e o texto do painel diz isso: aqui a carga fica com o cliente.
-         * Os tipos oferecidos são só os que a devolução não sabe dizer — ver
-         * `driverDocumentOccurrenceTypes`.
-         */}
-        <Button
-          onClick={() => setOpenDocumentOccurrence((open) => !open)}
-          type="button"
-          variant="ghost"
-        >
-          <Icon name="alert" />
-          {t('documentOccurrence')}
-        </Button>
-      </div>
-      {openOccurrence ? (
-        <fieldset className={styles.occurrenceForm} ref={occurrencePanelRef} tabIndex={-1}>
-          <legend>{t('documentOccurrence')}</legend>
-          <p>{t('documentOccurrenceHint')}</p>
-          {occurrenceTypes.status === 'failed' ? (
-            <div>
-              <p className={styles.proofFieldError} role="alert">
-                {t('documentOccurrenceTypesFailed')}
-              </p>
-              <Button onClick={handleRetryOccurrenceTypes} type="button" variant="ghost">
-                <Icon name="refresh" />
-                {t('documentOccurrenceTypesRetry')}
-              </Button>
-            </div>
-          ) : occurrenceTypes.status === 'loading' ? (
-            <SkeletonGroup
-              className={styles.occurrenceChips}
-              label={t('documentOccurrenceTypesLoading')}
-            >
-              <Skeleton height="var(--control-height)" width="40%" />
-              <Skeleton height="var(--control-height)" width="55%" />
-            </SkeletonGroup>
-          ) : occurrenceTypes.types.length === 0 ? (
-            <p className={styles.stopMeta}>{t('documentOccurrenceTypesEmpty')}</p>
-          ) : (
-            occurrenceTypes.types.map((occurrenceType) => (
-              <Button
-                key={occurrenceType.id}
-                onClick={() => {
-                  onDocumentOccurrence({
-                    documentId: document.id,
-                    occurrenceTypeId: occurrenceType.id,
-                    /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber listá-lo — a
-                       nota do motorista ainda não carrega os produtos. */
-                    productCode: '',
-                  })
-                  setOpenDocumentOccurrence(false)
-                }}
-                // O retorno (linha + aviso transitório) chega pelo `.then` de `onDocumentOccurrence`,
-                // acima — nunca em silêncio, mesmo essa sendo uma chamada direta (sem fila offline).
-                type="button"
-                variant="ghost"
-              >
-                {occurrenceType.name}
-              </Button>
-            ))
-          )}
-        </fieldset>
-      ) : null}
       {/*
-       * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
-       * devolução — a devolução fecha a nota, a ocorrência é a prova (`notDelivered.service.ts`).
+       * Pedido do usuário (25/09): "Cheguei" libera a entrega — sem chegada (e sem "Registrar
+       * entrega depois" confirmado), Entreguei/Não entreguei/Registrar ocorrência nem entram no
+       * DOM. Nada de desabilitado e cinza: o aviso ocupa o lugar delas.
        */}
-      {openReturn ? (
-        <DriverNotDeliveredForm
-          occurrenceTypes={occurrenceTypes}
-          onCancel={() => setOpenReturn(false)}
-          onConfirm={(draft) => {
-            onNotDelivered({ documentId: document.id, draft })
-            onAnnounce(t('activity.toast.returned'))
-            setOpenReturn(false)
-          }}
-          onRetryOccurrenceTypes={onRetryOccurrenceTypes}
-        />
-      ) : null}
+      {canActOnDocuments ? (
+        <>
+          <div className={styles.actions}>
+            <Button
+              onClick={() => {
+                onAnnounce(t('activity.toast.delivered'))
+                onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
+              }}
+              type="button"
+            >
+              <Icon name="check" />
+              {t('deliver')}
+            </Button>
+            <Button onClick={() => setOpenReturn((open) => !open)} type="button" variant="ghost">
+              <Icon name="close" />
+              {t('return')}
+            </Button>
+            {/*
+             * ⚠️ Isto **não** é devolver, e o texto do painel diz isso: aqui a carga fica com o
+             * cliente. Os tipos oferecidos são só os que a devolução não sabe dizer — ver
+             * `driverDocumentOccurrenceTypes`.
+             */}
+            <Button
+              onClick={() => setOpenDocumentOccurrence((open) => !open)}
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="alert" />
+              {t('documentOccurrence')}
+            </Button>
+          </div>
+          {openOccurrence ? (
+            <fieldset className={styles.occurrenceForm} ref={occurrencePanelRef} tabIndex={-1}>
+              <legend>{t('documentOccurrence')}</legend>
+              <p>{t('documentOccurrenceHint')}</p>
+              {occurrenceTypes.status === 'failed' ? (
+                <div>
+                  <p className={styles.proofFieldError} role="alert">
+                    {t('documentOccurrenceTypesFailed')}
+                  </p>
+                  <Button onClick={handleRetryOccurrenceTypes} type="button" variant="ghost">
+                    <Icon name="refresh" />
+                    {t('documentOccurrenceTypesRetry')}
+                  </Button>
+                </div>
+              ) : occurrenceTypes.status === 'loading' ? (
+                <SkeletonGroup
+                  className={styles.occurrenceChips}
+                  label={t('documentOccurrenceTypesLoading')}
+                >
+                  <Skeleton height="var(--control-height)" width="40%" />
+                  <Skeleton height="var(--control-height)" width="55%" />
+                </SkeletonGroup>
+              ) : occurrenceTypes.types.length === 0 ? (
+                <p className={styles.stopMeta}>{t('documentOccurrenceTypesEmpty')}</p>
+              ) : (
+                occurrenceTypes.types.map((occurrenceType) => (
+                  <Button
+                    key={occurrenceType.id}
+                    onClick={() => {
+                      onDocumentOccurrence({
+                        documentId: document.id,
+                        occurrenceTypeId: occurrenceType.id,
+                        /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber
+                           listá-lo — a nota do motorista ainda não carrega os produtos. */
+                        productCode: '',
+                      })
+                      setOpenDocumentOccurrence(false)
+                    }}
+                    // O retorno (linha + aviso transitório) chega pelo `.then` de
+                    // `onDocumentOccurrence`, acima — nunca em silêncio, mesmo essa sendo uma
+                    // chamada direta (sem fila offline).
+                    type="button"
+                    variant="ghost"
+                  >
+                    {occurrenceType.name}
+                  </Button>
+                ))
+              )}
+            </fieldset>
+          ) : null}
+          {/*
+           * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
+           * devolução — a devolução fecha a nota, a ocorrência é a prova
+           * (`notDelivered.service.ts`).
+           */}
+          {openReturn ? (
+            <DriverNotDeliveredForm
+              occurrenceTypes={occurrenceTypes}
+              onCancel={() => setOpenReturn(false)}
+              onConfirm={(draft) => {
+                onNotDelivered({
+                  documentId: document.id,
+                  draft,
+                  lateRegistration: isLateRegistration,
+                })
+                onAnnounce(t('activity.toast.returned'))
+                setOpenReturn(false)
+              }}
+              onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+            />
+          ) : null}
+        </>
+      ) : (
+        <p className={styles.stopMeta}>{t('arrivalRequired')}</p>
+      )}
     </li>
   )
 }
@@ -718,6 +830,8 @@ function DocumentDetails({ document }: DocumentDetailsProps) {
 
 export type DeliveryProofSectionProps = Readonly<{
   documentId: string
+  /** Pedido do usuário (25/09): carimba o anexo com a mesma marca do deliver/return da parada. */
+  lateRegistration?: boolean
   onProof: (input: DriverProofAttachment) => void
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   proofSettings: DriverDeliveryProofSettings | null
@@ -733,6 +847,7 @@ export type DeliveryProofSectionProps = Readonly<{
  */
 export function DeliveryProofSection({
   documentId,
+  lateRegistration,
   onProof,
   onProofFieldsUpdate,
   proofSettings,
@@ -799,7 +914,13 @@ export function DeliveryProofSection({
     const next = { ...attached, [kind]: true }
     setAttached(next)
     if (kind === 'photo') photoPreview.showPhoto(file)
-    onProof({ documentId, file, kind, ...receiverFields() })
+    onProof({
+      documentId,
+      file,
+      kind,
+      ...(lateRegistration === true ? { lateRegistration: true } : {}),
+      ...receiverFields(),
+    })
     blockedByFields(next)
   }
 

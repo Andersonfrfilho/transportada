@@ -42,7 +42,13 @@ describe('o attach nunca descarta a foto (spec 203)', () => {
 
   it('attach() chama onProof incondicionalmente, para foto e para assinatura — mesma função', () => {
     const body = attachFunctionBody()
-    expect(body).toInclude('onProof({ documentId, file, kind, ...receiverFields() })')
+    /* Pedido do usuário (25/09): `lateRegistration` entrou no meio — o corpo ganhou linhas, a
+       chamada continua incondicional (já provado por "não tem `return`", acima). */
+    expect(body).toInclude('onProof({')
+    expect(body).toInclude('documentId,')
+    expect(body).toInclude('file,')
+    expect(body).toInclude('kind,')
+    expect(body).toInclude('...receiverFields(),')
     /* As duas capturas passam pela mesma `attach()` — não há uma segunda cópia da regra. */
     expect(CARD.match(/attach\('photo', file\)/gu)).toHaveLength(1)
     expect(CARD.match(/attach\('signature', new File/gu)).toHaveLength(1)

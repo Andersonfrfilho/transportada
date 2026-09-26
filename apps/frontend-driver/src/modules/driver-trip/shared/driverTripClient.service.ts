@@ -15,6 +15,8 @@ import {
   type ProofPunctuality,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
+import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
+import { shouldSendLateRegistration } from './lateRegistration.service'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
 import { createIdempotencyKey } from './offlineQueue.service'
 
@@ -107,6 +109,8 @@ export type DriverTripClient = Readonly<{
     documentId: string
     file: File
     kind: 'photo' | 'signature'
+    /** Pedido do usuário (25/09): mesma marca do `deliver`/`return`, atrás do mesmo interruptor. */
+    lateRegistration?: boolean
     latitude?: number
     longitude?: number
     receiverDocument?: string
@@ -175,13 +179,36 @@ function reportPath(report: JsonFieldReport): string {
   }
 }
 
-function reportBody(report: JsonFieldReport): string {
+/**
+ * ⚠️ `lateRegistration` só entra quando `LATE_REGISTRATION_FIELD_ENABLED` ligar: a API ainda recusa
+ * a chave (schemas `.strict()`, 400). Exportada para o contrato provar que o corpo sai igual ao de
+ * hoje enquanto a constante estiver desligada.
+ */
+export function reportBody(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
-    case 'deliver':
       return JSON.stringify({ location: report.location })
+    case 'deliver':
+      return JSON.stringify({
+        location: report.location,
+        ...(shouldSendLateRegistration({
+          isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
+          lateRegistration: report.lateRegistration,
+        })
+          ? { lateRegistration: true }
+          : {}),
+      })
     case 'return':
-      return JSON.stringify({ location: report.location, reason: report.reason })
+      return JSON.stringify({
+        location: report.location,
+        reason: report.reason,
+        ...(shouldSendLateRegistration({
+          isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
+          lateRegistration: report.lateRegistration,
+        })
+          ? { lateRegistration: true }
+          : {}),
+      })
     case 'occurrence':
       return JSON.stringify({
         description: report.description,
@@ -205,6 +232,14 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const accuracyMeters = clampProofAccuracyMeters(input.accuracyMeters)
       if (accuracyMeters !== undefined) form.set('accuracyMeters', String(accuracyMeters))
       if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
+      if (
+        shouldSendLateRegistration({
+          isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
+          lateRegistration: input.lateRegistration,
+        })
+      ) {
+        form.set('lateRegistration', 'true')
+      }
 
       const payload = await request({
         dependencies,

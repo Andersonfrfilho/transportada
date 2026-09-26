@@ -327,12 +327,16 @@ export function DriverTripWorkspacePage() {
   async function reportNotDelivered(input: {
     documentId: string
     draft: NotDeliveredDraft
+    lateRegistration?: boolean
   }): Promise<void> {
     setAttachmentLimit(undefined)
     const reports = buildNotDeliveredReports({
       createIdempotencyKey,
       documentId: input.documentId,
       draft: input.draft,
+      ...(input.lateRegistration === undefined
+        ? {}
+        : { lateRegistration: input.lateRegistration }),
       occurrenceTypes,
     })
     const outcome = await driverTrip.reportNotDelivered(reports)
@@ -433,12 +437,18 @@ export function DriverTripWorkspacePage() {
   }
 
   /** Pedido do usuário (25/09): a chave nasce aqui — é ela que liga o toque à linha "na fila"/"enviada". */
-  function deliverDocument(documentId: string): void {
+  function deliverDocument(input: { documentId: string; lateRegistration: boolean }): void {
     const idempotencyKey = createIdempotencyKey()
     setDeliverKeyByDocumentId((current) =>
-      new Map(current).set(documentId, { at: new Date().toISOString(), key: idempotencyKey }),
+      new Map(current).set(input.documentId, { at: new Date().toISOString(), key: idempotencyKey }),
     )
-    void report((location) => ({ documentId, idempotencyKey, kind: 'deliver', location }))
+    void report((location) => ({
+      documentId: input.documentId,
+      idempotencyKey,
+      kind: 'deliver',
+      ...(input.lateRegistration ? { lateRegistration: true } : {}),
+      location,
+    }))
   }
 
   function reportStopOccurrence(input: {
@@ -700,6 +710,7 @@ export function DriverTripWorkspacePage() {
                 isOpen={stopExpansion.isOpen(stop.id)}
                 key={stop.id}
                 lastKnownLocation={lastKnownLocation}
+                queueView={driverTrip.queueView}
                 returnActivityByDocumentId={returnActivityByDocumentId}
                 stop={stop}
                 stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}

@@ -60,3 +60,18 @@ export function stopHasOccurrenceMarker(input: {
   if (input.stopOccurrenceKey !== undefined) return true
   return input.documentIds.some((documentId) => input.documentOccurrenceIds.has(documentId))
 }
+
+/**
+ * Pedido do usuário (25/09): "Cheguei" libera a entrega. Chegada é o `arrivedAt` do snapshot **ou**
+ * um "Cheguei" já na mesma fila offline que o acordeão usa para o resto da parada — a API deriva a
+ * chegada da própria entrega (spec 082, ADR-0045), então isto é regra de tela: o motorista toca
+ * "Cheguei", o item entra na fila, e as ações liberam na hora, sem esperar confirmação do servidor.
+ */
+export function isStopArrivalRecorded(input: {
+  readonly arrivedAt: string | null
+  readonly queueView: readonly EventQueueItemView[]
+  readonly stopId: string
+}): boolean {
+  if (input.arrivedAt !== null) return true
+  return input.queueView.some((item) => item.kind === 'arrive' && item.stopId === input.stopId)
+}

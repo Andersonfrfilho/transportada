@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import { useLocationConsent } from '../hooks/useLocationConsent.hook'
 import styles from '../styles/driverTrip.module.css'
@@ -65,6 +66,7 @@ export function DriverLocationConsentCard() {
           variant="secondary"
           onClick={() => consent.setConsent(false)}
         >
+          <Icon name="refresh" />
           {t('locationSharing.retry')}
         </Button>
       ) : null}

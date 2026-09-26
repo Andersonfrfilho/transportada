@@ -28,6 +28,14 @@ function queuedItem(input: {
   }
 }
 
+function arriveItem(input: { readonly key: string; readonly stopId: string }): QueuedReport {
+  return {
+    attempts: 0,
+    createdAt: NOW,
+    report: { idempotencyKey: input.key, kind: 'arrive', location: null, stopId: input.stopId },
+  }
+}
+
 function attachment(input: {
   readonly key?: string
   readonly rejectionCause?: string
@@ -127,6 +135,17 @@ describe('a tela de eventos pendentes (D7)', () => {
 
     expect(views[0]?.status).toEqual({ state: 'queued' })
     expect(views[0]?.attachmentRejectionCause).toBe('413 PROOF_FILE_TOO_LARGE')
+  })
+
+  /** Pedido do usuário (25/09): "Cheguei" libera a entrega — a tela precisa do `stopId` do evento. */
+  it('item de chegada ("arrive") carrega o `stopId` — os outros tipos não', () => {
+    const views = buildEventQueueView({
+      attachments: [],
+      queued: [arriveItem({ key: 'chave-1', stopId: 'stop-9' }), queuedItem({ key: 'chave-2' })],
+    })
+
+    expect(views[0]?.stopId).toBe('stop-9')
+    expect(views[1]).not.toHaveProperty('stopId')
   })
 
   it('enviar todos só se habilita com algo enviável', () => {

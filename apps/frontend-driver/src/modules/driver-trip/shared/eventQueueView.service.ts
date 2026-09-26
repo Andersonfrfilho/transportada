@@ -28,6 +28,8 @@ export type EventQueueItemView = Readonly<{
   /** `proof` é o grupo de anexos cujo evento já subiu — só os arquivos ainda aguardam. */
   kind: DriverFieldReport['kind'] | 'proof'
   queuedAt: string
+  /** Spec 082 (revisão), pedido do usuário (25/09): só no `arrive` — é o que "Cheguei" libera. */
+  stopId?: string
   status: EventQueueItemStatus
 }>
 
@@ -60,6 +62,7 @@ export function buildEventQueueView(input: {
       idempotencyKey: item.report.idempotencyKey,
       kind: item.report.kind,
       queuedAt: item.createdAt,
+      ...(report.kind === 'arrive' ? { stopId: report.stopId } : {}),
       status: toStatus(item),
     }
   })

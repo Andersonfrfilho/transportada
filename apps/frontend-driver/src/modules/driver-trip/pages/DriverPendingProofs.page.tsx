@@ -54,6 +54,7 @@ export function DriverPendingProofsPage({
     <main className={styles.shell}>
       <header className={styles.eventQueueHeader}>
         <Button type="button" variant="secondary" onClick={onBack}>
+          <Icon name="close" />
           {t('pendingProofs.back')}
         </Button>
         <h1 className={styles.eventQueueTitle}>{t('pendingProofs.title')}</h1>

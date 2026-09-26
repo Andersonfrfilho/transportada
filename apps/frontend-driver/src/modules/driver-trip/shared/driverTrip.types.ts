@@ -164,12 +164,16 @@ export type DriverFieldReport =
       documentId: string
       idempotencyKey: string
       kind: 'deliver'
+      /** Pedido do usuário (25/09): "Registrar entrega depois" — parada sem "Cheguei" confirmado. */
+      lateRegistration?: boolean
       location: DriverReportedLocation | null
     }>
   | Readonly<{
       documentId: string
       idempotencyKey: string
       kind: 'return'
+      /** Pedido do usuário (25/09): mesma marca do `deliver`, carregada pela devolução. */
+      lateRegistration?: boolean
       location: DriverReportedLocation | null
       reason: DriverReturnReason
     }>

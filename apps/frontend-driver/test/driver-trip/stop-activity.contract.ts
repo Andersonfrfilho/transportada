@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  isStopArrivalRecorded,
   resolveDocumentActivityStatus,
   stopHasOccurrenceMarker,
 } from '@/modules/driver-trip/shared/documentActivity.service'
@@ -187,5 +188,66 @@ describe('marcador de ocorrência no cabeçalho da parada', () => {
         stopOccurrenceKey: undefined,
       }),
     ).toBe(false)
+  })
+})
+
+/**
+ * Pedido do usuário (25/09): "Cheguei" libera a entrega. Chegada é `arrivedAt` do snapshot OU um
+ * "Cheguei" já na fila offline desta MESMA parada — nunca de outra.
+ */
+describe('chegada da parada libera as ações das notas (pedido do usuário 25/09)', () => {
+  it('sem `arrivedAt` e sem "Cheguei" na fila: chegada não registrada', () => {
+    expect(
+      isStopArrivalRecorded({ arrivedAt: null, queueView: [], stopId: 'stop-1' }),
+    ).toBe(false)
+  })
+
+  it('`arrivedAt` do snapshot já confirma, mesmo sem nada na fila', () => {
+    expect(
+      isStopArrivalRecorded({ arrivedAt: NOW, queueView: [], stopId: 'stop-1' }),
+    ).toBe(true)
+  })
+
+  it('"Cheguei" na fila desta parada libera na hora, sem esperar o servidor', () => {
+    expect(
+      isStopArrivalRecorded({
+        arrivedAt: null,
+        queueView: [queueItem({ kind: 'arrive', stopId: 'stop-1' })],
+        stopId: 'stop-1',
+      }),
+    ).toBe(true)
+  })
+
+  it('"Cheguei" de OUTRA parada não libera esta', () => {
+    expect(
+      isStopArrivalRecorded({
+        arrivedAt: null,
+        queueView: [queueItem({ kind: 'arrive', stopId: 'stop-9' })],
+        stopId: 'stop-1',
+      }),
+    ).toBe(false)
+  })
+
+  it('outro tipo de evento na fila (deliver) não conta como chegada', () => {
+    expect(
+      isStopArrivalRecorded({
+        arrivedAt: null,
+        queueView: [queueItem({ kind: 'deliver' })],
+        stopId: 'stop-1',
+      }),
+    ).toBe(false)
+  })
+
+  /**
+   * Achado do usuário (25/09) no preview: depois de recarregar, a parada ATUAL já com chegada
+   * precisa abrir sozinha. `isStopOpen` (o acordeão) e o bloqueio por "Cheguei" (`DocumentRow`)
+   * são independentes — nada em `isStopOpen` olha `arrivedAt`, então a chegada nunca deveria
+   * fechar a parada atual. Medido ao vivo depois de um recarregamento real: `aria-expanded="true"`.
+   */
+  it('parada atual com chegada registrada abre sozinha, sem sobrescrita nenhuma', () => {
+    expect(isStopArrivalRecorded({ arrivedAt: NOW, queueView: [], stopId: 'stop-1' })).toBe(true)
+    expect(
+      isStopOpen({ currentStopId: 'stop-1', overrides: new Map(), stopId: 'stop-1' }),
+    ).toBe(true)
   })
 })

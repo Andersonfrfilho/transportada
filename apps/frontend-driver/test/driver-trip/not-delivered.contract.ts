@@ -210,4 +210,33 @@ describe('os itens de fila de "Não entreguei"', () => {
       }),
     ).toThrow('NOT_DELIVERED_INCOMPLETE')
   })
+
+  /**
+   * Pedido do usuário (25/09): "Registrar entrega depois" — só a devolução carrega a marca; a
+   * ocorrência com foto (a prova) não muda por causa do escape hatch.
+   */
+  it('registro tardio confirmado: só a devolução leva `lateRegistration`', () => {
+    const reports = buildNotDeliveredReports({
+      createIdempotencyKey: createKey,
+      documentId: 'document-1',
+      draft: draft({ occurrenceTypeId: 'type-absent' }),
+      lateRegistration: true,
+      occurrenceTypes: TYPES,
+    })
+
+    const [occurrence, returned] = reports
+    expect(occurrence).not.toHaveProperty('lateRegistration')
+    expect(returned).toMatchObject({ kind: 'return', lateRegistration: true })
+  })
+
+  it('sem confirmar registro tardio, a devolução não carrega a marca', () => {
+    const [returned] = buildNotDeliveredReports({
+      createIdempotencyKey: createKey,
+      documentId: 'document-1',
+      draft: { note: '', occurrenceTypeId: undefined, photo: undefined, reason: 'damaged_goods' },
+      occurrenceTypes: { status: 'failed' },
+    })
+
+    expect(returned).not.toHaveProperty('lateRegistration')
+  })
 })

@@ -65,7 +65,8 @@ describe('a assinatura em canvas (D3/T051)', () => {
     expect(card).toContain("'image/png'")
     expect(card).toContain('receiverName')
     /* O caminho do anexo é o onProof do card → attachProof do hook — a mesma fila do canhoto. */
-    expect(card).toContain('onProof({ documentId, file, kind')
+    expect(card).toContain('onProof({')
+    expect(card).toContain('documentId,')
   })
 
   it('sem canvas/pointer a assinatura cai para a foto — o caminho que já existe', () => {

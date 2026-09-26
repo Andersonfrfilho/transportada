@@ -172,6 +172,8 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
 test('o motorista vê os tipos de ocorrência de rua da empresa', async ({ page }) => {
   await openTrip(page)
 
+  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
 
   await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
@@ -191,6 +193,8 @@ test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ p
   await loginAsLocalUser(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
 
+  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
 
   await expect(
@@ -228,6 +232,8 @@ test('sem tipo de rua cadastrado, o motorista vê o aviso de lista vazia', async
   await loginAsLocalUser(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
 
+  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
 
   await expect(
@@ -334,8 +340,10 @@ test('CA05(b): sinal fraco mostra a viagem salva e drena quando o Keycloak volta
   await page.reload()
 
   await expect(page.getByText(/Sem conexão — dados de \d/)).toBeVisible()
+  // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Entreguei' }).first().click()
-  await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
+  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
   expect(api.reports()).toEqual([])
 
   // A rede de volta: a sonda do Keycloak passa a responder, e a reautenticação percebe pelo
@@ -347,13 +355,13 @@ test('CA05(b): sinal fraco mostra a viagem salva e drena quando o Keycloak volta
    * Spec 189 T9.2 ("Confirmar em lote"): o toque foi gravado sem sessão — quem tinha o celular na mão
    * registrou em nome do último usuário. Depois de entrar, nada sobe sozinho: o dono confirma.
    */
-  await expect(page.getByText(/1 registro feito sem rede às \d.* — enviar\?/u)).toBeVisible({
+  await expect(page.getByText(/2 registros feitos sem rede às \d.* — enviar\?/u)).toBeVisible({
     timeout: 20_000,
   })
   expect(api.reports()).toEqual([])
   await page.getByRole('button', { exact: true, name: 'Enviar' }).click()
 
-  await expect.poll(() => api.reports().length, { timeout: 20_000 }).toBe(1)
+  await expect.poll(() => api.reports().length, { timeout: 20_000 }).toBe(2)
   await expect(page.getByText('feito sem rede', { exact: false })).toHaveCount(0)
 })
 
@@ -746,6 +754,8 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
     },
   })
   await loginAsLocalUser(page)
+  // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { exact: true, name: 'Entreguei' }).click()
   const item = page.locator('li', { hasText: 'Mercearia do Centro' }).last()
 
@@ -798,6 +808,8 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
  * e a devolução. Preenche motivo, tipo e foto pela câmera; o confirmar só habilita completo.
  */
 async function fillNotDelivered(page: Page): Promise<void> {
+  // Pedido do usuário (25/09): "Não entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { exact: true, name: 'Não entreguei' }).click()
   const confirm = page.getByRole('button', { exact: true, name: 'Confirmar' })
   await expect(confirm).toBeDisabled()
@@ -833,6 +845,7 @@ test('Não entreguei: ocorrência com foto sobe direto ao storage, depois a devo
   await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
   const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
   expect(paths).toEqual([
+    '/me/trips/current/stops/:id/arrive',
     '/me/trips/current/documents/:id/occurrence-uploads',
     '/me/trips/current/documents/:id/occurrence-uploads/:id/confirm',
     '/me/trips/current/documents/:id/occurrences',
@@ -841,13 +854,13 @@ test('Não entreguei: ocorrência com foto sobe direto ao storage, depois a devo
   expect(api.storageUploads()).toHaveLength(1)
   expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
   expect(api.storageUploads()[0]?.bytes).toBeGreaterThan(0)
-  const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[1]?.path ?? '')
-  expect(api.reports()[2]?.body).toMatchObject({
+  const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[2]?.path ?? '')
+  expect(api.reports()[3]?.body).toMatchObject({
     attachmentObjectId: confirmedId?.[1],
     occurrenceTypeId: '00000000-0000-4000-8000-0000000000e1',
   })
-  expect(api.reports()[3]?.body).toMatchObject({ reason: 'recipient_refused' })
-  expect(api.reports()[2]?.idempotencyKey).not.toBe(api.reports()[3]?.idempotencyKey)
+  expect(api.reports()[4]?.body).toMatchObject({ reason: 'recipient_refused' })
+  expect(api.reports()[3]?.idempotencyKey).not.toBe(api.reports()[4]?.idempotencyKey)
 })
 
 test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depois de subir', async ({
@@ -861,7 +874,8 @@ test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depo
   await expect(
     page.getByText('Ocorrência com foto na fila — sobe quando o sinal voltar.'),
   ).toBeVisible()
-  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
+  // Pedido do usuário (25/09): "Cheguei" entrou na mesma fila — chegada + ocorrência + devolução.
+  await expect(page.getByText('3 confirmações aguardando envio')).toBeVisible()
   await expect(page.getByText('Ocorrência com foto enviada.')).toHaveCount(0)
   expect(api.storageUploads()).toEqual([])
   expect(api.reports().filter((report) => report.path.endsWith('/occurrences'))).toEqual([])
@@ -877,6 +891,7 @@ test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depo
   await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
   expect(api.storageUploads()).toHaveLength(1)
   expect(api.reports().map((report) => report.path.split('/').at(-1))).toEqual([
+    'arrive',
     'occurrence-uploads',
     'confirm',
     'occurrences',

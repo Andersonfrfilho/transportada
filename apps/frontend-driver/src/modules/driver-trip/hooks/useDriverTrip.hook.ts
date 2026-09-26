@@ -81,6 +81,8 @@ export type DriverProofInput = Readonly<{
   documentId: string
   file: File
   kind: 'photo' | 'signature'
+  /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
+  lateRegistration?: boolean
   receiverDocument?: string
   receiverName?: string
 }>
@@ -306,6 +308,9 @@ export function useDriverTrip(
               ...(attachment.receiverName === undefined
                 ? {}
                 : { receiverName: attachment.receiverName }),
+              ...(attachment.lateRegistration === undefined
+                ? {}
+                : { lateRegistration: attachment.lateRegistration }),
             })
             return { kind: 'sent', punctuality: result.punctuality }
           } catch (error) {
@@ -529,6 +534,9 @@ export function useDriverTrip(
           ? {}
           : { receiverDocument: input.receiverDocument }),
         ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+        ...(input.lateRegistration === undefined
+          ? {}
+          : { lateRegistration: input.lateRegistration }),
         subHash: session.subHash,
       },
       attachmentStore,
