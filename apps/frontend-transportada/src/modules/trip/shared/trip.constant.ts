@@ -450,6 +450,29 @@ export const TRIP_DOCUMENT_PRODUCT_KEYS = [
   'unitValue',
 ] as const
 
+/**
+ * Spec 193 D1: quem recebeu, em relação ao destinatário — cópia por valor de `RECEIVED_BY_OPTIONS`
+ * da API (`src/database/trip.schema.ts`), na mesma ordem.
+ */
+export const DELIVERY_PROOF_RECEIVED_BY_OPTIONS = [
+  'recipient',
+  'spouse',
+  'child',
+  'parent',
+  'sibling',
+  'other_relative',
+  'neighbor',
+  'doorman',
+  'employee',
+  'other',
+] as const
+
+/**
+ * Spec 193 T3.1 (R1): chaves que a API passa a mandar no comprovante. Opcionais porque a API
+ * anterior não as manda — e o painel tem de aceitá-las antes de a API mandá-las.
+ */
+export const DELIVERY_PROOF_RECEIVED_BY_KEYS = ['receivedBy', 'receivedByDetail'] as const
+
 export const DELIVERY_PROOF_KEYS = [
   'createdAt',
   'downloadUrl',

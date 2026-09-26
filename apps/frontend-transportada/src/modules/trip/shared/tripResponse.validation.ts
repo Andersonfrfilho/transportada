@@ -52,6 +52,8 @@ import {
   TRIP_DETAIL_KEYS,
   TRIP_DETAIL_OPTIONAL_KEYS,
   DELIVERY_PROOF_KEYS,
+  DELIVERY_PROOF_RECEIVED_BY_KEYS,
+  DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
   TRIP_DOCUMENT_PRODUCT_KEYS,
   TRIP_OCCURRENCE_KEYS,
   TRIP_CARGO_WEIGHT_KEYS,
@@ -797,8 +799,9 @@ export function createTripResponseAdapters() {
      * componente a consome direto da consulta.
      */
     deliveryProofsFromApi(input: unknown): readonly DeliveryProof[] {
-      if (!Array.isArray(input) || !input.every(isDeliveryProof)) throw invalid()
-      return input
+      if (!Array.isArray(input)) throw invalid()
+      /** Spec 193 T3.1: o item estranho sai sozinho — derrubar a lista apagava o comprovante todo. */
+      return input.filter(isDeliveryProof)
     },
     /**
      * ⚠️ Corpo estranho vira **`unavailable`**, nunca exceção: o mapa é enfeite operacional, e uma
@@ -1118,14 +1121,26 @@ function isOccupancy(value: unknown): boolean {
   )
 }
 
+/** Spec 193 T3.1: quem recebeu entra por `hasKeys`, e chave desconhecida continua recusada. */
 function isDeliveryProof(value: unknown): value is DeliveryProof {
-  if (!hasExactKeys(value, DELIVERY_PROOF_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...DELIVERY_PROOF_KEYS, ...DELIVERY_PROOF_RECEIVED_BY_KEYS],
+      required: DELIVERY_PROOF_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
     isString(value.createdAt) &&
     isString(value.downloadUrl) &&
     isString(value.expiresAt) &&
     isString(value.id) &&
     (value.kind === 'photo' || value.kind === 'signature' || value.kind === 'cargo') &&
+    (value.receivedBy === undefined ||
+      value.receivedBy === null ||
+      isOneOf(value.receivedBy, DELIVERY_PROOF_RECEIVED_BY_OPTIONS)) &&
+    (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
     isString(value.receiverName)
   )
 }
@@ -1239,7 +1254,8 @@ function isFieldOccurrenceType(value: unknown): value is FieldOccurrenceType {
     }) &&
     isString(value.id) &&
     isString(value.name) &&
-    (value.attachmentMode === undefined || isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES))
+    (value.attachmentMode === undefined ||
+      isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES))
   )
 }
 

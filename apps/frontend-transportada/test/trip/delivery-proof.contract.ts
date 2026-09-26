@@ -4,6 +4,11 @@
 import { describe, expect, it } from 'bun:test'
 
 import { resolveDeliveryProofView } from '../../src/modules/trip/shared/deliveryProof.service'
+import {
+  isDeliveryProofFieldSettings,
+  resolveReceivedByMode,
+} from '../../src/modules/trip/shared/deliveryProofSettings.service'
+import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripResponse.validation'
 
 const ENTREGUE = {
   deliveredAt: '2026-09-02T14:30:00.000Z',
@@ -191,5 +196,63 @@ describe('fotos da carga (spec 184)', () => {
     })
 
     expect(view.receiverName).toBeNull()
+  })
+})
+
+/**
+ * Spec 193 T3.1 (R1): o painel em produção tem de aceitar a API que já manda quem recebeu **antes**
+ * de a API mandá-lo — o service worker é `autoUpdate` e a aba velha fica aberta. Um item estranho
+ * derruba só ele, nunca a lista inteira do comprovante.
+ */
+describe('o painel tolera quem recebeu (spec 193 T3.1)', () => {
+  const adapters = createTripResponseAdapters()
+  const FOTO = {
+    createdAt: '2026-09-25T12:01:00.000Z',
+    downloadUrl: 'https://bucket.example/p1.jpg?assinatura=abc',
+    expiresAt: '2026-09-25T12:06:00.000Z',
+    id: 'p1',
+    kind: 'photo' as const,
+    receiverName: 'Maria',
+  }
+
+  it('aceita o comprovante da API anterior, sem os campos', () => {
+    expect(adapters.deliveryProofsFromApi([FOTO])).toEqual([FOTO])
+  })
+
+  it('aceita e preserva a relação e o detalhe, e os dois nulos do comprovante antigo', () => {
+    const comRelacao = { ...FOTO, receivedBy: 'neighbor' as const, receivedByDetail: 'casa 12' }
+    const antigo = { ...FOTO, id: 'p2', receivedBy: null, receivedByDetail: null }
+
+    expect(adapters.deliveryProofsFromApi([comRelacao, antigo])).toEqual([comRelacao, antigo])
+  })
+
+  it('um item inválido no meio da lista sai sozinho — os outros ficam', () => {
+    const lista = [
+      FOTO,
+      { ...FOTO, id: 'p2', receivedBy: 'cousin' },
+      { ...FOTO, id: 'p3', receivedByDetail: 12 },
+      { ...FOTO, id: 'p4', kind: 'signature' as const, receivedBy: 'doorman' as const },
+    ]
+
+    expect(adapters.deliveryProofsFromApi(lista).map((proof) => proof.id)).toEqual(['p1', 'p4'])
+  })
+
+  it('corpo que não é lista continua recusado', () => {
+    expect(() => adapters.deliveryProofsFromApi({ data: [FOTO] })).toThrow()
+  })
+
+  it('a configuração sem receivedBy vale como optional; com modo inválido, recusa', () => {
+    const semCampo = {
+      photo: 'optional',
+      receiverDocument: 'off',
+      receiverName: 'optional',
+      signature: 'optional',
+    } as const
+
+    expect(isDeliveryProofFieldSettings(semCampo)).toBe(true)
+    expect(resolveReceivedByMode(semCampo)).toBe('optional')
+    expect(resolveReceivedByMode({ ...semCampo, receivedBy: 'required' })).toBe('required')
+    expect(isDeliveryProofFieldSettings({ ...semCampo, receivedBy: 'required' })).toBe(true)
+    expect(isDeliveryProofFieldSettings({ ...semCampo, receivedBy: 'always' })).toBe(false)
   })
 })

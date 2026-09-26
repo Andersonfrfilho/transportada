@@ -183,3 +183,34 @@ foto da carga. Prova, contra Postgres, numa parada/evento de sonda:
 $ make migration-test
   111 pass, 0 fail, 1458 expect() calls — as asserções novas somam 26 expect() (1432 → 1458)
 ```
+
+## Fase 3 — A API recebe, aplica a configuração e devolve
+
+### T3.1 — R1: o painel tolera (frontend-transportada)
+
+Teste antes, em `test/trip/delivery-proof.contract.ts` (entrypoint `test/trip.contract.test.ts`):
+comprovante sem os campos, com `neighbor`/"casa 12" e com os dois `null`; um item com relação fora
+da lista e outro com detalhe numérico no meio da lista saem sozinhos (os outros ficam); corpo que não
+é lista continua recusado; configuração sem `receivedBy` é válida e vale `optional`, com modo inválido
+é recusada.
+
+```
+$ bun test ./test/trip.contract.test.ts   (antes da implementação)
+SyntaxError: Export named 'resolveReceivedByMode' not found in module '.../deliveryProofSettings.service.ts'.
+ 0 pass, 1 fail, 1 error
+```
+
+Implementação: `DELIVERY_PROOF_RECEIVED_BY_OPTIONS` (cópia por valor da API) e
+`DELIVERY_PROOF_RECEIVED_BY_KEYS` em `trip.constant.ts`; `isDeliveryProof` passa de `hasExactKeys` a
+`hasKeys` (chave desconhecida continua recusada) e confere `receivedBy` (lista ou `null`) e
+`receivedByDetail` (string ou `null`) quando presentes; `deliveryProofsFromApi` filtra o item
+inválido em vez de recusar a lista; `DeliveryProof` ganha os dois campos opcionais;
+`isDeliveryProofFieldSettings` aceita `receivedBy` ausente e `resolveReceivedByMode` o lê como
+`optional`.
+
+⚠️ **Conflito de decisão com o WIP da spec 205** (não versionado, `test/trip/late-registration-tolerance.contract.ts`):
+dois casos dela esperam que `deliveryProofsFromApi` **lance** com item inválido
+(`lateRegistration: 1` e a chave `objectKey`). A T3.1 da 193 (plan.md, "R1") decide o contrário:
+o item inválido sai sozinho e a lista fica. Na árvore com o WIP da 205, esses dois casos da 205
+falham (1700 pass, 2 fail); os casos da 193 passam. O arquivo da 205 não foi tocado. Quem fechar a
+205 ajusta os dois casos para "sai da lista".
