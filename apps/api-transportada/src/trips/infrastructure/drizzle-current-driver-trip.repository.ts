@@ -9,6 +9,7 @@ import {
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
 import {
@@ -658,6 +659,11 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     )
   }
 
+  /**
+   * A coordenada sai de `geocoded_addresses` pela `address_key`, nunca de `trip_stops.latitude`,
+   * que nunca é escrita (spec 199). A tabela não tem tenant (ADR-0044): o recorte fica no `where`
+   * de `trip_stops`, e `address_key` é a PK dela, então o `left join` não multiplica parada.
+   */
   private async listStops(input: { readonly companyId: string; readonly tripIds: string[] }) {
     return this.database
       .select({
@@ -667,12 +673,13 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         deliveryWindowStart: tripStops.deliveryWindowStart,
         id: tripStops.id,
         label: tripStops.label,
-        latitude: tripStops.latitude,
-        longitude: tripStops.longitude,
+        latitude: geocodedAddresses.latitude,
+        longitude: geocodedAddresses.longitude,
         sequence: tripStops.sequence,
         tripId: tripStops.tripId,
       })
       .from(tripStops)
+      .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
       .where(
         and(eq(tripStops.companyId, input.companyId), inArray(tripStops.tripId, input.tripIds)),
       )
