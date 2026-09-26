@@ -9,9 +9,11 @@ import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 
 const fieldMode = z.enum(DELIVERY_PROOF_FIELD_MODES)
 
+/** Spec 193 D6: `receivedBy` é opcional — ausente preserva o gravado (o painel anterior ao campo). */
 export const deliveryProofSettingsSchema = z
   .object({
     photo: fieldMode,
+    receivedBy: fieldMode.optional(),
     receiverDocument: fieldMode,
     receiverName: fieldMode,
     signature: fieldMode,

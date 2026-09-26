@@ -40,6 +40,11 @@ export type DriverTripDocument = {
    * e nenhuma foto anexada ao evento de entrega. A entrega nunca é recusada por isso — só avisa.
    */
   readonly proofPending: boolean
+  /**
+   * Spec 193 D14: como o destinatário é chamado — nome fantasia, senão razão social (a regra de
+   * `resolveRecipientDisplayName`). É o que "O próprio cliente recebeu" preenche no nome.
+   */
+  readonly recipientDisplayName: string
   /** Nome de quem recebe. É o mínimo para entregar — e nada além disso vem junto. */
   readonly recipientName: string
   readonly returnReason: string | null
@@ -109,6 +114,8 @@ export type DriverPendingProof = {
   readonly documentId: string
   readonly documentNumber: string
   readonly documentSeries: string
+  /** Spec 193 D14: a mesma de `DriverTripDocument.recipientDisplayName` ("Fotos pendentes"). */
+  readonly recipientDisplayName: string
   readonly recipientName: string
   readonly tripId: string
   readonly tripStatus: string

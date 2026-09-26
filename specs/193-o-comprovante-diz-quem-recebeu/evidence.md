@@ -260,3 +260,53 @@ $ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.t
 error: Cannot find module '../../src/trips/domain/received-by.policy.js'
  0 pass, 1 fail, 1 error
 ```
+
+### T3.3 — configuração, snapshot e as peças puras da forma
+
+- `DeliveryProofFieldSettings` ganha `receivedBy`, e a fábrica é `optional`. As duas entradas do
+  `PUT`, geral e exceção, levam o campo como opcional (`DeliveryProofFieldSettingsInput`), e o Zod
+  `.strict()` aceita `receivedBy` opcional.
+- Repositório:
+  - lê o campo na geral e nas exceções;
+  - na geral, ausente não entra no `set`;
+  - na exceção, o `INSERT` usa `optional` e o `ON CONFLICT` só grava o campo quando ele veio. Assim a
+    exceção sem o campo preserva o valor do mesmo `taxId`, e a nova nasce `optional`.
+- Snapshot do motorista:
+  - as leituras de configuração (snapshot e escrita do comprovante) passam a trazer o campo, e o modo
+    resolvido por nota vai em `deliveryProof.receivedBy`;
+  - `recipientDisplayName` entra na nota e em `pendingProofs`. A regra vem de
+    `resolveRecipientDisplayName`, extraída de `resolveDeliveryContact` e agora usada pelos dois.
+- As peças puras que a T3.2 importa também entram aqui, para a suíte carregar:
+  - `presentation/received-by.schema.ts` (`normalizeReceivedBy`, `parseReceivedByStrict`);
+  - `domain/received-by.policy.ts` (`applyReceivedBySettings`);
+  - `TripDeliveryProofReceivedByRequiredError`, em `trip-field-office.error.ts`.
+
+  A ligação delas na escrita fica para a T3.4.
+- Fixtures dos contratos que montam `DeliveryProofFieldSettings` ganham `receivedBy: 'optional'`,
+  exigido pelo tipo, sem mudar o que os testes afirmam.
+- Integração:
+  - `canhoto-ocr-flag.integration.ts` ganha dois casos:
+    - geral sem linha é `optional`, e gravado `required`, um `PUT` sem o campo preserva;
+    - a exceção sem o campo preserva o valor do mesmo CNPJ, e a nova nasce `optional`.
+  - `me-trip.integration.ts` confere `deliveryProof.receivedBy` e `recipientDisplayName` no snapshot
+    e em `pendingProofs`.
+
+```
+$ bunx tsc --noEmit -p apps/api-transportada             → sem erros
+$ bun run lint (api)                                      → sem erros
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts   → 155 pass, 0 fail
+$ bun --env-file=../../.env.test test ./test/integration/canhoto-ocr-flag.integration.ts ./test/integration/me-trip.integration.ts
+  17 pass, 0 fail
+$ bun --env-file=../../.env.test test --timeout 120000     (contrato, 184 arquivos)
+  7481 pass, 23 skip, 0 fail
+$ bun --env-file=../../.env.test run test:integration     (116 arquivos, 14 min 42 s)
+  624 pass, 7 skip, 4 fail
+```
+
+As 4 falhas da integração completa são estouros de 5 s (`[5000ms]`) em três arquivos sem relação
+com a spec: `company-user-fleet-link`, `route-depot-query` e `address-components-source`. Rodados
+isolados, dão 14 pass e 0 fail. É carga concorrente na máquina (outras sessões na mesma árvore), não
+regressão.
+
+⚠️ Um `prettier --write` meu num diretório inteiro reformatou `src/trips/presentation/me-trip.routes.ts`,
+que é WIP da 205. Foi só formatação, sem mudança de código, e o arquivo não entra em commit meu.

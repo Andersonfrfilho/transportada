@@ -120,7 +120,10 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(opened.trips[0]?.stops[0]?.documents.map((entry) => entry.number)).toEqual(['1', '2'])
       expect(opened.trips[0]?.stops[0]?.documents[0]).toMatchObject({
         accessKey: `1${'1'.repeat(43)}`,
+        // Spec 193 D6/D14: o modo de quem recebeu resolvido por nota e o nome do botão rápido
+        deliveryProof: { receivedBy: 'optional' },
         number: '1',
+        recipientDisplayName: 'Destinatario 1',
         recipientName: 'Destinatario 1',
         series: '1',
         volumeCount: '0',
@@ -730,9 +733,10 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         expect(
           afterCompletion.pendingProofs.find((proof) => proof.documentId === lastDocumentId),
         ).toMatchObject({
-          deliveryProof: { photo: 'required' },
+          deliveryProof: { photo: 'required', receivedBy: 'optional' },
           documentNumber: '3',
           documentSeries: '1',
+          recipientDisplayName: 'Destinatario 3',
           recipientName: 'Destinatario 3',
           tripId: world.tripId,
           tripStatus: 'completed',

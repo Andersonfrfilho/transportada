@@ -55,6 +55,7 @@ const PENDING_PROOF: DriverPendingProof = {
   deliveredAt: '2026-09-17T15:00:00.000Z',
   deliveryProof: {
     photo: 'required',
+    receivedBy: 'optional',
     receiverDocument: 'off',
     receiverName: 'optional',
     signature: 'optional',
@@ -62,6 +63,7 @@ const PENDING_PROOF: DriverPendingProof = {
   documentId: 'trip-document-1',
   documentNumber: '1234',
   documentSeries: '1',
+  recipientDisplayName: 'Destinatario',
   recipientName: 'Destinatario',
   tripId: 'trip-completed',
   tripStatus: 'completed',
@@ -202,6 +204,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
                   deliveredAt: '2026-09-18T12:00:00.000Z',
                   deliveryProof: {
                     photo: 'required',
+                    receivedBy: 'optional',
                     receiverDocument: 'off',
                     receiverName: 'optional',
                     signature: 'optional',
@@ -210,6 +213,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
                   id: 'document-1',
                   number: '1',
                   proofPending: true,
+                  recipientDisplayName: 'Destinatario 1',
                   recipientName: 'Destinatario 1',
                   returnReason: null,
                   separationStatus: 'delivered',

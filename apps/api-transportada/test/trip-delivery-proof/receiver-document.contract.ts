@@ -143,6 +143,7 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
 
     expect(resolved).toEqual({
       photo: 'optional',
+      receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'optional',
       signature: 'optional',
@@ -152,12 +153,14 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
   it('a exceção por CNPJ vence a configuração geral por inteiro', () => {
     const general: DeliveryProofFieldSettings = {
       photo: 'required',
+      receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'required',
       signature: 'required',
     }
     const override: DeliveryProofFieldSettings = {
       photo: 'off',
+      receivedBy: 'optional',
       receiverDocument: 'required',
       receiverName: 'optional',
       signature: 'optional',
@@ -229,12 +232,14 @@ describe('o documento do recebedor no comprovante (spec 082 T013)', () => {
 describe('a resolução por documento (spec 082 — revisão)', () => {
   const GENERAL: DeliveryProofFieldSettings = {
     photo: 'optional',
+    receivedBy: 'optional',
     receiverDocument: 'off',
     receiverName: 'optional',
     signature: 'optional',
   }
   const OVERRIDE: DeliveryProofFieldSettings = {
     photo: 'required',
+    receivedBy: 'optional',
     receiverDocument: 'required',
     receiverName: 'required',
     signature: 'required',

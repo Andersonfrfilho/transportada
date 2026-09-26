@@ -100,6 +100,7 @@ function buildProof(input: {
 
 const OPTIONAL_SETTINGS: DeliveryProofFieldSettings = {
   photo: 'optional',
+  receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',

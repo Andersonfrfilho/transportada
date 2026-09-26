@@ -38,6 +38,7 @@ import {
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
+import { resolveRecipientDisplayName } from '../domain/delivery-contact.policy.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
@@ -323,6 +324,10 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           documentId: row.tripDocumentId,
           documentNumber: row.documentNumber ?? '',
           documentSeries: row.documentSeries ?? '',
+          recipientDisplayName: resolveRecipientDisplayName({
+            legalName: row.recipientName ?? '',
+            tradeName: row.recipientTradeName ?? '',
+          }),
           recipientName: row.recipientName ?? '',
           tripId: row.tripId,
           tripStatus: row.tripStatus,
@@ -385,6 +390,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
         recipientName: nfeParticipants.legalName,
         recipientTaxId: nfeParticipants.taxId,
+        recipientTradeName: nfeParticipants.tradeName,
         recordedAt: tripStopEvents.recordedAt,
         reportedByDriverId: tripStopEvents.reportedByDriverId,
         separationStatus: tripDocuments.separationStatus,
@@ -577,6 +583,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       this.database
         .select({
           photo: companyDeliveryProofSettings.photo,
+          receivedBy: companyDeliveryProofSettings.receivedBy,
           receiverDocument: companyDeliveryProofSettings.receiverDocument,
           receiverName: companyDeliveryProofSettings.receiverName,
           signature: companyDeliveryProofSettings.signature,
@@ -587,6 +594,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       this.database
         .select({
           photo: deliveryProofSettingOverrides.photo,
+          receivedBy: deliveryProofSettingOverrides.receivedBy,
           receiverDocument: deliveryProofSettingOverrides.receiverDocument,
           receiverName: deliveryProofSettingOverrides.receiverName,
           signature: deliveryProofSettingOverrides.signature,
@@ -603,6 +611,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           row.taxId,
           {
             photo: row.photo,
+            receivedBy: row.receivedBy,
             receiverDocument: row.receiverDocument,
             receiverName: row.receiverName,
             signature: row.signature,
@@ -702,6 +711,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           number: nfeDocuments.number,
           recipientName: nfeParticipants.legalName,
           recipientTaxId: nfeParticipants.taxId,
+          recipientTradeName: nfeParticipants.tradeName,
           returnReason: tripDocuments.returnReason,
           separationStatus: tripDocuments.separationStatus,
           series: nfeDocuments.series,
@@ -764,6 +774,7 @@ type DocumentRow = {
   readonly number: string | null
   readonly recipientName: string | null
   readonly recipientTaxId: string | null
+  readonly recipientTradeName: string | null
   readonly returnReason: string | null
   readonly separationStatus: string
   readonly series: string | null
@@ -825,6 +836,10 @@ function toDriverDocument(
       row.deliveredAt !== null &&
       deliveryProof.photo === REQUIRED_PROOF_FIELD_MODE &&
       !row.hasDeliveryPhoto,
+    recipientDisplayName: resolveRecipientDisplayName({
+      legalName: row.recipientName ?? '',
+      tradeName: row.recipientTradeName ?? '',
+    }),
     recipientName: row.recipientName ?? '',
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,

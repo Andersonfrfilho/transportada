@@ -59,6 +59,7 @@ function buildWorld(
     resolveProofFieldSettings: () =>
       Promise.resolve({
         photo: 'optional' as const,
+        receivedBy: 'optional' as const,
         receiverDocument: 'off' as const,
         receiverName: 'optional' as const,
         signature: 'optional' as const,
@@ -246,6 +247,7 @@ describe('o comprovante da entrega', () => {
       world.repository.resolveProofFieldSettings = () =>
         Promise.resolve({
           photo: photoMode,
+          receivedBy: 'optional',
           receiverDocument: 'off' as const,
           receiverName: 'optional' as const,
           signature: 'optional' as const,

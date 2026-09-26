@@ -128,6 +128,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     const [general] = await this.database
       .select({
         photo: companyDeliveryProofSettings.photo,
+        receivedBy: companyDeliveryProofSettings.receivedBy,
         receiverDocument: companyDeliveryProofSettings.receiverDocument,
         receiverName: companyDeliveryProofSettings.receiverName,
         signature: companyDeliveryProofSettings.signature,
@@ -143,6 +144,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         : await this.database
             .select({
               photo: deliveryProofSettingOverrides.photo,
+              receivedBy: deliveryProofSettingOverrides.receivedBy,
               receiverDocument: deliveryProofSettingOverrides.receiverDocument,
               receiverName: deliveryProofSettingOverrides.receiverName,
               signature: deliveryProofSettingOverrides.signature,

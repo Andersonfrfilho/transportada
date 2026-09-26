@@ -58,6 +58,17 @@ function formatPhone(value: string): null | string {
 }
 
 /**
+ * O nome fantasia vence a razão social porque é como o cliente é chamado no telefone. Regra única do
+ * contato do escritório e do nome que "O próprio cliente recebeu" preenche no app (spec 193 D14).
+ */
+export function resolveRecipientDisplayName(input: {
+  readonly legalName: string
+  readonly tradeName: string
+}): string {
+  return input.tradeName === '' ? input.legalName : input.tradeName
+}
+
+/**
  * ⚠️ **A nota não diz quem é o contratante** — quem diz é o cadastro. O participante cujo documento
  * está em `contractors` é ele; documento fora do cadastro **não vira contratante por parecer**.
  *
@@ -78,7 +89,7 @@ export function resolveDeliveryContact(input: {
 
   return {
     contractorName: contractor ?? null,
-    name: recipient.tradeName === '' ? recipient.legalName : recipient.tradeName,
+    name: resolveRecipientDisplayName(recipient),
     phone: formatPhone(recipient.phone),
     taxId: recipient.taxId,
   }

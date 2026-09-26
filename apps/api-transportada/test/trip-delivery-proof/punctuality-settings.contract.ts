@@ -102,6 +102,7 @@ const VALID_BODY: CompanyDeliveryProofSettings = {
   photo: 'required',
   proofRadiusMeters: 500,
   proofWindowMinutes: 90,
+  receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',
@@ -133,6 +134,7 @@ describe('delivery proof punctuality settings (spec 159 T4, ADR-0070 §3-5)', ()
     const dependencies = fakeDependencies(VALID_BODY)
     const modesOnly = {
       photo: 'optional',
+      receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'optional',
       signature: 'required',
