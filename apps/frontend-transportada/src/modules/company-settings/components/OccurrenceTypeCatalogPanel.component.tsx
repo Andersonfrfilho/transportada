@@ -10,10 +10,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 
 import {
+  OCCURRENCE_ATTACHMENT_MODE,
   OCCURRENCE_REDELIVERY_POLICY,
   TRIP_OCCURRENCE_STAGE,
 } from '@/modules/trip/shared/occurrence.constant'
 import type {
+  OccurrenceAttachmentMode,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
   TripOccurrenceStage,
@@ -75,6 +77,23 @@ export function OccurrenceTypeCatalogPanel({
     OCCURRENCE_REDELIVERY_POLICY.unset,
   )
 
+  /** Spec 179 RF1: nasce `off` — tipo novo não passa a exigir foto sem alguém decidir. */
+  const [attachmentMode, setAttachmentMode] = useState<OccurrenceAttachmentMode>(
+    OCCURRENCE_ATTACHMENT_MODE.off,
+  )
+
+  const attachmentModeOptions = [
+    { label: t('occurrenceTypeCatalog.attachmentModeOff'), value: OCCURRENCE_ATTACHMENT_MODE.off },
+    {
+      label: t('occurrenceTypeCatalog.attachmentModeOptional'),
+      value: OCCURRENCE_ATTACHMENT_MODE.optional,
+    },
+    {
+      label: t('occurrenceTypeCatalog.attachmentModeRequired'),
+      value: OCCURRENCE_ATTACHMENT_MODE.required,
+    },
+  ]
+
   const redeliveryPolicyOptions = [
     {
       label: t('occurrenceTypeCatalog.redeliveryPolicyUnset'),
@@ -113,6 +132,7 @@ export function OccurrenceTypeCatalogPanel({
     onSave({
       active: true,
       allowsMultipleItems,
+      attachmentMode,
       emailTemplateKey: emailTemplateKey === OCCURRENCE_TEMPLATE_NONE ? null : emailTemplateKey,
       emailsContractor,
       name,
@@ -126,6 +146,7 @@ export function OccurrenceTypeCatalogPanel({
     setEmailsContractor(false)
     setEmailTemplateKey(OCCURRENCE_TEMPLATE_NONE)
     setAllowsMultipleItems(true)
+    setAttachmentMode(OCCURRENCE_ATTACHMENT_MODE.off)
     setRedeliveryPolicy(OCCURRENCE_REDELIVERY_POLICY.unset)
   }
 
@@ -189,6 +210,19 @@ export function OccurrenceTypeCatalogPanel({
                   }
                 />
                 <Select
+                  ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
+                  disabled={!canManage || isSaving}
+                  onChange={(value) =>
+                    onSave(
+                      occurrenceTypeEdit(type, {
+                        attachmentMode: value as OccurrenceAttachmentMode,
+                      }),
+                    )
+                  }
+                  options={attachmentModeOptions}
+                  value={type.attachmentMode}
+                />
+                <Select
                   ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}
                   disabled={!canManage || isSaving}
                   onChange={(value) =>
@@ -245,6 +279,12 @@ export function OccurrenceTypeCatalogPanel({
             checked={allowsMultipleItems}
             label={t('occurrenceTypeCatalog.allowsMultipleItems')}
             onChange={setAllowsMultipleItems}
+          />
+          <Select
+            ariaLabel={t('occurrenceTypeCatalog.attachmentMode')}
+            onChange={(value) => setAttachmentMode(value as OccurrenceAttachmentMode)}
+            options={attachmentModeOptions}
+            value={attachmentMode}
           />
           <Select
             ariaLabel={t('occurrenceTypeCatalog.redeliveryPolicy')}

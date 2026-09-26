@@ -301,6 +301,10 @@
     "redeliveryPolicyAllowed": "Allows redelivery",
     "redeliveryPolicyBlocked": "Blocks redelivery",
     "emailsContractor": "Email the contracting company",
-    "withoutTemplateContractor": "No email template: the contracting company gets the occurrence's suggested text."
+    "withoutTemplateContractor": "No email template: the contracting company gets the occurrence's suggested text.",
+    "attachmentMode": "Photo on record",
+    "attachmentModeOff": "No photo",
+    "attachmentModeOptional": "Optional photo",
+    "attachmentModeRequired": "Photo required"
   }
 }

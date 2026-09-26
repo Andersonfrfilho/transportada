@@ -301,6 +301,10 @@
     "redeliveryPolicyAllowed": "Admite reentrega",
     "redeliveryPolicyBlocked": "Não admite reentrega",
     "emailsContractor": "Avisar a contratante por e-mail",
-    "withoutTemplateContractor": "Sem modelo de e-mail: a contratante recebe o texto sugerido da ocorrência."
+    "withoutTemplateContractor": "Sem modelo de e-mail: a contratante recebe o texto sugerido da ocorrência.",
+    "attachmentMode": "Foto no registro",
+    "attachmentModeOff": "Não pede foto",
+    "attachmentModeOptional": "Foto opcional",
+    "attachmentModeRequired": "Foto obrigatória"
   }
 }
