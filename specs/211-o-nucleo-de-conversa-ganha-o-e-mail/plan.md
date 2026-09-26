@@ -1,6 +1,6 @@
-# Plano — 184, o núcleo de conversa vira pacote
+# Plano — 211, o núcleo de conversa vira pacote
 
-> Lê-se depois de `spec.md` e da **ADR-0075**. Aqui fica **como** fazer e **em que ordem**, com o
+> Lê-se depois de `spec.md` e da **ADR-0085**. Aqui fica **como** fazer e **em que ordem**, com o
 > que já existe medido contra o que falta.
 
 ## O que já existe (medido em 2026-09-26, não estimado)
@@ -12,7 +12,7 @@
 | `MessageStatus = received\|sent\|delivered\|read\|failed`                     | `meta-whatsapp-contracts/src/conversation.types.ts` | vocabulário certo, **nome errado** (é da Meta)            |
 | `ChannelAdapterInterface` (`sendText`, `sendMedia`, `fetchMediaAsBase64`)     | `meta-whatsapp-contracts/src/providers.ts`          | **a porta é genérica, o vocabulário não** (`waMessageId`) |
 | `DELIVERY_STATUS = queued\|sent\|delivered\|failed\|bounced\|skipped`         | `notification-contracts/src/notification.types.ts`  | quase o do núcleo — falta `read`                          |
-| `EmailDriverPort`, `email-provider` (smtp/resend/ses)                         | `notification-contracts`, `email-provider`          | **envio**, não conversa. Fica onde está (ADR-0075 §5)     |
+| `EmailDriverPort`, `email-provider` (smtp/resend/ses)                         | `notification-contracts`, `email-provider`          | **envio**, não conversa. Fica onde está (ADR-0085 §5)     |
 | `parseResendWebhook`, `parseSesNotification`                                  | `notification-contracts/src/receipts/`              | reaproveitável pelo transporte do canal `email`           |
 | `CONVERSATION_CHANNEL = whatsapp\|messenger\|instagram\|webchat`              | `conversations-ui/src/conversationChannel.ts`       | **falta `email`** — é o RF10                              |
 | `CHANNEL_CAPABILITIES` (`hasSessionWindow`, `windowHours`, `reopenMechanism`) | `conversations-ui/src/conversationChannel.ts`       | embrião da tabela do RF2, **só na UI**                    |
@@ -101,7 +101,7 @@ O schema é o da 183 **com dois cortes**:
 
 - `occurrence_kind` + `occurrence_id` → `subject_type` + `subject_id`, anuláveis, sem FK (D1);
 - `contractor_id` / `driver_user_id` / `participant` → participante genérico com
-  `(canal, identificador)` (ADR-0075 §3).
+  `(canal, identificador)` (ADR-0085 §3).
 
 O resto — o CHECK de autoria, o `unique(company_id, channel, provider_message_id)` do status
 idempotente, o `sha256` do anexo, a fila de não atribuídas — vai como está, porque já está certo.
@@ -166,7 +166,7 @@ Revisão de código e de segurança, documentação nos dois repositórios, `evi
 
 | Risco                                                        | Mitigação                                                                                      |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| **O núcleo nasce com um consumidor só**                      | assumido na ADR-0075; o CA01 impede que ele ganhe vocabulário de TMS enquanto espera o segundo |
+| **O núcleo nasce com um consumidor só**                      | assumido na ADR-0085; o CA01 impede que ele ganhe vocabulário de TMS enquanto espera o segundo |
 | **A fórmula do token mudar e quebrar conversa em andamento** | prefixo é parâmetro; teste fixa o token de hoje contra o do pacote, byte a byte (CA07)         |
 | **Duas verdades sobre capacidade de canal** (contrato × UI)  | a UI passa a ler a do contrato (RF10); contrato falha se a UI declarar a dela                  |
 | **A base não estar vazia**                                   | a contagem vem antes da migração, e a fase para se contrariar a premissa (D8)                  |

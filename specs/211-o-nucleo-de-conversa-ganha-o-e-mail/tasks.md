@@ -1,4 +1,4 @@
-# Tasks — 184, o núcleo de conversa vira pacote
+# Tasks — 211, o núcleo de conversa vira pacote
 
 > Lê-se depois de `spec.md` e `plan.md`. **Uma task por vez, uma task por commit**, teste de
 > aceite/contrato **antes** da implementação, e task só fecha com evidência em `evidence.md`.
@@ -56,7 +56,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [ ] **T108** `sonnet` — As portas: `ConversationChannelPort`, `ConversationEmailTransportPort`,
       `ClockPort`, `ObjectStoragePort`, `TranscriberPort` (opcional). Só assinatura. (RF4)
 - [ ] **T109** ⚙️ `haiku` — **Contrato do CA01**: varre o `src/` do pacote e falha se aparecer
-      `occurrence`, `contractor` ou `driver`. É o que segura a ADR-0075 §2 com o tempo. (CA01)
+      `occurrence`, `contractor` ou `driver`. É o que segura a ADR-0085 §2 com o tempo. (CA01)
 
 ## Fase 2 — `conversation-module` (no `adatechnology-packages`)
 
@@ -170,9 +170,9 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       `code-reviewer` e `security-reviewer`. Confere em especial: nenhuma PII em tipo persistido do
       pacote (RNF4), nenhum `process.env` lido pelo pacote (RNF2), nenhum `any` (RNF5).
 - [ ] **T802** `sonnet` — Confirmar que **nenhuma decisão de negócio mudou de lugar**: a tratativa
-      da 164 continua onde está. (CA10, ADR-0075 §6)
+      da 164 continua onde está. (CA10, ADR-0085 §6)
 - [ ] **T803** ⚙️ `haiku` — Documentação: `CLAUDE.md` dos dois repositórios,
-      `docs/ai-context/`, e a ADR-0072 marcada como **revista em parte** pela ADR-0075.
+      `docs/ai-context/`, e a ADR-0072 marcada como **revista em parte** pela ADR-0085.
 - [ ] **T804** ⚙️ `haiku` — `evidence.md` fechado, com a contagem da T601, o que ficou aberto, e o
       modelo **com versão exata** que rodou cada task (`Opus 5.5`, `Opus 5`, `Sonnet 5`…). É o único
       lugar onde a versão é escrita: a tabela acima pede classe, a evidência registra o que rodou.
@@ -194,8 +194,8 @@ T201) ou mexem em produção (T506, T602), mais as duas revisões (T703, T801).
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/184-o-nucleo-de-conversa-ganha-o-e-mail/ (leia
-spec.md, plan.md, tasks.md e a ADR-0075 antes de começar). Uma task por vez, na ordem do tasks.md,
+/oh-my-claudecode:autopilot Execute a spec specs/211-o-nucleo-de-conversa-ganha-o-e-mail/ (leia
+spec.md, plan.md, tasks.md e a ADR-0085 antes de começar). Uma task por vez, na ordem do tasks.md,
 um commit por task, teste antes da implementação.
 
 O modelo está escrito em cada task. Troque de modelo de propósito ao entrar numa 🧠 (`opus`), e

@@ -1,8 +1,8 @@
-# ADR-0075 — O núcleo de conversa é um pacote próprio, e o assunto da conversa é do produto
+# ADR-0085 — O núcleo de conversa é um pacote próprio, e o assunto da conversa é do produto
 
 - **Status:** proposto (2026-09-26)
 - **Data:** 2026-09-26
-- **Contexto:** spec 184. Cumpre a condição que a **ADR-0072** deixou escrita ("se um núcleo de
+- **Contexto:** spec 211. Cumpre a condição que a **ADR-0072** deixou escrita ("se um núcleo de
   conversa comum aos canais se provar necessário, ele nasce como pacote próprio, com ADR própria") e
   **revê duas decisões dela** — ver § "O que esta ADR muda na ADR-0072". Depende da ADR-0051 (a tela
   vem do pacote, o Tailwind não) e da ADR-0073 (o portal conversa).
@@ -165,7 +165,7 @@ do pacote, o que sabe o que é uma viagem é do produto:
   o usuário** (precedente da ADR-0054 e da ADR-0065). A fase que depende do pacote não fecha antes de
   a versão estar publicada e instalada.
 - **A 183 migra.** As tabelas `occurrence_conversation*` passam a ser as do núcleo, com
-  `subject_type = 'occurrence'`. É migração de dados de uma entrega recém-feita, e por isso a spec 184
+  `subject_type = 'occurrence'`. É migração de dados de uma entrega recém-feita, e por isso a spec 211
   a trata em fase própria, aditiva, com o produto lendo pelas duas formas até virar.
 - **Passam a existir duas conversas no banco, não três.** O `meta_whatsapp` continua com a sua (é do
   módulo da Meta, e o núcleo referencia o id dela opacamente); a do `contractor-mail` vira transporte
@@ -186,7 +186,7 @@ biblioteca reutilizável ("não crie bibliotecas reutilizáveis neste repositór
 apareceu: três implementações de conversa no ecossistema, e o `quickcart` sem como conversar por
 e-mail.
 
-**Pôr a ocorrência no pacote.** Resolveria a spec 184 em menos tempo e é exatamente o que a ADR-0072
+**Pôr a ocorrência no pacote.** Resolveria a spec 211 em menos tempo e é exatamente o que a ADR-0072
 recusou: os outros produtos herdariam `occurrence_kind`, `contractor` e `driver`, conceitos que eles
 não têm. O par `subject_type`/`subject_id` (§2) dá o mesmo resultado sem o vocabulário.
 

@@ -2,7 +2,7 @@
 
 > Escrito em 2026-09-26, **depois** de seis documentos o citarem como se existisse
 > (`specs/005`, `specs/066`, `specs/086`, `specs/OBJETIVO-MAPA.md`,
-> `specs/OBJETIVO-PENDENTES.md`, e a `specs/184`). A citação era quebrada; o que ela apontava era
+> `specs/OBJETIVO-PENDENTES.md`, e a `specs/211`). A citação era quebrada; o que ela apontava era
 > convenção viva e não escrita. Este arquivo **descreve a prática medida**, não inventa regra nova.
 >
 > Complementa `agent-strategy.md`, que tem a tabela de agentes e o roteamento econômico. Aquele é
@@ -99,7 +99,7 @@ Por **fase**, no cabeçalho, quando a fase inteira é homogênea:
 > 🤖 Modelo: `sonnet` · T301 é 🧠 (migration) — revisar com `architect` em `opus`
 ```
 
-Por **task**, quando a fase mistura (é o mais informativo, e o que a `specs/184` adotou nas 53
+Por **task**, quando a fase mistura (é o mais informativo, e o que a `specs/211` adotou nas 53
 tasks dela):
 
 ```

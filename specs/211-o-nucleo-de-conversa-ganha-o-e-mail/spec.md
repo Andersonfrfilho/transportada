@@ -1,6 +1,6 @@
-# Feature 184 — O núcleo de conversa vira pacote, e o e-mail é um canal dele
+# Feature 211 — O núcleo de conversa vira pacote, e o e-mail é um canal dele
 
-> Decisão de arquitetura: **ADR-0075** (o núcleo de conversa é um pacote próprio, e o assunto da
+> Decisão de arquitetura: **ADR-0085** (o núcleo de conversa é um pacote próprio, e o assunto da
 > conversa é do produto). Cumpre a condição escrita na **ADR-0072** e revê dois pontos dela.
 > Continua valendo a **ADR-0051** (a tela vem do pacote, o Tailwind não) e a **ADR-0073** (o portal
 > conversa).
@@ -18,7 +18,7 @@ Conversa já tem spec. Esta não recria decisão nenhuma delas; o que ela usa de
 | 143     | o trilho de e-mail: token de resposta derivado, threading, MIME bruto, DKIM, webhook, outbox — **é a origem do canal `email`**                  |
 | 144     | os fluxos de comando do motorista pelo WhatsApp — o ramo que **fica no produto** na atribuição                                                  |
 | 150     | contatos da contratante e a prévia do e-mail                                                                                                    |
-| **164** | a tratativa da ocorrência. **Nenhuma decisão muda de lugar** — nem para o pacote (ADR-0075 §6)                                                  |
+| **164** | a tratativa da ocorrência. **Nenhuma decisão muda de lugar** — nem para o pacote (ADR-0085 §6)                                                  |
 | **183** | **o núcleo inteiro que esta spec move**: conversa, mensagem com canal, anexo, status, leitura, não atribuídas, respostas rápidas, janela de 24h |
 
 ⚠️ **A 183 é a fonte, não um vizinho.** Esta spec não projeta um núcleo novo: ela **tira do
@@ -51,11 +51,11 @@ contratante, quem é o motorista, a permissão, o `companyId` e a ligação com 
 
 ## Fora do escopo
 
-- **Decidir qualquer coisa pela conversa.** Continua a 183 D4 e a ADR-0075 §6: nenhuma mensagem, de
+- **Decidir qualquer coisa pela conversa.** Continua a 183 D4 e a ADR-0085 §6: nenhuma mensagem, de
   canal nenhum, muda tratativa, taxa ou acerto. O núcleo não tem conceito de aprovação.
 - **Interpretar texto livre**, com ou sem IA (spec 062 D4).
 - **Mover o envio de e-mail que não é conversa.** `email-provider` e `notification-module` ficam
-  onde estão; fatura, relatório e aviso seguem por eles (ADR-0075 §5).
+  onde estão; fatura, relatório e aviso seguem por eles (ADR-0085 §5).
 - **Mover a conversa do `meta_whatsapp`.** O módulo da Meta continua dono da conversa dele; o núcleo
   referencia o id da mensagem opacamente, como já é.
 - **Funcionalidade nova de conversa.** Esta spec move e publica o que existe. Canal novo, recurso
@@ -111,7 +111,7 @@ os canais que quer, e o núcleo serve igual a quem usa um e a quem usa quatro. �
 pacote atende o TransportAdA (`email`, `whatsapp`, `app`, `portal`) e o `quickcart` (hoje só
 WhatsApp) sem obrigar nenhum dos dois a carregar o do outro.
 
-O que **não** é opcional é equipar o canal que se ligou (ADR-0075 §5). Ligar `email` sem fornecer
+O que **não** é opcional é equipar o canal que se ligou (ADR-0085 §5). Ligar `email` sem fornecer
 `ConversationEmailTransportPort` é **erro na subida**, nomeando a peça que falta — porque um canal
 que aceita mensagem e perde a resposta é pior que um canal desligado. Canal desligado simplesmente
 não aparece na tela (D3).
@@ -226,7 +226,7 @@ seguirem verdes (CA09).
 
 ## Requisitos não funcionais
 
-- **RNF1** O pacote **não carrega estilo** nem Tailwind (ADR-0051, ADR-0075 §6).
+- **RNF1** O pacote **não carrega estilo** nem Tailwind (ADR-0051, ADR-0085 §6).
 - **RNF2** O pacote **nunca lê `process.env`** — configuração por parâmetro, como o
   `audio-transcription-provider` exige no CLAUDE.md dele.
 - **RNF3** `companyId` **nunca** em schema de corpo de requisição — vem do contexto autenticado. É
@@ -236,7 +236,7 @@ seguirem verdes (CA09).
 - **RNF5** TypeScript estrito, sem `any` (AGENTS.md do `adatechnology-packages`).
 - **RNF6** Migração sem janela de indisponibilidade (D8, P5).
 - **RNF7** A API do núcleo é contrato: nome de canal, de status e de capacidade não se renomeia sem
-  quebrar host (ADR-0051, ADR-0075).
+  quebrar host (ADR-0051, ADR-0085).
 
 ## Casos extremos e falhas
 
@@ -277,7 +277,7 @@ seguirem verdes (CA09).
 - **CA09** O TransportAdA continua com todos os testes da 183 verdes depois de passar a consumir o
   pacote.
 - **CA10** Nenhuma decisão de negócio muda de lugar: a tratativa da 164 continua onde está
-  (ADR-0075 §6).
+  (ADR-0085 §6).
 
 ## Dúvidas
 
@@ -291,5 +291,5 @@ projeto em 2026-09-26:
   ignora o resto. A adoção dele é spec do repositório dele.
 
 ⚠️ Com isso o núcleo nasce com **um consumidor de verdade**. O risco está assumido por escrito na
-ADR-0075 § "Consequências", e a mitigação é o CA01: contrato que falha se palavra de domínio do TMS
+ADR-0085 § "Consequências", e a mitigação é o CA01: contrato que falha se palavra de domínio do TMS
 aparecer no núcleo.
