@@ -664,6 +664,14 @@ export default defineRailway((ctx) => {
       VITE_KEYCLOAK_URL: isProduction
         ? 'https://transportada-afr-fernandes-auth.up.railway.app'
         : 'https://auth.staging.fernandes-transportadora.com.br',
+      /**
+       * Origem do bucket na CSP (spec 179 T303): sem ela o navegador recusa a foto da ocorrência.
+       * Staging copia o valor do painel (25/09/2026); produção ainda não tem valor conhecido — o
+       * painel de produção também não tem a variável —, então fica `preserve()` até ser definido.
+       */
+      VITE_OBJECT_STORAGE_URL: isProduction
+        ? preserve()
+        : 'https://transportada-staging-zjeaet.t3.storageapi.dev',
     },
   })
 
