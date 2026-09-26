@@ -49,6 +49,18 @@ Com a fase A em produção, nenhuma instância nomeia as colunas; a fase B pode 
 - ⚠️ O banco de produção é o `Postgres-Hqfu`; o serviço "Postgres" é outro e dá número falso
   (memória do projeto). A contagem de produção sai do banco certo.
 
+## Vizinhos em `trip_stops` (conferido em 2026-09-26, `origin/staging` = `c5b450f35`)
+
+- A 206 publicou `20260926140647_stop_departure`: colunas `en_route_since` e `en_route_tapped_at`,
+  o `CHECK` `trip_stops_en_route_open_check` e um índice único parcial. As migrations desta spec
+  entram **depois** dela, e o `snapshot.json` encadeia a partir do dela. Conferir de novo o último
+  snapshot de `origin/staging` na hora de gerar, e renumerar se outra sessão publicar antes.
+- As migrations daqui só nomeiam as três colunas e os quatro `CHECK`s da 215, um por um. Nada de
+  recriar a tabela ou os `CHECK`s em bloco, que levaria junto o da 206.
+- Em 2026-09-26 o usuário confirmou que a 207 e a 215 seguem juntas: elas mexem em colunas diferentes.
+- As colunas de **perna** (`distance_from_previous_meters`, `duration_from_previous_seconds`) ficam: a
+  207 (D3) passa a gravá-las. Esta spec não as toca.
+
 ## Relação com outras specs
 
 - 079, 159, 199: as três leituras erradas que a remoção impede de voltar.
