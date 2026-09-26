@@ -759,6 +759,7 @@ export async function listOccurrenceTypes(
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
+      redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
       stage: companyOccurrenceTypes.stage,
     })
     .from(companyOccurrenceTypes)
@@ -786,11 +787,11 @@ export async function saveOccurrenceType(
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
     /**
-     * Spec 164 T1: ausente é `'unset'` — o padrão da coluna, e o que a rota HTTP grava hoje (o
-     * cadastro por API ainda não expõe este campo; só o seeder da bancada e futuros chamadores
-     * internos o definem).
+     * Spec 164 T1: ausente é "não mexa", como `attachmentMode` — o INSERT cai no padrão da coluna
+     * (`'unset'`) e o UPDATE preserva o valor. Antes o ausente virava `'unset'` também no UPDATE, e
+     * o GET nem devolvia o campo: editar o nome de um tipo desligava a tratativa dele calado.
      */
-    readonly redeliveryPolicy?: RedeliveryPolicy
+    readonly redeliveryPolicy?: RedeliveryPolicy | undefined
     readonly stage: TripOccurrenceStage
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -810,13 +811,13 @@ export async function saveOccurrenceType(
     emailTemplateKey: input.emailTemplateKey,
     name: input.name.trim(),
     notifies: input.notifies,
-    redeliveryPolicy: input.redeliveryPolicy ?? 'unset',
     stage: input.stage,
   }
 
   const attachmentModeChange = {
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+    ...(input.redeliveryPolicy === undefined ? {} : { redeliveryPolicy: input.redeliveryPolicy }),
   }
 
   const [saved] =

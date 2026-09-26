@@ -81,3 +81,28 @@ describe('o cadastro do tipo aceita o aviso automático à contratante (spec 183
     ).rejects.toThrow()
   })
 })
+
+/**
+ * Item 9 da lista da spec 183: o painel sempre mandou `redeliveryPolicy` (spec 164) e o `strict()`
+ * o recusava — todo cadastro e toda edição de tipo pela tela voltavam 400.
+ */
+describe('o cadastro do tipo aceita a política de reentrega (spec 164 RF1)', () => {
+  /** Mesmo cuidado dos dois de cima: ausente é "não mexa", nunca voltar o tipo para `unset`. */
+  test('sem o campo, não decide nada; com ele, grava o vocabulário; fora dele, recusa', async () => {
+    const absent = await parseOccurrenceTypeRequest(putRequest(JSON.parse(baseBody())))
+    expect(absent.redeliveryPolicy).toBeUndefined()
+
+    for (const policy of ['unset', 'allowed', 'blocked'] as const) {
+      const parsed = await parseOccurrenceTypeRequest(
+        putRequest({ ...JSON.parse(baseBody()), redeliveryPolicy: policy }),
+      )
+      expect(parsed.redeliveryPolicy).toBe(policy)
+    }
+
+    await expect(
+      parseOccurrenceTypeRequest(
+        putRequest({ ...JSON.parse(baseBody()), redeliveryPolicy: 'sometimes' }),
+      ),
+    ).rejects.toThrow()
+  })
+})

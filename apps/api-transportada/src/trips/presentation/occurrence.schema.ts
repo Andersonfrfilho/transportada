@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { REDELIVERY_POLICIES } from '../../database/trip.schema.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
 import { unknownTemplatePlaceholders } from '../domain/occurrence-template.policy.js'
 import {
@@ -316,6 +317,12 @@ const occurrenceTypeSchema = z
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),
+    /**
+     * Spec 164 RF1: se aquele fato admite reentrega. O painel sempre mandou o campo e o `strict()`
+     * o recusava — todo cadastro pela tela voltava 400 (item 9 da spec 183). Opcional sem `default`
+     * pelo mesmo motivo do `attachmentMode`: ausente é "não mexa", nunca voltar o tipo para `unset`.
+     */
+    redeliveryPolicy: z.enum(REDELIVERY_POLICIES).optional(),
     stage: z.enum(['delivery', 'separation']),
   })
   .strict()

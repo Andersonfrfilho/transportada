@@ -73,7 +73,11 @@ staging e produção; a migration que criou a tabela
 (`drizzle/20260903140000_company_occurrence_types/migration.sql`) nunca teve `INSERT`, e o catálogo
 que existia fixo em `shared/trip-occurrence.constant.ts` nunca foi gravado — nenhuma instalação
 conseguia registrar ocorrência de galpão ou de rua, porque a tela não tinha tipo para oferecer (o
-`PUT /company-settings/occurrence-types` existe, mas não tem consumidor no frontend). `runPreDeploy`
+consumidor do `PUT /company-settings/occurrence-types` é a aba **Tipos de ocorrência** do painel,
+`OccurrenceTypeCatalogPanel` — que ficou quebrada até o item 9 da spec 183: o `strict()` recusava o
+`redeliveryPolicy` que ela manda, e ela recusava o `emailsContractor` que o GET devolve. Campo novo
+do tipo entra **opcional sem `default`** no schema, é devolvido pelo GET e ausente é "não mexa" no
+UPDATE — `attachmentMode`, `emailsContractor` e `redeliveryPolicy` seguem isso). `runPreDeploy`
 agora chama `seedOccurrenceTypeCatalog` (`database/occurrence-type-catalog-seed.service.ts`, catálogo
 em `shared/occurrence-type-catalog.constant.ts`) depois de migrar/provisionar/semear templates: para
 cada `companies` com catálogo **vazio**, grava os sete tipos pt-BR (três de `separation`, quatro de

@@ -37,8 +37,8 @@ export type SaveOccurrenceTypeValues = {
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string
-  /** Ausente é `'unset'` — nenhum caso de tratativa abre para este tipo. */
-  readonly redeliveryPolicy?: RedeliveryPolicy
+  /** Ausente é "não mexa": o tipo novo nasce `'unset'` (não abre tratativa), o editado mantém a sua. */
+  readonly redeliveryPolicy?: RedeliveryPolicy | undefined
   readonly stage: TripOccurrenceStage
 }
 
