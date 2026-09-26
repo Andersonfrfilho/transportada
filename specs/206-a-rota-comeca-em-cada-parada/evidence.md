@@ -195,3 +195,254 @@ emendado ainda em 2026-09-26, antes desta sessão, e o conteúdo é **byte a byt
   `bun run db:generate` **não** diria `no_changes` — ele quereria criar `occurrence_conversation*` de
   novo. É exatamente o gate que a T1.2 exige. A numeração, essa, está livre: nenhuma outra sessão
   numerou depois de `20260926003822`.
+
+#### Base da árvore — resolvida (2026-09-26)
+
+O bloqueio acima foi desfeito pela opção B: árvore nova em
+`…/scratchpad/spec-206`, criada com
+`git worktree add -b work/spec-206 … origin/staging`, HEAD `16c4ad780`, **zero commits atrás**, `.env`
+e `.env.test` por link simbólico, `bun install --frozen-lockfile` (1545 pacotes) e `format:check`
+verde — o vermelho de 12 arquivos era da árvore antiga. O commit da T0.1 (`1e348d814`) foi
+cherry-pickado para `6efbf8549`. Numeração das migrations reconferida em `origin/staging` depois do
+`fetch`: a última segue `20260926003822_late_registration`. **Todas as tasks a partir da T0.2 correm
+nesta árvore.**
+
+### T0.2 — Roteiro de publicação e de reversão da D16 (2026-09-26)
+
+A regra que manda é a da **ADR-0081 §9: a API não é revertida com a app nova no ar.** Dela sai tudo o
+que está abaixo — a ordem de subida é a ordem em que cada peça passa a _tolerar_ a próxima, e a de
+reversão é a inversa porque é a ordem em que cada peça deixa de ser _exigida_.
+
+#### O que sobe em cada etapa
+
+⚠️ **Cada etapa é um push próprio para `staging`, e isso é o que faz a ordem existir.** Em
+`.railway/railway.ts`, `watchPatterns` só existe nos serviços `deploy/*` (`:395`, `:462`, `:509`,
+`:530`); `api-transportada` (`:65`), `frontend-transportada` (`:186`) e `frontend-driver` (`:636`) **não
+têm nenhum**, e o comentário de `:490` registra que sem `watchPatterns` o serviço redeploya a **todo**
+push. Um commit que carregue painel + API + app sobe os três de uma vez e a ordem abaixo deixa de
+existir. O push da etapa 2 não leva mudança da app; o da etapa 3 não leva mudança de API nem de painel.
+
+**Etapa 1 — painel tolerante (T0.3), sozinha.**
+
+- Sobe: `apps/frontend-transportada` com o descarte do kind desconhecido na linha do tempo, os dois
+  kinds novos em `TRIP_TIMELINE_KINDS` e os rótulos pt/en.
+- Não sobe nada de banco, de API nem da app do motorista.
+- **Por que primeiro:** hoje o painel recusa a **página inteira** da linha do tempo diante de um kind
+  que não conhece (`isOneOf(value.kind, TRIP_TIMELINE_KINDS)`). Se a API subisse antes, o primeiro
+  `departed` gravado apagaria a linha do tempo de toda viagem que o contivesse — não um item faltando,
+  a página em branco.
+- **Efeito observável:** nenhum. Nenhum `departed` existe ainda. É por isso que esta etapa pode subir
+  em qualquer janela, sem acompanhamento.
+- **Como se sabe que deu certo:** a linha do tempo de uma viagem com histórico continua abrindo. Só
+  isso; não há caso novo para exercitar.
+
+**Etapa 2 — banco, worker e API, juntos, na mesma publicação.**
+
+- **O worker acompanha** (a ADR-0081 §9 diz "banco, worker e API", e a T1.2 altera a cópia do schema em
+  `apps/worker-transportada/src/database/trip-execution.schema.ts`). A mudança é **inerte nas duas
+  direções**: o expurgo de posição projeta só `id` e atualiza colunas nomeadas
+  (`trip-location-purge/infrastructure/drizzle-trip-location.repository.ts:25-37`), então o Drizzle nunca
+  emite `tapped_at` no SQL. Por isso o rollback do banco **não** exige reverter o worker, e o worker
+  velho conviveria com o schema novo. `apps/cron-transportada` não toca `trip_stops`/`trip_stop_events` e
+  `apps/frontend-client` não consome linha do tempo — os dois estão fora do roteiro de propósito.
+- Sobe: a migration `<ts>_stop_departure` (as duas colunas de `trip_stops`, os dois CHECKs, o índice
+  único parcial, `trip_stop_events.tapped_at`, `trip_field_reports.result_changed` e os **dois** kinds
+  `departed`/`departure_cancelled` no CHECK), e a API com `depart`, `cancel-departure`, os kinds na
+  linha do tempo e a amostra de trajeto.
+- **Por que juntos:** a migration é aditiva e sem efeito sozinha, mas a API não sobe sem ela — a
+  primeira consulta a `en_route_since` responderia `42703`. O `preDeployCommand` da API roda as
+  migrations, e `assertMigrationsAreComplete` aborta o deploy inteiro se sobrar migration pendente, o
+  que é exatamente a rede que se quer aqui.
+- **Efeito observável:** nenhum, até a app subir. Nada no produto chama `depart` nesta etapa; o painel
+  passa a saber ler um evento que ninguém grava ainda.
+- **Como se sabe que deu certo:** a **sonda da T2.6**, abaixo.
+
+**Etapa 3 — a app do motorista (`apps/frontend-driver`), por último.**
+
+- Sobe: o botão "Iniciar rota" por parada, o bloqueio das outras paradas com motivo e atalho, o
+  "Cancelar rota" com confirmação, o `tappedAt` no item de fila e o `resolveEnRouteStopId`.
+- **Por que por último:** é a única peça que _exige_ as anteriores. Com ela no ar, a etapa 2 fica presa
+  (ADR-0081 §9).
+- **Efeito observável:** aqui, e só aqui, o motorista vê a mudança. É a etapa que pede janela e
+  acompanhamento.
+
+**Fase 7, quando existir: sobe depois de tudo e sobe sem efeito** (Revisão 5). A migration cria os
+dois interruptores `default false`, o relay não encontra outbox, e o efeito aparece quando uma
+transportadora liga o aviso. Não há janela de risco de envio indevido no deploy; a atenção é na
+**primeira empresa a ligar**, não na publicação.
+
+#### A sonda da T2.6
+
+Depois do deploy da **etapa 2** em staging, e **antes de a etapa 3 subir**, quatro requisições que não
+gravam nada:
+
+⚠️ **A primeira versão desta sonda estava errada, e o `architect` pegou** (achados 1 a 4 do parecer,
+colado abaixo). O `401` **não** prova que a rota existe: `authentication.authenticate()` roda **antes**
+do `matchRoute` (`src/http/router.service.ts:279` vs. `:286`), então um caminho que nunca existiu também
+responde `401` sem token. O que prova o deploy é o **par** `400` na rota real × `404` num caminho
+deliberadamente falso. A sonda corrigida:
+
+| #   | Requisição                                                                                      | Resposta esperada | O que ela prova                                                                                                               |
+| --- | ----------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `POST .../stops/<uuid>/depart` **sem token**                                                    | `401`             | só que **nenhuma rota anônima** foi aberta nesse caminho. Não prova existência — qualquer caminho inexistente também dá `401` |
+| 2   | `POST .../stops/<uuid>/cancel-departure` **sem token**                                          | `401`             | idem                                                                                                                          |
+| 3   | `POST .../stops/<uuid>/depart` com token de motorista e **uma chave extra no corpo**            | `400`             | a rota passou do roteamento e chegou ao parser Zod `.strict()`                                                                |
+| 4   | `POST .../stops/<uuid>/cancel-departure`, idem                                                  | `400`             | idem                                                                                                                          |
+| 5   | **controle:** `POST .../stops/<uuid>/caminho-que-nao-existe`, com o mesmo token e o mesmo corpo | `404`             | que o `400` das linhas 3 e 4 **significa** algo: sem este `404`, o par não distingue nada                                     |
+
+Quatro condições sem as quais a sonda não vale:
+
+- **O `<uuid>` é um UUID v4 canônico gerado na hora** (`crypto.randomUUID()`), nunca uma string
+  inventada à mão. O segmento dinâmico é casado por formato (`router.service.ts:715-722`), e o que não
+  for UUID canônico "vira 404 sem tocar na rota" (`:86`) — daria exatamente o `404` que reprova a etapa.
+- **O token é de um motorista da empresa, com `trip.report`** (`DRIVER_REPORT_POLICY`,
+  `me-trip.routes.ts:99`). `resolveCompany` (`router.service.ts:291`) e `authorize` (`:295`) rodam
+  **antes** do `parse` (`:328`), então token de outra empresa ou sem a permissão responde `403`, não
+  `400`. **`403` e `429` também provam que a rota existe; só `404` reprova.**
+- **O `depart`/`cancel-departure` têm de parsear o corpo com schema `.strict()`, no molde do
+  `STOP_ARRIVE_PATH`** (`me-trip.routes.ts:362-368`, sobre `me-trip.schema.ts:69`) — e **não** no do
+  `start-route`, que é `parse: () => undefined` (`:337`). Escrito no molde do `start-route`, a chave
+  extra responderia `200` e a sonda passaria a não provar nada. **Isto é obrigação da T2.1**, e vai lá
+  como contrato: "chave extra no corpo → `400`".
+- **Sem `Idempotency-Key`**, para não reservar chave nenhuma.
+
+O que a sonda **gasta**: nada de domínio — nenhuma parada é tocada e nenhuma chave de idempotência é
+liquidada —, mas o teto de rota é conferido **antes** do `parse` (`router.service.ts:296-301`, e o
+comentário de `:76-81`: "corpo inválido e replay idempotente também gastam"), então ela consome cinco
+requisições do teto e grava a janela de rate limit. Com o teto em Postgres (D15), isso conta entre
+réplicas.
+
+As cinco respostas vão para este arquivo, na T2.6, **antes de a etapa 3 subir**.
+
+#### O critério para reverter cada peça
+
+A pergunta que decide é sempre a mesma: **a peça de cima ainda está no ar?**
+
+| Peça                           | Reverter quando                                                                                                                                         | Pré-condição                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Custo da reversão                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **App (etapa 3)**              | o motorista não consegue trabalhar: "Iniciar rota" não responde, o bloqueio prende uma parada que já fechou, ou o Cheguei desaparece                    | nenhuma — é a primeira a voltar, sempre                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | nenhum dado se perde. A app velha funciona contra a API nova: ela chama `POST /me/trips/current/start-route`, que **segue aceito** (ADR-0074 §5), e o snapshot com `enRouteSince` é chave a mais que ela ignora                                                                                                                                                                                                     |
+| **API (etapa 2, código)**      | erro de servidor no `depart`/`cancel-departure`, `500` do índice único (que seria defeito da trava), ou o `409` recusando parada que não está a caminho | **a app da etapa 3 já voltou, e a volta dela é uma janela, não um instante.** A app é PWA: a versão antiga sobrevive nos aparelhos até o service worker atualizar (`spec.md:485-486`), e isso vale igual na volta. A pré-condição é **medida**: zero `depart`/`cancel-departure` chegando por 15 min contados depois do deploy de reversão da app, não "o deploy terminou". Com a app nova ainda no ar, o `depart` passa a responder `404`: o item fica recusado e visível na fila, com `rejectionCause`, nunca descartado — mas o motorista fica sem caminho para abrir parada, e isso é pior do que o defeito que se está revertendo | nenhum dado se perde; os `departed` já gravados ficam. O painel continua lendo os dois kinds (etapa 1 fica no ar)                                                                                                                                                                                                                                                                                                   |
+| **Banco (etapa 2, migration)** | só por defeito **de schema**: um CHECK que recusa escrita legítima ou o índice único bloqueando parada que devia poder abrir                            | **API e app já voltaram**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | ⚠️ **destrutivo.** O `rollback.sql` apaga todos os `trip_stop_events` de kind `departed` e `departure_cancelled` e derruba `en_route_since`/`en_route_tapped_at`. Só roda **antes de haver uso real** ou com **aprovação humana explícita**. As linhas de `trip_field_reports` com `operation = 'stop.depart'` sobrevivem (não têm FK para o evento), e isso é inofensivo: uma app velha nunca reusa aquelas chaves |
+| **Painel (etapa 1)**           | praticamente nunca — e **nunca enquanto houver um `departed` gravado**                                                                                  | banco já revertido                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | reverter a tolerância com eventos no banco devolve o defeito que ela existe para evitar: a página da linha do tempo volta a ser recusada inteira. É a peça que sobe primeiro e desce por último                                                                                                                                                                                                                     |
+
+Duas regras que atravessam a tabela:
+
+1. **Reverter o banco não é a primeira reação a nada.** As três primeiras linhas são reversíveis sem
+   perda; a quarta é a única com perda, e o defeito que a justifica é de schema, não de
+   comportamento. Defeito de comportamento se conserta na API.
+2. **Nenhuma reversão é parcial dentro de uma etapa.** Banco e API sobem juntos e voltam juntos —
+   API velha com o schema novo funciona (as colunas são aditivas e nulas), mas API nova com o schema
+   velho responde `42703` **em toda leitura que projeta as colunas novas**, a começar pelo snapshot
+   `/me` e pelo `listStops` da T2.4. Consulta do painel que não as projeta continua respondendo, e é por
+   isso que o sintoma apareceria primeiro no motorista, não no escritório.
+
+#### Pendência que o parecer levantou e não é desta fase
+
+O descarte de `location_state = 'expired'` da amostra de trajeto (`spec.md:507`, `tasks.md:271`, Fase 3)
+usa coluna que a **premissa 9 diz não existir** — a 196 não está implementada, e a T0.1 reconfirmou isso
+em `origin/staging`. Ou o caso vira código morto, ou trava a T3.1. Fica condicionado à 196, do mesmo
+jeito que `spec.md:226` já condiciona a **escrita**. Não mexi na spec: é decisão da Fase 3.
+
+#### Parecer do `architect` (opus) sobre este roteiro, e o que foi feito de cada achado
+
+Revisão pedida sobre a primeira versão da seção acima. **Veredito:** _"ordem e critérios de reversão
+aprovados; a sonda não é publicável como está — feche os achados 1 a 4 e acrescente o push separado por
+etapa (5) antes de tratar a T0.2 como concluída."_
+
+| #   | Sev.           | Achado (com o arquivo:linha do parecer)                                                                                                                                                                                                           | O que foi feito                                                                                                                                                                          |
+| --- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **bloqueante** | `401` sem token **não** prova que a rota existe: `authentication.authenticate()` roda antes do `matchRoute` (`router.service.ts:275` vs. `:286`; `authentication.service.ts:37-40`). Caminho inexistente também dá `401`                          | **corrigido.** Conferi eu mesmo (`:279` vs. `:286`). As linhas 1 e 2 passaram a afirmar só "nenhuma rota anônima", e entrou a **linha 5 de controle**, que exige `404` num caminho falso |
+| 2   | importante     | "uuid inventado" pode dar `404` falso: o segmento dinâmico é casado por formato (`router.service.ts:717`, `:721`, comentário de `:86`)                                                                                                            | **corrigido.** Agora é "UUID v4 canônico gerado na hora (`crypto.randomUUID()`)"                                                                                                         |
+| 3   | importante     | `403` é desfecho possível e também prova existência: `resolveCompany` (`:291`) e `authorize` (`:295`) rodam antes do `parse` (`:328`); `DRIVER_REPORT_POLICY` em `me-trip.routes.ts:99`                                                           | **corrigido.** O token ficou nomeado ("motorista da empresa, com `trip.report`"), e está escrito que `403` e `429` provam existência — só `404` reprova                                  |
+| 4   | importante     | O `400` depende de decisão de implementação: o `arrive` parseia corpo `.strict()` (`me-trip.routes.ts:362-368`, `me-trip.schema.ts:69`), mas o vizinho `start-route` é `parse: () => undefined` (`:337`) — nesse molde a chave extra daria `200`  | **corrigido.** Conferi os dois moldes. A condição está escrita na sonda **e virou obrigação da T2.1** ("chave extra → `400`")                                                            |
+| 5   | importante     | Cada etapa é um push separado, e o roteiro não dizia: sem `watchPatterns` o serviço redeploya a todo push (`.railway/railway.ts:65`, `:186`, `:636`, comentário de `:490`)                                                                        | **corrigido**, como aviso no começo de "O que sobe em cada etapa"                                                                                                                        |
+| 6   | importante     | "a app já voltou" não é estado observável num PWA (`spec.md:485-486`)                                                                                                                                                                             | **corrigido.** A pré-condição virou janela medida: zero `depart` por 15 min                                                                                                              |
+| 7   | importante     | O worker sai do roteiro e muda nesta spec (ADR-0081 §9; `tasks.md:129-130`). O revisor conferiu que a mudança é **inerte** (`drizzle-trip-location.repository.ts:25-37` projeta só `id`), e que cron e `frontend-client` estão legitimamente fora | **corrigido.** A etapa 2 virou "banco, worker e API", com o motivo da inércia e a consequência (o rollback do banco não exige reverter o worker)                                         |
+| 8   | menor          | "não gravam nada" é inexato: o teto de rota é conferido antes do `parse` (`router.service.ts:296-301`, `:76-81`)                                                                                                                                  | **corrigido.** "nada de domínio; gasta o teto e grava a janela de rate limit"                                                                                                            |
+| 9   | menor          | "`42703` em toda leitura de parada" é largo demais — só quebra o que **projeta** as colunas novas                                                                                                                                                 | **corrigido**, com o snapshot `/me` e o `listStops` da T2.4 nomeados                                                                                                                     |
+| 10  | menor          | A Fase 3 não pede etapa própria, mas o descarte de `location_state = 'expired'` (`spec.md:507`, `tasks.md:271`) usa coluna que a premissa 9 diz não existir                                                                                       | **registrado** como pendência da Fase 3 nesta evidência; não mexi na spec                                                                                                                |
+
+O parecer também **confirmou por leitura de código**, e isso vale registrar porque sustenta as
+afirmações que ficaram: a ordem de subida e de reversão; que a etapa 1 é necessária antes da 2 (o painel
+recusa a página inteira, `tripResponse.validation.ts:1331`); que banco e API vão juntos e a rede existe
+(`.railway/railway.ts:69`, `pre-deploy.service.ts:22`, `:129`); o critério (a) — o leitor do snapshot da
+app lê chaves nomeadas sobre `Record<string, unknown>`, sem `.strict()`
+(`driverTripResponse.validation.ts:28`, `:154`, `:213`), e `on_delivery_route` já existe
+(`trip.schema.ts:79`), então não há status novo escondido na etapa 2; o critério (b), pela aditividade da
+migration (`plan.md:260-276`); o critério (c), pelo mesmo `isOneOf`; e que **nenhuma rota inexistente
+responde `400`** — fora do `parse` os desfechos são `401`, `404`, `403` e `429`, e nenhuma rota existente
+tem forma `.../stops/:stopId/:algo` que casasse `depart` por acidente (`me-trip.routes.ts:47-92`).
+
+### T0.3 — Painel tolerante (2026-09-26)
+
+Foi pelo **caminho longo** ("Senão" da task): a T0.2 da 192 **não** está em `origin/staging`, como a
+T0.1 mediu. Caminhos de `origin/staging`, não os da spec: `modules/trip/shared/`, não
+`modules/trip/validations/`.
+
+**Contrato antes, e o vermelho:** `bun test ./test/trip.contract.test.ts` →
+**`1748 pass, 9 fail`**, as nove novas:
+
+```
+(fail) tolerância a kind desconhecido … > descarta o item de kind desconhecido e mantém os conhecidos, na ordem
+(fail) tolerância a kind desconhecido … > página inteira desconhecida vira lista vazia e preserva o cursor
+(fail) tolerância a kind desconhecido … > aceita stop.departed
+(fail) tolerância a kind desconhecido … > aceita stop.departure_cancelled
+(fail) tolerância a kind desconhecido … > os dois kinds novos estão no vocabulário
+    error: expect(received).toContain("stop.departed")
+(fail) rótulos da saída da parada … > stop.departed traz a sequência da parada        → Received: undefined
+(fail) rótulos da saída da parada … > stop.departure_cancelled traz a sequência …     → Received: undefined
+(fail) rótulos da saída da parada … > sem parada, os dois caem no título sem sequência
+(fail) rótulos da saída da parada … > os quatro rótulos existem em pt e en            → Received: undefined
+```
+
+**O que foi implementado**
+
+- `src/modules/trip/shared/trip.types.ts` — `stop.departed` e `stop.departure_cancelled` em
+  `TRIP_TIMELINE_KINDS`, logo depois de `stop.arrived`.
+- `src/modules/trip/shared/tripResponse.validation.ts` — `hasUnknownTimelineKind` (novo) e o
+  `tripTimelineFromApi` **descartando** o item de kind desconhecido em vez de recusar a página.
+- `src/modules/trip/shared/tripTimeline.service.ts` — dois `case` no `switch` de
+  `resolveTripTimelineTitle`, com o desvio de `stop === null` no molde do `stop.arrived`.
+- `src/modules/trip/locales/trip.locale.json` e `trip.en.locale.json` — quatro rótulos cada.
+- `apps/api-transportada/src/trips/application/trip-timeline.types.ts` — **os dois kinds e a prioridade
+  0**. Não estava previsto na T0.3, e é obrigatório: `test/trip/timeline.contract.ts:233-243` guarda a
+  **paridade exata, na ordem**, entre a lista do painel e a da API (cópia por valor, o bundle não carrega
+  código de lá). Sem isso a T0.3 não fecha. É o bullet "API" da D12; o mapeamento de `listStopEventRows`
+  **continua** na Fase 2, e até lá nenhum `departed` é emitido — a lista é vocabulário, não comportamento.
+
+**Três decisões de desenho que o contrato fixou**
+
+1. **O `nextCursor` é preservado mesmo quando a página inteira é descartada.** Sem isso, "carregar mais"
+   pararia numa página só de kinds novos e o histórico antigo ficaria inalcançável. Conferido no
+   consumidor: `hooks/useTripTimeline.hook.ts:22` é `getNextPageParam: (lastPage) => lastPage.nextCursor`,
+   então lista vazia com cursor continua paginando.
+2. **Tolerância de vocabulário não é tolerância de forma.** Item que não é objeto, `kind` que não é
+   texto e chave a mais em kind **conhecido** continuam reprovando a página. `hasUnknownTimelineKind`
+   exige objeto **e** `kind` de texto exatamente para isso.
+3. ⚠️ **Uma asserção minha nasceu invertida, e foi corrigida com o vermelho na mão.** Eu havia escrito
+   que kind desconhecido **com chave a mais** deveria reprovar a página. Isso mataria a própria
+   tolerância: uma API mais nova que acrescentasse um kind **e** uma chave junto voltaria a deixar a
+   linha do tempo em branco — o defeito que a T0.3 existe para fechar. O painel não pode julgar a forma
+   de um kind que não conhece; pode afirmar que **não é um item dele**, e descartar. A razão está escrita
+   no próprio teste, e o guarda de chave segue inteiro para os kinds conhecidos (`recusa chave
+desconhecida no item`, com `BASE_ITEM`).
+
+**Um teste existente mudou de sentido, e é a decisão que muda:** `recusa kind fora do vocabulário`
+(spec 158 D6/aceite 8) saiu e virou `descarta …`. É exatamente o que a D12 emenda na 158 D6, e o que a
+192 T0.2 faria — as **chaves** do item continuam recusadas como antes.
+
+**Tom:** os dois ficaram em `progress`, sem tocar `resolveTripTimelineTone`. Cancelar a rota é fato de
+operação, não erro (ADR-0088 §2b, o log é `info`), e nenhuma penalidade nasce aqui (ADR-0070).
+
+**Gates**
+
+| Gate                   | Comando                                              | Resultado                                                                    |
+| ---------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Contratos do painel    | `bun run --cwd apps/frontend-transportada test`      | **5542 pass + 54 pass, 0 fail** (30 + 1 arquivos, duas invocações do script) |
+| — só a suíte de viagem | `bun test ./test/trip.contract.test.ts`              | **1757 pass, 0 fail** (era `1748 pass, 9 fail`)                              |
+| Typecheck do painel    | `bun run --cwd apps/frontend-transportada typecheck` | verde                                                                        |
+| Lint do painel         | `bun run --cwd apps/frontend-transportada lint`      | verde                                                                        |
+
+`test/trip/timeline.contract.ts` e `test/trip/timeline-view.contract.ts` já estavam no entrypoint
+`test/trip.contract.test.ts` (`:2` e `:3`), que já está na lista explícita do `package.json` do painel —
+nenhuma lista precisou de linha nova, e conferi que rodam pelo script da app, não só pelo comando solto.

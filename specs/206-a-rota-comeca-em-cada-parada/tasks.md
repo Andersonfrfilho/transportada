@@ -90,7 +90,11 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
   **Aceite:** ADR-0088 `aceita` **e sem nenhuma menção a troca de parada**, as emendas commitadas e o
   `evidence.md` com cada premissa e o arquivo:linha conferido.
 
-- [ ] **T0.2** 🧠 Escrever no `evidence.md` o roteiro de publicação e de reversão da D16.
+- [x] **T0.2** 🧠 Escrever no `evidence.md` o roteiro de publicação e de reversão da D16. **Feita em
+      2026-09-26**, com o parecer do `architect` colado. ⚠️ A sonda da T2.6 como estava escrita **não
+      provava o que dizia** (o `401` sem token é anterior ao `matchRoute`): ela ganhou uma quinta
+      requisição de controle, UUID canônico, token nomeado e a exigência de corpo `.strict()`, que virou
+      **obrigação da T2.1**.
   - O que sobe em cada etapa.
   - A sonda da T2.6.
   - O critério para reverter cada peça.
