@@ -372,6 +372,19 @@ export type TripRepositoryPort = {
     readonly companyId: string
     readonly driverIds: readonly string[]
   }): Promise<readonly TripDriverCandidate[]>
+  /**
+   * Spec 216: define a tripulação de `awaiting_crew` (vira `draft`) ou troca a de uma viagem
+   * `draft` — `null` quando a viagem não existe. Reconfere `checkTripTransition` sob o lock,
+   * porque o status lido pelo caso de uso é anterior à transação.
+   */
+  updateCrew(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly crew: readonly TripDriverLine[]
+    readonly tripId: string
+    readonly vehicleId: string | null
+  }): Promise<TripDetail | null>
   /** Devolve `null` quando o documento já não está mais elegível para desvínculo (entregue/liberado). */
   releaseDocument(input: {
     readonly companyId: string
