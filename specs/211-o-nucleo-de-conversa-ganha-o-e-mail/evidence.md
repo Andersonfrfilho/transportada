@@ -590,3 +590,54 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
 - Decisão: não criei nenhuma rota HTTP nem wiring de `module-http` nesta task — a task pede só "os
   casos de uso e a factory". Rotas ficam para a Fase 5 (consumo pelo TransportAdA), no mesmo
   desenho que `notification-module/NotificationModule.ts` reserva `routes`/`worker` para depois.
+
+### T207 — teste da atribuição genérica
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-module/src/use-cases/`.
+- **Commit:** `efa2d35` (`test(conversation-module): contrato da atribuição genérica (T207)`).
+- Li `whatsapp-attribution.policy.ts` (spec 183, só leitura) para portar a **regra**, não o
+  vocabulário: lá é `contractorId`/`driverUserId`/`context.id`; aqui é `(canal, identificador)` +
+  uma referência de resposta já resolvida pelo transporte do host, e a regra de "quem pode ver essa
+  conversa" (o `optedInContractorIds` da origem) vira porta opcional (`filterCandidates`) — o
+  produto injeta a própria regra de atribuível, o núcleo não conhece contratante nem motorista.
+- `Attribution.types.ts`: `FilterConversationCandidatesPort` — porta opcional; ausente, todas as
+  conversas abertas do participante contam como candidatas.
+- `Attribution.use-cases.test.ts` cobre `AttributeInboundMessageUseCase`:
+  - referência de resposta (`replyConversationId`) válida da mesma empresa → atribui direto,
+    **sem** olhar candidatas;
+  - referência de outra empresa → **não** é aceita cegamente: cai no fluxo por candidatas (que aqui
+    dá `no_candidate`, porque o teste não registrou participante nenhum);
+  - sem referência, candidata única → atribui; **duas candidatas → fila, nunca "a mais recente"**
+    (D7, "nunca palpite" — testado explicitamente); nenhuma candidata → `no_candidate` **sem
+    gravar nada** (nem mensagem, nem entrada na fila — as duas listas ficam vazias no teste);
+  - `filterCandidates` reduz o conjunto e muda o resultado de "duas candidatas → fila" para "uma
+    candidata → atribui";
+  - idempotência pelo id do provedor, testada nos dois desfechos (conversa e fila): chamar duas
+    vezes com o mesmo `providerMessageId` não duplica nem mensagem nem entrada na fila.
+  - `AssignUnassignedToConversationUseCase`: atribuição manual grava mensagem + `assigned_*` juntos
+    (RF7).
+- `ConversationRepositoryPort` ganhou `listOpenByParticipant` (T204 estendida de novo, mesmo padrão
+  do `providerMessageId` na T205→T206): todas as conversas abertas do participante, **com ou sem**
+  assunto — diferente de `findOpenByParticipant`, que só resolve a idempotência da conversa sem
+  assunto e por isso nunca devolveria as candidatas de uma conversa **com** assunto.
+- **Visto falhar (esperado até a T208):**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+
+  src/use-cases/Attribution.use-cases.test.ts:
+  # Unhandled error between tests
+  error: Cannot find module './Attribution.use-cases' from '.../Attribution.use-cases.test.ts'
+
+   35 pass
+   1 fail
+   1 error
+   664 expect() calls
+  Ran 36 tests across 7 files. [66.00ms]
+  ```
+
+  `check` também falha por desenho (`TS2307: Cannot find module './Attribution.use-cases'`) — mesmo
+  padrão da T203/T205, não é regressão.

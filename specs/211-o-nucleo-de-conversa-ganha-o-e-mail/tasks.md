@@ -74,7 +74,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T206** `sonnet` — Os casos de uso e a factory
       `createConversationModule({ config, features, providers })`. **Porta ausente desliga o
       recurso**, nunca flag `hasX` (ADR-0051 §4). (RF6, RNF2)
-- [ ] **T207** `sonnet` — Teste da **atribuição genérica**: por referência de resposta; sem ela,
+- [x] **T207** `sonnet` — Teste da **atribuição genérica**: por referência de resposta; sem ela,
       conversa aberta mais recente do identificador; ambígua → fila de não atribuídas. **Nunca
       palpite.** (RF7, D7, CA06)
 - [ ] **T208** `sonnet` — A atribuição genérica. (RF7)
