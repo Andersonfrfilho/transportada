@@ -719,6 +719,75 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
 - Também `createInMemoryObjectStorage` em `testing/inMemoryRepositories.ts`: dublê do
   `ObjectStoragePort` que guarda bytes em memória por `bucket/key`, exportado por
   `testing/index.ts`.
+
+### T210 — o anexo em três passos
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-module/src/domain/`, `src/use-cases/`, `src/ConversationModule.ts`.
+- **Commit:** `f8e255e` (`feat(conversation-module): o anexo em três passos (T210)`).
+- `domain/attachmentType.ts` implementa exatamente o que a T209 testou —
+  `ATTACHMENT_CONTENT_TYPE_KINDS`/`attachmentKindOf`, `matchesAttachmentSignature` (assinatura de
+  bytes copiada byte a byte da política de origem) e `normalizeAttachmentFileName`. Os 8 testes de
+  `attachmentType.test.ts` ficaram verdes sem alteração de asserção.
+- `use-cases/Attachment.use-cases.ts`:
+  - `RequestAttachmentUploadUseCase` — `AttachmentsDisabledError` sem `objectStorage`; tipo fora
+    do vocabulário fechado (`AttachmentTypeMismatchError`); tamanho acima do teto do canal
+    (`AttachmentTooLargeError`, lido de `getChannelCapabilities(channel).attachments`); grava o
+    pedido `pending` com a chave `newObjectKey()` — token de 256 bits (`randomBytes(32)`,
+    `base64url`) sob o prefixo `conversation-attachments/`, sem id interno nenhum embutido — e
+    devolve a URL assinada de 15 minutos.
+  - `LinkAttachmentUploadsUseCase` — para cada `uploadId`: confere `pending` + mesma conversa
+    (`assertPendingUpload`, senão `UploadNotFoundError`) e prazo (`UploadExpiredError`); baixa os
+    bytes do storage, confere a assinatura contra o `declaredContentType`
+    (`AttachmentTypeMismatchError` se não bate — é o "extensão mentindo" da T209), confere teto do
+    canal e teto total acumulado quando `maxTotalBytes` não é `null` (`AttachmentTooLargeError`
+    nos dois casos); calcula `sha256` de verdade (`createHash('sha256')`), **copia os bytes para
+    uma chave final nova e só depois apaga a chave da subida** (a ordem importa: um erro no `put`
+    da cópia final deixa a subida original intacta, reenviável); grava o anexo — a linha
+    persistida (`ConversationAttachmentRow`) nunca carrega `bytes`/`body`, só
+    `sha256`/`sizeBytes`/`objectKey`/`contentType`/`kind`/`fileName` — e marca o upload
+    `attached`.
+  - `CreateAttachmentDownloadUrlUseCase` — URL de 5 minutos; `AttachmentNotFoundError` (novo em
+    `errors.ts`) se o anexo não existe.
+- `createConversationModule` ganhou `config.attachmentsBucket?` — **obrigatório só quando
+  `providers.objectStorage` vem preenchido** (checado na entrada da factory,
+  `ConfigMissingError('attachmentsBucket')` se faltar; sem `objectStorage`, o campo nunca é lido,
+  porque os três casos de uso já recusam antes de tocar no bucket). `AttachmentRepository` passou
+  a ser instanciado no factory, e os três casos de uso entraram em `useCases`.
+- **Verde:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run check
+  tsc -p tsconfig.json --noEmit   (sem saída)
+
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+   63 pass
+   0 fail
+   724 expect() calls
+  Ran 63 tests across 9 files. [45–60ms]
+
+  $ pnpm --filter @adatechnology/conversation-module run build
+  ... DTS ⚡️ Build success in 1494ms
+
+  $ pnpm --filter @adatechnology/conversation-contracts run check
+  tsc -p tsconfig.json --noEmit   (sem saída)
+
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+   38 pass
+   0 fail
+   131 expect() calls
+  Ran 38 tests across 6 files. [25ms]
+  ```
+
+- Decisão: mesma chave-prefixo (`conversation-attachments/`) tanto para o pedido quanto para a
+  cópia final — a origem usava `occurrence-conversations/<token>` para as duas também; o que
+  garante que a chave da subida não sobrevive é o `delete` explícito depois do `put` da cópia,
+  não um prefixo diferente.
+- T204–T210 fecham a Fase 2 até aqui — falta **T211** (respostas rápidas, CRUD sem regra nova,
+  fora do escopo desta sessão) e **T212** (integração contra Postgres real).
 - `createConversationModule` ganhou `providers.filterCandidates?` (opcional, RF7) e os dois casos
   de uso novos em `useCases`; `UnassignedRepository` passou a ser instanciado no factory (antes só
   os três repositórios que T206 usava).
