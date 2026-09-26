@@ -38,6 +38,9 @@ import {
 const STOP_EVENT_KIND_TO_TIMELINE_KIND = {
   arrived: 'stop.arrived',
   delivered: 'document.delivered',
+  /** Spec 206 D1/D18/D12: a saída para a parada, e o cancelamento dela. */
+  departed: 'stop.departed',
+  departure_cancelled: 'stop.departure_cancelled',
   returned: 'document.returned',
 } as const satisfies Record<string, TripTimelineKind>
 
@@ -48,12 +51,20 @@ export async function listStopEventRows(
   const priorityExpr = sql`case ${tripStopEvents.kind}
     when 'arrived' then ${TRIP_TIMELINE_KIND_PRIORITY['stop.arrived']}
     when 'delivered' then ${TRIP_TIMELINE_KIND_PRIORITY['document.delivered']}
+    when 'departed' then ${TRIP_TIMELINE_KIND_PRIORITY['stop.departed']}
+    when 'departure_cancelled' then ${TRIP_TIMELINE_KIND_PRIORITY['stop.departure_cancelled']}
     else ${TRIP_TIMELINE_KIND_PRIORITY['document.returned']}
   end::int`
   const conditions: SQL[] = [
     eq(tripStopEvents.companyId, params.companyId),
     eq(tripStops.tripId, params.tripId),
-    inArray(tripStopEvents.kind, ['arrived', 'delivered', 'returned']),
+    inArray(tripStopEvents.kind, [
+      'arrived',
+      'delivered',
+      'returned',
+      'departed',
+      'departure_cancelled',
+    ]),
   ]
   if (params.cursor !== null) {
     conditions.push(

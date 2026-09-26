@@ -80,6 +80,8 @@ function buildHandler() {
     registerDriverOccurrence: NOT_CALLED,
     renderManifestDamdfe: NOT_CALLED,
     reportArrival: NOT_CALLED,
+    reportDeparture: NOT_CALLED,
+    cancelStopDeparture: NOT_CALLED,
     reportDelivery: NOT_CALLED,
     reportOccurrence: NOT_CALLED,
     reportReturn: NOT_CALLED,

@@ -165,7 +165,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). 
 > 🤖 Modelo: `sonnet` (T2.2, T2.2a e T2.3 🧠 — validar a transação e as travas com `architect` opus
 > antes)
 
-- [ ] **T2.1** Contratos antes (CA2), em `test/driver-trip/stop-departure.contract.ts`, importado em
+- [x] **T2.1** Contratos antes (CA2), em `test/driver-trip/stop-departure.contract.ts`, importado em
       `test/driver-trip.contract.test.ts`.
   - A rota exige `Idempotency-Key` e `tappedAt`, aceita `location` e recusa chave extra.
   - Respostas `201` e `200` com `changed`.
@@ -182,7 +182,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). 
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T2.1a** Contratos antes do cancelamento (CA2), na mesma suíte
+- [x] **T2.1a** Contratos antes do cancelamento (CA2), na mesma suíte
       `test/driver-trip/stop-departure.contract.ts`.
   - `cancel-departure` exige `Idempotency-Key` e `tappedAt`, aceita `location` e recusa chave extra (o
     corpo é o mesmo do `depart`, e o parser é reusado).
@@ -192,7 +192,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). 
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T2.2** 🧠 Integração antes (CA3, CA4), em `test/integration/me-trip-departure.integration.ts`,
+- [x] **T2.2** 🧠 Integração antes (CA3, CA4), em `test/integration/me-trip-departure.integration.ts`,
       acrescentada à mão a `test:integration`.
   - `dispatched` → `on_delivery_route`, com `trip_status_events` no canal `driver_app` e ponto nulo.
   - O segundo `depart` na mesma parada responde `changed: false`, sem evento.
@@ -220,7 +220,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). 
 
   **Aceite:** os casos rodam e falham. O caso (b) pode falhar pelo `completed_requires_arrived` da 205. Isso fica anotado, e o defeito é da 205.
 
-- [ ] **T2.2a** 🧠 Integração antes do cancelamento (CA3, CA4), na mesma
+- [x] **T2.2a** 🧠 Integração antes do cancelamento (CA3, CA4), na mesma
       `test/integration/me-trip-departure.integration.ts`.
   - O cancelamento grava `departure_cancelled` com `tapped_at` e carimbo, zera `en_route_*` **só da
     própria parada** e **não** gera `trip_status_events` — a viagem segue `on_delivery_route`.
@@ -237,7 +237,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). 
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T2.3** 🧠 Implementar:
+- [x] **T2.3** 🧠 Implementar:
   - `report-stop-departure.use-case.ts`, com as decisões na ordem da D2 e **escrevendo numa parada
     só** — não existe caminho que atualize duas linhas de `trip_stops`;
   - `cancel-stop-departure.use-case.ts`, com as mesmas travas, `clearStopEnRoute` da própria parada e
@@ -257,14 +257,14 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). 
   **Aceite:** T2.1, T2.1a, T2.2 e T2.2a verdes, exceto o caso (b) se a 205 ainda não estiver corrigida, e os dois
   comandos da API inteiros verdes.
 
-- [ ] **T2.4** `enRouteSince` e `enRouteTappedAt` em `GET /me/trips/current`.
+- [x] **T2.4** `enRouteSince` e `enRouteTappedAt` em `GET /me/trips/current`.
   - Primeiro o contrato de serialização em `test/driver-trip/`.
   - Contrato de isolamento em `tenant-safety`.
 
   **Aceite:** contrato e integração (caso em `me-trip.integration.ts`) verdes, e sem N+1: as colunas
   vêm na mesma consulta de `listStops`.
 
-- [ ] **T2.5** Linha do tempo: `stop.departed` e `stop.departure_cancelled`, o mapeamento e a
+- [x] **T2.5** Linha do tempo: `stop.departed` e `stop.departure_cancelled`, o mapeamento e a
       prioridade 0 nos dois.
   - Primeiro o contrato: prioridade inteira, e os dois abaixo de `trip.status_changed`.
   - Depois os casos em `test/integration/trip-timeline.integration.ts`: item com `stop { id,
@@ -272,7 +272,9 @@ sequence }`, e a página com `departed`, `departure_cancelled` e `arrived` pagin
 
   **Aceite:** os dois comandos da API verdes.
 
-- [ ] **T2.6** Sonda de publicação (ADR-0081 §9), sem efeito nenhum.
+- [ ] **T2.6** ⏸️ **PENDENTE — exige a API já em staging** (2026-09-26): esta execução implementou
+      T2.1–T2.5 sem deploy nenhum (fora do escopo autorizado); a sonda só pode rodar depois da subida.
+      Sonda de publicação (ADR-0081 §9), sem efeito nenhum.
   - Depois do deploy da API em staging, um `POST .../stops/<uuid>/depart` e um
     `POST .../stops/<uuid>/cancel-departure`:
     - sem token respondem `401`;

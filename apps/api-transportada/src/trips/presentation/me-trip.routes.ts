@@ -27,6 +27,8 @@ import type {
 import type { DriverReturnReason } from '../domain/driver-return-reason.policy.js'
 import type { ReportDocumentOutcomeResult } from '../application/report-document-delivery.use-case.js'
 import type { ReportStopArrivalResult } from '../application/report-stop-arrival.use-case.js'
+import type { ReportStopDepartureResult } from '../application/report-stop-departure.use-case.js'
+import type { CancelStopDepartureResult } from '../application/cancel-stop-departure.use-case.js'
 import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
@@ -35,6 +37,7 @@ import {
   parseRegisterOccurrenceRequest,
 } from './occurrence.schema.js'
 import {
+  parseDepartureRequest,
   parseDispatchCurrentTripRequest,
   parseDocumentDeliveryRequest,
   parseDocumentReturnRequest,
@@ -47,6 +50,10 @@ import {
 const TRIP_CONFIRM_LOAD_PATH = `${API_ME_CURRENT_TRIP_PATH}/confirm-load`
 const TRIP_START_ROUTE_PATH = `${API_ME_CURRENT_TRIP_PATH}/start-route`
 const STOP_ARRIVE_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/arrive`
+/** Spec 206 D2 (ADR-0088 §2/§4): o primeiro toque em "Iniciar rota". */
+const STOP_DEPART_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/depart`
+/** Spec 206 D18 (ADR-0088 §2b): "Cancelar rota", a qualquer momento antes do Cheguei. */
+const STOP_CANCEL_DEPARTURE_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/cancel-departure`
 const STOP_OCCURRENCES_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/occurrences`
 const DOCUMENT_DELIVER_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/deliver`
 const DOCUMENT_RETURN_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/return`
@@ -133,6 +140,14 @@ export type MeTripDependencies = {
   readonly reportArrival: (
     input: DriverActionInput & { readonly stopId: string },
   ) => Promise<ReportStopArrivalResult>
+  /** Spec 206 D2: o primeiro toque em "Iniciar rota". */
+  readonly reportDeparture: (
+    input: DriverActionInput & { readonly stopId: string; readonly tappedAt: Date },
+  ) => Promise<ReportStopDepartureResult>
+  /** Spec 206 D18: "Cancelar rota", a qualquer momento antes do Cheguei. */
+  readonly cancelStopDeparture: (
+    input: DriverActionInput & { readonly stopId: string; readonly tappedAt: Date },
+  ) => Promise<CancelStopDepartureResult>
   /** ADR-0058: conferir a carga e iniciar o trajeto, os dois pelo mesmo caso de uso. */
   readonly startFieldTrip: (
     input: DriverContextInput & { readonly step: FieldTripStep },
@@ -368,6 +383,78 @@ export function createMeTripRoutes(
         }
       },
       pathname: STOP_ARRIVE_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{
+      readonly idempotencyKey: string
+      readonly location: ReportedLocation | null
+      readonly stopId: string
+      readonly tappedAt: Date
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const result = await dependencies.reportDeparture({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          driverId,
+          idempotencyKey: input.idempotencyKey,
+          location: input.location,
+          stopId: input.stopId,
+          tappedAt: input.tappedAt,
+        })
+
+        return jsonResponse({
+          body: { data: { changed: result.changed, id: result.id } },
+          status: result.changed ? 201 : 200,
+        })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseDepartureRequest(request)
+        return {
+          idempotencyKey: parseIdempotencyKey(request),
+          location: body.location,
+          stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
+          tappedAt: body.tappedAt,
+        }
+      },
+      pathname: STOP_DEPART_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{
+      readonly idempotencyKey: string
+      readonly location: ReportedLocation | null
+      readonly stopId: string
+      readonly tappedAt: Date
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const result = await dependencies.cancelStopDeparture({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          driverId,
+          idempotencyKey: input.idempotencyKey,
+          location: input.location,
+          stopId: input.stopId,
+          tappedAt: input.tappedAt,
+        })
+
+        return jsonResponse({
+          body: { data: { changed: result.changed, id: result.id } },
+          status: result.changed ? 201 : 200,
+        })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseDepartureRequest(request)
+        return {
+          idempotencyKey: parseIdempotencyKey(request),
+          location: body.location,
+          stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
+          tappedAt: body.tappedAt,
+        }
+      },
+      pathname: STOP_CANCEL_DEPARTURE_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<{

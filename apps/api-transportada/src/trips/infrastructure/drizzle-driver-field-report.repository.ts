@@ -25,6 +25,7 @@ import {
   type TripStopEventKind,
 } from '../../database/trip.schema.js'
 import type {
+  DepartureDecision,
   DriverDocumentReference,
   DriverFieldReportTransactionPort,
   DriverFieldReportUnitOfWork,
@@ -44,8 +45,10 @@ import {
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
+  checkTripTransition,
   deriveTripStatus,
   tallyTripDocuments,
+  TRIP_ACTION,
   TRIP_DISPATCHED_STATUSES,
   TRIP_ON_ROAD_STATUSES,
 } from '../domain/trip-state.policy.js'
@@ -149,11 +152,12 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   public async settle(input: {
     readonly companyId: string
     readonly idempotencyKey: string
-    readonly resultId: string
+    readonly resultChanged: boolean
+    readonly resultId: string | null
   }): Promise<void> {
     await this.transaction
       .update(tripFieldReports)
-      .set({ resultId: input.resultId })
+      .set({ resultChanged: input.resultChanged, resultId: input.resultId })
       .where(
         and(
           eq(tripFieldReports.companyId, input.companyId),
@@ -256,14 +260,27 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return record.dispatchedAt ?? record.createdAt
   }
 
+  /**
+   * Spec 206 D4/D7: zera "a caminho" **da própria parada** no mesmo `UPDATE` que grava a chegada —
+   * o CHECK `trip_stops_en_route_open_check` não deixa ser de outro jeito. Com `clearEnRoute:
+   * 'trip'` (canal `driver_app`/`whatsapp`), um segundo `UPDATE` zera as demais paradas da viagem:
+   * quem chegou não está mais a caminho de outra (M4).
+   */
   public async markStopArrived(input: {
     readonly at: Date
+    readonly clearEnRoute: 'stop' | 'trip'
     readonly companyId: string
     readonly stopId: string
+    readonly tripId: string
   }): Promise<void> {
     await this.transaction
       .update(tripStops)
-      .set({ arrivedAt: input.at, updatedAt: input.at })
+      .set({
+        arrivedAt: input.at,
+        enRouteSince: null,
+        enRouteTappedAt: null,
+        updatedAt: input.at,
+      })
       .where(
         and(
           eq(tripStops.companyId, input.companyId),
@@ -271,6 +288,13 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
           isNull(tripStops.arrivedAt),
         ),
       )
+
+    if (input.clearEnRoute === 'trip') {
+      await this.transaction
+        .update(tripStops)
+        .set({ enRouteSince: null, enRouteTappedAt: null, updatedAt: input.at })
+        .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+    }
   }
 
   /**
@@ -338,6 +362,182 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       occurredAt: input.at,
       onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
       toStatus: 'in_transit',
+      tripId: input.tripId,
+    })
+
+    return true
+  }
+
+  /** Spec 206 D4 (ADR-0068 §2): serializa a leitura de "alguma parada desta viagem está a caminho?". */
+  public async lockTripStops(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<void> {
+    await this.transaction
+      .select({ id: tripStops.id })
+      .from(tripStops)
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+      .orderBy(tripStops.id)
+      .for('no key update')
+  }
+
+  /** Spec 206 D2/D18: lida depois da trava — nunca antes. */
+  public async readDepartureDecision(input: {
+    readonly companyId: string
+    readonly stopId: string
+    readonly tripId: string
+  }): Promise<DepartureDecision> {
+    const [stopRow] = await this.transaction
+      .select({
+        arrivedAt: tripStops.arrivedAt,
+        completedAt: tripStops.completedAt,
+        enRouteSince: tripStops.enRouteSince,
+      })
+      .from(tripStops)
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, input.stopId)))
+      .limit(1)
+    if (stopRow === undefined) throw new Error('TRIP_STOP_MISSING_AFTER_LOCK')
+
+    const [enRouteRow] = await this.transaction
+      .select({ id: tripStops.id, sequence: tripStops.sequence })
+      .from(tripStops)
+      .where(
+        and(
+          eq(tripStops.companyId, input.companyId),
+          eq(tripStops.tripId, input.tripId),
+          isNotNull(tripStops.enRouteSince),
+        ),
+      )
+      .limit(1)
+
+    const [lastDeparted] = await this.transaction
+      .select({ tappedAt: tripStopEvents.tappedAt })
+      .from(tripStopEvents)
+      .innerJoin(
+        tripStops,
+        and(
+          eq(tripStops.companyId, tripStopEvents.companyId),
+          eq(tripStops.id, tripStopEvents.stopId),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStops.tripId, input.tripId),
+          eq(tripStopEvents.kind, 'departed'),
+        ),
+      )
+      .orderBy(desc(tripStopEvents.createdAt))
+      .limit(1)
+
+    const lastArrivedAtColumn = sql<Date>`coalesce(${tripStopEvents.capturedAt}, ${tripStopEvents.recordedAt})`
+    const [lastArrived] = await this.transaction
+      .select({ at: lastArrivedAtColumn })
+      .from(tripStopEvents)
+      .innerJoin(
+        tripStops,
+        and(
+          eq(tripStops.companyId, tripStopEvents.companyId),
+          eq(tripStops.id, tripStopEvents.stopId),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStops.tripId, input.tripId),
+          eq(tripStopEvents.kind, 'arrived'),
+        ),
+      )
+      .orderBy(desc(lastArrivedAtColumn))
+      .limit(1)
+
+    return {
+      enRouteStop:
+        enRouteRow === undefined
+          ? null
+          : { id: enRouteRow.id, sequence: String(enRouteRow.sequence) },
+      lastArrivedAt: lastArrived?.at ?? null,
+      lastDepartedTappedAt: lastDeparted?.tappedAt ?? null,
+      stop: {
+        arrivedAt: stopRow.arrivedAt,
+        completedAt: stopRow.completedAt,
+        enRouteSince: stopRow.enRouteSince,
+      },
+    }
+  }
+
+  /** Spec 206 D1/D4: marca só esta parada — não existe caminho que grave em duas. */
+  public async markStopEnRoute(input: {
+    readonly companyId: string
+    readonly since: Date
+    readonly stopId: string
+    readonly tappedAt: Date | null
+  }): Promise<void> {
+    await this.transaction
+      .update(tripStops)
+      .set({ enRouteSince: input.since, enRouteTappedAt: input.tappedAt, updatedAt: input.since })
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, input.stopId)))
+  }
+
+  /** Spec 206 D18: o "Cancelar rota" zera "a caminho" só da própria parada. */
+  public async clearStopEnRoute(input: {
+    readonly companyId: string
+    readonly stopId: string
+    readonly updatedAt: Date
+  }): Promise<void> {
+    await this.transaction
+      .update(tripStops)
+      .set({ enRouteSince: null, enRouteTappedAt: null, updatedAt: input.updatedAt })
+      .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, input.stopId)))
+  }
+
+  /**
+   * Spec 206 D5: o primeiro "Iniciar rota" da viagem, no molde de `markTripInTransit`. Aceita
+   * `dispatched` **e** `in_transit` como origem — `checkTripTransition` decide o próximo status.
+   */
+  public async markTripOnDeliveryRoute(input: {
+    readonly actorUserId: string
+    readonly at: Date
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<boolean> {
+    const [tripRow] = await this.transaction
+      .select({ status: trips.status })
+      .from(trips)
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      .for('no key update')
+      .limit(1)
+    if (tripRow === undefined) return false
+
+    const transition = checkTripTransition({
+      action: TRIP_ACTION.startRoute,
+      hasRoute: true,
+      tripStatus: tripRow.status,
+    })
+    if (transition.outcome !== 'applied') return false
+
+    const updated = await this.transaction
+      .update(trips)
+      .set({ status: transition.nextStatus, updatedAt: new Date() })
+      .where(
+        and(
+          eq(trips.companyId, input.companyId),
+          eq(trips.id, input.tripId),
+          eq(trips.status, tripRow.status),
+        ),
+      )
+      .returning({ id: trips.id })
+    if (updated.length === 0) return false
+
+    await recordTripStatusChange(this.transaction, {
+      actorUserId: input.actorUserId,
+      channel: input.authorship.channel,
+      companyId: input.companyId,
+      fromStatus: tripRow.status,
+      occurredAt: input.at,
+      onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+      toStatus: transition.nextStatus,
       tripId: input.tripId,
     })
 
@@ -425,6 +625,9 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
          */
         arrivedAt: sql`coalesce(${tripStops.arrivedAt}, (${firstSettledAt}), ${timestamptzParameter(input.at)})`,
         completedAt: sql`coalesce((${lastSettledAt}), ${timestamptzParameter(input.at)})`,
+        /** Spec 206 D4: a conclusão pela baixa zera "a caminho" só da própria parada. */
+        enRouteSince: null,
+        enRouteTappedAt: null,
         updatedAt: input.at,
       })
       .where(
@@ -587,6 +790,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }),
         reportedByDriverId: input.reportedByDriverId ?? null,
         stopId: input.stopId,
+        tappedAt: input.tappedAt ?? null,
         tripDocumentId: input.documentId,
       })
       .returning({ id: tripStopEvents.id })

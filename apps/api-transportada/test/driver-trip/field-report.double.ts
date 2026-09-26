@@ -46,6 +46,16 @@ export type FieldReportState = {
   readonly stops: Map<string, DriverStopReference>
   stopCompletes: boolean
   tripCompletes: boolean
+  /** Spec 206 D1: `stopId` → o último `arrived` da viagem (D3), atualizado por `recordEvent`. */
+  readonly arrivedAtByTripId: Map<string, Date>
+  /** Spec 206 D3: `tripId` → o `tapped_at` do último `departed`, atualizado por `recordEvent`. */
+  readonly departedTappedAtByTripId: Map<string, Date | null>
+  /** Spec 206 D4: `stopId` → `completed_at`, que `DriverStopReference` não carrega. */
+  readonly stopCompletedAt: Map<string, Date>
+  /** Spec 206 D4: `stopId` → "a caminho", separado de `stops` para não mudar o tipo existente. */
+  readonly stopEnRoute: Map<string, { enRouteSince: Date | null; enRouteTappedAt: Date | null }>
+  /** Spec 206 D9: `stopId` → `sequence`, para o `enRouteStop.sequence` do `409`. */
+  readonly stopSequence: Map<string, string>
 }
 
 export function createFieldReportState(
@@ -69,6 +79,11 @@ export function createFieldReportState(
     stops: new Map(),
     stopCompletes: false,
     tripCompletes: false,
+    arrivedAtByTripId: new Map(),
+    departedTappedAtByTripId: new Map(),
+    stopCompletedAt: new Map(),
+    stopEnRoute: new Map(),
+    stopSequence: new Map(),
     ...overrides,
   }
 }
@@ -121,10 +136,65 @@ export function createFieldReportUnitOfWork(
     findDocumentForDriver: async (input) => state.documents.get(input.documentId) ?? null,
     findInformedTimeWindowStart: async (input) =>
       state.dispatchedAtByTripId.get(input.tripId) ?? null,
+    /** Spec 206 D4/D7: zera "a caminho" da própria parada, e das demais quando `clearEnRoute` é `'trip'`. */
     markStopArrived: async (input) => {
       state.calls.push(`markStopArrived:${input.stopId}`)
       const stop = state.stops.get(input.stopId)
       if (stop !== undefined) state.stops.set(input.stopId, { ...stop, arrivedAt: input.at })
+      state.stopEnRoute.set(input.stopId, { enRouteSince: null, enRouteTappedAt: null })
+      if (input.clearEnRoute === 'trip') {
+        for (const [stopId, otherStop] of state.stops) {
+          if (otherStop.tripId === input.tripId) {
+            state.stopEnRoute.set(stopId, { enRouteSince: null, enRouteTappedAt: null })
+          }
+        }
+      }
+    },
+    /** Spec 206 D4: o dublê não modela lock real — a ordem é garantida pelo `await` sequencial do teste. */
+    lockTripStops: async () => {
+      state.calls.push('lockTripStops')
+    },
+    readDepartureDecision: async (input) => {
+      const stop = state.stops.get(input.stopId)
+      const enRoute = state.stopEnRoute.get(input.stopId) ?? {
+        enRouteSince: null,
+        enRouteTappedAt: null,
+      }
+      let enRouteStop: { id: string; sequence: string } | null = null
+      for (const [stopId, otherStop] of state.stops) {
+        if (otherStop.tripId !== input.tripId) continue
+        const otherEnRoute = state.stopEnRoute.get(stopId)
+        if (otherEnRoute?.enRouteSince != null) {
+          enRouteStop = { id: stopId, sequence: state.stopSequence.get(stopId) ?? '1' }
+          break
+        }
+      }
+
+      return {
+        enRouteStop,
+        lastArrivedAt: state.arrivedAtByTripId.get(input.tripId) ?? null,
+        lastDepartedTappedAt: state.departedTappedAtByTripId.get(input.tripId) ?? null,
+        stop: {
+          arrivedAt: stop?.arrivedAt ?? null,
+          completedAt: state.stopCompletedAt.get(input.stopId) ?? null,
+          enRouteSince: enRoute.enRouteSince,
+        },
+      }
+    },
+    markStopEnRoute: async (input) => {
+      state.calls.push(`markStopEnRoute:${input.stopId}`)
+      state.stopEnRoute.set(input.stopId, {
+        enRouteSince: input.since,
+        enRouteTappedAt: input.tappedAt,
+      })
+    },
+    clearStopEnRoute: async (input) => {
+      state.calls.push(`clearStopEnRoute:${input.stopId}`)
+      state.stopEnRoute.set(input.stopId, { enRouteSince: null, enRouteTappedAt: null })
+    },
+    markTripOnDeliveryRoute: async (input) => {
+      state.calls.push(`markTripOnDeliveryRoute:${input.tripId}`)
+      return true
     },
     /** Spec 109 D3: o dublê registra o deslocamento com o tamanho dele — é o que o contrato lê. */
     shiftPendingStops: async (input) => {
@@ -156,6 +226,16 @@ export function createFieldReportUnitOfWork(
       state.eventLateRegistrations.set(event.id, input.lateRegistration ?? false)
       if (input.documentId !== null)
         state.latestEvents.set(`${input.documentId}:${input.kind}`, event)
+      /** Spec 206 D3: as referências de tempo que `readDepartureDecision` compara. */
+      const tripId = state.stops.get(input.stopId)?.tripId
+      if (tripId !== undefined) {
+        if (input.kind === 'departed') {
+          state.departedTappedAtByTripId.set(tripId, input.tappedAt ?? null)
+        }
+        if (input.kind === 'arrived') {
+          state.arrivedAtByTripId.set(tripId, input.occurredAt ?? new Date())
+        }
+      }
       return event
     },
     findLatestEventForDocument: async (input) =>

@@ -199,6 +199,8 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
               completedAt: null,
               deliveryWindowEnd: null,
               deliveryWindowStart: null,
+              enRouteSince: null,
+              enRouteTappedAt: null,
               documents: [
                 {
                   accessKey: '',

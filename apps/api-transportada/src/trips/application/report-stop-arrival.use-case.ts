@@ -76,10 +76,17 @@ export async function reportStopArrival(
 
         // Chegar de novo na mesma parada não reescreve a hora: a primeira é a que aconteceu.
         if (stop.arrivedAt === null) {
+          /**
+           * Spec 206 D7 (M4): a chegada zera "a caminho" de toda a viagem no canal do motorista —
+           * quem chegou não está mais a caminho de outra parada. A baixa do escritório é
+           * retroativa e não diz onde ele está agora: zera só a própria parada.
+           */
           await transaction.markStopArrived({
             at: input.now,
+            clearEnRoute: isOffice ? 'stop' : 'trip',
             companyId: input.companyId,
             stopId: input.stopId,
+            tripId: stop.tripId,
           })
           /**
            * Spec 156 T15 A1: a baixa retroativa do escritório não é chegada ao vivo — deslocar as

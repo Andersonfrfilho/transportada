@@ -488,6 +488,8 @@ import { DrizzleOfficeOccurrenceBatchUnitOfWork } from './trips/infrastructure/d
 import { DrizzleFieldTripTargetRepository } from './trips/infrastructure/drizzle-field-trip-target.repository'
 import { findCurrentDriverTrip } from './trips/application/find-current-driver-trip.use-case'
 import { reportStopArrival } from './trips/application/report-stop-arrival.use-case'
+import { reportStopDeparture } from './trips/application/report-stop-departure.use-case'
+import { cancelStopDeparture } from './trips/application/cancel-stop-departure.use-case'
 import {
   reportDocumentDelivery,
   reportDocumentReturn,
@@ -3425,6 +3427,10 @@ function createApplicationRoutes({
       renderManifestDamdfe: (input) => readMdfeDocument.renderDamdfe(input),
       reportArrival: (input) =>
         reportStopArrival({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      cancelStopDeparture: (input) =>
+        cancelStopDeparture({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      reportDeparture: (input) =>
+        reportStopDeparture({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       reportDelivery: (input) =>
         reportDocumentDelivery({
           ...input,

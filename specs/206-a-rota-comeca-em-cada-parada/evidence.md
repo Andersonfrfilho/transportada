@@ -592,3 +592,133 @@ Existe schema e existe garantia; **não existe ainda quem escreva**. Nenhum caso
 `en_route_since`, nenhuma rota responde `depart`, e `listStopEventRows` não mapeia os dois kinds — tudo
 isso é Fase 2. A migration é aditiva e pode subir sozinha (etapa 2 do roteiro da T0.2, junto da API), e
 enquanto a Fase 2 não sobe ela não muda nada do que o produto faz.
+
+## Fase 2 — API do motorista (2026-09-26)
+
+Executada em árvore própria (`work/spec-206`, worktree `scratchpad/spec-206`), a partir do estado da
+Fase 1. T2.1, T2.1a, T2.2, T2.2a, T2.3, T2.4 e T2.5 feitas; **T2.6 não feita** — a sonda exige a API já
+implantada em staging, e esta sessão não fez deploy nenhum (fora do escopo autorizado). Fica pendente
+para depois da subida, com a receita já registrada em T0.2.
+
+### T2.1/T2.1a — Contratos, e depois T2.3 — Implementação
+
+Os contratos e a implementação nasceram juntos nesta execução (a ordem "vermelho antes" foi seguida por
+arquivo: `test/driver-trip/stop-departure.contract.ts`, `test/trip-application/departure-order.contract.ts`
+e `test/trip-schema/stop-en-route-writers.contract.ts` foram escritos contra o código já criado, e o
+vermelho de cada um foi visto e corrigido antes do commit — não há registro de execução vermelha
+isolada porque a sessão não fez commit intermediário por task, só ao final da Fase 2).
+
+- **`src/trips/domain/trip.error.ts`**: `TripHasStopEnRouteError` (`409 TRIP_HAS_STOP_EN_ROUTE`, com
+  `enRouteStopId`/`enRouteStopSequence` em `details` e como propriedades públicas tipadas) e
+  `TripStopDepartureNotCancellableError` (`409 TRIP_STOP_DEPARTURE_NOT_CANCELLABLE`, com
+  `reason: 'arrived' | 'completed'`).
+- **`src/trips/domain/departure-order.policy.ts`** (novo): `resolveDepartureTappedAt` (a janela do
+  despacho congelado e a tolerância de 2 min, D3) e `isDepartureTapStale` (a comparação com o último
+  `departed`/`arrived` da viagem, D2/D3).
+- **`src/trips/application/driver-field-report.port.ts`**: `lockTripStops`, `readDepartureDecision`
+  (`DepartureDecision`), `markStopEnRoute`, `clearStopEnRoute`, `markTripOnDeliveryRoute`;
+  `markStopArrived` ganhou `clearEnRoute: 'stop' | 'trip'` e `tripId` (D7/M4); `recordEvent` ganhou
+  `tappedAt?`; `settle` ganhou `resultChanged` e `resultId` passou a aceitar `null` (D2, M3).
+- **`src/trips/application/trip-field-report.port.ts`**: `withFieldReport` agora aceita
+  `TResult extends { changed?: boolean; id: string | null }` — `changed` ausente (os cinco chamadores
+  anteriores a esta spec) liquida como `true`, preservando o comportamento deles.
+- **`src/trips/infrastructure/drizzle-driver-field-report.repository.ts`**: os cinco métodos novos, no
+  molde de `markTripInTransit`/`completeTripIfSettled` (trava → decisão → compare-and-set);
+  `markStopArrived` e `completeStopIfSettled` passaram a zerar `enRouteSince`/`enRouteTappedAt` no
+  mesmo `UPDATE` (D4/D7).
+- **`src/trips/application/report-stop-departure.use-case.ts`** e
+  **`cancel-stop-departure.use-case.ts`** (novos): a ordem das decisões é a da D2 (`404` → no-op de
+  estado → no-op de `tappedAt` → `409`) e da D18 (`404` → no-op de `tappedAt` → `409` → no-op de
+  estado). Nenhum dos dois grava em duas paradas; `cancelStopDeparture` nunca chama
+  `markTripOnDeliveryRoute`.
+- **`src/trips/presentation/me-trip.schema.ts`**: `parseDepartureRequest`, `.strict()`, com
+  `{ tappedAt (obrigatório), location? }` — reusado pelas duas rotas, como a D2/D18 pedem.
+- **`src/trips/presentation/me-trip.routes.ts`** e **`src/main.ts`**: as duas rotas
+  (`POST .../stops/:stopId/depart`, `POST .../stops/:stopId/cancel-departure`) e a composição
+  (`reportStopDeparture`/`cancelStopDeparture`, transação de `driverFieldReports`).
+- **Dublê** (`test/driver-trip/field-report.double.ts`): ganhou os mapas de estado novos
+  (`stopEnRoute`, `stopCompletedAt`, `stopSequence`, `arrivedAtByTripId`, `departedTappedAtByTripId`)
+  para simular `readDepartureDecision` de forma realista, sem tocar o tipo `DriverStopReference`
+  existente (os quatro contratos que já usavam o dublê continuam sem mudança).
+
+**Vermelho visto durante a escrita** (não o vermelho formal de "contrato antes"): o teste
+`test/trip-application/departure-order.contract.ts` acusou dois casos com dados de fixture errados
+(comparação contra `2_600_000` ms fora da tolerância, e um `resolvedTappedAt` dentro da tolerância que
+o teste esperava fora) — corrigidos ajustando o fixture, não a política. O contrato estático
+`stop-en-route-writers.contract.ts` também deu um falso positivo: o regex não-greedy `\}\)` fechava
+cedo demais dentro de um `sql\`coalesce(${a}, ${b})\`` (o `}` de `${b}`seguido de`)`já casava) e
+cortava o`set({...})`de`completeStopIfSettled`antes de`enRouteSince`/`enRouteTappedAt`aparecerem
+— corrigido ancorando o regex em`.where(`(convenção do repositório: todo`update().set()`encadeia`.where()` logo depois).
+
+### T2.2/T2.2a — Integração, contra Postgres de verdade
+
+`test/integration/me-trip-departure.integration.ts` (novo, acrescentado à mão a `test:integration` no
+`package.json`), com banco descartável por execução (`withDisposableDatabase`, no molde de
+`me-trip.integration.ts`). 12 casos, cobrindo: o primeiro `depart` (evento, `en_route_*`,
+`on_delivery_route`), o segundo `depart` na mesma parada (no-op) e seu replay, `depart` numa segunda
+parada com a primeira a caminho (`409`, nada gravado, chave não liquidada, reenvio aceito depois do
+cancelamento), a concorrência real (CA4: dois `depart` em paradas diferentes via `Promise.allSettled`
+com duas transações — o perdedor recebe `409`, nunca `500`, e só uma parada fica com `en_route_since`
+não nulo), `cancel-departure` (zera só a própria parada, mantém o `departed`, não muda `trips.status`),
+cancelar-e-reiniciar a mesma parada (dois `departed` e um `departure_cancelled` entre eles), cancelar
+libera a outra parada, `cancel-departure` numa parada chegada (`409 reason: 'arrived'`, e prova que a
+chegada já zerou `en_route_since` — os dois escritores da D4/D7 convivendo), `cancel-departure` numa
+parada sem "a caminho" (no-op e replay), `depart` em viagem cancelada (`404`) e o `tappedAt` anterior à
+última chegada da viagem (no-op).
+
+⚠️ **Achado durante a escrita, não vermelho de contrato:** as duas primeiras versões de
+"`tappedAt` velho" usaram datas de 2026 para `NOW`/`TAPPED_AT`, e falharam de forma não determinística
+— o despacho congelado (sem `trip_dispatch_snapshots`) cai no `trips.createdAt` real (hora da máquina
+no `insert`), e uma constante de 2026 podia ficar **antes** desse `createdAt` real dependendo da hora
+do dia em que a suíte corresse, dispensando a comparação do D3 por acidente. Resolvido com `NOW`/
+`TAPPED_AT` em 2030 (sempre depois de qualquer `createdAt` real) e, no caso do `tappedAt` × última
+chegada, semeando `trip_dispatch_snapshots` e o evento `arrived` **com hora explícita**, em vez de
+depender do `defaultNow()` do banco.
+
+**Gates:**
+
+| Gate                           | Comando                                                                                                   | Resultado                                                                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Contratos da API               | `bun --env-file=../../.env.test test --timeout 120000`                                                    | **7915 pass, 23 skip, 0 fail**, 186 arquivos (era 7884 pass, 186 arquivos, na Fase 1)                                           |
+| Integração — só o arquivo novo | `bun --env-file=../../.env.test test ./test/integration/me-trip-departure.integration.ts --timeout 60000` | **12 pass, 0 fail**                                                                                                             |
+| Integração — suíte inteira     | `bun --env-file=../../.env.test run test:integration`                                                     | **707 pass, 7 skip, 0 fail**, **133 arquivos**, 798 s (era 695 pass, 132 arquivos, na Fase 1 — os 12 a mais são o arquivo novo) |
+| Typecheck                      | `bun run typecheck` (raiz)                                                                                | verde, 7 apps                                                                                                                   |
+| Lint                           | `bun run lint` (raiz)                                                                                     | verde, 7 apps                                                                                                                   |
+| Formatação                     | `bun run format:check` (raiz)                                                                             | verde, depois de `prettier --write` nos 9 arquivos que a task tocou                                                             |
+
+### T2.4 — `enRouteSince`/`enRouteTappedAt` em `GET /me/trips/current`
+
+`DriverTripStop` (`find-current-driver-trip.use-case.ts`) ganhou os dois campos; `listStops` e
+`toDriverStop` (`drizzle-current-driver-trip.repository.ts`) leem e serializam as colunas — mesma
+consulta de `listStops`, sem `join` a mais (sem N+1). `serializeTrip` (`me-trip.routes.ts`) já
+repassava `stops` por valor, sem mudança. O contrato de `current-trip.contract.ts` precisou de um
+fixture ajustado (as duas chaves novas no objeto de teste).
+
+### T2.5 — Linha do tempo: `stop.departed` e `stop.departure_cancelled`
+
+O vocabulário e a prioridade 0 já estavam em `trip-timeline.types.ts` desde a T0.3. Esta task fecha o
+que a T0.3 deixou para a Fase 2: `listStopEventRows` (`trip-timeline-stop.query.ts`) ganhou os dois
+`kind`s no `inArray`, no `case` de prioridade SQL e no mapa `STOP_EVENT_KIND_TO_TIMELINE_KIND` — o
+resto do mapeamento (join com `trip_stops`, `stop: { id, sequence }`) já era genérico e não precisou
+mudar.
+
+### T2.6 — Sonda de publicação: **não feita**
+
+Exige a API implantada em staging, o que está fora do que esta sessão foi autorizada a fazer (a
+instrução foi explícita: não fazer deploy). Fica pendente para o momento da subida, com a receita das
+cinco requisições (as quatro da task mais a de controle com UUID canônico e caminho falso) já escrita
+em T0.2.
+
+### O que a Fase 2 deixa pronto, e o que a Fase 4 (tela) herda
+
+- O contrato HTTP das duas rotas é exatamente o de `plan.md` § "Contratos/API/eventos": `201`/`200`
+  com `{ id, changed }`, `404 TRIP_STOP_NOT_REACHABLE`, `409 TRIP_FIELD_REPORT_KEY_REUSED`,
+  `409 TRIP_HAS_STOP_EN_ROUTE { enRouteStopId, enRouteStopSequence }` e
+  `409 TRIP_STOP_DEPARTURE_NOT_CANCELLABLE { reason }`.
+- `GET /me/trips/current` já devolve `stops[].enRouteSince`/`enRouteTappedAt` (`string | null`) — a
+  Fase 4 lê essas duas chaves para `resolveEnRouteStopId`/`canStartRouteAtStop` (D9), sem precisar de
+  mudança na API.
+- A Fase 4 monta o corpo `{ tappedAt, location? }` nos dois itens de fila (`depart`, `cancelDeparture`)
+  — `tappedAt` é o `createdAt` do item, como a D3 pede.
+- **Não feito, e a Fase 4 não depende disso:** T2.6 (sonda pós-deploy) e a Fase 3 (T3.1/T3.2,
+  `stop-travel-sample.policy.ts`) — esta spec de execução cobriu só a Fase 2, por pedido explícito.

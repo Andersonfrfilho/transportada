@@ -77,6 +77,10 @@ export type DriverTripStop = {
   readonly deliveryWindowEnd: string | null
   readonly deliveryWindowStart: string | null
   readonly documents: readonly DriverTripDocument[]
+  /** Spec 206 D9: a hora do servidor no toque de "Iniciar rota". `null` sem saída em aberto. */
+  readonly enRouteSince: string | null
+  /** Spec 206 D9: a hora do aparelho — a âncora que a 207 lê. `null` sem saída em aberto. */
+  readonly enRouteTappedAt: string | null
   readonly id: string
   readonly label: string
   readonly latitude: string | null

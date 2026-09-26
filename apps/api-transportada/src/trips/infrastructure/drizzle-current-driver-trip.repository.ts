@@ -684,6 +684,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         completedAt: tripStops.completedAt,
         deliveryWindowEnd: tripStops.deliveryWindowEnd,
         deliveryWindowStart: tripStops.deliveryWindowStart,
+        enRouteSince: tripStops.enRouteSince,
+        enRouteTappedAt: tripStops.enRouteTappedAt,
         id: tripStops.id,
         label: tripStops.label,
         latitude: geocodedAddresses.latitude,
@@ -760,6 +762,8 @@ type StopRow = {
   readonly completedAt: Date | null
   readonly deliveryWindowEnd: Date | null
   readonly deliveryWindowStart: Date | null
+  readonly enRouteSince: Date | null
+  readonly enRouteTappedAt: Date | null
   readonly id: string
   readonly label: string
   readonly latitude: string | null
@@ -801,6 +805,8 @@ function toDriverStop(
     documents: (documentsByStop.get(stop.id) ?? []).map((row) =>
       toDriverDocument(row, proofSettings),
     ),
+    enRouteSince: stop.enRouteSince?.toISOString() ?? null,
+    enRouteTappedAt: stop.enRouteTappedAt?.toISOString() ?? null,
     id: stop.id,
     label: stop.label,
     latitude: stop.latitude,

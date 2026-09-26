@@ -360,6 +360,52 @@ export class TripStopNotReachableError extends ApiError {
   }
 }
 
+/**
+ * Spec 206 D4 (ADR-0088 §2): o invariante é da viagem, não da parada — uma parada a caminho por
+ * vez. Nada é gravado, e a chave de idempotência não é liquidada (a transação aborta), então o
+ * mesmo item pode ser reenviado depois de a parada aberta fechar.
+ */
+export class TripHasStopEnRouteError extends ApiError {
+  public constructor(params: {
+    readonly enRouteStopId: string
+    readonly enRouteStopSequence: string
+  }) {
+    super({
+      code: 'TRIP_HAS_STOP_EN_ROUTE',
+      details: [
+        { field: 'enRouteStopId', message: params.enRouteStopId },
+        { field: 'enRouteStopSequence', message: params.enRouteStopSequence },
+      ],
+      message: 'Another stop of this trip is already en route.',
+      status: 409,
+    })
+    this.enRouteStopId = params.enRouteStopId
+    this.enRouteStopSequence = params.enRouteStopSequence
+  }
+
+  public readonly enRouteStopId: string
+  public readonly enRouteStopSequence: string
+}
+
+/**
+ * Spec 206 D18 (ADR-0088 §2b): depois do Cheguei o caminho é entregar ou "Registrar entrega
+ * depois" — cancelar a saída não é mais oferecido. Grafia `cancellable`, a do repositório
+ * (`trip.error.ts:181` usa `cancelled`).
+ */
+export class TripStopDepartureNotCancellableError extends ApiError {
+  public constructor(reason: 'arrived' | 'completed') {
+    super({
+      code: 'TRIP_STOP_DEPARTURE_NOT_CANCELLABLE',
+      details: [{ field: 'reason', message: reason }],
+      message: 'The stop already arrived or completed; its departure cannot be cancelled.',
+      status: 409,
+    })
+    this.reason = reason
+  }
+
+  public readonly reason: 'arrived' | 'completed'
+}
+
 const UNREACHABLE_DOCUMENTS_FIELD = 'documentIds'
 
 /**

@@ -38,6 +38,15 @@ const lateRegistrationSchema = z.boolean().optional()
 
 const reportSchema = z.object({ location: locationSchema.nullish() }).strict()
 
+/**
+ * Spec 206 D2/D18: o corpo de `depart` e de `cancel-departure` é o mesmo — `tappedAt` é a hora do
+ * aparelho no toque, obrigatória (a rota é nova, sem cliente antigo a acomodar). Chave extra é
+ * `400`: a sonda de deploy da T2.6 prova a rota existindo justamente por essa recusa.
+ */
+const departureSchema = z
+  .object({ location: locationSchema.nullish(), tappedAt: z.iso.datetime() })
+  .strict()
+
 /** Só a baixa da nota aceita o registro tardio — a chegada continua recusando o campo. */
 const deliverySchema = reportSchema.extend({ lateRegistration: lateRegistrationSchema }).strict()
 
@@ -108,6 +117,16 @@ export async function parseFieldReportRequest(
   const body = await parseOptionalBody(reportSchema, request)
 
   return { location: toReportedLocation(body.location) }
+}
+
+/** Spec 206 D2/D18: `depart` e `cancel-departure` reusam o mesmo parser. */
+export async function parseDepartureRequest(request: Request): Promise<{
+  readonly location: ReportedLocation | null
+  readonly tappedAt: Date
+}> {
+  const body = await parseBody(departureSchema, request)
+
+  return { location: toReportedLocation(body.location), tappedAt: new Date(body.tappedAt) }
 }
 
 /** Spec 205 RF1: o corpo do `/deliver` — o da chegada mais o registro tardio. */
