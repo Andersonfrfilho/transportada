@@ -202,6 +202,22 @@ export type DriverFieldReport =
       /** Vazio é a nota inteira. */
       productCode: string
     }>
+  /**
+   * Spec 209 (D2): a foto do "Deu problema", **atrás** da ocorrência de parada e nunca junto dela —
+   * a ocorrência não espera a foto. O `send` sobe a foto pela rota da parada e reenvia a ocorrência
+   * com a chave **dela** (`occurrenceKey`) e o `attachmentObjectId`: a API completa o anexo uma vez.
+   * O corpo repete o da ocorrência porque o reenvio, se a ocorrência nunca chegou, a cria com a foto.
+   */
+  | Readonly<{
+      description: string
+      documentId: string | null
+      idempotencyKey: string
+      kind: 'stopOccurrencePhoto'
+      occurrenceKey: string
+      occurrenceKind: DriverOccurrenceKind
+      photo: DriverOccurrencePhoto
+      stopId: string
+    }>
 
 /** A foto já reencodada (JPEG, sem EXIF) — o `Blob` vai inteiro para o IndexedDB. */
 export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>

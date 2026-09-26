@@ -24,6 +24,8 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   /** Spec 179: a ocorrência da nota com a foto — os dois sobem juntos, no mesmo item. */
   documentOccurrence: 'eventQueue.kind.documentOccurrence',
   occurrence: 'eventQueue.kind.occurrence',
+  /** Spec 209: a foto do "Deu problema", atrás da ocorrência — pendente sem segurar o relato. */
+  stopOccurrencePhoto: 'eventQueue.kind.stopOccurrencePhoto',
   /** Grupo de anexos cujo evento já subiu — só os arquivos aguardam. */
   proof: 'eventQueue.kind.proof',
   return: 'eventQueue.kind.return',

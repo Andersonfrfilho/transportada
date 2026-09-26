@@ -19,6 +19,13 @@ const API_CATALOG_PATH = fileURLToPath(
 const CARD_PATH = fileURLToPath(
   new URL('../../src/modules/driver-trip/components/DriverStopCard.component.tsx', import.meta.url),
 )
+/** Spec 209: o formulário do "Deu problema" saiu do cartão para um componente próprio. */
+const FORM_PATH = fileURLToPath(
+  new URL(
+    '../../src/modules/driver-trip/components/DriverStopOccurrenceForm.component.tsx',
+    import.meta.url,
+  ),
+)
 
 type ApiTemplate = Readonly<{ body: string; placeholders: readonly string[] }>
 
@@ -159,12 +166,12 @@ describe('a paridade kind→templateKey com a política da API', () => {
 })
 
 describe('a tela de ocorrência da parada', () => {
-  const source = readFileSync(CARD_PATH, 'utf8')
+  const source = readFileSync(FORM_PATH, 'utf8')
 
   it('o motivo é escolha por chips, um selecionado por vez', () => {
     expect(source).toInclude('occurrenceChips')
     expect(source).toInclude('role="radiogroup"')
-    expect(source).toInclude('aria-checked={option === kind}')
+    expect(source).toInclude('aria-checked={option === form.draft.kind}')
     expect(source).not.toInclude("from '@/components/ui/select'")
   })
 
@@ -174,9 +181,13 @@ describe('a tela de ocorrência da parada', () => {
     expect(source).toInclude('occurrencePreview.title')
   })
 
-  /** A foto pega carona no proof da nota — a rota de ocorrência da parada não aceita anexo. */
-  it('a foto sobe pelo caminho de proof da nota associada', () => {
-    expect(source).toInclude('onOccurrencePhoto')
+  /**
+   * Spec 209: a foto é **da ocorrência** e vai junto dela. Pegar carona no comprovante da nota
+   * fazia a foto virar canhoto — e pesar na pontualidade e na nota do motorista.
+   */
+  it('a foto é da ocorrência, nunca do comprovante da nota', () => {
+    expect(readFileSync(CARD_PATH, 'utf8')).not.toInclude('onOccurrencePhoto')
+    expect(source).toInclude("t('occurrencePhoto')")
     expect(driverTrip.occurrencePhoto.toLowerCase()).toInclude('foto da ocorrência')
   })
 })

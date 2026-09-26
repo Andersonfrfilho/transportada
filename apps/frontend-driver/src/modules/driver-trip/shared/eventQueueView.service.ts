@@ -54,7 +54,9 @@ export function buildEventQueueView(input: {
     )?.rejectionCause
     const report = item.report
     /** A foto da ocorrência mora no próprio item: sobe junto dele, e conta como anexo dele. */
-    const carriesPhoto = report.kind === 'documentOccurrence' && report.photo !== null
+    const carriesPhoto =
+      (report.kind === 'documentOccurrence' && report.photo !== null) ||
+      report.kind === 'stopOccurrencePhoto'
     return {
       attachmentCount: group.length + (carriesPhoto ? 1 : 0),
       ...(attachmentCause === undefined ? {} : { attachmentRejectionCause: attachmentCause }),

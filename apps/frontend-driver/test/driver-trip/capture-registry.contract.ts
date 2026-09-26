@@ -19,6 +19,15 @@ const DRIVER_STOP_CARD = new URL(
   '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
   import.meta.url,
 )
+/** Spec 209: o "Deu problema" saiu do cartão para componente e hook próprios. */
+const STOP_OCCURRENCE_FORM = new URL(
+  '../../src/modules/driver-trip/components/DriverStopOccurrenceForm.component.tsx',
+  import.meta.url,
+)
+const STOP_OCCURRENCE_FORM_HOOK = new URL(
+  '../../src/modules/driver-trip/hooks/useStopOccurrenceForm.hook.ts',
+  import.meta.url,
+)
 const CAMERA_CAPTURE_HOOK = new URL(
   '../../src/modules/driver-trip/hooks/useCameraCaptureFieldRef.hook.ts',
   import.meta.url,
@@ -271,10 +280,12 @@ describe('as quatro capturas registram no capture registry (leitura de fonte, AD
    * Três seletores: "Tirar foto" e "Anexar" do canhoto (pedido do usuário de 25/09 — a galeria
    * também sai da página) e a foto da ocorrência de parada.
    */
-  it('DriverStopCard usa o hook da câmera nos três seletores de foto', () => {
-    const source = readFileSync(DRIVER_STOP_CARD, 'utf8')
+  it('o canhoto e o "Deu problema" usam o hook da câmera nos seus seletores de foto', () => {
+    const card = readFileSync(DRIVER_STOP_CARD, 'utf8')
+    const occurrenceForm = readFileSync(STOP_OCCURRENCE_FORM, 'utf8')
 
-    expect(source.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(3)
+    expect(card.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(2)
+    expect(occurrenceForm.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(2)
   })
 
   it('recorte: ProofCrop abre e fecha no ciclo de vida do componente', () => {
@@ -291,11 +302,10 @@ describe('as quatro capturas registram no capture registry (leitura de fonte, AD
     expect(source).toContain("captureRegistry.close('signature')")
   })
 
-  it('diálogo de ocorrência: DriverStopCard registra o formulário de ocorrência da parada', () => {
-    const source = readFileSync(DRIVER_STOP_CARD, 'utf8')
+  it('diálogo de ocorrência: o formulário da parada registra enquanto está aberto', () => {
+    const source = readFileSync(STOP_OCCURRENCE_FORM_HOOK, 'utf8')
 
-    expect(source).toContain("captureRegistry.open('occurrence-dialog')")
-    expect(source).toContain("captureRegistry.close('occurrence-dialog')")
+    expect(source).toContain("useCaptureRegistration('occurrence-dialog', true)")
   })
 
   it('main.tsx: a sessão vencida vira "Entrar de novo", que passa pelo portão das capturas', () => {

@@ -4,6 +4,7 @@
   "arrived": "Arrived at {{time}}",
   "attachmentLimitCount": "The limit of attachments waiting to be sent was reached. Send the pending ones before attaching another — nothing was discarded.",
   "attachmentLimitSize": "The space for attachments waiting to be sent is full. Send the pending ones before attaching another — nothing was discarded.",
+  "occurrencePhotoDropped": "Occurrence recorded without the photo: the space for photos waiting to be sent is full. Send the pending ones and record another occurrence with the photo, if needed.",
   "crop": {
     "cancel": "Cancel",
     "corner": {
@@ -37,6 +38,7 @@
       "documentOccurrence": "Occurrence with photo",
       "occurrence": "Occurrence",
       "proof": "Proof",
+      "stopOccurrencePhoto": "Stop occurrence photo",
       "return": "Return"
     },
     "open": "See pending events",
@@ -110,9 +112,6 @@
   },
   "occurrencePhoto": "Occurrence photo (site or cargo)",
   "choosePhoto": "Take photo",
-  "noPhotoChosen": "No photo taken",
-  "occurrencePhotoCount_one": "{{count}} photo attached",
-  "occurrencePhotoCount_other": "{{count}} photos attached",
   "occurrencePreview": {
     "none": "No notice will be sent to the customer for this reason.",
     "title": "Notice that will be sent"

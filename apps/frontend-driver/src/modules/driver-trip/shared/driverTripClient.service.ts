@@ -163,8 +163,12 @@ export type DriverTripClient = Readonly<{
 export type LocationConsent = Readonly<{ acceptedAt: string | null }>
 
 type DocumentOccurrenceReport = Extract<DriverFieldReport, { kind: 'documentOccurrence' }>
-/** Os relatos que são um `POST` JSON só — a ocorrência com foto tem caminho próprio. */
-type JsonFieldReport = Exclude<DriverFieldReport, DocumentOccurrenceReport>
+type StopOccurrencePhotoReport = Extract<DriverFieldReport, { kind: 'stopOccurrencePhoto' }>
+/** Os relatos que são um `POST` JSON só — os que levam foto têm caminho próprio. */
+type JsonFieldReport = Exclude<
+  DriverFieldReport,
+  DocumentOccurrenceReport | StopOccurrencePhotoReport
+>
 
 function reportPath(report: JsonFieldReport): string {
   switch (report.kind) {
@@ -341,6 +345,10 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         await sendDocumentOccurrence({ dependencies, report })
         return
       }
+      if (report.kind === 'stopOccurrencePhoto') {
+        await sendStopOccurrencePhoto({ dependencies, report })
+        return
+      }
       await request({
         body: reportBody(report),
         dependencies,
@@ -367,8 +375,8 @@ async function sendDocumentOccurrence(input: {
       ? undefined
       : await uploadOccurrencePhoto({
           dependencies,
-          documentId: report.documentId,
           photo: report.photo.blob,
+          uploadsPath: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`,
         })
 
   await request({
@@ -385,13 +393,47 @@ async function sendDocumentOccurrence(input: {
   })
 }
 
-/** Pede a URL assinada, sobe o arquivo direto ao storage e confirma — devolve o id do objeto. */
+/**
+ * Spec 209 (D2): a foto do "Deu problema" sobe pela rota da parada e **reenvia a ocorrência** com a
+ * chave dela e o anexo — a API completa o anexo da ocorrência que já subiu sem ele, uma vez. Nada
+ * aqui passa pelo comprovante de entrega da nota (`/documents/:id/proof`).
+ */
+async function sendStopOccurrencePhoto(input: {
+  readonly dependencies: ClientDependencies
+  readonly report: StopOccurrencePhotoReport
+}): Promise<void> {
+  const { dependencies, report } = input
+  const stopPath = `${CURRENT_TRIP_PATH}/stops/${report.stopId}`
+  const attachmentObjectId = await uploadOccurrencePhoto({
+    dependencies,
+    photo: report.photo.blob,
+    uploadsPath: `${stopPath}/occurrence-uploads`,
+  })
+
+  await request({
+    body: JSON.stringify({
+      attachmentObjectId,
+      description: report.description,
+      documentId: report.documentId,
+      kind: report.occurrenceKind,
+    }),
+    dependencies,
+    idempotencyKey: report.occurrenceKey,
+    method: 'POST',
+    path: `${stopPath}/occurrences`,
+  })
+}
+
+/**
+ * Pede a URL assinada, sobe o arquivo direto ao storage e confirma — devolve o id do objeto. O
+ * caminho é da nota (179) ou da parada (209): o mecanismo é um só.
+ */
 async function uploadOccurrencePhoto(input: {
   readonly dependencies: ClientDependencies
-  readonly documentId: string
   readonly photo: Blob
+  readonly uploadsPath: string
 }): Promise<string> {
-  const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrence-uploads`
+  const { uploadsPath } = input
   const upload = toOccurrenceUpload(
     await request({
       body: JSON.stringify({ mimeType: input.photo.type, sizeBytes: input.photo.size }),

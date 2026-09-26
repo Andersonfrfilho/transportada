@@ -212,8 +212,19 @@ um `Button` do design system que clica num `<input type="file">` fora da vista e
 "Tirar foto" leva `capture="environment"` (câmera na hora), "Anexar" não leva (galeria e arquivos, a
 saída quando a câmera não abre ou foi negada). No canhoto, "Colher assinatura" tem ícone próprio
 (`pen`) e ocupa a linha inteira; as duas portas da foto dividem a linha de cima. Depois de anexar:
-miniatura (`usePhotoPreviewUrl`), "anexada" e "Refazer". O `FileField` ficou para a foto da
-ocorrência de parada. `test/driver-trip/proof-capture.contract.ts`.
+miniatura (`usePhotoPreviewUrl`), "anexada" e "Refazer". `test/driver-trip/proof-capture.contract.ts`.
+
+**A foto do "Deu problema" é da ocorrência de parada, nunca canhoto** (spec 209). Antes ela ia por
+`attachProof` para a primeira nota aberta da parada: virava canhoto, entrava na pontualidade e pesava
+na nota do motorista (e, em nota não entregue, ficava recusada na fila). Hoje o formulário
+(`DriverStopOccurrenceForm.component.tsx` + `useStopOccurrenceForm.hook.ts`) aceita **uma** foto,
+reduzida por `reduceOccurrencePhotoToJpeg` até 512 KiB, com o mesmo par "Tirar foto"/"Anexar". A fila
+recebe dois itens (`stopOccurrencePhoto.service.ts`): a `occurrence`, que sobe sozinha e nunca espera
+a foto, e atrás dela o `stopOccurrencePhoto`, cujo `send` sobe por
+`/me/trips/current/stops/:stopId/occurrence-uploads` (+ `confirm`) e reenvia a ocorrência com a
+chave dela e `attachmentObjectId` — a API completa o anexo uma vez. Fila cheia derruba a foto, nunca o
+relato (`reportStopOccurrence` → `photo-dropped`, aviso `occurrencePhotoDropped`).
+`test/driver-trip/stop-occurrence-photo.contract.ts`.
 
 ## Cópia por valor: o que veio de onde
 

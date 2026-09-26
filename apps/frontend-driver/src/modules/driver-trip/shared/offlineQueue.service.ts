@@ -1,6 +1,10 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineQueue.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverFieldReport, DriverReportedLocation } from './driverTrip.types'
+import type {
+  DriverFieldReport,
+  DriverOccurrencePhoto,
+  DriverReportedLocation,
+} from './driverTrip.types'
 
 /**
  * ADR-0045 §5: o motorista entra no subsolo do shopping e sai sem sinal por vinte minutos. Se o
@@ -145,17 +149,18 @@ export async function enqueueReports(input: {
 }
 
 /**
- * Spec 179: os bytes de foto que os itens da fila carregam. Contam no mesmo teto dos anexos
+ * Spec 179 (e 209, a foto do "Deu problema"): os bytes de foto que os itens da fila carregam. Contam no mesmo teto dos anexos
  * (`ATTACHMENT_QUEUE_LIMIT.maxTotalBytes`) — é o mesmo aparelho e a mesma cota.
  */
 export function sumReportPhotoBytes(reports: readonly DriverFieldReport[]): number {
-  return reports.reduce(
-    (total, report) =>
-      report.kind === 'documentOccurrence' && report.photo !== null
-        ? total + report.photo.blob.size
-        : total,
-    0,
-  )
+  return reports.reduce((total, report) => total + (reportPhoto(report)?.blob.size ?? 0), 0)
+}
+
+function reportPhoto(report: DriverFieldReport): DriverOccurrencePhoto | null {
+  if (report.kind === 'documentOccurrence' || report.kind === 'stopOccurrencePhoto') {
+    return report.photo
+  }
+  return null
 }
 
 /**

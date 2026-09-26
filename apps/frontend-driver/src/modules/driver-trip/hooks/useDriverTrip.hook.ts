@@ -48,6 +48,7 @@ import {
   discardOwnPending,
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
+import { fitStopOccurrenceReports, withoutPhotos } from '../shared/stopOccurrencePhoto.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { saveTripSnapshot } from '../shared/tripSnapshot.service'
 import {
@@ -98,6 +99,9 @@ export type DriverReportOutcome = 'count-limit' | 'queued'
 
 /** Spec 179: a foto da ocorrência conta no mesmo teto de bytes dos anexos. */
 export type DriverNotDeliveredOutcome = DriverReportOutcome | 'size-limit'
+
+/** Spec 209 (D3): a foto do "Deu problema" que não coube saiu — o relato entrou mesmo assim. */
+export type DriverStopOccurrenceOutcome = DriverReportOutcome | 'photo-dropped'
 
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
@@ -150,6 +154,10 @@ export type DriverTripController = Readonly<{
   report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
   /** Spec 179: os itens do mesmo toque ("Não entreguei"), todos ou nenhum. */
   reportNotDelivered: (reports: readonly DriverFieldReport[]) => Promise<DriverNotDeliveredOutcome>
+  /** Spec 209: o "Deu problema" — a ocorrência sempre entra; a foto, se couber. */
+  reportStopOccurrence: (
+    reports: readonly DriverFieldReport[],
+  ) => Promise<DriverStopOccurrenceOutcome>
   /** M1: grava o toque na hora, com a posição completando o item depois. */
   reportWithLocation: (
     build: (location: DriverReportedLocation | null) => DriverFieldReport,
@@ -504,6 +512,46 @@ export function useDriverTrip(
   }
 
   /**
+   * Spec 209 (D3): o "Deu problema" grava a ocorrência e, atrás dela, a foto. Fila cheia derruba a
+   * foto, nunca o relato — pelo teto de bytes, ou pela contagem quando os dois não cabem juntos.
+   */
+  function reportStopOccurrence(
+    reports: readonly DriverFieldReport[],
+  ): Promise<DriverStopOccurrenceOutcome> {
+    return persistWhileOpen(captureRegistry, async () => {
+      const [queued, attachmentTotals] = await Promise.all([
+        store.read(),
+        attachmentStore.readTotals(),
+      ])
+      const fitted = fitStopOccurrenceReports({
+        maxBytes: ATTACHMENT_QUEUE_LIMIT.maxTotalBytes,
+        reports,
+        usedBytes:
+          attachmentTotals.totalBytes + sumReportPhotoBytes(queued.map((item) => item.report)),
+      })
+      const enqueue = (items: readonly DriverFieldReport[]) =>
+        enqueueReports({
+          isUnverified: !session.canSync,
+          now: new Date(),
+          reports: items,
+          store,
+          subHash: session.subHash,
+        })
+
+      let isPhotoDropped = fitted.isPhotoDropped
+      let result = await enqueue(fitted.reports)
+      if (!result.accepted && fitted.reports.length > 1) {
+        isPhotoDropped = true
+        result = await enqueue(withoutPhotos(fitted.reports))
+      }
+      if (!result.accepted) return result.reason
+      await refreshQueueView()
+      requestDrain(undefined)
+      return isPhotoDropped ? 'photo-dropped' : 'queued'
+    })
+  }
+
+  /**
    * Spec 159 (revisão D6): o comprovante **sempre** entra na fila offline, com a entrega ainda na
    * fila ou já aceita — nunca mais pela rota multipart direta. Isso é o que garante o aceite 8: a
    * foto de uma nota já entregue segue offline como qualquer outro anexo, e sobe na próxima
@@ -643,6 +691,7 @@ export function useDriverTrip(
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
     reportNotDelivered,
+    reportStopOccurrence,
     reportWithLocation,
     sendAllNow: () => requestDrain(undefined),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),

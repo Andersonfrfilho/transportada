@@ -863,6 +863,50 @@ test('Não entreguei: ocorrência com foto sobe direto ao storage, depois a devo
   expect(api.reports()[3]?.idempotencyKey).not.toBe(api.reports()[4]?.idempotencyKey)
 })
 
+/**
+ * Spec 209: a foto do "Deu problema" é da ocorrência de parada. A ocorrência sobe primeiro, sem
+ * esperar a foto; a foto sobe pela rota da parada e completa a ocorrência pela chave dela. Nada vai
+ * ao comprovante de nota nenhuma — era assim que ela virava canhoto e pesava na nota do motorista.
+ */
+test('Deu problema com foto: a foto é da ocorrência, e nunca vira canhoto', async ({ page }) => {
+  const api = await openTrip(page)
+
+  await page.getByRole('button', { exact: true, name: 'Deu problema' }).click()
+  const kinds = page.getByRole('radiogroup', { name: 'Deu problema' })
+  await kinds.getByRole('radio', { name: 'Doca interditada' }).click()
+  const form = kinds.locator('..')
+  const chooser = page.waitForEvent('filechooser')
+  await form.getByRole('button', { name: /^Tirar foto/u }).click()
+  expect(await (await chooser).element().getAttribute('capture')).toBe('environment')
+  await (await chooser).setFiles(SMOKE_PHOTO)
+  await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
+  await expect(form.getByRole('button', { exact: true, name: 'Refazer' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+  await form.getByRole('button', { exact: true, name: 'Registrar' }).click()
+
+  await expect(page.getByText(/Ocorrência registrada às .* · enviada/u)).toBeVisible()
+  await expect.poll(() => api.reports().length).toBe(4)
+  const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
+  expect(paths).toEqual([
+    '/me/trips/current/stops/:id/occurrences',
+    '/me/trips/current/stops/:id/occurrence-uploads',
+    '/me/trips/current/stops/:id/occurrence-uploads/:id/confirm',
+    '/me/trips/current/stops/:id/occurrences',
+  ])
+  expect(api.storageUploads()).toHaveLength(1)
+  expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
+  const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[2]?.path ?? '')
+  expect(api.reports()[0]?.body).toEqual({ description: '', documentId: null, kind: 'dock_closed' })
+  expect(api.reports()[3]?.body).toEqual({
+    attachmentObjectId: confirmedId?.[1],
+    description: '',
+    documentId: null,
+    kind: 'dock_closed',
+  })
+  expect(api.reports()[3]?.idempotencyKey).toBe(api.reports()[0]?.idempotencyKey)
+})
+
 test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depois de subir', async ({
   page,
 }) => {
