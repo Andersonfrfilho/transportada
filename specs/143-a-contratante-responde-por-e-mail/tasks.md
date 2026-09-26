@@ -130,9 +130,12 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T025** `emails_contractor` no tipo de ocorrência (API e tela), e o registro da ocorrência
+- [x] **T025** `emails_contractor` no tipo de ocorrência (API e tela), e o registro da ocorrência
       chama o envio quando o campo está ligado. Evidência: teste de caso de uso.
-      _Nota (spec 183, 2026-09-24):_ segue pela spec 183, T802 (envio automático pelo canal preferido do contato).
+      _Feita pela spec 183 (2026-09-26):_ a API e o envio pelo canal preferido saíram na T802; a
+      **tela** (o interruptor "Avisar a contratante por e-mail" na aba Tipos de ocorrência) saiu no
+      item 9, commit `951dc84c`. Evidência em
+      `specs/183-a-ocorrencia-tem-duas-conversas/evidence.md` § T802 e § "Item 9".
 
 ## Fase 6 — Fechamento
 
