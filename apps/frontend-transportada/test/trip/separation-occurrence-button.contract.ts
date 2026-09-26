@@ -14,9 +14,11 @@ function buildType(overrides: Partial<OccurrenceType> = {}): OccurrenceType {
   return {
     active: true,
     allowsMultipleItems: true,
+    attachmentMode: 'off',
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,
+    emailsContractor: false,
     id: 'type-1',
     name: 'Avaria',
     notifies: false,

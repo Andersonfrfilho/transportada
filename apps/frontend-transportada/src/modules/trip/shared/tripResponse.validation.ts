@@ -1,6 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
-import type { OccurrenceType } from './occurrence.constant'
+import type {
+  OccurrenceAttachmentMode,
+  OccurrenceRedeliveryPolicy,
+  OccurrenceType,
+} from './occurrence.constant'
 import { TRIP_FIELD_CHANNELS, TRIP_TIMELINE_KINDS } from './trip.types'
 import type {
   FieldOccurrenceType,
@@ -1392,26 +1396,29 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  * Spec 166/164: `allowsMultipleItems` e `redeliveryPolicy` nasceram depois do tipo — API anterior
  * ao marcador não os manda. Exigi-los em `hasExactKeys` derrubaria o catálogo inteiro e a consulta
  * de tipos que alimenta o diálogo de registro (achado B7 da revisão). Ausente degrada para o
- * padrão de hoje, em `toOccurrenceType`; presente continua validado como antes.
+ * padrão de hoje, em `toOccurrenceType`; presente continua validado como antes. `attachmentMode`
+ * (spec 179) e `emailsContractor` (spec 183 T802) seguem a mesma regra.
  */
-type RawOccurrenceType = Omit<OccurrenceType, 'allowsMultipleItems' | 'redeliveryPolicy'> &
-  Readonly<{ allowsMultipleItems?: unknown; attachmentMode?: unknown; redeliveryPolicy?: unknown }>
+const OCCURRENCE_TYPE_LATER_KEYS = [
+  'allowsMultipleItems',
+  'attachmentMode',
+  'emailsContractor',
+  'redeliveryPolicy',
+] as const
+
+type RawOccurrenceType = Omit<OccurrenceType, (typeof OCCURRENCE_TYPE_LATER_KEYS)[number]> &
+  Readonly<Partial<Record<(typeof OCCURRENCE_TYPE_LATER_KEYS)[number], unknown>>>
 
 function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
     !hasKeys(value, {
       /**
-       * Spec 179: `attachmentMode` já sai da API (`/company-settings/occurrence-types`) e o editor
-       * ainda não o consome. Sem ele aqui, o guard de chave exata reprova a resposta inteira e a aba
-       * de tipos de ocorrência para de carregar — frontend tolerante primeiro, como a spec 180 RF8
-       * exige e esta spec esqueceu.
+       * ⚠️ Campo que a API passa a mandar entra aqui **antes** de sair dela. A T802 esqueceu
+       * `emailsContractor` e a aba de tipos parou de carregar com o GET em 200 (item 9 da spec 183)
+       * — a spec 179 já tinha feito o mesmo com `attachmentMode`. Frontend tolerante primeiro,
+       * como a spec 180 RF8 exige.
        */
-      allowed: [
-        ...OCCURRENCE_TYPE_REQUIRED_KEYS,
-        'allowsMultipleItems',
-        'attachmentMode',
-        'redeliveryPolicy',
-      ],
+      allowed: [...OCCURRENCE_TYPE_REQUIRED_KEYS, ...OCCURRENCE_TYPE_LATER_KEYS],
       required: OCCURRENCE_TYPE_REQUIRED_KEYS,
     })
   ) {
@@ -1420,32 +1427,37 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   return (
     isBoolean(value.active) &&
     (value.allowsMultipleItems === undefined || isBoolean(value.allowsMultipleItems)) &&
+    (value.attachmentMode === undefined || isOccurrenceAttachmentMode(value.attachmentMode)) &&
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
+    (value.emailsContractor === undefined || isBoolean(value.emailsContractor)) &&
     isString(value.id) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&
     (value.redeliveryPolicy === undefined ||
-      value.redeliveryPolicy === 'unset' ||
-      value.redeliveryPolicy === 'allowed' ||
-      value.redeliveryPolicy === 'blocked') &&
+      isOccurrenceRedeliveryPolicy(value.redeliveryPolicy)) &&
     (value.stage === 'delivery' || value.stage === 'separation')
   )
 }
 
-/** Achado B7: `allowsMultipleItems` nasce `true` (comportamento de hoje) e `redeliveryPolicy`
- * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`. */
+function isOccurrenceAttachmentMode(value: unknown): value is OccurrenceAttachmentMode {
+  return value === 'off' || value === 'optional' || value === 'required'
+}
+
+function isOccurrenceRedeliveryPolicy(value: unknown): value is OccurrenceRedeliveryPolicy {
+  return value === 'allowed' || value === 'blocked' || value === 'unset'
+}
+
+/** Achado B7: cada campo tardio ausente nasce no padrão da coluna — `allowsMultipleItems` `true`,
+ * `attachmentMode` `off`, `emailsContractor` `false` e `redeliveryPolicy` `unset` (D1/RF1). */
 function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
-  const { allowsMultipleItems, redeliveryPolicy, ...rest } = raw
+  const { allowsMultipleItems, attachmentMode, emailsContractor, redeliveryPolicy, ...rest } = raw
   return {
     ...rest,
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
-    redeliveryPolicy:
-      redeliveryPolicy === 'allowed' ||
-      redeliveryPolicy === 'blocked' ||
-      redeliveryPolicy === 'unset'
-        ? redeliveryPolicy
-        : 'unset',
+    attachmentMode: isOccurrenceAttachmentMode(attachmentMode) ? attachmentMode : 'off',
+    emailsContractor: isBoolean(emailsContractor) ? emailsContractor : false,
+    redeliveryPolicy: isOccurrenceRedeliveryPolicy(redeliveryPolicy) ? redeliveryPolicy : 'unset',
   }
 }

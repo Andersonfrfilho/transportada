@@ -28,6 +28,19 @@ export const OCCURRENCE_REDELIVERY_POLICY = {
 export type OccurrenceRedeliveryPolicy =
   (typeof OCCURRENCE_REDELIVERY_POLICY)[keyof typeof OCCURRENCE_REDELIVERY_POLICY]
 
+/**
+ * Spec 179 RF1: se a ocorrência daquele tipo exige foto. Nasce `off`, o padrão da coluna — o mesmo
+ * trio da prova de entrega.
+ */
+export const OCCURRENCE_ATTACHMENT_MODE = {
+  off: 'off',
+  optional: 'optional',
+  required: 'required',
+} as const
+
+export type OccurrenceAttachmentMode =
+  (typeof OCCURRENCE_ATTACHMENT_MODE)[keyof typeof OCCURRENCE_ATTACHMENT_MODE]
+
 /** O tipo como o servidor o devolve. `active` aposentado aparece apagado, nunca some da lista. */
 export type OccurrenceType = Readonly<{
   active: boolean
@@ -37,11 +50,15 @@ export type OccurrenceType = Readonly<{
    * `true` preserva o comportamento de hoje.
    */
   allowsMultipleItems: boolean
+  /** Spec 179 RF1: a foto é exigida, opcional ou fora do registro. */
+  attachmentMode: OccurrenceAttachmentMode
   /** Legado: o e-mail digitado no próprio tipo, antes de o texto morar no módulo de notificações. */
   emailBody: string
   emailSubject: string
   /** A chave do template do módulo de notificações que o tipo seleciona; nula é o legado. */
   emailTemplateKey: null | string
+  /** Spec 183 T802: o tipo avisa a contratante por e-mail quando a ocorrência é registrada. */
+  emailsContractor: boolean
   id: string
   name: string
   notifies: boolean

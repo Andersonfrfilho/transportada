@@ -83,3 +83,35 @@ describe('tolerância a allowsMultipleItems/redeliveryPolicy ausentes (achado B7
     ).toThrow()
   })
 })
+
+/**
+ * Item 9 da lista da spec 183: a T802 pôs `emailsContractor` na resposta de
+ * `/company-settings/occurrence-types`, e a guarda de chave exata reprovava a lista inteira — a aba
+ * de tipos mostrava "Nenhum tipo cadastrado ainda" com o GET em 200. Mesma família do B7.
+ */
+describe('emailsContractor e attachmentMode no tipo (spec 183 T802, spec 179)', () => {
+  it('aceita os dois campos e os leva ao tipo', () => {
+    const [type] = adapters.occurrenceTypesFromApi([
+      buildOccurrenceType({ attachmentMode: 'required', emailsContractor: true }),
+    ])
+
+    expect(type?.emailsContractor).toBe(true)
+    expect(type?.attachmentMode).toBe('required')
+  })
+
+  it('degrada os ausentes para os padrões da coluna: sem aviso por e-mail, anexo desligado', () => {
+    const [type] = adapters.occurrenceTypesFromApi([buildOccurrenceType()])
+
+    expect(type?.emailsContractor).toBe(false)
+    expect(type?.attachmentMode).toBe('off')
+  })
+
+  it('recusa os dois presentes com forma errada', () => {
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ emailsContractor: 'sim' })]),
+    ).toThrow()
+    expect(() =>
+      adapters.occurrenceTypesFromApi([buildOccurrenceType({ attachmentMode: 'sometimes' })]),
+    ).toThrow()
+  })
+})
