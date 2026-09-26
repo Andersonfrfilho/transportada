@@ -340,3 +340,15 @@ subject_id, coalesce(audience, ''))` `where subject_type is not null`, via `uniq
   (`jest-worker@27.5.1` → `@types/node` `22.20.2` → `24.13.4`); revertida à mão antes do commit —
   só sobraram as linhas de `packages/backend/conversation-module`.
 - `git status --short` no `adatechnology-packages-wt/conversation-core`: limpo depois do commit.
+- **Defeito achado pelo coordenador, corrigido no commit `a00603a`:** os sete CHECKs
+  `messages_<canal>_reachable_status_check` interpolavam `${channel}` direto no template `sql` em
+  vez de por `sql.raw`, e o `drizzle-kit generate` emitia `"channel" <> $1` — parâmetro de bind
+  dentro de DDL, que o Postgres recusa (`CHECK` não tem plano de execução parametrizável).
+  Corrigido trocando `${channel}` por `${sql.raw(\`'${channel}'\`)}` em `schema.ts`, no mesmo
+  padrão do `inList` já usado nos outros CHECKs. Migration regenerada do zero (0000 e `meta/`
+  apagados e recriados por `db:generate`) mantendo o `CREATE SCHEMA IF NOT EXISTS` comentado.
+  `grep -n '\$[0-9]' src/migrations/*.sql` → vazio (confirmado duas vezes, antes e depois do
+  `pre-commit` reformatar). `src/migrations.test.ts` ganhou o caso
+  "nenhuma migration carrega parâmetro de bind — DDL é sempre literal", que reprova qualquer
+  `$<n>`no SQL embarcado. Verde final:`check`limpo (o`getName()`do T201 também foi corrigido
+em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fail** (626`expect()`), `build`ok.`git status --short`: limpo depois do commit.
