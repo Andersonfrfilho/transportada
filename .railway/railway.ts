@@ -229,8 +229,14 @@ export default defineRailway((ctx) => {
        * painel, não só reiniciar.
        */
       VITE_MAP_TILES_URL: preserve(),
-      /** Lida no build (`vite.config.ts`, `objectStorageUrl`); estava viva no painel e fora daqui. */
-      VITE_OBJECT_STORAGE_URL: preserve(),
+      /**
+       * Lida no build (`vite.config.ts`, `objectStorageUrl`); estava viva no painel e fora daqui.
+       * O valor é o bucket no estilo virtual-host, derivado do `OBJECT_STORAGE_BUCKET` e do
+       * `OBJECT_STORAGE_ENDPOINT` da API do mesmo ambiente — lidos do painel em 26/09/2026.
+       */
+      VITE_OBJECT_STORAGE_URL: isProduction
+        ? 'https://transportada-production-vosp8e.t3.storageapi.dev'
+        : 'https://transportada-staging-zjeaet.t3.storageapi.dev',
     },
   })
 
@@ -666,11 +672,12 @@ export default defineRailway((ctx) => {
         : 'https://auth.staging.fernandes-transportadora.com.br',
       /**
        * Origem do bucket na CSP (spec 179 T303): sem ela o navegador recusa a foto da ocorrência.
-       * Staging copia o valor do painel (25/09/2026); produção ainda não tem valor conhecido — o
-       * painel de produção também não tem a variável —, então fica `preserve()` até ser definido.
+       * Os dois valores são o bucket no estilo virtual-host, derivados do `OBJECT_STORAGE_BUCKET` e
+       * do `OBJECT_STORAGE_ENDPOINT` da API do mesmo ambiente — lidos do painel em 26/09/2026. O de
+       * produção faltava, e sem ele a foto da ocorrência não subiria lá.
        */
       VITE_OBJECT_STORAGE_URL: isProduction
-        ? preserve()
+        ? 'https://transportada-production-vosp8e.t3.storageapi.dev'
         : 'https://transportada-staging-zjeaet.t3.storageapi.dev',
     },
   })
