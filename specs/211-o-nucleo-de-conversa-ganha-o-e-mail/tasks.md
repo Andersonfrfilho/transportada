@@ -69,7 +69,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T203** ⚙️ `haiku` — Teste de que `companyId` **nunca** é aceito do corpo da requisição —
       o mesmo `strictness.test.ts` que o `notification-contracts` tem, copiado e adaptado. (RNF3)
 - [x] **T204** `sonnet` — Repositórios atrás de porta. (RF6)
-- [ ] **T205** `sonnet` — Teste dos casos de uso: abrir, enviar, receber, atualizar status, marcar
+- [x] **T205** `sonnet` — Teste dos casos de uso: abrir, enviar, receber, atualizar status, marcar
       lido, listar. (RF6)
 - [ ] **T206** `sonnet` — Os casos de uso e a factory
       `createConversationModule({ config, features, providers })`. **Porta ausente desliga o

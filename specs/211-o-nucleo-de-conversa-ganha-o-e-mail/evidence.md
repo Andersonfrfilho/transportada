@@ -447,3 +447,66 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
 - Decisão: não criei um `UploadRepositoryPort` separado — o `AttachmentRepositoryPort` cobre as
   duas tabelas (`attachments` e `uploads`) porque são o mesmo agregado no fluxo de anexo (RF8), e
   a task lista "anexos+uploads" como um único item.
+
+### T205 — teste dos casos de uso
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-module/src/use-cases/`.
+- **Commit:** `f956f89`
+  (`test(conversation-module): contrato dos casos de uso — abrir, enviar, receber, status, lida, listar (T205)`).
+- Três arquivos de teste, um por agrupamento de caso de uso (molde `notification-module/use-cases/*.use-cases.ts`,
+  que agrupa por área):
+  - `Conversation.use-cases.test.ts` — `OpenConversationUseCase` pelo **mesmo** caminho com e sem
+    assunto (CA02): idempotente por `(empresa, subject_type, subject_id, audience)` quando há
+    assunto, idempotente pelo participante `(canal, identificador)` quando não há; audiências
+    diferentes do mesmo assunto abrem conversas diferentes; participante é sempre registrado.
+  - `Message.use-cases.test.ts` — `SendMessageUseCase` (grava `queued`, chama a
+    `ConversationChannelPort` do canal, grava o id do provedor; `automatic` nunca carrega autor;
+    canal sem porta lança `ChannelPortNotConfiguredError` — nunca aceita canal sem porta),
+    `ReceiveMessageUseCase` (`sender_address` para canal externo, `author_user_id` para canal com
+    conta do host), `UpdateMessageStatusUseCase` (avança via `advanceDeliveryStatus` do contracts;
+    o mesmo evento duas vezes não muda nada — CA05; id de provedor desconhecido por
+    `(canal, id)` é **ignorado sem erro**, não lança), `ListConversationMessagesUseCase` (pagina).
+  - `Read.use-cases.test.ts` — `MarkConversationReadUseCase` marca a última lida e **só avança**:
+    marcar uma mensagem mais antiga como lida depois de uma mais nova não retrocede. "Não avisa a
+    outra parte" é provado por omissão: a dependência do caso de uso não inclui porta de
+    notificação nenhuma — não há como avisar.
+- Os testes já assumem o desenho que a T206 vai construir: `SendMessageUseCase` recebe
+  `channels: Partial<Record<ConversationChannel, ConversationChannelPort>>` (porta ausente é
+  `ChannelPortNotConfiguredError`, nunca flag `hasX` — ADR-0051 §4), e importam `ChannelPortNotConfiguredError`
+  de `../errors` (ainda não criado).
+- **Visto falhar (esperado até a T206):**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+
+  src/use-cases/Message.use-cases.test.ts:
+  # Unhandled error between tests
+  error: Cannot find module '../errors' from '.../Message.use-cases.test.ts'
+
+  src/use-cases/Conversation.use-cases.test.ts:
+  # Unhandled error between tests
+  error: Cannot find module './Conversation.use-cases' from '.../Conversation.use-cases.test.ts'
+
+  src/use-cases/Read.use-cases.test.ts:
+  # Unhandled error between tests
+  error: Cannot find module './Read.use-cases' from '.../Read.use-cases.test.ts'
+
+   19 pass
+   3 fail
+   3 errors
+   639 expect() calls
+  Ran 22 tests across 6 files. [56.00ms]
+  ```
+
+  Os 19 pass são a suíte da T204, que continuou verde. `check` não foi rodado como gate desta
+  task — os três módulos de caso de uso ainda não existem, então o typecheck também falharia por
+  desenho, igual ao aviso já registrado na T203.
+
+- Decisão: descobri em T205 que `MessageRepositoryPort.updateStatus` (T204) não tinha como gravar
+  o `providerMessageId` depois do envio — só `status`/`statusTimes`. A T206 vai estender
+  `UpdateMessageStatusParams` com um `providerMessageId` opcional (ou método dedicado) para o
+  `SendMessageUseCase` fechar; registrado aqui para não parecer retrabalho silencioso quando a
+  T206 tocar `repositories/ports.ts` de novo.
