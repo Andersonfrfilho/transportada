@@ -11,7 +11,7 @@ import {
 
 const DELIVERED_AT = new Date('2026-09-18T12:00:00.000Z')
 const RECEIVED_AT = new Date('2026-09-18T12:15:00.000Z')
-const STOP_POSITION = { latitude: '-23.550520', longitude: '-46.633308' }
+const DELIVERY_EVENT_POSITION = { latitude: '-23.550520', longitude: '-46.633308' }
 
 describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
   test('não exige quando o modo não é required', () => {
@@ -26,7 +26,6 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
         proofWindowMinutes: 60,
         missingAfterHours: 24,
         receivedAt: RECEIVED_AT,
-        stopPosition: undefined,
       }),
     ).toBe('not_required')
 
@@ -41,7 +40,6 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
         proofWindowMinutes: 60,
         missingAfterHours: 24,
         receivedAt: RECEIVED_AT,
-        stopPosition: undefined,
       }),
     ).toBe('not_required')
   })
@@ -51,14 +49,13 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T12:10:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
       photoPosition: { accuracyMeters: 10, latitude: '-23.551430', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('on_time')
@@ -69,14 +66,16 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T14:00:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
-      photoPosition: { latitude: STOP_POSITION.latitude, longitude: STOP_POSITION.longitude },
+      photoPosition: {
+        latitude: DELIVERY_EVENT_POSITION.latitude,
+        longitude: DELIVERY_EVENT_POSITION.longitude,
+      },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T14:00:05.000Z'),
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('late')
@@ -87,14 +86,13 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T12:10:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
       photoPosition: { latitude: '-23.568', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('away')
@@ -105,14 +103,13 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T12:10:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
       photoPosition: undefined,
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('away')
@@ -122,14 +119,13 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T15:00:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
       photoPosition: { latitude: '-23.568', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T15:00:05.000Z'),
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('late_and_away')
@@ -140,14 +136,16 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-19T12:00:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
-      photoPosition: { latitude: STOP_POSITION.latitude, longitude: STOP_POSITION.longitude },
+      photoPosition: {
+        latitude: DELIVERY_EVENT_POSITION.latitude,
+        longitude: DELIVERY_EVENT_POSITION.longitude,
+      },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: RECEIVED_AT,
-      stopPosition: STOP_POSITION,
     })
 
     // referência vira RECEIVED_AT + 2min = 12:17, 17 min depois da entrega: dentro da janela de 60
@@ -159,33 +157,37 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T10:00:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
-      photoPosition: { latitude: STOP_POSITION.latitude, longitude: STOP_POSITION.longitude },
+      photoPosition: {
+        latitude: DELIVERY_EVENT_POSITION.latitude,
+        longitude: DELIVERY_EVENT_POSITION.longitude,
+      },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: RECEIVED_AT,
-      stopPosition: STOP_POSITION,
     })
 
     // referência vira DELIVERED_AT − 2min, antes da entrega: diferença negativa, não é tardia
     expect(result).toBe('on_time')
   })
 
-  /** RF6: parada sem coordenada usa a posição do evento de entrega. */
-  test('parada sem coordenada usa a posição do evento de entrega', () => {
+  /**
+   * RF6 (emenda 2026-09-25 da ADR-0070): a referência do raio é onde o motorista deu a baixa, não o
+   * pino geocodificado da parada — a foto prova que foi tirada onde a entrega foi registrada.
+   */
+  test('a referência do raio é a posição do evento de entrega', () => {
     const away = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T12:10:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: STOP_POSITION,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
       photoPosition: { latitude: '-23.568', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
-      stopPosition: undefined,
     })
 
     expect(away).toBe('away')
@@ -193,20 +195,22 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const onTime = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T12:10:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: STOP_POSITION,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
-      photoPosition: { latitude: STOP_POSITION.latitude, longitude: STOP_POSITION.longitude },
+      photoPosition: {
+        latitude: DELIVERY_EVENT_POSITION.latitude,
+        longitude: DELIVERY_EVENT_POSITION.longitude,
+      },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
-      stopPosition: undefined,
     })
 
     expect(onTime).toBe('on_time')
   })
 
-  /** RF6: sem parada nem evento com coordenada, a distância não pesa. */
+  /** RF6: evento de entrega sem coordenada não dá referência, e a distância não pesa. */
   test('sem referência nenhuma de local, a distância não julga', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T12:10:00.000Z'),
@@ -218,7 +222,6 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
-      stopPosition: undefined,
     })
 
     expect(result).toBe('on_time')
@@ -229,14 +232,13 @@ describe('classificação da pontualidade da foto (spec 159 RF4-RF6)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T12:10:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       photoMode: 'required',
       photoPosition: { accuracyMeters: 50, latitude: '-23.5534', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       missingAfterHours: 24,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('on_time')
@@ -255,14 +257,13 @@ describe('antifraude do veredito (spec 159 T11, D3a e item 4)', () => {
     const result = classifyProofPunctuality({
       capturedAt: DELIVERED_AT,
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       missingAfterHours: 24,
       photoMode: 'required',
-      photoPosition: STOP_POSITION,
+      photoPosition: DELIVERY_EVENT_POSITION,
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       receivedAt,
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('late')
@@ -274,14 +275,13 @@ describe('antifraude do veredito (spec 159 T11, D3a e item 4)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date(DELIVERED_AT.getTime() + 10 * 60 * 1000),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       missingAfterHours: 24,
       photoMode: 'required',
-      photoPosition: STOP_POSITION,
+      photoPosition: DELIVERY_EVENT_POSITION,
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       receivedAt,
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('on_time')
@@ -292,14 +292,13 @@ describe('antifraude do veredito (spec 159 T11, D3a e item 4)', () => {
     const result = classifyProofPunctuality({
       capturedAt: new Date('2026-09-18T12:10:00.000Z'),
       deliveredAt: DELIVERED_AT,
-      deliveryEventPosition: undefined,
+      deliveryEventPosition: DELIVERY_EVENT_POSITION,
       missingAfterHours: 24,
       photoMode: 'required',
       photoPosition: { accuracyMeters: 5000, latitude: '-23.568', longitude: '-46.633308' },
       proofRadiusMeters: 300,
       proofWindowMinutes: 60,
       receivedAt: new Date('2026-09-18T12:10:05.000Z'),
-      stopPosition: STOP_POSITION,
     })
 
     expect(result).toBe('away')
