@@ -84,6 +84,16 @@ describe('alvo de toque: nenhum controle abaixo de 44px (spec 189 T3.6)', () => 
     expect(offenders).toEqual([])
   })
 
+  test('o botão da fila no cabeçalho tem o alvo do sino (spec 193 D13)', async () => {
+    const stylesheet = await readApplicationFile(
+      'src/modules/driver-trip/styles/driverTrip.module.css',
+    )
+    const rule = listRules(stylesheet).find(({ selector }) => selector === '.queueButton')
+
+    expect(rule?.body).toContain('min-height: var(--touch-target)')
+    expect(rule?.body).toContain('min-width: var(--touch-target)')
+  })
+
   test('o botão do design system não tem variante abaixo de 44px', async () => {
     const buttonSource = await readApplicationFile('src/components/ui/button.tsx')
 
