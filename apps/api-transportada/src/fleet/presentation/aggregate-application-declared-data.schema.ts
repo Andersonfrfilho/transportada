@@ -75,6 +75,14 @@ const declaredDriverSchema = z
       .optional(),
   })
   .partial()
+  /**
+   * `fleet_drivers_pix_key_check` exige a chave e o tipo preenchidos juntos, ou nenhum dos dois —
+   * aceitar um sem o outro aqui deixava a candidatura passar e só estourava 500 na aprovação.
+   */
+  .refine((driver) => Boolean(driver.pixKey) === Boolean(driver.pixKeyType), {
+    message: 'pixKey e pixKeyType devem ser preenchidos juntos',
+    path: ['pixKey'],
+  })
 
 const declaredVehicleSchema = z
   .object({

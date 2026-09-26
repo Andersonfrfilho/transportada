@@ -115,6 +115,45 @@ describe('aggregate application declared data mapping', () => {
     expect(owner.ownerTaxRegime).toBe('0')
   })
 
+  test('chave PIX declarada sem o tipo é descartada — evita violar fleet_drivers_pix_key_check na aprovação', () => {
+    const input = mapDeclaredDataToDriverInput({
+      declaredData: { driver: { pixKey: '12345678901' } },
+      email: 'candidato@example.com',
+      name: 'Fulano de Tal',
+      phone: '11988887777',
+      taxId: '12345678901',
+    })
+
+    expect(input.pixKey).toBe('')
+    expect(input.pixKeyType).toBe('')
+  })
+
+  test('tipo de chave PIX declarado sem a chave também é descartado, pelo mesmo motivo', () => {
+    const input = mapDeclaredDataToDriverInput({
+      declaredData: { driver: { pixKeyType: 'cpf' } },
+      email: 'candidato@example.com',
+      name: 'Fulano de Tal',
+      phone: '11988887777',
+      taxId: '12345678901',
+    })
+
+    expect(input.pixKey).toBe('')
+    expect(input.pixKeyType).toBe('')
+  })
+
+  test('chave e tipo de PIX declarados juntos são preservados', () => {
+    const input = mapDeclaredDataToDriverInput({
+      declaredData: { driver: { pixKey: '12345678901', pixKeyType: 'cpf' } },
+      email: 'candidato@example.com',
+      name: 'Fulano de Tal',
+      phone: '11988887777',
+      taxId: '12345678901',
+    })
+
+    expect(input.pixKey).toBe('12345678901')
+    expect(input.pixKeyType).toBe('cpf')
+  })
+
   test('sem RNTRC, UF ou regime declarados, o veículo nasce sem dono — o operador completa depois', () => {
     const driver = mapDeclaredDataToDriverInput({
       declaredData: {},
