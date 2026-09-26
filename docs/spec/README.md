@@ -7,6 +7,7 @@
 | [domain-model.md](domain-model.md)             | agregados, estados e integridade    |
 | [delivery-plan.md](delivery-plan.md)           | fases, backlog e Definition of Done |
 | [agent-strategy.md](agent-strategy.md)         | agentes e economia de tokens        |
+| [model-economy.md](model-economy.md)           | qual modelo roda qual task          |
 | [railway.md](railway.md)                       | staging, production e promoção      |
 | [fiscal-integration.md](fiscal-integration.md) | inventário e limites do pacote Ada  |
 

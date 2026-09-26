@@ -8,9 +8,10 @@
 
 ## O modelo é por task, não por fase
 
-A regra de roteamento é a de `docs/spec/agent-strategy.md` § "Roteamento econômico": Haiku para
-mecânico e repetitivo, Sonnet para implementação, **Opus como gate para fiscal, concorrência, auth,
-criptografia, arquitetura e produção**.
+A regra de roteamento é a de `docs/spec/model-economy.md`, sobre a tabela de
+`docs/spec/agent-strategy.md` § "Roteamento econômico": Haiku para mecânico e repetitivo, Sonnet
+para implementação, **Opus como gate para fiscal, concorrência, auth, criptografia, arquitetura e
+produção**.
 
 | Marca | Classe   | Quando                                                                |
 | ----- | -------- | --------------------------------------------------------------------- |
@@ -29,9 +30,8 @@ geração diferente da última, não.
 
 ⚠️ **Toda task 🧠 para a sessão antes de começar**, para trocar de classe de propósito.
 
-⚠️ **Nota de rastreabilidade:** outras specs (005, 066, 086, e os dois `OBJETIVO-*.md`) citam um
-`model-economy.md` que **não existe no repositório nem no histórico do git**. A tabela real é a do
-`agent-strategy.md`, acima. Esta spec não repete a citação quebrada.
+A regra completa — o que faz uma task ser 🧠, os dois modos de usar Opus, e por que a marca pede
+classe e não versão — está em `docs/spec/model-economy.md`.
 
 ## Fase 1 — `conversation-contracts` (no `adatechnology-packages`)
 
