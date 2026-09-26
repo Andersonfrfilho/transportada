@@ -60,7 +60,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 
 ## Fase 2 — `conversation-module` (no `adatechnology-packages`)
 
-- [ ] **T201** 🧠 `opus` — Teste de schema: conversa com assunto e **sem** assunto pelo mesmo
+- [x] **T201** 🧠 `opus` — Teste de schema: conversa com assunto e **sem** assunto pelo mesmo
       caminho, `subject_type`/`subject_id` sem FK, participante genérico `(canal, identificador)`.
       É Opus porque este schema é o alvo que a migração da fase 6 vai ter de acertar. (RF5, D1, P2)
 - [ ] **T202** `sonnet` — Schema e migrations, a partir do da 183 com os dois cortes do `plan.md`

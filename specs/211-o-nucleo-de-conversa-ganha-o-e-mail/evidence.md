@@ -246,3 +246,37 @@ provedor)` é do banco (T202, `unique` da 183); esta função pura nunca vê o i
   $ pnpm --filter @adatechnology/conversation-contracts run check
   (sem saída — 0 erros)
   ```
+
+## Fase 2 — `conversation-module`
+
+### T201 🧠 — contrato do schema
+
+- **Modelo:** Opus 5.5 (`claude-opus-5-5`) — classe pedida `opus`, atendida.
+- **Commit:** `556307b` (`packages/backend/conversation-module/src/schema/schema.test.ts`).
+- **Visto falhar:** `bun test` → `Cannot find module 'drizzle-orm/pg-core'` (o pacote do módulo ainda
+  não existe; a T202 roda o teste de novo entre o andaime e o schema, para ver a falha em
+  `./schema`).
+- **O alvo que o teste fixa** (é o que a migração da Fase 6 vai ter de acertar):
+  - schema Postgres próprio `conversation`, tabelas `conversations`, `participants`, `messages`,
+    `attachments`, `reads`, `unassigned`, `quick_replies`, `uploads`;
+  - `company_id uuid not null` em toda tabela, e todo unique começando por ele;
+  - `subject_type`/`subject_id`/`audience` texto anulável, CHECK de par inteiro-ou-ausente, e
+    unique **parcial** `(empresa, assunto, público)` só para a conversa com assunto — a conversa por
+    pessoa não tem chave no banco, e a unicidade dela fica no caso de uso;
+  - **nenhuma FK sai do schema do módulo**, e a conversa não tem FK nenhuma;
+  - participante com exatamente `id, company_id, conversation_id, channel, identifier, created_at`;
+  - mensagem com o unique idempotente `(empresa, canal, id do provedor)`, CHECK de autoria, e um
+    CHECK por canal do status que ele alcança, derivado da tabela de capacidades da T105;
+  - anexo com `sha256` e `object_key`, e nenhuma coluna `bytea` em tabela nenhuma;
+  - nenhum nome de tabela, coluna, índice, CHECK ou FK com vocabulário de produto.
+- **Desvios do `plan.md`, medidos no código:**
+  - `occurrence_conversation_settings`, que o plan manda mover, **não existe** na 183 (nenhuma
+    tabela, migration ou referência em `apps/api-transportada`). Não entra no núcleo.
+  - O plan manda seguir o molde do `meta-whatsapp-module`, mas ele declara peer `drizzle-orm <1`, e o
+    TransportAdA roda `1.0.0-rc.4` — é a "dívida de formato" que prende o TransportAdA na `0.1.0`
+    daquele pacote. O molde passa a ser o `notification-module`: peer `>=0.36.0 <2` e `migrate`
+    injetado pelo host, que é exatamente como o TransportAdA já roda as migrations dele
+    (`notification-migration.service.ts`).
+  - `public_ref` e o aviso de expiração de janela da 183 são genéricos (referência opaca exposta a
+    canal externo; janela de canal) e ficam no núcleo; `contractor_id`/`driver_user_id`/
+    `contractor_contact_id` saem (ADR-0085 §3).
