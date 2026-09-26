@@ -205,3 +205,44 @@ provedor)` é do banco (T202, `unique` da 183); esta função pura nunca vê o i
    115 expect() calls
   Ran 26 tests across 4 files. [25.00ms]
   ```
+
+### T109 ⚙️ — contrato do CA01
+
+- **Modelo:** Haiku 4.5 (`claude-haiku-4-5-20251001`).
+- **Commit:** `4d65d14` (`packages/backend/conversation-contracts/src/productVocabulary.test.ts`).
+- ADR-0085 §2: o núcleo de conversa nunca aprende o domínio do produto. Este contrato testa que
+  nenhum arquivo do pacote contém palavras de transportadora (`occurrence`, `contractor`, `driver`).
+  O detector varre recursivamente todos os `.ts` do `src/`, reporta arquivo e linha ao encontrar,
+  e o próprio arquivo de teste contém as palavras **construídas por concatenação** (ex.:
+  `'occ' + 'urrence'`) para passar por construção — a regex não encontra a palavra inteira no
+  source, só em runtime.
+- **Visto falhar (com probe `__probe.ts` contendo `occurrence`):**
+
+  ```
+  src/productVocabulary.test.ts:
+  Violação do contrato:
+    __probe.ts:1: export const probe = 'occurrence'
+    productVocabulary.test.ts:59: const syntheticString = 'This is an occurrence of a forbidden word'
+
+  error: expect(received).toEqual(expected)
+  (fail) productVocabulary: núcleo rejeita vocabulário de produto > nenhum arquivo do núcleo contém vocabulário de produto [3.56ms]
+   28 pass
+   1 fail
+  ```
+
+- **Verde (sem probe):**
+
+  ```
+  bun test v1.3.14 (0d9b296a)
+   29 pass
+   0 fail
+   122 expect() calls
+  Ran 29 tests across 5 files. [37.00ms]
+  ```
+
+- **Gate:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-contracts run check
+  (sem saída — 0 erros)
+  ```

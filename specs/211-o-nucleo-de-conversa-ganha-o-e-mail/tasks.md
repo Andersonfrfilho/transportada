@@ -55,7 +55,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T107** `sonnet` — A máquina de status. (RF3)
 - [x] **T108** `sonnet` — As portas: `ConversationChannelPort`, `ConversationEmailTransportPort`,
       `ClockPort`, `ObjectStoragePort`, `TranscriberPort` (opcional). Só assinatura. (RF4)
-- [ ] **T109** ⚙️ `haiku` — **Contrato do CA01**: varre o `src/` do pacote e falha se aparecer
+- [x] **T109** ⚙️ `haiku` — **Contrato do CA01**: varre o `src/` do pacote e falha se aparecer
       `occurrence`, `contractor` ou `driver`. É o que segura a ADR-0085 §2 com o tempo. (CA01)
 
 ## Fase 2 — `conversation-module` (no `adatechnology-packages`)
