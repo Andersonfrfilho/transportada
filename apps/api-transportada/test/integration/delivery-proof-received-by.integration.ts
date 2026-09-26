@@ -10,13 +10,15 @@ import { describe, expect } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
 import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
-import { tripDeliveryProofs } from '../../src/database/trip.schema.js'
+import { tripDeliveryProofs, tripFieldReports } from '../../src/database/trip.schema.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
+import { updateDriverProofReceiver } from '../../src/trips/application/update-driver-proof-receiver.use-case.js'
 import type { DeliveryProofFieldMode } from '../../src/trips/domain/delivery-proof-settings.policy.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { parseDeliveryProofUpload } from '../../src/trips/presentation/delivery-proof.schema.js'
+import type { ProofReceiverPatch } from '../../src/trips/presentation/me-proof-receiver.schema.js'
 import {
   FAKE_ENVELOPE,
   JPEG_BYTES,
@@ -282,6 +284,115 @@ describe('quem recebeu pelo canhoto do escritório (spec 193 CA05)', () => {
             receivedBy: 'neighbor',
             receivedByDetail: 'casa 12',
             receiverName: 'Ana',
+          },
+        ])
+      })
+    },
+  )
+})
+
+describe('PATCH de quem recebeu depois do envio (spec 193 CA06)', () => {
+  function patchReceiver(
+    world: DriverWorld,
+    input: Readonly<{ idempotencyKey: string; patch: ProofReceiverPatch }>,
+  ) {
+    return updateDriverProofReceiver({
+      ...world.driver,
+      idempotencyKey: input.idempotencyKey,
+      patch: input.patch,
+      proofs: new DrizzleDeliveryProofRepository(world.database.db, 'test-bucket'),
+      unitOfWork: new DrizzleDriverFieldReportUnitOfWork(world.database.db, 'test-bucket'),
+    })
+  }
+
+  testWithPostgres(
+    'atualiza a foto do motorista, não duplica com a mesma chave e não toca a foto da carga',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredByDriver(database, 'optional')
+        await attachFromDriverForm(world, { kind: 'photo' })
+        // O motorista não manda `cargo` (`DRIVER_PROOF_KINDS`): a foto da carga é do escritório
+        const [, , , , , , proofRoute] = wireRoutes(database)
+        await proofRoute!.execute({
+          context: fakeContext(world.company),
+          correlationId: 'integration-received-by-cargo',
+          pathParameters: { id: world.trip.tripId, documentId: world.trip.documentId },
+          request: multipartRequest({
+            fields: { kind: 'cargo' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-cargo-before-patch',
+          }),
+        })
+        const neighbor = {
+          receivedBy: { receivedBy: 'neighbor', receivedByDetail: 'casa 12' },
+        } as const
+
+        const first = await patchReceiver(world, {
+          idempotencyKey: 'quem-recebeu-1',
+          patch: { ...neighbor, receiverName: 'Maria de Sousa' },
+        })
+        const replay = await patchReceiver(world, {
+          idempotencyKey: 'quem-recebeu-1',
+          patch: { receivedBy: { receivedBy: 'doorman', receivedByDetail: null } },
+        })
+
+        expect(first.changed).toBe(true)
+        expect(replay).toEqual({ changed: false, id: first.id })
+        expect(await readProofRows(database, world.company.companyId)).toEqual([
+          {
+            channel: 'office',
+            kind: 'cargo',
+            receivedBy: null,
+            receivedByDetail: null,
+            receiverName: '',
+          },
+          {
+            channel: 'driver_app',
+            kind: 'photo',
+            receivedBy: 'neighbor',
+            receivedByDetail: 'casa 12',
+            receiverName: 'Maria de Sousa',
+          },
+        ])
+        const reports = await database.db
+          .select({ id: tripFieldReports.id })
+          .from(tripFieldReports)
+          .where(eq(tripFieldReports.idempotencyKey, 'quem-recebeu-1'))
+        expect(reports).toHaveLength(1)
+      })
+    },
+  )
+
+  testWithPostgres(
+    'sem foto do motorista responde 404, e o canhoto do escritório fica intocado',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredByDriver(database, 'optional')
+        const [, , , , , , proofRoute] = wireRoutes(database)
+        await proofRoute!.execute({
+          context: fakeContext(world.company),
+          correlationId: 'integration-received-by-office-proof',
+          pathParameters: { id: world.trip.tripId, documentId: world.trip.documentId },
+          request: multipartRequest({
+            fields: { receiverName: 'Ana Paula' },
+            file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+            idempotencyKey: 'office-proof-before-patch',
+          }),
+        })
+
+        await expect(
+          patchReceiver(world, {
+            idempotencyKey: 'quem-recebeu-sem-foto',
+            patch: { receivedBy: { receivedBy: 'neighbor', receivedByDetail: null } },
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_DELIVERY_PROOF_NOT_FOUND', status: 404 })
+        expect(await readProofRows(database, world.company.companyId)).toEqual([
+          {
+            channel: 'office',
+            kind: 'photo',
+            receivedBy: null,
+            receivedByDetail: null,
+            receiverName: 'Ana Paula',
           },
         ])
       })

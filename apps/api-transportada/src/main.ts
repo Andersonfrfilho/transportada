@@ -579,6 +579,8 @@ import { createContractorPortalBindingRoutes } from './contractor-portal/present
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
 import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
+import { createMeProofReceiverRoutes } from './trips/presentation/me-proof-receiver.routes.js'
+import { updateDriverProofReceiver } from './trips/application/update-driver-proof-receiver.use-case.js'
 import { createReadLocationConsentUseCase } from './trips/application/read-location-consent.use-case.js'
 import { createRecordTripLocationUseCase } from './trips/application/record-trip-location.use-case.js'
 import { DrizzleTripLocationRepository } from './trips/infrastructure/drizzle-trip-location.repository.js'
@@ -3393,6 +3395,16 @@ function createApplicationRoutes({
       reportReturn: (input) =>
         reportDocumentReturn({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    /** Spec 193 D7: quem recebeu escolhido depois do envio da foto, pela fila do aparelho. */
+    ...createMeProofReceiverRoutes({
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      updateProofReceiver: (input) =>
+        updateDriverProofReceiver({
+          ...input,
+          proofs: deliveryProofRepository,
+          unitOfWork: driverFieldReports,
+        }),
     }),
     ...createTripFieldOfficeRoutes({
       resolveClientIp,

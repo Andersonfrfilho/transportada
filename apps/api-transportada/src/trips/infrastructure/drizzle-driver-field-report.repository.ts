@@ -38,8 +38,10 @@ import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
+  DRIVER_PROOF_KINDS,
   RETURNED_DOCUMENT_STATUS,
 } from '../domain/delivery-event.constant.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
   deriveTripStatus,
@@ -599,6 +601,49 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
    * transação própria — o chamador já está dentro da transação da entrega, e é isso que faz
    * "entrega + comprovante" serem atômicos para o escritório.
    */
+  /** Spec 193 D7: a porta explica o recorte — as linhas do motorista naquele evento, e só elas. */
+  public async updateDriverProofReceiverWithinTransaction(
+    input: Parameters<
+      DriverFieldReportTransactionPort['updateDriverProofReceiverWithinTransaction']
+    >[0],
+  ): Promise<{ readonly changed: boolean; readonly id: string } | null> {
+    const driverRows = and(
+      eq(tripDeliveryProofs.companyId, input.companyId),
+      eq(tripDeliveryProofs.stopEventId, input.eventId),
+      eq(tripDeliveryProofs.channel, TRIP_FIELD_CHANNELS.driverApp),
+      inArray(tripDeliveryProofs.kind, [...DRIVER_PROOF_KINDS]),
+    )
+    const rows = await this.transaction
+      .select({
+        id: tripDeliveryProofs.id,
+        receivedBy: tripDeliveryProofs.receivedBy,
+        receivedByDetail: tripDeliveryProofs.receivedByDetail,
+        receiverName: tripDeliveryProofs.receiverName,
+      })
+      .from(tripDeliveryProofs)
+      .where(driverRows)
+      .orderBy(tripDeliveryProofs.kind)
+      .for('no key update')
+    const [first] = rows
+    if (first === undefined) return null
+
+    const set = {
+      ...(input.receivedBy === undefined
+        ? {}
+        : {
+            receivedBy: input.receivedBy.receivedBy,
+            receivedByDetail: input.receivedBy.receivedByDetail,
+          }),
+      ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+    }
+    const changed = rows.some((row) =>
+      Object.entries(set).some(([column, value]) => row[column as keyof typeof row] !== value),
+    )
+    if (changed) await this.transaction.update(tripDeliveryProofs).set(set).where(driverRows)
+
+    return { changed, id: first.id }
+  }
+
   public async saveDeliveryProofWithinTransaction(
     input: Parameters<DriverFieldReportTransactionPort['saveDeliveryProofWithinTransaction']>[0],
   ): Promise<{ readonly id: string }> {

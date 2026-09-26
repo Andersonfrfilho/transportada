@@ -11,6 +11,13 @@ import type {
 import type { TripFieldChannel } from '../../src/trips/domain/trip-field-channel.constant.js'
 import type { TripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 
+export type ProofReceiverRow = {
+  id: string
+  receivedBy: string | null
+  receivedByDetail: string | null
+  receiverName: string
+}
+
 export type FieldReportState = {
   readonly calls: string[]
   readonly dispatchedAtByTripId: Map<string, Date>
@@ -30,6 +37,11 @@ export type FieldReportState = {
   readonly proofDetailsByEventKind: Map<string, { channel: TripFieldChannel; objectId: string }>
   /** Spec 184 (RF4): `eventId:kind` → quantas linhas gravadas — a foto de carga soma. */
   readonly proofCountByEventKind: Map<string, number>
+  /**
+   * Spec 193 D7: `eventId` → as linhas do motorista (`photo`/`signature`, `driver_app`) que o `PATCH`
+   * de quem recebeu alcança. Ausente é "sem comprovante do motorista".
+   */
+  readonly proofReceivers: Map<string, ProofReceiverRow[]>
   readonly reports: Map<string, { actorUserId: string; operation: string; resultId: string | null }>
   readonly stops: Map<string, DriverStopReference>
   stopCompletes: boolean
@@ -52,6 +64,7 @@ export function createFieldReportState(
     proofsByEventKind: new Set(),
     proofDetailsByEventKind: new Map(),
     proofCountByEventKind: new Map(),
+    proofReceivers: new Map(),
     reports: new Map(),
     stops: new Map(),
     stopCompletes: false,
@@ -182,6 +195,22 @@ export function createFieldReportUnitOfWork(
       state.proofCountByEventKind.get(`${input.eventId}:${input.kind}`) ?? 0,
     findDeliveryEventForProof: async (input) =>
       state.latestEvents.get(`${input.documentId}:delivered`) ?? null,
+    updateDriverProofReceiverWithinTransaction: async (input) => {
+      const rows = state.proofReceivers.get(input.eventId) ?? []
+      const [first] = rows
+      if (first === undefined) return null
+      const set: Partial<ProofReceiverRow> = {
+        ...(input.receivedBy === undefined ? {} : input.receivedBy),
+        ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+      }
+      const changed = rows.some((row) =>
+        Object.entries(set).some(
+          ([column, value]) => row[column as keyof ProofReceiverRow] !== value,
+        ),
+      )
+      for (const row of rows) Object.assign(row, set)
+      return { changed, id: first.id }
+    },
     findProofForEvent: async (input) =>
       state.proofDetailsByEventKind.get(`${input.eventId}:${input.kind}`) ?? null,
     findProofExistsForEvent: async (input) =>

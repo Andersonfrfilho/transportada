@@ -369,3 +369,56 @@ $ bun --env-file=../../.env.test test ./test/integration/{me-trip,trip-field-off
   77 pass, 1 fail — o "allowed-actions … recorte" de trip-field-office estourou 30 s (load 8,5);
   isolado: trip-field-office 25 pass / 0 fail, router + review 20 pass / 0 fail
 ```
+
+### T3.5 — `PATCH /me/trips/current/documents/:documentId/proof/receiver` (CA06)
+
+Testes antes, em `test/trip-delivery-proof/proof-receiver.contract.ts` (entrypoint
+`trip-delivery-proof.contract.test.ts`) e num caso novo de `rate-limited-routes.contract.test.ts`:
+
+- corpo: ausente não mexe; forma tolerante; `cousin` limpa a relação sem 400; nome aparado e cortado
+  em 120; lista, texto ou chave desconhecida dão 400;
+- caso de uso com o dublê: atualiza e devolve `changed: true`; a mesma `Idempotency-Key` não refaz;
+  `off` grava nulo; sem entrega ou sem comprovante do motorista, 404
+  `TRIP_DELIVERY_PROOF_NOT_FOUND`;
+- rota `PATCH` com teto próprio no Postgres.
+
+```
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts ./test/rate-limited-routes.contract.test.ts
+error: Cannot find module '../../src/trips/application/update-driver-proof-receiver.use-case.js'
+error: Cannot find module '../src/trips/presentation/me-proof-receiver.routes'
+ 0 pass, 2 fail
+```
+
+Implementação:
+
+- `me-proof-receiver.schema.ts`: Zod `.strict()` com os três campos `unknown`, depois
+  `normalizeReceivedBy`.
+- `me-proof-receiver.routes.ts`: arquivo próprio, fora de `me-trip.routes.ts`, que tem WIP da
+  spec 209 e nenhuma rota com teto. Usa `DRIVER_REPORT_POLICY` e teto
+  `{ maxRequests: 60, scope: 'me-proof-receiver', store: 'postgres', windowSeconds: 60 }`.
+- `update-driver-proof-receiver.use-case.ts`:
+  - o evento e a configuração saem das mesmas leituras do anexo (`DrizzleDeliveryProofRepository`);
+  - `applyReceivedBySettings` no canal `driver_app`;
+  - `withFieldReport` com a operação `document.proof-receiver`. O reenvio devolve `changed: false`
+    e o mesmo id.
+- `DriverFieldReportTransactionPort.updateDriverProofReceiverWithinTransaction`: `SELECT … FOR NO KEY
+  UPDATE` nas linhas `photo`/`signature` de `driver_app` daquele evento, e `UPDATE` só quando algo
+  mudou. Sem linha, devolve `null` e o caso de uso responde 404.
+- `TripDeliveryProofNotFoundError` (404), composição no `main.ts` e o dublê
+  `field-report.double.ts` com `proofReceivers`.
+
+Integração, em `delivery-proof-received-by.integration.ts`:
+
+- a foto do motorista é atualizada (`changed: true`, nome, relação e detalhe);
+- a mesma chave devolve `{ changed: false, id }`, o valor fica o do primeiro envio e há uma linha
+  só em `trip_field_reports`;
+- o `cargo` do escritório não é tocado;
+- sem foto do motorista responde 404, e o canhoto do escritório fica intocado.
+
+```
+$ bunx tsc --noEmit -p apps/api-transportada → sem erros;  bun run lint (api) → sem erros
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts ./test/rate-limited-routes.contract.test.ts
+  181 pass, 0 fail
+$ bun --env-file=../../.env.test test ./test/integration/delivery-proof-received-by.integration.ts → 9 pass, 0 fail
+$ bun --env-file=../../.env.test test --timeout 120000 → 7496 pass, 23 skip, 0 fail
+```

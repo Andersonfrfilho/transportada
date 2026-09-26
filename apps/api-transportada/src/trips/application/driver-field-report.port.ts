@@ -12,6 +12,7 @@ import type {
   TripStopEventKind,
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
+import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
 import type { TripOccurrence } from './register-trip-occurrence.use-case.js'
@@ -225,6 +226,17 @@ export type DriverFieldReportTransactionPort = {
     readonly sha256: string
     readonly sizeBytes: number
   }): Promise<{ readonly id: string }>
+  /**
+   * Spec 193 D7 (CA06): quem recebeu escolhido depois do envio — só nas linhas do motorista
+   * (`photo`/`signature`, canal `driver_app`) daquele evento. `null` sem nenhuma dessas linhas;
+   * `changed: false` quando o valor já era o gravado. Campo ausente não é tocado.
+   */
+  updateDriverProofReceiverWithinTransaction(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly receivedBy?: ReceivedByFields
+    readonly receiverName?: string
+  }): Promise<{ readonly changed: boolean; readonly id: string } | null>
   /** Reaproveita a leitura de dedupe do anexo (spec 082) dentro da mesma transação da entrega. */
   findProofIdByAttachmentKeyWithinTransaction(input: {
     readonly attachmentKey: string

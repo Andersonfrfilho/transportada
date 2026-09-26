@@ -16,6 +16,7 @@ import { createLoginHintRoutes } from '../src/identity/presentation/login-hint.r
 import { createPasswordResetRoutes } from '../src/identity/presentation/password-reset.routes'
 import { createUserActivationRoutes } from '../src/identity/presentation/user-activation.routes'
 import { createMeLocationRoutes } from '../src/trips/presentation/me-location.routes'
+import { createMeProofReceiverRoutes } from '../src/trips/presentation/me-proof-receiver.routes'
 import { createOccurrenceCaseRoutes } from '../src/trips/presentation/occurrence-case.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from '../src/trips/presentation/trip-field-office-occurrence.routes'
 import { createTripFieldOfficeRoutes } from '../src/trips/presentation/trip-field-office.routes'
@@ -410,6 +411,31 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
     ])
   })
 
+  /**
+   * Spec 193 D7: o `PATCH` de quem recebeu é drenado pela fila do aparelho — um balde por motorista
+   * impede que uma cópia do app martele a escrita no comprovante.
+   */
+  test('o PATCH de quem recebeu tem teto no Postgres', () => {
+    const routes = createMeProofReceiverRoutes(unusedDependencies() as never)
+
+    expect(
+      routes.map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 60,
+          scope: 'me-proof-receiver',
+          store: 'postgres',
+          windowSeconds: 60,
+        },
+        signature: 'PATCH /me/trips/current/documents/:documentId/proof/receiver',
+      },
+    ])
+  })
+
   test('nenhum outro arquivo da API declara teto no Postgres', async () => {
     const files = await listSourceFiles(SOURCE_DIRECTORY)
     const declaring: string[] = []
@@ -429,6 +455,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
       'trips/presentation/me-location.routes.ts',
+      'trips/presentation/me-proof-receiver.routes.ts',
       'trips/presentation/occurrence-case.routes.ts',
       'trips/presentation/occurrence-settlement.routes.ts',
       'trips/presentation/redelivery-application.routes.ts',
