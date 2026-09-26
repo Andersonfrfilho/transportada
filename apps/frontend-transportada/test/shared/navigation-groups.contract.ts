@@ -37,19 +37,22 @@ describe('workspace navigation groups contract', () => {
     }
   })
 
-  // O estado de abertura é indexado pela chave do grupo: esquecer uma cópia deixa o grupo
-  // novo permanentemente fechado no botão que abre tudo
-  test('keeps every group key in the open-state records', async () => {
+  // O estado de abertura tem fonte única: cópias literais divergiam, e a que abria todos os
+  // grupos de uma vez fazia o menu nascer com scroll interno por não caber na barra
+  test('derives the open-state from a single source covering every group key', async () => {
     const shell = await readShell()
-    const records = shell.match(
-      /setOpenGroups\(\{[\s\S]*?\}\)|useState<[^>]*>\(\{[\s\S]*?\n {2}\}\)/g,
-    )
+    const start = shell.indexOf('function resolveOpenGroups')
+    const source = shell.slice(start, shell.indexOf('\n}', start))
 
-    expect(records?.length ?? 0).toBeGreaterThan(0)
-    for (const record of records ?? []) {
-      for (const key of ['administration', 'fiscal', 'operations', 'registries']) {
-        expect(record).toContain(`${key}:`)
-      }
+    expect(start).toBeGreaterThan(-1)
+    for (const key of ['administration', 'fiscal', 'identity', 'operations', 'registries']) {
+      expect(source).toContain(`${key}:`)
     }
+  })
+
+  test('keeps no open-state literal outside that source', async () => {
+    const shell = await readShell()
+
+    expect(shell).not.toContain('setOpenGroups({')
   })
 })

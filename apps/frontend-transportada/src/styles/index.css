@@ -265,19 +265,26 @@ a {
   bottom: 0;
   left: 0;
   display: grid;
-  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr);
   width: min(18rem, 86vw);
-  min-height: 100vh;
-  padding: var(--space-5) var(--space-3);
+  /* Sem folga embaixo: o espaço morto sob o scroller tirava altura útil da navegação. */
+  padding: var(--space-3) var(--space-3) 0;
   border-right: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-graphite) 88%, var(--color-asphalt) 12%);
   transform: translateX(-100%);
   transition: transform 180ms ease;
+  overflow: hidden;
+}
+
+/* O scroll mora na navegação, não na gaveta: a marca e o botão ficam sempre visíveis. */
+.sidebar-navigation {
+  min-height: 0;
   overflow-y: auto;
 }
 
 /* Recolhido, o flyout e o tooltip saem pela borda direita — overflow os recortaria. */
-.application-shell-sidebar-collapsed .application-sidebar {
+.application-shell-sidebar-collapsed .application-sidebar,
+.application-shell-sidebar-collapsed .sidebar-navigation {
   overflow: visible;
 }
 
@@ -392,7 +399,7 @@ a {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3) var(--space-5);
+  padding: var(--space-2) var(--space-3) var(--space-3);
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
 }
 
@@ -459,8 +466,8 @@ a {
 
 .sidebar-navigation {
   display: grid;
-  gap: var(--space-4);
-  padding-top: var(--space-5);
+  gap: var(--space-2);
+  padding-block: var(--space-2);
 }
 
 .sidebar-group {
@@ -1369,8 +1376,13 @@ h2 {
     padding-left: 0;
   }
 
+  /* Estática, a barra esticava com a página: em tela curta a nav não cabia nos 100vh
+     e ganhava scroll interno; em tela longa o menu subia para fora da vista. */
   .application-sidebar {
-    position: static;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100dvh;
     flex: 0 0 16rem;
     width: auto;
     transform: none;

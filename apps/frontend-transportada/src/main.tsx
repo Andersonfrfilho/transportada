@@ -188,6 +188,30 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
   },
 ]
 
+/**
+ * Abrir o menu expandindo todos os grupos punha 22 linhas numa barra que cabe ~14: ele nascia com
+ * scroll interno. Só o grupo da tela atual abre — os outros ficam a um clique.
+ */
+function resolveOpenGroups(
+  workspace: WorkspaceNavigationItem['key'],
+): Readonly<Record<NavigationGroup['key'], boolean>> {
+  return {
+    administration: workspace === 'company-settings',
+    identity: workspace === 'users' || workspace === 'access-profiles',
+    fiscal: [
+      'nfe',
+      'freight',
+      'cte-batch',
+      'trip',
+      'mdfe-manifest',
+      'billing',
+      'nfse-invoice',
+    ].includes(workspace),
+    operations: ['operations', 'trip-occurrences'].includes(workspace),
+    registries: ['cte-profiles', 'fleet'].includes(workspace),
+  }
+}
+
 function persistWorkspacePreference(workspace: WorkspaceNavigationItem['key']): void {
   if (workspace === 'nfe') {
     sessionStorage.removeItem(WORKSPACE_STORAGE_KEY)
@@ -443,21 +467,9 @@ function ApplicationShell(): ReactNode {
   const [currentSearch, setCurrentSearch] = useState(() => window.location.search)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTransitionPending, setPageTransitionPending] = useState(false)
-  const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>({
-    administration: currentWorkspace === 'company-settings',
-    identity: currentWorkspace === 'users' || currentWorkspace === 'access-profiles',
-    fiscal: [
-      'nfe',
-      'freight',
-      'cte-batch',
-      'trip',
-      'mdfe-manifest',
-      'billing',
-      'nfse-invoice',
-    ].includes(currentWorkspace),
-    operations: ['operations', 'trip-occurrences'].includes(currentWorkspace),
-    registries: ['cte-profiles', 'fleet'].includes(currentWorkspace),
-  })
+  const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>(
+    () => resolveOpenGroups(currentWorkspace),
+  )
   const [collapsedGroup, setCollapsedGroup] = useState<NavigationGroup['key'] | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
 
@@ -470,18 +482,12 @@ function ApplicationShell(): ReactNode {
     function closeWithEscape(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
         setSidebarOpen(false)
-        setOpenGroups({
-          administration: true,
-          fiscal: true,
-          identity: true,
-          operations: true,
-          registries: true,
-        })
+        setOpenGroups(resolveOpenGroups(currentWorkspace))
       }
     }
     window.addEventListener('keydown', closeWithEscape)
     return () => window.removeEventListener('keydown', closeWithEscape)
-  }, [])
+  }, [currentWorkspace])
 
   /**
    * Spec 057, RF-6: quem só tem o par do campo não pode cair na tela de NF-e. A troca acontece
@@ -625,13 +631,7 @@ function ApplicationShell(): ReactNode {
             onClick={() => {
               setSidebarOpen((current) => !current)
               setCollapsedGroup(null)
-              setOpenGroups({
-                administration: true,
-                fiscal: true,
-                identity: true,
-                operations: true,
-                registries: true,
-              })
+              setOpenGroups(resolveOpenGroups(currentWorkspace))
             }}
           >
             <span aria-hidden="true">{sidebarOpen ? '×' : '☰'}</span>
