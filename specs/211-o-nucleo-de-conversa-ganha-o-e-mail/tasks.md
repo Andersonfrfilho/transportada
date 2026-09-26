@@ -108,10 +108,10 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       criptográfica: gate de Opus. (RF14)
 - [x] **T308** 🧠 `opus` — O DKIM por `mailauth`, com `unverifiable` que **não se refaz
       depois**. (RF14)
-- [ ] **T309** `sonnet` — Teste de que ligar o canal `email` **sem transporte falha na subida**,
+- [x] **T309** `sonnet` — Teste de que ligar o canal `email` **sem transporte falha na subida**,
       nomeando a peça que falta. (D5, CA03)
-- [ ] **T310** `sonnet` — A exigência do transporte. (D5)
-- [ ] **T311** ⚙️ `haiku` — `changeset` das fases 1–3.
+- [x] **T310** `sonnet` — A exigência do transporte. (D5)
+- [x] **T311** ⚙️ `haiku` — `changeset` das fases 1–3.
 
 ## Fase 4 — ⛔ parada: o usuário publica o núcleo
 

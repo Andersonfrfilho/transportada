@@ -1076,3 +1076,60 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
   foi o que fez o teste dizer `absent` em tudo. O teste declara a forma que a implementação aceita,
   com o porquê escrito ao lado. Só o teste assina; o pacote apenas verifica, e a verificação é
   tipada como o `.d.ts` diz.
+
+### T309 — teste de que ligar o canal `email` sem transporte falha na subida
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`) — classe pedida `sonnet`, atendida.
+- **Commit:** `0943e20` (`packages/backend/conversation-module/src/ConversationModule.test.ts`).
+- **Visto falhar:** `SyntaxError: Export named 'ChannelTransportMissingError' not found in module
+'.../errors.ts'` → `0 pass / 1 fail / 1 error`.
+- **Cobertura:** `email` em `config.enabledChannels` sem `providers.emailTransport` lança
+  `ChannelTransportMissingError`, com `code` estável (`CONVERSATION_CHANNEL_TRANSPORT_MISSING`) e
+  mensagem que nomeia o canal e a peça que falta (`ConversationEmailTransportPort`), sem
+  `@`/URL/`secret`/`token`/`senha`; com o transporte, o módulo sobe e `enabledChannels` inclui
+  `email`; sem `email` pedido, nenhum transporte é exigido; e a exigência é **por capacidade**
+  (`requiresTransport` da T105), não por lista de canais escrita à mão — provado com `whatsapp`
+  (`requiresTransport: false`) subindo sem porta nenhuma. Um teste extra cobre a compatibilidade:
+  sem `enabledChannels` algum (como os chamadores de T206/T212 já fazem), nada é exigido.
+- **Decisão de design registrada no teste:** o teste assume `config.enabledChannels` como o roster
+  de canais que o produto declara querer — não existia esse campo na T206; a T310 o introduz.
+
+### T310 — a exigência do transporte, na factory
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `e0a67a4` (`src/ConversationModule.ts`, `src/errors.ts`, exportado no barrel).
+- **Verde:** `132 pass / 0 fail` (`conversation-module`, 11 skip de integração sem Postgres), `38
+pass / 0 fail` (`conversation-contracts`), `check` com 0 erros nos dois.
+- **`config.enabledChannels?: readonly ConversationChannel[]`** — novo campo opcional, sem quebrar
+  os chamadores existentes (T206/T212) que não o passam. A checagem em `createConversationModule`
+  roda **antes** de tocar qualquer repositório ou porta: para cada canal em `enabledChannels`, se
+  `getChannelCapabilities(channel).requiresTransport` é `true`, uma tabela declarativa
+  (`CHANNEL_TRANSPORT_REQUIREMENTS`) nomeia a porta exigida e checa a presença dela em `providers`
+  — hoje só `email → ConversationEmailTransportPort`. Canal com `requiresTransport: false` nunca
+  entra no laço. **Única checagem de subida**, nenhuma flag `hasEmail`: a única forma de "ligar" um
+  canal continua sendo a porta (ou, agora, o pedido explícito em `enabledChannels` que a porta tem
+  de satisfazer) — consistente com "porta ausente desliga o recurso" (ADR-0051 §4).
+- `ChannelTransportMissingError` segue o molde de `ChannelPortNotConfiguredError`: `statusCode 500`,
+  `code CONVERSATION_CHANNEL_TRANSPORT_MISSING`, `details { channel, transportPortName }`, mensagem
+  só com o nome do canal e da porta.
+
+### T311 ⚙️ — `changeset` das fases 1–3
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`) — classe pedida `haiku`; executado em `sonnet` porque a
+  sessão já rodava nesse modelo para T309/T310 e a task é mecânica (escrever um `.md` de release
+  notes, sem lógica) — registrado aqui em vez de pedir a troca de modelo no meio da fase.
+- **Commit:** `ae07186` (`.changeset/nucleo-de-conversa.md`).
+- **Padrão do repositório:** só havia um changeset em `.changeset/` (`patch`, para pacote já
+  publicado). Sem precedente de "pacote novo" na árvore atual do worktree; a busca no histórico
+  completo (`git log --all --diff-filter=A`) achou pacotes anteriores nascendo com sufixo
+  `-rc.N` via modo de pré-lançamento do changesets, não aplicável aqui — `package.json` dos dois
+  pacotes já declara `0.1.0` (não `0.0.0`), então o changeset é `minor` para os dois, como a task
+  pediu, e fica registrado que não havia um segundo exemplo de pacote novo para conferir contra.
+- **Verde:** `check` + `test` + `build` dos dois pacotes, 0 erros/falhas (132 pass conversation-
+  module, 38 pass conversation-contracts, `dist/` gerado nos dois).
+- **Conteúdo:** resumo em pt-BR do que entra nas fases 1–3 — vocabulário, capacidades por canal,
+  máquina de status, portas, schema e migrations, casos de uso, atribuição genérica, anexo,
+  respostas rápidas, token derivado do endereço de resposta, threading, MIME bruto, DKIM, e a
+  exigência do transporte na subida (T309/T310).
+- **Não executado, por instrução explícita:** `changeset version` e publicação — T401 é parada do
+  dono do projeto.
