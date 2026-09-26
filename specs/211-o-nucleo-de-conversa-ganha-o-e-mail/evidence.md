@@ -280,3 +280,63 @@ provedor)` é do banco (T202, `unique` da 183); esta função pura nunca vê o i
   - `public_ref` e o aviso de expiração de janela da 183 são genéricos (referência opaca exposta a
     canal externo; janela de canal) e ficam no núcleo; `contractor_id`/`driver_user_id`/
     `contractor_contact_id` saem (ADR-0085 §3).
+
+### T202 — schema e migrations
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`) — classe pedida `sonnet`, atendida.
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-module/`.
+- **Commit:** `709896a` (`feat(conversation-module): schema e migrations do núcleo (T202)`).
+- **Visto falhar (evidência da T201, completada aqui):** depois do andaime (`package.json` +
+  `pnpm install` na raiz do worktree, `conversation-contracts` precisou de `pnpm --filter
+@adatechnology/conversation-contracts run build` antes — sem `dist/` o import falhava com
+  `Cannot find module '@adatechnology/conversation-contracts'`), `pnpm --filter
+@adatechnology/conversation-module run test` → `error: Cannot find module './schema' from
+'.../src/schema/schema.test.ts'`. Fecha o "visto falhar" que a T201 deixou pendente.
+- **`src/schema/schema.ts`:** `pgSchema('conversation')`, oito tabelas (`conversations`,
+  `participants`, `messages`, `attachments`, `reads`, `unassigned`, `quick_replies`, `uploads`),
+  nenhuma FK saindo do módulo, `company_id` obrigatório com todo `unique`/índice único começando por
+  ele. Vocabulário de canal, DKIM e tipo de anexo importados de `@adatechnology/conversation-contracts`
+  — os sete CHECKs `messages_<canal>_reachable_status_check` são **gerados** por
+  `CONVERSATION_CHANNEL.map(...)` sobre `CHANNEL_CAPABILITIES`, nunca lista escrita à mão (RF2).
+- **Decisões tomadas no código, medidas contra o teste fixo da T201:**
+  - `public_ref`: a origem (spec 183) era única na instalação inteira; como o módulo é
+    multi-tenant por desenho, o `unique` ficou `(company_id, public_ref)` — satisfaz "todo unique
+    começa por `company_id`" da T201. Documentado no comentário da coluna: um host que precisar de
+    unicidade além da própria empresa garante isso na composição dele, não é invariante do núcleo.
+  - Índice único parcial `conversations_subject_audience_unique` em `(company_id, subject_type,
+subject_id, coalesce(audience, ''))` `where subject_type is not null`, via `uniqueIndex(...)
+.on(...).where(...)` (mesmo padrão de `address-correction.schema.ts` no TransportAdA).
+  - `messages_author_check`, `messages_dkim_result_check`, `unassigned` (sem `contractor_contact_id`,
+    `mail_message_id` → `transport_ref text`, `+dkim_result`, canal no vocabulário inteiro),
+    `quick_replies` (`audience` livre, sem CHECK de lista) e `uploads` (alvo `conversation_id`, FK
+    composta para `conversations`, `object_key` único vira `(company_id, object_key)`) seguem
+    exatamente o que o prompt da task especificou a partir da 183 + ADR-0085 §3.
+- **Migration:** `pnpm --filter @adatechnology/conversation-module run db:generate` gerou
+  `src/migrations/0000_round_zuras.sql` (8 tabelas). Editada à mão **uma linha**: `CREATE SCHEMA
+"conversation"` → `CREATE SCHEMA IF NOT EXISTS "conversation"`, com comentário explicando o motivo
+  (mesmo raciocínio do baseline do `notification-module`). `src/migrations.test.ts` (molde reduzido
+  do `notification-module`, sem Postgres) prova essa linha por leitura, sem reproduzir o teste de
+  "todo CREATE é condicional" inteiro — este módulo nasce sem predecessor a espremer.
+- **Verde final:**
+  - `pnpm --filter @adatechnology/conversation-module run test` → **12 pass / 0 fail** (10 do
+    `schema.test.ts` da T201 + 2 do `migrations.test.ts` novo), 625 `expect()`.
+  - `pnpm --filter @adatechnology/conversation-module run build` → `tsup` ok, `dist/migrations/`
+    confirmado com o SQL e a pasta `meta/` copiados (o `onSuccess` do `tsup.config.ts`, copiado do
+    `notification-module`).
+  - `pnpm --filter @adatechnology/conversation-contracts run test` → **29 pass / 0 fail** (nada
+    quebrou nos contracts).
+- ⚠️ **`pnpm --filter @adatechnology/conversation-module run check` (`tsc --noEmit`) FALHA**, e não é
+  causado por este schema: `src/schema/schema.test.ts:189:50` — `error TS18048: 'name' is possibly
+'undefined'` em `config.uniqueConstraints.map((item) => item.getName())`, cujo tipo em
+  `drizzle-orm@0.45.2` é `getName(): string | undefined` (confirmado em
+  `node_modules/drizzle-orm/pg-core/unique-constraint.d.ts:24`). O `tsconfig.json` deste pacote é
+  idêntico ao do `notification-module` (`strict: true` herdado de `tsconfig.base.json`), então não é
+  configuração deste pacote — é um `possibly undefined` real na T201, que é contrato fixo e **não foi
+  alterado** por esta task, por instrução explícita. `bun test` não pega isso porque não type-checa.
+  Fica registrado para decisão do dono da spec: ajustar o teste da T201 (ex.: `item.getName() ?? ''`)
+  é a correção mínima, mas está fora do escopo autorizado desta task.
+- **`pnpm-lock.yaml`:** o `pnpm install` também tocou uma entrada não relacionada
+  (`jest-worker@27.5.1` → `@types/node` `22.20.2` → `24.13.4`); revertida à mão antes do commit —
+  só sobraram as linhas de `packages/backend/conversation-module`.
+- `git status --short` no `adatechnology-packages-wt/conversation-core`: limpo depois do commit.
