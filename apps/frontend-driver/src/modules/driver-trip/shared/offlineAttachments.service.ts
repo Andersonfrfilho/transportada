@@ -1,7 +1,7 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineAttachments.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverReportedLocation, ProofPunctuality } from './driverTrip.types'
-import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
+import type { DriverTripErrorDetail, OfflineQueueStore, QueuedReport } from './offlineQueue.service'
 
 /**
  * Spec 082 D6: o comprovante entra na fila quando a entrega ainda não subiu. O blob mora numa store
@@ -296,7 +296,12 @@ export async function discardStaleAttachments(input: {
 
 export type AttachmentSendOutcome =
   | Readonly<{ kind: 'failed-network' }>
-  | Readonly<{ cause: string; kind: 'rejected' }>
+  | Readonly<{
+      cause: string
+      /** Spec 206 D9/RF8b: `error.details` da recusa, quando a API os manda (409 en-route). */
+      details?: readonly DriverTripErrorDetail[]
+      kind: 'rejected'
+    }>
   /** Spec 159 RF4: a pontualidade que a API grava junto da foto — `undefined` para assinatura. */
   | Readonly<{ kind: 'sent'; punctuality?: ProofPunctuality }>
 
@@ -344,6 +349,7 @@ export async function drainQueueWithAttachments(input: {
   const queued = await input.store.read()
   const sentKeys = new Set<string>()
   const rejectionByKey = new Map<string, string>()
+  const rejectionDetailsByKey = new Map<string, readonly DriverTripErrorDetail[]>()
   let failedNetworkKey: string | undefined
   let sent = 0
   let rejected = 0
@@ -372,6 +378,7 @@ export async function drainQueueWithAttachments(input: {
     }
     if (outcome.kind === 'rejected') {
       rejectionByKey.set(key, outcome.cause)
+      if (outcome.details !== undefined) rejectionDetailsByKey.set(key, outcome.details)
       rejected += 1
       continue
     }
@@ -386,12 +393,14 @@ export async function drainQueueWithAttachments(input: {
       if (sentKeys.has(key)) return []
       const cause = rejectionByKey.get(key)
       if (cause !== undefined) {
+        const details = rejectionDetailsByKey.get(key)
         return [
           {
             attempts: item.attempts,
             createdAt: item.createdAt,
             ...(item.isUnverified === true ? { isUnverified: true as const } : {}),
             rejectionCause: cause,
+            ...(details === undefined ? {} : { rejectionDetails: details }),
             report: item.report,
             ...(item.subHash === undefined ? {} : { subHash: item.subHash }),
           },

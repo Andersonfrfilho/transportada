@@ -18,7 +18,7 @@ import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripRespo
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
 import { shouldSendLateRegistration } from './lateRegistration.service'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
-import { createIdempotencyKey } from './offlineQueue.service'
+import { createIdempotencyKey, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
 const LOCATION_CONSENT_PATH = '/me/location-consent'
@@ -48,14 +48,27 @@ export const DRIVER_TRIP_ERROR = {
 
 export class DriverTripRequestError extends Error {
   public readonly code: string
+  /**
+   * Spec 206 D9/RF8b: o `409 TRIP_HAS_STOP_EN_ROUTE` que o drenar de um item ANTIGO devolve — a
+   * tela não viu a parada a caminho (outro aparelho, ou item enfileirado antes do snapshot). Sem
+   * isto, o motivo/atalho da fila (RF8b) não teria como nomear a parada certa nesse caso — o cálculo
+   * local (`resolveEnRouteStopId`) não sabe do que aconteceu em outro aparelho.
+   */
+  public readonly details: readonly DriverTripErrorDetail[] | undefined
   /** `true` só quando a rede falhou — recusa do servidor é resposta, e resposta não se repete. */
   public readonly isOffline: boolean
   /** O status HTTP da recusa — a tela de pendentes imprime `status + código` como causa legível. */
   public readonly status: number | undefined
 
-  public constructor(input: { code: string; isOffline: boolean; status?: number }) {
+  public constructor(input: {
+    code: string
+    details?: readonly DriverTripErrorDetail[]
+    isOffline: boolean
+    status?: number
+  }) {
     super(input.code)
     this.code = input.code
+    this.details = input.details
     this.isOffline = input.isOffline
     this.status = input.status
     this.name = 'DriverTripRequestError'
@@ -76,7 +89,8 @@ export function toAttachmentSendOutcome(error: unknown): AttachmentSendOutcome {
         ? `${error.status} ${error.code}`
         : error.code
       : 'REQUEST_FAILED'
-  return { cause, kind: 'rejected' }
+  const details = error instanceof DriverTripRequestError ? error.details : undefined
+  return { cause, ...(details === undefined ? {} : { details }), kind: 'rejected' }
 }
 
 type ClientDependencies = Readonly<{
@@ -173,7 +187,8 @@ type JsonFieldReport = Exclude<
   DocumentOccurrenceReport | StopOccurrencePhotoReport | ProofReceiverReport
 >
 
-function reportPath(report: JsonFieldReport): string {
+/** Spec 206: exportada — `stop-departure.contract.ts` prova o caminho de `depart`/`cancelDeparture`. */
+export function reportPath(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/arrive`
@@ -699,8 +714,10 @@ async function request(
    * saiu da sua viagem", e trocá-lo por um genérico apagaria a única explicação que o motorista tem.
    */
   if (!response.ok) {
+    const details = readErrorDetails(payload)
     throw new DriverTripRequestError({
       code: readErrorCode(payload),
+      ...(details === undefined ? {} : { details }),
       isOffline: false,
       status: response.status,
     })
@@ -713,6 +730,21 @@ function readErrorCode(payload: unknown): string {
   if (typeof payload !== 'object' || payload === null) return 'REQUEST_FAILED'
   const error = (payload as { readonly error?: { readonly code?: unknown } }).error
   return typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED'
+}
+
+/** Spec 206 D9: `error.details` — ausente na maioria das recusas, presente no `TRIP_HAS_STOP_EN_ROUTE`. */
+function readErrorDetails(payload: unknown): readonly DriverTripErrorDetail[] | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const error = (payload as { readonly error?: { readonly details?: unknown } }).error
+  if (!Array.isArray(error?.details)) return undefined
+  const details = error.details.filter(
+    (item): item is DriverTripErrorDetail =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as { field?: unknown }).field === 'string' &&
+      typeof (item as { message?: unknown }).message === 'string',
+  )
+  return details.length > 0 ? details : undefined
 }
 
 export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
