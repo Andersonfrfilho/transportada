@@ -58,6 +58,73 @@ o valor do acerto.
 
 **Origem:** spec 164, T29 (revisão final da Fase 7). Registrado em 2026-09-22.
 
+### 2026-09-25 — a ocorrência tem duas conversas: anexo por URL assinada, remetente pelo DKIM, portal por referência opaca (spec 183)
+
+**Onde:**
+
+- `api-transportada`: `occurrence-conversation/` (rotas do operador, do motorista em `/me` e do
+  portal em `/client/me/occurrences/:ref/conversation`) e o webhook do WhatsApp de entrada.
+- `worker-transportada`: e-mail recebido, anexos do e-mail enviado e expurgo de upload vencido.
+- Painel e portal.
+
+**O que é:** três superfícies novas que recebem conteúdo de fora — arquivo, e-mail e WhatsApp da
+contratante, e resposta do motorista — e a identidade de quem escreveu.
+
+**Fechado na revisão (T901/T903):**
+
+1. **Arquivo trocado depois de conferido (S1, `171fe796`).**
+   - O PUT assinado vale 15 min e seguia valendo depois do envio.
+   - Como o anexo apontava para a mesma chave, um PUT tardio do mesmo tamanho trocava os bytes já
+     conferidos. Medido contra o S3 local.
+   - Agora os bytes conferidos são copiados para uma chave final nova, que nenhuma URL alcança, e a
+     chave da subida é apagada.
+2. **`From` forjado aparecia como contato (S2, `28aa50ce`).**
+   - Quem tivesse o endereço de resposta com o token escrevia `From:` de um contato e aparecia com
+     o nome dele e o selo "aprova cobranças".
+   - Agora só o DKIM alinhado com o domínio do `From` casa com o cadastro. Sem ele, a mensagem fica
+     na conversa como "Remetente não confirmado" e não oferece cadastrar o endereço.
+3. **Resposta do motorista sem limite de taxa (S3, `80859e7b`).**
+   - Cada envio podia ler 5 × 25 MB do bucket.
+   - Agora tem balde no Postgres (`driver-occurrence-conversation-send`, 30/300 s), listado no
+     contrato de rotas com limite.
+4. **Aviso automático em paralelo (S4, `9d8b1843`).**
+   - O lote de 50 ocorrências disparava 50 envios de uma vez.
+   - Agora saem em série; o pico é 1.
+
+**Aberto:**
+
+- **O mesmo padrão do S1 existe no upload direto da foto da ocorrência** (spec 179,
+  `trips/application/confirm-occurrence-upload.use-case.ts`). Ficou fora desta spec; foi sugerido
+  como tarefa própria.
+- **O aviso automático à contratante não tem teto próprio por contratante nem por empresa.** Ele é
+  um por ocorrência (idempotente), e registrar ocorrência já tem limite (lote 30/300 s de até 50).
+  Quem tem permissão de registrar ainda consegue gerar muitos e-mails numa janela. Se virar abuso,
+  entra um balde por empresa nos envios automáticos.
+- **Risco aceito: o motorista lê e responde a conversa de viagem já encerrada (S5).** É intencional:
+  a ocorrência costuma se resolver depois da entrega. O alcance segue recortado pela tripulação
+  daquela viagem.
+- **Remetente não confirmado continua na conversa.** A mensagem sem DKIM alinhado não é descartada
+  (pode ser um contato real com domínio mal configurado); ela só não ganha identidade.
+
+**O que continua valendo:**
+
+- Portal:
+  - referência opaca, com UUID recusado;
+  - recorte por `ContractorScope` mais a fronteira da 164;
+  - nenhum id interno nem campo do motorista na resposta;
+  - `microphone=()` e sem câmera.
+- Anexos:
+  - tipos fechados e conferidos pelos bytes;
+  - teto por canal e 25 MB somados no e-mail;
+  - download assinado de 5 min, sempre `attachment`.
+- A chave do objeto é um token de 256 bits, sem empresa, nota nem nome.
+- Logs novos só com ids, códigos e contagens: nenhum telefone, e-mail, corpo, assunto, nome de
+  arquivo nem token.
+- A conversa nunca decide (D4): nada dela escreve em tratativa, cobrança ou acerto
+  (`conversation-never-decides.contract.ts`).
+
+**Origem:** spec 183, T901 (revisão de segurança) e T903. Registrado em 2026-09-25.
+
 ### 2026-09-25 — o microfone passa a ser permitido à própria origem no painel (spec 183 T705)
 
 **Onde:** `frontend-transportada`, `server.ts` (`SECURITY_HEADERS`) e

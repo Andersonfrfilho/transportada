@@ -172,3 +172,19 @@ então usa a janela máxima que o schema de lá aceita (24 h) mais 24 h de folga
 como toda tabela consumida aqui.
 
 Detalhe completo: `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T406.
+
+## A ocorrência tem duas conversas (spec 183, 24–25/09/2026)
+
+- **E-mail recebido vira mensagem da conversa (T702c1).**
+  - O MIME bruto é gravado antes de qualquer interpretação, como na 143.
+  - Os anexos (até 5, sem a parte `inline`) são conferidos pelos bytes e sobem antes da transação,
+    e são descartados quando ela falha ou quando outra entrega já ligou a mensagem.
+  - Aceito para depois (F10): se o 3º anexo falha ao subir, os dois primeiros ficam órfãos no
+    bucket.
+- **Pedido de upload vencido (T702c2).** É a mesma unidade da expiração da 179: `skip locked`, e
+  para ao primeiro erro de storage.
+- **E-mail enviado com anexo (T702e).**
+  - O worker lê os anexos da mensagem e confere tamanho e sha256 antes de mandar ao Resend.
+  - A revisão (F1) achou que o `list()` filtrava as linhas apagadas: o anexo expurgado entre o
+    aceite e o envio sumia da lista, e o e-mail saía **sem o arquivo**, com status `sent`.
+  - Agora o registro traz `available`, e anexo indisponível é falha permanente.

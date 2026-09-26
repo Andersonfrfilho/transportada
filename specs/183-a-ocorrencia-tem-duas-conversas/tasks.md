@@ -203,10 +203,10 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
       usabilidade") de todas as páginas do painel, do PWA e do portal, com as telas rodando.
       Evidência: matriz de capturas, checklist por página e lista de achados com gravidade no
       `evidence.md`.
-- [ ] **T903** Corrigir os achados bloqueantes e importantes da T902, um commit por achado, e
+- [x] **T903** Corrigir os achados bloqueantes e importantes da T902, um commit por achado, e
       refazer a revisão das páginas tocadas. Evidência: cada achado com o commit que o fecha; nenhum
       bloqueante aberto.
-- [ ] **T904** `apps/*/CLAUDE.md`, `docs/ai-context/` e `docs/SECURITY.md` com "A ocorrência tem duas
+- [x] **T904** `apps/*/CLAUDE.md`, `docs/ai-context/` e `docs/SECURITY.md` com "A ocorrência tem duas
       conversas".
 
 ## Prompt de execução
