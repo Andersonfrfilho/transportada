@@ -124,3 +124,51 @@ os cinco commits de documentação trazidos por cherry-pick (commit `f338a7533`)
    95 expect() calls
   Ran 15 tests across 2 files. [17.00ms]
   ```
+
+### T106 — contrato da máquina de status
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `1ffe37c` (`packages/backend/conversation-contracts/src/deliveryStatus.test.ts`).
+- Porta exata da regra de `message-status.policy.ts` da 183: só avança, guarda horário ISO por
+  transição, evento repetido é idempotente (`changed: false`), evento fora de ordem (`read` antes
+  de `delivered`) avança sem inventar o horário que faltou, e falha só vale dentro da janela do
+  canal (`failableUntil`) — falha depois de `delivered` é `stale`.
+- **Decisão registrada no comentário do teste:** o que cada canal alcança vem de
+  `getChannelCapabilities` (T105), não de uma lista duplicada — `read` no e-mail e `sent` no
+  portal são recusados pela mesma tabela que a tela usa (D3). A idempotência por `(canal, id do
+provedor)` é do banco (T202, `unique` da 183); esta função pura nunca vê o id do provedor.
+- **Visto falhar:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+  src/deliveryStatus.test.ts:
+  # Unhandled error between tests
+  error: Cannot find module './deliveryStatus' from '...src/deliveryStatus.test.ts'
+   15 pass
+   1 fail
+   1 error
+  Ran 16 tests across 3 files. [29.00ms]
+  ```
+
+  (os 15 pass são vocabulary.test.ts + channelCapabilities.test.ts, que continuaram verdes.)
+
+### T107 — a máquina de status
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `61487fe` (`packages/backend/conversation-contracts/src/{deliveryStatus.ts,index.ts}`).
+- `advanceDeliveryStatus({ channel, current, event })` — objeto único de parâmetro. Exportada no
+  barrel.
+- **Gate:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-contracts run check
+  (sem saída — 0 erros)
+
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+   23 pass
+   0 fail
+   109 expect() calls
+  Ran 23 tests across 3 files. [17.00ms]
+  ```

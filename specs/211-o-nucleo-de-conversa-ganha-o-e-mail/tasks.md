@@ -49,10 +49,10 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       incluindo as duas linhas que a tela usa para não mentir: `email` não confirma leitura, `portal`
       não grava áudio. (RF2, D3, D4)
 - [x] **T105** `sonnet` — A tabela de capacidades. (RF2)
-- [ ] **T106** `sonnet` — Teste da **máquina de status**: só avança, guarda horário por transição,
+- [x] **T106** `sonnet` — Teste da **máquina de status**: só avança, guarda horário por transição,
       idempotente por `(canal, id do provedor)`, e evento fora de ordem não inventa horário.
       (RF3, D6)
-- [ ] **T107** `sonnet` — A máquina de status. (RF3)
+- [x] **T107** `sonnet` — A máquina de status. (RF3)
 - [ ] **T108** `sonnet` — As portas: `ConversationChannelPort`, `ConversationEmailTransportPort`,
       `ClockPort`, `ObjectStoragePort`, `TranscriberPort` (opcional). Só assinatura. (RF4)
 - [ ] **T109** ⚙️ `haiku` — **Contrato do CA01**: varre o `src/` do pacote e falha se aparecer
