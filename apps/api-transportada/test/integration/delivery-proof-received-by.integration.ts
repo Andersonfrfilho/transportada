@@ -1,0 +1,290 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 193 (ADR-0079 Parte A), contra o Postgres: quem recebeu chega ao comprovante pelos dois
+ * canais. No motorista nada recusa a foto — forma inválida vira nulo e o modo `required` é pendência
+ * (CA03, CA04, CA05, CA07). No escritório, que envia síncrono, forma inválida é 400 e `required` sem
+ * relação é 422 (CA05). O molde é o de `trip-field-office.integration.ts`.
+ */
+import { describe, expect } from 'bun:test'
+import { eq } from 'drizzle-orm'
+
+import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
+import { tripDeliveryProofs } from '../../src/database/trip.schema.js'
+import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
+import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
+import type { DeliveryProofFieldMode } from '../../src/trips/domain/delivery-proof-settings.policy.js'
+import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
+import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
+import { parseDeliveryProofUpload } from '../../src/trips/presentation/delivery-proof.schema.js'
+import {
+  FAKE_ENVELOPE,
+  JPEG_BYTES,
+  fakeContext,
+  linkDriverMembership,
+  multipartRequest,
+  seedCompany,
+  seedDispatchSnapshot,
+  seedStopArrival,
+  seedTrip,
+  testWithPostgres,
+  wireRoutes,
+  withDisposableDatabase,
+  type Company,
+  type SeededTrip,
+  type TestDatabase,
+} from '../fixtures/trip-field-office-database.fixture.js'
+
+type DriverWorld = Readonly<{
+  company: Company
+  database: TestDatabase
+  driver: Readonly<{
+    actorUserId: string
+    companyId: string
+    documentId: string
+    driverId: string
+  }>
+  trip: SeededTrip
+}>
+
+async function seedDeliveredByDriver(
+  database: TestDatabase,
+  receivedBy: DeliveryProofFieldMode,
+): Promise<DriverWorld> {
+  const company = await seedCompany(database)
+  const trip = await seedTrip(database, company, 'in_transit')
+  await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+  await database.db
+    .insert(companyDeliveryProofSettings)
+    .values({ companyId: company.companyId, receivedBy })
+  const driverUserId = await linkDriverMembership(database, company, company.firstDriverId)
+  const driver = {
+    actorUserId: driverUserId,
+    companyId: company.companyId,
+    documentId: trip.documentId,
+    driverId: company.firstDriverId,
+  }
+  await reportDocumentDelivery({
+    ...driver,
+    idempotencyKey: `entrega-${crypto.randomUUID()}`,
+    location: null,
+    now: new Date(),
+    unitOfWork: new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket'),
+  })
+  return { company, database, driver, trip }
+}
+
+/** O multipart que o app manda, lido pela mesma função da rota (`parseDeliveryProofUpload`). */
+async function parseDriverForm(fields: Readonly<Record<string, string>>) {
+  const form = new FormData()
+  form.set('file', new File([JPEG_BYTES], 'canhoto.jpg', { type: 'image/jpeg' }))
+  for (const [name, value] of Object.entries(fields)) form.set(name, value)
+  return parseDeliveryProofUpload(
+    new Request('http://localhost/me/trips/current/documents/x/proof', {
+      body: form,
+      method: 'POST',
+    }),
+  )
+}
+
+async function attachFromDriverForm(
+  world: DriverWorld,
+  fields: Readonly<Record<string, string>>,
+): Promise<{ readonly id: string }> {
+  return attachDeliveryProof({
+    ...world.driver,
+    newObjectId: () => crypto.randomUUID(),
+    newProofId: () => crypto.randomUUID(),
+    now: new Date(),
+    repository: new DrizzleDeliveryProofRepository(world.database.db, 'test-bucket'),
+    sealDocument: async () => FAKE_ENVELOPE,
+    storage: { store: async () => ({ sha256: 'e'.repeat(64) }) },
+    upload: await parseDriverForm(fields),
+  })
+}
+
+async function readProofRows(database: TestDatabase, companyId: string) {
+  return database.db
+    .select({
+      channel: tripDeliveryProofs.channel,
+      kind: tripDeliveryProofs.kind,
+      receivedBy: tripDeliveryProofs.receivedBy,
+      receivedByDetail: tripDeliveryProofs.receivedByDetail,
+      receiverName: tripDeliveryProofs.receiverName,
+    })
+    .from(tripDeliveryProofs)
+    .where(eq(tripDeliveryProofs.companyId, companyId))
+    .orderBy(tripDeliveryProofs.kind)
+}
+
+describe('quem recebeu pela foto do motorista (spec 193 CA03, CA04, CA05, CA07)', () => {
+  testWithPostgres(
+    'grava nome, relação e detalhe na foto; o replay da mesma chave não reescreve',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredByDriver(database, 'optional')
+
+        const first = await attachFromDriverForm(world, {
+          attachmentKey: 'canhoto-1',
+          kind: 'photo',
+          receivedBy: 'neighbor',
+          receivedByDetail: 'casa 12',
+          receiverName: 'Maria de Sousa',
+        })
+        const replay = await attachFromDriverForm(world, {
+          attachmentKey: 'canhoto-1',
+          kind: 'photo',
+          receivedBy: 'doorman',
+          receiverName: 'Outra Pessoa',
+        })
+
+        expect(replay.id).toBe(first.id)
+        expect(await readProofRows(database, world.company.companyId)).toEqual([
+          {
+            channel: 'driver_app',
+            kind: 'photo',
+            receivedBy: 'neighbor',
+            receivedByDetail: 'casa 12',
+            receiverName: 'Maria de Sousa',
+          },
+        ])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'forma inválida nunca recusa: relação fora da lista e detalhe sem relação viram nulo',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredByDriver(database, 'optional')
+
+        await attachFromDriverForm(world, {
+          kind: 'photo',
+          receivedBy: 'cousin',
+          receivedByDetail: 'casa 12',
+          receiverName: 'Maria de Sousa',
+        })
+        await attachFromDriverForm(world, { kind: 'signature', receivedBy: 'other' })
+
+        expect(await readProofRows(database, world.company.companyId)).toEqual([
+          {
+            channel: 'driver_app',
+            kind: 'photo',
+            receivedBy: null,
+            receivedByDetail: null,
+            receiverName: 'Maria de Sousa',
+          },
+          {
+            channel: 'driver_app',
+            kind: 'signature',
+            receivedBy: 'other',
+            receivedByDetail: null,
+            receiverName: '',
+          },
+        ])
+      })
+    },
+  )
+
+  testWithPostgres.each(['off', 'required'] as const)(
+    'com o modo %s, a foto entra e quem recebeu fica nulo',
+    async (mode) => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredByDriver(database, mode)
+
+        await attachFromDriverForm(world, {
+          kind: 'photo',
+          ...(mode === 'off' ? { receivedBy: 'neighbor', receivedByDetail: 'casa 12' } : {}),
+        })
+
+        expect(await readProofRows(database, world.company.companyId)).toMatchObject([
+          { kind: 'photo', receivedBy: null, receivedByDetail: null },
+        ])
+      })
+    },
+  )
+})
+
+describe('quem recebeu pelo canhoto do escritório (spec 193 CA05)', () => {
+  async function seedOfficeDelivery(database: TestDatabase, receivedBy: DeliveryProofFieldMode) {
+    const company = await seedCompany(database)
+    const trip = await seedTrip(database, company, 'in_transit')
+    await seedDispatchSnapshot(database, company, trip, new Date('2026-09-17T08:00:00.000Z'))
+    await seedStopArrival(database, trip, new Date('2026-09-18T08:30:00.000Z'))
+    await database.db
+      .insert(companyDeliveryProofSettings)
+      .values({ companyId: company.companyId, receivedBy })
+    const [, , , , deliverRoute] = wireRoutes(database)
+    const deliver = (fields: Readonly<Record<string, string>>, idempotencyKey: string) =>
+      deliverRoute!.execute({
+        context: fakeContext(company),
+        correlationId: `integration-received-by-${idempotencyKey}`,
+        pathParameters: { id: trip.tripId, documentId: trip.documentId },
+        request: multipartRequest({
+          fields: { deliveredAt: '2026-09-18T09:00:00.000Z', receiverName: 'Ana', ...fields },
+          file: { bytes: JPEG_BYTES, mimeType: 'image/jpeg' },
+          idempotencyKey,
+        }),
+      })
+    return { company, deliver }
+  }
+
+  testWithPostgres('required sem relação é 422 e nada é gravado', async () => {
+    await withDisposableDatabase(async (database) => {
+      const { company, deliver } = await seedOfficeDelivery(database, 'required')
+
+      await expect(deliver({}, 'office-received-by-missing')).rejects.toMatchObject({
+        code: 'TRIP_DELIVERY_PROOF_RECEIVED_BY_REQUIRED',
+        status: 422,
+      })
+      expect(await readProofRows(database, company.companyId)).toEqual([])
+    })
+  })
+
+  testWithPostgres('forma inválida é 400 INVALID_REQUEST no campo', async () => {
+    await withDisposableDatabase(async (database) => {
+      const { company, deliver } = await seedOfficeDelivery(database, 'optional')
+
+      await expect(
+        deliver({ receivedBy: 'cousin' }, 'office-received-by-invalid'),
+      ).rejects.toMatchObject({
+        code: 'INVALID_REQUEST',
+        details: [{ field: 'receivedBy' }],
+        status: 400,
+      })
+      await expect(
+        deliver({ receivedBy: 'other' }, 'office-received-by-no-detail'),
+      ).rejects.toMatchObject({
+        code: 'INVALID_REQUEST',
+        details: [{ field: 'receivedByDetail' }],
+        status: 400,
+      })
+      expect(await readProofRows(database, company.companyId)).toEqual([])
+    })
+  })
+
+  testWithPostgres(
+    'required com relação grava a relação e o detalhe no canhoto (201)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { company, deliver } = await seedOfficeDelivery(database, 'required')
+
+        const response = await deliver(
+          { receivedBy: 'neighbor', receivedByDetail: 'casa 12' },
+          'office-received-by-ok',
+        )
+
+        expect(response.status).toBe(201)
+        expect(await readProofRows(database, company.companyId)).toEqual([
+          {
+            channel: 'office',
+            kind: 'photo',
+            receivedBy: 'neighbor',
+            receivedByDetail: 'casa 12',
+            receiverName: 'Ana',
+          },
+        ])
+      })
+    },
+  )
+})

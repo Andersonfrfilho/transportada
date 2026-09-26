@@ -634,6 +634,8 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         receiverDocumentEnvelope: input.receiverDocumentEnvelope,
         receiverDocumentMasked: input.receiverDocumentMasked,
         receiverName: input.receiverName,
+        receivedBy: input.receivedBy,
+        receivedByDetail: input.receivedByDetail,
         stopEventId: input.eventId,
       })
       .onConflictDoUpdate({

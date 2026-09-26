@@ -282,6 +282,7 @@ error: Cannot find module '../../src/trips/domain/received-by.policy.js'
   - `TripDeliveryProofReceivedByRequiredError`, em `trip-field-office.error.ts`.
 
   A ligação delas na escrita fica para a T3.4.
+
 - Fixtures dos contratos que montam `DeliveryProofFieldSettings` ganham `receivedBy: 'optional'`,
   exigido pelo tipo, sem mudar o que os testes afirmam.
 - Integração:
@@ -310,3 +311,61 @@ regressão.
 
 ⚠️ Um `prettier --write` meu num diretório inteiro reformatou `src/trips/presentation/me-trip.routes.ts`,
 que é WIP da 205. Foi só formatação, sem mudança de código, e o arquivo não entra em commit meu.
+
+### T3.4 — escrita: forma, configuração, nome na foto, lista fechada do escritório e 422
+
+- **Motorista.**
+  - `parseDeliveryProofUpload` lê `receivedBy`/`receivedByDetail` por `normalizeReceivedBy` e nunca
+    recusa.
+  - No `attachDeliveryProof`, `carriesReceiverName` passa a `kind !== 'cargo'`. É a D4, que revê a
+    decisão da spec 156 T6.
+  - Quem recebeu passa por `applyReceivedBySettings` com o modo da nota: `off` descarta; `required`
+    grava nulo, sem recusar.
+  - `saveProof` grava as duas colunas, no `INSERT` e no `buildProofUpsertSet`. A recaptura com chave
+    nova substitui a linha (D12). O replay com a mesma `attachmentKey` devolve a linha sem regravar.
+- **Escritório.**
+  - `receivedBy`/`receivedByDetail` entram na lista fechada do multipart
+    (`office-field-delivery.schema.ts`) por `parseReceivedByStrict`, que responde 400 com `details`.
+  - `resolveOfficeReceivedBy` (`office-delivery-proof.policy.ts`) aplica o modo. `required` sem
+    relação dá 422 `TRIP_DELIVERY_PROOF_RECEIVED_BY_REQUIRED`, dentro da transação da entrega, que
+    desfaz.
+  - `persistOfficeProof` grava as colunas e zera em `cargo`. O `field-proof` de `cargo` não passa
+    pela configuração.
+- **Testes da regra revista.** Dois contratos afirmavam a regra antiga, "a foto do motorista
+  descarta o nome": `driver-trip/delivery-proof.contract.ts` e o `describe` da 156 T6 em
+  `driver-trip/office-field-delivery.contract.ts`. Foram reescritos pela D4, com o motivo no texto do
+  teste.
+- **Casos novos:**
+  - foto com nome, relação e detalhe (CA03);
+  - `cargo` descarta tudo;
+  - `off`/`required` nunca recusam (CA05, motorista);
+  - replay (CA07).
+- **Integração nova** `test/integration/delivery-proof-received-by.integration.ts`, incluída à mão
+  no `test:integration`. Usa o molde do `trip-field-office-database.fixture`, e a foto do motorista
+  passa pelo mesmo `parseDeliveryProofUpload` da rota. Casos:
+  - CA03 + CA07;
+  - CA04: `cousin` + detalhe e `other` sem detalhe gravam normalizados, sem recusa;
+  - CA05 motorista: `off` e `required`;
+  - CA05 escritório: `required` sem relação dá 422 e nada é gravado; `cousin` e `other` sem detalhe
+    dão 400 com `details[].field`; `required` com relação dá 201 e as colunas são gravadas.
+  - Foi pedido o `me-trip.integration.ts` e o `trip-field-office.integration.ts`. Preferi um arquivo
+    próprio para não misturar trechos com o WIP de outras sessões nesses dois.
+
+Vermelho visto antes, rodando os testes novos sobre o código do HEAD (`aea832135`):
+
+```
+driver-trip.contract.test.ts                     → 106 pass, 5 fail (os 5 casos novos/revistos)
+delivery-proof-received-by.integration.ts         → 2 pass, 5 fail
+```
+
+Depois:
+
+```
+$ bunx tsc --noEmit -p apps/api-transportada   → sem erros
+$ bun run lint (api)                            → sem erros
+$ bun --env-file=../../.env.test test --timeout 120000              → 7485 pass, 23 skip, 0 fail
+$ bun --env-file=../../.env.test test ./test/integration/{me-trip,trip-field-office,trip-field-office-review,
+    trip-field-office-router,canhoto-ocr-flag,driver-score,delivery-proof-received-by}.integration.ts
+  77 pass, 1 fail — o "allowed-actions … recorte" de trip-field-office estourou 30 s (load 8,5);
+  isolado: trip-field-office 25 pass / 0 fail, router + review 20 pass / 0 fail
+```

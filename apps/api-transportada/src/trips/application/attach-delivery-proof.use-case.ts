@@ -4,7 +4,10 @@
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
-import type { TripDeliveryProofKind } from '../../database/trip.schema.js'
+import {
+  TRIP_DELIVERY_PROOF_CARGO_KIND,
+  type TripDeliveryProofKind,
+} from '../../database/trip.schema.js'
 import {
   classifyProofPunctuality,
   mergeProofPunctuality,
@@ -30,6 +33,11 @@ import {
 } from '../domain/trip.error.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { PHOTO_PROOF_KIND } from '../domain/delivery-event.constant.js'
+import {
+  applyReceivedBySettings,
+  EMPTY_RECEIVED_BY,
+  type ReceivedByFields,
+} from '../domain/received-by.policy.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -62,7 +70,12 @@ export type DeliveryProofUpload = {
    * caso de fábrica; ele só entra quando a configuração resolvida da empresa o aceita.
    */
   readonly receiverDocument: string
-  /** Nome de quem recebeu, na assinatura. */
+  /**
+   * Spec 193 D1/D2: quem recebeu, já na forma tolerante (`normalizeReceivedBy`). Ausente é o
+   * comprovante sem o dado — nunca recusa (C1).
+   */
+  readonly receivedBy?: ReceivedByFields
+  /** Nome de quem recebeu — na assinatura e, desde a spec 193 D4, também na foto do canhoto. */
   readonly receiverName: string
 }
 
@@ -142,6 +155,9 @@ export type DeliveryProofPort = {
     readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
     readonly receiverDocumentMasked: string
     readonly receiverName: string
+    /** Spec 193 D3: só em `photo`/`signature`; nulo na foto da carga. */
+    readonly receivedBy: ReceivedByFields['receivedBy']
+    readonly receivedByDetail: string | null
     readonly sha256: string
     readonly sizeBytes: number
   }): Promise<{ readonly id: string }>
@@ -249,12 +265,18 @@ export async function attachDeliveryProof(
       ? null
       : await input.sealDocument({ companyId: input.companyId, proofId, receiverDocument })
   /**
-   * ADR-0067 §5 (emenda 2026-09-18): o canhoto do escritório é sempre `kind: 'photo'`, e é o único
-   * caso em que uma foto carrega `receiverName` — quem assina é o recebedor, não o escritório, e
-   * `receiverName` é como ele cumpre a exigência de assinatura sem colhê-la (D8). O CHECK do banco
-   * (`trip_delivery_proofs_receiver_check`) foi relaxado para `channel = 'office'` na mesma migration.
+   * Spec 193 D4 (revisa a ADR-0067 §5, emenda 2026-09-18): o nome e quem recebeu vão em qualquer
+   * tipo menos a foto da carga — o motorista que só fotografa o canhoto não perde o nome digitado.
+   * D5: a configuração da nota decide (`off` descarta); no motorista `required` nunca recusa.
    */
-  const carriesReceiverName = isSignature || authorship.channel === TRIP_FIELD_CHANNELS.office
+  const carriesReceiverName = input.upload.kind !== TRIP_DELIVERY_PROOF_CARGO_KIND
+  const receiver = carriesReceiverName
+    ? applyReceivedBySettings({
+        channel: authorship.channel,
+        mode: settings.receivedBy,
+        value: input.upload.receivedBy ?? EMPTY_RECEIVED_BY,
+      })
+    : EMPTY_RECEIVED_BY
 
   const proof = await input.repository.saveProof({
     accuracyMeters: input.upload.position?.accuracyMeters?.toFixed(2) ?? null,
@@ -276,6 +298,8 @@ export async function attachDeliveryProof(
     receiverDocumentEnvelope,
     receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
     receiverName: carriesReceiverName ? input.upload.receiverName : '',
+    receivedBy: receiver.receivedBy,
+    receivedByDetail: receiver.receivedByDetail,
     sha256: stored.sha256,
     sizeBytes: input.upload.bytes.byteLength,
   })

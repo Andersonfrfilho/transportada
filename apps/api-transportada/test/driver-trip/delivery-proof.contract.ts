@@ -165,13 +165,76 @@ describe('o comprovante da entrega', () => {
     expect(world.saved[0]?.receiverName).toBe('Maria de Sousa')
   })
 
-  /** Foto de canhoto não tem quem assine: o nome que viesse junto seria dado pessoal sem função. */
-  it('a foto descarta o nome, mesmo se ele vier no formulário', async () => {
+  /**
+   * Spec 193 D4 (revisa a ADR-0067 §5, emenda 2026-09-18): o motorista que só fotografa o canhoto
+   * não perde o nome digitado — nem quem recebeu (CA03). A foto da carga é a única que descarta.
+   */
+  it('a foto do canhoto guarda nome, relação e detalhe (CA03)', async () => {
     const world = buildWorld()
 
-    await attachDeliveryProof(buildInput(world, { kind: 'photo', receiverName: 'Maria de Sousa' }))
+    await attachDeliveryProof(
+      buildInput(world, {
+        kind: 'photo',
+        receivedBy: { receivedBy: 'neighbor', receivedByDetail: 'casa 12' },
+        receiverName: 'Maria de Sousa',
+      }),
+    )
 
-    expect(world.saved[0]?.receiverName).toBe('')
+    expect(world.saved[0]).toMatchObject({
+      receivedBy: 'neighbor',
+      receivedByDetail: 'casa 12',
+      receiverName: 'Maria de Sousa',
+    })
+  })
+
+  it('a foto da carga descarta nome e quem recebeu, mesmo se vierem no formulário', async () => {
+    const world = buildWorld()
+
+    await attachDeliveryProof(
+      buildInput(world, {
+        kind: 'cargo',
+        receivedBy: { receivedBy: 'neighbor', receivedByDetail: 'casa 12' },
+        receiverName: 'Maria de Sousa',
+      }),
+    )
+
+    expect(world.saved[0]).toMatchObject({
+      receivedBy: null,
+      receivedByDetail: null,
+      receiverName: '',
+    })
+  })
+
+  /** Spec 193 D5 (CA05): `off` descarta; `required` sem relação no motorista grava nulo, sem recusa. */
+  it.each([
+    ['off', { receivedBy: 'neighbor', receivedByDetail: 'casa 12' }],
+    ['required', { receivedBy: null, receivedByDetail: null }],
+  ] as const)('o modo %s nunca recusa a foto do motorista', async (mode, receivedBy) => {
+    const world = buildWorld()
+    const resolve = world.repository.resolveProofFieldSettings
+    world.repository.resolveProofFieldSettings = async (query) => ({
+      ...(await resolve(query)),
+      receivedBy: mode,
+    })
+
+    await attachDeliveryProof(buildInput(world, { kind: 'photo', receivedBy }))
+
+    expect(world.saved[0]).toMatchObject({ receivedBy: null, receivedByDetail: null })
+  })
+
+  /** Spec 193 D12 (CA07): o replay com a mesma chave devolve a linha e não reescreve nada. */
+  it('o replay com a mesma attachmentKey não regrava quem recebeu', async () => {
+    const world = buildWorld({ existingProofByKey: { 'chave-1': 'not_required' } })
+
+    const replay = await attachDeliveryProof(
+      buildInput(world, {
+        attachmentKey: 'chave-1',
+        receivedBy: { receivedBy: 'doorman', receivedByDetail: null },
+      }),
+    )
+
+    expect(replay.id).toBe('proof-existing')
+    expect(world.saved).toEqual([])
   })
 
   /**

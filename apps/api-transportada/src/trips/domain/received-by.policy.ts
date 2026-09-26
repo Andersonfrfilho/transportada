@@ -15,7 +15,7 @@ export type ReceivedByFields = {
   readonly receivedByDetail: string | null
 }
 
-const EMPTY_RECEIVED_BY: ReceivedByFields = { receivedBy: null, receivedByDetail: null }
+export const EMPTY_RECEIVED_BY: ReceivedByFields = { receivedBy: null, receivedByDetail: null }
 
 export function applyReceivedBySettings(input: {
   readonly channel: TripFieldChannel

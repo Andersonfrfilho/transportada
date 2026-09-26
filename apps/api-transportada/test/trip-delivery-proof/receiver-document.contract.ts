@@ -281,6 +281,8 @@ describe('o upsert do comprovante (spec 082 — revisão, item 4)', () => {
     objectId: OBJECT_ID,
     objectKey: 'object-key',
     punctuality: 'not_required' as const,
+    receivedBy: null,
+    receivedByDetail: null,
     receiverDocumentMasked: '',
     receiverName: 'Maria de Sousa',
     sha256: 'a'.repeat(64),

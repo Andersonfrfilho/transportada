@@ -4,6 +4,7 @@
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type {
+  ReceivedBy,
   TripDeliveryProofKind,
   TripDeliveryProofPunctuality,
   TripDocumentSeparationStatus,
@@ -218,6 +219,9 @@ export type DriverFieldReportTransactionPort = {
     readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
     readonly receiverDocumentMasked: string
     readonly receiverName: string
+    /** Spec 193 D3: quem recebeu, já com a configuração aplicada; nulo na foto da carga. */
+    readonly receivedBy: ReceivedBy | null
+    readonly receivedByDetail: string | null
     readonly sha256: string
     readonly sizeBytes: number
   }): Promise<{ readonly id: string }>

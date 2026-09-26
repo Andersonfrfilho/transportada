@@ -9,10 +9,14 @@ import { parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import { DRIVER_PROOF_KINDS, type DriverProofKind } from '../domain/delivery-event.constant.js'
 import type { ProofPosition } from '../domain/delivery-proof-punctuality.policy.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
+import { normalizeReceivedBy } from './received-by.schema.js'
 
 const FILE_FIELD = 'file'
 const KIND_FIELD = 'kind'
 const RECEIVER_FIELD = 'receiverName'
+/** Spec 193 D2: quem recebeu e o detalhe, lidos pela forma tolerante. */
+const RECEIVED_BY_FIELD = 'receivedBy'
+const RECEIVED_BY_DETAIL_FIELD = 'receivedByDetail'
 /** ADR-0057 §3: o documento só entra quando a configuração da empresa pede — quem decide é o caso de uso. */
 const RECEIVER_DOCUMENT_FIELD = 'receiverDocument'
 /** Spec 082 (revisão, item 5): chave de idempotência opcional do anexo. */
@@ -144,6 +148,11 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
     mimeType: file.type,
     position: location.position,
     receiverDocument: parseReceiverDocument(form.get(RECEIVER_DOCUMENT_FIELD)),
+    /** Spec 193 D2: a forma tolerante — o anexo do motorista nunca é recusado por quem recebeu. */
+    receivedBy: normalizeReceivedBy({
+      receivedBy: form.get(RECEIVED_BY_FIELD),
+      receivedByDetail: form.get(RECEIVED_BY_DETAIL_FIELD),
+    }),
     receiverName: typeof receiverName === 'string' ? receiverName : '',
   }
 }

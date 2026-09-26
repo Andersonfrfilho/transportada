@@ -19,6 +19,7 @@ import {
   tripStopEvents,
   TRIP_DELIVERY_PROOF_CARGO_KIND,
   trips,
+  type ReceivedBy,
   type TripDeliveryProofKind,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
@@ -313,6 +314,8 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
           receiverDocumentEnvelope: input.receiverDocumentEnvelope,
           receiverDocumentMasked: input.receiverDocumentMasked,
           receiverName: input.receiverName,
+          receivedBy: input.receivedBy,
+          receivedByDetail: input.receivedByDetail,
           stopEventId: input.eventId,
         })
         /**
@@ -371,6 +374,9 @@ type SaveProofInput = {
   readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
   readonly receiverDocumentMasked: string
   readonly receiverName: string
+  /** Spec 193 D3/D12: a recaptura do mesmo tipo substitui a linha — relação e detalhe inclusive. */
+  readonly receivedBy: ReceivedBy | null
+  readonly receivedByDetail: string | null
   readonly sha256: string
   readonly sizeBytes: number
 }
@@ -400,6 +406,8 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     objectId: input.objectId,
     onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
     punctuality: input.punctuality,
+    receivedBy: input.receivedBy,
+    receivedByDetail: input.receivedByDetail,
     receiverName: input.receiverName,
   }
   /** O AAD do envelope preservado está amarrado ao `id` antigo — o id fica junto com ele. */

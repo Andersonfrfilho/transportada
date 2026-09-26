@@ -10,11 +10,33 @@ import {
   TripDeliveryProofDocumentNotAcceptedError,
   TripDeliveryProofPhotoRequiredError,
 } from './trip.error.js'
+import {
+  applyReceivedBySettings,
+  EMPTY_RECEIVED_BY,
+  type ReceivedByFields,
+} from './received-by.policy.js'
+import { TRIP_FIELD_CHANNELS } from './trip-field-channel.constant.js'
 import { TripDeliveryProofReceiverNameRequiredError } from './trip-field-office.error.js'
 
 export type OfficeProofReceiver = {
+  readonly receivedBy?: ReceivedByFields
   readonly receiverDocument: string
   readonly receiverName: string
+}
+
+/**
+ * Spec 193 D5: quem recebeu no canhoto do escritório — `off` descarta, `required` sem relação é 422
+ * `TRIP_DELIVERY_PROOF_RECEIVED_BY_REQUIRED` (o escritório envia síncrono e vê o erro no campo).
+ */
+export function resolveOfficeReceivedBy(input: {
+  readonly receiver: OfficeProofReceiver
+  readonly settings: DeliveryProofFieldSettings
+}): ReceivedByFields {
+  return applyReceivedBySettings({
+    channel: TRIP_FIELD_CHANNELS.office,
+    mode: input.settings.receivedBy,
+    value: input.receiver.receivedBy ?? EMPTY_RECEIVED_BY,
+  })
 }
 
 /**

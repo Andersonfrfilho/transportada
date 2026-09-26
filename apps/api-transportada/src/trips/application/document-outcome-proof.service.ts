@@ -10,7 +10,10 @@ import {
   REQUIRED_PROOF_FIELD_MODE,
 } from '../domain/delivery-event.constant.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
-import { assertOfficeProofMeetsSettings } from '../domain/office-delivery-proof.policy.js'
+import {
+  assertOfficeProofMeetsSettings,
+  resolveOfficeReceivedBy,
+} from '../domain/office-delivery-proof.policy.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
 import type { FieldAuthorship } from './field-trip-target.types.js'
 import { assertOfficeUploadAccepted, persistOfficeProof } from './office-delivery-proof.service.js'
@@ -59,6 +62,7 @@ export async function persistDeliveryProof(input: {
   assertOfficeProofMeetsSettings({ receiver: upload, settings: input.settings })
   if (upload === null) return null
   assertOfficeUploadAccepted(upload)
+  const receivedBy = resolveOfficeReceivedBy({ receiver: upload, settings: input.settings })
 
   const persisted = await persistOfficeProof({
     actorUserId: input.actorUserId,
@@ -70,7 +74,7 @@ export async function persistDeliveryProof(input: {
     kind: PHOTO_PROOF_KIND,
     storage: input.storage,
     transaction: input.transaction,
-    upload,
+    upload: { ...upload, receivedBy },
   })
   return persisted.id
 }
