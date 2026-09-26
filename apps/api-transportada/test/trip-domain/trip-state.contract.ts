@@ -228,8 +228,9 @@ describe('trip document transitions (ADR-0043 §1)', () => {
   })
 
   test('answers every cell of the action × document status × trip status grid', () => {
-    // 4 ações × 5 estados de nota × 9 estados de viagem = 180 arestas, e nenhuma pode ficar sem
-    // resposta. É a rede que pega a aresta que ninguém pensou em nomear.
+    // 4 ações × 5 estados de nota × 10 estados de viagem (spec 216: + awaiting_crew) = 200
+    // arestas, e nenhuma pode ficar sem resposta. É a rede que pega a aresta que ninguém pensou
+    // em nomear.
     let cells = 0
     for (const action of DOCUMENT_ACTIONS) {
       for (const documentStatus of TRIP_DOCUMENT_SEPARATION_STATUSES) {
@@ -246,7 +247,7 @@ describe('trip document transitions (ADR-0043 §1)', () => {
         }
       }
     }
-    expect(cells).toBe(180)
+    expect(cells).toBe(200)
   })
 })
 
@@ -323,7 +324,70 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         }
       }
     }
-    expect(cells).toBe(108)
+    expect(cells).toBe(140)
+  })
+
+  /**
+   * Spec 216: `awaiting_crew` só sai por duas portas — definir a tripulação (vira `draft`) ou
+   * cancelar. Toda outra ação manual é recusada com o mesmo motivo, nunca deriva silenciosamente
+   * um `hasRoute` que a viagem sem tripulação nem deveria ter.
+   */
+  test('awaiting_crew only leaves through defineCrew or cancel', () => {
+    for (const action of [
+      TRIP_ACTION.planRoute,
+      TRIP_ACTION.dispatch,
+      TRIP_ACTION.confirmLoad,
+      TRIP_ACTION.startRoute,
+      TRIP_ACTION.close,
+    ] as const) {
+      for (const hasRoute of [true, false]) {
+        expect(checkTripTransition({ action, hasRoute, tripStatus: 'awaiting_crew' })).toEqual({
+          outcome: 'blocked',
+          reason: TRIP_TRANSITION_BLOCK.tripCrewNotDefined,
+        })
+      }
+    }
+
+    expect(
+      checkTripTransition({
+        action: TRIP_ACTION.defineCrew,
+        hasRoute: false,
+        tripStatus: 'awaiting_crew',
+      }),
+    ).toEqual({ outcome: 'applied', nextStatus: 'draft' })
+
+    expect(
+      checkTripTransition({
+        action: TRIP_ACTION.cancel,
+        hasRoute: false,
+        tripStatus: 'awaiting_crew',
+      }),
+    ).toEqual({ outcome: 'applied', nextStatus: 'cancelled' })
+  })
+
+  /** defineCrew só faz sentido enquanto falta tripulação — em qualquer outro status, é 409. */
+  test('defineCrew only applies to awaiting_crew, and respects the terminal statuses', () => {
+    for (const tripStatus of ['draft', ...WAREHOUSE_STATUSES, ...DISPATCHED_STATUSES] as const) {
+      expect(
+        checkTripTransition({ action: TRIP_ACTION.defineCrew, hasRoute: false, tripStatus }),
+      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined })
+    }
+
+    expect(
+      checkTripTransition({
+        action: TRIP_ACTION.defineCrew,
+        hasRoute: false,
+        tripStatus: 'cancelled',
+      }),
+    ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled })
+
+    expect(
+      checkTripTransition({
+        action: TRIP_ACTION.defineCrew,
+        hasRoute: false,
+        tripStatus: 'completed',
+      }),
+    ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted })
   })
 
   // spec 158 T12 (PERGUNTAS-ABERTAS #28): `close` sai da máquina de estados, não de um `if` solto —

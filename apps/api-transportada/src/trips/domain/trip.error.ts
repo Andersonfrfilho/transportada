@@ -180,6 +180,8 @@ const TRIP_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlock, strin
   TRIP_ALREADY_DISPATCHED: 'The cargo already left: a dispatched trip no longer accepts changes.',
   TRIP_CANCELLED: 'A cancelled trip no longer accepts changes.',
   TRIP_COMPLETED: 'A completed trip no longer accepts changes.',
+  TRIP_CREW_ALREADY_DEFINED: 'The trip crew was already defined; this only applies once.',
+  TRIP_CREW_NOT_DEFINED: 'The trip has no driver or vehicle defined yet.',
   TRIP_DOCUMENT_ALREADY_CLOSED: 'The document was already delivered or returned.',
   TRIP_DOCUMENT_NOT_LOADED: 'Only a loaded document can be delivered or returned.',
   TRIP_DOCUMENT_NOT_SEPARATED: 'Only a separated document can be loaded.',
