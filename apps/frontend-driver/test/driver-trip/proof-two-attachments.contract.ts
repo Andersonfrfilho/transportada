@@ -32,7 +32,9 @@ describe('a foto do canhoto e a assinatura têm miniatura, chave e lightbox pró
   it('duas instâncias de usePhotoPreviewUrl — uma por kind, nunca uma compartilhada', () => {
     const section = proofSection()
     expect(section.match(/usePhotoPreviewUrl\(\)/gu)).toHaveLength(2)
-    expect(section).toContain('const previewByKind = { photo: photoPreview, signature: signaturePreview }')
+    expect(section).toContain(
+      'const previewByKind = { photo: photoPreview, signature: signaturePreview }',
+    )
   })
 
   it('attach() escreve na miniatura do próprio kind, nunca numa "photoPreview" única', () => {
@@ -48,7 +50,7 @@ describe('a foto do canhoto e a assinatura têm miniatura, chave e lightbox pró
 
   it('handleRemove recebe o kind e apaga só aquele anexo', () => {
     const section = proofSection()
-    expect(section).toContain('function handleRemove(kind: \'photo\' | \'signature\'): void')
+    expect(section).toContain("function handleRemove(kind: 'photo' | 'signature'): void")
     expect(section).toContain('const key = attachedKey[kind]')
     expect(section).not.toContain('setAttached({ photo: false, signature: false })')
   })
@@ -62,7 +64,7 @@ describe('a foto do canhoto e a assinatura têm miniatura, chave e lightbox pró
   it('o lightbox abre pelo kind clicado (openImageKind), nunca por um estado global', () => {
     const section = proofSection()
     expect(section).toContain(
-      "openImageKind !== undefined && previewByKind[openImageKind].previewUrl !== undefined",
+      'openImageKind !== undefined && previewByKind[openImageKind].previewUrl !== undefined',
     )
   })
 })

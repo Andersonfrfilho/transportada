@@ -238,7 +238,9 @@ async function seedConfirmedUpload(database: TestDatabase, world: World): Promis
 
   const storage = createNfeStorageGateway({
     finalBucket: bucket,
-    provider: createInMemoryObjectStorageProvider({ maxObjectSizeBytes: OCCURRENCE_PHOTO_MAX_BYTES }),
+    provider: createInMemoryObjectStorageProvider({
+      maxObjectSizeBytes: OCCURRENCE_PHOTO_MAX_BYTES,
+    }),
     stagingBucket: bucket,
   })
   await storage.storeObject({

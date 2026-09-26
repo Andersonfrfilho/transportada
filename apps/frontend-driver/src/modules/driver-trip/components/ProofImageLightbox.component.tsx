@@ -40,7 +40,10 @@ export function ProofImageLightbox({ alt, onClose, src }: ProofImageLightboxProp
     window.addEventListener('popstate', handlePopState)
     return () => {
       window.removeEventListener('popstate', handlePopState)
-      if ((window.history.state as { proofImageLightbox?: boolean } | null)?.proofImageLightbox === true) {
+      if (
+        (window.history.state as { proofImageLightbox?: boolean } | null)?.proofImageLightbox ===
+        true
+      ) {
         window.history.back()
       }
     }

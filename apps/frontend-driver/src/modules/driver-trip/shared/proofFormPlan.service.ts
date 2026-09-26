@@ -216,8 +216,7 @@ export function buildReceiverFields(input: ReceiverFieldsInput): ReceiverFields 
  */
 export function listAllPendingFields(input: {
   readonly plan: ProofFormPlan
-  readonly values: ProofFormValues &
-    Readonly<{ receivedBy: string; receivedByDetail: string }>
+  readonly values: ProofFormValues & Readonly<{ receivedBy: string; receivedByDetail: string }>
 }): readonly (ProofFieldKey | ReceiverFieldKey)[] {
   return [
     ...listMissingProofFields({ plan: input.plan, values: input.values }),

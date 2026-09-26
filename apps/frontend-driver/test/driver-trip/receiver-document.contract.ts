@@ -35,9 +35,9 @@ function readComponentSource(): string {
 describe('o documento de quem recebeu aparece sempre (spec 207)', () => {
   it('rendersReceiverDocument é true mesmo com a configuração off — o campo nunca some', () => {
     expect(resolveProofFormPlan(null).rendersReceiverDocument).toBe(true)
-    expect(resolveProofFormPlan(settings({ receiverDocument: 'off' })).rendersReceiverDocument).toBe(
-      true,
-    )
+    expect(
+      resolveProofFormPlan(settings({ receiverDocument: 'off' })).rendersReceiverDocument,
+    ).toBe(true)
     expect(
       resolveProofFormPlan(settings({ receiverDocument: 'required' })).rendersReceiverDocument,
     ).toBe(true)

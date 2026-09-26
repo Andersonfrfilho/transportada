@@ -56,10 +56,7 @@ import {
   resolveProofFormPlan,
   type ProofFieldKey,
 } from '../shared/proofFormPlan.service'
-import {
-  RECEIVED_BY_DETAIL_MAX_LENGTH,
-  RECEIVED_BY_OPTIONS,
-} from '../shared/receivedBy.constant'
+import { RECEIVED_BY_DETAIL_MAX_LENGTH, RECEIVED_BY_OPTIONS } from '../shared/receivedBy.constant'
 import { isSignatureCaptureSupported } from '../shared/signatureCapture.service'
 import styles from '../styles/driverTrip.module.css'
 
@@ -1053,9 +1050,7 @@ export function DeliveryProofSection({
       },
     })
     if (pending.length > 0) {
-      const fieldsText = pending
-        .map((field) => t(`proofFields.missing.${field}`))
-        .join(', ')
+      const fieldsText = pending.map((field) => t(`proofFields.missing.${field}`)).join(', ')
       if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
     }
     setConcludedAt(new Date().toISOString())
@@ -1203,128 +1198,128 @@ export function DeliveryProofSection({
           ) : null}
 
           {/*
-       * Spec 193 D7: "Quem recebeu" vem depois da captura — a foto nunca espera por este bloco
-       * (C1). Botão rápido, select compacto (R1) e "Detalhes"; nome e documento seguem abaixo.
-       */}
-      {plan.rendersReceivedBy ? (
-        <div className={styles.proofSection}>
+           * Spec 193 D7: "Quem recebeu" vem depois da captura — a foto nunca espera por este bloco
+           * (C1). Botão rápido, select compacto (R1) e "Detalhes"; nome e documento seguem abaixo.
+           */}
+          {plan.rendersReceivedBy ? (
+            <div className={styles.proofSection}>
+              <label className={styles.proofField}>
+                <span>
+                  {t('proofFields.receivedBy')}
+                  {plan.fields.receivedBy === 'required' ? ' *' : ''}
+                </span>
+                <Select
+                  ariaLabel={t('proofFields.receivedBy')}
+                  clearable
+                  onChange={(value) => {
+                    setReceivedBy(value)
+                    if (
+                      value === 'recipient' &&
+                      plan.rendersRecipientShortcut &&
+                      (recipientDisplayName ?? '') !== ''
+                    ) {
+                      fillNameWithRecipient()
+                      return
+                    }
+                    pushLateFieldUpdate({ receivedBy: value })
+                  }}
+                  options={RECEIVED_BY_OPTIONS.map((option) => ({
+                    label: t(`proofFields.receivedByOption.${option}`),
+                    value: option,
+                  }))}
+                  placeholder={t('proofFields.receivedByPlaceholder')}
+                  value={receivedBy}
+                />
+                {pendingReceiverFields.includes('receivedBy') ? (
+                  <span className={styles.proofFieldError} role="status">
+                    {t('proofFields.pendingReceivedBy')}
+                  </span>
+                ) : null}
+              </label>
+              <label className={styles.proofField}>
+                <span>{t('proofFields.receivedByDetail')}</span>
+                <input
+                  maxLength={RECEIVED_BY_DETAIL_MAX_LENGTH}
+                  onBlur={() => pushLateFieldUpdate()}
+                  onChange={(event) => setReceivedByDetail(event.target.value)}
+                  placeholder={t(
+                    receivedBy === 'neighbor'
+                      ? 'proofFields.receivedByDetailPlaceholderNeighbor'
+                      : 'proofFields.receivedByDetailPlaceholder',
+                  )}
+                  type="text"
+                  value={receivedByDetail}
+                />
+                {pendingReceiverFields.includes('receivedByDetail') ? (
+                  <span className={styles.proofFieldError} role="status">
+                    {t('proofFields.pendingReceivedByDetail')}
+                  </span>
+                ) : null}
+              </label>
+            </div>
+          ) : null}
+
+          {plan.rendersReceiverName ? (
+            <label className={styles.proofField}>
+              <span>
+                {t('proofFields.receiverName')}
+                {plan.fields.receiverName === 'required' ? ' *' : ''}
+              </span>
+              <input
+                aria-invalid={missing.includes('receiverName')}
+                maxLength={120}
+                ref={nameInputRef}
+                type="text"
+                value={receiverName}
+                onBlur={() => pushLateFieldUpdate()}
+                onChange={(event) => {
+                  setReceiverName(event.target.value)
+                  setMissing((current) => current.filter((field) => field !== 'receiverName'))
+                }}
+              />
+              {missing.includes('receiverName') ? (
+                <span className={styles.proofFieldError} role="status">
+                  {t('proofFields.pendingField')}
+                </span>
+              ) : null}
+            </label>
+          ) : null}
+          {/*
+           * Pedido do usuário (25/09, spec 207): o documento aparece SEMPRE, como opcional por
+           * padrão — "off"/"optional" nunca escondem o campo, só "required" muda o rótulo/pendência
+           * (`resolveProofFormPlan`: `rendersReceiverDocument` é sempre `true`). Sem inputMode numeric:
+           * CNPJ e RG podem ter letra, e o teclado numérico do celular a esconde.
+           */}
           <label className={styles.proofField}>
             <span>
-              {t('proofFields.receivedBy')}
-              {plan.fields.receivedBy === 'required' ? ' *' : ''}
+              {t('proofFields.receiverDocument')}
+              {plan.fields.receiverDocument === 'required' ? ' *' : ''}
             </span>
-            <Select
-              ariaLabel={t('proofFields.receivedBy')}
-              clearable
-              onChange={(value) => {
-                setReceivedBy(value)
-                if (
-                  value === 'recipient' &&
-                  plan.rendersRecipientShortcut &&
-                  (recipientDisplayName ?? '') !== ''
-                ) {
-                  fillNameWithRecipient()
-                  return
-                }
-                pushLateFieldUpdate({ receivedBy: value })
-              }}
-              options={RECEIVED_BY_OPTIONS.map((option) => ({
-                label: t(`proofFields.receivedByOption.${option}`),
-                value: option,
-              }))}
-              placeholder={t('proofFields.receivedByPlaceholder')}
-              value={receivedBy}
-            />
-            {pendingReceiverFields.includes('receivedBy') ? (
-              <span className={styles.proofFieldError} role="status">
-                {t('proofFields.pendingReceivedBy')}
-              </span>
-            ) : null}
-          </label>
-          <label className={styles.proofField}>
-            <span>{t('proofFields.receivedByDetail')}</span>
             <input
-              maxLength={RECEIVED_BY_DETAIL_MAX_LENGTH}
-              onBlur={() => pushLateFieldUpdate()}
-              onChange={(event) => setReceivedByDetail(event.target.value)}
-              placeholder={t(
-                receivedBy === 'neighbor'
-                  ? 'proofFields.receivedByDetailPlaceholderNeighbor'
-                  : 'proofFields.receivedByDetailPlaceholder',
-              )}
+              aria-invalid={missing.includes('receiverDocument')}
+              autoCapitalize="characters"
+              maxLength={18}
               type="text"
-              value={receivedByDetail}
+              value={receiverDocument}
+              onBlur={() => pushLateFieldUpdate()}
+              onChange={(event) => {
+                setReceiverDocument(maskReceiverDocument(event.target.value))
+                setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
+              }}
             />
-            {pendingReceiverFields.includes('receivedByDetail') ? (
+            {missing.includes('receiverDocument') ? (
               <span className={styles.proofFieldError} role="status">
-                {t('proofFields.pendingReceivedByDetail')}
+                {t('proofFields.pendingField')}
               </span>
             ) : null}
           </label>
-        </div>
-      ) : null}
 
-      {plan.rendersReceiverName ? (
-        <label className={styles.proofField}>
-          <span>
-            {t('proofFields.receiverName')}
-            {plan.fields.receiverName === 'required' ? ' *' : ''}
-          </span>
-          <input
-            aria-invalid={missing.includes('receiverName')}
-            maxLength={120}
-            ref={nameInputRef}
-            type="text"
-            value={receiverName}
-            onBlur={() => pushLateFieldUpdate()}
-            onChange={(event) => {
-              setReceiverName(event.target.value)
-              setMissing((current) => current.filter((field) => field !== 'receiverName'))
-            }}
-          />
-          {missing.includes('receiverName') ? (
-            <span className={styles.proofFieldError} role="status">
-              {t('proofFields.pendingField')}
-            </span>
-          ) : null}
-        </label>
-      ) : null}
-      {/*
-       * Pedido do usuário (25/09, spec 207): o documento aparece SEMPRE, como opcional por
-       * padrão — "off"/"optional" nunca escondem o campo, só "required" muda o rótulo/pendência
-       * (`resolveProofFormPlan`: `rendersReceiverDocument` é sempre `true`). Sem inputMode numeric:
-       * CNPJ e RG podem ter letra, e o teclado numérico do celular a esconde.
-       */}
-      <label className={styles.proofField}>
-        <span>
-          {t('proofFields.receiverDocument')}
-          {plan.fields.receiverDocument === 'required' ? ' *' : ''}
-        </span>
-        <input
-          aria-invalid={missing.includes('receiverDocument')}
-          autoCapitalize="characters"
-          maxLength={18}
-          type="text"
-          value={receiverDocument}
-          onBlur={() => pushLateFieldUpdate()}
-          onChange={(event) => {
-            setReceiverDocument(maskReceiverDocument(event.target.value))
-            setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
-          }}
-        />
-        {missing.includes('receiverDocument') ? (
-          <span className={styles.proofFieldError} role="status">
-            {t('proofFields.pendingField')}
-          </span>
-        ) : null}
-      </label>
-
-      <div className={styles.actions}>
-        <Button onClick={handleComplete} type="button">
-          <Icon name="check" />
-          {t('proofFields.complete')}
-        </Button>
-      </div>
+          <div className={styles.actions}>
+            <Button onClick={handleComplete} type="button">
+              <Icon name="check" />
+              {t('proofFields.complete')}
+            </Button>
+          </div>
         </>
       ) : (
         <>
