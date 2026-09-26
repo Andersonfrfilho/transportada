@@ -85,13 +85,12 @@ describe('"Registrar entrega depois" (pedido do usuário 25/09)', () => {
 })
 
 /**
- * ⚠️ A API ainda recusa a chave `lateRegistration` (schemas `.strict()`, 400). O corpo só a leva
- * quando `LATE_REGISTRATION_FIELD_ENABLED` ligar — hoje `false`, então o corpo sai igual ao de
- * antes desta feature. Parametrizado para provar as duas metades sem mockar módulo.
+ * A API aceita a chave `lateRegistration` desde a spec 205 (`312263c6f`), então o interruptor está
+ * ligado. Parametrizado para provar as duas metades sem mockar módulo.
  */
 describe('o campo `lateRegistration` só sai atrás do interruptor', () => {
-  it('a constante está desligada hoje — a API ainda não aceita a chave', () => {
-    expect(LATE_REGISTRATION_FIELD_ENABLED).toBe(false)
+  it('a constante está ligada — a API da spec 205 aceita a chave', () => {
+    expect(LATE_REGISTRATION_FIELD_ENABLED).toBe(true)
   })
 
   it('desligado: nunca envia, mesmo com o motorista tendo confirmado', () => {
