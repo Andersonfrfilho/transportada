@@ -35,7 +35,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 
 ## Fase 1 — `conversation-contracts` (no `adatechnology-packages`)
 
-- [ ] **T101** 🧠 `opus` — Teste de contrato do vocabulário: canal, direção, status, resultado
+- [x] **T101** 🧠 `opus` — Teste de contrato do vocabulário: canal, direção, status, resultado
       de DKIM e tipo de anexo, com os nomes que a 183 já usa. **O teste vem antes do tipo.** É Opus
       porque estes nomes viram contrato de host: renomear depois quebra quem instalou (RNF7).
       (RF1, RNF7)
