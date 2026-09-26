@@ -50,6 +50,17 @@ type FakeObjectStorageProvider = {
     readonly key: string
     readonly expiresInSeconds: number
   }): Promise<URL>
+  /**
+   * A 0.3.1 do pacote pôs `createSignedUpload` na interface. O worker **não** assina upload — quem
+   * assina é a API —, então o dublê recusa a chamada em vez de devolver uma URL fingida: se algum
+   * caminho do worker passar a assinar, o teste que o exercitar falha aqui, em vez de passar com
+   * uma URL que não leva a lugar nenhum.
+   */
+  createSignedUpload(input: {
+    readonly bucket: string
+    readonly key: string
+    readonly expiresInSeconds: number
+  }): Promise<URL>
   health(): Promise<{ readonly status: 'up' | 'down' }>
   close(): Promise<void>
 }
@@ -125,6 +136,9 @@ function createFakeStorageProvider(): FakeObjectStorageProvider {
     async createSignedDownload() {
       return new URL('https://example.test/download')
     },
+    async createSignedUpload() {
+      throw new Error('o worker não assina upload — quem assina é a API')
+    },
     async health() {
       return { status: 'up' }
     },
@@ -139,9 +153,7 @@ describe('worker nfe storage gateway contract', () => {
     ).json()) as {
       readonly dependencies?: Readonly<Record<string, string>>
     }
-    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe(
-      '0.2.0-rc.0',
-    )
+    expect(packageManifest.dependencies?.['@adatechnology/object-storage-provider']).toBe('0.3.1')
   })
 
   test('streams and keys must follow tenant-safe opaque format', async () => {

@@ -2545,8 +2545,19 @@ spec: todas esperam uma decisão ou uma ação do usuário.
   - ⚠️ Duas armadilhas conhecidas repetidas aqui, e registradas para a próxima pessoa: rodar a
     integração **sem `--env-file`** devolveu "86 pass, 548 skip" (pular não é passar), e subir o
     Postgres de desenvolvimento (55432) não serve para a suíte, que usa o de teste (65432).
-  - ⚠️ O `worker-transportada` segue em `0.2.0-rc.0` deste pacote. Não foi tocado aqui: quem assina
-    a URL de upload é a API. Fica anotado como dívida à parte.
+  - **A dívida do worker também fechou (26/09/2026).** Ele estava em `0.2.0-rc.0`, uma
+    release-candidate atrasada, e subiu para a `0.3.1` junto com os dois contratos que fixam a
+    versão dele. O `bun.lock` **perdeu uma entrada**: a cópia separada do worker colapsou na
+    compartilhada.
+  - ⚠️ **"Aditivo" não quer dizer "seguro" quando o que cresce é uma interface.** O diff de tipos
+    entre as duas versões só **acrescenta** `SignedUploadInput`, e mesmo assim o bump quebrou o
+    typecheck do worker: `createSignedUpload` entrou em `ObjectStorageProvider`, e o dublê de teste
+    que implementa a interface ficou incompleto. Aditivo para quem consome é quebra para quem
+    implementa. O dublê ganhou o método **lançando erro** ("o worker não assina upload — quem
+    assina é a API"), em vez de devolver uma URL fingida que passaria despercebida.
+  - Worker depois do bump: **1572 pass, 4 skip, 0 fail**. A primeira corrida deu 66 falhas, todas
+    `relation ... does not exist` — o Postgres de teste subiu com volume novo, sem schema; aplicadas
+    as migrations, zero falhas.
 - **A origem do bucket nos frontends (26/09/2026):**
   - O `transportada-frontend` lia `VITE_OBJECT_STORAGE_URL` sem declará-la no `railway.ts`, e no
     IaC omitir é apagar. Ela foi declarada (`b0c6bcdf`), e um contrato novo confere que todo
