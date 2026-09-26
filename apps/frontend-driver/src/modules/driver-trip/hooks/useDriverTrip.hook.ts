@@ -43,6 +43,8 @@ import {
   scheduleQueueDrainTriggers,
   selectPendingTotal,
 } from '../shared/pendingQueue.service'
+import { reduceOccurrencePhotoToJpeg } from '../shared/occurrencePhotoImage.service'
+import { replaceAttachmentBlob, shouldReduceProofFile } from '../shared/proofPhotoReduction.service'
 import { buildProofReceiverReport } from '../shared/proofReceiver.service'
 import {
   discardForeignPending,
@@ -624,6 +626,10 @@ export function useDriverTrip(
     if (!result.accepted) return result.reason
 
     const eventKey = result.eventKey
+    /* Grava primeiro (spec 203) e só então reduz: a versão leve troca o arquivo no mesmo item. */
+    const reduction = shouldReduceProofFile({ file: input.file, kind: input.kind })
+      ? reduceQueuedProofPhoto({ attachmentKey, eventKey, file: input.file })
+      : Promise.resolve()
     void readCurrentLocation().then((location) => {
       if (location === null) return
       void attachmentStore
@@ -635,8 +641,29 @@ export function useDriverTrip(
     })
 
     await refreshQueueView()
-    requestDrain(undefined)
+    // O envio espera a versão leve: o original da câmera (3–5 MB) bate no teto de 2 MB da API.
+    void reduction.finally(() => requestDrain(undefined))
     return 'queued'
+  }
+
+  /** Falhar a redução nunca perde a foto: o original continua no item e sobe como está. */
+  async function reduceQueuedProofPhoto(input: {
+    attachmentKey: string
+    eventKey: string
+    file: File
+  }): Promise<void> {
+    const reduced = await reduceOccurrencePhotoToJpeg(input.file).catch(() => undefined)
+    if (reduced === undefined || reduced.blob.size >= input.file.size) return
+    await attachmentStore.update({
+      eventKey: input.eventKey,
+      mutate: (items) =>
+        replaceAttachmentBlob({
+          attachmentKey: input.attachmentKey,
+          blob: reduced.blob,
+          fileName: reduced.fileName,
+          items,
+        }),
+    })
   }
 
   /**
@@ -681,9 +708,7 @@ export function useDriverTrip(
 
     const fields = {
       ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
-      ...(input.receivedByDetail === undefined
-        ? {}
-        : { receivedByDetail: input.receivedByDetail }),
+      ...(input.receivedByDetail === undefined ? {} : { receivedByDetail: input.receivedByDetail }),
       ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
     }
     if (Object.keys(fields).length === 0) return
