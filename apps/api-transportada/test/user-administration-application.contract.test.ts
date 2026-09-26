@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './user-administration-application/adopt-realm-fields.contract.js'
+import './user-administration-application/company-user-status.contract.js'
 import './user-administration-application/display-name.contract.js'
 import './user-administration-application/generated-username.contract.js'
 import './user-administration-application/identity-gateway.contract.js'

@@ -6,6 +6,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
+import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
@@ -17,6 +18,7 @@ import { assertNfeDocumentListingOrderIndex } from './nfe-document-listing-order
 import { assertNfeDocumentProtocolPresence } from './nfe-document-protocol-presence.assertion.js'
 import { assertNfeEventHistory } from './nfe-event-history.assertion.js'
 import { assertRntrcRollbackRefusesNinePositions } from './rntrc-rollback.assertion.js'
+import { assertStopDepartureRollback } from './stop-departure-rollback.assertion.js'
 import { assertTollBoothExtractConstraints } from './toll-booth-extract-constraints.assertion.js'
 import { assertTripConstraints } from './trip-constraints.assertion.js'
 import { assertTripStatusEventRollbackRefusesRecordedHistory } from './trip-status-event-rollback.assertion.js'
@@ -119,6 +121,25 @@ describe('Drizzle migration integration', () => {
 
         await assertDeliveryProofCargoSumsAndGuardsRollback({
           companyId: identityFixture.companyId,
+          database,
+          directories: migrationDirectories,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
+        await assertDeliveryProofReceivedBy({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          driverId: fleetFixture.driverId,
+          tripId: rollbackProbeTripId,
+          userId: identityFixture.userId,
+        })
+
+        await assertStopDepartureRollback({
+          companyId: identityFixture.companyId,
+          connectionString,
           database,
           directories: migrationDirectories,
           tripId: rollbackProbeTripId,

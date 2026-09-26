@@ -5,12 +5,17 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm'
 
 import {
+  identityUsers,
   membershipRoles,
   userCompanyMemberships,
   userInvitationRoles,
   userInvitations,
 } from '../../database/database.schema.js'
-import type { CompanyRole } from '../../database/identity.schema.js'
+import type {
+  CompanyRole,
+  IdentityStatus,
+  MembershipStatus,
+} from '../../database/identity.schema.js'
 import type {
   CreateInvitationInput,
   InvitationRecord,
@@ -18,6 +23,7 @@ import type {
 } from '../application/invitation.port.js'
 
 type InvitationDatabase = ReturnType<typeof createDrizzleProvider>['db']
+type InvitationTransaction = Parameters<Parameters<InvitationDatabase['transaction']>[0]>[0]
 
 type InvitationRow = {
   readonly acceptedAt: Date | null
@@ -28,6 +34,12 @@ type InvitationRow = {
   readonly id: string
   readonly status: InvitationRecord['status']
   readonly userId: string
+}
+
+/** ADR-0076 §8: a ativação (e o reenvio) precisam saber se o vínculo e a identidade seguem vivos. */
+type InvitationStatuses = {
+  readonly identityStatus: IdentityStatus
+  readonly membershipStatus: MembershipStatus
 }
 
 const INVITATION_COLUMNS = {
@@ -88,13 +100,19 @@ export const buildCompanyAdministratorFilters = (input: {
   eq(membershipRoles.role, 'company-admin'),
 ]
 
-const toRecord = (row: InvitationRow, roles: readonly CompanyRole[]): InvitationRecord => ({
+const toRecord = (
+  row: InvitationRow,
+  roles: readonly CompanyRole[],
+  statuses: InvitationStatuses,
+): InvitationRecord => ({
   acceptedAt: row.acceptedAt ?? undefined,
   attemptCount: row.attemptCount,
   codeHash: row.codeHash,
   companyId: row.companyId,
   expiresAt: row.expiresAt,
   id: row.id,
+  identityStatus: statuses.identityStatus,
+  membershipStatus: statuses.membershipStatus,
   roles,
   status: row.status,
   userId: row.userId,
@@ -141,7 +159,12 @@ export class DrizzleInvitationRepository implements InvitationRepositoryPort {
         )
       }
 
-      return toRecord(row, input.roles)
+      const statuses = await this.fetchStatuses(transaction, {
+        companyId: input.companyId,
+        userId: input.userId,
+      })
+
+      return toRecord(row, input.roles, statuses)
     })
   }
 
@@ -195,10 +218,27 @@ export class DrizzleInvitationRepository implements InvitationRepositoryPort {
       .where(and(...buildInvitationAttemptFilters(input)))
   }
 
+  /**
+   * Junta a membership e a identidade da própria linha do convite: as duas FKs de `user_invitations`
+   * (`company_id` e o composto `(user_id, company_id)` para a membership) garantem que a junção
+   * nunca perde a linha — convite sem membership não existe no banco.
+   */
   private async findOne(filters: readonly SQL[]): Promise<InvitationRecord | undefined> {
     const [row] = await this.database
-      .select(INVITATION_COLUMNS)
+      .select({
+        ...INVITATION_COLUMNS,
+        identityStatus: identityUsers.status,
+        membershipStatus: userCompanyMemberships.status,
+      })
       .from(userInvitations)
+      .innerJoin(
+        userCompanyMemberships,
+        and(
+          eq(userCompanyMemberships.userId, userInvitations.userId),
+          eq(userCompanyMemberships.companyId, userInvitations.companyId),
+        ),
+      )
+      .innerJoin(identityUsers, eq(identityUsers.id, userInvitations.userId))
       .where(and(...filters))
       .orderBy(desc(userInvitations.createdAt))
       .limit(1)
@@ -212,6 +252,32 @@ export class DrizzleInvitationRepository implements InvitationRepositoryPort {
     return toRecord(
       row,
       roles.map((entry) => entry.role),
+      { identityStatus: row.identityStatus, membershipStatus: row.membershipStatus },
     )
+  }
+
+  private async fetchStatuses(
+    executor: InvitationDatabase | InvitationTransaction,
+    input: { readonly companyId: string; readonly userId: string },
+  ): Promise<InvitationStatuses> {
+    const [row] = await executor
+      .select({
+        identityStatus: identityUsers.status,
+        membershipStatus: userCompanyMemberships.status,
+      })
+      .from(userCompanyMemberships)
+      .innerJoin(identityUsers, eq(identityUsers.id, userCompanyMemberships.userId))
+      .where(
+        and(
+          eq(userCompanyMemberships.companyId, input.companyId),
+          eq(userCompanyMemberships.userId, input.userId),
+        ),
+      )
+      .limit(1)
+    if (row === undefined) {
+      throw new Error('Membership not found while resolving invitation statuses')
+    }
+
+    return row
   }
 }

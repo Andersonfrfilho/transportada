@@ -90,6 +90,10 @@ function buildDependenciesStub(overrides?: {
   const toAddress = overrides?.toAddress ?? `${REPLY_TOKEN}@${REPLY_DOMAIN}`
 
   return {
+    conversationAttachments: {
+      discard: async () => undefined,
+      store: async () => ({ skipped: 0, stored: [] }),
+    },
     dkimVerifier: {
       async verify() {
         return 'aligned'
@@ -127,7 +131,10 @@ function buildDependenciesStub(overrides?: {
         return [{ id: THREAD_ID }]
       },
       async recordInboundMessage() {
-        return { id: crypto.randomUUID() }
+        return { id: crypto.randomUUID(), linkedAttachments: 0 }
+      },
+      async threadHasOccurrenceConversation() {
+        return false
       },
     },
     secretService: {
@@ -157,6 +164,9 @@ describe('contractor mail inbound consumer (spec 143, T010)', () => {
       {
         message: 'inbound_email_dkim_verified',
         metadata: {
+          /** Spec 183 T702c1: os anexos entram no log só como contagem. */
+          attachmentsLinked: 0,
+          attachmentsSkipped: 0,
           companyId: COMPANY_ID,
           dkimResult: 'aligned',
           eventId: expect.any(String),

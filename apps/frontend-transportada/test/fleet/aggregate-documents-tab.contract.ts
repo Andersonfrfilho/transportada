@@ -9,6 +9,7 @@ import {
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const TAB_PATH = 'src/modules/fleet/components/AggregateDocumentsTab.component.tsx'
+const REJECTION_DIALOG_PATH = 'src/modules/fleet/components/AggregateRejectionDialog.component.tsx'
 
 async function readApplicationFile(relativePath: string): Promise<string> {
   return readFile(fileURLToPath(new URL(relativePath, APPLICATION_ROOT)), 'utf8')
@@ -108,11 +109,15 @@ describe('aggregate document review client', () => {
 describe('aggregate documents tab', () => {
   test('never renders the reject action without a reason behind it', async () => {
     const source = await readApplicationFile(TAB_PATH)
+    const dialogSource = await readApplicationFile(REJECTION_DIALOG_PATH)
 
-    // a recusa passa pelo diálogo, e o diálogo só confirma com motivo preenchido
-    expect(source).toContain("setRejectDialog({ documentId: document.id, reason: '' })")
-    expect(source).toContain('const canConfirm = reason.trim().length > 0')
-    expect(source).toContain('disabled={!canConfirm}')
+    // a recusa passa pelo diálogo compartilhado, e o diálogo só confirma com motivo preenchido
+    expect(source).toContain(
+      "import { AggregateRejectionDialog } from './AggregateRejectionDialog.component'",
+    )
+    expect(source).toContain('setRejectDialog({ documentId: document.id })')
+    expect(dialogSource).toContain('const canConfirm = reason.trim().length > 0 && !isSubmitting')
+    expect(dialogSource).toContain('disabled={!canConfirm}')
   })
 
   /** "Nada divergiu" e "não deu para conferir" não podem virar o mesmo selo verde. */

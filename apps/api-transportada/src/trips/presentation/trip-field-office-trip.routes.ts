@@ -4,7 +4,7 @@
  * Spec 156 T5 (ADR-0067): as ações de viagem e de parada que o escritório registra em nome do
  * motorista — conferir a carga, iniciar o trajeto, chegar na parada e a ocorrência de parada.
  */
-import { resolveClientIp } from '../../http/client-ip.service.js'
+import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
@@ -56,6 +56,8 @@ const OFFICE_TRIP_RATE_LIMIT = {
 } as const
 
 export type TripFieldOfficeTripDependencies = {
+  /** ADR-0076 §6: o IP da trilha sai do salto conhecido, nunca do começo de `x-forwarded-for`. */
+  readonly resolveClientIp: ClientIpResolver
   readonly reportArrival: (
     input: OfficeContextInput & {
       /** ADR-0067 §3, spec 156 T15 A1: quando a chegada aconteceu, já validada contra a janela. */
@@ -133,7 +135,7 @@ function createFieldStepRoute(params: {
       return {
         correlationId,
         driverId: body.driverId,
-        ipAddress: resolveClientIp(request),
+        ipAddress: dependencies.resolveClientIp(request),
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }
     },
@@ -184,7 +186,7 @@ function createArrivalRoute(
         correlationId,
         driverId: body.driverId,
         idempotencyKey: parseIdempotencyKey(request),
-        ipAddress: resolveClientIp(request),
+        ipAddress: dependencies.resolveClientIp(request),
         stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }
@@ -241,7 +243,7 @@ function createStopOccurrenceRoute(
         ...body,
         correlationId,
         idempotencyKey: parseIdempotencyKey(request),
-        ipAddress: resolveClientIp(request),
+        ipAddress: dependencies.resolveClientIp(request),
         stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }

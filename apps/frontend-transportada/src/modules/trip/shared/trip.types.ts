@@ -6,6 +6,7 @@ import type {
   LeftoverStop,
 } from '@/modules/routing/shared/suggestionLeftover.service'
 
+import type { OccurrenceAttachmentMode } from './occurrence.constant'
 import type { OccurrenceQuantityUnit } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
@@ -183,8 +184,17 @@ export type TripOccurrence = Readonly<{
   typeName: string
 }>
 
-/** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo de ocorrência de nota do escritório. */
-export type FieldOccurrenceType = Readonly<{ id: string; name: string }>
+/**
+ * Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo de ocorrência de nota do escritório.
+ *
+ * Spec 179 T304: `attachmentMode` passou a sair junto (o mesmo campo que a rota `/me` do motorista
+ * ganhou) — ausente é API anterior ao campo, e esta tela ainda não usa o valor.
+ */
+export type FieldOccurrenceType = Readonly<{
+  attachmentMode?: OccurrenceAttachmentMode
+  id: string
+  name: string
+}>
 
 /**
  * O que o registro devolve: a ocorrência mais o e-mail pronto.
@@ -258,6 +268,9 @@ export const TRIP_TIMELINE_KINDS = [
   'trip.dispatched',
   'trip.status_changed',
   'stop.arrived',
+  /** Spec 206 D12: a saída para a parada e o cancelamento dela. Prioridade 0 na API, como `stop.arrived`. */
+  'stop.departed',
+  'stop.departure_cancelled',
   'document.delivered',
   'document.returned',
   'stop.occurrence',
@@ -295,6 +308,8 @@ export type TripTimelineItem = Readonly<{
   fromStatus: null | string
   id: string
   kind: TripTimelineKind
+  /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
+  lateRegistration?: boolean
   occurrence: null | TripTimelineOccurrenceReference
   occurredAt: string
   onBehalfOfDriverName: null | string

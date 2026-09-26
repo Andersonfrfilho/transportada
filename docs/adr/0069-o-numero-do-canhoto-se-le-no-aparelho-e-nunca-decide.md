@@ -7,6 +7,9 @@
 - **Fecha:** a T13 da spec 156 (`specs/156-o-escritorio-da-baixa-pelo-motorista/`)
 - **Emendada:** 2026-09-18, depois da validação do architect (R1–R8: diretório versionado,
   formato do número e confiança, compressão, número fora da seleção, licenças, rota sem rateLimit)
+- **Emendada por:** ADR-0078 (2026-09-25, proposta) — o mesmo motor e o mesmo interruptor passam a rodar
+  na app do motorista, depois de a foto entrar na fila, comparando com a nota do comprovante (não
+  sugerindo nota)
 - **Precedentes:** ADR-0065 (dependência wasm pesada sob a nossa CSP, carga sob demanda, selo
   experimental, interruptor por empresa) e ADR-0067 §4 (a foto identifica a nota, quem confirma é a
   pessoa)

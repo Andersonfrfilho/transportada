@@ -8,7 +8,11 @@
  * catálogo é o texto de **bootstrap** que `occurrence-type-catalog-seed.service.ts` grava só para
  * empresa sem nenhum tipo cadastrado (ver o porquê no comentário de `seedOccurrenceTypeCatalog`).
  */
-import { TRIP_OCCURRENCE_TYPES, type TripOccurrenceStage } from './trip-occurrence.constant.js'
+import {
+  TRIP_OCCURRENCE_STAGE,
+  TRIP_OCCURRENCE_TYPES,
+  type TripOccurrenceStage,
+} from './trip-occurrence.constant.js'
 
 export type OccurrenceTypeCatalogEntry = {
   readonly name: string
@@ -25,8 +29,7 @@ const OCCURRENCE_TYPE_LABEL: Readonly<Record<string, string>> = {
   recusa_total: 'Recusa total',
 }
 
-/** Deriva do catálogo legado — a lista não é reescrita à mão. */
-export const OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] =
+const DERIVED_OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] =
   TRIP_OCCURRENCE_TYPES.map((entry) => {
     const name = OCCURRENCE_TYPE_LABEL[entry.type]
     if (name === undefined) {
@@ -35,3 +38,20 @@ export const OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] =
 
     return { name, stage: entry.stage }
   })
+
+/**
+ * Pedido do usuário (spec 208, 25/09/2026): tipo de rua para o motorista registrar que o cliente
+ * pediu a segunda via do boleto — sem exigir foto, sem soltar a nota da viagem.
+ *
+ * ⚠️ **Entrada literal, não derivada de `TRIP_OCCURRENCE_TYPES`.** Aquela lista é o `type` de
+ * `trip_document_occurrences`, com CHECK fixo no banco, cópia por valor no `frontend-transportada`
+ * (contrato de paridade em `test/trip-occurrence/catalog.contract.ts`) e `stage` que decide
+ * permissão via `resolveOccurrenceStage`. `company_occurrence_types` (o que este catálogo semeia)
+ * não tem esse acoplamento — `name` é texto livre e `attachmentMode`/`leavesDocumentBehind` saem
+ * dos defaults de coluna (`'off'`/`false`) quando o seed não os escreve. Acrescentar aqui não pede
+ * migration nem mexe em permissão; acrescentar em `TRIP_OCCURRENCE_TYPES` pediria os dois.
+ */
+export const OCCURRENCE_TYPE_CATALOG: readonly OccurrenceTypeCatalogEntry[] = [
+  ...DERIVED_OCCURRENCE_TYPE_CATALOG,
+  { name: 'Cliente pediu segunda via do boleto', stage: TRIP_OCCURRENCE_STAGE.delivery },
+]

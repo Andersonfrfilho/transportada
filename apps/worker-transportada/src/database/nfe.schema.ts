@@ -58,6 +58,8 @@ export type StorageObjectPurpose =
   | 'nfse_document'
   /** Spec 143 T010 (ADR-0063 §5): o MIME bruto de todo e-mail recebido da contratante, evidência. */
   | 'contractor_mail_raw'
+  /** Spec 183 T702c1: o anexo da conversa da ocorrência — aqui, o que veio no e-mail recebido. */
+  | 'occurrence_conversation_attachment'
 
 export type FiscalEnvironment = 'homologation' | 'production'
 export type TaxRegime = '1' | '2' | '3'

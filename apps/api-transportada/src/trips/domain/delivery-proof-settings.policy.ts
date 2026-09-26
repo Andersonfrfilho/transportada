@@ -9,17 +9,30 @@ import {
 export { DELIVERY_PROOF_FIELD_MODES }
 export type { DeliveryProofFieldMode }
 
-/** ADR-0057 §1: os quatro campos do comprovante que o painel governa. */
+/**
+ * ADR-0057 §1: os campos do comprovante que o painel governa. Spec 193 D6: `receivedBy` (quem
+ * recebeu, em relação ao destinatário) é o quinto.
+ */
 export type DeliveryProofFieldSettings = {
   readonly photo: DeliveryProofFieldMode
+  readonly receivedBy: DeliveryProofFieldMode
   readonly receiverDocument: DeliveryProofFieldMode
   readonly receiverName: DeliveryProofFieldMode
   readonly signature: DeliveryProofFieldMode
 }
 
+/**
+ * Spec 193 D6: no `PUT`, `receivedBy` ausente é "não mexe" — o painel anterior ao campo manda só
+ * os quatro modos. Na geral preserva o gravado; na exceção, o do mesmo `taxId` (senão `optional`).
+ */
+export type DeliveryProofFieldSettingsInput = Omit<DeliveryProofFieldSettings, 'receivedBy'> & {
+  readonly receivedBy?: DeliveryProofFieldMode
+}
+
 /** ADR-0057 §4: o padrão de fábrica é a ADR-0045 — documento desligado, o resto oferecido. */
 export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
   photo: 'optional',
+  receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',
@@ -65,7 +78,7 @@ export type CompanyDeliveryProofSettings = DeliveryProofFieldSettings &
   }
 
 /** No `PUT`, o interruptor ausente é "não mexe": o painel de antes da T13 manda só os campos. */
-export type DeliveryProofSettingsInput = DeliveryProofFieldSettings &
+export type DeliveryProofSettingsInput = DeliveryProofFieldSettingsInput &
   DeliveryProofPunctualitySettings & {
     readonly canhotoOcrEnabled?: boolean
   }

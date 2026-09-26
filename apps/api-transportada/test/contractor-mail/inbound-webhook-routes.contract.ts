@@ -138,7 +138,7 @@ describe('POST /public/inbound-emails/:webhookId (spec 143, T010)', () => {
   /** Revisão do `architect`: a rota ganhou teto — 120 por 5 minutos, por IP. */
   test('responds 429 once the rate limit is exceeded', async () => {
     const { handle } = buildHandler('accepted')
-    const headers = { 'x-forwarded-for': '203.0.113.10' }
+    const headers = { 'x-real-ip': '203.0.113.10' }
 
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const response = await handle(webhookRequest({ body: '{"type":"email.received"}', headers }))

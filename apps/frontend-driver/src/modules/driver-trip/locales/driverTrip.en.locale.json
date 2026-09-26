@@ -1,8 +1,10 @@
 {
+  "arrivalRequired": "Tap Arrived to unlock delivery",
   "arrive": "I arrived",
   "arrived": "Arrived at {{time}}",
   "attachmentLimitCount": "The limit of attachments waiting to be sent was reached. Send the pending ones before attaching another — nothing was discarded.",
   "attachmentLimitSize": "The space for attachments waiting to be sent is full. Send the pending ones before attaching another — nothing was discarded.",
+  "occurrencePhotoDropped": "Occurrence recorded without the photo: the space for photos waiting to be sent is full. Send the pending ones and record another occurrence with the photo, if needed.",
   "crop": {
     "cancel": "Cancel",
     "corner": {
@@ -18,8 +20,8 @@
   "deliver": "Delivered",
   "dispatch": {
     "failed": "The route could not be started. Tap again.",
-    "start": "Start route",
-    "waiting": "Waiting for the route to start — field actions unlock after starting."
+    "start": "Dispatch trip",
+    "waiting": "Waiting for dispatch — field actions unlock after the trip is dispatched."
   },
   "eventLimitCount": "The limit of events waiting to be sent was reached. Send the pending ones before recording another — nothing was discarded.",
   "documentsPending_one": "{{count}} invoice to deliver",
@@ -29,12 +31,18 @@
     "attachments_one": "{{count}} attachment",
     "attachments_other": "{{count}} attachments",
     "back": "Back",
+    "cause": {
+      "tooLarge": "the photo is larger than the server accepts"
+    },
     "empty": "Nothing waiting to be sent.",
     "kind": {
       "arrive": "Arrival",
       "deliver": "Delivery",
+      "documentOccurrence": "Occurrence with photo",
       "occurrence": "Occurrence",
       "proof": "Proof",
+      "proofReceiver": "Who received",
+      "stopOccurrencePhoto": "Stop occurrence photo",
       "return": "Return"
     },
     "open": "See pending events",
@@ -50,6 +58,13 @@
     },
     "title": "Pending events"
   },
+  "lateRegistration": {
+    "badge": "Late registration",
+    "cancel": "Cancel",
+    "confirm": "Continue",
+    "open": "Register delivery later",
+    "warning": "A delivery registered later counts as late and lowers your driver score. Continue?"
+  },
   "loadSheet": {
     "barcodeLabel": "Barcode for the access key of NF-e {{number}}",
     "notFiscal": "This is not a fiscal document",
@@ -58,7 +73,15 @@
     "title": "Load sheet",
     "volumes_one": "{{count}} package",
     "volumes_other": "{{count}} packages",
-    "weight": "{{weight}} kg"
+    "weight": "{{weight}} kg",
+    "show": "Show notes",
+    "hide": "Hide notes",
+    "noteCount_one": "{{count}} note",
+    "noteCount_other": "{{count}} notes"
+  },
+  "documentDetails": {
+    "seeKey": "See key",
+    "hideKey": "Hide key"
   },
   "loading": "Loading your trip…",
   "manifest": {
@@ -92,10 +115,7 @@
     "unexpected_charge": "Unexpected charge"
   },
   "occurrencePhoto": "Occurrence photo (site or cargo)",
-  "choosePhoto": "Choose photo",
-  "noPhotoChosen": "No photo chosen",
-  "occurrencePhotoCount_one": "{{count}} photo attached",
-  "occurrencePhotoCount_other": "{{count}} photos attached",
+  "choosePhoto": "Take photo",
   "occurrencePreview": {
     "none": "No notice will be sent to the customer for this reason.",
     "title": "Notice that will be sent"
@@ -126,14 +146,66 @@
     }
   },
   "progress": {
-    "label": "{{resolved}} of {{total}} stops resolved"
+    "label": "{{resolved}} of {{total}} stops resolved",
+    "percent": "{{percent}}% of the trip",
+    "notes_one": "{{resolved}} of {{count}} invoice resolved",
+    "notes_other": "{{resolved}} of {{count}} invoices resolved"
   },
   "proof": "Attach proof",
+  "proofCapture": {
+    "title": "Delivery receipt",
+    "attach": "Attach",
+    "retake": "Retake",
+    "replace": "Replace",
+    "attached": "Receipt photo attached",
+    "thumbnail": "Receipt photo thumbnail",
+    "view": "View",
+    "close": "Close",
+    "remove": "Remove",
+    "confirmRemove": "Remove the receipt photo?",
+    "replaceHint": "A photo that was already sent can only be replaced."
+  },
   "proofFailed": "The file could not be attached. The delivery is still recorded.",
   "proofFields": {
     "receiverDocument": "Receiver document",
     "receiverName": "Receiver name",
-    "requiredField": "Fill in this field before attaching the proof."
+    "pendingField": "Fill in this field. The proof is already saved and uploads once you complete it.",
+    "receivedBy": "Who received",
+    "receivedByPlaceholder": "Select",
+    "receivedByOption": {
+      "recipient": "The addressee themself",
+      "spouse": "Spouse",
+      "child": "Child",
+      "parent": "Parent",
+      "sibling": "Sibling",
+      "other_relative": "Other relative",
+      "neighbor": "Neighbor",
+      "doorman": "Doorman/Front desk",
+      "employee": "Employee on site",
+      "other": "Other"
+    },
+    "receivedByDetail": "Details",
+    "receivedByDetailPlaceholder": "Details (optional)",
+    "receivedByDetailPlaceholderNeighbor": "Where the load was left (e.g.: unit 12)",
+    "pendingReceivedBy": "Who received it is still missing. The proof is already saved.",
+    "pendingReceivedByDetail": "Say more about who received it. The proof is already saved.",
+    "complete": "Complete",
+    "completedAt": "Proof completed at {{time}}",
+    "edit": "Edit",
+    "completeMissing": "Missing: {{fields}}. Complete anyway?",
+    "missing": {
+      "photo": "the photo",
+      "signature": "the signature",
+      "receiverName": "the receiver's name",
+      "receiverDocument": "the receiver's document",
+      "receivedBy": "who received it",
+      "receivedByDetail": "the detail about who received it"
+    }
+  },
+  "queueHeader": {
+    "label_one": "Send queue, {{count}} pending",
+    "label_other": "Send queue, {{count}} pending",
+    "label_zero": "Send queue, nothing pending"
   },
   "queued_one": "{{count}} confirmation waiting to be sent",
   "queued_other": "{{count}} confirmations waiting to be sent",
@@ -158,9 +230,16 @@
     "confirm": "Confirm signature",
     "exitFullscreen": "Exit full screen",
     "fullscreen": "Full screen",
-    "open": "Collect signature"
+    "open": "Collect signature",
+    "attached": "Signature collected",
+    "thumbnail": "Signature thumbnail"
   },
   "stopCompleted": "Stop completed",
+  "stopState": {
+    "completed": "Completed",
+    "current": "In progress",
+    "pending": "Pending"
+  },
   "stopTitle": "Stop {{sequence}}",
   "title": "My trip",
   "tripCompleted": "Trip completed. Good work.",
@@ -209,7 +288,8 @@
   },
   "tripSelector": {
     "label": "Your trips",
-    "option": "Trip {{number}} · {{plate}}"
+    "option_one": "{{path}} · {{count}} stop",
+    "option_other": "{{path}} · {{count}} stops"
   },
   "deliveryWindow": {
     "between": "Window {{start}}–{{end}}",
@@ -244,5 +324,58 @@
     "notice_other": "{{count}} records made offline at {{time}} — send them?",
     "send": "Send",
     "warning": "Discarding erases these records from the phone for good, together with the photos and signatures of the same deliveries — none of it reaches the office."
+  },
+  "notDelivered": {
+    "occurrenceTypeLegend": "Which occurrence to record?",
+    "photoLabel": "Occurrence photo",
+    "galleryHint": "If the camera does not open or access was denied, use Attach and pick the photo from the gallery.",
+    "photoAttached": "Occurrence photo attached",
+    "photoPreview": "Occurrence photo preview",
+    "photoReading": "Preparing the photo…",
+    "photoTooLarge": "The photo is over 512 KB even after reducing it. Take another one, closer to what matters.",
+    "photoFailed": "Could not read this photo. Take another one or choose from the gallery.",
+    "noteLabel": "Note",
+    "noteOptional": "optional",
+    "noteRequired": "required for this type",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "missingLead": "To confirm, add: {{fields}}.",
+    "missing": {
+      "reason": "the reason",
+      "occurrenceType": "the occurrence type",
+      "photo": "the photo",
+      "note": "the note"
+    },
+    "withoutOccurrence": "Without the occurrence types, the return goes with the reason only — there is nowhere to record the photo right now.",
+    "status": {
+      "queued": "Occurrence with photo queued — it goes up when the signal is back.",
+      "sent": "Occurrence with photo sent.",
+      "rejected": "The server refused the occurrence with photo. See pending events."
+    }
+  },
+  "startRoute": {
+    "failed": "Could not start the route. Tap again.",
+    "start": "Start route",
+    "done": "Route started at {{time}}. Have a good trip!",
+    "onRoute": "On the delivery route"
+  },
+  "activity": {
+    "delivered": "Delivered at {{time}}",
+    "deliveredQueued": "Delivered at {{time}} · queued",
+    "deliveredRejected": "The office refused the delivery recorded at {{time}}. See pending events.",
+    "documentOccurrenceRecorded": "Occurrence recorded at {{time}}",
+    "occurrenceMarker": "Has an occurrence",
+    "occurrenceQueued": "Occurrence recorded at {{time}} · queued",
+    "occurrenceRejected": "The office refused the occurrence recorded at {{time}}. See pending events.",
+    "occurrenceSent": "Occurrence recorded at {{time}} · sent",
+    "returned": "Returned at {{time}} — {{reason}}",
+    "returnedQueued": "Returned at {{time}} · queued — {{reason}}",
+    "returnedRejected": "The office refused the return recorded at {{time}}. See pending events.",
+    "toast": {
+      "delivered": "Delivery recorded",
+      "documentOccurrence": "Occurrence recorded",
+      "occurrence": "Occurrence recorded",
+      "returned": "Return recorded"
+    }
   }
 }

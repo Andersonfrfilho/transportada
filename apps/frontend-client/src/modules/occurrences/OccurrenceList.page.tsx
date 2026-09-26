@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { useDecideOccurrence, useOccurrences } from '@/modules/deliveries/queries/portal.query'
 import { DecisionForm } from './DecisionForm.component'
+import { OccurrenceConversation } from './OccurrenceConversation.component'
 import {
   decisionLabel,
   isDecidable,
@@ -128,6 +129,13 @@ function OccurrenceCard({ client, occurrence, onRefreshPhotos }: OccurrenceCardP
             decide.error instanceof PortalRequestError ? decide.error.code : '',
           )}
         </p>
+      )}
+      {occurrence.conversationRef !== null && (
+        <OccurrenceConversation
+          client={client}
+          conversationRef={occurrence.conversationRef}
+          unreadCount={occurrence.conversationUnreadCount}
+        />
       )}
     </article>
   )

@@ -25,6 +25,28 @@ export type PostgresRateLimitPolicy = RateLimitCeiling &
     store: 'postgres'
   }>
 
+/**
+ * Spec 191 RF12: o alvo de uma rota anônima — o texto que a pessoa digitou, normalizado pela rota.
+ * Conta depois do `parse` e antes do `handle`, e vira HMAC antes de chegar ao balde.
+ */
+export type AnonymousTargetRateLimit<TInput> = RateLimitCeiling &
+  Readonly<{
+    key: (input: TInput) => string
+    scope: string
+  }>
+
+/**
+ * Spec 191 RF12, ADR-0076 §3: teto da rota anônima no Postgres, por IP e, se declarado, por alvo.
+ * Os dois contam em dois estágios: o balde em memória da réplica, com o mesmo teto, e depois o
+ * Postgres, que soma entre réplicas.
+ */
+export type AnonymousRateLimitPolicy<TInput> = PostgresRateLimitPolicy &
+  Readonly<{ target?: AnonymousTargetRateLimit<TInput> }>
+
+/** O que o roteador enxerga da rota registrada: o teto do alvo sem a função que o extrai. */
+export type RegisteredAnonymousRateLimitPolicy = PostgresRateLimitPolicy &
+  Readonly<{ target?: RateLimitCeiling & Readonly<{ scope: string }> }>
+
 /** O teto que a rota autenticada declara: em memória do processo ou compartilhado no Postgres. */
 export type RouteRateLimitPolicy =
   | (RateLimitPolicy & Readonly<{ store: 'memory' }>)
@@ -36,39 +58,51 @@ export type RateLimitOutcome = Readonly<
 
 export type RateLimiter = Readonly<{
   consume: (input: { readonly key: string; readonly policy: RateLimitPolicy }) => RateLimitOutcome
+  size: () => number
+}>
+
+type CreateRateLimiterParams = Readonly<{
+  maxEntries?: number
+  now?: () => number
 }>
 
 /** `windowMs` é do balde: a varredura mede cada um pela janela da rota que o criou. */
 type Bucket = { count: number; windowMs: number; windowStartedAt: number }
 
-/** Acima disto, cada `consume()` aproveita para varrer baldes expirados antes de crescer mais. */
-const SWEEP_THRESHOLD_ENTRIES = 10_000
+/** Teto do mapa: cada balde custa uma chave curta e três números — 50 mil cabem em poucos MB. */
+const DEFAULT_MAX_ENTRIES = 50_000
 
 /**
  * Janela fixa por chave (`rota:método:IP`), em memória do próprio processo — não sobrevive a
- * restart nem soma entre réplicas, e é exatamente o que a instrução do usuário pediu (sem Redis
- * novo agora). Baldes expirados morrem quando alguém bate neles de novo (o `if` de baixo já
- * substitui); a varredura só entra quando o mapa passa de `SWEEP_THRESHOLD_ENTRIES` — sem ela, um
- * IP que bateu uma vez e nunca mais voltou ocuparia memória para sempre.
+ * restart nem soma entre réplicas. O mapa tem teto (ADR-0076 §6): chegando nele, varre os
+ * expirados, cada balde pela **própria** janela (a do chamador apagaria balde vivo de rota com
+ * janela mais longa), e se ainda estiver cheio despeja o mais antigo. Despejar zera o contador de
+ * alguém; o contrário — recusar chave nova — negaria a rota a todo cliente novo.
  */
-export function createRateLimiter(): RateLimiter {
+export function createRateLimiter({
+  maxEntries = DEFAULT_MAX_ENTRIES,
+  now = Date.now,
+}: CreateRateLimiterParams = {}): RateLimiter {
   const buckets = new Map<string, Bucket>()
 
-  function sweepExpired(now: number): void {
-    if (buckets.size < SWEEP_THRESHOLD_ENTRIES) return
+  function makeRoom(currentTime: number): void {
+    if (buckets.size < maxEntries) return
     for (const [key, bucket] of buckets) {
-      if (now - bucket.windowStartedAt >= bucket.windowMs) buckets.delete(key)
+      if (currentTime - bucket.windowStartedAt >= bucket.windowMs) buckets.delete(key)
     }
+    const oldest = buckets.keys().next()
+    if (buckets.size >= maxEntries && oldest.done !== true) buckets.delete(oldest.value)
   }
 
   return {
     consume({ key, policy }): RateLimitOutcome {
-      const now = Date.now()
-      sweepExpired(now)
+      const currentTime = now()
       const existing = buckets.get(key)
 
-      if (existing === undefined || now - existing.windowStartedAt >= policy.windowMs) {
-        buckets.set(key, { count: 1, windowMs: policy.windowMs, windowStartedAt: now })
+      if (existing === undefined || currentTime - existing.windowStartedAt >= policy.windowMs) {
+        buckets.delete(key)
+        makeRoom(currentTime)
+        buckets.set(key, { count: 1, windowMs: policy.windowMs, windowStartedAt: currentTime })
         return { allowed: true }
       }
 
@@ -77,9 +111,10 @@ export function createRateLimiter(): RateLimiter {
         return { allowed: true }
       }
 
-      const elapsedMs = now - existing.windowStartedAt
+      const elapsedMs = currentTime - existing.windowStartedAt
       const retryAfterSeconds = Math.max(1, Math.ceil((policy.windowMs - elapsedMs) / 1000))
       return { allowed: false, retryAfterSeconds }
     },
+    size: () => buckets.size,
   }
 }

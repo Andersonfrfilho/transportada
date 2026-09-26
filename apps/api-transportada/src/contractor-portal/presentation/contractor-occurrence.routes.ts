@@ -66,6 +66,15 @@ const decisionSchema = z
   .strict()
 
 export type ContractorOccurrenceRoutesDependencies = {
+  /**
+   * Spec 183 T651 (RF21): a referência opaca da conversa de cada ocorrência da página, numa leitura
+   * só, com as não lidas da conta (T653). Ausente no mapa é `conversationRef: null` — a contratante
+   * do recorte não é a da conversa.
+   */
+  readonly conversationRefs: (input: {
+    readonly context: CompanyContext
+    readonly occurrenceIds: readonly string[]
+  }) => Promise<ReadonlyMap<string, { readonly ref: string; readonly unreadCount: number }>>
   readonly decideOccurrenceCase: DecideOccurrenceCaseUseCase
   /** Spec 164 T11: a foto — reuso do gateway de presigned de 5 min, sem `objectKey`/`bucket`. */
   readonly readAttachments: (input: {
@@ -81,8 +90,16 @@ export function createContractorOccurrenceRoutes(
     defineRoute<Record<string, never>>({
       async handle({ context }): Promise<Response> {
         const occurrences = await dependencies.decideOccurrenceCase.list({ context: context.scope })
+        const refs = await dependencies.conversationRefs({
+          context: context.scope,
+          occurrenceIds: occurrences.map((occurrence) => occurrence.occurrenceId),
+        })
         const data = await Promise.all(
-          occurrences.map((occurrence) => serialize(dependencies, context.scope, occurrence)),
+          occurrences.map(async (occurrence) => ({
+            ...(await serialize(dependencies, context.scope, occurrence)),
+            conversationRef: refs.get(occurrence.occurrenceId)?.ref ?? null,
+            conversationUnreadCount: refs.get(occurrence.occurrenceId)?.unreadCount ?? 0,
+          })),
         )
 
         return jsonResponse({ body: { data }, status: 200 })

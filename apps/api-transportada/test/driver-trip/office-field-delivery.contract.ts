@@ -100,6 +100,7 @@ function buildProof(input: {
 
 const OPTIONAL_SETTINGS: DeliveryProofFieldSettings = {
   photo: 'optional',
+  receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',
@@ -579,8 +580,11 @@ describe('field-delivery: limpeza do canhoto que subiu numa transação desfeita
   })
 })
 
-/** Prova que `attachDeliveryProof` (usada por `field-proof`) só carrega `receiverName` em `kind: 'photo'` no canal `office`. */
-describe('attach-delivery-proof: receiverName em kind photo só no canal office (decisão do líder, spec 156 T6)', () => {
+/**
+ * Prova que `attachDeliveryProof` carrega `receiverName` em `kind: 'photo'` nos dois canais. A
+ * decisão do líder da spec 156 T6 (só no `office`) foi revista pela spec 193 D4 (ADR-0079 §A2).
+ */
+describe('attach-delivery-proof: receiverName em kind photo nos dois canais (spec 156 T6, revista pela 193 D4)', () => {
   it('canal office com kind photo persiste o receiverName', async () => {
     const saved: unknown[] = []
     await attachDeliveryProof({
@@ -623,7 +627,7 @@ describe('attach-delivery-proof: receiverName em kind photo só no canal office 
     expect(saved).toEqual([expect.objectContaining({ receiverName: 'Maria Souza' })])
   })
 
-  it('canal driver_app com kind photo continua sem receiverName', async () => {
+  it('canal driver_app com kind photo também persiste o receiverName (spec 193 D4)', async () => {
     const saved: unknown[] = []
     await attachDeliveryProof({
       actorUserId: ACTOR_USER_ID,
@@ -662,6 +666,6 @@ describe('attach-delivery-proof: receiverName em kind photo só no canal office 
       },
     })
 
-    expect(saved).toEqual([expect.objectContaining({ receiverName: '' })])
+    expect(saved).toEqual([expect.objectContaining({ receiverName: 'Maria Souza' })])
   })
 })

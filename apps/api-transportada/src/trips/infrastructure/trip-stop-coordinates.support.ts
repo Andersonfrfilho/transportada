@@ -3,9 +3,9 @@
  *
  * As coordenadas das paradas, na ordem do roteiro.
  *
- * ⚠️ A coordenada **não mora em `trip_stops`**: as colunas `latitude`/`longitude` da tabela estão
- * nulas em toda a base, e quem a guarda é `geocoded_addresses`, casada pela `address_key`. Ler as
- * colunas devolveria vazio sem erro nenhum — e o mapa desenharia o nada.
+ * ⚠️ A coordenada **não mora em `trip_stops`**: quem a guarda é `geocoded_addresses`, casada pela
+ * `address_key`. A parada teve colunas de coordenada da 058 até a 215, nulas em toda a base: lê-las
+ * devolvia vazio sem erro nenhum, e o mapa desenhava o nada.
  *
  * `geocoded_addresses` não tem tenant de propósito (ADR-0044): é cache de endereço público, e o
  * recorte por empresa está em `trip_stops`, no `where` — o lado de cima da junção.

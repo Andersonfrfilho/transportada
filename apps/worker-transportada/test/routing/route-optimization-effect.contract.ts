@@ -273,4 +273,67 @@ describe('route optimization effect (ADR-0044 §7)', () => {
 
     expect(outcome.returnLegs).toEqual([])
   })
+
+  /**
+   * ⚠️ Cada veículo parte da mesma partida, não de onde o relógio do anterior parou. O relógio era
+   * declarado fora do laço por veículo: a primeira parada do 2º veículo herdava o trecho de estrada
+   * e o tempo de serviço do 1º, e a janela só empurrava para cima — o ETA publicado inflava a cada
+   * veículo na frente, embora o fitness do solver zerasse por rota.
+   */
+  test('a primeira parada do 2º veículo parte da partida, não do relógio do 1º veículo', async () => {
+    const context = buildContext({
+      stops: [buildStop({ stopId: 'a' }), buildStop({ stopId: 'b' })],
+      vehicles: [
+        {
+          servableStopIndexes: null,
+          capacityKilograms: 10_000,
+          costPerMeterMicros: 1,
+          id: 'vehicle-1',
+        },
+        {
+          servableStopIndexes: null,
+          capacityKilograms: 10_000,
+          costPerMeterMicros: 1,
+          id: 'vehicle-2',
+        },
+      ],
+    })
+    const ports = buildPorts({
+      solve: () => ({
+        assignments: [
+          {
+            costMicros: 0,
+            distanceMeters: 0,
+            durationSeconds: 0,
+            stopIndexes: [1],
+            vehicleId: 'vehicle-1',
+          },
+          {
+            costMicros: 0,
+            distanceMeters: 0,
+            durationSeconds: 0,
+            stopIndexes: [2],
+            vehicleId: 'vehicle-2',
+          },
+        ],
+        generations: 0,
+        optimizationQuality: 'greedy',
+        totalCostMicros: 0,
+        totalDistanceMeters: 0,
+        totalDurationSeconds: 0,
+        truncated: false,
+        unassignedStopIndexes: [],
+        violations: [],
+      }),
+    })
+
+    const outcome = await runRouteOptimization({ context, ports })
+
+    /** Pontos: 0 depósito, 1 parada a, 2 parada b. A matriz sintética mede (to − from) × 60 s. */
+    const second = outcome.orderedStops.find((stop) => stop.stopId === 'b')
+    expect(second?.estimatedArrivalAt).not.toBeNull()
+    expect((second?.estimatedArrivalAt as Date).getTime() / 1_000).toBe(
+      context.departureEpochSeconds + 2 * 60,
+    )
+  })
 })

@@ -704,6 +704,9 @@ function createHarness(input: {
     async listContractorContacts() {
       return []
     },
+    async findContractorContact() {
+      return undefined
+    },
     async updateContractorContact() {
       throw new Error('not used in this contract')
     },

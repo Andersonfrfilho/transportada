@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { resolveClientIp } from '../../http/client-ip.service.js'
+import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
@@ -80,6 +80,7 @@ import type {
   LinkTripDocumentInput,
   ListTripsInput,
   ReleaseTripDocumentInput,
+  UpdateTripCrewInput,
 } from '../application/trip.use-case.js'
 import type {
   Trip,
@@ -135,12 +136,14 @@ import {
   parseReorderTripStopsRequest,
   parseTransitionTripDocumentRequest,
   parseTripList,
+  parseUpdateTripCrewRequest,
   parseUuidPathIdentifier,
   type RouteGeometryBody,
 } from './trip.schema.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
 
 const TRIP_CLOSE_PATH = `${API_TRIPS_PATH}/:id/close`
+const TRIP_CREW_PATH = `${API_TRIPS_PATH}/:id/crew`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
 const TRIP_ALLOWED_ACTIONS_PATH = `${TRIP_DETAIL_PATH}/allowed-actions`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
@@ -229,6 +232,8 @@ type SaveOccurrenceTypeInput = {
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
   readonly emailBody: string
+  /** Spec 183 T802: ausente é "não mexa". */
+  readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
   /**
@@ -405,12 +410,17 @@ type OverrideDeliveryAddressInput = {
 }
 
 type Dependencies = {
+  /** ADR-0076 §6: o IP da trilha sai do salto conhecido, nunca do começo de `x-forwarded-for`. */
+  readonly resolveClientIp: ClientIpResolver
   readonly batchStatus: {
     execute(input: TenantInput<BatchStatusInput>): Promise<TransitionTripDocumentsBatchResult>
   }
   readonly cancelTrip: { execute(input: TenantInput<TripIdInput>): Promise<CancelTripResult> }
   readonly closeTrip: { execute(input: TenantInput<CloseTripInput>): Promise<TripDetail> }
   readonly createTrip: { execute(input: TenantInput<CreateTripInput>): Promise<TripDetail> }
+  readonly updateTripCrew: {
+    execute(input: TenantInput<UpdateTripCrewInput>): Promise<TripDetail>
+  }
   readonly createTripCteBatch: {
     execute(input: {
       readonly companyId: string
@@ -1167,6 +1177,38 @@ export function createTripRoutes(
       pathname: API_TRIPS_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
+    /**
+     * Spec 216: define a tripulação de uma viagem `awaiting_crew` (vira `draft`) ou troca a de uma
+     * `draft` — bloqueada a partir de `route_planned` (o pedágio já foi congelado com o veículo
+     * antigo). Mesma permissão de criar viagem — quem monta a tripulação na criação é quem também
+     * corrige antes do roteiro ser planejado.
+     */
+    defineRoute<Omit<UpdateTripCrewInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const trip = await dependencies.updateTripCrew.execute({ context: context.scope, ...input })
+        return jsonResponse({
+          body: {
+            data: serializeTripDetail({
+              canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              trip,
+            }),
+          },
+          status: 200,
+        })
+      },
+      method: 'PATCH',
+      async parse({ pathParameters, request }) {
+        const body = await parseUpdateTripCrewRequest(request)
+        return {
+          driverIds: body.driverIds,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          vehicleId: body.vehicleId,
+        }
+      },
+      pathname: TRIP_CREW_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
     defineRoute<Omit<LinkTripDocumentInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const document = await dependencies.linkTripDocument.execute({
@@ -1251,7 +1293,7 @@ export function createTripRoutes(
         const body = await parseCloseTripRequest(request)
         return {
           correlationId,
-          ipAddress: resolveClientIp(request),
+          ipAddress: dependencies.resolveClientIp(request),
           reason: body.reason,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }

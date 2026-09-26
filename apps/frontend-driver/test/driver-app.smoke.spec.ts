@@ -158,7 +158,7 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
 
   expect(new URL(page.url()).pathname).toBe('/')
   await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
-  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
 
   // Um toque, uma requisição, uma chave — é o que a idempotência do servidor casa no reenvio
   await page.getByRole('button', { name: 'Cheguei' }).click()
@@ -172,6 +172,8 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
 test('o motorista vê os tipos de ocorrência de rua da empresa', async ({ page }) => {
   await openTrip(page)
 
+  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
 
   await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
@@ -191,6 +193,8 @@ test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ p
   await loginAsLocalUser(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
 
+  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
 
   await expect(
@@ -228,6 +232,8 @@ test('sem tipo de rua cadastrado, o motorista vê o aviso de lista vazia', async
   await loginAsLocalUser(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
 
+  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
 
   await expect(
@@ -252,23 +258,67 @@ test('sem sinal, a confirmação fica na fila e a tela não mente sobre isso', a
   await assertNoHorizontalOverflow(page)
 })
 
-test('o motorista leva o romaneio, com a chave da nota e o aviso de que não é fiscal', async ({
-  page,
-}) => {
+/**
+ * Decisão do usuário (2026-09-25): o cabeçalho do romaneio passou a ser só ícones — o título por
+ * extenso mora num `h2` visualmente oculto (para leitor de tela) e reaparece no papel impresso. Os
+ * quatro ícones (contagem de notas, aviso de não-fiscal, imprimir, mostrar/ocultar) têm dica no
+ * toque/hover e `aria-label` próprio.
+ */
+test('o motorista leva o romaneio, só com ícones no cabeçalho', async ({ page }) => {
   await openTrip(page)
 
-  await expect(page.getByRole('heading', { name: 'Romaneio de carga' })).toBeVisible()
-  await expect(page.getByText('Não é documento fiscal')).toBeVisible()
+  const loadSheet = page.getByRole('region', { name: 'Romaneio de carga' })
+  await expect(loadSheet.getByRole('button', { name: 'Não é documento fiscal' })).toBeVisible()
+  await expect(loadSheet.getByRole('button', { name: 'Imprimir' })).toBeVisible()
+
+  // Recolhido por padrão: a lista de notas não empurra a viagem para baixo até o motorista pedir
+  const toggle = loadSheet.getByRole('button', { name: 'Mostrar notas' })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(loadSheet.getByText(DRIVER_ACCESS_KEY)).toBeHidden()
+  await toggle.click()
+  await expect(loadSheet.getByRole('button', { name: 'Ocultar notas' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
 
   // A chave por extenso é o que se consulta no portal e o que a portaria digita quando o leitor falha
-  await expect(page.getByText(DRIVER_ACCESS_KEY)).toBeVisible()
-  await expect(page.getByText('NF-e 900123/1')).toBeVisible()
-  await expect(page.getByText('3 volumes', { exact: false })).toBeVisible()
+  await expect(loadSheet.getByText(DRIVER_ACCESS_KEY)).toBeVisible()
+  await expect(loadSheet.getByText('NF-e 900123/1')).toBeVisible()
+  await expect(loadSheet.getByText('3 volumes', { exact: false })).toBeVisible()
 
   // E o código de barras, que é o que ela bipa
   await expect(
     page.getByRole('img', { name: /Código de barras da chave da NF-e 900123/ }),
   ).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+})
+
+/**
+ * Decisão do usuário (2026-09-25): cada nota do cartão da parada mostra o número, volumes/peso e o
+ * valor sem toque nenhum — só a chave de acesso fica recolhida atrás de "Ver chave", porque ela não
+ * cabe numa linha sem empurrar o resto do cartão.
+ *
+ * O romaneio (`DriverLoadSheet`) fica recolhido o teste inteiro, então "NF-e 900123/1" e a chave só
+ * existem uma vez na tela — a do cartão da parada, que é o que este teste mede.
+ */
+test('cada nota da parada mostra NF-e, volumes/peso e valor — a chave fica atrás de "Ver chave"', async ({
+  page,
+}) => {
+  await openTrip(page)
+
+  // `exact`: o romaneio (recolhido) tem "NF-e 900123/1 — Mercearia do Centro" na mesma página.
+  await expect(page.getByText('NF-e 900123/1', { exact: true })).toBeVisible()
+  await expect(page.getByText('3 volumes · 12,5 kg')).toBeVisible()
+  await expect(page.getByText(/R\$\s*1\.500,00/u)).toBeVisible()
+
+  // `[class*=]`: o romaneio (recolhido) guarda a mesma chave num `<p>` próprio, mesmo texto exato.
+  // O sufixo "_" separa do botão "Ver chave" — a classe dele começa com o mesmo prefixo.
+  const revealedKey = page.locator('[class*="documentDetailsKey_"]')
+  await expect(revealedKey).toHaveCount(0)
+  await page.getByRole('button', { name: 'Ver chave' }).click()
+  await expect(page.getByRole('button', { name: 'Ocultar chave' })).toBeVisible()
+  await expect(revealedKey).toHaveText(DRIVER_ACCESS_KEY)
 
   await assertNoHorizontalOverflow(page)
 })
@@ -290,8 +340,10 @@ test('CA05(b): sinal fraco mostra a viagem salva e drena quando o Keycloak volta
   await page.reload()
 
   await expect(page.getByText(/Sem conexão — dados de \d/)).toBeVisible()
+  // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Entreguei' }).first().click()
-  await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
+  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
   expect(api.reports()).toEqual([])
 
   // A rede de volta: a sonda do Keycloak passa a responder, e a reautenticação percebe pelo
@@ -303,13 +355,13 @@ test('CA05(b): sinal fraco mostra a viagem salva e drena quando o Keycloak volta
    * Spec 189 T9.2 ("Confirmar em lote"): o toque foi gravado sem sessão — quem tinha o celular na mão
    * registrou em nome do último usuário. Depois de entrar, nada sobe sozinho: o dono confirma.
    */
-  await expect(page.getByText(/1 registro feito sem rede às \d.* — enviar\?/u)).toBeVisible({
+  await expect(page.getByText(/2 registros feitos sem rede às \d.* — enviar\?/u)).toBeVisible({
     timeout: 20_000,
   })
   expect(api.reports()).toEqual([])
   await page.getByRole('button', { exact: true, name: 'Enviar' }).click()
 
-  await expect.poll(() => api.reports().length, { timeout: 20_000 }).toBe(1)
+  await expect.poll(() => api.reports().length, { timeout: 20_000 }).toBe(2)
   await expect(page.getByText('feito sem rede', { exact: false })).toHaveCount(0)
 })
 
@@ -449,7 +501,7 @@ test('CA07: o temporizador drena sozinho e para quando não há mais pendência'
 test('A2: a releitura que falha mantém a viagem na tela, com a hora do dado', async ({ page }) => {
   await page.clock.install()
   const api = await openTrip(page)
-  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
 
   api.setTripReadFailing(true)
   // O tique de 30 s, e depois as três novas tentativas do TanStack (1 s, 2 s, 4 s).
@@ -460,7 +512,7 @@ test('A2: a releitura que falha mantém a viagem na tela, com a hora do dado', a
 
   await expect(page.getByText(/Sem atualização — dados de \d/u)).toBeVisible()
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
-  await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+  await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Cheguei' })).toBeVisible()
   await expect(
     page.getByText('Não foi possível carregar sua viagem', { exact: false }),
@@ -482,6 +534,41 @@ test('CA08: o sino leva a Notificações e tem 44 px', async ({ page }) => {
   await bell.click()
   await expect(page.getByRole('heading', { level: 1, name: 'Notificações' })).toBeVisible()
   expect(new URL(page.url()).pathname).toBe('/notificacoes')
+})
+
+/**
+ * Spec 193 CA13: a fila presa aparece no cabeçalho em viagem, `/fotos`, `/perfil` e `/fila`, com o
+ * selo da contagem, e o toque abre `/fila`. O relato não sobe porque a API está sem sinal.
+ */
+test('CA13 (193): a fila presa mostra o selo no cabeçalho e o toque abre a fila', async ({
+  page,
+}) => {
+  const api = await openTrip(page)
+  api.setOffline(true)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
+
+  const queueButton = page.getByRole('button', { name: 'Fila de envio, 1 pendente' })
+  await expect(queueButton).toBeVisible()
+  await expect(queueButton).toHaveText('1')
+  const box = await queueButton.boundingBox()
+  expect(box?.width).toBeGreaterThanOrEqual(44)
+  expect(box?.height).toBeGreaterThanOrEqual(44)
+
+  for (const path of ['/fotos', '/perfil']) {
+    await page.evaluate((next) => {
+      window.history.pushState({}, '', next)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }, path)
+    await expect(page.getByRole('button', { name: 'Fila de envio, 1 pendente' })).toBeVisible()
+  }
+
+  await page.getByRole('button', { name: 'Fila de envio, 1 pendente' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Eventos pendentes' })).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/fila')
+  await expect(page.getByRole('button', { name: 'Fila de envio, 1 pendente' })).toBeVisible()
+  expect(api.reports()).toEqual([])
+  await assertNoHorizontalOverflow(page)
 })
 
 /** CA15: nenhum interativo visível abaixo de 44×44 px em 375 px. */
@@ -533,22 +620,27 @@ test.describe('CA12: duas viagens e a janela de entrega', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
 
     const trips = page.getByRole('group', { name: 'Suas viagens' })
-    await expect(trips.getByRole('button', { name: 'Viagem 2 · ABC1D23' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    await expect(page.locator('main > header').getByText('Veículo ABC1D23')).toBeVisible()
+    // Decisão do usuário (2026-09-25): o seletor diz o caminho da viagem, não a posição na lista —
+    // com uma parada só, o caminho é o rótulo dela; a placa vira linha de apoio, embaixo.
     await expect(
-      page.getByRole('heading', { exact: true, name: 'Rua das Flores, 20' }),
+      trips.getByRole('button', { name: 'Rua das Flores, 20 · 1 parada' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('main > header').getByText('Veículo ABC1D23')).toBeVisible()
+    // Pedido do usuário (25/09): a parada virou cabeçalho expansível — o rótulo mora no botão do
+    // acordeão, não mais num `<h2>` isolado (o `<h2>` agora embrulha o botão inteiro, ver
+    // DriverStopCard.component.tsx).
+    await expect(
+      page.getByText('Rua das Flores, 20', { exact: true }).filter({ visible: true }).first(),
     ).toBeVisible()
-    // CA12 (spec 189 T7.3): a parada com janela diz a janela no cartão.
+    // CA12 (spec 189 T7.3): a parada com janela diz a janela no cartão — dentro do botão do
+    // cabeçalho, aberto por padrão porque é a única parada (sempre a atual).
     await expect(page.getByText('Janela 08:00–12:00')).toBeVisible()
 
-    await trips.getByRole('button', { name: 'Viagem 1 · GCQ8E47' }).click()
+    await trips.getByRole('button', { name: 'Praca da Se, 100 · 1 parada' }).click()
     await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
-    await expect(page.getByText('Praca da Se, 100').first()).toBeVisible()
+    await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
     await expect(
-      page.getByRole('heading', { exact: true, name: 'Rua das Flores, 20' }),
+      page.getByText('Rua das Flores, 20', { exact: true }).filter({ visible: true }),
     ).toHaveCount(0)
 
     await page.reload()
@@ -625,4 +717,228 @@ test('CA14: com consentimento, a posição sobe 1 vez por minuto, com aviso, e p
   await page.getByRole('button', { name: 'Viagem', exact: true }).click()
   await expect(indicator).toHaveCount(0)
   expect(await listSmallTouchTargets(page)).toEqual([])
+})
+
+/** PNG 1×1 sintético — nenhuma foto real entra em fixture. */
+const SMOKE_PHOTO = {
+  buffer: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  ),
+  mimeType: 'image/png',
+  name: 'canhoto.png',
+} as const
+
+/**
+ * Pedido do usuário (25/09): o canhoto são três botões do mesmo tamanho — "Tirar foto" abre a
+ * câmera (`capture`), "Anexar" abre galeria e arquivos (sem `capture`), "Colher assinatura" tem
+ * ícone próprio. Sem o rótulo solto "Anexar canhoto"; depois de anexar, a miniatura, o
+ * "anexada" e o "Refazer". No cartão da parada, depois do "Entreguei" — em "Fotos pendentes" a nota
+ * troca o formulário pelo aviso da fila assim que a foto entra nela (spec 159).
+ */
+test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a foto anexada', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  await mockDriverTripApi({
+    page,
+    scenario: {
+      settlesDeliveries: true,
+      stopDeliveryProof: {
+        photo: 'required',
+        receiverDocument: 'off',
+        receiverName: 'off',
+        signature: 'optional',
+      },
+    },
+  })
+  await loginAsLocalUser(page)
+  // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).click()
+  const item = page.locator('li', { hasText: 'Mercearia do Centro' }).last()
+
+  const takePhoto = item.getByRole('button', { name: /^Tirar foto/u })
+  const attach = item.getByRole('button', { exact: true, name: 'Anexar' })
+  const sign = item.getByRole('button', { exact: true, name: 'Colher assinatura' })
+  await expect(takePhoto).toHaveText(/Tirar foto \*/u)
+  await expect(attach).toBeVisible()
+  await expect(sign).toBeVisible()
+  await expect(item.getByText('Canhoto', { exact: true })).toBeVisible()
+  await expect(item.getByText('Anexar canhoto')).toHaveCount(0)
+  // O input nativo fica por baixo, fora da ordem de tabulação e do leitor de tela.
+  for (const input of await item.locator('input[type=file]').all()) {
+    await expect(input).toHaveAttribute('aria-hidden', 'true')
+    await expect(input).toHaveAttribute('tabindex', '-1')
+  }
+
+  const [takeBox, attachBox, signBox] = await Promise.all(
+    [takePhoto, attach, sign].map((button) => button.boundingBox()),
+  )
+  for (const box of [takeBox, attachBox, signBox]) expect(box?.height).toBeGreaterThanOrEqual(44)
+  // As duas portas da foto dividem a linha em partes iguais; a assinatura ocupa a linha inteira.
+  expect(Math.abs((takeBox?.width ?? 0) - (attachBox?.width ?? 0))).toBeLessThanOrEqual(1)
+  // Mesma linha — a folga de 1 px é o `translateY(-1px)` do hover do botão.
+  expect(Math.abs((takeBox?.y ?? 0) - (attachBox?.y ?? 0))).toBeLessThanOrEqual(1)
+  expect(signBox?.width ?? 0).toBeGreaterThan((takeBox?.width ?? 0) * 1.9)
+
+  // "Anexar" abre galeria e arquivos: o seletor que ele abre não pede a câmera.
+  const galleryChooser = page.waitForEvent('filechooser')
+  await attach.click()
+  expect(await (await galleryChooser).element().getAttribute('capture')).toBeNull()
+
+  // "Tirar foto" abre a câmera traseira na hora.
+  const cameraChooserPromise = page.waitForEvent('filechooser')
+  await takePhoto.click()
+  const cameraChooser = await cameraChooserPromise
+  expect(await cameraChooser.element().getAttribute('capture')).toBe('environment')
+  await cameraChooser.setFiles(SMOKE_PHOTO)
+  await page.getByRole('button', { name: 'Usar sem recorte' }).click()
+
+  await expect(item.getByText('Foto do canhoto anexada')).toBeVisible()
+  await expect(item.getByRole('img', { name: 'Miniatura da foto do canhoto' })).toBeVisible()
+  await expect(item.getByRole('button', { exact: true, name: 'Refazer' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+})
+
+/**
+ * Spec 179 (T302/T303), pedido do usuário de 25/09: "Não entreguei" registra a ocorrência com foto
+ * e a devolução. Preenche motivo, tipo e foto pela câmera; o confirmar só habilita completo.
+ */
+async function fillNotDelivered(page: Page): Promise<void> {
+  // Pedido do usuário (25/09): "Não entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { exact: true, name: 'Não entreguei' }).click()
+  const confirm = page.getByRole('button', { exact: true, name: 'Confirmar' })
+  await expect(confirm).toBeDisabled()
+  await expect(
+    page.getByText('Para confirmar, falta: o motivo, o tipo de ocorrência, a foto.'),
+  ).toBeVisible()
+
+  await page.getByRole('radio', { name: 'Recusa' }).click()
+  await page.getByRole('radio', { name: 'Cliente ausente' }).click()
+  await expect(page.getByText('Para confirmar, falta: a foto.')).toBeVisible()
+  await expect(confirm).toBeDisabled()
+
+  const form = page.locator('fieldset', { hasText: 'Por que não entregou?' })
+  const chooser = page.waitForEvent('filechooser')
+  await form.getByRole('button', { name: /^Tirar foto/u }).click()
+  expect(await (await chooser).element().getAttribute('capture')).toBe('environment')
+  await (await chooser).setFiles(SMOKE_PHOTO)
+  await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
+  await expect(form.getByRole('button', { exact: true, name: 'Anexar' })).toBeVisible()
+  await expect(confirm).toBeEnabled()
+  await assertNoHorizontalOverflow(page)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+  await confirm.click()
+}
+
+test('Não entreguei: ocorrência com foto sobe direto ao storage, depois a devolução', async ({
+  page,
+}) => {
+  const api = await openTrip(page)
+
+  await fillNotDelivered(page)
+
+  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
+  expect(paths).toEqual([
+    '/me/trips/current/stops/:id/arrive',
+    '/me/trips/current/documents/:id/occurrence-uploads',
+    '/me/trips/current/documents/:id/occurrence-uploads/:id/confirm',
+    '/me/trips/current/documents/:id/occurrences',
+    '/me/trips/current/documents/:id/return',
+  ])
+  expect(api.storageUploads()).toHaveLength(1)
+  expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
+  expect(api.storageUploads()[0]?.bytes).toBeGreaterThan(0)
+  const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[2]?.path ?? '')
+  expect(api.reports()[3]?.body).toMatchObject({
+    attachmentObjectId: confirmedId?.[1],
+    occurrenceTypeId: '00000000-0000-4000-8000-0000000000e1',
+  })
+  expect(api.reports()[4]?.body).toMatchObject({ reason: 'recipient_refused' })
+  expect(api.reports()[3]?.idempotencyKey).not.toBe(api.reports()[4]?.idempotencyKey)
+})
+
+/**
+ * Spec 209: a foto do "Deu problema" é da ocorrência de parada. A ocorrência sobe primeiro, sem
+ * esperar a foto; a foto sobe pela rota da parada e completa a ocorrência pela chave dela. Nada vai
+ * ao comprovante de nota nenhuma — era assim que ela virava canhoto e pesava na nota do motorista.
+ */
+test('Deu problema com foto: a foto é da ocorrência, e nunca vira canhoto', async ({ page }) => {
+  const api = await openTrip(page)
+
+  await page.getByRole('button', { exact: true, name: 'Deu problema' }).click()
+  const kinds = page.getByRole('radiogroup', { name: 'Deu problema' })
+  await kinds.getByRole('radio', { name: 'Doca interditada' }).click()
+  const form = kinds.locator('..')
+  const chooser = page.waitForEvent('filechooser')
+  await form.getByRole('button', { name: /^Tirar foto/u }).click()
+  expect(await (await chooser).element().getAttribute('capture')).toBe('environment')
+  await (await chooser).setFiles(SMOKE_PHOTO)
+  await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
+  await expect(form.getByRole('button', { exact: true, name: 'Refazer' })).toBeVisible()
+  await assertNoHorizontalOverflow(page)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+  await form.getByRole('button', { exact: true, name: 'Registrar' }).click()
+
+  await expect(page.getByText(/Ocorrência registrada às .* · enviada/u)).toBeVisible()
+  await expect.poll(() => api.reports().length).toBe(4)
+  const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
+  expect(paths).toEqual([
+    '/me/trips/current/stops/:id/occurrences',
+    '/me/trips/current/stops/:id/occurrence-uploads',
+    '/me/trips/current/stops/:id/occurrence-uploads/:id/confirm',
+    '/me/trips/current/stops/:id/occurrences',
+  ])
+  expect(api.storageUploads()).toHaveLength(1)
+  expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
+  const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[2]?.path ?? '')
+  expect(api.reports()[0]?.body).toEqual({ description: '', documentId: null, kind: 'dock_closed' })
+  expect(api.reports()[3]?.body).toEqual({
+    attachmentObjectId: confirmedId?.[1],
+    description: '',
+    documentId: null,
+    kind: 'dock_closed',
+  })
+  expect(api.reports()[3]?.idempotencyKey).toBe(api.reports()[0]?.idempotencyKey)
+})
+
+test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depois de subir', async ({
+  page,
+}) => {
+  const api = await openTrip(page)
+  api.setOffline(true)
+
+  await fillNotDelivered(page)
+
+  await expect(
+    page.getByText('Ocorrência com foto na fila — sobe quando o sinal voltar.'),
+  ).toBeVisible()
+  // Pedido do usuário (25/09): "Cheguei" entrou na mesma fila — chegada + ocorrência + devolução.
+  await expect(page.getByText('3 confirmações aguardando envio')).toBeVisible()
+  await expect(page.getByText('Ocorrência com foto enviada.')).toHaveCount(0)
+  expect(api.storageUploads()).toEqual([])
+  expect(api.reports().filter((report) => report.path.endsWith('/occurrences'))).toEqual([])
+
+  await page.getByRole('button', { name: /confirmações aguardando envio/u }).click()
+  await expect(page.getByText('Ocorrência com foto')).toBeVisible()
+  await expect(page.getByText('1 anexo')).toBeVisible()
+  await page.getByRole('button', { name: 'Voltar' }).click()
+
+  api.setOffline(false)
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+
+  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  expect(api.storageUploads()).toHaveLength(1)
+  expect(api.reports().map((report) => report.path.split('/').at(-1))).toEqual([
+    'arrive',
+    'occurrence-uploads',
+    'confirm',
+    'occurrences',
+    'return',
+  ])
 })

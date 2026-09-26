@@ -474,3 +474,5 @@ não repetir: **ler `docs/adr/` antes de desenhar não é formalidade.**
 - ✅ **D4 já estava decidido, e eu não tinha lido: ADR-0057 §4.** O app **não corrige** o endereço —
   ele abre ponto de atenção, e quem decide é o escritório. A pergunta "aceito direto ou sugestão?"
   não existia: a resposta é sugestão, por decisão aceita em 2026-09-03.
+  Registrado por escrito na **ADR-0080** (spec 195, 2026-09-25): o ponto do motorista vira
+  sugestão (`trip_stop_location_suggestions`) e só vira coordenada quando o escritório aplica.

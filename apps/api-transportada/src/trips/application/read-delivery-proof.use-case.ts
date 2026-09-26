@@ -7,19 +7,24 @@
  * lado do balcão não havia leitura nenhuma — o canhoto existia no bucket e ninguém no escritório o
  * alcançava.
  */
-import type { TripDeliveryProofKind } from '../../database/trip.schema.js'
+import type { ReceivedBy, TripDeliveryProofKind } from '../../database/trip.schema.js'
 
 export type DeliveryProofRecord = {
   readonly bucket: string
   readonly createdAt: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
+  /** Spec 205 RF7: o envio ou a entrega dele veio pelo "Registrar entrega depois". */
+  readonly lateRegistration: boolean
   readonly mimeType: string
   readonly objectKey: string
   /** ADR-0057 §3: **sempre** a máscara (`***.938.570-**`). O valor em claro não sai da coluna selada. */
   readonly receiverDocumentMasked: string
-  /** Nome de quem recebeu, na assinatura. */
+  /** Nome de quem recebeu — na assinatura e no canhoto (spec 193 D4). */
   readonly receiverName: string
+  /** Spec 193 D3: da mesma linha do nome. `null` nos comprovantes antigos (D11). */
+  readonly receivedBy: ReceivedBy | null
+  readonly receivedByDetail: string | null
 }
 
 export type ReadDeliveryProofPort = {
@@ -45,9 +50,14 @@ export type DeliveryProofView = {
   readonly expiresAt: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
+  /** Spec 205 RF7: só como dado — a tela não o interpreta. */
+  readonly lateRegistration: boolean
   /** ADR-0057 §3: mascarado em toda leitura. Vazio quando a empresa não colhe documento. */
   readonly receiverDocument: string
   readonly receiverName: string
+  /** Spec 193 CA09: quem recebeu, da mesma linha do nome; `null` no comprovante antigo. */
+  readonly receivedBy: ReceivedBy | null
+  readonly receivedByDetail: string | null
 }
 
 export type ReadDeliveryProofsInput = {
@@ -90,8 +100,11 @@ export async function readDeliveryProofs({
         expiresAt: download.expiresAt,
         id: record.id,
         kind: record.kind,
+        lateRegistration: record.lateRegistration,
         receiverDocument: record.receiverDocumentMasked,
         receiverName: record.receiverName,
+        receivedBy: record.receivedBy,
+        receivedByDetail: record.receivedByDetail,
       }
     }),
   )

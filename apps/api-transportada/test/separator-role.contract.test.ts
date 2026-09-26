@@ -10,6 +10,9 @@ import { AuthorizationService } from '../src/identity/application/authorization.
 import { resolveCompanyPermissions } from '../src/identity/domain/authorization.policy'
 import type { AuthenticatedContext, CompanyContext } from '../src/identity/domain/tenant-context'
 import { createNfeDocumentRoutes } from '../src/nfe-documents/presentation/nfe-documents.routes'
+import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
+import { createQuickReplyRoutes } from '../src/occurrence-conversation/presentation/quick-replies.routes'
+import { createOccurrenceConversationUnassignedRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation-unassigned.routes'
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
 import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
 import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
@@ -77,6 +80,13 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     // não porque a permissão as barrasse.
     ...createTripFieldOfficeRoutes(dependencies),
     ...createTripFieldOfficeOccurrenceRoutes(dependencies),
+    // Spec 183 T404 (143 T016): o separador lê a conversa (`fleet.read`, como a listagem) e marca
+    // como lida, mas **não** escreve à contratante nem vê a prévia (`occurrences.resolve`).
+    ...createOccurrenceConversationRoutes(dependencies),
+    ...createOccurrenceConversationUnassignedRoutes(dependencies),
+    // Spec 183 T701 (RF12): as respostas rápidas são cadastro (`settings.manage`) e leitura de quem
+    // escreve na conversa (`occurrences.resolve`) — o separador não alcança nenhuma das duas.
+    ...createQuickReplyRoutes(dependencies),
   ]
 
   return routes
@@ -144,6 +154,11 @@ describe('separator role contract', () => {
       // A exportação do que falta medir é a mesma fila, inteira — a mesma cargo.measure.
       'GET /nfe-package-boxes/pending-export',
       /**
+       * Spec 183 T505 (RF9): a fila de mensagens sem conversa é leitura da listagem (`fleet.read`),
+       * como as conversas; atribuir é `occurrences.resolve`, e ele não alcança.
+       */
+      'GET /occurrence-conversations/unassigned',
+      /**
        * Spec 148 T7: a fila das notas que não couberam é lida sob `fleet.read`, como a viagem. O
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela
        * mostra número da nota, motivo e o Δ% de peso e espaço — nada de dinheiro nem ficha de pessoa.
@@ -170,6 +185,8 @@ describe('separator role contract', () => {
        */
       'GET /trip-occurrences',
       'GET /trip-occurrences/:id/attachments',
+      // Spec 183 T404: ler a conversa é da listagem; escrever à contratante não (occurrences.resolve).
+      'GET /trip-occurrences/:id/conversations',
       'GET /trips',
       'GET /trips/:id',
       /**
@@ -241,9 +258,17 @@ describe('separator role contract', () => {
        * devolve só a planta e o estado do cálculo — nada de receita, custo ou ficha de pessoa.
        */
       'GET /trips/cargo-layouts/:layoutId',
+      /**
+       * Spec 216: mesma `trip.manage` de `POST /trips` (criar) acima — o separador já monta a
+       * tripulação na criação; corrigi-la antes do roteiro planejado é o mesmo trabalho, não um
+       * novo. Bloqueada a partir de `route_planned` pela própria máquina de estados.
+       */
+      'PATCH /trips/:id/crew',
       'PATCH /trips/:id/stops/order',
       // Spec 155 (G004): a mesma cargo.measure de GET .../:id/siblings, acima.
       'POST /nfe-package-boxes/:id/replicate',
+      // Spec 183 T404 (RF15): marcar a conversa como lida é registro do próprio usuário (`fleet.read`).
+      'POST /occurrence-conversations/:id/read',
       /**
        * A mesma linha da estrada da rota irmã, para pontos que **ainda não são viagem**: é o mapa
        * do formulário, onde o separador confere a ordem antes de criar a viagem. Alcança pelo mesmo

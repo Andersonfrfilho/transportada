@@ -8,10 +8,12 @@ import {
   createTripOccurrenceFeedClient,
   type TripOccurrenceFeedClient,
 } from '../shared/tripOccurrenceFeedClient.service'
+import type { OccurrenceTimeline } from '../shared/tripOccurrenceTimeline.service'
 import {
   serializeTripOccurrenceQuery,
   TRIP_OCCURRENCE_PER_PAGE,
   type TripOccurrenceAttachment,
+  type TripOccurrenceDetail,
   type TripOccurrenceFeedFilters,
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedPage,
@@ -106,5 +108,34 @@ export function useOccurrenceSettlementQuery(input: UseOccurrenceSettlementInput
     queryFn: () => client.findOccurrenceSettlement({ occurrenceId: input.occurrenceId }),
     queryKey: [TRIP_OCCURRENCE_SETTLEMENT_QUERY_KEY, input.occurrenceId],
     staleTime: 0,
+  })
+}
+
+/**
+ * Spec 183 T204: o detalhe da ocorrência. A chave fica **debaixo** da chave da listagem, para que as
+ * ações da tratativa — que invalidam `[TRIP_OCCURRENCE_FEED_QUERY_KEY]` — atualizem a página também.
+ */
+export function useTripOccurrenceDetailQuery(
+  input: Readonly<{ companyId?: string; enabled: boolean; occurrenceId: string }>,
+) {
+  const client = getTripOccurrenceFeedClient()
+
+  return useQuery<TripOccurrenceDetail>({
+    enabled: input.enabled,
+    queryFn: () => client.readOccurrence({ occurrenceId: input.occurrenceId }),
+    queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY, 'detail', input.companyId, input.occurrenceId],
+  })
+}
+
+/** Spec 183 RF19: sob a mesma chave do feed — a ação na tratativa invalida a linha do tempo junto. */
+export function useTripOccurrenceTimelineQuery(
+  input: Readonly<{ companyId?: string; enabled: boolean; occurrenceId: string }>,
+) {
+  const client = getTripOccurrenceFeedClient()
+
+  return useQuery<OccurrenceTimeline>({
+    enabled: input.enabled,
+    queryFn: () => client.readOccurrenceTimeline({ occurrenceId: input.occurrenceId }),
+    queryKey: [TRIP_OCCURRENCE_FEED_QUERY_KEY, 'timeline', input.companyId, input.occurrenceId],
   })
 }

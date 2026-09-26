@@ -19,6 +19,7 @@ import {
   tripStopEvents,
   TRIP_DELIVERY_PROOF_CARGO_KIND,
   trips,
+  type ReceivedBy,
   type TripDeliveryProofKind,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
@@ -128,6 +129,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     const [general] = await this.database
       .select({
         photo: companyDeliveryProofSettings.photo,
+        receivedBy: companyDeliveryProofSettings.receivedBy,
         receiverDocument: companyDeliveryProofSettings.receiverDocument,
         receiverName: companyDeliveryProofSettings.receiverName,
         signature: companyDeliveryProofSettings.signature,
@@ -143,6 +145,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         : await this.database
             .select({
               photo: deliveryProofSettingOverrides.photo,
+              receivedBy: deliveryProofSettingOverrides.receivedBy,
               receiverDocument: deliveryProofSettingOverrides.receiverDocument,
               receiverName: deliveryProofSettingOverrides.receiverName,
               signature: deliveryProofSettingOverrides.signature,
@@ -203,12 +206,14 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }): Promise<{
     readonly deliveredAt: Date
     readonly deliveryEventPosition: Coordinate | undefined
+    readonly lateRegistration: boolean
   }> {
     const [record] = await this.database
       .select({
         capturedAt: tripStopEvents.capturedAt,
         eventLatitude: tripStopEvents.latitude,
         eventLongitude: tripStopEvents.longitude,
+        lateRegistration: tripStopEvents.lateRegistration,
         recordedAt: tripStopEvents.recordedAt,
       })
       .from(tripStopEvents)
@@ -222,6 +227,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return {
       deliveredAt: record.capturedAt ?? record.recordedAt,
       deliveryEventPosition: toCoordinate(record.eventLatitude, record.eventLongitude),
+      lateRegistration: record.lateRegistration,
     }
   }
 
@@ -299,6 +305,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
           companyId: input.companyId,
           id: input.id,
           kind: input.kind,
+          lateRegistration: input.lateRegistration,
           latitude: input.latitude,
           longitude: input.longitude,
           onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
@@ -307,6 +314,8 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
           receiverDocumentEnvelope: input.receiverDocumentEnvelope,
           receiverDocumentMasked: input.receiverDocumentMasked,
           receiverName: input.receiverName,
+          receivedBy: input.receivedBy,
+          receivedByDetail: input.receivedByDetail,
           stopEventId: input.eventId,
         })
         /**
@@ -353,6 +362,8 @@ type SaveProofInput = {
   readonly eventId: string
   readonly id: string
   readonly kind: TripDeliveryProofKind
+  /** Spec 205 D1: o envio veio pelo "Registrar entrega depois". */
+  readonly lateRegistration: boolean
   readonly latitude: string | null
   readonly longitude: string | null
   readonly mimeType: string
@@ -363,6 +374,9 @@ type SaveProofInput = {
   readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
   readonly receiverDocumentMasked: string
   readonly receiverName: string
+  /** Spec 193 D3/D12: a recaptura do mesmo tipo substitui a linha — relação e detalhe inclusive. */
+  readonly receivedBy: ReceivedBy | null
+  readonly receivedByDetail: string | null
   readonly sha256: string
   readonly sizeBytes: number
 }
@@ -385,11 +399,15 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     attachmentKey: input.attachmentKey,
     capturedAt: input.capturedAt,
     channel: input.authorship.channel,
+    /** Spec 205 D5: a substituta não lava o registro tardio da foto anterior. */
+    lateRegistration: sql`${tripDeliveryProofs.lateRegistration} or excluded.late_registration`,
     latitude: input.latitude,
     longitude: input.longitude,
     objectId: input.objectId,
     onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
     punctuality: input.punctuality,
+    receivedBy: input.receivedBy,
+    receivedByDetail: input.receivedByDetail,
     receiverName: input.receiverName,
   }
   /** O AAD do envelope preservado está amarrado ao `id` antigo — o id fica junto com ele. */

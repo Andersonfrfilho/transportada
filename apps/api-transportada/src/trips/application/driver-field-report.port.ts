@@ -4,6 +4,7 @@
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type {
+  ReceivedBy,
   TripDeliveryProofKind,
   TripDeliveryProofPunctuality,
   TripDocumentSeparationStatus,
@@ -11,6 +12,7 @@ import type {
   TripStopEventKind,
   TripStopOccurrenceKind,
 } from '../../database/trip.schema.js'
+import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
 import type { TripOccurrence } from './register-trip-occurrence.use-case.js'
@@ -30,6 +32,22 @@ export type DriverStopReference = {
   readonly estimatedArrivalAt: Date | null
   readonly tripId: string
   readonly tripStatus: string
+}
+
+/**
+ * Spec 206 D2/D18: lida depois da trava das paradas. `enRouteStop` é a parada a caminho **da
+ * viagem inteira** (no máximo uma, pelo índice único) — quando ela é a própria parada do toque,
+ * quem decide é o estado da parada; quando é outra, é o `409`.
+ */
+export type DepartureDecision = {
+  readonly enRouteStop: { readonly id: string; readonly sequence: string } | null
+  readonly lastArrivedAt: Date | null
+  readonly lastDepartedTappedAt: Date | null
+  readonly stop: {
+    readonly arrivedAt: Date | null
+    readonly completedAt: Date | null
+    readonly enRouteSince: Date | null
+  }
 }
 
 export type DriverDocumentReference = {
@@ -69,7 +87,9 @@ export type DriverFieldReportTransactionPort = {
   settle(input: {
     readonly companyId: string
     readonly idempotencyKey: string
-    readonly resultId: string
+    /** Spec 206 D2: `null` no toque sem efeito — o no-op também liquida a chave (M3). */
+    readonly resultChanged: boolean
+    readonly resultId: string | null
   }): Promise<void>
 
   /**
@@ -98,8 +118,15 @@ export type DriverFieldReportTransactionPort = {
 
   markStopArrived(input: {
     readonly at: Date
+    /**
+     * Spec 206 D7 (M4): a chegada zera "a caminho" — `'trip'` para o canal `driver_app`/`whatsapp`
+     * (todas as paradas da viagem, quem chegou não está mais a caminho de outra) e `'stop'` para o
+     * canal `office` (só a própria: a baixa retroativa não diz onde o motorista está agora).
+     */
+    readonly clearEnRoute: 'stop' | 'trip'
     readonly companyId: string
     readonly stopId: string
+    readonly tripId: string
   }): Promise<void>
   /**
    * Spec 109 D3: desloca as paradas que **ainda não aconteceram** pelo atraso desta chegada.
@@ -113,6 +140,46 @@ export type DriverFieldReportTransactionPort = {
     readonly shiftMilliseconds: number
     readonly tripId: string
   }): Promise<void>
+  /**
+   * Spec 206 D4 (ADR-0068 §2): trava as paradas da viagem antes de qualquer decisão sobre "a
+   * caminho" — serializa a leitura para o perdedor de uma corrida receber `409`, e não o `500` do
+   * índice único parcial.
+   */
+  lockTripStops(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  /**
+   * Spec 206 D2/D18: lida **depois** da trava — a parada (para o no-op de estado), a parada a
+   * caminho da viagem (se houver, para o `409`) e as referências de tempo do D3.
+   */
+  readDepartureDecision(input: {
+    readonly companyId: string
+    readonly stopId: string
+    readonly tripId: string
+  }): Promise<DepartureDecision>
+  /** Spec 206 D1/D4: marca **só esta** parada — não existe caminho que grave em duas. */
+  markStopEnRoute(input: {
+    readonly companyId: string
+    readonly since: Date
+    readonly stopId: string
+    readonly tappedAt: Date | null
+  }): Promise<void>
+  /** Spec 206 D18: o "Cancelar rota" zera "a caminho" **só da própria parada**. */
+  clearStopEnRoute(input: {
+    readonly companyId: string
+    readonly stopId: string
+    readonly updatedAt: Date
+  }): Promise<void>
+  /**
+   * Spec 206 D5: o primeiro "Iniciar rota" da viagem, no molde de `markTripInTransit`. Aceita
+   * `dispatched` **e** `in_transit` como origem — quem depende do status atual é
+   * `checkTripTransition`. Devolve se mudou.
+   */
+  markTripOnDeliveryRoute(input: {
+    readonly actorUserId: string
+    readonly at: Date
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<boolean>
   markTripInTransit(input: {
     readonly actorUserId: string
     /** ADR-0068 §"Consequências": o `trip_status_events` da chegada usa o mesmo `now` do `trip_stop_event`. */
@@ -140,11 +207,6 @@ export type DriverFieldReportTransactionPort = {
   completeStopIfSettled(input: {
     readonly at: Date
     readonly companyId: string
-    /**
-     * Spec 156 T15 C1: o escritório dá baixa sem chegada registrada — o motorista não tocou em
-     * "cheguei". A chegada vira a menor hora de entrega/devolução da parada, só se estiver vazia.
-     */
-    readonly fillMissingArrival: boolean
     readonly stopId: string
   }): Promise<boolean>
   /** Fecha a viagem quando a última parada fechou (spec 056 D1). Devolve se fechou. */
@@ -180,6 +242,8 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly documentId: string | null
     readonly kind: TripStopEventKind
+    /** Spec 205 RF4: a baixa veio pelo "Registrar entrega depois". Ausente cai no default `false`. */
+    readonly lateRegistration?: boolean
     readonly location: ReportedLocation | null
     /**
      * ADR-0067 §3: quando aconteceu. Ausente para o motorista (a coluna cai no `defaultNow()`, e as
@@ -194,6 +258,8 @@ export type DriverFieldReportTransactionPort = {
      */
     readonly reportedByDriverId?: string
     readonly stopId: string
+    /** Spec 206 D3: a hora do aparelho no toque, só em `departed`/`departure_cancelled`. */
+    readonly tappedAt?: Date | null
   }): Promise<{ readonly id: string }>
   /**
    * Spec 156 T6: o comprovante da entrega **na mesma transação** da entrega — ao contrário do
@@ -221,9 +287,23 @@ export type DriverFieldReportTransactionPort = {
     readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
     readonly receiverDocumentMasked: string
     readonly receiverName: string
+    /** Spec 193 D3: quem recebeu, já com a configuração aplicada; nulo na foto da carga. */
+    readonly receivedBy: ReceivedBy | null
+    readonly receivedByDetail: string | null
     readonly sha256: string
     readonly sizeBytes: number
   }): Promise<{ readonly id: string }>
+  /**
+   * Spec 193 D7 (CA06): quem recebeu escolhido depois do envio — só nas linhas do motorista
+   * (`photo`/`signature`, canal `driver_app`) daquele evento. `null` sem nenhuma dessas linhas;
+   * `changed: false` quando o valor já era o gravado. Campo ausente não é tocado.
+   */
+  updateDriverProofReceiverWithinTransaction(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly receivedBy?: ReceivedByFields
+    readonly receiverName?: string
+  }): Promise<{ readonly changed: boolean; readonly id: string } | null>
   /** Reaproveita a leitura de dedupe do anexo (spec 082) dentro da mesma transação da entrega. */
   findProofIdByAttachmentKeyWithinTransaction(input: {
     readonly attachmentKey: string

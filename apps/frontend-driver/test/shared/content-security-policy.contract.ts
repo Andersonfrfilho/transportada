@@ -43,6 +43,24 @@ describe('a CSP da app do motorista (ADR-0075 §4)', () => {
     expect(readDirective(policy, 'img-src')).toBe("img-src 'self' blob: https://api.exemplo.test")
   })
 
+  /**
+   * Spec 179 (RF2): a foto da ocorrência sobe por `PUT` direto ao bucket, pela URL assinada — sem a
+   * origem dele no `connect-src`, o navegador recusa o envio antes de a rede ver o pedido. Só o
+   * `connect-src`: nada desta app exibe imagem do bucket.
+   */
+  test('a origem do storage entra no connect-src, e só nele', () => {
+    const policy = buildContentSecurityPolicy({
+      ...ORIGINS,
+      allowsInlineScript: false,
+      objectStorageUrl: 'https://bucket.exemplo.test/transportada',
+    })
+
+    expect(readDirective(policy, 'connect-src')).toBe(
+      "connect-src 'self' https://api.exemplo.test https://auth.exemplo.test https://bucket.exemplo.test",
+    )
+    expect(readDirective(policy, 'img-src')).toBe("img-src 'self' blob: https://api.exemplo.test")
+  })
+
   /** O `sw.ts` e o manifesto são da própria origem — é o que a spec 147 encontra pronto. */
   test('worker e manifesto só da própria origem, e nada de frame', () => {
     const policy = buildContentSecurityPolicy({ ...ORIGINS, allowsInlineScript: false })

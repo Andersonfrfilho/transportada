@@ -173,7 +173,9 @@ import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/d
 import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-webhook.routes.js'
 import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
+import { type ClientIpResolver, createClientIpResolver } from './http/client-ip.service.js'
 import { createRateLimiter } from './http/rate-limiter.service.js'
+import { createRateLimitSubjectService } from './http/rate-limit-subject.service.js'
 import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
 import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
@@ -238,7 +240,15 @@ import {
   confirmReachableOccurrenceUpload,
   requestOccurrenceUpload,
 } from './trips/application/request-occurrence-upload.use-case.js'
+import {
+  confirmReachableStopOccurrenceUpload,
+  requestStopOccurrenceUpload,
+} from './trips/application/request-stop-occurrence-upload.use-case.js'
 import { DrizzleOccurrenceUploadRepository } from './trips/infrastructure/drizzle-occurrence-upload.repository.js'
+import {
+  attachUploadToStopOccurrence,
+  findDriverReachableStop,
+} from './trips/infrastructure/stop-occurrence-attachment.query.js'
 import { readTripActionSnapshot } from './trips/application/read-trip-action-snapshot.use-case.js'
 import { readTripActionSnapshot as readTripActionSnapshotQuery } from './trips/infrastructure/trip-action-snapshot.query.js'
 import { readTripFieldDeliveryDocuments as readTripFieldDeliveryDocumentsQuery } from './trips/infrastructure/trip-field-delivery-documents.query.js'
@@ -369,6 +379,79 @@ import {
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
+import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
+import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
+import { findTripOccurrenceDetail } from './trips/infrastructure/trip-occurrence-detail.query.js'
+import { createMeOccurrenceConversationRoutes } from './occurrence-conversation/presentation/me-occurrence-conversation.routes.js'
+import { createSendContractorPortalMessageUseCase } from './occurrence-conversation/application/contractor-portal-message.use-case.js'
+import { createContractorPortalNotifier } from './occurrence-conversation/infrastructure/contractor-portal-notifier.gateway.js'
+import { createDrizzleContractorPortalMessageUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-message.repository.js'
+import { createQuickRepliesUseCase } from './occurrence-conversation/application/quick-replies.use-case.js'
+import { createDrizzleQuickRepliesUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-quick-replies.repository.js'
+import { createQuickReplyRoutes } from './occurrence-conversation/presentation/quick-replies.routes.js'
+import {
+  createContractorPortalConversationUseCase,
+  createRequestPortalConversationUploadUseCase,
+} from './occurrence-conversation/application/contractor-portal-conversation.use-case.js'
+import { createRequestOccurrenceConversationUploadUseCase } from './occurrence-conversation/application/occurrence-conversation-upload.use-case.js'
+import {
+  createDrizzleConversationUploadRepository,
+  findOccurrenceConversationKind,
+  readConversationAttachments,
+} from './occurrence-conversation/infrastructure/drizzle-conversation-attachment.repository.js'
+import { createDrizzleContractorPortalConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-portal-conversation.repository.js'
+import { createClientOccurrenceConversationRoutes } from './occurrence-conversation/presentation/client-occurrence-conversation.routes.js'
+import { createOccurrenceConversationUnassignedRoutes } from './occurrence-conversation/presentation/occurrence-conversation-unassigned.routes.js'
+import { createOccurrenceConversationRoutes } from './occurrence-conversation/presentation/occurrence-conversation.routes.js'
+import {
+  createListOccurrenceConversationsUseCase,
+  createMarkOccurrenceConversationReadUseCase,
+} from './occurrence-conversation/application/read-occurrence-conversations.use-case.js'
+import { createOccurrenceConversationWhatsAppHook } from './occurrence-conversation/application/whatsapp-conversation-inbound.service.js'
+import { createOccurrenceConversationWhatsAppStatusHook } from './occurrence-conversation/application/whatsapp-conversation-status.service.js'
+import {
+  createAssignUnassignedMessageUseCase,
+  createListUnassignedMessagesUseCase,
+} from './occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
+import {
+  createListMyConversationsUseCase,
+  createListMyOccurrenceConversationUseCase,
+  createMarkMyConversationReadUseCase,
+  createReplyMyOccurrenceConversationUseCase,
+  createRequestMyConversationUploadUseCase,
+  createSendDriverAppMessageUseCase,
+} from './occurrence-conversation/application/driver-conversation.use-case.js'
+import { createPreviewOccurrenceMailUseCase } from './occurrence-conversation/application/preview-occurrence-mail.use-case.js'
+import {
+  createPublicRef,
+  createSendOccurrenceMailUseCase,
+} from './occurrence-conversation/application/send-occurrence-mail.use-case.js'
+import {
+  createOccurrenceMailReader,
+  createOccurrenceSuggestedMailReader,
+  createAutomaticOccurrenceMailReader,
+  DrizzleOccurrenceMailRepository,
+} from './occurrence-conversation/infrastructure/drizzle-occurrence-mail.repository.js'
+import {
+  createAutomaticOccurrenceMailHook,
+  type AutomaticOccurrenceMailHook,
+} from './occurrence-conversation/application/automatic-occurrence-mail.hook.js'
+import { createSendAutomaticOccurrenceMailUseCase } from './occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
+import {
+  createDrizzleOccurrenceConversationUnassignedReader,
+  createDrizzleOccurrenceConversationUnassignedUnitOfWork,
+} from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
+import { createDriverConversationNotifier } from './occurrence-conversation/infrastructure/driver-conversation-notifier.gateway.js'
+import { createDrizzleDriverConversationUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-driver-conversation.repository.js'
+import { createDrizzleOccurrenceMailStatusRepository } from './occurrence-conversation/infrastructure/drizzle-occurrence-mail-status.repository.js'
+import { applyProviderMessageStatus } from './occurrence-conversation/infrastructure/drizzle-occurrence-message-status.repository.js'
+import { createDrizzleWhatsAppConversationInboundRepository } from './occurrence-conversation/infrastructure/drizzle-whatsapp-conversation-inbound.repository.js'
+import {
+  findOccurrenceConversations,
+  markOccurrenceConversationRead,
+} from './occurrence-conversation/infrastructure/occurrence-conversation.query.js'
+import { createReadTripOccurrenceTimelineUseCase } from './trips/application/read-trip-occurrence-timeline.use-case.js'
+import { findTripOccurrenceTimelineSources } from './trips/infrastructure/trip-occurrence-timeline.query.js'
 import { createOccurrenceCaseUseCase } from './trips/application/occurrence-case.use-case.js'
 import { DrizzleOccurrenceCaseRepository } from './trips/infrastructure/drizzle-occurrence-case.repository.js'
 import { createRedeliveryProposalRoutes } from './trips/presentation/redelivery-proposal.routes.js'
@@ -405,6 +488,8 @@ import { DrizzleOfficeOccurrenceBatchUnitOfWork } from './trips/infrastructure/d
 import { DrizzleFieldTripTargetRepository } from './trips/infrastructure/drizzle-field-trip-target.repository'
 import { findCurrentDriverTrip } from './trips/application/find-current-driver-trip.use-case'
 import { reportStopArrival } from './trips/application/report-stop-arrival.use-case'
+import { reportStopDeparture } from './trips/application/report-stop-departure.use-case'
+import { cancelStopDeparture } from './trips/application/cancel-stop-departure.use-case'
 import {
   reportDocumentDelivery,
   reportDocumentReturn,
@@ -504,6 +589,8 @@ import { createContractorPortalBindingRoutes } from './contractor-portal/present
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
 import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
+import { createMeProofReceiverRoutes } from './trips/presentation/me-proof-receiver.routes.js'
+import { updateDriverProofReceiver } from './trips/application/update-driver-proof-receiver.use-case.js'
 import { createReadLocationConsentUseCase } from './trips/application/read-location-consent.use-case.js'
 import { createRecordTripLocationUseCase } from './trips/application/record-trip-location.use-case.js'
 import { DrizzleTripLocationRepository } from './trips/infrastructure/drizzle-trip-location.repository.js'
@@ -688,6 +775,52 @@ import { startFieldTrip } from './trips/application/start-field-trip.use-case.js
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
 
+/**
+ * Spec 183 T802: o aviso automático à contratante, montado uma vez e usado pelos cinco caminhos de
+ * registro de ocorrência (app, escritório, separação e os dois do WhatsApp), sempre depois do commit.
+ * O aviso não leva anexo, então a storage dele recusa qualquer uso.
+ */
+function buildAutomaticOccurrenceMailHook(input: {
+  readonly database: ReturnType<typeof createDatabaseProvider>['db']
+  readonly envelopeKeyRing: Parameters<typeof createSecretEnvelopeProvider>[0]
+  readonly idempotencyHmacKey: Uint8Array
+  readonly logger: ReturnType<typeof createApiLogger>
+}): AutomaticOccurrenceMailHook {
+  const noAttachmentStorage = () => Promise.reject(new Error('AUTOMATIC_MAIL_HAS_NO_ATTACHMENT'))
+  return createAutomaticOccurrenceMailHook({
+    logger: input.logger,
+    useCase: createSendAutomaticOccurrenceMailUseCase({
+      reader: createAutomaticOccurrenceMailReader(input.database),
+      sendMail: createSendOccurrenceMailUseCase({
+        fingerprintService: createIdempotencyFingerprintService({ key: input.idempotencyHmacKey }),
+        secretService: createContractorMailCredentialSecretService({
+          envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
+        }),
+        storage: {
+          createSignedDownload: noAttachmentStorage,
+          createSignedUpload: noAttachmentStorage,
+          getObjectStream: noAttachmentStorage,
+          deleteObject: noAttachmentStorage,
+          headObject: noAttachmentStorage,
+          storeObject: noAttachmentStorage,
+        },
+        unitOfWork: new DrizzleOccurrenceMailRepository(input.database),
+      }),
+    }),
+  })
+}
+
+/** Anuncia a ocorrência que acabou de ser gravada e devolve o registro intacto (T802). */
+async function announcingOccurrence<TOccurrence extends { readonly id: string }>(
+  hook: AutomaticOccurrenceMailHook,
+  companyId: string,
+  registration: Promise<TOccurrence>,
+): Promise<TOccurrence> {
+  const occurrence = await registration
+  hook.announce({ companyId, occurrenceIds: [occurrence.id] })
+  return occurrence
+}
+
 export function bootstrap(): Bun.Server<undefined> {
   const config = parseEnvironment(process.env)
   const logger = createApiLogger(config)
@@ -700,6 +833,12 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
   const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
+  const automaticOccurrenceMail = buildAutomaticOccurrenceMailHook({
+    database: database.db,
+    envelopeKeyRing: config.cryptography.envelopeKeyRing,
+    idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+    logger,
+  })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
     verifier: identityGateway,
@@ -838,8 +977,8 @@ export function bootstrap(): Bun.Server<undefined> {
       }),
     listOccurrenceTypes: (input) =>
       listOccurrenceTypes(database.db, { companyId: input.companyId }),
-    registerOccurrence: (input) =>
-      registerDriverOccurrence({
+    registerOccurrence: async (input) => {
+      const occurrence = await registerDriverOccurrence({
         ...input,
         channel: TRIP_FIELD_CHANNELS.whatsapp,
         repository: {
@@ -850,7 +989,14 @@ export function bootstrap(): Bun.Server<undefined> {
           listDocumentProducts: (query) => listDocumentProducts(database.db, query),
         },
         unitOfWork: whatsappDriverFieldReports,
-      }),
+      })
+      /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
+      automaticOccurrenceMail.announce({
+        companyId: input.companyId,
+        occurrenceIds: [occurrence.id],
+      })
+      return occurrence
+    },
     reportDelivery: (input) =>
       reportDocumentDelivery({
         ...input,
@@ -986,7 +1132,7 @@ export function bootstrap(): Bun.Server<undefined> {
      * chamada cria) e `media-id` muda a cada reenvio; sha256 é o único identificador estável.
      */
     registerOccurrence: (input) => {
-      const perform = () =>
+      const register = () =>
         registerTripOccurrence({
           actorUserId: input.actorUserId,
           ...(input.attachment === undefined ? {} : { attachment: input.attachment }),
@@ -1049,6 +1195,9 @@ export function bootstrap(): Bun.Server<undefined> {
           tripId: input.tripId,
         })
 
+      /** Spec 183 T802: depois do commit, o aviso automático do tipo (se ligado). */
+      const perform = () =>
+        announcingOccurrence(automaticOccurrenceMail, input.companyId, register())
       if (input.attachment === undefined) return perform()
 
       const attachmentSha256 = sha256Hex(input.attachment.bytes)
@@ -1227,11 +1376,14 @@ export function bootstrap(): Bun.Server<undefined> {
           companyId: config.companyId,
           db: database.db,
         })
+  // ADR-0076 §6: um resolvedor só, do ambiente, para o limitador anônimo e para toda trilha com IP.
+  const resolveClientIp = createClientIpResolver(config.clientIpPolicy)
   const router = createRouter({
     anonymousRoutes: createAnonymousRoutes({
       config,
       database: database.db,
       logger,
+      resolveClientIp,
       userModule,
       whatsappCommandHook,
     }),
@@ -1239,7 +1391,11 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
+    rateLimitSubjects: createRateLimitSubjectService({
+      key: config.cryptography.rateLimitSubjectHmacKey,
+    }),
     rateLimitWindows: new DrizzleRateLimiterRepository(database.db),
+    resolveClientIp,
     moduleRouters: [
       // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar
       // assinatura, aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
@@ -1296,6 +1452,7 @@ export function bootstrap(): Bun.Server<undefined> {
     routes: [
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
+        automaticOccurrenceMail,
         automaticManifestNotifier,
         cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         contractorMailRateLimit: config.contractorMailRateLimit,
@@ -1309,6 +1466,7 @@ export function bootstrap(): Bun.Server<undefined> {
         keycloak: config.keycloak,
         logger,
         postalCodeProviders: config.postalCodeProviders,
+        resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
         routeOptimizationQueue,
         vehicleCatalog: config.vehicleCatalog,
@@ -1364,6 +1522,7 @@ type CreateAnonymousRoutesParams = {
   readonly config: ApiEnvironment
   readonly database: CompanySettingsDatabase
   readonly logger: ApiLogger
+  readonly resolveClientIp: ClientIpResolver
   /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
   readonly userModule: UserModule | undefined
   readonly whatsappCommandHook: WhatsAppCommandHookFactory
@@ -1382,6 +1541,7 @@ function createAnonymousRoutes({
   config,
   database,
   logger,
+  resolveClientIp,
   userModule,
   whatsappCommandHook,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
@@ -1391,6 +1551,7 @@ function createAnonymousRoutes({
    * documento e o telefone — que o provedor não sabe procurar — deixariam de ser caminho.
    */
   const loginHintRoutes = createLoginHintRoutes({
+    rateLimit: config.identityRateLimits.loginHintsIp,
     resolveLoginHint: createResolveLoginHintUseCase({
       repository: createDrizzleLoginIdentifierRepository(database),
     }),
@@ -1409,6 +1570,7 @@ function createAnonymousRoutes({
    */
   const contractorMailInboundWebhookRoutes = createPublicInboundEmailRoutes({
     processInboundEmailWebhook: createProcessInboundEmailWebhookUseCase({
+      occurrenceMailStatus: createDrizzleOccurrenceMailStatusRepository(database),
       repository: new DrizzleContractorMailRepository(database),
       secretService: createContractorMailCredentialSecretService({
         envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
@@ -1420,6 +1582,8 @@ function createAnonymousRoutes({
    * `phone_number_id` do corpo **já assinado**, e sem os dois segredos do app a rota não é
    * registrada.
    */
+  /** Um teto para a instalação, como o do despachante: refazer a instância não zera o balde. */
+  const occurrenceConversationWhatsAppRateLimiter = createRateLimiter()
   const whatsappWebhookRoutes = createWhatsAppWebhookRoutes({
     appSecret: config.whatsapp.webhook?.appSecret,
     logger,
@@ -1427,7 +1591,25 @@ function createAnonymousRoutes({
       apiVersion: config.whatsapp.apiVersion,
       appSecret: config.whatsapp.webhook?.appSecret ?? '',
       baseUrl: config.whatsapp.baseUrl,
-      buildMessageHook: whatsappCommandHook,
+      /**
+       * Spec 183 T502 — a conversa da ocorrência fica na frente do despachante: contato com aceite
+       * vai para a conversa (ou para "não atribuída"); o resto segue para o comando, como antes.
+       */
+      buildMessageHook: (instance) =>
+        createOccurrenceConversationWhatsAppHook({
+          clock: () => new Date(),
+          inbound: createDrizzleWhatsAppConversationInboundRepository(database),
+          logger,
+          next: whatsappCommandHook(instance),
+          rateLimiter: occurrenceConversationWhatsAppRateLimiter,
+        }),
+      buildStatusHook: ({ companyId }) =>
+        createOccurrenceConversationWhatsAppStatusHook({
+          apply: (input) => applyProviderMessageStatus(database, { ...input, channel: 'whatsapp' }),
+          clock: () => new Date(),
+          companyId,
+          logger,
+        }),
       database,
       nonceStore: createDrizzleWebhookNonceStore(database),
       repository: new DrizzleWhatsAppChannelRepository(database),
@@ -1512,6 +1694,7 @@ function createAnonymousRoutes({
             repository: createDrizzleAggregateAccountRepository(database),
             userModule,
           }),
+          resolveClientIp,
         })
   if (config.companyId === undefined) {
     return [
@@ -1570,6 +1753,7 @@ function createAnonymousRoutes({
         invitations: new DrizzleInvitationRepository(database),
         now: () => new Date(),
       }),
+      rateLimit: config.identityRateLimits.userActivationIp,
     }),
     ...createPasswordResetRoutes({
       confirmPasswordReset: createConfirmPasswordResetUseCase({
@@ -1582,6 +1766,11 @@ function createAnonymousRoutes({
         now: () => new Date(),
         requests: new DrizzlePasswordResetRepository(database),
       }),
+      rateLimits: {
+        confirmIp: config.identityRateLimits.passwordResetConfirmIp,
+        requestIp: config.identityRateLimits.passwordResetsIp,
+        requestTarget: config.identityRateLimits.passwordResetsTarget,
+      },
       requestPasswordReset: createRequestPasswordResetUseCase({
         envelopeProvider: createPasswordResetCodeSecretService({
           envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
@@ -1595,6 +1784,8 @@ function createAnonymousRoutes({
 }
 
 type CreateApplicationRoutesParams = {
+  /** Spec 183 T802: o aviso automático à contratante, chamado depois de cada registro. */
+  readonly automaticOccurrenceMail: AutomaticOccurrenceMailHook
   /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
   readonly apiPublicUrl: string | undefined
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
@@ -1621,6 +1812,7 @@ type CreateApplicationRoutesParams = {
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
+  readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
   /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
   readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
@@ -1629,6 +1821,7 @@ type CreateApplicationRoutesParams = {
 
 function createApplicationRoutes({
   apiPublicUrl,
+  automaticOccurrenceMail,
   automaticManifestNotifier,
   cargoLayoutTimeBudgetMs,
   contractorMailRateLimit,
@@ -1642,6 +1835,7 @@ function createApplicationRoutes({
   keycloak,
   logger,
   postalCodeProviders,
+  resolveClientIp,
   routingMatrixUrl,
   routeOptimizationQueue,
   vehicleCatalog,
@@ -2026,6 +2220,15 @@ function createApplicationRoutes({
   )
   const viewPreferencesRepository = new DrizzleViewPreferencesRepository(database)
   const fingerprintService = createIdempotencyFingerprintService({ key: idempotencyHmacKey })
+  /** Spec 183 T651 (RF21): a conversa da contratante pelo portal, com o recorte da 164. */
+  const contractorPortalConversation = createContractorPortalConversationUseCase({
+    clock: () => new Date(),
+    fingerprintService,
+    newRef: createPublicRef,
+    scopes: contractorPortalRepository,
+    storage: storageGateway,
+    unitOfWork: createDrizzleContractorPortalConversationUnitOfWork(database),
+  })
   const requestImport = createRequestNfeImportUseCase({
     fingerprintService,
     unitOfWork: nfeImportRepository,
@@ -2759,6 +2962,122 @@ function createApplicationRoutes({
     }),
     /** Spec 148 T7: a fila de revisão das notas que não couberam. */
     ...createTripDocumentReviewRoutes({ reviews: tripDocumentReviewRepository }),
+    /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
+    ...createTripOccurrenceDetailRoutes({
+      readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({
+        reader: { findDetail: (input) => findTripOccurrenceDetail(database, input) },
+      }),
+      readTripOccurrenceTimeline: createReadTripOccurrenceTimelineUseCase({
+        reader: { findSources: (input) => findTripOccurrenceTimelineSources(database, input) },
+      }),
+    }),
+    /**
+     * Spec 183 T404: a conversa da ocorrência. Ler é `fleet.read`; escrever à contratante é
+     * `occurrences.resolve` (o separador não alcança), com teto próprio no Postgres.
+     */
+    ...createOccurrenceConversationRoutes({
+      listConversations: createListOccurrenceConversationsUseCase({
+        reader: {
+          findAttachments: (input) => readConversationAttachments(database, input),
+          findConversations: (input) => findOccurrenceConversations(database, input),
+        },
+        storage: storageGateway,
+      }),
+      markRead: createMarkOccurrenceConversationReadUseCase({
+        writer: { markRead: (input) => markOccurrenceConversationRead(database, input) },
+      }),
+      /** Spec 183 T702a (RF10): a URL de subida do anexo, para o app ou para o portal. */
+      requestUpload: createRequestOccurrenceConversationUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        occurrences: {
+          findKind: (input) => findOccurrenceConversationKind(database, input),
+        },
+        repository: createDrizzleConversationUploadRepository(database),
+        storage: storageGateway,
+      }),
+      previewMail: createPreviewOccurrenceMailUseCase({
+        reader: createOccurrenceMailReader(database),
+        suggestedMail: createOccurrenceSuggestedMailReader(database),
+      }),
+      sendMail: createSendOccurrenceMailUseCase({
+        fingerprintService,
+        secretService: contractorMailCredentialSecretService,
+        storage: storageGateway,
+        unitOfWork: new DrizzleOccurrenceMailRepository(database),
+      }),
+      sendDriverApp: createSendDriverAppMessageUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        notifier: createDriverConversationNotifier({
+          logger,
+          send: (params) =>
+            notifications.useCases.sendNotification.execute({
+              ...params,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            } as never),
+        }),
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      /** Spec 183 T654 (RF21): à contratante pelo portal, com o aviso por e-mail sem o corpo. */
+      sendPortal: createSendContractorPortalMessageUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        newRef: createPublicRef,
+        notifier: createContractorPortalNotifier({
+          logger,
+          send: (params) =>
+            notifications.useCases.sendNotification.execute({
+              ...params,
+              locale: NOTIFICATION_DEFAULT_LOCALE,
+            } as never),
+        }),
+        storage: storageGateway,
+        unitOfWork: createDrizzleContractorPortalMessageUnitOfWork(database),
+      }),
+    }),
+    /** Spec 183 T601 (RF11): a conversa da ocorrência no `/me` do motorista. */
+    ...createMeOccurrenceConversationRoutes({
+      inbox: createListMyConversationsUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      list: createListMyOccurrenceConversationUseCase({
+        clock: () => new Date(),
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      markRead: createMarkMyConversationReadUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      reply: createReplyMyOccurrenceConversationUseCase({
+        clock: () => new Date(),
+        fingerprintService,
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      requestUpload: createRequestMyConversationUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        repository: createDrizzleConversationUploadRepository(database),
+        storage: storageGateway,
+        unitOfWork: createDrizzleDriverConversationUnitOfWork(database),
+      }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
+    ...createOccurrenceConversationUnassignedRoutes({
+      assign: createAssignUnassignedMessageUseCase({
+        clock: () => new Date(),
+        unitOfWork: createDrizzleOccurrenceConversationUnassignedUnitOfWork(database),
+      }),
+      list: createListUnassignedMessagesUseCase({
+        reader: createDrizzleOccurrenceConversationUnassignedReader(database),
+      }),
+    }),
     ...createOccurrenceCaseRoutes({
       findCaseIdByOccurrenceId: (input) => occurrenceCaseRepository.findIdByOccurrenceId(input),
       occurrenceCase: occurrenceCaseUseCase,
@@ -2856,6 +3175,7 @@ function createApplicationRoutes({
       listBatches: { execute: (input) => contractorExtraCharges.list(input) },
     }),
     ...createContractorOccurrenceRoutes({
+      conversationRefs: (input) => contractorPortalConversation.conversationRefs(input),
       decideOccurrenceCase,
       /**
        * Spec 164 T11: o mesmo ponto único de leitura do anexo (`readOccurrenceAttachments`) — o
@@ -2869,6 +3189,25 @@ function createApplicationRoutes({
           occurrenceId: input.occurrenceId,
           repository: new DrizzleOccurrenceAttachmentRepository(database),
         }),
+    }),
+    ...createClientOccurrenceConversationRoutes({
+      conversation: contractorPortalConversation,
+      /** Spec 183 T702a (RF10): a contratante sobe o anexo pela referência da conversa. */
+      requestUpload: createRequestPortalConversationUploadUseCase({
+        bucket: storageBucket,
+        clock: () => new Date(),
+        newId: () => crypto.randomUUID(),
+        repository: createDrizzleConversationUploadRepository(database),
+        scopes: contractorPortalRepository,
+        storage: storageGateway,
+        unitOfWork: createDrizzleContractorPortalConversationUnitOfWork(database),
+      }),
+    }),
+    /** Spec 183 T701 (RF12): as respostas rápidas — cadastro e leitura do compositor. */
+    ...createQuickReplyRoutes({
+      quickReplies: createQuickRepliesUseCase({
+        unitOfWork: createDrizzleQuickRepliesUnitOfWork(database),
+      }),
     }),
     ...createContractorPortalBindingRoutes({
       bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },
@@ -2957,8 +3296,8 @@ function createApplicationRoutes({
        * motorista acabou de contar por rádio. O aviso configurável é do registro feito no
        * escritório.
        */
-      registerDriverOccurrence: (input) =>
-        registerDriverOccurrence({
+      registerDriverOccurrence: async (input) => {
+        const occurrence = await registerDriverOccurrence({
           ...input,
           repository: {
             findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
@@ -2967,36 +3306,83 @@ function createApplicationRoutes({
             listDocumentProducts: (query) => listDocumentProducts(database, query),
           },
           unitOfWork: driverFieldReports,
-        }),
+        })
+        /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */
+        automaticOccurrenceMail.announce({
+          companyId: input.companyId,
+          occurrenceIds: [occurrence.id],
+        })
+        return occurrence
+      },
       /**
        * Spec 179 T202 (RF2): o arquivo nunca chega até aqui — só o pedido da URL e, depois, a
        * confirmação. As duas passam pela mesma consulta de alcance de `registerDriverOccurrence`
        * (RF2b): a nota fora da viagem dele nunca vira objeto de ninguém.
        */
-      createOccurrenceUpload: (input) =>
-        requestOccurrenceUpload({
+      /** Spec 209 RF1: a parada do "Deu problema" resolve a viagem como a nota resolve na 179. */
+      createOccurrenceUpload: ({ target, ...input }) => {
+        const upload = {
           ...input,
           bucket: storageBucket,
           newObjectId: () => crypto.randomUUID(),
           now: new Date(),
-          repository: {
-            findReachableDocument: (query) => findDriverReachableDocument(database, query),
-            insertPendingUpload: (query) => occurrenceUploadRepository.insertPendingUpload(query),
-          },
           storage: storageGateway,
-        }),
-      confirmOccurrenceUpload: (input) =>
-        confirmReachableOccurrenceUpload({
+        }
+        const insertPendingUpload = occurrenceUploadRepository.insertPendingUpload.bind(
+          occurrenceUploadRepository,
+        )
+        return 'stopId' in target
+          ? requestStopOccurrenceUpload({
+              ...upload,
+              repository: {
+                findReachableStop: (query) => findDriverReachableStop(database, query),
+                insertPendingUpload,
+              },
+              stopId: target.stopId,
+            })
+          : requestOccurrenceUpload({
+              ...upload,
+              documentId: target.documentId,
+              repository: {
+                findReachableDocument: (query) => findDriverReachableDocument(database, query),
+                insertPendingUpload,
+              },
+            })
+      },
+      confirmOccurrenceUpload: ({ target, ...input }) => {
+        const confirmation = {
           ...input,
           now: new Date(),
-          repository: {
-            confirmUpload: (query) => occurrenceUploadRepository.confirmUpload(query),
-            findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
-            findPendingUpload: (query) => occurrenceUploadRepository.findPendingUpload(query),
-            findReachableDocument: (query) => findDriverReachableDocument(database, query),
-          },
           storage: storageGateway,
-        }),
+        }
+        const uploads = {
+          confirmUpload: (query: Parameters<typeof occurrenceUploadRepository.confirmUpload>[0]) =>
+            occurrenceUploadRepository.confirmUpload(query),
+          findConfirmedUpload: (
+            query: Parameters<typeof occurrenceUploadRepository.findConfirmedUpload>[0],
+          ) => occurrenceUploadRepository.findConfirmedUpload(query),
+          findPendingUpload: (
+            query: Parameters<typeof occurrenceUploadRepository.findPendingUpload>[0],
+          ) => occurrenceUploadRepository.findPendingUpload(query),
+        }
+        return 'stopId' in target
+          ? confirmReachableStopOccurrenceUpload({
+              ...confirmation,
+              repository: {
+                ...uploads,
+                findReachableStop: (query) => findDriverReachableStop(database, query),
+              },
+              stopId: target.stopId,
+            })
+          : confirmReachableOccurrenceUpload({
+              ...confirmation,
+              documentId: target.documentId,
+              repository: {
+                ...uploads,
+                findReachableDocument: (query) => findDriverReachableDocument(database, query),
+              },
+            })
+      },
       attachProof: (input) =>
         attachDeliveryProof({
           ...input,
@@ -3041,6 +3427,10 @@ function createApplicationRoutes({
       renderManifestDamdfe: (input) => readMdfeDocument.renderDamdfe(input),
       reportArrival: (input) =>
         reportStopArrival({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      cancelStopDeparture: (input) =>
+        cancelStopDeparture({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      reportDeparture: (input) =>
+        reportStopDeparture({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       reportDelivery: (input) =>
         reportDocumentDelivery({
           ...input,
@@ -3049,18 +3439,33 @@ function createApplicationRoutes({
             deliveryProofRepository.resolveProofFieldSettings(settings),
           unitOfWork: driverFieldReports,
         }),
+      /** Spec 209 RF2/RF3: a foto do "Deu problema" é anexo da ocorrência, nunca canhoto. */
       reportOccurrence: (input) =>
         reportStopOccurrence({
           ...input,
           ...stopOccurrenceFollowUp,
-          attachmentObjectId: null,
+          attachmentUploads: {
+            attachUploadToStopOccurrence: (query) => attachUploadToStopOccurrence(database, query),
+            findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
+          },
           unitOfWork: driverFieldReports,
         }),
       reportReturn: (input) =>
         reportDocumentReturn({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
     }),
+    /** Spec 193 D7: quem recebeu escolhido depois do envio da foto, pela fila do aparelho. */
+    ...createMeProofReceiverRoutes({
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      updateProofReceiver: (input) =>
+        updateDriverProofReceiver({
+          ...input,
+          proofs: deliveryProofRepository,
+          unitOfWork: driverFieldReports,
+        }),
+    }),
     ...createTripFieldOfficeRoutes({
+      resolveClientIp,
       /**
        * Spec 156 T6/T15 M2: reserva da chave (`office.document.proof`), evento, upload e comprovante
        * numa transação só. O canhoto do escritório não classifica pontualidade (spec 159 T11).
@@ -3124,14 +3529,15 @@ function createApplicationRoutes({
       targets: fieldTripTargetRepository,
     }),
     ...createTripFieldOfficeOccurrenceRoutes({
+      resolveClientIp,
       listFieldOccurrenceTypes: (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
           repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
         }),
       /** Spec 156 T7b, D9: a mesma foto para as N notas — um `stored_objects` só, no molde do canhoto. */
-      registerOccurrences: (input) =>
-        registerOfficeDocumentOccurrences({
+      registerOccurrences: async (input) => {
+        const registered = await registerOfficeDocumentOccurrences({
           ...input,
           attachment: {
             newObjectId: () => crypto.randomUUID(),
@@ -3144,14 +3550,23 @@ function createApplicationRoutes({
             readLabels: (query) => readOccurrenceLabelsForDocuments(database, query),
           },
           unitOfWork: officeOccurrenceBatches,
-        }),
+        })
+        /** Spec 183 T802: um aviso por nota; a repetição do lote é idempotente pela ocorrência. */
+        automaticOccurrenceMail.announce({
+          companyId: input.companyId,
+          occurrenceIds: registered.items.map((item) => item.id),
+        })
+        return registered
+      },
       targets: fieldTripTargetRepository,
     }),
     ...createTripRoutes({
+      resolveClientIp,
       batchStatus: { execute: (input) => tripLifecycle.batchStatus.execute(input) },
       cancelTrip: { execute: (input) => tripLifecycle.cancel.execute(input) },
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
+      updateTripCrew: { execute: (input) => trips.updateCrew(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
         execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
@@ -3181,6 +3596,7 @@ function createApplicationRoutes({
               attachmentMode: input.attachmentMode,
               emailBody: input.emailBody,
               emailSubject: input.emailSubject,
+              emailsContractor: input.emailsContractor,
               emailTemplateKey: input.emailTemplateKey,
               leavesDocumentBehind: input.leavesDocumentBehind,
               name: input.name,
@@ -3268,87 +3684,91 @@ function createApplicationRoutes({
               transaction: fieldReportGuardTransaction,
             },
             perform: async () =>
-              registerTripOccurrence({
-                actorUserId: input.context.userId,
-                attachment: input.attachment,
-                autoDispatch: {
-                  channel: TRIP_FIELD_CHANNELS.backoffice,
-                  logger,
-                  repository: tripRouteRepository,
-                },
-                companyId: input.context.companyId,
-                documentId: input.documentId,
-                note: input.note,
-                /**
-                 * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da
-                 * configuração acontece por registro — é uma consulta pequena, por empresa, e
-                 * cacheá-la faria a escolha recém-salva demorar a valer sem ninguém entender por
-                 * quê.
-                 */
-                notificationParameters: {
-                  ...(await readOccurrenceLabels(database, {
-                    companyId: input.context.companyId,
-                    documentId: input.documentId,
-                    tripId: input.tripId,
-                  })),
+              announcingOccurrence(
+                automaticOccurrenceMail,
+                input.context.companyId,
+                registerTripOccurrence({
+                  actorUserId: input.context.userId,
+                  attachment: input.attachment,
+                  autoDispatch: {
+                    channel: TRIP_FIELD_CHANNELS.backoffice,
+                    logger,
+                    repository: tripRouteRepository,
+                  },
+                  companyId: input.context.companyId,
                   documentId: input.documentId,
-                  /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
-                  occurrenceType: '',
-                  tripId: input.tripId,
-                },
-                notifier: occurrenceNotifier,
-                occurrenceTypeId: input.occurrenceTypeId,
-                /** A data que o modelo imprime é a de agora — a ocorrência é registrada quando
-                 * acontece. */
-                occurredOn: new Date().toLocaleDateString('pt-BR'),
-                productCode: input.productCode,
-                productCodes: input.productCodes,
-                productQuantities: input.productQuantities,
-                productQuantityUnits: input.productQuantityUnits,
-                repository: {
-                  findOccurrenceType: (query) => findOccurrenceType(database, query),
-                  listDocumentProducts: (query) => listDocumentProducts(database, query),
-                  listOccurrences: (query) => listTripOccurrences(database, query),
-                  readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
+                  note: input.note,
                   /**
-                   * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem
-                   * o original e a miniatura opcional e grava a linha de anexo, tudo na transação
-                   * de `DrizzleSeparationOccurrenceUnitOfWork`. Se algo falhar depois do upload,
-                   * `runWithStoredObjectCleanup` desfaz o que subiu.
+                   * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da
+                   * configuração acontece por registro — é uma consulta pequena, por empresa, e
+                   * cacheá-la faria a escolha recém-salva demorar a valer sem ninguém entender por
+                   * quê.
                    */
-                  saveOccurrence: (query) =>
-                    persistSeparationOccurrenceWithAttachment({
-                      attachment: query.attachment,
-                      input: {
-                        actorUserId: query.actorUserId,
-                        companyId: query.companyId,
-                        documentId: query.documentId,
-                        items: query.items,
-                        note: query.note,
-                        occurrenceTypeId: query.occurrenceTypeId,
-                        productCode: query.productCode,
-                        productCodes: query.productCodes,
-                        ...(query.redeliveryPolicy === undefined
-                          ? {}
-                          : { redeliveryPolicy: query.redeliveryPolicy }),
-                        stage: query.stage,
-                        tripId: query.tripId,
-                        typeName: query.typeName,
-                      },
-                      newObjectId: () => crypto.randomUUID(),
-                      now: () => new Date(),
-                      storage: createDeliveryProofStorage({
-                        bucket: storageBucket,
-                        storage: storageGateway,
+                  notificationParameters: {
+                    ...(await readOccurrenceLabels(database, {
+                      companyId: input.context.companyId,
+                      documentId: input.documentId,
+                      tripId: input.tripId,
+                    })),
+                    documentId: input.documentId,
+                    /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
+                    occurrenceType: '',
+                    tripId: input.tripId,
+                  },
+                  notifier: occurrenceNotifier,
+                  occurrenceTypeId: input.occurrenceTypeId,
+                  /** A data que o modelo imprime é a de agora — a ocorrência é registrada quando
+                   * acontece. */
+                  occurredOn: new Date().toLocaleDateString('pt-BR'),
+                  productCode: input.productCode,
+                  productCodes: input.productCodes,
+                  productQuantities: input.productQuantities,
+                  productQuantityUnits: input.productQuantityUnits,
+                  repository: {
+                    findOccurrenceType: (query) => findOccurrenceType(database, query),
+                    listDocumentProducts: (query) => listDocumentProducts(database, query),
+                    listOccurrences: (query) => listTripOccurrences(database, query),
+                    readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
+                    /**
+                     * Spec 161 T6: já validado (teto/tipo/assinatura) pelo caso de uso — aqui sobem
+                     * o original e a miniatura opcional e grava a linha de anexo, tudo na transação
+                     * de `DrizzleSeparationOccurrenceUnitOfWork`. Se algo falhar depois do upload,
+                     * `runWithStoredObjectCleanup` desfaz o que subiu.
+                     */
+                    saveOccurrence: (query) =>
+                      persistSeparationOccurrenceWithAttachment({
+                        attachment: query.attachment,
+                        input: {
+                          actorUserId: query.actorUserId,
+                          companyId: query.companyId,
+                          documentId: query.documentId,
+                          items: query.items,
+                          note: query.note,
+                          occurrenceTypeId: query.occurrenceTypeId,
+                          productCode: query.productCode,
+                          productCodes: query.productCodes,
+                          ...(query.redeliveryPolicy === undefined
+                            ? {}
+                            : { redeliveryPolicy: query.redeliveryPolicy }),
+                          stage: query.stage,
+                          tripId: query.tripId,
+                          typeName: query.typeName,
+                        },
+                        newObjectId: () => crypto.randomUUID(),
+                        now: () => new Date(),
+                        storage: createDeliveryProofStorage({
+                          bucket: storageBucket,
+                          storage: storageGateway,
+                        }),
+                        unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(
+                          database,
+                          storageBucket,
+                        ),
                       }),
-                      unitOfWork: new DrizzleSeparationOccurrenceUnitOfWork(
-                        database,
-                        storageBucket,
-                      ),
-                    }),
-                },
-                tripId: input.tripId,
-              }),
+                  },
+                  tripId: input.tripId,
+                }),
+              ),
             recall: async (resultId) => {
               const occurrence = await findTripOccurrenceById(database, {
                 companyId: input.context.companyId,

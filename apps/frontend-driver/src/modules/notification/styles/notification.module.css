@@ -10,7 +10,7 @@
   --adn-border: color-mix(in srgb, var(--color-slate) 22%, transparent);
   --adn-danger: var(--color-alert);
   --adn-muted: var(--color-slate);
-  --adn-radius-md: var(--space-2);
+  --adn-radius-md: 0;
   --adn-space-2: var(--space-2);
   --adn-space-3: var(--space-3);
   --adn-space-4: var(--space-4);
@@ -30,8 +30,8 @@
   --adn-color-text: var(--color-fog);
   --adn-color-warning: var(--color-copper);
   --adn-font-mono: var(--font-utility);
-  --adn-radius: var(--space-2);
-  --adn-radius-sm: var(--space-1);
+  --adn-radius: 0;
+  --adn-radius-sm: 0;
   --adn-shadow-card: 0 var(--space-1) var(--space-1)
     color-mix(in srgb, var(--color-asphalt) 60%, transparent);
   --adn-space-1: var(--space-1);

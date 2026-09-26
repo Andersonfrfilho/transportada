@@ -3,6 +3,8 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   countActiveTripOccurrenceFilters,
+  describeOccurrenceConversationCell,
+  describeOccurrenceDocumentCells,
   EMPTY_TRIP_OCCURRENCE_FILTERS,
   formatOccurrenceInvoice,
   readTripOccurrenceColumnPreferences,
@@ -161,6 +163,149 @@ describe('listagem de ocorrências — colunas persistidas', () => {
     expect(reorderTripOccurrenceColumns(TRIP_OCCURRENCE_COLUMN_KEYS, 'createdAt', 'up')).toEqual(
       TRIP_OCCURRENCE_COLUMN_KEYS,
     )
+  })
+})
+
+/**
+ * Spec 183 T205 (P1): contratante, destino físico e valor da nota viram colunas. A coluna Conversa
+ * espera o estado da conversa na listagem (RF4, T404).
+ */
+describe('listagem de ocorrências — colunas da nota', () => {
+  const DOCUMENT = {
+    contractor: { contractorId: 'c-1', name: 'Contratante Alfa', taxId: '11222333000181' },
+    destination: {
+      city: 'Guarulhos',
+      label: 'Avenida da Doca, 500 - Guarulhos/SP',
+      origin: 'delivery',
+      postalCode: '07000000',
+      recipientName: 'Galpão Beta',
+      state: 'SP',
+    },
+    nfeDocumentId: 'nfe-1',
+    totalValue: '48320.0000',
+  } as const
+
+  test('as colunas novas entram depois da nota, e o aviso continua por último', () => {
+    expect(TRIP_OCCURRENCE_COLUMN_KEYS).toEqual([
+      'createdAt',
+      'stage',
+      'typeName',
+      'vehiclePlate',
+      'driverName',
+      'stopLabel',
+      'invoice',
+      'contractor',
+      'destination',
+      'invoiceValue',
+      'conversation',
+      'notified',
+    ])
+  })
+
+  test('preferência gravada antes das colunas novas as ganha visíveis, no fim, sem perder a ordem', () => {
+    const storage = {
+      getItem: () =>
+        JSON.stringify({
+          order: [
+            'stage',
+            'createdAt',
+            'typeName',
+            'vehiclePlate',
+            'driverName',
+            'stopLabel',
+            'invoice',
+            'notified',
+          ],
+          visibility: { driverName: false },
+        }),
+      setItem: () => undefined,
+    }
+    const preferences = readTripOccurrenceColumnPreferences(storage)
+    expect(preferences.order.slice(0, 2)).toEqual(['stage', 'createdAt'])
+    expect(preferences.order.slice(-4)).toEqual([
+      'contractor',
+      'destination',
+      'invoiceValue',
+      'conversation',
+    ])
+    expect(preferences.visibility.driverName).toBe(false)
+    expect(preferences.visibility.contractor).toBe(true)
+    expect(preferences.visibility.invoiceValue).toBe(true)
+    expect(preferences.visibility.conversation).toBe(true)
+  })
+
+  test('com nota: nome e CNPJ da contratante, destino físico e valor como string decimal', () => {
+    expect(describeOccurrenceDocumentCells(DOCUMENT)).toEqual({
+      contractorName: 'Contratante Alfa',
+      contractorTaxId: '11222333000181',
+      destination: 'Avenida da Doca, 500 - Guarulhos/SP',
+      totalValue: '48320.0000',
+    })
+  })
+
+  test('sem nota, sem contratante casada ou sem destino, a célula fica vazia — nunca "null"', () => {
+    expect(describeOccurrenceDocumentCells(null)).toEqual({
+      contractorName: '',
+      contractorTaxId: '',
+      destination: '',
+      totalValue: null,
+    })
+    expect(
+      describeOccurrenceDocumentCells({ ...DOCUMENT, contractor: null, destination: null }),
+    ).toEqual({
+      contractorName: '',
+      contractorTaxId: '',
+      destination: '',
+      totalValue: '48320.0000',
+    })
+  })
+})
+
+/**
+ * Spec 183 T404 (RF4): a coluna Conversa. A decisão da tratativa **não** é estado de conversa — com
+ * decisão, a célula mostra a decisão (vinda de `case`); sem ela, o estado da conversa com a
+ * contratante. As não lidas do motorista são de quem está vendo e vão ao lado, em qualquer caso.
+ */
+describe('listagem de ocorrências — coluna Conversa', () => {
+  const DECIDED_CASE = {
+    decision: { decidedAt: '2026-09-24T12:00:00.000Z', kind: 'goods_paid', note: 'Pagou' },
+    redeliveryPolicy: 'allowed',
+    settlementTotal: null,
+    status: 'decided',
+    updatedAt: '2026-09-24T12:00:00.000Z',
+  } as const
+
+  test('sem conversa, sem decisão e sem não lidas, a célula fica vazia', () => {
+    expect(
+      describeOccurrenceConversationCell({
+        case: null,
+        conversation: { contractorState: 'none', driverUnreadCount: 0 },
+      }),
+    ).toEqual({ driverUnreadCount: 0, state: null })
+  })
+
+  test('aguardando e respondida saem do estado da conversa com a contratante', () => {
+    expect(
+      describeOccurrenceConversationCell({
+        case: null,
+        conversation: { contractorState: 'awaiting', driverUnreadCount: 0 },
+      }).state,
+    ).toEqual({ kind: 'conversation', value: 'awaiting' })
+    expect(
+      describeOccurrenceConversationCell({
+        case: null,
+        conversation: { contractorState: 'replied', driverUnreadCount: 3 },
+      }),
+    ).toEqual({ driverUnreadCount: 3, state: { kind: 'conversation', value: 'replied' } })
+  })
+
+  test('com decisão, a célula mostra a decisão da tratativa, nunca o estado da conversa', () => {
+    expect(
+      describeOccurrenceConversationCell({
+        case: DECIDED_CASE,
+        conversation: { contractorState: 'replied', driverUnreadCount: 1 },
+      }),
+    ).toEqual({ driverUnreadCount: 1, state: { kind: 'decision', value: 'goods_paid' } })
   })
 })
 

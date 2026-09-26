@@ -46,8 +46,10 @@ test('CA05(a): recarregar sem rede de verdade mostra a viagem salva e drena quan
   await page.reload()
 
   await expect(page.getByText(/Sem conexão — dados de \d/)).toBeVisible()
+  // Pedido do usuário (25/09): "Entreguei" só existe depois de "Cheguei" — a chegada libera a nota.
+  await page.getByRole('button', { name: 'Cheguei' }).click()
   await page.getByRole('button', { name: 'Entreguei' }).first().click()
-  await expect(page.getByText('1 confirmação aguardando envio')).toBeVisible()
+  await expect(page.getByText('2 confirmações aguardando envio')).toBeVisible()
   expect(api.reports()).toEqual([])
 
   /**
@@ -60,13 +62,13 @@ test('CA05(a): recarregar sem rede de verdade mostra a viagem salva e drena quan
   await context.setOffline(false)
 
   /** Spec 189 T9.2 ("Confirmar em lote"): o que foi feito sem sessão sobe com a confirmação do dono. */
-  await expect(page.getByText(/1 registro feito sem rede às \d.* — enviar\?/u)).toBeVisible({
+  await expect(page.getByText(/2 registros feitos sem rede às \d.* — enviar\?/u)).toBeVisible({
     timeout: 20_000,
   })
   expect(api.reports()).toEqual([])
   await page.getByRole('button', { exact: true, name: 'Enviar' }).click()
 
-  await expect.poll(() => api.reports().length, { timeout: 20_000 }).toBe(1)
+  await expect.poll(() => api.reports().length, { timeout: 20_000 }).toBe(2)
 })
 
 test('CA09: a atualização não recarrega com uma captura aberta, e aplica quando ela fecha', async ({

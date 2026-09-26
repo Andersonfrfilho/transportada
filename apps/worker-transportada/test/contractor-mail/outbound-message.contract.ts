@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  type ContractorMailOutboundAttachmentRecord,
   sendContractorMailOutboundMessage,
   type SendContractorMailOutboundMessageDependencies,
 } from '../../src/contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
@@ -55,6 +56,9 @@ function buildEnvelope(): ContractorMailOutboundEnvelopeV1 {
 }
 
 function buildDependencies(input: {
+  /** Spec 183 T702e: os anexos da mensagem da conversa e os bytes de cada chave no bucket. */
+  readonly attachments?: readonly ContractorMailOutboundAttachmentRecord[]
+  readonly objects?: ReadonlyMap<string, Uint8Array>
   readonly message?: ContractorMailOutboundMessageRecord
   readonly referenceHeaders?: ContractorMailReferenceHeaders
   readonly sendEmail: SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
@@ -74,6 +78,13 @@ function buildDependencies(input: {
   const settings = input.settings ?? SETTINGS
 
   const dependencies: SendContractorMailOutboundMessageDependencies = {
+    attachments: {
+      list: async (query) =>
+        query.companyId === COMPANY_ID && query.messageId === MESSAGE_ID
+          ? (input.attachments ?? [])
+          : [],
+      read: async ({ key }) => input.objects?.get(key),
+    },
     mailGateway: {
       downloadRawEmail: async () => Buffer.alloc(0),
       fetchReceivedEmail: async () => {
@@ -348,5 +359,150 @@ describe('send contractor mail outbound message (spec 143, T009 — correção p
     ).rejects.toBeInstanceOf(ResendProviderUnreachableError)
     expect(failedCalls).toEqual([])
     expect(sentCalls).toEqual([])
+  })
+})
+
+describe('o e-mail da conversa sai com os anexos (spec 183 T702e)', () => {
+  const PDF = new TextEncoder().encode('%PDF-1.7 nota de devolução')
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  const sha256 = (bytes: Uint8Array) => new Bun.CryptoHasher('sha256').update(bytes).digest('hex')
+  const record = (
+    key: string,
+    bytes: Uint8Array,
+    contentType: string,
+    fileName: string,
+  ): ContractorMailOutboundAttachmentRecord => ({
+    available: true,
+    bucket: 'bucket-privado',
+    contentType,
+    fileName,
+    key,
+    sha256: sha256(bytes),
+    sizeBytes: bytes.byteLength,
+  })
+
+  test('cada anexo vai em base64, com nome e tipo, na ordem gravada', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies, sentCalls } = buildDependencies({
+      attachments: [
+        record('occurrence-conversations/a', PDF, 'application/pdf', 'nota.pdf'),
+        record('occurrence-conversations/b', PNG, 'image/png', 'caixa.png'),
+      ],
+      objects: new Map([
+        ['occurrence-conversations/a', PDF],
+        ['occurrence-conversations/b', PNG],
+      ]),
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id-1' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests[0]?.attachments).toEqual([
+      {
+        content: Buffer.from(PDF).toString('base64'),
+        contentType: 'application/pdf',
+        fileName: 'nota.pdf',
+      },
+      {
+        content: Buffer.from(PNG).toString('base64'),
+        contentType: 'image/png',
+        fileName: 'caixa.png',
+      },
+    ])
+    expect(sentCalls).toHaveLength(1)
+  })
+
+  test('sem anexo, o pedido nem leva a chave', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies } = buildDependencies({
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id-1' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests[0]).not.toHaveProperty('attachments')
+  })
+
+  test('objeto sumido ou com bytes trocados: falha permanente, sem enviar', async () => {
+    for (const objects of [
+      new Map<string, Uint8Array>(),
+      new Map([['occurrence-conversations/a', PNG]]),
+    ]) {
+      let sends = 0
+      const { dependencies, failedCalls, sentCalls } = buildDependencies({
+        attachments: [record('occurrence-conversations/a', PDF, 'application/pdf', 'nota.pdf')],
+        objects,
+        sendEmail: async () => {
+          sends += 1
+          return { id: 'nunca' }
+        },
+      })
+
+      const result = await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+      expect(result).toEqual({
+        outcome: 'failed',
+        reason: 'attachment_unavailable',
+        threadId: THREAD_ID,
+      })
+      expect(sends).toBe(0)
+      expect(sentCalls).toEqual([])
+      expect(failedCalls).toEqual([{ companyId: COMPANY_ID, messageId: MESSAGE_ID }])
+    }
+  })
+
+  test('T903 (F1): anexo cujo objeto foi apagado falha o envio, nunca sai sem ele', async () => {
+    let sends = 0
+    const { dependencies, failedCalls } = buildDependencies({
+      attachments: [
+        {
+          ...record('occurrence-conversations/a', PDF, 'application/pdf', 'nota.pdf'),
+          available: false,
+        },
+      ],
+      objects: new Map([['occurrence-conversations/a', PDF]]),
+      sendEmail: async () => {
+        sends += 1
+        return { id: 'nunca' }
+      },
+    })
+
+    expect(await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)).toMatchObject({
+      outcome: 'failed',
+      reason: 'attachment_unavailable',
+    })
+    expect(sends).toBe(0)
+    expect(failedCalls).toHaveLength(1)
+  })
+
+  test('falha de leitura do bucket é transitória: propaga, sem marcar falha', async () => {
+    const { dependencies, failedCalls } = buildDependencies({
+      attachments: [record('occurrence-conversations/a', PDF, 'application/pdf', 'nota.pdf')],
+      sendEmail: async () => ({ id: 'nunca' }),
+    })
+    const failing = {
+      ...dependencies,
+      attachments: {
+        ...dependencies.attachments,
+        read: async () => {
+          throw new Error('storage unreachable')
+        },
+      },
+    }
+
+    await expect(sendContractorMailOutboundMessage(buildEnvelope(), failing)).rejects.toThrow(
+      'storage unreachable',
+    )
+    expect(failedCalls).toEqual([])
   })
 })

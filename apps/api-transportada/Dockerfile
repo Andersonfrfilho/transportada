@@ -44,6 +44,8 @@ COPY apps/api-transportada/src/companies/domain apps/api-transportada/src/compan
 COPY apps/api-transportada/src/cte-issuance/domain apps/api-transportada/src/cte-issuance/domain
 COPY apps/api-transportada/src/nfse-invoices/domain apps/api-transportada/src/nfse-invoices/domain
 COPY apps/api-transportada/src/identity/domain apps/api-transportada/src/identity/domain
+# environment.schema.ts lê os padrões do teto das rotas anônimas de identidade (spec 191 RF12).
+COPY apps/api-transportada/src/identity/shared apps/api-transportada/src/identity/shared
 COPY apps/api-transportada/src/whatsapp-commands/domain apps/api-transportada/src/whatsapp-commands/domain
 COPY apps/api-transportada/src/cte-profiles/domain apps/api-transportada/src/cte-profiles/domain
 # contractor-mail.schema.ts lê o catálogo de tipos de modelo de e-mail (spec 150 T402).

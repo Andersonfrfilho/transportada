@@ -167,7 +167,9 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
     ]
     const [weight, occupancy] = await Promise.all([
       loadTripCargoWeight(this.database, { companyId: params.companyId, nfeDocumentIds }),
-      trip === undefined
+      // Spec 216: sem veículo vinculado (`awaiting_crew`), a ocupação é a mesma lacuna de "viagem
+      // não encontrada" — não há ficha de veículo para medir o baú.
+      trip === undefined || trip.vehicleId === null
         ? undefined
         : loadTripOccupancy(this.database, {
             companyId: params.companyId,

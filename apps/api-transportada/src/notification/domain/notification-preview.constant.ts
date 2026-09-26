@@ -18,6 +18,8 @@ export const NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD: Readonly<Record<string, stri
   dueDate: '10/09/2026',
   failedCount: '3',
   invoiceNumber: '1042',
+  /** Spec 183 T654: o aviso por e-mail ao portal (e o da caixa do motorista, T601). */
+  occurrenceLabel: 'NF 4512/1',
   plate: 'RTA2E19',
   reason: 'Certificado vencido',
   rejectionReason: 'Alíquota fora do intervalo permitido',

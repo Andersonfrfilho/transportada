@@ -27,9 +27,11 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
     expect(plan.rendersSignature).toBe(true)
   })
 
-  it('sem configuração no snapshot vale o padrão: documento desligado, o resto opcional', () => {
+  it('sem configuração no snapshot vale o padrão: documento sempre visível, opcional (spec 207)', () => {
     const plan = resolveProofFormPlan(null)
-    expect(plan.rendersReceiverDocument).toBe(false)
+    /* Spec 207 (pedido do usuário, 25/09): o documento aparece sempre — "off" deixou de esconder. */
+    expect(plan.rendersReceiverDocument).toBe(true)
+    expect(plan.fields.receiverDocument).toBe('off')
     expect(plan.fields.receiverName).toBe('optional')
   })
 
@@ -67,12 +69,18 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
     expect(canonicalReceiverDocument('12.abc.345/0001-90')).toBe('12ABC345000190')
   })
 
-  it('o snapshot lê stop.deliveryProof, e fora do vocabulário vira null (padrão do app)', () => {
+  /**
+   * Spec 193 (plan, Fase 4): fallback **por campo** — um campo ausente ou fora do vocabulário vira o
+   * padrão dele, e o conjunto nunca vira `null` por causa de um campo só. Só um corpo que não é objeto
+   * continua `null`.
+   */
+  it('o snapshot lê stop.deliveryProof, e o campo fora do vocabulário cai no padrão dele', () => {
     const stop = {
       arrivedAt: null,
       completedAt: null,
       deliveryProof: {
         photo: 'required',
+        receivedBy: 'optional',
         receiverDocument: 'optional',
         receiverName: 'required',
         signature: 'off',
@@ -98,6 +106,7 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
     })
     expect(snapshot.trips[0]?.stops[0]?.deliveryProof).toEqual({
       photo: 'required',
+      receivedBy: 'optional',
       receiverDocument: 'optional',
       receiverName: 'required',
       signature: 'off',
@@ -117,7 +126,7 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
         ],
       },
     })
-    expect(broken.trips[0]?.stops[0]?.deliveryProof).toBeNull()
+    expect(broken.trips[0]?.stops[0]?.deliveryProof).toEqual(DEFAULT_PROOF_SETTINGS)
   })
 
   /** Revisão 082 (item 3): a configuração é do DOCUMENTO — a exceção por CNPJ muda nota a nota. */
@@ -201,7 +210,9 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
     )
     expect(card).not.toContain('inputMode="numeric"')
     expect(card).toContain('maskReceiverDocument')
-    /* O canônico sobe no proof: a API valida e criptografa (envelope da D4). */
-    expect(card).toContain('canonicalReceiverDocument')
+    /* O canônico sobe no proof: a API valida e criptografa (envelope da D4). Spec 193: a
+       canonicalização mora em `buildReceiverFields` (proofFormPlan.service.ts), reaproveitada
+       pelo anexo, pela atualização tardia e pelo PATCH — não mais inline no cartão. */
+    expect(card).toContain('buildReceiverFields')
   })
 })

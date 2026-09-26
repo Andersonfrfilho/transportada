@@ -39,6 +39,10 @@ import {
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
 import {
+  resolveRecipientDisplayName,
+  resolveRecipientIsCompany,
+} from '../domain/delivery-contact.policy.js'
+import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
   PHOTO_PROOF_KIND,
@@ -323,6 +327,11 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           documentId: row.tripDocumentId,
           documentNumber: row.documentNumber ?? '',
           documentSeries: row.documentSeries ?? '',
+          recipientDisplayName: resolveRecipientDisplayName({
+            legalName: row.recipientName ?? '',
+            tradeName: row.recipientTradeName ?? '',
+          }),
+          recipientIsCompany: resolveRecipientIsCompany(row.recipientTaxId ?? ''),
           recipientName: row.recipientName ?? '',
           tripId: row.tripId,
           tripStatus: row.tripStatus,
@@ -385,6 +394,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
         recipientName: nfeParticipants.legalName,
         recipientTaxId: nfeParticipants.taxId,
+        recipientTradeName: nfeParticipants.tradeName,
         recordedAt: tripStopEvents.recordedAt,
         reportedByDriverId: tripStopEvents.reportedByDriverId,
         separationStatus: tripDocuments.separationStatus,
@@ -577,6 +587,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       this.database
         .select({
           photo: companyDeliveryProofSettings.photo,
+          receivedBy: companyDeliveryProofSettings.receivedBy,
           receiverDocument: companyDeliveryProofSettings.receiverDocument,
           receiverName: companyDeliveryProofSettings.receiverName,
           signature: companyDeliveryProofSettings.signature,
@@ -587,6 +598,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       this.database
         .select({
           photo: deliveryProofSettingOverrides.photo,
+          receivedBy: deliveryProofSettingOverrides.receivedBy,
           receiverDocument: deliveryProofSettingOverrides.receiverDocument,
           receiverName: deliveryProofSettingOverrides.receiverName,
           signature: deliveryProofSettingOverrides.signature,
@@ -603,6 +615,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           row.taxId,
           {
             photo: row.photo,
+            receivedBy: row.receivedBy,
             receiverDocument: row.receiverDocument,
             receiverName: row.receiverName,
             signature: row.signature,
@@ -660,9 +673,10 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
-   * A coordenada sai de `geocoded_addresses` pela `address_key`, nunca de `trip_stops.latitude`,
-   * que nunca é escrita (spec 199). A tabela não tem tenant (ADR-0044): o recorte fica no `where`
-   * de `trip_stops`, e `address_key` é a PK dela, então o `left join` não multiplica parada.
+   * A coordenada sai de `geocoded_addresses` pela `address_key`, o único lugar onde ela existe
+   * (spec 199; a 215 tirou as colunas mortas de `trip_stops`). A tabela não tem tenant (ADR-0044):
+   * o recorte fica no `where` de `trip_stops`, e `address_key` é a PK dela, então o `left join` não
+   * multiplica parada.
    */
   private async listStops(input: { readonly companyId: string; readonly tripIds: string[] }) {
     return this.database
@@ -671,6 +685,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         completedAt: tripStops.completedAt,
         deliveryWindowEnd: tripStops.deliveryWindowEnd,
         deliveryWindowStart: tripStops.deliveryWindowStart,
+        enRouteSince: tripStops.enRouteSince,
+        enRouteTappedAt: tripStops.enRouteTappedAt,
         id: tripStops.id,
         label: tripStops.label,
         latitude: geocodedAddresses.latitude,
@@ -702,6 +718,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           number: nfeDocuments.number,
           recipientName: nfeParticipants.legalName,
           recipientTaxId: nfeParticipants.taxId,
+          recipientTradeName: nfeParticipants.tradeName,
           returnReason: tripDocuments.returnReason,
           separationStatus: tripDocuments.separationStatus,
           series: nfeDocuments.series,
@@ -746,6 +763,8 @@ type StopRow = {
   readonly completedAt: Date | null
   readonly deliveryWindowEnd: Date | null
   readonly deliveryWindowStart: Date | null
+  readonly enRouteSince: Date | null
+  readonly enRouteTappedAt: Date | null
   readonly id: string
   readonly label: string
   readonly latitude: string | null
@@ -764,6 +783,7 @@ type DocumentRow = {
   readonly number: string | null
   readonly recipientName: string | null
   readonly recipientTaxId: string | null
+  readonly recipientTradeName: string | null
   readonly returnReason: string | null
   readonly separationStatus: string
   readonly series: string | null
@@ -786,6 +806,8 @@ function toDriverStop(
     documents: (documentsByStop.get(stop.id) ?? []).map((row) =>
       toDriverDocument(row, proofSettings),
     ),
+    enRouteSince: stop.enRouteSince?.toISOString() ?? null,
+    enRouteTappedAt: stop.enRouteTappedAt?.toISOString() ?? null,
     id: stop.id,
     label: stop.label,
     latitude: stop.latitude,
@@ -825,6 +847,11 @@ function toDriverDocument(
       row.deliveredAt !== null &&
       deliveryProof.photo === REQUIRED_PROOF_FIELD_MODE &&
       !row.hasDeliveryPhoto,
+    recipientDisplayName: resolveRecipientDisplayName({
+      legalName: row.recipientName ?? '',
+      tradeName: row.recipientTradeName ?? '',
+    }),
+    recipientIsCompany: resolveRecipientIsCompany(row.recipientTaxId ?? ''),
     recipientName: row.recipientName ?? '',
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,

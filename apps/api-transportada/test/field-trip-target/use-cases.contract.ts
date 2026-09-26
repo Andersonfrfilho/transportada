@@ -113,6 +113,7 @@ function buildProofRepository() {
     findProofPunctuality: async () => null,
     resolveProofFieldSettings: async () => ({
       photo: 'optional',
+      receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'optional',
       signature: 'optional',

@@ -71,13 +71,13 @@ o que precisa de decisão → o que precisa de gente.
 
 ### Decisões que ainda travam
 
-| #       | pergunta                                           | trava                                                                                          |
-| ------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **D2**  | sugestão do contratante: manual ou automática?     | G11                                                                                            |
-| **D3**  | termos do Maps: guardar coordenada ou só Place ID? | ⚠️ **contornado por desenho** — `address_comparisons` guarda a medição, não a coordenada deles |
-| **D4**  | pino do motorista: aceito direto ou sugestão?      | G12                                                                                            |
-| **T1c** | envelope do documento + coordenada                 | Bloco 4                                                                                        |
-| **T1d** | correção humana escreve em `geocoded_addresses`?   | Bloco 4                                                                                        |
+| #       | pergunta                                                                                                     | trava                                                                                          |
+| ------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| **D2**  | sugestão do contratante: manual ou automática?                                                               | G11                                                                                            |
+| **D3**  | termos do Maps: guardar coordenada ou só Place ID?                                                           | ⚠️ **contornado por desenho** — `address_comparisons` guarda a medição, não a coordenada deles |
+| **D4**  | ✅ **respondida — ADR-0080 (spec 195):** o pino do motorista entra como **sugestão** que o escritório aplica | G12 → spec 195                                                                                 |
+| **T1c** | envelope do documento + coordenada                                                                           | Bloco 4                                                                                        |
+| **T1d** | correção humana escreve em `geocoded_addresses`?                                                             | Bloco 4                                                                                        |
 
 ---
 
@@ -88,12 +88,12 @@ implementa com eles em aberto. As tarefas marcadas **🚧 BLOQUEADA** só destra
 e estão listadas assim de propósito — para o bloqueio ficar visível em vez de virar decisão tomada
 por quem estiver com o teclado.
 
-| #   | pergunta                                                                                             | trava |
-| --- | ---------------------------------------------------------------------------------------------------- | ----- |
-| D1  | ✅ **fechado — ADR-0061.** Roda nos 300, como terceiro gatilho do degrau 2.                          | —     |
-| D2  | A sugestão do contratante é aceita à mão ou automaticamente quando a conferência de município passa? | T13   |
-| D3  | Os termos do Maps Platform permitem guardar a coordenada, ou só o Place ID?                          | T04   |
-| D4  | O pino do motorista é aceito direto ou entra como sugestão que o operador confirma?                  | T18b  |
+| #   | pergunta                                                                                                          | trava           |
+| --- | ----------------------------------------------------------------------------------------------------------------- | --------------- |
+| D1  | ✅ **fechado — ADR-0061.** Roda nos 300, como terceiro gatilho do degrau 2.                                       | —               |
+| D2  | A sugestão do contratante é aceita à mão ou automaticamente quando a conferência de município passa?              | T13             |
+| D3  | Os termos do Maps Platform permitem guardar a coordenada, ou só o Place ID?                                       | T04             |
+| D4  | ✅ **respondida — ADR-0080 (spec 195).** Sugestão: só vira coordenada quando o escritório aplica (`trip.manage`). | T18b → spec 195 |
 
 ---
 
@@ -149,7 +149,7 @@ corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fa
       T04. Se a decisão for manter em claro, ela precisa ser ADR ou entrada datada em
       `docs/SECURITY.md`, não herança por silêncio.
 
-- [ ] 🧠 **T1d** — **Decidir se correção humana escreve em `geocoded_addresses`.** Aquela tabela é
+- [ ] 🧠 **T1d** — _(aceita para as correções decididas pelo escritório, `origin = 'driver'` e `'operator'`, pela ADR-0080 §4, spec 195: aplicação por humano do escritório, sob `occurrences.resolve`, com trilha por empresa; continua aberta para `origin = 'contractor'`)_ **Decidir se correção humana escreve em `geocoded_addresses`.** Aquela tabela é
       ativo compartilhado sem `company_id`, por decisão declarada. Propagar uma correção aceita pela
       empresa A envenenaria a coordenada que serve a empresa B, que nunca aprovou nada. Combinado com
       a T1a, é caminho de ator externo de um tenant até o roteiro de outro.
@@ -229,15 +229,15 @@ corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fa
 - [ ] **T16** — Uma pergunta, sim/não, na confirmação de entrega — **só onde a precisão é baixa**.
       Formulário no fim de cada parada para de ser respondido na terceira.
 
-- [ ] **T17** — "Não era aqui" entra como **ocorrência**, nunca como sobrescrita da coordenada.
+- [ ] **T17** — _(vai para a spec 195: `wrong_address` com botão próprio)_ "Não era aqui" entra como **ocorrência**, nunca como sobrescrita da coordenada.
       Pode ser portaria fechada, cliente mudou, outro portão.
 
-- [ ] **T18a** — **O pino é opcional, e "errado sem pino" tem de ser aceito.**
+- [ ] **T18a** — _(vai para a spec 195: relato sem ponto é aceito, ADR-0080 §2)_ **O pino é opcional, e "errado sem pino" tem de ser aceito.**
       ⚠️ É o que faz o resto funcionar: se a recusa **exigir** o pino, o motorista no fim do turno
       responde "estava certo" para seguir adiante, e a base fica pior do que se ninguém perguntasse.
       _Aceite:_ contrato que **falha** se a confirmação exigir coordenada para registrar a recusa.
 
-- [ ] 🧠 **T18b (D4)** — O pino vira `rooftop`. ⚠️ Decidir antes se ele é aceito direto ou entra como
+- [ ] 🧠 **T18b (D4 ✅ ADR-0080)** — **Vai para a spec 195** (sugestão aplicada pelo escritório, `origin = 'driver'`, precisão ≤ 100 m). O pino vira `rooftop`. ⚠️ Decidir antes se ele é aceito direto ou entra como
       sugestão que o operador confirma: é a fonte que esteve na porta, mas também é um toque numa
       tela pequena, e pino errado é indistinguível de pino certo.
       ⚠️ Coordenada é dado pessoal: nada em log (`security.md` §1).

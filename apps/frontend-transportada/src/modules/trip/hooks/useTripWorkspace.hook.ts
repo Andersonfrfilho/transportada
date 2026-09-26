@@ -4,7 +4,11 @@ import { useRef, useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
-import type { OccurrenceRedeliveryPolicy, OccurrenceType } from '../shared/occurrence.constant'
+import type {
+  OccurrenceAttachmentMode,
+  OccurrenceRedeliveryPolicy,
+  OccurrenceType,
+} from '../shared/occurrence.constant'
 import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
   RegisteredOccurrence,
@@ -148,6 +152,8 @@ export type TripController = Readonly<{
       active: boolean
       /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
       allowsMultipleItems: boolean
+      /** Spec 179 RF1: a exigência de comprovante — sempre enviada, como os outros campos do tipo. */
+      attachmentMode: OccurrenceAttachmentMode
       emailTemplateKey: null | string
       /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
       leavesDocumentBehind: boolean

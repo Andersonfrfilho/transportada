@@ -81,21 +81,25 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T301.
 - [ ] **T014** `reply-token.policy.ts`: 128 bits, base32 minúsculo, hash SHA-256 e o endereço
       montado com o `reply_domain` da configuração. Evidência: teste da política.
+      _Nota (spec 183, 2026-09-24):_ segue pela spec 183, T403 (a política já existe; falta o teste).
 - [ ] **T015** `send-occurrence-mail.use-case.ts` e `reply-to-thread.use-case.ts`, com o outbox na
       mesma transação. O corpo reaproveita o texto de `renderEmail` da 079. Evidência: teste de caso
       de uso.
       _Nota (spec 150 T302):_ o worker já envia um e-mail só a todos os `to_addresses` (até 50) e
       manda `html` (`contractor_mail_messages.body_html`, gravado pela API) junto com o `text`. Falta
       aqui o caso de uso da ocorrência, que grava a mensagem.
+      _Nota (spec 183, 2026-09-24):_ segue pela spec 183, T403.
 - [ ] **T016** Rotas `POST /trip-stop-occurrences/:id/mail`, `POST /mail-threads/:id/messages` e
       `GET /mail-threads`, com `trip.manage`, mais a linha em `test/separator-role.contract.test.ts`
       (o separador **não** alcança). Evidência: contratos de rota.
+      _Nota (spec 183, 2026-09-24):_ segue pela spec 183, T404 (rotas da conversa da ocorrência).
 - [x] **T017** Contatos no formulário da contratante (frontend). Evidência: contrato de validação.
       Feita pela spec 150 T301 — evidência em
       `specs/150-pedido-de-correcao-de-endereco/evidence.md` § T301.
 - [ ] **T018** O painel "Conversa com a contratante" na ocorrência, com o botão "Enviar à
       contratante", esqueleto de carregamento e invalidação por `mutationInvalidation.service.ts`.
       Evidência: contratos de serviço puro e smoke Playwright do envio.
+      _Nota (spec 183, 2026-09-24):_ segue pela spec 183, T407 (aba Contratante no detalhe `/ocorrencias/:id`).
 
 ## Fase 3 — A resposta decide (P2)
 
@@ -120,6 +124,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       da transição, com `dedupeKey` da mensagem. Evidência: integração com dois avisos na inbox.
 - [ ] **T024** O feed de ocorrências da viagem mostra a decisão com a origem "e-mail". Evidência:
       contrato da query.
+      _Nota (spec 183, 2026-09-24):_ a spec 164 fixou que o e-mail só anuncia a decisão pendente; a 183 não cria decisão por e-mail. Rever junto com T019–T022.
 
 ## Fase 5 — Envio automático (P4)
 
@@ -127,6 +132,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 
 - [ ] **T025** `emails_contractor` no tipo de ocorrência (API e tela), e o registro da ocorrência
       chama o envio quando o campo está ligado. Evidência: teste de caso de uso.
+      _Nota (spec 183, 2026-09-24):_ segue pela spec 183, T802 (envio automático pelo canal preferido do contato).
 
 ## Fase 6 — Fechamento
 

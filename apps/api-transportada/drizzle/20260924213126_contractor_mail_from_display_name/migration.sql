@@ -1,0 +1,2 @@
+ALTER TABLE "contractor_mail_messages" ADD COLUMN "from_display_name" text;--> statement-breakpoint
+ALTER TABLE "contractor_mail_messages" ADD CONSTRAINT "contractor_mail_messages_from_display_name_length_check" CHECK ("from_display_name" is null or length("from_display_name") <= 200);

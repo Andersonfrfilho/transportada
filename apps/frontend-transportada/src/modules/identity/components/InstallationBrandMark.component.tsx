@@ -22,7 +22,9 @@ export function InstallationBrandMark({
   return (
     <>
       <img alt="" className={logoClassName} onError={brand.handleLogoError} src={brand.logoUrl} />
-      <strong className={nameClassName}>{brand.name}</strong>
+      <strong className={nameClassName} title={brand.name}>
+        {brand.name}
+      </strong>
     </>
   )
 }

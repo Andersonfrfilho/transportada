@@ -99,6 +99,22 @@ describe('seed do catálogo de tipos de ocorrência contra Postgres real', () =>
 
           expect(emptyCompanyTypes).toHaveLength(OCCURRENCE_TYPE_CATALOG.length)
 
+          // Spec 208: o tipo novo grava com os defaults de coluna — sem foto, sem soltar a nota —
+          // porque insertOccurrenceTypes só escreve companyId/name/stage.
+          const [boletoType] = await provider.db
+            .select({
+              attachmentMode: companyOccurrenceTypes.attachmentMode,
+              leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
+              stage: companyOccurrenceTypes.stage,
+            })
+            .from(companyOccurrenceTypes)
+            .where(eq(companyOccurrenceTypes.name, 'Cliente pediu segunda via do boleto'))
+
+          expect(boletoType).toBeDefined()
+          expect(boletoType?.stage).toBe('delivery')
+          expect(boletoType?.attachmentMode).toBe('off')
+          expect(boletoType?.leavesDocumentBehind).toBe(false)
+
           // A empresa com um tipo continua com exatamente esse tipo — os outros seis nunca chegam,
           // e o nome/estado editados pela transportadora seguem intocados.
           const partialCompanyTypes = await provider.db

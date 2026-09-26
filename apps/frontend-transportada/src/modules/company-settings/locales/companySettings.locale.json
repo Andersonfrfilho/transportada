@@ -8,7 +8,8 @@
     "taxes": "Tributos",
     "driverAllowance": "Diária do motorista",
     "occurrenceTypes": "Tipos de ocorrência",
-    "entryKinds": "Espécies de lançamento"
+    "entryKinds": "Espécies de lançamento",
+    "quickReplies": "Respostas rápidas"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -300,6 +301,11 @@
     "redeliveryPolicyAllowed": "Admite reentrega",
     "redeliveryPolicyBlocked": "Não admite reentrega",
     "leavesDocumentBehind": "A viagem segue sem a nota",
-    "leavesDocumentBehindHint": "Vale para ocorrência da nota inteira. A nota sai da viagem no despacho."
+    "leavesDocumentBehindHint": "Vale para ocorrência da nota inteira. A nota sai da viagem no despacho.",
+    "attachmentMode": "Foto do comprovante",
+    "attachmentModeHint": "Vale para o registro do motorista na rua. Obrigatória: a ocorrência só sai com foto e observação.",
+    "attachmentModeOff": "Sem foto",
+    "attachmentModeOptional": "Foto opcional",
+    "attachmentModeRequired": "Foto obrigatória"
   }
 }

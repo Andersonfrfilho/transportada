@@ -33,7 +33,6 @@ import {
 import { companies, userCompanyMemberships } from './identity.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
-import { GEOCODING_PRECISIONS, type GeocodingPrecision } from './geocoding.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
@@ -63,8 +62,13 @@ export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[keyof typeof TRIP_FI
  * ADR-0043 §1: a viagem não fala com a SEFAZ, mas tem fases de barracão que `open|closed` não
  * representava. O estado é derivado do das notas em toda transição, exceto as quatro manuais
  * (draft, route_planned, dispatched, cancelled).
+ *
+ * Spec 216: `awaiting_crew` entra ANTES de `draft` — a viagem pode nascer sem motorista nem
+ * veículo, e só chega a `draft` quando os dois forem definidos. `draft` continua significando
+ * "tripulação montada, falta planejar rota"; nenhuma regra existente sobre `draft` muda de sentido.
  */
 export const TRIP_STATUSES = [
+  'awaiting_crew',
   'draft',
   'route_planned',
   'separating',
@@ -202,7 +206,11 @@ export const trips = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    vehicleId: uuid('vehicle_id').notNull(),
+    /**
+     * Spec 216: `null` é "aguardando definição" (`status: 'awaiting_crew'`) — a viagem pode nascer
+     * sem veículo quando motorista/agregado ainda não está pronto.
+     */
+    vehicleId: uuid('vehicle_id'),
     status: text().$type<TripStatus>().notNull().default('draft'),
     fiscalReadinessState: text('fiscal_readiness_state')
       .$type<TripFiscalReadinessState>()
@@ -560,16 +568,27 @@ export const tripStops = pgTable(
     label: text().notNull(),
     arrivedAt: timestamp('arrived_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    /**
+     * Spec 206 D1 (ADR-0088 §2/§8): "a caminho desta parada". `en_route_since` é hora do **servidor**;
+     * `en_route_tapped_at`, a hora do aparelho no toque — a âncora que a 207 lê. As duas nascem nulas, e
+     * o estado é coluna em vez de derivação do último `departed` porque sem constraint dois celulares
+     * deixam duas paradas a caminho e a leitura pagaria a consulta.
+     *
+     * ⚠️ **Toda escrita de `arrived_at` ou `completed_at` zera as duas no mesmo `UPDATE`** — o
+     * `trip_stops_en_route_open_check` não deixa ser de outro jeito, e é isso que um contrato estático
+     * vigia nos dois únicos escritores daquelas colunas (D4).
+     */
+    enRouteSince: timestamp('en_route_since', { withTimezone: true }),
+    enRouteTappedAt: timestamp('en_route_tapped_at', { withTimezone: true }),
     deliveryWindowStart: timestamp('delivery_window_start', { withTimezone: true }),
     deliveryWindowEnd: timestamp('delivery_window_end', { withTimezone: true }),
     /**
-     * ADR-0044 §5: coordenada e precisão da parada. Anuláveis porque a parada nasce do endereço da
-     * nota e só ganha coordenada quando é geocodificada — parada sem coordenada é cadastro em
-     * andamento, não erro, e inventar valor em migration é inventar rota.
+     * ⚠️ A parada **não guarda coordenada**. Ela mora em `geocoded_addresses`, casada pela
+     * `address_key` (ADR-0044) — a mesma rua é a mesma rua para quem quer que entregue nela. As
+     * colunas `latitude`/`longitude`/`geocoding_precision` existiram aqui da 058 até a 215 e nunca
+     * foram escritas: respondiam `null` sem reclamar, e três leituras caíram nisso (o mapa da
+     * viagem na 079, `GET /me/trips/current` na 199, a pontualidade da foto na 159).
      */
-    latitude: numeric({ precision: 10, scale: 7 }),
-    longitude: numeric({ precision: 10, scale: 7 }),
-    geocodingPrecision: text('geocoding_precision').$type<GeocodingPrecision>(),
     /** O que o roteiro aceito calculou para esta parada — some quando a ordem muda. */
     estimatedArrivalAt: timestamp('estimated_arrival_at', { withTimezone: true }),
     distanceFromPreviousMeters: bigint('distance_from_previous_meters', { mode: 'number' }),
@@ -611,23 +630,30 @@ export const tripStops = pgTable(
       'trip_stops_completed_requires_arrived_check',
       sql`${table.completedAt} is null or ${table.arrivedAt} is not null`,
     ),
-    // Coordenada é par: meia coordenada não localiza nada, e a precisão descreve o par
+    /**
+     * Spec 206 D1: "a caminho" só existe em parada **aberta e sem chegada**. Quem chegou não está mais
+     * a caminho, e quem concluiu muito menos — deixar o estado para trás seria o painel dizendo que o
+     * caminhão está indo para uma parada já entregue.
+     */
     check(
-      'trip_stops_coordinates_check',
-      sql`(${table.latitude} is null) = (${table.longitude} is null) and (${table.latitude} is null or ${table.geocodingPrecision} is not null)`,
+      'trip_stops_en_route_open_check',
+      sql`${table.enRouteSince} is null or (${table.arrivedAt} is null and ${table.completedAt} is null)`,
     ),
+    /** A hora do toque sem a hora do servidor é metade de um dado: não existe toque sem saída. */
     check(
-      'trip_stops_latitude_range_check',
-      sql`${table.latitude} is null or ${table.latitude} between -90 and 90`,
+      'trip_stops_en_route_tapped_check',
+      sql`${table.enRouteTappedAt} is null or ${table.enRouteSince} is not null`,
     ),
-    check(
-      'trip_stops_longitude_range_check',
-      sql`${table.longitude} is null or ${table.longitude} between -180 and 180`,
-    ),
-    check(
-      'trip_stops_geocoding_precision_check',
-      sql`${table.geocodingPrecision} is null or ${table.geocodingPrecision} in (${sql.raw(inList(GEOCODING_PRECISIONS))})`,
-    ),
+    /**
+     * Spec 206 D1/D5: **uma parada a caminho por viagem**, e é o banco que garante. Parcial sobre o não
+     * nulo, então parada sem saída não entra no índice. Ele é a rede de segurança, não o caminho normal:
+     * a trava das paradas serializa a leitura antes, para o toque perdedor receber `409` e não o `500`
+     * de uma violação. Não existe `catch` de `23505` — numa transação abortada não haveria o que
+     * executar.
+     */
+    uniqueIndex('trip_stops_one_en_route_per_trip_idx')
+      .on(table.companyId, table.tripId)
+      .where(sql`${table.enRouteSince} is not null`),
     // Trecho anterior não tem sinal: distância negativa é conta errada, não rota curta
     check(
       'trip_stops_leg_check',
@@ -983,7 +1009,20 @@ export const deliveryAddressOverrides = pgTable(
  * É desta tabela que sai o tempo real de atendimento por parada — a medição que a 058 lê hoje de
  * colunas que ninguém escrevia, e que a 060 vai ler depois.
  */
-export const TRIP_STOP_EVENT_KINDS = ['arrived', 'delivered', 'returned', 'occurrence'] as const
+/**
+ * Spec 206 D1/D18 (ADR-0088 §1/§2b): `departed` é a saída **para** a parada, e `departure_cancelled`
+ * desfaz a saída sem apagar nada — o `departed` fica, e é ele que explica ao escritório a mudança de
+ * destino. Grafia `cancelled` com dois `l`, a do repositório. Os dois entram na **mesma** migration:
+ * recriar o CHECK duas vezes seria trabalho e risco de graça.
+ */
+export const TRIP_STOP_EVENT_KINDS = [
+  'arrived',
+  'delivered',
+  'returned',
+  'occurrence',
+  'departed',
+  'departure_cancelled',
+] as const
 export type TripStopEventKind = (typeof TRIP_STOP_EVENT_KINDS)[number]
 
 export const tripStopEvents = pgTable(
@@ -1004,6 +1043,13 @@ export const tripStopEvents = pgTable(
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     /** A hora do aparelho quando a posição foi lida — não a hora em que o evento chegou ao servidor. */
     capturedAt: timestamp('captured_at', { withTimezone: true }),
+    /**
+     * Spec 206 D3 (ADR-0088 §4): a hora do aparelho **no toque**, que não é a do `captured_at` (leitura
+     * do GPS, que pode nem existir) nem a do servidor. É ela que ordena a fila: o item recusado não é
+     * descartado, o reenvio manual chega fora de ordem, e sem o `tapped_at` um toque velho marcaria a
+     * parada errada. Anulável: todo evento anterior a esta spec não tem.
+     */
+    tappedAt: timestamp('tapped_at', { withTimezone: true }),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /** ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico. */
@@ -1020,6 +1066,12 @@ export const tripStopEvents = pgTable(
      * dele. Evento anterior a esta coluna segue resolvido pelo vínculo.
      */
     reportedByDriverId: uuid('reported_by_driver_id'),
+    /**
+     * Spec 205 D1: a baixa (`delivered`/`returned`) veio pelo "Registrar entrega depois" da app do
+     * motorista. A foto obrigatória dessa entrega é `late` (`classifyProofPunctuality`); a devolução
+     * só grava o fato — a nota não a lê (D3). Sem backfill: o default descreve o histórico.
+     */
+    lateRegistration: boolean('late_registration').notNull().default(false),
     /**
      * ADR-0067 §3: hoje `created_at` faz os dois papéis (quando aconteceu e quando foi gravado). A
      * baixa retroativa do escritório muda `created_at` para a hora da entrega e grava aqui a hora
@@ -1289,6 +1341,13 @@ export const tripFieldReports = pgTable(
     /** A rota que consumiu a chave: a mesma chave em ações diferentes é erro do cliente, não repetição. */
     operation: text().notNull(),
     resultId: uuid('result_id'),
+    /**
+     * Spec 206 M3 (ADR-0088 §1): o desfecho do toque, e não só o id do que ele criou. Toque sem efeito
+     * não grava evento, mas **liquida a chave** com `false` — é isso que faz o reenvio repetir
+     * `changed: false` em vez de decidir de novo sobre um estado que já mudou. Anulável: toda linha
+     * anterior a esta spec não tem desfecho registrado.
+     */
+    resultChanged: boolean('result_changed'),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /**
@@ -1379,6 +1438,37 @@ export const TRIP_DELIVERY_PROOF_PUNCTUALITIES = [
 ] as const
 export type TripDeliveryProofPunctuality = (typeof TRIP_DELIVERY_PROOF_PUNCTUALITIES)[number]
 
+/**
+ * Spec 193 D1 (ADR-0079 Parte A): quem recebeu, em relação ao destinatário — lista fechada, nesta
+ * ordem (é a ordem do seletor). Mora aqui, e não em `trips/domain`, pelo mesmo motivo de
+ * `TRIP_DELIVERY_PROOF_PUNCTUALITIES`: o fechamento de imports do pre-deploy.
+ */
+export const RECEIVED_BY_OPTIONS = [
+  'recipient',
+  'spouse',
+  'child',
+  'parent',
+  'sibling',
+  'other_relative',
+  'neighbor',
+  'doorman',
+  'employee',
+  'other',
+] as const
+export type ReceivedBy = (typeof RECEIVED_BY_OPTIONS)[number]
+
+/**
+ * Spec 193 D1/D2: estes pedem o detalhe. A falta **não** vira CHECK nem recusa — o motorista grava
+ * sem, e a tela marca a pendência (C1: nada do formulário derruba a foto).
+ */
+export const RECEIVED_BY_OPTIONS_REQUIRING_DETAIL = [
+  'other_relative',
+  'other',
+] as const satisfies readonly ReceivedBy[]
+
+/** Spec 193 D1: o detalhe é texto curto; a normalização corta aqui antes de gravar. */
+export const RECEIVED_BY_DETAIL_MAX_LENGTH = 120
+
 export const tripDeliveryProofs = pgTable(
   'trip_delivery_proofs',
   {
@@ -1388,9 +1478,9 @@ export const tripDeliveryProofs = pgTable(
     kind: text().notNull().$type<TripDeliveryProofKind>(),
     objectId: uuid('object_id').notNull(),
     /**
-     * Nome de quem recebeu. Normalmente só na assinatura — mas o canal `office` também o carrega em
-     * `kind: 'photo'` (ADR-0067 §5, emenda 2026-09-18, spec 156 T6): o escritório não colhe
-     * assinatura, e cumpre "assinatura obrigatória" com a foto do canhoto assinado + este nome.
+     * Nome de quem recebeu, na assinatura e no canhoto (`photo`) dos dois canais — nunca na foto da
+     * carga. O escritório o carrega desde a ADR-0067 §5 (emenda 2026-09-18); a foto do motorista
+     * passou a carregá-lo com a spec 193 D4 (ADR-0079 §A2), que revisa aquela emenda.
      */
     receiverName: text('receiver_name').notNull().default(''),
     /**
@@ -1401,6 +1491,13 @@ export const tripDeliveryProofs = pgTable(
     receiverDocumentEnvelope: jsonb('receiver_document_envelope'),
     /** A forma que toda leitura devolve (`***.938.570-**`). O valor em claro não tem coluna. */
     receiverDocumentMasked: text('receiver_document_masked').notNull().default(''),
+    /**
+     * Spec 193 D1/D3 (ADR-0079 §A1): quem recebeu em relação ao destinatário, e um detalhe curto
+     * ("casa 12"). Só em `photo`/`signature`; `null` nos comprovantes antigos (D11, sem backfill).
+     * ⚠️ D10: nunca vai para log, auditoria, notificação nem linha do tempo.
+     */
+    receivedBy: varchar('received_by', { length: 16 }).$type<ReceivedBy>(),
+    receivedByDetail: varchar('received_by_detail', { length: 120 }),
     /**
      * Spec 082 (revisão, item 5): chave de idempotência do anexo, mandada pelo app. Reenvio com a
      * mesma chave para o mesmo evento+tipo converge na linha existente — o unique de
@@ -1438,6 +1535,11 @@ export const tripDeliveryProofs = pgTable(
       .notNull()
       .default('not_required')
       .$type<TripDeliveryProofPunctuality>(),
+    /**
+     * Spec 205 D1/D5: o envio do comprovante veio pelo "Registrar entrega depois". A substituta
+     * nunca o desfaz (`or` no upsert), como a pontualidade nunca melhora (spec 159 T11, D3b).
+     */
+    lateRegistration: boolean('late_registration').notNull().default(false),
   },
   (table) => [
     foreignKey({
@@ -1498,13 +1600,25 @@ export const tripDeliveryProofs = pgTable(
       sql`${table.kind} in (${raw(inList(TRIP_DELIVERY_PROOF_KINDS))})`,
     ),
     /**
-     * Nome só faz sentido em assinatura, ou no canhoto do escritório (ADR-0067 §5, emenda
-     * 2026-09-18): ele nunca colhe assinatura, e o nome do recebedor é como cumpre a exigência.
-     * Relaxado por migration aditiva da spec 156 T6 — o motorista continua sem essa saída.
+     * Spec 193 D4 (revisa a ADR-0067 §5, emenda 2026-09-18): o nome vale para qualquer tipo menos a
+     * foto da carga — a assinatura, e o canhoto dos dois canais. A migration confere antes que não
+     * há `cargo` com nome, porque este CHECK é mais estreito que o antigo nesse caso.
      */
     check(
       'trip_delivery_proofs_receiver_check',
-      sql`${table.kind} = 'signature' or ${table.channel} = 'office' or length(${table.receiverName}) = 0`,
+      sql`${table.kind} <> ${raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))} or length(${table.receiverName}) = 0`,
+    ),
+    check(
+      'trip_delivery_proofs_received_by_check',
+      sql`${table.receivedBy} is null or ${table.receivedBy} in (${raw(inList(RECEIVED_BY_OPTIONS))})`,
+    ),
+    check(
+      'trip_delivery_proofs_received_by_detail_check',
+      sql`${table.receivedByDetail} is null or ${table.receivedBy} is not null`,
+    ),
+    check(
+      'trip_delivery_proofs_received_by_kind_check',
+      sql`${table.kind} <> ${raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))} or (${table.receivedBy} is null and ${table.receivedByDetail} is null)`,
     ),
     /**
      * O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita.

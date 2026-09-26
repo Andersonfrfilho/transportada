@@ -19,10 +19,13 @@ import {
   createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
 import {
+  ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
+  applyAttachmentReceiverFields,
   discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
+  removeQueuedAttachmentByKey,
   type AttachmentSendOutcome,
   type AttachmentStore,
   type QueuedAttachment,
@@ -31,18 +34,32 @@ import {
   applyReportLocation,
   createIdempotencyKey,
   enqueueReport,
+  enqueueReports,
+  sumReportPhotoBytes,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
 import {
   countPending,
   createDrainScheduler,
   scheduleQueueDrainTriggers,
+  selectPendingTotal,
 } from '../shared/pendingQueue.service'
+import {
+  reduceProofPhotoToJpeg,
+  shouldReduceProofFile,
+} from '../shared/proofPhotoReduction.service'
+import {
+  recoverQueuedProofPhotos,
+  reduceQueuedProofPhoto,
+  type ProofPhotoReductions,
+} from '../shared/proofPhotoRecovery.service'
+import { buildProofReceiverReport } from '../shared/proofReceiver.service'
 import {
   discardForeignPending,
   discardOwnPending,
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
+import { fitStopOccurrenceReports, withoutPhotos } from '../shared/stopOccurrencePhoto.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
 import { saveTripSnapshot } from '../shared/tripSnapshot.service'
 import {
@@ -73,9 +90,16 @@ const CURRENT_TRIP_REFETCH_MS = 30_000
 const TRIP_SNAPSHOT_STORE = createIndexedDbTripSnapshotStore()
 
 export type DriverProofInput = Readonly<{
+  /** Spec 207: gerada na tela — é o que "Remover" (por item, nunca por nota) precisa depois. */
+  attachmentKey?: string
   documentId: string
   file: File
   kind: 'photo' | 'signature'
+  /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
+  lateRegistration?: boolean
+  /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
+  receivedBy?: string
+  receivedByDetail?: string
   receiverDocument?: string
   receiverName?: string
 }>
@@ -89,8 +113,34 @@ export type DriverProofOutcome = 'count-limit' | 'queued' | 'size-limit'
 /** Spec 082 (revisão): o teto da fila de eventos recusa tipado, nunca `QuotaExceededError` cru. */
 export type DriverReportOutcome = 'count-limit' | 'queued'
 
+/** Spec 179: a foto da ocorrência conta no mesmo teto de bytes dos anexos. */
+export type DriverNotDeliveredOutcome = DriverReportOutcome | 'size-limit'
+
+/** Spec 209 (D3): a foto do "Deu problema" que não coube saiu — o relato entrou mesmo assim. */
+export type DriverStopOccurrenceOutcome = DriverReportOutcome | 'photo-dropped'
+
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  /**
+   * Spec 203/193: o motorista completou um campo depois do anexo já estar na fila — atualiza o(s)
+   * item(ns) daquele documento in place. Sem grupo na fila (o anexo já subiu), vira `proofReceiver`
+   * — o PATCH `.../proof/receiver`, enfileirado como evento (D7). `receiverDocument` só se aplica
+   * com o item ainda na fila: o PATCH não o aceita.
+   */
+  updateProofFields: (input: {
+    documentId: string
+    receivedBy?: string
+    receivedByDetail?: string
+    receiverDocument?: string
+    receiverName?: string
+  }) => Promise<void>
+  /**
+   * Pedido do usuário (25/09, spec 207): "Remover" a foto/assinatura ainda na fila, pelo
+   * `attachmentKey` do item escolhido (nunca por `documentId` — a nota pode ter mais de um anexo,
+   * spec 211). Sem o item (já enviado) é no-op — a tela não oferece "Remover" nesse caso, só
+   * "Substituir".
+   */
+  removeProof: (attachmentKey: string) => Promise<void>
   /** "Confirmar em lote": tira a marca do que foi feito sem rede e drena. */
   confirmUnverifiedPending: () => Promise<void>
   /** Descarta o que foi feito sem rede — o item e o dado saem do aparelho. */
@@ -113,6 +163,8 @@ export type DriverTripController = Readonly<{
   isOfflineBoot: boolean
   /** Tudo o que é do dono e ainda está no aparelho — o "Sair" avisa antes de deixar para trás. */
   ownPendingCount: number
+  /** Spec 193 D13: o número do ícone da fila no cabeçalho (`selectPendingTotal`). */
+  pendingTotal: number
   /**
    * Spec 159 (P6): a pontualidade da última foto que subiu para cada documento, nesta sessão — a
    * tela traduz em linguagem simples ("em dia", "tardia", "longe"). Some ao trocar de sessão: não é
@@ -126,12 +178,20 @@ export type DriverTripController = Readonly<{
   refetchTrip: () => void
   rejectedCount: number
   report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
+  /** Spec 179: os itens do mesmo toque ("Não entreguei"), todos ou nenhum. */
+  reportNotDelivered: (reports: readonly DriverFieldReport[]) => Promise<DriverNotDeliveredOutcome>
+  /** Spec 209: o "Deu problema" — a ocorrência sempre entra; a foto, se couber. */
+  reportStopOccurrence: (
+    reports: readonly DriverFieldReport[],
+  ) => Promise<DriverStopOccurrenceOutcome>
   /** M1: grava o toque na hora, com a posição completando o item depois. */
   reportWithLocation: (
     build: (location: DriverReportedLocation | null) => DriverFieldReport,
   ) => Promise<DriverReportOutcome>
   sendAllNow: () => void
   sendNow: (idempotencyKey: string) => void
+  /** Spec 179 RF5: as chaves que o servidor aceitou nesta sessão — o "enviado" da tela. */
+  sentReportKeys: ReadonlySet<string>
   snapshot: DriverTripSnapshot | undefined
   status: 'error' | 'loading' | 'ready'
   /** O que o dono fez sem rede e ainda não confirmou — só com sessão viva. */
@@ -167,6 +227,8 @@ export function useDriverTrip(
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
+  const [sentReportKeys, setSentReportKeys] = useState<ReadonlySet<string>>(new Set())
+  const [pendingTotal, setPendingTotal] = useState(0)
   /** Plan D5: o temporizador da drenagem só corre enquanto isto for maior que zero. */
   const drainableCountRef = useRef(0)
   /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
@@ -187,12 +249,16 @@ export function useDriverTrip(
     setQueueView(
       buildEventQueueView({ attachments: pending.ownAttachments, queued: pending.ownReports }),
     )
+    const now = new Date()
     drainableCountRef.current = countPending({
       attachments,
-      now: new Date(),
+      now,
       ownerSubHash: session.subHash,
       reports: queued,
     }).drainable
+    setPendingTotal(
+      selectPendingTotal({ attachments, now, ownerSubHash: session.subHash, reports: queued }),
+    )
     syncDrainTimerRef.current()
   }, [attachmentStore, session.subHash, store])
 
@@ -236,17 +302,33 @@ export function useDriverTrip(
     createDrainScheduler({ run: (only) => runDrainRef.current(only) }),
   )
 
+  /** Spec 212: as reduções do canhoto em voo — a varredura e a drenagem esperam por elas. */
+  const [proofPhotoReductions] = useState<ProofPhotoReductions>(() => new Map())
+  const recoverProofPhotos = useCallback(async (): Promise<void> => {
+    const recovered = await recoverQueuedProofPhotos({
+      attachmentStore,
+      reduce: reduceProofPhotoToJpeg,
+      reductions: proofPhotoReductions,
+    })
+    if (recovered > 0) await refreshQueueView()
+  }, [attachmentStore, proofPhotoReductions, refreshQueueView])
+
   /** A drenagem é uma só — automática e manual entram pela mesma porta, `only` restringe. */
   const drain = useMutation({
-    mutationFn: (only?: string) => {
+    mutationFn: async (only?: string) => {
+      /** Spec 212: a foto grande presa (413) volta reduzida e sem causa antes de a fila ser lida. */
+      await recoverProofPhotos()
       const client = getDriverTripClient()
-      return drainQueueWithAttachments({
+      /** O que o servidor aceitou nesta drenagem, chave a chave — é isso que a tela chama de enviado. */
+      const sentKeys: string[] = []
+      const result = await drainQueueWithAttachments({
         attachmentStore,
         ...(only === undefined ? {} : { only }),
         ownerSubHash: session.subHash,
         send: async (report): Promise<AttachmentSendOutcome> => {
           try {
             await client.send(report)
+            sentKeys.push(report.idempotencyKey)
             return { kind: 'sent' }
           } catch (error) {
             return toAttachmentSendOutcome(error)
@@ -267,12 +349,19 @@ export function useDriverTrip(
               ...(attachment.accuracyMeters === undefined
                 ? {}
                 : { accuracyMeters: attachment.accuracyMeters }),
+              ...(attachment.receivedBy === undefined ? {} : { receivedBy: attachment.receivedBy }),
+              ...(attachment.receivedByDetail === undefined
+                ? {}
+                : { receivedByDetail: attachment.receivedByDetail }),
               ...(attachment.receiverDocument === undefined
                 ? {}
                 : { receiverDocument: attachment.receiverDocument }),
               ...(attachment.receiverName === undefined
                 ? {}
                 : { receiverName: attachment.receiverName }),
+              ...(attachment.lateRegistration === undefined
+                ? {}
+                : { lateRegistration: attachment.lateRegistration }),
             })
             return { kind: 'sent', punctuality: result.punctuality }
           } catch (error) {
@@ -281,9 +370,13 @@ export function useDriverTrip(
         },
         store,
       })
+      return { ...result, sentKeys }
     },
     onSuccess: (result) => {
       void refreshQueueView()
+      if (result.sentKeys.length > 0) {
+        setSentReportKeys((current) => new Set([...current, ...result.sentKeys]))
+      }
       if (result.attachmentsSent.length > 0) {
         setProofOutcomeByDocumentId((current) => {
           const next = new Map(current)
@@ -292,6 +385,21 @@ export function useDriverTrip(
           }
           return next
         })
+        /**
+         * Spec 193 D7: a edição que chegou **durante** o envio não se perde — a drenagem já
+         * comparou o que mandou com o que ficou gravado (`receiverDrift`), e aqui só falta subir a
+         * diferença pelo mesmo PATCH da atualização tardia.
+         */
+        for (const item of result.attachmentsSent) {
+          if (item.receiverDrift === undefined) continue
+          void report(
+            buildProofReceiverReport({
+              documentId: item.documentId,
+              fields: item.receiverDrift,
+              idempotencyKey: createIdempotencyKey(),
+            }),
+          )
+        }
       }
       /* Spec 159 (T12): foto enviada tira a nota de `pendingProofs` — sem reler, a contagem mentia. */
       if (result.sent > 0 || result.rejected > 0 || result.attachmentsSent.length > 0) {
@@ -350,9 +458,10 @@ export function useDriverTrip(
      * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
      * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
      */
-    void discardStaleAttachments({ attachmentStore, now: new Date(), store }).then(() =>
-      refreshQueueView(),
-    )
+    void discardStaleAttachments({ attachmentStore, now: new Date(), store })
+      .then(() => refreshQueueView())
+      /** Spec 212: também sem rede — a foto já sai reduzida quando a drenagem puder levá-la. */
+      .then(() => recoverProofPhotos())
     /** "Abertura" (plan D5): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
     drainRef.current(undefined)
 
@@ -368,7 +477,7 @@ export function useDriverTrip(
       syncDrainTimerRef.current = () => undefined
       cancelTriggers()
     }
-  }, [attachmentStore, refreshQueueView, store])
+  }, [attachmentStore, recoverProofPhotos, refreshQueueView, store])
 
   /** A4: a gravação conta como captura aberta até o IndexedDB confirmar — nada navega no meio. */
   function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
@@ -421,6 +530,87 @@ export function useDriverTrip(
   }
 
   /**
+   * Spec 179 (T303): "Não entreguei" grava a ocorrência com foto e a devolução juntas, antes do GPS —
+   * como o `reportWithLocation`. A foto conta no teto de bytes dos anexos: estourou, nada entra e a
+   * tela diz (nunca descarte calado). A posição completa só a devolução, que é quem a leva.
+   */
+  function reportNotDelivered(
+    reports: readonly DriverFieldReport[],
+  ): Promise<DriverNotDeliveredOutcome> {
+    return persistWhileOpen(captureRegistry, async () => {
+      const [queued, attachmentTotals] = await Promise.all([
+        store.read(),
+        attachmentStore.readTotals(),
+      ])
+      const photoBytes =
+        sumReportPhotoBytes(queued.map((item) => item.report)) + sumReportPhotoBytes(reports)
+      if (attachmentTotals.totalBytes + photoBytes > ATTACHMENT_QUEUE_LIMIT.maxTotalBytes) {
+        return 'size-limit'
+      }
+
+      const result = await enqueueReports({
+        isUnverified: !session.canSync,
+        now: new Date(),
+        reports,
+        store,
+        subHash: session.subHash,
+      })
+      if (!result.accepted) return result.reason
+      await refreshQueueView()
+
+      const returned = reports.find((report) => report.kind === 'return')
+      const location = returned === undefined ? null : await readCurrentLocation()
+      if (returned !== undefined && location !== null) {
+        await store.update((items) =>
+          applyReportLocation({ idempotencyKey: returned.idempotencyKey, items, location }),
+        )
+      }
+      requestDrain(undefined)
+      return 'queued'
+    })
+  }
+
+  /**
+   * Spec 209 (D3): o "Deu problema" grava a ocorrência e, atrás dela, a foto. Fila cheia derruba a
+   * foto, nunca o relato — pelo teto de bytes, ou pela contagem quando os dois não cabem juntos.
+   */
+  function reportStopOccurrence(
+    reports: readonly DriverFieldReport[],
+  ): Promise<DriverStopOccurrenceOutcome> {
+    return persistWhileOpen(captureRegistry, async () => {
+      const [queued, attachmentTotals] = await Promise.all([
+        store.read(),
+        attachmentStore.readTotals(),
+      ])
+      const fitted = fitStopOccurrenceReports({
+        maxBytes: ATTACHMENT_QUEUE_LIMIT.maxTotalBytes,
+        reports,
+        usedBytes:
+          attachmentTotals.totalBytes + sumReportPhotoBytes(queued.map((item) => item.report)),
+      })
+      const enqueue = (items: readonly DriverFieldReport[]) =>
+        enqueueReports({
+          isUnverified: !session.canSync,
+          now: new Date(),
+          reports: items,
+          store,
+          subHash: session.subHash,
+        })
+
+      let isPhotoDropped = fitted.isPhotoDropped
+      let result = await enqueue(fitted.reports)
+      if (!result.accepted && fitted.reports.length > 1) {
+        isPhotoDropped = true
+        result = await enqueue(withoutPhotos(fitted.reports))
+      }
+      if (!result.accepted) return result.reason
+      await refreshQueueView()
+      requestDrain(undefined)
+      return isPhotoDropped ? 'photo-dropped' : 'queued'
+    })
+  }
+
+  /**
    * Spec 159 (revisão D6): o comprovante **sempre** entra na fila offline, com a entrega ainda na
    * fila ou já aceita — nunca mais pela rota multipart direta. Isso é o que garante o aceite 8: a
    * foto de uma nota já entregue segue offline como qualquer outro anexo, e sobe na próxima
@@ -438,21 +628,27 @@ export function useDriverTrip(
   }
 
   async function enqueueProof(input: DriverProofInput): Promise<DriverProofOutcome> {
-    const attachmentKey = createIdempotencyKey()
+    /* Spec 207: usa a chave da tela quando ela vem — é a mesma que "Remover" vai pedir depois. */
+    const attachmentKey = input.attachmentKey ?? createIdempotencyKey()
+    /** Spec 212: a foto nasce marcada — nenhuma drenagem a leva antes da versão leve. */
+    const shouldReduce = shouldReduceProofFile({ file: input.file, kind: input.kind })
+    const attachment: QueuedAttachment = {
+      attachmentKey,
+      blob: input.file,
+      capturedAt: new Date().toISOString(),
+      documentId: input.documentId,
+      fileName: input.file.name,
+      kind: input.kind,
+      ...(shouldReduce ? { pendingReduction: true as const } : {}),
+      ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
+      ...(input.receivedByDetail === undefined ? {} : { receivedByDetail: input.receivedByDetail }),
+      ...(input.receiverDocument === undefined ? {} : { receiverDocument: input.receiverDocument }),
+      ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+      ...(input.lateRegistration === undefined ? {} : { lateRegistration: input.lateRegistration }),
+      subHash: session.subHash,
+    }
     const result = await enqueueAttachment({
-      attachment: {
-        attachmentKey,
-        blob: input.file,
-        capturedAt: new Date().toISOString(),
-        documentId: input.documentId,
-        fileName: input.file.name,
-        kind: input.kind,
-        ...(input.receiverDocument === undefined
-          ? {}
-          : { receiverDocument: input.receiverDocument }),
-        ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
-        subHash: session.subHash,
-      },
+      attachment,
       attachmentStore,
       isUnverified: !session.canSync,
       store,
@@ -460,6 +656,16 @@ export function useDriverTrip(
     if (!result.accepted) return result.reason
 
     const eventKey = result.eventKey
+    /* Grava primeiro (spec 203) e só então reduz: a versão leve troca o arquivo no mesmo item. */
+    const reduction = shouldReduce
+      ? reduceQueuedProofPhoto({
+          attachment,
+          attachmentStore,
+          eventKey,
+          reduce: reduceProofPhotoToJpeg,
+          reductions: proofPhotoReductions,
+        })
+      : Promise.resolve()
     void readCurrentLocation().then((location) => {
       if (location === null) return
       void attachmentStore
@@ -471,8 +677,87 @@ export function useDriverTrip(
     })
 
     await refreshQueueView()
-    requestDrain(undefined)
+    // O envio espera a versão leve: o original da câmera (3–5 MB) passa do corpo de 1 MiB da API.
+    void reduction.finally(() => requestDrain(undefined))
     return 'queued'
+  }
+
+  /**
+   * Spec 203/193 (D7): mesma varredura de grupos que a drenagem usa (`attachmentStore.readAll()`)
+   * — achou o grupo com um item deste documento, aplica os campos in place, pela `eventKey` do
+   * grupo. **Sem grupo** (o anexo já subiu): o que sobrar de `receivedBy`/`receivedByDetail`/
+   * `receiverName` vira `proofReceiver`, o PATCH enfileirado — `receiverDocument` não viaja por
+   * aqui, porque o PATCH não o aceita.
+   */
+  async function updateProofFields(input: {
+    documentId: string
+    receivedBy?: string
+    receivedByDetail?: string
+    receiverDocument?: string
+    receiverName?: string
+  }): Promise<void> {
+    const groups = await attachmentStore.readAll()
+    const target = groups.find(([, items]) =>
+      items.some((item) => item.documentId === input.documentId),
+    )
+    if (target !== undefined) {
+      const [eventKey] = target
+      await attachmentStore.update({
+        eventKey,
+        mutate: (items) =>
+          applyAttachmentReceiverFields({
+            documentId: input.documentId,
+            items,
+            ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
+            ...(input.receivedByDetail === undefined
+              ? {}
+              : { receivedByDetail: input.receivedByDetail }),
+            ...(input.receiverDocument === undefined
+              ? {}
+              : { receiverDocument: input.receiverDocument }),
+            ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+          }),
+      })
+      await refreshQueueView()
+      return
+    }
+
+    const fields = {
+      ...(input.receivedBy === undefined ? {} : { receivedBy: input.receivedBy }),
+      ...(input.receivedByDetail === undefined ? {} : { receivedByDetail: input.receivedByDetail }),
+      ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+    }
+    if (Object.keys(fields).length === 0) return
+    await report(
+      buildProofReceiverReport({
+        documentId: input.documentId,
+        fields,
+        idempotencyKey: createIdempotencyKey(),
+      }),
+    )
+  }
+
+  /**
+   * Pedido do usuário (25/09, spec 207): "Remover" a foto/assinatura do canhoto — só cabe com o
+   * anexo ainda na fila (mesma varredura de `updateProofFields`). Enviado ao servidor, o grupo já
+   * não existe mais em `attachmentStore` (não há rota de exclusão — spec 082: pontualidade e
+   * auditoria já leram aquele anexo), e esta função não tem o que fazer.
+   *
+   * ⚠️ Por `attachmentKey`, nunca por `documentId` (achado de revisão, spec 211 traz mais de um
+   * anexo por nota) — remover pelo documento apagaria os outros anexos dela junto.
+   */
+  async function removeProof(attachmentKey: string): Promise<void> {
+    const groups = await attachmentStore.readAll()
+    const target = groups.find(([, items]) =>
+      items.some((item) => item.attachmentKey === attachmentKey),
+    )
+    if (target === undefined) return
+    const [eventKey] = target
+    await attachmentStore.update({
+      eventKey,
+      mutate: (items) => removeQueuedAttachmentByKey({ attachmentKey, items }),
+    })
+    await refreshQueueView()
   }
 
   async function discardForeign(): Promise<void> {
@@ -502,6 +787,8 @@ export function useDriverTrip(
 
   return {
     attachProof,
+    updateProofFields,
+    removeProof,
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
@@ -517,15 +804,19 @@ export function useDriverTrip(
     }),
     isOfflineBoot: !session.canSync,
     ownPendingCount: loadedView.length,
+    pendingTotal,
     proofOutcomeByDocumentId,
     queueView: loadedView,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
+    reportNotDelivered,
+    reportStopOccurrence,
     reportWithLocation,
     sendAllNow: () => requestDrain(undefined),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
+    sentReportKeys,
     snapshot: currentTrip.data,
     /** Sem sessão não há quem confirme: a faixa só aparece depois de entrar. */
     unverifiedPending: session.canSync ? unverifiedPending : undefined,

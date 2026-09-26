@@ -22,6 +22,7 @@ export const SETTINGS_PANELS = [
   'contractorMail',
   'cameraMeasurement',
   'entryKindCatalog',
+  'quickReplies',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -54,6 +55,7 @@ export type SettingsDataSource =
   | 'landing'
   | 'nfse'
   | 'occurrenceTypeCatalog'
+  | 'quickReplies'
   | 'scheduledDistribution'
   | 'tollBoothCharges'
 
@@ -136,6 +138,11 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
     tab: 'entryKinds',
   },
   /**
+   * Spec 183 T701 (RF12): cadastro da empresa, como o catálogo de tipos de ocorrência — mora em
+   * Configurações, e o efeito aparece no compositor de cada aba da conversa.
+   */
+  quickReplies: { module: 'company-settings', source: 'quickReplies', tab: 'quickReplies' },
+  /**
    * Spec 068 — os contatos e as redes moram na aba Site: é o mesmo cadastro público que a landing
    * publica, e é onde o operador já está quando pensa em "o que aparece para quem me procura". O
    * rodapé do e-mail do sistema lê a mesma lista.
@@ -208,6 +215,7 @@ export function resolveSettingsDataScope(
     landing: sources.has('landing'),
     nfse: sources.has('nfse'),
     occurrenceTypeCatalog: sources.has('occurrenceTypeCatalog'),
+    quickReplies: sources.has('quickReplies'),
     scheduledDistribution: sources.has('scheduledDistribution'),
     tollBoothCharges: sources.has('tollBoothCharges'),
   }
@@ -221,6 +229,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'driverAllowance',
   'occurrenceTypes',
   'entryKinds',
+  'quickReplies',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

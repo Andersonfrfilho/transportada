@@ -58,6 +58,105 @@ o valor do acerto.
 
 **Origem:** spec 164, T29 (revisão final da Fase 7). Registrado em 2026-09-22.
 
+### 2026-09-25 — a ocorrência tem duas conversas: anexo por URL assinada, remetente pelo DKIM, portal por referência opaca (spec 183)
+
+**Onde:**
+
+- `api-transportada`: `occurrence-conversation/` (rotas do operador, do motorista em `/me` e do
+  portal em `/client/me/occurrences/:ref/conversation`) e o webhook do WhatsApp de entrada.
+- `worker-transportada`: e-mail recebido, anexos do e-mail enviado e expurgo de upload vencido.
+- Painel e portal.
+
+**O que é:** três superfícies novas que recebem conteúdo de fora — arquivo, e-mail e WhatsApp da
+contratante, e resposta do motorista — e a identidade de quem escreveu.
+
+**Fechado na revisão (T901/T903):**
+
+1. **Arquivo trocado depois de conferido (S1, `171fe796`).**
+   - O PUT assinado vale 15 min e seguia valendo depois do envio.
+   - Como o anexo apontava para a mesma chave, um PUT tardio do mesmo tamanho trocava os bytes já
+     conferidos. Medido contra o S3 local.
+   - Agora os bytes conferidos são copiados para uma chave final nova, que nenhuma URL alcança, e a
+     chave da subida é apagada.
+2. **`From` forjado aparecia como contato (S2, `28aa50ce`).**
+   - Quem tivesse o endereço de resposta com o token escrevia `From:` de um contato e aparecia com
+     o nome dele e o selo "aprova cobranças".
+   - Agora só o DKIM alinhado com o domínio do `From` casa com o cadastro. Sem ele, a mensagem fica
+     na conversa como "Remetente não confirmado" e não oferece cadastrar o endereço.
+3. **Resposta do motorista sem limite de taxa (S3, `80859e7b`).**
+   - Cada envio podia ler 5 × 25 MB do bucket.
+   - Agora tem balde no Postgres (`driver-occurrence-conversation-send`, 30/300 s), listado no
+     contrato de rotas com limite.
+4. **Aviso automático em paralelo (S4, `9d8b1843`).**
+   - O lote de 50 ocorrências disparava 50 envios de uma vez.
+   - Agora saem em série; o pico é 1.
+
+**Aberto:**
+
+- **O mesmo padrão do S1 existe no upload direto da foto da ocorrência** (spec 179,
+  `trips/application/confirm-occurrence-upload.use-case.ts`). Ficou fora desta spec; foi sugerido
+  como tarefa própria.
+- **O aviso automático à contratante não tem teto próprio por contratante nem por empresa.** Ele é
+  um por ocorrência (idempotente), e registrar ocorrência já tem limite (lote 30/300 s de até 50).
+  Quem tem permissão de registrar ainda consegue gerar muitos e-mails numa janela. Se virar abuso,
+  entra um balde por empresa nos envios automáticos.
+- **Risco aceito: o motorista lê e responde a conversa de viagem já encerrada (S5).** É intencional:
+  a ocorrência costuma se resolver depois da entrega. O alcance segue recortado pela tripulação
+  daquela viagem.
+- **Remetente não confirmado continua na conversa.** A mensagem sem DKIM alinhado não é descartada
+  (pode ser um contato real com domínio mal configurado); ela só não ganha identidade.
+
+**O que continua valendo:**
+
+- Portal:
+  - referência opaca, com UUID recusado;
+  - recorte por `ContractorScope` mais a fronteira da 164;
+  - nenhum id interno nem campo do motorista na resposta;
+  - `microphone=()` e sem câmera.
+- Anexos:
+  - tipos fechados e conferidos pelos bytes;
+  - teto por canal e 25 MB somados no e-mail;
+  - download assinado de 5 min, sempre `attachment`.
+- A chave do objeto é um token de 256 bits, sem empresa, nota nem nome.
+- Logs novos só com ids, códigos e contagens: nenhum telefone, e-mail, corpo, assunto, nome de
+  arquivo nem token.
+- A conversa nunca decide (D4): nada dela escreve em tratativa, cobrança ou acerto
+  (`conversation-never-decides.contract.ts`).
+
+**Origem:** spec 183, T901 (revisão de segurança) e T903. Registrado em 2026-09-25.
+
+### 2026-09-25 — o microfone passa a ser permitido à própria origem no painel (spec 183 T705)
+
+**Onde:** `frontend-transportada`, `server.ts` (`SECURITY_HEADERS`) e
+`shared/contentSecurityPolicy.service.ts` (`media-src`).
+
+**O que é:**
+
+- O cabeçalho passa a `camera=(self), geolocation=(self), microphone=(self)`. O operador e o
+  motorista gravam áudio na conversa da ocorrência (RF17, P9). O pedido de mudança foi feito e o
+  usuário autorizou em 25/09/2026.
+- `media-src` ganha `blob:`, para ouvir a gravação antes de enviar.
+
+**O que continua fechado:**
+
+- O **portal da contratante** segue `microphone=()`. O contrato de lá varre `src/` e falha se
+  aparecer `getUserMedia` ou `MediaRecorder`.
+- No painel, `(self)` não é `*`: nenhum iframe herda o microfone.
+
+**O que a decisão limita:**
+
+- O microfone só abre no clique em "Gravar áudio", e a trilha é parada ao terminar ou ao sair da
+  tela.
+- A gravação para sozinha em 5 min.
+- O áudio só existe como anexo enviado: sobe por URL assinada, é conferido pelos bytes (assinatura
+  OGG/MP4/WEBM) e vai para o bucket privado com a mesma retenção dos anexos.
+- Nada é gravado sem o operador ouvir e escolher "Usar áudio".
+
+**O que falta:** nada em aberto. O contrato de cabeçalhos exige `(self)` exato (falha com `*` ou com
+origem de terceiro), e o da CSP exige `media-src 'self' blob:` mais só o bucket.
+
+**Origem:** spec 183 T705.
+
 ### 2026-09-22 — foto de ocorrência vinda do WhatsApp entra sem reencode: EXIF/GPS preservado e sem miniatura (spec 161, risco aceito)
 
 **Onde:** `api-transportada`, `whatsapp-commands` (T13, `registerOccurrence` em `src/main.ts`), que
@@ -301,7 +400,7 @@ ou do campo (recortar pelo vínculo de motorista/agregado), com contrato negativ
 **Origem:** revisão de segurança da spec 156 (T15), ao corrigir a frase sobre `trip.read` no
 `CLAUDE.md` da API. Registrado em 2026-09-18.
 
-### 2026-09-18 — o IP da auditoria vem de `x-forwarded-for`, que o cliente pode forjar (pré-existente)
+### 2026-09-18 — o IP da auditoria vem de `x-forwarded-for`, que o cliente pode forjar (pré-existente, fechado em 2026-09-25)
 
 **Onde:** `api-transportada`, `http/client-ip.service.ts` (`resolveClientIp`), usado pela trilha
 das rotas do escritório em nome do motorista (`audit_logs.metadata.ipAddress`, spec 156) e pelos
@@ -318,9 +417,18 @@ escritório para dentro da transação.
 tetos das escritas do escritório contam por empresa e usuário no Postgres, não por IP. O IP é dado
 de apoio da investigação, não a identidade.
 
-**O que falta:** confiar só no endereço que o proxy conhecido acrescentou (o último de
-`x-forwarded-for`, ou o cabeçalho próprio do provedor, como `cf-connecting-ip`), configurável por
-ambiente, e um contrato que prenda o comportamento com uma cadeia forjada.
+**Fechado em 2026-09-25 (spec 191 T1.1, ADR-0076 §6):** o desenho do branch nunca mesclado
+`fix/client-ip-trusted-proxy` (`51cd186c6`) foi portado. `createClientIpResolver` lê só o cabeçalho
+de `CLIENT_IP_SOURCE`: `x-real-ip` por padrão, que o edge do Railway sobrescreve (medido em
+2026-09-14: 429 no 13º pedido com `X-Real-IP` forjado rotativo); `cf-connecting-ip` só com a
+Cloudflare obrigatória; `x-forwarded-for` com `TRUSTED_PROXY_HOPS` contados do fim. Valor ausente ou
+que não é IP cai no balde único `unknown`. O resolvedor do ambiente é injetado nos oito pontos que
+gravam IP em trilha ou chaveiam limite (`router.service.ts`, `trip.routes.ts`, as três rotas de
+`trip-field-office-trip.routes.ts`, `trip-field-office-occurrence.routes.ts`,
+`trip-field-office-document.routes.ts` e `aggregate-account.routes.ts`), e o limitador em memória
+ganhou teto de 50 000 baldes. Contratos em `test/client-ip/` (cadeia forjada nos oito pontos) e
+`test/fleet-http/aggregate-applications.contract.ts` (XFF rotativo continua levando `429`). A
+medição em staging com `x-forwarded-for` e `x-real-ip` forjados se repete na T7.4 da spec 191.
 
 **Origem:** revisão de segurança da spec 156 (T15). Registrado em 2026-09-18.
 
@@ -1450,6 +1558,93 @@ substitui o conjunto inteiro de atributos.
 
 **O que falta:** decidir a retenção do atributo no realm (hoje nada o expira), e reavaliar o índice
 cego se o Keycloak passar a ser acessado por mais gente do que hoje.
+
+## CPF do destinatário no aparelho do motorista, para a busca dentro da viagem
+
+**Data:** 2026-09-26 · **Decidido conscientemente** · **Spec 214** · **ADR-0090 §3**
+
+**Amplia** o achado "snapshot e fila offline no aparelho do motorista" (2026-09-25, spec 189 T3.3a,
+mais acima nesta seção). Aquele achado descreve o cofre; este diz o que passou a entrar nele.
+
+**Onde:** `api-transportada`,
+`trips/infrastructure/drizzle-current-driver-trip.repository.ts` (`toDriverDocument`) e
+`trips/application/find-current-driver-trip.use-case.ts` (`DriverTripDocument.recipientTaxId`);
+`frontend-driver`, IndexedDB `transportada.driver-trip` versão 3, store `trip-snapshot`.
+
+**Que dado passa a ficar no aparelho.** O documento do destinatário de cada nota da viagem —
+**CNPJ e CPF**, em texto claro. Até aqui o snapshot levava nome do destinatário
+(`recipientName`, `recipientDisplayName`), rótulo e coordenada das paradas, número, chave de acesso e
+valor das notas; o documento era o único campo que o mapper buscava do banco e **descartava de
+propósito**, e o use case dizia por escrito "o documento nunca sai". Passa a sair. O bairro da parada
+(`district`) desce junto, só para casar busca.
+
+**Por quanto tempo.** Até 24 h (`TRIP_SNAPSHOT_MAX_AGE_MS`), e menos que isso na prática: o registro é
+apagado quando todas as viagens ficam concluídas, o que é reavaliado a cada 30 s de leitura.
+
+**Quem apaga.** As mesmas travas do achado de 2026-09-25, que são cegas ao conteúdo e portanto já
+valem para o campo novo: `retainOnly` apaga o snapshot de qualquer outro dono quando um `sub`
+autentica; o vencido é removido do disco, não só ignorado; viagem concluída apaga em vez de gravar;
+"Sair" faz `clear()` da store inteira **antes** do `logout()`; e o snapshot é montado por allowlist
+explícita, então a API mandar o campo não basta — ele tem de ser admitido de propósito.
+
+**O que não guarda uma segunda cópia.** Não há cache de API no service worker (`sw.ts` sem
+`runtimeCaching`, cliente com `cache: 'no-store'`, vigiado por
+`test/shared/service-worker.contract.ts`), e nada disso vai para log, URL ou beacon. A única cópia
+persistida é a store `trip-snapshot`.
+
+**Se o motorista perder o telefone.** Aparelho bloqueado: nada, o IndexedDB é da origem
+`motorista.<zona>` e não há como abri-lo sem desbloquear. **Aparelho desbloqueado, e é o cenário que
+importa:** quem o tiver abre a app sem rede e vê a viagem **sem token** — a leitura passa só pela posse
+(`readLastTripSnapshot`). A mitigação desta spec é que **o CPF nunca é renderizado**: ele é chave de
+busca, não conteúdo de tela (ADR-0090 §3.2), então a tela não o escreve em lugar nenhum. Sobra a
+leitura pelas ferramentas do navegador, que continua possível. E o expurgo das 24 h é **preguiçoso**:
+num aparelho que nunca mais for aberto, nada roda para apagar — a spec 214 acrescenta uma varredura de
+vencidos no boot, que melhora isso mas não alcança o aparelho nunca aberto.
+
+**A alternativa que foi oferecida e recusada.** A ADR-0090 propunha descer **só o CNPJ** (registro
+público da Receita) e deixar o CPF fora, ao custo de buscar por CPF não achar nada — recusa parcial do
+pedido. O dono do produto decidiu o contrário em 2026-09-26, com o custo declarado no texto que leu:
+_"o CPF de cada destinatário pessoa física da viagem passa a ficar guardado no celular […] e isso entra
+no `docs/SECURITY.md` como ampliação do que se compartilha"_. As razões que sustentam a decisão: ele é
+o responsável pelo tratamento e pesa finalidade contra risco; o motorista está entregando para aquela
+pessoa e o DANFE impresso que ele carrega já traz o CPF; e o dado já vinha do `select` hoje, de modo
+que a proteção que caiu era o descarte de um valor que o sistema já buscava.
+
+**Travas que a spec 214 cria, porque faltavam.** Contrato que enumera os campos de dado pessoal
+admitidos no snapshot e reprova campo novo não declarado (não existia: `isStoredTripSnapshot` só
+confere que `trips` e `pendingProofs` são arrays); varredura de registros vencidos no boot, de qualquer
+dono; e proibição de o documento do destinatário ser copiado para `field-reports` ou
+`event-attachments` — a fila sobrevive ao "Sair" e tem prazo de 7 dias, e já há precedente de campo do
+destinatário vazando para ela (`recipientDisplayName` alimenta `receivedBy`). O documento que a fila
+carrega continua sendo só o de **quem recebeu**.
+
+**O que falta:**
+
+1. **Criptografia em repouso do IndexedDB — e a gravação em disco foi decidida, não omitida.** O CPF
+   fica em texto claro, e o achado de 2026-09-25 já dizia "se o produto passar a guardar mais do que a
+   viagem corrente, revisitar": este é o gatilho, e ele **foi** olhado. O dono do produto decidiu em
+   2026-09-26 **gravar o documento no snapshot em disco**, nomeando o custo na própria frase com que
+   aceitou: _"Buscar por CPF funciona no meio do nada, sem sinal, que é o cenário real do motorista. Em
+   troca, o número fica no aparelho por até 24 h (menos, se a viagem fechar antes) e um telefone
+   desbloqueado nas mãos erradas o entrega a quem souber abrir as ferramentas do navegador."_ A
+   alternativa **descartada** foi manter o documento **só em memória**, retirando-o antes de persistir o
+   snapshot: o CPF nunca tocaria o disco, mas buscar por CPF passaria a exigir sinal — e sem rede é o
+   cenário do motorista, então uma busca que só funciona com sinal não serve para o campo. Registro em
+   ADR-0090 §3.5. **A mitigação que sustenta a decisão é F10: o documento nunca é renderizado** — a tela
+   não escreve o número em lugar nenhum, então o alcance do risco é quem souber abrir as ferramentas do
+   navegador num aparelho desbloqueado, não quem simplesmente pegar o telefone. O que continua faltando
+   é a criptografia em si, e ela segue sem conserto barato (a chave teria de morar no mesmo aparelho).
+2. **`taxid` não está na lista de chaves redigidas do logger.** `DEFAULT_REDACTED_KEYS` de
+   `@adatechnology/logger` tem `cpf` e `cnpj`, e casa por igualdade ou sufixo — `recipienttaxid` não
+   casa nenhum dos dois. O valor bem-formado ainda é redigido pela camada de padrão (CPF de 11 dígitos,
+   CNPJ de 14, com ou sem pontuação), mas documento truncado ou com espaços passaria. `createApiLogger`
+   (`main.ts:1373-1381`) não passa `extraKeys`, então não há conserto por configuração neste
+   repositório: a spec 214 garante que nada aqui coloque o campo em objeto de log, e o conserto durável
+   é `taxid` entrar na lista do pacote, no repositório `adatechnology-packages`.
+3. **Retenção no aparelho nunca aberto.** As 24 h são validade lógica, não expurgo garantido.
+
+**Origem:** spec 214 (busca dentro da viagem, na app do motorista), ADR-0090 §3. Registrado em
+2026-09-26.
 
 ## Fechados
 

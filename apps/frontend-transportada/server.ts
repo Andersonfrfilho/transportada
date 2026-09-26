@@ -76,7 +76,9 @@ const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   // `camera=(self)` porque o separador bipa a nota pela câmera do celular, e `geolocation=(self)`
   // porque a entrega do motorista carimba onde ela aconteceu (ADR-0045 §3) — `()` nega a **própria**
   // origem, e a API falha antes de qualquer diálogo. O microfone segue fechado para todo mundo.
-  'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=()',
+  // Spec 183 T705: o microfone abre só para a própria origem — o operador e o motorista gravam
+  // áudio na conversa (decisão do usuário, 25/09/2026). Nunca `*`, nunca origem de terceiro.
+  'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=(self)',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',

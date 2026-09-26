@@ -82,7 +82,8 @@ export type Trip = {
   readonly requiresMdfeReason: null | string
   readonly status: TripStatus
   readonly updatedAt: string
-  readonly vehicleId: string
+  /** Spec 216: `null` é "aguardando definição" (`status: 'awaiting_crew'`). */
+  readonly vehicleId: string | null
 }
 
 /**
@@ -160,9 +161,9 @@ export type TripStopDetail = {
    */
   readonly hasOpenOccurrence: boolean
   /**
-   * Spec 079 T012: onde a parada fica, para o mapa. Sai de `geocoded_addresses` pela `address_key`
-   * — **não** de `trip_stops.latitude/longitude`, que existem e nunca são escritos (achado da T009).
-   * `null` é endereço ainda não geocodificado, e a tela nomeia a parada fora do mapa.
+   * Spec 079 T012: onde a parada fica, para o mapa. Sai de `geocoded_addresses` pela `address_key`,
+   * o único lugar onde a coordenada da parada existe (ADR-0044; a 215 tirou as colunas mortas de
+   * `trip_stops`). `null` é endereço ainda não geocodificado, e a tela nomeia a parada fora do mapa.
    */
   readonly latitude: null | string
   readonly longitude: null | string
@@ -301,7 +302,7 @@ export type CreateTripRecord = {
   readonly companyId: string
   readonly crew: readonly TripDriverLine[]
   readonly dailyAllowanceDays?: number
-  readonly vehicleId: string
+  readonly vehicleId: string | null
 }
 
 /**
@@ -371,6 +372,19 @@ export type TripRepositoryPort = {
     readonly companyId: string
     readonly driverIds: readonly string[]
   }): Promise<readonly TripDriverCandidate[]>
+  /**
+   * Spec 216: define a tripulação de `awaiting_crew` (vira `draft`) ou troca a de uma viagem
+   * `draft` — `null` quando a viagem não existe. Reconfere `checkTripTransition` sob o lock,
+   * porque o status lido pelo caso de uso é anterior à transação.
+   */
+  updateCrew(input: {
+    readonly actorUserId: string
+    readonly channel: TripFieldChannel
+    readonly companyId: string
+    readonly crew: readonly TripDriverLine[]
+    readonly tripId: string
+    readonly vehicleId: string | null
+  }): Promise<TripDetail | null>
   /** Devolve `null` quando o documento já não está mais elegível para desvínculo (entregue/liberado). */
   releaseDocument(input: {
     readonly companyId: string

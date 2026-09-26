@@ -65,7 +65,8 @@ describe('a assinatura em canvas (D3/T051)', () => {
     expect(card).toContain("'image/png'")
     expect(card).toContain('receiverName')
     /* O caminho do anexo é o onProof do card → attachProof do hook — a mesma fila do canhoto. */
-    expect(card).toContain('onProof({ documentId, file, kind')
+    expect(card).toContain('onProof({')
+    expect(card).toContain('documentId,')
   })
 
   it('sem canvas/pointer a assinatura cai para a foto — o caminho que já existe', () => {
@@ -85,5 +86,26 @@ describe('a assinatura em canvas (D3/T051)', () => {
       'utf8',
     )
     expect(css).toMatch(/\.signaturePad button \{[^}]*min-height: 2\.75rem/u)
+  })
+})
+
+/**
+ * Sem `ref={canvasRef}` no `<canvas>`, os handlers de traço acham `null` e saem sem desenhar: a
+ * assinatura nunca pintava nada e "Confirmar assinatura" nunca habilitava (desde a spec 082, 03/09).
+ */
+describe('o canvas da assinatura tem ref', () => {
+  it('o <canvas> da assinatura liga o canvasRef', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/modules/driver-trip/components/SignaturePad.component.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    const canvasTag = source.slice(
+      source.indexOf('<canvas'),
+      source.indexOf('/>', source.indexOf('<canvas')),
+    )
+    expect(canvasTag).toContain('ref={canvasRef}')
   })
 })

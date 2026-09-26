@@ -25,6 +25,7 @@ import {
   readOfficeMultipartFile,
   readOfficeMultipartForm,
 } from './office-multipart.schema.js'
+import { parseReceivedByStrict } from './received-by.schema.js'
 import { deliveredAtSchema, parseDeliveredAt } from './trip-field-office.schema.js'
 
 const FIELD = {
@@ -32,6 +33,8 @@ const FIELD = {
   deliveredAt: 'deliveredAt',
   driverId: 'driverId',
   kind: 'kind',
+  receivedBy: 'receivedBy',
+  receivedByDetail: 'receivedByDetail',
   receiverDocument: 'receiverDocument',
   receiverName: 'receiverName',
 } as const
@@ -39,6 +42,8 @@ const FIELD = {
 const PROOF_FIELDS = new Set<string>([
   FIELD.attachmentKey,
   FIELD.driverId,
+  FIELD.receivedBy,
+  FIELD.receivedByDetail,
   FIELD.receiverDocument,
   FIELD.receiverName,
   OFFICE_MULTIPART_FILE_FIELD,
@@ -76,6 +81,11 @@ async function readProofUpload(form: OfficeForm): Promise<OfficeDeliveryProofUpl
   return {
     ...file,
     attachmentKey: parseOfficeAttachmentKey(form.get(FIELD.attachmentKey)),
+    /** Spec 193 D2: o escritório envia síncrono — forma inválida é 400 no campo, nunca silêncio. */
+    receivedBy: parseReceivedByStrict({
+      receivedBy: form.get(FIELD.receivedBy),
+      receivedByDetail: form.get(FIELD.receivedByDetail),
+    }),
     receiverDocument: parseReceiverDocument(form.get(FIELD.receiverDocument)),
     receiverName: parseOfficeReceiverName(form.get(FIELD.receiverName)),
   }

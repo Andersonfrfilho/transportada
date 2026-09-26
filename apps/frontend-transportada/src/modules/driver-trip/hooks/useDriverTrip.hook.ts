@@ -15,6 +15,7 @@ import {
   createIndexedDbQueueStore,
 } from '../shared/indexedDbQueue.service'
 import {
+  ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
   discardStaleAttachments,
   drainQueueWithAttachments,
@@ -26,6 +27,8 @@ import {
 import {
   createIdempotencyKey,
   enqueueReport,
+  enqueueReports,
+  sumReportPhotoBytes,
   type OfflineQueueStore,
 } from '../shared/offlineQueue.service'
 import {
@@ -34,7 +37,17 @@ import {
   type DrainTriggerTarget,
   type PendingCounts,
 } from '../shared/pendingQueue.service'
+import {
+  reduceProofPhotoToJpeg,
+  shouldReduceProofFile,
+} from '../shared/proofPhotoReduction.service'
+import {
+  recoverQueuedProofPhotos,
+  reduceQueuedProofPhoto,
+  type ProofPhotoReductions,
+} from '../shared/proofPhotoRecovery.service'
 import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
+import { fitStopOccurrenceReports, withoutPhotos } from '../shared/stopOccurrencePhoto.service'
 
 const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
@@ -69,6 +82,9 @@ export type DriverProofOutcome = 'count-limit' | 'queued' | 'size-limit'
 /** Spec 082 (revisão): o teto da fila de eventos recusa tipado, nunca `QuotaExceededError` cru. */
 export type DriverReportOutcome = 'count-limit' | 'queued'
 
+/** Spec 209 (D3): a foto do "Deu problema" que não coube saiu — o relato entrou mesmo assim. */
+export type DriverStopOccurrenceOutcome = DriverReportOutcome | 'photo-dropped'
+
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
   /** ADR-0075 §6: o recusado sai da fila antiga só pela mão do motorista, com confirmação na tela. */
@@ -91,6 +107,10 @@ export type DriverTripController = Readonly<{
   refetchTrip: () => void
   rejectedCount: number
   report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
+  /** Spec 209: o "Deu problema" — a ocorrência sempre entra; a foto, se couber. */
+  reportStopOccurrence: (
+    reports: readonly DriverFieldReport[],
+  ) => Promise<DriverStopOccurrenceOutcome>
   sendAllNow: () => void
   sendNow: (idempotencyKey: string) => void
   snapshot: DriverTripSnapshot | undefined
@@ -153,9 +173,22 @@ export function useDriverTrip(
   const hasPendingDrainRef = useRef(false)
   const requestDrainRef = useRef<(only?: string) => void>(() => undefined)
 
+  /** Spec 212: as reduções do canhoto em voo — a varredura e a drenagem esperam por elas. */
+  const [proofPhotoReductions] = useState<ProofPhotoReductions>(() => new Map())
+  const recoverProofPhotos = useCallback(async (): Promise<void> => {
+    const recovered = await recoverQueuedProofPhotos({
+      attachmentStore,
+      reduce: reduceProofPhotoToJpeg,
+      reductions: proofPhotoReductions,
+    })
+    if (recovered > 0) await refreshQueueView()
+  }, [attachmentStore, proofPhotoReductions, refreshQueueView])
+
   /** A drenagem é uma só — automática e manual entram pela mesma porta, `only` restringe. */
   const drain = useMutation({
-    mutationFn: (only?: string) => {
+    mutationFn: async (only?: string) => {
+      /** Spec 212: a foto grande presa (413) volta reduzida e sem causa antes de a fila ser lida. */
+      await recoverProofPhotos()
       const client = getDriverTripClient()
       return drainQueueWithAttachments({
         attachmentStore,
@@ -281,9 +314,10 @@ export function useDriverTrip(
      * Spec 159 (T11, item 4): o descarte roda uma vez por abertura do app, antes da drenagem — o
      * que passou dos 7 dias sai da fila com o dado (blob, posição) junto, nunca só a entrada.
      */
-    void discardStaleAttachments({ attachmentStore, now: new Date() }).then(() =>
-      refreshQueueView(),
-    )
+    void discardStaleAttachments({ attachmentStore, now: new Date() })
+      .then(() => refreshQueueView())
+      /** Spec 212: a foto presa já sai reduzida quando a drenagem puder levá-la. */
+      .then(() => recoverProofPhotos())
     /** "Abertura" (revisão M4): o gatilho de fora, antes dos que `scheduleQueueDrainTriggers` liga. */
     drainRef.current(undefined)
 
@@ -300,7 +334,7 @@ export function useDriverTrip(
       syncDrainTimerRef.current = () => undefined
       cancelTriggers()
     }
-  }, [attachmentStore, refreshQueueView])
+  }, [attachmentStore, recoverProofPhotos, refreshQueueView])
 
   async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
     const result = await enqueueReport({ now: new Date(), report: fieldReport, store })
@@ -308,6 +342,39 @@ export function useDriverTrip(
     await refreshQueueView()
     requestDrain(undefined)
     return 'queued'
+  }
+
+  /**
+   * Spec 209 (D3): a ocorrência e, atrás dela, a foto. Fila cheia derruba a foto, nunca o relato —
+   * pelo teto de bytes dos anexos, ou pela contagem quando os dois não cabem juntos.
+   */
+  async function reportStopOccurrence(
+    reports: readonly DriverFieldReport[],
+  ): Promise<DriverStopOccurrenceOutcome> {
+    const [queued, attachmentTotals] = await Promise.all([
+      store.read(),
+      attachmentStore.readTotals(),
+    ])
+    const fitted = fitStopOccurrenceReports({
+      maxBytes: ATTACHMENT_QUEUE_LIMIT.maxTotalBytes,
+      reports,
+      usedBytes:
+        attachmentTotals.totalBytes + sumReportPhotoBytes(queued.map((item) => item.report)),
+    })
+    let isPhotoDropped = fitted.isPhotoDropped
+    let result = await enqueueReports({ now: new Date(), reports: fitted.reports, store })
+    if (!result.accepted && fitted.reports.length > 1) {
+      isPhotoDropped = true
+      result = await enqueueReports({
+        now: new Date(),
+        reports: withoutPhotos(fitted.reports),
+        store,
+      })
+    }
+    if (!result.accepted) return result.reason
+    await refreshQueueView()
+    requestDrain(undefined)
+    return isPhotoDropped ? 'photo-dropped' : 'queued'
   }
 
   /**
@@ -325,25 +392,33 @@ export function useDriverTrip(
    */
   async function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {
     const attachmentKey = createIdempotencyKey()
-    const result = await enqueueAttachment({
-      attachment: {
-        attachmentKey,
-        blob: input.file,
-        capturedAt: new Date().toISOString(),
-        documentId: input.documentId,
-        fileName: input.file.name,
-        kind: input.kind,
-        ...(input.receiverDocument === undefined
-          ? {}
-          : { receiverDocument: input.receiverDocument }),
-        ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
-      },
-      attachmentStore,
-      store,
-    })
+    /** Spec 212: a foto nasce marcada — nenhuma drenagem a leva antes da versão leve. */
+    const shouldReduce = shouldReduceProofFile({ file: input.file, kind: input.kind })
+    const attachment: QueuedAttachment = {
+      attachmentKey,
+      blob: input.file,
+      capturedAt: new Date().toISOString(),
+      documentId: input.documentId,
+      fileName: input.file.name,
+      kind: input.kind,
+      ...(shouldReduce ? { pendingReduction: true as const } : {}),
+      ...(input.receiverDocument === undefined ? {} : { receiverDocument: input.receiverDocument }),
+      ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
+    }
+    const result = await enqueueAttachment({ attachment, attachmentStore, store })
     if (!result.accepted) return result.reason
 
     const eventKey = result.eventKey
+    /* Grava primeiro (spec 203) e só então reduz: a versão leve troca o arquivo no mesmo item. */
+    const reduction = shouldReduce
+      ? reduceQueuedProofPhoto({
+          attachment,
+          attachmentStore,
+          eventKey,
+          reduce: reduceProofPhotoToJpeg,
+          reductions: proofPhotoReductions,
+        })
+      : Promise.resolve()
     void readCurrentLocation().then((location) => {
       if (location === null) return
       void attachmentStore
@@ -355,7 +430,8 @@ export function useDriverTrip(
     })
 
     await refreshQueueView()
-    requestDrain(undefined)
+    // O envio espera a versão leve: o original da câmera (3–5 MB) passa do corpo de 1 MiB da API.
+    void reduction.finally(() => requestDrain(undefined))
     return 'queued'
   }
 
@@ -378,6 +454,7 @@ export function useDriverTrip(
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
+    reportStopOccurrence,
     sendAllNow: () => requestDrain(undefined),
     sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
     snapshot: currentTrip.data,

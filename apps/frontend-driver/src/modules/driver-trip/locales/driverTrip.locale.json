@@ -1,4 +1,5 @@
 {
+  "arrivalRequired": "Toque em Cheguei para liberar a entrega",
   "arrive": "Cheguei",
   "arrived": "Cheguei às {{time}}",
   "deliver": "Entreguei",
@@ -6,10 +7,11 @@
   "documentsPending_other": "{{count}} notas para entregar",
   "attachmentLimitCount": "Limite de anexos aguardando envio atingido. Envie os pendentes antes de anexar outro — nada foi descartado.",
   "attachmentLimitSize": "Espaço para anexos aguardando envio cheio. Envie os pendentes antes de anexar outro — nada foi descartado.",
+  "occurrencePhotoDropped": "Ocorrência registrada sem a foto: o espaço para fotos aguardando envio está cheio. Envie os pendentes e registre outra ocorrência com a foto, se precisar.",
   "dispatch": {
     "failed": "Não foi possível iniciar o trajeto. Toque de novo.",
-    "start": "Iniciar trajeto",
-    "waiting": "Aguardando o início do trajeto — as ações de campo liberam depois de iniciar."
+    "start": "Despachar viagem",
+    "waiting": "Aguardando o despacho — as ações de campo liberam depois de despachar a viagem."
   },
   "error": "Não foi possível carregar sua viagem. Puxe para tentar de novo.",
   "eventLimitCount": "Limite de eventos aguardando envio atingido. Envie os pendentes antes de registrar outro — nada foi descartado.",
@@ -17,12 +19,18 @@
     "attachments_one": "{{count}} anexo",
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
+    "cause": {
+      "tooLarge": "a foto passou do tamanho aceito pelo servidor"
+    },
     "empty": "Nada aguardando envio.",
     "kind": {
       "arrive": "Chegada",
       "deliver": "Entrega",
+      "documentOccurrence": "Ocorrência com foto",
       "occurrence": "Ocorrência",
       "proof": "Comprovante",
+      "proofReceiver": "Quem recebeu",
+      "stopOccurrencePhoto": "Foto da ocorrência da parada",
       "return": "Devolução"
     },
     "open": "Ver eventos pendentes",
@@ -38,6 +46,13 @@
     },
     "title": "Eventos pendentes"
   },
+  "lateRegistration": {
+    "badge": "Registro tardio",
+    "cancel": "Cancelar",
+    "confirm": "Continuar",
+    "open": "Registrar entrega depois",
+    "warning": "A entrega registrada depois conta como fora do horário e reduz sua nota de motorista. Continuar?"
+  },
   "loadSheet": {
     "title": "Romaneio de carga",
     "notFiscal": "Não é documento fiscal",
@@ -46,7 +61,15 @@
     "volumes_one": "{{count}} volume",
     "volumes_other": "{{count}} volumes",
     "weight": "{{weight}} kg",
-    "barcodeLabel": "Código de barras da chave da NF-e {{number}}"
+    "barcodeLabel": "Código de barras da chave da NF-e {{number}}",
+    "show": "Mostrar notas",
+    "hide": "Ocultar notas",
+    "noteCount_one": "{{count}} nota",
+    "noteCount_other": "{{count}} notas"
+  },
+  "documentDetails": {
+    "seeKey": "Ver chave",
+    "hideKey": "Ocultar chave"
   },
   "loading": "Carregando sua viagem…",
   "manifest": {
@@ -100,10 +123,7 @@
     "unexpected_charge": "Cobrança inesperada"
   },
   "occurrencePhoto": "Foto da ocorrência (local ou carga)",
-  "choosePhoto": "Escolher foto",
-  "noPhotoChosen": "Nenhuma foto escolhida",
-  "occurrencePhotoCount_one": "{{count}} foto anexada",
-  "occurrencePhotoCount_other": "{{count}} fotos anexadas",
+  "choosePhoto": "Tirar foto",
   "occurrencePreview": {
     "none": "Nenhum aviso será enviado ao cliente para este motivo.",
     "title": "Aviso que será enviado"
@@ -134,14 +154,61 @@
     }
   },
   "progress": {
-    "label": "{{resolved}} de {{total}} paradas resolvidas"
+    "label": "{{resolved}} de {{total}} paradas resolvidas",
+    "percent": "{{percent}}% da viagem",
+    "notes_one": "{{resolved}} de {{count}} nota resolvida",
+    "notes_other": "{{resolved}} de {{count}} notas resolvidas"
   },
   "proof": "Anexar canhoto",
+  "proofCapture": {
+    "title": "Canhoto",
+    "attach": "Anexar",
+    "retake": "Refazer",
+    "replace": "Substituir",
+    "attached": "Foto do canhoto anexada",
+    "thumbnail": "Miniatura da foto do canhoto",
+    "view": "Ver",
+    "close": "Fechar",
+    "remove": "Remover",
+    "confirmRemove": "Remover a foto do canhoto?",
+    "replaceHint": "A foto enviada só pode ser substituída."
+  },
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
   "proofFields": {
     "receiverDocument": "Documento de quem recebeu",
     "receiverName": "Nome de quem recebeu",
-    "requiredField": "Preencha este campo antes de anexar o comprovante."
+    "pendingField": "Preencha este campo. O comprovante já está guardado e sobe assim que completar.",
+    "receivedBy": "Quem recebeu",
+    "receivedByPlaceholder": "Selecione",
+    "receivedByOption": {
+      "recipient": "Próprio destinatário",
+      "spouse": "Cônjuge",
+      "child": "Filho(a)",
+      "parent": "Pai/Mãe",
+      "sibling": "Irmão(ã)",
+      "other_relative": "Outro familiar",
+      "neighbor": "Vizinho(a)",
+      "doorman": "Porteiro/Portaria",
+      "employee": "Funcionário(a) do local",
+      "other": "Outro"
+    },
+    "receivedByDetail": "Detalhes",
+    "receivedByDetailPlaceholder": "Detalhes (opcional)",
+    "receivedByDetailPlaceholderNeighbor": "Onde a carga ficou (ex.: casa 12)",
+    "pendingReceivedBy": "Falta dizer quem recebeu. O comprovante já está guardado.",
+    "pendingReceivedByDetail": "Diga mais sobre quem recebeu. O comprovante já está guardado.",
+    "complete": "Concluir",
+    "completedAt": "Comprovante concluído às {{time}}",
+    "edit": "Editar",
+    "completeMissing": "Faltam: {{fields}}. Concluir assim mesmo?",
+    "missing": {
+      "photo": "a foto",
+      "signature": "a assinatura",
+      "receiverName": "o nome de quem recebeu",
+      "receiverDocument": "o documento de quem recebeu",
+      "receivedBy": "quem recebeu",
+      "receivedByDetail": "o detalhe de quem recebeu"
+    }
   },
   "signature": {
     "cancel": "Cancelar",
@@ -150,7 +217,9 @@
     "confirm": "Confirmar assinatura",
     "exitFullscreen": "Sair da tela inteira",
     "fullscreen": "Tela inteira",
-    "open": "Colher assinatura"
+    "open": "Colher assinatura",
+    "attached": "Assinatura colhida",
+    "thumbnail": "Miniatura da assinatura"
   },
   "crop": {
     "cancel": "Cancelar",
@@ -163,6 +232,11 @@
     "previewLabel": "Prévia do comprovante para recorte",
     "useCrop": "Usar recorte",
     "useOriginal": "Usar sem recorte"
+  },
+  "queueHeader": {
+    "label_one": "Fila de envio, {{count}} pendente",
+    "label_other": "Fila de envio, {{count}} pendentes",
+    "label_zero": "Fila de envio, nada pendente"
   },
   "queued_one": "{{count}} confirmação aguardando envio",
   "queued_other": "{{count}} confirmações aguardando envio",
@@ -181,6 +255,11 @@
     "protocol": "Protocolo {{protocol}}"
   },
   "stopCompleted": "Parada concluída",
+  "stopState": {
+    "completed": "Concluída",
+    "current": "Em andamento",
+    "pending": "Pendente"
+  },
   "stopTitle": "Parada {{sequence}}",
   "title": "Minha viagem",
   "tripCompleted": "Viagem concluída. Bom trabalho.",
@@ -218,7 +297,8 @@
   },
   "tripSelector": {
     "label": "Suas viagens",
-    "option": "Viagem {{number}} · {{plate}}"
+    "option_one": "{{path}} · {{count}} parada",
+    "option_other": "{{path}} · {{count}} paradas"
   },
   "deliveryWindow": {
     "between": "Janela {{start}}–{{end}}",
@@ -253,5 +333,58 @@
     "notice_other": "{{count}} registros feitos sem rede às {{time}} — enviar?",
     "send": "Enviar",
     "warning": "Descartar apaga esses registros do celular para sempre, junto com as fotos e assinaturas das mesmas entregas — nada deles chega ao escritório."
+  },
+  "notDelivered": {
+    "occurrenceTypeLegend": "Qual ocorrência registrar?",
+    "photoLabel": "Foto da ocorrência",
+    "galleryHint": "Se a câmera não abrir ou o acesso foi negado, use Anexar e escolha a foto da galeria.",
+    "photoAttached": "Foto da ocorrência anexada",
+    "photoPreview": "Prévia da foto da ocorrência",
+    "photoReading": "Preparando a foto…",
+    "photoTooLarge": "A foto passou de 512 KB mesmo reduzida. Tire outra, mais perto do que importa.",
+    "photoFailed": "Não foi possível ler esta foto. Tire outra ou escolha da galeria.",
+    "noteLabel": "Observação",
+    "noteOptional": "opcional",
+    "noteRequired": "obrigatória para este tipo",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "missingLead": "Para confirmar, falta: {{fields}}.",
+    "missing": {
+      "reason": "o motivo",
+      "occurrenceType": "o tipo de ocorrência",
+      "photo": "a foto",
+      "note": "a observação"
+    },
+    "withoutOccurrence": "Sem os tipos de ocorrência, a devolução segue só com o motivo — agora não há onde registrar a foto.",
+    "status": {
+      "queued": "Ocorrência com foto na fila — sobe quando o sinal voltar.",
+      "sent": "Ocorrência com foto enviada.",
+      "rejected": "O servidor recusou a ocorrência com foto. Veja em eventos pendentes."
+    }
+  },
+  "startRoute": {
+    "failed": "Não foi possível iniciar a rota. Toque de novo.",
+    "start": "Iniciar rota",
+    "done": "Rota iniciada às {{time}}. Boa viagem!",
+    "onRoute": "Em rota de entrega"
+  },
+  "activity": {
+    "delivered": "Entregue às {{time}}",
+    "deliveredQueued": "Entregue às {{time}} · na fila",
+    "deliveredRejected": "O escritório recusou o registro da entrega às {{time}}. Veja em eventos pendentes.",
+    "documentOccurrenceRecorded": "Ocorrência registrada às {{time}}",
+    "occurrenceMarker": "Com ocorrência",
+    "occurrenceQueued": "Ocorrência registrada às {{time}} · na fila",
+    "occurrenceRejected": "O escritório recusou a ocorrência registrada às {{time}}. Veja em eventos pendentes.",
+    "occurrenceSent": "Ocorrência registrada às {{time}} · enviada",
+    "returned": "Devolvida às {{time}} — {{reason}}",
+    "returnedQueued": "Devolvida às {{time}} · na fila — {{reason}}",
+    "returnedRejected": "O escritório recusou o registro da devolução às {{time}}. Veja em eventos pendentes.",
+    "toast": {
+      "delivered": "Entrega registrada",
+      "documentOccurrence": "Ocorrência registrada",
+      "occurrence": "Ocorrência registrada",
+      "returned": "Devolução registrada"
+    }
   }
 }

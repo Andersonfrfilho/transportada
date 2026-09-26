@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { UnassignedMessages } from '@/modules/occurrence-conversation/components/UnassignedMessages.component'
 
 import { TripOccurrenceColumnsMenu } from '../components/TripOccurrenceColumnsMenu.component'
 import { TripOccurrenceFilters } from '../components/TripOccurrenceFilters.component'
@@ -80,6 +81,10 @@ export function TripOccurrencesWorkspacePage() {
 
       {authQuery.isSuccess && canReadOccurrences ? (
         <div className={styles.deck}>
+          <UnassignedMessages
+            canAssign={canResolveOccurrenceCases}
+            {...(companyId === undefined ? {} : { companyId })}
+          />
           <TripOccurrenceFilters table={table} />
           <section className={styles.panel} aria-labelledby="trip-occurrence-table-title">
             <div className={styles.panelHead}>

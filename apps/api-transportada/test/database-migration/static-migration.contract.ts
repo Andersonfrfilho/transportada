@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 
@@ -298,6 +299,19 @@ describe('Drizzle migrations', () => {
       '20260924033423_lumpy_scalphunter',
       '20260924142302_delivery_proof_cargo_kind',
       '20260924201710_occurrence_type_leaves_document_behind',
+      '20260924201711_contractor_contact_channels',
+      '20260924201712_occurrence_conversations',
+      '20260924213126_contractor_mail_from_display_name',
+      '20260925022221_company_quick_replies',
+      '20260925111600_occurrence_conversation_uploads',
+      '20260925152805_occurrence_conversation_upload_expire_job',
+      '20260925185207_occurrence_conversation_automatic_message',
+      '20260926002743_delivery_proof_received_by',
+      '20260926003822_late_registration',
+      '20260926140647_stop_departure',
+      '20260926195419_trip_vehicle_optional',
+      '20260926202337_trip_awaiting_crew_status',
+      '20260926214201_trip_stops_forget_dead_coordinates',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1103,6 +1117,33 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).not.toContain('CASCADE')
   })
 
+  /**
+   * Spec 193 D4: o `receiver_check` novo é mais estreito que o antigo num caso só (`cargo` com nome,
+   * que o canal `office` podia gravar). A verificação vem antes da troca, e o rollback recusa o que
+   * apagaria — relação gravada, nome na foto do motorista, escolha de configuração.
+   */
+  test('versions who received the delivery with a pre-check and a rollback that refuses data', async () => {
+    const directory = '20260926002743_delivery_proof_received_by'
+    const migrationSql = await readMigrationFile(directory, 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory, 'rollback.sql')
+
+    expect(migrationSql.indexOf('RAISE EXCEPTION')).toBeGreaterThan(-1)
+    expect(migrationSql.indexOf('RAISE EXCEPTION')).toBeLessThan(
+      migrationSql.indexOf('DROP CONSTRAINT "trip_delivery_proofs_receiver_check"'),
+    )
+    expect(migrationSql).not.toMatch(/\bdrop (table|column)\b/i)
+    expect(rollbackSql).toStartWith('-- Copyright')
+    expect(rollbackSql).toContain('Manual rollback only')
+    for (const refusal of [
+      'has received_by data',
+      'has driver photos with receiver_name',
+      'have a received_by choice',
+    ]) {
+      expect(rollbackSql.indexOf(refusal)).toBeGreaterThan(-1)
+      expect(rollbackSql.indexOf(refusal)).toBeLessThan(rollbackSql.indexOf('DROP COLUMN'))
+    }
+  })
+
   test('does not run migrations from the API startup path', async () => {
     const mainSource = await Bun.file(new URL('../../src/main.ts', import.meta.url)).text()
     const migrationSource = await Bun.file(
@@ -1663,5 +1704,28 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
+  })
+})
+
+describe('CHECK trocado em tabela grande entra NOT VALID (spec 183 T903, achado C5)', () => {
+  /**
+   * `stored_objects` guarda todo XML, PDF e foto da base: trocar o CHECK de uma vez varre a tabela
+   * sob ACCESS EXCLUSIVE e trava importação e upload durante o deploy. Adiciona `NOT VALID` e
+   * valida em comando próprio, como as migrations irmãs desta spec.
+   */
+  test('a migration dos uploads da conversa não valida stored_objects no mesmo comando', async () => {
+    const sql = await readFile(
+      new URL(
+        '../../drizzle/20260925111600_occurrence_conversation_uploads/migration.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    const add = sql.match(/ADD CONSTRAINT "stored_objects_purpose_check"[^;]*;/u)?.[0] ?? ''
+
+    expect(add).toContain('NOT VALID')
+    expect(sql).toContain(
+      'ALTER TABLE "stored_objects" VALIDATE CONSTRAINT "stored_objects_purpose_check"',
+    )
   })
 })

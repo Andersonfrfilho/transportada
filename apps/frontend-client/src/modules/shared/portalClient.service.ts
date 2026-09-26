@@ -8,10 +8,13 @@ import type {
   Occurrence,
   OccurrenceDecisionInput,
   OccurrenceDecisionResult,
+  PortalConversation,
+  PortalConversationMessageInput,
   ScheduleInput,
 } from './portal.types'
 import {
   toChargeBatches,
+  toConversation,
   toDeliveries,
   toDeliveryLocation,
   toDeliverySchedule,
@@ -23,6 +26,8 @@ import {
 const DELIVERIES_PATH = '/client/me/deliveries'
 const BATCHES_PATH = '/client/me/extra-charge-batches'
 const OCCURRENCES_PATH = '/client/me/occurrences'
+/** Spec 183 T653: a conversa é nomeada pela referência opaca que a listagem devolveu. */
+const CONVERSATIONS_PATH = '/client/me/occurrence-conversations'
 
 type ClientDependencies = Readonly<{
   apiUrl: string
@@ -39,8 +44,20 @@ export type PortalClient = Readonly<{
   listBatches: () => Promise<readonly ChargeBatch[]>
   listDeliveries: () => Promise<readonly Delivery[]>
   listOccurrences: () => Promise<readonly Occurrence[]>
+  markConversationRead: (ref: string) => Promise<void>
+  /** Spec 183 T702b: o PUT direto ao bucket, sem o token — a URL assinada já é a autorização. */
+  putConversationUpload: (input: { readonly file: File; readonly url: string }) => Promise<void>
+  readConversation: (ref: string) => Promise<PortalConversation>
   readLocation: (accessKey: string) => Promise<DeliveryLocation | null>
+  /** Spec 183 T702b: a URL de subida do anexo, pela referência da conversa. */
+  requestConversationUpload: (input: {
+    readonly contentType: string
+    readonly fileName: string
+    readonly ref: string
+    readonly sizeBytes: number
+  }) => Promise<Readonly<{ uploadId: string; uploadUrl: string }>>
   schedule: (input: ScheduleInput) => Promise<DeliverySchedule | null>
+  sendConversationMessage: (input: PortalConversationMessageInput) => Promise<void>
 }>
 
 export class PortalRequestError extends Error {
@@ -54,13 +71,14 @@ export class PortalRequestError extends Error {
 }
 
 /**
- * ⚠️ Um cliente por app, como no painel — e aqui ele é **pequeno de propósito**: cinco chamadas, e
+ * ⚠️ Um cliente por app, como no painel — e aqui ele é **pequeno de propósito**, e
  * nenhuma delas aceita filtro por documento. A superfície que o portal alcança é a superfície que a
  * API publica em `/client/me/*`, e não há caminho neste arquivo para outra.
  */
 export function createPortalClient(dependencies: ClientDependencies): PortalClient {
   async function request(input: {
     readonly body?: unknown
+    readonly idempotencyKey?: string
     readonly method: string
     readonly path: string
   }): Promise<unknown> {
@@ -70,6 +88,7 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
       headers: {
         authorization: `Bearer ${token}`,
         ...(input.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(input.idempotencyKey === undefined ? {} : { 'idempotency-key': input.idempotencyKey }),
       },
       method: input.method,
     })
@@ -78,7 +97,7 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
       throw new PortalRequestError(await readErrorCode(response), response.status)
     }
 
-    return response.json()
+    return response.status === 204 ? null : response.json()
   }
 
   return {
@@ -109,6 +128,17 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
     async listOccurrences() {
       return toOccurrences(await request({ method: 'GET', path: OCCURRENCES_PATH }))
     },
+    async markConversationRead(ref) {
+      await request({
+        method: 'POST',
+        path: `${CONVERSATIONS_PATH}/${encodeURIComponent(ref)}/read`,
+      })
+    },
+    async readConversation(ref) {
+      return toConversation(
+        await request({ method: 'GET', path: `${CONVERSATIONS_PATH}/${encodeURIComponent(ref)}` }),
+      )
+    },
     async readLocation(accessKey) {
       return toDeliveryLocation(
         await request({
@@ -130,6 +160,48 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
           path: `${DELIVERIES_PATH}/${encodeURIComponent(accessKey)}/schedule`,
         }),
       )
+    },
+    async putConversationUpload({ file, url }) {
+      const response = await dependencies.fetch(url, {
+        body: file,
+        headers: { 'content-type': file.type },
+        method: 'PUT',
+      })
+      if (!response.ok) throw new PortalRequestError('UPLOAD_FAILED', response.status)
+    },
+    async requestConversationUpload({ ref, ...declared }) {
+      const payload = await request({
+        body: declared,
+        method: 'POST',
+        path: `${CONVERSATIONS_PATH}/${encodeURIComponent(ref)}/uploads`,
+      })
+      const data: unknown =
+        typeof payload === 'object' && payload !== null && 'data' in payload
+          ? payload.data
+          : undefined
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        !('uploadId' in data) ||
+        !('uploadUrl' in data) ||
+        typeof data.uploadId !== 'string' ||
+        typeof data.uploadUrl !== 'string'
+      ) {
+        throw new PortalRequestError('RESPONSE_INVALID', 200)
+      }
+      const upload = { uploadId: data.uploadId, uploadUrl: data.uploadUrl }
+      return { uploadId: upload.uploadId, uploadUrl: upload.uploadUrl }
+    },
+    async sendConversationMessage({ attachmentIds, body, idempotencyKey, ref }) {
+      await request({
+        body:
+          attachmentIds === undefined || attachmentIds.length === 0
+            ? { body }
+            : { attachmentIds, body },
+        idempotencyKey,
+        method: 'POST',
+        path: `${CONVERSATIONS_PATH}/${encodeURIComponent(ref)}/messages`,
+      })
     },
   }
 }

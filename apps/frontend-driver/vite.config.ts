@@ -39,6 +39,8 @@ function contentSecurityPolicyPlugin(): Plugin {
       const origins = {
         apiBaseUrl: readEnvironment('VITE_API_URL'),
         keycloakUrl: readEnvironment('VITE_KEYCLOAK_URL'),
+        // Spec 179: a foto da ocorrência sobe direto ao bucket (`PUT` na URL assinada).
+        objectStorageUrl: readEnvironment('VITE_OBJECT_STORAGE_URL'),
       }
       servedPolicy = buildContentSecurityPolicy({ ...origins, allowsInlineScript: false })
       developmentPolicy = buildContentSecurityPolicy({ ...origins, allowsInlineScript: true })

@@ -11,22 +11,31 @@ import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
 import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice.component'
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
-import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
+import {
+  DriverStopCard,
+  type DriverProofAttachment,
+  type StopOccurrenceSubmission,
+} from '../components/DriverStopCard.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
+import { DriverOccurrenceConversationsPage } from './DriverOccurrenceConversations.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
-  DriverOccurrenceKind,
   DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
 } from '../shared/driverTrip.types'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
+import {
+  buildStopOccurrencePhotoReport,
+  buildStopOccurrenceReports,
+  prepareStopOccurrencePhoto,
+} from '../shared/stopOccurrencePhoto.service'
 import {
   findCurrentStop,
   findProofDocumentLabel,
@@ -34,6 +43,8 @@ import {
   listProofPendingDocuments,
   type ProofDocumentLabel,
 } from '../shared/driverTripView.service'
+import { useDriverConversationsQuery } from '@/modules/occurrence-conversation/queries/driverConversation.query'
+import { countDriverUnread } from '@/modules/occurrence-conversation/shared/driverConversationClient.service'
 import styles from '../styles/driverTrip.module.css'
 
 /**
@@ -43,6 +54,7 @@ import styles from '../styles/driverTrip.module.css'
  */
 export function DriverTripWorkspacePage() {
   const { t } = useTranslation('driverTrip')
+  const { t: tConversation } = useTranslation('occurrenceConversation')
   const driverTrip = useDriverTrip()
   /** Spec 082 D1: navegação interna do módulo — estado local, sem rota nova no shell do app. */
   const [section, setSection] = useState<DriverSection>('trip')
@@ -50,6 +62,11 @@ export function DriverTripWorkspacePage() {
   const [isQueueOpen, setIsQueueOpen] = useState(false)
   /** Spec 159 T9: a tela de fotos pendentes, mesmo padrão da fila de eventos. */
   const [isPendingProofsOpen, setIsPendingProofsOpen] = useState(false)
+  /** Spec 183 T604: as conversas da operação com o motorista, com a contagem no atalho. */
+  const [isConversationsOpen, setIsConversationsOpen] = useState(false)
+  const driverConversations = useDriverConversationsQuery({ enabled: true })
+  const driverConversationCount = driverConversations.data?.length ?? 0
+  const driverUnread = countDriverUnread(driverConversations.data ?? [])
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
   /** Spec 082 D6: teto da fila de anexos atingido — anunciado antes de qualquer descarte. */
@@ -63,6 +80,8 @@ export function DriverTripWorkspacePage() {
   const [occurrenceFailed, setOccurrenceFailed] = useState(false)
   /** Spec 082 (revisão): teto tipado da fila de EVENTOS — recusa anunciada, nada descartado. */
   const [eventLimitReached, setEventLimitReached] = useState(false)
+  /** Spec 209 (D3): a foto do "Deu problema" não coube ou não se deixou ler — o relato entrou. */
+  const [occurrencePhotoDropped, setOccurrencePhotoDropped] = useState(false)
   /** Iniciar trajeto: falhar não muda nada no servidor — repetir o toque é o conserto. */
   const [isDispatching, setIsDispatching] = useState(false)
   const [dispatchFailed, setDispatchFailed] = useState(false)
@@ -180,6 +199,16 @@ export function DriverTripWorkspacePage() {
       .catch(() => setProofFailed(true))
   }
 
+  if (isConversationsOpen) {
+    return (
+      <div className={styles.moduleShell}>
+        <DriverShellHeader />
+        <DriverOccurrenceConversationsPage onBack={() => setIsConversationsOpen(false)} />
+        <DriverBottomBar section={section} onSelect={setSection} />
+      </div>
+    )
+  }
+
   if (isPendingProofsOpen) {
     return (
       <div className={styles.moduleShell}>
@@ -228,6 +257,37 @@ export function DriverTripWorkspacePage() {
   ): Promise<void> {
     const outcome = await driverTrip.report(build(await readCurrentLocation()))
     if (outcome === 'count-limit') setEventLimitReached(true)
+  }
+
+  /**
+   * Spec 209: a ocorrência entra na fila **antes** da redução da foto — ela nunca espera a foto. A
+   * foto, reduzida, entra atrás, amarrada pela chave da ocorrência; se não coube ou não se deixou
+   * ler, a ocorrência já está lá e a tela avisa. Nada vai ao comprovante de nota nenhuma.
+   */
+  async function reportStopOccurrence(
+    input: StopOccurrenceSubmission & { stopId: string },
+  ): Promise<void> {
+    setOccurrencePhotoDropped(false)
+    const [occurrence] = buildStopOccurrenceReports({
+      createKey: createIdempotencyKey,
+      description: input.description,
+      kind: input.kind,
+      photo: undefined,
+      stopId: input.stopId,
+    })
+    if (occurrence?.kind !== 'occurrence') return
+    const outcome = await driverTrip.reportStopOccurrence([occurrence])
+    if (outcome === 'count-limit') setEventLimitReached(true)
+    if (outcome === 'count-limit' || input.photo === undefined) return
+
+    const photo = await prepareStopOccurrencePhoto(input.photo)
+    const photoOutcome =
+      photo === undefined
+        ? 'photo-dropped'
+        : await driverTrip.reportStopOccurrence([
+            buildStopOccurrencePhotoReport({ createKey: createIdempotencyKey, occurrence, photo }),
+          ])
+    if (photoOutcome !== 'queued') setOccurrencePhotoDropped(true)
   }
 
   /** Sucesso → refetch: é o snapshot novo que abre as ações de campo. */
@@ -290,6 +350,19 @@ export function DriverTripWorkspacePage() {
           </p>
         ) : null}
 
+        {/* Spec 183 T604: as mensagens da operação, com as novas contadas. */}
+        {driverConversationCount > 0 ? (
+          <button
+            className={styles.queueBannerButton}
+            type="button"
+            onClick={() => setIsConversationsOpen(true)}
+          >
+            {driverUnread > 0
+              ? tConversation('driverApp.open', { count: driverUnread })
+              : tConversation('driverApp.openAll')}
+          </button>
+        ) : null}
+
         {/* Spec 159 T9: atalho visível com a contagem — leva à tela de anexo em lote. */}
         {proofPendingCount > 0 ? (
           <button
@@ -328,6 +401,12 @@ export function DriverTripWorkspacePage() {
         {attachmentLimit !== undefined ? (
           <p className={styles.alert} role="alert">
             {t(attachmentLimit === 'count-limit' ? 'attachmentLimitCount' : 'attachmentLimitSize')}
+          </p>
+        ) : null}
+
+        {occurrencePhotoDropped ? (
+          <p className={styles.alert} role="alert">
+            {t('occurrencePhotoDropped')}
           </p>
         ) : null}
 
@@ -407,42 +486,7 @@ export function DriverTripWorkspacePage() {
                     .registerDocumentOccurrence(input)
                     .catch(() => setOccurrenceFailed(true))
                 }}
-                onOccurrence={(input: {
-                  description: string
-                  kind: DriverOccurrenceKind
-                  stopId: string
-                }) =>
-                  void driverTrip
-                    .report({
-                      description: input.description,
-                      documentId: null,
-                      idempotencyKey: createIdempotencyKey(),
-                      kind: 'occurrence',
-                      occurrenceKind: input.kind,
-                      stopId: input.stopId,
-                    })
-                    .then((outcome) => {
-                      if (outcome === 'count-limit') setEventLimitReached(true)
-                    })
-                }
-                onOccurrencePhoto={(input: { documentId: string; file: File }) => {
-                  /* A rota de ocorrência não aceita anexo — a foto sobe pelo proof da nota. */
-                  setAttachmentLimit(undefined)
-                  void driverTrip
-                    .attachProof({
-                      documentId: input.documentId,
-                      file: new File([input.file], `ocorrencia-${input.file.name}`, {
-                        type: input.file.type,
-                      }),
-                      kind: 'photo',
-                    })
-                    .then((outcome) => {
-                      if (outcome === 'count-limit' || outcome === 'size-limit') {
-                        setAttachmentLimit(outcome)
-                      }
-                    })
-                    .catch(() => setProofFailed(true))
-                }}
+                onOccurrence={(input) => void reportStopOccurrence(input)}
                 onReturn={(input: { documentId: string; reason: DriverReturnReason }) =>
                   void report((location) => ({
                     documentId: input.documentId,

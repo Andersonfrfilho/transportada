@@ -97,17 +97,102 @@ describe('leitura da linha do tempo (spec 158 T7)', () => {
     ).toThrow()
   })
 
-  it('recusa kind fora do vocabulário', () => {
+  it('recusa envelope sem items/nextCursor', () => {
+    expect(() => adapters.tripTimelineFromApi({})).toThrow()
+  })
+})
+
+/**
+ * Spec 206 T0.3 (D12): o painel sobe **antes** da API (ADR-0081 §9), então ele precisa tolerar um
+ * `kind` que o bundle ainda não conhece. Tolerar é **descartar o item**, nunca recusar a página: com a
+ * recusa, o primeiro `stop.departed` gravado apagaria a linha do tempo inteira de toda viagem que o
+ * contivesse — página em branco, não um item faltando. O que **continua** recusado é item malformado:
+ * chave a mais, tipo errado, item que não é objeto. Tolerância de vocabulário não é tolerância de forma.
+ */
+describe('tolerância a kind desconhecido na linha do tempo (spec 206 T0.3 / D12)', () => {
+  it('descarta o item de kind desconhecido e mantém os conhecidos, na ordem', () => {
+    const page = adapters.tripTimelineFromApi({
+      items: [
+        { ...BASE_ITEM, id: 'item-1' },
+        { ...BASE_ITEM, id: 'item-2', kind: 'stop.invented_by_a_newer_api' },
+        { ...BASE_ITEM, id: 'item-3' },
+      ],
+      nextCursor: 'cursor-1',
+    })
+    expect(page.items.map((item) => item.id)).toEqual(['item-1', 'item-3'])
+    expect(page.nextCursor).toBe('cursor-1')
+  })
+
+  it('página inteira desconhecida vira lista vazia e **preserva o cursor**', () => {
+    // Sem o cursor preservado, "carregar mais" pararia numa página que só tinha kinds novos, e o
+    // histórico antigo ficaria inalcançável até o painel ser publicado.
+    const page = adapters.tripTimelineFromApi({
+      items: [{ ...BASE_ITEM, kind: 'stop.invented_by_a_newer_api' }],
+      nextCursor: 'cursor-2',
+    })
+    expect(page.items).toHaveLength(0)
+    expect(page.nextCursor).toBe('cursor-2')
+  })
+
+  it('aceita stop.departed', () => {
+    const page = adapters.tripTimelineFromApi({
+      items: [{ ...BASE_ITEM, channel: 'driver_app', kind: 'stop.departed', toStatus: null }],
+      nextCursor: null,
+    })
+    expect(page.items[0]?.kind).toBe('stop.departed')
+  })
+
+  it('aceita stop.departure_cancelled', () => {
+    const page = adapters.tripTimelineFromApi({
+      items: [
+        { ...BASE_ITEM, channel: 'driver_app', kind: 'stop.departure_cancelled', toStatus: null },
+      ],
+      nextCursor: null,
+    })
+    expect(page.items[0]?.kind).toBe('stop.departure_cancelled')
+  })
+
+  it('os dois kinds novos estão no vocabulário', () => {
+    expect(TRIP_TIMELINE_KINDS).toContain('stop.departed')
+    expect(TRIP_TIMELINE_KINDS).toContain('stop.departure_cancelled')
+  })
+
+  /**
+   * ⚠️ Esta asserção nasceu invertida nesta task e foi corrigida com o vermelho na mão: a primeira
+   * versão exigia que item de kind desconhecido **com chave a mais** ainda reprovasse a página. Isso
+   * mataria a própria tolerância — uma API mais nova que acrescentasse um kind **e** uma chave junto
+   * com ele voltaria a deixar a linha do tempo em branco, que é o defeito que a T0.3 existe para
+   * fechar. O painel não tem como julgar a forma de um kind que ele não conhece; o que ele pode
+   * afirmar é que **não é um item dele**, e descartar. O guarda de chave continua inteiro para os
+   * kinds **conhecidos** — é o `recusa chave desconhecida no item`, acima, com `BASE_ITEM`.
+   */
+  it('kind desconhecido com chave a mais também é descartado — forma de kind alheio não se julga', () => {
+    const page = adapters.tripTimelineFromApi({
+      items: [
+        { ...BASE_ITEM, id: 'item-1' },
+        {
+          ...BASE_ITEM,
+          actorUserId: 'user-1',
+          id: 'item-2',
+          kind: 'stop.invented_by_a_newer_api',
+        },
+      ],
+      nextCursor: null,
+    })
+    expect(page.items.map((item) => item.id)).toEqual(['item-1'])
+  })
+
+  it('item que não é objeto continua recusado, nunca descartado em silêncio', () => {
+    expect(() => adapters.tripTimelineFromApi({ items: [null], nextCursor: null })).toThrow()
     expect(() =>
-      adapters.tripTimelineFromApi({
-        items: [{ ...BASE_ITEM, kind: 'invented' }],
-        nextCursor: null,
-      }),
+      adapters.tripTimelineFromApi({ items: ['stop.departed'], nextCursor: null }),
     ).toThrow()
   })
 
-  it('recusa envelope sem items/nextCursor', () => {
-    expect(() => adapters.tripTimelineFromApi({})).toThrow()
+  it('kind que não é string continua recusado', () => {
+    expect(() =>
+      adapters.tripTimelineFromApi({ items: [{ ...BASE_ITEM, kind: 42 }], nextCursor: null }),
+    ).toThrow()
   })
 })
 

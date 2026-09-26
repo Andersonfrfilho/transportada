@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { hasSendableEvents, type EventQueueItemView } from '../shared/eventQueueView.service'
+import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
@@ -21,9 +22,15 @@ type DriverEventQueuePageProps = Readonly<{
 const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   arrive: 'eventQueue.kind.arrive',
   deliver: 'eventQueue.kind.deliver',
+  /** Spec 179: a ocorrência da nota com a foto — os dois sobem juntos, no mesmo item. */
+  documentOccurrence: 'eventQueue.kind.documentOccurrence',
   occurrence: 'eventQueue.kind.occurrence',
+  /** Spec 209: a foto do "Deu problema", atrás da ocorrência — pendente sem segurar o relato. */
+  stopOccurrencePhoto: 'eventQueue.kind.stopOccurrencePhoto',
   /** Grupo de anexos cujo evento já subiu — só os arquivos aguardam. */
   proof: 'eventQueue.kind.proof',
+  /** Spec 193 D7: quem recebeu chegado depois do anexo — o PATCH `.../proof/receiver`. */
+  proofReceiver: 'eventQueue.kind.proofReceiver',
   return: 'eventQueue.kind.return',
 }
 
@@ -42,9 +49,15 @@ export function DriverEventQueuePage({
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
 
+  /** Spec 212: a causa conhecida sai em texto humano; a desconhecida, crua como veio. */
+  function causeLabel(cause: string): string {
+    const key = resolveRejectionCauseLabelKey(cause)
+    return key === undefined ? cause : t(key)
+  }
+
   function statusLabel(item: EventQueueItemView): string {
     if (item.status.state === 'rejected') {
-      return t('eventQueue.status.rejected', { cause: item.status.cause })
+      return t('eventQueue.status.rejected', { cause: causeLabel(item.status.cause) })
     }
     if (item.status.state === 'unverified') return t('eventQueue.status.unverified')
     if (item.status.state === 'failed') {
@@ -57,6 +70,7 @@ export function DriverEventQueuePage({
     <main className={styles.shell}>
       <header className={styles.eventQueueHeader}>
         <Button type="button" variant="secondary" onClick={onBack}>
+          <Icon name="close" />
           {t('eventQueue.back')}
         </Button>
         <h1 className={styles.eventQueueTitle}>{t('eventQueue.title')}</h1>
@@ -104,7 +118,7 @@ export function DriverEventQueuePage({
                   {item.attachmentRejectionCause === undefined ? null : (
                     <p className={styles.eventQueueStatusRejected}>
                       {t('eventQueue.status.attachmentRejected', {
-                        cause: item.attachmentRejectionCause,
+                        cause: causeLabel(item.attachmentRejectionCause),
                       })}
                     </p>
                   )}
@@ -126,6 +140,7 @@ export function DriverEventQueuePage({
                     variant="secondary"
                     onClick={() => onSendOne(item.idempotencyKey)}
                   >
+                    <Icon name="upload" />
                     {t('eventQueue.sendNow')}
                   </Button>
                 )}

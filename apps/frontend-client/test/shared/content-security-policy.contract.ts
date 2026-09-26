@@ -58,8 +58,35 @@ describe('a CSP do portal do contratante (spec 063 T009)', () => {
     expect(policy).toContain("img-src 'self' https://objetos.exemplo.test")
     expect(policy).not.toContain('img-src data:')
     expect(policy).not.toContain('img-src blob:')
-    // Armazenamento não vira destino de `fetch` por tabela: a leitura é `<img>`, não XHR.
-    expect(policy).not.toContain("connect-src 'self' https://objetos.exemplo.test")
+  })
+
+  /**
+   * Spec 183 T702b (decisão do usuário em 25/09/2026, emenda à ADR-0073): a contratante anexa pelo
+   * seletor de arquivo, e o arquivo sobe **direto** ao armazenamento pela URL assinada de PUT que a
+   * API emite. O armazenamento não é terceiro — é o bucket da própria instalação, a mesma origem que
+   * já servia a foto —, e a URL só aceita aquele objeto e aquele tamanho por 15 minutos. O áudio do
+   * anexo toca por `<audio>` (`media-src`). Terceiro continua sem entrar: a lista externa segue vazia.
+   */
+  test('o armazenamento entra em connect-src e media-src, e só ele', () => {
+    const policy = buildContentSecurityPolicy({
+      ...ORIGINS,
+      allowsInlineScript: false,
+      storageBaseUrl: 'https://objetos.exemplo.test/bucket/qualquer',
+    })
+    const directive = (name: string) =>
+      policy.split('; ').find((entry) => entry.startsWith(`${name} `))
+
+    expect(directive('connect-src')).toBe(
+      "connect-src 'self' https://api.exemplo.test https://auth.exemplo.test https://objetos.exemplo.test",
+    )
+    expect(directive('media-src')).toBe("media-src 'self' https://objetos.exemplo.test")
+    expect(EXTERNAL_CONNECT_ORIGIN).toEqual([])
+  })
+
+  test('sem armazenamento declarado, nada entra', () => {
+    const policy = buildContentSecurityPolicy({ ...ORIGINS, allowsInlineScript: false })
+
+    expect(policy).toContain("media-src 'self';")
   })
 
   /** `'unsafe-inline'` existe **só** em `style-src`, e o script inline só no servidor de dev. */

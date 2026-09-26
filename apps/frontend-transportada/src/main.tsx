@@ -51,6 +51,7 @@ import { getNotificationClient } from '@/modules/notification/shared/notificatio
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { QUERY_CLIENT_DEFAULT_OPTIONS } from '@/modules/shared/queryClientDefaults.constant'
+import { parseTripOccurrenceRoute } from '@/modules/trip/shared/tripOccurrenceRoute.service'
 import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
 
@@ -216,6 +217,8 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname.startsWith('/notificacoes')) return 'notification'
   if (window.location.pathname === '/operations') return 'operations'
   if (window.location.pathname === '/ocorrencias') return 'trip-occurrences'
+  /** Spec 183 P1: o detalhe da ocorrência é tela das ocorrências — o menu marca a mesma entrada. */
+  if (parseTripOccurrenceRoute(window.location.pathname) !== null) return 'trip-occurrences'
   if (window.location.pathname === '/freight') return 'freight'
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
@@ -337,6 +340,10 @@ const OperationsDashboardPage = lazy(async () => ({
 const TripDetailPage = lazy(async () => ({
   default: (await import('@/modules/trip/pages/TripDetail.page')).TripDetailPage,
 }))
+const TripOccurrenceDetailPage = lazy(async () => ({
+  default: (await import('@/modules/trip/pages/TripOccurrenceDetail.page'))
+    .TripOccurrenceDetailPage,
+}))
 const TripOccurrencesWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/trip/pages/TripOccurrencesWorkspace.page'))
     .TripOccurrencesWorkspacePage,
@@ -397,8 +404,14 @@ function resolvePage(
     }
     case 'operations':
       return <OperationsDashboardPage />
-    case 'trip-occurrences':
-      return <TripOccurrencesWorkspacePage />
+    case 'trip-occurrences': {
+      const occurrenceId = parseTripOccurrenceRoute(input.path)
+      return occurrenceId === null ? (
+        <TripOccurrencesWorkspacePage />
+      ) : (
+        <TripOccurrenceDetailPage occurrenceId={occurrenceId} />
+      )
+    }
     case 'freight':
       return <FreightWorkspacePage />
     case 'users':

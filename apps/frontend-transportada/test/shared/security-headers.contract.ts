@@ -53,7 +53,7 @@ describe('frontend security headers', () => {
    * capacidade de dispositivo aberta de carona, que é exatamente o que ninguém repara numa revisão
    * de seis meses.
    */
-  test('opens camera and geolocation to its own origin and keeps the microphone shut', async () => {
+  test('opens camera, geolocation and (spec 183 T705) the microphone to its own origin only', async () => {
     const headers = await readSecurityHeaders()
     const permissionsPolicy = headers.get('Permissions-Policy')
     if (permissionsPolicy === undefined) {
@@ -63,17 +63,21 @@ describe('frontend security headers', () => {
     expect([...parsePermissionsPolicy(permissionsPolicy.replaceAll("'", ''))]).toEqual([
       ['camera', '(self)'],
       ['geolocation', '(self)'],
-      ['microphone', '()'],
+      ['microphone', '(self)'],
     ])
   })
 
-  /** O microfone é o que ninguém pediu e o que mais barato se abre de carona. Ele tem teste só dele. */
-  test('never lets the microphone open', async () => {
+  /**
+   * O microfone é o que mais barato se abre de carona. A spec 183 T705 o abriu — o operador e o
+   * motorista gravam áudio na conversa, por decisão do usuário em 25/09/2026 — e **só** para a
+   * própria origem: nem `*`, nem uma origem de terceiro, nem iframe. Teste só dele.
+   */
+  test('the microphone opens to its own origin and nowhere else', async () => {
     const headers = await readSecurityHeaders()
     const permissionsPolicy = headers.get('Permissions-Policy') ?? ''
 
     expect(parsePermissionsPolicy(permissionsPolicy.replaceAll("'", '')).get('microphone')).toBe(
-      '()',
+      '(self)',
     )
   })
 

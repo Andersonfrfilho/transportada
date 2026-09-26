@@ -106,8 +106,12 @@ export type OccurrenceSettlementView = Readonly<{
 
 export type TripOccurrenceFeedItem = Readonly<{
   case: null | TripOccurrenceCaseView
+  /** Spec 183 RF4: estado da conversa; ausente na API anterior vira `EMPTY_OCCURRENCE_CONVERSATION`. */
+  conversation: TripOccurrenceConversationSummary
   createdAt: string
   description: string
+  /** Spec 183 RF2: `null` na ocorrência de parada sem nota e na API anterior à 183. */
+  document: null | TripOccurrenceDocument
   driverName: string
   hasAttachment: boolean
   id: string
@@ -121,6 +125,78 @@ export type TripOccurrenceFeedItem = Readonly<{
   typeName: string
   vehiclePlate: string
 }>
+
+export const OCCURRENCE_CONTRACTOR_CONVERSATION_STATES = ['none', 'awaiting', 'replied'] as const
+
+export type OccurrenceContractorConversationState =
+  (typeof OCCURRENCE_CONTRACTOR_CONVERSATION_STATES)[number]
+
+/**
+ * Spec 183 RF4: a conversa com a contratante (`awaiting` = a última mensagem é nossa; `replied` = é
+ * dela) e as mensagens do motorista ainda não lidas **por quem está vendo**.
+ */
+export type TripOccurrenceConversationSummary = Readonly<{
+  contractorState: OccurrenceContractorConversationState
+  driverUnreadCount: number
+}>
+
+export const EMPTY_OCCURRENCE_CONVERSATION: TripOccurrenceConversationSummary = {
+  contractorState: 'none',
+  driverUnreadCount: 0,
+}
+
+/**
+ * Spec 183 RF2: de quem é a carga, para onde ia e quanto vale. `totalValue` é string decimal —
+ * dinheiro nunca vira `number` na tela. `destination` é o destino físico (onde o caminhão para).
+ */
+export type TripOccurrenceDocument = Readonly<{
+  contractor: Readonly<{ contractorId: null | string; name: string; taxId: null | string }> | null
+  destination: Readonly<{
+    city: string
+    label: string
+    origin: 'delivery' | 'recipient'
+    postalCode: null | string
+    recipientName: string
+    state: string
+  }> | null
+  nfeDocumentId: string
+  totalValue: string
+  /**
+   * Spec 183 T702d: a nota **da viagem** (`trip_documents.id`), que a rota da foto da ocorrência pede
+   * no caminho. Ausente na API anterior — sem ela, "Anexar à ocorrência" não aparece.
+   */
+  tripDocumentId?: null | string
+}>
+
+/** Spec 183 RF3: o motorista da viagem, para o escritório falar com ele. */
+export type TripOccurrenceDetailDriver = Readonly<{
+  driverId: string
+  email: string
+  name: string
+  phone: string
+  /** Caminho público da foto na API (`/public/company-users/:token/picture`), ou `null`. */
+  picturePath: null | string
+  /** Só o telefone **verificado** do WhatsApp (ADR-0063). */
+  whatsappPhone: null | string
+}>
+
+/** Spec 183 T207: o item atingido (specs 166/172); quantidade é string decimal. */
+export type TripOccurrenceDetailItem = Readonly<{
+  code: string
+  description: string
+  quantity: null | string
+  unit: null | string
+}>
+
+/** Spec 183 RF1: a linha da listagem, com autoria, nota e o motorista. */
+export type TripOccurrenceDetail = TripOccurrenceFeedItem &
+  Readonly<{
+    actorName: null | string
+    channel: string
+    driver: null | TripOccurrenceDetailDriver
+    items: readonly TripOccurrenceDetailItem[]
+    onBehalfOfDriverName: null | string
+  }>
 
 export type TripOccurrenceFeedPage = Readonly<{
   items: readonly TripOccurrenceFeedItem[]
@@ -162,6 +238,10 @@ export const TRIP_OCCURRENCE_COLUMN_KEYS = [
   'driverName',
   'stopLabel',
   'invoice',
+  'contractor',
+  'destination',
+  'invoiceValue',
+  'conversation',
   'notified',
 ] as const
 
@@ -287,6 +367,56 @@ export function serializeTripOccurrenceQuery(
     search.set('caseStatusIn', input.filters.caseStatuses.join(','))
   }
   return search.toString()
+}
+
+export type OccurrenceDocumentCells = Readonly<{
+  contractorName: string
+  contractorTaxId: string
+  destination: string
+  /** String decimal, formatada na célula por `formatAmount`; `null` sem nota. */
+  totalValue: null | string
+}>
+
+/**
+ * Spec 183 T205: as três colunas da nota. Ausência vira célula vazia, nunca "null" — a ocorrência de
+ * parada não tem nota, e o emitente pode não ter destino físico lido.
+ */
+export function describeOccurrenceDocumentCells(
+  document: null | TripOccurrenceDocument,
+): OccurrenceDocumentCells {
+  return {
+    contractorName: document?.contractor?.name ?? '',
+    contractorTaxId: document?.contractor?.taxId ?? '',
+    destination: document?.destination?.label ?? '',
+    totalValue: document?.totalValue ?? null,
+  }
+}
+
+export type OccurrenceConversationCell = Readonly<{
+  driverUnreadCount: number
+  state:
+    | null
+    | Readonly<{ kind: 'conversation'; value: 'awaiting' | 'replied' }>
+    | Readonly<{ kind: 'decision'; value: TripOccurrenceCaseDecisionKind }>
+}>
+
+/**
+ * Spec 183 T404 (RF4): a decisão da tratativa não é estado de conversa — com decisão, a célula mostra
+ * a decisão (de `case`); sem ela, o estado da conversa com a contratante. As não lidas do motorista
+ * vão ao lado em qualquer caso.
+ */
+export function describeOccurrenceConversationCell(
+  item: Pick<TripOccurrenceFeedItem, 'case' | 'conversation'>,
+): OccurrenceConversationCell {
+  const decision = item.case?.decision ?? null
+  const { contractorState, driverUnreadCount } = item.conversation
+  if (decision !== null) {
+    return { driverUnreadCount, state: { kind: 'decision', value: decision.kind } }
+  }
+  return {
+    driverUnreadCount,
+    state: contractorState === 'none' ? null : { kind: 'conversation', value: contractorState },
+  }
 }
 
 /** Nota sem número (ocorrência de parada sem nota vinculada) imprime ausência, nunca "null/null". */

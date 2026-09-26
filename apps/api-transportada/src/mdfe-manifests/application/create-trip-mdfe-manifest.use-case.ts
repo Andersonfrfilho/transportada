@@ -37,7 +37,8 @@ export type TripLookupPort = {
     readonly id: string
     readonly requiresMdfe: boolean | null
     readonly status: TripStatus
-    readonly vehicleId: string
+    /** Spec 216: `null` é viagem `awaiting_crew` — MDF-e continua exigindo veículo definido. */
+    readonly vehicleId: string | null
   }>
 }
 
@@ -68,7 +69,9 @@ export function createTripMdfeManifestUseCase(dependencies: {
       const trip = await trips.get({ context, tripId })
       // `createTripSchema` já exige mínimo 1 condutor na viagem; aqui é defesa em profundidade,
       // porque `createTripManifestSchema` omite `driverIds` e confia inteiramente em `trip.drivers`.
-      if (trip.drivers.length === 0) throw new MdfeManifestCrewRequiredError()
+      if (trip.drivers.length === 0 || trip.vehicleId === null) {
+        throw new MdfeManifestCrewRequiredError()
+      }
 
       const snapshot = await readiness.read({ companyId: context.companyId, tripId })
       const block = checkTripAcceptsManifest({

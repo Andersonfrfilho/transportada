@@ -5,6 +5,11 @@ import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixtu
 import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
 import { appliedMigrations } from './health.fixture'
+import {
+  type ClientIpResolver,
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from '../../src/http/client-ip.service'
 import { createRequestHandler } from '../../src/http/request-handler.service'
 import { createRouter, type defineRoute } from '../../src/http/router.service'
 import { AuthorizationService } from '../../src/identity/application/authorization.service'
@@ -29,10 +34,12 @@ type TransitionResult = { readonly document: typeof TRIP_DOCUMENT; readonly trip
 type TripStatusResult = { readonly tripStatus: string }
 
 type RouteDependencies = {
+  readonly resolveClientIp: ClientIpResolver
   readonly batchStatus: { execute(input: ExecuteCall): Promise<unknown> }
   readonly cancelTrip: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly closeTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly createTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
+  readonly updateTripCrew: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly createTripMdfeManifest: {
     execute(input: ExecuteCall): Promise<typeof MDFE_MANIFEST_DETAIL>
   }
@@ -74,6 +81,7 @@ type CreateFixtureParams = {
   readonly cancelTripError?: Error
   readonly closeTripError?: Error
   readonly createTripError?: Error
+  readonly updateTripCrewError?: Error
   readonly createTripMdfeManifestError?: Error
   readonly dispatchTripError?: Error
   readonly getTripError?: Error
@@ -168,6 +176,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly cancelTripCalls: ExecuteCall[]
   readonly closeTripCalls: ExecuteCall[]
   readonly createTripCalls: ExecuteCall[]
+  readonly updateTripCrewCalls: ExecuteCall[]
   readonly createTripMdfeManifestCalls: ExecuteCall[]
   readonly dispatchTripCalls: ExecuteCall[]
   readonly getTripCalls: ExecuteCall[]
@@ -197,6 +206,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const cancelTripCalls: ExecuteCall[] = []
   const closeTripCalls: ExecuteCall[] = []
   const createTripCalls: ExecuteCall[] = []
+  const updateTripCrewCalls: ExecuteCall[] = []
   const createTripMdfeManifestCalls: ExecuteCall[] = []
   const dispatchTripCalls: ExecuteCall[] = []
   const getTripCalls: ExecuteCall[] = []
@@ -227,6 +237,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   })
 
   const routes = await loadRoutes({
+    resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
     batchStatus: {
       async execute(input) {
         batchStatusCalls.push(structuredClone(input))
@@ -263,6 +274,13 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         createTripCalls.push(structuredClone(input))
         if (params.createTripError) throw params.createTripError
         return TRIP_DETAIL
+      },
+    },
+    updateTripCrew: {
+      async execute(input) {
+        updateTripCrewCalls.push(structuredClone(input))
+        if (params.updateTripCrewError) throw params.updateTripCrewError
+        return { ...TRIP_DETAIL, status: 'draft' }
       },
     },
     createTripMdfeManifest: {
@@ -501,6 +519,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     cancelTripCalls,
     closeTripCalls,
     createTripCalls,
+    updateTripCrewCalls,
     createTripMdfeManifestCalls,
     dispatchTripCalls,
     getTripCalls,

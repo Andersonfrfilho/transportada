@@ -51,6 +51,34 @@ export class ArrivedAtBeforeDispatchError extends ApiError {
 }
 
 /**
+ * Spec 193 D7 (CA06): o `PATCH .../proof/receiver` não achou comprovante do motorista (`photo` ou
+ * `signature`, canal `driver_app`) na entrega daquela nota — a fila tenta de novo depois do anexo.
+ */
+export class TripDeliveryProofNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_NOT_FOUND',
+      message: 'No driver delivery proof was found for this document.',
+      status: 404,
+    })
+  }
+}
+
+/**
+ * Spec 193 D5 (ADR-0079 §A3): com "quem recebeu" `required`, o escritório — que envia de forma
+ * síncrona — diz quem recebeu. No motorista a falta é pendência, nunca este erro.
+ */
+export class TripDeliveryProofReceivedByRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_RECEIVED_BY_REQUIRED',
+      message: 'The proof requires who received the delivery.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * ADR-0067 §5 (D8): com assinatura `required`, o escritório cumpre a exigência com a foto do canhoto
  * assinado **e** o nome de quem recebeu — sem o nome, a foto sozinha não diz quem assinou.
  */

@@ -77,6 +77,7 @@
       "name": "@transportada/frontend-client",
       "version": "0.1.0",
       "dependencies": {
+        "@adatechnology/conversations-ui": "0.3.1",
         "@tanstack/react-query": "5.90.20",
         "keycloak-js": "26.2.4",
         "react": "19.2.0",
@@ -161,6 +162,7 @@
       "name": "@transportada/frontend",
       "version": "0.2.0",
       "dependencies": {
+        "@adatechnology/conversations-ui": "0.3.1",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
@@ -232,6 +234,7 @@
         "mailauth": "5.0.3",
         "nodemailer": "^7.0.9",
         "pdfjs-dist": "^6.2.108",
+        "postal-mime": "2.7.6",
         "resend": "6.28.1",
         "zod": "4.4.3",
       },
@@ -250,6 +253,8 @@
     "@adatechnology/auth-keycloak": ["@adatechnology/auth-keycloak@1.0.0-rc.1", "", { "peerDependencies": { "@adatechnology/logger": "0.1.0-rc.1" } }, "sha512-to4fJmMptgs1naSGj8m8gu8rkiXfiy8IJF4X/xnSZSnyNNvtO2AdYrmIQlQRvFOrmv1+sZiUDB1rxIb+k5Hbnw=="],
 
     "@adatechnology/cargo-placement": ["@adatechnology/cargo-placement@0.1.0", "", {}, "sha512-3h71tfuLaznch0Mjy/xFU/Qt6BzMM9vy08KdN6nMe0Dqj7+8rEnsQ0h4QqPX35lmRKEMilCAy7JxmOj8xteWCw=="],
+
+    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.3.1", "", { "dependencies": { "@adatechnology/meta-whatsapp-contracts": "0.4.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-k38xU4aBSp0xVn1oOIGEiRbpba1zORxRT1b1rgfu099VlDKQDp4KGlcMP5+HnnLT5S9ukxlEEO+l8yG9dmxzSA=="],
 
     "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0", "", {}, "sha512-OPY9pvRJcsHQQKhDMe7bm4fUz0vZLz6X3MQa+nOEUSzFxRpWf+lPrlBlbyPYNxgvuEVqGk111aaFHSh83wUBbA=="],
 
@@ -1899,6 +1904,10 @@
 
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
+    "@adatechnology/conversations-ui/@adatechnology/meta-whatsapp-contracts": ["@adatechnology/meta-whatsapp-contracts@0.4.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-chEqJfMi4fsPn/MfN+qWQxKFAmZxUDZBIThnc7rA8QSA0bXbnxn2VgS/RNOQjgHej/lGxfkyQIlg1FyYWekNdQ=="],
+
+    "@adatechnology/conversations-ui/tailwind-merge": ["tailwind-merge@3.7.0", "", {}, "sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA=="],
+
     "@adatechnology/fiscal-provider/fast-xml-parser": ["fast-xml-parser@4.5.7", "", { "dependencies": { "strnum": "^1.0.5" }, "bin": { "fxparser": "src/cli/cli.js" } }, "sha512-a6Qh1RMCNbSrU1+sAyAAZH3rTe+OaWJbNZIq0S+ifZciUUOQtlVxBJwoTUE2bYhysmG/RYyI5WJFIKdBahJdrQ=="],
 
     "@adatechnology/meta-graph-core/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
@@ -1988,6 +1997,8 @@
     "workbox-build/pretty-bytes": ["pretty-bytes@5.6.0", "", {}, "sha512-FFw039TmrBqFK8ma/7OL3sDz/VytdtJr044/QUJtH0wK9lb9jLq9tJyIxUwtQJHwar2BqtiA4iCWSwo9JLkzFg=="],
 
     "yargs/find-up": ["find-up@4.1.0", "", { "dependencies": { "locate-path": "^5.0.0", "path-exists": "^4.0.0" } }, "sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw=="],
+
+    "@adatechnology/conversations-ui/@adatechnology/meta-whatsapp-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@adatechnology/fiscal-provider/fast-xml-parser/strnum": ["strnum@1.1.2", "", {}, "sha512-vrN+B7DBIoTTZjnPNewwhx6cBA/H+IS7rfW68n7XxC1y7uoiGQBxaKzqucGUgavX15dJgiGztLJ8vxuEzwqBdA=="],
 

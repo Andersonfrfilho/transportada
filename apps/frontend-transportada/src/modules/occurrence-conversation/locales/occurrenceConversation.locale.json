@@ -1,0 +1,238 @@
+{
+  "tabs": {
+    "ariaLabel": "Conversas da ocorrência",
+    "contractor": "Contratante",
+    "driver": "Motorista"
+  },
+  "contractor": {
+    "title": "Conversa com a contratante",
+    "withName": "Conversa com {{name}}",
+    "empty": "Nenhuma mensagem ainda. O e-mail enviado daqui chega aos contatos da contratante, e a resposta volta para esta conversa.",
+    "noContractor": "Esta ocorrência não tem contratante identificada pela nota; não há a quem escrever.",
+    "noDocument": "Ocorrência de parada não tem nota, e por isso não tem contratante a quem escrever.",
+    "send": "Enviar por e-mail",
+    "loading": "Carregando a conversa",
+    "error": "Não foi possível carregar a conversa. Tente de novo em instantes.",
+    "unread_one": "{{count}} nova",
+    "unread_other": "{{count}} novas",
+    "portal": {
+      "message": "Mensagem pelo portal",
+      "hint": "A contratante lê no portal de acompanhamento; quem tem conta recebe um aviso por e-mail, sem o texto.",
+      "send": "Enviar pelo portal",
+      "sending": "Enviando…",
+      "error": {
+        "required": "Escreva a mensagem.",
+        "tooLong": "A mensagem passou do limite de 8.000 caracteres.",
+        "send": "Não foi possível enviar. Tente de novo em instantes."
+      }
+    }
+  },
+  "author": {
+    "operation": "Operação",
+    "operationNamed": "{{name}} · Operação",
+    "driver": "Motorista",
+    "contractorUser": "Usuário da contratante",
+    "approvesCharges": "Aprova cobranças",
+    "inactive": "Inativo",
+    "outside": "Fora dos contatos",
+    "showCard": "Ver o cartão de {{name}}",
+    "arrivedAs": "Chegou de",
+    "email": "E-mail",
+    "phone": "Telefone",
+    "role": "Setor",
+    "preferredChannel": "Canal preferido",
+    "optIn": "Aceite do WhatsApp",
+    "optInYes": "Registrado em {{date}}",
+    "optInNo": "Sem aceite",
+    "channel": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    },
+    "automatic": "Aviso automático do tipo de ocorrência",
+    "unverified": "Remetente não confirmado",
+    "unverifiedHint": "O e-mail chegou sem assinatura do domínio do remetente: o endereço pode ter sido escrito por outra pessoa."
+  },
+  "status": {
+    "queued": "Na fila",
+    "sent": "Enviado",
+    "delivered": "Entregue",
+    "read": "Lido",
+    "failed": "Falhou",
+    "bounced": "Devolvido",
+    "times": "Horários da mensagem"
+  },
+  "dialog": {
+    "title": "Enviar à contratante",
+    "close": "Fechar",
+    "loading": "Preparando o e-mail",
+    "recipients": "Destinatários",
+    "recipientsEmpty": "Nenhum contato desta contratante recebe ocorrências. Cadastre um nos contatos da contratante.",
+    "recipientsRequired": "Escolha ao menos um destinatário.",
+    "subject": "Assunto",
+    "subjectRequired": "Escreva o assunto.",
+    "body": "Mensagem",
+    "bodyRequired": "Escreva a mensagem.",
+    "suggested": "Texto sugerido pelo tipo da ocorrência. Revise antes de enviar.",
+    "preview": "Ver prévia",
+    "previewTitle": "O e-mail que sai, com a assinatura",
+    "send": "Enviar e-mail",
+    "sending": "Enviando…",
+    "cancel": "Cancelar",
+    "error": {
+      "generic": "Não foi possível enviar. Tente de novo em instantes.",
+      "CONTRACTOR_MAIL_NOT_CONFIGURED": "O e-mail da contratante ainda não foi configurado. Peça a quem administra a configuração.",
+      "CONTRACTOR_MAIL_SENDING_NOT_VERIFIED": "O remetente de e-mail ainda não foi verificado. Peça a quem administra a configuração.",
+      "OCCURRENCE_CONVERSATION_NO_RECIPIENT": "Nenhum dos contatos escolhidos recebe ocorrências agora. Confira o cadastro e tente de novo.",
+      "OCCURRENCE_CONVERSATION_CONTRACTOR_UNKNOWN": "A nota desta ocorrência não tem contratante cadastrada.",
+      "OCCURRENCE_CONVERSATION_MAIL_INVALID": "Assunto ou mensagem em branco, ou longos demais.",
+      "OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED": "Um envio anterior já foi registrado. Envie de novo para mandar o texto atual.",
+      "OCCURRENCE_CONVERSATION_ATTACHMENT_REJECTED": "Um dos anexos não é o que diz ser, ou os arquivos passam do total que um e-mail leva. Confira e tente de novo.",
+      "OCCURRENCE_CONVERSATION_UPLOAD_FAILED": "Não foi possível subir os anexos. Tente de novo em instantes.",
+      "OCCURRENCE_CONVERSATION_UPLOAD_INVALID": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez."
+    }
+  },
+  "unassigned": {
+    "title_one": "{{count}} mensagem sem conversa",
+    "title_other": "{{count}} mensagens sem conversa",
+    "hint": "Chegaram de um contato da contratante sem dizer a qual ocorrência respondem. Escolha a conversa; a mensagem entra lá com o horário em que chegou.",
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "email": "E-mail"
+    },
+    "noText": "(mensagem sem texto)",
+    "noCandidates": "Nenhuma conversa aberta com esta contratante. Abra a conversa pela ocorrência e volte aqui.",
+    "choose": "Em qual conversa ela entra?",
+    "lastOutbound": "Nossa última mensagem ({{at}}): {{preview}}",
+    "openOccurrence": "Abrir a ocorrência",
+    "assign": "Atribuir",
+    "error": {
+      "generic": "Não foi possível atribuir. Tente de novo em instantes.",
+      "OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED": "Outra pessoa já atribuiu esta mensagem.",
+      "OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID": "Esta conversa não é mais uma escolha válida. Atualize a página.",
+      "OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND": "A mensagem não está mais na fila."
+    }
+  },
+  "driver": {
+    "title": "Conversa com o motorista",
+    "withName": "Conversa com {{name}}",
+    "empty": "Nenhuma mensagem ainda. O que você escrever aqui chega como aviso no app do motorista, e ele responde de lá.",
+    "message": "Mensagem ao motorista",
+    "send": "Enviar pelo app",
+    "sending": "Enviando…",
+    "error": {
+      "required": "Escreva a mensagem.",
+      "tooLong": "A mensagem passou do limite de 8.000 caracteres.",
+      "send": "Não foi possível enviar. Tente de novo em instantes."
+    },
+    "noDriver": "A viagem desta ocorrência não tem motorista; não há com quem conversar."
+  },
+  "driverApp": {
+    "title": "Mensagens da operação",
+    "back": "Voltar",
+    "loading": "Carregando as mensagens",
+    "empty": "Nenhuma mensagem da operação por enquanto.",
+    "item": "{{label}} · {{at}}",
+    "itemUnread_one": "{{label}} · {{count}} mensagem nova",
+    "itemUnread_other": "{{label}} · {{count}} mensagens novas",
+    "open_one": "Mensagens da operação ({{count}} nova)",
+    "open_other": "Mensagens da operação ({{count}} novas)",
+    "openAll": "Mensagens da operação",
+    "conversationTitle": "Ocorrência {{label}}",
+    "me": "Você",
+    "reply": "Sua resposta",
+    "send": "Responder",
+    "error": "Não foi possível enviar. Confira o sinal e tente de novo."
+  },
+  "quickReplies": {
+    "pick": "Resposta rápida",
+    "loading": "Carregando as respostas rápidas",
+    "loadError": "Não foi possível carregar as respostas rápidas. Tente de novo em instantes.",
+    "description": "Textos prontos que o compositor de cada aba da conversa oferece. Escolher só insere o texto; quem escreve ainda edita antes de enviar. Desativar tira do compositor sem apagar.",
+    "audience": {
+      "contractor": "Para a contratante",
+      "driver": "Para o motorista"
+    },
+    "new": {
+      "contractor": "Nova resposta para a contratante",
+      "driver": "Nova resposta para o motorista"
+    },
+    "empty": "Nenhuma resposta cadastrada.",
+    "limit": "Até 500 caracteres.",
+    "text": "Texto da resposta",
+    "active": "Ativa",
+    "moveUp": "Subir",
+    "moveDown": "Descer",
+    "edit": "Editar",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "add": "Adicionar",
+    "error": {
+      "required": "Escreva o texto.",
+      "tooLong": "O texto passou do limite de 500 caracteres.",
+      "save": "Não foi possível gravar. Tente de novo em instantes."
+    }
+  },
+  "attachment": {
+    "label": "Anexos",
+    "optional": "opcional",
+    "choose": "Escolher arquivos",
+    "placeholder": "PDF, imagem, planilha ou áudio — até {{count}} por mensagem",
+    "chosen": "Anexos escolhidos",
+    "remove": "Tirar {{name}}",
+    "inMessage": "Anexos da mensagem",
+    "uploading": "Subindo os anexos…",
+    "rejected": {
+      "type": "{{name}}: este tipo de arquivo não é aceito.",
+      "size": "{{name}}: passa do limite de {{max}} deste canal.",
+      "limit": "{{name}}: são no máximo {{count}} anexos por mensagem.",
+      "total": "{{name}}: somado aos outros, passa do total de {{max}} que um e-mail leva."
+    },
+    "error": {
+      "upload": "Não foi possível subir os anexos. Tente de novo em instantes."
+    },
+    "forward": "Encaminhar à contratante",
+    "forwarding": "Encaminhando…",
+    "forwarded": "Encaminhada à contratante pelo portal.",
+    "forwardError": "Não foi possível encaminhar. Tente de novo em instantes."
+  },
+  "channel": {
+    "email": "E-mail",
+    "whatsapp": "WhatsApp",
+    "app": "App",
+    "portal": "Portal"
+  },
+  "failure": {
+    "resend": "Reenviar por {{channel}}",
+    "bounced": {
+      "email": "O e-mail voltou: o endereço recusou a mensagem.",
+      "whatsapp": "A mensagem voltou.",
+      "app": "A mensagem voltou.",
+      "portal": "A mensagem voltou."
+    },
+    "failed": {
+      "email": "O e-mail não saiu: o provedor não aceitou o envio.",
+      "whatsapp": "O WhatsApp não entregou a mensagem.",
+      "app": "A mensagem não chegou ao app.",
+      "portal": "A mensagem não chegou ao portal."
+    }
+  },
+  "audio": {
+    "speed": "Velocidade de reprodução: {{rate}}",
+    "record": "Gravar áudio",
+    "stop": "Parar",
+    "recording": "Gravando {{elapsed}} de {{max}}",
+    "review": "Ouça antes de usar",
+    "use": "Usar áudio",
+    "discard": "Descartar",
+    "microphoneError": "Não foi possível usar o microfone. Confira a permissão do navegador ou anexe um arquivo de áudio."
+  },
+  "thread": {
+    "newMessages_one": "{{count}} mensagem nova na conversa",
+    "newMessages_other": "{{count}} mensagens novas na conversa"
+  },
+  "sendRecovery": {
+    "uploadExpired": "Um anexo venceu antes do envio. Envie de novo — ele sobe outra vez.",
+    "alreadySent": "A mensagem anterior já foi registrada. Envie de novo para mandar o texto atual.",
+    "driverChanged": "Esta conversa passou para outro motorista da viagem. Fale com a operação por outro canal."
+  }
+}

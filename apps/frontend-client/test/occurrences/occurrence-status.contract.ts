@@ -12,6 +12,8 @@ function occurrence(overrides: Partial<Occurrence> = {}): Occurrence {
   return {
     attachments: [],
     caseStatus: 'awaiting_contractor',
+    conversationRef: null,
+    conversationUnreadCount: 0,
     decidedAt: null,
     decisionKind: null,
     occurrenceId: '11111111-1111-1111-1111-111111111111',

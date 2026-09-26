@@ -32,6 +32,7 @@ import {
   reorderTripStopsSchema,
   setTripMdfeRequirementSchema,
   transitionTripDocumentSchema,
+  updateTripCrewSchema,
   type BatchTransitionTripDocumentsBody,
   type CloseTripBody,
   type CreateTripBody,
@@ -47,6 +48,7 @@ import {
   type ReorderTripStopsBody,
   type SetTripMdfeRequirementBody,
   type TransitionTripDocumentBody,
+  type UpdateTripCrewBody,
 } from './trip-request.schema.js'
 
 const TRIP_QUERY_KEYS = new Set([
@@ -71,6 +73,10 @@ export type { RouteGeometryBody } from './trip-request.schema.js'
 
 export async function parseCreateTripRequest(request: Request): Promise<CreateTripBody> {
   return parseBody(createTripSchema, request)
+}
+
+export async function parseUpdateTripCrewRequest(request: Request): Promise<UpdateTripCrewBody> {
+  return parseBody(updateTripCrewSchema, request)
 }
 
 export async function parseLinkTripDocumentRequest(

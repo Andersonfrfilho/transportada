@@ -406,6 +406,12 @@ export const TRIP_OCCURRENCE_ATTACHMENT_OPTIONAL_KEYS = [
 /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences` lista os tipos de rua do escritório. */
 export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
 
+/**
+ * Spec 179 T304: `attachmentMode` é aditivo — ausente é API anterior ao campo, e esta tela ainda
+ * não usa o valor (quem decide se a observação é obrigatória hoje é a app do motorista).
+ */
+export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = ['attachmentMode'] as const
+
 export const TRIP_FIELD_OCCURRENCE_TYPES_PATH = `${TRIPS_PATH}/occurrence-types/field`
 
 /** Spec 158 D6: `GET /trips/:id/timeline` — todo campo nasce sempre presente (nulo, quando falta). */
@@ -426,6 +432,12 @@ export const TRIP_TIMELINE_ITEM_KEYS = [
   'toStatus',
 ] as const
 
+/**
+ * Spec 205 RF8: o registro tardio do motorista, só como dado. Opcional porque a API anterior ao campo
+ * não o manda — a chave exata recusaria a página inteira na janela entre as duas subidas.
+ */
+export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = ['lateRegistration'] as const
+
 export const TRIP_TIMELINE_STOP_REFERENCE_KEYS = ['id', 'sequence'] as const
 export const TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS = ['id', 'number', 'series'] as const
 export const TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS = ['note', 'typeName'] as const
@@ -444,6 +456,29 @@ export const TRIP_DOCUMENT_PRODUCT_KEYS = [
   'unitValue',
 ] as const
 
+/**
+ * Spec 193 D1: quem recebeu, em relação ao destinatário — cópia por valor de `RECEIVED_BY_OPTIONS`
+ * da API (`src/database/trip.schema.ts`), na mesma ordem.
+ */
+export const DELIVERY_PROOF_RECEIVED_BY_OPTIONS = [
+  'recipient',
+  'spouse',
+  'child',
+  'parent',
+  'sibling',
+  'other_relative',
+  'neighbor',
+  'doorman',
+  'employee',
+  'other',
+] as const
+
+/**
+ * Spec 193 T3.1 (R1): chaves que a API passa a mandar no comprovante. Opcionais porque a API
+ * anterior não as manda — e o painel tem de aceitá-las antes de a API mandá-las.
+ */
+export const DELIVERY_PROOF_RECEIVED_BY_KEYS = ['receivedBy', 'receivedByDetail'] as const
+
 export const DELIVERY_PROOF_KEYS = [
   'createdAt',
   'downloadUrl',
@@ -452,6 +487,12 @@ export const DELIVERY_PROOF_KEYS = [
   'kind',
   'receiverName',
 ] as const
+
+/**
+ * Spec 205 RF8: `lateRegistration` é o registro tardio, só como dado. `receiverDocument` (sempre a
+ * máscara) já saía da API desde a spec 082 e a chave exata recusava a lista inteira por ele.
+ */
+export const DELIVERY_PROOF_OPTIONAL_KEYS = ['lateRegistration', 'receiverDocument'] as const
 
 export const TRIP_CARGO_WEIGHT_KEYS = [
   'documentsWithoutWeight',

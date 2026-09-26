@@ -105,6 +105,27 @@ describe('resend mail gateway (spec 143 T007)', () => {
     })
   })
 
+  test('spec 183 T702e: anexos vão como attachments, em base64 com filename e content_type', async () => {
+    const stub = fakeFetch(async () => json({ id: 'email-id-2' }))
+    const gateway = createResendMailGateway({ fetch: stub.fetch })
+
+    await gateway.sendEmail({
+      apiKey: API_KEY,
+      attachments: [{ content: 'JVBERi0=', contentType: 'application/pdf', fileName: 'nota.pdf' }],
+      from: 'resposta@fernandes-transportadora.com.br',
+      headers: {},
+      idempotencyKey: 'message-id-43',
+      replyTo: 'abc123@resposta.fernandes-transportadora.com.br',
+      subject: 'Ocorrência de entrega',
+      text: 'Segue a nota.',
+      to: ['contratante@exemplo.com.br'],
+    })
+
+    expect(stub.calls[0]?.body).toMatchObject({
+      attachments: [{ content: 'JVBERi0=', content_type: 'application/pdf', filename: 'nota.pdf' }],
+    })
+  })
+
   test('rejects a send with a network failure as unreachable', async () => {
     const stub = fakeFetch(() => Promise.reject(new Error('ECONNRESET')))
     const gateway = createResendMailGateway({ fetch: stub.fetch })

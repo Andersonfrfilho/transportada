@@ -58,8 +58,23 @@ function isFieldMode(value: unknown): value is DeliveryProofFieldMode {
   return DELIVERY_PROOF_FIELD_MODES.some((mode) => mode === value)
 }
 
+/**
+ * Spec 193 T3.1 (R1): `receivedBy` é o quinto campo e chega depois dos outros quatro — ausente é a
+ * API anterior e vale `optional`; presente, tem de ser um modo.
+ */
 export function isDeliveryProofFieldSettings(value: unknown): value is DeliveryProofFieldSettings {
-  return isRecord(value) && DELIVERY_PROOF_FIELDS.every((field) => isFieldMode(value[field]))
+  return (
+    isRecord(value) &&
+    DELIVERY_PROOF_FIELDS.every((field) => isFieldMode(value[field])) &&
+    (value['receivedBy'] === undefined || isFieldMode(value['receivedBy']))
+  )
+}
+
+/** Spec 193 D6: sem o campo (API anterior ou linha antiga), quem recebeu é `optional`. */
+export function resolveReceivedByMode(
+  settings: DeliveryProofFieldSettings & Readonly<{ receivedBy?: DeliveryProofFieldMode }>,
+): DeliveryProofFieldMode {
+  return settings.receivedBy ?? 'optional'
 }
 
 export function isDeliveryProofSettingsOverride(

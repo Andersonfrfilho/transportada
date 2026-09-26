@@ -118,6 +118,8 @@ export default defineRailway((ctx) => {
       QUEUE_PREFIX: preserve(),
       RABBITMQ_URL: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
+      /** ADR-0076 §3: só a API lê; o worker não conhece o limitador anônimo. */
+      RATE_LIMIT_SUBJECT_HMAC_KEY: preserve(),
       ROUTING_MATRIX_URL: preserve(),
       SCHEDULED_DISTRIBUTION_CRON: preserve(),
       SENTRY_DSN: preserve(),
@@ -227,8 +229,14 @@ export default defineRailway((ctx) => {
        * painel, não só reiniciar.
        */
       VITE_MAP_TILES_URL: preserve(),
-      /** Lida no build (`vite.config.ts`, `objectStorageUrl`); estava viva no painel e fora daqui. */
-      VITE_OBJECT_STORAGE_URL: preserve(),
+      /**
+       * Lida no build (`vite.config.ts`, `objectStorageUrl`); estava viva no painel e fora daqui.
+       * O valor é o bucket no estilo virtual-host, derivado do `OBJECT_STORAGE_BUCKET` e do
+       * `OBJECT_STORAGE_ENDPOINT` da API do mesmo ambiente — lidos do painel em 26/09/2026.
+       */
+      VITE_OBJECT_STORAGE_URL: isProduction
+        ? 'https://transportada-production-vosp8e.t3.storageapi.dev'
+        : 'https://transportada-staging-zjeaet.t3.storageapi.dev',
     },
   })
 
@@ -611,6 +619,12 @@ export default defineRailway((ctx) => {
       VITE_KEYCLOAK_CLIENT_ID: preserve(),
       VITE_KEYCLOAK_REALM: preserve(),
       VITE_KEYCLOAK_URL: preserve(),
+      /**
+       * A origem do bucket (spec 164 T9, spec 183 T702b): a CSP do portal nasce no build com ela —
+       * foto em `img-src`, upload do anexo em `connect-src`, áudio em `media-src`. Inlinada no build:
+       * vazia, a foto some e o anexo não sobe, sem erro de rede nenhum.
+       */
+      VITE_STORAGE_URL: preserve(),
     },
   })
 
@@ -656,6 +670,15 @@ export default defineRailway((ctx) => {
       VITE_KEYCLOAK_URL: isProduction
         ? 'https://transportada-afr-fernandes-auth.up.railway.app'
         : 'https://auth.staging.fernandes-transportadora.com.br',
+      /**
+       * Origem do bucket na CSP (spec 179 T303): sem ela o navegador recusa a foto da ocorrência.
+       * Os dois valores são o bucket no estilo virtual-host, derivados do `OBJECT_STORAGE_BUCKET` e
+       * do `OBJECT_STORAGE_ENDPOINT` da API do mesmo ambiente — lidos do painel em 26/09/2026. O de
+       * produção faltava, e sem ele a foto da ocorrência não subiria lá.
+       */
+      VITE_OBJECT_STORAGE_URL: isProduction
+        ? 'https://transportada-production-vosp8e.t3.storageapi.dev'
+        : 'https://transportada-staging-zjeaet.t3.storageapi.dev',
     },
   })
 

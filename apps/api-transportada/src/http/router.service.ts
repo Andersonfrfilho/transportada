@@ -22,13 +22,25 @@ import {
 } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
 import type { AuthMeResponse, HealthResponse } from '../shared/api.types'
-import { resolveClientIp } from './client-ip.service'
+import {
+  type AnonymousRateLimit,
+  type AnonymousTargetGate,
+  createAnonymousRateLimit,
+} from './anonymous-rate-limit.service'
+import {
+  type ClientIpResolver,
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from './client-ip.service'
+import type { RateLimitSubjectService } from './rate-limit-subject.service'
 import type { RateLimitWindowStorePort } from './rate-limit-window.port'
 import {
+  type AnonymousRateLimitPolicy,
   createRateLimiter,
   type RateLimiter,
   type RateLimitOutcome,
   type RateLimitPolicy,
+  type RegisteredAnonymousRateLimitPolicy,
   type RouteRateLimitPolicy,
 } from './rate-limiter.service'
 import { resolveLogPathname } from './request-path.service'
@@ -94,6 +106,14 @@ export type AnonymousRouteParserParams = {
   readonly request: Request
 }
 
+/**
+ * Spec 191: o roteador entrega o balde do alvo junto com o pedido. Rota com alvo declarado e sem o
+ * balde recusa o pedido — quem chama `execute` fora do roteador não abre porta sem teto.
+ */
+export type AnonymousRouteExecuteParams = AnonymousRouteParserParams & {
+  readonly limitTarget?: AnonymousTargetGate
+}
+
 type AnonymousRouteHandlerParams<TInput> = {
   readonly correlationId: string
   readonly input: TInput
@@ -105,16 +125,20 @@ type AnonymousRouterRoute<TInput> = {
   readonly parse: (params: AnonymousRouteParserParams) => TInput | Promise<TInput>
   readonly pathname: string
   readonly pathParameterFormat?: PathParameterFormat
-  /** Sem isto a rota fica sem teto de volume — todo endpoint anônimo deveria declarar um. */
-  readonly rateLimit?: RateLimitPolicy
+  /**
+   * Sem isto a rota fica sem teto de volume — todo endpoint anônimo deveria declarar um. `memory`
+   * (só `maxRequests`/`windowMs`) conta por IP no processo; `postgres` conta por IP em dois estágios
+   * e, com `target`, também pelo texto digitado (spec 191 RF12).
+   */
+  readonly rateLimit?: RateLimitPolicy | AnonymousRateLimitPolicy<TInput>
 }
 
 export type RegisteredAnonymousRoute = {
-  readonly execute: (params: AnonymousRouteParserParams) => Promise<Response>
+  readonly execute: (params: AnonymousRouteExecuteParams) => Promise<Response>
   readonly method: string
   readonly pathname: string
   readonly pathParameterFormat?: PathParameterFormat
-  readonly rateLimit?: RateLimitPolicy
+  readonly rateLimit?: RateLimitPolicy | RegisteredAnonymousRateLimitPolicy
 }
 
 type RouterRequest = {
@@ -176,6 +200,13 @@ type CreateRouterParams = {
    * qualquer rota que o declare — teto que não conta é porta aberta calada.
    */
   readonly rateLimitWindows?: RateLimitWindowStorePort
+  /**
+   * Spec 191: o HMAC das chaves da rota anônima com teto no Postgres. Ausente, o boot recusa
+   * qualquer rota anônima que o declare — IP em claro na tabela seria PII guardada por 24 h.
+   */
+  readonly rateLimitSubjects?: RateLimitSubjectService
+  /** Ausente, vale `DEFAULT_CLIENT_IP_POLICY` — o mesmo padrão do ambiente (ADR-0076 §6). */
+  readonly resolveClientIp?: ClientIpResolver
   readonly routes: readonly RegisteredRouterRoute[]
   readonly tenantContext: Pick<TenantContextService, 'resolveCompany'>
   readonly userPictureExistence: UserPictureExistencePort
@@ -188,17 +219,25 @@ export function createRouter({
   companyFiscalEnvironment,
   healthService,
   moduleRouters = [],
+  rateLimitSubjects,
   rateLimitWindows,
+  resolveClientIp = createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
   routes,
   tenantContext,
   userPictureExistence,
 }: CreateRouterParams): HttpRouter {
   assertMembershipRoutesUnderMe(routes)
   assertAnyPermissionRoutesAreReads(routes)
-  assertPostgresRateLimitHasStore({ rateLimitWindows, routes })
+  assertPostgresRateLimitHasStore({ rateLimitWindows, routes: [...routes, ...anonymousRoutes] })
+  assertAnonymousPostgresRateLimitHasSubjects({ anonymousRoutes, rateLimitSubjects })
   const moduleCandidates = toModuleCandidates(moduleRouters)
   const logTemplates = collectLogTemplates({ anonymousRoutes, moduleCandidates, routes })
   const rateLimiter = createRateLimiter()
+  const anonymousRateLimit = createAnonymousRateLimit({
+    rateLimiter,
+    rateLimitSubjects,
+    rateLimitWindows,
+  })
   return Object.freeze({
     allowedMethods(pathname: string): readonly string[] {
       return collectAllowedMethods({ anonymousRoutes, moduleCandidates, pathname, routes })
@@ -213,13 +252,15 @@ export function createRouter({
 
       const anonymousRoute = matchRoute({ method, pathname, routes: anonymousRoutes })
       if (anonymousRoute !== undefined) {
-        assertWithinRateLimit({
-          key: `${anonymousRoute.route.method} ${anonymousRoute.route.pathname} ${resolveClientIp(request)}`,
-          policy: anonymousRoute.route.rateLimit,
+        await assertWithinAnonymousRateLimit({
+          anonymousRateLimit,
+          clientIp: resolveClientIp(request),
           rateLimiter,
+          route: anonymousRoute.route,
         })
         return anonymousRoute.route.execute({
           correlationId,
+          limitTarget: anonymousRateLimit.consumeTarget,
           pathParameters: anonymousRoute.pathParameters,
           request,
         })
@@ -342,17 +383,89 @@ export function defineAnonymousRoute<TInput>(
   return Object.freeze({
     async execute({
       correlationId,
+      limitTarget,
       pathParameters,
       request,
-    }: AnonymousRouteParserParams): Promise<Response> {
+    }: AnonymousRouteExecuteParams): Promise<Response> {
       const input = await route.parse({ correlationId, pathParameters, request })
+      await assertWithinAnonymousTargetLimit({ input, limitTarget, route })
       return route.handle({ correlationId, input })
     },
     method: route.method,
     pathname: route.pathname,
     ...(route.pathParameterFormat ? { pathParameterFormat: route.pathParameterFormat } : {}),
-    ...(route.rateLimit ? { rateLimit: route.rateLimit } : {}),
+    ...(route.rateLimit ? { rateLimit: toRegisteredAnonymousRateLimit(route.rateLimit) } : {}),
   })
+}
+
+/** O roteador não precisa da função que extrai o alvo: ela só roda dentro do `execute`. */
+function toRegisteredAnonymousRateLimit<TInput>(
+  policy: RateLimitPolicy | AnonymousRateLimitPolicy<TInput>,
+): RateLimitPolicy | RegisteredAnonymousRateLimitPolicy {
+  if (!('store' in policy)) return policy
+  const { target, ...shared } = policy
+  if (target === undefined) return shared
+  return {
+    ...shared,
+    target: {
+      maxRequests: target.maxRequests,
+      scope: target.scope,
+      windowSeconds: target.windowSeconds,
+    },
+  }
+}
+
+/**
+ * Spec 191 RF12: o alvo conta depois do `parse` (só ali o texto existe) e antes do `handle`. É o
+ * texto digitado, normalizado pela rota — não o usuário resolvido —, para o 429 sair igual para
+ * quem existe e para quem não existe.
+ */
+async function assertWithinAnonymousTargetLimit<TInput>(input: {
+  readonly input: TInput
+  readonly limitTarget: AnonymousTargetGate | undefined
+  readonly route: AnonymousRouterRoute<TInput>
+}): Promise<void> {
+  const policy = input.route.rateLimit
+  if (policy === undefined || !('store' in policy) || policy.target === undefined) return
+  if (input.limitTarget === undefined) {
+    throw new Error(
+      `anonymous target rate limit without a gate: ${input.route.method} ${input.route.pathname}`,
+    )
+  }
+
+  const { key, ...ceiling } = policy.target
+  throwWhenRateLimited(
+    await input.limitTarget({
+      policy: { ...ceiling, store: 'postgres' },
+      target: key(input.input),
+    }),
+  )
+}
+
+/**
+ * A rota anônima conta por IP antes do `parse`. `memory` é o balde do processo, com o IP como
+ * chave; `postgres` é o dos dois estágios, com o IP em HMAC (spec 191 RF12).
+ */
+async function assertWithinAnonymousRateLimit(input: {
+  readonly anonymousRateLimit: AnonymousRateLimit
+  readonly clientIp: string
+  readonly rateLimiter: RateLimiter
+  readonly route: RegisteredAnonymousRoute
+}): Promise<void> {
+  const policy = input.route.rateLimit
+  if (policy === undefined) return
+  if (!('store' in policy)) {
+    assertWithinRateLimit({
+      key: `${input.route.method} ${input.route.pathname} ${input.clientIp}`,
+      policy,
+      rateLimiter: input.rateLimiter,
+    })
+    return
+  }
+
+  throwWhenRateLimited(
+    await input.anonymousRateLimit.consumeClientIp({ clientIp: input.clientIp, policy }),
+  )
 }
 
 /**
@@ -421,16 +534,47 @@ function throwWhenRateLimited(outcome: RateLimitOutcome): void {
   })
 }
 
+type RateLimitedRouteCandidate = {
+  readonly method: string
+  readonly pathname: string
+  readonly rateLimit?:
+    | RateLimitPolicy
+    | RegisteredAnonymousRateLimitPolicy
+    | RouteRateLimitPolicy
+    | undefined
+}
+
+function declaresPostgresRateLimit(route: RateLimitedRouteCandidate): boolean {
+  return (
+    route.rateLimit !== undefined &&
+    'store' in route.rateLimit &&
+    route.rateLimit.store === 'postgres'
+  )
+}
+
 function assertPostgresRateLimitHasStore(input: {
   readonly rateLimitWindows: RateLimitWindowStorePort | undefined
-  readonly routes: readonly RegisteredRouterRoute[]
+  readonly routes: readonly RateLimitedRouteCandidate[]
 }): void {
   if (input.rateLimitWindows !== undefined) return
-  const orphans = input.routes.filter((route) => route.rateLimit?.store === 'postgres')
+  const orphans = input.routes.filter(declaresPostgresRateLimit)
   if (orphans.length === 0) return
 
   const signatures = orphans.map((route) => `${route.method} ${route.pathname}`).join(', ')
   throw new Error(`postgres rate limit without a store: ${signatures}`)
+}
+
+/** Spec 191: sem a chave do HMAC, o IP e o alvo chegariam em claro ao banco — o boot recusa. */
+function assertAnonymousPostgresRateLimitHasSubjects(input: {
+  readonly anonymousRoutes: readonly RegisteredAnonymousRoute[]
+  readonly rateLimitSubjects: RateLimitSubjectService | undefined
+}): void {
+  if (input.rateLimitSubjects !== undefined) return
+  const orphans = input.anonymousRoutes.filter(declaresPostgresRateLimit)
+  if (orphans.length === 0) return
+
+  const signatures = orphans.map((route) => `${route.method} ${route.pathname}`).join(', ')
+  throw new Error(`anonymous postgres rate limit without a subject key: ${signatures}`)
 }
 
 /**

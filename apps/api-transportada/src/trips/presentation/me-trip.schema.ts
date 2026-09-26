@@ -30,10 +30,29 @@ const locationSchema = z
   })
   .strict()
 
+/**
+ * Spec 205 RF1/RF2: o "Registrar entrega depois" da app do motorista. Opcional — ausente é o toque
+ * na hora, e é o que todo cliente anterior ao campo manda.
+ */
+const lateRegistrationSchema = z.boolean().optional()
+
 const reportSchema = z.object({ location: locationSchema.nullish() }).strict()
+
+/**
+ * Spec 206 D2/D18: o corpo de `depart` e de `cancel-departure` é o mesmo — `tappedAt` é a hora do
+ * aparelho no toque, obrigatória (a rota é nova, sem cliente antigo a acomodar). Chave extra é
+ * `400`: a sonda de deploy da T2.6 prova a rota existindo justamente por essa recusa.
+ */
+const departureSchema = z
+  .object({ location: locationSchema.nullish(), tappedAt: z.iso.datetime() })
+  .strict()
+
+/** Só a baixa da nota aceita o registro tardio — a chegada continua recusando o campo. */
+const deliverySchema = reportSchema.extend({ lateRegistration: lateRegistrationSchema }).strict()
 
 const returnSchema = z
   .object({
+    lateRegistration: lateRegistrationSchema,
     location: locationSchema.nullish(),
     reason: z.enum(DRIVER_RETURN_REASONS),
   })
@@ -41,6 +60,11 @@ const returnSchema = z
 
 const occurrenceSchema = z
   .object({
+    /**
+     * Spec 209 RF2: a foto do "Deu problema", em qualquer motivo — o id do upload confirmado da 179,
+     * nunca o arquivo. Ausente é a ocorrência sem foto, que é o que todo cliente anterior manda.
+     */
+    attachmentObjectId: z.uuid().nullish(),
     description: z.string().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).optional(),
     /**
      * ADR-0057 §3: metros entre o motorista e a parada, medidos no aparelho. Ausente é **não
@@ -95,16 +119,45 @@ export async function parseFieldReportRequest(
   return { location: toReportedLocation(body.location) }
 }
 
+/** Spec 206 D2/D18: `depart` e `cancel-departure` reusam o mesmo parser. */
+export async function parseDepartureRequest(request: Request): Promise<{
+  readonly location: ReportedLocation | null
+  readonly tappedAt: Date
+}> {
+  const body = await parseBody(departureSchema, request)
+
+  return { location: toReportedLocation(body.location), tappedAt: new Date(body.tappedAt) }
+}
+
+/** Spec 205 RF1: o corpo do `/deliver` — o da chegada mais o registro tardio. */
+export async function parseDocumentDeliveryRequest(request: Request): Promise<{
+  readonly lateRegistration: boolean
+  readonly location: ReportedLocation | null
+}> {
+  const body = await parseOptionalBody(deliverySchema, request)
+
+  return {
+    lateRegistration: body.lateRegistration ?? false,
+    location: toReportedLocation(body.location),
+  }
+}
+
 export async function parseDocumentReturnRequest(request: Request): Promise<{
+  readonly lateRegistration: boolean
   readonly location: ReportedLocation | null
   readonly reason: (typeof DRIVER_RETURN_REASONS)[number]
 }> {
   const body = await parseBody(returnSchema, request)
 
-  return { location: toReportedLocation(body.location), reason: body.reason }
+  return {
+    lateRegistration: body.lateRegistration ?? false,
+    location: toReportedLocation(body.location),
+    reason: body.reason,
+  }
 }
 
 export async function parseStopOccurrenceRequest(request: Request): Promise<{
+  readonly attachmentObjectId: string | null
   readonly description: string
   readonly distanceMeters: number | null
   readonly documentId: string | null
@@ -113,6 +166,7 @@ export async function parseStopOccurrenceRequest(request: Request): Promise<{
   const body = await parseBody(occurrenceSchema, request)
 
   return {
+    attachmentObjectId: body.attachmentObjectId ?? null,
     description: body.description ?? '',
     /* Ausente e nulo dizem a mesma coisa — não aferida —, e viram o mesmo valor aqui. */
     distanceMeters: body.distanceMeters ?? null,

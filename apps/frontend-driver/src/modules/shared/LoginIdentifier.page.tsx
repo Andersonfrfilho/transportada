@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 import { InstallationBrandMark } from '@/modules/identity/components/InstallationBrandMark.component'
 import { useInstallationBrandView } from '@/modules/identity/hooks/useInstallationBrandView.hook'
 
@@ -77,6 +78,7 @@ export function LoginIdentifierPage() {
           disabled={identifier.trim() === '' || isSubmitting}
           type="submit"
         >
+          <Icon aria-hidden="true" name="login" />
           {isSubmitting ? t('login.submitting') : t('login.submit')}
         </Button>
       </form>

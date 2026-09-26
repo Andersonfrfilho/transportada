@@ -9,7 +9,9 @@ import type {
   DriverTripSnapshot,
   DriverTripStop,
   PendingProofDocument,
+  ProofFieldRequirement,
 } from './driverTrip.types'
+import { DEFAULT_PROOF_SETTINGS } from './proofFormPlan.service'
 
 /**
  * Resposta de API é entrada não confiável (`security.md` §3), e aqui ela vira a tela que o motorista
@@ -57,6 +59,11 @@ function readDriverScore(value: unknown): number | null {
     : null
 }
 
+/** Spec 193 D14: ausente (API anterior) vira `false` — nunca quebra a tela por um campo novo. */
+function readRecipientIsCompany(value: unknown): boolean {
+  return value === true
+}
+
 function toDocument(value: unknown): DriverTripDocument {
   if (!isRecord(value)) throw new DriverTripResponseError()
 
@@ -74,6 +81,8 @@ function toDocument(value: unknown): DriverTripDocument {
     id: readString(value.id),
     number: readOptionalText(value.number),
     proofPending: readProofPending(value.proofPending),
+    recipientDisplayName: readOptionalText(value.recipientDisplayName),
+    recipientIsCompany: readRecipientIsCompany(value.recipientIsCompany),
     recipientName: readOptionalText(value.recipientName),
     returnReason: readNullableString(value.returnReason),
     separationStatus: readString(value.separationStatus),
@@ -116,18 +125,30 @@ function toSchedule(value: unknown): DriverStopSchedule | null {
 
 const PROOF_REQUIREMENTS = ['off', 'optional', 'required']
 
+/** Spec 193 (plan, Fase 4): campo ausente ou fora do vocabulário cai no padrão daquele campo. */
+function readProofField(value: unknown, fallback: ProofFieldRequirement): ProofFieldRequirement {
+  return typeof value === 'string' && PROOF_REQUIREMENTS.includes(value)
+    ? (value as ProofFieldRequirement)
+    : fallback
+}
+
 /**
- * Spec 082 D4: configuração ausente ou fora do vocabulário vira `null` — o app aplica o padrão em
- * vez de quebrar a tela por causa de uma configuração que não carregou.
+ * Spec 082 D4: configuração ausente (o corpo não é objeto) vira `null` — o app aplica o padrão em
+ * vez de quebrar a tela. Spec 193 (revisão): com objeto presente, o fallback é **por campo** — um
+ * campo só fora do vocabulário nunca derruba o conjunto inteiro para `null`.
  */
 function toDeliveryProof(value: unknown): DriverDeliveryProofSettings | null {
   if (!isRecord(value)) return null
-  const { photo, receiverDocument, receiverName, signature } = value
-  const values = [photo, receiverDocument, receiverName, signature]
-  if (!values.every((entry) => typeof entry === 'string' && PROOF_REQUIREMENTS.includes(entry))) {
-    return null
+  return {
+    photo: readProofField(value.photo, DEFAULT_PROOF_SETTINGS.photo),
+    receivedBy: readProofField(value.receivedBy, DEFAULT_PROOF_SETTINGS.receivedBy),
+    receiverDocument: readProofField(
+      value.receiverDocument,
+      DEFAULT_PROOF_SETTINGS.receiverDocument,
+    ),
+    receiverName: readProofField(value.receiverName, DEFAULT_PROOF_SETTINGS.receiverName),
+    signature: readProofField(value.signature, DEFAULT_PROOF_SETTINGS.signature),
   }
-  return { photo, receiverDocument, receiverName, signature } as DriverDeliveryProofSettings
 }
 
 function toStop(value: unknown): DriverTripStop {
@@ -164,6 +185,8 @@ function toPendingProof(value: unknown): PendingProofDocument | null {
     documentId: value.documentId,
     documentNumber: readOptionalText(value.documentNumber),
     documentSeries: readOptionalText(value.documentSeries),
+    recipientDisplayName: readOptionalText(value.recipientDisplayName),
+    recipientIsCompany: readRecipientIsCompany(value.recipientIsCompany),
     recipientName: readOptionalText(value.recipientName),
     tripId: value.tripId,
     tripStatus: readOptionalText(value.tripStatus),

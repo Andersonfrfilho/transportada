@@ -50,6 +50,8 @@ export const companyDeliveryProofSettings = pgTable(
       .$type<DeliveryProofFieldMode>(),
     signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
     photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /** Spec 193 D6: quem recebeu (a relação com o destinatário) — `optional` de fábrica. */
+    receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
     /**
      * ADR-0069 §6: a leitura do número do canhoto pela foto é experimental e nasce desligada. É da
      * empresa, não do destinatário — por isso não existe na tabela de exceções.
@@ -99,6 +101,10 @@ export const companyDeliveryProofSettings = pgTable(
     ),
     check('company_delivery_proof_settings_photo_check', sql`${table.photo} in (${MODE_LIST()})`),
     check(
+      'company_delivery_proof_settings_received_by_check',
+      sql`${table.receivedBy} in (${MODE_LIST()})`,
+    ),
+    check(
       'company_delivery_proof_settings_proof_window_minutes_check',
       sql`${table.proofWindowMinutes} between 5 and 1440`,
     ),
@@ -143,6 +149,8 @@ export const deliveryProofSettingOverrides = pgTable(
       .$type<DeliveryProofFieldMode>(),
     signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
     photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    /** Spec 193 D6: a exceção vence a geral por inteiro, inclusive neste campo. */
+    receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -175,5 +183,9 @@ export const deliveryProofSettingOverrides = pgTable(
       sql`${table.signature} in (${MODE_LIST()})`,
     ),
     check('delivery_proof_setting_overrides_photo_check', sql`${table.photo} in (${MODE_LIST()})`),
+    check(
+      'delivery_proof_setting_overrides_received_by_check',
+      sql`${table.receivedBy} in (${MODE_LIST()})`,
+    ),
   ],
 )
