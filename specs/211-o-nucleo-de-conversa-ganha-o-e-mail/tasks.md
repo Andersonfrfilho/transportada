@@ -43,7 +43,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
       (ESM+CJS, `dts`, `files: ["dist"]`, `sideEffects: false`, dependência única `zod`),
       `tsup.config.ts`, `tsconfig.json`, `CLAUDE.md` com as invariantes. Molde copiado, sem decisão.
       (RF1, RNF5)
-- [ ] **T103** `sonnet` — Os tipos do T101. Barrel explícito em `src/index.ts`, sem `export *`.
+- [x] **T103** `sonnet` — Os tipos do T101. Barrel explícito em `src/index.ts`, sem `export *`.
       (RF1)
 - [ ] **T104** `sonnet` — Teste de contrato da **tabela de capacidades** (`plan.md` § Fase 1),
       incluindo as duas linhas que a tela usa para não mentir: `email` não confirma leitura, `portal`

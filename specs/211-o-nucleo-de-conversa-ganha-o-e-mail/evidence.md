@@ -48,3 +48,25 @@ os cinco commits de documentação trazidos por cherry-pick (commit `f338a7533`)
    1 fail
    1 error
   ```
+
+### T103 — os tipos do T101
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `722af55` (`packages/backend/conversation-contracts/src/{vocabulary.ts,index.ts}`).
+- `src/vocabulary.ts` com os cinco vocabulários como tupla `as const` congelada
+  (`Object.freeze`) e o schema `z.enum` de cada um; `src/index.ts` com barrel explícito, sem
+  `export *`.
+- **Gate:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-contracts run check
+  > tsc -p tsconfig.json --noEmit
+  (sem saída — 0 erros)
+
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+   7 pass
+   0 fail
+   40 expect() calls
+  Ran 7 tests across 1 file. [25.00ms]
+  ```
