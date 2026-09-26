@@ -868,3 +868,85 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
    131 expect() calls
   Ran 38 tests across 6 files. [38ms]
   ```
+
+### T212 — integração contra Postgres
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Commit:** `5cebd93` (conversation-core, branch `feat/conversation-core`).
+- **Postgres:** `postgres (PostgreSQL) 18.4 (Homebrew)` — instância descartável subida com
+  `initdb`/`pg_ctl` (Homebrew, sem Docker) num diretório do scratchpad da sessão, porta 65434,
+  `unix_socket_directories=''` e `LC_ALL=C LANG=C` (sem isso o `pg_ctl` cai com "postmaster became
+  multithreaded"). Parada com `pg_ctl -m fast stop` ao final, confirmada por `lsof` vazio.
+- **Arquivo:** `src/ConversationModule.integration.test.ts`, no molde de
+  `meta-whatsapp-module/src/repositories/SessionRepository.humanRequestedAt.integration.test.ts`
+  (mesma variável `DRIZZLE_TEST_DATABASE_URL ?? DATABASE_URL`, mesmo `SQL` do Bun +
+  `drizzle-orm/bun-sql` + `drizzle-orm/bun-sql/migrator`, `runConversationMigrations` injetando o
+  `migrate`). Nenhum script novo nem devDependency nova — `bun-sql` já vem do runtime Bun e
+  `drizzle-orm` já era devDependency do módulo.
+- **Cobertura:**
+  - CA02: abrir com assunto duas vezes pelo mesmo caso de uso devolve a mesma conversa (confere a
+    linha única na tabela); idem sem assunto (idempotência por participante); e uma corrida real —
+    duas conexões Postgres próprias (round-trip serializaria numa conexão só) chamando
+    `openConversation` em paralelo com o mesmo assunto via `Promise.allSettled`: o `unique` parcial
+    (`conversations_subject_audience_unique`) garante nunca mais de uma linha, ainda que uma das
+    duas chamadas rejeite.
+  - CA05: `sendMessage` → `updateMessageStatus` (`sent` → `delivered`) avança e grava
+    `status_times`; repetir o evento `delivered` (com horário diferente) não muda nada — lido de
+    volta do banco. Dois `insert` diretos provam os CHECKs por canal como literal (T202): `status:
+'read'` no canal `email` e `status: 'sent'` no canal `portal` são recusados pelo Postgres.
+  - CA06: um participante com duas conversas abertas (mesmo canal/identificador, assuntos
+    diferentes) e mensagem recebida sem `replyConversationId` cai em `unassigned`; repetir com o
+    mesmo `providerMessageId` devolve o mesmo item (sem duplicar — conferido por `select` com 1
+    linha); `assignUnassignedToConversation` grava a mensagem na conversa escolhida e os três
+    `assigned_*` juntos, lido de volta do banco.
+  - Isolamento: duas empresas abrindo conversa com o mesmo canal/identificador nunca se enxergam —
+    cada leitura por `companyId` devolve só a própria linha.
+  - CHECK `conversations_subject_pair_check`: `insert` direto com `subjectType` preenchido e
+    `subjectId` nulo é recusado.
+  - Limpeza: cada teste registra o `companyId` novo que cria; o `afterAll` apaga as linhas desses
+    `companyId` em ordem de FK (attachments → uploads → reads → unassigned → messages →
+    participants → conversations) antes de fechar a conexão — não há schema recriado por teste
+    porque a instância inteira do Postgres é descartável.
+- **Sem defeito encontrado** no schema/migration/repositório — os CHECKs e o `unique` parcial já
+  se comportaram como a spec exige (T202).
+- **Sem `DRIZZLE_TEST_DATABASE_URL`/`DATABASE_URL` (pula, não falha):**
+
+  ```
+  $ bun test src/ConversationModule.integration.test.ts
+  bun test v1.3.14 (0d9b296a)
+
+  src/ConversationModule.integration.test.ts:
+  conversation-module: DRIZZLE_TEST_DATABASE_URL/DATABASE_URL ausente — suíte de integração contra Postgres pulada.
+
+   0 pass
+   11 skip
+   0 fail
+  Ran 11 tests across 1 file. [34.00ms]
+  ```
+
+- **Com a URL, contra o Postgres descartável (roda de verdade):**
+
+  ```
+  $ DRIZZLE_TEST_DATABASE_URL="postgresql://postgres@127.0.0.1:65434/postgres" bun test src/ConversationModule.integration.test.ts
+  bun test v1.3.14 (0d9b296a)
+
+   9 pass
+   0 fail
+   35 expect() calls
+  Ran 9 tests across 1 file. [93.00ms]
+  ```
+
+- **Gates do módulo, verdes depois do commit (lint-staged rodou eslint/prettier no arquivo):**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run check
+  tsc -p tsconfig.json --noEmit   (sem saída)
+
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+   88 pass
+   11 skip
+   0 fail
+   773 expect() calls
+  Ran 99 tests across 12 files. [47ms]
+  ```

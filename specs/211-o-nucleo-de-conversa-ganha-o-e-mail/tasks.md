@@ -83,7 +83,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T210** `sonnet` — O anexo. (RF8)
 - [x] **T211** ⚙️ `haiku` — Respostas rápidas por público, com posição e ativo. CRUD sem regra
       nova. (RF9)
-- [ ] **T212** `sonnet` — Teste de integração contra Postgres real: conversa com assunto e sem
+- [x] **T212** `sonnet` — Teste de integração contra Postgres real: conversa com assunto e sem
       assunto, status idempotente, atribuição ambígua. (CA02, CA05, CA06)
 
 ## Fase 3 — o transporte do canal `email` (no `adatechnology-packages`)
