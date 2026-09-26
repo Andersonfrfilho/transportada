@@ -446,3 +446,149 @@ operação, não erro (ADR-0088 §2b, o log é `info`), e nenhuma penalidade nas
 `test/trip/timeline.contract.ts` e `test/trip/timeline-view.contract.ts` já estavam no entrypoint
 `test/trip.contract.test.ts` (`:2` e `:3`), que já está na lista explícita do `package.json` do painel —
 nenhuma lista precisou de linha nova, e conferi que rodam pelo script da app, não só pelo comando solto.
+
+## Fase 1 — Banco (2026-09-26)
+
+### Numeração, reconferida antes de criar a pasta
+
+`git fetch && git ls-tree --name-only origin/staging:apps/api-transportada/drizzle | tail -3` →
+`…_occurrence_conversation_automatic_message`, `20260926002743_delivery_proof_received_by`,
+`20260926003822_late_registration`. **Nenhuma sessão numerou depois disso.** A pasta nova é
+`20260926140647_stop_departure`, e ela é a última da cadeia nos dois lados.
+
+### T1.1 — Contratos antes, e o vermelho
+
+Os casos entraram em dois lugares:
+
+- `test/database-migration/trip-constraints.assertion.ts` — os dois kinds aceitos com `tapped_at`,
+  `chegou` (já existia) e **`cancelado`** recusados, e a função nova `assertStopEnRouteConstraints`.
+- `test/database-migration/stop-departure-rollback.assertion.ts` (**novo**), ligado em
+  `database-migration.integration.ts` com `connectionString`, no molde de
+  `delivery-proof-received-by.assertion.ts`.
+
+**Vermelho** (`db:test`, o mesmo que o `make migration-test` executa):
+
+```
+PostgresError: column "tapped_at" of relation "trip_stop_events" does not exist
+    errno: "42703",  routine: "checkInsertTargets"
+(fail) Drizzle migration integration > applies, constrains, rolls back, and reapplies the fiscal migration
+ 111 pass, 1 fail — Ran 112 tests across 8 files
+```
+
+O que a `assertStopEnRouteConstraints` prova, e por quê:
+
+| Caso                                                         | Espera                                       | Por que está aqui                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| parada aberta recebe `en_route_since` + `en_route_tapped_at` | passa                                        | o caminho feliz, senão o resto não prova nada                                                                                                                                                                                                          |
+| parada **com chegada** recebe `en_route_since`               | `23514 trip_stops_en_route_open_check`       | quem chegou não está mais a caminho                                                                                                                                                                                                                    |
+| parada **concluída** recebe `en_route_since`                 | `23514` idem                                 | ⚠️ `completed_at` sem `arrived_at` já era proibido por `trip_stops_completed_requires_arrived_check`, então a metade `completed_at` do CHECK novo é cinto e suspensório — registrado no teste, porque quem a ler isolada pode achar que é inalcançável |
+| `arrived_at` **sobre** parada a caminho                      | `23514` idem                                 | é o **inverso**, e é o que obriga os dois escritores de `arrived_at`/`completed_at` a zerar o "a caminho" no mesmo `UPDATE` (D4). Sem este caso o CHECK pareceria só uma trava de escrita nova                                                         |
+| `en_route_tapped_at` sozinho                                 | `23514 trip_stops_en_route_tapped_check`     | hora do toque sem hora do servidor é metade de um dado                                                                                                                                                                                                 |
+| segunda parada **da mesma viagem** a caminho                 | `23505 trip_stops_one_en_route_per_trip_idx` | a invariante da D5                                                                                                                                                                                                                                     |
+| parada de **outra viagem** da mesma empresa                  | passa                                        | prova que o índice é por **viagem**, não por empresa — um índice por empresa pararia a frota inteira                                                                                                                                                   |
+| fechar a primeira e abrir a segunda                          | passa, e a contagem fica em 2                | é o que a entrega, o registro tardio e o "Cancelar rota" fazem (ADR-0088 §2)                                                                                                                                                                           |
+
+⚠️ **A viagem extra é criada pela própria função.** A primeira versão usou a `otherTripId` de
+`assertTripConstraints` e quebrou com `23503 trip_stops_company_trip_fk`: aquela viagem é **apagada** em
+`trip-constraints.assertion.ts:345`, de propósito, para provar a cascata. Achado pelo vermelho, não por
+leitura.
+
+O que a `stop-departure-rollback.assertion.ts` prova, em ordem: o journal tem a linha → roda o
+`rollback.sql` → os dois kinds sumiram e **a chegada ficou** → as quatro colunas caíram
+(`en_route_since`, `en_route_tapped_at`, `tapped_at`, `result_changed`) → o CHECK antigo voltou (inserir
+`departed` dá `23514`) → a linha do journal saiu → **a chave de idempotência sobreviveu** (`operation =
+'stop.depart'`, sem FK para o evento) → `runDatabaseMigrations` devolve o banco ao estado que o resto da
+suíte espera.
+
+### T1.2 — Schema, migration e rollback
+
+- `src/database/trip.schema.ts`: `TRIP_STOP_EVENT_KINDS` com os **dois** kinds, `tripStopEvents.tappedAt`,
+  `tripStops.enRouteSince`/`enRouteTappedAt`, os dois CHECKs, o `uniqueIndex` parcial e
+  `tripFieldReports.resultChanged`.
+- `drizzle/20260926140647_stop_departure/{migration.sql, rollback.sql, snapshot.json}`.
+- `test/database-migration/static-migration.contract.ts`: a pasta na lista fechada de diretórios
+  (sem isso o contrato reprova — a lista é exata).
+
+**Os dois kinds na mesma migration**, como a spec manda: o CHECK de `kind` é recriado **uma** vez.
+
+**`NOT VALID` + `VALIDATE CONSTRAINT` mantidos, e não por fé:** há precedente no repositório —
+`drizzle/20260918122304_trip_status_events/migration.sql:24-43` faz exatamente isso para seis CHECKs de
+`channel`, citando a ADR-0068 §3 ("a lista antiga é subconjunto da nova, e assim a varredura não segura
+ACCESS EXCLUSIVE durante o scan"). O `db:generate` gera `DROP … , ADD …` num statement só; a substituição
+é à mão, o que o repositório permite ("Migration à mão é permitida, sem snapshot não") e o
+`schema-snapshot.contract.ts` não impede — ele confere a **cadeia de snapshots** e se o último bate com o
+schema TS, nunca o texto do `migration.sql`.
+
+⚠️ **O worker ficou de fora, deliberadamente, e isto é um desvio do texto da task.** A T1.2 pedia "a
+cópia do schema no worker (`tapped_at`)". Não fiz, por três razões:
+
+1. `apps/worker-transportada/src/database/trip-execution.schema.ts:4-6` declara, no próprio arquivo, que
+   é cópia **"só das colunas que a rotina lê e apaga"**. `tapped_at` não é lida nem apagada por ela.
+2. A mudança é inerte de qualquer forma: o expurgo projeta só `id` e atualiza colunas nomeadas
+   (`trip-location-purge/infrastructure/drizzle-trip-location.repository.ts:25-37`), então o Drizzle
+   nunca emite `tapped_at` no SQL. Não há contrato de paridade de **presença** de coluna entre os dois
+   schemas — só o `trip-location-purge.integration.test.ts`, que insere colunas nomeadas à mão.
+3. **`tapped_at` não deve ser expurgada.** O expurgo dos 90 dias é da **coordenada** (ADR-0081 §6–§7);
+   `captured_at` vai junto porque "posição lida às 14h, sem posição" não é dado. O `tapped_at` não é
+   posição: é a âncora que ordena a fila e que a **207 lê como âncora de medição**. Pôr a coluna no
+   schema do expurgo convida alguém a apagá-la.
+
+Se a decisão for outra, é uma linha no arquivo do worker — está registrado aqui para poder ser
+revertida com uma frase.
+
+### T1.3 — **não feita, pendente de autorização**
+
+A contagem de `trip_stops` e `trip_stop_events` em **produção** (banco `Postgres-Hqfu`, nunca o serviço
+chamado "Postgres", que dá número falso) não foi feita: produção não se consulta sem o usuário saber.
+Fica pendente, e com ela ficam pendentes as duas confirmações que a task pedia:
+
+- **o `VALIDATE` imediato** — mitigado pelo `NOT VALID` + `VALIDATE` acima, que é o melhor que se faz sem
+  o número;
+- **o índice sem `concurrently`** — ⚠️ **nenhuma migration do repositório usa `CONCURRENTLY`** (conferido:
+  zero ocorrências em `drizzle/`), e não daria para usar sem sair do `migrate()`, que aplica o arquivo
+  como uma unidade. Com `trip_stops` pequena o `CREATE UNIQUE INDEX` é instantâneo; grande, ele segura
+  escrita na tabela durante o build. **É este o risco que a T1.3 existe para dimensionar.**
+
+### Gates da Fase 1
+
+| Gate                 | Comando                                                | Resultado                                                                                                              |
+| -------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Migration + rollback | **`make migration-test`**                              | **112 pass, 0 fail**, 8 arquivos, 48,4 s (era `111 pass, 1 fail`)                                                      |
+| `db:generate`        | `bun run --cwd apps/api-transportada db:generate`      | **`{"status":"no_changes"}`**, e nenhuma pasta nova                                                                    |
+| `db:check`           | `bun run --cwd apps/api-transportada db:check`         | `Everything's fine`                                                                                                    |
+| Contratos da API     | `bun --env-file=../../.env.test test --timeout 120000` | **7884 pass, 23 skip, 0 fail**, 186 arquivos                                                                           |
+| Integração da API    | `bun --env-file=../../.env.test run test:integration`  | **695 pass, 7 skip, 0 fail**, **132 arquivos**, 872 s (segunda execução; a primeira teve 1 falha alheia — nota abaixo) |
+| Typecheck            | `bun run typecheck` (raiz)                             | verde, 7 apps                                                                                                          |
+| Lint                 | `bun run lint` (raiz)                                  | verde, 7 apps                                                                                                          |
+| Formatação           | `bun run format:check` (raiz)                          | verde                                                                                                                  |
+
+**Sobre subir infra:** o Postgres local já estava de pé e é compartilhado com outras sessões
+(`transportada-local-postgres-1`, 127.0.0.1:55432, no ar havia 3 dias), então antes de invocar o alvo
+conferi que o `postgres-up` dele **não recriaria nada**: `docker compose --env-file .env -p
+transportada-local --dry-run up -d --wait postgres` respondeu `Running` / `Healthy`, sem `Creating`. O
+`COMPOSE_PROJECT_NAME` do `Makefile:6-8` sai do `PROJECT_NAME`/`APP_ENV` do `.env`, que aqui é link
+simbólico para a raiz — por isso o alvo reusa a stack existente em vez de criar uma paralela. A execução
+real confirmou: `Container transportada-local-postgres-1 Running / Waiting / Healthy`. Nada foi
+derrubado, nada foi recriado, nenhum volume novo.
+
+⚠️ **Os dois bancos são servidores diferentes, e isso importa para ler as falhas.** `make
+migration-test`/`db:test` usam o `DATABASE_URL` do `.env` → **55432** (`transportada-local-postgres-1`),
+criando banco descartável por execução (`withDisposableDatabase`). A integração usa `.env.test` →
+**65432** (`transportada-test-postgres-1`). Os dois podem correr ao mesmo tempo sem se ver.
+
+⚠️ **A integração falhou uma vez, e não é desta mudança.** Primeira execução completa:
+`694 pass, 7 skip, 1 fail` — `address components source > never reads the address of another company`,
+em **5001 ms**, cara de timeout redondo, e em área que esta spec não toca (`nfe_addresses`; a spec mexe em
+`trip_stops`, `trip_stop_events` e `trip_field_reports`). Rodado sozinho, o arquivo passa:
+`bun --env-file=../../.env.test test ./test/integration/address-components-source.integration.ts` →
+**4 pass, 0 fail**. O suspeito é o Postgres de teste da 65432, que já deu `I/O error` nesta máquina antes.
+**A segunda execução completa fechou em `695 pass, 7 skip, 0 fail`** (702 casos, 132 arquivos, 872 s) —
+sem nenhuma mudança de código entre as duas. Fica registrado como intermitência do ambiente, não como
+verde obtido por repetição de algo quebrado: o arquivo em questão não toca tabela nenhuma desta spec.
+
+### O que a Fase 1 deixa pronto, e o que ela deliberadamente não faz
+
+Existe schema e existe garantia; **não existe ainda quem escreva**. Nenhum caso de uso grava
+`en_route_since`, nenhuma rota responde `depart`, e `listStopEventRows` não mapeia os dois kinds — tudo
+isso é Fase 2. A migration é aditiva e pode subir sozinha (etapa 2 do roteiro da T0.2, junto da API), e
+enquanto a Fase 2 não sobe ela não muda nada do que o produto faz.

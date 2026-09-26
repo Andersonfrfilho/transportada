@@ -123,7 +123,10 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
 
 > 🤖 Modelo: `opus` 🧠 (constraint, índice e rollback destrutivo)
 
-- [ ] **T1.1** 🧠 Contratos antes (CA1).
+- [x] **T1.1** 🧠 Contratos antes (CA1). **Feita em 2026-09-26**, vermelho registrado no `evidence.md`
+      (`42703`, `tapped_at` não existe; `111 pass, 1 fail`). Um caso a mais do que a task pedia: a
+      **chegada sobre parada a caminho** também é recusada pelo `en_route_open_check` — é o inverso, e é
+      o que obriga os dois escritores de `arrived_at`/`completed_at` a zerar o "a caminho" (D4).
   - Em `test/database-migration/trip-constraints.assertion.ts` (hoje `:486-492`):
     - `departed` e `departure_cancelled` aceitos, `chegou` e `cancelado` recusados;
     - `trip_stops_en_route_open_check` recusa `en_route_since` com `arrived_at` e com `completed_at`;
@@ -135,8 +138,12 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T1.2** 🧠 `trip.schema.ts` e `drizzle/<ts>_stop_departure/{migration.sql, rollback.sql,
-snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
+- [x] **T1.2** 🧠 `trip.schema.ts` e `drizzle/<ts>_stop_departure/{migration.sql, rollback.sql,
+snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). **Feita em 2026-09-26**,
+      pasta `20260926140647_stop_departure`. ⚠️ **A cópia no worker NÃO foi feita**, de propósito e com
+      as três razões no `evidence.md` § "T1.2" — a principal é que `tapped_at` **não deve ser expurgada**
+      (o expurgo é da coordenada, e a 207 lê o `tapped_at` como âncora), e pôr a coluna no schema do
+      expurgo convida a apagá-la. Reverter é uma linha, se a decisão for outra.
   - **Os dois kinds na mesma migration** (`departed` e `departure_cancelled`): recriar o CHECK duas
     vezes seria trabalho e risco de graça.
   - Conferir antes o número da migration em `origin/staging`: outras sessões geram migrations, e a
@@ -145,7 +152,11 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
   **Aceite:** T1.1 verde, os dois comandos da API, `make migration-test` e `db:generate` =
   no_changes.
 
-- [ ] **T1.3** Medir em produção, no banco `Postgres-Hqfu` e só com `count(*)`, as tabelas
+- [ ] **T1.3** ⏸️ **PENDENTE DE AUTORIZAÇÃO DO USUÁRIO** (2026-09-26) — produção não se consulta sem ele
+      saber. A migration subiu com o `NOT VALID` + `VALIDATE` (o melhor sem o número) e com o índice
+      **sem** `concurrently`, que é o padrão do repositório (zero `CONCURRENTLY` em `drizzle/`). O risco
+      que esta task dimensiona está escrito no `evidence.md` § "T1.3".
+      Medir em produção, no banco `Postgres-Hqfu` e só com `count(*)`, as tabelas
       `trip_stops` e `trip_stop_events`. Confirmar ou trocar o `VALIDATE` imediato e o índice sem
       `concurrently`. **Aceite:** números e decisão no `evidence.md`.
 

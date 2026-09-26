@@ -560,6 +560,18 @@ export const tripStops = pgTable(
     label: text().notNull(),
     arrivedAt: timestamp('arrived_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    /**
+     * Spec 206 D1 (ADR-0088 §2/§8): "a caminho desta parada". `en_route_since` é hora do **servidor**;
+     * `en_route_tapped_at`, a hora do aparelho no toque — a âncora que a 207 lê. As duas nascem nulas, e
+     * o estado é coluna em vez de derivação do último `departed` porque sem constraint dois celulares
+     * deixam duas paradas a caminho e a leitura pagaria a consulta.
+     *
+     * ⚠️ **Toda escrita de `arrived_at` ou `completed_at` zera as duas no mesmo `UPDATE`** — o
+     * `trip_stops_en_route_open_check` não deixa ser de outro jeito, e é isso que um contrato estático
+     * vigia nos dois únicos escritores daquelas colunas (D4).
+     */
+    enRouteSince: timestamp('en_route_since', { withTimezone: true }),
+    enRouteTappedAt: timestamp('en_route_tapped_at', { withTimezone: true }),
     deliveryWindowStart: timestamp('delivery_window_start', { withTimezone: true }),
     deliveryWindowEnd: timestamp('delivery_window_end', { withTimezone: true }),
     /**
@@ -611,6 +623,30 @@ export const tripStops = pgTable(
       'trip_stops_completed_requires_arrived_check',
       sql`${table.completedAt} is null or ${table.arrivedAt} is not null`,
     ),
+    /**
+     * Spec 206 D1: "a caminho" só existe em parada **aberta e sem chegada**. Quem chegou não está mais
+     * a caminho, e quem concluiu muito menos — deixar o estado para trás seria o painel dizendo que o
+     * caminhão está indo para uma parada já entregue.
+     */
+    check(
+      'trip_stops_en_route_open_check',
+      sql`${table.enRouteSince} is null or (${table.arrivedAt} is null and ${table.completedAt} is null)`,
+    ),
+    /** A hora do toque sem a hora do servidor é metade de um dado: não existe toque sem saída. */
+    check(
+      'trip_stops_en_route_tapped_check',
+      sql`${table.enRouteTappedAt} is null or ${table.enRouteSince} is not null`,
+    ),
+    /**
+     * Spec 206 D1/D5: **uma parada a caminho por viagem**, e é o banco que garante. Parcial sobre o não
+     * nulo, então parada sem saída não entra no índice. Ele é a rede de segurança, não o caminho normal:
+     * a trava das paradas serializa a leitura antes, para o toque perdedor receber `409` e não o `500`
+     * de uma violação. Não existe `catch` de `23505` — numa transação abortada não haveria o que
+     * executar.
+     */
+    uniqueIndex('trip_stops_one_en_route_per_trip_idx')
+      .on(table.companyId, table.tripId)
+      .where(sql`${table.enRouteSince} is not null`),
     // Coordenada é par: meia coordenada não localiza nada, e a precisão descreve o par
     check(
       'trip_stops_coordinates_check',
@@ -983,7 +1019,20 @@ export const deliveryAddressOverrides = pgTable(
  * É desta tabela que sai o tempo real de atendimento por parada — a medição que a 058 lê hoje de
  * colunas que ninguém escrevia, e que a 060 vai ler depois.
  */
-export const TRIP_STOP_EVENT_KINDS = ['arrived', 'delivered', 'returned', 'occurrence'] as const
+/**
+ * Spec 206 D1/D18 (ADR-0088 §1/§2b): `departed` é a saída **para** a parada, e `departure_cancelled`
+ * desfaz a saída sem apagar nada — o `departed` fica, e é ele que explica ao escritório a mudança de
+ * destino. Grafia `cancelled` com dois `l`, a do repositório. Os dois entram na **mesma** migration:
+ * recriar o CHECK duas vezes seria trabalho e risco de graça.
+ */
+export const TRIP_STOP_EVENT_KINDS = [
+  'arrived',
+  'delivered',
+  'returned',
+  'occurrence',
+  'departed',
+  'departure_cancelled',
+] as const
 export type TripStopEventKind = (typeof TRIP_STOP_EVENT_KINDS)[number]
 
 export const tripStopEvents = pgTable(
@@ -1004,6 +1053,13 @@ export const tripStopEvents = pgTable(
     accuracyMeters: numeric('accuracy_meters', { precision: 10, scale: 2 }),
     /** A hora do aparelho quando a posição foi lida — não a hora em que o evento chegou ao servidor. */
     capturedAt: timestamp('captured_at', { withTimezone: true }),
+    /**
+     * Spec 206 D3 (ADR-0088 §4): a hora do aparelho **no toque**, que não é a do `captured_at` (leitura
+     * do GPS, que pode nem existir) nem a do servidor. É ela que ordena a fila: o item recusado não é
+     * descartado, o reenvio manual chega fora de ordem, e sem o `tapped_at` um toque velho marcaria a
+     * parada errada. Anulável: todo evento anterior a esta spec não tem.
+     */
+    tappedAt: timestamp('tapped_at', { withTimezone: true }),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /** ADR-0067 §2: quem gravou. Sem backfill: o default descreve o histórico. */
@@ -1295,6 +1351,13 @@ export const tripFieldReports = pgTable(
     /** A rota que consumiu a chave: a mesma chave em ações diferentes é erro do cliente, não repetição. */
     operation: text().notNull(),
     resultId: uuid('result_id'),
+    /**
+     * Spec 206 M3 (ADR-0088 §1): o desfecho do toque, e não só o id do que ele criou. Toque sem efeito
+     * não grava evento, mas **liquida a chave** com `false` — é isso que faz o reenvio repetir
+     * `changed: false` em vez de decidir de novo sobre um estado que já mudou. Anulável: toda linha
+     * anterior a esta spec não tem desfecho registrado.
+     */
+    resultChanged: boolean('result_changed'),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /**
