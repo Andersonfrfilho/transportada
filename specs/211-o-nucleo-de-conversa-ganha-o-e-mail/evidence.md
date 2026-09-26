@@ -510,3 +510,83 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
   `UpdateMessageStatusParams` com um `providerMessageId` opcional (ou método dedicado) para o
   `SendMessageUseCase` fechar; registrado aqui para não parecer retrabalho silencioso quando a
   T206 tocar `repositories/ports.ts` de novo.
+
+### T206 — os casos de uso e a factory `createConversationModule`
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-module/src/` e `packages/backend/conversation-contracts/src/`.
+- **Commit:** `748f91e`
+  (`feat(conversation-module): casos de uso e a factory createConversationModule (T206)`).
+- Fechou a decisão pendente da T205: `UpdateMessageStatusParams` ganhou `providerMessageId?`
+  (`repositories/ports.ts`), e `MessageRepository`/o dublê em memória passaram a gravá-lo quando
+  presente — é o que o `SendMessageUseCase` usa para anexar o id do provedor sem um segundo método
+  de porta.
+- `Conversation.use-cases.ts` (`OpenConversationUseCase`), `Message.use-cases.ts`
+  (`SendMessageUseCase`, `ReceiveMessageUseCase`, `UpdateMessageStatusUseCase`,
+  `ListConversationMessagesUseCase`) e `Read.use-cases.ts` (`MarkConversationReadUseCase`)
+  implementam exatamente o que a T205 testou — os 3 arquivos de teste que estavam vermelhos
+  ficaram verdes sem alteração de asserção.
+- `errors.ts`: hierarquia própria do módulo (`ConversationModuleError`), molde de
+  `notification-contracts/errors.ts` — `ChannelPortNotConfiguredError` (canal sem porta, usado pelo
+  `SendMessageUseCase`), `ConversationNotFoundError`, `MessageNotFoundError` (usado pelo
+  `MarkConversationReadUseCase` quando o `lastReadMessageId` não existe), `ConfigMissingError`, e
+  três erros reservados para T209/T210 (`AttachmentsDisabledError`, `AttachmentTypeMismatchError`,
+  `AttachmentTooLargeError`) e dois para o upload em dois passos (`UploadNotFoundError`,
+  `UploadExpiredError`) — declarados agora porque a hierarquia é um único arquivo, mas ainda não
+  lançados por nenhum caso de uso desta task.
+- `ConversationModule.ts`: `createConversationModule({ config, features, providers })`.
+  `ConversationModuleConfig`/`ConversationModuleFeatures` são `Record<string, never>` — reservados,
+  vazios de propósito, porque o que liga/desliga canal e recurso é sempre a porta em `providers`,
+  nunca uma flag (ADR-0051 §4). `providers.channels` tem o tipo
+  `Partial<Record<Exclude<ConversationChannel,'email'>, ConversationChannelPort>>` — `email` não é
+  membro comum do mapa de canais porque o transporte dele é outra porta
+  (`ConversationEmailTransportPort`, com assunto e threading, ainda não consumida por nenhum caso
+  de uso desta task). `enabledChannels` é derivado: as chaves de `providers.channels` mais `'email'`
+  só quando `providers.emailTransport` vem preenchido. Instanciei só os repositórios que os seis
+  casos de uso desta task consomem (`conversations`, `messages`, `reads`) — `Attachment`/
+  `Unassigned`/`QuickReply` ficam para T208/T210/T211, para o factory não carregar dependência que
+  nada usa ainda.
+- `conversation-contracts/src/requestSchemas.ts`: os quatro schemas `.strict()` que o
+  `strictness.test.ts` (T203) importa — `openConversationBodySchema`, `sendMessageBodySchema`,
+  `markConversationReadBodySchema`, `quickReplyBodySchema`. `channel` é tipado `z.string()`, não o
+  enum do vocabulário — o teste de tipo do T203 exige `Exact<SendMessageBody['channel'], string>`,
+  e um `z.enum(...)` infere o tipo literal da união, não `string`, o que quebraria a asserção
+  (mesmo padrão de `notification-contracts/strictness.test.ts`, que só faz o `Exact` contra `string`
+  nos campos que já eram `z.string()`). `quickReplyBodySchema.bodyText` tem teto fixo `500` (não
+  importa `CONVERSATION_QUICK_REPLY_MAX_LENGTH` do module — contracts nunca depende de module,
+  sentido inverso da dependência real do monorepo; comentário no arquivo registra a duplicação
+  intencional).
+- **O vermelho da T203 fechou aqui** — confirmado pelo `test` abaixo: os 30 testes de
+  `conversation-contracts` (que tinham 1 fail/1 error) foram para 38 pass (os 8 novos são os do
+  próprio `requestSchemas.ts`/`strictness.test.ts`, mais 0 novos de regressão).
+- **Verde:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run check
+  tsc -p tsconfig.json --noEmit   (sem saída)
+
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+   35 pass
+   0 fail
+   664 expect() calls
+  Ran 35 tests across 6 files. [44.00ms]
+
+  $ pnpm --filter @adatechnology/conversation-module run build
+  ... DTS ⚡️ Build success in 1534ms (dist/index.js, dist/testing/index.js, .d.ts de ambos)
+
+  $ pnpm --filter @adatechnology/conversation-contracts run check
+  tsc -p tsconfig.json --noEmit   (sem saída)
+
+  $ pnpm --filter @adatechnology/conversation-contracts run test
+  bun test v1.3.14 (0d9b296a)
+   38 pass
+   0 fail
+   131 expect() calls
+  Ran 38 tests across 6 files. [22.00ms]
+  ```
+
+- Decisão: não criei nenhuma rota HTTP nem wiring de `module-http` nesta task — a task pede só "os
+  casos de uso e a factory". Rotas ficam para a Fase 5 (consumo pelo TransportAdA), no mesmo
+  desenho que `notification-module/NotificationModule.ts` reserva `routes`/`worker` para depois.

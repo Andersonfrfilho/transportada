@@ -71,7 +71,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T204** `sonnet` — Repositórios atrás de porta. (RF6)
 - [x] **T205** `sonnet` — Teste dos casos de uso: abrir, enviar, receber, atualizar status, marcar
       lido, listar. (RF6)
-- [ ] **T206** `sonnet` — Os casos de uso e a factory
+- [x] **T206** `sonnet` — Os casos de uso e a factory
       `createConversationModule({ config, features, providers })`. **Porta ausente desliga o
       recurso**, nunca flag `hasX` (ADR-0051 §4). (RF6, RNF2)
 - [ ] **T207** `sonnet` — Teste da **atribuição genérica**: por referência de resposta; sem ela,
