@@ -15,6 +15,7 @@ import {
   TripDocumentNotFoundError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
+  TripVehicleNotFoundError,
 } from '../domain/trip.error.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
@@ -151,6 +152,11 @@ export function createTripUseCase(dependencies: {
     async create({ context, dailyAllowanceDays, driverIds, vehicleId }) {
       const companyId = context.companyId
       const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
+      /**
+       * `CreateTripInput.vehicleId` ainda é obrigatório nesta fase (spec 216 Fase 2 o torna
+       * opcional) — `null` aqui seria uma inconsistência interna, nunca uma viagem sem veículo.
+       */
+      if (vehicle === null) throw new TripVehicleNotFoundError()
       const crew = await resolveTripCrewForCreation({ companyId, driverIds, repository })
       return repository.create({
         actorUserId: context.userId,

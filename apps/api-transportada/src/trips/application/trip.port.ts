@@ -82,7 +82,8 @@ export type Trip = {
   readonly requiresMdfeReason: null | string
   readonly status: TripStatus
   readonly updatedAt: string
-  readonly vehicleId: string
+  /** Spec 216: `null` é "aguardando definição" (`status: 'awaiting_crew'`). */
+  readonly vehicleId: string | null
 }
 
 /**
@@ -301,7 +302,7 @@ export type CreateTripRecord = {
   readonly companyId: string
   readonly crew: readonly TripDriverLine[]
   readonly dailyAllowanceDays?: number
-  readonly vehicleId: string
+  readonly vehicleId: string | null
 }
 
 /**
