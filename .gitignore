@@ -30,6 +30,8 @@ specs/*/samples/
 # negação só funciona com `.omc/*` — `.omc/` sozinho tornaria a exceção inalcançável.
 .omc/*
 !.omc/skills/
+# O plugin também cria `.omc/state` dentro de cada app quando a sessão roda de lá: só estado.
+apps/*/.omc/
 .omo/
 deploy/osrm/data/
 !deploy/osrm/data/.gitkeep
