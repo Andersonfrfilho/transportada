@@ -45,15 +45,15 @@ sem esperar um refresh de página inteira.
 
 ## Fora do escopo
 
-| Item                                                                                                                | Motivo                                                                                                                                                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sincronização automática (webhook/poll) do cadastro para dentro da viagem                                           | Decisão do dono do produto (2026-09-26): só manual, por botão — evita recálculo silencioso de custo/pedágio no meio da operação.                                                                                                 |
-| Botão de atualizar **grava** o dado congelado da viagem (`trip_drivers.driverName`/`driverTaxId`, dados do veículo) | Decisão do dono do produto (2026-09-26): os três botões só recarregam a listagem em tela (refetch), não regravam o congelado da viagem. Corrigir o congelado é ação de definir/trocar motorista e veículo, não de "sincronizar". |
-| Trocar motorista/veículo de uma viagem que **já tem os dois definidos**                                             | Decisão do dono do produto (2026-09-26): ação separada de "editar/trocar", com seu próprio fluxo — fora desta spec.                                                                                                              |
-| Sugestão automática de motorista/veículo pelo solver                                                                | Já decidido fora de escopo pela 081; o par continua decisão humana.                                                                                                                                                              |
-| Tripulação de mais de um motorista nascendo já na criação                                                           | A 081 já limita a um motorista por veículo nesse caminho; o segundo entra pela tela da viagem, como hoje.                                                                                                                        |
-| Emitir MDF-e/CT-e de viagem sem crew completo                                                                       | Já impossível hoje (`MdfeManifestCrewRequiredError`) e continua assim — não muda.                                                                                                                                                |
-| Reabrir viagem já despachada para definir/trocar crew                                                               | `dispatched` é porta de não-retorno (ADR-0043/ADR-0068); definir crew só vale em `awaiting_crew`.                                                                                                                                |
+| Item                                                                                                                | Motivo                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sincronização automática (webhook/poll) do cadastro para dentro da viagem                                           | Decisão do dono do produto (2026-09-26): só manual, por botão — evita recálculo silencioso de custo/pedágio no meio da operação.                                                                                                                                                                                                                                                                            |
+| Botão de atualizar **grava** o dado congelado da viagem (`trip_drivers.driverName`/`driverTaxId`, dados do veículo) | Decisão do dono do produto (2026-09-26): os três botões só recarregam a listagem em tela (refetch), não regravam o congelado da viagem. Corrigir o congelado é ação de definir/trocar motorista e veículo, não de "sincronizar".                                                                                                                                                                            |
+| Trocar motorista/veículo de uma viagem **já `route_planned` ou depois**                                             | Revisão do dono do produto no mesmo dia: a troca antes de `route_planned` (viagem `draft`) entrou no escopo desta spec (`PATCH /trips/:id/crew`, D5) — nada foi congelado ainda naquele ponto. Depois de `route_planned`, `trips.planned_toll` já foi congelado a partir do veículo antigo (`freezeTripPlannedRoute`), e a troca continua bloqueada até uma spec própria decidir como recongelar o pedágio. |
+| Sugestão automática de motorista/veículo pelo solver                                                                | Já decidido fora de escopo pela 081; o par continua decisão humana.                                                                                                                                                                                                                                                                                                                                         |
+| Tripulação de mais de um motorista nascendo já na criação                                                           | A 081 já limita a um motorista por veículo nesse caminho; o segundo entra pela tela da viagem, como hoje.                                                                                                                                                                                                                                                                                                   |
+| Emitir MDF-e/CT-e de viagem sem crew completo                                                                       | Já impossível hoje (`MdfeManifestCrewRequiredError`) e continua assim — não muda.                                                                                                                                                                                                                                                                                                                           |
+| Reabrir viagem já despachada para definir/trocar crew                                                               | `dispatched` é porta de não-retorno (ADR-0043/ADR-0068); definir crew só vale em `awaiting_crew`.                                                                                                                                                                                                                                                                                                           |
 
 ## Decisões
 
@@ -88,14 +88,23 @@ vinha só da criação. Com criação permitindo `awaiting_crew`, esse gate prec
 sem motorista **e** veículo definidos não é elegível a `tryAutoDispatchTrip`, e despacho manual
 (`dispatch-trip.use-case.ts`) recusa com erro de negócio nomeado (não 500, não silêncio).
 
-### D5 — Definir crew pela primeira vez é ação nova, distinta de "sincronizar" e de "trocar"
+### D5 — Definir crew pela primeira vez, e trocar enquanto `draft`, são a mesma rota
 
-Nasce uma rota (`PATCH /trips/:id/crew` ou equivalente) que só aceita viagem em `awaiting_crew`,
-recebe `driverIds`/`vehicleId` (mesma validação de duplicidade e disponibilidade já usada na
-criação, via `resolveTripCrewForCreation`/`resolveTripVehicleForCreation`) e, ao ter pelo menos um
-motorista **e** um veículo, transiciona a viagem para `draft`. Definir parcialmente (só motorista,
-ou só veículo) é permitido e **mantém** `awaiting_crew` — a viagem só avança quando os dois estão
-completos, o mesmo mínimo que `createTripSchema` já exige hoje para uma viagem `draft`.
+Nasce `PATCH /trips/:id/crew`, recebendo `driverIds`/`vehicleId` (mesma validação de duplicidade e
+disponibilidade já usada na criação, via `resolveTripCrewForCreation`/
+`resolveTripVehicleForCreation`). Duas viagens de entrada:
+
+- **`awaiting_crew`**: ao ter pelo menos um motorista **e** um veículo, transiciona para `draft`.
+  Definir parcialmente (só motorista, ou só veículo) é permitido e **mantém** `awaiting_crew` — a
+  viagem só avança quando os dois estão completos, o mesmo mínimo que `createTripSchema` já exige
+  hoje para uma viagem `draft`.
+- **`draft`** (revisão do dono do produto, mesmo dia): a mesma rota também **troca** motorista e/ou
+  veículo já definidos, sem mudar de status (`unchanged`) — antes de `route_planned`, nada
+  calculado a partir do veículo (pedágio) foi congelado ainda, então a troca não deixa número velho
+  para trás. **A partir de `route_planned` a troca continua bloqueada** (`TRIP_CREW_ALREADY_DEFINED`):
+  `freezeTripPlannedRoute` já gravou `trips.planned_toll` com o eixo do veículo antigo, e só um
+  replanejamento de rota corrige isso — automatizar esse recongelamento é decisão de uma spec
+  própria, não desta.
 
 ### D6 — Os três botões de "atualizar" são leitura, não escrita
 

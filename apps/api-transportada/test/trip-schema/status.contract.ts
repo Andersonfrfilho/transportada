@@ -9,8 +9,9 @@ import { checkSqlByName, columnSqlTypes, requiredColumnNames } from '../fiscal-s
 
 describe('trip status machine (ADR-0042)', () => {
   /* ADR-0058 acrescentou `on_delivery_route`: a viagem na estrada, que a derivação não enxergava. */
-  test('replaces the binary open/closed cycle with the nine operational states', () => {
+  test('replaces the binary open/closed cycle with the ten operational states', () => {
     expect(TRIP_STATUSES).toEqual([
+      'awaiting_crew',
       'draft',
       'route_planned',
       'separating',

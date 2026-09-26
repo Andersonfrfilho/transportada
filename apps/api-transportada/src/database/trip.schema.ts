@@ -63,8 +63,13 @@ export type TripFieldChannel = (typeof TRIP_FIELD_CHANNELS)[keyof typeof TRIP_FI
  * ADR-0043 §1: a viagem não fala com a SEFAZ, mas tem fases de barracão que `open|closed` não
  * representava. O estado é derivado do das notas em toda transição, exceto as quatro manuais
  * (draft, route_planned, dispatched, cancelled).
+ *
+ * Spec 216: `awaiting_crew` entra ANTES de `draft` — a viagem pode nascer sem motorista nem
+ * veículo, e só chega a `draft` quando os dois forem definidos. `draft` continua significando
+ * "tripulação montada, falta planejar rota"; nenhuma regra existente sobre `draft` muda de sentido.
  */
 export const TRIP_STATUSES = [
+  'awaiting_crew',
   'draft',
   'route_planned',
   'separating',
@@ -202,7 +207,11 @@ export const trips = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    vehicleId: uuid('vehicle_id').notNull(),
+    /**
+     * Spec 216: `null` é "aguardando definição" (`status: 'awaiting_crew'`) — a viagem pode nascer
+     * sem veículo quando motorista/agregado ainda não está pronto.
+     */
+    vehicleId: uuid('vehicle_id'),
     status: text().$type<TripStatus>().notNull().default('draft'),
     fiscalReadinessState: text('fiscal_readiness_state')
       .$type<TripFiscalReadinessState>()
