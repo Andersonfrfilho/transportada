@@ -1,6 +1,15 @@
 # ADR-0072 — A conversa multicanal vem do pacote; quem conversa com quem fica no produto
 
-- **Status:** aceito (2026-09-24)
+- **Status:** aceito (2026-09-24), **revisto em parte pela ADR-0075** (2026-09-26)
+
+> ⚠️ **Dois pontos desta ADR não valem mais**, e quem ler precisa saber antes de seguir o texto
+> abaixo: as tabelas da conversa **passam a ser do núcleo**, não do produto, e o transporte do
+> e-mail da 143 **vira porta do núcleo** exigida de quem ligar o canal. O resto continua de pé —
+> inclusive quem é a contratante e o motorista, a atribuição concreta, as permissões, o `companyId`
+> e o estilo no produto. A tabela do que mudou está em
+> `0075-o-nucleo-de-conversa-e-um-pacote-e-o-assunto-e-do-produto.md` § "O que esta ADR muda na
+> ADR-0072".
+
 - **Data:** 2026-09-24
 - **Contexto:** spec 183. Depende da ADR-0051 (a tela de conversa vem do pacote) e de duas ADRs que
   dividem o número 0063: `0063-a-resposta-por-e-mail-decide-a-taxa.md` e

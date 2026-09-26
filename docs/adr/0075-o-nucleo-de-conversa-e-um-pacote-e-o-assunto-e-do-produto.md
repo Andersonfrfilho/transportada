@@ -1,6 +1,6 @@
 # ADR-0075 — O núcleo de conversa é um pacote próprio, e o assunto da conversa é do produto
 
-- **Status:** proposto (2026-09-26)
+- **Status:** aceito (2026-09-26) — aval do dono do projeto em 26/09/2026
 - **Data:** 2026-09-26
 - **Contexto:** spec 184. Cumpre a condição que a **ADR-0072** deixou escrita ("se um núcleo de
   conversa comum aos canais se provar necessário, ele nasce como pacote próprio, com ADR própria") e
