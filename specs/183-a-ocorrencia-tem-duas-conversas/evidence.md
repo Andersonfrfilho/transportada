@@ -2536,6 +2536,15 @@ spec: todas esperam uma decisão ou uma ação do usuário.
     `occurrence-conversation-attachment.integration.ts`. Os dois contratos que fixam a versão
     auditada do pacote (`certificate-validation-gateway`, `nfe-storage-gateway`) passaram para
     `0.3.1`. O `bun.lock` mudou **só** esse pacote — conferido no diff.
+  - **Rodado:** contratos da API **7598 pass, 23 skip, 0 fail**; lint, typecheck e formatação
+    limpos. A integração completa deu **613 pass, 7 skip, 4 fail** — mas a corrida começou com o
+    object storage fora (o container reiniciou e derrubou o Docker; o MinIO não volta porque
+    `quay.io` responde 403, e o SeaweedFS que o substitui subiu no meio da corrida). Os quatro
+    arquivos afetados (`cte-archive-gateway`, `extra-charge-batch`) foram rodados de novo com o
+    storage de pé: **8 pass, 0 fail**. Nenhum deles toca o que esta mudança mexeu.
+  - ⚠️ Duas armadilhas conhecidas repetidas aqui, e registradas para a próxima pessoa: rodar a
+    integração **sem `--env-file`** devolveu "86 pass, 548 skip" (pular não é passar), e subir o
+    Postgres de desenvolvimento (55432) não serve para a suíte, que usa o de teste (65432).
   - ⚠️ O `worker-transportada` segue em `0.2.0-rc.0` deste pacote. Não foi tocado aqui: quem assina
     a URL de upload é a API. Fica anotado como dívida à parte.
 - **A origem do bucket nos frontends (26/09/2026):**
