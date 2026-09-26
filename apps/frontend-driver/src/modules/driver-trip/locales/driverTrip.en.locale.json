@@ -143,7 +143,10 @@
     }
   },
   "progress": {
-    "label": "{{resolved}} of {{total}} stops resolved"
+    "label": "{{resolved}} of {{total}} stops resolved",
+    "percent": "{{percent}}% of the trip",
+    "notes_one": "{{resolved}} of {{count}} invoice resolved",
+    "notes_other": "{{resolved}} of {{count}} invoices resolved"
   },
   "proof": "Attach proof",
   "proofCapture": {

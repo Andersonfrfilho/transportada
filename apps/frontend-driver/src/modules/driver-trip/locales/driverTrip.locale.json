@@ -151,7 +151,10 @@
     }
   },
   "progress": {
-    "label": "{{resolved}} de {{total}} paradas resolvidas"
+    "label": "{{resolved}} de {{total}} paradas resolvidas",
+    "percent": "{{percent}}% da viagem",
+    "notes_one": "{{resolved}} de {{count}} nota resolvida",
+    "notes_other": "{{resolved}} de {{count}} notas resolvidas"
   },
   "proof": "Anexar canhoto",
   "proofCapture": {
