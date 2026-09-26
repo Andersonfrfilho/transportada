@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 183 T702e, contra Postgres e o S3 de verdade: o e-mail que o operador manda à contratante sai
+ * Spec 183 T702e, contra Postgres (o storage é o dublê em memória): o e-mail que o operador manda à contratante sai
  * com os arquivos ligados à mensagem da conversa (a API liga; o worker acha pela `mail_message_id`),
  * lidos do bucket e conferidos pelo `sha256`. Outra empresa não enxerga os anexos; objeto sumido
  * falha o envio em vez de sair sem o arquivo. O Resend é um `fetch` falso que guarda o corpo.
@@ -16,30 +16,29 @@ import { sendContractorMailOutboundMessage } from '../../src/contractor-mail/app
 import { createDrizzleContractorMailOutboundWorkerRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 import { createResendMailGateway } from '../../src/contractor-mail/infrastructure/resend-mail.gateway.js'
 import { CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
+import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 import { createContractorMailOutboundAttachments } from '../../src/occurrence-conversation/infrastructure/drizzle-conversation-mail-attachments.repository.js'
-import { createNfeStorageGatewayFromEnvironment } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
+import { createNfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 
 const databaseUrl = process.env.DATABASE_URL
-const bucket = process.env.STORAGE_BUCKET ?? process.env.OBJECT_STORAGE_BUCKET
-const describeIntegration =
-  databaseUrl !== undefined && bucket !== undefined ? describe : describe.skip
+const bucket = 'transportada-test'
+/** Só o banco é infraestrutura real: o storage é o dublê em memória, que o CI não sobe. */
+const describeIntegration = databaseUrl !== undefined ? describe : describe.skip
 
 const PDF = new TextEncoder().encode('%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n')
 
 describeIntegration('o e-mail da conversa sai com os anexos (spec 183 T702e)', () => {
   const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
   const database = provider.db
-  const storage = createNfeStorageGatewayFromEnvironment({
-    environment: process.env,
-    finalBucket: bucket as string,
-    stagingBucket: bucket as string,
+  const storage = createNfeStorageGateway({
+    provider: createInMemoryObjectStorageProvider({ maxObjectSizeBytes: 25 * 1024 * 1024 }),
+    finalBucket: bucket,
+    stagingBucket: bucket,
   })
   const keys: string[] = []
 
   afterAll(async () => {
-    await Promise.allSettled(
-      keys.map((key) => storage.deleteObject({ bucket: bucket as string, key })),
-    )
+    await Promise.allSettled(keys.map((key) => storage.deleteObject({ bucket, key })))
     await provider.close?.()
   })
 
@@ -84,7 +83,7 @@ describeIntegration('o e-mail da conversa sai com os anexos (spec 183 T702e)', (
       keys.push(key)
       await storage.storeObject({
         body: PDF,
-        bucket: bucket as string,
+        bucket,
         contentLength: PDF.byteLength,
         contentType: 'application/pdf',
         key,

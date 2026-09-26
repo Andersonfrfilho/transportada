@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 183 T702c2, contra Postgres e o armazenamento S3 de verdade: o pedido de upload do anexo da
+ * Spec 183 T702c2, contra Postgres (o storage é o dublê em memória): o pedido de upload do anexo da
  * conversa que venceu sem virar anexo tem o objeto apagado do bucket e passa a `expired`; o que
  * nunca chegou a subir também fecha, sem erro; o recente e o já ligado (`attached`) ficam intocados.
  */
@@ -9,15 +9,16 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 import type { JobRoutineContext } from '../../src/job-run/application/job-routine.port.js'
 import { createOccurrenceConversationUploadExpireRoutine } from '../../src/occurrence-conversation-upload-expire/application/occurrence-conversation-upload-expire.routine.js'
 import { createDrizzleExpireConversationUploadBatch } from '../../src/occurrence-conversation-upload-expire/infrastructure/drizzle-occurrence-conversation-upload-expire.repository.js'
-import { createNfeStorageGatewayFromEnvironment } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
+import { createNfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 
 const databaseUrl = process.env.DATABASE_URL
-const bucket = process.env.STORAGE_BUCKET ?? process.env.OBJECT_STORAGE_BUCKET
-const describeIntegration =
-  databaseUrl !== undefined && bucket !== undefined ? describe : describe.skip
+const bucket = 'transportada-test'
+/** Só o banco é infraestrutura real: o storage é o dublê em memória, que o CI não sobe. */
+const describeIntegration = databaseUrl !== undefined ? describe : describe.skip
 
 const SILENT = {
   debug: () => undefined,
@@ -43,10 +44,10 @@ describeIntegration('expiração do pedido de upload do anexo da conversa (spec 
   const occurrenceId = crypto.randomUUID()
   const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
   const db = provider.db
-  const storage = createNfeStorageGatewayFromEnvironment({
-    environment: process.env,
-    finalBucket: bucket as string,
-    stagingBucket: bucket as string,
+  const storage = createNfeStorageGateway({
+    provider: createInMemoryObjectStorageProvider({ maxObjectSizeBytes: 25 * 1024 * 1024 }),
+    finalBucket: bucket,
+    stagingBucket: bucket,
   })
   const ids = { attached: '', fresh: '', neverUploaded: '', uploaded: '' }
   const keys = { attached: '', fresh: '', neverUploaded: '', uploaded: '' }
@@ -73,7 +74,7 @@ describeIntegration('expiração do pedido de upload do anexo da conversa (spec 
     const bytes = new TextEncoder().encode(`%PDF-${key}`)
     await storage.storeObject({
       body: bytes,
-      bucket: bucket as string,
+      bucket,
       contentLength: bytes.byteLength,
       contentType: 'application/pdf',
       key,
@@ -122,11 +123,9 @@ describeIntegration('expiração do pedido de upload do anexo da conversa (spec 
     expect(await statusOf(ids.neverUploaded)).toEqual({ status: 'expired' })
     expect(await statusOf(ids.fresh)).toEqual({ status: 'pending' })
     expect(await statusOf(ids.attached)).toEqual({ status: 'attached' })
-    expect(
-      await storage.headObject({ bucket: bucket as string, key: keys.uploaded }),
-    ).toBeUndefined()
-    expect(await storage.headObject({ bucket: bucket as string, key: keys.fresh })).toBeDefined()
-    expect(await storage.headObject({ bucket: bucket as string, key: keys.attached })).toBeDefined()
+    expect(await storage.headObject({ bucket, key: keys.uploaded })).toBeUndefined()
+    expect(await storage.headObject({ bucket, key: keys.fresh })).toBeDefined()
+    expect(await storage.headObject({ bucket, key: keys.attached })).toBeDefined()
 
     /** Rodar de novo não muda nada: o vencido já está `expired`. */
     await routine.run(CONTEXT)
