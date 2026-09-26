@@ -2,8 +2,11 @@
 import { Fragment, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Icon, type IconName } from '@/components/ui/icon'
 
+import { AggregateRejectionDialog } from './AggregateRejectionDialog.component'
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 import type {
   AggregateDocumentForReview,
@@ -19,7 +22,29 @@ const TYPE_ICON: Readonly<Record<AggregateDocumentType, IconName>> = {
   crlv: 'workspace-fleet',
 }
 
-type RejectDialogState = Readonly<{ documentId: string; reason: string }> | null
+type SortColumn = 'status' | 'type'
+type SortState = Readonly<{ column: SortColumn; direction: 'asc' | 'desc' }> | null
+const SORT_INDICATOR = { ascending: '▲', descending: '▼', none: '' } as const
+
+/** Terceiro clique no cabeçalho volta à ordem natural — sem ele não há como desfazer a ordenação. */
+function nextSort(current: SortState, column: SortColumn): SortState {
+  if (current === null || current.column !== column) return { column, direction: 'asc' }
+  if (current.direction === 'asc') return { column, direction: 'desc' }
+  return null
+}
+
+function sortDocuments(
+  documents: readonly AggregateDocumentForReview[],
+  sort: SortState,
+): readonly AggregateDocumentForReview[] {
+  if (sort === null) return documents
+  const direction = sort.direction === 'asc' ? 1 : -1
+  return [...documents].sort(
+    (left, right) => left[sort.column].localeCompare(right[sort.column]) * direction,
+  )
+}
+
+type RejectDialogState = Readonly<{ documentId: string }> | null
 
 type AggregateDocumentsTabProps = Readonly<{
   documents: readonly AggregateDocumentForReview[]
@@ -40,6 +65,8 @@ export function AggregateDocumentsTab({
 }: AggregateDocumentsTabProps): ReactNode {
   const { t } = useTranslation('fleet')
   const [rejectDialog, setRejectDialog] = useState<RejectDialogState>(null)
+  const [taxIdFilter, setTaxIdFilter] = useState('')
+  const [sort, setSort] = useState<SortState>(null)
 
   if (loading) {
     return (
@@ -48,20 +75,66 @@ export function AggregateDocumentsTab({
   }
   if (documents.length === 0) return <p className={styles.kicker}>{t('documents.empty')}</p>
 
+  const filtered = documents.filter((document) =>
+    document.taxId.toLowerCase().includes(taxIdFilter.trim().toLowerCase()),
+  )
+  const visible = sortDocuments(filtered, sort)
+
+  function sortState(column: SortColumn): 'ascending' | 'descending' | 'none' {
+    if (sort === null || sort.column !== column) return 'none'
+    return sort.direction === 'asc' ? 'ascending' : 'descending'
+  }
+
+  function sortLabel(column: SortColumn): string {
+    if (sort === null || sort.column !== column) return t('sort.none')
+    return sort.direction === 'asc' ? t('sort.asc') : t('sort.desc')
+  }
+
+  function renderSortableHeader(column: SortColumn, label: string) {
+    return (
+      <th aria-sort={sortState(column)} key={column} scope="col">
+        <button
+          className={styles.sortButton}
+          type="button"
+          onClick={() => setSort((current) => nextSort(current, column))}
+        >
+          {label}
+          <span aria-hidden="true" className={styles.sortIndicator}>
+            {SORT_INDICATOR[sortState(column)]}
+          </span>
+          <span className={styles.srOnly}>{sortLabel(column)}</span>
+        </button>
+      </th>
+    )
+  }
+
   return (
     <div className={styles.tableScroll}>
+      <div className={styles.filterBar}>
+        <label>
+          <span>{t('documents.filterTaxId')}</span>
+          <input
+            type="search"
+            value={taxIdFilter}
+            onChange={(event) => setTaxIdFilter(event.target.value)}
+          />
+        </label>
+      </div>
+      <p className={styles.hint}>
+        {t('documents.shownOfTotal', { shown: visible.length, total: documents.length })}
+      </p>
       <table className={styles.fleetTable}>
         <thead>
           <tr>
-            <th>{t('documents.columns.type')}</th>
-            <th>{t('documents.columns.taxId')}</th>
-            <th>{t('documents.columns.status')}</th>
-            <th>{t('documents.columns.check')}</th>
-            <th>{t('documents.columns.actions')}</th>
+            {renderSortableHeader('type', t('documents.columns.type'))}
+            <th scope="col">{t('documents.columns.taxId')}</th>
+            {renderSortableHeader('status', t('documents.columns.status'))}
+            <th scope="col">{t('documents.columns.check')}</th>
+            <th scope="col">{t('documents.columns.actions')}</th>
           </tr>
         </thead>
         <tbody>
-          {documents.map((document) => (
+          {visible.map((document) => (
             <Fragment key={document.id}>
               <tr>
                 <td>
@@ -70,35 +143,44 @@ export function AggregateDocumentsTab({
                 </td>
                 <td>{document.taxId}</td>
                 <td>
-                  <span className={styles.applicationBadge} data-variant="info">
-                    {t(`documents.status.${document.status}`)}
-                  </span>
+                  <Badge variant="info">{t(`documents.status.${document.status}`)}</Badge>
                 </td>
                 <td>
                   <DocumentCheck document={document} />
                 </td>
                 <td className={styles.rowActions}>
-                  <button type="button" onClick={() => onOpenFile(document.id)}>
-                    <Icon aria-hidden name="eye" size="sm" /> {t('documents.openButton')}
-                  </button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                    onClick={() => onOpenFile(document.id)}
+                  >
+                    <Icon name="eye" />
+                    {t('documents.openButton')}
+                  </Button>
                   {document.status === 'pending' ? (
                     <>
-                      <button
+                      <Button
                         disabled={isReviewing}
+                        size="sm"
                         type="button"
                         onClick={() =>
                           onReview({ decision: 'approved', id: document.id, rejectionReason: '' })
                         }
                       >
-                        <Icon aria-hidden name="check" size="sm" /> {t('documents.approveButton')}
-                      </button>
-                      <button
+                        <Icon name="check" />
+                        {t('documents.approveButton')}
+                      </Button>
+                      <Button
                         disabled={isReviewing}
+                        size="sm"
                         type="button"
-                        onClick={() => setRejectDialog({ documentId: document.id, reason: '' })}
+                        variant="ghost"
+                        onClick={() => setRejectDialog({ documentId: document.id })}
                       >
-                        <Icon aria-hidden name="close" size="sm" /> {t('documents.rejectButton')}
-                      </button>
+                        <Icon name="close" />
+                        {t('documents.rejectButton')}
+                      </Button>
                     </>
                   ) : null}
                 </td>
@@ -130,8 +212,12 @@ export function AggregateDocumentsTab({
         </tbody>
       </table>
       {rejectDialog === null ? null : (
-        <RejectDialog
-          state={rejectDialog}
+        <AggregateRejectionDialog
+          cancelLabel={t('documents.cancelButton')}
+          confirmLabel={t('documents.confirmRejectButton')}
+          isSubmitting={isReviewing}
+          reasonLabel={t('documents.rejectReasonLabel')}
+          title={t('documents.rejectDialogTitle')}
           onCancel={() => setRejectDialog(null)}
           onConfirm={(reason) => {
             onReview({
@@ -159,50 +245,13 @@ function DocumentCheck({
 
   if (!document.hasExtraction) return <span>{t('documents.check.unverified')}</span>
   if (document.divergences.length === 0) {
-    return (
-      <span className={styles.applicationBadge} data-variant="info">
-        {t('documents.check.matches')}
-      </span>
-    )
+    return <Badge variant="info">{t('documents.check.matches')}</Badge>
   }
 
   return (
-    <span className={styles.applicationBadge} data-variant="warning">
-      <Icon aria-hidden name="alert" size="sm" />{' '}
+    <Badge variant="warning">
+      <Icon aria-hidden name="alert" size="sm" />
       {t('documents.check.divergent', { count: document.divergences.length })}
-    </span>
-  )
-}
-
-type RejectDialogProps = Readonly<{
-  onCancel: () => void
-  onConfirm: (reason: string) => void
-  state: NonNullable<RejectDialogState>
-}>
-
-function RejectDialog({ onCancel, onConfirm, state }: RejectDialogProps): ReactNode {
-  const { t } = useTranslation('fleet')
-  const [reason, setReason] = useState(state.reason)
-  const canConfirm = reason.trim().length > 0
-
-  return (
-    <div
-      className={styles.rejectDialog}
-      role="dialog"
-      aria-label={t('documents.rejectDialogTitle')}
-    >
-      <label>
-        <span>{t('documents.rejectReasonLabel')}</span>
-        <textarea required value={reason} onChange={(event) => setReason(event.target.value)} />
-      </label>
-      <div className={styles.rowActions}>
-        <button disabled={!canConfirm} type="button" onClick={() => onConfirm(reason.trim())}>
-          {t('documents.confirmRejectButton')}
-        </button>
-        <button type="button" onClick={onCancel}>
-          {t('documents.cancelButton')}
-        </button>
-      </div>
-    </div>
+    </Badge>
   )
 }
