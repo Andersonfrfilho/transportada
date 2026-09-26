@@ -24,6 +24,7 @@ export type IconName =
   | 'eye'
   | 'invoice'
   | 'link'
+  | 'login'
   | 'logout'
   | 'message'
   | 'money'
@@ -70,6 +71,12 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M13 5.5 15 3.5a3.5 3.5 0 0 1 5 5L18 10.5',
     'M11 18.5 9 20.5a3.5 3.5 0 0 1-5-5L6 13.5',
   ],
+  /**
+   * Par oposto de `logout`, e é a oposição que se lê: sair tem a porta à direita, entrar tem a
+   * porta à esquerda e a seta levando para dentro. Só deste app — o painel não tem tela de "entrar
+   * de novo", porque a sessão dele nunca vence com trabalho guardado no aparelho.
+   */
+  login: ['M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3', 'M14 16l4-4-4-4', 'M8 12h10'],
   logout: ['M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', 'M10 16l4-4-4-4', 'M14 12H4'],
   /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
   message: ['M4 5h16v11H9l-4 4v-4H4V5z'],

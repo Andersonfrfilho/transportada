@@ -78,7 +78,7 @@ export function LoginIdentifierPage() {
           disabled={identifier.trim() === '' || isSubmitting}
           type="submit"
         >
-          <Icon aria-hidden="true" name="check" />
+          <Icon aria-hidden="true" name="login" />
           {isSubmitting ? t('login.submitting') : t('login.submit')}
         </Button>
       </form>

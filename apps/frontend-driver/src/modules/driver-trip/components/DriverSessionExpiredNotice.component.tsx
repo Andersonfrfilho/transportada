@@ -29,7 +29,7 @@ export function DriverSessionExpiredNotice({
         <p>{t('sessionExpired.waitingCapture')}</p>
       ) : (
         <Button onClick={onReauthenticate} type="button">
-          <Icon name="check" />
+          <Icon aria-hidden="true" name="login" />
           {t('sessionExpired.signIn')}
         </Button>
       )}
