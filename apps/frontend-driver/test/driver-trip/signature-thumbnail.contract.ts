@@ -23,7 +23,7 @@ describe('a assinatura colhida mostra miniatura, texto e Refazer (correção)', 
   it('attach() chama showPhoto para os dois kinds — não só para "photo"', () => {
     const card = readComponentSource()
     expect(card).not.toContain("if (kind === 'photo') photoPreview.showPhoto(file)")
-    expect(card).toContain('photoPreview.showPhoto(file)')
+    expect(card).toContain('previewByKind[kind].showPhoto(file)')
   })
 
   it('o texto "Assinatura colhida" aparece quando o anexo é a assinatura', () => {

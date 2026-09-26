@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/components/DriverStopCard.component.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -903,13 +903,12 @@ export function DeliveryProofSection({
     photo: false,
     signature: false,
   })
-  /** Spec 207: qual dos dois foi anexado por último — decide o texto/alt da miniatura compartilhada. */
-  const [attachedKind, setAttachedKind] = useState<'photo' | 'signature' | undefined>(undefined)
-  /** Spec 207: a chave do anexo atual — "Remover" precisa dela para alcançar só este item. */
-  const [attachedKey, setAttachedKey] = useState<string | undefined>(undefined)
-  /** Spec 207: "Remover" apagou o anexo local — a miniatura some mesmo com `photoPreview` intacto. */
-  const [isRemoved, setIsRemoved] = useState(false)
-  const [isImageOpen, setIsImageOpen] = useState(false)
+  /**
+   * Spec 211 (defeito 26/09): foto do canhoto e assinatura são anexos distintos, com miniatura,
+   * chave e "Remover" próprios — os dois cabem juntos, e um nunca pisa no lugar do outro.
+   */
+  const [attachedKey, setAttachedKey] = useState<{ photo?: string; signature?: string }>({})
+  const [openImageKind, setOpenImageKind] = useState<'photo' | 'signature' | undefined>(undefined)
   /** Spec 207: "Concluir" — estado só da tela, por nota; nunca `localStorage` (derivado seria melhor,
    * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
   const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
@@ -921,7 +920,10 @@ export function DeliveryProofSection({
   const rendersPhotoCapture = plan.rendersPhoto || (plan.rendersSignature && !canSign)
   const cameraFieldRef = useCameraCaptureFieldRef()
   const galleryFieldRef = useCameraCaptureFieldRef()
+  /** Spec 211: uma miniatura por kind — cada anexo revoga só a própria URL `blob:` ao trocar. */
   const photoPreview = usePhotoPreviewUrl()
+  const signaturePreview = usePhotoPreviewUrl()
+  const previewByKind = { photo: photoPreview, signature: signaturePreview }
   const nameInputRef = useRef<HTMLInputElement>(null)
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */
   const [selectNameOnNextRender, setSelectNameOnNextRender] = useState(false)
@@ -988,13 +990,11 @@ export function DeliveryProofSection({
   function attach(kind: 'photo' | 'signature', file: File): void {
     const next = { ...attached, [kind]: true }
     setAttached(next)
-    setAttachedKind(kind)
-    setIsRemoved(false)
     /* Spec 207: gerada aqui — é a chave que "Remover" vai pedir de volta, por item, nunca por nota. */
     const attachmentKey = crypto.randomUUID()
-    setAttachedKey(attachmentKey)
-    /* A miniatura vale para os dois — a assinatura não gravava a própria, só a foto. */
-    photoPreview.showPhoto(file)
+    setAttachedKey((current) => ({ ...current, [kind]: attachmentKey }))
+    /* Spec 211: cada kind tem a própria miniatura — anexar um nunca troca a do outro. */
+    previewByKind[kind].showPhoto(file)
     onProof({
       attachmentKey,
       documentId,
@@ -1020,15 +1020,17 @@ export function DeliveryProofSection({
    * tela nunca oferece o botão (mostra "Substituir" no lugar do "Refazer"). Sempre pede confirmação
    * explícita antes de descartar. Pela `attachmentKey` do item, nunca pelo documento — a nota pode
    * ter mais de um anexo (spec 211), e apagar pelo documento levaria os outros junto.
+   *
+   * Spec 211 (defeito 26/09): remove só o `kind` escolhido — o outro anexo (foto ou assinatura)
+   * continua intacto, com a própria miniatura e a própria chave.
    */
-  function handleRemove(): void {
+  function handleRemove(kind: 'photo' | 'signature'): void {
     if (!window.confirm(t('proofCapture.confirmRemove'))) return
-    if (attachedKey !== undefined) onRemoveProof?.(attachedKey)
-    setAttached({ photo: false, signature: false })
-    setAttachedKind(undefined)
-    setAttachedKey(undefined)
-    setIsRemoved(true)
-    setMissing((current) => current.filter((field) => field !== 'photo' && field !== 'signature'))
+    const key = attachedKey[kind]
+    if (key !== undefined) onRemoveProof?.(key)
+    setAttached((current) => ({ ...current, [kind]: false }))
+    setAttachedKey((current) => ({ ...current, [kind]: undefined }))
+    setMissing((current) => current.filter((field) => field !== kind))
   }
 
   /**
@@ -1091,6 +1093,47 @@ export function DeliveryProofSection({
   /** Spec 207: "Refazer" enquanto o anexo pode ser trocado sem custo; enviado, é "Substituir". */
   const retakeLabel = isProofQueued ? t('proofCapture.retake') : t('proofCapture.replace')
 
+  /**
+   * Spec 211 (defeito 26/09): a miniatura, o texto e os botões de um anexo — chamada uma vez por
+   * foto e uma vez por assinatura, nunca compartilhada entre os dois.
+   */
+  function renderAttachedThumbnail(kind: 'photo' | 'signature'): ReactNode {
+    const preview = previewByKind[kind]
+    if (!attached[kind] || preview.previewUrl === undefined) return null
+    return (
+      <div className={styles.proofCaptureAttached} role="status">
+        <button
+          aria-label={t('proofCapture.view')}
+          className={styles.proofCaptureThumbnailButton}
+          onClick={() => setOpenImageKind(kind)}
+          type="button"
+        >
+          <img
+            alt={kind === 'signature' ? t('signature.thumbnail') : t('proofCapture.thumbnail')}
+            className={styles.proofCaptureThumbnail}
+            src={preview.previewUrl}
+          />
+        </button>
+        <span className={styles.proofCaptureAttachedText}>
+          <Icon name="check" />
+          {kind === 'signature' ? t('signature.attached') : t('proofCapture.attached')}
+        </span>
+        <div className={styles.actions}>
+          <Button onClick={() => setOpenImageKind(kind)} type="button" variant="ghost">
+            <Icon name="eye" />
+            {t('proofCapture.view')}
+          </Button>
+          {isProofQueued ? (
+            <Button onClick={() => handleRemove(kind)} type="button" variant="ghost">
+              <Icon name="trash" />
+              {t('proofCapture.remove')}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={styles.proofSection}>
       {concludedAt === undefined ? (
@@ -1104,44 +1147,8 @@ export function DeliveryProofSection({
           {rendersPhotoCapture || canSign ? (
             <div className={styles.proofCapture}>
               <p className={styles.proofCaptureTitle}>{t('proofCapture.title')}</p>
-              {photoPreview.previewUrl === undefined || isRemoved ? null : (
-                <div className={styles.proofCaptureAttached} role="status">
-                  <button
-                    aria-label={t('proofCapture.view')}
-                    className={styles.proofCaptureThumbnailButton}
-                    onClick={() => setIsImageOpen(true)}
-                    type="button"
-                  >
-                    <img
-                      alt={
-                        attachedKind === 'signature'
-                          ? t('signature.thumbnail')
-                          : t('proofCapture.thumbnail')
-                      }
-                      className={styles.proofCaptureThumbnail}
-                      src={photoPreview.previewUrl}
-                    />
-                  </button>
-                  <span className={styles.proofCaptureAttachedText}>
-                    <Icon name="check" />
-                    {attachedKind === 'signature'
-                      ? t('signature.attached')
-                      : t('proofCapture.attached')}
-                  </span>
-                  <div className={styles.actions}>
-                    <Button onClick={() => setIsImageOpen(true)} type="button" variant="ghost">
-                      <Icon name="eye" />
-                      {t('proofCapture.view')}
-                    </Button>
-                    {isProofQueued ? (
-                      <Button onClick={handleRemove} type="button" variant="ghost">
-                        <Icon name="trash" />
-                        {t('proofCapture.remove')}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              )}
+              {renderAttachedThumbnail('photo')}
+              {renderAttachedThumbnail('signature')}
               <div className={styles.proofCaptureGrid}>
                 {rendersPhotoCapture ? (
                   <>
@@ -1327,13 +1334,13 @@ export function DeliveryProofSection({
         </>
       )}
 
-      {isImageOpen && photoPreview.previewUrl !== undefined ? (
+      {openImageKind !== undefined && previewByKind[openImageKind].previewUrl !== undefined ? (
         <ProofImageLightbox
           alt={
-            attachedKind === 'signature' ? t('signature.thumbnail') : t('proofCapture.thumbnail')
+            openImageKind === 'signature' ? t('signature.thumbnail') : t('proofCapture.thumbnail')
           }
-          onClose={() => setIsImageOpen(false)}
-          src={photoPreview.previewUrl}
+          onClose={() => setOpenImageKind(undefined)}
+          src={previewByKind[openImageKind].previewUrl}
         />
       ) : null}
 
