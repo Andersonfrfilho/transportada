@@ -641,3 +641,48 @@ em paralelo, commit`e8a95d4`, fora do escopo desta task), `test`**13 pass / 0 fa
 
   `check` também falha por desenho (`TS2307: Cannot find module './Attribution.use-cases'`) — mesmo
   padrão da T203/T205, não é regressão.
+
+### T208 — a atribuição genérica
+
+- **Modelo:** Sonnet 5 (`claude-sonnet-5`).
+- **Onde:** `adatechnology-packages-wt/conversation-core` (branch `feat/conversation-core`),
+  `packages/backend/conversation-module/src/`.
+- **Commit:** `9d5d2a8` (`feat(conversation-module): a atribuição genérica (T208)`).
+- `Attribution.use-cases.ts` implementa exatamente o que a T207 testou:
+  `AttributeInboundMessageUseCase.execute` — primeiro confere idempotência pelo
+  `providerMessageId` (em mensagens **e** na fila, porque o desfecho anterior pode ter sido
+  qualquer um dos dois); depois, se há `replyConversationId`, resolve por `conversations.findById`
+  (empresa errada ou id inexistente devolve `undefined`, cai no fluxo seguinte — nunca aceita
+  referência cega); sem atribuição por referência, busca `listOpenByParticipant` (T207), aplica
+  `filterCandidates` quando presente, e decide por contagem: 1 → atribui, >1 → fila,
+  0 → `no_candidate` sem gravar nada. `AssignUnassignedToConversationUseCase.execute` resolve a
+  entrada e a conversa (ambos 404 tipado se não existem), grava a mensagem e só então chama
+  `unassigned.assign` com os três campos (`assignedMessageId`/`assignedByUserId`/`assignedAt`)
+  juntos numa única chamada de porta — nunca dois `UPDATE` separados que pudessem deixar o
+  `num_nonnulls(...) in (0, 3)` do schema (T202) pela metade.
+- `createConversationModule` ganhou `providers.filterCandidates?` (opcional, RF7) e os dois casos
+  de uso novos em `useCases`; `UnassignedRepository` passou a ser instanciado no factory (antes só
+  os três repositórios que T206 usava).
+- `UnassignedNotFoundError` em `errors.ts` (404 tipado).
+- **Verde:**
+
+  ```
+  $ pnpm --filter @adatechnology/conversation-module run check
+  tsc -p tsconfig.json --noEmit   (sem saída)
+
+  $ pnpm --filter @adatechnology/conversation-module run test
+  bun test v1.3.14 (0d9b296a)
+   44 pass
+   0 fail
+   689 expect() calls
+  Ran 44 tests across 7 files. [44–62ms, medido duas vezes]
+
+  $ pnpm --filter @adatechnology/conversation-module run build
+  ... DTS ⚡️ Build success in 1587ms
+  ```
+
+- Decisão: `AttributeInboundMessageUseCase` sempre grava `senderAddress: input.identifier` na
+  mensagem recebida (nunca `authorUserId`) — a atribuição genérica é definida para "canal externo"
+  (a task explicita isso), e o CHECK do schema (`messages_author_check`, T202) já restringe
+  `sender_address` a `email|whatsapp|webchat`. Host que precisar atribuir mensagem de canal com
+  conta própria (`app`/`portal`) usa `ReceiveMessageUseCase` (T206) direto, não esta atribuição.

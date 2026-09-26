@@ -77,7 +77,7 @@ classe e não versão — está em `docs/spec/model-economy.md`.
 - [x] **T207** `sonnet` — Teste da **atribuição genérica**: por referência de resposta; sem ela,
       conversa aberta mais recente do identificador; ambígua → fila de não atribuídas. **Nunca
       palpite.** (RF7, D7, CA06)
-- [ ] **T208** `sonnet` — A atribuição genérica. (RF7)
+- [x] **T208** `sonnet` — A atribuição genérica. (RF7)
 - [ ] **T209** `sonnet` — Teste do anexo: `sha256`, tipo conferido **pelo conteúdo** (extensão
       mentindo é recusada), teto **por canal**, nenhum byte no banco. (RF8)
 - [ ] **T210** `sonnet` — O anexo. (RF8)
