@@ -60,6 +60,8 @@ contratante, quem é o motorista, a permissão, o `companyId` e a ligação com 
   referencia o id da mensagem opacamente, como já é.
 - **Funcionalidade nova de conversa.** Esta spec move e publica o que existe. Canal novo, recurso
   novo e tela nova são outra spec.
+- **Adotar o núcleo no `quickcart`.** Usar o canal de e-mail é opcional (D5), então ele já é servido
+  pelo pacote sem migrar nada. A adoção é spec do repositório dele.
 - **Reescrever o `MessageBubble`, o `AudioPlayer` e o `AudioRecorderButton`** do `conversations-ui`.
   O defeito de empacotamento deles (Tailwind, sem `className`) está registrado na 183 e continua
   aberto — esta spec só acrescenta o canal `email` e a tabela de capacidades (RF10).
@@ -102,11 +104,17 @@ Vem da 183 D7. O e-mail **não tem `read`** — o único jeito seria pixel de ra
 rastreando a contratante sem ela saber. No WhatsApp, contato com confirmação desligada para em
 `delivered`. A tabela de capacidades (D3) é o que faz a tela não mentir.
 
-### D5 — O canal e-mail exige o transporte, ou não liga
+### D5 — Canal é opcional; o que se liga, se equipa
 
-Decisão do dono do projeto (2026-09-26), ADR-0075 §5. Ligar o canal `email` sem fornecer
-`ConversationEmailTransportPort` é **erro na subida**, nomeando a peça que falta — não um canal que
-aceita mensagem e perde a resposta.
+Decisão do dono do projeto (2026-09-26): **usar o canal de e-mail é opcional.** Cada produto liga só
+os canais que quer, e o núcleo serve igual a quem usa um e a quem usa quatro. É por isso que o mesmo
+pacote atende o TransportAdA (`email`, `whatsapp`, `app`, `portal`) e o `quickcart` (hoje só
+WhatsApp) sem obrigar nenhum dos dois a carregar o do outro.
+
+O que **não** é opcional é equipar o canal que se ligou (ADR-0075 §5). Ligar `email` sem fornecer
+`ConversationEmailTransportPort` é **erro na subida**, nomeando a peça que falta — porque um canal
+que aceita mensagem e perde a resposta é pior que um canal desligado. Canal desligado simplesmente
+não aparece na tela (D3).
 
 ### D6 — O status só avança
 
@@ -122,11 +130,19 @@ do pacote.
 - **produto**: o ramo do motorista (mensagem que não responde a nada segue para os fluxos de comando
   da 144) e qualquer regra que dependa do domínio.
 
-### D8 — A migração é aditiva, e o produto lê pelas duas formas até virar
+### D8 — A migração é direta, porque a base está vazia
 
-Migração de dados de uma entrega recém-feita (183) é o maior risco desta spec. Por isso:
-escrita nova já no schema do núcleo, leitura pelas duas formas, cópia dos dados, e só então a
-tabela velha sai. Nenhuma janela em que a conversa da ocorrência fica indisponível.
+A pergunta que sobrou da primeira versão desta spec era o tamanho da migração dos dados da 183.
+**Respondida pelo dono do projeto em 2026-09-26: a base de produção está vazia ou quase** — a 183 é
+entrega recente e ainda não acumulou conversa.
+
+Com isso a migração é `create table` no schema do núcleo, cópia do que houver, e `drop` das tabelas
+da 183. **Some a leitura pelas duas formas** que a primeira versão desta spec exigia: não há o que
+ler duas vezes, e manter o caminho duplo seria complexidade paga por um risco que não existe.
+
+⚠️ **A primeira task da fase conta as linhas antes de migrar.** Se o número contrariar a premissa,
+a fase para e o plano volta ao caminho duplo — "base vazia" é medição, não suposição, e quem executa
+confere em vez de confiar nesta linha.
 
 ## Histórias priorizadas
 
@@ -160,12 +176,13 @@ mensagem — e o selo de lida **não aparece**, porque o e-mail não sabe dizer.
 **Then** o que o e-mail não suporta está desabilitado **com dica dizendo por quê**, e o que é só de
 outro canal não aparece.
 
-### P5 — A ocorrência continua funcionando, sem janela de indisponibilidade
+### P5 — A ocorrência continua funcionando depois da troca
 
-**Given** as conversas de ocorrência que já existem em produção
-**When** a migração roda
-**Then** cada uma vira conversa do núcleo com `subject_type = 'occurrence'`, as mensagens, anexos,
-status e leituras vão junto, e **nenhuma conversa fica indisponível** em momento nenhum.
+**Given** o TransportAdA com a conversa da 183 e a base de conversas vazia ou quase (D8)
+**When** o produto passa a consumir o núcleo e a migração roda
+**Then** o que houver vira conversa do núcleo com `subject_type = 'occurrence'`, com mensagens,
+anexos, status e leituras, e a tela da ocorrência funciona como antes — provado pelos testes da 183
+seguirem verdes (CA09).
 
 ## Requisitos funcionais
 
@@ -235,8 +252,10 @@ status e leituras vão junto, e **nenhuma conversa fica indisponível** em momen
   palpite** (D7).
 - **DKIM indisponível** (DNS fora do ar) → `unverifiable`, e **a verificação não se refaz depois**:
   a chave pode ter girado, e o resultado de agora não é prova do que valia então (143).
-- **Migração interrompida no meio** → como é aditiva e a leitura é pelas duas formas (D8), retomar é
-  seguro; nenhuma conversa fica indisponível.
+- **Migração interrompida no meio** → a cópia é idempotente por id, então retomar é seguro. Com a
+  base vazia (D8), o caso é quase teórico — mas a cópia não depende disso para ser retomável.
+- **A contagem da primeira task contrariar a premissa da base vazia** → a fase **para** e volta ao
+  caminho duplo (D8). Migrar base cheia com plano de base vazia é perder conversa.
 - **Anexo com extensão mentindo sobre o conteúdo** → tipo conferido pelo conteúdo (RF8).
 - **Transcrição desligada** → anexo sem texto, marcado "não avaliado". Nunca texto fingido
   (ADR-0074).
@@ -253,8 +272,8 @@ status e leituras vão junto, e **nenhuma conversa fica indisponível** em momen
 - **CA06** Mensagem recebida ambígua cai na fila de não atribuídas (D7).
 - **CA07** A resposta da contratante volta para a conversa certa, com threading, MIME com `sha256` e
   DKIM (P3) — comportamento **idêntico** ao de hoje.
-- **CA08** A migração roda sobre dados reais da 183 sem janela de indisponibilidade, e o produto lê
-  pelas duas formas durante ela (D8, P5).
+- **CA08** A contagem antecede a migração, e o número medido entra na evidência. Com a base vazia, a
+  migração roda de uma vez; com base cheia, a fase para (D8).
 - **CA09** O TransportAdA continua com todos os testes da 183 verdes depois de passar a consumir o
   pacote.
 - **CA10** Nenhuma decisão de negócio muda de lugar: a tratativa da 164 continua onde está
@@ -262,9 +281,15 @@ status e leituras vão junto, e **nenhuma conversa fica indisponível** em momen
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: a fase 4 (migração dos dados da 183) roda em produção com quantas conversas?
-  A 183 é entrega recente; se a base de produção ainda estiver perto de vazia, a migração é trivial e
-  a fase encolhe. Medir antes de planejar a janela.]
-- [NEEDS CLARIFICATION: o `quickcart` entra como segundo consumidor **nesta** spec, provando a
-  generalidade como o `meta-whatsapp-trio` fez na fase 6 dele, ou fica para depois? Muda o tamanho da
-  entrega e é o que separa "pacote reutilizável" de "pacote com um consumidor só".]
+Nenhuma aberta. As duas que a primeira versão desta spec carregava foram respondidas pelo dono do
+projeto em 2026-09-26:
+
+- **o tamanho da migração** — a base está vazia ou quase, e a migração é direta (D8), com a
+  contagem antes de migrar;
+- **o `quickcart` como segundo consumidor** — não entra nesta spec. Usar o canal de e-mail é
+  opcional (D5), e é isso que faz o núcleo já servir a ele sem migrá-lo: ele liga o WhatsApp e
+  ignora o resto. A adoção dele é spec do repositório dele.
+
+⚠️ Com isso o núcleo nasce com **um consumidor de verdade**. O risco está assumido por escrito na
+ADR-0075 § "Consequências", e a mitigação é o CA01: contrato que falha se palavra de domínio do TMS
+aparecer no núcleo.
