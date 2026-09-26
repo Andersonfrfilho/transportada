@@ -191,7 +191,7 @@ revisão total da T902 não substitui essas revisões; ela acontece no fim, com 
 
 > 🤖 Modelo: `sonnet`
 
-- [x] **T801** Lista em cartões e detalhe em abas abaixo de 768 px, alvos de toque ≥
+- [x] **T801** Lista em cartões e detalhe em abas abaixo de 40rem (era 768 px; 40rem é o único breakpoint que o contrato responsivo permite, correção de 26/09/2026), alvos de toque ≥
       `--touch-target`. Evidência: smoke Playwright em viewport de celular.
 - [x] **T802** Envio automático por tipo de ocorrência (143 T025) pelo canal preferido do contato.
       Evidência: teste de caso de uso.

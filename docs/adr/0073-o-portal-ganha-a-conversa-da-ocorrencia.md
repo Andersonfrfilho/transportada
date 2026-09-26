@@ -16,8 +16,8 @@ decide.
 ## Decisão
 
 1. **O portal consome as peças do `@adatechnology/conversations-ui`**, como o painel (ADR-0051,
-   ADR-0072): `styles.css` uma vez, só no módulo `occurrences`, com o estilo nosso por `classNames` e
-   CSS sobre `.cv-*`, a partir dos tokens do portal (cópia por valor dos do painel, como já é). O
+   ADR-0072), **sem o `styles.css`** (⚠️ emendado em 2026-09-26, abaixo), com o estilo nosso a
+   partir dos tokens do portal (cópia por valor dos do painel, como já é). O
    portal continua sem o design system do painel.
 2. **A `Permissions-Policy` não muda.** Câmera, microfone e posição continuam negados. A
    contratante anexa por seletor de arquivo e **ouve** áudio, mas não grava áudio nem fotografa pelo
@@ -65,6 +65,15 @@ Decisão do usuário, em 25/09/2026, entre esse caminho e o upload pela API com 
 
 O item 2 (`Permissions-Policy`) não muda: a contratante anexa pelo seletor de arquivo, sem câmera,
 e ouve áudio sem gravar.
+
+## Emenda de 2026-09-26: peças do pacote, sem o `styles.css` (spec 183 T650)
+
+O §1 mandava importar o `styles.css` do pacote uma vez, no módulo `occurrences`. A implementação
+achou o mesmo que o painel na T407 (ADR-0051 §1): o arquivo traz regra global (`:where(*) {
+border-color }` e `:root`), que repintaria o portal inteiro, e o `MessageBubble` só tem forma com
+Tailwind. O portal usa só as peças que não dependem disso (`MessageText`, `StatusTicks`,
+`DateDivider`); o balão é nosso, com os tokens `--color-bubble-*` copiados por valor do painel.
+Decisão do dono do projeto em 26/09/2026.
 
 ## Consequências
 

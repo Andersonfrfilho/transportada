@@ -249,8 +249,9 @@ de enviar — nunca sai sozinho.
 ### P11 — Tudo isso cabe no celular
 
 **Given** o PWA num celular, **Then** a lista vira cartões com contratante, valor, endereço e
-motorista; o detalhe vira abas Resumo, Contratante e Motorista, com a caixa de envio fixa no rodapé,
-câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
+motorista; o detalhe vira abas Resumo, Contratante e Motorista, com o fio de altura limitada e a
+caixa de envio logo abaixo dele, com câmera e anexo (correção de 26/09/2026: a caixa presa ao rodapé
+foi medida na T801 e cobria 359 de 800 px da conversa); e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
 
 ## Requisitos funcionais
 
@@ -374,13 +375,18 @@ câmera e anexo; e "Ligar"/"WhatsApp" abrem o discador e o app do aparelho.
   - **aviso automático:** 30 minutos antes de fechar (antecedência configurável por empresa), o
     sistema manda pelo WhatsApp, ainda dentro da janela, um texto fixo dizendo que a conversa
     continua pelo app (motorista) ou pelo portal/e-mail (contratante). Sai **uma vez por janela** (chave
-    idempotente: conversa + início da janela), só se houve mensagem pelo WhatsApp naquela janela, e é
+    idempotente: conversa + início da janela), só se **a operação** mandou mensagem pelo WhatsApp
+    naquela janela (redação de 26/09/2026: a mensagem da pessoa que abre a janela sempre existe, e
+    quem só recebeu e-mail nosso não precisa saber que um WhatsApp fecha), e é
     cancelado se a pessoa responder antes (a janela reabre). Ligado por padrão para o motorista e
     desligado por padrão para a contratante; a empresa muda os dois;
   - **fechou:** o canal padrão da conversa passa para o app (motorista) ou, na contratante, para o
     **portal** se ela tiver usuário ativo no portal e a ocorrência estiver visível lá (D9), senão
     para o **e-mail** do contato; sem e-mail nem portal, a conversa fica sem canal de saída até a
-    contratante escrever de novo (sem modelo, decisão de 26/09/2026), e a caixa de envio diz isso. O aviso automático diz o canal escolhido. Entra um evento de sistema na conversa
+    contratante escrever de novo (sem modelo, decisão de 26/09/2026), e a caixa de envio diz isso.
+    **Passada a janela, a caixa de envio oferece o chat do app** (decisão de 26/09/2026): ao
+    motorista, a conversa no app; à contratante, a conversa no portal quando ela tem acesso. O aviso
+    automático diz o canal escolhido. Entra um evento de sistema na conversa
     e na linha do tempo; o rascunho não se perde;
   - o motorista sem PWA instalado continua recebendo pela inbox (RF11); a troca nunca deixa a
     mensagem sem destino.
