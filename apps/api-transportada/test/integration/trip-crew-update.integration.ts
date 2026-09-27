@@ -20,6 +20,7 @@ import {
 } from '../../src/database/database.schema.js'
 import { trips, tripDrivers } from '../../src/database/trip.schema.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import { resolveCrewStatus } from '../../src/trips/domain/trip-state.policy.js'
 import { TripStateTransitionNotAllowedError } from '../../src/trips/domain/trip.error.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 
@@ -109,6 +110,68 @@ async function seedCompanyFleet(database: TestDatabase['db']): Promise<{
   ])
 
   return { companyId, firstDriverId, firstVehicleId, secondDriverId, secondVehicleId, userId }
+}
+
+/**
+ * Spec 217 T103: a criação por HTTP ainda exige o par completo — abrir `POST /trips` para viagem sem
+ * tripulação é a RF2, implementada na T202 e provada na T201. Até lá o estado inicial
+ * `awaiting_crew` nasce daqui, como o `route_planned` do teste da 216 logo acima.
+ */
+async function createAwaitingCrewTrip(
+  database: TestDatabase['db'],
+  fleet: { readonly companyId: string; readonly userId: string },
+): Promise<string> {
+  const repository = new DrizzleTripRepository(database)
+  const created = await repository.create({
+    actorUserId: fleet.userId,
+    channel: TRIP_FIELD_CHANNELS.backoffice,
+    companyId: fleet.companyId,
+    crew: [],
+    vehicleId: null,
+  })
+  await database.update(trips).set({ status: 'awaiting_crew' }).where(eq(trips.id, created.id))
+  return created.id
+}
+
+async function readCrewState(
+  database: TestDatabase['db'],
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<{
+  readonly driverIds: readonly string[]
+  readonly status: string
+  readonly vehicleId: string | null
+}> {
+  const [tripRow] = await database
+    .select({ status: trips.status, vehicleId: trips.vehicleId })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+  if (tripRow === undefined) throw new Error('TRIP_NOT_FOUND')
+  const driverRows = await database
+    .select({ driverId: tripDrivers.driverId })
+    .from(tripDrivers)
+    .where(and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)))
+  return {
+    driverIds: driverRows.map((row) => row.driverId),
+    status: tripRow.status,
+    vehicleId: tripRow.vehicleId,
+  }
+}
+
+/**
+ * Spec 217 D1: a coerência é a invariante que importa — o status gravado é exatamente
+ * `resolveCrewStatus` do par que ficou no banco, nunca `draft` sem as duas coisas.
+ */
+function expectStatusDerivedFromStoredCrew(state: {
+  readonly driverIds: readonly string[]
+  readonly status: string
+  readonly vehicleId: string | null
+}): void {
+  expect(state.status).toBe(
+    resolveCrewStatus({
+      hasDriver: state.driverIds.length > 0,
+      hasVehicle: state.vehicleId !== null,
+    }),
+  )
 }
 
 describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
@@ -217,6 +280,149 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
           .from(trips)
           .where(eq(trips.id, created.id))
         expect(tripRow?.vehicleId).toBe(fleet.firstVehicleId)
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+  testWithPostgres(
+    'define o par completo numa viagem awaiting_crew e grava draft no banco',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const fleet = await seedCompanyFleet(db)
+        const repository = new DrizzleTripRepository(db)
+        const tripId = await createAwaitingCrewTrip(db, fleet)
+
+        const updated = await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+            },
+          ],
+          tripId,
+          vehicleId: fleet.firstVehicleId,
+        })
+        expect(updated?.status).toBe('draft')
+
+        const state = await readCrewState(db, { companyId: fleet.companyId, tripId })
+        expect(state.status).toBe('draft')
+        expect(state.vehicleId).toBe(fleet.firstVehicleId)
+        expect(state.driverIds).toEqual([fleet.firstDriverId])
+        expectStatusDerivedFromStoredCrew(state)
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'só o veículo não promove a viagem awaiting_crew, e o veículo fica gravado',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const fleet = await seedCompanyFleet(db)
+        const repository = new DrizzleTripRepository(db)
+        const tripId = await createAwaitingCrewTrip(db, fleet)
+
+        const updated = await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [],
+          tripId,
+          vehicleId: fleet.firstVehicleId,
+        })
+        expect(updated?.status).toBe('awaiting_crew')
+
+        const state = await readCrewState(db, { companyId: fleet.companyId, tripId })
+        expect(state.status).toBe('awaiting_crew')
+        expect(state.vehicleId).toBe(fleet.firstVehicleId)
+        expect(state.driverIds).toEqual([])
+        expectStatusDerivedFromStoredCrew(state)
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'só o motorista não promove a viagem awaiting_crew, e o veículo segue nulo',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const fleet = await seedCompanyFleet(db)
+        const repository = new DrizzleTripRepository(db)
+        const tripId = await createAwaitingCrewTrip(db, fleet)
+
+        const updated = await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+            },
+          ],
+          tripId,
+          vehicleId: null,
+        })
+        expect(updated?.status).toBe('awaiting_crew')
+
+        const state = await readCrewState(db, { companyId: fleet.companyId, tripId })
+        expect(state.status).toBe('awaiting_crew')
+        expect(state.vehicleId).toBeNull()
+        expect(state.driverIds).toEqual([fleet.firstDriverId])
+        expectStatusDerivedFromStoredCrew(state)
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'desfazer a tripulação de uma viagem draft regride para awaiting_crew no banco',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const fleet = await seedCompanyFleet(db)
+        const repository = new DrizzleTripRepository(db)
+
+        const created = await repository.create({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+            },
+          ],
+          vehicleId: fleet.firstVehicleId,
+        })
+        expect(created.status).toBe('draft')
+
+        const updated = await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [],
+          tripId: created.id,
+          vehicleId: null,
+        })
+        expect(updated?.status).toBe('awaiting_crew')
+
+        const state = await readCrewState(db, {
+          companyId: fleet.companyId,
+          tripId: created.id,
+        })
+        expect(state.status).toBe('awaiting_crew')
+        expect(state.vehicleId).toBeNull()
+        expect(state.driverIds).toEqual([])
+        expectStatusDerivedFromStoredCrew(state)
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,

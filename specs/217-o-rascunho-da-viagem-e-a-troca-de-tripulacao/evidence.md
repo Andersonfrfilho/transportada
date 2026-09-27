@@ -65,3 +65,43 @@ $ bun --env-file=../../.env.test test test/trip-domain.contract.test.ts \
 
 O vermelho da T101 fechou verde sem que nenhuma das 610 asserções de domínio, ações permitidas,
 aplicação e HTTP tenha regredido.
+
+## T103 — O status derivado, provado no banco (🧠 `opus`)
+
+`apps/api-transportada/test/integration/trip-crew-update.integration.ts` (já registrado na lista
+explícita do `package.json`) ganhou quatro casos contra Postgres, além dos dois da 216, sobre
+`DrizzleTripRepository.updateCrew` — que é o escritor real do status sob o lock:
+
+- `awaiting_crew` + motorista e veículo → `trips.status = 'draft'`, `trips.vehicle_id` preenchido e
+  uma linha em `trip_drivers`;
+- `awaiting_crew` + **só veículo** → continua `awaiting_crew`, `vehicle_id` preenchido,
+  `trip_drivers` vazio;
+- `awaiting_crew` + **só motorista** → continua `awaiting_crew`, `vehicle_id` nulo, `trip_drivers`
+  com a linha;
+- a regressão: viagem `draft` + `crew: []` e `vehicleId: null` → volta para `awaiting_crew`,
+  `trip_drivers` vazio, `vehicle_id` nulo.
+
+Nos quatro, `expectStatusDerivedFromStoredCrew` reconfere a invariante de D1 contra o banco: o status
+gravado é exatamente `resolveCrewStatus` do par que ficou nas linhas — nunca `draft` sem as duas
+coisas.
+
+O estado inicial `awaiting_crew` nasce da fixture (`createAwaitingCrewTrip`), com um `UPDATE` direto,
+no molde do `route_planned` do teste da 216. **A criação por HTTP de viagem sem tripulação é a RF2** —
+entra na T201/T202, e só então esses casos poderão partir de `POST /trips`.
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/trip-crew-update.integration.ts \
+    --timeout 120000
+ 6 pass / 0 fail / 27 expect() calls   # 0 skip: o --env-file é o que faz a suíte rodar em vez de pular
+```
+
+**Prova de que os casos novos prendem** (a T102 já havia entrado, então o verde sozinho não provaria
+nada): mutação no repositório trocando o par resolvido pelo par cego de antes da 217 —
+`crew: { hasDriver: true, hasVehicle: true }`, que é a promoção incondicional que o defeito 3
+descreve:
+
+```
+ 3 pass / 3 fail        # os três casos de par incompleto acusam "Expected: awaiting_crew / Received: draft"
+```
+
+Fonte restaurada em seguida (`git status` só com o arquivo de teste modificado).
