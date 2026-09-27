@@ -20,6 +20,13 @@ const DEPLOYMENT_ENVIRONMENT_PATH = new URL(
   import.meta.url,
 ).pathname
 const DOCKERFILE_PATH = new URL('../../Dockerfile', import.meta.url).pathname
+/**
+ * Spec 183 T702b: a CSP nasce no `vite.config.ts`, que lê as origens por `readEnvironment`, não por
+ * `import.meta.env`. `VITE_STORAGE_URL` ficou sem `ARG` desde a 164 — a CSP saía sem o bucket, a
+ * foto não aparecia e nada falhava — porque o contrato só olhava o código da tela.
+ */
+const VITE_CONFIG_PATH = new URL('../../vite.config.ts', import.meta.url).pathname
+const READ_ENVIRONMENT_PATTERN = /readEnvironment\('(VITE_[A-Z0-9_]+)'\)/gu
 
 const VITE_REFERENCE_PATTERN = /import\.meta\.env\.(VITE_[A-Z0-9_]+)/gu
 const BUILD_ARGUMENT_PATTERN = /^ARG (VITE_[A-Z0-9_]+)$/gmu
@@ -31,13 +38,15 @@ async function readViteNames(path: string, pattern: RegExp): Promise<ReadonlySet
 
 describe('argumentos de build do portal do contratante', () => {
   test('toda VITE_ que o código lê tem ARG no Dockerfile', async () => {
-    const [configuration, deployment, declared] = await Promise.all([
+    const [configuration, deployment, build, declared] = await Promise.all([
       readViteNames(ENVIRONMENT_CONFIG_PATH, VITE_REFERENCE_PATTERN),
       readViteNames(DEPLOYMENT_ENVIRONMENT_PATH, VITE_REFERENCE_PATTERN),
+      readViteNames(VITE_CONFIG_PATH, READ_ENVIRONMENT_PATTERN),
       readViteNames(DOCKERFILE_PATH, BUILD_ARGUMENT_PATTERN),
     ])
-    const read = new Set([...configuration, ...deployment])
+    const read = new Set([...configuration, ...deployment, ...build])
 
+    expect(build.has('VITE_STORAGE_URL')).toBe(true)
     expect(read.size).toBeGreaterThan(0)
     expect(read.has('VITE_APP_ENV')).toBe(true)
     expect([...read].filter((name) => !declared.has(name))).toEqual([])

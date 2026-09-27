@@ -5,6 +5,10 @@ import {
   DRIVER_OCCURRENCE_KINDS,
   DRIVER_RETURN_REASONS,
 } from '@/modules/driver-trip/shared/driverTrip.types'
+import {
+  RECEIVED_BY_OPTIONS,
+  RECEIVED_BY_OPTIONS_REQUIRING_DETAIL,
+} from '@/modules/driver-trip/shared/receivedBy.constant'
 
 /**
  * As duas listas são cópia por valor da API — o bundle não carrega código de lá. Restatá-las aqui
@@ -42,6 +46,16 @@ describe('as listas fechadas do campo', () => {
   it('os tipos de ocorrência são os mesmos da API', async () => {
     expect<readonly string[]>([...DRIVER_OCCURRENCE_KINDS]).toEqual(
       await readStringList(API_SCHEMA_SOURCE, 'TRIP_STOP_OCCURRENCE_KINDS'),
+    )
+  })
+
+  /** Spec 193 D1: quem recebeu — a mesma lista, na mesma ordem, que a API grava e confere. */
+  it('as opções de quem recebeu são as mesmas da API, na mesma ordem', async () => {
+    expect<readonly string[]>([...RECEIVED_BY_OPTIONS]).toEqual(
+      await readStringList(API_SCHEMA_SOURCE, 'RECEIVED_BY_OPTIONS'),
+    )
+    expect<readonly string[]>([...RECEIVED_BY_OPTIONS_REQUIRING_DETAIL]).toEqual(
+      await readStringList(API_SCHEMA_SOURCE, 'RECEIVED_BY_OPTIONS_REQUIRING_DETAIL'),
     )
   })
 })

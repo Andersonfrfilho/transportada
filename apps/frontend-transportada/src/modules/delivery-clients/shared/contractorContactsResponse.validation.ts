@@ -2,7 +2,10 @@
 import { hasExactKeys } from '@/modules/shared/objectKeys.service'
 
 import {
+  CONTRACTOR_CONTACT_CHANNELS,
   CONTRACTOR_CONTACT_KEYS,
+  CONTRACTOR_CONTACT_OCCURRENCE_STAGES,
+  CONTRACTOR_CONTACT_TYPES,
   CONTRACTOR_KEYS,
   type ContractorContact,
   type ContractorSummary,
@@ -36,6 +39,17 @@ function isOneOf<TOption extends string>(
   return typeof value === 'string' && options.includes(value as TOption)
 }
 
+function isNullableString(value: unknown): value is null | string {
+  return value === null || isString(value)
+}
+
+function isListOf<TOption extends string>(
+  value: unknown,
+  options: readonly TOption[],
+): value is readonly TOption[] {
+  return Array.isArray(value) && value.every((item) => isOneOf(item, options))
+}
+
 function isContact(value: unknown): value is ContractorContact {
   if (!hasExactKeys(value, CONTRACTOR_CONTACT_KEYS)) return false
   return (
@@ -43,8 +57,16 @@ function isContact(value: unknown): value is ContractorContact {
     isString(value.contractorId) &&
     isString(value.email) &&
     isString(value.id) &&
+    isString(value.name) &&
+    isListOf(value.occurrenceStages, CONTRACTOR_CONTACT_OCCURRENCE_STAGES) &&
+    isNullableString(value.phone) &&
+    isOneOf(value.preferredChannel, CONTRACTOR_CONTACT_CHANNELS) &&
     typeof value.receivesOccurrences === 'boolean' &&
-    isOneOf(value.status, ['active', 'inactive'])
+    isString(value.roleLabel) &&
+    isOneOf(value.status, ['active', 'inactive']) &&
+    isListOf(value.types, CONTRACTOR_CONTACT_TYPES) &&
+    isNullableString(value.whatsappOptInAt) &&
+    isNullableString(value.whatsappOptInByUserId)
   )
 }
 

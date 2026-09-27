@@ -326,7 +326,6 @@ function toOrderedStops(input: {
 
   const ordered: OptimizedStop[] = []
   let sequence = 0
-  let clockSeconds = input.context.departureEpochSeconds
 
   for (const assignment of input.solution.assignments) {
     /**
@@ -335,6 +334,13 @@ function toOrderedStops(input: {
      * os mesmos veículos — sem ordem estável, o determinismo prometido no RNF cairia.
      */
     const vehicleId = assignment.vehicleId
+    /**
+     * Cada veículo parte do depósito **na mesma partida**, não de onde o relógio do veículo anterior
+     * parou. `clockSeconds` era declarado fora deste laço: a primeira parada do 2º veículo herdava o
+     * trecho de estrada e o tempo de serviço do 1º, inflando o ETA publicado (fitness zera por rota
+     * — `route-fitness.policy.ts:66` — e não divergia).
+     */
+    let clockSeconds = input.context.departureEpochSeconds
     /** Cada veículo recomeça no depósito: o trecho da primeira parada é medido a partir de 0. */
     let previousIndex = 0
     for (const stopIndex of assignment.stopIndexes) {

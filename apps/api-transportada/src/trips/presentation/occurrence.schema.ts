@@ -286,6 +286,11 @@ const occurrenceTypeSchema = z
      */
     attachmentMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
     /**
+     * Spec 183 T802: o tipo avisa a contratante sozinho no registro. Opcional sem `default` pelo
+     * mesmo motivo do `attachmentMode`: ausente é "não mexa", nunca desligar o aviso de carona.
+     */
+    emailsContractor: z.boolean().optional(),
+    /**
      * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota" — só para tipo de separação
      * (`stage: 'separation'`); um tipo de entrega com `true` é recusado no caso de uso, 422.
      *

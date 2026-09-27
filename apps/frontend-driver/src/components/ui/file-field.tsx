@@ -89,7 +89,8 @@ export function FileField({
       />
       <label className={styles.control} htmlFor={inputId}>
         <span className={styles.action}>
-          <Icon aria-hidden="true" name="upload" size="sm" />
+          {/* Campo que abre a câmera (`capture`) mostra a câmera: "upload" parecia seletor de arquivo. */}
+          <Icon aria-hidden="true" name={capture === undefined ? 'upload' : 'camera'} size="sm" />
           {actionLabel}
         </span>
         <span

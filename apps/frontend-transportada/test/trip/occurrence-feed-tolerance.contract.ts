@@ -132,3 +132,95 @@ describe('tolerância a case/settlementTotal ausentes no feed (achados B5/B6)', 
     expect(caught).toEqual(expect.objectContaining({ message: 'TRIP_RESPONSE_INVALID' }))
   })
 })
+
+/** Spec 183 T205: o bloco da nota na linha segue a mesma regra — ausente degrada, errado reprova. */
+describe('o bloco da nota no feed (spec 183 RF2)', () => {
+  const DOCUMENT = {
+    contractor: { contractorId: null, name: 'Emitente Sem Cadastro', taxId: '11222333000181' },
+    destination: null,
+    nfeDocumentId: 'nfe-1',
+    totalValue: '1250.5000',
+  } as const
+
+  test('traz contratante e valor da nota como string decimal', async () => {
+    const client = createClient(
+      Response.json({
+        data: [buildFeedItem({ document: DOCUMENT })],
+        pagination: { nextCursor: null },
+      }),
+    )
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items[0]?.document).toEqual(DOCUMENT)
+  })
+
+  test('document ausente (API anterior à 183) degrada para null', async () => {
+    const client = createClient(
+      Response.json({ data: [buildFeedItem()], pagination: { nextCursor: null } }),
+    )
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items[0]?.document).toBeNull()
+  })
+
+  test('valor da nota como number reprova — dinheiro nunca vira number', async () => {
+    const client = createClient(
+      Response.json({
+        data: [buildFeedItem({ document: { ...DOCUMENT, totalValue: 1250.5 } })],
+        pagination: { nextCursor: null },
+      }),
+    )
+
+    const caught = await client.listOccurrences(LIST_INPUT).catch((error: unknown) => error)
+
+    expect(caught).toEqual(expect.objectContaining({ message: 'TRIP_RESPONSE_INVALID' }))
+  })
+})
+
+/**
+ * Spec 183 T404 (RF4): `conversation` chegou depois do feed. Ausente (API anterior) ou malformado
+ * degrada para "sem conversa", nunca derruba a página.
+ */
+describe('tolerância ao estado da conversa no feed (spec 183 T404)', () => {
+  test('lê o estado da conversa e as não lidas do motorista', async () => {
+    const client = createClient(
+      Response.json({
+        data: [
+          buildFeedItem({ conversation: { contractorState: 'replied', driverUnreadCount: 2 } }),
+        ],
+        pagination: { nextCursor: null },
+      }),
+    )
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items[0]?.conversation).toEqual({
+      contractorState: 'replied',
+      driverUnreadCount: 2,
+    })
+  })
+
+  test('ausente ou malformado vira "sem conversa", sem reprovar o item', async () => {
+    const client = createClient(
+      Response.json({
+        data: [
+          buildFeedItem(),
+          buildFeedItem({
+            conversation: { contractorState: 'decided', driverUnreadCount: -1 },
+            id: 'other',
+          }),
+        ],
+        pagination: { nextCursor: null },
+      }),
+    )
+
+    const page = await client.listOccurrences(LIST_INPUT)
+
+    expect(page.items.map((item) => item.conversation)).toEqual([
+      { contractorState: 'none', driverUnreadCount: 0 },
+      { contractorState: 'none', driverUnreadCount: 0 },
+    ])
+  })
+})

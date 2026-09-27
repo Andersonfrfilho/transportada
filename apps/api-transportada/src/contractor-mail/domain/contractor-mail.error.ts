@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import type { ContractorContactWriteErrorCode } from './contractor-contact.policy.js'
 import type { MailSendReadinessReason } from './mail-send-readiness.policy.js'
 
 /**
@@ -169,5 +170,15 @@ export class ContractorMailInboundWebhookUnauthorizedError extends ApiError {
       message: 'Contractor mail inbound webhook signature could not be verified',
       status: 401,
     })
+  }
+}
+
+/**
+ * Spec 183 T302: a política de escrita do contato recusou o pedido. O código é o da política
+ * (`contractor-contact.policy.ts`) — estável, sem ecoar o telefone ou o nome que vieram no corpo.
+ */
+export class ContractorContactInvalidError extends ApiError {
+  public constructor(code: ContractorContactWriteErrorCode) {
+    super({ code, message: 'Contractor contact write was refused', status: 422 })
   }
 }

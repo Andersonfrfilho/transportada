@@ -14,13 +14,18 @@ import {
 import type {
   CompanyDeliveryProofSettings,
   DeliveryProofFieldSettings,
+  DeliveryProofFieldSettingsInput,
   DeliveryProofPunctualitySettings,
   DeliveryProofSettingsInput,
 } from '../domain/delivery-proof-settings.policy.js'
-import type { DeliveryProofSettingsOverride } from '../infrastructure/drizzle-delivery-proof-settings.repository.js'
+import type {
+  DeliveryProofSettingsOverride,
+  DeliveryProofSettingsOverrideInput,
+} from '../infrastructure/drizzle-delivery-proof-settings.repository.js'
 import {
   companyDeliveryProofSettingsSchema,
   deliveryProofOverridesSchema,
+  type DeliveryProofOverridesBody,
 } from './delivery-proof-settings.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
@@ -34,7 +39,7 @@ export type DeliveryProofSettingsDependencies = {
   }) => Promise<CompanyDeliveryProofSettings>
   readonly replaceOverrides: (input: {
     readonly companyId: string
-    readonly overrides: readonly DeliveryProofSettingsOverride[]
+    readonly overrides: readonly DeliveryProofSettingsOverrideInput[]
   }) => Promise<void>
   readonly saveSettings: (input: {
     readonly companyId: string
@@ -46,7 +51,9 @@ export type DeliveryProofSettingsDependencies = {
  * Spec 159 T11 (item 6): os modos sempre vêm; os parâmetros da nota, só os que mudam. O interruptor
  * da leitura do canhoto (ADR-0069 §6) é opcional do mesmo jeito.
  */
-type CompanyDeliveryProofSettingsInput = DeliveryProofFieldSettings & {
+type CompanyDeliveryProofSettingsInput = Omit<DeliveryProofFieldSettings, 'receivedBy'> & {
+  readonly receivedBy?: DeliveryProofFieldSettings['receivedBy'] | undefined
+} & {
   readonly [TKey in keyof DeliveryProofPunctualitySettings]?:
     | DeliveryProofPunctualitySettings[TKey]
     | undefined
@@ -64,7 +71,7 @@ function mergeSettings(
 ): DeliveryProofSettingsInput {
   const provided = Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined),
-  ) as DeliveryProofFieldSettings &
+  ) as DeliveryProofFieldSettingsInput &
     Partial<DeliveryProofPunctualitySettings> & { readonly canhotoOcrEnabled?: boolean }
 
   return {
@@ -75,6 +82,14 @@ function mergeSettings(
     proofWindowMinutes: stored.proofWindowMinutes,
     ...provided,
   }
+}
+
+/** Spec 193 D6: o Zod devolve `receivedBy: undefined` quando o campo não veio — ausente é "não mexe". */
+function toOverrideInput(
+  override: DeliveryProofOverridesBody['overrides'][number],
+): DeliveryProofSettingsOverrideInput {
+  const { receivedBy, ...rest } = override
+  return receivedBy === undefined ? rest : { ...rest, receivedBy }
 }
 
 function jsonResponse(body: object): Response {
@@ -127,11 +142,11 @@ export function createDeliveryProofSettingsRoutes(
       pathname: API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
-    defineRoute<{ readonly overrides: readonly DeliveryProofSettingsOverride[] }>({
+    defineRoute<DeliveryProofOverridesBody>({
       async handle({ context, input }): Promise<Response> {
         await dependencies.replaceOverrides({
           companyId: context.scope.companyId,
-          overrides: input.overrides,
+          overrides: input.overrides.map(toOverrideInput),
         })
         const overrides = await dependencies.listOverrides({
           companyId: context.scope.companyId,

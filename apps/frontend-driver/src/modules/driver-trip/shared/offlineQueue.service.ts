@@ -1,6 +1,10 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineQueue.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverFieldReport, DriverReportedLocation } from './driverTrip.types'
+import type {
+  DriverFieldReport,
+  DriverOccurrencePhoto,
+  DriverReportedLocation,
+} from './driverTrip.types'
 
 /**
  * ADR-0045 §5: o motorista entra no subsolo do shopping e sai sem sinal por vinte minutos. Se o
@@ -107,6 +111,59 @@ export async function enqueueReport(input: {
 }
 
 /**
+ * Spec 179 (T303): vários itens do **mesmo toque** — "Não entreguei" é a ocorrência com foto e a
+ * devolução. Entram todos ou nenhum, na ordem dada, numa transação só: metade na fila deixaria a
+ * nota devolvida sem a prova, ou a prova sem a devolução.
+ */
+export async function enqueueReports(input: {
+  readonly isUnverified?: boolean
+  readonly limits?: EventQueueLimits
+  readonly now: Date
+  readonly reports: readonly DriverFieldReport[]
+  readonly store: OfflineQueueStore
+  readonly subHash?: string
+}): Promise<EnqueueReportResult> {
+  const limits = input.limits ?? EVENT_QUEUE_LIMIT
+  let refused = false
+
+  const queue = await input.store.update((queued) => {
+    const queuedKeys = new Set(queued.map((item) => item.report.idempotencyKey))
+    const fresh = input.reports.filter((report) => !queuedKeys.has(report.idempotencyKey))
+    if (queued.length + fresh.length > limits.maxCount) {
+      refused = true
+      return queued
+    }
+    return [
+      ...queued,
+      ...fresh.map((report) => ({
+        attempts: 0,
+        createdAt: input.now.toISOString(),
+        ...(input.isUnverified === true ? { isUnverified: true as const } : {}),
+        report,
+        ...(input.subHash === undefined ? {} : { subHash: input.subHash }),
+      })),
+    ]
+  })
+
+  return refused ? { accepted: false, reason: 'count-limit' } : { accepted: true, queue }
+}
+
+/**
+ * Spec 179 (e 209, a foto do "Deu problema"): os bytes de foto que os itens da fila carregam. Contam no mesmo teto dos anexos
+ * (`ATTACHMENT_QUEUE_LIMIT.maxTotalBytes`) — é o mesmo aparelho e a mesma cota.
+ */
+export function sumReportPhotoBytes(reports: readonly DriverFieldReport[]): number {
+  return reports.reduce((total, report) => total + (reportPhoto(report)?.blob.size ?? 0), 0)
+}
+
+function reportPhoto(report: DriverFieldReport): DriverOccurrencePhoto | null {
+  if (report.kind === 'documentOccurrence' || report.kind === 'stopOccurrencePhoto') {
+    return report.photo
+  }
+  return null
+}
+
+/**
  * A ordem importa: chegada antes de entrega, entrega antes da próxima chegada. Drenar em paralelo
  * entregaria numa parada onde o servidor ainda não sabe que o motorista chegou.
  *
@@ -162,7 +219,7 @@ export function applyReportLocation(input: {
   return input.items.map((item) => {
     const report = item.report
     if (report.idempotencyKey !== input.idempotencyKey) return item
-    if (report.kind === 'occurrence' || report.location !== null) return item
+    if (!('location' in report) || report.location !== null) return item
     return { ...item, report: { ...report, location: input.location } }
   })
 }

@@ -44,7 +44,7 @@ describe('contrato do gate de integração', () => {
    * distribuição, o que pendurou). Separadas, só a segunda precisa de teto.
    */
   test('a instalação do navegador não arrasta o apt junto', async () => {
-    const block = jobBlock(await readWorkflow(), 'integration')
+    const block = jobBlock(await readWorkflow(), 'integration-smoke')
 
     expect(block).not.toContain('--with-deps')
     expect(block).toContain('playwright install chromium')
@@ -52,7 +52,7 @@ describe('contrato do gate de integração', () => {
 
   /** Passo sem teto próprio herda o do job: quando ele pendura, leva o gate inteiro. */
   test('o passo que fala com o apt tem teto de tempo próprio', async () => {
-    const block = jobBlock(await readWorkflow(), 'integration')
+    const block = jobBlock(await readWorkflow(), 'integration-smoke')
     const step = /playwright install-deps chromium/.exec(block)
 
     expect(step).not.toBeNull()
@@ -66,7 +66,7 @@ describe('contrato do gate de integração', () => {
    * download; com cache, o passo que sobrou é o do apt — o único que ainda depende de espelho.
    */
   test('o Chromium vem do cache, chaveado pelo lockfile', async () => {
-    const block = jobBlock(await readWorkflow(), 'integration')
+    const block = jobBlock(await readWorkflow(), 'integration-smoke')
 
     expect(block).toContain('actions/cache@v4')
     expect(block).toContain('~/.cache/ms-playwright')
@@ -78,7 +78,7 @@ describe('contrato do gate de integração', () => {
    * termina o job junto. A folga é o que transforma "gate cancelado" em "passo vermelho, com nome".
    */
   test('o job tem folga sobre o teto do passo que pode pendurar', async () => {
-    const block = jobBlock(await readWorkflow(), 'integration')
+    const block = jobBlock(await readWorkflow(), 'integration-smoke')
     const jobTimeout = /timeout-minutes: (\d+)/.exec(block)
     const stepTimeout =
       /timeout-minutes: (\d+)\s+run: bun run --cwd [^\n]*playwright install-deps/.exec(block)

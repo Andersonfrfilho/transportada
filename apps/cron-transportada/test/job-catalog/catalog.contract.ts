@@ -113,6 +113,12 @@ const CATALOG = [
     job: 'trip.occurrence-upload.expire',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 183 T702c2: o pedido de upload do anexo da conversa, vencido, só toca o próprio banco e o bucket. */
+    failureOutcomes: [],
+    job: 'occurrence-conversation.upload.expire',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 describe('cron job catalog', () => {

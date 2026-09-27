@@ -577,6 +577,6 @@ describe('os tipos de ocorrência do escritório (L2)', () => {
       },
     })
 
-    expect(types).toEqual([{ id: TYPE_ID, name: 'Cliente ausente' }])
+    expect(types).toEqual([{ attachmentMode: 'off', id: TYPE_ID, name: 'Cliente ausente' }])
   })
 })

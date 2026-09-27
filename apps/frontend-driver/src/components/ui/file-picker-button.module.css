@@ -1,0 +1,12 @@
+/*
+ * O `<input type="file">` fica fora da vista, mas no DOM e sem `display: none`: é ele que abre a
+ * câmera ou a galeria do celular, e o Safari antigo não abria o seletor de um input escondido assim.
+ */
+.input {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

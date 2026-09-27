@@ -1,0 +1,55 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 183 T201: um detalhe de ocorrência de nota completo, com o bloco do motorista preenchido.
+ */
+import type { TripOccurrenceDetail } from '../../src/trips/application/read-trip-occurrence-detail.use-case.js'
+
+export const OCCURRENCE_DETAIL: TripOccurrenceDetail = {
+  actorName: 'Operador de campo',
+  case: null,
+  conversation: { contractorState: 'none', driverUnreadCount: 0 },
+  channel: 'driver_app',
+  createdAt: '2026-09-24T14:12:00.000Z',
+  description: 'Recebedor cobrando descarga.',
+  document: {
+    contractor: {
+      contractorId: '00000000-0000-4000-8000-00000000b001',
+      name: 'Contratante Alfa',
+      taxId: '11222333000181',
+    },
+    destination: {
+      city: 'Guarulhos',
+      label: 'Avenida da Doca, 500 - Guarulhos/SP',
+      origin: 'delivery',
+      postalCode: '07000000',
+      recipientName: 'Galpão de entrega',
+      state: 'SP',
+    },
+    nfeDocumentId: '00000000-0000-4000-8000-00000000b002',
+    totalValue: '48320.0000',
+    tripDocumentId: '00000000-0000-4000-8000-00000000b003',
+  },
+  driver: {
+    driverId: '00000000-0000-4000-8000-00000000f001',
+    email: 'motorista@example.test',
+    name: 'Motorista A',
+    phone: '11999990001',
+    picturePath: null,
+    whatsappPhone: '5511999990001',
+  },
+  items: [{ code: 'ZG-4410', description: 'Azulejo 30x30 caixa', quantity: '3.500', unit: 'CX' }],
+  driverName: 'Motorista A',
+  hasAttachment: true,
+  id: '00000000-0000-4000-8000-00000000d001',
+  invoiceNumber: '4512',
+  invoiceSeries: '1',
+  notifies: false,
+  onBehalfOfDriverName: null,
+  source: 'document',
+  stage: 'delivery',
+  stopLabel: 'Parada 2',
+  tripId: '00000000-0000-4000-8000-00000000a001',
+  typeName: 'Cobrança inesperada',
+  vehiclePlate: 'ABC1D23',
+}

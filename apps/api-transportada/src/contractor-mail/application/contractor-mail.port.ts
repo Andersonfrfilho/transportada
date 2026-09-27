@@ -2,12 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type {
+  ContractorContactChannel,
+  ContractorContactOccurrenceStage,
   ContractorContactStatus,
+  ContractorContactType,
   ContractorMailDkimResult,
   ContractorMailSettingsStatus,
   ContractorMailThreadStatus,
   ContractorMailThreadSubjectType,
 } from '../../database/contractor-mail.schema.js'
+import type { ContractorContactState } from '../domain/contractor-contact.policy.js'
 
 /**
  * `secretEnvelope` é o jsonb como veio do banco, sem abrir: quem sela e quem lê o conteúdo é a
@@ -176,8 +180,16 @@ export type ContractorContactRecord = {
   readonly contractorId: string
   readonly email: string
   readonly id: string
+  readonly name: string
+  readonly occurrenceStages: readonly ContractorContactOccurrenceStage[]
+  readonly phone: string | null
+  readonly preferredChannel: ContractorContactChannel
   readonly receivesOccurrences: boolean
+  readonly roleLabel: string
   readonly status: ContractorContactStatus
+  readonly types: readonly ContractorContactType[]
+  readonly whatsappOptInAt: Date | null
+  readonly whatsappOptInByUserId: string | null
 }
 
 export type ListContractorContactsInput = {
@@ -185,21 +197,26 @@ export type ListContractorContactsInput = {
   readonly contractorId: string
 }
 
-export type CreateContractorContactInput = {
-  readonly canDecide: boolean
+export type FindContractorContactInput = ListContractorContactsInput & {
+  readonly contactId: string
+}
+
+/**
+ * Spec 183 T302: o caso de uso manda o estado inteiro, já decidido pela política
+ * (`contractor-contact.policy.ts`). Campo ausente fica com o padrão do banco (criação) ou com o valor
+ * gravado (edição) — é o que deixa a escrita parcial da 150 (só `status`) seguir válida.
+ */
+export type CreateContractorContactInput = Partial<ContractorContactState> & {
   readonly companyId: string
   readonly contractorId: string
   readonly email: string
-  readonly receivesOccurrences: boolean
 }
 
-export type UpdateContractorContactInput = {
-  readonly canDecide?: boolean
+export type UpdateContractorContactInput = Partial<ContractorContactState> & {
   readonly companyId: string
   readonly contactId: string
   readonly contractorId: string
   readonly email?: string
-  readonly receivesOccurrences?: boolean
   readonly status?: ContractorContactStatus
 }
 
@@ -207,6 +224,10 @@ export type ContractorMailRepositoryPort = {
   readonly listContractorContacts: (
     input: ListContractorContactsInput,
   ) => Promise<readonly ContractorContactRecord[]>
+  /** `undefined` quando o contato não existe dentro de `(companyId, contractorId, contactId)`. */
+  readonly findContractorContact: (
+    input: FindContractorContactInput,
+  ) => Promise<ContractorContactRecord | undefined>
   /** `email` normalizado (minúsculas, sem espaço) — duplicado na mesma contratante é `409`. */
   readonly createContractorContact: (
     input: CreateContractorContactInput,

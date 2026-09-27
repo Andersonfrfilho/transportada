@@ -29,6 +29,7 @@ import {
   TripDeliveryProofAlreadyCapturedError,
   TripDeliveryProofCargoLimitError,
 } from '../domain/trip-field-office.error.js'
+import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { DriverFieldReportTransactionPort } from './driver-field-report.port.js'
 import type { FieldAuthorship } from './field-trip-target.types.js'
 import type { RemovableObjectStoragePort } from './stored-object-cleanup.service.js'
@@ -44,6 +45,11 @@ export type OfficeDeliveryProofUpload = {
   readonly mimeType: string
   readonly receiverDocument: string
   readonly receiverName: string
+  /**
+   * Spec 193 D5: quem recebeu, já com a configuração aplicada (`applyReceivedBySettings`) por quem
+   * chama. Ausente é o comprovante sem o dado.
+   */
+  readonly receivedBy?: ReceivedByFields
 }
 
 export type OfficeDeliveryProofAttachment = {
@@ -186,6 +192,8 @@ export async function persistOfficeProof(
     receiverDocumentEnvelope,
     receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
     receiverName: isCargo ? '' : upload.receiverName.trim(),
+    receivedBy: isCargo ? null : (upload.receivedBy?.receivedBy ?? null),
+    receivedByDetail: isCargo ? null : (upload.receivedBy?.receivedByDetail ?? null),
     sha256: stored.sha256,
     sizeBytes: upload.bytes.byteLength,
   })

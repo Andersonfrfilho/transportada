@@ -40,3 +40,19 @@ export class LastCompanyAdminError extends ApiError {
     this.name = 'LastCompanyAdminError'
   }
 }
+
+/**
+ * ADR-0076 §8: suspender não revoga o convite, então um vínculo suspenso ainda pode ter convite
+ * `pending` — e é o reenvio do administrador que recusa reentregar o código enquanto o vínculo não
+ * volta a `active`. Reativar é o caminho: reenviar não reabilita ninguém.
+ */
+export class CompanyUserSuspendedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'COMPANY_USER_SUSPENDED',
+      message: 'Company user is suspended.',
+      status: 409,
+    })
+    this.name = 'CompanyUserSuspendedError'
+  }
+}

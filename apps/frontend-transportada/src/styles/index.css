@@ -61,6 +61,14 @@
   --color-graphite: #1c2b33;
   --color-ready: #6aae8c;
   --color-slate: #8fa3ad;
+  /*
+   * Spec 183 (T704): o balão é do participante — operação em cobre, contratante em azul, motorista
+   * em verde —, e a linha do tempo da ocorrência usa as mesmas. O texto sobre eles é o `--color-fog`,
+   * 4,5:1 ou mais; a enviada difere das recebidas também em luminosidade.
+   */
+  --color-bubble-out: #8c5527;
+  --color-bubble-contractor: #1d4468;
+  --color-bubble-driver: #1d4d35;
   /* O texto que senta sobre o cobre: no escuro é a tinta escura, no claro é o papel claro. */
   --color-ink-on-accent: #10222c;
   --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
@@ -160,6 +168,9 @@
   --color-graphite: #fbf9f5;
   --color-ready: #2e7d54;
   --color-slate: #5a6b74;
+  --color-bubble-out: #eec59c;
+  --color-bubble-contractor: #d6e7f8;
+  --color-bubble-driver: #d6f0e1;
   --color-ink-on-accent: #faf8f4;
 }
 
@@ -173,6 +184,9 @@
     --color-graphite: #fbf9f5;
     --color-ready: #2e7d54;
     --color-slate: #5a6b74;
+    --color-bubble-out: #eec59c;
+    --color-bubble-contractor: #d6e7f8;
+    --color-bubble-driver: #d6f0e1;
     --color-ink-on-accent: #faf8f4;
   }
 }

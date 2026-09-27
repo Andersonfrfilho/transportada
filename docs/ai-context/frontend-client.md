@@ -30,7 +30,8 @@ cliente vê `latitude`/`longitude`/`recordedAt`, nunca quem dirige. Sem consenti
 respondem igual ao celular (`202`, contra `201` do gravado). ⚠️ **Nada expira o rastro de viagem que
 nunca fecha**, e não há limite de frequência de ping.
 
-**A app não fala com terceiro nenhum**: `connect-src` é a própria origem, a API e o Keycloak — o
+**A app não fala com terceiro nenhum**: `connect-src` é a própria origem, a API, o Keycloak e o bucket
+da própria instalação (spec 183) — o
 painel tem quatro destinos externos, aqui são zero, e um contrato varre `https://` no código. Câmera,
 posição e microfone são **todos negados** na `Permissions-Policy` (o painel abre a câmera para o
 separador). O provedor de autenticação é cópia do painel **menos** o bypass de fumaça, e o contrato
@@ -43,6 +44,34 @@ enfeite.
 valor, campos nativos (inclusive `datetime-local`, que o painel proíbe), e nenhum teste de tela — o
 que se prova é serviço puro e texto de fonte. Crescer a app é decidir isso de novo, por escrito.
 Envs: `VITE_API_URL`, `VITE_CLIENT_APP_URL`, `VITE_KEYCLOAK_*`.
+
+**A app cresceu uma vez, por escrito: a conversa da ocorrência** (ADR-0073, spec 183, aceita em
+24/09/2026). A tela "Ocorrências" da 164 ganha a conversa com a transportadora **ao lado** do
+`DecisionForm`, que continua sendo o único jeito de decidir pelo portal — a conversa nunca decide.
+O que a ADR fixa, e que continua valendo para quem mexer aqui:
+
+- **`Permissions-Policy` igual:** câmera, microfone e posição negados. A contratante anexa por
+  seletor de arquivo e ouve áudio; não grava nem fotografa. Liberar microfone é ADR nova.
+- **O bucket entrou no `connect-src` e no `media-src`** (emenda de 25/09/2026 à ADR-0073, spec 183
+  T702b): o anexo sobe direto ao bucket pela URL assinada de PUT, sem o token, e o áudio toca pelo
+  `<audio>`. É a mesma origem do `img-src` (`VITE_STORAGE_URL`), que agora tem `ARG` no
+  `Dockerfile` — antes não tinha, e a CSP saía sem o bucket sem erro nenhum. Terceiro continua
+  fora: `EXTERNAL_CONNECT_ORIGIN` segue vazia.
+- **Nenhum id interno:** a conversa é nomeada pela `conversationRef` (`public_ref` aleatória) que
+  `GET /client/me/occurrences` passa a devolver; rotas em `/client/me/occurrence-conversations/:ref`,
+  recorte só por `resolveContractorScope`, e só nas ocorrências que a 164 D5 mostra ao portal. A rota
+  de decisão da 164 recebe o id interno da ocorrência — dívida da 164, registrada fora da ADR.
+- **Serializador próprio:** nenhum campo do motorista (nome, telefone, foto) nem do funcionário; a
+  transportadora aparece como empresa. O aviso de mensagem nova ao usuário do portal sai por e-mail
+  **sem o corpo**.
+- **Peças do `@adatechnology/conversations-ui`, estilo nosso, sem Tailwind e sem o `styles.css` do
+  pacote.** A ADR-0073 §1 previa importar o `styles.css`; o painel descobriu na spec 183 (T407) que
+  ele traz regra global (`:where(*) { border-color }` e `:root`), que repintaria a app inteira, e que
+  o `MessageBubble` só tem forma com Tailwind. Então o balão é nosso, com `MessageText`/`StatusTicks`/
+  `DateDivider` dentro, e os tokens de balão são cópia por valor dos do painel (`--color-bubble-*`).
+- **Continua sem design system e sem Playwright:** a prova é serviço puro e texto de fonte, mais o
+  contrato de que a `Permissions-Policy` não mudou e de que o `connect-src` só ganhou o bucket. O tamanho do bundle antes e
+  depois do pacote fica no `evidence.md` da spec 183 (T653).
 
 ## Documento fiscal: o CNPJ tem letra
 
@@ -84,3 +113,14 @@ Cobertura ponta a ponta em
 `api-transportada/test/integration/alphanumeric-cnpj-end-to-end.integration.ts`: nota de emitente
 alfanumérico → lote → frete → payload de CT-e → DACTE → fatura. Ele **não** cobre assinatura e
 transmissão (o XML nasce no worker, com certificado e rede).
+
+## A conversa da ocorrência no portal (spec 183, 24–25/09/2026)
+
+- **Esmaecer custava contraste (D1).** Com `opacity`, a hora e o tamanho do anexo ficavam em 4,39:1
+  sobre o cobre, logo abaixo dos 4,5:1. Agora o texto sai sem esmaecer.
+- **Anúncio de mensagem nova (D2).** `announceNewCarrierMessages` compara a leitura nova com a
+  anterior, e a primeira leitura nunca anuncia. O texto vai numa região `.visually-hidden` com
+  `aria-live`.
+- **Caixa travada no envio (F13).** Conferido no navegador com o POST segurado por 2 s: a caixa fica
+  desabilitada e volta vazia.
+- **Anterior à 183:** a navegação do portal estoura 64 px a 360. Ficou para uma tarefa própria.

@@ -124,4 +124,17 @@ describe('o seed do catálogo de tipos de ocorrência só semeia empresa vazia',
     expect(count).toBe(0)
     expect(inserted).toEqual([])
   })
+
+  /**
+   * Pedido do usuário (25/09/2026, spec 208): tipo de rua para o motorista registrar que o
+   * cliente pediu a segunda via do boleto — sem foto, sem soltar a nota da viagem.
+   */
+  test('o catálogo inclui "Cliente pediu segunda via do boleto" na etapa de entrega', () => {
+    const entry = OCCURRENCE_TYPE_CATALOG.find(
+      (type) => type.name === 'Cliente pediu segunda via do boleto',
+    )
+
+    expect(entry).toBeDefined()
+    expect(entry?.stage).toBe('delivery')
+  })
 })

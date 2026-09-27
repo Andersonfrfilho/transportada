@@ -69,6 +69,7 @@ config: realm-contract ## 🔎 Valida o Docker Compose com o nome do projeto
 	@grep -q '^ENCRYPTION_KEYRING_JSON=.' "$(ENV_FILE)"
 	@grep -q '^IDEMPOTENCY_HMAC_KEY=.' "$(ENV_FILE)"
 	@grep -q '^NOTIFICATION_SUPPRESSION_HMAC_KEY=.' "$(ENV_FILE)"
+	@grep -q '^RATE_LIMIT_SUBJECT_HMAC_KEY=.' "$(ENV_FILE)"
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		bun -e 'import { parseEnvironment } from "./apps/api-transportada/src/config/environment.schema.ts"; parseEnvironment(process.env)'
 	@test "$$(bun --version)" = "$(BUN_VERSION)"

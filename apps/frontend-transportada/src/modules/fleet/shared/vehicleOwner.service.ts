@@ -50,6 +50,28 @@ export function findVehicleOwnerDriver(
   )
 }
 
+/** O motorista que o operador cadastrou, pela ficha do veículo, como proprietário dele. */
+export type VehicleOwnerDriverChoice = Readonly<{ driverId: string; ownerTaxId: string }>
+
+type ResolveOwnerDriverToLinkParams = Readonly<{
+  choice: VehicleOwnerDriverChoice | null
+  state: Readonly<{ ownerTaxId: string; ownership: string }>
+}>
+
+/**
+ * O motorista cadastrado pela ficha do veículo é quem o dirige — sem isso o operador salvava o veículo e
+ * voltava à ficha do motorista para marcá-lo à mão. Só vale o cadastro feito ali, e só enquanto a
+ * ficha ainda afirma aquele proprietário: o documento lido depois pode tê-lo trocado.
+ */
+export function resolveOwnerDriverToLink(
+  params: ResolveOwnerDriverToLinkParams,
+): string | undefined {
+  const { choice, state } = params
+  if (choice === null || state.ownership === 'own') return undefined
+  if (state.ownerTaxId !== choice.ownerTaxId) return undefined
+  return choice.driverId
+}
+
 /** O grupo <prop> do MDF-e é tudo-ou-nada: a API recusa o veículo inteiro se faltar um destes. */
 export const VEHICLE_OWNER_REQUIRED_FIELDS = [
   'ownerName',

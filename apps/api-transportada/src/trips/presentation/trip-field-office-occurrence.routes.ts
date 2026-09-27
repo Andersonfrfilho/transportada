@@ -5,7 +5,7 @@
  * lote (D7, aceite 10). A política, o caminho e a resolução do alvo são os de
  * `trip-field-office.support.ts`.
  */
-import { resolveClientIp } from '../../http/client-ip.service.js'
+import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { API_TRIPS_PATH } from '../../shared/api.constant.js'
@@ -39,6 +39,8 @@ const OFFICE_OCCURRENCES_RATE_LIMIT = {
 } as const
 
 export type TripFieldOfficeOccurrenceDependencies = {
+  /** ADR-0076 §6: o IP da trilha sai do salto conhecido, nunca do começo de `x-forwarded-for`. */
+  readonly resolveClientIp: ClientIpResolver
   readonly listFieldOccurrenceTypes: (input: {
     readonly companyId: string
   }) => Promise<readonly FieldOccurrenceType[]>
@@ -123,7 +125,7 @@ export function createTripFieldOfficeOccurrenceRoutes(
           documentIds: body.documentIds,
           driverId: body.driverId,
           idempotencyKey: parseIdempotencyKey(request),
-          ipAddress: resolveClientIp(request),
+          ipAddress: dependencies.resolveClientIp(request),
           note: body.note,
           occurrenceTypeId: body.occurrenceTypeId,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),

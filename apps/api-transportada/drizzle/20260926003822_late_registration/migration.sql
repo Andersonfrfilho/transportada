@@ -1,0 +1,2 @@
+ALTER TABLE "trip_delivery_proofs" ADD COLUMN "late_registration" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "trip_stop_events" ADD COLUMN "late_registration" boolean DEFAULT false NOT NULL;

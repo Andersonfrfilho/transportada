@@ -58,6 +58,13 @@ export type DriverProofAttachment = Readonly<{
   receiverName?: string
 }>
 
+/** Spec 209: o "Deu problema" — o motivo, a descrição e uma foto, ainda sem reduzir. */
+export type StopOccurrenceSubmission = Readonly<{
+  description: string
+  kind: DriverOccurrenceKind
+  photo: File | undefined
+}>
+
 type DriverStopCardProps = Readonly<{
   isCurrent: boolean
   /**
@@ -77,12 +84,11 @@ type DriverStopCardProps = Readonly<{
   }) => void
   occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => void
-  onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
   /**
-   * ⚠️ A rota de ocorrência de parada não aceita anexo: a foto do local/carga sobe pelo caminho de
-   * comprovante da nota associada (`/documents/:id/proof`), rotulada como foto da ocorrência.
+   * Spec 209: a foto é **da ocorrência** e vai junto dela — nunca pelo comprovante de uma nota, onde
+   * virava canhoto e pesava na pontualidade e na nota do motorista.
    */
-  onOccurrencePhoto: (input: { documentId: string; file: File }) => void
+  onOccurrence: (input: StopOccurrenceSubmission & { stopId: string }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
   /** Spec 157 RF5: o toque em "Tentar de novo" no painel de ocorrência da nota. */
   onRetryOccurrenceTypes: () => void
@@ -98,7 +104,6 @@ export function DriverStopCard({
   occurrenceTypes,
   onDocumentOccurrence,
   onOccurrence,
-  onOccurrencePhoto,
   onProof,
   onReturn,
   onRetryOccurrenceTypes,
@@ -174,14 +179,7 @@ export function DriverStopCard({
         <OccurrenceForm
           stop={stop}
           onSubmit={(input) => {
-            onOccurrence({ description: input.description, kind: input.kind, stopId: stop.id })
-            /* A mesma nota da prévia: a escolha mora em `findOccurrencePhotoDocument`. */
-            const photoTarget = findOccurrencePhotoDocument(stop)
-            if (photoTarget !== undefined) {
-              for (const file of input.photos) {
-                onOccurrencePhoto({ documentId: photoTarget.id, file })
-              }
-            }
+            onOccurrence({ ...input, stopId: stop.id })
             setOpenOccurrence(false)
           }}
         />
@@ -567,11 +565,7 @@ export function DeliveryProofSection({
 }
 
 type OccurrenceFormProps = Readonly<{
-  onSubmit: (input: {
-    description: string
-    kind: DriverOccurrenceKind
-    photos: readonly File[]
-  }) => void
+  onSubmit: (input: StopOccurrenceSubmission) => void
   stop: DriverTripStop
 }>
 
@@ -584,7 +578,8 @@ function OccurrenceForm({ onSubmit, stop }: OccurrenceFormProps) {
   const { t } = useTranslation('driverTrip')
   const [kind, setKind] = useState<DriverOccurrenceKind>('long_wait')
   const [description, setDescription] = useState('')
-  const [photos, setPhotos] = useState<readonly File[]>([])
+  /** Spec 209 (D1): uma foto por ocorrência — escolher outra substitui a anterior. */
+  const [photo, setPhoto] = useState<File | undefined>(undefined)
 
   const noteDocument = findOccurrencePhotoDocument(stop)
   const preview = renderOccurrenceNoticePreview({
@@ -625,32 +620,25 @@ function OccurrenceForm({ onSubmit, stop }: OccurrenceFormProps) {
         {preview === null ? (
           <p className={styles.occurrencePreviewText}>{t('occurrencePreview.none')}</p>
         ) : (
-          <>
-            <p className={styles.occurrencePreviewText}>{preview.text}</p>
-            <p className={styles.occurrencePreviewKey}>{preview.templateKey}</p>
-          </>
+          <p className={styles.occurrencePreviewText}>{preview.text}</p>
         )}
       </div>
-      {/* ⚠️ A rota da ocorrência não aceita anexo: a foto sobe pelo proof da nota associada. */}
-      {noteDocument === undefined ? null : (
-        <div className={styles.proofField}>
-          <FileField
-            resetAfterSelect
-            accept="image/*"
-            actionLabel={t('choosePhoto')}
-            capture="environment"
-            label={t('occurrencePhoto')}
-            placeholder={t('noPhotoChosen')}
-            onSelect={(file) => {
-              if (file !== undefined) setPhotos((current) => [...current, file])
-            }}
-          />
-          {photos.length === 0 ? null : (
-            <span>{t('occurrencePhotoCount', { count: photos.length })}</span>
-          )}
-        </div>
-      )}
-      <Button onClick={() => onSubmit({ description, kind, photos })} type="button">
+      {/* Spec 209: a foto é da ocorrência de parada — nunca do comprovante de uma nota. */}
+      <div className={styles.proofField}>
+        <FileField
+          resetAfterSelect
+          accept="image/*"
+          actionLabel={t('choosePhoto')}
+          capture="environment"
+          {...(photo === undefined ? {} : { fileName: photo.name })}
+          label={t('occurrencePhoto')}
+          placeholder={t('noPhotoChosen')}
+          onSelect={(file) => {
+            if (file !== undefined) setPhoto(file)
+          }}
+        />
+      </div>
+      <Button onClick={() => onSubmit({ description, kind, photo })} type="button">
         <Icon name="save" />
         {t('occurrenceSend')}
       </Button>

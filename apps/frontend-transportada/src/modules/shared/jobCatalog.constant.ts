@@ -219,6 +219,18 @@ export const JOB_CATALOG = [
      * objeto sem dono no bucket por mais tempo do que a própria janela de upload. */
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
+  {
+    /**
+     * Spec 183 T702c2: o pedido de upload do anexo da conversa vive 900s
+     * (`CONVERSATION_UPLOAD_EXPIRES_IN_SECONDS` da API); o que nunca virou anexo de mensagem fica
+     * `pending` com o objeto sem dono no bucket, e esta rotina apaga o objeto e marca `expired`.
+     * Vocabulário de falha vazio, como a rotina irmã da spec 179.
+     */
+    failureOutcomes: [],
+    job: 'occurrence-conversation.upload.expire',
+    /** A batida, pela mesma razão da rotina irmã: a janela é de minutos, não de dias. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

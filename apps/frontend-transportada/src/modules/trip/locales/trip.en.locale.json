@@ -467,6 +467,10 @@
       "statusChanged": "Trip status changed ({{status}})",
       "stopArrived": "Arrival at stop {{sequence}}",
       "stopArrivedUnknown": "Arrival at stop",
+      "stopDeparted": "On the way to stop {{sequence}}",
+      "stopDepartedUnknown": "On the way to a stop",
+      "stopDepartureCancelled": "Cancelled the route to stop {{sequence}}",
+      "stopDepartureCancelledUnknown": "Cancelled the route to a stop",
       "stopOccurrence": "Occurrence: {{type}}",
       "tripStatus": {
         "cancelled": "Trip cancelled",
@@ -624,6 +628,10 @@
   },
   "occurrenceFeed": {
     "columns": {
+      "contractor": "Contracting party",
+      "destination": "Delivery address",
+      "invoiceValue": "Invoice value",
+      "conversation": "Conversation",
       "createdAt": "Time",
       "driverName": "Driver",
       "invoice": "Invoice",
@@ -680,6 +688,19 @@
     },
     "loadMore": "Load more",
     "loadingMore": "Loading…",
+    "conversation": {
+      "conversation": {
+        "awaiting": "Awaiting contractor",
+        "replied": "Contractor replied"
+      },
+      "decision": {
+        "redelivery_authorized": "Redelivery authorized",
+        "goods_paid": "Goods paid",
+        "other": "Other solution"
+      },
+      "driverUnread_one": "{{count}} message from the driver",
+      "driverUnread_other": "{{count}} messages from the driver"
+    },
     "notified": "Notice sent",
     "stage": {
       "delivery": "Delivery",
@@ -697,6 +718,11 @@
       "decided": "Decided",
       "closed": "Closed",
       "cancelled": "Cancelled"
+    },
+    "card": {
+      "list": "Occurrences",
+      "newestFirst": "Newest first",
+      "oldestFirst": "Oldest first"
     }
   },
   "pendingMeasurement": {
@@ -1383,5 +1409,109 @@
     "invalidRows": "There is an incomplete item in the settlement — check the marked fields. Nothing was saved.",
     "reimbursedOn": "Reimbursed on {{date}}",
     "savedItemsTitle": "Saved items"
+  },
+  "occurrenceDetail": {
+    "back": "Back to occurrences",
+    "breadcrumb": "Occurrence navigation",
+    "kicker": "Occurrence · {{stage}}",
+    "recordedBy": "Recorded at {{moment}} by {{actor}} ({{channel}})",
+    "recordedOnBehalf": "Recorded at {{moment}} by {{actor}}, on behalf of {{driver}}",
+    "unknownActor": "the author is no longer in the company",
+    "noDriver": "No driver on this trip",
+    "notFound": "Occurrence not found in this company.",
+    "channel": {
+      "driver_app": "driver app",
+      "office": "office",
+      "whatsapp": "WhatsApp"
+    },
+    "summary": {
+      "title": "Summary",
+      "openTrip": "Open trip",
+      "description": "Description"
+    },
+    "document": {
+      "title": "Invoice",
+      "none": "No invoice on this occurrence. Stop: {{stop}}",
+      "invoice": "NF-e",
+      "contractor": "Contractor (issuer)",
+      "contractorUnknown": "Issuer not recorded on the invoice",
+      "totalValue": "Invoice value",
+      "destination": "Delivery address",
+      "destinationOf": "Delivery address · {{recipient}}",
+      "destinationUnknown": "Address not recorded on the invoice"
+    },
+    "driver": {
+      "title": "Driver contact",
+      "name": "Name",
+      "phone": "Phone",
+      "email": "E-mail",
+      "none": "—",
+      "whatsapp": "WhatsApp",
+      "call": "Call",
+      "openWhatsapp": "WhatsApp",
+      "writeEmail": "Write e-mail",
+      "copyPhone": "Copy phone",
+      "copied": "Phone copied",
+      "pictureAlt": "Photo of {{name}}"
+    },
+    "case": {
+      "title": "Case"
+    },
+    "items": {
+      "title": "Affected items",
+      "noDescription": "Item not in the invoice"
+    },
+    "conversations": {
+      "title": "Conversations"
+    },
+    "conversationPhoto": {
+      "attach": "Attach to occurrence",
+      "attaching": "Attaching…",
+      "attached": "Attached to the occurrence.",
+      "error": "Could not attach: the occurrence may already have five photos. Try again shortly."
+    },
+    "phoneTabs": {
+      "ariaLabel": "Occurrence sections",
+      "summary": "Summary",
+      "contractor": "Contractor",
+      "driver": "Driver"
+    }
+  },
+  "occurrenceTimeline": {
+    "title": "Timeline",
+    "loading": "Loading the timeline",
+    "error": "Could not load the timeline.",
+    "empty": "Nothing from this participant yet.",
+    "filterLabel": "Filter the timeline by participant",
+    "filter": {
+      "all": "All",
+      "contractor": "Contracting party",
+      "driver": "Driver"
+    },
+    "actor": {
+      "contractor": "Contracting party",
+      "driver": "Driver",
+      "operation": "Operations",
+      "system": "System"
+    },
+    "gap": "+{{elapsed}} since the previous one",
+    "key": "Milestone",
+    "running": "ongoing",
+    "timing": {
+      "open": "Open for",
+      "contractorResponse": "Contracting party response",
+      "driverRelease": "Driver release",
+      "notAsked": "Not sent to the contracting party",
+      "none": "—"
+    },
+    "event": {
+      "recorded": "Recorded the occurrence",
+      "photos_one": "Attached {{count}} photo",
+      "photos_other": "Attached {{count}} photos",
+      "caseTransition": "Case: {{status}}",
+      "mailSent": "E-mailed the contracting party",
+      "mailSentAutomatic": "Automatic notice sent to the contracting party",
+      "mailReceived": "The contracting party replied by e-mail"
+    }
   }
 }

@@ -17,7 +17,8 @@ import type { SQL, SQLWrapper } from 'drizzle-orm'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
-import { nfeDocuments } from '../../database/nfe.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
+import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
@@ -51,9 +52,34 @@ import type {
   TripOccurrenceFeedQuery,
 } from '../application/trip-occurrence-feed.use-case.js'
 import type { OccurrenceAttachmentRecord } from '../application/occurrence-attachment.service.js'
+import { listStopAddresses } from './nfe-destination-address.support.js'
+import type { NfeDestinationAddress } from './nfe-destination-address.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import {
+  EMPTY_CONVERSATION_SUMMARY,
+  listOccurrenceConversationSummaries,
+} from '../../occurrence-conversation/infrastructure/occurrence-conversation-summary.query.js'
 
-type FeedRow = Omit<TripOccurrenceFeedItem, 'createdAt'> & { readonly createdAt: Date }
+/** O papel do emitente em `nfe_participants` — o mesmo literal de `findChargeParties`. */
+const EMITTER_ROLE = 'emitter'
+
+/**
+ * A linha antes do enriquecimento: o bloco `document` (spec 183 RF2) nasce **depois** da fusão das
+ * duas fontes, numa leitura em lote por página — nunca uma consulta por linha.
+ */
+type FeedRow = Omit<TripOccurrenceFeedItem, 'conversation' | 'createdAt' | 'document'> & {
+  readonly createdAt: Date
+  readonly nfeDocumentId: null | string
+  readonly totalValue: null | string
+  readonly tripDocumentId: null | string
+}
+
+/**
+ * Spec 183 RF1: a mesma consulta da listagem, presa a um id. É deliberadamente **a mesma** — o
+ * detalhe e a linha não podem divergir no que mostram (tratativa, autoria, anexo), e uma segunda
+ * consulta escrita à parte divergiria na primeira mudança de uma delas.
+ */
+type FeedRowQuery = TripOccurrenceFeedQuery & { readonly occurrenceId?: string }
 
 /** Spec 156 T9 (D3): quem gravou, resolvido pela mesma janela do padrão de nfe-documents (D16, H13). */
 const feedActorMembership = alias(userCompanyMemberships, 'trip_occurrence_feed_actor_membership')
@@ -140,7 +166,7 @@ function caseStatusCondition(filters: TripOccurrenceFeedFilters | undefined): SQ
 
 async function listDocumentOccurrenceRows(
   queryable: TripQueryable,
-  query: TripOccurrenceFeedQuery,
+  query: FeedRowQuery,
   cursor: KeysetCursor | null,
   documentStages: null | readonly ('delivery' | 'separation')[],
 ): Promise<readonly FeedRow[]> {
@@ -157,6 +183,9 @@ async function listDocumentOccurrenceRows(
         query.order,
       ),
     )
+  }
+  if (query.occurrenceId !== undefined) {
+    conditions.push(eq(tripDocumentOccurrences.id, query.occurrenceId))
   }
   if (documentStages !== null)
     conditions.push(inArray(tripDocumentOccurrences.stage, documentStages))
@@ -182,6 +211,9 @@ async function listDocumentOccurrenceRows(
       channel: tripDocumentOccurrences.channel,
       createdAt: tripDocumentOccurrences.createdAt,
       description: tripDocumentOccurrences.note,
+      nfeDocumentId: nfeDocuments.id,
+      tripDocumentId: tripDocuments.id,
+      totalValue: nfeDocuments.totalValue,
       driverName: tripDrivers.driverName,
       /**
        * Spec 161 T10 (RF10): sai o `false` fixo — a nota de galpão grava na tabela nova (D2), a de
@@ -289,6 +321,9 @@ async function listDocumentOccurrenceRows(
     channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
+    nfeDocumentId: row.nfeDocumentId ?? null,
+    tripDocumentId: row.tripDocumentId ?? null,
+    totalValue: row.totalValue ?? null,
     driverName: row.driverName ?? '',
     hasAttachment: Boolean(row.hasAttachment),
     id: row.id,
@@ -350,7 +385,7 @@ function stopOccurrencesMatchCaseFilter(filters: TripOccurrenceFeedFilters | und
 
 async function listStopOccurrenceRows(
   queryable: TripQueryable,
-  query: TripOccurrenceFeedQuery,
+  query: FeedRowQuery,
   cursor: KeysetCursor | null,
 ): Promise<readonly FeedRow[]> {
   if (!stopOccurrencesMatchCaseFilter(query.filters)) return []
@@ -363,6 +398,9 @@ async function listStopOccurrenceRows(
     conditions.push(
       keysetCondition(tripStopOccurrences.createdAt, tripStopOccurrences.id, cursor, query.order),
     )
+  }
+  if (query.occurrenceId !== undefined) {
+    conditions.push(eq(tripStopOccurrences.id, query.occurrenceId))
   }
   if (query.filters?.typeIn !== undefined && query.filters.typeIn.length > 0) {
     // O filtro de tipo casa com o `kind` do catálogo; nome de tipo cadastrado não é kind de parada.
@@ -383,6 +421,9 @@ async function listStopOccurrenceRows(
       channel: tripStopOccurrences.channel,
       createdAt: tripStopOccurrences.createdAt,
       description: tripStopOccurrences.description,
+      nfeDocumentId: nfeDocuments.id,
+      tripDocumentId: tripDocuments.id,
+      totalValue: nfeDocuments.totalValue,
       driverName: tripDrivers.driverName,
       id: tripStopOccurrences.id,
       invoiceNumber: nfeDocuments.number,
@@ -455,6 +496,9 @@ async function listStopOccurrenceRows(
     channel: row.channel,
     createdAt: row.createdAt,
     description: row.description,
+    nfeDocumentId: row.nfeDocumentId ?? null,
+    tripDocumentId: row.tripDocumentId ?? null,
+    totalValue: row.totalValue ?? null,
     driverName: row.driverName ?? '',
     hasAttachment: row.attachmentObjectId !== null,
     id: row.id,
@@ -469,6 +513,107 @@ async function listStopOccurrenceRows(
     typeName: row.kind,
     vehiclePlate: row.vehiclePlate,
   }))
+}
+
+const feedEmitters = alias(nfeParticipants, 'trip_occurrence_feed_emitter')
+
+/**
+ * Spec 183 RF2: o bloco `document` da página inteira em **duas** leituras fixas — emitentes (com o
+ * contratante casado pelo CNPJ **dentro da empresa**) e destinos físicos (`listStopAddresses`, a
+ * mesma costura que decide a parada) —, qualquer que seja o tamanho da página. Página sem nota
+ * nenhuma não consulta nada.
+ */
+async function toFeedItems(
+  queryable: TripQueryable,
+  companyId: string,
+  rows: readonly FeedRow[],
+  viewerUserId?: string,
+): Promise<TripOccurrenceFeedItem[]> {
+  const nfeDocumentIds = [
+    ...new Set(rows.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId]))),
+  ]
+  const emitters = new Map<
+    string,
+    { readonly contractorId: null | string; readonly name: string; readonly taxId: null | string }
+  >()
+  let destinations = new Map<string, NfeDestinationAddress>()
+  if (nfeDocumentIds.length > 0) {
+    const [emitterRows, stopAddresses] = await Promise.all([
+      queryable
+        .select({
+          contractorId: contractors.id,
+          contractorName: contractors.displayName,
+          documentId: feedEmitters.documentId,
+          legalName: feedEmitters.legalName,
+          taxId: feedEmitters.taxId,
+          tradeName: feedEmitters.tradeName,
+        })
+        .from(feedEmitters)
+        .leftJoin(
+          contractors,
+          and(
+            eq(contractors.companyId, feedEmitters.companyId),
+            eq(contractors.taxId, feedEmitters.taxId),
+          ),
+        )
+        .where(
+          and(
+            eq(feedEmitters.companyId, companyId),
+            inArray(feedEmitters.documentId, nfeDocumentIds),
+            eq(feedEmitters.role, EMITTER_ROLE),
+          ),
+        ),
+      listStopAddresses(queryable, { companyId, nfeDocumentIds }),
+    ])
+    for (const emitter of emitterRows) {
+      const registeredName = emitter.contractorName?.trim() ?? ''
+      emitters.set(emitter.documentId, {
+        contractorId: emitter.contractorId ?? null,
+        name:
+          registeredName !== ''
+            ? registeredName
+            : (emitter.legalName ?? emitter.tradeName ?? '').trim(),
+        taxId: emitter.taxId ?? null,
+      })
+    }
+    destinations = stopAddresses
+  }
+
+  /** Spec 183 RF4: o resumo das conversas da página inteira, em leituras fixas — nunca por linha. */
+  const conversations = await listOccurrenceConversationSummaries(queryable, {
+    companyId,
+    occurrences: rows.map((row) => ({ id: row.id, kind: row.source })),
+    ...(viewerUserId === undefined ? {} : { viewerUserId }),
+  })
+
+  return rows.map(({ nfeDocumentId, totalValue, tripDocumentId, ...row }) => {
+    const destination = nfeDocumentId === null ? undefined : destinations.get(nfeDocumentId)
+    return {
+      ...row,
+      conversation: conversations.get(`${row.source}:${row.id}`) ?? EMPTY_CONVERSATION_SUMMARY,
+      createdAt: row.createdAt.toISOString(),
+      document:
+        nfeDocumentId === null || totalValue === null || tripDocumentId === null
+          ? null
+          : {
+              contractor: emitters.get(nfeDocumentId) ?? null,
+              destination:
+                destination === undefined
+                  ? null
+                  : {
+                      city: destination.city,
+                      label: destination.label,
+                      origin: destination.origin,
+                      postalCode: destination.components.postalCode ?? null,
+                      recipientName: destination.recipientName,
+                      state: destination.state,
+                    },
+              nfeDocumentId,
+              totalValue,
+              tripDocumentId,
+            },
+    }
+  })
 }
 
 export async function listTripOccurrenceFeed(
@@ -495,12 +640,38 @@ export async function listTripOccurrenceFeed(
   const last = merged.items[merged.items.length - 1]
 
   return {
-    items: merged.items.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
+    items: await toFeedItems(queryable, query.companyId, merged.items, query.viewerUserId),
     nextCursor:
       merged.hasMore && last !== undefined
         ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
         : null,
   }
+}
+
+/**
+ * Spec 183 RF1: uma ocorrência só, na forma exata da linha da listagem. As duas fontes são
+ * consultadas (o id é único nas duas tabelas por ser UUID, e cada consulta já escopa pela empresa
+ * em toda junção); `null` quando nenhuma acha — de outra empresa ou inexistente, igual.
+ */
+export async function findTripOccurrenceFeedItem(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<TripOccurrenceFeedItem | null> {
+  const query: FeedRowQuery = {
+    companyId: input.companyId,
+    cursor: null,
+    limit: 1,
+    occurrenceId: input.occurrenceId,
+    order: 'desc',
+  }
+  const [documentRows, stopRows] = await Promise.all([
+    listDocumentOccurrenceRows(queryable, query, null, null),
+    listStopOccurrenceRows(queryable, query, null),
+  ])
+  const row = documentRows[0] ?? stopRows[0]
+  if (row === undefined) return null
+  const [item] = await toFeedItems(queryable, input.companyId, [row])
+  return item ?? null
 }
 
 const feedAttachmentOriginals = alias(storedObjects, 'trip_occurrence_feed_attachment_original')

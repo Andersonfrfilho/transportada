@@ -8,6 +8,7 @@ import {
   contractorMailMessages,
   contractorMailSettings,
 } from '../../database/contractor-mail.schema.js'
+import { applyOccurrenceConversationMailStatus } from '../../occurrence-conversation/infrastructure/drizzle-occurrence-conversation-mail.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -123,28 +124,46 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
       return { rfcMessageId: row.rfcMessageId }
     },
 
+    /** Spec 183 T405: a mensagem da conversa (se houver) acompanha, na mesma transação. */
     async markMessageSent({ companyId, messageId, providerEmailId }) {
-      await database
-        .update(contractorMailMessages)
-        .set({ deliveryStatus: 'sent', providerEmailId })
-        .where(
-          and(
-            eq(contractorMailMessages.companyId, companyId),
-            eq(contractorMailMessages.id, messageId),
-          ),
-        )
+      await database.transaction(async (transaction) => {
+        await transaction
+          .update(contractorMailMessages)
+          .set({ deliveryStatus: 'sent', providerEmailId })
+          .where(
+            and(
+              eq(contractorMailMessages.companyId, companyId),
+              eq(contractorMailMessages.id, messageId),
+            ),
+          )
+        await applyOccurrenceConversationMailStatus(transaction, {
+          at: new Date(),
+          companyId,
+          incoming: 'sent',
+          mailMessageId: messageId,
+          providerMessageId: providerEmailId,
+        })
+      })
     },
 
     async markMessageFailed({ companyId, messageId }) {
-      await database
-        .update(contractorMailMessages)
-        .set({ deliveryStatus: 'failed' })
-        .where(
-          and(
-            eq(contractorMailMessages.companyId, companyId),
-            eq(contractorMailMessages.id, messageId),
-          ),
-        )
+      await database.transaction(async (transaction) => {
+        await transaction
+          .update(contractorMailMessages)
+          .set({ deliveryStatus: 'failed' })
+          .where(
+            and(
+              eq(contractorMailMessages.companyId, companyId),
+              eq(contractorMailMessages.id, messageId),
+            ),
+          )
+        await applyOccurrenceConversationMailStatus(transaction, {
+          at: new Date(),
+          companyId,
+          incoming: 'failed',
+          mailMessageId: messageId,
+        })
+      })
     },
   }
 }

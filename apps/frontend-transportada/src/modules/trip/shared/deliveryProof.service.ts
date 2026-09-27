@@ -9,8 +9,12 @@
  *
  * O serviço é puro porque o teste desta app não tem DOM: o comportamento se prova na função.
  */
+import type { DELIVERY_PROOF_RECEIVED_BY_OPTIONS } from './trip.constant'
 
 export type DeliveryProofKind = 'photo' | 'signature' | 'cargo'
+
+/** Spec 193 D1: a relação de quem recebeu com o destinatário (`DELIVERY_PROOF_RECEIVED_BY_OPTIONS`). */
+export type DeliveryProofReceivedBy = (typeof DELIVERY_PROOF_RECEIVED_BY_OPTIONS)[number]
 
 export type DeliveryProof = Readonly<{
   createdAt: string
@@ -18,6 +22,13 @@ export type DeliveryProof = Readonly<{
   expiresAt: string
   id: string
   kind: DeliveryProofKind
+  /** Spec 205 RF8: o comprovante (ou a entrega dele) foi registrado depois. Ausente na API anterior. */
+  lateRegistration?: boolean
+  /** ADR-0057 §3: sempre a máscara; esta tela não o mostra. */
+  receiverDocument?: string
+  /** Spec 193 D3: quem recebeu, da mesma linha do nome. Ausente na API anterior; `null` no antigo. */
+  receivedBy?: DeliveryProofReceivedBy | null
+  receivedByDetail?: null | string
   /** Nome de quem recebeu, na assinatura. **Nunca documento** — ADR-0045 §7. */
   receiverName: string
 }>

@@ -161,7 +161,16 @@ jobs:
     #
     # `needs.changes.result == 'success'` importa: `always()` sozinho faria o gate rodar até quando
     # a detecção de mudanças falhou, e ele decidiria sobre uma lista de apps que ninguém apurou.
-    if: always() && needs.changes.result == 'success'
+    #
+    # PR de promoção (`staging`→`main`, `head_ref` igual a uma branch que o `push` acima também
+    # cobre) dispara os dois eventos para o mesmo commit — `pull_request` aqui e `push` na branch.
+    # O `push` já reporta `gate / quality` e `gate / integration` para o mesmo SHA, e a proteção de
+    # branch casa o check pelo SHA, não pelo evento que o gerou — rodar de novo aqui só dobra o
+    # custo. PR de branch de feature não tem `push` correspondente (não está em
+    # `on.push.branches`), então continua rodando normalmente.
+    if: >-
+      always() && needs.changes.result == 'success' &&
+      !(github.event_name == 'pull_request' && contains(fromJSON('["main", "staging"]'), github.head_ref))
     uses: ./.github/workflows/ci.yml
     with:
       apps: ${{ needs.changes.outputs.apps }}

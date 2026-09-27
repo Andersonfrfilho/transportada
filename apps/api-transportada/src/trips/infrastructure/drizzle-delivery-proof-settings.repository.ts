@@ -17,12 +17,18 @@ import {
   DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS,
   type CompanyDeliveryProofSettings,
   type DeliveryProofFieldSettings,
+  type DeliveryProofFieldSettingsInput,
   type DeliveryProofSettingsInput,
 } from '../domain/delivery-proof-settings.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 export type DeliveryProofSettingsOverride = DeliveryProofFieldSettings & {
+  readonly taxId: string
+}
+
+/** Spec 193 D6: no `PUT` de exceções, `receivedBy` ausente preserva o valor do mesmo `taxId`. */
+export type DeliveryProofSettingsOverrideInput = DeliveryProofFieldSettingsInput & {
   readonly taxId: string
 }
 
@@ -42,6 +48,7 @@ export class DrizzleDeliveryProofSettingsRepository {
         photo: companyDeliveryProofSettings.photo,
         proofRadiusMeters: companyDeliveryProofSettings.proofRadiusMeters,
         proofWindowMinutes: companyDeliveryProofSettings.proofWindowMinutes,
+        receivedBy: companyDeliveryProofSettings.receivedBy,
         receiverDocument: companyDeliveryProofSettings.receiverDocument,
         receiverName: companyDeliveryProofSettings.receiverName,
         signature: companyDeliveryProofSettings.signature,
@@ -89,6 +96,7 @@ export class DrizzleDeliveryProofSettingsRepository {
     return this.database
       .select({
         photo: deliveryProofSettingOverrides.photo,
+        receivedBy: deliveryProofSettingOverrides.receivedBy,
         receiverDocument: deliveryProofSettingOverrides.receiverDocument,
         receiverName: deliveryProofSettingOverrides.receiverName,
         signature: deliveryProofSettingOverrides.signature,
@@ -105,7 +113,7 @@ export class DrizzleDeliveryProofSettingsRepository {
    */
   public async replaceOverrides(input: {
     readonly companyId: string
-    readonly overrides: readonly DeliveryProofSettingsOverride[]
+    readonly overrides: readonly DeliveryProofSettingsOverrideInput[]
   }): Promise<void> {
     await this.database.transaction(async (transaction) => {
       const keptTaxIds = input.overrides.map((override) => override.taxId)
@@ -127,6 +135,7 @@ export class DrizzleDeliveryProofSettingsRepository {
           .onConflictDoUpdate({
             set: {
               photo: override.photo,
+              ...(override.receivedBy === undefined ? {} : { receivedBy: override.receivedBy }),
               receiverDocument: override.receiverDocument,
               receiverName: override.receiverName,
               signature: override.signature,

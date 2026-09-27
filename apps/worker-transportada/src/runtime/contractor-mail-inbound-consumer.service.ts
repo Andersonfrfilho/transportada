@@ -76,7 +76,14 @@ export async function startContractorMailInboundConsumer(params: {
           safeLogInfo({
             logger: params.logger,
             message: 'inbound_email_dkim_verified',
-            metadata: { ...baseMetadata, dkimResult: result.dkimResult, threadId: result.threadId },
+            metadata: {
+              ...baseMetadata,
+              /** Spec 183 T702c1: só contagem; nome e tipo do arquivo nunca vão a log. */
+              attachmentsLinked: result.attachments.linked,
+              attachmentsSkipped: result.attachments.skipped,
+              dkimResult: result.dkimResult,
+              threadId: result.threadId,
+            },
           })
         }
         return { type: 'ack' }

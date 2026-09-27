@@ -6,6 +6,8 @@ import type { SecretKeyRing } from '@adatechnology/secret-envelope'
 import { CryptographicConfigurationError } from './cryptographic-configuration.error'
 
 const BASE64_32_BYTES_PATTERN = /^[A-Za-z0-9+/]{43}=$/
+/** A chave do limitador foi gerada com `openssl rand -hex 32` nos ambientes (spec 191 T7.3). */
+const HEX_32_BYTES_PATTERN = /^[0-9a-f]{64}$/
 const KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 
 export type CryptographicConfiguration = {
@@ -17,6 +19,8 @@ export type CryptographicConfiguration = {
    * quem já recusou; por isso é obrigatória no boot, e não tem valor padrão.
    */
   readonly notificationSuppressionHmacKey: string
+  /** ADR-0076 §3: HMAC da chave do limitador anônimo — IP e alvo nunca chegam em claro ao banco. */
+  readonly rateLimitSubjectHmacKey: Uint8Array
 }
 
 export function parseCryptographicConfiguration(
@@ -48,6 +52,15 @@ function parseConfiguration(
   }
   if (reservedKeys.some((key) => keysEqual(key, suppressionHmacKey))) failConfiguration()
 
+  const rateLimitSubjectHmacKey = decodeHexKey(
+    requireValue(environment.RATE_LIMIT_SUBJECT_HMAC_KEY),
+  )
+  if (
+    [...reservedKeys, suppressionHmacKey].some((key) => keysEqual(key, rateLimitSubjectHmacKey))
+  ) {
+    failConfiguration()
+  }
+
   return {
     envelopeKeyRing: {
       activeKeyId,
@@ -55,6 +68,7 @@ function parseConfiguration(
     },
     idempotencyHmacKey,
     notificationSuppressionHmacKey: encodedSuppressionKey,
+    rateLimitSubjectHmacKey,
   }
 }
 
@@ -78,6 +92,11 @@ function decodeCanonicalKey(value: string): Uint8Array {
   const decoded = Buffer.from(value, 'base64')
   if (decoded.length !== 32 || decoded.toString('base64') !== value) failConfiguration()
   return Uint8Array.from(decoded)
+}
+
+function decodeHexKey(value: string): Uint8Array {
+  if (!HEX_32_BYTES_PATTERN.test(value)) failConfiguration()
+  return Uint8Array.from(Buffer.from(value, 'hex'))
 }
 
 function parseKeyId(value: string | undefined): string {

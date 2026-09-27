@@ -99,7 +99,11 @@ import {
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
-import type { OccurrenceRedeliveryPolicy, OccurrenceType } from './occurrence.constant'
+import type {
+  OccurrenceAttachmentMode,
+  OccurrenceRedeliveryPolicy,
+  OccurrenceType,
+} from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
@@ -233,6 +237,8 @@ export type TripClient = Readonly<{
       active: boolean
       /** Spec 166 RF3/RF9: padrão `true` — cadastro novo continua aceitando vários itens. */
       allowsMultipleItems: boolean
+      /** Spec 179 RF1: a exigência de comprovante — sempre enviada, como os outros campos do tipo. */
+      attachmentMode: OccurrenceAttachmentMode
       emailTemplateKey: null | string
       /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
       leavesDocumentBehind: boolean
@@ -779,6 +785,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         body: JSON.stringify({
           active: input.active,
           allowsMultipleItems: input.allowsMultipleItems,
+          attachmentMode: input.attachmentMode,
           emailTemplateKey: input.emailTemplateKey,
           leavesDocumentBehind: input.leavesDocumentBehind,
           name: input.name,

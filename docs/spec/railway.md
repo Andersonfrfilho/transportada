@@ -279,6 +279,7 @@ Referências entre serviços, nunca cópia literal: `DATABASE_URL` aponta para
 
 Secretas, geradas por ambiente e nunca iguais entre ambientes:
 `ENCRYPTION_KEYRING_JSON`, `IDEMPOTENCY_HMAC_KEY`, `NOTIFICATION_SUPPRESSION_HMAC_KEY`,
+`RATE_LIMIT_SUBJECT_HMAC_KEY` (só na `api`, `openssl rand -hex 32`, ADR-0076 §3),
 `OBJECT_STORAGE_ACCESS_KEY`,
 `OBJECT_STORAGE_SECRET_KEY`, `RABBITMQ_DEFAULT_PASS`, `KC_BOOTSTRAP_ADMIN_PASSWORD`.
 

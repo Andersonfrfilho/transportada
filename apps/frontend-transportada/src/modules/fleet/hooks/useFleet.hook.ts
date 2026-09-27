@@ -11,6 +11,7 @@ import {
   FLEET_PAGE_SIZE,
   FLEET_READ_PERMISSION,
   FLEET_VEHICLE_LOAD_LIMIT,
+  FLEET_VEHICLE_OPTIONS_QUERY_KEY,
 } from '../shared/fleet.constant'
 import type { FleetDriverCoverage } from '../shared/driverCoverage.service'
 import type {
@@ -195,7 +196,14 @@ function useFleetMutations(
   }>,
 ) {
   const queryClient = useQueryClient()
-  const invalidateVehicles = () => queryClient.invalidateQueries({ queryKey: input.vehiclesKey })
+  /** Sem as opções, o veículo recém-gravado some da caixa de vínculos do motorista até o cache vencer. */
+  const invalidateVehicles = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: input.vehiclesKey }),
+      queryClient.invalidateQueries({
+        queryKey: [FLEET_VEHICLE_OPTIONS_QUERY_KEY, input.companyId],
+      }),
+    ])
   /** Prefixo, não chave exata: a aba filtrada e o diretório do formulário são duas entradas do cache. */
   const invalidateDrivers = () =>
     queryClient.invalidateQueries({ queryKey: [FLEET_DRIVERS_QUERY_KEY, input.companyId] })

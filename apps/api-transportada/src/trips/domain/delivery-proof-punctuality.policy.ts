@@ -50,6 +50,12 @@ export type ClassifyProofPunctualityParams = {
    * sido tirada na hora da entrega.
    */
   readonly missingAfterHours: number
+  /**
+   * Spec 205 D2: a entrega ou o envio veio pelo "Registrar entrega depois" da app do motorista. O
+   * usuário decidiu que pesa "igual a foto atrasada": o veredito é `late`, seja qual for a hora ou o
+   * lugar — a mesma penalidade `latePenaltyPoints`, nenhum peso novo.
+   */
+  readonly lateRegistration?: boolean
 }
 
 /**
@@ -136,6 +142,7 @@ export function mergeProofPunctuality(params: MergeProofPunctualityParams): Proo
 
 export function classifyProofPunctuality(params: ClassifyProofPunctualityParams): ProofPunctuality {
   if (params.photoMode !== REQUIRED_PROOF_FIELD_MODE) return PROOF_PUNCTUALITY.notRequired
+  if (params.lateRegistration === true) return PROOF_PUNCTUALITY.late
 
   const timeReference = resolveTimeReference(params)
   const late = isLate(params, timeReference)

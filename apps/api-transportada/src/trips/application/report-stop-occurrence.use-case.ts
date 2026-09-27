@@ -2,7 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
-import { TripDocumentNotReachableError, TripStopNotReachableError } from '../domain/trip.error.js'
+import {
+  TripDocumentNotReachableError,
+  TripOccurrenceUploadNotReachableError,
+  TripStopNotReachableError,
+} from '../domain/trip.error.js'
 import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
 import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
 import {
@@ -10,6 +14,10 @@ import {
   toFieldTripTarget,
   type FieldTripLocator,
 } from './field-trip-target.types.js'
+import {
+  resolveOccurrenceUploadAttachment,
+  type OccurrenceUploadAttachmentPort,
+} from './resolve-occurrence-upload-attachment.use-case.js'
 import { buildOfficeAuditEntry, type OfficeAuditRequest } from './trip-field-office-audit.port.js'
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
@@ -39,9 +47,25 @@ export type StopOccurrenceNotifierPort = {
   }): Promise<void>
 }
 
+/**
+ * Spec 209: a foto do "Deu problema" é anexo **da ocorrência**, nunca canhoto de entrega. O objeto
+ * é o upload confirmado da 179 (`trip_occurrence_uploads`), conferido por empresa, viagem e
+ * motorista; e a foto que chega depois (RF3) completa a ocorrência gravada sem ela, uma vez.
+ */
+export type StopOccurrenceAttachmentPort = OccurrenceUploadAttachmentPort & {
+  attachUploadToStopOccurrence(input: {
+    readonly companyId: string
+    readonly objectId: string
+    readonly occurrenceId: string
+    readonly stopId: string
+  }): Promise<void>
+}
+
 export type ReportStopOccurrenceInput = FieldTripLocator & {
   readonly actorUserId: string
   readonly attachmentObjectId: string | null
+  /** Spec 209: só o canal do motorista a recebe — sem ela, anexo é recusado, nunca ignorado. */
+  readonly attachmentUploads?: StopOccurrenceAttachmentPort
   readonly companyId: string
   readonly description: string
   /** ADR-0057 §3: `null` é não aferida, e ela é aceita — distância nunca é porteiro. */
@@ -63,6 +87,27 @@ export type ReportStopOccurrenceInput = FieldTripLocator & {
 }
 
 export type ReportStopOccurrenceResult = { readonly id: string }
+
+/**
+ * Spec 209 RF2: o anexo só vale se o upload é desta empresa, desta viagem e deste motorista. Roda
+ * no registro novo **e** no reenvio — a foto que chega depois passa pela mesma barreira.
+ */
+async function assertStopAttachmentReachable(
+  input: ReportStopOccurrenceInput,
+  tripId: string,
+): Promise<void> {
+  if (input.attachmentObjectId === null) return
+  if (input.attachmentUploads === undefined || input.driverId === undefined) {
+    throw new TripOccurrenceUploadNotReachableError()
+  }
+  await resolveOccurrenceUploadAttachment({
+    companyId: input.companyId,
+    driverId: input.driverId,
+    objectId: input.attachmentObjectId,
+    repository: input.attachmentUploads,
+    tripId,
+  })
+}
 
 /**
  * Spec 057, P1 "deu problema". Duas regras que fazem isto ser usado em vez de contornado
@@ -95,6 +140,7 @@ export async function reportStopOccurrence(
           target: toFieldTripTarget(input),
         })
         if (stop === null) throw new TripStopNotReachableError()
+        await assertStopAttachmentReachable(input, stop.tripId)
 
         if (input.documentId !== null) {
           const document = await transaction.findDocumentForDriver({
@@ -129,10 +175,34 @@ export async function reportStopOccurrence(
           stopId: input.stopId,
         })
       },
-      recall: (occurrenceId) =>
-        transaction.findOccurrenceById({ companyId: input.companyId, occurrenceId }),
+      recall: async (occurrenceId) => {
+        if (input.attachmentObjectId !== null) {
+          const stop = await transaction.findStopForDriver({
+            companyId: input.companyId,
+            stopId: input.stopId,
+            target: toFieldTripTarget(input),
+          })
+          if (stop === null) throw new TripStopNotReachableError()
+          await assertStopAttachmentReachable(input, stop.tripId)
+        }
+        return transaction.findOccurrenceById({ companyId: input.companyId, occurrenceId })
+      },
     }),
   )
+
+  /**
+   * Spec 209 RF3: a foto é um item próprio da fila, atrás da ocorrência, e chega pela mesma chave.
+   * No registro novo o anexo já nasceu na transação e isto não muda nada; no reenvio, completa a
+   * ocorrência gravada sem foto — nunca troca a que já está lá.
+   */
+  if (input.attachmentObjectId !== null) {
+    await input.attachmentUploads?.attachUploadToStopOccurrence({
+      companyId: input.companyId,
+      objectId: input.attachmentObjectId,
+      occurrenceId: recorded.id,
+      stopId: input.stopId,
+    })
+  }
 
   /**
    * Spec 060 D4c: **a ocorrência não é uma cobrança; ela é o aviso de que talvez exista uma.** A

@@ -62,6 +62,8 @@ import {
   type ActiveCertificatesByPurpose,
   type CompanySettingsViewModel,
 } from '../shared/companySettingsViewModel.service'
+import { QuickRepliesSettingsPanel } from '@/modules/occurrence-conversation/components/QuickRepliesSettingsPanel.component'
+
 import styles from '../styles/companySettings.module.css'
 
 function toUpdate(
@@ -246,6 +248,8 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'occurrenceTypes')
     return <OccurrenceTypeCatalogPanel {...props.occurrenceTypeCatalog} />
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
+  /** Spec 183 T701 (RF12): o painel é do módulo da conversa, autocontido — aqui só se decide onde. */
+  if (tab === 'quickReplies') return <QuickRepliesSettingsPanel enabled={props.canManageSettings} />
   if (tab === 'site') {
     return (
       <>

@@ -82,6 +82,8 @@ describe('o aviso de pontualidade nomeia a nota (T12)', () => {
     documentId: 'document-1',
     documentNumber: '900203',
     documentSeries: '1',
+    recipientDisplayName: 'Farmácia Vida',
+    recipientIsCompany: false,
     recipientName: 'Farmácia Vida',
     tripId: 'trip-1',
     tripStatus: 'completed',

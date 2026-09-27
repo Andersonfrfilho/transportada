@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
-import type { OccurrenceType } from './occurrence.constant'
+import { OCCURRENCE_ATTACHMENT_MODES, type OccurrenceType } from './occurrence.constant'
 import { TRIP_FIELD_CHANNELS, TRIP_TIMELINE_KINDS } from './trip.types'
 import type {
   FieldOccurrenceType,
@@ -52,6 +52,9 @@ import {
   TRIP_DETAIL_KEYS,
   TRIP_DETAIL_OPTIONAL_KEYS,
   DELIVERY_PROOF_KEYS,
+  DELIVERY_PROOF_RECEIVED_BY_KEYS,
+  DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
+  DELIVERY_PROOF_OPTIONAL_KEYS,
   TRIP_DOCUMENT_PRODUCT_KEYS,
   TRIP_OCCURRENCE_KEYS,
   TRIP_CARGO_WEIGHT_KEYS,
@@ -76,8 +79,10 @@ import {
   TRIP_CARGO_LAYOUT_POLL_KEYS,
   TRIP_OCCURRENCE_OPTIONAL_KEYS,
   FIELD_OCCURRENCE_TYPE_KEYS,
+  FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS,
   REPORT_FIELD_DELIVERY_RESULT_KEYS,
   TRIP_TIMELINE_ITEM_KEYS,
+  TRIP_TIMELINE_ITEM_OPTIONAL_KEYS,
   TRIP_TIMELINE_STOP_REFERENCE_KEYS,
   TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
@@ -796,8 +801,9 @@ export function createTripResponseAdapters() {
      * componente a consome direto da consulta.
      */
     deliveryProofsFromApi(input: unknown): readonly DeliveryProof[] {
-      if (!Array.isArray(input) || !input.every(isDeliveryProof)) throw invalid()
-      return input
+      if (!Array.isArray(input)) throw invalid()
+      /** Spec 193 T3.1: o item estranho sai sozinho — derrubar a lista apagava o comprovante todo. */
+      return input.filter(isDeliveryProof)
     },
     /**
      * ⚠️ Corpo estranho vira **`unavailable`**, nunca exceção: o mapa é enfeite operacional, e uma
@@ -894,17 +900,23 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isTripOccurrence)) throw invalid()
       return input
     },
-    /** Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`. */
+    /**
+     * Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`.
+     *
+     * Spec 206 T0.3 (D12): `kind` que o bundle não conhece é item de uma API mais nova, e o painel
+     * publica **antes** dela (ADR-0081 §9). Por isso o item desconhecido é **descartado**, não recusa a
+     * página: recusando, o primeiro `stop.departed` gravado deixaria a linha do tempo da viagem em
+     * branco. O `nextCursor` é preservado mesmo quando a página inteira é descartada, senão "carregar
+     * mais" pararia e o histórico antigo ficaria inalcançável. Forma continua sendo recusada — item que
+     * não é objeto, `kind` que não é texto e chave a mais reprovam a página como sempre.
+     */
     tripTimelineFromApi(input: unknown): TripTimelinePage {
-      if (
-        !isRecord(input) ||
-        !Array.isArray(input.items) ||
-        !input.items.every(isTimelineItem) ||
-        !isNullableString(input.nextCursor)
-      ) {
+      if (!isRecord(input) || !Array.isArray(input.items) || !isNullableString(input.nextCursor)) {
         throw invalid()
       }
-      return { items: input.items, nextCursor: input.nextCursor }
+      const items = input.items.filter((item) => !hasUnknownTimelineKind(item))
+      if (!items.every(isTimelineItem)) throw invalid()
+      return { items, nextCursor: input.nextCursor }
     },
     /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência. */
     fieldOccurrenceTypesFromApi(input: unknown): readonly FieldOccurrenceType[] {
@@ -1117,14 +1129,35 @@ function isOccupancy(value: unknown): boolean {
   )
 }
 
+/**
+ * Spec 193 T3.1: quem recebeu entra por `hasKeys`, e chave desconhecida continua recusada. Spec 205
+ * RF8: o registro tardio e a máscara do documento entram do mesmo jeito.
+ */
 function isDeliveryProof(value: unknown): value is DeliveryProof {
-  if (!hasExactKeys(value, DELIVERY_PROOF_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [
+        ...DELIVERY_PROOF_KEYS,
+        ...DELIVERY_PROOF_OPTIONAL_KEYS,
+        ...DELIVERY_PROOF_RECEIVED_BY_KEYS,
+      ],
+      required: DELIVERY_PROOF_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
     isString(value.createdAt) &&
     isString(value.downloadUrl) &&
     isString(value.expiresAt) &&
     isString(value.id) &&
     (value.kind === 'photo' || value.kind === 'signature' || value.kind === 'cargo') &&
+    (value.receivedBy === undefined ||
+      value.receivedBy === null ||
+      isOneOf(value.receivedBy, DELIVERY_PROOF_RECEIVED_BY_OPTIONS)) &&
+    (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
+    (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
+    (value.receiverDocument === undefined || isString(value.receiverDocument)) &&
     isString(value.receiverName)
   )
 }
@@ -1226,9 +1259,20 @@ function isOccurrenceAttachmentPosition(
   )
 }
 
+/**
+ * Spec 179 T304: `attachmentMode` é aditivo (`hasKeys`, não `hasExactKeys`) — API mais nova que o
+ * bundle manda o campo, API mais velha não manda, e as duas passam.
+ */
 function isFieldOccurrenceType(value: unknown): value is FieldOccurrenceType {
   return (
-    hasExactKeys(value, FIELD_OCCURRENCE_TYPE_KEYS) && isString(value.id) && isString(value.name)
+    hasKeys(value, {
+      allowed: [...FIELD_OCCURRENCE_TYPE_KEYS, ...FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS],
+      required: FIELD_OCCURRENCE_TYPE_KEYS,
+    }) &&
+    isString(value.id) &&
+    isString(value.name) &&
+    (value.attachmentMode === undefined ||
+      isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES))
   )
 }
 
@@ -1269,13 +1313,30 @@ function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOcc
 }
 
 /**
+ * Spec 206 T0.3 (D12): o item que **só** peca no vocabulário do `kind`. É deliberadamente estreito —
+ * exige objeto e `kind` de texto — para que `null`, `42` e string solta continuem reprovando a página
+ * em vez de desaparecerem em silêncio.
+ */
+function hasUnknownTimelineKind(value: unknown): boolean {
+  return isRecord(value) && isString(value.kind) && !isOneOf(value.kind, TRIP_TIMELINE_KINDS)
+}
+
+/**
  * Spec 158 D6/aceite 8: chave desconhecida, `channel`/`kind` fora do vocabulário são recusados —
  * `actorUserId`, `receiverName`, `receiverDocumentMasked`, `latitude`, `longitude`, `objectKey`
  * nunca fazem parte de `TRIP_TIMELINE_ITEM_KEYS`, então uma chave a mais já reprova por si.
  */
 function isTimelineItem(value: unknown): value is TripTimelineItem {
-  if (!hasExactKeys(value, TRIP_TIMELINE_ITEM_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_TIMELINE_ITEM_KEYS, ...TRIP_TIMELINE_ITEM_OPTIONAL_KEYS],
+      required: TRIP_TIMELINE_ITEM_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
+    (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     isNullableString(value.actorName) &&
     (value.channel === null || isOneOf(value.channel, TRIP_FIELD_CHANNELS)) &&
     isNullableString(value.closeReason) &&
@@ -1445,7 +1506,7 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  */
 type RawOccurrenceType = Omit<
   OccurrenceType,
-  'allowsMultipleItems' | 'leavesDocumentBehind' | 'redeliveryPolicy'
+  'allowsMultipleItems' | 'attachmentMode' | 'leavesDocumentBehind' | 'redeliveryPolicy'
 > &
   Readonly<{
     allowsMultipleItems?: unknown
@@ -1458,10 +1519,9 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   if (
     !hasKeys(value, {
       /**
-       * Spec 179: `attachmentMode` já sai da API (`/company-settings/occurrence-types`) e o editor
-       * ainda não o consome. Sem ele aqui, o guard de chave exata reprova a resposta inteira e a aba
-       * de tipos de ocorrência para de carregar — frontend tolerante primeiro, como a spec 180 RF8
-       * exige e esta spec esqueceu.
+       * Spec 179: `attachmentMode` sai da API (`/company-settings/occurrence-types`) e o editor o
+       * consome (T401). Ausente é API anterior ao campo e vira `off` em `toOccurrenceType`;
+       * presente, só o vocabulário do comprovante passa.
        */
       allowed: [
         ...OCCURRENCE_TYPE_REQUIRED_KEYS,
@@ -1479,6 +1539,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
   return (
     isBoolean(value.active) &&
     (value.allowsMultipleItems === undefined || isBoolean(value.allowsMultipleItems)) &&
+    (value.attachmentMode === undefined ||
+      isOneOf(value.attachmentMode, OCCURRENCE_ATTACHMENT_MODES)) &&
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
@@ -1498,10 +1560,12 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
  * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`.
  * `leavesDocumentBehind` nasce `false` (spec 185 T6.1 D2), o mesmo padrão do banco. */
 function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
-  const { allowsMultipleItems, leavesDocumentBehind, redeliveryPolicy, ...rest } = raw
+  const { allowsMultipleItems, attachmentMode, leavesDocumentBehind, redeliveryPolicy, ...rest } =
+    raw
   return {
     ...rest,
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
+    attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
     leavesDocumentBehind: isBoolean(leavesDocumentBehind) ? leavesDocumentBehind : false,
     redeliveryPolicy:
       redeliveryPolicy === 'allowed' ||

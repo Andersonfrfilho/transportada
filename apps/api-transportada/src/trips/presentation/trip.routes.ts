@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { resolveClientIp } from '../../http/client-ip.service.js'
+import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
@@ -232,6 +232,8 @@ type SaveOccurrenceTypeInput = {
   readonly attachmentMode?: DeliveryProofFieldMode | undefined
   readonly context: CompanyContext
   readonly emailBody: string
+  /** Spec 183 T802: ausente é "não mexa". */
+  readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
   /**
@@ -408,6 +410,8 @@ type OverrideDeliveryAddressInput = {
 }
 
 type Dependencies = {
+  /** ADR-0076 §6: o IP da trilha sai do salto conhecido, nunca do começo de `x-forwarded-for`. */
+  readonly resolveClientIp: ClientIpResolver
   readonly batchStatus: {
     execute(input: TenantInput<BatchStatusInput>): Promise<TransitionTripDocumentsBatchResult>
   }
@@ -1289,7 +1293,7 @@ export function createTripRoutes(
         const body = await parseCloseTripRequest(request)
         return {
           correlationId,
-          ipAddress: resolveClientIp(request),
+          ipAddress: dependencies.resolveClientIp(request),
           reason: body.reason,
           tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
         }

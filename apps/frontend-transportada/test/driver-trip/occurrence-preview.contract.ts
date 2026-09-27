@@ -174,9 +174,13 @@ describe('a tela de ocorrência da parada', () => {
     expect(source).toInclude('occurrencePreview.title')
   })
 
-  /** A foto pega carona no proof da nota — a rota de ocorrência da parada não aceita anexo. */
-  it('a foto sobe pelo caminho de proof da nota associada', () => {
-    expect(source).toInclude('onOccurrencePhoto')
+  /**
+   * Spec 209: a foto é **da ocorrência** e vai junto dela. Pegar carona no comprovante da nota
+   * fazia a foto virar canhoto — e pesar na pontualidade e na nota do motorista.
+   */
+  it('a foto é da ocorrência, nunca do comprovante da nota', () => {
+    expect(source).not.toInclude('onOccurrencePhoto')
+    expect(source).toInclude("t('occurrencePhoto')")
     expect(driverTrip.occurrencePhoto.toLowerCase()).toInclude('foto da ocorrência')
   })
 })

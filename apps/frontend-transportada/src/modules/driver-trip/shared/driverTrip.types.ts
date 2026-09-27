@@ -177,6 +177,25 @@ export type DriverFieldReport =
       occurrenceKind: DriverOccurrenceKind
       stopId: string
     }>
+  /**
+   * Spec 209 (D2): a foto do "Deu problema", **atrás** da ocorrência de parada — a ocorrência não
+   * espera a foto. O `send` sobe a foto pela rota da parada e reenvia a ocorrência com a chave dela
+   * (`occurrenceKey`) e o `attachmentObjectId`: a API completa o anexo uma vez. Nunca mais pelo
+   * comprovante de uma nota, onde ela virava canhoto e pesava na nota do motorista.
+   */
+  | Readonly<{
+      description: string
+      documentId: string | null
+      idempotencyKey: string
+      kind: 'stopOccurrencePhoto'
+      occurrenceKey: string
+      occurrenceKind: DriverOccurrenceKind
+      photo: DriverOccurrencePhoto
+      stopId: string
+    }>
+
+/** Spec 209: a foto já reencodada (JPEG, sem EXIF) — o `Blob` vai inteiro para o IndexedDB. */
+export type DriverOccurrencePhoto = Readonly<{ blob: Blob; fileName: string }>
 
 /**
  * Spec 079: o tipo de ocorrência que a empresa cadastrou, como o motorista o vê.

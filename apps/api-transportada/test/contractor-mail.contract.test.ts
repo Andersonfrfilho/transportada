@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './contractor-mail/contact-policy.contract.js'
 import './contractor-mail/contractor-contacts.contract.js'
 import './contractor-mail/credential-secret.contract.js'
 import './contractor-mail/inbound-webhook-routes.contract.js'

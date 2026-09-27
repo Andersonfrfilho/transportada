@@ -62,3 +62,22 @@ describe('o cadastro do tipo aceita a exigência de comprovante (spec 179 RF1)',
     ).rejects.toThrow()
   })
 })
+
+describe('o cadastro do tipo aceita o aviso automático à contratante (spec 183 T802)', () => {
+  /** Mesmo cuidado do `attachmentMode`: ausente é "não mexa", nunca desligar o aviso de carona. */
+  test('sem o campo, não decide nada; com ele, liga ou desliga; outro tipo é recusado', async () => {
+    const absent = await parseOccurrenceTypeRequest(putRequest(JSON.parse(baseBody())))
+    expect(absent.emailsContractor).toBeUndefined()
+
+    const on = await parseOccurrenceTypeRequest(
+      putRequest({ ...JSON.parse(baseBody()), emailsContractor: true }),
+    )
+    expect(on.emailsContractor).toBe(true)
+
+    await expect(
+      parseOccurrenceTypeRequest(
+        putRequest({ ...JSON.parse(baseBody()), emailsContractor: 'sim' }),
+      ),
+    ).rejects.toThrow()
+  })
+})

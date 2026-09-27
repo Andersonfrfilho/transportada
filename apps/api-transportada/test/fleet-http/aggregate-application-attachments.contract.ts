@@ -150,8 +150,9 @@ describe('rota pública de anexo de candidatura', () => {
       attachments: { uploadDraft: async () => ({ draftId: 'x', type: 'ccmei' as const }) },
     })
 
-    const perMinute =
-      (route?.rateLimit?.maxRequests ?? 0) / ((route?.rateLimit?.windowMs ?? 1) / 60_000)
+    const policy = route?.rateLimit
+    const windowMs = policy !== undefined && 'windowMs' in policy ? policy.windowMs : 1
+    const perMinute = (policy?.maxRequests ?? 0) / (windowMs / 60_000)
     const submitPerMinute = 5 / 10
 
     expect(perMinute).toBeLessThan(submitPerMinute)

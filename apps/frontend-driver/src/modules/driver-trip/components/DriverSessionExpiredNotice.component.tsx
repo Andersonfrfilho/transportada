@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 
 import type { SessionExpiryState } from '../hooks/useSessionExpiry.hook'
 import styles from '../styles/driverTrip.module.css'
@@ -28,6 +29,7 @@ export function DriverSessionExpiredNotice({
         <p>{t('sessionExpired.waitingCapture')}</p>
       ) : (
         <Button onClick={onReauthenticate} type="button">
+          <Icon aria-hidden="true" name="login" />
           {t('sessionExpired.signIn')}
         </Button>
       )}

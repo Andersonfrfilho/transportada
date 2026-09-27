@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { resolveDeliveryContact } from '../../src/trips/domain/delivery-contact.policy.js'
+import {
+  resolveDeliveryContact,
+  resolveRecipientIsCompany,
+} from '../../src/trips/domain/delivery-contact.policy.js'
 
 const DESTINATARIO = {
   legalName: 'ZARAGOZA COMERCIO LTDA',
@@ -86,5 +89,29 @@ describe('contato da entrega (spec 079 P2)', () => {
   /** Nota sem destinatário não tem contato — ausência, nunca um objeto vazio que parece carregado. */
   test('sem destinatário não há contato', () => {
     expect(resolveDeliveryContact({ contractors: [], parties: [] })).toBeNull()
+  })
+})
+
+/**
+ * Spec 193 D14: PF ou PJ é derivado do documento — 14 dígitos é CNPJ, 11 é CPF. O documento em si
+ * nunca sai da API; só o booleano.
+ */
+describe('PF ou PJ do destinatário, pelo documento (spec 193 D14)', () => {
+  test('14 dígitos é pessoa jurídica', () => {
+    expect(resolveRecipientIsCompany('11222333000181')).toBe(true)
+  })
+
+  test('11 dígitos é pessoa física', () => {
+    expect(resolveRecipientIsCompany('11122233344')).toBe(false)
+  })
+
+  test('documento formatado conta pelos dígitos, não pelo tamanho da string', () => {
+    expect(resolveRecipientIsCompany('11.222.333/0001-81')).toBe(true)
+    expect(resolveRecipientIsCompany('111.222.333-44')).toBe(false)
+  })
+
+  test('documento fora do padrão vira pessoa física, nunca lança', () => {
+    expect(resolveRecipientIsCompany('')).toBe(false)
+    expect(resolveRecipientIsCompany('123')).toBe(false)
   })
 })

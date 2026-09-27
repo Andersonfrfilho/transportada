@@ -8,6 +8,10 @@
 import { describe, expect, it } from 'bun:test'
 
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
+import {
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from '../../src/http/client-ip.service.js'
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
 import { resolveCompanyPermissions } from '../../src/identity/domain/authorization.policy.js'
 import type {
@@ -75,13 +79,16 @@ function multipartRequest(input: {
 function buildDependencies() {
   const registered: unknown[] = []
   const dependencies: TripFieldOfficeOccurrenceDependencies = {
-    listFieldOccurrenceTypes: async () => [{ id: TYPE_ID, name: 'Cliente ausente' }],
+    listFieldOccurrenceTypes: async () => [
+      { attachmentMode: 'off', id: TYPE_ID, name: 'Cliente ausente' },
+    ],
     registerOccurrences: async (input) => {
       registered.push(input)
       return {
         items: input.documentIds.map((documentId) => ({ documentId, id: `occ-${documentId}` })),
       }
     },
+    resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
     targets: {
       findTripCrew: async () => ({
         drivers: [{ driverId: DRIVER_ID, position: 1 }],
@@ -135,7 +142,7 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
     }
   })
 
-  it('GET devolve só id e nome dos tipos de rua', async () => {
+  it('GET devolve id, nome e attachmentMode dos tipos de rua', async () => {
     const response = await findRoute('GET').execute({
       context: context(),
       correlationId: 'c-1',
@@ -144,7 +151,9 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: [{ id: TYPE_ID, name: 'Cliente ausente' }] })
+    expect(await response.json()).toEqual({
+      data: [{ attachmentMode: 'off', id: TYPE_ID, name: 'Cliente ausente' }],
+    })
   })
 
   it('POST resolve o alvo, registra o lote e pede a trilha ao caso de uso', async () => {

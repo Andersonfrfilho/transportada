@@ -129,6 +129,7 @@ function recordOutcomeEvent(input: {
     companyId: report.companyId,
     documentId: report.documentId,
     kind: context.params.kind,
+    lateRegistration: report.lateRegistration ?? false,
     location: report.location,
     ...(context.isOffice
       ? { occurredAt: report.now, recordedAt: report.recordedAt ?? new Date() }
@@ -139,8 +140,9 @@ function recordOutcomeEvent(input: {
 }
 
 /**
- * A última nota da parada fecha a parada (C1: o escritório preenche a chegada que o motorista não
- * tocou), e a última parada fecha a viagem (spec 056 D1). ADR-0058 §3, spec 156 T15 M4: a nota que
+ * A última nota da parada fecha a parada, e a última parada fecha a viagem (spec 056 D1). A chegada
+ * que ninguém tocou é preenchida em todo canal (C1 da spec 156 para o escritório; spec 205 para o
+ * motorista, cujo "Registrar entrega depois" existe justamente para quem não tocou "Cheguei"). ADR-0058 §3, spec 156 T15 M4: a nota que
  * fechou e não concluiu a viagem a adianta para `on_delivery_route`.
  */
 export async function closeStopAndTrip(input: {
@@ -161,7 +163,6 @@ export async function closeStopAndTrip(input: {
   const stopCompleted = await context.transaction.completeStopIfSettled({
     at: report.now,
     companyId: report.companyId,
-    fillMissingArrival: context.isOffice,
     stopId: document.stopId,
   })
   const tripCompleted = stopCompleted

@@ -576,6 +576,10 @@
       "statusChanged": "Situação da viagem alterada ({{status}})",
       "stopArrived": "Chegada na parada {{sequence}}",
       "stopArrivedUnknown": "Chegada em parada",
+      "stopDeparted": "A caminho da parada {{sequence}}",
+      "stopDepartedUnknown": "A caminho de parada",
+      "stopDepartureCancelled": "Cancelou a rota da parada {{sequence}}",
+      "stopDepartureCancelledUnknown": "Cancelou a rota de parada",
       "stopOccurrence": "Ocorrência: {{type}}",
       "tripCreated": "Viagem criada",
       "tripStatus": {
@@ -788,6 +792,10 @@
   },
   "occurrenceFeed": {
     "columns": {
+      "contractor": "Contratante",
+      "destination": "Endereço de entrega",
+      "invoiceValue": "Valor NF-e",
+      "conversation": "Conversa",
       "createdAt": "Hora",
       "driverName": "Motorista",
       "invoice": "Nota",
@@ -844,6 +852,19 @@
     },
     "loadMore": "Carregar mais",
     "loadingMore": "Carregando…",
+    "conversation": {
+      "conversation": {
+        "awaiting": "Aguardando contratante",
+        "replied": "Contratante respondeu"
+      },
+      "decision": {
+        "redelivery_authorized": "Reentrega autorizada",
+        "goods_paid": "Produtos pagos",
+        "other": "Outra solução"
+      },
+      "driverUnread_one": "{{count}} mensagem do motorista",
+      "driverUnread_other": "{{count}} mensagens do motorista"
+    },
     "notified": "Aviso enviado",
     "stage": {
       "delivery": "Entrega",
@@ -861,6 +882,11 @@
       "decided": "Decidida",
       "closed": "Encerrada",
       "cancelled": "Cancelada"
+    },
+    "card": {
+      "list": "Ocorrências",
+      "newestFirst": "Mais recentes primeiro",
+      "oldestFirst": "Mais antigas primeiro"
     }
   },
   "pendingMeasurement": {
@@ -1592,5 +1618,109 @@
     "invalidRows": "Há item incompleto no acerto — confira os campos marcados. Nada foi gravado.",
     "reimbursedOn": "Ressarcido em {{date}}",
     "savedItemsTitle": "Itens gravados"
+  },
+  "occurrenceDetail": {
+    "back": "Voltar para ocorrências",
+    "breadcrumb": "Navegação da ocorrência",
+    "kicker": "Ocorrência · {{stage}}",
+    "recordedBy": "Registrada em {{moment}} por {{actor}} ({{channel}})",
+    "recordedOnBehalf": "Registrada em {{moment}} por {{actor}}, em nome de {{driver}}",
+    "unknownActor": "quem registrou não está mais na empresa",
+    "noDriver": "Sem motorista na viagem",
+    "notFound": "Ocorrência não encontrada nesta empresa.",
+    "channel": {
+      "driver_app": "app do motorista",
+      "office": "escritório",
+      "whatsapp": "WhatsApp"
+    },
+    "summary": {
+      "title": "Resumo",
+      "openTrip": "Abrir viagem",
+      "description": "Descrição"
+    },
+    "document": {
+      "title": "Nota",
+      "none": "Sem nota nesta ocorrência. Parada: {{stop}}",
+      "invoice": "NF-e",
+      "contractor": "Contratante (emitente)",
+      "contractorUnknown": "Emitente não registrado na nota",
+      "totalValue": "Valor da nota",
+      "destination": "Endereço de entrega",
+      "destinationOf": "Endereço de entrega · {{recipient}}",
+      "destinationUnknown": "Endereço não registrado na nota"
+    },
+    "driver": {
+      "title": "Contato do motorista",
+      "name": "Nome",
+      "phone": "Telefone",
+      "email": "E-mail",
+      "none": "—",
+      "whatsapp": "WhatsApp",
+      "call": "Ligar",
+      "openWhatsapp": "WhatsApp",
+      "writeEmail": "Escrever e-mail",
+      "copyPhone": "Copiar telefone",
+      "copied": "Telefone copiado",
+      "pictureAlt": "Foto de {{name}}"
+    },
+    "case": {
+      "title": "Tratativa"
+    },
+    "items": {
+      "title": "Itens atingidos",
+      "noDescription": "Item fora do cadastro da nota"
+    },
+    "conversations": {
+      "title": "Conversas"
+    },
+    "conversationPhoto": {
+      "attach": "Anexar à ocorrência",
+      "attaching": "Anexando…",
+      "attached": "Anexada à ocorrência.",
+      "error": "Não foi possível anexar: a ocorrência pode já ter cinco fotos. Tente de novo em instantes."
+    },
+    "phoneTabs": {
+      "ariaLabel": "Partes da ocorrência",
+      "summary": "Resumo",
+      "contractor": "Contratante",
+      "driver": "Motorista"
+    }
+  },
+  "occurrenceTimeline": {
+    "title": "Linha do tempo",
+    "loading": "Carregando a linha do tempo",
+    "error": "Não foi possível carregar a linha do tempo.",
+    "empty": "Nada deste participante ainda.",
+    "filterLabel": "Filtrar a linha do tempo por participante",
+    "filter": {
+      "all": "Tudo",
+      "contractor": "Contratante",
+      "driver": "Motorista"
+    },
+    "actor": {
+      "contractor": "Contratante",
+      "driver": "Motorista",
+      "operation": "Operação",
+      "system": "Sistema"
+    },
+    "gap": "+{{elapsed}} desde o anterior",
+    "key": "Marco",
+    "running": "em andamento",
+    "timing": {
+      "open": "Aberta há",
+      "contractorResponse": "Resposta da contratante",
+      "driverRelease": "Liberação do motorista",
+      "notAsked": "Sem envio à contratante",
+      "none": "—"
+    },
+    "event": {
+      "recorded": "Registrou a ocorrência",
+      "photos_one": "Anexou {{count}} foto",
+      "photos_other": "Anexou {{count}} fotos",
+      "caseTransition": "Tratativa: {{status}}",
+      "mailSent": "Enviou e-mail à contratante",
+      "mailSentAutomatic": "Aviso automático enviado à contratante",
+      "mailReceived": "A contratante respondeu por e-mail"
+    }
   }
 }

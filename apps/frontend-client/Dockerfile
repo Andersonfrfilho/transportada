@@ -22,6 +22,9 @@ ARG VITE_IDENTIFIER_FIRST_LOGIN
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_URL
+# Origem do bucket: a CSP nasce no build com ela (foto da 164, anexo e áudio da 183). Sem o ARG a
+# variável do serviço nunca chegava ao `vite build`, e a CSP saía sem o bucket.
+ARG VITE_STORAGE_URL
 RUN bun run --cwd apps/frontend-client build
 
 FROM oven/bun:1.3.14-alpine AS runtime

@@ -6,6 +6,7 @@
   "documentsPending_other": "{{count}} notas para entregar",
   "attachmentLimitCount": "Limite de anexos aguardando envio atingido. Envie os pendentes antes de anexar outro — nada foi descartado.",
   "attachmentLimitSize": "Espaço para anexos aguardando envio cheio. Envie os pendentes antes de anexar outro — nada foi descartado.",
+  "occurrencePhotoDropped": "Ocorrência registrada sem a foto: ela não coube no espaço para anexos aguardando envio, ou não foi possível lê-la. Envie os pendentes e registre outra ocorrência com a foto, se precisar.",
   "dispatch": {
     "failed": "Não foi possível iniciar o trajeto. Toque de novo.",
     "start": "Iniciar trajeto",
@@ -30,6 +31,7 @@
       "deliver": "Entrega",
       "occurrence": "Ocorrência",
       "proof": "Comprovante",
+      "stopOccurrencePhoto": "Foto da ocorrência da parada",
       "return": "Devolução"
     },
     "open": "Ver eventos pendentes",
@@ -124,8 +126,6 @@
   "occurrencePhoto": "Foto da ocorrência (local ou carga)",
   "choosePhoto": "Escolher foto",
   "noPhotoChosen": "Nenhuma foto escolhida",
-  "occurrencePhotoCount_one": "{{count}} foto anexada",
-  "occurrencePhotoCount_other": "{{count}} fotos anexadas",
   "occurrencePreview": {
     "none": "Nenhum aviso será enviado ao cliente para este motivo.",
     "title": "Aviso que será enviado"

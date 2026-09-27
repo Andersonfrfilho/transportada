@@ -1,10 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
+import { readFileSync } from 'node:fs'
+
 import {
   computeTripProgress,
   isStopResolved,
 } from '@/modules/driver-trip/shared/driverTripProgress.service'
+import { computeTripNoteProgress } from '@/modules/driver-trip/shared/driverTripNoteProgress.service'
 import type {
   DriverTrip,
   DriverTripDocument,
@@ -22,6 +25,8 @@ function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripD
     id: 'document-1',
     number: '1001',
     proofPending: false,
+    recipientDisplayName: 'Destinatário',
+    recipientIsCompany: false,
     recipientName: 'Destinatário',
     returnReason: null,
     separationStatus: 'loaded',
@@ -135,5 +140,55 @@ describe('a barra de progresso da viagem', () => {
     const progress = computeTripProgress(buildTrip([]))
     expect(progress.segments).toEqual([])
     expect(progress.totalCount).toBe(0)
+  })
+})
+
+describe('a porcentagem da viagem, junto da barra (pedido de 25/09; spec 198 D7)', () => {
+  it('conta notas entregues ou devolvidas sobre o total, arredondando para baixo', () => {
+    const trip = buildTrip([
+      buildStop({
+        documents: [
+          buildDocument({ id: 'a', separationStatus: 'delivered' }),
+          buildDocument({ id: 'b', separationStatus: 'returned' }),
+        ],
+        id: 'stop-1',
+      }),
+      buildStop({
+        documents: [
+          buildDocument({ id: 'c', separationStatus: 'loaded' }),
+          buildDocument({ id: 'd', separationStatus: 'delivered' }),
+          buildDocument({ id: 'e', separationStatus: 'loaded' }),
+          buildDocument({ id: 'f', separationStatus: 'loaded' }),
+        ],
+        id: 'stop-2',
+      }),
+    ])
+    expect(computeTripNoteProgress(trip)).toEqual({ percent: 50, resolved: 3, total: 6 })
+  })
+
+  it('1 de 3 é 33%, nunca 34%', () => {
+    const trip = buildTrip([
+      buildStop({
+        documents: [
+          buildDocument({ id: 'a', separationStatus: 'delivered' }),
+          buildDocument({ id: 'b' }),
+          buildDocument({ id: 'c' }),
+        ],
+      }),
+    ])
+    expect(computeTripNoteProgress(trip)?.percent).toBe(33)
+  })
+
+  it('viagem sem nota não mostra porcentagem', () => {
+    expect(computeTripNoteProgress(buildTrip([buildStop({ documents: [] })]))).toBeUndefined()
+  })
+
+  it('a barra mostra a porcentagem e a contagem de notas ao lado', () => {
+    const source = readFileSync(
+      'src/modules/driver-trip/components/DriverTripProgress.component.tsx',
+      'utf8',
+    )
+    expect(source).toInclude('computeTripNoteProgress(trip)')
+    expect(source).toInclude("t('progress.percent'")
   })
 })

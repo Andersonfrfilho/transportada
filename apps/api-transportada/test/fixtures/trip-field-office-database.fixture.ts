@@ -12,6 +12,10 @@ import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from '../../src/http/client-ip.service.js'
+import {
   companies,
   fleetDrivers,
   fleetVehicles,
@@ -187,6 +191,7 @@ export function wireOccurrenceRoute(
         },
         unitOfWork: new DrizzleOfficeOccurrenceBatchUnitOfWork(database.db, 'test-bucket'),
       }),
+    resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
     targets: new DrizzleFieldTripTargetRepository(database.db),
   })
   const route = routes.find((candidate) => candidate.method === 'POST')
@@ -288,6 +293,7 @@ export function wireRoutes(
         recordedAt: new Date('2026-09-18T13:00:00.000Z'),
         unitOfWork: driverFieldReports,
       }),
+    resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
     startFieldTrip: (input) => startFieldTrip({ ...input, repository: currentDriverTrips }),
     targets,
   })

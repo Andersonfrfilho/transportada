@@ -2,10 +2,13 @@
 import { TRIP_ERROR } from './trip.constant'
 import { isOccurrenceAttachment, isRecord, isString } from './tripGuards.validation'
 import {
+  EMPTY_OCCURRENCE_CONVERSATION,
+  OCCURRENCE_CONTRACTOR_CONVERSATION_STATES,
   OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES,
   OCCURRENCE_SETTLEMENT_PAYER_KINDS,
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
   TRIP_OCCURRENCE_CASE_STATUSES,
+  type OccurrenceContractorConversationState,
   type OccurrenceSettlementItem,
   type OccurrenceSettlementItemView,
   type OccurrenceSettlementResult,
@@ -13,12 +16,19 @@ import {
   type TripOccurrenceAttachment,
   type TripOccurrenceCaseDecisionKind,
   type TripOccurrenceCaseView,
+  type TripOccurrenceConversationSummary,
   type TripOccurrenceFeedFilters,
+  type TripOccurrenceDetail,
+  type TripOccurrenceDetailDriver,
+  type TripOccurrenceDetailItem,
+  type TripOccurrenceDocument,
   type TripOccurrenceFeedItem,
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedPage,
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
+import type { OccurrenceTimeline } from './tripOccurrenceTimeline.service'
+import { isOccurrenceTimeline } from './tripOccurrenceTimeline.validation'
 
 const TRIP_OCCURRENCES_PATH = '/trip-occurrences'
 
@@ -48,6 +58,10 @@ export type TripOccurrenceFeedClient = Readonly<{
     input: Readonly<{ occurrenceId: string }>,
   ) => Promise<readonly TripOccurrenceAttachment[]>
   listOccurrences: (input: ListTripOccurrencesInput) => Promise<TripOccurrenceFeedPage>
+  /** Spec 183 RF1: `GET /trip-occurrences/:id` — a linha, a nota e o motorista. */
+  readOccurrence: (input: Readonly<{ occurrenceId: string }>) => Promise<TripOccurrenceDetail>
+  /** Spec 183 RF19: `GET /trip-occurrences/:id/timeline` — os eventos em ordem e os três tempos. */
+  readOccurrenceTimeline: (input: Readonly<{ occurrenceId: string }>) => Promise<OccurrenceTimeline>
   /** Spec 164 T7/RF8b: motivo obrigatório — ocorrência aberta por engano, só de `recorded`/`under_review`. */
   cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<TripOccurrenceCaseView>
   /** RF8: só sai de `decided`. */
@@ -136,12 +150,34 @@ function toCaseView(raw: RawCaseView): TripOccurrenceCaseView {
   return { ...rest, settlementTotal: isString(settlementTotal) ? settlementTotal : null }
 }
 
-type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case'> & Readonly<{ case?: unknown }>
+type RawFeedItem = Omit<TripOccurrenceFeedItem, 'case' | 'conversation' | 'document'> &
+  Readonly<{ case?: unknown; conversation?: unknown; document?: unknown }>
+
+/** Spec 183 RF4: ausente ou malformado é "sem conversa" — o campo nunca reprova o item. */
+function toConversationSummary(value: unknown): TripOccurrenceConversationSummary {
+  if (!isRecord(value)) return EMPTY_OCCURRENCE_CONVERSATION
+  const contractorState = OCCURRENCE_CONTRACTOR_CONVERSATION_STATES.find(
+    (state: OccurrenceContractorConversationState) => state === value.contractorState,
+  )
+  const driverUnreadCount = value.driverUnreadCount
+  if (
+    contractorState === undefined ||
+    typeof driverUnreadCount !== 'number' ||
+    !Number.isInteger(driverUnreadCount) ||
+    driverUnreadCount < 0
+  ) {
+    return EMPTY_OCCURRENCE_CONVERSATION
+  }
+  return { contractorState, driverUnreadCount }
+}
 
 function isFeedItem(value: unknown): value is RawFeedItem {
   if (!isRecord(value)) return false
   return (
     (value.case === undefined || value.case === null || isCaseView(value.case)) &&
+    (value.document === undefined ||
+      value.document === null ||
+      isOccurrenceDocument(value.document)) &&
     isString(value.createdAt) &&
     isString(value.description) &&
     isString(value.driverName) &&
@@ -160,8 +196,93 @@ function isFeedItem(value: unknown): value is RawFeedItem {
 }
 
 function toFeedItem(raw: RawFeedItem): TripOccurrenceFeedItem {
-  const { case: rawCase, ...rest } = raw
-  return { ...rest, case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null }
+  const { case: rawCase, conversation, document, ...rest } = raw
+  return {
+    ...rest,
+    case: isRecord(rawCase) && isCaseView(rawCase) ? toCaseView(rawCase) : null,
+    conversation: toConversationSummary(conversation),
+    document: isOccurrenceDocument(document) ? document : null,
+  }
+}
+
+/**
+ * Spec 183 RF2: o bloco da nota é **estrito** — valor que não é string decimal é resposta
+ * inválida, porque dinheiro nunca vira `number` na tela.
+ */
+function isOccurrenceDocument(value: unknown): value is TripOccurrenceDocument {
+  if (!isRecord(value)) return false
+  const { contractor, destination } = value
+  const isContractor =
+    contractor === null ||
+    (isRecord(contractor) &&
+      isNullableString(contractor.contractorId) &&
+      isString(contractor.name) &&
+      isNullableString(contractor.taxId))
+  const isDestination =
+    destination === null ||
+    (isRecord(destination) &&
+      isString(destination.city) &&
+      isString(destination.label) &&
+      (destination.origin === 'delivery' || destination.origin === 'recipient') &&
+      isNullableString(destination.postalCode) &&
+      isString(destination.recipientName) &&
+      isString(destination.state))
+  return (
+    isContractor &&
+    isDestination &&
+    isString(value.nfeDocumentId) &&
+    isString(value.totalValue) &&
+    /^-?\d+(\.\d+)?$/u.test(value.totalValue) &&
+    (value.tripDocumentId === undefined || isNullableString(value.tripDocumentId))
+  )
+}
+
+function isDetailDriver(value: unknown): value is TripOccurrenceDetailDriver {
+  return (
+    isRecord(value) &&
+    isString(value.driverId) &&
+    isString(value.email) &&
+    isString(value.name) &&
+    isString(value.phone) &&
+    isNullableString(value.picturePath) &&
+    isNullableString(value.whatsappPhone)
+  )
+}
+
+const DECIMAL_STRING = /^-?\d+(\.\d+)?$/u
+
+function isDetailItem(value: unknown): value is TripOccurrenceDetailItem {
+  return (
+    isRecord(value) &&
+    isString(value.code) &&
+    isString(value.description) &&
+    (value.quantity === null ||
+      (isString(value.quantity) && DECIMAL_STRING.test(value.quantity))) &&
+    isNullableString(value.unit)
+  )
+}
+
+function readDetail(payload: unknown): TripOccurrenceDetail {
+  if (!isRecord(payload) || !isFeedItem(payload.data)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  const raw = payload.data
+  /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
+  const fields: Readonly<Record<string, unknown>> = raw
+  const { actorName, channel, document, driver, items, onBehalfOfDriverName } = fields
+  /** O detalhe nasceu com a 183: aqui `document` ausente é resposta inválida, não API antiga. */
+  if (
+    document === undefined ||
+    !(driver === null || isDetailDriver(driver)) ||
+    !Array.isArray(items) ||
+    !items.every(isDetailItem) ||
+    !isNullableString(actorName) ||
+    !isString(channel) ||
+    !isNullableString(onBehalfOfDriverName)
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return { ...toFeedItem(raw), actorName, channel, driver, items, onBehalfOfDriverName }
 }
 
 function readPage(payload: unknown): TripOccurrenceFeedPage {
@@ -293,6 +414,23 @@ export function createTripOccurrenceFeedClient(
         `${TRIP_OCCURRENCES_PATH}/${input.occurrenceId}/attachments`,
       )
       return readAttachments(payload)
+    },
+    async readOccurrence(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${encodeURIComponent(input.occurrenceId)}`,
+      )
+      return readDetail(payload)
+    },
+    async readOccurrenceTimeline(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${encodeURIComponent(input.occurrenceId)}/timeline`,
+      )
+      if (!isRecord(payload) || !isOccurrenceTimeline(payload.data)) {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      return payload.data
     },
     async listOccurrences(input) {
       const search = serializeTripOccurrenceQuery(input)

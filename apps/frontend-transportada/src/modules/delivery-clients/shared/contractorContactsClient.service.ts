@@ -12,6 +12,7 @@ import type {
   ContractorContactStatus,
   ContractorSummary,
 } from './contractorContacts.types'
+import type { ContractorContactPayload } from './contractorContacts.validation'
 
 export const CONTRACTORS_PATH = '/contractors'
 
@@ -35,18 +36,12 @@ export class ContractorContactsRequestError extends Error {
   }
 }
 
-export type ContractorContactCreateBody = Readonly<{
-  canDecide: boolean
-  email: string
-  receivesOccurrences: boolean
-}>
+/** Spec 183 T303: o painel manda só os campos novos; os dois antigos a API deriva dos tipos (T302). */
+export type ContractorContactCreateBody = ContractorContactPayload
 
-export type ContractorContactUpdateBody = Readonly<{
-  canDecide?: boolean
-  email?: string
-  receivesOccurrences?: boolean
-  status?: ContractorContactStatus
-}>
+export type ContractorContactUpdateBody = Readonly<
+  Partial<ContractorContactPayload> & { status?: ContractorContactStatus }
+>
 
 type ClientDependencies = Readonly<{
   apiUrl: string

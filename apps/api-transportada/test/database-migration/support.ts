@@ -374,3 +374,18 @@ export async function withDisposableDatabase(
   if (testFailure !== undefined) throw testFailure
   if (cleanupFailures[0] !== undefined) throw cleanupFailures[0]
 }
+
+/**
+ * Daqui em diante toda pasta leva `snapshot.json`: as dez anteriores a esta foram escritas à mão sem
+ * ele, e o `db:generate` passou a recriar migrations já aplicadas. As mais antigas sem snapshot ficam
+ * como estão — o snapshot de 20260907182129_toll_booths já as absorveu.
+ *
+ * É também onde a cadeia de `prevIds` vira uma linha só. Antes dela a história é genuinamente
+ * ramificada — medido em 2026-09-27: seis pastas desalinhadas, dois nós de duas origens
+ * (`confused_excalibur`, `geocoding_backfill_job`), um ponteiro para um snapshot que não existe mais,
+ * e as três de 20260831 partindo todas do mesmo pai. Exigir linearidade lá reprovaria o repositório
+ * por um passado que ninguém vai reescrever; daqui para a frente, exigir é barato e pega o defeito.
+ */
+export const FIRST_DIRECTORY_REQUIRING_SNAPSHOT = '20260910120000_vehicle_reference_every_type'
+
+export const SNAPSHOT_FILE = 'snapshot.json'

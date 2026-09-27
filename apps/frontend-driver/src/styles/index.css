@@ -33,7 +33,7 @@
   --layout-gutter: var(--space-8);
   --layout-max-width: 60rem;
   --layout-width: min(100% - var(--layout-gutter), var(--layout-max-width));
-  --radius-panel: 0.75rem;
+  --radius-panel: 0;
   /* Cópia dos tokens de campo/controle do painel (ADR-0075 §7) — o design system caseiro usa os dois. */
   --field-height: 3rem;
   --field-height-compact: 2.4rem;
@@ -189,7 +189,7 @@ button:has(svg) {
 .panel__input {
   background: var(--color-asphalt);
   border: 1px solid var(--color-slate);
-  border-radius: 0.5rem;
+  border-radius: 0;
   color: var(--color-fog);
   font: inherit;
   font-size: var(--field-font-size);

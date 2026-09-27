@@ -6,7 +6,9 @@
  * do Vite grava o resultado ao lado do bundle e o `server.ts` o lê no boot, fail-closed.
  *
  * Diferenças para o portal (ADR-0075 §4): `img-src` leva `blob:` (a prévia da foto e do recorte) e a
- * origem da API (o logo da instalação). A origem do armazenamento entra com a spec 179.
+ * origem da API (o logo da instalação). A origem do armazenamento entra com a spec 179, só no
+ * `connect-src`: a foto da ocorrência sobe por `PUT` direto ao bucket, e nada desta app exibe imagem
+ * vinda de lá — `img-src` fica como estava.
  */
 
 const SELF = "'self'"
@@ -34,6 +36,8 @@ type ContentSecurityPolicyParams = {
   readonly allowsInlineScript: boolean
   readonly apiBaseUrl: string | undefined
   readonly keycloakUrl: string | undefined
+  /** Spec 179 (RF2): o bucket que recebe a foto da ocorrência pela URL assinada. */
+  readonly objectStorageUrl?: string | undefined
 }
 
 /**
@@ -49,9 +53,10 @@ export function buildContentSecurityPolicy({
   allowsInlineScript,
   apiBaseUrl,
   keycloakUrl,
+  objectStorageUrl,
 }: ContentSecurityPolicyParams): string {
   const apiOrigin = toOrigin(apiBaseUrl)
-  const configured = [apiOrigin, toOrigin(keycloakUrl)].filter(
+  const configured = [apiOrigin, toOrigin(keycloakUrl), toOrigin(objectStorageUrl)].filter(
     (origin): origin is string => origin !== undefined,
   )
   const connectSource = [

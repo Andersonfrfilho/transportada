@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service'
+import { IDENTITY_RATE_LIMIT_DEFAULTS } from '../../src/identity/shared/identity-rate-limit.constant.js'
 import {
   companies,
   identityUsers,
@@ -84,6 +85,8 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             driverAddressLookupUrl: undefined,
             appEnv: 'test',
             bootstrapToken: undefined,
+            clientIpPolicy: { source: 'x-real-ip', trustedProxyHops: 1 },
+            identityRateLimits: IDENTITY_RATE_LIMIT_DEFAULTS,
             cargoLayoutTimeBudgetMs: 60_000,
             companyId: undefined,
             contractorMailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },

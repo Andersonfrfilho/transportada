@@ -1,0 +1,585 @@
+/* Spec 183 T407: a conversa da ocorrência. As peças do `conversations-ui` saem sem estilo (o pacote
+ * pinta com utilitárias do Tailwind, que este app não tem — ADR-0051); tudo o que se vê vem daqui,
+ * pelos tokens da casa e pelos tokens de balão da T704. */
+
+.panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.panelHead h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-fog) 72%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.thread {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 32rem;
+  padding: var(--space-2);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 40%, transparent);
+}
+
+.daySection {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dayDivider {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-2) 0;
+}
+
+.dayLabel {
+  padding: var(--space-1) var(--space-2);
+  color: color-mix(in srgb, var(--color-fog) 80%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  background: var(--color-graphite);
+}
+
+.row {
+  display: flex;
+}
+
+.rowMine {
+  justify-content: flex-end;
+}
+
+.bubble {
+  display: grid;
+  /* Spec 183 T702d: sem a trilha `minmax(0, 1fr)`, o nome do anexo em `nowrap` alarga o balão. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: min(36rem, 88%);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-fog);
+  overflow-wrap: anywhere;
+}
+
+.bubbleOutbound {
+  background: var(--color-bubble-out);
+}
+
+.bubbleContractor {
+  background: var(--color-bubble-contractor);
+}
+
+.bubbleDriver {
+  background: var(--color-bubble-driver);
+}
+
+.bubbleFailed {
+  outline: 2px solid var(--color-alert);
+  outline-offset: -2px;
+}
+
+.author {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.authorButton {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  background: none;
+  cursor: pointer;
+}
+
+.tag {
+  padding: 0 var(--space-1);
+  border: 1px solid currentColor;
+  font-family: var(--font-utility);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.body {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.body p {
+  margin: 0;
+}
+
+.meta {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  /*
+   * Spec 183 T902 (contraste): a linha de metadados é `<footer>`, que o estilo global pinta de
+   * cinza. Sobre o cobre e o azul do balão, o cinza fica em 2,3:1; herdar o texto do balão, que já
+   * passa de 4,5:1 nos dois temas, é o que segura hora, canal e selo legíveis.
+   */
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+}
+
+/* Spec 183 T703: o selo é botão (abre os horários), mas lê como a linha de metadados. */
+.statusButton {
+  gap: var(--space-1);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.channelTag {
+  padding: 0 var(--space-1);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.statusTimes {
+  margin: 0;
+  padding: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  border-top: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+}
+
+.statusTimes li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.failure {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-left: 3px solid var(--color-alert);
+  color: var(--color-fog);
+}
+
+.failure p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.card {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.card dt {
+  opacity: 0.8;
+}
+
+.card dd {
+  margin: 0 0 var(--space-1);
+}
+
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+/* Tela cheia no celular (`web.md` §10); do tablet para cima, caixa com margem. */
+@media (min-width: 40rem) {
+  .overlay {
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(46rem, 100%);
+    height: auto;
+    max-height: 92vh;
+  }
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.dialogHeader h2 {
+  margin: 0;
+}
+
+.iconAction {
+  padding: var(--space-1);
+  border: 0;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.fieldset {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldset legend {
+  margin-bottom: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.recipient {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.field input,
+.field textarea {
+  padding: var(--field-padding-compact);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: inherit;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+/* A altura da mensagem vem do `rows` do campo; a casa não inventa altura de campo. */
+.field textarea {
+  resize: vertical;
+}
+
+.error {
+  color: var(--color-alert);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.preview {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--color-slate) 45%, transparent);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  white-space: pre-wrap;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* Spec 183 T505: a fila das mensagens sem conversa, no topo da lista de ocorrências. */
+.unassigned {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: var(--color-graphite);
+}
+
+.unassigned h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.unassignedList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.unassignedItem {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: var(--color-bubble-contractor);
+  color: var(--color-fog);
+}
+
+.candidate {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+}
+
+.candidate input {
+  accent-color: var(--color-copper);
+}
+
+.candidate > span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/*
+ * Spec 183 T701 (RF12): as respostas rápidas em Configurações — uma lista por público, cada linha
+ * com o texto, o interruptor e as setas de ordem.
+ */
+.quickReplyList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quickReplyRow {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.quickReplyText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quickReplyInactive {
+  opacity: 0.6;
+}
+
+.quickReplyActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Spec 183 T702b: o anexo — o que se escolhe no compositor e o que chega no balão. */
+.attachmentPicker {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.attachmentList,
+.messageAttachments {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.attachmentItem,
+.messageFile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+}
+
+.attachmentItem {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+}
+
+.attachmentName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentSize {
+  /* Esmaecer o tamanho levava a 3,6:1 sobre o cobre; o peso da fonte já o separa do nome. */
+  color: inherit;
+  white-space: nowrap;
+}
+
+.messageFile {
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  color: inherit;
+  text-decoration: none;
+}
+
+.messageFile:hover,
+.messageFile:focus-visible {
+  border-color: currentColor;
+}
+
+.messageImage {
+  display: block;
+}
+
+.messageImage img {
+  display: block;
+  max-width: 100%;
+  max-height: 16rem;
+  object-fit: contain;
+}
+
+.messageAudio {
+  width: 100%;
+  min-width: 14rem;
+}
+
+/* Spec 183 T702d: as ações sobre o anexo que o motorista mandou (encaminhar, anexar à ocorrência). */
+.attachmentActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* Spec 183 T705: o player com a velocidade ao lado, e o gravador na caixa de envio. */
+.audioPlayer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.audioPlayer {
+  flex-wrap: wrap;
+}
+
+/*
+ * O balão encolhe até o conteúdo: sem piso, o `<audio>` some até o botão de tocar. 13rem cabem no
+ * balão de 88% a 390 px ao lado da velocidade; abaixo disso a velocidade desce de linha.
+ */
+.audioPlayer audio {
+  flex: 1 1 13rem;
+  min-width: 13rem;
+}
+
+.audioRecorder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.audioRecorder audio {
+  max-width: 100%;
+}
+
+.recordingClock {
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  color: var(--color-alert);
+}
+
+/* Spec 183 T801 (P11): no celular, quem rola é a conversa, e a caixa de envio fica logo abaixo
+   dela — sempre à mão sem cobrir mensagem. A caixa presa no rodapé da tela (`position: sticky`) foi
+   medida e descartada: com texto, anexos e gravador ela ocupa 359 de 800 px e cobre a conversa. */
+.thread {
+  max-height: min(32rem, 55dvh);
+}
+
+.composer {
+  position: static;
+}
+
+/* Sob toque (não é breakpoint: `responsive.md`), selo, velocidade e ações chegam ao alvo. */
+@media (pointer: coarse) {
+  .panel :global(.ui-button-size-sm),
+  .messageFile {
+    min-height: var(--touch-target);
+  }
+
+  /* T903 (F11): o nome do contato (abre o cartão) e o fechar dos diálogos, que ficam num portal. */
+  .authorButton,
+  .iconAction {
+    min-height: var(--touch-target);
+  }
+
+  .iconAction {
+    min-width: var(--touch-target);
+  }
+}
+
+/* Spec 183 T902 (D2): a região que anuncia mensagem nova — lida por leitor de tela, invisível. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

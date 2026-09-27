@@ -44,8 +44,10 @@ export function buildEventQueueView(input: {
     const attachmentCause = group.find(
       (attachment) => attachment.rejectionCause !== undefined,
     )?.rejectionCause
+    /** Spec 209: a foto do "Deu problema" mora no próprio item e conta como anexo dele. */
+    const carriesPhoto = item.report.kind === 'stopOccurrencePhoto'
     return {
-      attachmentCount: group.length,
+      attachmentCount: group.length + (carriesPhoto ? 1 : 0),
       ...(attachmentCause === undefined ? {} : { attachmentRejectionCause: attachmentCause }),
       idempotencyKey: item.report.idempotencyKey,
       kind: item.report.kind,

@@ -50,6 +50,13 @@ DIAGNOSTICS ROW_COUNT`. `make migration-test` verde.
   (`trip-occurrence-attachment.integration.ts`). Detalhe completo em `evidence.md`. A escrita
   continua **única**, dentro do `unitOfWork.execute` + `withFieldReport` que a T200 já tinha montado
   — não precisou de unit of work nova. (CA02, CA03, RF3)
+- **T304** ✅ O motorista sabe quando o tipo exige comprovante: `GET /me/trips/current/occurrence-types`
+  passa a devolver `attachmentMode`, junto de `id` e `name` (`list-field-occurrence-types.use-case.ts`,
+  `type.attachmentMode ?? 'off'`). Aditiva, sem migration — fecha a pendência que a T303 registrou em
+  `evidence.md` ("a app já lê o campo quando ele vier"). A mesma função alimenta a rota do escritório
+  (`GET /trips/occurrence-types/field`), cujo validador no painel (`hasExactKeys`) recusaria a chave
+  nova — trocado por `hasKeys` com `attachmentMode` opcional (`FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`),
+  o mesmo padrão que `isOccurrenceType` já usa para campo aditivo.
 
 ## Fase 3 — O motorista tira a foto
 
@@ -67,11 +74,11 @@ implementam esse encadeamento do zero: plugam a captura de imagem e a UI de esta
 "enviado") no que já existe. Falta a origem do storage no `connect-src`/`img-src` de
 `apps/frontend-driver` (`VITE_STORAGE_URL`, `ARG` e contrato de build) — ver T8.3 do `tasks.md` da 189.
 
-- **T301** Teste de contrato da tela: tipo `required` sem foto ou sem motivo não habilita o envio, e
+- **T301** ✅ Teste de contrato da tela: tipo `required` sem foto ou sem motivo não habilita o envio, e
   a mensagem diz qual dos dois falta. (CA04)
-- **T302** Captura da imagem na tela de ocorrência (`apps/frontend-driver`), com o caminho de galeria
+- **T302** ✅ Captura da imagem na tela de ocorrência (`apps/frontend-driver`), com o caminho de galeria
   quando a câmera é negada, e os mesmos limites de tamanho e tipo do comprovante de entrega.
-- **T303** A fila offline (`apps/frontend-driver`) carrega a imagem junto do corpo, pelo `kind`
+- **T303** ✅ A fila offline (`apps/frontend-driver`) carrega a imagem junto do corpo, pelo `kind`
   `documentOccurrence` que a spec 189 já deixou pronto; a tela distingue "na fila" de "enviado".
   Smoke cobrindo o caminho sem sinal. (CA05, RF5)
 
@@ -79,9 +86,9 @@ implementam esse encadeamento do zero: plugam a captura de imagem e a UI de esta
 
 > 🤖 Modelo: `sonnet` (T402 é 🧠 — revisão de design com print)
 
-- **T401** O editor de tipos de ocorrência oferece a marca de comprovante obrigatório, em pt-BR e
+- **T401** ✅ O editor de tipos de ocorrência oferece a marca de comprovante obrigatório, em pt-BR e
   en. (CA01, RF10)
-- **T402** 🧠 Revisão de design e usabilidade com print, em 375px e no desktop (web.md §15). (CA09)
+- **T402** ✅ 🧠 Revisão de design e usabilidade com print, em 375px e no desktop (web.md §15). (CA09)
 
 ## Prompt de execução
 

@@ -132,6 +132,8 @@ export class DrizzleOccurrenceUploadRepository
 
   public async findConfirmedUpload(input: {
     readonly companyId: string
+    /** Spec 209 RF2: a foto da ocorrência de parada só vale para quem a enviou. */
+    readonly driverId?: string
     readonly id: string
     readonly tripId: string
   }): Promise<null | { readonly id: string }> {
@@ -144,6 +146,9 @@ export class DrizzleOccurrenceUploadRepository
           eq(tripOccurrenceUploads.id, input.id),
           eq(tripOccurrenceUploads.tripId, input.tripId),
           eq(tripOccurrenceUploads.status, 'confirmed'),
+          input.driverId === undefined
+            ? undefined
+            : eq(tripOccurrenceUploads.driverId, input.driverId),
         ),
       )
       .limit(1)

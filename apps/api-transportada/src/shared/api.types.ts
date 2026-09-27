@@ -6,6 +6,8 @@ import type { LogLevel } from '@adatechnology/logger'
 import type { CryptographicConfiguration } from '../config/cryptographic-configuration.schema'
 import type { CompanyRole, FiscalEnvironment } from '../database/database.schema'
 import type { CompanyPermission } from '../identity/domain/authorization.policy'
+import type { IdentityRateLimits } from '../identity/shared/identity-rate-limit.constant'
+import type { ClientIpPolicy } from './client-ip.constant'
 
 export type DatabasePoolConfiguration = {
   readonly connectTimeoutSeconds: number
@@ -23,6 +25,8 @@ export type ApiEnvironment = {
   readonly bootstrapToken: string | undefined
   /** Spec 145 D14: orçamento da 1ª tentativa da planta; a API deriva dele o lease do worker. */
   readonly cargoLayoutTimeBudgetMs: number
+  /** ADR-0076 §6: de onde sai o IP do cliente — a chave do rate limit anônimo e o IP da trilha. */
+  readonly clientIpPolicy: ClientIpPolicy
   /** Empresa do ambiente (ADR-0021); ausente mantém a rota de arranque morta (ADR-0022). */
   readonly companyId: string | undefined
   /** Spec 150 RF18: teto do envio de e-mail com contratantes, por empresa e usuário. */
@@ -37,6 +41,8 @@ export type ApiEnvironment = {
   /** O canal de e-mail é oferecido no fan-out; quem envia é o worker, que guarda a credencial. */
   readonly emailChannelEnabled: boolean
   readonly frontendOrigins: readonly [string, ...string[]]
+  /** Spec 191 RF12: teto e janela das rotas anônimas de identidade, por IP e por alvo. */
+  readonly identityRateLimits: IdentityRateLimits
   readonly keycloak: {
     readonly admin: {
       readonly clientId: string

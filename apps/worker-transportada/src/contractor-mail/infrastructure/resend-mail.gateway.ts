@@ -57,8 +57,16 @@ const receivedEmailSchema = z.object({
 
 export type ReceivedResendEmail = z.infer<typeof receivedEmailSchema>
 
+/** Spec 183 T702e: o arquivo já em base64; o nome vai para quem recebe, nunca para log. */
+export type ResendEmailAttachment = {
+  readonly content: string
+  readonly contentType: string
+  readonly fileName: string
+}
+
 export type SendResendEmailInput = {
   readonly apiKey: string
+  readonly attachments?: readonly ResendEmailAttachment[]
   readonly from: string
   readonly headers: Readonly<Record<string, string>>
   /** Spec 150 T302: sem HTML, o e-mail sai só em texto — a chave nem vai no corpo do POST. */
@@ -100,6 +108,15 @@ export function createResendMailGateway(input: CreateResendMailGatewayInput): Re
 
       const body = await requestJson({
         body: {
+          ...(request.attachments === undefined || request.attachments.length === 0
+            ? {}
+            : {
+                attachments: request.attachments.map((attachment) => ({
+                  content: attachment.content,
+                  content_type: attachment.contentType,
+                  filename: attachment.fileName,
+                })),
+              }),
           from: request.from,
           headers: request.headers,
           ...(request.html === undefined ? {} : { html: request.html }),

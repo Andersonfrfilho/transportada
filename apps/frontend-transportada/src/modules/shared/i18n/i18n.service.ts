@@ -34,6 +34,8 @@ import nfseInvoiceLocale from '@/modules/nfse-invoice/locales/nfseInvoice.locale
 import nfseInvoiceEnglishLocale from '@/modules/nfse-invoice/locales/nfseInvoice.en.locale.json'
 import notificationLocale from '@/modules/notification/locales/notification.locale.json'
 import notificationEnglishLocale from '@/modules/notification/locales/notification.en.locale.json'
+import occurrenceConversationLocale from '@/modules/occurrence-conversation/locales/occurrenceConversation.locale.json'
+import occurrenceConversationEnglishLocale from '@/modules/occurrence-conversation/locales/occurrenceConversation.en.locale.json'
 import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWorkspace.locale.json'
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
 import routingLocale from '@/modules/routing/locales/routing.locale.json'
@@ -64,6 +66,7 @@ void i18n.use(initReactI18next).init({
       nfeWorkspace: nfeWorkspaceEnglishLocale,
       nfseInvoice: nfseInvoiceEnglishLocale,
       notification: notificationEnglishLocale,
+      occurrenceConversation: occurrenceConversationEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
       routing: routingEnglishLocale,
       translation: foundationEnglishLocale,
@@ -86,6 +89,7 @@ void i18n.use(initReactI18next).init({
       nfeWorkspace: nfeWorkspaceLocale,
       nfseInvoice: nfseInvoiceLocale,
       notification: notificationLocale,
+      occurrenceConversation: occurrenceConversationLocale,
       operationsWorkspace: operationsWorkspaceLocale,
       routing: routingLocale,
       translation: foundationLocale,

@@ -18,8 +18,37 @@ import type {
   ContractorMailSettingsRecord,
 } from './contractor-mail.port.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
+import type { OccurrenceConversationMessageStatus } from '../../database/occurrence-conversation.schema.js'
 
 const EMAIL_RECEIVED_EVENT_TYPE = 'email.received'
+
+/**
+ * Spec 183 T405 (RF14): o status que o Resend dá ao envio, no vocabulário da conversa. Aberto e
+ * clicado ficam de fora de propósito — o e-mail não tem "lida" (D7) — e atraso ou reclamação não são
+ * estado da mensagem.
+ */
+const OCCURRENCE_MAIL_STATUS_BY_EVENT_TYPE = {
+  'email.bounced': 'bounced',
+  'email.delivered': 'delivered',
+  'email.failed': 'failed',
+  'email.sent': 'sent',
+} as const satisfies Readonly<Record<string, OccurrenceConversationMessageStatus>>
+
+type OccurrenceMailStatusEventType = keyof typeof OCCURRENCE_MAIL_STATUS_BY_EVENT_TYPE
+
+function isOccurrenceMailStatusEventType(type: string): type is OccurrenceMailStatusEventType {
+  return Object.hasOwn(OCCURRENCE_MAIL_STATUS_BY_EVENT_TYPE, type)
+}
+
+/** A empresa é a do webhook conferido; o id do Resend acha a mensagem dentro dela. */
+export type OccurrenceMailStatusPort = {
+  apply(input: {
+    readonly at: Date
+    readonly companyId: string
+    readonly incoming: OccurrenceConversationMessageStatus
+    readonly providerEmailId: string
+  }): Promise<void>
+}
 
 const inboundEmailWebhookBodySchema = z.object({
   data: z.object({ email_id: z.string().min(1) }),
@@ -45,6 +74,8 @@ export type ProcessInboundEmailWebhookUseCase = {
 
 export function createProcessInboundEmailWebhookUseCase(dependencies: {
   readonly now?: () => Date
+  /** Ausente, o evento de status segue ignorado, como na 143. */
+  readonly occurrenceMailStatus?: OccurrenceMailStatusPort
   readonly repository: ContractorMailRepositoryPort
   readonly secretService: ContractorMailCredentialSecretService
 }): ProcessInboundEmailWebhookUseCase {
@@ -82,9 +113,19 @@ export function createProcessInboundEmailWebhookUseCase(dependencies: {
       if (!verification.verified) return { outcome: 'unauthorized' }
 
       const parsedBody = parseBody(input.rawBody)
-      if (parsedBody === undefined || parsedBody.type !== EMAIL_RECEIVED_EVENT_TYPE) {
-        return { outcome: 'ignored' }
+      if (parsedBody === undefined) return { outcome: 'ignored' }
+
+      if (isOccurrenceMailStatusEventType(parsedBody.type)) {
+        if (dependencies.occurrenceMailStatus === undefined) return { outcome: 'ignored' }
+        await dependencies.occurrenceMailStatus.apply({
+          at: now(),
+          companyId: configuration.companyId,
+          incoming: OCCURRENCE_MAIL_STATUS_BY_EVENT_TYPE[parsedBody.type],
+          providerEmailId: parsedBody.data.email_id,
+        })
+        return { outcome: 'accepted' }
       }
+      if (parsedBody.type !== EMAIL_RECEIVED_EVENT_TYPE) return { outcome: 'ignored' }
 
       await dependencies.repository.recordInboundWebhookEvent({
         companyId: configuration.companyId,

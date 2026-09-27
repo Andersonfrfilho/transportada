@@ -34,6 +34,12 @@ export const STORAGE_OBJECT_PURPOSES = [
    * à cobrança, e é este PDF que faz a prova sobreviver ao expurgo do original.
    */
   'extra_charge_batch_statement',
+  /**
+   * Spec 183 T702a (RF10): o anexo da conversa da ocorrência — conferido pelos bytes antes de virar
+   * objeto final, e ligado a uma mensagem da conversa. Sem prazo de expurgo próprio: é conversa da
+   * ocorrência, e segue a vida dela.
+   */
+  'occurrence_conversation_attachment',
 ] as const
 export type StorageObjectPurpose = (typeof STORAGE_OBJECT_PURPOSES)[number]
 

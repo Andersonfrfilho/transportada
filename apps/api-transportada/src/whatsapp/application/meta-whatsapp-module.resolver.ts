@@ -38,6 +38,13 @@ export type CreateMetaWhatsAppModuleResolverParams = {
   readonly baseUrl: string | undefined
   /** Spec 144 T006 — o despachante; ausente, a mensagem recebida só é registrada, como na 062. */
   readonly buildMessageHook?: MetaWhatsAppMessageHookBuilder
+  /**
+   * Spec 183 T502 — o status da Meta para a conversa da ocorrência. Recebe a empresa do canal: o
+   * gancho de status pode chegar sem sessão, e a empresa é a do número que recebeu o webhook.
+   */
+  readonly buildStatusHook?: (instance: {
+    readonly companyId: string
+  }) => NonNullable<MetaWhatsAppHooks['onStatusUpdate']>
   readonly database: unknown
   readonly nonceStore: NonceStoreInterface
   readonly repository: Pick<WhatsAppChannelRepositoryPort, 'findByPhoneNumberId'>
@@ -102,6 +109,9 @@ export function createMetaWhatsAppModuleResolver(
           module,
           phoneNumberId: channel.phoneNumberId,
         })
+      }
+      if (params.buildStatusHook !== undefined) {
+        hooks.onStatusUpdate = params.buildStatusHook({ companyId: channel.companyId })
       }
       const resolved: ResolvedMetaWhatsAppModule = { companyId: channel.companyId, module }
       /** Versão nova invalida sozinha: a chave muda, e a entrada velha morre no `clear` do teto. */

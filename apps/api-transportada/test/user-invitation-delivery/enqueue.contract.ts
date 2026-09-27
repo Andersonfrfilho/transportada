@@ -58,7 +58,7 @@ function createEnvelopeProviderFake() {
   }
 }
 
-function createHarness() {
+function createHarness(options: { readonly membershipStatus?: 'active' | 'disabled' } = {}) {
   const outbox: OutboxMessage[] = []
   const invitationsCreated: {
     readonly codeHash: string
@@ -114,7 +114,7 @@ function createHarness() {
         return Promise.resolve({ membershipId: 'vinculo-de-teste' })
       },
       async findByUserId() {
-        return { userId: 'existente' }
+        return { membershipStatus: options.membershipStatus ?? 'active', userId: 'existente' }
       },
     },
   }
@@ -253,5 +253,24 @@ describe('reenvio segue a mesma rota', () => {
     })
 
     expect(created?.codeHash).toBe(hashInvitationCode(code))
+  })
+
+  /**
+   * ADR-0076 §8, spec 191 T2.3: suspender não revoga o convite, então o reenvio do administrador
+   * precisa recusar por conta própria — a única checagem que impede reentregar código a um vínculo
+   * desabilitado.
+   */
+  test('recusa o reenvio para vínculo suspenso, com 409, sem criar nem publicar nada', async () => {
+    const harness = createHarness({ membershipStatus: 'disabled' })
+    const useCase = createResendCompanyUserCodeUseCase(harness.dependencies as never)
+
+    const execution = useCase.execute({ context: { companyId: COMPANY_ID }, userId: 'existente' })
+
+    await expect(execution).rejects.toMatchObject({
+      code: 'COMPANY_USER_SUSPENDED',
+      status: 409,
+    })
+    expect(harness.invitationsCreated).toEqual([])
+    expect(harness.outbox).toEqual([])
   })
 })

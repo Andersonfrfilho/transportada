@@ -12,10 +12,10 @@
 
 ## Fase 1 — Veículo deixa de ser obrigatório no domínio
 
-| Task      | Modelo                                                                         | Commit      | Evidência                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| --------- | ------------------------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T001      | sonnet (executado nesta sessão; a marca 🧠 pedia opus, registrado como desvio) | `014c60652` | Migration `drizzle/20260926195419_trip_vehicle_optional/` com `rollback.sql`. Vermelho confirmado antes de gerar a migration (`make migration-test` falhando com `23502 null value in column vehicle_id` e diff de snapshot); verde depois. Nova asserção em `test/database-migration/trip-constraints.assertion.ts` prova `vehicle_id: null` aceito e limpa a própria linha antes do ciclo de rollback do teste (senão o rollback da própria migration falharia contra o dado que ela criou). |
-| T002/T003 | sonnet (desvio da marca 🧠)                                                    | `014c60652` | `test/trip-application/trip-crew-service.contract.ts` (3 casos: sem vehicleId → null sem consultar repositório; com vehicleId encontrado → devolve veículo; com vehicleId não encontrado → continua lançando `TripVehicleNotFoundError`). Vermelho confirmado (`bun test test/trip-application.contract.test.ts` falhando antes da implementação).                                                                                                                                             |
+| Task      | Modelo                                                                         | Commit      | Evidência                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------- | ------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T001      | sonnet (executado nesta sessão; a marca 🧠 pedia opus, registrado como desvio) | `014c60652` | Migration `drizzle/20260926195419_trip_vehicle_optional/` com `rollback.sql` — **pasta removida depois, unificada na `20260926212434_trip_vehicle_optional`; ver "Desduplicação da migration" no fim deste arquivo**. Vermelho confirmado antes de gerar a migration (`make migration-test` falhando com `23502 null value in column vehicle_id` e diff de snapshot); verde depois. Nova asserção em `test/database-migration/trip-constraints.assertion.ts` prova `vehicle_id: null` aceito e limpa a própria linha antes do ciclo de rollback do teste (senão o rollback da própria migration falharia contra o dado que ela criou). |
+| T002/T003 | sonnet (desvio da marca 🧠)                                                    | `014c60652` | `test/trip-application/trip-crew-service.contract.ts` (3 casos: sem vehicleId → null sem consultar repositório; com vehicleId encontrado → devolve veículo; com vehicleId não encontrado → continua lançando `TripVehicleNotFoundError`). Vermelho confirmado (`bun test test/trip-application.contract.test.ts` falhando antes da implementação).                                                                                                                                                                                                                                                                                     |
 
 ⚠️ **Desvio do modelo registrado**: `tasks.md` marcava T001 como 🧠 (`opus`) por ser migration:
 executado nesta sessão em `sonnet` por continuidade de contexto (a sessão já vinha investigando o
@@ -58,9 +58,9 @@ demais pontos de `read-trip-valuation.use-case.ts` (custo do veículo, pedágio)
 
 ## Fase 2 — Máquina de estados ganha `awaiting_crew` (T004-T005)
 
-| Task      | Modelo                                            | Commit      | Evidência                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------- | ------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| T004/T005 | sonnet (desvio da marca 🧠, mesmo motivo do T001) | `fa323c5af` | `test/trip-domain/trip-state.contract.ts`: grid de `checkTripTransition` cresceu de 108→140 células (7 ações × 10 status × 2 hasRoute), grid de `checkTripDocumentTransition` de 180→200; dois testes novos (`awaiting_crew only leaves through defineCrew or cancel`, `defineCrew only applies...`). Migration `drizzle/20260926202337_trip_awaiting_crew_status/` (NOT VALID + VALIDATE, ADR-0068 §3) expande `trips_status_check` e os dois CHECKs de `trip_status_events`. `test/trip-schema/status.contract.ts` e `test/database-migration/static-migration.contract.ts` atualizados. |
+| Task      | Modelo                                            | Commit      | Evidência                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------- | ------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T004/T005 | sonnet (desvio da marca 🧠, mesmo motivo do T001) | `fa323c5af` | `test/trip-domain/trip-state.contract.ts`: grid de `checkTripTransition` cresceu de 108→140 células (7 ações × 10 status × 2 hasRoute), grid de `checkTripDocumentTransition` de 180→200; dois testes novos (`awaiting_crew only leaves through defineCrew or cancel`, `defineCrew only applies...`). Migration `drizzle/20260926202337_trip_awaiting_crew_status/` (NOT VALID + VALIDATE, ADR-0068 §3) expande `trips_status_check` e os dois CHECKs de `trip_status_events` — **pasta removida depois, unificada na `20260926212434_trip_vehicle_optional`; ver "Desduplicação da migration" no fim deste arquivo**. `test/trip-schema/status.contract.ts` e `test/database-migration/static-migration.contract.ts` atualizados. |
 
 ⚠️ **Revisão de decisão no mesmo dia**: o dono do produto pediu, ainda na mesma sessão, para tratar
 "trocar motorista/veículo de viagem já definida" como parte urgente do trabalho (inicialmente
@@ -98,3 +98,43 @@ veículo, pedágio — RF7 restante), gate de despacho automático sem crew comp
 de `POST /trips` (criação) sobre quando gerar `awaiting_crew` vs `draft` (RF3 — hoje `create()`
 sempre grava `draft`, T007 do `tasks.md` original ainda não feito), frontend (tipos opcionais,
 telas, selo de pendência), botões de atualizar listagem (Fase 7).
+
+## Desduplicação da migration (decisão do usuário, 27/09)
+
+Duas sessões implementaram esta spec em paralelo e **cada uma gerou a própria migration para a mesma
+mudança de schema**. O que esta sessão gravou saiu em duas pastas — `20260926195419_trip_vehicle_optional`
+(1 statement, `vehicle_id` opcional) e `20260926202337_trip_awaiting_crew_status` (9 statements, os
+três CHECK de status) —, publicadas em `staging`. A outra sessão gravou **uma** pasta,
+`20260926212434_trip_vehicle_optional` (10 statements), que entrou em `main` pelo PR #109 e **já foi
+aplicada no banco de produção**.
+
+Medido statement por statement, normalizando comentários e `--> statement-breakpoint`: as duas pastas
+desta sessão somadas, nessa ordem, são **idênticas** à pasta única de `main`. Não era uma duplicação
+1↔1, era 2↔1 — o que desfez a leitura inicial de que bastava apagar uma das duas.
+
+**Decisão do usuário: não duplicar, ficar com o que já existe em produção.** As duas pastas desta
+sessão saíram; a `20260926212434_trip_vehicle_optional` ficou, porque o banco de produção já a tem no
+journal. O `snapshot.json` dela **não** é o que veio de `main`: aquele descreve uma linhagem sem as
+treze migrations que `staging` tem (`contractor_contact_channels`, `occurrence_conversations`,
+`company_quick_replies`, `stop_departure` e outras), e serviria de bomba para a próxima migration
+gerada a partir dele. Em lugar dele entrou o snapshot que o `drizzle-kit` já havia gerado para a
+`20260926202337_trip_awaiting_crew_status` — que descreve exatamente o estado após os 10 statements,
+por serem os mesmos —, com `prevIds` reapontado para o `id` da `20260926140647_stop_departure`.
+
+Cadeia final, conferida lendo os arquivos:
+
+| Pasta                                               | `id`       | `prevIds`  |
+| --------------------------------------------------- | ---------- | ---------- |
+| `20260926003822_late_registration`                  | `3a0b2d9d` | `04104bf3` |
+| `20260926140647_stop_departure`                     | `ec822dfa` | `3a0b2d9d` |
+| `20260926212434_trip_vehicle_optional`              | `304e9e4d` | `ec822dfa` |
+| `20260926214201_trip_stops_forget_dead_coordinates` | `4faf26b3` | `304e9e4d` |
+
+O `id` do snapshot foi preservado, então a `20260926214201` continua encadeando sem alteração. O
+`generateMigration` entre os elos `stop_departure` → `trip_vehicle_optional` devolve exatamente
+`vehicle_id` opcional mais `awaiting_crew` nos três CHECK, e nada além — os 4 statements do
+`drizzle-kit` equivalem aos 10 da migration, que expande cada troca de CHECK em DROP/ADD
+`NOT VALID` + `VALIDATE` (ADR-0068 §3).
+
+⚠️ **O banco de `staging` tem `195419` e `202337` no journal, e as pastas não existem mais.** Aceito
+pelo usuário na mesma decisão; `make migration-test` usa banco descartável e não é afetado.

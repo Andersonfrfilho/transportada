@@ -10,6 +10,10 @@
 import { describe, expect, it } from 'bun:test'
 
 import type { AuthenticatedIdentity } from '../../src/identity/domain/authenticated-identity.js'
+import {
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from '../../src/http/client-ip.service.js'
 import type {
   AuthenticatedContext,
   CompanyContext,
@@ -104,6 +108,7 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportReturn: NOT_CALLED,
+      resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
       startFieldTrip: async (input) => {
         startCalls.push(input)
         return { changed: true, tripId: TRIP_ID, tripStatus: 'on_delivery_route' }
@@ -153,6 +158,7 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportReturn: NOT_CALLED,
+      resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
       startFieldTrip: async (input) => {
         startCalls.push(input)
         return { changed: true, tripId: TRIP_ID, tripStatus: 'on_delivery_route' }
@@ -179,6 +185,7 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportReturn: NOT_CALLED,
+      resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
       startFieldTrip: NOT_CALLED,
       targets: buildTargetsDouble(null),
     })
@@ -202,6 +209,7 @@ describe('confirm-load e start-route do escritório (spec 156 T5)', () => {
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportReturn: NOT_CALLED,
+      resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
       startFieldTrip: NOT_CALLED,
       targets: { findTripCrew: NOT_CALLED },
     })
@@ -232,6 +240,7 @@ describe('a chegada do escritório (spec 156 T5)', () => {
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportReturn: NOT_CALLED,
+      resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
       startFieldTrip: NOT_CALLED,
       targets,
     })
@@ -275,6 +284,7 @@ describe('a chegada do escritório (spec 156 T5)', () => {
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportReturn: NOT_CALLED,
+      resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
       startFieldTrip: NOT_CALLED,
       targets,
     })
@@ -306,6 +316,7 @@ describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportReturn: NOT_CALLED,
+      resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
       startFieldTrip: NOT_CALLED,
       targets,
     })
@@ -354,6 +365,7 @@ describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportReturn: NOT_CALLED,
+      resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
       startFieldTrip: NOT_CALLED,
       targets: buildTargetsDouble(TWO_DRIVERS),
     })

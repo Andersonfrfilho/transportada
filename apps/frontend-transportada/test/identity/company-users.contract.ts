@@ -188,6 +188,26 @@ describe('company users client contract', () => {
     expect((caught as Error).message).toBe(code)
   })
 
+  /**
+   * Spec 191 T2.3: suspender não revoga o convite, e o reenvio do administrador recusa com 409 —
+   * o código atravessa o cliente igual a qualquer outro, e é o `users.errors.COMPANY_USER_SUSPENDED`
+   * do locale que dá a mensagem "suspenso" na tela.
+   */
+  test('surfaces the suspended-membership 409 from resendInvitation', async () => {
+    const { client } = createRecordingClient(() =>
+      Response.json({ error: { code: 'COMPANY_USER_SUSPENDED' } }, { status: 409 }),
+    )
+
+    let caught: unknown
+    try {
+      await client.resendInvitation({ userId: USER_ID })
+    } catch (error) {
+      caught = error
+    }
+
+    expect((caught as Error).message).toBe('COMPANY_USER_SUSPENDED')
+  })
+
   test('collapses a refusal without a readable body into the generic request failure', async () => {
     const { client } = createRecordingClient(() => new Response(null, { status: 502 }))
 

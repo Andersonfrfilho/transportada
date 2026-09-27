@@ -58,6 +58,8 @@ import { reportStopOccurrence } from '../../src/trips/application/report-stop-oc
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
+import { listDeliveryProofs } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import { listTripTimeline } from '../../src/trips/infrastructure/trip-timeline.query.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -118,7 +120,11 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(opened.trips[0]?.stops[0]?.documents.map((entry) => entry.number)).toEqual(['1', '2'])
       expect(opened.trips[0]?.stops[0]?.documents[0]).toMatchObject({
         accessKey: `1${'1'.repeat(43)}`,
+        // Spec 193 D6/D14: o modo de quem recebeu resolvido por nota e o nome do botão rápido
+        deliveryProof: { receivedBy: 'optional' },
         number: '1',
+        recipientDisplayName: 'Destinatario 1',
+        recipientIsCompany: true,
         recipientName: 'Destinatario 1',
         series: '1',
         volumeCount: '0',
@@ -728,9 +734,11 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         expect(
           afterCompletion.pendingProofs.find((proof) => proof.documentId === lastDocumentId),
         ).toMatchObject({
-          deliveryProof: { photo: 'required' },
+          deliveryProof: { photo: 'required', receivedBy: 'optional' },
           documentNumber: '3',
           documentSeries: '1',
+          recipientDisplayName: 'Destinatario 3',
+          recipientIsCompany: true,
           recipientName: 'Destinatario 3',
           tripId: world.tripId,
           tripStatus: 'completed',
@@ -974,6 +982,277 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
   })
 })
 
+/**
+ * Spec 205: o "Registrar entrega depois" contra Postgres — o fato no evento e no comprovante, a foto
+ * obrigatória `late`, a nota com a penalidade que já existe, a linha do tempo, a leitura do
+ * comprovante e o replay que não reclassifica. Contrato com dublê passa com a coluna esquecida; este
+ * não.
+ */
+describe('o registro tardio pesa como foto atrasada (spec 205)', () => {
+  testWithPostgres(
+    'grava o fato, classifica late, pesa na nota e sai na linha do tempo e no comprovante',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db.insert(companyDeliveryProofSettings).values({
+          companyId: world.companyId,
+          photo: 'required',
+          scoreEffectiveSince: new Date(NOW.getTime() - 24 * 60 * 60 * 1000),
+        })
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+        const proofRepository = new DrizzleDeliveryProofRepository(database.db, 'test-bucket')
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+        const [lateDocumentId = '', onTimeDocumentId = '', returnedDocumentId = ''] =
+          world.documentIds
+        const readEventLateRegistration = async (eventId: string) => {
+          const [row] = await database.db
+            .select({ lateRegistration: tripStopEvents.lateRegistration })
+            .from(tripStopEvents)
+            .where(eq(tripStopEvents.id, eventId))
+          return row?.lateRegistration
+        }
+        const attachPhoto = (input: {
+          readonly attachmentKey: string
+          readonly documentId: string
+          readonly lateRegistration?: boolean
+        }) =>
+          attachDeliveryProof({
+            ...context,
+            documentId: input.documentId,
+            newObjectId: () => crypto.randomUUID(),
+            newProofId: () => crypto.randomUUID(),
+            now: NOW,
+            repository: proofRepository,
+            sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+            storage: { store: async () => ({ sha256: 'e'.repeat(64) }) },
+            upload: {
+              attachmentKey: input.attachmentKey,
+              bytes: new Uint8Array([1, 2, 3]),
+              capturedAt: NOW,
+              kind: 'photo',
+              ...(input.lateRegistration === undefined
+                ? {}
+                : { lateRegistration: input.lateRegistration }),
+              mimeType: 'image/jpeg',
+              position: { latitude: LOCATION.latitude, longitude: LOCATION.longitude },
+              receiverDocument: '',
+              receiverName: '',
+            },
+          })
+
+        for (const [index, stopId] of world.stopIds.entries()) {
+          await reportStopArrival({
+            ...context,
+            idempotencyKey: `chegada-tardia-${String(index)}`,
+            location: LOCATION,
+            now: NOW,
+            stopId,
+            unitOfWork,
+          })
+        }
+
+        // 1. A entrega tardia grava o fato; o replay com a mesma chave não o desfaz (D5).
+        const late = await reportDocumentDelivery({
+          ...context,
+          documentId: lateDocumentId,
+          idempotencyKey: 'entrega-tardia',
+          lateRegistration: true,
+          location: LOCATION,
+          now: NOW,
+          unitOfWork,
+        })
+        const lateReplay = await reportDocumentDelivery({
+          ...context,
+          documentId: lateDocumentId,
+          idempotencyKey: 'entrega-tardia',
+          lateRegistration: false,
+          location: LOCATION,
+          now: NOW,
+          unitOfWork,
+        })
+        expect(lateReplay.id).toBe(late.id)
+        expect(await readEventLateRegistration(late.id)).toBe(true)
+
+        // 2. A entrega na hora fica false, e o replay com o campo não a reclassifica (D5).
+        const onTime = await reportDocumentDelivery({
+          ...context,
+          documentId: onTimeDocumentId,
+          idempotencyKey: 'entrega-na-hora',
+          location: LOCATION,
+          now: NOW,
+          unitOfWork,
+        })
+        await reportDocumentDelivery({
+          ...context,
+          documentId: onTimeDocumentId,
+          idempotencyKey: 'entrega-na-hora',
+          lateRegistration: true,
+          location: LOCATION,
+          now: NOW,
+          unitOfWork,
+        })
+        expect(await readEventLateRegistration(onTime.id)).toBe(false)
+
+        // 3. A devolução tardia é gravada (D3), mas não entra na nota.
+        const returned = await reportDocumentReturn({
+          ...context,
+          documentId: returnedDocumentId,
+          idempotencyKey: 'devolucao-tardia',
+          lateRegistration: true,
+          location: LOCATION,
+          now: NOW,
+          reason: 'recipient_absent',
+          unitOfWork,
+        })
+        expect(await readEventLateRegistration(returned.id)).toBe(true)
+
+        // 4. Foto no lugar e na hora: a da entrega tardia é late mesmo sem o campo no envio (D2).
+        expect(
+          (await attachPhoto({ attachmentKey: 'foto-tardia-1', documentId: lateDocumentId }))
+            .punctuality,
+        ).toBe(PROOF_PUNCTUALITY.late)
+        expect(
+          (await attachPhoto({ attachmentKey: 'foto-na-hora', documentId: onTimeDocumentId }))
+            .punctuality,
+        ).toBe(PROOF_PUNCTUALITY.onTime)
+
+        // 5. A substituta com o campo grava o fato; a seguinte sem ele não o lava (D5).
+        await attachPhoto({
+          attachmentKey: 'foto-tardia-2',
+          documentId: lateDocumentId,
+          lateRegistration: true,
+        })
+        await attachPhoto({
+          attachmentKey: 'foto-tardia-3',
+          documentId: lateDocumentId,
+          lateRegistration: false,
+        })
+        const [lateProof] = await database.db
+          .select({
+            lateRegistration: tripDeliveryProofs.lateRegistration,
+            punctuality: tripDeliveryProofs.punctuality,
+          })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.stopEventId, late.id))
+        expect(lateProof).toEqual({ lateRegistration: true, punctuality: 'late' })
+
+        // 6. A nota: a entrega tardia pesa latePenaltyPoints (5), como a foto atrasada; o resto não.
+        const score = await new DrizzleDriverScoreRepository(database.db).readPenalties({
+          companyId: world.companyId,
+          driverId: world.driverId,
+          now: new Date(NOW.getTime() + 60 * 60 * 1000),
+        })
+        expect(score.score).toBe(95)
+        expect(score.penalties.map((penalty) => [penalty.tripDocumentId, penalty.reason])).toEqual([
+          [lateDocumentId, 'late_proof'],
+        ])
+
+        // 7. A linha do tempo publica o fato como dado.
+        const timeline = await listTripTimeline(database.db, {
+          companyId: world.companyId,
+          cursor: null,
+          limit: 100,
+          tripId: world.tripId,
+        })
+        const lateRegistrationById = new Map(
+          timeline.items.map((item) => [item.id, item.lateRegistration]),
+        )
+        expect(lateRegistrationById.get(late.id)).toBe(true)
+        expect(lateRegistrationById.get(onTime.id)).toBe(false)
+        expect(lateRegistrationById.get(returned.id)).toBe(true)
+        expect(
+          timeline.items
+            .filter((item) => item.kind === 'stop.arrived')
+            .every((item) => item.lateRegistration === false),
+        ).toBe(true)
+
+        // 8. A leitura do comprovante no painel também.
+        const lateProofs = await listDeliveryProofs(database.db, {
+          companyId: world.companyId,
+          documentId: lateDocumentId,
+          tripId: world.tripId,
+        })
+        const onTimeProofs = await listDeliveryProofs(database.db, {
+          companyId: world.companyId,
+          documentId: onTimeDocumentId,
+          tripId: world.tripId,
+        })
+        expect(lateProofs.map((proof) => proof.lateRegistration)).toEqual([true])
+        expect(onTimeProofs.map((proof) => proof.lateRegistration)).toEqual([false])
+      })
+    },
+  )
+
+  /**
+   * Spec 205 (revisão da 206): o "Registrar entrega depois" existe justamente para quem não tocou
+   * "Cheguei". A última baixa da parada sem chegada fechava a parada sem `arrived_at` e violava
+   * `trip_stops_completed_requires_arrived_check` — 500, e a fila da app reenviava para sempre.
+   */
+  testWithPostgres(
+    'a última baixa da parada sem chegada fecha a parada com a chegada preenchida',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+        const context = {
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+        }
+        const [firstDocumentId = '', secondDocumentId = '', lastDocumentId = ''] = world.documentIds
+
+        // Parada 1, sem "Cheguei": entrega tardia e, por último, devolução tardia.
+        await reportDocumentDelivery({
+          ...context,
+          documentId: firstDocumentId,
+          idempotencyKey: 'sem-chegada-entrega',
+          lateRegistration: true,
+          location: null,
+          now: NOW,
+          unitOfWork,
+        })
+        const returned = await reportDocumentReturn({
+          ...context,
+          documentId: secondDocumentId,
+          idempotencyKey: 'sem-chegada-devolucao',
+          lateRegistration: true,
+          location: null,
+          now: NOW,
+          reason: 'recipient_absent',
+          unitOfWork,
+        })
+        expect(returned.stopCompleted).toBe(true)
+
+        // Parada 2, sem "Cheguei" e sem o campo: a última entrega da viagem.
+        const last = await reportDocumentDelivery({
+          ...context,
+          documentId: lastDocumentId,
+          idempotencyKey: 'sem-chegada-sem-campo',
+          location: null,
+          now: NOW,
+          unitOfWork,
+        })
+        expect(last.stopCompleted).toBe(true)
+        expect(last.tripCompleted).toBe(true)
+
+        const stops = await database.db
+          .select({ arrivedAt: tripStops.arrivedAt, completedAt: tripStops.completedAt })
+          .from(tripStops)
+          .where(eq(tripStops.tripId, world.tripId))
+        expect(stops).toHaveLength(2)
+        for (const stop of stops) {
+          expect(stop.arrivedAt).toEqual(NOW)
+          expect(stop.completedAt).toEqual(NOW)
+        }
+      })
+    },
+  )
+})
+
 async function readTripStatus(database: TestDatabase, tripId: string): Promise<string> {
   const [trip] = await database.db.select().from(trips).where(eq(trips.id, tripId))
 
@@ -1171,6 +1450,8 @@ async function seedNfeDocument(
     id: participantId,
     legalName: `Destinatario ${input.suffix}`,
     role: 'recipient',
+    // Spec 193 D14: CNPJ (14 dígitos) — o destinatário deste fixture é sempre PJ.
+    taxId: '11222333000181',
   })
   await database.db.insert(nfeAddresses).values({
     city: 'Sao Paulo',

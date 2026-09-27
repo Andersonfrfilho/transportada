@@ -137,23 +137,65 @@
     "errorGeneric": "Não foi possível salvar: {{code}}"
   },
   "contractorContacts": {
-    "title": "Contatos de e-mail da contratante",
-    "hint": "Quem recebe o pedido de correção de endereço e os avisos de ocorrência — escolhido a cada envio, sem marcação fixa aqui.",
+    "title": "Contatos da contratante",
+    "hint": "Quem recebe os avisos e conversa sobre as ocorrências, as cobranças e as faturas desta contratante — por e-mail e, com o aceite, por WhatsApp.",
     "contractorLabel": "Contratante",
     "contractorPlaceholder": "Escolha a contratante",
     "loading": "Carregando os contatos…",
     "empty": "Nenhum contato cadastrado ainda.",
     "emailLabel": "E-mail",
-    "emailRequired": "Informe o e-mail.",
-    "emailInvalid": "Informe um e-mail válido.",
-    "receivesOccurrences": "Recebe ocorrências",
-    "canDecide": "Pode decidir a taxa",
     "statusActive": "Ativo",
     "statusInactive": "Inativo",
     "add": "Adicionar contato",
     "deactivate": "Desativar",
     "reactivate": "Reativar",
-    "error": "Não foi possível salvar: {{code}}"
+    "error": "Não foi possível salvar: {{code}}",
+    "newTitle": "Novo contato",
+    "editTitle": "Editar contato",
+    "nameLabel": "Nome",
+    "roleLabel": "Setor",
+    "rolePlaceholder": "Compras, financeiro, recebimento…",
+    "phoneLabel": "Telefone",
+    "phonePlaceholder": "(11) 99999-0001",
+    "noPhone": "Sem telefone",
+    "typesLegend": "O que recebe",
+    "stagesLegend": "Grupos de ocorrência",
+    "channelsLegend": "Canais",
+    "optInLabel": "O contato aceitou receber mensagens pelo WhatsApp",
+    "optInHint": "O aceite fica registrado com a data de agora e com o seu usuário.",
+    "optInNeedsPhone": "Informe o telefone para registrar o aceite do WhatsApp.",
+    "optInSince": "WhatsApp aceito em {{date}}",
+    "preferredChannelLabel": "Canal preferido",
+    "channel": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    },
+    "types": {
+      "occurrences": "Ocorrências",
+      "approves_charges": "Aprova cobranças",
+      "scheduling": "Agendamento",
+      "invoices": "Faturas",
+      "cte_xml": "CT-e / XML"
+    },
+    "stages": {
+      "separation": "Separação",
+      "delivery": "Entrega",
+      "stop": "Parada"
+    },
+    "noTypes": "Não recebe nada ainda.",
+    "errors": {
+      "emailRequired": "Informe o e-mail.",
+      "emailInvalid": "Informe um e-mail válido.",
+      "phoneInvalid": "Informe o telefone com DDD, como (11) 99999-0001.",
+      "optInWithoutPhone": "O aceite do WhatsApp precisa de telefone.",
+      "whatsappWithoutOptIn": "WhatsApp como canal preferido precisa do aceite.",
+      "occurrenceStagesRequired": "Escolha ao menos um grupo de ocorrência."
+    },
+    "edit": "Editar",
+    "save": "Salvar contato",
+    "cancel": "Cancelar",
+    "stagesSummary": "Ocorrências de: {{stages}}",
+    "optInRecorded": "Aceite registrado em {{date}}. Trocar o telefone desfaz o aceite."
   },
   "filters": {
     "name": "Nome",
@@ -191,7 +233,8 @@
     "open": "Abrir",
     "scheduling": "Agendamento",
     "schedulingYes": "Exige",
-    "taxId": "Documento"
+    "taxId": "Documento",
+    "region": "Clientes de entrega (role para os lados)"
   },
   "windows": {
     "add": "Acrescentar horário",
@@ -213,5 +256,11 @@
       "5": "Sexta",
       "6": "Sábado"
     }
+  },
+  "kicker": "Cadastros",
+  "addContactAction": {
+    "open": "Adicionar aos contatos",
+    "title": "Adicionar aos contatos",
+    "close": "Fechar"
   }
 }

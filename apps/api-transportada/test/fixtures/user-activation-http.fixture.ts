@@ -1,6 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  allowingRateLimitWindows,
+  OPEN_ANONYMOUS_RATE_LIMIT,
+  syntheticRateLimitSubjects,
+} from './anonymous-rate-limit.fixture'
 import { stubCompanyFiscalEnvironment } from './company-fiscal-environment.fixture'
 import { stubUserPictureExistence } from './user-picture-existence.fixture'
 import { HealthService } from '../../src/health/health.service'
@@ -28,6 +33,7 @@ type ExecuteCall = Record<string, unknown>
 
 type RouteDependencies = {
   readonly activateInvitation: { execute(input: ExecuteCall): Promise<void> }
+  readonly rateLimit: typeof OPEN_ANONYMOUS_RATE_LIMIT
 }
 
 type LogEntry = {
@@ -53,6 +59,7 @@ export async function createUserActivationHttpFixture({
   const logs: LogEntry[] = []
 
   const anonymousRoutes = await loadRoutes({
+    rateLimit: OPEN_ANONYMOUS_RATE_LIMIT,
     activateInvitation: {
       async execute(input) {
         executeCalls.push(structuredClone(input))
@@ -77,6 +84,8 @@ export async function createUserActivationHttpFixture({
     companyFiscalEnvironment: stubCompanyFiscalEnvironment(),
     userPictureExistence: stubUserPictureExistence(),
     healthService: healthService(),
+    rateLimitSubjects: syntheticRateLimitSubjects(),
+    rateLimitWindows: allowingRateLimitWindows(),
     routes: [],
     tenantContext: {
       async resolveCompany() {

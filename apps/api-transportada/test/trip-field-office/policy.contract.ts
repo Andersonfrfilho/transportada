@@ -6,6 +6,10 @@
  */
 import { describe, expect, it } from 'bun:test'
 
+import {
+  createClientIpResolver,
+  DEFAULT_CLIENT_IP_POLICY,
+} from '../../src/http/client-ip.service.js'
 import { resolveCompanyPermissions } from '../../src/identity/domain/authorization.policy.js'
 import { createTripFieldOfficeRoutes } from '../../src/trips/presentation/trip-field-office.routes.js'
 
@@ -19,6 +23,7 @@ const routes = createTripFieldOfficeRoutes({
   reportDelivery: NOT_CALLED,
   reportOccurrence: NOT_CALLED,
   reportReturn: NOT_CALLED,
+  resolveClientIp: createClientIpResolver(DEFAULT_CLIENT_IP_POLICY),
   startFieldTrip: NOT_CALLED,
   targets: { findTripCrew: NOT_CALLED },
 })

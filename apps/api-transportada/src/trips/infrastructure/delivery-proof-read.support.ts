@@ -79,10 +79,14 @@ export async function listDeliveryProofs(
       createdAt: tripDeliveryProofs.createdAt,
       id: tripDeliveryProofs.id,
       kind: tripDeliveryProofs.kind,
+      /** Spec 205 RF7: o envio disse, ou a entrega a que ele pertence disse. */
+      lateRegistration: sql<boolean>`${tripDeliveryProofs.lateRegistration} or ${tripStopEvents.lateRegistration}`,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
       receiverDocumentMasked: tripDeliveryProofs.receiverDocumentMasked,
       receiverName: tripDeliveryProofs.receiverName,
+      receivedBy: tripDeliveryProofs.receivedBy,
+      receivedByDetail: tripDeliveryProofs.receivedByDetail,
     })
     .from(tripDeliveryProofs)
     .innerJoin(
@@ -122,10 +126,13 @@ export async function listDeliveryProofs(
     createdAt: row.createdAt.toISOString(),
     id: row.id,
     kind: row.kind,
+    lateRegistration: row.lateRegistration,
     mimeType: row.mimeType,
     objectKey: row.objectKey,
     receiverDocumentMasked: row.receiverDocumentMasked,
     receiverName: row.receiverName,
+    receivedBy: row.receivedBy,
+    receivedByDetail: row.receivedByDetail,
   }))
 }
 
@@ -627,6 +634,7 @@ export async function findOccurrenceType(
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
+      emailsContractor: companyOccurrenceTypes.emailsContractor,
       id: companyOccurrenceTypes.id,
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
@@ -756,6 +764,7 @@ export async function listOccurrenceTypes(
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
+      emailsContractor: companyOccurrenceTypes.emailsContractor,
       id: companyOccurrenceTypes.id,
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
@@ -781,6 +790,8 @@ export async function saveOccurrenceType(
     readonly emailBody: string
     readonly emailSubject: string
     readonly emailTemplateKey: null | string
+    /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
+    readonly emailsContractor?: boolean | undefined
     /**
      * Spec 185 (RF6, ADR-0074 §4): ausente é `false` — o padrão da coluna. Opcional pelo mesmo
      * motivo de `attachmentMode` acima: o UPDATE sobrescreve o registro inteiro e o editor do
@@ -819,8 +830,10 @@ export async function saveOccurrenceType(
     stage: input.stage,
   }
 
-  const attachmentModeChange =
-    input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }
+  const attachmentModeChange = {
+    ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
+    ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+  }
   /**
    * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar
    * o campo, bateria na CHECK e viraria 500. `true` fora de separação já foi recusado no caso de uso.
@@ -863,6 +876,7 @@ export async function saveOccurrenceType(
     emailBody: saved.emailBody,
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
+    emailsContractor: saved.emailsContractor,
     id: saved.id,
     leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,

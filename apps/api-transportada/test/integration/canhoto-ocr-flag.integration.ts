@@ -20,6 +20,7 @@ type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 const FIELDS = {
   photo: 'required',
+  receivedBy: 'optional',
   receiverDocument: 'off',
   receiverName: 'optional',
   signature: 'optional',
@@ -131,6 +132,81 @@ describe('o interruptor da leitura do canhoto (spec 156 T13, ADR-0069)', () => {
         expect(
           (await repository.readSettings({ companyId: otherCompanyId })).canhotoOcrEnabled,
         ).toBe(false)
+      })
+    },
+    60_000,
+  )
+})
+
+/**
+ * Spec 193 D6 (CA01, CA02): "quem recebeu" é o quinto campo — `optional` sem linha, e ausente no
+ * `PUT` é "não mexe": na geral preserva o gravado; na exceção, o do mesmo `taxId` (senão `optional`).
+ */
+describe('quem recebeu na configuração do comprovante (spec 193 D6)', () => {
+  const FIELDS_WITHOUT_RECEIVED_BY = {
+    photo: FIELDS.photo,
+    receiverDocument: FIELDS.receiverDocument,
+    receiverName: FIELDS.receiverName,
+    signature: FIELDS.signature,
+  }
+  const SETTINGS_WITHOUT_RECEIVED_BY = {
+    ...FIELDS_WITHOUT_RECEIVED_BY,
+    ...DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  }
+  const TAX_ID = '12345678000199'
+  const OTHER_TAX_ID = '98765432000110'
+
+  testWithPostgres(
+    'sem linha vale optional; gravado required, um PUT geral sem o campo preserva',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = await seedCompany(database)
+        const repository = new DrizzleDeliveryProofSettingsRepository(database.db)
+        expect((await repository.readSettings({ companyId })).receivedBy).toBe('optional')
+
+        await repository.saveSettings({
+          companyId,
+          settings: { ...SETTINGS, receivedBy: 'required' },
+        })
+        const saved = await repository.saveSettings({
+          companyId,
+          settings: { ...SETTINGS_WITHOUT_RECEIVED_BY, photo: 'optional' },
+        })
+
+        expect(saved.receivedBy).toBe('required')
+        expect(saved.photo).toBe('optional')
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'a exceção sem o campo preserva o valor do mesmo CNPJ, e a nova nasce optional',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = await seedCompany(database)
+        const repository = new DrizzleDeliveryProofSettingsRepository(database.db)
+        await repository.replaceOverrides({
+          companyId,
+          overrides: [{ ...FIELDS, receivedBy: 'off', taxId: TAX_ID }],
+        })
+
+        await repository.replaceOverrides({
+          companyId,
+          overrides: [
+            { ...FIELDS_WITHOUT_RECEIVED_BY, signature: 'required', taxId: TAX_ID },
+            { ...FIELDS_WITHOUT_RECEIVED_BY, taxId: OTHER_TAX_ID },
+          ],
+        })
+        const overrides = await repository.listOverrides({ companyId })
+
+        expect(overrides.find((override) => override.taxId === TAX_ID)).toMatchObject({
+          receivedBy: 'off',
+          signature: 'required',
+        })
+        expect(overrides.find((override) => override.taxId === OTHER_TAX_ID)?.receivedBy).toBe(
+          'optional',
+        )
       })
     },
     60_000,

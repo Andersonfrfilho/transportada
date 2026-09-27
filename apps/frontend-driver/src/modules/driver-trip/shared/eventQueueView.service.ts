@@ -22,10 +22,18 @@ export type EventQueueItemView = Readonly<{
    * lado como problema do arquivo — o reenvio manual só re-POSTa o anexo.
    */
   attachmentRejectionCause?: string
+  /**
+   * Spec 179 (T303): a nota da ocorrência com foto — é por ela que o cartão diz "na fila". Spec
+   * 207: o mesmo campo, para o grupo órfão `kind: 'proof'` — é o que diz de qual nota é a foto ou
+   * assinatura do canhoto ainda pendente, para oferecer "Remover" só enquanto ela está aqui.
+   */
+  documentId?: string
   idempotencyKey: string
   /** `proof` é o grupo de anexos cujo evento já subiu — só os arquivos ainda aguardam. */
   kind: DriverFieldReport['kind'] | 'proof'
   queuedAt: string
+  /** Spec 082 (revisão), pedido do usuário (25/09): só no `arrive` — é o que "Cheguei" libera. */
+  stopId?: string
   status: EventQueueItemStatus
 }>
 
@@ -48,12 +56,19 @@ export function buildEventQueueView(input: {
     const attachmentCause = group.find(
       (attachment) => attachment.rejectionCause !== undefined,
     )?.rejectionCause
+    const report = item.report
+    /** A foto da ocorrência mora no próprio item: sobe junto dele, e conta como anexo dele. */
+    const carriesPhoto =
+      (report.kind === 'documentOccurrence' && report.photo !== null) ||
+      report.kind === 'stopOccurrencePhoto'
     return {
-      attachmentCount: group.length,
+      attachmentCount: group.length + (carriesPhoto ? 1 : 0),
       ...(attachmentCause === undefined ? {} : { attachmentRejectionCause: attachmentCause }),
+      ...(report.kind === 'documentOccurrence' ? { documentId: report.documentId } : {}),
       idempotencyKey: item.report.idempotencyKey,
       kind: item.report.kind,
       queuedAt: item.createdAt,
+      ...(report.kind === 'arrive' ? { stopId: report.stopId } : {}),
       status: toStatus(item),
     }
   })
@@ -68,6 +83,7 @@ export function buildEventQueueView(input: {
       return {
         attachmentCount: group.length,
         ...(cause === undefined ? {} : { attachmentRejectionCause: cause }),
+        ...(group[0]?.documentId === undefined ? {} : { documentId: group[0].documentId }),
         idempotencyKey: eventKey,
         kind: 'proof',
         queuedAt: group[0]?.capturedAt ?? '',

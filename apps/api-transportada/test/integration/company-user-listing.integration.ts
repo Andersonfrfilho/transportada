@@ -24,9 +24,11 @@ import {
   identityUserProfiles,
   identityUsers,
   userCompanyMemberships,
+  userInvitations,
 } from '../../src/database/database.schema.js'
 import { DrizzleCompanyUserRepository } from '../../src/identity/infrastructure/drizzle-company-user.repository.js'
 import { DrizzleUserPictureRepository } from '../../src/identity/infrastructure/drizzle-user-picture.repository.js'
+import { toCompanyUserView } from '../../src/identity/domain/company-user.policy.js'
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
@@ -167,6 +169,37 @@ describe('listagem de usuários — o vínculo com a frota', () => {
 })
 
 /**
+ * ADR-0076 §8, achado I7 do `critic` (spec 191 T2.1): suspender não revoga o convite pendente, e a
+ * linha da listagem precisava dizer "suspenso" mesmo assim — só um `JOIN` de verdade prova que a
+ * membership desabilitada e o convite pendente convivem na mesma linha sem o convite esconder o
+ * status real.
+ */
+describe('listagem de usuários — a suspensão prioriza sobre o convite pendente', () => {
+  testWithPostgres('vínculo desabilitado com convite pendente aparece como suspenso', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const userId = await seedMember(db, { companyId, profile: true })
+      await db
+        .update(userCompanyMemberships)
+        .set({ status: 'disabled' })
+        .where(eq(userCompanyMemberships.userId, userId))
+      await seedPendingInvitation(db, { companyId, userId })
+
+      const page = await new DrizzleCompanyUserRepository(db).listPage({
+        companyId,
+        cursor: null,
+        limit: 50,
+      })
+      const item = page.items.find((entry) => entry.userId === userId)
+
+      expect(item?.membershipStatus).toBe('disabled')
+      expect(item?.pendingInvitation).toBeDefined()
+      expect(item === undefined ? undefined : toCompanyUserView(item).status).toBe('suspended')
+    })
+  })
+})
+
+/**
  * A tela só pede a foto de quem tem foto: pedir de todo mundo fazia a API responder 404 a cada
  * cabeçalho e a cada ficha aberta, e o console do navegador enchia de falha que não era falha.
  */
@@ -275,6 +308,21 @@ async function seedCompany(db: TestDatabase['db']): Promise<string> {
   const companyId = crypto.randomUUID()
   await db.insert(companies).values({ id: companyId, status: 'active' })
   return companyId
+}
+
+async function seedPendingInvitation(
+  db: TestDatabase['db'],
+  input: { readonly companyId: string; readonly userId: string },
+): Promise<void> {
+  const issuedAt = new Date('2026-09-01T12:00:00.000Z')
+  await db.insert(userInvitations).values({
+    codeHash: new Bun.CryptoHasher('sha256').update(crypto.randomUUID()).digest('hex'),
+    companyId: input.companyId,
+    createdAt: issuedAt,
+    expiresAt: new Date('2026-09-02T12:00:00.000Z'),
+    status: 'pending',
+    userId: input.userId,
+  })
 }
 
 async function seedMember(

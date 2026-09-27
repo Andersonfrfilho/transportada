@@ -10,7 +10,9 @@ import {
 
 import { VEHICLE_DRAFT_FORM_KEYS } from '../shared/fleet.constant'
 
+import type { LinkDriverVehicleInput } from './useDriverVehicles.hook'
 import type {
+  FleetDriverDetail,
   FleetVehicleBody,
   FleetVehicleDetail,
   FleetVehicleFormState,
@@ -20,13 +22,20 @@ import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import { createVehicleDraft, toVehicleBody, toVehicleFormState } from '../shared/fleetForm.service'
 import { composeVehicleFormPatch } from '../shared/vehicleFormPatch.service'
 import type { VehicleReference, VehicleSuggestionOrigin } from '../shared/vehicleSuggestion.service'
-import { listIncompleteVehicleOwnerFields } from '../shared/vehicleOwner.service'
+import {
+  listIncompleteVehicleOwnerFields,
+  resolveOwnerDriverToLink,
+  toVehicleOwnerFields,
+  type VehicleOwnerDriverChoice,
+} from '../shared/vehicleOwner.service'
 
 const OWNER_INCOMPLETE_FEEDBACK_KEY = 'ownerIncompleteFeedback'
 const VEHICLE_DRAFT_STORAGE_KEY = 'transportada.fleet.vehicle-draft'
 
 type UseVehicleFormInput = Readonly<{
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
+  /** Vincula o veículo gravado ao motorista que o operador pôs como proprietário. */
+  onLinkOwnerDriver?: (input: LinkDriverVehicleInput) => Promise<void>
   onSaved: () => void
   onUpdate: (input: FleetVehicleBody & FleetVehicleVersionInput) => Promise<FleetVehicleDetail>
   /**
@@ -42,6 +51,8 @@ type UseVehicleFormInput = Readonly<{
 
 export type VehicleFormController = Readonly<{
   applyDocument: (values: Partial<FleetVehicleFormState>) => void
+  /** O motorista cadastrado pela ficha do veículo vira proprietário e é lembrado para o vínculo. */
+  applyCreatedOwnerDriver: (driver: FleetDriverDetail) => void
   clear: () => void
   /** Os campos que vieram do documento, e que o formulário marca como tal — spec 048. */
   documentFields: ReadonlySet<string>
@@ -75,7 +86,16 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
   const [documentFields, setDocumentFields] = useState<ReadonlySet<string>>(() => new Set())
   const [suggestedFields, setSuggestedFields] = useState<ReadonlySet<string>>(() => new Set())
   const [suggestionOrigin, setSuggestionOrigin] = useState<VehicleSuggestionOrigin | null>(null)
-  const { onCreate, onSaved, onUpdate, references = [], vehicle, vehicles } = input
+  const [ownerDriverChoice, setOwnerDriverChoice] = useState<VehicleOwnerDriverChoice | null>(null)
+  const {
+    onCreate,
+    onLinkOwnerDriver,
+    onSaved,
+    onUpdate,
+    references = [],
+    vehicle,
+    vehicles,
+  } = input
 
   /**
    * Editar à mão apaga a marca de origem: a partir daí o dado é do operador, e dizer que ele veio do
@@ -132,6 +152,12 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
     setDocumentFields(new Set(Object.keys(values)))
   }
 
+  function applyCreatedOwnerDriver(driver: FleetDriverDetail): void {
+    const owner = toVehicleOwnerFields(driver)
+    patch(owner)
+    setOwnerDriverChoice({ driverId: driver.id, ownerTaxId: owner.ownerTaxId })
+  }
+
   /** Limpar é o formulário em branco de novo — e o rascunho vai junto, senão ele voltaria sozinho. */
   function clear(): void {
     setFeedbackKey(null)
@@ -139,7 +165,33 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
     setDocumentFields(new Set())
     setSuggestedFields(new Set())
     setSuggestionOrigin(null)
+    setOwnerDriverChoice(null)
     setState(createVehicleDraft())
+  }
+
+  function saveVehicle(): Promise<FleetVehicleDetail> {
+    const body = toVehicleBody(state)
+    if (vehicle === undefined) return onCreate(body)
+    return onUpdate({
+      ...body,
+      expectedVersion: vehicle.version,
+      status: vehicle.status,
+      vehicleId: vehicle.id,
+    })
+  }
+
+  /**
+   * O vínculo é conveniência do cadastro cruzado, não condição do veículo: se ele falhar, o veículo
+   * já está gravado e o operador ainda pode vincular pela ficha do motorista.
+   */
+  async function linkCreatedOwnerDriver(vehicleId: string): Promise<void> {
+    const driverId = resolveOwnerDriverToLink({ choice: ownerDriverChoice, state })
+    if (driverId === undefined || onLinkOwnerDriver === undefined) return
+    try {
+      await onLinkOwnerDriver({ driverId, vehicleId })
+    } catch {
+      // falhar aqui não pode transformar um veículo salvo em erro de cadastro
+    }
   }
 
   async function submit(): Promise<void> {
@@ -147,17 +199,10 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
       setFeedbackKey(OWNER_INCOMPLETE_FEEDBACK_KEY)
       return
     }
-    const body = toVehicleBody(state)
     setIsSaving(true)
     try {
-      await (vehicle === undefined
-        ? onCreate(body)
-        : onUpdate({
-            ...body,
-            expectedVersion: vehicle.version,
-            status: vehicle.status,
-            vehicleId: vehicle.id,
-          }))
+      const saved = await saveVehicle()
+      await linkCreatedOwnerDriver(saved.id)
       clearFormDraft({ storage, storageKey: VEHICLE_DRAFT_STORAGE_KEY })
       onSaved()
     } catch (error) {
@@ -169,6 +214,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
 
   return {
     applyDocument,
+    applyCreatedOwnerDriver,
     clear,
     documentFields,
     feedbackKey,

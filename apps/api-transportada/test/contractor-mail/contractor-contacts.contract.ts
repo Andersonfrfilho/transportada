@@ -9,7 +9,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { createContractorContactsUseCase } from '../../src/contractor-mail/application/contractor-contacts.use-case.js'
+import {
+  createContractorContactsUseCase,
+  toContractorContact,
+} from '../../src/contractor-mail/application/contractor-contacts.use-case.js'
 import type {
   ContractorContact,
   ContractorContactsUseCase,
@@ -50,8 +53,30 @@ const CONTACT_RECORD: ContractorContactRecord = {
   contractorId: CONTRACTOR_ID,
   email: 'contato@example.com.br',
   id: CONTACT_ID,
+  name: '',
+  occurrenceStages: ['separation', 'delivery', 'stop'],
+  phone: null,
+  preferredChannel: 'email',
   receivesOccurrences: true,
+  roleLabel: '',
   status: 'active',
+  types: ['occurrences'],
+  whatsappOptInAt: null,
+  whatsappOptInByUserId: null,
+}
+
+const NOW = new Date('2026-09-24T18:00:00.000Z')
+const ACTOR_USER_ID = NFE_COMPANY_CONTEXT.userId
+
+const OPTED_IN_RECORD: ContractorContactRecord = {
+  ...CONTACT_RECORD,
+  canDecide: true,
+  name: 'Compradora Souza',
+  phone: '5511999990001',
+  preferredChannel: 'whatsapp',
+  types: ['occurrences', 'approves_charges'],
+  whatsappOptInAt: new Date('2026-09-20T10:00:00.000Z'),
+  whatsappOptInByUserId: '00000000-0000-4000-8000-0000000000a2',
 }
 
 describe('contractor contacts use case (spec 150 T301, spec 143 T013)', () => {
@@ -159,6 +184,112 @@ describe('contractor contacts use case (spec 150 T301, spec 143 T013)', () => {
   })
 })
 
+/**
+ * Spec 183 T302 (RF5, D6): a escrita passa pela política — os campos antigos saem dos tipos, o
+ * aceite é carimbado com o relógio e o usuário do contexto, e o `PATCH` decide a partir do contato
+ * atual, que é lido dentro da contratante e da empresa.
+ */
+describe('contractor contacts use case — tipos e canais (spec 183 T302)', () => {
+  test('create deriva os campos antigos dos tipos e carimba o aceite com o usuário do contexto', async () => {
+    const createCalls: CreateContractorContactInput[] = []
+    const useCase = buildUseCase({
+      getContractor: async () => {},
+      repository: buildRepository({ createCalls }),
+    })
+
+    await useCase.create({
+      context: contextOf(COMPANY_ID),
+      contractorId: CONTRACTOR_ID,
+      email: 'compras@example.com.br',
+      name: 'Compradora Souza',
+      phone: '(11) 99999-0001',
+      preferredChannel: 'whatsapp',
+      types: ['approves_charges'],
+      whatsappOptIn: true,
+    })
+
+    expect(createCalls[0]).toMatchObject({
+      canDecide: true,
+      name: 'Compradora Souza',
+      phone: '5511999990001',
+      preferredChannel: 'whatsapp',
+      receivesOccurrences: false,
+      types: ['approves_charges'],
+      whatsappOptInAt: NOW,
+      whatsappOptInByUserId: ACTOR_USER_ID,
+    })
+  })
+
+  test('create recusado pela política é 422 com o código dela, sem tocar o repositório', async () => {
+    const createCalls: CreateContractorContactInput[] = []
+    const useCase = buildUseCase({
+      getContractor: async () => {},
+      repository: buildRepository({ createCalls }),
+    })
+
+    const failure = await useCase
+      .create({
+        context: contextOf(COMPANY_ID),
+        contractorId: CONTRACTOR_ID,
+        email: 'compras@example.com.br',
+        phone: '11999990001',
+        preferredChannel: 'whatsapp',
+      })
+      .catch((error: unknown) => error)
+
+    expect(failure).toMatchObject({
+      code: 'CONTRACTOR_CONTACT_WHATSAPP_WITHOUT_OPT_IN',
+      status: 422,
+    })
+    expect(createCalls).toEqual([])
+  })
+
+  test('update parte do contato atual: o mesmo número guarda o carimbo do aceite', async () => {
+    const updateCalls: UpdateContractorContactInput[] = []
+    const useCase = buildUseCase({
+      getContractor: async () => {},
+      repository: buildRepository({
+        findResult: OPTED_IN_RECORD,
+        updateCalls,
+        updateResult: OPTED_IN_RECORD,
+      }),
+    })
+
+    await useCase.update({
+      contactId: CONTACT_ID,
+      context: contextOf(COMPANY_ID),
+      contractorId: CONTRACTOR_ID,
+      phone: '+55 11 99999-0001',
+      roleLabel: 'Compras',
+    })
+
+    expect(updateCalls[0]).toMatchObject({
+      phone: '5511999990001',
+      roleLabel: 'Compras',
+      whatsappOptInAt: OPTED_IN_RECORD.whatsappOptInAt,
+      whatsappOptInByUserId: OPTED_IN_RECORD.whatsappOptInByUserId,
+    })
+  })
+
+  test('update de contato que não existe nesta contratante é 404 antes da política', async () => {
+    const updateCalls: UpdateContractorContactInput[] = []
+    const useCase = buildUseCase({
+      getContractor: async () => {},
+      repository: buildRepository({ findResult: undefined, updateCalls }),
+    })
+
+    await expect(
+      useCase.update({
+        contactId: CONTACT_ID,
+        context: contextOf(COMPANY_ID),
+        contractorId: CONTRACTOR_ID,
+        name: 'Qualquer',
+      }),
+    ).rejects.toBeInstanceOf(ContractorContactNotFoundError)
+    expect(updateCalls).toEqual([])
+  })
+})
+
 describe('contractor contacts routes (spec 150 T301, spec 143 T013)', () => {
   test('GET requires settings.manage', async () => {
     const { handle } = await createHttpFixture({ permissions: new Set(['invoices.read']) })
@@ -173,7 +304,7 @@ describe('contractor contacts routes (spec 150 T301, spec 143 T013)', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
     const body = (await response.json()) as { data: unknown }
-    expect(body.data).toEqual([toContact(CONTACT_RECORD)])
+    expect(body.data).toEqual([toSerializedContact(CONTACT_RECORD)])
   })
 
   test('POST rejects a malformed email', async () => {
@@ -323,9 +454,133 @@ describe('contractor contacts routes (spec 150 T301, spec 143 T013)', () => {
   })
 })
 
+describe('contractor contacts routes — tipos e canais (spec 183 T302)', () => {
+  test('POST aceita os campos novos e responde com eles, o aceite carimbado pelo servidor', async () => {
+    const { handle } = await createHttpFixture({})
+    const response = await handle(
+      jsonRequest({
+        body: {
+          email: 'compras@example.com.br',
+          name: 'Compradora Souza',
+          occurrenceStages: ['delivery'],
+          phone: '11999990001',
+          preferredChannel: 'whatsapp',
+          roleLabel: 'Compras',
+          types: ['occurrences', 'approves_charges'],
+          whatsappOptIn: true,
+        },
+        method: 'POST',
+        path: `/contractors/${CONTRACTOR_ID}/contacts`,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    const body = (await response.json()) as { data: Record<string, unknown> }
+    expect(body.data).toEqual({
+      canDecide: true,
+      contractorId: CONTRACTOR_ID,
+      email: 'compras@example.com.br',
+      id: CONTACT_ID,
+      name: 'Compradora Souza',
+      occurrenceStages: ['delivery'],
+      phone: '5511999990001',
+      preferredChannel: 'whatsapp',
+      receivesOccurrences: true,
+      roleLabel: 'Compras',
+      status: 'active',
+      types: ['occurrences', 'approves_charges'],
+      whatsappOptInAt: NOW.toISOString(),
+      whatsappOptInByUserId: ACTOR_USER_ID,
+    })
+  })
+
+  test('o cliente não carimba o aceite: whatsappOptInAt no corpo é 400', async () => {
+    const createCalls: unknown[] = []
+    const { handle } = await createHttpFixture({ createCalls })
+    const response = await handle(
+      jsonRequest({
+        body: {
+          email: 'compras@example.com.br',
+          phone: '11999990001',
+          whatsappOptInAt: '2020-01-01T00:00:00.000Z',
+        },
+        method: 'POST',
+        path: `/contractors/${CONTRACTOR_ID}/contacts`,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(createCalls).toEqual([])
+  })
+
+  test('tipo ou grupo fora da lista fechada é 400', async () => {
+    const { handle } = await createHttpFixture({})
+    for (const body of [
+      { email: 'a@example.com.br', types: ['marketing'] },
+      { email: 'a@example.com.br', occurrenceStages: ['warehouse'] },
+      { email: 'a@example.com.br', preferredChannel: 'sms' },
+    ]) {
+      const response = await handle(
+        jsonRequest({ body, method: 'POST', path: `/contractors/${CONTRACTOR_ID}/contacts` }),
+      )
+      expect(response.status).toBe(400)
+    }
+  })
+
+  test('recusa da política vira 422 com o código estável', async () => {
+    const { handle } = await createHttpFixture({})
+    const response = await handle(
+      jsonRequest({
+        body: { email: 'a@example.com.br', receivesOccurrences: true, types: ['invoices'] },
+        method: 'POST',
+        path: `/contractors/${CONTRACTOR_ID}/contacts`,
+      }),
+    )
+
+    expect(response.status).toBe(422)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('CONTRACTOR_CONTACT_TYPES_CONFLICT')
+  })
+
+  test('PATCH aceita tirar o telefone com null', async () => {
+    const updateCalls: unknown[] = []
+    const { handle } = await createHttpFixture({ updateCalls })
+    const response = await handle(
+      jsonRequest({
+        body: { phone: null },
+        method: 'PATCH',
+        path: `/contractors/${CONTRACTOR_ID}/contacts/${CONTACT_ID}`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(updateCalls[0]).toMatchObject({ phone: null })
+  })
+
+  test('nunca loga telefone nem nome do contato', async () => {
+    const logCalls: { readonly message: string; readonly metadata: unknown }[] = []
+    const { handle } = await createHttpFixture({ logCalls })
+
+    await handle(
+      jsonRequest({
+        body: { email: 'a@example.com.br', name: 'Nome Sigiloso', phone: '1234' },
+        method: 'POST',
+        path: `/contractors/${CONTRACTOR_ID}/contacts`,
+      }),
+    )
+
+    const serialized = JSON.stringify(logCalls)
+    expect(serialized).not.toContain('Nome Sigiloso')
+    expect(serialized).not.toContain('1234')
+  })
+})
+
 type ContactRepositoryPort = Pick<
   ContractorMailRepositoryPort,
-  'createContractorContact' | 'listContractorContacts' | 'updateContractorContact'
+  | 'createContractorContact'
+  | 'findContractorContact'
+  | 'listContractorContacts'
+  | 'updateContractorContact'
 >
 
 function buildUseCase(input: {
@@ -337,6 +592,7 @@ function buildUseCase(input: {
 }): ContractorContactsUseCase {
   return createContractorContactsUseCase({
     getContractor: { execute: input.getContractor },
+    now: () => NOW,
     repository: input.repository,
   })
 }
@@ -345,6 +601,7 @@ function buildRepository(input: {
   readonly contacts?: readonly ContractorContactRecord[]
   readonly createCalls?: CreateContractorContactInput[]
   readonly createError?: Error
+  readonly findResult?: ContractorContactRecord | undefined
   readonly updateCalls?: UpdateContractorContactInput[]
   readonly updateResult?: ContractorContactRecord | undefined
 }): ContactRepositoryPort {
@@ -353,6 +610,9 @@ function buildRepository(input: {
       input.createCalls?.push(create)
       if (input.createError !== undefined) throw input.createError
       return { ...CONTACT_RECORD, ...create }
+    },
+    async findContractorContact() {
+      return 'findResult' in input ? input.findResult : CONTACT_RECORD
     },
     async listContractorContacts() {
       return input.contacts ?? []
@@ -368,14 +628,27 @@ function contextOf(companyId: string): CompanyContext {
   return { ...NFE_COMPANY_CONTEXT, companyId, permissions: new Set(['settings.manage']) }
 }
 
+/** O mesmo mapeador do caso de uso: o teste compara o domínio, não refaz a lista de campos. */
 function toContact(record: ContractorContactRecord): ContractorContact {
+  return toContractorContact(record)
+}
+
+function toSerializedContact(record: ContractorContactRecord): Record<string, unknown> {
   return {
     canDecide: record.canDecide,
     contractorId: record.contractorId,
     email: record.email,
     id: record.id,
+    name: record.name,
+    occurrenceStages: record.occurrenceStages,
+    phone: record.phone,
+    preferredChannel: record.preferredChannel,
     receivesOccurrences: record.receivesOccurrences,
+    roleLabel: record.roleLabel,
     status: record.status,
+    types: record.types,
+    whatsappOptInAt: record.whatsappOptInAt?.toISOString() ?? null,
+    whatsappOptInByUserId: record.whatsappOptInByUserId,
   }
 }
 
@@ -397,6 +670,7 @@ async function createHttpFixture(params: {
         if (params.getContractorError !== undefined) throw params.getContractorError
       },
     },
+    now: () => NOW,
     repository: buildRepository({
       ...(params.contacts === undefined ? {} : { contacts: params.contacts }),
       ...(params.createCalls === undefined

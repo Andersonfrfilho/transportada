@@ -21,7 +21,7 @@ import {
   tripStops,
   trips,
 } from '../../src/database/database.schema.js'
-import { foreignKeys } from '../fiscal-schema/support.js'
+import { columnNames, foreignKeys } from '../fiscal-schema/support.js'
 
 const TRIP_TABLES = [
   { name: 'trips', table: trips },
@@ -50,6 +50,20 @@ const TRIP_TABLES = [
 ] as const
 
 describe('trip tenant safety', () => {
+  /**
+   * Spec 193 D1/D10: quem recebeu é código e texto curto na própria linha do comprovante — nunca
+   * chave para outra tabela, onde um id sem `company_id` levaria a relação a outra empresa.
+   */
+  test('keeps who received the delivery on the tenant proof row, never as a reference', () => {
+    const columns = foreignKeys(tripDeliveryProofs).flatMap((foreignKey) => foreignKey.columns)
+
+    expect(columnNames(tripDeliveryProofs)).toEqual(
+      expect.arrayContaining(['received_by', 'received_by_detail']),
+    )
+    expect(columns).not.toContain('received_by')
+    expect(columns).not.toContain('received_by_detail')
+  })
+
   test('anchors every trip table to a company', () => {
     for (const { name, table } of TRIP_TABLES) {
       expect(foreignKeys(table)).toContainEqual({

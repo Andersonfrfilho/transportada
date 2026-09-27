@@ -20,6 +20,7 @@ import type {
   ContractorMailSetupTestStatus,
   ContractorMailThreadRecord,
   CreateContractorContactInput,
+  FindContractorContactInput,
   ListContractorContactsInput,
   RecordContractorMailInboundWebhookEventInput,
   RecordContractorMailSendingVerificationInput,
@@ -35,6 +36,7 @@ import {
   ContractorMailSettingsVersionConflictError,
 } from '../domain/contractor-mail.error.js'
 import { deriveReplyToken, hashReplyToken } from '../domain/reply-token.policy.js'
+import type { ContractorContactState } from '../domain/contractor-contact.policy.js'
 import type { ContractorMailSettingsStatus } from '../../database/contractor-mail.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 
@@ -83,8 +85,16 @@ const CONTACT_COLUMNS = {
   contractorId: contractorContacts.contractorId,
   email: contractorContacts.email,
   id: contractorContacts.id,
+  name: contractorContacts.name,
+  occurrenceStages: contractorContacts.occurrenceStages,
+  phone: contractorContacts.phone,
+  preferredChannel: contractorContacts.preferredChannel,
   receivesOccurrences: contractorContacts.receivesOccurrences,
+  roleLabel: contractorContacts.roleLabel,
   status: contractorContacts.status,
+  types: contractorContacts.types,
+  whatsappOptInAt: contractorContacts.whatsappOptInAt,
+  whatsappOptInByUserId: contractorContacts.whatsappOptInByUserId,
 }
 
 const THREAD_COLUMNS = {
@@ -165,19 +175,26 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
    * decisão registrada em `evidence.md` da T301: reativar um contato inativo é um `PATCH` de
    * status, não um novo `POST`, então a migration não precisou de índice parcial novo.
    */
+  public async findContractorContact(
+    input: FindContractorContactInput,
+  ): Promise<ContractorContactRecord | undefined> {
+    const [row] = await this.database
+      .select(CONTACT_COLUMNS)
+      .from(contractorContacts)
+      .where(
+        and(...buildContractorContactFilters(input), eq(contractorContacts.id, input.contactId)),
+      )
+      .limit(1)
+    return row
+  }
+
   public async createContractorContact(
     input: CreateContractorContactInput,
   ): Promise<ContractorContactRecord> {
     try {
       const [row] = await this.database
         .insert(contractorContacts)
-        .values({
-          canDecide: input.canDecide,
-          companyId: input.companyId,
-          contractorId: input.contractorId,
-          email: input.email,
-          receivesOccurrences: input.receivesOccurrences,
-        })
+        .values(toContactWrite(input))
         .returning(CONTACT_COLUMNS)
       if (row === undefined) throw new Error('contractor contact was not created')
       return row
@@ -198,11 +215,8 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
       const [row] = await this.database
         .update(contractorContacts)
         .set({
-          ...(input.canDecide === undefined ? {} : { canDecide: input.canDecide }),
+          ...toContactChanges(input),
           ...(input.email === undefined ? {} : { email: input.email }),
-          ...(input.receivesOccurrences === undefined
-            ? {}
-            : { receivesOccurrences: input.receivesOccurrences }),
           ...(input.status === undefined ? {} : { status: input.status }),
           updatedAt: sql`now()`,
         })
@@ -598,4 +612,39 @@ async function updateExistingSettings(
     )
     .returning(SETTINGS_COLUMNS)
   return row
+}
+
+/**
+ * Spec 183 T302: só os campos que vieram — ausente fica com o padrão do banco ou o valor gravado. Os
+ * arrays são copiados: o Drizzle espera `T[]`, e o estado da política é `readonly`.
+ */
+function toContactChanges(
+  input: Partial<ContractorContactState>,
+): Partial<typeof contractorContacts.$inferInsert> {
+  return Object.fromEntries(
+    Object.entries({
+      canDecide: input.canDecide,
+      name: input.name,
+      occurrenceStages:
+        input.occurrenceStages === undefined ? undefined : [...input.occurrenceStages],
+      phone: input.phone,
+      preferredChannel: input.preferredChannel,
+      receivesOccurrences: input.receivesOccurrences,
+      roleLabel: input.roleLabel,
+      types: input.types === undefined ? undefined : [...input.types],
+      whatsappOptInAt: input.whatsappOptInAt,
+      whatsappOptInByUserId: input.whatsappOptInByUserId,
+    }).filter(([, value]) => value !== undefined),
+  )
+}
+
+function toContactWrite(
+  input: CreateContractorContactInput,
+): typeof contractorContacts.$inferInsert {
+  return {
+    ...toContactChanges(input),
+    companyId: input.companyId,
+    contractorId: input.contractorId,
+    email: input.email,
+  }
 }

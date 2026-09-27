@@ -8,7 +8,8 @@
     "taxes": "Taxes",
     "driverAllowance": "Driver allowance",
     "occurrenceTypes": "Occurrence types",
-    "entryKinds": "Entry kinds"
+    "entryKinds": "Entry kinds",
+    "quickReplies": "Quick replies"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -300,6 +301,11 @@
     "redeliveryPolicyAllowed": "Allows redelivery",
     "redeliveryPolicyBlocked": "Blocks redelivery",
     "leavesDocumentBehind": "The trip leaves without the document",
-    "leavesDocumentBehindHint": "Applies to a whole-document case. The document leaves the trip at dispatch."
+    "leavesDocumentBehindHint": "Applies to a whole-document case. The document leaves the trip at dispatch.",
+    "attachmentMode": "Proof photo",
+    "attachmentModeHint": "Applies to the driver's record on the road. Required: the occurrence only goes with a photo and a note.",
+    "attachmentModeOff": "No photo",
+    "attachmentModeOptional": "Photo optional",
+    "attachmentModeRequired": "Photo required"
   }
 }

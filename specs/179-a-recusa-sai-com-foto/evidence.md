@@ -481,3 +481,304 @@ esta parte tocou, isolado contra Postgres e MinIO reais, é limpo.
 O resíduo `apps/cron-transportada/src/nfe-distribution-pull/nfe-distribution-pull.job.ts`
 (`runNfeDistributionPullJob`, nunca chamado de `main.ts`) continua como estava — fora do escopo desta
 correção, e o orquestrador pediu explicitamente para não tocar.
+
+## 25/09 — PUT tardio na URL de subida trocava a foto já conferida
+
+Mesmo defeito de forma do achado S1 da spec 183 (T903, anexo da conversa), procurado aqui depois de
+achado lá. A URL de PUT assinada vale 15 minutos e segue valendo depois da confirmação;
+`confirmOccurrenceUpload` gravava `stored_objects.object_key` na **mesma** chave da subida, então um
+PUT tardio com outro arquivo do mesmo tamanho trocava os bytes já conferidos por tipo e sha256.
+
+### Implementação
+
+- `trips/domain/occurrence-attachment.policy.ts`: `buildOccurrenceUploadFinalObjectKey` —
+  `tenants/<empresa>/trip-occurrence-attachments/<viagem>/<token>`, token de 256 bits em base64url.
+- `trips/application/confirm-occurrence-upload.use-case.ts`: depois de conferir, `storeObject` dos
+  bytes na chave final, `confirmUpload` apontando para ela e só então `deleteObject` da chave da
+  subida. Falha em `confirmUpload` apaga a cópia final (melhor esforço) e sobe o erro; a chamada que
+  perde a corrida do achado [2] apaga a própria cópia e deixa a chave da subida para a vencedora. A
+  porta de storage passou a `OccurrenceUploadConfirmationStoragePort` (ganhou `storeObject` e
+  `deleteObject`; o `storageGateway` de `main.ts` já os tinha).
+- `docs/SECURITY.md`: entrada em "Fechados", com o residual aceito (o PUT tardio recria a chave da
+  subida como objeto órfão, fora do alcance de `trip.occurrence-upload.expire`, que só varre
+  `pending`).
+
+### Contrato antes da implementação
+
+`test/trip-occurrence/upload.contract.ts`, cinco casos novos: ordem `store → confirm → delete` com a
+chave final ≠ chave da subida; chave aleatória sem token injetado; limpeza da cópia quando
+`confirmUpload` falha; limpeza da cópia na corrida perdida; bytes recusados não copiam nem apagam.
+Antes da implementação: **4 fail** (o de bytes recusados já era verde).
+
+### Integração contra Postgres e S3 (MinIO local)
+
+`test/integration/trip-occurrence-upload-confirm.integration.ts`, caso novo: sobe o JPEG pela URL
+assinada, confirma, confere que `stored_objects.object_key` ≠ chave da subida, sha256 dos bytes
+originais e chave da subida apagada; faz o PUT tardio na mesma URL com o último byte trocado e baixa
+pela chave registrada.
+
+- Sem a correção (caso de uso de `HEAD`): falha — primeiro na chave igual; com as asserções de chave
+  removidas numa cópia temporária, o download devolveu o byte trocado (`88` no lugar de `1`).
+- Com a correção: **4 pass · 0 fail** (base `main` e base `origin/staging`).
+
+⚠️ O caso pula quando o S3 não responde (sonda HTTP no endpoint, não só a variável): a CI carrega o
+`.env.example` com `STORAGE_ENDPOINT` mas não sobe o MinIO. A prova contra storage real só roda
+localmente.
+
+### Gates
+
+```
+$ bun run typecheck                                               # sem erro
+$ bun run lint                                                    # sem saída
+$ bun --env-file=../../.env.test test --timeout 120000            # api (base main): 7234 pass · 23 skip · 0 fail
+$ bun --env-file=../../.env.test run test:integration             # api (base main): 576 pass · 7 skip · 0 fail
+$ make check                                                      # base origin/staging: exit 0
+$ bun --env-file=../../.env.test test --timeout 120000            # api (após rebase em staging): 7312 pass · 23 skip · 0 fail
+```
+
+Na base `origin/staging`, a integração completa mostrou timeouts de 5 s em
+`field-trip-target`, `me-location-consent` e `me-trip` (specs 057/156/189, nenhum toca upload de
+ocorrência) e foi interrompida; os três arquivos isolados, com esta correção: **21 pass · 0 fail**.
+Mesmo padrão de carga no Postgres de teste já registrado acima.
+
+### Staging
+
+Commit `45c5e0e94`. Deploy
+[36193206752](https://github.com/Andersonfrfilho/transportada/actions/runs/36193206752) verde de ponta
+a ponta (gates, integração e smoke da CI, sete deploys). Implantação ativa da API
+`2636d914` = `45c5e0e94`; pre-deploy `migrated=true`; `/health/live` e `/health/ready` 200;
+`POST …/occurrence-uploads/:id/confirm` sem token → 401; nenhuma linha de erro no log desde a subida.
+Não exercitei o fluxo autenticado do motorista em staging.
+
+## 25/09 — Fase 3 na app do motorista (`apps/frontend-driver`)
+
+Pedido do usuário: _"o 'Não entreguei' precisa registrar ocorrência com foto"_ — tocar "Não
+entreguei" abre o registro da ocorrência da nota: motivo, foto obrigatória (câmera, com galeria como
+alternativa), observação opcional, confirmar; sem foto o confirmar fica desabilitado e diz o que
+falta; sem sinal, foto e ocorrência entram juntas na fila e a tela diferencia "na fila" de "enviado".
+
+### O fluxo escolhido: ocorrência com foto **e** devolução, no mesmo toque
+
+Conferido no código e nas specs antes de escrever:
+
+- A ocorrência da nota **não fecha a nota**. `trip_document_occurrences` é append-only e a spec 164
+  RF19 proíbe escrita em `trip_documents` por causa dela (`separation_status`, `returned_at` "seguem
+  com os mesmos escritores de hoje"). Quem fecha nota, parada e viagem é a devolução (`/return` →
+  `runDocumentOutcome`, `architecture-review.md` § "O risco que a spec não tinha visto"). Trocar a
+  devolução pela ocorrência deixaria a parada aberta para sempre.
+- A devolução exige `reason` da lista fechada `DRIVER_RETURN_REASONS` (`me-trip.schema.ts:38`,
+  `z.enum`). O tipo de ocorrência é cadastro livre da empresa — deduzir um do outro seria comparar
+  nome de tipo, o que `duplicacao.md` e o plano desta spec proíbem.
+
+Por isso "Não entreguei" pergunta **os dois**: o motivo da devolução (a lista de sempre) e o tipo de
+ocorrência (o cadastro da empresa), mais a foto e a observação. Confirmar enfileira dois itens, a
+ocorrência antes: rede caída nela para a drenagem inteira e a devolução espera junto, então a nota
+não fecha sem a prova ter subido. Recusa do servidor na ocorrência (ex.: `422` de observação
+obrigatória) não segura a devolução — exigir prova não pode virar bloqueio na rua (P3); a recusa
+fica à vista na fila de pendentes, com "Enviar agora".
+
+Sem lista de tipos (falha sem cópia guardada, ou empresa sem tipo de rua) não há ocorrência onde
+pendurar a foto: a devolução segue só com o motivo e a tela diz isso (spec 157 RF5 — devolver nunca
+depende da lista).
+
+### Achado: o `kind` `documentOccurrence` que a 189 dizia ter deixado pronto não existia
+
+`apps/frontend-driver/CLAUDE.md` ("Drenagem", "O que a spec 147 e a spec 179 acrescentam") e a
+emenda da Fase 3 afirmam que o `kind` já existia em `DriverFieldReport` e no `switch` de
+`driverTripClient.service.ts`. `git log -S"kind: 'documentOccurrence'" --all` não acha nada, e
+`origin/staging` também não tem. Foi escrito aqui (T301), com o encadeamento que a emenda descreve:
+URL assinada → `PUT` direto ao storage (sem o token da API) → `confirm` → `POST .../occurrences` com
+`attachmentObjectId` e a chave do toque.
+
+### T301 — o que falta para confirmar (CA04)
+
+`notDelivered.service.ts` (puro): `listMissingNotDeliveredFields` devolve **todos** os campos que
+faltam, na ordem da tela (`reason`, `occurrenceType`, `photo`, `note`); a foto é exigida em todo tipo
+(é "Não entreguei"), a observação só quando o tipo declara `attachmentMode: 'required'` — a mesma
+regra do servidor (`TripOccurrenceNoteRequiredError`). `buildNotDeliveredReports` monta os dois
+itens, ocorrência antes, e recusa rascunho incompleto (`NOT_DELIVERED_INCOMPLETE`).
+`DriverOccurrenceType.attachmentMode` entrou **opcional**: a rota do motorista ainda devolve só `id`
+e `name` (ver "Pendência de API" abaixo), e a leitura aceita o campo quando vier e recusa valor fora
+do vocabulário.
+
+```
+$ bun test ./test/driver-trip/not-delivered.contract.ts ./test/driver-trip/occurrence-upload.contract.ts
+ 25 pass · 0 fail
+$ bun run typecheck && bun run lint        # sem saída
+$ bun run test                             # 526 pass · 0 fail (3 entrypoints)
+```
+
+### T302 — a captura da foto no "Não entreguei"
+
+`DriverNotDeliveredForm.component.tsx` (estado em `useNotDeliveredForm.hook.ts`) substitui os chips
+soltos de devolução: motivo (a lista de sempre), tipo de ocorrência (cadastro da empresa), foto
+obrigatória e observação (opcional; "obrigatória para este tipo" quando o tipo diz `required`). Duas
+portas para a mesma foto: **Tirar foto** (`capture="environment"`) e **Escolher da galeria** (sem
+`capture`) — é a saída quando a câmera não abre ou o acesso foi negado, sem depender de detectar a
+negação. A foto é reencodada no aparelho (`occurrencePhotoImage.service.ts`, cópia por valor da spec
+161: lado ≤ 1600 px, JPEG mirando 400 KiB, sem EXIF) e recusada acima de 512 KiB, o teto do
+servidor. O confirmar fica desabilitado enquanto falta algo, e o texto ao lado diz o quê
+(`notDelivered.missingLead`). O formulário aberto conta como captura (`occurrence-dialog`).
+
+Sem sinal na abertura da app, a lista de tipos cai na última lista boa do mesmo dono
+(`occurrenceTypesCache.service.ts`, `localStorage` por `SHA-256(sub)` — cadastro da empresa, sem
+dado de pessoa, o mesmo nível da marca da instalação). Sem cópia, a devolução segue só com o motivo e
+a tela diz que a foto não tem onde ser registrada agora.
+
+Confirmar grava os dois itens numa transação só (`enqueueReports`, todos ou nenhum) e a foto conta no
+teto de bytes dos anexos (`sumReportPhotoBytes` + `ATTACHMENT_QUEUE_LIMIT.maxTotalBytes`): estourou,
+nada entra e a faixa de sempre avisa. `unverified-pending.contract.ts` passou de três para quatro
+caminhos que marcam `isUnverified` — o quarto é este.
+
+```
+$ bun run typecheck && bun run lint        # sem saída
+$ bun run test                             # 546 pass · 0 fail
+```
+
+### T303 — a fila leva a foto, e a tela distingue "na fila" de "enviado" (CA05, RF5)
+
+- O `Blob` da foto mora no próprio item `documentOccurrence` (IndexedDB guarda `Blob` por clone
+  estruturado, como já guardava os anexos do canhoto). Sem sinal, os dois itens ficam na fila; a
+  ocorrência vai antes, então rede caída nela segura a devolução junto.
+- O cartão diz **"Ocorrência com foto na fila — sobe quando o sinal voltar."** enquanto o item está
+  na fila (inclusive depois de recarregar: a fila sabe a nota), **"enviada"** só quando a drenagem
+  viu o servidor aceitar aquela chave (`sentReportKeys`, colhido no `send` do hook), e
+  **"recusou"** quando o servidor recusou. Item descartado não vira "enviado".
+- A tela de pendentes mostra "Ocorrência com foto" com "1 anexo".
+- A origem do bucket entra no `connect-src` por `VITE_OBJECT_STORAGE_URL` (o nome que o painel já
+  usa), lida no `vite.config.ts`, com `ARG` no `Dockerfile` e contrato que cobra o `ARG` das
+  origens lidas pelo `vite.config` (a varredura antiga só via `import.meta.env`). Só `connect-src`:
+  nada desta app exibe imagem do bucket.
+- Smoke (`driver-app.smoke.spec.ts`): "Não entreguei" online — `occurrence-uploads` → `PUT` no
+  dublê do bucket (JPEG, bytes > 0, sem token) → `confirm` → `occurrences` com o
+  `attachmentObjectId` confirmado → `return` com `recipient_refused`, chaves diferentes; e sem sinal
+  — "na fila", "2 confirmações aguardando envio", nada no bucket nem em `/occurrences`, a fila de
+  pendentes com "Ocorrência com foto · 1 anexo", e depois do `online` o "enviada" e a mesma ordem
+  de caminhos. Os dois conferem 44 px e ausência de rolagem horizontal em 375 px com o formulário
+  aberto.
+
+### Pedido do usuário no meio (25/09): o canhoto com três botões
+
+Fora da 179, pedido com prioridade no mesmo cartão: "Tirar foto" (câmera, `capture`), "Anexar"
+(galeria e arquivos, sem `capture`) e "Colher assinatura" (ícone próprio `pen`), do mesmo tamanho,
+sem o rótulo solto "Anexar canhoto". Em 375 px, as duas portas da foto dividem a linha e a
+assinatura ocupa a linha de baixo inteira — escolhido por deixar cada rótulo numa linha só e a foto
+(a prova da nota) primeiro. `FilePickerButton` (`src/components/ui/file-picker-button.tsx`) é o
+botão do design system que clica no input nativo fora da vista e da tabulação; a foto da ocorrência
+do "Não entreguei" usa o mesmo par. Commits próprios: `6aef92ab6`, `3df16b9c3`, `5f1af16f6`.
+
+### Gates (T303)
+
+```
+$ bun run --cwd apps/frontend-driver check   # lint + typecheck + 556 pass · 0 fail + build (precache 13 arquivos, 641 KiB) + dist 6 pass
+$ bun run --cwd apps/frontend-driver smoke   # service worker 2 passed · app 21 passed
+```
+
+### Pendência de API (não mexi — outro executor está na API)
+
+`GET /me/trips/current/occurrence-types` devolve só `id` e `name`
+(`list-field-occurrence-types.use-case.ts`). Sem `attachmentMode`, a tela não sabe quando a
+observação é obrigatória: num tipo `required`, a observação vazia chega ao servidor e volta `422
+TRIP_OCCURRENCE_NOTE_REQUIRED` — a devolução sobe, e a ocorrência fica recusada à vista na fila de
+pendentes. A app já lê o campo quando ele vier (`isDriverOccurrenceType` aceita `off|optional|
+required` e recusa o resto); a mudança é acrescentar `attachmentMode: type.attachmentMode ?? 'off'`
+ao `map` do use case e ao tipo `FieldOccurrenceType`, com contrato. Aditiva, sem migration.
+
+## T401 — a marca no editor de tipos (CA01, RF1, RF10)
+
+`OccurrenceTypeCatalogPanel.component.tsx` ganha o `Select` do design system "Foto do comprovante"
+(Sem foto / Foto opcional / Foto obrigatória), com dica (`Tooltip`) dizendo que vale para o registro
+do motorista e que obrigatória exige foto **e** observação. Só em tipo de rua (`delivery`), na linha
+de cada tipo e no formulário de tipo novo — o painel não oferece o que a tela não cumpre (spec,
+"Empresa marca `required` num tipo de separação"). Toda gravação do painel leva a marca que o tipo
+já tinha (mexer no aviso não desliga a foto), e tipo novo nasce `off`. A leitura aceita o campo
+(`OCCURRENCE_ATTACHMENT_MODES`, o vocabulário do canhoto), recusa valor fora dele e trata ausência
+como `off` (CA07/CA08). O `PUT /company-settings/occurrence-types` já aceitava o campo (T103).
+
+```
+$ bunx tsc --noEmit                                   # frontend-transportada: sem saída
+$ bun run lint                                        # sem saída
+$ bun run test                                        # 5345 pass · 0 fail · hooks 54 pass · 0 fail
+```
+
+## T402 — revisão de design com print (CA09, `web.md` §15)
+
+Prints em `prints/` (28 PNGs: 375 px e 1280 px, temas escuro e claro), gerados por
+`apps/frontend-driver/test/spec-179-prints.smoke.spec.ts` — fora do smoke da CI, roda com
+`PLAYWRIGHT_TEST_MATCH=spec-179-prints.smoke.spec.ts` e o bypass de fumaça: 12 passed.
+
+- `nao-entreguei-vazio-*`, `nao-entreguei-confirmar-bloqueado-*`: o confirmar desabilitado (cobre
+  apagado) e, logo acima, "Para confirmar, falta: o motivo, o tipo de ocorrência, a foto." em cobre
+  — aviso, não erro.
+- `nao-entreguei-completo-*`: motivo e tipo selecionados no cobre dos chips de sempre (mesmo
+  `occurrenceChip` da ocorrência de parada), miniatura com "Foto da ocorrência anexada" em verde,
+  "Refazer" e "Anexar" do mesmo tamanho, observação no mesmo campo dos outros (`--field-*`).
+- `cartao-na-fila-*` / `cartao-enviada-*`: a linha de estado na nota — relógio e cobre na fila,
+  visto e verde quando subiu.
+- `canhoto-botoes-*` / `canhoto-anexada-*`: "Canhoto", "Tirar foto \*" e "Anexar" lado a lado, com a
+  mesma largura, e "Colher assinatura" (ícone de caneta) na linha inteira; depois de anexar,
+  miniatura, "Foto do canhoto anexada" e "Refazer".
+
+Comparação com os vizinhos: todo botão é o `Button` do design system (`ui-button-ghost`, 44 px —
+os smokes medem 44×44 em 375 px com o formulário aberto); chips, título de grupo e texto de apoio
+reusam as classes da ocorrência de parada e do comprovante. Nenhum campo cru ao lado de primitivo.
+
+Um defeito do próprio print, não da tela: o fim do cartão saía coberto pela barra de navegação fixa.
+Medido (`getBoundingClientRect`): o botão mais baixo cabe dentro do cartão; o print agora centraliza
+o elemento antes de fotografar.
+
+### Pendências explícitas
+
+1. **Tema claro**: a app do motorista só tem o tema escuro; os prints `-light` saem iguais aos
+   `-dark` (o `emulateMedia` não muda nada). Não é regressão desta spec.
+2. **Segundo toque enquanto está na fila**: com a ocorrência e a devolução na fila, "Entreguei" e
+   "Não entreguei" continuam oferecidos na nota até a leitura seguinte — o mesmo comportamento de
+   hoje com "Entreguei" enfileirado (o snapshot só muda depois de subir). A linha "na fila" avisa;
+   esconder as ações é decisão de produto que não tomei aqui.
+3. **Print do painel (T401)**: não gerei — o painel está sendo mexido por outro executor e o smoke
+   dele é outro build. A tela está coberta por contrato (`occurrence-type-attachment-mode.contract.ts`);
+   o print entra no molde de `spec-185-prints.smoke.spec.ts` (mesmo dublê de
+   `/company-settings/occurrence-types`, com `attachmentMode` no tipo de rua).
+4. **Pendência de API**: ver T303 — `attachmentMode` em `GET /me/trips/current/occurrence-types`.
+   Fechada pela T304 abaixo.
+
+## T304 — o motorista sabe quando o tipo exige comprovante (RF1, CA07, CA08)
+
+`list-field-occurrence-types.use-case.ts` (o único produtor de `GET /me/trips/current/occurrence-types`
+e, pela mesma composição em `main.ts`, também de `GET /trips/occurrence-types/field`) ganha
+`attachmentMode` no tipo `FieldOccurrenceType` e no `map`, com `type.attachmentMode ?? 'off'` — o
+mesmo padrão de fallback que `register-driver-occurrence.use-case.ts` já usa para o registro em si
+(dado legado sem a coluna preenchida). Aditiva, nenhuma migration: a coluna já existe desde a T102.
+
+Teste de contrato primeiro (`test/trip-occurrence/field-catalog.contract.ts`, falhou antes da
+implementação): repassa `attachmentMode` quando o tipo tem um, e degrada para `'off'` quando não
+tem. Os dois testes de rota que já cobriam esta função (`me-routes.contract.ts`,
+`office-field-occurrences.contract.ts`, `trip-field-office/occurrences-route.contract.ts`) tinham o
+corpo esperado com só `id`/`name` — atualizados para incluir `attachmentMode`.
+
+**A mesma função alimenta duas rotas, e só uma tinha o contrato pronto para o campo novo.**
+`GET /trips/occurrence-types/field` (escritório) é consumida pelo painel
+(`apps/frontend-transportada`), cujo `isFieldOccurrenceType` usava `hasExactKeys(value,
+['id','name'])` — chave desconhecida reprovaria a validação e derrubaria a lista de tipos do diálogo
+de ocorrência do escritório assim que a API subisse com o campo novo. Trocado por `hasKeys` com
+`attachmentMode` opcional (`FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS`, `trip.constant.ts`), o mesmo padrão
+que `isOccurrenceType` já usa para `allowsMultipleItems`/`leavesDocumentBehind`/`redeliveryPolicy` —
+campo aditivo é tolerado, não exigido. `FieldOccurrenceType` (painel) ganhou o campo como opcional;
+a tela do escritório não lê o valor hoje, só deixa de recusar a resposta.
+
+`apps/frontend-driver` e o módulo legado `driver-trip` de `apps/frontend-transportada` já toleravam
+o campo ausente (`isDriverOccurrenceType`/duck-typing por `id`/`name` sem `hasExactKeys`) — nenhuma
+mudança neles.
+
+```
+$ bun run typecheck                                    # api-transportada: sem saída
+$ bun run lint                                          # api-transportada: sem saída
+$ bun --env-file=../../.env.test test --timeout 120000   # api-transportada: 7394 pass · 0 fail
+$ bunx tsc --noEmit                                      # frontend-transportada: sem saída
+$ bun run lint                                           # frontend-transportada: sem saída
+$ bun run test                                           # frontend-transportada: 5345 pass · 0 fail · hooks 54 pass · 0 fail
+```
+
+Sem migration — a coluna e o CHECK já existem (T102). Nenhum dado de outra empresa: `companyId` vem
+de `context.scope.companyId` em ambas as rotas, como antes; o `map` só acrescenta um campo derivado
+do próprio tipo já filtrado por empresa.

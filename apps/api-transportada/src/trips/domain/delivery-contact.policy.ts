@@ -15,6 +15,8 @@
 const RECIPIENT_ROLES = new Set(['delivery', 'recipient'])
 const LANDLINE_DIGITS = 10
 const MOBILE_DIGITS = 11
+/** Spec 193 D14: 14 dígitos é CNPJ (pessoa jurídica); qualquer outra contagem é tratada como PF. */
+const CNPJ_DIGITS = 14
 
 export type DeliveryParty = {
   readonly legalName: string
@@ -58,6 +60,26 @@ function formatPhone(value: string): null | string {
 }
 
 /**
+ * O nome fantasia vence a razão social porque é como o cliente é chamado no telefone. Regra única do
+ * contato do escritório e do nome que "O próprio cliente recebeu" preenche no app (spec 193 D14).
+ */
+export function resolveRecipientDisplayName(input: {
+  readonly legalName: string
+  readonly tradeName: string
+}): string {
+  return input.tradeName === '' ? input.legalName : input.tradeName
+}
+
+/**
+ * Spec 193 D14: PF ou PJ do destinatário, só pelo tamanho do documento — 14 dígitos é CNPJ, 11 é
+ * CPF. O documento em si nunca sai da API; só este booleano. Documento fora do padrão (vazio, com
+ * dígito verificador que não bate, formato estranho) cai em `false` — nunca lança.
+ */
+export function resolveRecipientIsCompany(taxId: string): boolean {
+  return taxId.replace(/\D/gu, '').length === CNPJ_DIGITS
+}
+
+/**
  * ⚠️ **A nota não diz quem é o contratante** — quem diz é o cadastro. O participante cujo documento
  * está em `contractors` é ele; documento fora do cadastro **não vira contratante por parecer**.
  *
@@ -78,7 +100,7 @@ export function resolveDeliveryContact(input: {
 
   return {
     contractorName: contractor ?? null,
-    name: recipient.tradeName === '' ? recipient.legalName : recipient.tradeName,
+    name: resolveRecipientDisplayName(recipient),
     phone: formatPhone(recipient.phone),
     taxId: recipient.taxId,
   }

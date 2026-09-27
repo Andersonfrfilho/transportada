@@ -4,7 +4,7 @@
 import { UserError } from '@adatechnology/user-contracts'
 import { buildRefreshTokenCookie } from '@adatechnology/user-module'
 
-import { resolveClientIp } from '../../http/client-ip.service.js'
+import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineAnonymousRoute, type RegisteredAnonymousRoute } from '../../http/router.service.js'
 import { ApiError } from '../../shared/api.error.js'
 import { API_PUBLIC_AGGREGATE_ACCOUNTS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
@@ -20,6 +20,8 @@ const REGISTER_RATE_LIMIT = { maxRequests: 5, windowMs: 10 * ONE_MINUTE_MS } as 
 
 type Dependencies = {
   readonly aggregateAccounts: AggregateAccountUseCase
+  /** ADR-0076 §6: o IP da trilha sai do salto conhecido, nunca do começo de `x-forwarded-for`. */
+  readonly resolveClientIp: ClientIpResolver
 }
 
 /**
@@ -60,7 +62,7 @@ export function createAggregateAccountPublicRoutes(
       method: 'POST',
       parse: async ({ request }) => {
         const body = await parseRegisterAggregateAccountRequest(request)
-        return { ...body, ipAddress: resolveClientIp(request) }
+        return { ...body, ipAddress: dependencies.resolveClientIp(request) }
       },
       pathname: API_PUBLIC_AGGREGATE_ACCOUNTS_PATH,
       rateLimit: REGISTER_RATE_LIMIT,

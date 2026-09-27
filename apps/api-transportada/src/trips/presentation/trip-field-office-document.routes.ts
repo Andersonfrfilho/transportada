@@ -5,7 +5,7 @@
  * canhoto (`field-delivery`), devolver (`field-return`) e anexar o canhoto a uma entrega já feita
  * (`field-proof`).
  */
-import { resolveClientIp } from '../../http/client-ip.service.js'
+import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { FieldTripTargetPort } from '../application/field-trip-target.port.js'
@@ -61,6 +61,8 @@ type OfficeDocumentInput = OfficeContextInput & {
 }
 
 export type TripFieldOfficeDocumentDependencies = {
+  /** ADR-0076 §6: o IP da trilha sai do salto conhecido, nunca do começo de `x-forwarded-for`. */
+  readonly resolveClientIp: ClientIpResolver
   readonly attachProof: (
     input: OfficeDocumentInput & {
       readonly kind: OfficeProofKind
@@ -96,13 +98,14 @@ function parseOfficeDocumentRequest(input: {
   readonly driverId: string | undefined
   readonly pathParameters: Readonly<Record<string, string>>
   readonly request: Request
+  readonly resolveClientIp: ClientIpResolver
 }): OfficeDocumentRequest {
   return {
     correlationId: input.correlationId,
     documentId: parseUuidPathIdentifier(input.pathParameters.documentId ?? ''),
     driverId: input.driverId,
     idempotencyKey: parseIdempotencyKey(input.request),
-    ipAddress: resolveClientIp(input.request),
+    ipAddress: input.resolveClientIp(input.request),
     tripId: parseUuidPathIdentifier(input.pathParameters.id ?? ''),
   }
 }
@@ -182,6 +185,7 @@ function createDeliveryRoute(
           driverId: body.driverId,
           pathParameters,
           request,
+          resolveClientIp: dependencies.resolveClientIp,
         }),
         deliveredAt: body.deliveredAt,
         proof: body.proof,
@@ -223,6 +227,7 @@ function createReturnRoute(
           driverId: body.driverId,
           pathParameters,
           request,
+          resolveClientIp: dependencies.resolveClientIp,
         }),
         reason: body.reason,
         returnedAt: body.returnedAt ?? new Date(),
@@ -273,6 +278,7 @@ function createProofRoute(
           driverId: body.driverId,
           pathParameters,
           request,
+          resolveClientIp: dependencies.resolveClientIp,
         }),
         kind: body.kind,
         proof: body.proof,

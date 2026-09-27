@@ -81,3 +81,14 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
 - **A limpeza do limitador de taxa (`rate_limit_windows`) é rotina daqui, não da API nem do cron**
   (spec 150 T406) — `rate-limit.window.purge` apaga janela com mais de 48 h. Detalhe: docs/ai-context
   § "A limpeza do limitador de taxa é rotina do worker".
+- **A conversa da ocorrência (spec 183) tem três partes aqui:**
+  - **E-mail recebido vira mensagem da conversa**, com os anexos conferidos pelos bytes: até 5, sem
+    a parte `inline`, MIME até 25 MB. O objeto sobe antes da transação e é descartado quando ela
+    falha. O `From` e o `dkim_result` são gravados como chegaram; **quem decide a identidade é a
+    leitura da API**, e só com DKIM alinhado (T903, S2).
+  - **O e-mail enviado leva os anexos da conversa.** Anexo sumido, apagado (`status = 'deleted'`) ou
+    com sha256 divergente é falha permanente, **nunca envio sem o arquivo** (T903, F1).
+  - **O pedido de upload vencido sai do bucket e fecha como `expired`.** É a mesma unidade da spec
+    179, com `skip locked`.
+  - A política de anexo e a de status são cópias por valor da API, com contrato de paridade.
+  - Detalhe: docs/ai-context § "A ocorrência tem duas conversas".

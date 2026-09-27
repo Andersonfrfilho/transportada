@@ -11,7 +11,10 @@
  * que o motorista colheu não é substituído.
  */
 import { CARGO_PROOF_KIND, type OfficeProofKind } from '../domain/delivery-event.constant.js'
-import { assertOfficeProofMeetsSettings } from '../domain/office-delivery-proof.policy.js'
+import {
+  assertOfficeProofMeetsSettings,
+  resolveOfficeReceivedBy,
+} from '../domain/office-delivery-proof.policy.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import type { DriverFieldReportUnitOfWork } from './driver-field-report.port.js'
 import {
@@ -51,6 +54,8 @@ export async function reportFieldProof(
   input: ReportFieldProofInput,
 ): Promise<OfficeProofPersistResult> {
   assertOfficeUploadAccepted(input.upload)
+  /** Spec 193 D3/D5: a foto da carga nunca leva quem recebeu — só o canhoto aplica a configuração. */
+  let upload = input.upload
   /**
    * Spec 184 (RF4): a foto de carga não é o canhoto — não precisa satisfazer "foto obrigatória" nem
    * "assinatura obrigatória" da configuração, e não carrega nome do recebedor para a exigir.
@@ -62,6 +67,10 @@ export async function reportFieldProof(
       documentId: input.documentId,
     })
     assertOfficeProofMeetsSettings({ receiver: input.upload, settings })
+    upload = {
+      ...input.upload,
+      receivedBy: resolveOfficeReceivedBy({ receiver: input.upload, settings }),
+    }
   }
   const authorship = deriveFieldAuthorship({ target: input.target })
 
@@ -94,7 +103,7 @@ export async function reportFieldProof(
               kind: input.kind,
               storage,
               transaction,
-              upload: input.upload,
+              upload,
             })
             const audit = buildOfficeAuditEntry({
               actorUserId: input.actorUserId,

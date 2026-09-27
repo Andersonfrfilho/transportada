@@ -245,6 +245,7 @@ describe('a fila offline reenvia, e o servidor não duplica', () => {
     const world = buildDocumentWorld()
     const resolveProofSettings = async () => ({
       photo: 'required' as const,
+      receivedBy: 'optional' as const,
       receiverDocument: 'off' as const,
       receiverName: 'optional' as const,
       signature: 'optional' as const,

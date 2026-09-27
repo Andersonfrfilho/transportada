@@ -175,8 +175,16 @@ export type CompanyUserRepositoryPort = {
     readonly outcome: JobOutcome
     readonly requestedBy: string
   }) => Promise<void>
+  /**
+   * Apaga, na mesma transação do `DELETE` da membership: o histórico de convite (`pending`,
+   * `accepted`, `superseded`) e os pedidos de recuperação de senha da membership, com cascata para
+   * papéis e outbox. Grava `company-user.membership-removed` em `audit_logs` antes das duas
+   * exclusões, com as contagens (ADR-0076 §9, spec 191 T2.2).
+   */
   readonly removeMembership: (input: {
+    readonly actorUserId: string
     readonly companyId: string
+    readonly correlationId: string
     readonly userId: string
   }) => Promise<void>
   readonly replaceRoles: (input: {

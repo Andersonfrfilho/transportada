@@ -1874,3 +1874,53 @@ product|payer` dentro de `message:` de erro de domínio também não bate — o 
 `apps/api-transportada/CLAUDE.md` § "Ocorrência da nota — tratativa e cobrança (spec 164)" tem o
 núcleo operacional (máquina de estados, os dois escritores, a fronteira de visibilidade do portal, o
 discriminador da cobrança); este parágrafo é só o registro datado da prova e da revisão.
+
+## A ocorrência tem duas conversas (spec 183, 24–25/09/2026)
+
+O núcleo operacional está em `apps/api-transportada/CLAUDE.md`, na seção do mesmo nome. Aqui fica o
+registro datado: o que se decidiu, o que se mediu e os defeitos achados no caminho.
+
+- **Por que duas conversas, e não uma por canal.** A contratante escreve por e-mail, WhatsApp ou
+  portal, e o motorista pelo app. O fio é **da parte**, não do canal: a operação responde no canal
+  que quiser, e o selo de canal fica em cada mensagem. A unique de
+  `(company_id, occurrence_kind, occurrence_id, participant)` garante uma conversa por parte.
+- **O e-mail reaproveita a 143.** Thread por ocorrência, token de resposta no endereço e outbox. A
+  mensagem da conversa só aponta para `contractor_mail_messages` (`mail_message_id`). A exceção à
+  143 que o usuário autorizou (T702e) foi o **anexo no e-mail**.
+- **Anexo pela URL assinada (T702a).** O arquivo nunca passa pela API na subida.
+  - Na revisão (S1), o PUT tardio trocava o arquivo já conferido. Foi **medido contra o S3 local**:
+    a integração falha sem a correção.
+  - A correção copia os bytes conferidos para uma chave final nova e apaga a da subida.
+  - O upload direto da spec 179 tem o mesmo padrão e ficou para tarefa própria.
+- **DKIM decide a identidade (S2).** O worker já gravava o `dkim_result` desde a 143, mas a leitura
+  casava o `From` com o cadastro só pelo texto. Qualquer um com o token de resposta aparecia como o
+  contato, com o selo "aprova cobranças". Agora só `aligned` identifica.
+- **A conversa do motorista (C1).** A tripulação é fixa desde a criação da viagem
+  (`trip_drivers.position`, sem rota que troque). O que muda é a **conta** por trás da ficha
+  (`fleet_drivers.membership_id`).
+  - Antes, a conversa ficava presa ao usuário do primeiro envio: o aviso ia à conta nova, que não
+    via nada, e o co-motorista respondia numa conversa que não era dele.
+  - Agora o envio da operação e a resposta do motorista principal assumem a conversa, e o resto
+    recebe 409.
+- **"Conversa aberta" (C2).** Nenhum código grava `closed`, e o `GET` do portal cria a conversa de
+  toda ocorrência visível. Contar `status = 'open'` mandava quase todo WhatsApp da contratante para
+  "não atribuída".
+  - A correção usa a definição de aberta da T206: a tratativa não terminal.
+  - Na atribuição automática, a conversa também precisa ter mensagem.
+  - O fragmento que lê a tratativa mora em `trips`, porque o contrato D4 proíbe a conversa até de
+    citar a tabela.
+- **Corrida do primeiro e-mail (C3).** O advisory lock era por chave de idempotência. O aviso
+  automático (T802) e um envio manual simultâneos criavam duas threads, e o segundo levava 23505,
+  que virava 500 sem motivo.
+  - Agora há um lock por ocorrência antes de procurar a thread.
+  - O contrato do lock foi visto falhando.
+  - A integração da corrida passa, mas **não reproduziu a corrida sem a correção**: o Postgres
+    local serializa rápido demais. Isso foi registrado, não escondido.
+- **Aviso automático (T802 e C4).** O gancho dispara depois do commit, em série. O lote do
+  escritório (50 notas) disparava 50 transações contra um pool de 10.
+- **Achados menores aceitos para depois** (o registro completo está na T903 do `evidence.md`):
+  - desempenho: N+1 na lista do app (C7), corte de 1000 mensagens (C8), resumo que traz tudo (C9),
+    índices (C16);
+  - robustez: diagnóstico do gancho (C10), `new Error` cru (C11), S3 dentro da transação (C12),
+    posição duplicada das respostas rápidas (C13), atualização perdida no contato (C14),
+    fingerprint sem ator (C15).

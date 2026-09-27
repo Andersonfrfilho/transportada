@@ -41,6 +41,7 @@ export const contractorMailMessages = pgTable('contractor_mail_messages', {
   threadId: uuid('thread_id').notNull(),
   direction: text().notNull(),
   fromAddress: text('from_address'),
+  fromDisplayName: text('from_display_name'),
   subject: text().notNull(),
   toAddresses: text('to_addresses').array().notNull(),
   bodyText: text('body_text').notNull(),

@@ -139,6 +139,7 @@ import { ContractorMailInboundOutboxRelayService } from './contractor-mail/appli
 import { DrizzleContractorMailOutboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-outbox.repository.js'
 import { DrizzleContractorMailInboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-outbox.repository.js'
 import { createDrizzleContractorMailOutboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
+import { createContractorMailOutboundAttachments } from './occurrence-conversation/infrastructure/drizzle-conversation-mail-attachments.repository.js'
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
@@ -150,6 +151,10 @@ import { startContractorMailOutboundConsumer } from './runtime/contractor-mail-o
 import { startContractorMailInboundConsumer } from './runtime/contractor-mail-inbound-consumer.service.js'
 import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
+import { createInboundConversationAttachmentStore } from './occurrence-conversation/application/inbound-mail-attachments.service.js'
+import { createOccurrenceConversationUploadExpireRoutine } from './occurrence-conversation-upload-expire/application/occurrence-conversation-upload-expire.routine.js'
+import { OCCURRENCE_CONVERSATION_UPLOAD_EXPIRE_JOB } from './occurrence-conversation-upload-expire/domain/occurrence-conversation-upload-expire.constant.js'
+import { createDrizzleExpireConversationUploadBatch } from './occurrence-conversation-upload-expire/infrastructure/drizzle-occurrence-conversation-upload-expire.repository.js'
 import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
 import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
@@ -994,6 +999,10 @@ export async function startWorkerRuntime(
     contractorMailOutboundConsumer = await contractorMailOutboundStarter({
       config,
       dependencies: {
+        attachments: createContractorMailOutboundAttachments({
+          database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          storage: storageGateway,
+        }),
         mailGateway: createResendMailGateway({ fetch: (target, init) => fetch(target, init) }),
         repository: createDrizzleContractorMailOutboundWorkerRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
@@ -1008,6 +1017,12 @@ export async function startWorkerRuntime(
     contractorMailInboundConsumer = await contractorMailInboundStarter({
       config,
       dependencies: {
+        /** Spec 183 T702c1: o anexo do e-mail recebido vira anexo da mensagem da conversa. */
+        conversationAttachments: createInboundConversationAttachmentStore({
+          bucket: storageBucket,
+          provider: 'minio',
+          storage: storageGateway,
+        }),
         dkimVerifier: createDkimVerifierGateway({ resolveDns: resolveDkimDnsRecord }),
         mailGateway: createResendMailGateway({ fetch: (target, init) => fetch(target, init) }),
         repository: createDrizzleContractorMailInboundWorkerRepository(
@@ -1245,6 +1260,16 @@ export async function startWorkerRuntime(
             logger,
             now: () => new Date(),
           }),
+          /** Spec 183 T702c2: o pedido de upload do anexo da conversa que venceu sem virar anexo. */
+          [OCCURRENCE_CONVERSATION_UPLOAD_EXPIRE_JOB]:
+            createOccurrenceConversationUploadExpireRoutine({
+              expire: createDrizzleExpireConversationUploadBatch({
+                database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                deleteObject: (object) => storageGateway.deleteObject(object),
+              }),
+              logger,
+              now: () => new Date(),
+            }),
           /**
            * Ausente quando a instalação não declara credencial de administração do realm: sem
            * provedor não há atributo a escrever, e a janela pousa em `job_run_routine_missing`.

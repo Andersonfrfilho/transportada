@@ -34,6 +34,8 @@ export const DRIVER_TRIP_ERROR = {
   /** A rede não respondeu. É o caso do subsolo, e ele **não** tira o item da fila. */
   OFFLINE: 'OFFLINE',
   RESPONSE_INVALID: 'RESPONSE_INVALID',
+  /** Spec 209: o storage recusou o `PUT` da foto (URL vencida, assinatura) — resposta, não rede. */
+  UPLOAD_FAILED: 'OCCURRENCE_UPLOAD_FAILED',
 } as const
 
 export class DriverTripRequestError extends Error {
@@ -121,7 +123,11 @@ export type DriverTripClient = Readonly<{
   send: (report: DriverFieldReport) => Promise<void>
 }>
 
-function reportPath(report: DriverFieldReport): string {
+type StopOccurrencePhotoReport = Extract<DriverFieldReport, { kind: 'stopOccurrencePhoto' }>
+/** Os relatos que são um `POST` JSON só — a foto do "Deu problema" tem caminho próprio. */
+type JsonFieldReport = Exclude<DriverFieldReport, StopOccurrencePhotoReport>
+
+function reportPath(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/arrive`
@@ -134,7 +140,7 @@ function reportPath(report: DriverFieldReport): string {
   }
 }
 
-function reportBody(report: DriverFieldReport): string {
+function reportBody(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
     case 'deliver':
@@ -236,6 +242,10 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       return toDriverTripSnapshot(payload)
     },
     async send(report) {
+      if (report.kind === 'stopOccurrencePhoto') {
+        await sendStopOccurrencePhoto({ dependencies, report })
+        return
+      }
       await request({
         body: reportBody(report),
         dependencies,
@@ -245,6 +255,111 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
     },
   }
+}
+
+/**
+ * Spec 209 (D2): a foto do "Deu problema" sobe pela rota da parada e **reenvia a ocorrência** com a
+ * chave dela e o anexo — a API completa o anexo da ocorrência que já subiu sem ele, uma vez. Mesmo
+ * caminho da app do motorista (`apps/frontend-driver`, spec 179/209).
+ */
+async function sendStopOccurrencePhoto(input: {
+  readonly dependencies: ClientDependencies
+  readonly report: StopOccurrencePhotoReport
+}): Promise<void> {
+  const { dependencies, report } = input
+  const stopPath = `${CURRENT_TRIP_PATH}/stops/${report.stopId}`
+  const uploadsPath = `${stopPath}/occurrence-uploads`
+  const upload = toOccurrenceUpload(
+    await request({
+      body: JSON.stringify({ mimeType: report.photo.blob.type, sizeBytes: report.photo.blob.size }),
+      dependencies,
+      method: 'POST',
+      path: uploadsPath,
+    }),
+  )
+
+  let response: Response
+  try {
+    // Sem `authorization`: o token da API não vai ao storage — a assinatura da URL é a credencial.
+    response = await dependencies.fetch(
+      new Request(upload.uploadUrl, {
+        body: report.photo.blob,
+        cache: 'no-store',
+        headers: { 'content-type': report.photo.blob.type },
+        method: 'PUT',
+      }),
+    )
+  } catch {
+    throw new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+  }
+  if (!response.ok) {
+    throw new DriverTripRequestError({
+      code: DRIVER_TRIP_ERROR.UPLOAD_FAILED,
+      isOffline: false,
+      status: response.status,
+    })
+  }
+
+  const confirmed = await request({
+    dependencies,
+    method: 'POST',
+    path: `${uploadsPath}/${upload.id}/confirm`,
+  })
+  await request({
+    body: JSON.stringify({
+      attachmentObjectId: readDataId(confirmed),
+      description: report.description,
+      documentId: report.documentId,
+      kind: report.occurrenceKind,
+    }),
+    dependencies,
+    idempotencyKey: report.occurrenceKey,
+    method: 'POST',
+    path: `${stopPath}/occurrences`,
+  })
+}
+
+function readDataRecord(payload: unknown): Record<string, unknown> {
+  const data =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { readonly data?: unknown }).data
+      : undefined
+  if (typeof data !== 'object' || data === null) throw invalidResponse()
+  return data as Record<string, unknown>
+}
+
+function readDataId(payload: unknown): string {
+  const id = readDataRecord(payload).id
+  if (typeof id !== 'string') throw invalidResponse()
+  return id
+}
+
+/** A URL assinada só vale em HTTPS (ou no loopback do desenvolvimento). */
+function isSignedUploadUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'https:') return true
+    return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+function toOccurrenceUpload(payload: unknown): Readonly<{ id: string; uploadUrl: string }> {
+  const record = readDataRecord(payload)
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.uploadUrl !== 'string' ||
+    !isSignedUploadUrl(record.uploadUrl)
+  ) {
+    throw invalidResponse()
+  }
+  return { id: record.id, uploadUrl: record.uploadUrl }
+}
+
+/** Resposta que não se deixa ler é recusa, não rede: repetir não a conserta. */
+function invalidResponse(): DriverTripRequestError {
+  return new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.RESPONSE_INVALID, isOffline: false })
 }
 
 export function getDriverTripClient(): DriverTripClient {

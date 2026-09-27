@@ -216,7 +216,8 @@ function buildStop(documents: readonly DriverTripDocument[]): DriverTripStop {
  * Revisão 082 (item 8): a "nota que carrega a foto da ocorrência" é UMA escolha, no serviço — a
  * prévia e o envio apontam para a mesma nota, sempre.
  */
-describe('a nota que carrega a foto da ocorrência', () => {
+/** Spec 209: a escolha ficou só para a prévia — a foto deixou de pegar carona nesta nota. */
+describe('a nota que aparece na prévia do aviso da ocorrência', () => {
   const source = readFileSync(CARD, 'utf8')
 
   it('escolhe a primeira nota em aberto; sem aberta, a primeira da lista', () => {
@@ -228,9 +229,9 @@ describe('a nota que carrega a foto da ocorrência', () => {
     expect(findOccurrencePhotoDocument(buildStop([]))).toBeUndefined()
   })
 
-  it('a tela usa o serviço nos dois pontos, sem cópia inline da escolha', () => {
+  it('a tela usa o serviço só na prévia, sem cópia inline da escolha', () => {
     const usages = source.match(/findOccurrencePhotoDocument\(stop\)/gu) ?? []
-    expect(usages).toHaveLength(2)
+    expect(usages).toHaveLength(1)
     expect(source).not.toInclude('stop.documents.find((item) => !isDocumentSettled(item))')
   })
 })

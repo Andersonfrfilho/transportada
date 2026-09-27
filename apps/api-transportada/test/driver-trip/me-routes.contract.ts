@@ -26,6 +26,8 @@ const meRoutes = createMeTripRoutes({
   findCurrentTrip: NOT_CALLED,
   listFieldOccurrenceTypes: NOT_CALLED,
   reportArrival: NOT_CALLED,
+  reportDeparture: NOT_CALLED,
+  cancelStopDeparture: NOT_CALLED,
   reportDelivery: NOT_CALLED,
   reportOccurrence: NOT_CALLED,
   readManifestXml: NOT_CALLED,
@@ -173,12 +175,20 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
       findCurrentTrip: NOT_CALLED,
       listFieldOccurrenceTypes: async ({ companyId }) => {
         asked.push(companyId)
-        return [{ id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' }]
+        return [
+          {
+            attachmentMode: 'off',
+            id: '00000000-0000-4000-8000-0000000000e1',
+            name: 'Cliente ausente',
+          },
+        ]
       },
       readManifestXml: NOT_CALLED,
       registerDriverOccurrence: NOT_CALLED,
       renderManifestDamdfe: NOT_CALLED,
       reportArrival: NOT_CALLED,
+      reportDeparture: NOT_CALLED,
+      cancelStopDeparture: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportOccurrence: NOT_CALLED,
       reportReturn: NOT_CALLED,
@@ -200,14 +210,20 @@ describe('os tipos de ocorrência do motorista (spec 157)', () => {
     ).not.toThrow()
   })
 
-  it('devolve só id e nome, com a empresa do token', async () => {
+  it('devolve id, nome e attachmentMode, com a empresa do token', async () => {
     const { asked, route } = buildRoutes({ driverId: 'driver' })
 
     const response = await route?.execute(request())
 
     expect(response?.status).toBe(200)
     expect(await response?.json()).toEqual({
-      data: [{ id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' }],
+      data: [
+        {
+          attachmentMode: 'off',
+          id: '00000000-0000-4000-8000-0000000000e1',
+          name: 'Cliente ausente',
+        },
+      ],
     })
     expect(asked).toEqual([COMPANY_ID])
   })

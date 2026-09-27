@@ -143,6 +143,7 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
 
     expect(resolved).toEqual({
       photo: 'optional',
+      receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'optional',
       signature: 'optional',
@@ -152,12 +153,14 @@ describe('a resolução da configuração (ADR-0057 §1)', () => {
   it('a exceção por CNPJ vence a configuração geral por inteiro', () => {
     const general: DeliveryProofFieldSettings = {
       photo: 'required',
+      receivedBy: 'optional',
       receiverDocument: 'off',
       receiverName: 'required',
       signature: 'required',
     }
     const override: DeliveryProofFieldSettings = {
       photo: 'off',
+      receivedBy: 'optional',
       receiverDocument: 'required',
       receiverName: 'optional',
       signature: 'optional',
@@ -229,12 +232,14 @@ describe('o documento do recebedor no comprovante (spec 082 T013)', () => {
 describe('a resolução por documento (spec 082 — revisão)', () => {
   const GENERAL: DeliveryProofFieldSettings = {
     photo: 'optional',
+    receivedBy: 'optional',
     receiverDocument: 'off',
     receiverName: 'optional',
     signature: 'optional',
   }
   const OVERRIDE: DeliveryProofFieldSettings = {
     photo: 'required',
+    receivedBy: 'optional',
     receiverDocument: 'required',
     receiverName: 'required',
     signature: 'required',
@@ -269,12 +274,15 @@ describe('o upsert do comprovante (spec 082 — revisão, item 4)', () => {
     eventId: EVENT_ID,
     id: PROOF_ID,
     kind: 'signature' as const,
+    lateRegistration: false,
     latitude: null,
     longitude: null,
     mimeType: 'image/png',
     objectId: OBJECT_ID,
     objectKey: 'object-key',
     punctuality: 'not_required' as const,
+    receivedBy: null,
+    receivedByDetail: null,
     receiverDocumentMasked: '',
     receiverName: 'Maria de Sousa',
     sha256: 'a'.repeat(64),

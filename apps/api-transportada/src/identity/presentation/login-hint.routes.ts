@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { RateLimitCeiling } from '../../http/rate-limiter.service.js'
 import { defineAnonymousRoute } from '../../http/router.service.js'
 import { API_LOGIN_HINTS_PATH, HTTP_ERROR, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -10,6 +11,7 @@ import type { ResolveLoginHintUseCase } from '../application/resolve-login-hint.
 const MAX_IDENTIFIER_LENGTH = 254
 
 type Dependencies = {
+  readonly rateLimit: RateLimitCeiling
   readonly resolveLoginHint: ResolveLoginHintUseCase
 }
 
@@ -19,8 +21,11 @@ type Dependencies = {
  *
  * A rota é anônima porque acontece antes de existir sessão — e é justamente por isso que ela
  * **responde igual para quem existe e para quem não existe**. Dizer "não encontrado" entregaria a
- * base de e-mails, CPFs e telefones a quem tivesse um script; a API não tem limitador, e o produto
- * já tomou essa decisão em `POST /password-resets`, que responde 204 sempre pelo mesmo motivo.
+ * base de e-mails, CPFs e telefones a quem tivesse um script; o produto já tomou essa decisão em
+ * `POST /password-resets`, que responde 204 sempre pelo mesmo motivo.
+ *
+ * O teto é só por IP (ADR-0076 §3): um teto por alvo daria a um terceiro o poder de trancar a
+ * primeira etapa do login de qualquer pessoa, bastando saber o e-mail dela.
  */
 export function createLoginHintRoutes(dependencies: Dependencies) {
   return [
@@ -55,6 +60,7 @@ export function createLoginHintRoutes(dependencies: Dependencies) {
         return { identifier: body.identifier }
       },
       pathname: API_LOGIN_HINTS_PATH,
+      rateLimit: { ...dependencies.rateLimit, scope: 'login-hints-ip', store: 'postgres' },
     }),
   ]
 }

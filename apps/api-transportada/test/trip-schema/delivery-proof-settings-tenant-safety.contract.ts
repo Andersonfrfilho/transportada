@@ -54,6 +54,19 @@ describe('delivery proof settings tenant safety (spec 082)', () => {
     })
   })
 
+  /**
+   * Spec 193 D6: o modo de "quem recebeu" mora na linha do tenant (geral) e na exceção por CNPJ
+   * dentro dele — nunca numa tabela à parte, sem `company_id`.
+   */
+  test('keeps the received-by mode on the tenant rows', () => {
+    for (const table of [companyDeliveryProofSettings, deliveryProofSettingOverrides]) {
+      const receivedBy = getTableConfig(table).columns.find(
+        (column) => column.name === 'received_by',
+      )
+      expect(receivedBy?.default).toBe('optional')
+    }
+  })
+
   /** ADR-0057 §4: instalação nova nasce sem colher documento — `off` é o padrão de fábrica. */
   test('ships receiver document off by factory default', () => {
     const { columns } = getTableConfig(companyDeliveryProofSettings)

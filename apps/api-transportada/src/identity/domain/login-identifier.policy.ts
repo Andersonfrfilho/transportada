@@ -64,6 +64,16 @@ export function parseLoginIdentifier(input: string): ParsedLoginIdentifier | und
   return undefined
 }
 
+/**
+ * Spec 191 RF12: a chave do limitador por alvo é o texto digitado, lido como o login o lê — e-mail
+ * em minúsculas, documento e telefone sem máscara. O que não é nenhum dos três é login comum, e sai
+ * aparado e em minúsculas. Duas grafias da mesma pessoa caem no mesmo balde; quem existe e quem não
+ * existe estouram do mesmo jeito, porque ninguém é resolvido aqui.
+ */
+export function normalizeRateLimitTarget(typed: string): string {
+  return parseLoginIdentifier(typed)?.value ?? typed.trim().toLowerCase()
+}
+
 export type LoginHintResolution = {
   /** O que segue para o provedor. Nunca vazio: sem resolução, é o que a pessoa digitou. */
   readonly loginHint: string

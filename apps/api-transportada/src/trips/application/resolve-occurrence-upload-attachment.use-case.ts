@@ -11,6 +11,8 @@ export type OccurrenceUploadAttachmentPort = {
   /** `null` quando o objeto não existe, não é desta empresa, não é desta viagem, ou não foi confirmado. */
   findConfirmedUpload(input: {
     readonly companyId: string
+    /** Spec 209 RF2: presente, o upload também tem de ser deste motorista. */
+    readonly driverId?: string
     readonly id: string
     readonly tripId: string
   }): Promise<null | { readonly id: string }>
@@ -18,12 +20,14 @@ export type OccurrenceUploadAttachmentPort = {
 
 export async function resolveOccurrenceUploadAttachment(input: {
   readonly companyId: string
+  readonly driverId?: string
   readonly objectId: string
   readonly repository: OccurrenceUploadAttachmentPort
   readonly tripId: string
 }): Promise<{ readonly id: string }> {
   const upload = await input.repository.findConfirmedUpload({
     companyId: input.companyId,
+    ...(input.driverId === undefined ? {} : { driverId: input.driverId }),
     id: input.objectId,
     tripId: input.tripId,
   })

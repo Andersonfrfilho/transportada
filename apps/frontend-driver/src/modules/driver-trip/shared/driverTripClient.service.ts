@@ -15,6 +15,8 @@ import {
   type ProofPunctuality,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
+import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
+import { shouldSendLateRegistration } from './lateRegistration.service'
 import type { AttachmentSendOutcome } from './offlineAttachments.service'
 import { createIdempotencyKey } from './offlineQueue.service'
 
@@ -40,6 +42,8 @@ export const DRIVER_TRIP_ERROR = {
   /** A rede não respondeu. É o caso do subsolo, e ele **não** tira o item da fila. */
   OFFLINE: 'OFFLINE',
   RESPONSE_INVALID: 'RESPONSE_INVALID',
+  /** Spec 179: o storage recusou o `PUT` da foto (URL vencida, assinatura) — resposta, não rede. */
+  UPLOAD_FAILED: 'OCCURRENCE_UPLOAD_FAILED',
 } as const
 
 export class DriverTripRequestError extends Error {
@@ -105,8 +109,13 @@ export type DriverTripClient = Readonly<{
     documentId: string
     file: File
     kind: 'photo' | 'signature'
+    /** Pedido do usuário (25/09): mesma marca do `deliver`/`return`, atrás do mesmo interruptor. */
+    lateRegistration?: boolean
     latitude?: number
     longitude?: number
+    /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
+    receivedBy?: string
+    receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
   }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
@@ -116,6 +125,8 @@ export type DriverTripClient = Readonly<{
    * que abre o portão.
    */
   dispatchTrip: (input: { tripId: string }) => Promise<void>
+  /** `POST /me/trips/current/start-route`: o servidor resolve a viagem, e repetir o toque converge. */
+  startRoute: () => Promise<void>
   /**
    * Spec 079: o que aconteceu **sem** a carga voltar. Não passa pela fila de relatos: ao contrário
    * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
@@ -154,7 +165,17 @@ export type DriverTripClient = Readonly<{
 
 export type LocationConsent = Readonly<{ acceptedAt: string | null }>
 
-function reportPath(report: DriverFieldReport): string {
+type DocumentOccurrenceReport = Extract<DriverFieldReport, { kind: 'documentOccurrence' }>
+type StopOccurrencePhotoReport = Extract<DriverFieldReport, { kind: 'stopOccurrencePhoto' }>
+/** Spec 193 D7: o PATCH `.../proof/receiver` — tem caminho e método próprios, fora do POST comum. */
+type ProofReceiverReport = Extract<DriverFieldReport, { kind: 'proofReceiver' }>
+/** Os relatos que são um `POST` JSON só — os que levam foto ou usam outro método têm caminho próprio. */
+type JsonFieldReport = Exclude<
+  DriverFieldReport,
+  DocumentOccurrenceReport | StopOccurrencePhotoReport | ProofReceiverReport
+>
+
+function reportPath(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
       return `${CURRENT_TRIP_PATH}/stops/${report.stopId}/arrive`
@@ -167,13 +188,36 @@ function reportPath(report: DriverFieldReport): string {
   }
 }
 
-function reportBody(report: DriverFieldReport): string {
+/**
+ * ⚠️ `lateRegistration` só entra quando `LATE_REGISTRATION_FIELD_ENABLED` ligar: a API ainda recusa
+ * a chave (schemas `.strict()`, 400). Exportada para o contrato provar que o corpo sai igual ao de
+ * hoje enquanto a constante estiver desligada.
+ */
+export function reportBody(report: JsonFieldReport): string {
   switch (report.kind) {
     case 'arrive':
-    case 'deliver':
       return JSON.stringify({ location: report.location })
+    case 'deliver':
+      return JSON.stringify({
+        location: report.location,
+        ...(shouldSendLateRegistration({
+          isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
+          lateRegistration: report.lateRegistration,
+        })
+          ? { lateRegistration: true }
+          : {}),
+      })
     case 'return':
-      return JSON.stringify({ location: report.location, reason: report.reason })
+      return JSON.stringify({
+        location: report.location,
+        reason: report.reason,
+        ...(shouldSendLateRegistration({
+          isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
+          lateRegistration: report.lateRegistration,
+        })
+          ? { lateRegistration: true }
+          : {}),
+      })
     case 'occurrence':
       return JSON.stringify({
         description: report.description,
@@ -190,6 +234,8 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       form.set('file', input.file)
       form.set('kind', input.kind)
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
+      if (input.receivedBy !== undefined) form.set('receivedBy', input.receivedBy)
+      if (input.receivedByDetail !== undefined) form.set('receivedByDetail', input.receivedByDetail)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
       if (input.latitude !== undefined) form.set('latitude', String(input.latitude))
@@ -197,6 +243,14 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const accuracyMeters = clampProofAccuracyMeters(input.accuracyMeters)
       if (accuracyMeters !== undefined) form.set('accuracyMeters', String(accuracyMeters))
       if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
+      if (
+        shouldSendLateRegistration({
+          isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
+          lateRegistration: input.lateRegistration,
+        })
+      ) {
+        form.set('lateRegistration', 'true')
+      }
 
       const payload = await request({
         dependencies,
@@ -213,6 +267,9 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/dispatch`,
       })
+    },
+    async startRoute() {
+      await request({ dependencies, method: 'POST', path: `${CURRENT_TRIP_PATH}/start-route` })
     },
     async registerDocumentOccurrence(input) {
       await request({
@@ -291,6 +348,24 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       return toLocationConsent(payload)
     },
     async send(report) {
+      if (report.kind === 'documentOccurrence') {
+        await sendDocumentOccurrence({ dependencies, report })
+        return
+      }
+      if (report.kind === 'stopOccurrencePhoto') {
+        await sendStopOccurrencePhoto({ dependencies, report })
+        return
+      }
+      if (report.kind === 'proofReceiver') {
+        await request({
+          body: JSON.stringify(report.fields),
+          dependencies,
+          idempotencyKey: report.idempotencyKey,
+          method: 'PATCH',
+          path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/proof/receiver`,
+        })
+        return
+      }
       await request({
         body: reportBody(report),
         dependencies,
@@ -300,6 +375,151 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
     },
   }
+}
+
+/**
+ * Spec 179 (RF2/T303): a foto sobe **antes** do registro, no mesmo `send` — a API recusa tipo
+ * `required` sem anexo. Rede caída em qualquer passo é "tente depois": o item fica na fila e o
+ * reenvio pede uma URL nova (a anterior vence em minutos); o registro casa pela chave do toque.
+ */
+async function sendDocumentOccurrence(input: {
+  readonly dependencies: ClientDependencies
+  readonly report: DocumentOccurrenceReport
+}): Promise<void> {
+  const { dependencies, report } = input
+  const attachmentObjectId =
+    report.photo === null
+      ? undefined
+      : await uploadOccurrencePhoto({
+          dependencies,
+          photo: report.photo.blob,
+          uploadsPath: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`,
+        })
+
+  await request({
+    body: JSON.stringify({
+      ...(attachmentObjectId === undefined ? {} : { attachmentObjectId }),
+      note: report.note,
+      occurrenceTypeId: report.occurrenceTypeId,
+      productCode: report.productCode,
+    }),
+    dependencies,
+    idempotencyKey: report.idempotencyKey,
+    method: 'POST',
+    path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrences`,
+  })
+}
+
+/**
+ * Spec 209 (D2): a foto do "Deu problema" sobe pela rota da parada e **reenvia a ocorrência** com a
+ * chave dela e o anexo — a API completa o anexo da ocorrência que já subiu sem ele, uma vez. Nada
+ * aqui passa pelo comprovante de entrega da nota (`/documents/:id/proof`).
+ */
+async function sendStopOccurrencePhoto(input: {
+  readonly dependencies: ClientDependencies
+  readonly report: StopOccurrencePhotoReport
+}): Promise<void> {
+  const { dependencies, report } = input
+  const stopPath = `${CURRENT_TRIP_PATH}/stops/${report.stopId}`
+  const attachmentObjectId = await uploadOccurrencePhoto({
+    dependencies,
+    photo: report.photo.blob,
+    uploadsPath: `${stopPath}/occurrence-uploads`,
+  })
+
+  await request({
+    body: JSON.stringify({
+      attachmentObjectId,
+      description: report.description,
+      documentId: report.documentId,
+      kind: report.occurrenceKind,
+    }),
+    dependencies,
+    idempotencyKey: report.occurrenceKey,
+    method: 'POST',
+    path: `${stopPath}/occurrences`,
+  })
+}
+
+/**
+ * Pede a URL assinada, sobe o arquivo direto ao storage e confirma — devolve o id do objeto. O
+ * caminho é da nota (179) ou da parada (209): o mecanismo é um só.
+ */
+async function uploadOccurrencePhoto(input: {
+  readonly dependencies: ClientDependencies
+  readonly photo: Blob
+  readonly uploadsPath: string
+}): Promise<string> {
+  const { uploadsPath } = input
+  const upload = toOccurrenceUpload(
+    await request({
+      body: JSON.stringify({ mimeType: input.photo.type, sizeBytes: input.photo.size }),
+      dependencies: input.dependencies,
+      method: 'POST',
+      path: uploadsPath,
+    }),
+  )
+
+  let response: Response
+  try {
+    // Sem `authorization`: o token da API não vai ao storage — a assinatura da URL é a credencial.
+    response = await input.dependencies.fetch(
+      new Request(upload.uploadUrl, {
+        body: input.photo,
+        cache: 'no-store',
+        headers: { 'content-type': input.photo.type },
+        method: 'PUT',
+      }),
+    )
+  } catch {
+    throw new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.OFFLINE, isOffline: true })
+  }
+  if (!response.ok) {
+    throw new DriverTripRequestError({
+      code: DRIVER_TRIP_ERROR.UPLOAD_FAILED,
+      isOffline: false,
+      status: response.status,
+    })
+  }
+
+  const confirmed = await request({
+    dependencies: input.dependencies,
+    method: 'POST',
+    path: `${uploadsPath}/${upload.id}/confirm`,
+  })
+  return readDataId(confirmed)
+}
+
+function readData(payload: unknown): Record<string, unknown> {
+  const data =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { readonly data?: unknown }).data
+      : undefined
+  if (typeof data !== 'object' || data === null) throw invalidResponse()
+  return data as Record<string, unknown>
+}
+
+function readDataId(payload: unknown): string {
+  const id = readData(payload).id
+  if (typeof id !== 'string') throw invalidResponse()
+  return id
+}
+
+function toOccurrenceUpload(payload: unknown): Readonly<{ id: string; uploadUrl: string }> {
+  const record = readData(payload)
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.uploadUrl !== 'string' ||
+    !isSafeDownloadUrl(record.uploadUrl)
+  ) {
+    throw invalidResponse()
+  }
+  return { id: record.id, uploadUrl: record.uploadUrl }
+}
+
+/** Resposta que não se deixa ler é recusa, não rede: repetir não a conserta. */
+function invalidResponse(): DriverTripRequestError {
+  return new DriverTripRequestError({ code: DRIVER_TRIP_ERROR.RESPONSE_INVALID, isOffline: false })
 }
 
 export function getDriverTripClient(): DriverTripClient {
@@ -435,7 +655,7 @@ async function request(
     dependencies: ClientDependencies
     form?: FormData
     idempotencyKey?: string
-    method: 'GET' | 'POST' | 'PUT'
+    method: 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
     signal?: AbortSignal
   }>,
@@ -493,8 +713,18 @@ function readErrorCode(payload: unknown): string {
   return typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED'
 }
 
-function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
+export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
   if (typeof value !== 'object' || value === null) return false
-  const candidate = value as { readonly id?: unknown; readonly name?: unknown }
-  return typeof candidate.id === 'string' && typeof candidate.name === 'string'
+  const candidate = value as {
+    readonly attachmentMode?: unknown
+    readonly id?: unknown
+    readonly name?: unknown
+  }
+  const hasKnownMode =
+    candidate.attachmentMode === undefined ||
+    (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(candidate.attachmentMode)
+  return typeof candidate.id === 'string' && typeof candidate.name === 'string' && hasKnownMode
 }
+
+/** ⚠️ Cópia por valor de `DELIVERY_PROOF_FIELD_MODES` — o vocabulário de `attachmentMode` (spec 179 RF1). */
+const PROOF_FIELD_REQUIREMENTS = ['off', 'optional', 'required'] as const

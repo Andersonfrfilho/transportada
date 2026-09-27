@@ -45,14 +45,20 @@ export type RemoveCompanyUserMembershipUseCase = {
 }
 
 /**
- * Desabilita no provedor antes de remover o vínculo: falha no meio deixa sem acesso, não com.
+ * Remove o vínculo **antes** de tocar no provedor externo, ao contrário de
+ * `change-company-user-status.use-case.ts` (spec 191 T2.2, medição do executor anterior): o
+ * `DELETE` já vive numa transação atômica própria (`removeMembership`, que também apaga o
+ * histórico de convite e de recuperação) — ou ela toda vale, ou nada dela vale. Desabilitar no
+ * provedor e desvincular o WhatsApp **antes** dessa transação deixava, medido, a conta desabilitada
+ * no Keycloak com o vínculo intacto no banco sempre que o `DELETE` batia no `23503` das FKs
+ * `RESTRICT` de `user_invitations`/`password_reset_requests` — efeito externo aplicado, escrita
+ * interna revertida, sem como desfazer o primeiro. Fazer o banco primeiro elimina esse meio-termo: o
+ * efeito externo só é tentado depois que a remoção já é fato consumado, nunca antes.
  *
  * Spec 144 T018: remover a última membership ativa também desfaz o vínculo de WhatsApp, com trilha
- * — o mesmo remédio que a T005b (M3) já aplicou à suspensão. Antes desta task, suspender desfazia o
- * vínculo e **remover não**, o que deixava um número verificado apontando para uma conta sem vínculo
- * nenhum na instalação. O vínculo cai **antes** de desabilitar no provedor, pela mesma razão de
- * `change-company-user-status.use-case.ts`: falha em qualquer passo seguinte deixa o usuário sem
- * número, nunca removido com o número ainda calado.
+ * — o mesmo remédio que a T005b (M3) já aplicou à suspensão. O `subject` do Keycloak é resolvido
+ * antes do `DELETE` (leitura pura de `external_identities`, que a remoção da membership não afeta):
+ * assim, uma identidade sem `external_identities` falha **antes** de mexer no banco, e não depois.
  */
 export function createRemoveCompanyUserMembershipUseCase({
   identityGateway,
@@ -72,18 +78,28 @@ export function createRemoveCompanyUserMembershipUseCase({
       assertCompanyKeepsAdministrator({ administratorUserIds, nextRoles: [], targetUserId: userId })
 
       const activeMembershipCompanyIds = await repository.listActiveMembershipCompanyIds({ userId })
-      if (
-        shouldDisableIdentity({ activeMembershipCompanyIds, leavingCompanyId: context.companyId })
-      ) {
+      const isLeavingLastCompany = shouldDisableIdentity({
+        activeMembershipCompanyIds,
+        leavingCompanyId: context.companyId,
+      })
+      const subject = isLeavingLastCompany
+        ? await resolveIdentitySubject({ repository, userId })
+        : undefined
+
+      await repository.removeMembership({
+        actorUserId: context.userId,
+        companyId: context.companyId,
+        correlationId,
+        userId,
+      })
+
+      if (subject !== undefined) {
         await whatsappPhones.unbindWithAudit({
           audit: { actorUserId: context.userId, companyId: context.companyId, correlationId },
           userId,
         })
-        const subject = await resolveIdentitySubject({ repository, userId })
         await identityGateway.setEnabled({ enabled: false, userId: subject })
       }
-
-      await repository.removeMembership({ companyId: context.companyId, userId })
     },
   }
 }

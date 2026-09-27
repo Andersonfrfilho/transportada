@@ -5,7 +5,10 @@ import { createHmac } from 'node:crypto'
 
 import { describe, expect, test } from 'bun:test'
 
-import { createProcessInboundEmailWebhookUseCase } from '../../src/contractor-mail/application/process-inbound-email-webhook.use-case.js'
+import {
+  createProcessInboundEmailWebhookUseCase,
+  type OccurrenceMailStatusPort,
+} from '../../src/contractor-mail/application/process-inbound-email-webhook.use-case.js'
 import type {
   ContractorMailRepositoryPort,
   ContractorMailSettingsRecord,
@@ -56,6 +59,9 @@ function buildRepository(input: { readonly settings?: ContractorMailSettingsReco
     },
     async listContractorContacts() {
       return []
+    },
+    async findContractorContact() {
+      return undefined
     },
     async updateContractorContact() {
       throw new Error('not used in this contract')
@@ -135,7 +141,7 @@ describe('process inbound email webhook use case (spec 143, T010)', () => {
   })
 
   test('ignores a well-signed event of a type nobody cares about, without recording anything', async () => {
-    const body = JSON.stringify({ data: { email_id: 'evt_ignored' }, type: 'email.bounced' })
+    const body = JSON.stringify({ data: { email_id: 'evt_ignored' }, type: 'email.clicked' })
     const { recordedEvents, repository } = buildRepository({ settings: SETTINGS })
     const useCase = createProcessInboundEmailWebhookUseCase({
       now: () => NOW,
@@ -297,5 +303,79 @@ describe('process inbound email webhook use case (spec 143, T010)', () => {
 
     expect(result).toEqual({ outcome: 'unauthorized' })
     expect(findSettingsCalls).toEqual([])
+  })
+})
+
+/**
+ * Spec 183 T405 (RF14): o status que o Resend dá depois do envio chega pelo mesmo webhook assinado e
+ * vai para a mensagem da conversa da ocorrência, pela política — nunca para o outbox de recebidas.
+ */
+describe('status do Resend no webhook (spec 183 T405)', () => {
+  type AppliedStatus = Parameters<OccurrenceMailStatusPort['apply']>[0]
+
+  function buildUseCase(input: { readonly withStatusPort: boolean }) {
+    const applied: AppliedStatus[] = []
+    const { recordedEvents, repository } = buildRepository({ settings: SETTINGS })
+    const useCase = createProcessInboundEmailWebhookUseCase({
+      now: () => NOW,
+      repository,
+      secretService,
+      ...(input.withStatusPort
+        ? {
+            occurrenceMailStatus: {
+              apply: async (status: AppliedStatus) => void applied.push(status),
+            },
+          }
+        : {}),
+    })
+    const execute = (type: string) => {
+      const body = JSON.stringify({ data: { email_id: 'em_status' }, type })
+      return useCase.execute({
+        correlationId: 'correlation-status',
+        rawBody: body,
+        svixId: SVIX_ID,
+        svixSignature: sign(body),
+        svixTimestamp: SVIX_TIMESTAMP,
+        webhookId: WEBHOOK_ID,
+      })
+    }
+    return { applied, execute, recordedEvents }
+  }
+
+  test('entregue, devolvido, enviado e falho viram o status da mensagem, na empresa do webhook', async () => {
+    const { applied, execute, recordedEvents } = buildUseCase({ withStatusPort: true })
+
+    for (const type of ['email.delivered', 'email.bounced', 'email.sent', 'email.failed']) {
+      expect(await execute(type)).toEqual({ outcome: 'accepted' })
+    }
+
+    expect(applied).toEqual([
+      { at: NOW, companyId: COMPANY_ID, incoming: 'delivered', providerEmailId: 'em_status' },
+      { at: NOW, companyId: COMPANY_ID, incoming: 'bounced', providerEmailId: 'em_status' },
+      { at: NOW, companyId: COMPANY_ID, incoming: 'sent', providerEmailId: 'em_status' },
+      { at: NOW, companyId: COMPANY_ID, incoming: 'failed', providerEmailId: 'em_status' },
+    ])
+    expect(recordedEvents).toEqual([])
+  })
+
+  test('aberto, clicado, atrasado e reclamação não são status da conversa (D7: e-mail não tem "lida")', async () => {
+    const { applied, execute } = buildUseCase({ withStatusPort: true })
+
+    for (const type of [
+      'email.opened',
+      'email.clicked',
+      'email.delivery_delayed',
+      'email.complained',
+    ]) {
+      expect(await execute(type)).toEqual({ outcome: 'ignored' })
+    }
+    expect(applied).toEqual([])
+  })
+
+  test('sem a porta de status, o evento de status segue ignorado como antes', async () => {
+    const { applied, execute } = buildUseCase({ withStatusPort: false })
+
+    expect(await execute('email.delivered')).toEqual({ outcome: 'ignored' })
+    expect(applied).toEqual([])
   })
 })
