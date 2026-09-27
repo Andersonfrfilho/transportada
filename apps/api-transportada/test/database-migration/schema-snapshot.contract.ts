@@ -8,17 +8,14 @@ import { describe, expect, test } from 'bun:test'
 import { generateDrizzleJson, generateMigration } from 'drizzle-kit/api-postgres'
 
 import * as databaseSchema from '../../src/database/database.schema.js'
-import { listMigrationDirectories, migrationsDirectory } from './support.js'
+import {
+  FIRST_DIRECTORY_REQUIRING_SNAPSHOT,
+  listMigrationDirectories,
+  migrationsDirectory,
+  SNAPSHOT_FILE,
+} from './support.js'
 
 type PostgresSnapshot = Parameters<typeof generateMigration>[0]
-
-/**
- * Daqui em diante toda pasta leva snapshot.json: as dez anteriores a esta foram escritas à mão sem
- * ele, e o db:generate passou a recriar migrations já aplicadas. As mais antigas sem snapshot ficam
- * como estão — o snapshot de 20260907182129_toll_booths já as absorveu.
- */
-const FIRST_DIRECTORY_REQUIRING_SNAPSHOT = '20260910120000_vehicle_reference_every_type'
-const SNAPSHOT_FILE = 'snapshot.json'
 
 async function readSnapshot(directory: string): Promise<PostgresSnapshot | undefined> {
   const path = join(migrationsDirectory.pathname, directory, SNAPSHOT_FILE)
