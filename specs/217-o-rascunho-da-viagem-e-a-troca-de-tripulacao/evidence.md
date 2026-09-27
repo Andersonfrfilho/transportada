@@ -105,3 +105,26 @@ descreve:
 ```
 
 Fonte restaurada em seguida (`git status` só com o arquivo de teste modificado).
+
+## T104 — Não precisou de código
+
+A T104 previa fazer `updateCrew` "parar de gravar `transition.nextStatus` cego". **Isso já havia
+acontecido na T102**: `drizzle-trip.repository.ts:311-316` chama `checkTripTransition` com
+`crew: { hasDriver: input.crew.length > 0, hasVehicle: input.vehicleId !== null }` — o par **resolvido**,
+já sob o `SELECT … FOR NO KEY UPDATE` — e a linha 342 grava
+`transition.outcome === 'applied' ? transition.nextStatus : tripRow.status`. Com `checkDefineCrew`
+derivando o desfecho de `resolveCrewStatus`, esse `nextStatus` deixou de ser cego: ele **é** o status
+do par.
+
+Nenhuma mudança em `trip.use-case.ts` nem no repositório foi feita nesta task, deliberadamente. A
+prova de que a ausência de código é a resposta certa, e não omissão, é a mutação registrada na T103:
+reintroduzido o par cego, três dos quatro casos novos falham na hora.
+
+```
+$ bun run typecheck
+$ bunx tsc --noEmit        # sem saída: limpo
+
+$ bun --env-file=../../.env.test test test/trip-domain.contract.test.ts \
+    test/trip-http.contract.test.ts test/trip-application.contract.test.ts --timeout 120000
+ 588 pass / 0 fail / 2055 expect() calls
+```
