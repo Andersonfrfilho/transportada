@@ -244,11 +244,40 @@ function checkDocumentOrigin(input: {
     : { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.documentNotLoaded }
 }
 
-export type CheckTripTransitionParams = {
-  readonly action: TripAction
-  readonly hasRoute: boolean
-  readonly tripStatus: TripStatus
+/**
+ * Spec 217 D1: a composição da tripulação que **resulta** da escrita, não a que está no banco. É o
+ * par que decide o status, e por isso ela chega até aqui em vez de ser deduzida do status anterior.
+ */
+export type TripCrewComposition = {
+  readonly hasDriver: boolean
+  readonly hasVehicle: boolean
 }
+
+/**
+ * Spec 217 D1: par completo é `draft`, qualquer metade é `awaiting_crew`. Uma função, duas leitoras
+ * (a criação e a troca), nenhuma chance de as duas discordarem.
+ */
+export function resolveCrewStatus(crew: TripCrewComposition): 'awaiting_crew' | 'draft' {
+  return crew.hasDriver && crew.hasVehicle ? 'draft' : 'awaiting_crew'
+}
+
+/**
+ * União discriminada por `action` de propósito (spec 217 D1): `defineCrew` **exige** a composição
+ * resultante. Perguntar "posso trocar a tripulação?" sem dizer qual tripulação resulta era
+ * justamente como o status passava a mentir.
+ */
+export type CheckTripTransitionParams =
+  | {
+      readonly action: Exclude<TripAction, typeof TRIP_ACTION.defineCrew>
+      readonly hasRoute: boolean
+      readonly tripStatus: TripStatus
+    }
+  | {
+      readonly action: typeof TRIP_ACTION.defineCrew
+      readonly crew: TripCrewComposition
+      readonly hasRoute: boolean
+      readonly tripStatus: TripStatus
+    }
 
 /**
  * As transições manuais da viagem (ADR-0043 §1). As demais são derivadas — ver
@@ -257,13 +286,12 @@ export type CheckTripTransitionParams = {
  * (`dispatch-trip.use-case.ts`) e o gatilho automático (`try-auto-dispatch-trip.use-case.ts`), que
  * roda sozinho quando a carga fecha e nunca usa `force`.
  */
-export function checkTripTransition({
-  action,
-  hasRoute,
-  tripStatus,
-}: CheckTripTransitionParams): TripTransition<TripStatus> {
+export function checkTripTransition(
+  params: CheckTripTransitionParams,
+): TripTransition<TripStatus> {
+  const { action, hasRoute, tripStatus } = params
   if (action === TRIP_ACTION.cancel) return checkCancel(tripStatus)
-  if (action === TRIP_ACTION.defineCrew) return checkDefineCrew(tripStatus)
+  if (action === TRIP_ACTION.defineCrew) return checkDefineCrew(tripStatus, params.crew)
   // Spec 216: sem tripulação, só `defineCrew` e `cancel` (já resolvidos acima) têm o que fazer.
   if (tripStatus === 'awaiting_crew') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewNotDefined }
@@ -285,17 +313,27 @@ export function checkTripTransition({
  * eixo do veículo antigo (`freezeTripPlannedRoute`), e só um replanejamento de rota o corrige — CA
  * fora do escopo desta ação.
  */
-function checkDefineCrew(tripStatus: TripStatus): TripTransition<TripStatus> {
+function checkDefineCrew(
+  tripStatus: TripStatus,
+  crew: TripCrewComposition,
+): TripTransition<TripStatus> {
   if (tripStatus === 'cancelled') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled }
   }
   if (tripStatus === 'completed') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted }
   }
-  if (tripStatus === 'awaiting_crew') return { outcome: 'applied', nextStatus: 'draft' }
-  if (tripStatus === 'draft') return { outcome: 'unchanged' }
+  if (tripStatus !== 'awaiting_crew' && tripStatus !== 'draft') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined }
+  }
 
-  return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined }
+  /**
+   * Spec 217 D1: o desfecho sai do par, nos dois sentidos — definir metade da tripulação não promove
+   * (`unchanged`, sem evento de status à toa) e desfazer a tripulação de uma `draft` regride.
+   */
+  const nextStatus = resolveCrewStatus(crew)
+
+  return nextStatus === tripStatus ? { outcome: 'unchanged' } : { outcome: 'applied', nextStatus }
 }
 
 /**

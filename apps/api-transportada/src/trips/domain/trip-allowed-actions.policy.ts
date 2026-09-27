@@ -23,6 +23,9 @@ import {
   type TripDocumentAction,
 } from './trip-state.policy.js'
 
+/** Spec 217 D1: as ações que cabem numa lista — `defineCrew` precisa do par e fica de fora. */
+type OfferableTripAction = Exclude<TripAction, typeof TRIP_ACTION.defineCrew>
+
 export const STOP_ALLOWED_ACTION = { arrive: 'arrive', occurrence: 'occurrence' } as const
 
 export type StopAllowedAction = (typeof STOP_ALLOWED_ACTION)[keyof typeof STOP_ALLOWED_ACTION]
@@ -132,11 +135,18 @@ function resolveTripLevelActions(input: {
   readonly hasRoute: boolean
   readonly trip: AllowedActionsTripSnapshot
 }): readonly TripAction[] {
-  const managed: readonly TripAction[] = input.capabilities.canManage
+  /**
+   * Spec 217 D1: o tipo exclui `defineCrew` porque a pergunta dele exige a composição da tripulação
+   * resultante, que uma lista de ações não tem. `planRoute` já carrega a regra de tripulação de
+   * graça — só é aplicável em `draft`, e `draft` significa par completo.
+   */
+  const managed: readonly OfferableTripAction[] = input.capabilities.canManage
     ? [TRIP_ACTION.planRoute, TRIP_ACTION.dispatch, TRIP_ACTION.cancel]
     : []
   /** ADR-0074 §5: "Conferir carga" some da lista — o carregamento já é a conferência. */
-  const field: readonly TripAction[] = canReportInField(input) ? [TRIP_ACTION.startRoute] : []
+  const field: readonly OfferableTripAction[] = canReportInField(input)
+    ? [TRIP_ACTION.startRoute]
+    : []
 
   return [...managed, ...field].filter(
     (action) =>
