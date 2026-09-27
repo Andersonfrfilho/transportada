@@ -438,15 +438,18 @@ a {
   object-fit: contain;
 }
 
-/* Nome de instalação longo trunca em vez de quebrar linha e invadir o botão ao lado. */
+/* Nome de instalação longo cabe em até três linhas: numa linha só, some quase inteiro. */
 .sidebar-brand strong {
+  display: -webkit-box;
   overflow: hidden;
   min-width: 0;
   color: var(--color-fog);
-  font-size: 1.35rem;
+  font-size: 1.05rem;
+  line-height: 1.2;
   letter-spacing: -0.02em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 /* No trilho recolhido o logo é o que sobra da marca: ele fica, e o nome sai. */
@@ -464,8 +467,10 @@ a {
   font-size: 0.8rem;
 }
 
+/* A navegação ocupa a altura toda da gaveta: sem `start`, as seções esticam e o menu rareia. */
 .sidebar-navigation {
   display: grid;
+  align-content: start;
   gap: var(--space-2);
   padding-block: var(--space-2);
 }
