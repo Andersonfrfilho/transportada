@@ -261,11 +261,16 @@ jobs:
     steps:
       - name: Conferir as quatro frentes
         run: |
-          results='${{ join(needs.*.result, " ") }}'
-          for result in $results; do
+          # `needs.*` não existe na linguagem de expressão do GitHub Actions — não é jq. Cada
+          # dependência entra por nome, como o `quality` já faz para a sua única.
+          for result in \
+            "${{ needs.integration-migration.result }}" \
+            "${{ needs.integration-api.result }}" \
+            "${{ needs.integration-worker.result }}" \
+            "${{ needs.integration-smoke.result }}"; do
             case "$result" in
               success|skipped) ;;
               *) echo "::error::uma frente de integração terminou em $result"; exit 1 ;;
             esac
           done
-          echo "integration: ${{ join(needs.*.result, ', ') }}"
+          echo "integration: migration=${{ needs.integration-migration.result }} api=${{ needs.integration-api.result }} worker=${{ needs.integration-worker.result }} smoke=${{ needs.integration-smoke.result }}"
