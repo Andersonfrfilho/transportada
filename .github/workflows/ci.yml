@@ -41,6 +41,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      # Chaveado no lockfile: o `bun install --frozen-lockfile` só baixa o que mudou desde o cache,
+      # em vez de buscar tudo de novo em cada um dos ~13 jobs que instalam nesta mesma suíte.
+      - name: Cache de dependências do Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
       # O lockfile é da raiz e o workspace é um só: instalar tudo é o que o `--frozen-lockfile`
       # sabe fazer, e é o que o build da app espera encontrar em `node_modules`.
       - run: bun install --frozen-lockfile
@@ -74,6 +81,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      - name: Cache de dependências do Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
       - run: bun install --frozen-lockfile
       # Prettier varre o repositório inteiro, incluindo `docs/`, `specs/` e os próprios workflows:
       # não é de app nenhuma, e recortá-lo por app deixaria markdown e YAML sem formatação conferida.
@@ -88,13 +100,98 @@ jobs:
             *) echo "::error::quality-app terminou em $result"; exit 1 ;;
           esac
 
-  # Sem `needs: quality`. Os dois jobs partem do mesmo commit e não trocam artefato, então rodam
-  # lado a lado: o gate só passa se ambos passarem, e o tempo de parede vira o do mais lento.
-  integration:
+  # Sem `needs: quality`. Roda ao lado da matriz de qualidade, e por dentro roda em 4 frentes que
+  # não trocam artefato entre si — o gate só passa se todas passarem, e o tempo de parede vira o da
+  # mais lenta, não a soma.
+  #
+  # Medido em 2026-09-27: com os quatro num job só, o passo único de integração da API sozinho já
+  # levava 22-23 min (717 testes, 135 arquivos) — a suíte cresceu (spec 183, 211...) e passou a
+  # bater no teto de 30 quatro rodadas seguidas, sempre no mesmo lugar, sem nenhum teste ou passo
+  # travado (conferido pelos timestamps do log: maior intervalo entre linhas foi de 4.5s). Dividir
+  # por sharding é o item que o comentário antigo já previa ("se passar de 30, é hora de dividir").
+  #
+  # `worker-integration` já sobe sua própria dupla postgres+rabbitmq e migra seu próprio banco
+  # (`provision-integration-database.ts`) — não depende do banco compartilhado nem do
+  # `migration-test`, por isso é job à parte e não um shard a mais.
+  integration-migration:
     runs-on: ubuntu-latest
-    # Medido em 2026-09-22: 13 → 16 → 18 min nos últimos runs verdes, e dois cortes exatos em 20 min
-    # passando teste. O teto acompanha a suíte; se passar de 30, é hora de dividir o job.
-    timeout-minutes: 30
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: cp .env.example .env
+      - name: Cache de dependências do Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+      - run: bun install --frozen-lockfile
+      - run: make migration-test
+
+  # `test:integration` da API usa o banco compartilhado (`DATABASE_URL` do `.env`), então cada shard
+  # sobe o próprio Postgres e só aplica as migrations pendentes (`make migrate`) — não a validação de
+  # rollback inteira do `migration-test`, que já roda uma vez no job acima e não precisa se repetir
+  # 4 vezes. `--shard=N/4` é suporte nativo do `bun test`, que reparte por arquivo.
+  integration-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reservar as portas da stack local
+        run: |
+          ports=51025,53000-53003,53100-53102,53110-53112,53200,54000-54999,55432,55672-55673,58025,58080,59000-59002
+          sudo sysctl -w "net.ipv4.ip_local_reserved_ports=$ports"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: cp .env.example .env
+      - name: Cache de dependências do Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+      - run: bun install --frozen-lockfile
+      - run: make up SERVICES="postgres rabbitmq keycloak mailpit"
+      - run: make migrate
+      - name: API integration (shard ${{ matrix.shard }}/4)
+        run: |
+          set -a
+          . ./.env
+          set +a
+          bun run --cwd apps/api-transportada test:integration --shard=${{ matrix.shard }}/4
+      - if: always()
+        run: make down
+
+  integration-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: cp .env.example .env
+      - name: Cache de dependências do Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+      - run: bun install --frozen-lockfile
+      - run: make worker-integration
+      - if: always()
+        run: make down
+
+  # O único dos quatro que ainda depende de `identity-bootstrap` (realm do Keycloak, seed local) e
+  # do Playwright — os outros três nunca abrem um navegador nem tocam o Keycloak de verdade.
+  integration-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       # O runner do GitHub sorteia porta de origem em 32768-60999 e não reserva nenhuma
@@ -106,27 +203,23 @@ jobs:
       # Reservá-las é dizer ao kernel para nunca sorteá-las; nenhuma delas é de saída.
       - name: Reservar as portas da stack local
         run: |
-          ports=51025,53000-53002,53100-53102,53112,53200,54000-54999,55432,55672-55673,58025,58080,59000-59002
+          # 53003 é a landing do `make dev`, e 53110-53111 são os previews que o Playwright sobe
+          # (painel e landing). Ficaram de fora quando a 53112 do motorista entrou, e porta
+          # publicada fora da reserva é porta que o kernel pode sortear como origem.
+          ports=51025,53000-53003,53100-53102,53110-53112,53200,54000-54999,55432,55672-55673,58025,58080,59000-59002
           sudo sysctl -w "net.ipv4.ip_local_reserved_ports=$ports"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
       - run: cp .env.example .env
+      - name: Cache de dependências do Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
       - run: bun install --frozen-lockfile
       - name: Install Playwright Chromium
         run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
-      - run: make migration-test
-      # Sem MinIO: a MinIO tirou as imagens públicas (2026-09-24), e os dois testes de integração que
-      # usavam storage passaram ao dublê em memória (`test/fixtures/in-memory-object-storage.fixture.ts`).
-      # A lista explícita é o que tira o MinIO — `make up` sem `SERVICES` sobe todos.
-      - run: make up SERVICES="postgres rabbitmq keycloak mailpit"
-      - name: API and worker integrations
-        run: |
-          set -a
-          . ./.env
-          set +a
-          bun run --cwd apps/api-transportada test:integration
-          make worker-integration
       - run: make identity-bootstrap
       - name: Local authenticated smoke
         run: |
@@ -153,6 +246,31 @@ jobs:
             exit 1
           fi
 
-          PLAYWRIGHT_REUSE_EXISTING_SERVER=true make smoke
+          make smoke
       - if: always()
         run: make down
+
+  # É **este** nome que a proteção da main/staging exige como `gate / integration` — mesmo padrão
+  # do agregador `quality` acima: sem ele, `fail-fast: false` na matriz de shards deixaria uma
+  # falha isolada nunca reprovar o gate.
+  integration:
+    if: always()
+    needs: [integration-migration, integration-api, integration-worker, integration-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Conferir as quatro frentes
+        run: |
+          # `needs.*` não existe na linguagem de expressão do GitHub Actions — não é jq. Cada
+          # dependência entra por nome, como o `quality` já faz para a sua única.
+          for result in \
+            "${{ needs.integration-migration.result }}" \
+            "${{ needs.integration-api.result }}" \
+            "${{ needs.integration-worker.result }}" \
+            "${{ needs.integration-smoke.result }}"; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "::error::uma frente de integração terminou em $result"; exit 1 ;;
+            esac
+          done
+          echo "integration: migration=${{ needs.integration-migration.result }} api=${{ needs.integration-api.result }} worker=${{ needs.integration-worker.result }} smoke=${{ needs.integration-smoke.result }}"

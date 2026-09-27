@@ -40,17 +40,30 @@ export default defineConfig({
     trace: 'off',
     video: 'off',
   },
+  /**
+   * ⚠️ **`url:`, nunca `port:`.** `port:` dá por pronto o primeiro socket TCP que aceitar conexão
+   * na porta — e o runner sorteia porta de origem em 32768-60999, a mesma faixa em que publicamos.
+   * Medido no gate de 2026-09-26: a prontidão da 53110 passou 83s antes de o `vite preview`
+   * iniciar, o Playwright abriu os testes sem servidor e os 31 primeiros morreram em
+   * `ERR_CONNECTION_REFUSED`. `url:` exige resposta HTTP 2xx/3xx, que só a app dá.
+   *
+   * ⚠️ **A porta vai por `env`, não por segunda flag.** O script `preview` já injeta
+   * `--port ${FRONTEND_PORT:-5173}` lido do `.env`, então passar `--port` aqui produzia
+   * `--port 53000 --port 53110` e deixava a porta servida na mão da ordem dos argumentos.
+   * `--strictPort` fecha o resto: porta ocupada mata o preview em vez de servir na seguinte.
+   */
   webServer: [
     {
-      command: `bun run build && bun run preview -- --port ${FRONTEND_PORT}`,
-      port: FRONTEND_PORT,
+      command: 'bun run build && bun run preview -- --strictPort',
+      env: { FRONTEND_PORT: String(FRONTEND_PORT) },
+      url: `http://localhost:${FRONTEND_PORT}/`,
       reuseExistingServer: REUSE_EXISTING_FRONTEND_SERVER,
       timeout: WEB_SERVER_TIMEOUT_MS,
     },
     {
       command: 'bun run build && bun run start',
       cwd: '../api-transportada',
-      port: API_PORT,
+      url: `http://localhost:${API_PORT}/health/live`,
       reuseExistingServer: REUSE_EXISTING_API_SERVER,
       timeout: WEB_SERVER_TIMEOUT_MS,
     },
