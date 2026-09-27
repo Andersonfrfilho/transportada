@@ -14,3 +14,5 @@ apps/*/drizzle/*/snapshot.json
 apps/*/drizzle*/meta
 # Artefato do build próprio do OpenCV (ADR-0065): conferido por sha256, formatar o quebraria
 apps/frontend-transportada/vendor/opencv
+# Runtime do tesseract.js servido como asset: bundle minificado de terceiro, formatar o quebraria
+apps/frontend-transportada/public/canhoto-ocr
