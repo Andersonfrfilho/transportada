@@ -61,6 +61,10 @@ que a coordenada da parada só existe em `geocoded_addresses` pela `address_key`
 `snapshot.json` desta migration deixou de encadear. Ela foi regerada como
 `20260926214201_trip_stops_forget_dead_coordinates` a partir da base nova (`prevIds` = o `id` da
 `trip_awaiting_crew_status`), com o mesmo SQL sem efeito e o rollback apontando para o nome novo.
+(As duas migrations citadas acima saíram depois, na desduplicação da spec 216 de 27/09: o lugar delas
+na linha passou a ser `20260926212434_trip_vehicle_optional`, que herdou o mesmo `id` de snapshot —
+`304e9e4d` — então o `prevIds` desta migration segue válido sem alteração. Ver
+`specs/216-a-viagem-pode-esperar-por-motorista-e-veiculo/evidence.md`, "Desduplicação da migration".)
 Depois disso: `db:generate` = `no_changes`, contratos 7934 pass / 0 fail, `make migration-test`
 112 pass / 0 fail.
 

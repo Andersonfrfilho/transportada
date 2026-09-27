@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "bb3cc372-cba9-4ab3-bc1d-de0c22609363",
+  "id": "304e9e4d-5f05-45a1-9bdd-848dbdbc9718",
   "prevIds": [
     "ec822dfa-c9b8-4a58-922d-acf4372d8985"
   ],
@@ -57432,14 +57432,14 @@
       "table": "trip_status_events"
     },
     {
-      "value": "\"from_status\" in ('draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'on_delivery_route', 'completed', 'cancelled')",
+      "value": "\"from_status\" in ('awaiting_crew', 'draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'on_delivery_route', 'completed', 'cancelled')",
       "name": "trip_status_events_from_status_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trip_status_events"
     },
     {
-      "value": "\"to_status\" in ('draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'on_delivery_route', 'completed', 'cancelled')",
+      "value": "\"to_status\" in ('awaiting_crew', 'draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'on_delivery_route', 'completed', 'cancelled')",
       "name": "trip_status_events_to_status_check",
       "entityType": "checks",
       "schema": "public",
@@ -57614,7 +57614,7 @@
       "table": "trips"
     },
     {
-      "value": "\"status\" in ('draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'on_delivery_route', 'completed', 'cancelled')",
+      "value": "\"status\" in ('awaiting_crew', 'draft', 'route_planned', 'separating', 'loading', 'dispatched', 'in_transit', 'on_delivery_route', 'completed', 'cancelled')",
       "name": "trips_status_check",
       "entityType": "checks",
       "schema": "public",
