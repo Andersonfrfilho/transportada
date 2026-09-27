@@ -191,7 +191,9 @@ jobs:
   # do Playwright — os outros três nunca abrem um navegador nem tocam o Keycloak de verdade.
   integration-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Folga de mais de 10 min sobre o teto do passo de apt (5 min) — contrato em
+    # test/deploy/integration-gate.contract.ts.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       # O runner do GitHub sorteia porta de origem em 32768-60999 e não reserva nenhuma
