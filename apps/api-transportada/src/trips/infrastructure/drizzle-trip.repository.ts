@@ -307,8 +307,10 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .limit(1)
       if (tripRow === undefined) return null
 
+      /** Spec 217 D1: sob o lock, o par resolvido é quem decide o status gravado abaixo. */
       const transition = checkTripTransition({
         action: TRIP_ACTION.defineCrew,
+        crew: { hasDriver: input.crew.length > 0, hasVehicle: input.vehicleId !== null },
         hasRoute: false,
         tripStatus: tripRow.status,
       })

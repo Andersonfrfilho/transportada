@@ -243,8 +243,15 @@ export function createTripUseCase(dependencies: {
       const companyId = context.companyId
       const trip = await findTripOrThrow({ companyId, repository, tripId })
 
+      /**
+       * Spec 217 D1: a checagem prévia usa o par **pedido**, não o resolvido — resolver antes só
+       * para checar mudaria a precedência do erro (veículo inexistente passaria à frente de viagem
+       * em separação). Quem decide de verdade é `repository.updateCrew`, sob lock, com os valores já
+       * resolvidos.
+       */
       const transition = checkTripTransition({
         action: TRIP_ACTION.defineCrew,
+        crew: { hasDriver: driverIds.length > 0, hasVehicle: vehicleId !== undefined },
         hasRoute: false,
         tripStatus: trip.status,
       })
