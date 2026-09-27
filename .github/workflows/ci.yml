@@ -221,8 +221,9 @@ jobs:
       # `--with-deps` juntava duas coisas de risco muito diferente: baixar o Chromium do CDN do
       # Playwright, que é rápido e cacheável, e virar root para `apt-get update`, que fala com
       # espelho de distribuição. Em 19/08/2026 o espelho da Azure não respondeu (`Ign:` repetido), o
-      # apt caiu no `archive.ubuntu.com` e ficou 19 minutos parado. Separados, o binário vem do cache
-      # e só o apt precisa de teto (portado de main, #43).
+      # apt caiu no `archive.ubuntu.com` e ficou 19 minutos parado — duas execuções seguidas comeram
+      # o teto de 20 do job com zero teste rodado. Separados, o binário vem do cache e só o apt
+      # precisa de teto (portado de main, #43 — aqui só o smoke ainda usa Playwright).
       - name: Cache do Chromium do Playwright
         uses: actions/cache@v4
         with:
@@ -231,7 +232,7 @@ jobs:
       - name: Install Playwright Chromium
         run: bun run --cwd apps/frontend-transportada playwright install chromium
       # Teto próprio: espelho pendurado vira passo vermelho em 5 minutos, com nome, em vez de gate
-      # cancelado sem dizer onde parou.
+      # cancelado no fim do job sem dizer onde parou.
       - name: Bibliotecas de sistema do Chromium
         timeout-minutes: 5
         run: bun run --cwd apps/frontend-transportada playwright install-deps chromium
