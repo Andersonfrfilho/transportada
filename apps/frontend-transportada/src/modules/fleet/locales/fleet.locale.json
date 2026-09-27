@@ -70,11 +70,14 @@
     },
     "duplicateBadge": "Já cadastrado",
     "empty": "Nenhuma candidatura pendente",
+    "filterName": "Nome contém",
     "linkButton": "Vincular",
     "loading": "Carregando candidaturas",
     "rejectButton": "Recusar",
+    "rejectDialogTitle": "Recusar candidatura",
     "rejectionReasonLabel": "Motivo da recusa",
     "resubmittedBadge": "Reenviado",
+    "shownOfTotal": "{{shown}} de {{total}} candidaturas",
     "status": {
       "approved": "Aprovada",
       "pending": "Pendente",
@@ -213,11 +216,13 @@
       "plate": "Placa",
       "renavam": "RENAVAM"
     },
+    "filterTaxId": "Documento contém",
     "loading": "Carregando anexos",
     "openButton": "Abrir",
     "rejectButton": "Recusar",
     "rejectDialogTitle": "Recusar anexo",
     "rejectReasonLabel": "Motivo da recusa (o agregado vai ler)",
+    "shownOfTotal": "{{shown}} de {{total}} anexos",
     "status": {
       "approved": "Aprovado",
       "pending": "Pendente",

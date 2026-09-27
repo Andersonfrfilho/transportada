@@ -51,7 +51,8 @@ export async function loadTripOccupancy(
   input: {
     readonly companyId: string
     readonly nfeDocumentIds: readonly string[]
-    readonly vehicleId: string
+    /** Spec 216: `null` é viagem `awaiting_crew` — mesma lacuna que veículo não encontrado. */
+    readonly vehicleId: string | null
   },
 ): Promise<{
   readonly occupancy: TripOccupancyView | null
@@ -89,21 +90,25 @@ export async function loadTripOccupancy(
   /** Spec 145 D21: a carroceria do mesmo veículo — baú fechado segura a carga sem cinta. */
   readonly bodyType: string | null
 }> {
-  const [vehicle] = await queryable
-    .select({
-      bodyType: fleetVehicles.bodyType,
-      loadingAccess: fleetVehicles.loadingAccess,
-      /** Spec 093: o `capKG` do MDF-e, que aqui vira o teto de peso da montagem. */
-      capacityKg: fleetVehicles.capacityKg,
-      capacityM3: fleetVehicles.capacityM3,
-      cargoHeightM: fleetVehicles.cargoHeightM,
-      cargoLengthM: fleetVehicles.cargoLengthM,
-      cargoWidthM: fleetVehicles.cargoWidthM,
-      vehicleType: fleetVehicles.vehicleType,
-    })
-    .from(fleetVehicles)
-    .where(and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)))
-    .limit(1)
+  const vehicleId = input.vehicleId
+  const [vehicle] =
+    vehicleId === null
+      ? []
+      : await queryable
+          .select({
+            bodyType: fleetVehicles.bodyType,
+            loadingAccess: fleetVehicles.loadingAccess,
+            /** Spec 093: o `capKG` do MDF-e, que aqui vira o teto de peso da montagem. */
+            capacityKg: fleetVehicles.capacityKg,
+            capacityM3: fleetVehicles.capacityM3,
+            cargoHeightM: fleetVehicles.cargoHeightM,
+            cargoLengthM: fleetVehicles.cargoLengthM,
+            cargoWidthM: fleetVehicles.cargoWidthM,
+            vehicleType: fleetVehicles.vehicleType,
+          })
+          .from(fleetVehicles)
+          .where(and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, vehicleId)))
+          .limit(1)
   if (vehicle === undefined) {
     return {
       bedDimensions: null,
