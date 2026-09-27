@@ -59,7 +59,10 @@ describe('a foto do comprovante sai leve do aparelho (pedido de 26/09)', () => {
 
     expect(enqueueAt).toBeGreaterThan(-1)
     expect(reduceAt).toBeGreaterThan(enqueueAt)
-    expect(hook).toInclude('void reduction.finally(() => requestDrain(undefined))')
+    expect(hook).toInclude('void reduction.finally(() => {')
+    expect(hook).toInclude(
+      'window.setTimeout(() => requestDrain(undefined), PROOF_AUTO_DRAIN_GRACE_MS)',
+    )
     expect(recovery).toInclude('await input.reduce(source).catch(() => undefined)')
     expect(recovery).toInclude('clearPendingReduction(')
   })

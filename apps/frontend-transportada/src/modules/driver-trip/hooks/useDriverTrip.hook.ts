@@ -54,6 +54,17 @@ const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 /** A viagem muda pelas mãos do escritório também — cancelamento chega no próximo poll, não por push. */
 const CURRENT_TRIP_REFETCH_MS = 30_000
 
+/**
+ * Defeito medido (27/09, achado via apps/frontend-driver — cópia por valor, ADR-0075 §7): a
+ * drenagem automática do canhoto disparava assim que a redução da foto terminava, sem pausa
+ * nenhuma — numa rede rápida (ou no mock do smoke), o envio podia terminar antes de a tela sequer
+ * pintar "Refazer", quebrando a garantia do comentário de `retakeLabel` ("enquanto o anexo pode
+ * ser trocado sem custo"). Essa folga é o que dá à tela uma janela real e previsível antes de a
+ * foto poder ser considerada enviada — não é sobre esperar a rede, é sobre nunca deixar a
+ * drenagem vencer a corrida contra o primeiro paint.
+ */
+const PROOF_AUTO_DRAIN_GRACE_MS = 3_000
+
 /** Gatilhos da drenagem (revisão M4): `visibilitychange` é do `document`, o resto é do `window`. */
 const DRAIN_TRIGGER_TARGET: DrainTriggerTarget = {
   addEventListener: (type, listener) =>
@@ -431,7 +442,11 @@ export function useDriverTrip(
 
     await refreshQueueView()
     // O envio espera a versão leve: o original da câmera (3–5 MB) passa do corpo de 1 MiB da API.
-    void reduction.finally(() => requestDrain(undefined))
+    // A folga (`PROOF_AUTO_DRAIN_GRACE_MS`) é depois da redução, não no lugar dela — a versão leve
+    // já está pronta quando a drenagem finalmente dispara.
+    void reduction.finally(() => {
+      window.setTimeout(() => requestDrain(undefined), PROOF_AUTO_DRAIN_GRACE_MS)
+    })
     return 'queued'
   }
 

@@ -244,7 +244,10 @@ describe('/minha-viagem: o hook liga a trava e a recuperação (spec 212)', () =
   it('a foto nasce marcada e reduz antes de pedir a drenagem', () => {
     expect(hook).toInclude('pendingReduction: true')
     expect(hook).toInclude('reduce: reduceProofPhotoToJpeg')
-    expect(hook).toInclude('void reduction.finally(() => requestDrain(undefined))')
+    expect(hook).toInclude('void reduction.finally(() => {')
+    expect(hook).toInclude(
+      'window.setTimeout(() => requestDrain(undefined), PROOF_AUTO_DRAIN_GRACE_MS)',
+    )
   })
 
   it('a recuperação roda antes de cada drenagem e no boot', () => {
