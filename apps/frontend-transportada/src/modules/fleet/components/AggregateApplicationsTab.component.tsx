@@ -2,7 +2,12 @@
 import { Fragment, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
+
 import { AggregateApplicationAttachments } from './AggregateApplicationAttachments.component'
+import { AggregateRejectionDialog } from './AggregateRejectionDialog.component'
 
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
 import type { AggregateApplication } from '../shared/aggregateApplicationClient.service'
@@ -14,7 +19,33 @@ import styles from '../styles/fleet.module.css'
 
 const APPLICATIONS_COLUMN_COUNT = 5
 
-type RejectDialogState = Readonly<{ applicationId: string; reason: string }> | null
+type SortColumn = 'name' | 'status'
+type SortState = Readonly<{ column: SortColumn; direction: 'asc' | 'desc' }> | null
+const SORT_INDICATOR = { ascending: '▲', descending: '▼', none: '' } as const
+
+/** Terceiro clique no cabeçalho volta à ordem natural — sem ele não há como desfazer a ordenação. */
+function nextSort(current: SortState, column: SortColumn): SortState {
+  if (current === null || current.column !== column) return { column, direction: 'asc' }
+  if (current.direction === 'asc') return { column, direction: 'desc' }
+  return null
+}
+
+function sortApplications(
+  applications: readonly AggregateApplication[],
+  sort: SortState,
+): readonly AggregateApplication[] {
+  if (sort === null) return applications
+  const direction = sort.direction === 'asc' ? 1 : -1
+  return [...applications].sort(
+    (left, right) => left[sort.column].localeCompare(right[sort.column]) * direction,
+  )
+}
+
+type RejectDialogState = Readonly<{ applicationId: string }> | null
+
+function statusLabel(status: AggregateApplication['status'], t: (key: string) => string): string {
+  return t(`applications.status.${status}`)
+}
 
 type AggregateApplicationsTabProps = Readonly<{
   applications: readonly AggregateApplication[]
@@ -25,10 +56,6 @@ type AggregateApplicationsTabProps = Readonly<{
   onReject: (input: Readonly<{ id: string; rejectionReason: string }>) => void
   onViewDriver: (name: string) => void
 }>
-
-function statusLabel(status: AggregateApplication['status'], t: (key: string) => string): string {
-  return t(`applications.status.${status}`)
-}
 
 export function AggregateApplicationsTab({
   applications,
@@ -41,6 +68,9 @@ export function AggregateApplicationsTab({
 }: AggregateApplicationsTabProps): ReactNode {
   const { t } = useTranslation('fleet')
   const [rejectDialog, setRejectDialog] = useState<RejectDialogState>(null)
+  const [nameFilter, setNameFilter] = useState('')
+  const [sort, setSort] = useState<SortState>(null)
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
 
   if (loading) {
     return (
@@ -52,36 +82,90 @@ export function AggregateApplicationsTab({
   }
   if (applications.length === 0) return <p className={styles.kicker}>{t('applications.empty')}</p>
 
+  const filtered = applications.filter((application) =>
+    application.name.toLowerCase().includes(nameFilter.trim().toLowerCase()),
+  )
+  const visible = sortApplications(filtered, sort)
+
+  function sortState(column: SortColumn): 'ascending' | 'descending' | 'none' {
+    if (sort === null || sort.column !== column) return 'none'
+    return sort.direction === 'asc' ? 'ascending' : 'descending'
+  }
+
+  function sortLabel(column: SortColumn): string {
+    if (sort === null || sort.column !== column) return t('sort.none')
+    return sort.direction === 'asc' ? t('sort.asc') : t('sort.desc')
+  }
+
+  function renderSortableHeader(column: SortColumn, label: string) {
+    return (
+      <th aria-sort={sortState(column)} key={column} scope="col">
+        <button
+          className={styles.sortButton}
+          type="button"
+          onClick={() => setSort((current) => nextSort(current, column))}
+        >
+          {label}
+          <span aria-hidden="true" className={styles.sortIndicator}>
+            {SORT_INDICATOR[sortState(column)]}
+          </span>
+          <span className={styles.srOnly}>{sortLabel(column)}</span>
+        </button>
+      </th>
+    )
+  }
+
+  function toggleExpanded(applicationId: string): void {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (next.has(applicationId)) next.delete(applicationId)
+      else next.add(applicationId)
+      return next
+    })
+  }
+
   return (
     <div className={styles.tableScroll}>
+      <div className={styles.filterBar}>
+        <label>
+          <span>{t('applications.filterName')}</span>
+          <input
+            type="search"
+            value={nameFilter}
+            onChange={(event) => setNameFilter(event.target.value)}
+          />
+        </label>
+      </div>
+      <p className={styles.hint}>
+        {t('applications.shownOfTotal', { shown: visible.length, total: applications.length })}
+      </p>
       <table className={styles.fleetTable}>
         <thead>
           <tr>
-            <th>{t('applications.columns.name')}</th>
-            <th>{t('applications.columns.taxId')}</th>
-            <th>{t('applications.columns.contact')}</th>
-            <th>{t('applications.columns.status')}</th>
-            <th>{t('applications.columns.actions')}</th>
+            {renderSortableHeader('name', t('applications.columns.name'))}
+            <th scope="col">{t('applications.columns.taxId')}</th>
+            <th scope="col">{t('applications.columns.contact')}</th>
+            {renderSortableHeader('status', t('applications.columns.status'))}
+            <th scope="col">{t('applications.columns.actions')}</th>
           </tr>
         </thead>
         <tbody>
-          {applications.map((application) => {
+          {visible.map((application) => {
             const declared = parseDeclaredData(application.declaredData)
+            const isExpanded = expandedIds.has(application.id)
             return (
               <Fragment key={application.id}>
                 <tr>
                   <td>
-                    {application.name}
-                    {application.duplicateDriverId !== null ? (
-                      <span className={styles.applicationBadge} data-variant="warning">
-                        {t('applications.duplicateBadge')}
-                      </span>
-                    ) : null}
-                    {application.resubmittedAt !== null ? (
-                      <span className={styles.applicationBadge} data-variant="info">
-                        {t('applications.resubmittedBadge')}
-                      </span>
-                    ) : null}
+                    <span className={styles.applicationNameCell}>
+                      <span>{application.name}</span>
+                      {application.duplicateDriverId === null ? null : (
+                        <Badge variant="warning">{t('applications.duplicateBadge')}</Badge>
+                      )}
+                      {application.resubmittedAt === null ? null : (
+                        <Badge variant="info">{t('applications.resubmittedBadge')}</Badge>
+                      )}
+                    </span>
                   </td>
                   <td>{application.taxId}</td>
                   <td>
@@ -94,37 +178,48 @@ export function AggregateApplicationsTab({
                     {application.status === 'pending' ? (
                       <>
                         {application.duplicateDriverId === null ? (
-                          <button
+                          <Button
                             disabled={isApproving}
+                            size="sm"
                             type="button"
                             onClick={() => onApprove(application.id)}
                           >
+                            <Icon name="check" />
                             {t('applications.approveButton')}
-                          </button>
+                          </Button>
                         ) : (
-                          <button
+                          <Button
                             disabled={isApproving}
+                            size="sm"
                             type="button"
                             onClick={() => onApprove(application.id)}
                           >
+                            <Icon name="link" />
                             {t('applications.linkButton')}
-                          </button>
+                          </Button>
                         )}
-                        <button
+                        <Button
+                          size="sm"
                           type="button"
-                          onClick={() =>
-                            setRejectDialog({ applicationId: application.id, reason: '' })
-                          }
+                          variant="ghost"
+                          onClick={() => setRejectDialog({ applicationId: application.id })}
                         >
+                          <Icon name="close" />
                           {t('applications.rejectButton')}
-                        </button>
+                        </Button>
                       </>
                     ) : null}
-                    {application.duplicateDriverId !== null ? (
-                      <button type="button" onClick={() => onViewDriver(application.name)}>
+                    {application.duplicateDriverId === null ? null : (
+                      <Button
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => onViewDriver(application.name)}
+                      >
+                        <Icon name="eye" />
                         {t('applications.viewDriverButton')}
-                      </button>
-                    ) : null}
+                      </Button>
+                    )}
                   </td>
                 </tr>
                 <tr>
@@ -133,9 +228,21 @@ export function AggregateApplicationsTab({
                     colSpan={APPLICATIONS_COLUMN_COUNT}
                   >
                     <AggregateApplicationAttachments application={application} />
-                    <details>
-                      <summary>{t('applications.declaredData.toggleShow')}</summary>
-                      {declared.driver === null && declared.vehicle === null ? (
+                    <Button
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => toggleExpanded(application.id)}
+                    >
+                      <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
+                      {t(
+                        isExpanded
+                          ? 'applications.declaredData.toggleHide'
+                          : 'applications.declaredData.toggleShow',
+                      )}
+                    </Button>
+                    {isExpanded ? (
+                      declared.driver === null && declared.vehicle === null ? (
                         <p>{t('applications.declaredData.empty')}</p>
                       ) : (
                         <>
@@ -207,8 +314,8 @@ export function AggregateApplicationsTab({
                             )}
                           </dl>
                         </>
-                      )}
-                    </details>
+                      )
+                    ) : null}
                   </td>
                 </tr>
               </Fragment>
@@ -217,28 +324,18 @@ export function AggregateApplicationsTab({
         </tbody>
       </table>
       {rejectDialog === null ? null : (
-        <div className={styles.rejectDialog} role="dialog">
-          <label>
-            {t('applications.rejectionReasonLabel')}
-            <textarea
-              value={rejectDialog.reason}
-              onChange={(event) => setRejectDialog({ ...rejectDialog, reason: event.target.value })}
-            />
-          </label>
-          <button
-            disabled={isRejecting || rejectDialog.reason.trim().length === 0}
-            type="button"
-            onClick={() => {
-              onReject({ id: rejectDialog.applicationId, rejectionReason: rejectDialog.reason })
-              setRejectDialog(null)
-            }}
-          >
-            {t('applications.confirmRejectButton')}
-          </button>
-          <button type="button" onClick={() => setRejectDialog(null)}>
-            {t('applications.cancelButton')}
-          </button>
-        </div>
+        <AggregateRejectionDialog
+          cancelLabel={t('applications.cancelButton')}
+          confirmLabel={t('applications.confirmRejectButton')}
+          isSubmitting={isRejecting}
+          reasonLabel={t('applications.rejectionReasonLabel')}
+          title={t('applications.rejectDialogTitle')}
+          onCancel={() => setRejectDialog(null)}
+          onConfirm={(reason) => {
+            onReject({ id: rejectDialog.applicationId, rejectionReason: reason })
+            setRejectDialog(null)
+          }}
+        />
       )}
     </div>
   )

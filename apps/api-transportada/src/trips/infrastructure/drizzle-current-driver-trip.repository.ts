@@ -673,9 +673,10 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
-   * A coordenada sai de `geocoded_addresses` pela `address_key`, nunca de `trip_stops.latitude`,
-   * que nunca é escrita (spec 199). A tabela não tem tenant (ADR-0044): o recorte fica no `where`
-   * de `trip_stops`, e `address_key` é a PK dela, então o `left join` não multiplica parada.
+   * A coordenada sai de `geocoded_addresses` pela `address_key`, o único lugar onde ela existe
+   * (spec 199; a 215 tirou as colunas mortas de `trip_stops`). A tabela não tem tenant (ADR-0044):
+   * o recorte fica no `where` de `trip_stops`, e `address_key` é a PK dela, então o `left join` não
+   * multiplica parada.
    */
   private async listStops(input: { readonly companyId: string; readonly tripIds: string[] }) {
     return this.database
@@ -684,6 +685,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         completedAt: tripStops.completedAt,
         deliveryWindowEnd: tripStops.deliveryWindowEnd,
         deliveryWindowStart: tripStops.deliveryWindowStart,
+        enRouteSince: tripStops.enRouteSince,
+        enRouteTappedAt: tripStops.enRouteTappedAt,
         id: tripStops.id,
         label: tripStops.label,
         latitude: geocodedAddresses.latitude,
@@ -760,6 +763,8 @@ type StopRow = {
   readonly completedAt: Date | null
   readonly deliveryWindowEnd: Date | null
   readonly deliveryWindowStart: Date | null
+  readonly enRouteSince: Date | null
+  readonly enRouteTappedAt: Date | null
   readonly id: string
   readonly label: string
   readonly latitude: string | null
@@ -801,6 +806,8 @@ function toDriverStop(
     documents: (documentsByStop.get(stop.id) ?? []).map((row) =>
       toDriverDocument(row, proofSettings),
     ),
+    enRouteSince: stop.enRouteSince?.toISOString() ?? null,
+    enRouteTappedAt: stop.enRouteTappedAt?.toISOString() ?? null,
     id: stop.id,
     label: stop.label,
     latitude: stop.latitude,

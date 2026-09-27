@@ -86,6 +86,10 @@ export function tripClosePath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/close`
 }
 
+export function tripCrewPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/crew`
+}
+
 export function tripMdfeManifestsPath(tripId: string = TRIP_ID): string {
   return `${TRIPS_PATH}/${tripId}/mdfe-manifests`
 }

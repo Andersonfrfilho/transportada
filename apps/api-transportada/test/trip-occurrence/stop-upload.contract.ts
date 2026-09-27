@@ -410,6 +410,8 @@ describe('as rotas de upload por parada (spec 209 RF1)', () => {
       registerDriverOccurrence: NOT_CALLED,
       renderManifestDamdfe: NOT_CALLED,
       reportArrival: NOT_CALLED,
+      reportDeparture: NOT_CALLED,
+      cancelStopDeparture: NOT_CALLED,
       reportDelivery: NOT_CALLED,
       reportOccurrence: async (input) => {
         asked.push(input)

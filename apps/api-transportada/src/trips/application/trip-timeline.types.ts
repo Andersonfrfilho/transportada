@@ -20,6 +20,14 @@ export const TRIP_TIMELINE_KINDS = [
   'trip.dispatched',
   'trip.status_changed',
   'stop.arrived',
+  /**
+   * Spec 206 D12: a saída para a parada e o cancelamento dela. Entram no vocabulário **antes** de
+   * `listStopEventRows` os mapear (Fase 2), porque o painel é cópia por valor desta lista e publica
+   * primeiro (ADR-0081 §9) — a paridade é guardada por
+   * `apps/frontend-transportada/test/trip/timeline.contract.ts`.
+   */
+  'stop.departed',
+  'stop.departure_cancelled',
   'document.delivered',
   'document.returned',
   'stop.occurrence',
@@ -41,6 +49,15 @@ export type TripTimelineKind = (typeof TRIP_TIMELINE_KINDS)[number]
 export const TRIP_TIMELINE_KIND_PRIORITY: Readonly<Record<TripTimelineKind, number>> = {
   'trip.created': -1,
   'stop.arrived': 0,
+  /**
+   * Spec 206 D12: **0**, o mesmo de `stop.arrived`. O cursor compara a prioridade como `::int`
+   * (`trip-timeline-condition.helper.ts:43`), então não cabe fração, e renumerar a tabela quebraria
+   * cursor em voo. Com 0 a saída fica abaixo da troca de status que ela provoca (7) — efeito acima da
+   * causa (158 D8). O empate com `stop.arrived` só ocorreria no mesmo microssegundo, e a trava das
+   * paradas serializa os dois; se ocorresse, o `id` desempata.
+   */
+  'stop.departed': 0,
+  'stop.departure_cancelled': 0,
   'stop.occurrence': 1,
   'document.occurrence': 2,
   'document.returned': 3,

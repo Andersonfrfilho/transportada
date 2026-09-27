@@ -152,6 +152,23 @@ export type MappedFleetDriverInput = Readonly<{
  * ficha aprovada com só nome e CPF não emite MDF-e nenhum. Tudo que a candidatura não declarou
  * chega como texto vazio, o mesmo "não preenchido ainda" que uma ficha criada manualmente carrega.
  */
+/**
+ * `fleet_drivers_pix_key_check` exige as duas colunas preenchidas juntas, ou nenhuma. A candidatura
+ * aceita as duas de forma independente (a landing não obriga escolher o tipo para digitar a chave),
+ * e uma só das duas preenchida travava o `INSERT` da aprovação inteira com 500 — sem forma de o
+ * operador contornar pela tela. Sem o par completo não dá para saber que tipo de chave é, então a
+ * aprovação descarta a chave em vez de inventar um tipo; o operador completa na ficha depois.
+ */
+function resolvePixKeyFields(driver: AggregateApplicationDeclaredDriver | undefined): Readonly<{
+  pixKey: string
+  pixKeyType: PixKeyType | ''
+}> {
+  const pixKey = driver?.pixKey ?? ''
+  const pixKeyType = driver?.pixKeyType ?? ''
+  if ((pixKey === '') !== (pixKeyType === '')) return { pixKey: '', pixKeyType: '' }
+  return { pixKey, pixKeyType }
+}
+
 export function mapDeclaredDataToDriverInput(input: {
   readonly declaredData: AggregateApplicationDeclaredData
   readonly email: string
@@ -162,6 +179,7 @@ export function mapDeclaredDataToDriverInput(input: {
   const driver = input.declaredData.driver
   const address = addressFields(driver?.address)
   const linkedAddress = addressFields(driver?.linkedAddress)
+  const pix = resolvePixKeyFields(driver)
 
   return {
     anttCategory: driver?.anttCategory ?? '',
@@ -196,8 +214,8 @@ export function mapDeclaredDataToDriverInput(input: {
     nationality: driver?.nationality ?? '',
     number: address.number,
     phone: input.phone,
-    pixKey: driver?.pixKey ?? '',
-    pixKeyType: driver?.pixKeyType ?? '',
+    pixKey: pix.pixKey,
+    pixKeyType: pix.pixKeyType,
     postalCode: address.postalCode,
     rntrc: driver?.rntrc ?? '',
     state: address.state,
@@ -281,6 +299,23 @@ export function hasDeclaredVehicle(
 }
 
 /**
+ * `fleet_vehicles_vehicle_type_check` exige `role = 'traction'` exatamente quando `vehicleType`
+ * está na lista fechada — "implemento não tem tipo". O veículo do agregado é o que ele dirige, quase
+ * sempre tração; sem o tipo declarado, `'other'` é o mesmo escape que a SEFAZ já publica para o que
+ * a lista não nomeia (o par com `bodyType ?? '00'` logo abaixo, "não aplicável" do MDF-e). Um
+ * `role: 'trailer'` declarado, ao contrário, nunca carrega tipo — a candidatura não teria como
+ * escolher os dois ao mesmo tempo na tela, mas a simetria vale de qualquer forma.
+ */
+function resolveVehicleRoleFields(vehicle: AggregateApplicationDeclaredVehicle): Readonly<{
+  role: FleetVehicleRole
+  vehicleType: VehicleType | ''
+}> {
+  const role = vehicle.role ?? 'traction'
+  if (role !== 'traction') return { role, vehicleType: '' }
+  return { role, vehicleType: vehicle.vehicleType ?? 'other' }
+}
+
+/**
  * `fleet_vehicles_state_check` exige UF válida na placa — sempre, sem exceção de "não preenchido".
  * Quando a candidatura não declarou a UF do veículo, a UF do endereço do próprio motorista é o
  * melhor palpite disponível (o veículo normalmente está emplacado onde o agregado mora); ainda
@@ -290,6 +325,8 @@ export function mapDeclaredDataToVehicleInput(
   vehicle: AggregateApplicationDeclaredVehicle,
   fallbackState: string = '',
 ): MappedFleetVehicleInput {
+  const roleFields = resolveVehicleRoleFields(vehicle)
+
   return {
     axleCount: vehicle.axleCount ?? 0,
     bodyType: vehicle.bodyType ?? '00',
@@ -302,10 +339,10 @@ export function mapDeclaredDataToVehicleInput(
     modelYear: vehicle.modelYear ?? 0,
     plate: vehicle.plate ?? '',
     renavam: vehicle.renavam ?? '',
-    role: vehicle.role ?? 'traction',
+    role: roleFields.role,
     state: vehicle.state ?? (fallbackState.length > 0 ? fallbackState : 'SP'),
     tareWeightKilograms: vehicle.tareWeightKilograms ?? '0',
-    vehicleType: vehicle.vehicleType ?? '',
+    vehicleType: roleFields.vehicleType,
   }
 }
 

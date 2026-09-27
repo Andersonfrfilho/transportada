@@ -36,17 +36,18 @@ dias e é apagado sem ter servido.
 
 A LGPD pede finalidade (art. 6º, I). Cada ponto existe para uma pergunta só:
 
-| Toque                         | Para que serve o ponto                                                   |
-| ----------------------------- | ------------------------------------------------------------------------ |
-| Cheguei                       | provar a chegada à parada e medir o tempo de atendimento (specs 058/060) |
-| Entreguei                     | separar "entreguei" de "entreguei **lá**" (ADR-0045 §3)                  |
-| Devolvi / "Não entreguei"     | mostrar onde a devolução foi decidida — na porta do cliente ou fora dela |
-| Foto/assinatura do canhoto    | decidir a pontualidade da foto (ADR-0070)                                |
-| Despachar                     | mostrar onde a carga foi liberada (o pátio ou fora dele)                 |
-| Iniciar rota / Conferir carga | marcar onde a viagem começou, base do tempo de trajeto                   |
-| Ocorrência da parada          | mostrar onde o fato foi relatado; base da distância à parada (spec 195)  |
-| Ocorrência da nota            | mostrar onde a recusa ou a avaria foi registrada                         |
-| Salvar ordem (spec 192)       | mostrar de onde o motorista mudou a ordem                                |
+| Toque                      | Para que serve o ponto                                                   |
+| -------------------------- | ------------------------------------------------------------------------ |
+| Cheguei                    | provar a chegada à parada e medir o tempo de atendimento (specs 058/060) |
+| Entreguei                  | separar "entreguei" de "entreguei **lá**" (ADR-0045 §3)                  |
+| Devolvi / "Não entreguei"  | mostrar onde a devolução foi decidida — na porta do cliente ou fora dela |
+| Foto/assinatura do canhoto | decidir a pontualidade da foto (ADR-0070)                                |
+| Despachar                  | mostrar onde a carga foi liberada (o pátio ou fora dele)                 |
+| Conferir carga             | marcar onde a viagem começou                                             |
+| Iniciar rota (ADR-0088)    | base do tempo de trajeto **da parada**                                   |
+| Ocorrência da parada       | mostrar onde o fato foi relatado; base da distância à parada (spec 195)  |
+| Ocorrência da nota         | mostrar onde a recusa ou a avaria foi registrada                         |
+| Salvar ordem (spec 192)    | mostrar de onde o motorista mudou a ordem                                |
 
 Nenhum deles serve para reconstituir trajeto, calcular jornada ou avaliar o motorista pela posição.
 

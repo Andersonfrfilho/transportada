@@ -5,6 +5,9 @@
 - **Contexto:** acrescenta um estado a `TRIP_STATUSES` e duas transições manuais à máquina da
   **ADR-0043**, que hoje deriva `in_transit` e `completed` do estado das notas.
 - Revisada por ADR-0074 (despacho derivado quando a carga fecha)
+- **Emendada por ADR-0088** (a rota começa em cada parada): §1–§2 — o "iniciar trajeto" deixa de ser
+  da viagem e passa a ser um toque por parada. O §3 não muda: o estado não anda para trás, e fechar
+  nota adianta o estado.
 
 ## Contexto
 

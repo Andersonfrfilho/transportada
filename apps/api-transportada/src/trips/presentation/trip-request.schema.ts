@@ -38,6 +38,20 @@ export const createTripSchema = z
 
 export type CreateTripBody = z.infer<typeof createTripSchema>
 
+/**
+ * Spec 216: define a tripulação de uma viagem `awaiting_crew` ou troca a de uma `draft` — os dois
+ * campos são opcionais aqui (a viagem pode continuar `awaiting_crew` se só um dos dois vier), ao
+ * contrário de `createTripSchema`, que já exige os dois hoje.
+ */
+export const updateTripCrewSchema = z
+  .object({
+    driverIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
+    vehicleId: z.uuid().optional(),
+  })
+  .strict()
+
+export type UpdateTripCrewBody = z.infer<typeof updateTripCrewSchema>
+
 export const linkTripDocumentSchema = z
   .object({
     freightCalculationId: z.uuid().nullable().default(null),

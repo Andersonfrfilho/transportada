@@ -28,6 +28,8 @@ export const TRIP_ACTION = {
   close: 'close',
   /** ADR-0058: o motorista afirma que o que está no caminhão é o que esta viagem diz. */
   confirmLoad: 'confirmLoad',
+  /** Spec 216: define motorista e/ou veículo pela primeira vez — só sai de `awaiting_crew`. */
+  defineCrew: 'defineCrew',
   dispatch: 'dispatch',
   planRoute: 'planRoute',
   /** ADR-0058: "saí". É a informação que a derivação não tinha como ver. */
@@ -53,6 +55,10 @@ export const TRIP_TRANSITION_BLOCK = {
   tripRouteNotPlanned: 'TRIP_ROUTE_NOT_PLANNED',
   /** Não existe despacho sem roteiro montado. */
   tripHasNoRoute: 'TRIP_HAS_NO_ROUTE',
+  /** Spec 216: nada acontece numa viagem `awaiting_crew` além de definir a tripulação ou cancelar. */
+  tripCrewNotDefined: 'TRIP_CREW_NOT_DEFINED',
+  /** Spec 216: `defineCrew` só faz sentido enquanto a viagem espera por motorista/veículo. */
+  tripCrewAlreadyDefined: 'TRIP_CREW_ALREADY_DEFINED',
   documentNotSeparated: 'TRIP_DOCUMENT_NOT_SEPARATED',
   documentNotLoaded: 'TRIP_DOCUMENT_NOT_LOADED',
   documentAlreadyClosed: 'TRIP_DOCUMENT_ALREADY_CLOSED',
@@ -70,8 +76,13 @@ export type TripTransition<TStatus> =
   | { readonly outcome: 'unchanged' }
   | { readonly outcome: 'blocked'; readonly reason: TripTransitionBlock }
 
-/** A ordem em que a viagem anda. `cancelled` fica fora: é saída, não etapa. */
+/**
+ * A ordem em que a viagem anda. `cancelled` fica fora: é saída, não etapa. Spec 216: `awaiting_crew`
+ * entra antes de `draft` — nada aqui assume que o índice 0 é "o estado inicial de verdade", as duas
+ * únicas leitoras (`checkFieldStart`, `deriveTripStatus`) só comparam avanço relativo.
+ */
 const TRIP_STATUS_ORDER = [
+  'awaiting_crew',
   'draft',
   'route_planned',
   'separating',
@@ -203,7 +214,10 @@ export function checkTripAcceptsDocumentWork(input: {
   }
 
   if (isTripDispatched(tripStatus)) return TRIP_TRANSITION_BLOCK.tripAlreadyDispatched
-  if (tripStatus === 'draft') return TRIP_TRANSITION_BLOCK.tripRouteNotPlanned
+  // Spec 216: sem tripulação, separar/carregar carga é tão prematuro quanto sem roteiro planejado.
+  if (tripStatus === 'draft' || tripStatus === 'awaiting_crew') {
+    return TRIP_TRANSITION_BLOCK.tripRouteNotPlanned
+  }
 
   return null
 }
@@ -249,12 +263,39 @@ export function checkTripTransition({
   tripStatus,
 }: CheckTripTransitionParams): TripTransition<TripStatus> {
   if (action === TRIP_ACTION.cancel) return checkCancel(tripStatus)
+  if (action === TRIP_ACTION.defineCrew) return checkDefineCrew(tripStatus)
+  // Spec 216: sem tripulação, só `defineCrew` e `cancel` (já resolvidos acima) têm o que fazer.
+  if (tripStatus === 'awaiting_crew') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewNotDefined }
+  }
   if (action === TRIP_ACTION.close) return checkClose(tripStatus)
   if (action === TRIP_ACTION.planRoute) return checkPlanRoute({ hasRoute, tripStatus })
   if (action === TRIP_ACTION.confirmLoad) return checkFieldStart(tripStatus, 'in_transit')
   if (action === TRIP_ACTION.startRoute) return checkFieldStart(tripStatus, 'on_delivery_route')
 
   return checkDispatch({ hasRoute, tripStatus })
+}
+
+/**
+ * Spec 216: a porta de saída de `awaiting_crew` além do cancelamento. Decisão do dono do produto em
+ * 2026-09-26 (revista no mesmo dia): `defineCrew` também serve para TROCAR motorista/veículo
+ * enquanto a viagem ainda está em `draft` — antes de o roteiro ser planejado, nada calculado a
+ * partir do veículo (pedágio) foi congelado ainda, então a troca não deixa número velho para trás.
+ * A partir de `route_planned` a troca fica bloqueada: `trips.planned_toll` já foi congelado com o
+ * eixo do veículo antigo (`freezeTripPlannedRoute`), e só um replanejamento de rota o corrige — CA
+ * fora do escopo desta ação.
+ */
+function checkDefineCrew(tripStatus: TripStatus): TripTransition<TripStatus> {
+  if (tripStatus === 'cancelled') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled }
+  }
+  if (tripStatus === 'completed') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted }
+  }
+  if (tripStatus === 'awaiting_crew') return { outcome: 'applied', nextStatus: 'draft' }
+  if (tripStatus === 'draft') return { outcome: 'unchanged' }
+
+  return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined }
 }
 
 /**

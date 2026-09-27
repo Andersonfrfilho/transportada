@@ -164,6 +164,8 @@ export const DRIVER_COVERAGE_KEYS = [
 
 /** A caixa de vínculos lista a frota inteira de uma vez; não há paginação dentro do formulário. */
 export const FLEET_VEHICLE_OPTIONS_PAGE_SIZE = 100
+/** As opções da caixa de vínculos têm chave própria, e quem grava veículo também as invalida. */
+export const FLEET_VEHICLE_OPTIONS_QUERY_KEY = 'fleet-vehicle-options'
 export const FLEET_DRIVER_OPTIONS_PAGE_SIZE = 100
 
 /** Spec 154 D2: lista pequena e voltada a gente — não precisa do teto de 100 que a API aceita. */

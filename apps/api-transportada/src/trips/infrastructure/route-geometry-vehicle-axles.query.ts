@@ -50,24 +50,29 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
    */
   readVehicleContext: (input: {
     readonly companyId: string
-    readonly vehicleId: string
+    /** Spec 216: `null` é viagem `awaiting_crew` — mesma lacuna que veículo não encontrado. */
+    readonly vehicleId: string | null
   }) => Promise<RouteGeometryVehicleContext>
 }> {
   return {
     async readVehicleContext(input) {
-      const [vehicle] = await database
-        .select({
-          axleCount: fleetVehicles.axleCount,
-          fuelType: fleetVehicles.fuelType,
-          hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,
-          kilometersPerLiter: fleetVehicles.averageConsumption,
-          vehicleType: fleetVehicles.vehicleType,
-        })
-        .from(fleetVehicles)
-        .where(
-          and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
-        )
-        .limit(1)
+      const vehicleId = input.vehicleId
+      const [vehicle] =
+        vehicleId === null
+          ? []
+          : await database
+              .select({
+                axleCount: fleetVehicles.axleCount,
+                fuelType: fleetVehicles.fuelType,
+                hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,
+                kilometersPerLiter: fleetVehicles.averageConsumption,
+                vehicleType: fleetVehicles.vehicleType,
+              })
+              .from(fleetVehicles)
+              .where(
+                and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, vehicleId)),
+              )
+              .limit(1)
       if (vehicle === undefined) {
         return {
           axles: null,

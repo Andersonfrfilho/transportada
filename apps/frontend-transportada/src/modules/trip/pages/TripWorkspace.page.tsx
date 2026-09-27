@@ -59,6 +59,7 @@ function TripsTableSkeleton({ columns }: TripsTableSkeletonProps) {
       <table className={styles.dataTable}>
         <thead>
           <tr>
+            <th scope="col">{t('columns.id')}</th>
             {columns.map((column) => (
               <th key={column} scope="col">
                 {t(`columns.${column}`)}
@@ -70,6 +71,9 @@ function TripsTableSkeleton({ columns }: TripsTableSkeletonProps) {
         <tbody>
           {Array.from({ length: 4 }, (_, index) => (
             <tr key={index}>
+              <td>
+                <Skeleton variant="text" width="4rem" />
+              </td>
               {columns.map((column) => (
                 <td key={column}>{renderSkeletonCell(column)}</td>
               ))}

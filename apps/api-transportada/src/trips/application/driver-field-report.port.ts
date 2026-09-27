@@ -34,6 +34,22 @@ export type DriverStopReference = {
   readonly tripStatus: string
 }
 
+/**
+ * Spec 206 D2/D18: lida depois da trava das paradas. `enRouteStop` é a parada a caminho **da
+ * viagem inteira** (no máximo uma, pelo índice único) — quando ela é a própria parada do toque,
+ * quem decide é o estado da parada; quando é outra, é o `409`.
+ */
+export type DepartureDecision = {
+  readonly enRouteStop: { readonly id: string; readonly sequence: string } | null
+  readonly lastArrivedAt: Date | null
+  readonly lastDepartedTappedAt: Date | null
+  readonly stop: {
+    readonly arrivedAt: Date | null
+    readonly completedAt: Date | null
+    readonly enRouteSince: Date | null
+  }
+}
+
 export type DriverDocumentReference = {
   readonly separationStatus: TripDocumentSeparationStatus
   readonly stopId: string | null
@@ -71,7 +87,9 @@ export type DriverFieldReportTransactionPort = {
   settle(input: {
     readonly companyId: string
     readonly idempotencyKey: string
-    readonly resultId: string
+    /** Spec 206 D2: `null` no toque sem efeito — o no-op também liquida a chave (M3). */
+    readonly resultChanged: boolean
+    readonly resultId: string | null
   }): Promise<void>
 
   /**
@@ -100,8 +118,15 @@ export type DriverFieldReportTransactionPort = {
 
   markStopArrived(input: {
     readonly at: Date
+    /**
+     * Spec 206 D7 (M4): a chegada zera "a caminho" — `'trip'` para o canal `driver_app`/`whatsapp`
+     * (todas as paradas da viagem, quem chegou não está mais a caminho de outra) e `'stop'` para o
+     * canal `office` (só a própria: a baixa retroativa não diz onde o motorista está agora).
+     */
+    readonly clearEnRoute: 'stop' | 'trip'
     readonly companyId: string
     readonly stopId: string
+    readonly tripId: string
   }): Promise<void>
   /**
    * Spec 109 D3: desloca as paradas que **ainda não aconteceram** pelo atraso desta chegada.
@@ -115,6 +140,46 @@ export type DriverFieldReportTransactionPort = {
     readonly shiftMilliseconds: number
     readonly tripId: string
   }): Promise<void>
+  /**
+   * Spec 206 D4 (ADR-0068 §2): trava as paradas da viagem antes de qualquer decisão sobre "a
+   * caminho" — serializa a leitura para o perdedor de uma corrida receber `409`, e não o `500` do
+   * índice único parcial.
+   */
+  lockTripStops(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  /**
+   * Spec 206 D2/D18: lida **depois** da trava — a parada (para o no-op de estado), a parada a
+   * caminho da viagem (se houver, para o `409`) e as referências de tempo do D3.
+   */
+  readDepartureDecision(input: {
+    readonly companyId: string
+    readonly stopId: string
+    readonly tripId: string
+  }): Promise<DepartureDecision>
+  /** Spec 206 D1/D4: marca **só esta** parada — não existe caminho que grave em duas. */
+  markStopEnRoute(input: {
+    readonly companyId: string
+    readonly since: Date
+    readonly stopId: string
+    readonly tappedAt: Date | null
+  }): Promise<void>
+  /** Spec 206 D18: o "Cancelar rota" zera "a caminho" **só da própria parada**. */
+  clearStopEnRoute(input: {
+    readonly companyId: string
+    readonly stopId: string
+    readonly updatedAt: Date
+  }): Promise<void>
+  /**
+   * Spec 206 D5: o primeiro "Iniciar rota" da viagem, no molde de `markTripInTransit`. Aceita
+   * `dispatched` **e** `in_transit` como origem — quem depende do status atual é
+   * `checkTripTransition`. Devolve se mudou.
+   */
+  markTripOnDeliveryRoute(input: {
+    readonly actorUserId: string
+    readonly at: Date
+    readonly authorship: FieldAuthorship
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<boolean>
   markTripInTransit(input: {
     readonly actorUserId: string
     /** ADR-0068 §"Consequências": o `trip_status_events` da chegada usa o mesmo `now` do `trip_stop_event`. */
@@ -193,6 +258,8 @@ export type DriverFieldReportTransactionPort = {
      */
     readonly reportedByDriverId?: string
     readonly stopId: string
+    /** Spec 206 D3: a hora do aparelho no toque, só em `departed`/`departure_cancelled`. */
+    readonly tappedAt?: Date | null
   }): Promise<{ readonly id: string }>
   /**
    * Spec 156 T6: o comprovante da entrega **na mesma transação** da entrega — ao contrário do

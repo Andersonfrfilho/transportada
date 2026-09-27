@@ -56,7 +56,10 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
 
 > 🤖 Modelo: `opus` (T0.3 é `sonnet`)
 
-- [ ] **T0.1** 🧠 Conferir a ADR-0088 contra o código e passá-la a `aceita`.
+- [x] **T0.1** 🧠 Conferir a ADR-0088 contra o código e passá-la a `aceita`. **Feita em 2026-09-26** —
+      evidência em `evidence.md` § "T0.1". O rebase pedido aqui **não** foi possível (árvore com WIP de
+      outras sessões): as onze premissas foram conferidas contra `origin/staging` por `git grep <ref>`,
+      e a divergência da árvore ficou registrada em `evidence.md` § "Base da árvore".
   - **Antes de tudo, alinhar a ADR-0088 com a Revisão 2** (é a única mudança de decisão permitida
     aqui): o `docs/adr/0088-a-rota-comeca-em-cada-parada.md` ainda diz "esta ADR decide o desenho:
     evento, estado, fila, **troca**, travas…" (`:10`) e "**Tocar noutra parada troca, sem recusar.** A
@@ -87,14 +90,23 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
   **Aceite:** ADR-0088 `aceita` **e sem nenhuma menção a troca de parada**, as emendas commitadas e o
   `evidence.md` com cada premissa e o arquivo:linha conferido.
 
-- [ ] **T0.2** 🧠 Escrever no `evidence.md` o roteiro de publicação e de reversão da D16.
+- [x] **T0.2** 🧠 Escrever no `evidence.md` o roteiro de publicação e de reversão da D16. **Feita em
+      2026-09-26**, com o parecer do `architect` colado. ⚠️ A sonda da T2.6 como estava escrita **não
+      provava o que dizia** (o `401` sem token é anterior ao `matchRoute`): ela ganhou uma quinta
+      requisição de controle, UUID canônico, token nomeado e a exigência de corpo `.strict()`, que virou
+      **obrigação da T2.1**.
   - O que sobe em cada etapa.
   - A sonda da T2.6.
   - O critério para reverter cada peça.
 
   **Aceite:** o roteiro revisado pelo `architect` (opus), e o parecer colado no `evidence.md`.
 
-- [ ] **T0.3** Painel tolerante (D12).
+- [x] **T0.3** Painel tolerante (D12). **Feita em 2026-09-26**, pelo caminho longo ("Senão") — a 192
+      T0.2 não está em `origin/staging`. Evidência em `evidence.md` § "T0.3". ⚠️ Precisou também dos dois
+      kinds e da prioridade 0 em `apps/api-transportada/src/trips/application/trip-timeline.types.ts`: o
+      contrato de **paridade exata** entre a lista do painel e a da API
+      (`test/trip/timeline.contract.ts:233-243`) não deixa publicar um lado sem o outro. O mapeamento de
+      `listStopEventRows` **segue na Fase 2**.
   - **Se a 192 T0.2 já estiver em `origin/staging`,** basta acrescentar `stop.departed` e
     `stop.departure_cancelled` a `TRIP_TIMELINE_KINDS` (`trip.types.ts:267-277`), com os rótulos.
   - **Senão:**
@@ -111,7 +123,10 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
 
 > 🤖 Modelo: `opus` 🧠 (constraint, índice e rollback destrutivo)
 
-- [ ] **T1.1** 🧠 Contratos antes (CA1).
+- [x] **T1.1** 🧠 Contratos antes (CA1). **Feita em 2026-09-26**, vermelho registrado no `evidence.md`
+      (`42703`, `tapped_at` não existe; `111 pass, 1 fail`). Um caso a mais do que a task pedia: a
+      **chegada sobre parada a caminho** também é recusada pelo `en_route_open_check` — é o inverso, e é
+      o que obriga os dois escritores de `arrived_at`/`completed_at` a zerar o "a caminho" (D4).
   - Em `test/database-migration/trip-constraints.assertion.ts` (hoje `:486-492`):
     - `departed` e `departure_cancelled` aceitos, `chegou` e `cancelado` recusados;
     - `trip_stops_en_route_open_check` recusa `en_route_since` com `arrived_at` e com `completed_at`;
@@ -123,8 +138,12 @@ cap`, e a **Q5** ficou aberta (teto de avisos por parada e endereço). As Fases 
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T1.2** 🧠 `trip.schema.ts` e `drizzle/<ts>_stop_departure/{migration.sql, rollback.sql,
-snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
+- [x] **T1.2** 🧠 `trip.schema.ts` e `drizzle/<ts>_stop_departure/{migration.sql, rollback.sql,
+snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`). **Feita em 2026-09-26**,
+      pasta `20260926140647_stop_departure`. ⚠️ **A cópia no worker NÃO foi feita**, de propósito e com
+      as três razões no `evidence.md` § "T1.2" — a principal é que `tapped_at` **não deve ser expurgada**
+      (o expurgo é da coordenada, e a 207 lê o `tapped_at` como âncora), e pôr a coluna no schema do
+      expurgo convida a apagá-la. Reverter é uma linha, se a decisão for outra.
   - **Os dois kinds na mesma migration** (`departed` e `departure_cancelled`): recriar o CHECK duas
     vezes seria trabalho e risco de graça.
   - Conferir antes o número da migration em `origin/staging`: outras sessões geram migrations, e a
@@ -133,7 +152,11 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
   **Aceite:** T1.1 verde, os dois comandos da API, `make migration-test` e `db:generate` =
   no_changes.
 
-- [ ] **T1.3** Medir em produção, no banco `Postgres-Hqfu` e só com `count(*)`, as tabelas
+- [ ] **T1.3** ⏸️ **PENDENTE DE AUTORIZAÇÃO DO USUÁRIO** (2026-09-26) — produção não se consulta sem ele
+      saber. A migration subiu com o `NOT VALID` + `VALIDATE` (o melhor sem o número) e com o índice
+      **sem** `concurrently`, que é o padrão do repositório (zero `CONCURRENTLY` em `drizzle/`). O risco
+      que esta task dimensiona está escrito no `evidence.md` § "T1.3".
+      Medir em produção, no banco `Postgres-Hqfu` e só com `count(*)`, as tabelas
       `trip_stops` e `trip_stop_events`. Confirmar ou trocar o `VALIDATE` imediato e o índice sem
       `concurrently`. **Aceite:** números e decisão no `evidence.md`.
 
@@ -142,7 +165,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
 > 🤖 Modelo: `sonnet` (T2.2, T2.2a e T2.3 🧠 — validar a transação e as travas com `architect` opus
 > antes)
 
-- [ ] **T2.1** Contratos antes (CA2), em `test/driver-trip/stop-departure.contract.ts`, importado em
+- [x] **T2.1** Contratos antes (CA2), em `test/driver-trip/stop-departure.contract.ts`, importado em
       `test/driver-trip.contract.test.ts`.
   - A rota exige `Idempotency-Key` e `tappedAt`, aceita `location` e recusa chave extra.
   - Respostas `201` e `200` com `changed`.
@@ -159,7 +182,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T2.1a** Contratos antes do cancelamento (CA2), na mesma suíte
+- [x] **T2.1a** Contratos antes do cancelamento (CA2), na mesma suíte
       `test/driver-trip/stop-departure.contract.ts`.
   - `cancel-departure` exige `Idempotency-Key` e `tappedAt`, aceita `location` e recusa chave extra (o
     corpo é o mesmo do `depart`, e o parser é reusado).
@@ -169,7 +192,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T2.2** 🧠 Integração antes (CA3, CA4), em `test/integration/me-trip-departure.integration.ts`,
+- [x] **T2.2** 🧠 Integração antes (CA3, CA4), em `test/integration/me-trip-departure.integration.ts`,
       acrescentada à mão a `test:integration`.
   - `dispatched` → `on_delivery_route`, com `trip_status_events` no canal `driver_app` e ponto nulo.
   - O segundo `depart` na mesma parada responde `changed: false`, sem evento.
@@ -197,7 +220,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
 
   **Aceite:** os casos rodam e falham. O caso (b) pode falhar pelo `completed_requires_arrived` da 205. Isso fica anotado, e o defeito é da 205.
 
-- [ ] **T2.2a** 🧠 Integração antes do cancelamento (CA3, CA4), na mesma
+- [x] **T2.2a** 🧠 Integração antes do cancelamento (CA3, CA4), na mesma
       `test/integration/me-trip-departure.integration.ts`.
   - O cancelamento grava `departure_cancelled` com `tapped_at` e carimbo, zera `en_route_*` **só da
     própria parada** e **não** gera `trip_status_events` — a viagem segue `on_delivery_route`.
@@ -214,7 +237,7 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
 
   **Aceite:** os casos rodam e falham.
 
-- [ ] **T2.3** 🧠 Implementar:
+- [x] **T2.3** 🧠 Implementar:
   - `report-stop-departure.use-case.ts`, com as decisões na ordem da D2 e **escrevendo numa parada
     só** — não existe caminho que atualize duas linhas de `trip_stops`;
   - `cancel-stop-departure.use-case.ts`, com as mesmas travas, `clearStopEnRoute` da própria parada e
@@ -234,14 +257,14 @@ snapshot.json}` conforme o plano, e a cópia do schema no worker (`tapped_at`).
   **Aceite:** T2.1, T2.1a, T2.2 e T2.2a verdes, exceto o caso (b) se a 205 ainda não estiver corrigida, e os dois
   comandos da API inteiros verdes.
 
-- [ ] **T2.4** `enRouteSince` e `enRouteTappedAt` em `GET /me/trips/current`.
+- [x] **T2.4** `enRouteSince` e `enRouteTappedAt` em `GET /me/trips/current`.
   - Primeiro o contrato de serialização em `test/driver-trip/`.
   - Contrato de isolamento em `tenant-safety`.
 
   **Aceite:** contrato e integração (caso em `me-trip.integration.ts`) verdes, e sem N+1: as colunas
   vêm na mesma consulta de `listStops`.
 
-- [ ] **T2.5** Linha do tempo: `stop.departed` e `stop.departure_cancelled`, o mapeamento e a
+- [x] **T2.5** Linha do tempo: `stop.departed` e `stop.departure_cancelled`, o mapeamento e a
       prioridade 0 nos dois.
   - Primeiro o contrato: prioridade inteira, e os dois abaixo de `trip.status_changed`.
   - Depois os casos em `test/integration/trip-timeline.integration.ts`: item com `stop { id,
@@ -249,7 +272,9 @@ sequence }`, e a página com `departed`, `departure_cancelled` e `arrived` pagin
 
   **Aceite:** os dois comandos da API verdes.
 
-- [ ] **T2.6** Sonda de publicação (ADR-0081 §9), sem efeito nenhum.
+- [ ] **T2.6** ⏸️ **PENDENTE — exige a API já em staging** (2026-09-26): esta execução implementou
+      T2.1–T2.5 sem deploy nenhum (fora do escopo autorizado); a sonda só pode rodar depois da subida.
+      Sonda de publicação (ADR-0081 §9), sem efeito nenhum.
   - Depois do deploy da API em staging, um `POST .../stops/<uuid>/depart` e um
     `POST .../stops/<uuid>/cancel-departure`:
     - sem token respondem `401`;

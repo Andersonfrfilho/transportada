@@ -900,17 +900,23 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isTripOccurrence)) throw invalid()
       return input
     },
-    /** Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`. */
+    /**
+     * Spec 158 T7: `GET /trips/:id/timeline` — `{ items, nextCursor }` direto sob `data`.
+     *
+     * Spec 206 T0.3 (D12): `kind` que o bundle não conhece é item de uma API mais nova, e o painel
+     * publica **antes** dela (ADR-0081 §9). Por isso o item desconhecido é **descartado**, não recusa a
+     * página: recusando, o primeiro `stop.departed` gravado deixaria a linha do tempo da viagem em
+     * branco. O `nextCursor` é preservado mesmo quando a página inteira é descartada, senão "carregar
+     * mais" pararia e o histórico antigo ficaria inalcançável. Forma continua sendo recusada — item que
+     * não é objeto, `kind` que não é texto e chave a mais reprovam a página como sempre.
+     */
     tripTimelineFromApi(input: unknown): TripTimelinePage {
-      if (
-        !isRecord(input) ||
-        !Array.isArray(input.items) ||
-        !input.items.every(isTimelineItem) ||
-        !isNullableString(input.nextCursor)
-      ) {
+      if (!isRecord(input) || !Array.isArray(input.items) || !isNullableString(input.nextCursor)) {
         throw invalid()
       }
-      return { items: input.items, nextCursor: input.nextCursor }
+      const items = input.items.filter((item) => !hasUnknownTimelineKind(item))
+      if (!items.every(isTimelineItem)) throw invalid()
+      return { items, nextCursor: input.nextCursor }
     },
     /** Spec 156 T9: `GET /trips/occurrence-types/field` — o catálogo do lote de ocorrência. */
     fieldOccurrenceTypesFromApi(input: unknown): readonly FieldOccurrenceType[] {
@@ -1304,6 +1310,15 @@ function isTimelineOccurrenceReference(value: unknown): value is TripTimelineOcc
     isString(value.typeName) &&
     (value.attachmentCount === undefined || isUnsignedInteger(value.attachmentCount))
   )
+}
+
+/**
+ * Spec 206 T0.3 (D12): o item que **só** peca no vocabulário do `kind`. É deliberadamente estreito —
+ * exige objeto e `kind` de texto — para que `null`, `42` e string solta continuem reprovando a página
+ * em vez de desaparecerem em silêncio.
+ */
+function hasUnknownTimelineKind(value: unknown): boolean {
+  return isRecord(value) && isString(value.kind) && !isOneOf(value.kind, TRIP_TIMELINE_KINDS)
 }
 
 /**

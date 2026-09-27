@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { formatPhone } from '@/modules/shared/phone.service'
 import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
@@ -646,6 +647,16 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
     <section className={styles.panel} aria-labelledby="trip-detail-title">
       <div className={styles.panelHead}>
         <h2 id="trip-detail-title">{t('detail.title')}</h2>
+        {/* O UUID inteiro não cabe numa anotação a mão — os 8 primeiros caracteres bastam para
+            achar a viagem de novo, e o botão copia o valor completo para quem precisa dele. */}
+        <span className={styles.tripIdBadge}>
+          <code>{trip.id.slice(0, 8)}</code>
+          <CopyButton
+            copiedLabel={t('detail.idCopied')}
+            label={t('detail.copyId')}
+            value={trip.id}
+          />
+        </span>
         <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
         {/*
          * Spec 170: as ações de estado ficam **aqui**, junto do status, com o resumo do que barra o

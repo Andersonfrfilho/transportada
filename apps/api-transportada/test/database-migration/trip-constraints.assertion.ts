@@ -68,6 +68,21 @@ export async function assertTripConstraints(
     values (${otherTripId}, ${companyId}, ${vehicleId})
   `
 
+  // Spec 216: sem veículo é o caminho de "aguardando definição" — a viagem nasce, o FK composto
+  // não se aplica a uma coluna nula (MATCH SIMPLE), e nenhum trigger antigo perde essa linha.
+  const awaitingVehicleTripId = crypto.randomUUID()
+  await database`
+    insert into trips (id, company_id, vehicle_id)
+    values (${awaitingVehicleTripId}, ${companyId}, null)
+  `
+  const [awaitingVehicleTrip] = await database`
+    select vehicle_id from trips where id = ${awaitingVehicleTripId}
+  `
+  expect(awaitingVehicleTrip.vehicle_id).toBeNull()
+  // O ciclo de rollback mais adiante neste teste reimpõe NOT NULL em vehicle_id — sem apagar esta
+  // linha, o rollback da própria migration que a permite falharia contra o dado que ela criou.
+  await database`delete from trips where id = ${awaitingVehicleTripId}`
+
   await expectQueryToFail(
     database`insert into trips (company_id, vehicle_id) values (${otherCompanyId}, ${vehicleId})`,
     '23503',
@@ -379,6 +394,120 @@ export async function assertTripConstraints(
     tripId,
     userId,
   })
+
+  await assertStopEnRouteConstraints({ companyId, database, tripId, vehicleId })
+}
+
+/**
+ * Spec 206 CA1 (D1/D4/D5): "uma parada a caminho por vez" é invariante do **banco**, não do caso de uso.
+ * Dois celulares do mesmo motorista, ou o toque que corre com a baixa do escritório, passam por dois
+ * caminhos diferentes — e o `if` do caso de uso não serializa nada. Aqui se prova o que sobra depois
+ * dele: o CHECK que só admite "a caminho" em parada aberta e sem chegada, o CHECK que não deixa a hora
+ * do toque existir sozinha, e o índice único parcial que é por **viagem**, não por empresa.
+ */
+async function assertStopEnRouteConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly tripId: string
+  readonly vehicleId: string
+}): Promise<void> {
+  const { companyId, database, tripId, vehicleId } = input
+  // Viagem própria: a `otherTripId` de `assertTripConstraints` já foi apagada lá, para provar a cascata
+  const secondTripId = crypto.randomUUID()
+  await database`
+    insert into trips (id, company_id, vehicle_id) values (${secondTripId}, ${companyId}, ${vehicleId})
+  `
+  const openStopId = crypto.randomUUID()
+  const secondOpenStopId = crypto.randomUUID()
+  const arrivedStopId = crypto.randomUUID()
+  const settledStopId = crypto.randomUUID()
+  const otherTripStopId = crypto.randomUUID()
+
+  const insertStop = (
+    id: string,
+    trip: string,
+    sequence: number,
+    columns?: { readonly arrivedAt?: boolean; readonly completedAt?: boolean },
+  ): Promise<unknown> =>
+    database`
+      insert into trip_stops (
+        id, company_id, trip_id, sequence, address_key, label, arrived_at, completed_at
+      )
+      values (
+        ${id}, ${companyId}, ${trip}, ${sequence}, ${`3550308|01001000|${sequence}`},
+        ${`En route, ${sequence}`},
+        ${columns?.arrivedAt === true ? new Date() : null},
+        ${columns?.completedAt === true ? new Date() : null}
+      )
+    `
+
+  await insertStop(openStopId, tripId, 901)
+  await insertStop(secondOpenStopId, tripId, 902)
+  await insertStop(arrivedStopId, tripId, 903, { arrivedAt: true })
+  // `completed_at` sem `arrived_at` é recusado por `trip_stops_completed_requires_arrived`, que já
+  // existia: a parada concluída **sempre** tem chegada. A metade `completed_at` do CHECK novo é cinto e
+  // suspensório — vale registrar, porque quem a ler isolada pode achar que é inalcançável.
+  await insertStop(settledStopId, tripId, 904, { arrivedAt: true, completedAt: true })
+  await insertStop(otherTripStopId, secondTripId, 901)
+
+  // A parada aberta aceita "a caminho", com as duas horas
+  await database`
+    update trip_stops set en_route_since = now(), en_route_tapped_at = now()
+    where id = ${openStopId}
+  `
+
+  await expectQueryToFail(
+    database`update trip_stops set en_route_since = now() where id = ${arrivedStopId}`,
+    '23514',
+    'trip_stops_en_route_open_check',
+  )
+  await expectQueryToFail(
+    database`update trip_stops set en_route_since = now() where id = ${settledStopId}`,
+    '23514',
+    'trip_stops_en_route_open_check',
+  )
+  // E o caminho inverso: a chegada sobre uma parada a caminho só passa zerando o "a caminho" no mesmo
+  // UPDATE — é o CHECK que obriga os dois escritores de `arrived_at` a fazerem isso (D4).
+  await expectQueryToFail(
+    database`update trip_stops set arrived_at = now() where id = ${openStopId}`,
+    '23514',
+    'trip_stops_en_route_open_check',
+  )
+
+  await expectQueryToFail(
+    database`update trip_stops set en_route_tapped_at = now() where id = ${secondOpenStopId}`,
+    '23514',
+    'trip_stops_en_route_tapped_check',
+  )
+
+  // O índice único parcial: a segunda parada **da mesma viagem** não entra
+  await expectQueryToFail(
+    database`update trip_stops set en_route_since = now() where id = ${secondOpenStopId}`,
+    '23505',
+    'trip_stops_one_en_route_per_trip_idx',
+  )
+
+  // É por viagem, não por empresa: outra viagem da mesma empresa abre a sua parada sem conflito
+  await database`update trip_stops set en_route_since = now() where id = ${otherTripStopId}`
+
+  // Fechar a parada aberta libera a vaga — é o que a entrega, o registro tardio e o "Cancelar rota"
+  // fazem, cada um do seu jeito (ADR-0088 §2)
+  await database`
+    update trip_stops set en_route_since = null, en_route_tapped_at = null where id = ${openStopId}
+  `
+  await database`update trip_stops set en_route_since = now() where id = ${secondOpenStopId}`
+
+  const [{ total }] = (await database`
+    select count(*)::int as total from trip_stops
+    where company_id = ${companyId} and en_route_since is not null
+  `) as [{ total: number }]
+  expect(total).toBe(2)
+
+  await database`
+    delete from trip_stops
+    where id in (${openStopId}, ${secondOpenStopId}, ${arrivedStopId}, ${settledStopId}, ${otherTripStopId})
+  `
+  await database`delete from trips where id = ${secondTripId}`
 }
 
 /**
@@ -487,6 +616,25 @@ async function assertFieldExecutionConstraints(input: {
     database`
       insert into trip_stop_events (company_id, stop_id, kind, actor_user_id)
       values (${companyId}, ${stopId}, 'chegou', ${userId})
+    `,
+    '23514',
+    'trip_stop_events_kind_check',
+  )
+
+  // Spec 206 CA1 (D1/D18): os dois kinds da saída entram no vocabulário, com `tapped_at` — a hora do
+  // aparelho no toque, que é o que ordena a fila. A grafia é `cancelled`, a do repositório.
+  await database`
+    insert into trip_stop_events (company_id, stop_id, kind, tapped_at, actor_user_id)
+    values (${companyId}, ${stopId}, 'departed', now(), ${userId})
+  `
+  await database`
+    insert into trip_stop_events (company_id, stop_id, kind, tapped_at, actor_user_id)
+    values (${companyId}, ${stopId}, 'departure_cancelled', now(), ${userId})
+  `
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id)
+      values (${companyId}, ${stopId}, 'cancelado', ${userId})
     `,
     '23514',
     'trip_stop_events_kind_check',

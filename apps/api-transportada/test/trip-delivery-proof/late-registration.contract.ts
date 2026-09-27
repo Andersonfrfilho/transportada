@@ -217,6 +217,8 @@ describe('as rotas /me repassam lateRegistration (spec 205 RF1-RF3)', () => {
       registerDriverOccurrence: NOT_CALLED,
       renderManifestDamdfe: NOT_CALLED,
       reportArrival: NOT_CALLED,
+      reportDeparture: NOT_CALLED,
+      cancelStopDeparture: NOT_CALLED,
       reportDelivery: async (input) => {
         received.push({ lateRegistration: input.lateRegistration, route: 'deliver' })
         return outcome

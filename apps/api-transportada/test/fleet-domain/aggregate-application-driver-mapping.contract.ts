@@ -82,6 +82,24 @@ describe('aggregate application declared data mapping', () => {
     expect(vehicle.capacityKilograms).toBe('0')
   })
 
+  test('placa declarada sem o tipo do veículo cai em "other" — evita violar fleet_vehicles_vehicle_type_check na aprovação', () => {
+    const vehicle = mapDeclaredDataToVehicleInput({ plate: 'ABC1D23' })
+
+    expect(vehicle.role).toBe('traction')
+    expect(vehicle.vehicleType).toBe('other')
+  })
+
+  test('veículo declarado como reboque nunca carrega tipo, mesmo se algo tiver declarado um', () => {
+    const vehicle = mapDeclaredDataToVehicleInput({
+      plate: 'ABC1D23',
+      role: 'trailer',
+      vehicleType: 'truck',
+    })
+
+    expect(vehicle.role).toBe('trailer')
+    expect(vehicle.vehicleType).toBe('')
+  })
+
   test('sem UF declarada no veículo, usa a UF do endereço do motorista', () => {
     const vehicle = mapDeclaredDataToVehicleInput({ plate: 'ABC1D23' }, 'SP')
     expect(vehicle.state).toBe('SP')
@@ -113,6 +131,45 @@ describe('aggregate application declared data mapping', () => {
     expect(owner.ownerRntrc).toBe('12345678')
     expect(owner.ownerState).toBe('SP')
     expect(owner.ownerTaxRegime).toBe('0')
+  })
+
+  test('chave PIX declarada sem o tipo é descartada — evita violar fleet_drivers_pix_key_check na aprovação', () => {
+    const input = mapDeclaredDataToDriverInput({
+      declaredData: { driver: { pixKey: '12345678901' } },
+      email: 'candidato@example.com',
+      name: 'Fulano de Tal',
+      phone: '11988887777',
+      taxId: '12345678901',
+    })
+
+    expect(input.pixKey).toBe('')
+    expect(input.pixKeyType).toBe('')
+  })
+
+  test('tipo de chave PIX declarado sem a chave também é descartado, pelo mesmo motivo', () => {
+    const input = mapDeclaredDataToDriverInput({
+      declaredData: { driver: { pixKeyType: 'cpf' } },
+      email: 'candidato@example.com',
+      name: 'Fulano de Tal',
+      phone: '11988887777',
+      taxId: '12345678901',
+    })
+
+    expect(input.pixKey).toBe('')
+    expect(input.pixKeyType).toBe('')
+  })
+
+  test('chave e tipo de PIX declarados juntos são preservados', () => {
+    const input = mapDeclaredDataToDriverInput({
+      declaredData: { driver: { pixKey: '12345678901', pixKeyType: 'cpf' } },
+      email: 'candidato@example.com',
+      name: 'Fulano de Tal',
+      phone: '11988887777',
+      taxId: '12345678901',
+    })
+
+    expect(input.pixKey).toBe('12345678901')
+    expect(input.pixKeyType).toBe('cpf')
   })
 
   test('sem RNTRC, UF ou regime declarados, o veículo nasce sem dono — o operador completa depois', () => {

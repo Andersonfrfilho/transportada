@@ -39,6 +39,7 @@ type RouteDependencies = {
   readonly cancelTrip: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly closeTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly createTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
+  readonly updateTripCrew: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly createTripMdfeManifest: {
     execute(input: ExecuteCall): Promise<typeof MDFE_MANIFEST_DETAIL>
   }
@@ -80,6 +81,7 @@ type CreateFixtureParams = {
   readonly cancelTripError?: Error
   readonly closeTripError?: Error
   readonly createTripError?: Error
+  readonly updateTripCrewError?: Error
   readonly createTripMdfeManifestError?: Error
   readonly dispatchTripError?: Error
   readonly getTripError?: Error
@@ -174,6 +176,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly cancelTripCalls: ExecuteCall[]
   readonly closeTripCalls: ExecuteCall[]
   readonly createTripCalls: ExecuteCall[]
+  readonly updateTripCrewCalls: ExecuteCall[]
   readonly createTripMdfeManifestCalls: ExecuteCall[]
   readonly dispatchTripCalls: ExecuteCall[]
   readonly getTripCalls: ExecuteCall[]
@@ -203,6 +206,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const cancelTripCalls: ExecuteCall[] = []
   const closeTripCalls: ExecuteCall[] = []
   const createTripCalls: ExecuteCall[] = []
+  const updateTripCrewCalls: ExecuteCall[] = []
   const createTripMdfeManifestCalls: ExecuteCall[] = []
   const dispatchTripCalls: ExecuteCall[] = []
   const getTripCalls: ExecuteCall[] = []
@@ -270,6 +274,13 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         createTripCalls.push(structuredClone(input))
         if (params.createTripError) throw params.createTripError
         return TRIP_DETAIL
+      },
+    },
+    updateTripCrew: {
+      async execute(input) {
+        updateTripCrewCalls.push(structuredClone(input))
+        if (params.updateTripCrewError) throw params.updateTripCrewError
+        return { ...TRIP_DETAIL, status: 'draft' }
       },
     },
     createTripMdfeManifest: {
@@ -508,6 +519,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     cancelTripCalls,
     closeTripCalls,
     createTripCalls,
+    updateTripCrewCalls,
     createTripMdfeManifestCalls,
     dispatchTripCalls,
     getTripCalls,
