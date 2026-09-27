@@ -77,3 +77,26 @@ o resultado alternou entre `708 pass / 0 fail` e conjuntos diferentes de estouro
 rodada, sempre sem nenhuma asserção falhando, e cada suíte acusada passa sozinha (`me-trip`, 13/13
 com o caso da coordenada; `company-user-*`, 16/16 em ~25 s, igual ao baseline). Quem decide é a CI,
 que roda num Postgres só dela.
+
+### T4 — publicação em staging
+
+`2cd98cdce`, publicado em `origin/staging` em 2026-09-26. Os gates de qualidade da CI passaram sobre
+ele, inclusive `gate / quality-app (api-transportada)` (typecheck, lint, contratos e build da API).
+
+⚠️ **O `gate / integration` não chegou a terminar, e não é por causa desta spec.** O deploy de
+staging está represado: **32 dos 40 runs das últimas 24 h saíram `cancelled`**, contra 5 `success` e
+3 `failure`, e o último sucesso é de 2026-09-25 22:31. Dois efeitos somados:
+
+- vários commits disparam **dois** runs (medido em `0f14a7ee4`, `16349174d`, `23f05cf9d`,
+  `2cd98cdce`, `3c84ee7f0`, `b0591bd13`);
+- `concurrency.group` é `deploy-staging` com `cancel-in-progress: false` só para push, então o run
+  enfileirado é descartado quando chega o próximo — e com o workflow em ~40 min e várias sessões
+  publicando, quase nada alcança o fim da fila.
+
+Três tentativas com este commit terminaram assim, uma delas relançada à mão. Não é defeito da fase A
+nem de quem publicou depois; é vazão da esteira, e vale para todas as sessões.
+
+## Fase B
+
+Não iniciada. Ela depende da fase A **em produção** (T5, merge com aprovação humana) e da contagem do
+RF2 igual a zero em cada ambiente.

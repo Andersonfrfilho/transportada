@@ -13,8 +13,9 @@
       `make migration-test` verde.
 - [x] **T3** Comentários do RF3 — quatro arquivos citados na spec — evidência: `grep` sem
       "existem e nunca são escrit".
-- [ ] **T4** Gates da fase A: typecheck, lint, contrato e integração da API; commit isolado; push para
-      staging; deploy verde.
+- [x] **T4** Gates da fase A: typecheck, lint, contrato e integração da API; commit isolado; push para
+      staging. ⚠️ Deploy verde **pendente**: a esteira de staging está represada (32 de 40 runs
+      cancelados em 24 h) — ver `evidence.md`.
 - [ ] **T5** Fase A em produção: PR para `main` com o commit da fase A (cherry-pick sobre
       `origin/main`), **merge com aprovação humana**.
 
