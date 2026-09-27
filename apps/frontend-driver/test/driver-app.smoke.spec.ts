@@ -798,7 +798,11 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
 
   await expect(item.getByText('Foto do canhoto anexada')).toBeVisible()
   await expect(item.getByRole('img', { name: 'Miniatura da foto do canhoto' })).toBeVisible()
-  await expect(item.getByRole('button', { exact: true, name: 'Refazer' })).toBeVisible()
+  // O rótulo "Refazer" só chega depois do refreshQueueView() assíncrono (leitura do IndexedDB) —
+  // instantâneo local, mas medido estourando 5s no runner de CI sob carga da suíte inteira de smoke.
+  await expect(item.getByRole('button', { exact: true, name: 'Refazer' })).toBeVisible({
+    timeout: 20_000,
+  })
   await assertNoHorizontalOverflow(page)
   expect(await listSmallTouchTargets(page)).toEqual([])
 })
