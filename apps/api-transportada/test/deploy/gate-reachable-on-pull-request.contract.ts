@@ -63,7 +63,20 @@ describe('o gate é alcançável em pull request', () => {
     expect(directives.filter((line) => line.trimStart().startsWith('needs:'))).toEqual([
       '    needs: changes',
     ])
-    expect(directives).toContain("    if: always() && needs.changes.result == 'success'")
+    expect(directives.join('\n')).toInclude("always() && needs.changes.result == 'success'")
+  })
+
+  /**
+   * PR de promoção (`staging`→`main`) dispara `pull_request` e `push` para o mesmo commit — o
+   * `push` já reporta `gate / quality`/`gate / integration` pro mesmo SHA, e a proteção de branch
+   * casa pelo SHA, não pelo evento. Sem esta condição, o gate roda a suíte inteira duas vezes por
+   * commit sempre que alguém empurra direto em `staging`/`main` com uma PR de promoção aberta.
+   */
+  test('o gate não repete a suíte quando o `pull_request` é de uma PR de promoção', () => {
+    const directives = jobDirectives('gate').join('\n')
+
+    expect(directives).toInclude("github.event_name == 'pull_request'")
+    expect(directives).toInclude('contains(fromJSON(\'["main", "staging"]\'), github.head_ref)')
   })
 
   /**
