@@ -15,20 +15,20 @@
 
 > 🤖 Modelo: `sonnet` (T101 e T103 são 🧠 — máquina de estados)
 
-- [ ] **T101** 🧠 `opus` — Teste de contrato de `resolveCrewStatus` e do novo `checkDefineCrew`: par
+- [x] **T101** 🧠 `opus` — Teste de contrato de `resolveCrewStatus` e do novo `checkDefineCrew`: par
       completo → `draft`; só motorista → `awaiting_crew`; só veículo → `awaiting_crew`; nenhum dos
       dois → `awaiting_crew`; a partir de `draft` com par completo → `unchanged`; a partir de `draft`
       com par desfeito → `applied` para `awaiting_crew`. Opus porque é a máquina de estados que
       sustenta a viagem. (RF3, D1)
-- [ ] **T102** `sonnet` — Implementação do T101 em `trip-state.policy.ts`, com o tipo
+- [x] **T102** `sonnet` — Implementação do T101 em `trip-state.policy.ts`, com o tipo
       `TripCrewComposition` e a função pura `resolveCrewStatus`. (RF3, D1)
-- [ ] **T103** 🧠 `opus` — Teste de contrato HTTP + integração de `PATCH /trips/:id/crew` provando o
+- [x] **T103** 🧠 `opus` — Teste de contrato HTTP + integração de `PATCH /trips/:id/crew` provando o
       status derivado no banco, inclusive a regressão `draft → awaiting_crew` quando a tripulação é
       desfeita, e que `trip_drivers` e `trips.vehicle_id` ficam coerentes com o status gravado.
       (RF3, D1)
-- [ ] **T104** `sonnet` — Implementação do T103: `updateCrew` no use case e no repositório param de
+- [x] **T104** `sonnet` — Implementação do T103: `updateCrew` no use case e no repositório param de
       gravar `transition.nextStatus` cego e passam a gravar o status derivado do par. (RF3, D1)
-- [ ] **T105** `sonnet` — Teste de contrato de `allowed-actions` provando que `planRoute` **não** é
+- [x] **T105** `sonnet` — Teste de contrato de `allowed-actions` provando que `planRoute` **não** é
       oferecido em `awaiting_crew` e **é** oferecido em `draft`, sem nenhuma condição nova na
       política — a prova de que D1 resolve a RF6 sozinha. (RF6, D1)
 
