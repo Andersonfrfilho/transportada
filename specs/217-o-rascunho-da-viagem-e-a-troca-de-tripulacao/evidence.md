@@ -128,3 +128,21 @@ $ bun --env-file=../../.env.test test test/trip-domain.contract.test.ts \
     test/trip-http.contract.test.ts test/trip-application.contract.test.ts --timeout 120000
  588 pass / 0 fail / 2055 expect() calls
 ```
+
+## T105 — `allowed-actions` não precisou de regra nova (`sonnet` no `tasks.md`, feito com `opus`)
+
+Teste novo em `test/trip-allowed-actions/policy.contract.ts`: viagem `awaiting_crew` recebe
+`['cancel']` e **não** recebe `planRoute`. É a prova da RF6 — a visibilidade de "Planejar rota" sai da
+máquina de estados, não de uma condição de tripulação na política de ações.
+
+Nenhuma linha de produção mudou nesta task, o que é o ponto: a D1 tornou a RF6 consequência.
+
+```
+$ bun --env-file=../../.env.test test test/trip-allowed-actions.contract.test.ts --timeout 120000
+ 23 pass / 0 fail / 41 expect() calls
+```
+
+**Provado por mutação**, porque teste que nasce verde precisa mostrar que morde: removendo a guarda de
+`awaiting_crew` de `checkTripTransition` (a que a 216 instalou), a asserção quebra —
+`expect(awaitingCrew.trip).not.toContain('planRoute')` recebe `+1`, `22 pass / 1 fail`. Fonte
+restaurada e `git status src/` limpo antes do commit.

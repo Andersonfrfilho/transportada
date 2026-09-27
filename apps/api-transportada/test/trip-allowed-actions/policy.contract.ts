@@ -224,6 +224,23 @@ describe('allowedActions — por parada e por viagem', () => {
     expect(loading.trip).toEqual(['dispatch', 'cancel'])
   })
 
+  /**
+   * Spec 217 T105 (D1/RF6): a prova de que a visibilidade de "Planejar rota" **não** precisou de
+   * regra nova. `planRoute` só se aplica em `draft`, e depois da D1 `draft` significa par
+   * motorista+veículo completo — então tripulação pendente esconde o botão pela máquina de estados,
+   * sem nenhuma condição de tripulação aqui dentro. Se algum dia alguém somar essa condição a esta
+   * política, este teste continua passando e o outro lugar vira a segunda verdade: é o `draft` do
+   * teste acima que prende o par.
+   */
+  it('a viagem sem tripulação não recebe planRoute, só o cancelamento', () => {
+    const awaitingCrew = resolveTripAllowedActions({
+      capabilities: SEPARATOR,
+      trip: snapshot({ documents: [documentIn('pending')], status: 'awaiting_crew' }),
+    })
+    expect(awaitingCrew.trip).not.toContain('planRoute')
+    expect(awaitingCrew.trip).toEqual(['cancel'])
+  })
+
   it('o finance não recebe ação de viagem do barracão', () => {
     const loading = resolveTripAllowedActions({
       capabilities: FINANCE,
