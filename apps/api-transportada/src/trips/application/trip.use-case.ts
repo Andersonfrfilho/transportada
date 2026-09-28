@@ -253,8 +253,18 @@ export function createTripUseCase(dependencies: {
       const transition = checkTripTransition({
         action: TRIP_ACTION.defineCrew,
         crew: { hasDriver: driverIds.length > 0, hasVehicle: vehicleId !== undefined },
-        hasRoute: false,
+        /**
+         * `TripDetail` não expõe o carimbo do congelamento, e esta checagem é só UX: para `defineCrew`
+         * o bloqueio não depende de `hasRoute`, só o status resultante — e quem o grava é a checagem
+         * sob lock no repositório, que lê a coluna de verdade. O status serve de aproximação aqui.
+         */
+        hasRoute: trip.status === 'route_planned',
         tripStatus: trip.status,
+        /**
+         * Spec 217 D3-ter: normalizado para `null` dos dois lados — pedir a troca **sem** veículo numa
+         * viagem que tem um é trocar o veículo (para nenhum), e o roteiro morre igual.
+         */
+        vehicleChanged: (vehicleId ?? null) !== (trip.vehicleId ?? null),
       })
       if (transition.outcome === 'blocked') {
         throw new TripStateTransitionNotAllowedError(transition.reason)

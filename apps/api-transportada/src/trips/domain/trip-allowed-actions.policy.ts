@@ -18,6 +18,7 @@ import {
   TRIP_ON_ROAD_STATUSES,
   checkTripDocumentTransition,
   checkTripTransition,
+  isCrewSwappable,
   isTripDispatched,
   type TripAction,
   type TripDocumentAction,
@@ -148,11 +149,28 @@ function resolveTripLevelActions(input: {
     ? [TRIP_ACTION.startRoute]
     : []
 
-  return [...managed, ...field].filter(
+  const offerable = [...managed, ...field].filter(
     (action) =>
       checkTripTransition({ action, hasRoute: input.hasRoute, tripStatus: input.trip.status })
         .outcome === 'applied',
   )
+
+  /**
+   * Spec 217 T309 (D6): `defineCrew` entra por fora do filtro acima de propósito. Duas razões, e as
+   * duas são do tipo que um `filter` genérico não expressa:
+   *
+   * 1. Para esta ação **`unchanged` também é "pode"** — trocar a tripulação de uma `draft` não muda o
+   *    status. O filtro genérico só aceita `applied` e esconderia o botão na viagem mais comum.
+   * 2. Perguntar à máquina de estados por `defineCrew` exige a composição resultante e o veículo
+   *    pedido (D1/D3-ter), que uma lista de ações não tem. `isCrewSwappable` é a mesma janela que
+   *    `checkDefineCrew` usa para recusar, então oferecer e recusar não podem divergir.
+   */
+  const crewSwap: readonly TripAction[] =
+    input.capabilities.canManage && isCrewSwappable(input.trip.status)
+      ? [TRIP_ACTION.defineCrew]
+      : []
+
+  return [...offerable, ...crewSwap]
 }
 
 /**
