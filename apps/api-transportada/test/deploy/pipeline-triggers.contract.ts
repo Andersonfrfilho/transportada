@@ -235,19 +235,35 @@ describe('contrato do grafo de deploy', () => {
   })
 
   /**
-   * Code M8 (spec 189 T9.2): `changes` nunca filtra produção, então `deploy-driver` dispararia em
-   * todo push a `main` que toque `apps/frontend-driver` — e o serviço `driver` ainda não existe na
-   * Railway de produção (T6.9, pendente). Sem a guarda, `railway-deploy.sh` bateria num serviço
-   * inexistente e reprovaria o deploy inteiro por causa de uma app que produção ainda não tem.
+   * Code M8 (spec 189 T9.2): a guarda `needs.target.outputs.environment != 'production'` existiu
+   * enquanto `driver` não tinha serviço nem domínio na Railway de produção — sem ela,
+   * `railway-deploy.sh` bateria num serviço inexistente e reprovaria o deploy inteiro. A T6.9
+   * criou os dois (28/09/2026), e a guarda saiu do job.
    */
-  test('o app do motorista não publica em produção antes do serviço existir lá (T6.9)', async () => {
+  test('o app do motorista já publica em produção — a guarda de ambiente da T6.9 saiu', async () => {
     const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
     const job = workflow.slice(
       workflow.indexOf('deploy-driver:'),
       workflow.indexOf('deploy-services:'),
     )
 
-    expect(needsOf(workflow, 'deploy-driver')).toContain('target')
-    expect(job).toContain("needs.target.outputs.environment != 'production'")
+    expect(job).not.toContain("needs.target.outputs.environment != 'production'")
+  })
+
+  /**
+   * Mesmo raciocínio do `deploy-frontend` (run `33917015862`): o app do motorista chama a API, e
+   * publicar bundle novo contra API que falhou deixa a tela batendo em rota inexistente, só que
+   * num aparelho de campo sem forma fácil de saber por quê.
+   */
+  test('o motorista não publica contra uma API que falhou', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+    const job = workflow.slice(
+      workflow.indexOf('deploy-driver:'),
+      workflow.indexOf('deploy-services:'),
+    )
+
+    expect(needsOf(workflow, 'deploy-driver')).toContain('deploy-api')
+    expect(job).toContain("needs.deploy-api.result != 'failure'")
+    expect(job).toContain("needs.deploy-api.result != 'cancelled'")
   })
 })
