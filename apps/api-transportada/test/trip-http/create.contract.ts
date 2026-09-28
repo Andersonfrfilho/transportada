@@ -108,7 +108,7 @@ describe('trip create http contract', () => {
 
     expect(response.status).toBe(201)
     expect(fixture.createTripCalls).toEqual([
-      { context: COMPANY_CONTEXT, driverIds: [], vehicleId: undefined },
+      { context: COMPANY_CONTEXT, driverIds: [], helperIds: [], vehicleId: undefined },
     ])
   })
 
@@ -121,7 +121,7 @@ describe('trip create http contract', () => {
 
     expect(response.status).toBe(201)
     expect(fixture.createTripCalls).toEqual([
-      { context: COMPANY_CONTEXT, driverIds: [DRIVER_ID], vehicleId: undefined },
+      { context: COMPANY_CONTEXT, driverIds: [DRIVER_ID], helperIds: [], vehicleId: undefined },
     ])
   })
 
@@ -138,7 +138,7 @@ describe('trip create http contract', () => {
 
     expect(response.status).toBe(201)
     expect(fixture.createTripCalls).toEqual([
-      { context: COMPANY_CONTEXT, driverIds: [], vehicleId: VEHICLE_ID },
+      { context: COMPANY_CONTEXT, driverIds: [], helperIds: [], vehicleId: VEHICLE_ID },
     ])
   })
 
@@ -155,6 +155,7 @@ describe('trip create http contract', () => {
       {
         context: COMPANY_CONTEXT,
         driverIds: [DRIVER_ID, SECOND_DRIVER_ID],
+        helperIds: [],
         vehicleId: VEHICLE_ID,
       },
     ])

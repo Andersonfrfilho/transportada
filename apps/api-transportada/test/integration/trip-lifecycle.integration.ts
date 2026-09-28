@@ -387,6 +387,7 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
               driverName: 'Motorista Lifecycle',
               driverTaxId: '22222222222',
               position: 1,
+              role: 'driver',
             },
           ],
           vehicleId,
@@ -452,7 +453,13 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
         channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId,
         crew: [
-          { driverId, driverName: 'Motorista Lifecycle', driverTaxId: '22222222222', position: 1 },
+          {
+            driverId,
+            driverName: 'Motorista Lifecycle',
+            driverTaxId: '22222222222',
+            position: 1,
+            role: 'driver',
+          },
         ],
         vehicleId,
       })
@@ -535,6 +542,7 @@ describe('batch-status grava channel backoffice (spec 158 T4)', () => {
               driverName: 'Motorista Lifecycle',
               driverTaxId: '22222222222',
               position: 1,
+              role: 'driver',
             },
           ],
           vehicleId,

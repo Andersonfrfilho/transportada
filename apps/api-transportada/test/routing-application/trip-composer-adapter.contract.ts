@@ -30,6 +30,7 @@ const CONTEXT: MultiVehicleScope = {
 
 const VEHICLE: TripVehicleCandidate = { id: VEHICLE_ID, role: 'traction', status: 'active' }
 const DRIVER: TripDriverCandidate = {
+  canActAsHelper: false,
   id: DRIVER_ID,
   name: 'Ana Souza',
   status: 'active',
