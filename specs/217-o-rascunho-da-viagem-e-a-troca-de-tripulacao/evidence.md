@@ -638,3 +638,30 @@ $ bun run lint && bun run format:check     # raiz, limpos
 `innerJoin` no veículo, então devolveria `null` para viagem sem veículo. Está protegido pela máquina de
 estados — congelar rota exige `draft`, e `draft` exige tripulação completa (D1) — mas se algum dia o
 congelamento for chamado de outro lugar, este é o próximo `innerJoin` a cair, no mesmo molde da Fase 4.
+
+## A CI reprovou de novo, e a causa não era do produto (run 36373069203)
+
+`gate / integration-api (4)` falhou com **um** teste: `limitador com estado no Postgres (spec 150
+T406) > (unnamed) [5000.03ms]`. Nada de viagem, tripulação ou valoração.
+
+O diagnóstico está no formato da falha: `(unnamed)` em exatos 5000 ms é **hook** estourando o tempo
+padrão do Bun, não asserção. E o `beforeAll` daquele arquivo **cria um banco e roda todas as
+migrations** — trabalho de segundos — sem timeout explícito.
+
+Passava por folga e ficou instável quando o shard 4 ganhou as suítes novas desta spec. Não é defeito
+que eu introduzi, mas é instabilidade que o meu lote expôs, e ela bloqueia deploy.
+
+**Consertei a classe, não a instância.** Dez outros arquivos de integração fazem o mesmo — trabalho
+caro em `beforeAll` sob o teto de 5 s:
+
+`address-correction-mail-repository`, `address-correction-repository`, `anonymous-rate-limit`,
+`contractor-mail-template-repository`, `contractor-portal-end-to-end`, `contractor-portal`,
+`multi-vehicle-suggestion`, `route-depot-query`, `trip-document-review`, `whatsapp-channel`.
+
+Todos passaram a `60_000`, o mesmo teto que os demais arquivos já usam por teste
+(`DISPOSABLE_DATABASE_TIMEOUT_MS`). São bombas armadas que avermelhariam deploys aleatoriamente, e o
+sintoma é dos piores de diagnosticar: falha sem nome de teste e sem asserção.
+
+⚠️ Verifiquei o patch em vez de confiar nele: num dos dez o `}, 60_000)` ficou na coluna zero e eu
+achei que tinha acertado o alvo errado — era `beforeAll` de topo, fora do `describe`, então estava
+correto. Rodei quatro dos arquivos alterados contra Postgres: **34 pass / 0 fail**.

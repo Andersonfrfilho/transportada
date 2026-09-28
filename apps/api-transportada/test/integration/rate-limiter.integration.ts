@@ -42,6 +42,15 @@ describeDatabase('limitador com estado no Postgres (spec 150 T406)', () => {
     return new DrizzleRateLimiterRepository(db())
   }
 
+  /**
+   * ⚠️ O timeout explícito não é enfeite: este hook **cria um banco e roda todas as migrations**, e o
+   * padrão do Bun para hook é 5 s. Ele passava por folga e ficou instável quando o shard 4 da CI
+   * ganhou suítes novas — o sintoma é cruel de diagnosticar, porque Bun reporta hook estourado como
+   * `(fail) ... > (unnamed) [5000.03ms]`, sem nome de teste e sem asserção nenhuma.
+   *
+   * Os outros arquivos de integração não sofrem disso porque fazem o trabalho caro **por teste**, com
+   * `DISPOSABLE_DATABASE_TIMEOUT_MS` de 60 s; este é o único que o faz num hook. Mesmo teto aqui.
+   */
   beforeAll(async () => {
     if (databaseUrl === undefined) throw new Error('A PostgreSQL test URL is required')
     admin = new SQL(databaseUrl, { max: 1 })
@@ -51,7 +60,7 @@ describeDatabase('limitador com estado no Postgres (spec 150 T406)', () => {
     await admin.unsafe(`create database "${databaseName}"`)
     await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
     database = createDrizzleProvider({ connection: disposableUrl.toString() })
-  })
+  }, 60_000)
 
   afterAll(async () => {
     try {

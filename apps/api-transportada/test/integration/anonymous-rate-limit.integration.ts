@@ -118,7 +118,7 @@ describeDatabase('limitador anônimo somado entre réplicas (spec 191 T1.3)', ()
     await admin.unsafe(`create database "${databaseName}"`)
     await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
     database = createDrizzleProvider({ connection: disposableUrl.toString() })
-  })
+  }, 60_000)
 
   afterAll(async () => {
     try {

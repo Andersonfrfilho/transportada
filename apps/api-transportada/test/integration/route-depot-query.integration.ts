@@ -79,7 +79,7 @@ describeDatabase('o barracão da montagem (spec 097 D7)', () => {
         (address_key, latitude, longitude, precision, source, external_place_id)
       values (${CONFIGURED_KEY}, '-21.1767000', '-47.8208000', 'rooftop', 'manual', '')
     `)
-  })
+  }, 60_000)
 
   afterAll(async () => {
     try {
