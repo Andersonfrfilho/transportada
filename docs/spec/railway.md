@@ -29,8 +29,9 @@ api  worker  cron  transportada-frontend  landing  client  driver  keycloak  rab
 `client` (o portal do contratante, ADR-0050) e `driver` (o app do motorista, ADR-0075 §3, spec 189)
 são as duas apps mais novas: cada uma com `Dockerfile` próprio, mas sem `deploy/<app>/railway.json`
 — nascem direto em `.railway/railway.ts` (ver a tabela abaixo), o formato que substitui o antigo.
-`driver` ainda não tem domínio próprio criado nem deploy em nenhum ambiente — a virada (tasks.md
-Fase 6 da 189) é passo humano.
+`driver` está no ar em staging (`motorista.staging.fernandes-transportadora.com.br`) desde a T6.3, e
+o serviço e o domínio de produção (`motorista.fernandes-transportadora.com.br`) nasceram na T6.9 —
+falta o DNS propagar e o resto da Fase 6 (device real, aprovação, interruptor) é passo humano.
 
 API, worker e cron compartilham banco e fila dentro do mesmo ambiente; nunca
 entre ambientes. O browser fala só com o domínio público da API e do Keycloak;
