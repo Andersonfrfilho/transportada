@@ -44,6 +44,7 @@ import {
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus.service'
 import { resolveSeparationOccurrenceButtonVisibility } from '../shared/separationOccurrenceButton.service'
+import { shouldShowRouteInvalidatedNotice } from '../shared/routeInvalidatedNotice.service'
 import {
   hasMultipleDrivers,
   resolveDefaultOnBehalfDriverId,
@@ -937,27 +938,38 @@ export function TripDetail({
 
       {/* Spec 156 D11: geometria é `fleet.read` — sem ela, oculta em vez de bater 403 sozinha. */}
       {canReadFleetDetails ? (
-        <TripRouteMap
-          canAdjustTollBooth={canAdjustTollBooth}
-          canCorrect={canManage}
-          canManage={canManage}
-          geometry={workspace.routeGeometryQuery.data ?? null}
-          stops={trip.stops}
-          isCorrecting={workspace.correctAddressMutation.isPending}
-          isGeometryError={workspace.routeGeometryQuery.isError}
-          isGeometryPending={workspace.routeGeometryQuery.isPending}
-          isPlanRoutePending={workspace.planRouteMutation.isPending}
-          onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
-          onPlanRoute={(routeChoice) =>
-            workspace.planRouteMutation.mutate({
-              ...(routeChoice === undefined ? {} : { routeChoice }),
-              tripId: trip.id,
-            })
-          }
-          onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
-          tripStatus={trip.status}
-          vehicleId={trip.vehicleId}
-        />
+        <>
+          {shouldShowRouteInvalidatedNotice({
+            isRouteFrozen: workspace.routeGeometryQuery.data?.frozen === true,
+            status: trip.status,
+            stopsCount: trip.stops.length,
+          }) ? (
+            <p className={styles.hint} role="status">
+              {t('routeMap.invalidatedNotice')}
+            </p>
+          ) : null}
+          <TripRouteMap
+            canAdjustTollBooth={canAdjustTollBooth}
+            canCorrect={canManage}
+            canManage={canManage}
+            geometry={workspace.routeGeometryQuery.data ?? null}
+            stops={trip.stops}
+            isCorrecting={workspace.correctAddressMutation.isPending}
+            isGeometryError={workspace.routeGeometryQuery.isError}
+            isGeometryPending={workspace.routeGeometryQuery.isPending}
+            isPlanRoutePending={workspace.planRouteMutation.isPending}
+            onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+            onPlanRoute={(routeChoice) =>
+              workspace.planRouteMutation.mutate({
+                ...(routeChoice === undefined ? {} : { routeChoice }),
+                tripId: trip.id,
+              })
+            }
+            onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
+            tripStatus={trip.status}
+            vehicleId={trip.vehicleId}
+          />
+        </>
       ) : null}
 
       {selection.selectedIds.size > 0 ? (
