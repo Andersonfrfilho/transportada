@@ -502,12 +502,20 @@ describe('trip repository integration', () => {
   testWithPostgres('grava e lê a tripulação com motorista e ajudantes', async () => {
     await withDisposableDatabase(async (database) => {
       const companyId = crypto.randomUUID()
+      const userId = crypto.randomUUID()
       const vehicleId = crypto.randomUUID()
       const driverId = crypto.randomUUID()
       const helperOneId = crypto.randomUUID()
       const helperTwoId = crypto.randomUUID()
 
       await database.db.insert(companies).values({ id: companyId, status: 'active' })
+      await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+      await database.db.insert(userCompanyMemberships).values({
+        companyId,
+        id: crypto.randomUUID(),
+        status: 'active',
+        userId,
+      })
       await database.db.insert(fleetVehicles).values({
         companyId,
         id: vehicleId,
@@ -536,6 +544,8 @@ describe('trip repository integration', () => {
 
       const repository = new DrizzleTripRepository(database.db)
       const created = await repository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId,
         crew: [
           {

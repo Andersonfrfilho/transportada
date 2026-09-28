@@ -137,8 +137,11 @@ export type FleetDriverInput = {
   readonly address: FleetDriverAddress
   /** Spec 149 D1: pode atuar como ajudante — a mesma pessoa dirige numa viagem e ajuda em outra. */
   readonly canActAsHelper: boolean
-  /** Spec 149 D2: a diária própria; vence a geral (`company_crew_settings`) quando existe. */
-  readonly helperDailyRate: string | null
+  /**
+   * Spec 149 D2: a diária própria; vence a geral (`company_crew_settings`) quando existe. `null`
+   * apaga e devolve ao valor geral; ausente é "não mexeram nela".
+   */
+  readonly helperDailyRate?: string | null | undefined
   /**
    * Spec 100: este motorista amarra a carga com cinta.
    *

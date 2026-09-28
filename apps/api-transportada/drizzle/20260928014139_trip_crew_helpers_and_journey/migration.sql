@@ -34,6 +34,8 @@ ALTER TABLE "fleet_drivers" ADD COLUMN "can_act_as_helper" boolean DEFAULT false
 ALTER TABLE "fleet_drivers" ADD COLUMN "helper_daily_rate" numeric(19,4);--> statement-breakpoint
 ALTER TABLE "route_suggestion_vehicles" ADD COLUMN "driver_source" text;--> statement-breakpoint
 ALTER TABLE "trip_drivers" ADD COLUMN "role" text DEFAULT 'driver' NOT NULL;--> statement-breakpoint
+ALTER TABLE "trips" ADD COLUMN "planned_journey_seconds" bigint;--> statement-breakpoint
+ALTER TABLE "trips" ADD COLUMN "planned_journey_includes_return" boolean;--> statement-breakpoint
 ALTER TABLE "route_suggestion_vehicles" ADD CONSTRAINT "route_suggestion_vehicles_company_suggestion_vehicle_unique" UNIQUE("company_id","suggestion_id","vehicle_id");--> statement-breakpoint
 CREATE INDEX "driver_assignment_feedback_company_vehicle_created_idx" ON "driver_assignment_feedback" ("company_id","vehicle_id","created_at");--> statement-breakpoint
 ALTER TABLE "company_crew_settings" ADD CONSTRAINT "company_crew_settings_company_id_companies_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;--> statement-breakpoint
@@ -49,4 +51,7 @@ ALTER TABLE "route_suggestion_vehicle_helpers" ADD CONSTRAINT "route_suggestion_
 ALTER TABLE "fleet_drivers" ADD CONSTRAINT "fleet_drivers_helper_daily_rate_check" CHECK ("helper_daily_rate" is null or "helper_daily_rate" >= 0);--> statement-breakpoint
 ALTER TABLE "route_suggestion_vehicles" ADD CONSTRAINT "route_suggestion_vehicles_driver_source_check" CHECK ("driver_source" is null or ("driver_id" is not null and "driver_source" in ('link', 'recommended', 'manual')));--> statement-breakpoint
 ALTER TABLE "trip_drivers" ADD CONSTRAINT "trip_drivers_role_check" CHECK ("role" in ('driver', 'helper'));--> statement-breakpoint
-ALTER TABLE "trip_drivers" ADD CONSTRAINT "trip_drivers_lead_role_check" CHECK ("position" <> 1 or "role" = 'driver');
+ALTER TABLE "trip_drivers" ADD CONSTRAINT "trip_drivers_lead_role_check" CHECK ("position" <> 1 or "role" = 'driver');--> statement-breakpoint
+ALTER TABLE "trips" ADD CONSTRAINT "trips_planned_journey_check" CHECK (("planned_journey_seconds" is null) = ("planned_journey_includes_return" is null));--> statement-breakpoint
+ALTER TABLE "trips" ADD CONSTRAINT "trips_planned_journey_seconds_check" CHECK ("planned_journey_seconds" is null or "planned_journey_seconds" >= 0);--> statement-breakpoint
+ALTER TABLE "trip_financial_parcels" DROP CONSTRAINT "trip_financial_parcels_kind_check", ADD CONSTRAINT "trip_financial_parcels_kind_check" CHECK ("kind" in ('driver', 'fuel', 'other_per_kilometer', 'delivery_charges', 'toll', 'manual', 'helper', 'icms', 'pis_cofins'));

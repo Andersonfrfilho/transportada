@@ -841,6 +841,7 @@ describe('trip use case contract', () => {
         driverPhone: '',
         driverTaxId: '98765432100',
         position: 1,
+        role: 'driver',
       },
     ])
     expect(fixture.updateCrewCalls).toEqual([
@@ -853,6 +854,7 @@ describe('trip use case contract', () => {
           driverName: driver.driverName,
           driverTaxId: driver.driverTaxId,
           position: driver.position,
+          role: driver.role,
         })),
         tripId: TRIP_ID,
         vehicleId: VEHICLE_ID,

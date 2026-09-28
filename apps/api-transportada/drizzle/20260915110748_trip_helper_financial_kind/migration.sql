@@ -1,1 +1,0 @@
-ALTER TABLE "trip_financial_parcels" DROP CONSTRAINT "trip_financial_parcels_kind_check", ADD CONSTRAINT "trip_financial_parcels_kind_check" CHECK ("kind" in ('driver', 'fuel', 'other_per_kilometer', 'delivery_charges', 'toll', 'manual', 'helper', 'icms', 'pis_cofins'));

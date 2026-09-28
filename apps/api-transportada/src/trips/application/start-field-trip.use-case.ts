@@ -94,13 +94,19 @@ export type StartFieldTripResult = {
  * o ajudante da mesma tripulação tem viagem ativa, mas não o papel para os dois toques.
  */
 export async function startFieldTrip(input: StartFieldTripInput): Promise<StartFieldTripResult> {
-  const current =
-    input.target === undefined
-      ? await input.repository.readCurrent({
-          companyId: input.companyId,
-          driverId: input.driverId,
-        })
-      : { tripId: input.target.tripId, tripStatus: input.target.tripStatus }
+  if (input.target !== undefined) {
+    return applyFieldStep({
+      attemptsLeft: MAX_STATUS_WRITE_ATTEMPTS,
+      input,
+      tripId: input.target.tripId,
+      tripStatus: input.target.tripStatus,
+    })
+  }
+
+  const current = await input.repository.readCurrent({
+    companyId: input.companyId,
+    driverId: input.driverId,
+  })
   if (current === null) throw new TripNotFoundError()
   if (current.role !== 'driver') throw new TripCrewHelperCannotDriveError()
 

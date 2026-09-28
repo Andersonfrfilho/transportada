@@ -698,7 +698,15 @@ async function seedPlannedTrip(
     actorUserId: userId,
     channel: TRIP_FIELD_CHANNELS.backoffice,
     companyId,
-    crew: [{ driverId, driverName: 'Motorista 185', driverTaxId: '11111111111', position: 1 }],
+    crew: [
+      {
+        driverId,
+        driverName: 'Motorista 185',
+        driverTaxId: '11111111111',
+        position: 1,
+        role: 'driver',
+      },
+    ],
     vehicleId,
   })
 

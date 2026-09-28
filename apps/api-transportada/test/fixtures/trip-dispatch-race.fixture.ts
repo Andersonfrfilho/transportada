@@ -133,7 +133,15 @@ export async function seedRaceTrip(
     actorUserId: userId,
     channel: TRIP_FIELD_CHANNELS.backoffice,
     companyId,
-    crew: [{ driverId, driverName: 'Motorista 185 T4.3', driverTaxId: '22222222222', position: 1 }],
+    crew: [
+      {
+        driverId,
+        driverName: 'Motorista 185 T4.3',
+        driverTaxId: '22222222222',
+        position: 1,
+        role: 'driver',
+      },
+    ],
     vehicleId,
   })
 

@@ -20,6 +20,9 @@ const databaseUrl =
   process.env.DATABASE_URL
 const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
+/** A valoração avisa por log quando um id de motorista não responde; aqui o aviso não interessa. */
+const SILENT_LOGGER = { error: () => undefined, info: () => undefined, warn: () => undefined }
+
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 describe('a diária do ajudante fora da viagem, contra Postgres (spec 149 T7)', () => {
@@ -65,7 +68,7 @@ describe('a diária do ajudante fora da viagem, contra Postgres (spec 149 T7)', 
           },
         ])
 
-        const query = new DrizzleTripValuationQuery(database.db)
+        const query = new DrizzleTripValuationQuery(database.db, SILENT_LOGGER)
 
         const ownRates = await query.readHelperOwnDailyRates({
           companyId,
@@ -93,7 +96,7 @@ describe('a diária do ajudante fora da viagem, contra Postgres (spec 149 T7)', 
     'sem ids, não consulta o banco e devolve mapa vazio',
     async () => {
       await withDisposableDatabase(async (database) => {
-        const query = new DrizzleTripValuationQuery(database.db)
+        const query = new DrizzleTripValuationQuery(database.db, SILENT_LOGGER)
 
         const ownRates = await query.readHelperOwnDailyRates({
           companyId: crypto.randomUUID(),

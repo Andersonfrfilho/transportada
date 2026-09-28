@@ -987,6 +987,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
         dispatchTrip({
           actorUserId: input.actorUserId,
+          channel: TRIP_FIELD_CHANNELS.driverApp,
           companyId: world.companyId,
           repository: routeRepository,
           tripId: input.tripId,

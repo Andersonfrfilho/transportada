@@ -29,9 +29,10 @@ function buildRepository(
   return {
     updateCalls,
     readCurrent: () => Promise.resolve(current),
+    readStatus: () => Promise.resolve(current?.tripStatus ?? null),
     updateStatus: (input) => {
       updateCalls.push(input)
-      return Promise.resolve()
+      return Promise.resolve(true)
     },
   }
 }

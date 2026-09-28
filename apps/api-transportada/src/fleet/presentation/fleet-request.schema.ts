@@ -197,10 +197,11 @@ const driverFieldsSchema = z.object({
    */
   canActAsHelper: z.boolean().default(false),
   /**
-   * Spec 149 D2: a diária própria vence a geral (`company_crew_settings`) quando existe. Nulo é
-   * "sem valor próprio", nunca zero — negativo não casa `MONEY_DECIMAL` e vira 400 na fronteira.
+   * Spec 149 D2: a diária própria vence a geral (`company_crew_settings`) quando existe. `null`
+   * apaga e devolve ao valor geral; ausente (`exactOptionalPropertyTypes`) é silêncio — a ficha não
+   * mexe no que já existe. Negativo não casa `MONEY_DECIMAL` e vira 400 na fronteira.
    */
-  helperDailyRate: z.string().regex(MONEY_DECIMAL).nullable(),
+  helperDailyRate: z.string().regex(MONEY_DECIMAL).nullable().optional(),
   /**
    * Spec 100: o motorista amarra a carga com cinta. ⚠️ `default(false)` e não opcional na leitura:
    * ausência é **não amarra**, e supor cinta desenharia pilha alta para quem não amarra.

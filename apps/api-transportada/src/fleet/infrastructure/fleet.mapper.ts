@@ -243,7 +243,6 @@ export function toDriverColumns(
   return {
     anttCategory: driver.anttCategory,
     canActAsHelper: driver.canActAsHelper,
-    helperDailyRate: driver.helperDailyRate,
     securesCargo: driver.securesCargo,
     licenseCategory: driver.licenseCategory,
     birthCity: driver.birthCity,
@@ -259,6 +258,7 @@ export function toDriverColumns(
     ...(driver.dailyAllowanceAmount === undefined
       ? {}
       : { dailyAllowanceAmount: driver.dailyAllowanceAmount }),
+    ...(driver.helperDailyRate === undefined ? {} : { helperDailyRate: driver.helperDailyRate }),
     district: driver.address.district,
     email: driver.email,
     fatherName: toStoredPersonName(driver.fatherName),
