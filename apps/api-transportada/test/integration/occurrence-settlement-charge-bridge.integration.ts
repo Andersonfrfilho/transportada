@@ -41,6 +41,8 @@ import type {
   TestDatabase,
 } from '../fixtures/trip-field-office-database.fixture.js'
 
+/** Quantas transações a barreira da corrida segura antes de liberar todas de uma vez. */
+const CONCURRENT_SETTLEMENTS = 2
 const CLIENT_TAX_ID = '98765432000109'
 const CONTRACTOR_TAX_ID = '30290856000160'
 
@@ -296,6 +298,16 @@ describe('DrizzleOccurrenceSettlementChargeRepository (spec 164 T17)', () => {
    * Revisão final (R2): `for no key update` não trava o que ainda não existe. Duas requisições
    * concorrentes sobre a mesma ocorrência inserem as duas, o índice único
    * (`delivery_charges_occurrence_unique`) impede a duplicata — e a violação subia crua, como 500.
+   *
+   * ⚠️ A corrida precisa ser **forçada**, não torcida: `Promise.allSettled` sozinho não garante que
+   * as duas transações passem do `select ... for no key update` antes de qualquer commit. Quando a
+   * primeira commita antes de a segunda ler, a segunda encontra a linha e segue pelo caminho de
+   * `update` — desfecho idempotente correto, e as duas resolvem. Medido em 2026-09-28: 3 a 4 de 30
+   * rodadas caíam assim sem carga nenhuma, e foi isso que reprovou o gate de staging (run
+   * 36413357067) com `Expected: 1, Received: 2` na contagem de `fulfilled` — nunca uma duplicata.
+   * A barreira de duas partes abaixo entra pela `findChargeParties` **injetada**, o mesmo ponto de
+   * composição que o `main.ts` usa, e segura as duas transações depois de resolverem as partes e
+   * antes de qualquer uma inserir. Sem ela o teste afirma um acidente de escalonamento.
    */
   testWithPostgres(
     'a corrida de duas cobranças da mesma ocorrência vira 409, nunca 500',
@@ -308,9 +320,20 @@ describe('DrizzleOccurrenceSettlementChargeRepository (spec 164 T17)', () => {
         const occurrenceId = await registerOccurrence(database, company, trip, occurrenceTypeId)
 
         const chargeRepository = new DrizzleDeliveryChargeRepository(database.db)
-        const bridge = new DrizzleOccurrenceSettlementChargeRepository(
-          chargeRepository.findChargeParties.bind(chargeRepository),
-        )
+        const findChargeParties = chargeRepository.findChargeParties.bind(chargeRepository)
+
+        let arrivedAtBarrier = 0
+        let openBarrier!: () => void
+        const barrier = new Promise<void>((resolve) => {
+          openBarrier = resolve
+        })
+        const bridge = new DrizzleOccurrenceSettlementChargeRepository(async (input) => {
+          const parties = await findChargeParties(input)
+          arrivedAtBarrier += 1
+          if (arrivedAtBarrier >= CONCURRENT_SETTLEMENTS) openBarrier()
+          await barrier
+          return parties
+        })
 
         const outcomes = await Promise.allSettled([
           database.db.transaction((transaction) =>
