@@ -105,6 +105,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
       async findDocumentById() {
         return null
       },
+      async findLiveTripIdForDocuments() {
+        throw new Error('not used by this contract')
+      },
       async findVehicle() {
         return params.vehicle === undefined ? VEHICLE : params.vehicle
       },
@@ -132,6 +135,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
 
     const composer = createTripComposer({
       create: (input) => tripUseCase.create(input),
+      findLiveTripIdForDocuments: async () => {
+        throw new Error('not used by this contract')
+      },
       link: async () => ({}),
       listStops: async () => [],
       planRoute: async () => ({}),
@@ -175,6 +181,9 @@ describe('trip composer adapter creates the trip from a suggestion pair (spec 21
       },
       async findDocumentById() {
         return null
+      },
+      async findLiveTripIdForDocuments() {
+        throw new Error('not used')
       },
       async findVehicle() {
         return VEHICLE

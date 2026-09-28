@@ -715,11 +715,16 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     const THIRD_VEHICLE = '00000000-0000-4000-8000-000000000012'
     const THIRD_DOCUMENT = '00000000-0000-4000-8000-000000000022'
 
+    /**
+     * Spec 217 D10: grupo sem motorista não é roteirizado — `planRoute` nem é chamado. Este fixture
+     * inteiro prova retomada **de `planRoute`**, então precisa de motorista para exercitar o que se
+     * propõe a provar (mesmo ajuste de `groupFor` global, `546a950f8`, spec 217 T204).
+     */
     function groupFor(vehicleId: string, documentId: string): MultiVehicleSuggestionGroup {
       return {
         documentIds: [documentId],
         documentIdsByAddressKey: new Map(),
-        driverId: null,
+        driverId: FIRST_DRIVER,
         estimatedArrivalByAddressKey: new Map(),
         orderedAddressKeys: [`chave-${documentId}`],
         vehicleId,
