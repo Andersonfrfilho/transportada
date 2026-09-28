@@ -42,9 +42,10 @@
 - [x] **T202** `sonnet` — Implementação do T201: `createTripSchema` (`driverIds` mín. 0, `vehicleId`
       opcional), `CreateTripInput`, e `TripUseCase.create` derivando o status por `resolveCrewStatus`
       em vez de lançar `TripVehicleNotFoundError`. (RF2)
-- [ ] **T203** `sonnet` — Teste de regressão da 081: aceite de sugestão multi-veículo com
+- [x] **T203** `sonnet` — Teste de regressão da 081: aceite de sugestão multi-veículo com
       `driverIds: []` continua criando a viagem certa, agora `awaiting_crew` quando sem veículo.
-      (RF2)
+      (RF2) — achado registrado em evidence.md: o passo `planRoute` do aceite (fora do escopo desta
+      task) quebra para grupo sem motorista; decisão de Fase 3.
 
 ## Fase 3 — O corte na separação e a rota que morre inteira
 

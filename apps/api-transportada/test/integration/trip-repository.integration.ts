@@ -164,6 +164,11 @@ describe('trip repository integration', () => {
           },
         ])
 
+        /**
+         * Spec 217 D1: crew vazia (só veículo, sem motorista) nasce `awaiting_crew`, não `draft` —
+         * o status é derivado do par, não mais fixo. As asserções abaixo foram ajustadas para essa
+         * viagem, e é exatamente o que prova `driverIdEq` mais abaixo ("só `created` tem tripulação").
+         */
         const secondTrip = await repository.create({
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
@@ -171,6 +176,7 @@ describe('trip repository integration', () => {
           crew: [],
           vehicleId,
         })
+        expect(secondTrip.status).toBe('awaiting_crew')
 
         expect(await repository.findById({ companyId, tripId: created.id })).toEqual(created)
         // Outro tenant nunca enxerga a viagem, mesmo sabendo o id.
@@ -433,11 +439,12 @@ describe('trip repository integration', () => {
           await repository.close({ ...closeInput, companyId, tripId: crypto.randomUUID() }),
         ).toBeNull()
 
-        // `created` está completed; `secondTrip` segue draft — cobre statusEq, vehicleIdEq, driverIdEq.
+        // `created` está completed; `secondTrip` segue `awaiting_crew` (spec 217 D1) — cobre
+        // statusEq, vehicleIdEq, driverIdEq.
         const openPage = await repository.list({
           companyId,
           cursor: null,
-          filters: { statusEq: 'draft' },
+          filters: { statusEq: 'awaiting_crew' },
           limit: 10,
         })
         expect(openPage.items.map((trip) => trip.id)).toEqual([secondTrip.id])
