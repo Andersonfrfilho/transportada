@@ -1291,6 +1291,7 @@
       "NO_PLANNED_DISTANCE": "route not calculated yet — fuel comes after",
       "NO_PLANNED_DURATION": "route duration unknown — inform how many daily allowances the trip pays",
       "NO_TRIP_DRIVER": "trip with no driver — nobody to pay the daily allowance to",
+      "NO_VEHICLE": "trip with no vehicle — pick the truck so the numbers can close",
       "SALARIED_CREW_MEMBER": "salaried driver on board — a period cost, not a trip cost",
       "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
       "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
