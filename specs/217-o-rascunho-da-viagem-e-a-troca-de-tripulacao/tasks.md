@@ -58,28 +58,50 @@
       paradas e horas do solver. Integração do aceite passa a provar status, ausência de rota e
       ausência de pedágio congelados. (RF9, D10)
 
-## Fase 3 — O corte na separação e a rota que morre inteira
+## Fase 3A — Trocar o motorista de uma viagem planejada (URGENTE)
 
-> 🤖 Modelo: `opus` na fase inteira — é a parte que mexe em estado já despachável
+> 🤖 Modelo: `opus` — mexe na máquina de estados
+>
+> **Cortada na frente por pedido do dono do produto em 2026-09-27**: é a necessidade operacional real
+> e imediata. E é a metade leve da troca: motorista não entra no cálculo da rota nem do pedágio
+> (097 D1/D3/D4), então não há coluna para zerar, replanejamento nem carga a reconferir. Fecha sozinha
+> e pode ir a staging sem a Fase 3B.
 
-- [ ] **T301** 🧠 `opus` — Teste de contrato: troca permitida em `awaiting_crew`, `draft` e
-      `route_planned`; recusada de `separating` em diante com `TRIP_SEPARATION_STARTED`;
-      `TRIP_CREW_ALREADY_DEFINED` não é mais lançada por ninguém. (RF4, D2)
-- [ ] **T302** 🧠 `opus` — Implementação do T301 em `trip-state.policy.ts`, incluindo a remoção de
-      `tripCrewAlreadyDefined` e de seu último uso. (RF4, D2)
-- [ ] **T303** 🧠 `opus` — **Ler `plan-trip-route.use-case.ts` e `freezeTripPlannedRoute` inteiros
-      antes de escrever qualquer linha** (aviso do `plan.md`) e conferir campo a campo que a lista de
-      colunas de D3 cobre tudo que o congelador escreve. Registrar a conferência em `evidence.md`: se
-      sobrar campo, ele entra na limpeza. (D3)
+- [x] **T301** 🧠 `opus` — Teste de contrato do corte novo: troca permitida em `awaiting_crew`,
+      `draft` e `route_planned`; recusada de `separating` em diante com `TRIP_SEPARATION_STARTED`;
+      `TRIP_CREW_ALREADY_DEFINED` não é mais lançada por ninguém. Inclui a tabela da D3-ter: troca só
+      de motorista em `route_planned` devolve `unchanged` (rota de pé), e par completado de novo sem
+      trocar caminhão restaura `route_planned`. (RF4, D2, D3-ter)
+- [ ] **T302** 🧠 `opus` — Implementação do T301 em `trip-state.policy.ts`: `vehicleChanged` na
+      variante `defineCrew`, `resolveNextCrewStatus`, bloqueio novo, e remoção de
+      `tripCrewAlreadyDefined` com seu último uso. (RF4, D2, D3-ter)
+- [ ] **T307** 🧠 `opus` — Caso de uso e repositório passam `vehicleChanged` (comparando o veículo
+      pedido com o gravado, sob o lock). Teste de **integração**: viagem `route_planned`, troca o
+      motorista, e no banco o status continua `route_planned`, `planned_route` e `planned_toll`
+      intactos, `trip_drivers` com o motorista novo e sem o antigo. (RF4, RF5, D3-ter)
+- [ ] **T308** `sonnet` — Teste de integração do lado motorista para esta troca: a viagem passa a vir
+      em `GET /me/trips/current` para o motorista novo e deixa de vir para o antigo, sem nenhuma
+      mudança de código — o recorte já é por `trip_drivers`. Prova o efeito no PWA. (RF8)
+
+## Fase 3B — Trocar o veículo, e a rota que morre inteira
+
+> 🤖 Modelo: `opus` na fase inteira
+>
+> Depende da 3A (o corte e o `vehicleChanged` vêm de lá). É a metade caríssima: sete colunas zeradas,
+> replanejamento e carga a reconferir.
+
+- [x] **T303** 🧠 `opus` — Conferência campo a campo do congelador contra a lista da D3. **Feita**:
+      resultado na D3-bis e na D3-ter do `spec.md` — a lista encolheu de doze colunas para sete, o ETA
+      saiu, e nada que o congelador escreve ficou fora. (D3)
 - [ ] **T304** 🧠 `opus` — Teste de integração da regressão: trocar o **veículo** de uma viagem
-      `route_planned` devolve `draft`, zera os campos congelados de `trips` e de `trip_stops`, e a
-      leitura da viagem passa a devolver pedágio ausente em vez do antigo. Trocar só o **motorista**
-      mantém `route_planned` com a rota de pé. Trocar pelo **mesmo** veículo não apaga nada e não
-      regride. (RF5, D3)
-- [ ] **T305** 🧠 `opus` — Implementação do T304, na mesma transação de `updateCrew`. (RF5, D3)
-- [ ] **T306** `sonnet` — Teste de integração de ponta a ponta do ciclo: planejar rota → trocar
-      veículo → replanejar pela rota da 178 → o pedágio corresponde aos eixos do veículo novo.
-      (RF5, D3)
+      `route_planned` devolve `draft`, zera as sete colunas de `trips`, **preserva** as três de ETA
+      (D3-bis), e a leitura passa a devolver pedágio ausente em vez do antigo. Trocar pelo **mesmo**
+      veículo não apaga nada e não regride. (RF5, D3, D3-bis)
+- [ ] **T305** 🧠 `opus` — Implementação do T304, na mesma transação de `updateCrew`, reaproveitando
+      `writePlannedRoute` com `route: null, toll: null` em vez de um `update` à mão — ⚠️ passando a
+      transação adiante, não abrindo uma segunda (ver `plan.md`). (RF5, D3)
+- [ ] **T306** `sonnet` — Teste de ponta a ponta do ciclo: planejar rota → trocar veículo →
+      replanejar pela rota da 178 → o pedágio corresponde aos eixos do veículo novo. (RF5, D3)
 
 ## Fase 4 — Gaps explícitos onde não há veículo
 
