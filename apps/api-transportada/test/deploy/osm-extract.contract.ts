@@ -11,6 +11,10 @@ const RUNBOOK = readFileSync(
   new URL('../../../../docs/runbooks/osrm-extract.md', import.meta.url),
   'utf8',
 )
+const MIRROR = readFileSync(
+  new URL('../../../../scripts/osm-extract-mirror.ts', import.meta.url),
+  'utf8',
+)
 
 describe('o extrato do OSM que alimenta mapa e rota (ADR-0044 §2 e §6)', () => {
   /**
@@ -21,29 +25,47 @@ describe('o extrato do OSM que alimenta mapa e rota (ADR-0044 §2 e §6)', () =>
    * classe de problema que o adendo da ADR-0044 recusou no provedor pago.
    */
   test('a URL é datada, nunca -latest', () => {
-    /**
-     * ⚠️ Olha o **valor**, não o arquivo inteiro: o comentário acima da constante cita
-     * `sudeste-latest` de propósito, para explicar por que ele saiu. Um `not.toContain` no texto
-     * todo proibiria a explicação junto com o defeito.
-     */
-    const valor = /const OSM_EXTRACT_URL\s*=\s*'([^']+)'/u.exec(RAILWAY)?.[1] ?? ''
-    expect(valor).toMatch(/\/sudeste-\d{6}\.osm\.pbf$/u)
     expect(RUNBOOK).not.toMatch(/curl -O \S*sudeste-latest/u)
+    expect(MIRROR).toContain('--observed-on')
   })
 
   /**
-   * ⚠️ **A trava que só existia como comentário.** Mapa e rota em datas diferentes é a tela e o
-   * roteirizador discordando de onde a rua está — e não dá erro nenhum, só produz um traço que passa
-   * por onde o caminhão não vai. Uma constante só, lida pelos dois, é o que impede isso.
+   * ⚠️ **Fixar a URL do Geofabrik era fixar um arquivo que some.** O comentário que saiu daqui
+   * dizia que o Geofabrik guarda os datados por uns 90 dias; medido em 28/09/2026, a janela é de 3 a
+   * 7 — `260927`/`260926`/`260925` respondiam 200 e `260921`/`260914`/`260907` já davam 404. Foi essa
+   * conta errada que deixou `osrm` e `map-tiles` em 404 no build de 25/09. O extrato agora é
+   * espelhado no bucket, e a URL assinada vive no painel: assinatura não se versiona.
    */
-  test('os dois serviços leem a mesma constante', () => {
-    expect(RAILWAY).toContain('OSRM_PBF_URL: OSM_EXTRACT_URL')
-    expect(RAILWAY).toContain('MAP_PBF_URL: OSM_EXTRACT_URL')
+  test('a IaC não fixa mais a URL de um arquivo que expira', () => {
+    expect(RAILWAY).not.toContain('download.geofabrik.de')
+    expect(RAILWAY).not.toContain('const OSM_EXTRACT_URL')
+    expect(RAILWAY).toContain('OSRM_PBF_URL: preserve()')
+    expect(RAILWAY).toContain('MAP_PBF_URL: preserve()')
+  })
 
-    const datas = new Set(
-      [...RAILWAY.matchAll(/sudeste-(\d{6})\.osm\.pbf/gu)].map((match) => match[1]),
-    )
-    expect(datas.size).toBe(1)
+  /**
+   * ⚠️ **A trava que era a constante compartilhada.** Mapa e rota em datas diferentes é a tela e o
+   * roteirizador discordando de onde a rua está — e não dá erro nenhum, só produz um traço que passa
+   * por onde o caminhão não vai. Tirar a URL do arquivo tirou junto o que mantinha os dois casados,
+   * então quem confere passou a ser o alvo: ele lê as duas variáveis e recusa se divergirem.
+   */
+  test('o alvo recusa reconstruir com os dois em extratos diferentes', () => {
+    const alvo = MAKEFILE.slice(MAKEFILE.indexOf('map-refresh:'))
+    expect(alvo).toContain('OSRM_PBF_URL')
+    expect(alvo).toContain('MAP_PBF_URL')
+    expect(alvo).toMatch(/if \[ "\$\$osrm_key" != "\$\$tiles_key" \]/u)
+    expect(alvo.slice(alvo.indexOf('tiles_key"'))).toContain('exit 2')
+  })
+
+  /**
+   * ⚠️ **O objeto é permanente; só a assinatura vence.** É isso que torna a renovação barata: antes,
+   * um 404 obrigava a bumpar a data, e a data arrasta o extrato de pedágio junto, que precisa
+   * descrever o mesmo `.pbf`. Com `--presign-only` re-assina-se o mesmo objeto, e nada mais se move.
+   */
+  test('o espelho é create-only e sabe só re-assinar', () => {
+    expect(MIRROR).toContain('--presign-only')
+    expect(MIRROR).toContain('90 * 24 * 60 * 60')
+    expect(MIRROR).toMatch(/já existe.*--presign-only/u)
   })
 
   /** Reconstruir um sozinho é o defeito; o alvo existe para não haver caminho curto para ele. */

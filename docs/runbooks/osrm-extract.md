@@ -15,9 +15,9 @@ Você precisa disto quando:
 - o mapa envelheceu a ponto de a rota divergir da rua (uma via nova, um binário que inverteu).
 
 > O mesmo extract alimenta o `.pmtiles` do painel (ADR-0044 §6), e nos serviços implantados os dois
-> leem a **mesma** constante `OSM_EXTRACT_URL`. Em produção, refazer é `make map-refresh CONFIRM=1`,
-> que reconstrói os dois juntos — mapa e rota descrevendo datas diferentes é a tela e o roteirizador
-> discordando de onde a rua está, e isso não dá erro nenhum.
+> têm de apontar para o **mesmo** objeto. Refazer é `make map-refresh CONFIRM=1`, que confere as duas
+> variáveis do painel antes de reconstruir e recusa se divergirem — mapa e rota descrevendo datas
+> diferentes é a tela e o roteirizador discordando de onde a rua está, e isso não dá erro nenhum.
 
 ## O que é preciso
 
@@ -43,8 +43,13 @@ curl -O https://download.geofabrik.de/south-america/brazil/sudeste-260903.osm.pb
 ⚠️ **Use o arquivo datado, nunca `-latest`.** `-latest` não quer dizer "se atualiza": quer dizer
 "seja qual for o arquivo do dia em que alguém baixar". Com ele, duas máquinas — ou dois builds da
 mesma máquina em semanas diferentes — produzem mapas diferentes, e nada registra qual está rodando.
-A data em uso pelos serviços implantados é a constante `OSM_EXTRACT_URL` de `.railway/railway.ts`, e
-é dela que este comando deve copiar. O Geofabrik mantém os datados por cerca de 90 dias.
+
+⚠️ **E baixe logo: o Geofabrik apaga os datados em poucos dias.** Medido em 28/09/2026:
+`sudeste-260927`, `260926` e `260925` respondiam 200; `260921`, `260914` e `260907` já davam 404 —
+uma janela de três a sete dias. Este runbook e o `.railway/railway.ts` afirmavam 90 dias, e foi essa
+conta errada que deixou `osrm` e `map-tiles` em 404 no build de 25/09: a data fixada em 14/09 tinha
+deixado de existir. A data em uso pelos serviços implantados está na chave do objeto espelhado —
+`make map-refresh` a imprime, e é dela que este comando deve copiar.
 
 Para recortar uma área menor que o estado, use `osmium extract` com uma bbox antes do passo abaixo.
 
@@ -54,17 +59,17 @@ As três etapas do pipeline MLD, em ordem. Cada uma lê a saída da anterior:
 
 ```bash
 docker run --rm -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend:v6.0.0 \
-  osrm-extract -p /opt/car.lua /data/sudeste-latest.osm.pbf
+  osrm-extract -p /opt/car.lua /data/sudeste-260903.osm.pbf
 ```
 
 ```bash
 docker run --rm -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend:v6.0.0 \
-  osrm-partition /data/sudeste-latest.osrm
+  osrm-partition /data/sudeste-260903.osrm
 ```
 
 ```bash
 docker run --rm -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend:v6.0.0 \
-  osrm-customize /data/sudeste-latest.osrm
+  osrm-customize /data/sudeste-260903.osrm
 ```
 
 O perfil é `car.lua` porque é o que descreve veículo motorizado em via pública. Existe perfil de
@@ -184,7 +189,7 @@ recarga em si: se o `.pbf` novo não trouxer mais uma praça que o catálogo já
 "ficaram de fora" do extrato escolhido no resultado da recarga. Quem quiser corrigir a tarifa dessas
 praças à mão, a aba continua listando o catálogo inteiro — só muda a fonte, de catálogo para manual.
 
-Registro (15/09/2026): staging usa `sudeste-latest.osm.pbf` (Last-Modified 14/09/2026) — 592 praças,
+Registro (15/09/2026): staging usou `sudeste-latest.osm.pbf` (Last-Modified 14/09/2026) — 592 praças,
 579 com tarifa, 571 com tarifa por eixo, em `toll-booths/osm/sudeste/2026-09-14/` do bucket de
 staging. Extrato subido pela API (`POST /extracts`) e recarregado via tela em 17/09/2026:
 `toll_booths` ficou com 592 linhas, 571 com tarifa por eixo (idêntico). Produção ainda não foi carregada.
@@ -219,7 +224,7 @@ O nome do arquivo, sem `.osrm`, é o que o `compose.yaml` lê:
 
 ```bash
 # .env
-OSRM_DATASET=sudeste-latest
+OSRM_DATASET=sudeste-260903
 ```
 
 `OSRM_MAX_TABLE_SIZE` limita quantos pontos o `/table` aceita numa consulta. O padrão do `compose` é
@@ -250,14 +255,39 @@ O dataset é **assado na imagem** (`deploy/osrm/Dockerfile`), não montado num v
 **trocar o dataset é deploy** de qualquer jeito, e um volume só acrescentaria o problema de como
 empurrar centenas de MB para dentro dele.
 
-O build recebe a área por variável, e ele **falha em voz alta sem ela**:
+O build recebe a área por variável (`OSRM_PBF_URL` no `osrm`, `MAP_PBF_URL` no `map-tiles`), e ele
+**falha em voz alta sem ela**. Um default silencioso assaria o mapa errado, e mapa errado não erra:
+ele responde com número plausível (ver "extract pequeno demais" acima).
 
-```
-OSRM_PBF_URL=https://download.geofabrik.de/south-america/brazil/sudeste/sao-paulo-latest.osm.pbf
+### A variável aponta para o espelho, não para o Geofabrik
+
+Apontar o build direto para o Geofabrik é o que derrubou `osrm` e `map-tiles` em 25/09: a janela de
+retenção é de dias, e qualquer reconstrução não planejada — mudar o `PORT`, subir a versão do OSRM,
+um cache de build que expirou — encontra 404. O extrato passa antes pelo bucket do ambiente:
+
+```bash
+# espelha o .pbf e devolve a URL assinada (90 dias)
+make map-mirror DATASET=sudeste OBSERVED_ON=2026-09-14 \
+  SOURCE=https://download.geofabrik.de/south-america/brazil/sudeste-260914.osm.pbf
+
+# renova só a assinatura, sem mexer no extrato nem no pedágio
+make map-mirror DATASET=sudeste OBSERVED_ON=2026-09-14
 ```
 
-Um default silencioso assaria o mapa errado, e mapa errado não erra: ele responde com número
-plausível (ver "extract pequeno demais" acima).
+A credencial do bucket vem do serviço `api` por `railway run` — ela não passa pelo terminal. O
+objeto vai para `osm-extracts/<dataset>/<AAAA-MM-DD>/<dataset>.osm.pbf`, ao lado de um
+`manifest.json` com origem, tamanho e `sha256`, e é **create-only**: data nova é chave nova, porque
+reescrever a chave trocaria o mapa por baixo de uma data que o `toll_booth_extracts` já declara
+descrita.
+
+Cole a URL impressa em `OSRM_PBF_URL` **e** em `MAP_PBF_URL`, no painel, e reconstrua com
+`make map-refresh CONFIRM=1`, que recusa se as duas divergirem.
+
+⚠️ **O que vence é a assinatura, não o extrato.** O bucket do Railway não serve objeto público, e o
+teto da URL pré-assinada é 90 dias. Passado o prazo o build volta a dar 404 — mas a correção é
+`make map-mirror` sem `SOURCE`, que re-assina o mesmo objeto. **A data não muda, então o extrato de
+pedágio (`toll-booths/osm/<dataset>/<data>/`) continua válido.** Era exatamente isso que um 404 do
+Geofabrik custava antes: obrigava a bumpar a data, e a data arrastava o pedágio junto.
 
 Duas armadilhas que só aparecem no deploy:
 
