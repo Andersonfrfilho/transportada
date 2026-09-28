@@ -47,6 +47,17 @@
       (RF2) — achado registrado em evidence.md: o passo `planRoute` do aceite (fora do escopo desta
       task) quebra para grupo sem motorista; decisão de Fase 3.
 
+## Fase 2-bis — O aceite de sugestão desemboca no rascunho
+
+> 🤖 Modelo: `opus` — mexe no aceite que já está em produção
+>
+> Não estava no plano: nasceu da T203, que quebrou seis integrações do aceite multi-veículo. Ver D10.
+
+- [x] **T204** 🧠 `opus` — O aceite só planeja rota quando a tripulação nasce completa, pela condição
+      `resolveCrewStatus`. Grupo sem motorista fica `awaiting_crew` com veículo, notas, ordem das
+      paradas e horas do solver. Integração do aceite passa a provar status, ausência de rota e
+      ausência de pedágio congelados. (RF9, D10)
+
 ## Fase 3 — O corte na separação e a rota que morre inteira
 
 > 🤖 Modelo: `opus` na fase inteira — é a parte que mexe em estado já despachável

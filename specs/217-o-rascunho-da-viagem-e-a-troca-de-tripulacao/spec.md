@@ -78,6 +78,8 @@ Três defeitos que se somam, e nenhum deles aparece sozinho:
   rascunho" só existe na criação. A visibilidade vem de `allowed-actions`, não do frontend.
 - **RF7** — A viagem `awaiting_crew` mostra "a definir" onde hoje mostraria vazio, e leva selo de
   tripulação pendente na listagem (Fase 6 pendente da 216, absorvida aqui).
+- **RF9** — O aceite de sugestão de rota sem motorista cria a viagem em `awaiting_crew`, sem planejar
+  rota, em vez de estourar.
 - **RF8** — O PWA do motorista reflete a troca: quem saiu da tripulação **é avisado** em vez de ver a
   viagem sumir calada, e a fila offline explica a recusa em português.
 
@@ -212,6 +214,31 @@ Verificado, e vale registrar para que ninguém precise verificar de novo: o MDF-
 `dispatched` em diante (`isTripDispatched` em `trip-manifest.policy.ts:54`), que está fora da janela
 da troca por D2; e o payload do CT-e leva apenas o RNTRC da transportadora no modal rodoviário
 (`cte-payload.builder.ts:198`), sem placa nem condutor. A troca não mexe em documento autorizado.
+
+### D10 — O aceite de sugestão sem motorista para em rascunho (achado da T203)
+
+Decisão do dono do produto em 2026-09-27, depois de a T203 quebrar seis testes de integração: **o
+rascunho tem que poder existir sem motorista e sem veículo**, e o aceite de sugestão passa a
+desembocar nele.
+
+O conflito era real e esta spec o criou. A 081 RF-5 decidiu que aceitar um grupo sugerido **sem
+motorista** é legítimo — escalar metade da frota na véspera e metade no dia é o uso normal — e o
+aceite planejava a rota na hora. Com a D1, essa viagem nasce `awaiting_crew`, e `awaiting_crew` recusa
+tudo que não é definir tripulação ou cancelar: o `planRoute` que o próprio aceite chamava respondia
+409 `TRIP_CREW_NOT_DEFINED` e **derrubava o lote inteiro**.
+
+Resolução: o aceite só planeja a rota quando a tripulação nasce completa, e a condição é
+`resolveCrewStatus` — a mesma função do nascimento e da troca. Uma regra, três leitoras. O grupo sem
+motorista fica em `awaiting_crew` com tudo que o aceite já fazia: veículo, notas vinculadas, paradas na
+ordem do solver e as horas do solver gravadas. O operador define quem dirige e planeja a rota pelo
+botão.
+
+⚠️ **É mudança de comportamento em produção**, e vale dizer em voz alta: hoje esse aceite entrega a
+rota pronta, e depois desta spec ele entrega um rascunho quando não há motorista. Foi decisão
+consciente, tomada com a alternativa na mesa (afrouxar "Planejar rota" para exigir só o veículo, já
+que rota e pedágio dependem do caminhão e não de quem dirige) — recusada porque a regra pedida para o
+painel é "rota só com motorista e veículo", e duas regras diferentes para o mesmo botão é como a tela
+passa a discordar do servidor.
 
 ### D9 — Notificar o motorista por push/sino fica fora do escopo
 
