@@ -16,8 +16,9 @@ const CABECALHO = new URL(
   import.meta.url,
 )
 
+/** `TripRequestError` é `Error` com campos opcionais: um `Error` cru já satisfaz o tipo. */
 function requestError(code: string): TripRequestError {
-  return new Error(code) as TripRequestError
+  return new Error(code)
 }
 
 /**

@@ -361,3 +361,40 @@ Lição registrada, porque já custou tempo antes: **a corrida completa de integ
 compartilhado e máquina carregada, não é evidência.** As execuções dirigidas valem (6 pass em
 crew-update antes disso, 7 pass no aceite multi-veículo, 628 contratos agora). A prova da T307 sai na
 CI, que tem banco dedicado, ou localmente depois de liberar as conexões.
+
+## Gates antes de publicar em staging — e as duas correções que eles pegaram
+
+A suíte completa de contrato da API (`bun test`, descoberta padrão, 187 arquivos) só ficou verde depois
+de duas correções que os gates dirigidos não tinham pegado:
+
+**1. `format:check` (gate só na raiz).** `trip-state.policy.ts` saiu desformatado do patch da T302.
+Esse gate já derrubou deploy aqui por arquivo de outra sessão; rodá-lo antes do push não é opcional.
+
+**2. `lint` da raiz.** `crew-dialog.contract.ts` (T310) tinha `new Error(code) as TripRequestError`,
+recusado por `no-unnecessary-type-assertion`. Não era falso positivo: `TripRequestError` é
+`Error & { details?, status? }`, com os dois campos opcionais, então `Error` cru já satisfaz o tipo.
+A tela foi entregue com typecheck, testes e prettier verdes — mas sem `bun run lint` na raiz, e é lá
+que a regra mora.
+
+**3. Quatro contratos da 058/153 que codificavam o comportamento antigo.** `Expected length: 2,
+Received length: 0` em `fixture.calls.plan`: os grupos desses testes têm `driverId: null`, e depois da
+D10 grupo sem motorista não é roteirizado. Os quatro afirmam que o aceite **vincula, ordena e planeja**
+— para continuarem provando isso, os grupos ganharam motorista. E o teste que já existia para "aceite
+com e sem motorista" ganhou o par que faltava: a viagem sem quem dirija **existe** e **não é
+planejada** (`calls.trip` com dois, `calls.plan` com um). A D10 passou a ter prova em contrato, não só
+em integração.
+
+```
+$ bun run format:check     # All matched files use Prettier code style!
+$ bun run lint             # eslint . — sem saída
+$ bun run typecheck        # 5 pacotes, sem saída
+$ bun --env-file=../../.env.test test --timeout 120000     # API, descoberta padrão
+ 7956 pass / 23 skip / 14 fail / 26108 expect() calls
+$ bun --env-file=../../.env.test test test/routing-application.contract.test.ts
+ 79 pass / 0 fail / 147 expect() calls
+```
+
+**As 14 falhas restantes são todas do banco saturado, nenhuma é de asserção.** Nove são
+`toll booth catalog repository (spec 154)` estourando **60 segundos cada** — timeout de conexão, não
+comparação errada — e as outras cinco eram os contratos da 058/153 corrigidos acima, que agora passam.
+Frontend: 5559 + 54 testes verdes na entrega da T310.
