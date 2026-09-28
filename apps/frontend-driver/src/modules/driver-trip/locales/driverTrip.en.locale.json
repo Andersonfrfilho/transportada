@@ -32,6 +32,8 @@
     "attachments_other": "{{count}} attachments",
     "back": "Back",
     "cause": {
+      "notOfDriver": "this trip is no longer yours — the crew changed",
+      "stopNotReachable": "this stop is no longer part of your trip",
       "tooLarge": "the photo is larger than the server accepts"
     },
     "empty": "Nothing waiting to be sent.",

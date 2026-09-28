@@ -300,3 +300,14 @@ describe('a /fila explica a foto grande (spec 212)', () => {
     expect(resolveRejectionCauseLabelKey('404 NOT_FOUND')).toBeUndefined()
   })
 })
+
+describe('a /fila explica a saída da tripulação (spec 217 D7)', () => {
+  it('403 TRIP_NOT_OF_DRIVER e 404 TRIP_STOP_NOT_REACHABLE não caem no fallback do código cru', () => {
+    expect(resolveRejectionCauseLabelKey('403 TRIP_NOT_OF_DRIVER')).toBe(
+      'eventQueue.cause.notOfDriver',
+    )
+    expect(resolveRejectionCauseLabelKey('404 TRIP_STOP_NOT_REACHABLE')).toBe(
+      'eventQueue.cause.stopNotReachable',
+    )
+  })
+})
