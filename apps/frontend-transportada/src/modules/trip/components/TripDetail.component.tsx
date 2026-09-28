@@ -104,9 +104,12 @@ type TripDetailProps = Readonly<{
  */
 function describeVehicle(
   vehicles: readonly FleetVehicleDetail[],
-  vehicleId: string,
+  vehicleId: null | string,
   translateFleet: (key: string) => string,
+  /** Spec 217 (RF7): viagem `awaiting_crew` sem veículo — "a definir", nunca o vazio cru. */
+  toDefineLabel: string,
 ): string {
+  if (vehicleId === null) return toDefineLabel
   const vehicle = vehicles.find((entry) => entry.id === vehicleId)
   if (vehicle === undefined) return vehicleId
 
@@ -132,7 +135,7 @@ function describeVehicle(
  */
 function resolveVehicleIdentityBandProps(
   vehicles: readonly FleetVehicleDetail[],
-  vehicleId: string,
+  vehicleId: null | string,
   translateFleet: (key: string) => string,
 ): null | {
   facts: readonly { label: string; value: string }[]
@@ -140,6 +143,7 @@ function resolveVehicleIdentityBandProps(
   plate: string
   vehicleType: FleetVehicleDetail['vehicleType']
 } {
+  if (vehicleId === null) return null
   const vehicle = vehicles.find((entry) => entry.id === vehicleId)
   if (vehicle === undefined) return null
 
@@ -769,7 +773,9 @@ export function TripDetail({
       {canReadFleetDetails ? (
         vehicleIdentity === null ? (
           <p className={styles.summaryLine}>
-            {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
+            {t('detail.vehicle', {
+              vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet, t('toDefine')),
+            })}
           </p>
         ) : (
           <VehicleIdentityBand
@@ -784,6 +790,8 @@ export function TripDetail({
 
       <fieldset className={styles.driverChecklist}>
         <legend className={styles.hint}>{t('detail.drivers')}</legend>
+        {/* Spec 217 (RF7): viagem `awaiting_crew` ainda sem motorista — "a definir", nunca a lista muda. */}
+        {trip.drivers.length === 0 ? <p className={styles.hint}>{t('toDefine')}</p> : null}
         {/*
          * Nome sozinho obrigava a abrir a frota noutra aba para achar o telefone. O contato é
          * **link**, não texto: quem está no galpão toca e liga, sem copiar número à mão.
@@ -948,7 +956,7 @@ export function TripDetail({
           }
           onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
           tripStatus={trip.status}
-          vehicleId={trip.vehicleId === '' ? null : trip.vehicleId}
+          vehicleId={trip.vehicleId}
         />
       ) : null}
 

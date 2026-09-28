@@ -236,7 +236,8 @@ function isTripFields(value: Record<string, unknown>): boolean {
     isNullableString(value.requiresMdfeReason) &&
     isOneOf(value.status, TRIP_STATUS) &&
     isString(value.updatedAt) &&
-    isString(value.vehicleId)
+    /** Spec 217 (RF1/D1): `null` é a viagem `awaiting_crew` que ainda não tem veículo. */
+    isNullableString(value.vehicleId)
   )
 }
 

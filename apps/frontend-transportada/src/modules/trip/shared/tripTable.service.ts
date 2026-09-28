@@ -77,12 +77,11 @@ function compareMoney(column: TripColumnKey, left: Trip, right: Trip): number {
 }
 
 function columnValue(row: Trip, column: TripColumnKey): string {
-  return column === 'vehicleId' ||
-    column === 'status' ||
-    column === 'createdAt' ||
-    column === 'updatedAt'
-    ? row[column]
-    : ''
+  /** Spec 217: viagem `awaiting_crew` ainda sem veículo — a ausência ordena como o fim do alfabeto. */
+  if (column === 'vehicleId') return row.vehicleId ?? ''
+  if (column === 'status' || column === 'createdAt' || column === 'updatedAt') return row[column]
+
+  return ''
 }
 
 function compareColumn(column: TripColumnKey, left: Trip, right: Trip): number {
