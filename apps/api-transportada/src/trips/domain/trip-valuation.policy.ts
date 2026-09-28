@@ -59,6 +59,17 @@ export const VALUATION_GAPS = {
   /** Nenhuma regra de frete casa com a nota: sem parâmetro não há receita prevista. */
   noFreightRule: 'NO_FREIGHT_RULE',
   /**
+   * Spec 217 Fase 4: a viagem não tem veículo, e sem ele não há custo de veículo nem pedágio. O
+   * custo é desconhecido — quem resolve é **escolher o caminhão**, não cadastrar preço.
+   *
+   * ⚠️ Não se confunde com `noFuelConsumption` nem com `notRecorded`, pelo mesmo motivo que separa
+   * `noFuelBaseline` de `noFuelPrice`: a ausência do veículo se resolve na própria viagem, e a
+   * ausência de atributo na ficha da frota. Mandar o operador cadastrar consumo médio na ficha de um
+   * caminhão que ninguém escolheu é pior que não dizer nada — ele encontra o campo preenchido, e a
+   * conta continua sem combustível.
+   */
+  noVehicle: 'NO_VEHICLE',
+  /**
    * ⚠️ Fica só para o consumo declarado que **não produz conta** — zero, ou valor que não parseia.
    * Ausência de consumo e ausência de preço têm lacuna própria: elas se cadastram em telas
    * diferentes (a ficha do veículo e a aba Combustível da frota), e uma lacuna só mandava o

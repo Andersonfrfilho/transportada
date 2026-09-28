@@ -221,6 +221,52 @@ describe('a viagem fecha a conta (spec 061 T010)', () => {
     },
     60_000,
   )
+
+  /**
+   * Spec 217 Fase 4 (T402) — **a prova do `leftJoin`.** A consulta juntava `fleet_vehicles` por
+   * `trips.vehicle_id` com `innerJoin`: com o veículo nulo a junção não devolvia linha,
+   * `readContext` respondia `null` e a leitura estourava `TRIP_NOT_FOUND` — dizendo que a viagem não
+   * existe para uma viagem que a RF1 acabou de criar pelo painel. Este caso só fica verde contra o
+   * banco: é a junção, não a política, que decidia o 404.
+   */
+  testWithPostgres(
+    'viagem sem veículo devolve as lacunas do veículo, nunca 404',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedTripWithoutVehicle(database)
+        const valuation = await readTripValuation({
+          companyId: world.companyId,
+          repository: {
+            findApplicableRule: (
+              query: Parameters<DrizzleApplicableFreightRuleQuery['findApplicableRule']>[0],
+            ) => new DrizzleApplicableFreightRuleQuery(database.db).findApplicableRule(query),
+            readContext: (query: { readonly companyId: string; readonly tripId: string }) =>
+              new DrizzleTripValuationQuery(database.db, SILENT_LOGGER).readContext(query),
+          },
+          tripId: world.tripId,
+        })
+
+        const byKind = new Map(valuation.costParcels.map((parcel) => [parcel.kind, parcel]))
+        expect(byKind.get('fuel')).toMatchObject({
+          amount: '0.0000',
+          gap: 'NO_VEHICLE',
+          source: 'missing',
+        })
+        expect(byKind.get('other_per_kilometer')).toMatchObject({
+          amount: '0.0000',
+          gap: 'NO_VEHICLE',
+          source: 'missing',
+        })
+        expect(byKind.get('toll')).toMatchObject({
+          amount: '0.0000',
+          gap: 'NO_VEHICLE',
+          source: 'missing',
+        })
+        expect(valuation.hasGaps).toBe(true)
+      })
+    },
+    60_000,
+  )
 })
 
 type World = {
@@ -580,6 +626,26 @@ async function seedTripWithoutPlannedRoute(database: TestDatabase): Promise<Worl
     vehicleType: 'toco',
   })
   await database.db.insert(trips).values({ companyId, id: tripId, status: 'draft', vehicleId })
+
+  return { companyId, tripId, userId }
+}
+
+/**
+ * Spec 217 RF1: o rascunho salvo pelo painel — `awaiting_crew`, `vehicle_id` nulo, e nenhuma linha
+ * em `fleet_vehicles` para a junção encontrar. ⚠️ Nenhum veículo é semeado de propósito: com um
+ * veículo na empresa e a coluna nula, um `innerJoin` errado ainda falharia, mas por outro motivo.
+ */
+async function seedTripWithoutVehicle(database: TestDatabase): Promise<World> {
+  const companyId = crypto.randomUUID()
+  const userId = crypto.randomUUID()
+  const tripId = crypto.randomUUID()
+
+  await database.db.insert(companies).values({ id: companyId, status: 'active' })
+  await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db
+    .insert(userCompanyMemberships)
+    .values({ companyId, id: crypto.randomUUID(), status: 'active', userId })
+  await database.db.insert(trips).values({ companyId, id: tripId, status: 'awaiting_crew' })
 
   return { companyId, tripId, userId }
 }
