@@ -494,6 +494,30 @@ describe('criação rápida pela montagem', () => {
     expect(await requests[4]?.json()).toEqual({ routeChoice: ROUTE_CHOICE })
   })
 
+  /**
+   * Spec 217 (RF1/D5, T504): "Salvar rascunho" é a mesma sequência sem o `plan-route` — reordena
+   * pela ordem do mapa e para aí. Nenhuma função copiada: o mesmo `runQuickCreateTrip`, com o
+   * parâmetro dizendo para não planejar.
+   */
+  test('salva o rascunho sem planejar rota', async () => {
+    const requests: Request[] = []
+
+    const trip = await runQuickCreateTrip({
+      ...QUICK_CREATE,
+      client: createQuickCreateClient({ requests }),
+      planRoute: false,
+    })
+
+    expect(trip.id).toBe(TRIP_ID)
+    expect(describeRequests(requests)).toEqual([
+      'POST /trips',
+      `POST /trips/${TRIP_ID}/documents/batch`,
+      `GET /trips/${TRIP_ID}`,
+      `PATCH /trips/${TRIP_ID}/stops/order`,
+    ])
+    expect(describeRequests(requests)).not.toContain(`POST /trips/${TRIP_ID}/plan-route`)
+  })
+
   /** A ordem é conveniência: sem ela a viagem ainda precisa da rota planejada. */
   test('falha ao reordenar não impede planejar', async () => {
     const requests: Request[] = []

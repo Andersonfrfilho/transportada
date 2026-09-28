@@ -224,6 +224,20 @@ describe('trip quick create contract', () => {
     expect(dialog).toContain('quickCreate.canScan ? (')
   })
 
+  /**
+   * Spec 217 (RF1/D5, T504): "Salvar rascunho" fica ao lado do botão de criar-e-planejar, chamando
+   * a mesma mutação com `asDraft: true` — e gated pelo `draftIssues` do caminho do rascunho, não
+   * pelo `issues` do clique único.
+   */
+  test('offers "save draft" beside the single-click button, gated by the draft issues', async () => {
+    const dialog = await readApplicationFile(DIALOG_PATH)
+
+    expect(dialog).toContain('quickCreate.createMutation.mutate({ asDraft: true })')
+    expect(dialog).toContain('quickCreate.createMutation.mutate({ asDraft: false })')
+    expect(dialog).toContain('disabled={quickCreate.draftIssues.length > 0')
+    expect(dialog).toContain("{t('quickCreate.submitDraft')}")
+  })
+
   /** A viagem criada abre no detalhe: quem bipou dez notas quer conferir o roteiro, não procurá-lo. */
   test('opens the created trip instead of leaving the operator on the list', async () => {
     const workspace = await readApplicationFile(WORKSPACE_PATH)
