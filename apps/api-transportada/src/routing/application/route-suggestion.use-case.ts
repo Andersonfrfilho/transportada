@@ -67,7 +67,7 @@ export type TripRouteFreezer = Readonly<{
     readonly companyId: string
     readonly routeChoice?: RouteChoice
     readonly tripId: string
-  }) => Promise<void>
+  }) => Promise<{ readonly routeFrozen: boolean }>
 }>
 
 export type RouteSuggestionDependencies = Readonly<{

@@ -55,7 +55,7 @@ export type TripLifecycleDependencies = {
     PlanTripRoutePort &
     ReorderTripStopsPort
   /** T704 L7: a falha do recongelamento vira aviso com os ids, nunca silêncio. */
-  readonly logger?: TripRouteFreezeLogger
+  readonly routeFreezeLogger?: TripRouteFreezeLogger
   readonly stopRepository: ListTripStopsPort
   /** Spec 060 D4b: a entrega concluída propõe a taxa recorrente. Ausente, nada muda na entrega. */
   readonly suggestCharges?: SuggestDeliveryChargesPort
@@ -217,7 +217,9 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
         return overrideDeliveryAddress({
           actorUserId: input.context.userId,
           companyId: input.context.companyId,
-          ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+          ...(dependencies.routeFreezeLogger === undefined
+            ? {}
+            : { logger: dependencies.routeFreezeLogger }),
           newAddress: input.newAddress,
           newLabel: input.newLabel,
           reason: input.reason,
@@ -250,7 +252,9 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           actorUserId: input.context.userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId: input.context.companyId,
-          ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+          ...(dependencies.routeFreezeLogger === undefined
+            ? {}
+            : { logger: dependencies.routeFreezeLogger }),
           repository: dependencies.routeRepository,
           ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
           tripId: input.tripId,
@@ -268,7 +272,9 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
       }) {
         return reorderTripStops({
           companyId: input.context.companyId,
-          ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+          ...(dependencies.routeFreezeLogger === undefined
+            ? {}
+            : { logger: dependencies.routeFreezeLogger }),
           orderedStopIds: input.stopIds,
           repository: dependencies.routeRepository,
           ...(dependencies.tollFreezer === undefined

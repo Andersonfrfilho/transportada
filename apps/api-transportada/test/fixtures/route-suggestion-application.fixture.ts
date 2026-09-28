@@ -97,7 +97,6 @@ export type RouteSuggestionFixture = RouteSuggestionDependencies &
     created: CreateRouteSuggestionRecord[]
     decided: DecideRouteSuggestionRecord[]
     plannedRoutes: Readonly<{
-      actorUserId: string
       companyId: string
       routeChoice?: RouteChoice
       tripId: string
@@ -164,6 +163,7 @@ export function buildDependencies(params: FixtureParams = {}): RouteSuggestionFi
       async freeze(input) {
         if (params.freezeRouteError !== undefined) throw params.freezeRouteError
         plannedRoutes.push(input)
+        return { routeFrozen: true }
       },
     },
     stopOrder: {

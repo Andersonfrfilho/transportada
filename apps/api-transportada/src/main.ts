@@ -2226,6 +2226,7 @@ function createApplicationRoutes({
     documentRepository: tripDocumentRepository,
     locationRepository: tripStopLookupRepository,
     logger,
+    routeFreezeLogger: logger,
     routeRepository: tripRouteRepository,
     stopRepository: tripStopLookupRepository,
     suggestCharges: suggestDeliveryCharges,

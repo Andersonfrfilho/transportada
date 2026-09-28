@@ -299,7 +299,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
       vehicle: VEHICLE,
     })
 
-    const result = await freezeTripPlannedRoute({
+    await freezeTripPlannedRoute({
       companyId: COMPANY_ID,
       geometry: createGeometryPort([1, 2, 3]),
       repository,
@@ -329,7 +329,7 @@ describe('congelamento da rota inteira (spec 153 T201)', () => {
   test('M4: alguma parada sem coordenada grava rota e pedágio null — nunca o subconjunto', async () => {
     const repository = createFakeRepository({ stops: null, vehicle: VEHICLE })
 
-    await freezeTripPlannedRoute({
+    const result = await freezeTripPlannedRoute({
       companyId: COMPANY_ID,
       geometry: createGeometryPort([1, 2, 3]),
       repository,

@@ -16,6 +16,8 @@ import { createLinkTripDocumentsBatchUseCase } from '../../src/trips/application
 import { overrideDeliveryAddress } from '../../src/trips/application/override-delivery-address.use-case.js'
 import { planTripRoute } from '../../src/trips/application/plan-trip-route.use-case.js'
 import { reorderTripStops } from '../../src/trips/application/reorder-trip-stops.use-case.js'
+import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import { TripRouteUnavailableError } from '../../src/trips/domain/trip.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const TRIP_ID = '00000000-0000-4000-8000-0000000000t1'
@@ -26,7 +28,7 @@ type FreezeCall = { readonly companyId: string; readonly tripId: string }
 
 function createFreezer(input: { readonly fails: boolean }): {
   readonly calls: readonly FreezeCall[]
-  freeze(call: FreezeCall): Promise<void>
+  freeze(call: FreezeCall): Promise<{ readonly routeFrozen: boolean }>
 } {
   const calls: FreezeCall[] = []
   return {
@@ -36,6 +38,7 @@ function createFreezer(input: { readonly fails: boolean }): {
     async freeze(call) {
       calls.push({ companyId: call.companyId, tripId: call.tripId })
       if (input.fails) throw new Error('osrm indisponível')
+      return { routeFrozen: true }
     },
   }
 }
@@ -152,10 +155,19 @@ describe('T704 L7: o lote de vínculo também conta o congelamento perdido', () 
 })
 
 describe('T704 L7: planejar roteiro conta o congelamento perdido', () => {
-  test('avisa com os ids quando o congelamento falha', async () => {
+  /**
+   * Revisão pós-153 (bancada 2026-09-23, ver `plan-route-toll-freeze.contract.ts`): o congelamento
+   * que falha de verdade nunca lança — ele devolve `routeFrozen: false` (D5). Esse `false` passou a
+   * bloquear a transição real (a viagem não vira `route_planned` sem roteiro), então o teste original
+   * — que simulava a falha por exceção e esperava a promise resolver — ficou incompatível com a
+   * correção; aqui ele passa a cobrir o aviso **e** o bloqueio juntos.
+   */
+  test('avisa com os ids e bloqueia a transição quando o congelamento falha', async () => {
     const logger = createLogger()
 
-    await planTripRoute({
+    const error = await planTripRoute({
+      actorUserId: '00000000-0000-4000-8000-0000000000u1',
+      channel: TRIP_FIELD_CHANNELS.backoffice,
       companyId: COMPANY_ID,
       logger,
       repository: {
@@ -166,10 +178,11 @@ describe('T704 L7: planejar roteiro conta o congelamento perdido', () => {
           return { hasRoute: true, tripStatus: 'draft' as const }
         },
       },
-      tollFreezer: createFreezer({ fails: true }),
+      tollFreezer: { freeze: () => Promise.resolve({ routeFrozen: false }) },
       tripId: TRIP_ID,
-    })
+    }).catch((caught: unknown) => caught)
 
+    expect(error).toBeInstanceOf(TripRouteUnavailableError)
     expect(logger.warnings.map((warning) => warning.message)).toEqual([
       TRIP_ROUTE_FREEZE_FAILED_MESSAGE,
     ])
