@@ -270,3 +270,39 @@ $ bun --env-file=../../.env.test run test:integration
 Contrato e domínio inteiros (`bun --env-file=../../.env.test test`, sem filtro) seguem 100% verdes:
 `7957 pass / 23 skip / 0 fail / 26093 expect() calls` — as 10 quebras são só de integração contra
 Postgres, e 4 delas já fecharam.
+
+## T204 — O aceite de sugestão desemboca no rascunho (🧠 `opus`)
+
+Task que não estava no plano. Nasceu da T203: rodando a integração inteira, seis testes do aceite
+multi-veículo ficaram vermelhos com `409 TRIP_CREW_NOT_DEFINED` disparado dentro de
+`plan-trip-route.use-case.ts:116`. Conflito real entre a 081 RF-5 (grupo sem motorista é legítimo) e a
+D1 desta spec (`awaiting_crew` não planeja rota) — **criado por esta spec**, que escreveu a task de
+regressão da 081 pensando só no status de nascimento e não no passo seguinte do aceite.
+
+Vermelho reproduzido por execução própria antes de tratar o relatório do executor como verdade:
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/multi-vehicle-suggestion.integration.ts
+ 1 pass / 6 fail / 9 expect() calls
+  status: 409, reason: "TRIP_CREW_NOT_DEFINED"
+  at planTripRoute (src/trips/application/plan-trip-route.use-case.ts:116:11)
+```
+
+Decisão do dono do produto (D10): o rascunho tem que poder existir sem motorista e sem veículo, e o
+aceite desemboca nele. `multi-vehicle-suggestion.use-case.ts` passou a planejar rota só quando
+`resolveCrewStatus({ hasDriver: group.driverId !== null, hasVehicle: true }) === 'draft'` — a mesma
+função do nascimento e da troca, terceira leitora da mesma regra.
+
+A integração do aceite ficou mais forte do que era: além do status, passou a provar que
+`planned_route` e `planned_toll` ficam nulos, ou seja, que a viagem é rascunho de verdade e não uma
+`awaiting_crew` com rota velha pendurada.
+
+```
+$ bun run typecheck                                    # limpo
+$ bun --env-file=../../.env.test test ./test/integration/multi-vehicle-suggestion.integration.ts
+ 7 pass / 0 fail / 40 expect() calls
+```
+
+O seed do teste não tem `driverId` em lugar nenhum (`grep driverId` → zero ocorrências): os grupos
+nascem sem motorista, então `awaiting_crew` é o estado correto, não uma expectativa afrouxada para o
+teste passar.
