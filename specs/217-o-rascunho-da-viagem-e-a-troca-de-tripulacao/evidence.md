@@ -531,3 +531,66 @@ Duas pedras, as duas com mensagem enganosa — anotadas porque custaram tentativ
 
 ⚠️ **Não substitui a CI**: é Postgres 18 local contra o da CI, e SQLSTATE de constraint pode divergir
 entre versões — asserção de código de erro do banco continua precisando do veredito remoto.
+
+## T308 — o efeito no PWA é consequência, não código (`sonnet`, `0fe27c0cc`)
+
+Nenhuma linha de produção. Dois casos de integração contra Postgres, exercitando a escrita real
+(`updateCrew`) e a leitura real (`findCurrentDriverTrip`): trocar o motorista tira a viagem do celular
+de A e a põe no de B mantendo `route_planned`; trocar o **veículo** a devolve a `draft` e ela sai do
+celular **até de quem continuou na tripulação** — `draft` não está em `CURRENT_DRIVER_TRIP_STATUSES`
+(D6: ninguém deve dirigir para um roteiro invalidado).
+
+```
+$ DRIZZLE_TEST_DATABASE_URL=... bun test ./test/integration/me-trip.integration.ts   # conferido por mim
+ 15 pass / 0 fail / 94 expect() calls
+```
+
+⚠️ **A armadilha que essa task desarmou:** a fixture existente de viagem roteirizada não congela
+`planned_route_frozen_at`. Reaproveitá-la faria `updateCrew` ler "sem rota", e a troca só de motorista
+derrubaria a viagem para `draft` — **falso positivo que pareceria defeito da entrega**. O executor
+escreveu fixture que congela a rota como o congelador de verdade faz.
+
+## Fase 4 — a viagem sem veículo para de responder 404 (🧠 `opus`, dois commits)
+
+- `a8bfa36b1` — T401/T402: `leftJoin`, `context.vehicle` anulável, lacuna `NO_VEHICLE`.
+- `2b625cd5b` — T403: a planta de carga já era indisponível; entregou o teste que prende isso.
+- `e091bcc9f` — o rótulo de `NO_VEHICLE` nos quatro locales do painel (meu, fora do isolamento dele).
+
+**O defeito era real e foi confirmado por execução antes do conserto:** `readContext` usava
+`innerJoin` com `fleet_vehicles`, então viagem sem veículo não produzia linha e a leitura respondia
+**404 `TRIP_NOT_FOUND`** — sobre uma viagem que existe no banco. Como a leitura financeira dispara ao
+abrir o detalhe para quem tem `trip.financials`, isso apareceria como "viagem não encontrada" no painel.
+
+**Por que virou pré-requisito da Fase 5:** a criação sem veículo já estava publicada pela API, mas só
+por chamada direta. O botão "Salvar rascunho" a colocaria na mão do operador — e cada rascunho criado
+por ele abriria com erro. A ordem das fases mudou por causa disso, não por preferência.
+
+**Duas ordens de precedência que o executor decidiu e os testes prendem**, ambas defensáveis e
+registradas: `noVehicle` vem **antes** de `noPlannedDistance` (a viagem sem veículo está sem roteiro
+por consequência — planejar exige `draft`, que exige tripulação; com a distância primeiro, a lacuna do
+veículo nunca apareceria na vida real) e **depois** do pedágio já lançado (dinheiro que saiu do caixa
+continua `measured`; trocá-lo por lacuna inverteria lançamento e projeção).
+
+**T403 sem código de produção, com o porquê:** `loadTripOccupancy` já trata veículo nulo desde a 216 —
+nem consulta a frota, devolve baú e capacidade nulos, e `canRequestCargoLayout` recusa pelo baú.
+Provado **por mutação**: trocando a guarda de capacidade por `return true`, o caso novo cai.
+
+```
+$ bun test ./test/trip-valuation.contract.test.ts                    # conferido por mim
+ 163 pass / 0 fail / 728 expect() calls
+$ DRIZZLE_TEST_DATABASE_URL=... bun test ./test/integration/trip-financial-end-to-end.integration.ts \
+    ./test/integration/trip-cargo-layout-read.integration.ts
+ 15 pass / 0 fail
+```
+
+### O guarda que já existia e não foi consultado
+
+`apps/frontend-transportada/test/trip-financials/valuation-gap-labels.contract.ts` lê a lista de
+lacunas **do fonte da API** e exige rótulo nos dois idiomas das duas telas, exatamente para ninguém ver
+a chave crua. Ele teria reprovado a lacuna nova na hora — mas vive na suíte do **painel**, e a task
+estava isolada em `apps/api-transportada`. Confirmei por mutação que ele morde: sem um dos quatro
+rótulos, falha.
+
+**Lição para a próxima lacuna:** quem cria uma em `trip-valuation.policy.ts` tem de rodar a suíte do
+painel também. O isolamento entre executores evita conflito de arquivo e **cega para guardas
+cruzados** — foi eu quem escreveu o isolamento, então o buraco é meu, não do executor.
