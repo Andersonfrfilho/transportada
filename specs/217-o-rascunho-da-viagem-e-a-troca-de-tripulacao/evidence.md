@@ -306,3 +306,58 @@ $ bun --env-file=../../.env.test test ./test/integration/multi-vehicle-suggestio
 O seed do teste não tem `driverId` em lugar nenhum (`grep driverId` → zero ocorrências): os grupos
 nascem sem motorista, então `awaiting_crew` é o estado correto, não uma expectativa afrouxada para o
 teste passar.
+
+## T302 + T307 (implementação) + T309 — a troca vale até `route_planned` (🧠 `opus`)
+
+Três tasks num commit porque o tipo as amarrou: trocar a assinatura de `checkTripTransition` deixa o
+typecheck vermelho até que os dois chamadores passem `vehicleChanged`. Separá-las daria um commit que
+não compila.
+
+**O typecheck fez o trabalho de busca.** Ao remover `tripCrewAlreadyDefined`, ele apontou seis lugares,
+incluindo dois mapas de mensagem do WhatsApp (`whatsapp-driver-flow.constant.ts:82`,
+`whatsapp-operator-flow.constant.ts:111`) que uma busca por "crew" não teria achado. Todos passaram a
+`TRIP_SEPARATION_STARTED`, com texto que diz o motivo real.
+
+**Onde cada decisão foi gravada:**
+
+- `isCrewSwappable(tripStatus)` — a janela da troca numa função só (D2/D6). `checkDefineCrew` a usa
+  para recusar e `resolveTripAllowedActions` para oferecer: oferecer e recusar não podem divergir.
+- `resolveNextCrewStatus` — o par decide, e o roteiro congelado só sobrevive se o veículo não mudou
+  (D3-ter).
+- `trip.use-case.ts:updateCrew` — a checagem prévia compara o veículo **pedido** com o da viagem,
+  normalizando `null` dos dois lados: pedir troca sem veículo numa viagem que tem um é trocar o
+  veículo (para nenhum). `hasRoute` aqui é aproximado pelo status, e o comentário diz por quê:
+  `TripDetail` não expõe o carimbo do congelamento, e para `defineCrew` o bloqueio não depende de
+  `hasRoute` — só o status resultante, que quem grava é a checagem sob lock.
+- `drizzle-trip.repository.ts:updateCrew` — sob o lock, lê `vehicle_id` e `planned_route_frozen_at` do
+  banco. É esta a decisão que vale sob concorrência.
+- `trip-allowed-actions.policy.ts` — `defineCrew` entra **por fora** do filtro genérico, porque para
+  ela `unchanged` também é "pode": trocar a tripulação de uma `draft` não muda o status, e copiar o
+  filtro esconderia o botão na viagem mais comum.
+
+**Testes da 216 que mudaram de verdade, não de expectativa:** o contrato do caso de uso afirmava
+"recusa a troca depois do roteiro planejado" — comportamento que a D2 reverteu de propósito. Virou dois
+testes: a troca **passa** em `route_planned`, e a recusa passou a ser a da separação, sem tocar no
+repositório. Mesma coisa no contrato HTTP e na grade de `trip-state.contract.ts`.
+
+```
+$ bun run typecheck                                    # limpo
+$ bun --env-file=../../.env.test test test/trip-domain.contract.test.ts \
+    test/trip-http.contract.test.ts test/trip-allowed-actions.contract.test.ts \
+    test/trip-application.contract.test.ts --timeout 120000
+ 628 pass / 0 fail / 2138 expect() calls
+```
+
+### ⚠️ O que **não** foi provado aqui, e não vou fingir que foi
+
+O teste de integração da T307 (trocar só o motorista de uma viagem `route_planned` e conferir no banco
+que `planned_route`, `planned_toll` e os carimbos ficam intactos) **está escrito e não rodou**. O
+Postgres de teste local ficou sem slot de conexão — `PostgresError: sorry, too many clients already`,
+`errno 53300` — depois de uma execução das 135 suítes de integração numa máquina com load 14. Nesse
+estado nem `psql` entra, e 8 de 8 casos do arquivo falham por conexão, não por asserção. Reiniciar o
+container foi barrado pelo classificador de permissões.
+
+Lição registrada, porque já custou tempo antes: **a corrida completa de integração local, com banco
+compartilhado e máquina carregada, não é evidência.** As execuções dirigidas valem (6 pass em
+crew-update antes disso, 7 pass no aceite multi-veículo, 628 contratos agora). A prova da T307 sai na
+CI, que tem banco dedicado, ou localmente depois de liberar as conexões.

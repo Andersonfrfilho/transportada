@@ -161,20 +161,175 @@ async function readCrewState(
  * Spec 217 D1: a coerência é a invariante que importa — o status gravado é exatamente
  * `resolveCrewStatus` do par que ficou no banco, nunca `draft` sem as duas coisas.
  */
-function expectStatusDerivedFromStoredCrew(state: {
-  readonly driverIds: readonly string[]
-  readonly status: string
-  readonly vehicleId: string | null
-}): void {
-  expect(state.status).toBe(
-    resolveCrewStatus({
-      hasDriver: state.driverIds.length > 0,
-      hasVehicle: state.vehicleId !== null,
-    }),
-  )
+function expectStatusDerivedFromStoredCrew(
+  state: {
+    readonly driverIds: readonly string[]
+    readonly status: string
+    readonly vehicleId: string | null
+  },
+  /**
+   * Spec 217 D3-ter: com roteiro congelado sobrevivendo à troca, o par completo descreve
+   * `route_planned`, não `draft` — `resolveCrewStatus` responde só a metade da pergunta.
+   */
+  options: { readonly routeSurvived?: boolean } = {},
+): void {
+  const byPair = resolveCrewStatus({
+    hasDriver: state.driverIds.length > 0,
+    hasVehicle: state.vehicleId !== null,
+  })
+  const expected = options.routeSurvived === true && byPair === 'draft' ? 'route_planned' : byPair
+  expect(state.status).toBe(expected)
 }
 
 describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
+  /**
+   * Spec 217 T307, a necessidade que abriu esta spec: **trocar o motorista de uma viagem já
+   * roteirizada.** A rota e o pedágio saem da classe e dos eixos do caminhão, e quem dirige não entra
+   * nessa conta (097 D1/D3/D4) — então o roteiro fica de pé, a viagem nem sai de `route_planned`, e
+   * não há nada a replanejar.
+   *
+   * ⚠️ O que este teste prende contra regressão é o **par** de fatos: o motorista trocou E o pedágio
+   * continua lá. Provar só o primeiro deixaria passar uma limpeza de rota disparada por engano na
+   * troca de motorista, que é o defeito mais caro possível aqui — perder o pedágio congelado de uma
+   * viagem pronta para separar.
+   */
+  testWithPostgres(
+    'trocar só o motorista de uma viagem roteirizada deixa a rota e o pedágio de pé',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const fleet = await seedCompanyFleet(database.db)
+        const repository = new DrizzleTripRepository(database.db)
+
+        const created = await repository.create({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+            },
+          ],
+          vehicleId: fleet.firstVehicleId,
+        })
+
+        const frozenRoute = { criterion: 'cheapest', legs: [], points: [], signature: 'abc' }
+        const frozenToll = { total: '12.34' }
+        await database.db
+          .update(trips)
+          .set({
+            plannedDistanceMeters: 42_000,
+            plannedDurationSeconds: 3_600,
+            plannedRoute: frozenRoute,
+            plannedRouteFrozenAt: new Date(),
+            plannedToll: frozenToll,
+            plannedTollFrozenAt: new Date(),
+            status: 'route_planned',
+          })
+          .where(eq(trips.id, created.id))
+
+        await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.secondDriverId,
+              driverName: 'Segundo Motorista',
+              driverTaxId: '22222222222',
+              position: 1,
+            },
+          ],
+          tripId: created.id,
+          vehicleId: fleet.firstVehicleId,
+        })
+
+        const state = await readCrewState(database.db, {
+          companyId: fleet.companyId,
+          tripId: created.id,
+        })
+        expect(state.driverIds).toEqual([fleet.secondDriverId])
+        expect(state.vehicleId).toBe(fleet.firstVehicleId)
+        expect(state.status).toBe('route_planned')
+        expectStatusDerivedFromStoredCrew(state, { routeSurvived: true })
+
+        const [routeRow] = await database.db
+          .select({
+            plannedDistanceMeters: trips.plannedDistanceMeters,
+            plannedRoute: trips.plannedRoute,
+            plannedRouteFrozenAt: trips.plannedRouteFrozenAt,
+            plannedToll: trips.plannedToll,
+            plannedTollFrozenAt: trips.plannedTollFrozenAt,
+          })
+          .from(trips)
+          .where(eq(trips.id, created.id))
+        expect(routeRow?.plannedRoute).toEqual(frozenRoute)
+        expect(routeRow?.plannedToll).toEqual(frozenToll)
+        expect(routeRow?.plannedDistanceMeters).toBe(42_000)
+        expect(routeRow?.plannedRouteFrozenAt).not.toBeNull()
+        expect(routeRow?.plannedTollFrozenAt).not.toBeNull()
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  /** Spec 217 D2: da separação em diante a troca é recusada, e o nome da recusa diz o motivo. */
+  testWithPostgres(
+    'a separação iniciada recusa a troca',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const fleet = await seedCompanyFleet(database.db)
+        const repository = new DrizzleTripRepository(database.db)
+
+        const created = await repository.create({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+            },
+          ],
+          vehicleId: fleet.firstVehicleId,
+        })
+        await database.db
+          .update(trips)
+          .set({ status: 'separating' })
+          .where(eq(trips.id, created.id))
+
+        await expect(
+          repository.updateCrew({
+            actorUserId: fleet.userId,
+            channel: TRIP_FIELD_CHANNELS.backoffice,
+            companyId: fleet.companyId,
+            crew: [
+              {
+                driverId: fleet.secondDriverId,
+                driverName: 'Segundo Motorista',
+                driverTaxId: '22222222222',
+                position: 1,
+              },
+            ],
+            tripId: created.id,
+            vehicleId: fleet.firstVehicleId,
+          }),
+        ).rejects.toThrow('TRIP_SEPARATION_STARTED')
+
+        const state = await readCrewState(database.db, {
+          companyId: fleet.companyId,
+          tripId: created.id,
+        })
+        expect(state.driverIds).toEqual([fleet.firstDriverId])
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
   testWithPostgres(
     'troca a tripulação de uma viagem draft para outro motorista e veículo',
     async () => {

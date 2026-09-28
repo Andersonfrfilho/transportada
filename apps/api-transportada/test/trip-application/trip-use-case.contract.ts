@@ -711,9 +711,33 @@ describe('trip use case contract', () => {
     ])
   })
 
-  /** Depois do roteiro planejado, o pedágio já foi congelado a partir do veículo antigo. */
-  test('refuses to update the crew once the route is planned, without touching the repository', async () => {
+  /**
+   * Spec 217 D2, substituindo a recusa que a 216 colocava aqui: a troca **passou a ser permitida**
+   * em `route_planned`. É a necessidade operacional que abriu esta spec — trocar o motorista de uma
+   * viagem já roteirizada. Quem decide o destino do roteiro é o repositório, sob lock, pela
+   * comparação do veículo (D3-ter); o caso de uso só não pode mais barrar.
+   */
+  test('lets the crew be swapped once the route is planned', async () => {
     const fixture = createFixture({ stored: openTrip({ status: 'route_planned' }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await useCase.updateCrew({
+      context: CONTEXT,
+      driverIds: [SECOND_DRIVER_ID],
+      tripId: TRIP_ID,
+      vehicleId: VEHICLE_ID,
+    })
+
+    /**
+     * O que importa aqui é o caso de uso **deixar passar** — o conteúdo gravado é provado contra
+     * Postgres na T307 (`test/integration/trip-crew-update.integration.ts`), onde há banco para ler.
+     */
+    expect(fixture.updateCrewCalls).toHaveLength(1)
+  })
+
+  /** Spec 217 D2: a porta que fecha é a separação, e fecha sem tocar no repositório. */
+  test('refuses to update the crew once separation started, without touching the repository', async () => {
+    const fixture = createFixture({ stored: openTrip({ status: 'separating' }) })
     const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
 
     await expect(

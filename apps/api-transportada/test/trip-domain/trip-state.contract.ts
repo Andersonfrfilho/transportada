@@ -390,7 +390,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
    * planejado, nada calculado a partir do veículo (pedágio) foi congelado, então a troca não deixa
    * número velho para trás. A partir de `route_planned` a troca fica bloqueada.
    */
-  test('defineCrew swaps crew in place while draft, and refuses once the route is planned', () => {
+  test('defineCrew swaps crew in place while draft, and refuses once separation starts', () => {
     expect(
       checkTripTransition({
         action: TRIP_ACTION.defineCrew,
@@ -401,7 +401,12 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
       }),
     ).toEqual({ outcome: 'unchanged' })
 
-    for (const tripStatus of [...WAREHOUSE_STATUSES, ...DISPATCHED_STATUSES] as const) {
+    /**
+     * Spec 217 D2: `route_planned` **saiu** desta lista — a troca passou a ser permitida lá, e a
+     * porta que fecha é a separação. A janela inteira e a tabela do par pela metade são assunto de
+     * `crew-status.contract.ts`; aqui fica o que a 216 já provava, com o limite novo.
+     */
+    for (const tripStatus of ['separating', 'loading', ...DISPATCHED_STATUSES] as const) {
       expect(
         checkTripTransition({
           action: TRIP_ACTION.defineCrew,
@@ -410,7 +415,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
           vehicleChanged: false,
           tripStatus,
         }),
-      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined })
+      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripSeparationStarted })
     }
 
     expect(

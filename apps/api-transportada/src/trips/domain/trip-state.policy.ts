@@ -57,8 +57,13 @@ export const TRIP_TRANSITION_BLOCK = {
   tripHasNoRoute: 'TRIP_HAS_NO_ROUTE',
   /** Spec 216: nada acontece numa viagem `awaiting_crew` além de definir a tripulação ou cancelar. */
   tripCrewNotDefined: 'TRIP_CREW_NOT_DEFINED',
-  /** Spec 216: `defineCrew` só faz sentido enquanto a viagem espera por motorista/veículo. */
-  tripCrewAlreadyDefined: 'TRIP_CREW_ALREADY_DEFINED',
+  /**
+   * Spec 217 D2: a porta que fecha a troca de tripulação é a **separação**, não o roteiro. O nome diz
+   * o motivo real da recusa: o separador já está com papel na mão contando volume para um caminhão
+   * específico, e trocar o baú debaixo dele é pior que recusar. Substituiu `TRIP_CREW_ALREADY_DEFINED`
+   * da 216, que mentia sobre a causa desde que `route_planned` entrou na janela.
+   */
+  tripSeparationStarted: 'TRIP_SEPARATION_STARTED',
   documentNotSeparated: 'TRIP_DOCUMENT_NOT_SEPARATED',
   documentNotLoaded: 'TRIP_DOCUMENT_NOT_LOADED',
   documentAlreadyClosed: 'TRIP_DOCUMENT_ALREADY_CLOSED',
@@ -277,6 +282,13 @@ export type CheckTripTransitionParams =
       readonly crew: TripCrewComposition
       readonly hasRoute: boolean
       readonly tripStatus: TripStatus
+      /**
+       * Spec 217 D3: **só a troca de veículo mata a rota.** O traçado e o pedágio saem da classe e
+       * dos eixos do caminhão; quem dirige não entra nessa conta (097 D1/D3/D4, com D6 decidido e não
+       * implementado). Trocar só o motorista deixa a rota de pé, e é este campo que permite à
+       * máquina de estados saber a diferença.
+       */
+      readonly vehicleChanged: boolean
     }
 
 /**
@@ -286,12 +298,17 @@ export type CheckTripTransitionParams =
  * (`dispatch-trip.use-case.ts`) e o gatilho automático (`try-auto-dispatch-trip.use-case.ts`), que
  * roda sozinho quando a carga fecha e nunca usa `force`.
  */
-export function checkTripTransition(
-  params: CheckTripTransitionParams,
-): TripTransition<TripStatus> {
+export function checkTripTransition(params: CheckTripTransitionParams): TripTransition<TripStatus> {
   const { action, hasRoute, tripStatus } = params
   if (action === TRIP_ACTION.cancel) return checkCancel(tripStatus)
-  if (action === TRIP_ACTION.defineCrew) return checkDefineCrew(tripStatus, params.crew)
+  if (action === TRIP_ACTION.defineCrew) {
+    return checkDefineCrew({
+      crew: params.crew,
+      hasRoute,
+      tripStatus,
+      vehicleChanged: params.vehicleChanged,
+    })
+  }
   // Spec 216: sem tripulação, só `defineCrew` e `cancel` (já resolvidos acima) têm o que fazer.
   if (tripStatus === 'awaiting_crew') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewNotDefined }
@@ -305,35 +322,66 @@ export function checkTripTransition(
 }
 
 /**
- * Spec 216: a porta de saída de `awaiting_crew` além do cancelamento. Decisão do dono do produto em
- * 2026-09-26 (revista no mesmo dia): `defineCrew` também serve para TROCAR motorista/veículo
- * enquanto a viagem ainda está em `draft` — antes de o roteiro ser planejado, nada calculado a
- * partir do veículo (pedágio) foi congelado ainda, então a troca não deixa número velho para trás.
- * A partir de `route_planned` a troca fica bloqueada: `trips.planned_toll` já foi congelado com o
- * eixo do veículo antigo (`freezeTripPlannedRoute`), e só um replanejamento de rota o corrige — CA
- * fora do escopo desta ação.
+ * Spec 217 D1/D2/D3, sucessora da porta que a 216 abriu. Três perguntas, nesta ordem:
+ *
+ * 1. A viagem terminou ou foi cancelada? Nada a trocar.
+ * 2. O barracão já começou a separar? Recusa nomeada (D2) — o limite é o trabalho humano já
+ *    investido, não o dado.
+ * 3. Qual status o par resultante descreve? É `resolveCrewStatus` quem responde (D1), e o roteiro
+ *    congelado só sobrevive se o veículo não mudou (D3).
  */
-function checkDefineCrew(
-  tripStatus: TripStatus,
-  crew: TripCrewComposition,
-): TripTransition<TripStatus> {
+function checkDefineCrew(input: {
+  readonly crew: TripCrewComposition
+  readonly hasRoute: boolean
+  readonly tripStatus: TripStatus
+  readonly vehicleChanged: boolean
+}): TripTransition<TripStatus> {
+  const { crew, hasRoute, tripStatus, vehicleChanged } = input
+
   if (tripStatus === 'cancelled') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled }
   }
   if (tripStatus === 'completed') {
     return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted }
   }
-  if (tripStatus !== 'awaiting_crew' && tripStatus !== 'draft') {
-    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined }
+  if (!isCrewSwappable(tripStatus)) {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripSeparationStarted }
   }
 
-  /**
-   * Spec 217 D1: o desfecho sai do par, nos dois sentidos — definir metade da tripulação não promove
-   * (`unchanged`, sem evento de status à toa) e desfazer a tripulação de uma `draft` regride.
-   */
-  const nextStatus = resolveCrewStatus(crew)
+  const nextStatus = resolveNextCrewStatus({ crew, hasRoute, vehicleChanged })
 
   return nextStatus === tripStatus ? { outcome: 'unchanged' } : { outcome: 'applied', nextStatus }
+}
+
+/**
+ * Spec 217 D2/D6: **a janela da troca de tripulação, numa função só.** A máquina de estados a usa
+ * para recusar, e `resolveTripAllowedActions` a usa para oferecer a tela — se fossem duas listas, um
+ * dia a tela ofereceria um botão que o servidor recusa, ou esconderia um que ele aceita.
+ *
+ * `cancelled` e `completed` ficam fora por não estarem na lista, e `checkDefineCrew` os trata antes
+ * para que a recusa deles diga o motivo certo em vez de "a separação começou".
+ */
+export function isCrewSwappable(tripStatus: TripStatus): boolean {
+  return tripStatus === 'awaiting_crew' || tripStatus === 'draft' || tripStatus === 'route_planned'
+}
+
+/**
+ * Spec 217 D3: o roteiro congelado é o que distingue `draft` de `route_planned` num par completo.
+ * Ele sobrevive à troca de motorista e morre na troca de veículo — e é por isso que a viagem
+ * **regride** para `draft` nesse caso: o botão "Planejar rota" tem de reaparecer.
+ *
+ * ⚠️ A volta também funciona: viagem que caiu para `awaiting_crew` por tripulação desfeita, com a
+ * rota intacta, retorna direto para `route_planned` quando o par se completa de novo sem trocar o
+ * caminhão. Nada de exigir replanejamento de uma rota que nunca deixou de valer.
+ */
+function resolveNextCrewStatus(input: {
+  readonly crew: TripCrewComposition
+  readonly hasRoute: boolean
+  readonly vehicleChanged: boolean
+}): TripStatus {
+  if (resolveCrewStatus(input.crew) === 'awaiting_crew') return 'awaiting_crew'
+
+  return input.hasRoute && !input.vehicleChanged ? 'route_planned' : 'draft'
 }
 
 /**

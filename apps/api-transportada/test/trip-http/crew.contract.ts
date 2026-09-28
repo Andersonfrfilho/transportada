@@ -57,9 +57,10 @@ describe('trip crew http contract', () => {
     ])
   })
 
-  test('propaga a recusa quando a viagem já tem o roteiro planejado', async () => {
+  /** Spec 217 D2: a recusa passou a ser a da separação — o roteiro planejado deixou de barrar. */
+  test('propaga a recusa quando a separação da viagem já começou', async () => {
     const fixture = await createTripHttpFixture({
-      updateTripCrewError: new TripStateTransitionNotAllowedError('TRIP_CREW_ALREADY_DEFINED'),
+      updateTripCrewError: new TripStateTransitionNotAllowedError('TRIP_SEPARATION_STARTED'),
     })
 
     const response = await fixture.handle(

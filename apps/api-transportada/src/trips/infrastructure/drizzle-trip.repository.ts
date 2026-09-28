@@ -301,19 +301,29 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   }): Promise<TripDetail | null> {
     return this.database.transaction(async (transaction) => {
       const [tripRow] = await transaction
-        .select({ status: trips.status })
+        .select({
+          plannedRouteFrozenAt: trips.plannedRouteFrozenAt,
+          status: trips.status,
+          vehicleId: trips.vehicleId,
+        })
         .from(trips)
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .for('no key update')
         .limit(1)
       if (tripRow === undefined) return null
 
-      /** Spec 217 D1: sob o lock, o par resolvido é quem decide o status gravado abaixo. */
+      /**
+       * Spec 217 D1/D3-ter: sob o lock, o par resolvido decide o status, e a comparação do veículo
+       * pedido com o **gravado** decide se o roteiro sobrevive. Ler o veículo aqui e não no caso de
+       * uso é o que torna a decisão correta sob concorrência: a checagem prévia é UX, esta é a que
+       * grava.
+       */
       const transition = checkTripTransition({
         action: TRIP_ACTION.defineCrew,
         crew: { hasDriver: input.crew.length > 0, hasVehicle: input.vehicleId !== null },
-        hasRoute: false,
+        hasRoute: tripRow.plannedRouteFrozenAt !== null,
         tripStatus: tripRow.status,
+        vehicleChanged: input.vehicleId !== tripRow.vehicleId,
       })
       if (transition.outcome === 'blocked') {
         throw new TripStateTransitionNotAllowedError(transition.reason)
