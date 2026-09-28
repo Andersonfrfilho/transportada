@@ -389,20 +389,36 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
    * O perfil ausente vira campo vazio, nunca linha escondida: a tela mostra que a pessoa existe e
    * que falta cadastro, e é assim que alguém a conserta. Esconder é o defeito, não a proteção.
    */
+  /**
+   * Substitui, não soma. A constraint única é em `(issuer, subject)`, não em `userId` sozinho —
+   * gravar o vínculo novo sem apagar um velho deixaria os dois lado a lado, e a reconciliação (que
+   * junta por `userId`) passaria a mostrar a mesma pessoa duas vezes: uma completa, uma "sem
+   * acesso" para sempre, com o botão de conserto que nunca teria efeito nenhum (spec do achado em
+   * staging, 28/09/2026 — a linha velha, órfã, virou "usuário fantasma" na tela assim que o sync
+   * passou a recriar quem tinha `subject` morto). Apagar as linhas anteriores deste `userId` neste
+   * `issuer` antes de gravar a nova é o que faz "consertar o vínculo" significar isso de verdade.
+   */
   public async linkIdentitySubject(input: {
     readonly issuer: string
     readonly subject: string
     readonly userId: string
   }): Promise<void> {
-    await this.database
-      .insert(externalIdentities)
-      .values({
+    await this.database.transaction(async (transaction) => {
+      await transaction
+        .delete(externalIdentities)
+        .where(
+          and(
+            eq(externalIdentities.issuer, input.issuer),
+            eq(externalIdentities.userId, input.userId),
+          ),
+        )
+      await transaction.insert(externalIdentities).values({
         id: crypto.randomUUID(),
         issuer: input.issuer,
         subject: input.subject,
         userId: input.userId,
       })
-      .onConflictDoNothing()
+    })
   }
 
   public async findForReveal(input: {
