@@ -134,6 +134,28 @@ apagado e o status não regride — a troca é idempotente. Mesma coisa para tro
 rota não depende do motorista hoje (097 D1/D3/D4, com D6 decidido e não implementado), então ela
 fica de pé e a viagem permanece `route_planned`.
 
+### D3-ter — A máquina de estados precisa saber se o **veículo** mudou (achado da T301)
+
+Apareceu ao escrever o teste: a política decide o status, mas não tinha como saber se a troca mexeu no
+caminhão — e a D3 diz que só a troca de veículo mata a rota. Sem isso, trocar só o motorista de uma
+viagem `route_planned` a derrubaria para `draft` e pediria replanejamento de uma rota que nunca deixou
+de valer.
+
+A variante `defineCrew` de `CheckTripTransitionParams` ganha `vehicleChanged: boolean`, e o status
+resultante passa a sair de duas perguntas em vez de uma:
+
+| Situação                                            | Status resultante                   |
+| --------------------------------------------------- | ----------------------------------- |
+| Par incompleto                                      | `awaiting_crew`                     |
+| Par completo, sem rota congelada                    | `draft`                             |
+| Par completo, rota congelada, veículo **mudou**     | `draft` (a rota morre, D3)          |
+| Par completo, rota congelada, veículo **não** mudou | `route_planned` (a rota fica de pé) |
+
+A última linha é a que faltava, e ela tem um efeito de volta que vale de graça: viagem que caiu para
+`awaiting_crew` porque alguém desfez a tripulação, com a rota intacta, **retorna direto para
+`route_planned`** quando o par se completa sem trocar o caminhão. Exigir replanejamento nesse caso seria
+trabalho inventado.
+
 ### D3-bis — A hora prevista de chegada **não** é apagada (corrigido pela T303)
 
 Decisão do dono do produto em 2026-09-27, depois de a T303 conferir o código: a hora que vale é a

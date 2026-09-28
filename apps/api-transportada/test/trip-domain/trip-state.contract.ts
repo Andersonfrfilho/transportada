@@ -325,7 +325,13 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
            */
           const transition =
             action === TRIP_ACTION.defineCrew
-              ? checkTripTransition({ action, crew: COMPLETE_CREW, hasRoute, tripStatus })
+              ? checkTripTransition({
+                  action,
+                  crew: COMPLETE_CREW,
+                  hasRoute,
+                  tripStatus,
+                  vehicleChanged: false,
+                })
               : checkTripTransition({ action, hasRoute, tripStatus })
           expect(['applied', 'unchanged', 'blocked']).toContain(transition.outcome)
           if (transition.outcome === 'applied') {
@@ -364,6 +370,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         action: TRIP_ACTION.defineCrew,
         crew: COMPLETE_CREW,
         hasRoute: false,
+        vehicleChanged: false,
         tripStatus: 'awaiting_crew',
       }),
     ).toEqual({ outcome: 'applied', nextStatus: 'draft' })
@@ -389,6 +396,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         action: TRIP_ACTION.defineCrew,
         crew: COMPLETE_CREW,
         hasRoute: false,
+        vehicleChanged: false,
         tripStatus: 'draft',
       }),
     ).toEqual({ outcome: 'unchanged' })
@@ -399,6 +407,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
           action: TRIP_ACTION.defineCrew,
           crew: COMPLETE_CREW,
           hasRoute: false,
+          vehicleChanged: false,
           tripStatus,
         }),
       ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined })
@@ -409,6 +418,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         action: TRIP_ACTION.defineCrew,
         crew: COMPLETE_CREW,
         hasRoute: false,
+        vehicleChanged: false,
         tripStatus: 'cancelled',
       }),
     ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled })
@@ -418,6 +428,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         action: TRIP_ACTION.defineCrew,
         crew: COMPLETE_CREW,
         hasRoute: false,
+        vehicleChanged: false,
         tripStatus: 'completed',
       }),
     ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted })
