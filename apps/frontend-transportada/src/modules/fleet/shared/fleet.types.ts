@@ -299,6 +299,13 @@ export type FleetDriverBody = Readonly<{
   address: FleetDriverAddress
   /** Mesma categoria da ANTT que o proprietário do veículo declara ao MDF-e. */
   anttCategory: '' | MdfeOwnerTaxRegime
+  /** Spec 149 D1: pode atuar como ajudante — a mesma pessoa dirige numa viagem e ajuda em outra. */
+  canActAsHelper: boolean
+  /**
+   * Spec 149 D2: a diária própria de ajudante; vence a geral (`company_crew_settings`) quando
+   * existe. `null` é "não tem diária própria, usa a geral".
+   */
+  helperDailyRate: null | string
   /**
    * Spec 100: este motorista amarra a carga com cinta.
    *
@@ -534,6 +541,10 @@ export type FleetDriverFormState = Readonly<{
   addressState: string
   addressStreet: string
   anttCategory: string
+  /** Spec 149 D1: pode atuar como ajudante — sem controle próprio na tela ainda, só round-trip. */
+  canActAsHelper: boolean
+  /** Spec 149 D2: a diária própria de ajudante — `''` é "usa a geral da empresa". */
+  helperDailyRate: string
   /** Spec 100: amarra a carga com cinta — libera a planta a empilhar até o teto do baú. */
   securesCargo: boolean
   birthCity: string

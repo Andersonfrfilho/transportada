@@ -126,6 +126,8 @@ export type FleetDriverAddressContract = Readonly<{
 export type FleetDriverBodyContract = Readonly<{
   address: FleetDriverAddressContract
   anttCategory: '' | '0' | '1' | '2'
+  canActAsHelper: boolean
+  helperDailyRate: null | string
   securesCargo: false
   birthCity: string
   birthDate: null | string
@@ -284,6 +286,8 @@ export const DRIVER_ADDRESS = {
 export const DRIVER_BODY = {
   address: DRIVER_ADDRESS,
   anttCategory: '',
+  canActAsHelper: false,
+  helperDailyRate: null,
   securesCargo: false,
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
@@ -317,6 +321,8 @@ export const DRIVER_BODY = {
 export const DRIVER_CREATE_BODY = {
   address: DRIVER_ADDRESS,
   anttCategory: '',
+  canActAsHelper: false,
+  helperDailyRate: null,
   securesCargo: false,
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
@@ -547,6 +553,8 @@ export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
 export const DRIVER_DRAFT_BODY = {
   address: DRIVER_ADDRESS_DRAFT,
   anttCategory: '',
+  canActAsHelper: false,
+  helperDailyRate: null,
   birthCity: '',
   birthDate: null,
   birthState: '',

@@ -299,6 +299,14 @@ export const DRIVER_BODY_KEYS = [
   'address',
   'anttCategory',
   /**
+   * Spec 149 D1/D2: pode atuar como ajudante, e a diária própria dele. ⚠️ Mesmo defeito do
+   * `securesCargo` logo abaixo — API subiu com os dois campos e o frontend não sabia: toda linha
+   * reprovava `hasOnlyKeys`/`hasEveryKey`, e a tabela de motoristas virava "Não foi possível
+   * carregar a frota" (28/09/2026, staging).
+   */
+  'canActAsHelper',
+  'helperDailyRate',
+  /**
    * Spec 100: amarra a carga com cinta. ⚠️ Como todo campo desta lista, **a API sobe antes do
    * frontend**: com o corpo antigo `hasEveryKey` recusa toda linha e a tabela de motoristas
    * renderiza vazia — 200 na rede, nada no console, nenhum erro na tela.
@@ -340,6 +348,9 @@ export const DRIVER_BODY_KEYS = [
 export const DRIVER_CREATE_BODY_KEYS = [
   'address',
   'anttCategory',
+  /** Spec 149 D1/D2: a API exige `canActAsHelper` no corpo — sem ele, criar motorista dá 400. */
+  'canActAsHelper',
+  'helperDailyRate',
   /** Spec 100: amarra a carga com cinta — a planta lê isso para decidir a altura da pilha. */
   'securesCargo',
   'birthCity',
