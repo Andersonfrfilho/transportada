@@ -26,7 +26,7 @@ import { parsePlannedRoute } from '../domain/parse-planned-route.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import { resolveVehicleFuelBaseline } from './effective-fuel-price.query.js'
 import { listTripStopCoordinates } from './trip-stop-coordinates.support.js'
-import type { TripDatabase } from './trip-queryable.type.js'
+import type { TripDatabase, TripQueryable } from './trip-queryable.type.js'
 
 export class DrizzleTripPlannedRouteRepository
   implements FreezeTripPlannedRoutePort, ReadTripRouteGeometryRoutePort
@@ -83,30 +83,32 @@ export class DrizzleTripPlannedRouteRepository
    * viagem com um traçado novo e um pedágio velho, ou vice-versa.
    */
   public async writePlannedRoute(input: WritePlannedRouteInput): Promise<void> {
-    const { route, toll } = input
-
     await this.database
       .update(trips)
-      .set({
-        plannedDistanceMeters: route === null ? null : route.distanceMeters,
-        plannedDurationSeconds: route === null ? null : route.durationSeconds,
-        plannedReturnDistanceMeters: route === null ? null : route.returnDistanceMeters,
-        plannedRoute:
-          route === null
-            ? null
-            : {
-                choiceReproduced: route.choiceReproduced,
-                criterion: route.criterion,
-                depot: route.depot,
-                legs: route.legs,
-                points: route.points,
-                signature: route.signature,
-              },
-        plannedRouteFrozenAt: route === null ? null : sql`now()`,
-        plannedToll: toll,
-        plannedTollFrozenAt: toll === null ? null : sql`now()`,
-        updatedAt: sql`now()`,
-      })
+      .set(plannedRouteColumns({ route: input.route, toll: input.toll }))
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+  }
+
+  /**
+   * Spec 217 D3: **o congelamento pelo avesso.** Zera as sete colunas que `writePlannedRoute` grava,
+   * e recebe a transação de quem chama para acontecer na **mesma escrita** — hoje quem chama é a troca
+   * de veículo em `DrizzleTripRepository.updateCrew`, que precisa de tudo numa transação só.
+   *
+   * ⚠️ A lista de colunas mora em `plannedRouteColumns`, uma função para as duas operações. Duplicá-la
+   * aqui criaria o segundo lugar que um dia discorda do primeiro — e a forma desse defeito é a pior
+   * possível: pedágio velho sobrevivendo a uma troca de caminhão, lido como se valesse.
+   *
+   * ⚠️ **Não toca em ETA** (`eta_departure_at`, `estimated_arrival_frozen_at`,
+   * `trip_stops.estimated_arrival_at`), por decisão explícita da D3-bis: a hora que vale é a ancorada
+   * na partida real do motorista, e zerar a âncora desligaria o deslocamento do despacho em silêncio.
+   */
+  public static async clearPlannedRoute(
+    queryable: TripQueryable,
+    input: { readonly companyId: string; readonly tripId: string },
+  ): Promise<void> {
+    await queryable
+      .update(trips)
+      .set(plannedRouteColumns({ route: null, toll: null }))
       .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
   }
 
@@ -162,4 +164,38 @@ function readPlannedRouteDepot(value: unknown): RouteGeometryView['depot'] {
   const depot = (value as Record<string, unknown>).depot
   if (typeof depot !== 'object' || depot === null) return null
   return depot as RouteGeometryView['depot']
+}
+
+/**
+ * Spec 153 D4: rota, métricas e pedágio são **um** conjunto de colunas — nunca duas escritas que
+ * poderiam deixar a viagem com traçado novo e pedágio velho. Esta função é esse conjunto, e existe
+ * para o congelamento (`writePlannedRoute`) e a limpeza (`clearPlannedRoute`, spec 217 D3) não terem
+ * listas separadas.
+ */
+function plannedRouteColumns(input: {
+  readonly route: WritePlannedRouteInput['route']
+  readonly toll: WritePlannedRouteInput['toll']
+}) {
+  const { route, toll } = input
+
+  return {
+    plannedDistanceMeters: route === null ? null : route.distanceMeters,
+    plannedDurationSeconds: route === null ? null : route.durationSeconds,
+    plannedReturnDistanceMeters: route === null ? null : route.returnDistanceMeters,
+    plannedRoute:
+      route === null
+        ? null
+        : {
+            choiceReproduced: route.choiceReproduced,
+            criterion: route.criterion,
+            depot: route.depot,
+            legs: route.legs,
+            points: route.points,
+            signature: route.signature,
+          },
+    plannedRouteFrozenAt: route === null ? null : sql`now()`,
+    plannedToll: toll,
+    plannedTollFrozenAt: toll === null ? null : sql`now()`,
+    updatedAt: sql`now()`,
+  }
 }

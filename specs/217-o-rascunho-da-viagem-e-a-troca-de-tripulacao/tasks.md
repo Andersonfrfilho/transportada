@@ -111,14 +111,14 @@
 - [x] **T303** 🧠 `opus` — Conferência campo a campo do congelador contra a lista da D3. **Feita**:
       resultado na D3-bis e na D3-ter do `spec.md` — a lista encolheu de doze colunas para sete, o ETA
       saiu, e nada que o congelador escreve ficou fora. (D3)
-- [ ] **T304** 🧠 `opus` — Teste de integração da regressão: trocar o **veículo** de uma viagem
+- [x] **T304** 🧠 `opus` — Teste de integração da regressão: trocar o **veículo** de uma viagem
       `route_planned` devolve `draft`, zera as sete colunas de `trips`, **preserva** as três de ETA
       (D3-bis), e a leitura passa a devolver pedágio ausente em vez do antigo. Trocar pelo **mesmo**
       veículo não apaga nada e não regride. (RF5, D3, D3-bis)
-- [ ] **T305** 🧠 `opus` — Implementação do T304, na mesma transação de `updateCrew`, reaproveitando
+- [x] **T305** 🧠 `opus` — Implementação do T304, na mesma transação de `updateCrew`, reaproveitando
       `writePlannedRoute` com `route: null, toll: null` em vez de um `update` à mão — ⚠️ passando a
       transação adiante, não abrindo uma segunda (ver `plan.md`). (RF5, D3)
-- [ ] **T306** `sonnet` — Teste de ponta a ponta do ciclo: planejar rota → trocar veículo →
+- [x] **T306** `sonnet` — Teste de ponta a ponta do ciclo: planejar rota → trocar veículo →
       replanejar pela rota da 178 → o pedágio corresponde aos eixos do veículo novo. (RF5, D3)
 
 ## Fase 4 — Gaps explícitos onde não há veículo
