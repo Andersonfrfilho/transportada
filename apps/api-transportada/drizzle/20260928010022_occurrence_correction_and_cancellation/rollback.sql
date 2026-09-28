@@ -26,7 +26,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20260922221701_occurrence_correction_and_cancellation'
+    WHERE "name" = '20260928010022_occurrence_correction_and_cancellation'
       AND "hash" = 'fc4289c40c812f823a9472809096e7c554db560b2d842a83094abebba60b81a5';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
