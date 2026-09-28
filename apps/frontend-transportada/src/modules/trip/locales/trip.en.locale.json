@@ -892,6 +892,7 @@
     "stagedCount": "{{count}} invoice joins the trip.",
     "stagedCount_other": "{{count}} invoices join the trip.",
     "submit": "Create trip",
+    "submitDraft": "Save draft",
     "title": "New trip",
     "weightEstimated": "estimated",
     "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",

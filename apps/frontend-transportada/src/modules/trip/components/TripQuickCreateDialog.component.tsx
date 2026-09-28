@@ -456,9 +456,23 @@ export function TripQuickCreateDialog({
             <Icon name="close" />
             {t('quickCreate.cancel')}
           </Button>
+          {/*
+            Spec 217 (RF1/D5): "Salvar rascunho" fica ao lado do botão de sempre, nunca no lugar —
+            quem já tem tudo na mão continua com um clique só.
+          */}
+          <Button
+            disabled={quickCreate.draftIssues.length > 0 || quickCreate.createMutation.isPending}
+            onClick={() => quickCreate.createMutation.mutate({ asDraft: true })}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Icon name="save" />
+            {t('quickCreate.submitDraft')}
+          </Button>
           <Button
             disabled={quickCreate.issues.length > 0 || quickCreate.createMutation.isPending}
-            onClick={() => quickCreate.createMutation.mutate()}
+            onClick={() => quickCreate.createMutation.mutate({ asDraft: false })}
             size="sm"
             type="button"
           >

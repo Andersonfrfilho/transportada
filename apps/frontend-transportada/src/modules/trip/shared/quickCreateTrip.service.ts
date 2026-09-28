@@ -24,6 +24,11 @@ export type RunQuickCreateTripParams = Readonly<{
   client: QuickCreateTripClient
   createBody: CreateTripBody
   nfeDocumentIds: readonly string[]
+  /**
+   * Spec 217 (RF1/D5): `false` é "Salvar rascunho" — reordena pela ordem do mapa e para aí, sem
+   * planejar. Ausente é o clique único de sempre, que planeja.
+   */
+  planRoute?: boolean
   /** A rota que o mapa mostrou (spec 153). Ausente é o critério padrão do servidor. */
   routeChoice?: RouteChoice | undefined
 }>
@@ -50,6 +55,8 @@ async function completeQuickCreateTrip(
    */
   await client.linkTripDocumentsBatch({ nfeDocumentIds: input.nfeDocumentIds, tripId })
   await reorderByMap({ client, cityOrder: input.cityOrder, tripId })
+  /** Spec 217 (RF1/D5): "Salvar rascunho" para na ordem — o operador planeja depois, pelo botão. */
+  if (input.planRoute === false) return
   /**
    * ⚠️ **Planejar vem depois de reordenar.** Reordenar recongela a rota com o critério padrão, e
    * planejar antes gravava a escolha só para a reordenação sobrescrevê-la — além de medir a

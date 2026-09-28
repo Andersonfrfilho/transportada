@@ -1060,6 +1060,7 @@
     "stagedCount": "{{count}} nota entra na viagem.",
     "stagedCount_other": "{{count}} notas entram na viagem.",
     "submit": "Criar viagem",
+    "submitDraft": "Salvar rascunho",
     "title": "Nova viagem",
     "weightEstimated": "estimado",
     "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
