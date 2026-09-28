@@ -23,15 +23,14 @@ const CALLBACK_SUFFIX = '/auth/callback'
 
 /**
  * As apps que autenticam: o painel e o portal do contratante (ADR-0050 §1), mais o app do
- * motorista (ADR-0075 §2). `motorista.` ganhou callback de staging na T6.4 da spec 189; produção
- * entra na T6.9 — até lá, `PENDING_APPS` abaixo tira ela da asserção que roda de verdade só nesse
- * ambiente.
+ * motorista (ADR-0075 §2). `motorista.` ganhou callback de staging na T6.4 da spec 189 e de
+ * produção na T6.9 — as duas já cobertas pela asserção abaixo.
  */
 const AUTHENTICATED_APPS = ['app.', 'cliente.', 'motorista.'] as const
 
-/** Apps declaradas acima que ainda não têm callback no arquivo, por ambiente. Some daqui na T6.9. */
+/** Apps declaradas acima que ainda não têm callback no arquivo, por ambiente. */
 const PENDING_APPS: Readonly<Record<(typeof ENVIRONMENTS)[number], ReadonlySet<string>>> = {
-  production: new Set(['motorista.']),
+  production: new Set(),
   staging: new Set(),
 }
 
