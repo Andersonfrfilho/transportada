@@ -87,6 +87,12 @@ export class DrizzleTripValuationQuery {
         and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
       )
       .limit(1)
+    /**
+     * ⚠️ Spec 217 Fase 4: **a prévia continua exigindo o veículo, e a viagem criada não.** Aqui o
+     * `vehicleId` vem do formulário em todo caso — ausência de linha é id que não existe nesta
+     * empresa, e responder a conta seria responder sobre um caminhão que o cliente inventou. Na
+     * viagem já criada a coluna pode ser legitimamente nula (RF1), e ali a ausência é lacuna.
+     */
     if (vehicle === undefined) return null
 
     const [fuelPrice, documents, crew, federalRates, profiles, companyDailyAllowanceAmount] =
@@ -203,9 +209,20 @@ export class DrizzleTripValuationQuery {
         /** Spec 143 D4 sobre a 153 RF5: os segundos crus vêm congelados com a distância, nunca somados das paradas. */
         plannedDurationSeconds: trips.plannedDurationSeconds,
         plannedToll: trips.plannedToll,
+        /**
+         * ⚠️ A coluna que distingue os dois nulos: veículo **não escolhido** (`null`) de veículo
+         * escolhido com ficha vazia. Sem ela, os atributos anuláveis da junção não diriam qual é.
+         */
+        vehicleId: fleetVehicles.id,
       })
       .from(trips)
-      .innerJoin(
+      /**
+       * Spec 217 Fase 4: **`leftJoin`, não `innerJoin`.** A RF1 criou viagem sem veículo, e com a
+       * junção interna a linha desaparecia: `readContext` devolvia `null` e a leitura respondia
+       * `TRIP_NOT_FOUND` — 404 dizendo que não existe uma viagem que o painel acabou de criar. A
+       * ausência do veículo é lacuna nomeada na conta (`NO_VEHICLE`), nunca ausência da viagem.
+       */
+      .leftJoin(
         fleetVehicles,
         and(eq(fleetVehicles.companyId, trips.companyId), eq(fleetVehicles.id, trips.vehicleId)),
       )
@@ -255,10 +272,13 @@ export class DrizzleTripValuationQuery {
        */
       toll: parseTollRouteCost(trip.plannedToll),
       tollTotal,
-      vehicle: {
-        kilometersPerLiter: trip.kilometersPerLiter,
-        otherCostsPerKilometer: trip.otherCostsPerKilometer,
-      },
+      vehicle:
+        trip.vehicleId === null
+          ? null
+          : {
+              kilometersPerLiter: trip.kilometersPerLiter,
+              otherCostsPerKilometer: trip.otherCostsPerKilometer,
+            },
     }
   }
 
