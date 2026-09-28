@@ -18,9 +18,10 @@ import {
   identityUsers,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { trips, tripDrivers } from '../../src/database/trip.schema.js'
+import { trips, tripDrivers, tripStops } from '../../src/database/trip.schema.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { resolveCrewStatus } from '../../src/trips/domain/trip-state.policy.js'
+import { resolveTripAllowedActions } from '../../src/trips/domain/trip-allowed-actions.policy.js'
 import { DrizzleTripPlannedRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-planned-route.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 
@@ -439,6 +440,20 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
          * vem carimbado — é a única forma de o teste distinguir o que a troca **mata** do que ela
          * **preserva** (D3 contra D3-bis). Viagem sem ETA gravado provaria só metade.
          */
+        /**
+         * ⚠️ A viagem precisa de **parada** para o teste dizer a verdade: `resolveTripHasRoute` deriva
+         * de paradas e notas, e viagem sem parada nenhuma nunca oferece `planRoute` — por motivo que
+         * não tem nada a ver com a troca. Viagem que chegou a `route_planned` na vida real sempre tem.
+         */
+        await db.insert(tripStops).values({
+          addressKey: '3550308|01001000|100',
+          companyId: fleet.companyId,
+          id: crypto.randomUUID(),
+          label: 'Centro, 100',
+          sequence: 1n,
+          tripId: created.id,
+        })
+
         const frozenAt = new Date()
         await db
           .update(trips)
@@ -529,6 +544,39 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
           tripId: created.id,
         })
         expect(vehicleContext?.axles).toEqual({ count: 2, source: 'declared' })
+
+        /**
+         * ⚠️ **O elo que fecha a D3, e sem o qual ela seria um defeito grave.** Zerar `planned_route`
+         * só é aceitável se o operador puder replanejar — senão o pedágio morre para sempre e a troca
+         * de veículo destrói informação em silêncio.
+         *
+         * Funciona porque `resolveTripHasRoute` deriva de **paradas e notas**, não do roteiro
+         * congelado: a viagem continua tendo parada, então `planRoute` volta a ser oferecido assim que
+         * o status é `draft`. Se algum dia alguém fizer `hasRoute` olhar `planned_route`, este teste
+         * cai — e é ele que impede o defeito de passar.
+         */
+        const tripAfterSwap = await repository.findById({
+          companyId: fleet.companyId,
+          tripId: created.id,
+        })
+        const offered = resolveTripAllowedActions({
+          capabilities: { canManage: true, canReportOnBehalf: false },
+          trip: {
+            documents: (tripAfterSwap?.documents ?? []).map((document) => ({
+              id: document.id,
+              releasedAt: document.releasedAt,
+              separationStatus: document.separationStatus,
+              stopId: document.stopId,
+            })),
+            hasDriver: (tripAfterSwap?.drivers.length ?? 0) > 0,
+            status: tripAfterSwap?.status ?? 'draft',
+            stops: (tripAfterSwap?.stops ?? []).map((stop) => ({
+              arrivedAt: stop.arrivedAt,
+              id: stop.id,
+            })),
+          },
+        })
+        expect(offered.trip).toContain('planRoute')
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,
