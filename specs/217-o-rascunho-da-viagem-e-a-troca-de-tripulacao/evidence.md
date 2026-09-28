@@ -665,3 +665,42 @@ sintoma é dos piores de diagnosticar: falha sem nome de teste e sem asserção.
 ⚠️ Verifiquei o patch em vez de confiar nele: num dos dez o `}, 60_000)` ficou na coluna zero e eu
 achei que tinha acertado o alvo errado — era `beforeAll` de topo, fora do `describe`, então estava
 correto. Rodei quatro dos arquivos alterados contra Postgres: **34 pass / 0 fail**.
+
+## "O pedágio não está funcionando em staging" — investigado, e não é defeito
+
+Relato do dono do produto em 2026-09-28, depois de trocar a tripulação em staging com sucesso.
+
+**Os logs do Railway mostram a troca em 200**, 191 ms, sem uma única exceção no serviço — nem 500, nem
+erro de banco. O pedágio não quebrou: ele **desapareceu**, que é literalmente o que a D3 manda fazer.
+Trocar o veículo zera `planned_toll` porque ele foi congelado com os eixos do caminhão antigo.
+
+**O risco real que isso levantou, e que eu não tinha provado:** se depois da limpeza o botão "Planejar
+rota" não fosse oferecido, o pedágio morreria **para sempre** e a troca de veículo destruiria informação
+em silêncio. Seria defeito grave, introduzido por mim.
+
+Provado que não: `resolveTripHasRoute` deriva de **paradas e notas**, não do roteiro congelado
+(`trip-allowed-actions.policy.ts:102`). A viagem continua tendo parada, então `planRoute` volta a ser
+oferecido assim que o status é `draft`. O teste de integração passou a asserir isso — se algum dia
+alguém fizer `hasRoute` olhar `planned_route`, este teste cai.
+
+⚠️ **A primeira versão dessa asserção falhou por motivo falso, e quase me fez reportar defeito que não
+existe.** A fixture criava viagem **sem parada nenhuma**, e viagem sem parada nunca oferece `planRoute`
+— por razão que não tem nada a ver com a troca. `["cancel","defineCrew"]` parecia prova de defeito e era
+prova de fixture pobre. Corrigida com uma parada, como toda viagem que chega a `route_planned` tem.
+
+```
+$ bun test <5 suítes de contrato de viagem>                    791 pass / 0 fail
+$ DRIZZLE_TEST_DATABASE_URL=... bun test <4 integrações>         35 pass / 0 fail
+   (troca de tripulação, lado motorista, congelador de rota, aceite multi-veículo)
+```
+
+### O que **é** problema, e é de produto, não de código
+
+Nada avisa o operador. Ele troca o caminhão, o pedágio desaparece da tela e **ninguém diz que é preciso
+replanejar a rota**. O painel financeiro mostra a parcela sem valor, e a leitura natural de quem está
+operando é "quebrou" — foi exatamente essa a conclusão do dono do produto.
+
+O conserto é pequeno e não é de máquina de estados: um aviso na viagem, quando o status é `draft` e
+existe parada mas não existe roteiro congelado, dizendo que a troca de veículo invalidou o roteiro e que
+o pedágio volta depois de "Planejar rota". Fica registrado como o próximo item, e **antes de produção**:
+subir uma troca que parece destruir número, mesmo sem destruir, é pior que não subir.
