@@ -58,6 +58,7 @@ import { reportStopOccurrence } from '../../src/trips/application/report-stop-oc
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
+import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import { listDeliveryProofs } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { listTripTimeline } from '../../src/trips/infrastructure/trip-timeline.query.js'
 
@@ -980,6 +981,262 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       })
     })
   })
+})
+
+/**
+ * Spec 217 T308 (RF8, D6) — **a prova de que nada no PWA precisa mudar.** A troca de tripulação
+ * (`PATCH /trips/:id/crew`, `DrizzleTripRepository.updateCrew`) já escreve só em `trip_drivers` e
+ * `trips.status`; o recorte de `GET /me/trips/current` já é por `trip_drivers.driver_id` + o status
+ * da viagem (`listActiveTrips`). Se o efeito aparece aqui, ponta a ponta contra Postgres, sem
+ * nenhuma rota nova, a decisão de não escrever código de produção para o app do motorista está
+ * provada — não suposta.
+ */
+describe('a troca de tripulação some/aparece na tela do motorista, sem código novo (spec 217 T308)', () => {
+  async function seedCrewSwapFixture(database: TestDatabase['db']): Promise<{
+    readonly companyId: string
+    readonly firstDriverId: string
+    readonly firstMembershipId: string
+    readonly firstVehicleId: string
+    readonly secondDriverId: string
+    readonly secondMembershipId: string
+    readonly secondVehicleId: string
+    readonly userId: string
+  }> {
+    const companyId = crypto.randomUUID()
+    const userId = crypto.randomUUID()
+    const secondUserId = crypto.randomUUID()
+    const firstMembershipId = crypto.randomUUID()
+    const secondMembershipId = crypto.randomUUID()
+    const firstDriverId = crypto.randomUUID()
+    const secondDriverId = crypto.randomUUID()
+    const firstVehicleId = crypto.randomUUID()
+    const secondVehicleId = crypto.randomUUID()
+
+    await database.insert(companies).values({ id: companyId, status: 'active' })
+    await database.insert(identityUsers).values([
+      { id: userId, status: 'active' },
+      { id: secondUserId, status: 'active' },
+    ])
+    await database.insert(userCompanyMemberships).values([
+      { companyId, id: firstMembershipId, status: 'active', userId },
+      { companyId, id: secondMembershipId, status: 'active', userId: secondUserId },
+    ])
+    await database.insert(fleetVehicles).values([
+      {
+        companyId,
+        id: firstVehicleId,
+        plate: 'CRW1A11',
+        role: 'traction',
+        state: 'SP',
+        vehicleType: 'tractor_unit',
+      },
+      {
+        companyId,
+        id: secondVehicleId,
+        plate: 'CRW2B22',
+        role: 'traction',
+        state: 'SP',
+        vehicleType: 'truck',
+      },
+    ])
+    await database.insert(fleetDrivers).values([
+      {
+        companyId,
+        id: firstDriverId,
+        membershipId: firstMembershipId,
+        name: 'Motorista Um',
+        taxId: '33333333333',
+      },
+      {
+        companyId,
+        id: secondDriverId,
+        membershipId: secondMembershipId,
+        name: 'Motorista Dois',
+        taxId: '44444444444',
+      },
+    ])
+
+    return {
+      companyId,
+      firstDriverId,
+      firstMembershipId,
+      firstVehicleId,
+      secondDriverId,
+      secondMembershipId,
+      secondVehicleId,
+      userId,
+    }
+  }
+
+  /** O roteiro congela como o congelador de verdade faz — a mesma ressalva de `trip-crew-update.integration.ts`. */
+  async function freezeRoutePlannedTrip(
+    database: TestDatabase['db'],
+    tripId: string,
+  ): Promise<void> {
+    await database
+      .update(trips)
+      .set({
+        plannedDistanceMeters: 42_000,
+        plannedDurationSeconds: 3_600,
+        plannedReturnDistanceMeters: 8_000,
+        plannedRoute: { criterion: 'cheapest', legs: [], points: [], signature: 'me-trip-308' },
+        plannedRouteFrozenAt: new Date(),
+        status: 'route_planned',
+      })
+      .where(eq(trips.id, tripId))
+  }
+
+  testWithPostgres(
+    'a viagem sai do celular de quem saiu da tripulação e aparece no de quem entrou',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const fleet = await seedCrewSwapFixture(database.db)
+        const tripRepository = new DrizzleTripRepository(database.db)
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const scores = new DrizzleDriverScoreRepository(database.db)
+
+        const created = await tripRepository.create({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Motorista Um',
+              driverTaxId: '33333333333',
+              position: 1,
+            },
+          ],
+          vehicleId: fleet.firstVehicleId,
+        })
+        await freezeRoutePlannedTrip(database.db, created.id)
+
+        // Antes da troca: a viagem está no celular do primeiro motorista, e não no do segundo.
+        const beforeFirst = await findCurrentDriverTrip({
+          companyId: fleet.companyId,
+          membershipId: fleet.firstMembershipId,
+          now: NOW,
+          repository: reads,
+          scores,
+        })
+        expect(beforeFirst.trips.map((trip) => trip.id)).toEqual([created.id])
+        const beforeSecond = await findCurrentDriverTrip({
+          companyId: fleet.companyId,
+          membershipId: fleet.secondMembershipId,
+          now: NOW,
+          repository: reads,
+          scores,
+        })
+        expect(beforeSecond.trips).toEqual([])
+
+        // A troca só mexe no motorista — o veículo pedido é o mesmo, então o roteiro sobrevive.
+        await tripRepository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.secondDriverId,
+              driverName: 'Motorista Dois',
+              driverTaxId: '44444444444',
+              position: 1,
+            },
+          ],
+          tripId: created.id,
+          vehicleId: fleet.firstVehicleId,
+        })
+        expect(await readTripStatus(database, created.id)).toBe('route_planned')
+
+        // Depois da troca: some do primeiro, aparece no segundo — mesmo status, nenhuma rota nova.
+        const afterFirst = await findCurrentDriverTrip({
+          companyId: fleet.companyId,
+          membershipId: fleet.firstMembershipId,
+          now: NOW,
+          repository: reads,
+          scores,
+        })
+        expect(afterFirst.trips).toEqual([])
+        const afterSecond = await findCurrentDriverTrip({
+          companyId: fleet.companyId,
+          membershipId: fleet.secondMembershipId,
+          now: NOW,
+          repository: reads,
+          scores,
+        })
+        expect(afterSecond.trips.map((trip) => trip.id)).toEqual([created.id])
+        expect(afterSecond.trips.map((trip) => trip.status)).toEqual(['route_planned'])
+      })
+    },
+  )
+
+  /**
+   * D6: a troca de **veículo** devolve a viagem para `draft` (D3), e `draft` não está em
+   * `CURRENT_DRIVER_TRIP_STATUSES` (`drizzle-current-driver-trip.repository.ts:73`) — ninguém deve
+   * estar dirigindo para um roteiro que foi invalidado, nem o motorista que continua na tripulação.
+   */
+  testWithPostgres(
+    'trocar o veículo devolve a viagem para draft, e ela some até de quem continua na tripulação',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const fleet = await seedCrewSwapFixture(database.db)
+        const tripRepository = new DrizzleTripRepository(database.db)
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const scores = new DrizzleDriverScoreRepository(database.db)
+
+        const created = await tripRepository.create({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Motorista Um',
+              driverTaxId: '33333333333',
+              position: 1,
+            },
+          ],
+          vehicleId: fleet.firstVehicleId,
+        })
+        await freezeRoutePlannedTrip(database.db, created.id)
+
+        const before = await findCurrentDriverTrip({
+          companyId: fleet.companyId,
+          membershipId: fleet.firstMembershipId,
+          now: NOW,
+          repository: reads,
+          scores,
+        })
+        expect(before.trips.map((trip) => trip.id)).toEqual([created.id])
+
+        // Mesmo motorista, veículo novo: o roteiro morre (D3) e a viagem regride a `draft`.
+        await tripRepository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Motorista Um',
+              driverTaxId: '33333333333',
+              position: 1,
+            },
+          ],
+          tripId: created.id,
+          vehicleId: fleet.secondVehicleId,
+        })
+        expect(await readTripStatus(database, created.id)).toBe('draft')
+
+        const after = await findCurrentDriverTrip({
+          companyId: fleet.companyId,
+          membershipId: fleet.firstMembershipId,
+          now: NOW,
+          repository: reads,
+          scores,
+        })
+        expect(after.trips).toEqual([])
+      })
+    },
+  )
 })
 
 /**
