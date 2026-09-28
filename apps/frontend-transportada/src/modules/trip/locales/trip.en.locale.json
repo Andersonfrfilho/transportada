@@ -1193,6 +1193,7 @@
     "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation."
   },
   "status": {
+    "awaiting_crew": "Awaiting crew",
     "cancelled": "Cancelled",
     "completed": "Completed",
     "dispatched": "Dispatched",
