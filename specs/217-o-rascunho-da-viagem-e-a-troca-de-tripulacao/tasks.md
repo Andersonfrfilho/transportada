@@ -39,7 +39,7 @@
 - [x] **T201** `sonnet` — Teste de contrato HTTP: `POST /trips` sem `driverIds` e sem `vehicleId`
       responde 201 com `awaiting_crew`; com só um dos dois, `awaiting_crew`; com os dois, `draft`
       (sem regressão do comportamento atual). (RF2)
-- [ ] **T202** `sonnet` — Implementação do T201: `createTripSchema` (`driverIds` mín. 0, `vehicleId`
+- [x] **T202** `sonnet` — Implementação do T201: `createTripSchema` (`driverIds` mín. 0, `vehicleId`
       opcional), `CreateTripInput`, e `TripUseCase.create` derivando o status por `resolveCrewStatus`
       em vez de lançar `TripVehicleNotFoundError`. (RF2)
 - [ ] **T203** `sonnet` — Teste de regressão da 081: aceite de sugestão multi-veículo com

@@ -15,7 +15,6 @@ import {
   TripDocumentNotFoundError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
-  TripVehicleNotFoundError,
 } from '../domain/trip.error.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
@@ -38,7 +37,8 @@ export type CreateTripInput = {
    */
   readonly dailyAllowanceDays?: number | undefined
   readonly driverIds: readonly string[]
-  readonly vehicleId: string
+  /** Spec 217 RF2: ausente é "sem veículo ainda" — a viagem nasce `awaiting_crew` (D1). */
+  readonly vehicleId?: string | undefined
 }
 
 export type CloseTripInput = {
@@ -159,12 +159,13 @@ export function createTripUseCase(dependencies: {
 
     async create({ context, dailyAllowanceDays, driverIds, vehicleId }) {
       const companyId = context.companyId
-      const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
       /**
-       * `CreateTripInput.vehicleId` ainda é obrigatório nesta fase (spec 216 Fase 2 o torna
-       * opcional) — `null` aqui seria uma inconsistência interna, nunca uma viagem sem veículo.
+       * Spec 217 RF2/RF3 (D1): `vehicleId` ausente é "sem veículo ainda" — `vehicle` sai `null` sem
+       * consultar o repositório, e o status de nascimento (`resolveCrewStatus`, aplicado pelo
+       * repositório) deriva daí. Um `vehicleId` **informado** e não encontrado continua erro: essa
+       * distinção é o que `resolveTripVehicleForCreation` resolve.
        */
-      if (vehicle === null) throw new TripVehicleNotFoundError()
+      const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
       const crew = await resolveTripCrewForCreation({ companyId, driverIds, repository })
       return repository.create({
         actorUserId: context.userId,
@@ -172,7 +173,7 @@ export function createTripUseCase(dependencies: {
         companyId,
         crew,
         ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
-        vehicleId: vehicle.id,
+        vehicleId: vehicle === null ? null : vehicle.id,
       })
     },
 

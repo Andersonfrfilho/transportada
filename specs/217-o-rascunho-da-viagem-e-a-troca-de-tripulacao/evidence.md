@@ -173,3 +173,36 @@ $ bun run typecheck
 test/trip-application/trip-use-case.contract.ts(...): Argument of type '{ vehicleId: undefined; ... }'
   is not assignable to parameter of type 'CreateTripInput'.
 ```
+
+## T202 — Implementação: o status de nascimento é o do par (`sonnet`)
+
+Três pontos, RF2/RF3/D1:
+
+- `trip-request.schema.ts`: `createTripSchema.driverIds` perdeu o `.min(1)` (agora `.default([])`);
+  `vehicleId` virou `.optional()`. Comentário antigo que citava "mínimo 1" (T006/spec.md linha 66,
+  já superado pela 217) reescrito.
+- `trip.use-case.ts`: `CreateTripInput.vehicleId` virou `string | undefined`; `create()` **parou de
+  lançar `TripVehicleNotFoundError` quando o veículo é `null`** (import removido) — `vehicle === null
+? null : vehicle.id` desce ao repositório. `resolveTripVehicleForCreation` (herdada da 216) já
+  distinguia "ausente" de "informado e não encontrado"; só a segunda continua erro.
+- `drizzle-trip.repository.ts`: `create()` ganhou a mesma derivação de `updateCrew` —
+  `resolveCrewStatus({ hasDriver: crew.length > 0, hasVehicle: vehicleId !== null })` — e o status
+  derivado (não mais `'draft'` fixo) vai para o `INSERT trips.status` **e** para `recordTripCreation`.
+  "Uma função, duas leitoras" (D1) agora vale para nascimento e troca.
+
+```
+$ bun run typecheck
+$ bunx tsc --noEmit        # sem saída: limpo
+
+$ bun --env-file=../../.env.test test test/trip-domain.contract.test.ts \
+    test/trip-allowed-actions.contract.test.ts test/trip-application.contract.test.ts \
+    test/trip-http.contract.test.ts --timeout 120000
+ 620 pass / 0 fail / 2112 expect() calls
+
+$ bun --env-file=../../.env.test test ./test/integration/trip-crew-update.integration.ts --timeout 120000
+ 6 pass / 0 fail / 27 expect() calls
+```
+
+O vermelho do T201 fechou verde: os quatro cenários de RF2/RF3 e o quinto (veículo informado e não
+encontrado) passam sem invenção — é exatamente a leitura de `resolveTripVehicleForCreation` +
+`resolveCrewStatus` já existentes.
