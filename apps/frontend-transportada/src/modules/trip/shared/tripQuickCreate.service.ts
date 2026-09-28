@@ -34,6 +34,13 @@ export type TripQuickCreateIssue =
   | 'vehicleRequired'
 
 /**
+ * Spec 217 (RF1/D5): o botão de criar-e-planejar num clique (`singleClick`) exige nota, motorista
+ * e veículo — segue como sempre. "Salvar rascunho" (`draft`) exige só a nota: a viagem nasce
+ * `awaiting_crew` quando a tripulação falta, e isso é uma resposta válida, não um erro de formulário.
+ */
+export type TripQuickCreatePath = 'draft' | 'singleClick'
+
+/**
  * A leitura da câmera dispara a cada quadro e a mesma etiqueta passa duas vezes o tempo todo: texto
  * sem chave é descartado calado, e chave já na lista não vira segunda linha nem segunda consulta.
  */
@@ -158,13 +165,17 @@ export function isQuickCreateEntryPending(entry: TripQuickCreateEntry): boolean 
 export function validateQuickCreate(input: {
   readonly dailyAllowanceDays: DailyAllowanceDaysReading
   readonly driverIds: readonly string[]
+  readonly path: TripQuickCreatePath
   readonly queue: TripQuickCreateQueue
   readonly vehicleId: string
 }): readonly TripQuickCreateIssue[] {
   const issues: TripQuickCreateIssue[] = []
   if (stagedDocumentIds(input.queue).length === 0) issues.push('noDocument')
-  if (input.driverIds.length === 0) issues.push('driverRequired')
-  if (input.vehicleId === '') issues.push('vehicleRequired')
+  /** Spec 217 (RF1/D5): só o clique único amarra a tripulação — o rascunho nasce sem ela. */
+  if (input.path === 'singleClick') {
+    if (input.driverIds.length === 0) issues.push('driverRequired')
+    if (input.vehicleId === '') issues.push('vehicleRequired')
+  }
   /** Campo vazio é escolha; `2,5` é engano — e engano que passa vira viagem com outro número. */
   if (input.dailyAllowanceDays.of === 'invalid') issues.push('dailyAllowanceDaysInvalid')
   return issues
