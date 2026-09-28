@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "5fc4a0a7-63d3-4cac-8b2c-57d29173d981",
+  "id": "52ff2948-5c70-4552-82e0-e1186af660ee",
   "prevIds": [
-    "4faf26b3-6147-4da4-8dc8-9276010960d3"
+    "2213dc31-dbc2-4712-a562-91bd97069350"
   ],
   "ddl": [
     {
@@ -1035,6 +1035,12 @@
     {
       "isRlsEnabled": false,
       "name": "trip_document_occurrence_attachments",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "trip_document_occurrence_corrections",
       "entityType": "tables",
       "schema": "public"
     },
@@ -28813,6 +28819,84 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "occurrence_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "previous_items",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "corrected_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "trip_document_occurrence_products"
     },
     {
@@ -29058,6 +29142,45 @@
       "generated": null,
       "identity": null,
       "name": "attachment_object_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cancelled_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cancelled_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cancellation_reason",
       "entityType": "columns",
       "schema": "public",
       "table": "trip_document_occurrences"
@@ -38131,6 +38254,41 @@
           "opclass": null
         },
         {
+          "value": "occurrence_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_document_occurrence_corrections_company_occurrence_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
           "value": "on_behalf_of_driver_id",
           "isExpression": false,
           "asc": true,
@@ -45657,6 +45815,61 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_corrections_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "occurrence_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trip_document_occurrences",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_corrections_company_occurrence_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "corrected_by_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "company_id",
+        "user_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_corrections_company_corrected_by_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "trip_document_occurrence_products_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -45751,6 +45964,25 @@
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_document_occurrences_company_object_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "cancelled_by_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "company_id",
+        "user_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrences_company_cancelled_by_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "trip_document_occurrences"
@@ -49000,6 +49232,16 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "trip_document_occurrence_corrections_pkey",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "trip_document_occurrence_products_pkey",
       "schema": "public",
       "table": "trip_document_occurrence_products",
@@ -51933,6 +52175,18 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "trip_document_occurrence_corrections_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
     },
     {
       "nameExplicit": true,
@@ -57741,6 +57995,13 @@
     {
       "value": "\"channel\" <> 'office' or \"on_behalf_of_driver_id\" is not null",
       "name": "trip_document_occurrences_office_driver_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "value": "(\"cancelled_at\" is null) = (\"cancelled_by_user_id\" is null)\n        and (\"cancelled_at\" is null) = (\"cancellation_reason\" is null)",
+      "name": "trip_document_occurrences_cancellation_presence_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trip_document_occurrences"
