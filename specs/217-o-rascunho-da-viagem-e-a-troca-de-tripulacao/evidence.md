@@ -206,3 +206,67 @@ $ bun --env-file=../../.env.test test ./test/integration/trip-crew-update.integr
 O vermelho do T201 fechou verde: os quatro cenários de RF2/RF3 e o quinto (veículo informado e não
 encontrado) passam sem invenção — é exatamente a leitura de `resolveTripVehicleForCreation` +
 `resolveCrewStatus` já existentes.
+
+## T203 — Regressão da 081, e um achado que a Fase 3 precisa saber (`sonnet`)
+
+**A prova pedida:** `driverIds: []` continua criando a viagem certa a partir do par da sugestão
+multi-veículo (081 RF-5: "par sem motorista... legítimo: metade da frota escalada, metade não").
+Arquivo novo `test/routing-application/trip-composer-adapter.contract.ts` (registrado em
+`test/routing-application.contract.test.ts`), exercitando `createTripComposer` com o `TripUseCase`
+real e um repositório falso: `driverId: null` continua criando a viagem (mesma tradução
+`driverIds: []` de sempre, `trip-composer.adapter.ts:78`, inalterada nesta spec) e, agora, ela nasce
+**`awaiting_crew`** em vez de `draft` fixo — consequência direta de D1 pelo mesmo caminho de produção
+que a sugestão multi-veículo usa.
+
+```
+$ bun run typecheck
+$ bunx tsc --noEmit        # sem saída: limpo
+
+$ bun --env-file=../../.env.test test test/routing-application.contract.test.ts --timeout 120000
+ 79 pass / 0 fail / 145 expect() calls
+```
+
+**⚠️ Achado, fora do escopo da Fase 2, registrado para a Fase 3 decidir.** Ao rodar
+`bun run test:integration` inteiro para conferir a regressão de verdade contra Postgres, 10 dos 721
+testes quebraram — todos causados por T202, nenhum por acaso:
+
+1. `test/integration/trip-repository.integration.ts` e `test/integration/trip-lifecycle.integration.ts`
+   (4 casos): helpers de seed que criavam viagem com `crew: []` **só por conveniência** (não testavam
+   tripulação) e assumiam `draft` fixo. Corrigidos **nesta task**, dentro do escopo: `secondTrip` do
+   primeiro passou a esperar `awaiting_crew` (é o que ela de fato é, par incompleto); `seedMinimalCompany`
+   do segundo passou a semear um motorista, porque essas três suítes testam `close`/`cancel`/
+   `batch-status` a partir de uma viagem `draft` de verdade, não a derivação do par.
+2. **`test/integration/multi-vehicle-suggestion.integration.ts` (6 casos) — não corrigido, e é o
+   achado real.** É o mesmo caminho de produção do T203 acima (`createTripComposer` → `TripUseCase`
+   real → Postgres), só que **de ponta a ponta**: depois de criar, vincular e reordenar, o aceite
+   sempre chama `planRoute` (`multi-vehicle-suggestion.use-case.ts:262`). Com a viagem nascendo
+   `awaiting_crew` (par sem motorista, só veículo), `planRoute` agora recusa com 409
+   `TRIP_CREW_NOT_DEFINED` (`checkTripTransition` bloqueia **toda** ação que não seja `defineCrew`/
+   `cancel` em `awaiting_crew`, `trip-state.policy.ts:296-298`) — e o aceite inteiro lança.
+   - **Isto é uma contradição real entre D1 e a 081**, não um teste desatualizado: a 081 (RF-5,
+     "casos extremos") decidiu por escrito que grupo sem motorista é legítimo e chega a `route_planned`
+     através deste mesmo fluxo. D1 decidiu, também por escrito (RF6/cenário 4), que `awaiting_crew`
+     nunca oferece `planRoute`. As duas são corretas isoladamente; nunca foram conferidas juntas.
+   - **Não corrigi**: mudar `checkTripTransition`, o gate de `planRoute`, ou o fluxo de aceite
+     (pular `planRoute` quando incompleto? exigir motorista no aceite daqui pra frente? recongelar
+     depois que o motorista for definido?) é decisão de arquitetura sobre estado já despachável —
+     exatamente o que a Fase 3 (marcada `opus` inteira no `tasks.md`) existe para resolver, e "trocar
+     o seed para sempre ter motorista" esconderia a regressão em vez de a registrar.
+   - Arquivo deixado **vermelho de propósito** (6 falhas), com este parágrafo como registro. A T301
+     (teste de contrato da Fase 3) e a decisão de quem revisar a Fase 3 precisam ler esta seção antes
+     de tocar em `checkTripTransition`/`planRoute`/`multi-vehicle-suggestion.use-case.ts`.
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/trip-repository.integration.ts \
+    ./test/integration/trip-lifecycle.integration.ts --timeout 120000
+ 5 pass / 0 fail / 83 expect() calls
+
+$ bun --env-file=../../.env.test run test:integration
+ 704 pass / 7 skip / 10 fail / 3993 expect() calls   # antes da correção acima
+# depois de corrigir trip-repository/trip-lifecycle: os mesmos 10 caem para 6, todos em
+# multi-vehicle-suggestion.integration.ts (não corrigido, ver acima)
+```
+
+Contrato e domínio inteiros (`bun --env-file=../../.env.test test`, sem filtro) seguem 100% verdes:
+`7957 pass / 23 skip / 0 fail / 26093 expect() calls` — as 10 quebras são só de integração contra
+Postgres, e 4 delas já fecharam.

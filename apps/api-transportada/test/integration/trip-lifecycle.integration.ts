@@ -373,14 +373,21 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
     'close grava o evento de completed, com o from lido dentro da transação',
     async () => {
       await withDisposableDatabase(async (database) => {
-        const { companyId, userId, vehicleId } = await seedMinimalCompany(database)
+        const { companyId, driverId, userId, vehicleId } = await seedMinimalCompany(database)
         const tripRepository = new DrizzleTripRepository(database.db)
 
         const trip = await tripRepository.create({
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
-          crew: [],
+          crew: [
+            {
+              driverId,
+              driverName: 'Motorista Lifecycle',
+              driverTaxId: '22222222222',
+              position: 1,
+            },
+          ],
           vehicleId,
         })
 
@@ -435,7 +442,7 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
 
   testWithPostgres('cancel grava o evento com o from correto, e é idempotente', async () => {
     await withDisposableDatabase(async (database) => {
-      const { companyId, userId, vehicleId } = await seedMinimalCompany(database)
+      const { companyId, driverId, userId, vehicleId } = await seedMinimalCompany(database)
       const tripRepository = new DrizzleTripRepository(database.db)
       const routeRepository = new DrizzleTripRouteRepository(database.db)
 
@@ -443,7 +450,9 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
         actorUserId: userId,
         channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId,
-        crew: [],
+        crew: [
+          { driverId, driverName: 'Motorista Lifecycle', driverTaxId: '22222222222', position: 1 },
+        ],
         vehicleId,
       })
 
@@ -497,7 +506,7 @@ describe('batch-status grava channel backoffice (spec 158 T4)', () => {
     'separar em lote grava trip_document_events e trip_status_events com backoffice',
     async () => {
       await withDisposableDatabase(async (database) => {
-        const { companyId, userId, vehicleId } = await seedMinimalCompany(database)
+        const { companyId, driverId, userId, vehicleId } = await seedMinimalCompany(database)
         const tripRepository = new DrizzleTripRepository(database.db)
         const routeRepository = new DrizzleTripRouteRepository(database.db)
         const batchRepository = new DrizzleTripDocumentBatchRepository(database.db)
@@ -519,7 +528,14 @@ describe('batch-status grava channel backoffice (spec 158 T4)', () => {
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
-          crew: [],
+          crew: [
+            {
+              driverId,
+              driverName: 'Motorista Lifecycle',
+              driverTaxId: '22222222222',
+              position: 1,
+            },
+          ],
           vehicleId,
         })
         const linkedA = await tripRepository.linkDocument({
@@ -578,12 +594,21 @@ describe('batch-status grava channel backoffice (spec 158 T4)', () => {
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
-async function seedMinimalCompany(
-  database: TestDatabase,
-): Promise<{ readonly companyId: string; readonly userId: string; readonly vehicleId: string }> {
+async function seedMinimalCompany(database: TestDatabase): Promise<{
+  readonly companyId: string
+  readonly driverId: string
+  readonly userId: string
+  readonly vehicleId: string
+}> {
   const companyId = crypto.randomUUID()
   const userId = crypto.randomUUID()
   const vehicleId = crypto.randomUUID()
+  /**
+   * Spec 217 D1: sem motorista, `create()` deriva `awaiting_crew` (par incompleto) — estes testes
+   * exercitam `close`/`cancel`/`batch-status` a partir de uma viagem `draft` de verdade, não a
+   * derivação do par, então a viagem nasce com tripulação completa.
+   */
+  const driverId = crypto.randomUUID()
 
   await database.db.insert(companies).values({ id: companyId, status: 'active' })
   await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
@@ -601,8 +626,14 @@ async function seedMinimalCompany(
     state: 'SP',
     vehicleType: 'tractor_unit',
   })
+  await database.db.insert(fleetDrivers).values({
+    companyId,
+    id: driverId,
+    name: 'Motorista Lifecycle',
+    taxId: '22222222222',
+  })
 
-  return { companyId, userId, vehicleId }
+  return { companyId, driverId, userId, vehicleId }
 }
 
 async function seedNfeDocumentWithRecipient(
