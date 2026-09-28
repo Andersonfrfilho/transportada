@@ -65,6 +65,7 @@
     "NO_PLANNED_DISTANCE": "roteiro ainda não calculado",
     "NO_PLANNED_DURATION": "duração do roteiro desconhecida — informe quantas diárias a viagem paga",
     "NO_TRIP_DRIVER": "viagem sem condutor — não há a quem pagar a diária",
+    "NO_VEHICLE": "viagem sem veículo — escolha o caminhão para a conta fechar",
     "SALARIED_CREW_MEMBER": "há motorista assalariado nesta viagem — custo do período",
     "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
     "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
