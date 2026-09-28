@@ -553,6 +553,13 @@ export default defineRailway((ctx) => {
       KEYCLOAK_ADMIN_CLIENT_SECRET: preserve(),
       KEYCLOAK_ISSUER: preserve(),
       PRODUCTION_DATABASE_HOST: preserve(),
+      /**
+       * O token que dispara o redeploy da API no fim do ciclo, sem o qual o refresh restaura
+       * staging e o deixa no schema de produção (ver `require_redeploy_configuration`). Nunca foi
+       * declarado aqui, e por isso nunca existiu no serviço: o ciclo de 27/09/2026 caiu por isso.
+       * Token de projeto; um de conta/equipe entraria como `RAILWAY_API_TOKEN`.
+       */
+      RAILWAY_PROJECT_TOKEN: preserve(),
       SOURCE_BACKUP_ENVIRONMENT: preserve(),
       STAGING_API_SERVICE_ID: preserve(),
       STAGING_DATABASE_URL: preserve(),

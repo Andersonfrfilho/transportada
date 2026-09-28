@@ -439,6 +439,66 @@ describe('contrato do serviço staging-refresh', () => {
     expect(put).toContain('/admin/realms/')
   })
 
+  /**
+   * O ciclo de 27/09/2026 baixou o dump, derrubou cinco schemas, restaurou, religou identidades e
+   * tirou a emissão — e só então, no último passo, descobriu que não havia token para disparar o
+   * redeploy: saiu 1 com `staging_refresh_redeploy_not_configured` e deixou staging restaurado no
+   * schema de produção, sem migrar. É a mesma regra da guarda de ambiente, enunciada acima dela: o
+   * que invalida o ciclo inteiro se confere enquanto nada foi tocado.
+   */
+  test('a configuração do redeploy é conferida antes do primeiro passo destrutivo', async () => {
+    const script = await readScript()
+    const main = functionBody(script, 'main')
+
+    expect(positionOf(main, 'require_redeploy_configuration')).toBeLessThan(
+      positionOf(main, 'download_production_cycle'),
+    )
+    expect(functionBody(script, 'require_redeploy_configuration')).toContain(
+      'staging_refresh_redeploy_not_configured',
+    )
+  })
+
+  /**
+   * Dois lugares decidindo qual cabeçalho usar divergem no dia em que um terceiro tipo de token
+   * aparecer — e a divergência só apareceria no fim do ciclo, que é exatamente o lugar caro.
+   */
+  test('quem resolve o cabeçalho do redeploy é a guarda, não o passo do fim', async () => {
+    const script = await readScript()
+
+    expect(functionBody(script, 'redeploy_staging_api')).not.toContain('RAILWAY_PROJECT_TOKEN')
+    expect(functionBody(script, 'require_redeploy_configuration')).toContain(
+      'Project-Access-Token:',
+    )
+  })
+
+  /**
+   * Mesma regra do PUT do Admin API, que o teste acima já cobre: o token do Railway em `--header`
+   * vai para o argv do curl e aparece em qualquer `ps` do contêiner. Estava assim desde que o passo
+   * nasceu — e o contêiner do refresh roda com o dump de produção aberto ao lado.
+   */
+  test('o token do redeploy entra por --config, nunca por argv', async () => {
+    const redeploy = functionBody(await readScript(), 'redeploy_staging_api')
+
+    expect(redeploy).toContain('--config <(printf')
+    expect(redeploy).not.toMatch(/--header "\$REDEPLOY_AUTHORIZATION_HEADER"/)
+  })
+
+  /**
+   * `preserve()` não cria o valor — o segredo continua sendo posto no painel. Mas variável que o
+   * `railway.ts` não declara é variável que um `apply` apaga, e foi a ausência desta declaração que
+   * deixou o serviço sem token desde que ele nasceu.
+   */
+  test('o código do Railway declara o token que o redeploy exige', async () => {
+    const railway = await Bun.file(RAILWAY_CODE_PATH).text()
+    const service = railway.slice(
+      positionOf(railway, "service('staging-refresh'"),
+      positionOf(railway, "service('aggregate-document-ocr'"),
+    )
+
+    expect(service).toContain('RAILWAY_PROJECT_TOKEN: preserve()')
+    expect(service).toContain('STAGING_API_SERVICE_ID: preserve()')
+  })
+
   test('a imagem traz o jq e o SQL do religamento', async () => {
     const dockerfile = await Bun.file(DOCKERFILE_PATH).text()
 
