@@ -217,6 +217,15 @@ export function useTripQuickCreate(
   const issues = validateQuickCreate({
     dailyAllowanceDays: dailyAllowanceDaysReading,
     driverIds,
+    path: 'singleClick',
+    queue,
+    vehicleId,
+  })
+  /** Spec 217 (RF1/D5): "Salvar rascunho" só exige nota — a viagem pode nascer sem tripulação. */
+  const draftIssues = validateQuickCreate({
+    dailyAllowanceDays: dailyAllowanceDaysReading,
+    driverIds,
+    path: 'draft',
     queue,
     vehicleId,
   })
@@ -284,6 +293,7 @@ export function useTripQuickCreate(
     createMutation,
     dailyAllowanceDays,
     dailyAllowanceDaysInput,
+    draftIssues,
     driverIds,
     isOpen,
     isScannerOpen,
