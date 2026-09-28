@@ -77,7 +77,7 @@
       `TRIP_CREW_ALREADY_DEFINED` não é mais lançada por ninguém. Inclui a tabela da D3-ter: troca só
       de motorista em `route_planned` devolve `unchanged` (rota de pé), e par completado de novo sem
       trocar caminhão restaura `route_planned`. (RF4, D2, D3-ter)
-- [ ] **T302** 🧠 `opus` — Implementação do T301 em `trip-state.policy.ts`: `vehicleChanged` na
+- [x] **T302** 🧠 `opus` — Implementação do T301 em `trip-state.policy.ts`: `vehicleChanged` na
       variante `defineCrew`, `resolveNextCrewStatus`, bloqueio novo, e remoção de
       `tripCrewAlreadyDefined` com seu último uso. (RF4, D2, D3-ter)
 - [ ] **T307** 🧠 `opus` — Caso de uso e repositório passam `vehicleChanged` (comparando o veículo
@@ -87,13 +87,13 @@
 - [ ] **T308** `sonnet` — Teste de integração do lado motorista para esta troca: a viagem passa a vir
       em `GET /me/trips/current` para o motorista novo e deixa de vir para o antigo, sem nenhuma
       mudança de código — o recorte já é por `trip_drivers`. Prova o efeito no PWA. (RF8)
-- [ ] **T309** 🧠 `opus` — `allowed-actions` passa a **oferecer** `defineCrew`, porque a tela é
+- [x] **T309** 🧠 `opus` — `allowed-actions` passa a **oferecer** `defineCrew`, porque a tela é
       servida pelo servidor (D6) e não por `if` de status no frontend. ⚠️ Para esta ação, `unchanged`
       também é "pode": trocar a tripulação de uma `draft` não muda o status e continua permitido — o
       filtro atual só aceita `applied`. Teste de contrato: oferecida em `awaiting_crew`, `draft` e
       `route_planned`; ausente de `separating` em diante, em `cancelled` e em `completed`; ausente
       para quem não tem `trips.manage`. (RF6, D6)
-- [ ] **T310** `sonnet` — **A tela.** Trocar motorista e veículo no detalhe da viagem, consumindo
+- [x] **T310** `sonnet` — **A tela.** Trocar motorista e veículo no detalhe da viagem, consumindo
       `PATCH /trips/:id/crew` e oferecida por `allowed-actions`. Era a T505 da Fase 5, puxada para cá
       por pedido do dono do produto em 2026-09-27: "tem que ser pela tela" — entregar a troca só por
       API não é entregar a troca. Inclui o estado de erro do 409 da separação, filtrado por código
@@ -143,21 +143,21 @@
 
 > 🤖 Modelo: `sonnet` (T501 é ⚙️ `haiku`)
 
-- [ ] **T501** ⚙️ `haiku` — `trip.types.ts`: `driverName`/`vehicleId` e campos relacionados viram
+- [x] **T501** ⚙️ `haiku` — `trip.types.ts`: `driverName`/`vehicleId` e campos relacionados viram
       opcionais. Mecânico, sem decisão de UI. (T017 da 216)
-- [ ] **T502** `sonnet` — Telas listadas no `plan.md` da 216 (`TripTable`, `TripDetail`,
+- [x] **T502** `sonnet` — Telas listadas no `plan.md` da 216 (`TripTable`, `TripDetail`,
       `TripProposalRow`, `TripHeaderActions`, `FieldDeliveryWizard(Header)`, `TripRouteAssemblyDialog`,
       `TripOccurrenceTable`, `TripReviewEntry`, `FieldOccurrenceDialog`) exibem "a definir" em vez de
       vazio quando não há motorista/veículo. (RF7, T018 da 216)
-- [ ] **T503** `sonnet` — `validateQuickCreate` devolve problemas por caminho: o rascunho não exige
+- [x] **T503** `sonnet` — `validateQuickCreate` devolve problemas por caminho: o rascunho não exige
       motorista nem veículo, o clique único continua exigindo. Teste de contrato dos dois caminhos.
       (RF1, D5)
-- [ ] **T504** `sonnet` — Botão "Salvar rascunho" no diálogo de criação, chamando
+- [x] **T504** `sonnet` — Botão "Salvar rascunho" no diálogo de criação, chamando
       `runQuickCreateTrip` sem o passo de planejar rota (parâmetro, não função copiada). Teste de
       contrato provando a ordem das requisições e a ausência do `plan-route`. (RF1, D5)
 - [x] **T505** — **movida para a Fase 3A como T310** (pedido do dono do produto: a troca urgente tem
       de sair pela tela, não por API). Fica aqui o rastro para quem for ler a Fase 5 isolada.
-- [ ] **T506** `sonnet` — Selo de tripulação pendente na listagem de viagens `awaiting_crew`.
+- [x] **T506** `sonnet` — Selo de tripulação pendente na listagem de viagens `awaiting_crew`.
       (RF7, T020 da 216)
 
 ## Fase 6 — PWA do motorista
