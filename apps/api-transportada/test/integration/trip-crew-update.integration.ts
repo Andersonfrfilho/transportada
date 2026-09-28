@@ -16,14 +16,27 @@ import {
   fleetDrivers,
   fleetVehicles,
   identityUsers,
+  nfeDocuments,
+  nfeImports,
+  storedObjects,
+  tripCargoLayouts,
+  tripDocumentReviews,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
-import { trips, tripDrivers, tripStops } from '../../src/database/trip.schema.js'
+import { trips, tripDocuments, tripDrivers, tripStops } from '../../src/database/trip.schema.js'
+import {
+  buildCargoLayoutInput,
+  buildStoredCargoLayoutInput,
+  hashCargoLayoutInput,
+} from '../../src/trips/domain/cargo-layout-hash.policy.js'
+import type { BuildCargoLayoutInputParams } from '../../src/trips/domain/cargo-layout-hash.types.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { resolveCrewStatus } from '../../src/trips/domain/trip-state.policy.js'
 import { resolveTripAllowedActions } from '../../src/trips/domain/trip-allowed-actions.policy.js'
+import { DrizzleTripDocumentReviewRepository } from '../../src/trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripPlannedRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-planned-route.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
+import { readCargoLayoutInputParams } from '../../src/trips/infrastructure/trip-cargo-layout-input.support.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -741,4 +754,262 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,
   )
+
+  /**
+   * Spec 217 T404 (D4): a troca **acontece** mesmo que a carga não caiba no baú novo — nenhum
+   * mecanismo novo, a planta já é indexada por `input_hash`, que inclui as dimensões do baú (145
+   * D5). Prende três fatos: a troca responde sem erro, o hash muda porque o baú mudou, e a planta
+   * antiga (do veículo grande) continua no banco como histórico, sem ser tocada.
+   *
+   * ⚠️ **O que este teste não prova**: o conteúdo de `placement.unplaced` — quem desenha a planta de
+   * verdade é o worker empacotador (`@adatechnology/cargo-placement`), fora do processo de teste de
+   * integração (ADR-0063). A planta "pronta" com baú pequeno é inserida à mão, com o `input_hash`
+   * genuíno que `readCargoLayoutInputParams` calcula depois da troca — mesmo padrão já usado em
+   * `trip-cargo-layout-read.integration.ts` (`layoutWithUnplaced`) e em
+   * `trip-document-review.integration.ts` (`layoutWith`/`insertLayout`) para o resto da suíte provar
+   * a fila de revisão sem rodar o worker. O que é real aqui: o veículo, a troca, o hash resolvido e
+   * a chegada da nota em `trip_document_reviews` pelo botão que a 148 já expõe
+   * (`releaseUnplaced`).
+   */
+  testWithPostgres(
+    'trocar para veículo de baú menor nasce planta nova por outro hash, a antiga fica de histórico, e a nota chega na fila de revisão (D4)',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const fleet = await seedCompanyFleet(db)
+        const repository = new DrizzleTripRepository(db)
+        const reviews = new DrizzleTripDocumentReviewRepository(db)
+
+        // Spec 217 T404: o primeiro veículo tem baú grande; o segundo, baú pequeno demais.
+        await db
+          .update(fleetVehicles)
+          .set({
+            capacityM3: '90.000',
+            cargoHeightM: '2.800',
+            cargoLengthM: '12.500',
+            cargoWidthM: '2.600',
+          })
+          .where(eq(fleetVehicles.id, fleet.firstVehicleId))
+        await db
+          .update(fleetVehicles)
+          .set({
+            capacityM3: '2.000',
+            cargoHeightM: '0.500',
+            cargoLengthM: '1.000',
+            cargoWidthM: '0.500',
+          })
+          .where(eq(fleetVehicles.id, fleet.secondVehicleId))
+
+        const created = await repository.create({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+            },
+          ],
+          vehicleId: fleet.firstVehicleId,
+        })
+
+        const stopId = crypto.randomUUID()
+        await db.insert(tripStops).values({
+          addressKey: `${created.id.slice(0, 8)}-1`,
+          companyId: fleet.companyId,
+          id: stopId,
+          label: 'Parada 1',
+          sequence: 1n,
+          tripId: created.id,
+        })
+        const nfeDocumentId = await seedNfeDocumentForReview(db, {
+          companyId: fleet.companyId,
+          number: '10',
+          userId: fleet.userId,
+        })
+        await db
+          .insert(tripDocuments)
+          .values({ companyId: fleet.companyId, nfeDocumentId, stopId, tripId: created.id })
+
+        // A planta que já existia para o veículo grande — é o histórico que a troca tem de preservar.
+        const beforeInput = await readCargoLayoutInputParams(db, {
+          companyId: fleet.companyId,
+          tripId: created.id,
+        })
+        if (beforeInput === null) throw new Error('trip without cargo input')
+        const oldInputHash = hashCargoLayoutInput(buildCargoLayoutInput(beforeInput))
+        const oldStoredInput = buildStoredCargoLayoutInput(beforeInput)
+        await db.insert(tripCargoLayouts).values({
+          companyId: fleet.companyId,
+          computedAt: new Date(),
+          input: oldStoredInput,
+          inputHash: oldInputHash,
+          layout: {
+            pendingMeasurements: [],
+            placement: { layers: [], source: 'measured', unplaced: [] },
+            rows: [],
+            slices: [],
+            stopsWithoutVolume: [],
+          },
+          policyVersion: oldStoredInput.policyVersion,
+          status: 'ready',
+          tripId: created.id,
+        })
+
+        /**
+         * ⚠️ A viagem já nasce com uma planta **pendente** de hash próprio — `create()` chama o
+         * gatilho eager (145 D7) antes de a parada e a nota existirem, então o retrato inicial é
+         * outro. A linha de baixo é a fotografia real da tabela antes da troca, não um "1" contado
+         * de cabeça — é contra ela que a troca se prova sem tocar em nada.
+         */
+        const rowsBeforeSwap = await db
+          .select({ inputHash: tripCargoLayouts.inputHash, status: tripCargoLayouts.status })
+          .from(tripCargoLayouts)
+          .where(eq(tripCargoLayouts.companyId, fleet.companyId))
+        expect(rowsBeforeSwap).toContainEqual({ inputHash: oldInputHash, status: 'ready' })
+
+        // A troca em si: prova que responde sem lançar (o 200 da rota HTTP correspondente).
+        const updated = await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.firstDriverId,
+              driverName: 'Primeiro Motorista',
+              driverTaxId: '11111111111',
+              position: 1,
+            },
+          ],
+          tripId: created.id,
+          vehicleId: fleet.secondVehicleId,
+        })
+        expect(updated?.status).toBe('draft')
+        expect(updated?.vehicleId).toBe(fleet.secondVehicleId)
+
+        // O hash nasce diferente porque o baú mudou (145 D6 — as dimensões entram no hash).
+        const afterInput = updated?.pendingCargoLayoutInput as BuildCargoLayoutInputParams
+        expect(afterInput).toBeDefined()
+        const newInputHash = hashCargoLayoutInput(buildCargoLayoutInput(afterInput))
+        expect(newInputHash).not.toBe(oldInputHash)
+
+        // A planta antiga não foi tocada: a troca não escreveu nem apagou nenhuma linha da tabela.
+        const rowsAfterSwap = await db
+          .select({ inputHash: tripCargoLayouts.inputHash, status: tripCargoLayouts.status })
+          .from(tripCargoLayouts)
+          .where(eq(tripCargoLayouts.companyId, fleet.companyId))
+        expect(rowsAfterSwap).toEqual(rowsBeforeSwap)
+        expect(rowsAfterSwap).toContainEqual({ inputHash: oldInputHash, status: 'ready' })
+
+        // A planta nova, como o worker a desenharia para o baú pequeno — ver o aviso no topo do teste.
+        const newStoredInput = buildStoredCargoLayoutInput(afterInput)
+        const [newLayoutRow] = await db
+          .insert(tripCargoLayouts)
+          .values({
+            companyId: fleet.companyId,
+            computedAt: new Date(),
+            input: newStoredInput,
+            inputHash: newInputHash,
+            layout: {
+              pendingMeasurements: [],
+              placement: {
+                layers: [],
+                source: 'measured',
+                unplaced: [
+                  { count: 1, documentId: nfeDocumentId, label: 'Caixa', reason: 'bedFull' },
+                ],
+              },
+              rows: [],
+              slices: [],
+              stopsWithoutVolume: [],
+            },
+            policyVersion: newStoredInput.policyVersion,
+            status: 'ready',
+            tripId: created.id,
+          })
+          .returning({ id: tripCargoLayouts.id })
+        if (newLayoutRow === undefined) throw new Error('layout not inserted')
+
+        // O botão do operador (148 T7): a nota que não coube sai da viagem e entra na fila.
+        const released = await reviews.releaseUnplaced({
+          companyId: fleet.companyId,
+          correlationId: 'correlation-t404',
+          layoutId: newLayoutRow.id,
+          tripId: created.id,
+          userId: fleet.userId,
+        })
+        expect(released.reviews).toHaveLength(1)
+        expect(released.reviews[0]).toMatchObject({
+          nfeDocumentId,
+          reason: 'bedFull',
+          sourceTripId: created.id,
+          status: 'pending',
+        })
+
+        const reviewRows = await db
+          .select({ reason: tripDocumentReviews.reason })
+          .from(tripDocumentReviews)
+          .where(eq(tripDocumentReviews.companyId, fleet.companyId))
+        expect(reviewRows).toEqual([{ reason: 'bedFull' }])
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
 })
+
+/** Molde igual ao das demais integrações de viagem/revisão — nota autorizada só com o mínimo. */
+async function seedNfeDocumentForReview(
+  database: TestDatabase['db'],
+  input: { readonly companyId: string; readonly number: string; readonly userId: string },
+): Promise<string> {
+  const importId = crypto.randomUUID()
+  const documentId = crypto.randomUUID()
+  const xmlObjectId = crypto.randomUUID()
+  const sha = 'b'.repeat(64)
+
+  await database.insert(storedObjects).values({
+    bucket: 'integration',
+    companyId: input.companyId,
+    id: xmlObjectId,
+    mimeType: 'application/xml',
+    objectKey: `nfe/crew-update-${documentId}.xml`,
+    provider: 's3',
+    purpose: 'nfe_document',
+    sha256: sha,
+    sizeBytes: 100n,
+    status: 'final',
+  })
+  await database.insert(nfeImports).values({
+    companyId: input.companyId,
+    correlationId: `correlation-${importId}`,
+    id: importId,
+    idempotencyKey: `import-${importId}`,
+    requestFingerprint: `fingerprint-${importId}`,
+    requestedByUserId: input.userId,
+    source: 'upload',
+    status: 'completed',
+  })
+  await database.insert(nfeDocuments).values({
+    accessKey: `9${String(Math.floor(Math.random() * 1e15)).padStart(15, '0')}${'1'.repeat(28)}`,
+    authorizationProtocol: `protocol-${documentId}`,
+    companyId: input.companyId,
+    createdByUserId: input.userId,
+    freightValue: '0.0000',
+    id: documentId,
+    importId,
+    issuedAt: new Date('2026-07-22T12:00:00.000Z'),
+    model: '55',
+    number: input.number,
+    operationNature: 'Venda',
+    operationType: '1',
+    productsValue: '10000.0000',
+    series: '1',
+    source: 'upload',
+    status: 'authorized',
+    totalValue: '10000.0000',
+    xmlObjectId,
+    xmlSha256: sha,
+  })
+  return documentId
+}
