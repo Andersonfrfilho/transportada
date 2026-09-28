@@ -1196,7 +1196,7 @@
       "title": "Critério da rota"
     },
     "geometryUnavailable": "Não foi possível traçar a estrada agora. A linha reta entre as paradas continua abaixo.",
-    "invalidatedNotice": "O roteiro desta viagem não está montado — a troca de veículo invalida o roteiro e o pedágio calculados para o caminhão anterior. Clique em «$t(stateActions.planRoute)» para montar o roteiro e recalcular o pedágio.",
+    "invalidatedNotice": "O roteiro desta viagem não está montado. Se você trocou o veículo, o roteiro e o pedágio calculados para o caminhão anterior foram descartados. Clique em «$t(stateActions.planRoute)» para montar o roteiro e calcular o pedágio.",
     "latitude": "Latitude",
     "loadingGeometry": "Traçando a estrada entre as paradas…",
     "longitude": "Longitude",

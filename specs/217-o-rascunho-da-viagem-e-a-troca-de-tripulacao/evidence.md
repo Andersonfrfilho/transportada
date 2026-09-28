@@ -704,3 +704,38 @@ O conserto é pequeno e não é de máquina de estados: um aviso na viagem, quan
 existe parada mas não existe roteiro congelado, dizendo que a troca de veículo invalidou o roteiro e que
 o pedágio volta depois de "Planejar rota". Fica registrado como o próximo item, e **antes de produção**:
 subir uma troca que parece destruir número, mesmo sem destruir, é pior que não subir.
+
+## O aviso do roteiro invalidado — o conserto do que parecia defeito
+
+Nasceu do relato em staging, e a investigação achou a causa real: **o remédio já estava na tela com um
+nome que esconde o que ele faz.** O botão é `stateActions.planRoute`, e o rótulo dele é **"Liberar para
+separação"** — ninguém lê isso e pensa "vai recalcular o meu pedágio". A troca de veículo apaga o
+pedágio de propósito (D3), e a tela ficava muda a respeito.
+
+`shouldShowRouteInvalidatedNotice({ status, stopsCount, isRouteFrozen })` é função pura, e a condição é
+`draft && stopsCount > 0 && !isRouteFrozen`. O sinal de "sem rota congelada" é o campo `frozen` que
+`route-geometry` **já** entrega à tela — nenhuma query nova, nenhum campo novo no servidor: a ausência
+já era o sinal.
+
+**O detalhe que impede o defeito de voltar:** o texto interpola o rótulo do botão por
+`$t(stateActions.planRoute)` em vez de repetir a string. Se alguém renomear o botão, o aviso acompanha;
+se eu tivesse copiado a string, ele passaria a mentir no dia da renomeação — e o teste continuaria
+verde, que é o pior tipo de defeito. A técnica não foi inventada: conferi que
+`stateActions.dispatchConfirmLoadRemainingWithLeftBehind` já a usa. Um dos oito testes prende
+justamente isso: a chave contém `$t(...)` e **não** contém o literal "Liberar para separação".
+
+⚠️ **Corrigi o texto antes de publicar, e o erro era meu.** Eu instruí "um texto só para os dois
+casos", e a primeira versão afirmava que "a troca de veículo invalida o roteiro" **também no rascunho
+recém-criado, que nunca teve veículo**. O operador que salva o primeiro rascunho leria sobre uma troca
+que não houve. Virou condicional — "Se você trocou o veículo, o roteiro e o pedágio calculados para o
+caminhão anterior foram descartados" — que é verdade nos dois casos.
+
+```
+$ bun run typecheck                          # limpo
+$ bun run test                               # 5579 pass / 0 fail · 54 pass / 0 fail (hooks)
+$ bun run lint && bun run format:check       # raiz, limpos
+```
+
+⚠️ **Sem print.** O aviso nunca foi visto renderizado — nem por mim nem pelo executor. O teste do
+componente é estrutural (lê o fonte e confere as chamadas), então prende a fiação e não a aparência.
+Quem valida é a revisão visual em staging, pendente junto com a T311.
