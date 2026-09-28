@@ -109,6 +109,7 @@ export const SYNC_RESULT = {
   createdInRealm: [COMPANY_USER.id],
   createdLocally: [],
   skipped: [{ reason: 'service-account', subject: 'subject-robo' }],
+  skippedUserIds: [],
 }
 
 export const PROFILE_FILL_RESULT = {

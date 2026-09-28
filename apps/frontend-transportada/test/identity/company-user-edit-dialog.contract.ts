@@ -138,6 +138,7 @@ describe('o resultado do conserto chega à tela', () => {
       createdInRealm: [],
       createdLocally: [],
       skipped: [],
+      skippedUserIds: [],
     })
   })
 })

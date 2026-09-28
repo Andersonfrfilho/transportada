@@ -219,6 +219,8 @@ export type IdentitySyncOutcome = Readonly<{
   createdInRealm: readonly string[]
   createdLocally: readonly string[]
   skipped: readonly Readonly<{ reason: string; subject: string }>[]
+  /** Mesma ideia do `skipped` acima, do lado de quem tinha vínculo daqui sem conta lá. */
+  skippedUserIds: readonly Readonly<{ reason: string; userId: string }>[]
 }>
 
 /**
