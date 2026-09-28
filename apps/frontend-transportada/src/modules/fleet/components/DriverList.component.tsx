@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon'
 
 import type { FleetDriverDetail, FleetDriverListItem } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
+import type { FleetDriverVehicleSummary } from '../shared/driverVehicleSummary.service'
 import { DriverScoreBadge } from './DriverScoreBadge.component'
 
 type DriverListProps = Readonly<{
@@ -13,9 +14,46 @@ type DriverListProps = Readonly<{
   drivers: readonly FleetDriverListItem[]
   onEdit: (driver: FleetDriverDetail) => void
   onToggleStatus: (driver: FleetDriverDetail) => void
+  onViewVehicle: (vehicleId: string) => void
+  vehiclesByDriverId: ReadonlyMap<string, readonly FleetDriverVehicleSummary[]>
 }>
 
-export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: DriverListProps) {
+function DriverVehicleCell({
+  onViewVehicle,
+  vehicles,
+}: Readonly<{
+  onViewVehicle: DriverListProps['onViewVehicle']
+  vehicles: readonly FleetDriverVehicleSummary[]
+}>) {
+  const { t } = useTranslation('fleet')
+
+  if (vehicles.length === 0) return <>{t('emptyValue')}</>
+
+  return (
+    <div className={styles.rowActions}>
+      {vehicles.map((vehicle) => (
+        <Button
+          key={vehicle.id}
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={() => onViewVehicle(vehicle.id)}
+        >
+          {vehicle.plate}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+export function DriverList({
+  canManageFleet,
+  drivers,
+  onEdit,
+  onToggleStatus,
+  onViewVehicle,
+  vehiclesByDriverId,
+}: DriverListProps) {
   const { t } = useTranslation('fleet')
 
   return (
@@ -32,6 +70,7 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
             <th scope="col">{t('columnLinkedTaxId')}</th>
             <th scope="col">{t('columnLicense')}</th>
             <th scope="col">{t('columnAppAccess')}</th>
+            <th scope="col">{t('columnVehicle')}</th>
             <th scope="col">{t('columnStatus')}</th>
             {canManageFleet ? <th scope="col">{t('columnActions')}</th> : null}
           </tr>
@@ -47,6 +86,12 @@ export function DriverList({ canManageFleet, drivers, onEdit, onToggleStatus }: 
               <td>{driver.linkedTaxId === '' ? t('emptyValue') : driver.linkedTaxId}</td>
               <td>{driver.licenseNumber}</td>
               <td>{t(driver.membershipId === null ? 'appAccessOff' : 'appAccessOn')}</td>
+              <td>
+                <DriverVehicleCell
+                  onViewVehicle={onViewVehicle}
+                  vehicles={vehiclesByDriverId.get(driver.id) ?? []}
+                />
+              </td>
               <td>
                 <span
                   className={

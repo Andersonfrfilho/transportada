@@ -154,6 +154,7 @@
   "columnRole": "Função",
   "columnStatus": "Situação",
   "columnTaxId": "CPF",
+  "columnVehicle": "Veículo",
   "columns": {
     "axleCount": "Eixos",
     "brand": "Marca",

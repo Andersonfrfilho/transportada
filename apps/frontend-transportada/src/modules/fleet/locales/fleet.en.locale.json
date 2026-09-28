@@ -151,6 +151,7 @@
   "columnRole": "Role",
   "columnStatus": "Status",
   "columnTaxId": "Tax id",
+  "columnVehicle": "Vehicle",
   "columns": {
     "axleCount": "Axles",
     "brand": "Brand",

@@ -23,6 +23,8 @@ import { useAggregateApplications } from '../hooks/useAggregateApplications.hook
 import { useAggregateDocuments } from '../hooks/useAggregateDocuments.hook'
 import { useDriverRegions, type DriverRegionsController } from '../hooks/useDriverRegions.hook'
 import { useDriverVehicles, type DriverVehiclesController } from '../hooks/useDriverVehicles.hook'
+import { useDriverVehiclePairs } from '../hooks/useDriverVehiclePairs.hook'
+import { buildDriverVehicleSummaries } from '../shared/driverVehicleSummary.service'
 import { useEnergySettings } from '../hooks/useEnergySettings.hook'
 import { useFleet } from '../hooks/useFleet.hook'
 import { useFreightRegions } from '../hooks/useFreightRegions.hook'
@@ -196,6 +198,20 @@ export function FleetWorkspacePage() {
     driverFilters,
     permissions,
   })
+  const driverVehiclePairs = useDriverVehiclePairs({
+    ...(companyId === undefined ? {} : { companyId }),
+    permissions,
+  })
+  const vehiclesByDriverId = buildDriverVehicleSummaries({
+    pairs: driverVehiclePairs.links,
+    vehicles: workspace.viewModel.vehicles ?? [],
+  })
+  function onViewVehicle(vehicleId: string): void {
+    const vehicle = (workspace.viewModel.vehicles ?? []).find((item) => item.id === vehicleId)
+    if (vehicle === undefined) return
+    setEditor({ kind: 'vehicle', vehicle })
+    selectTab('vehicles')
+  }
   const vehicleCatalog = useVehicleCatalog({
     ...(companyId === undefined ? {} : { companyId }),
     permissions,
@@ -393,9 +409,11 @@ export function FleetWorkspacePage() {
             onEdit: (driver) => setEditor({ driver, kind: 'driver' }),
             onNew: () => setEditor({ kind: 'driver' }),
             onToggleStatus: toggleDriverStatus,
+            onViewVehicle,
           }}
           canManageFleet={canManageFleet}
           filters={{ onChange: setDriverFilters, value: driverFilters }}
+          vehiclesByDriverId={vehiclesByDriverId}
           view={{
             status,
             ...(workspace.viewModel.drivers === undefined
