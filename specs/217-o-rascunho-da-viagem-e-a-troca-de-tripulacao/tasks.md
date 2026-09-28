@@ -84,7 +84,7 @@
       pedido com o gravado, sob o lock). Teste de **integração**: viagem `route_planned`, troca o
       motorista, e no banco o status continua `route_planned`, `planned_route` e `planned_toll`
       intactos, `trip_drivers` com o motorista novo e sem o antigo. (RF4, RF5, D3-ter)
-- [ ] **T308** `sonnet` — Teste de integração do lado motorista para esta troca: a viagem passa a vir
+- [x] **T308** `sonnet` — Teste de integração do lado motorista para esta troca: a viagem passa a vir
       em `GET /me/trips/current` para o motorista novo e deixa de vir para o antigo, sem nenhuma
       mudança de código — o recorte já é por `trip_drivers`. Prova o efeito no PWA. (RF8)
 - [x] **T309** 🧠 `opus` — `allowed-actions` passa a **oferecer** `defineCrew`, porque a tela é
@@ -127,12 +127,12 @@
 >
 > Herdada da Fase 3 pendente da 216, que agora tem usuário real: a RF1 cria viagem sem veículo.
 
-- [ ] **T401** 🧠 `opus` — Reler `trip-valuation.query.ts` e `read-trip-valuation.use-case.ts`
+- [x] **T401** 🧠 `opus` — Reler `trip-valuation.query.ts` e `read-trip-valuation.use-case.ts`
       inteiros (aviso da 216: o pedágio depende de veículo lido tardiamente). Desenhar o gap
       (`noVehicle`, no molde do `noTripDriver` existente) e escrever o teste que prova: viagem sem
       veículo devolve gap nomeado em custo de veículo e em pedágio, nunca lança.
-- [ ] **T402** `sonnet` — Implementação do T401.
-- [ ] **T403** `sonnet` — Teste + implementação: cargo-placement devolve `unavailable`
+- [x] **T402** `sonnet` — Implementação do T401.
+- [x] **T403** `sonnet` — Teste + implementação: cargo-placement devolve `unavailable`
       (`cargo-layout-availability.policy.ts`, `canRequestCargoLayout` já filtra por baú) quando a
       viagem não tem veículo, em vez de erro.
 - [ ] **T404** `sonnet` — Teste de contrato de D4: trocar para veículo de baú menor faz nascer planta
