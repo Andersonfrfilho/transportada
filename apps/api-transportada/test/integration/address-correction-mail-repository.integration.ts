@@ -135,7 +135,7 @@ describeDatabase(
       returning id
     `)
       draftRequestId = draft?.id ?? ''
-    })
+    }, 60_000)
 
     afterAll(async () => {
       try {

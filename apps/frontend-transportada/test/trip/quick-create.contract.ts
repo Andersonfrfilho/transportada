@@ -57,6 +57,7 @@ type QuickCreateModule = Readonly<{
   validateQuickCreate: (input: {
     dailyAllowanceDays: Readonly<{ of: string }>
     driverIds: readonly string[]
+    path: 'draft' | 'singleClick'
     queue: readonly unknown[]
     vehicleId: string
   }) => readonly string[]
@@ -153,6 +154,7 @@ describe('trip quick create contract', () => {
       validateQuickCreate({
         dailyAllowanceDays: absentDays,
         driverIds: [],
+        path: 'singleClick',
         queue: [],
         vehicleId: '',
       }),
@@ -161,10 +163,54 @@ describe('trip quick create contract', () => {
       validateQuickCreate({
         dailyAllowanceDays: absentDays,
         driverIds: ['driver-1'],
+        path: 'singleClick',
         queue: staged,
         vehicleId: 'vehicle-1',
       }),
     ).toEqual([])
+  })
+
+  /**
+   * Spec 217 (RF1/D5, T503): o caminho do rascunho não exige tripulação — só nota — e o clique
+   * único continua exigindo os dois. A mesma função, dois caminhos, para não divergirem em silêncio.
+   */
+  test('the draft path needs only a document; the single-click path still needs a driver and a vehicle', async () => {
+    const { resolveQuickCreateEntry, validateQuickCreate } = await loadQuickCreate()
+
+    const staged = resolveQuickCreateEntry({
+      accessKey: KEY,
+      document: scanned(),
+      queue: [{ accessKey: KEY, status: 'resolving' }],
+    })
+    const absentDays = { of: 'absent' } as const
+
+    expect(
+      validateQuickCreate({
+        dailyAllowanceDays: absentDays,
+        driverIds: [],
+        path: 'draft',
+        queue: staged,
+        vehicleId: '',
+      }),
+    ).toEqual([])
+    expect(
+      validateQuickCreate({
+        dailyAllowanceDays: absentDays,
+        driverIds: [],
+        path: 'draft',
+        queue: [],
+        vehicleId: '',
+      }),
+    ).toEqual(['noDocument'])
+    expect(
+      validateQuickCreate({
+        dailyAllowanceDays: absentDays,
+        driverIds: [],
+        path: 'singleClick',
+        queue: staged,
+        vehicleId: '',
+      }),
+    ).toEqual(['driverRequired', 'vehicleRequired'])
   })
 
   /**
@@ -176,6 +222,20 @@ describe('trip quick create contract', () => {
 
     expect(dialog).toContain('quickCreate.acceptScan(typedKey)')
     expect(dialog).toContain('quickCreate.canScan ? (')
+  })
+
+  /**
+   * Spec 217 (RF1/D5, T504): "Salvar rascunho" fica ao lado do botão de criar-e-planejar, chamando
+   * a mesma mutação com `asDraft: true` — e gated pelo `draftIssues` do caminho do rascunho, não
+   * pelo `issues` do clique único.
+   */
+  test('offers "save draft" beside the single-click button, gated by the draft issues', async () => {
+    const dialog = await readApplicationFile(DIALOG_PATH)
+
+    expect(dialog).toContain('quickCreate.createMutation.mutate({ asDraft: true })')
+    expect(dialog).toContain('quickCreate.createMutation.mutate({ asDraft: false })')
+    expect(dialog).toContain('disabled={quickCreate.draftIssues.length > 0')
+    expect(dialog).toContain("{t('quickCreate.submitDraft')}")
   })
 
   /** A viagem criada abre no detalhe: quem bipou dez notas quer conferir o roteiro, não procurá-lo. */

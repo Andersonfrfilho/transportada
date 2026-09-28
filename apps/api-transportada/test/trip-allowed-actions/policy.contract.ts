@@ -215,13 +215,81 @@ describe('allowedActions — por parada e por viagem', () => {
       capabilities: SEPARATOR,
       trip: snapshot({ documents: [documentIn('pending')], status: 'draft' }),
     })
-    expect(draft.trip).toEqual(['planRoute', 'cancel'])
+    /** Spec 217 T309: `defineCrew` entrou na lista da `draft` — a janela da troca está aberta lá. */
+    expect(draft.trip).toEqual(['planRoute', 'cancel', 'defineCrew'])
 
     const loading = resolveTripAllowedActions({
       capabilities: SEPARATOR,
       trip: snapshot({ status: 'loading' }),
     })
     expect(loading.trip).toEqual(['dispatch', 'cancel'])
+  })
+
+  /**
+   * Spec 217 T105 (D1/RF6): a prova de que a visibilidade de "Planejar rota" **não** precisou de
+   * regra nova. `planRoute` só se aplica em `draft`, e depois da D1 `draft` significa par
+   * motorista+veículo completo — então tripulação pendente esconde o botão pela máquina de estados,
+   * sem nenhuma condição de tripulação aqui dentro. Se algum dia alguém somar essa condição a esta
+   * política, este teste continua passando e o outro lugar vira a segunda verdade: é o `draft` do
+   * teste acima que prende o par.
+   */
+  it('a viagem sem tripulação não recebe planRoute, só o cancelamento', () => {
+    const awaitingCrew = resolveTripAllowedActions({
+      capabilities: SEPARATOR,
+      trip: snapshot({ documents: [documentIn('pending')], status: 'awaiting_crew' }),
+    })
+    expect(awaitingCrew.trip).not.toContain('planRoute')
+    /**
+     * Spec 217 T309: além de cancelar, a viagem sem tripulação oferece **definir a tripulação** — é a
+     * porta de saída dela. O que a RF6 exige é a ausência de `planRoute`, asserida acima.
+     */
+    expect(awaitingCrew.trip).toEqual(['cancel', 'defineCrew'])
+  })
+
+  /**
+   * Spec 217 T309 (D6/RF6): a tela de trocar tripulação é servida pelo servidor, não por `if` de
+   * status no frontend. A janela é a da D2 — até `route_planned`, fechada pela separação.
+   *
+   * ⚠️ Para esta ação, "pode" inclui o desfecho `unchanged`: trocar a tripulação de uma `draft` não
+   * muda o status e continua permitido. O filtro das outras ações só aceita `applied`, e copiá-lo
+   * aqui esconderia o botão exatamente na viagem mais comum.
+   */
+  it('oferece defineCrew na janela da troca, e só para quem administra', () => {
+    for (const status of ['awaiting_crew', 'draft', 'route_planned'] as const) {
+      const offered = resolveTripAllowedActions({
+        capabilities: SEPARATOR,
+        trip: snapshot({ documents: [documentIn('pending')], status }),
+      })
+      expect(offered.trip).toContain('defineCrew')
+    }
+
+    for (const status of [
+      'separating',
+      'loading',
+      'dispatched',
+      'in_transit',
+      'on_delivery_route',
+      'cancelled',
+      'completed',
+    ] as const) {
+      const refused = resolveTripAllowedActions({
+        capabilities: SEPARATOR,
+        trip: snapshot({ status }),
+      })
+      expect(refused.trip).not.toContain('defineCrew')
+    }
+
+    const viewer = resolveTripAllowedActions({
+      capabilities: VIEWER,
+      trip: snapshot({ documents: [documentIn('pending')], status: 'draft' }),
+    })
+    expect(viewer.trip).not.toContain('defineCrew')
+
+    const finance = resolveTripAllowedActions({
+      capabilities: FINANCE,
+      trip: snapshot({ documents: [documentIn('pending')], status: 'draft' }),
+    })
+    expect(finance.trip).not.toContain('defineCrew')
   })
 
   it('o finance não recebe ação de viagem do barracão', () => {

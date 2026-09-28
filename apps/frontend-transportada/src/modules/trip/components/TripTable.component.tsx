@@ -46,6 +46,8 @@ type TripTableProps = Readonly<{
 function statusClassName(status: TripStatus): string {
   if (status === 'completed') return `${styles.statusBadge} ${styles.statusReady}`
   if (status === 'cancelled') return `${styles.statusBadge} ${styles.statusCancelled}`
+  /** Spec 217 (RF7, T506): o selo de tripulação pendente. */
+  if (status === 'awaiting_crew') return `${styles.statusBadge} ${styles.statusPending}`
 
   return `${styles.statusBadge}`
 }
@@ -123,7 +125,7 @@ export function TripTable({
    * que a viagem tem veículo, que é pior que mostrar um código.
    */
   function renderVehicle(trip: Trip) {
-    const vehicle = vehicleById.get(trip.vehicleId)
+    const vehicle = trip.vehicleId === null ? undefined : vehicleById.get(trip.vehicleId)
     const drivers =
       trip.driverNames.length === 0 ? (
         <span className={styles.vehicleSpec}>{t('table.withoutDriver')}</span>
@@ -138,7 +140,9 @@ export function TripTable({
         <div className={styles.vehicleCell}>
           {drivers}
           <span className={styles.vehicleLine}>
-            <span className={styles.vehiclePlate}>{trip.vehicleId}</span>
+            <span className={styles.vehiclePlate}>
+              {trip.vehicleId === null ? t('toDefine') : trip.vehicleId}
+            </span>
           </span>
         </div>
       )
@@ -178,6 +182,7 @@ export function TripTable({
    * nomearem a viagem de jeitos diferentes.
    */
   function vehicleLabel(trip: Trip): string {
+    if (trip.vehicleId === null) return t('toDefine')
     const plate = vehicleById.get(trip.vehicleId)?.plate
     return plate === undefined ? trip.vehicleId : formatVehiclePlate(plate)
   }

@@ -59,6 +59,7 @@ import type {
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
+  ChangeTripCrewInput,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
@@ -115,6 +116,8 @@ export type TripController = Readonly<{
   canSubmitCte: boolean
   /** Spec 175 RF7: gate próprio da linha — `nfse.issue`, a mesma que a rota de emissão exige. */
   canIssueNfse: boolean
+  /** Spec 217 (RF4/RF6): `trips.manage`, mesma permissão que `cancelTrip`/`createTrip`. */
+  changeTripCrew: (input: ChangeTripCrewInput) => Promise<TripDetail>
   closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (
@@ -237,6 +240,7 @@ export function createTripController(
   return {
     batchStatus: (body) => (canManageTrips ? input.client.batchStatus(body) : forbidden()),
     cancelTrip: (body) => (canManageTrips ? input.client.cancelTrip(body) : forbidden()),
+    changeTripCrew: (body) => (canManageTrips ? input.client.changeTripCrew(body) : forbidden()),
     canIssueNfse,
     canManageMdfe,
     canManageTrips,
@@ -854,6 +858,18 @@ export function useTripWorkspace(
     mutationFn: controller.overrideDeliveryAddress,
     onSuccess: invalidate,
   })
+  /**
+   * Spec 217 T310: trocar a tripulação pode destravar "Planejar rota" (D1) — sem invalidar
+   * `allowed-actions` o botão ficaria escondido até outra ação da tela disparar o refetch.
+   */
+  const changeCrewMutation = useMutation({
+    mutationFn: controller.changeTripCrew,
+    onSuccess: () =>
+      Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: ['trips', input.tripId, 'allowed-actions'] }),
+      ]).then(() => undefined),
+  })
   const transitionDocumentMutation = useMutation({
     mutationFn: controller.transitionTripDocument,
     onSuccess: (result) => {
@@ -919,6 +935,7 @@ export function useTripWorkspace(
     batchStatusMutation,
     cancelMutation,
     cargoLayoutView,
+    changeCrewMutation,
     closeMutation,
     controller,
     createCteBatchMutation,

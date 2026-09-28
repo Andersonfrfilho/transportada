@@ -39,6 +39,7 @@ import type {
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
+  ChangeTripCrewInput,
   CreateTripBody,
   DeliveryAddressHistoryInput,
   DeliveryAddressOverride,
@@ -122,6 +123,8 @@ export type TripClient = Readonly<{
   /** Spec 156 T8c: `reason` é obrigatório só quando a viagem tem nota em aberto (a tela decide). */
   closeTrip: (input: Readonly<{ reason: string | null; tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
+  /** Spec 217 (RF4/RF6): `PATCH /trips/:id/crew` — troca motorista(s) e/ou veículo. */
+  changeTripCrew: (input: ChangeTripCrewInput) => Promise<TripDetail>
   /**
    * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
    * só os marcados viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
@@ -661,6 +664,18 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         dependencies,
         method: 'POST',
         path: TRIPS_PATH,
+      })
+      return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    async changeTripCrew(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          ...(input.driverIds === undefined ? {} : { driverIds: input.driverIds }),
+          ...(input.vehicleId === undefined ? {} : { vehicleId: input.vehicleId }),
+        }),
+        dependencies,
+        method: 'PATCH',
+        path: `${TRIPS_PATH}/${input.tripId}/crew`,
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
     },

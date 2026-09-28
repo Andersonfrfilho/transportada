@@ -304,6 +304,27 @@
     "vehiclePlaceholder": "Select the vehicle",
     "vehicleSearch": "Search by plate, brand or model"
   },
+  "crewDialog": {
+    "drivers": "Drivers",
+    "driversClearAll": "Remove all",
+    "driversEmpty": "Register an active driver in the fleet before changing the crew.",
+    "driversNoMatch": "No driver found",
+    "driversPlaceholder": "Pick drivers",
+    "driversRemove": "Remove this driver",
+    "driversSearch": "Search by name",
+    "driversSummary": "{{count}} driver picked",
+    "driversSummary_other": "{{count}} drivers picked",
+    "error": {
+      "generic": "Could not change the crew right now. Try again.",
+      "separationStarted": "The cargo separation already started: this trip no longer accepts a driver or vehicle change."
+    },
+    "subtitle": "The change replaces the whole crew and vehicle — it never adds to what is there.",
+    "submit": "Confirm change",
+    "title": "Change driver and vehicle",
+    "vehicle": "Vehicle",
+    "vehiclePlaceholder": "Select the vehicle",
+    "vehicleSearch": "Search by plate, brand or model"
+  },
   "dateRange": {
     "clear": "Clear period",
     "nextMonth": "Next month",
@@ -871,6 +892,7 @@
     "stagedCount": "{{count}} invoice joins the trip.",
     "stagedCount_other": "{{count}} invoices join the trip.",
     "submit": "Create trip",
+    "submitDraft": "Save draft",
     "title": "New trip",
     "weightEstimated": "estimated",
     "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
@@ -986,6 +1008,7 @@
     "vehiclesSummary_other": "{{count}} vehicles chosen"
   },
   "routeMap": {
+    "invalidatedNotice": "This trip's route is not assembled. If you changed the vehicle, the route and toll calculated for the previous truck were discarded. Click «$t(stateActions.planRoute)» to assemble the route and calculate the toll.",
     "criterion": {
       "alternative": "Route chosen manually by the operator.",
       "cheapest": "Criterion: cheapest (fuel + toll).",
@@ -1140,6 +1163,7 @@
     "batchSeparate": "Separate {{count}} document",
     "batchSeparate_other": "Separate {{count}} documents",
     "cancel": "Cancel trip",
+    "defineCrew": "Change driver/vehicle",
     "dispatch": "Dispatch",
     "dispatchConfirmTitle": "Dispatch the trip",
     "dispatchUnderstood": "Got it",
@@ -1171,6 +1195,7 @@
     "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation."
   },
   "status": {
+    "awaiting_crew": "Awaiting crew",
     "cancelled": "Cancelled",
     "completed": "Completed",
     "dispatched": "Dispatched",
@@ -1242,6 +1267,7 @@
     "tollUnknown": "tariff unknown"
   },
   "title": "Trips",
+  "toDefine": "To be defined",
   "tripsTitle": "Trips",
   "valuation": {
     "cost": "Expected cost",
@@ -1266,6 +1292,7 @@
       "NO_PLANNED_DISTANCE": "route not calculated yet — fuel comes after",
       "NO_PLANNED_DURATION": "route duration unknown — inform how many daily allowances the trip pays",
       "NO_TRIP_DRIVER": "trip with no driver — nobody to pay the daily allowance to",
+      "NO_VEHICLE": "trip with no vehicle — pick the truck so the numbers can close",
       "SALARIED_CREW_MEMBER": "salaried driver on board — a period cost, not a trip cost",
       "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
       "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"

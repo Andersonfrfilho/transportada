@@ -139,7 +139,13 @@ export type TripValuationContext = {
    * Hoje só a sugestão multi-veículo a preenche. Ausente é o comportamento de sempre.
    */
   readonly tollUnavailableReason?: 'suggestion'
-  readonly vehicle: TripValuationVehicle
+  /**
+   * Spec 217 Fase 4: **`null` é "ninguém escolheu caminhão"** — a viagem `awaiting_crew` da RF1. Um
+   * veículo com todos os atributos nulos diria outra coisa: que o caminhão existe e a ficha dele está
+   * vazia, que se resolve na frota. São duas telas diferentes, e é por isso que a distinção vive no
+   * tipo em vez de ser derivada dos atributos.
+   */
+  readonly vehicle: TripValuationVehicle | null
 }
 
 export type ApplicableFreightRule = {
@@ -291,9 +297,9 @@ export async function previewTripValuation(
    * discordar (D4).
    */
   const road = await resolvePreviewRoad({
-    axles: context.vehicle.axles ?? null,
-    multiplier: context.vehicle.multiplier ?? null,
-    hasAutomaticTollPayment: context.vehicle.hasAutomaticTollPayment ?? false,
+    axles: context.vehicle?.axles ?? null,
+    multiplier: context.vehicle?.multiplier ?? null,
+    hasAutomaticTollPayment: context.vehicle?.hasAutomaticTollPayment ?? false,
     companyId: input.companyId,
     depot: input.depot ?? null,
     geometry: input.geometry,
@@ -585,6 +591,14 @@ function resolveTollParcel(context: TripValuationContext): TripCostParcel {
   })
   if (recorded.gap === null) return recorded
 
+  /**
+   * ⚠️ **Depois do lançamento, nunca antes.** Pedágio lançado é dinheiro que já saiu do caixa, e
+   * trocá-lo por uma lacuna esconderia pagamento feito — a mesma inversão que o parágrafo acima
+   * proíbe entre o lançamento e a projeção. Sem lançamento, porém, "ninguém lançou" é a resposta
+   * errada: sem caminhão escolhido não há eixo, não há rota e não há como lançar.
+   */
+  if (context.vehicle === null) return missingVehicleParcel('toll')
+
   const calculated = context.toll ?? null
   if (calculated === null) {
     /**
@@ -637,11 +651,27 @@ function resolveRecordedParcel(input: {
   return { amount: input.amount, detail: null, gap: null, kind: input.kind, source: 'measured' }
 }
 
+/**
+ * Spec 217 Fase 4: as três parcelas que saem do veículo — combustível, pedágio e outros custos por
+ * quilômetro — carregam a **mesma** lacuna quando ninguém escolheu o caminhão. Um texto por parcela
+ * mandaria o operador a três telas para resolver um cadastro só.
+ */
+function missingVehicleParcel(kind: TripCostParcel['kind']): TripCostParcel {
+  return { amount: ZERO, detail: null, gap: VALUATION_GAPS.noVehicle, kind, source: 'missing' }
+}
+
 function resolveFuelParcel(input: {
   readonly context: TripValuationContext
   readonly distanceMeters: null | number
 }): TripCostParcel {
   const { context, distanceMeters } = input
+  /**
+   * ⚠️ **Antes da distância, e a ordem é a causa.** A viagem sem veículo está sem roteiro por
+   * consequência: planejar rota exige `draft`, e `draft` exige a tripulação montada (spec 217 D1). Com
+   * a distância primeiro, `NO_VEHICLE` nunca apareceria na vida real, e o operador leria "calcule o
+   * roteiro" sobre um botão que só nasce depois de escolhido o caminhão.
+   */
+  if (context.vehicle === null) return missingVehicleParcel('fuel')
   if (distanceMeters === null) {
     return {
       amount: ZERO,
@@ -710,6 +740,7 @@ function resolveOtherPerKilometer(input: {
   readonly distanceMeters: null | number
 }): TripCostParcel {
   const { context, distanceMeters } = input
+  if (context.vehicle === null) return missingVehicleParcel('other_per_kilometer')
   const perKilometer = context.vehicle.otherCostsPerKilometer
   if (distanceMeters === null) {
     return {

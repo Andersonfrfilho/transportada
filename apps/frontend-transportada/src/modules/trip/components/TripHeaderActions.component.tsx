@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
 import { resolveDispatchReadiness } from '../shared/dispatchReadiness.service'
 import { hasOpenOccurrenceMarker } from '../shared/occurrenceMarker.service'
@@ -16,6 +17,7 @@ import { canOfferTripFieldAction, hasMultipleDrivers } from '../shared/tripField
 import type { FieldActionCapabilities } from '../shared/tripFieldActions.service'
 import type { TripDetail, TripFiscalReadiness } from '../shared/trip.types'
 import { TripConfirmDialog } from './TripConfirmDialog.component'
+import { TripCrewDialog } from './TripCrewDialog.component'
 import styles from '../styles/trip.module.css'
 
 export type TripHeaderActionsProps = Readonly<{
@@ -26,9 +28,13 @@ export type TripHeaderActionsProps = Readonly<{
    */
   canReportOnBehalf: boolean
   capabilities: FieldActionCapabilities
+  /** Spec 217 T310: a frota da empresa, para o diálogo "Trocar motorista/veículo" escolher entre. */
+  crewDrivers: readonly FleetDriverListItem[]
+  crewVehicles: readonly FleetVehicleDetail[]
   /** Spec 170 RF2: o que barra o próximo passo, resumido ao lado de quem libera. */
   fiscalReadiness: TripFiscalReadiness | undefined
   isCancelPending: boolean
+  isChangingCrew: boolean
   isDispatchPending: boolean
   /**
    * Se o painel "Prontidão fiscal" está na página para o resumo apontar. Sem `fleet.read`
@@ -38,6 +44,10 @@ export type TripHeaderActionsProps = Readonly<{
   isPlanRoutePending: boolean
   isStartRoutePending: boolean
   onCancel: () => void
+  /** Spec 217 T310: `PATCH /trips/:id/crew` — a viagem inteira volta atualizada (mesmo invalidate). */
+  onChangeCrew: (
+    input: Readonly<{ driverIds: readonly string[]; vehicleId: string }>,
+  ) => Promise<unknown>
   /** Spec 185 RF4/RF9: `loadRemaining` separa e carrega o que falta e despacha numa transação. */
   onDispatch: (input: { readonly loadRemaining: boolean }) => void
   /** A nota é a mesma que o selo da linha abre — o resumo do cabeçalho leva direto ao diálogo dela. */
@@ -69,13 +79,17 @@ export function TripHeaderActions({
   canManage,
   canReportOnBehalf,
   capabilities,
+  crewDrivers,
+  crewVehicles,
   fiscalReadiness,
   isCancelPending,
+  isChangingCrew,
   isDispatchPending,
   isFiscalReadinessPanelVisible,
   isPlanRoutePending,
   isStartRoutePending,
   onCancel,
+  onChangeCrew,
   onDispatch,
   onOpenOccurrenceDocument,
   onPlanRoute,
@@ -87,6 +101,7 @@ export function TripHeaderActions({
   const { t } = useTranslation('trip')
   const [isDispatchConfirmOpen, setIsDispatchConfirmOpen] = useState(false)
   const [isStartRouteDialogOpen, setIsStartRouteDialogOpen] = useState(false)
+  const [isCrewDialogOpen, setIsCrewDialogOpen] = useState(false)
 
   const canStartRoute = canOfferTripFieldAction({
     action: 'startRoute',
@@ -99,6 +114,11 @@ export function TripHeaderActions({
   const canPlanRoute = canManage && trip.status === 'draft'
   const canDispatch = canManage && ['loading', 'route_planned', 'separating'].includes(trip.status)
   const canCancel = canManage && trip.status !== 'completed' && trip.status !== 'cancelled'
+  /**
+   * Spec 217 D6: visibilidade servida por `allowed-actions`, nunca por `if` de status no cliente —
+   * ao contrário de `canPlanRoute`/`canDispatch`/`canCancel` acima, que ainda são a régua antiga.
+   */
+  const canDefineCrew = canManage && capabilities.canTrip('defineCrew')
 
   /**
    * Spec 185 RF9: a mesma conta pura de D1 (`dispatchReadiness.service.ts`) — o diálogo conta só as
@@ -178,6 +198,7 @@ export function TripHeaderActions({
     !canPlanRoute &&
     !canDispatch &&
     !canCancel &&
+    !canDefineCrew &&
     !canStartRoute &&
     readinessSummary === null &&
     openOccurrences === 0
@@ -221,6 +242,18 @@ export function TripHeaderActions({
         <Button disabled={isPlanRoutePending} onClick={onPlanRoute} size="sm" type="button">
           <Icon name="sort" />
           {t('stateActions.planRoute')}
+        </Button>
+      ) : null}
+      {canDefineCrew ? (
+        <Button
+          disabled={isChangingCrew}
+          onClick={() => setIsCrewDialogOpen(true)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="truck" />
+          {t('stateActions.defineCrew')}
         </Button>
       ) : null}
       {canDispatch ? (
@@ -299,6 +332,15 @@ export function TripHeaderActions({
           onStartRoute()
         }}
         title={t('fieldActions.startRouteTitle')}
+      />
+
+      <TripCrewDialog
+        drivers={crewDrivers}
+        isOpen={isCrewDialogOpen}
+        onClose={() => setIsCrewDialogOpen(false)}
+        onSubmit={onChangeCrew}
+        trip={trip}
+        vehicles={crewVehicles}
       />
     </div>
   )

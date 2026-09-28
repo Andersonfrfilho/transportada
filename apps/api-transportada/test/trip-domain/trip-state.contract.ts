@@ -30,6 +30,9 @@ const DOCUMENT_TARGET_BY_ACTION: Readonly<
   return: 'returned',
   separate: 'separated',
 }
+/** Spec 217 D1: a grade da 216 continua valendo com o par completo — o par pela metade é a 217. */
+const COMPLETE_CREW = { hasDriver: true, hasVehicle: true } as const
+
 const WAREHOUSE_STATUSES = ['route_planned', 'separating', 'loading'] as const
 const DISPATCHED_STATUSES = ['dispatched', 'in_transit', 'on_delivery_route'] as const
 
@@ -315,7 +318,21 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
     for (const action of Object.values(TRIP_ACTION)) {
       for (const tripStatus of TRIP_STATUSES) {
         for (const hasRoute of [true, false]) {
-          const transition = checkTripTransition({ action, hasRoute, tripStatus })
+          /**
+           * Spec 217 D1: `defineCrew` exige a composição resultante, e aqui ela é o par completo —
+           * a grade prova que toda célula responde, e o par pela metade é provado em
+           * `crew-status.contract.ts`, onde o desfecho por composição é o assunto.
+           */
+          const transition =
+            action === TRIP_ACTION.defineCrew
+              ? checkTripTransition({
+                  action,
+                  crew: COMPLETE_CREW,
+                  hasRoute,
+                  tripStatus,
+                  vehicleChanged: false,
+                })
+              : checkTripTransition({ action, hasRoute, tripStatus })
           expect(['applied', 'unchanged', 'blocked']).toContain(transition.outcome)
           if (transition.outcome === 'applied') {
             expect(TRIP_STATUSES).toContain(transition.nextStatus)
@@ -351,7 +368,9 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
     expect(
       checkTripTransition({
         action: TRIP_ACTION.defineCrew,
+        crew: COMPLETE_CREW,
         hasRoute: false,
+        vehicleChanged: false,
         tripStatus: 'awaiting_crew',
       }),
     ).toEqual({ outcome: 'applied', nextStatus: 'draft' })
@@ -371,21 +390,40 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
    * planejado, nada calculado a partir do veículo (pedágio) foi congelado, então a troca não deixa
    * número velho para trás. A partir de `route_planned` a troca fica bloqueada.
    */
-  test('defineCrew swaps crew in place while draft, and refuses once the route is planned', () => {
+  test('defineCrew swaps crew in place while draft, and refuses once separation starts', () => {
     expect(
-      checkTripTransition({ action: TRIP_ACTION.defineCrew, hasRoute: false, tripStatus: 'draft' }),
+      checkTripTransition({
+        action: TRIP_ACTION.defineCrew,
+        crew: COMPLETE_CREW,
+        hasRoute: false,
+        vehicleChanged: false,
+        tripStatus: 'draft',
+      }),
     ).toEqual({ outcome: 'unchanged' })
 
-    for (const tripStatus of [...WAREHOUSE_STATUSES, ...DISPATCHED_STATUSES] as const) {
+    /**
+     * Spec 217 D2: `route_planned` **saiu** desta lista — a troca passou a ser permitida lá, e a
+     * porta que fecha é a separação. A janela inteira e a tabela do par pela metade são assunto de
+     * `crew-status.contract.ts`; aqui fica o que a 216 já provava, com o limite novo.
+     */
+    for (const tripStatus of ['separating', 'loading', ...DISPATCHED_STATUSES] as const) {
       expect(
-        checkTripTransition({ action: TRIP_ACTION.defineCrew, hasRoute: false, tripStatus }),
-      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCrewAlreadyDefined })
+        checkTripTransition({
+          action: TRIP_ACTION.defineCrew,
+          crew: COMPLETE_CREW,
+          hasRoute: false,
+          vehicleChanged: false,
+          tripStatus,
+        }),
+      ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripSeparationStarted })
     }
 
     expect(
       checkTripTransition({
         action: TRIP_ACTION.defineCrew,
+        crew: COMPLETE_CREW,
         hasRoute: false,
+        vehicleChanged: false,
         tripStatus: 'cancelled',
       }),
     ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled })
@@ -393,7 +431,9 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
     expect(
       checkTripTransition({
         action: TRIP_ACTION.defineCrew,
+        crew: COMPLETE_CREW,
         hasRoute: false,
+        vehicleChanged: false,
         tripStatus: 'completed',
       }),
     ).toEqual({ outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted })

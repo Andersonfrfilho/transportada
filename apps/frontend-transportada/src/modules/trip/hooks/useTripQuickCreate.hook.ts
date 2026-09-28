@@ -217,6 +217,15 @@ export function useTripQuickCreate(
   const issues = validateQuickCreate({
     dailyAllowanceDays: dailyAllowanceDaysReading,
     driverIds,
+    path: 'singleClick',
+    queue,
+    vehicleId,
+  })
+  /** Spec 217 (RF1/D5): "Salvar rascunho" só exige nota — a viagem pode nascer sem tripulação. */
+  const draftIssues = validateQuickCreate({
+    dailyAllowanceDays: dailyAllowanceDaysReading,
+    driverIds,
+    path: 'draft',
     queue,
     vehicleId,
   })
@@ -227,7 +236,11 @@ export function useTripQuickCreate(
    * (`runQuickCreateTrip`). Desfazer aqui apagaria trabalho que já é válido.
    */
   const createMutation = useMutation({
-    mutationFn: (): Promise<TripDetail> =>
+    /**
+     * Spec 217 (RF1/D5): `asDraft` decide se o quarto passo (planejar rota) roda. É a mesma
+     * sequência para os dois botões — "Salvar rascunho" só passa o parâmetro adiante.
+     */
+    mutationFn: (variables: Readonly<{ asDraft: boolean }>): Promise<TripDetail> =>
       runQuickCreateTrip({
         cityOrder,
         client: getTripClient(),
@@ -235,9 +248,11 @@ export function useTripQuickCreate(
           /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
           ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
           driverIds,
-          vehicleId,
+          /** Spec 217 (RF1/RF2): vazio é o rascunho sem veículo — nunca uma string vazia no corpo. */
+          ...(vehicleId === '' ? {} : { vehicleId }),
         },
         nfeDocumentIds: stagedDocumentIds(queueRef.current),
+        planRoute: !variables.asDraft,
         ...(routeChoice === undefined ? {} : { routeChoice }),
       }),
     onSuccess: (trip) => {
@@ -284,6 +299,7 @@ export function useTripQuickCreate(
     createMutation,
     dailyAllowanceDays,
     dailyAllowanceDaysInput,
+    draftIssues,
     driverIds,
     isOpen,
     isScannerOpen,

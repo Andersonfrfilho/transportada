@@ -44,11 +44,13 @@ import {
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import { canSeparateOrLoadDocuments, isTripEditable } from '../shared/tripStatus.service'
 import { resolveSeparationOccurrenceButtonVisibility } from '../shared/separationOccurrenceButton.service'
+import { shouldShowRouteInvalidatedNotice } from '../shared/routeInvalidatedNotice.service'
 import {
   hasMultipleDrivers,
   resolveDefaultOnBehalfDriverId,
   selectFieldReturnableDocumentIds,
 } from '../shared/tripFieldActions.service'
+import { buildChangeTripCrewInput } from '../shared/tripCrewDialog.service'
 import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
@@ -68,7 +70,7 @@ import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
-import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 
 import { describeTripVehicle } from '../shared/vehicleSummary.service'
@@ -88,6 +90,8 @@ import styles from '../styles/trip.module.css'
 type TripDetailProps = Readonly<{
   /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
   canAdjustTollBooth: boolean
+  /** Spec 217 T310: a frota da empresa, para o diálogo "Trocar motorista/veículo" escolher entre. */
+  drivers: readonly FleetDriverListItem[]
   linkForm: TripDocumentLinkFormController
   /** A frota da empresa: é dela que sai a identificação do veículo, no lugar do UUID. */
   vehicles: readonly FleetVehicleDetail[]
@@ -101,9 +105,12 @@ type TripDetailProps = Readonly<{
  */
 function describeVehicle(
   vehicles: readonly FleetVehicleDetail[],
-  vehicleId: string,
+  vehicleId: null | string,
   translateFleet: (key: string) => string,
+  /** Spec 217 (RF7): viagem `awaiting_crew` sem veículo — "a definir", nunca o vazio cru. */
+  toDefineLabel: string,
 ): string {
+  if (vehicleId === null) return toDefineLabel
   const vehicle = vehicles.find((entry) => entry.id === vehicleId)
   if (vehicle === undefined) return vehicleId
 
@@ -129,7 +136,7 @@ function describeVehicle(
  */
 function resolveVehicleIdentityBandProps(
   vehicles: readonly FleetVehicleDetail[],
-  vehicleId: string,
+  vehicleId: null | string,
   translateFleet: (key: string) => string,
 ): null | {
   facts: readonly { label: string; value: string }[]
@@ -137,6 +144,7 @@ function resolveVehicleIdentityBandProps(
   plate: string
   vehicleType: FleetVehicleDetail['vehicleType']
 } {
+  if (vehicleId === null) return null
   const vehicle = vehicles.find((entry) => entry.id === vehicleId)
   if (vehicle === undefined) return null
 
@@ -238,7 +246,13 @@ export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
   )
 }
 
-export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }: TripDetailProps) {
+export function TripDetail({
+  canAdjustTollBooth,
+  drivers,
+  linkForm,
+  vehicles,
+  workspace,
+}: TripDetailProps) {
   const { t } = useTranslation('trip')
   const { t: tFleet } = useTranslation('fleet')
   const trip = workspace.trip
@@ -666,13 +680,21 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           canManage={canManage}
           canReportOnBehalf={workspace.controller.canReportOnBehalf}
           capabilities={workspace.fieldActionCapabilities}
+          crewDrivers={drivers}
+          crewVehicles={vehicles}
           fiscalReadiness={workspace.fiscalReadiness}
           isCancelPending={workspace.cancelMutation.isPending}
+          isChangingCrew={workspace.changeCrewMutation.isPending}
           isDispatchPending={workspace.dispatchMutation.isPending}
           isFiscalReadinessPanelVisible={canReadFleetDetails}
           isPlanRoutePending={workspace.planRouteMutation.isPending}
           isStartRoutePending={workspace.startFieldTripMutation.isPending}
           onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
+          onChangeCrew={(input) =>
+            workspace.changeCrewMutation.mutateAsync(
+              buildChangeTripCrewInput({ ...input, tripId: trip.id }),
+            )
+          }
           onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
           onOpenOccurrenceDocument={(documentId) =>
             workspace.setOpenSeparationOccurrenceDocumentId(documentId)
@@ -752,7 +774,9 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
       {canReadFleetDetails ? (
         vehicleIdentity === null ? (
           <p className={styles.summaryLine}>
-            {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
+            {t('detail.vehicle', {
+              vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet, t('toDefine')),
+            })}
           </p>
         ) : (
           <VehicleIdentityBand
@@ -767,6 +791,8 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
 
       <fieldset className={styles.driverChecklist}>
         <legend className={styles.hint}>{t('detail.drivers')}</legend>
+        {/* Spec 217 (RF7): viagem `awaiting_crew` ainda sem motorista — "a definir", nunca a lista muda. */}
+        {trip.drivers.length === 0 ? <p className={styles.hint}>{t('toDefine')}</p> : null}
         {/*
          * Nome sozinho obrigava a abrir a frota noutra aba para achar o telefone. O contato é
          * **link**, não texto: quem está no galpão toca e liga, sem copiar número à mão.
@@ -912,27 +938,38 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
 
       {/* Spec 156 D11: geometria é `fleet.read` — sem ela, oculta em vez de bater 403 sozinha. */}
       {canReadFleetDetails ? (
-        <TripRouteMap
-          canAdjustTollBooth={canAdjustTollBooth}
-          canCorrect={canManage}
-          canManage={canManage}
-          geometry={workspace.routeGeometryQuery.data ?? null}
-          stops={trip.stops}
-          isCorrecting={workspace.correctAddressMutation.isPending}
-          isGeometryError={workspace.routeGeometryQuery.isError}
-          isGeometryPending={workspace.routeGeometryQuery.isPending}
-          isPlanRoutePending={workspace.planRouteMutation.isPending}
-          onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
-          onPlanRoute={(routeChoice) =>
-            workspace.planRouteMutation.mutate({
-              ...(routeChoice === undefined ? {} : { routeChoice }),
-              tripId: trip.id,
-            })
-          }
-          onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
-          tripStatus={trip.status}
-          vehicleId={trip.vehicleId === '' ? null : trip.vehicleId}
-        />
+        <>
+          {shouldShowRouteInvalidatedNotice({
+            isRouteFrozen: workspace.routeGeometryQuery.data?.frozen === true,
+            status: trip.status,
+            stopsCount: trip.stops.length,
+          }) ? (
+            <p className={styles.hint} role="status">
+              {t('routeMap.invalidatedNotice')}
+            </p>
+          ) : null}
+          <TripRouteMap
+            canAdjustTollBooth={canAdjustTollBooth}
+            canCorrect={canManage}
+            canManage={canManage}
+            geometry={workspace.routeGeometryQuery.data ?? null}
+            stops={trip.stops}
+            isCorrecting={workspace.correctAddressMutation.isPending}
+            isGeometryError={workspace.routeGeometryQuery.isError}
+            isGeometryPending={workspace.routeGeometryQuery.isPending}
+            isPlanRoutePending={workspace.planRouteMutation.isPending}
+            onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+            onPlanRoute={(routeChoice) =>
+              workspace.planRouteMutation.mutate({
+                ...(routeChoice === undefined ? {} : { routeChoice }),
+                tripId: trip.id,
+              })
+            }
+            onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
+            tripStatus={trip.status}
+            vehicleId={trip.vehicleId}
+          />
+        </>
       ) : null}
 
       {selection.selectedIds.size > 0 ? (

@@ -100,7 +100,7 @@ describeWithPostgres('fila de revisão das notas que não couberam (spec 148 T7)
         await admin.close({ timeout: 0 })
       }
     }
-  })
+  }, 60_000)
 
   async function releaseFirst(seeded: SeededTrip) {
     const [first] = seeded.documents

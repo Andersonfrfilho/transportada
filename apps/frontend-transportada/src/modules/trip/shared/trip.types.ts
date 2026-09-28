@@ -22,6 +22,8 @@ export const ROUTE_END_POLICIES = ['address', 'depot', 'last_stop'] as const
 export type RouteEndPolicy = (typeof ROUTE_END_POLICIES)[number]
 
 export const TRIP_STATUS = [
+  /** Spec 217 (D1): a viagem que ainda não tem motorista **e** veículo — o primeiro da máquina. */
+  'awaiting_crew',
   'cancelled',
   'completed',
   'dispatched',
@@ -95,7 +97,11 @@ export type Trip = Readonly<{
   requiresMdfeReason: null | string
   status: TripStatus
   updatedAt: string
-  vehicleId: string
+  /**
+   * Spec 217 (RF1/D1): `null` é a viagem `awaiting_crew` que ainda não tem veículo — nunca uma
+   * string vazia inventada. A tela mostra "a definir", nunca o vazio cru.
+   */
+  vehicleId: null | string
 }>
 
 /**
@@ -840,7 +846,18 @@ export type CreateTripBody = Readonly<{
   /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
   dailyAllowanceDays?: number
   driverIds: readonly string[]
-  vehicleId: string
+  /** Spec 217 (RF1/RF2): ausente é o rascunho sem veículo — a viagem nasce `awaiting_crew`. */
+  vehicleId?: string
+}>
+
+/**
+ * Spec 217 (RF4/RF6, D2/D3): `PATCH /trips/:id/crew`. Os dois campos são opcionais e cada um
+ * substitui a tripulação/veículo inteiros — nunca soma. Ausente é "não mexe nisto".
+ */
+export type ChangeTripCrewInput = Readonly<{
+  driverIds?: readonly string[]
+  tripId: string
+  vehicleId?: string
 }>
 
 export type LinkTripDocumentBody = Readonly<{

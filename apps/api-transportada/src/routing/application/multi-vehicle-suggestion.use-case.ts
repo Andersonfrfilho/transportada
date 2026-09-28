@@ -27,6 +27,7 @@ import type { RouteSuggestionAssumptions } from './route-suggestion.port.js'
 import type { RouteSuggestionRepository } from './route-suggestion.repository.js'
 import type { TripDocumentReviewReason } from '../../database/trip-document-review.schema.js'
 import type { RouteChoice } from '../../trips/domain/route-choice.policy.js'
+import { resolveCrewStatus } from '../../trips/domain/trip-state.policy.js'
 import {
   resolveAcceptReleasePlans,
   type AcceptReleaseEntry,
@@ -258,13 +259,28 @@ export function createMultiVehicleSuggestionUseCase(
             })
           }
 
-          /** A viagem sai daqui em `route_planned`: é o que a spec promete ao operador (RF-5). */
-          const routeChoice = routeChoiceByVehicleMap.get(group.vehicleId)
-          await dependencies.trips.planRoute({
-            context,
-            ...(routeChoice === undefined ? {} : { routeChoice }),
-            tripId,
-          })
+          /**
+           * A viagem sai daqui em `route_planned` — **quando a tripulação está completa** (RF-5).
+           *
+           * ⚠️ Spec 217 D10: o grupo sem motorista é legítimo (081 RF-5) e passa a nascer
+           * `awaiting_crew`, que por definição não planeja rota. Aqui ele fica em rascunho, com as
+           * notas vinculadas e as paradas na ordem do solver, esperando quem dirige — e o operador
+           * planeja a rota pelo botão depois de definir a tripulação. Chamar `planRoute` aqui
+           * responderia 409 `TRIP_CREW_NOT_DEFINED` e derrubaria o aceite inteiro do lote.
+           *
+           * A condição é `resolveCrewStatus`, a mesma função que decide o status no nascimento e na
+           * troca: uma regra, três leitoras, nenhuma chance de discordarem.
+           */
+          const bornReadyToPlan =
+            resolveCrewStatus({ hasDriver: group.driverId !== null, hasVehicle: true }) === 'draft'
+          if (bornReadyToPlan) {
+            const routeChoice = routeChoiceByVehicleMap.get(group.vehicleId)
+            await dependencies.trips.planRoute({
+              context,
+              ...(routeChoice === undefined ? {} : { routeChoice }),
+              tripId,
+            })
+          }
 
           /**
            * ⚠️ **Depois de `reorderStops`**: a parada só existe pela reconciliação do vínculo, e o

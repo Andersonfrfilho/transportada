@@ -1,0 +1,207 @@
+# Tasks — 217, o rascunho da viagem e a troca de tripulação
+
+> Lê-se depois de `spec.md` e `plan.md`. **Uma task por vez, teste de aceite antes da
+> implementação**, task só fecha com evidência em `evidence.md`.
+
+## Modelo por task
+
+| Marca | Classe   | Quando                                                                                |
+| ----- | -------- | ------------------------------------------------------------------------------------- |
+| 🧠    | `opus`   | máquina de estados, regressão de status, limpeza dos campos congelados, revisão final |
+| —     | `sonnet` | implementação e teste comuns                                                          |
+| ⚙️    | `haiku`  | mecânico: tipos opcionais, textos, tradução de código de erro                         |
+
+## Fase 1 — O status é função do par
+
+> 🤖 Modelo: `sonnet` (T101 e T103 são 🧠 — máquina de estados)
+
+- [x] **T101** 🧠 `opus` — Teste de contrato de `resolveCrewStatus` e do novo `checkDefineCrew`: par
+      completo → `draft`; só motorista → `awaiting_crew`; só veículo → `awaiting_crew`; nenhum dos
+      dois → `awaiting_crew`; a partir de `draft` com par completo → `unchanged`; a partir de `draft`
+      com par desfeito → `applied` para `awaiting_crew`. Opus porque é a máquina de estados que
+      sustenta a viagem. (RF3, D1)
+- [x] **T102** `sonnet` — Implementação do T101 em `trip-state.policy.ts`, com o tipo
+      `TripCrewComposition` e a função pura `resolveCrewStatus`. (RF3, D1)
+- [x] **T103** 🧠 `opus` — Teste de contrato HTTP + integração de `PATCH /trips/:id/crew` provando o
+      status derivado no banco, inclusive a regressão `draft → awaiting_crew` quando a tripulação é
+      desfeita, e que `trip_drivers` e `trips.vehicle_id` ficam coerentes com o status gravado.
+      (RF3, D1)
+- [x] **T104** `sonnet` — Implementação do T103: `updateCrew` no use case e no repositório param de
+      gravar `transition.nextStatus` cego e passam a gravar o status derivado do par. (RF3, D1)
+- [x] **T105** `sonnet` — Teste de contrato de `allowed-actions` provando que `planRoute` **não** é
+      oferecido em `awaiting_crew` e **é** oferecido em `draft`, sem nenhuma condição nova na
+      política — a prova de que D1 resolve a RF6 sozinha. (RF6, D1)
+
+## Fase 2 — A viagem nasce sem tripulação
+
+> 🤖 Modelo: `sonnet`
+
+- [x] **T201** `sonnet` — Teste de contrato HTTP: `POST /trips` sem `driverIds` e sem `vehicleId`
+      responde 201 com `awaiting_crew`; com só um dos dois, `awaiting_crew`; com os dois, `draft`
+      (sem regressão do comportamento atual). (RF2)
+- [x] **T202** `sonnet` — Implementação do T201: `createTripSchema` (`driverIds` mín. 0, `vehicleId`
+      opcional), `CreateTripInput`, e `TripUseCase.create` derivando o status por `resolveCrewStatus`
+      em vez de lançar `TripVehicleNotFoundError`. (RF2)
+- [x] **T203** `sonnet` — Teste de regressão da 081: aceite de sugestão multi-veículo com
+      `driverIds: []` continua criando a viagem certa, agora `awaiting_crew` quando sem veículo.
+      (RF2) — achado registrado em evidence.md: o passo `planRoute` do aceite (fora do escopo desta
+      task) quebra para grupo sem motorista; decisão de Fase 3.
+
+## Fase 2-bis — O aceite de sugestão desemboca no rascunho
+
+> 🤖 Modelo: `opus` — mexe no aceite que já está em produção
+>
+> Não estava no plano: nasceu da T203, que quebrou seis integrações do aceite multi-veículo. Ver D10.
+
+- [x] **T204** 🧠 `opus` — O aceite só planeja rota quando a tripulação nasce completa, pela condição
+      `resolveCrewStatus`. Grupo sem motorista fica `awaiting_crew` com veículo, notas, ordem das
+      paradas e horas do solver. Integração do aceite passa a provar status, ausência de rota e
+      ausência de pedágio congelados. (RF9, D10)
+
+## Fase 3A — Trocar o motorista de uma viagem planejada (URGENTE)
+
+> 🤖 Modelo: `opus` — mexe na máquina de estados
+>
+> **Cortada na frente por pedido do dono do produto em 2026-09-27**: é a necessidade operacional real
+> e imediata. E é a metade leve da troca: motorista não entra no cálculo da rota nem do pedágio
+> (097 D1/D3/D4), então não há coluna para zerar, replanejamento nem carga a reconferir. Fecha sozinha
+> e pode ir a staging sem a Fase 3B.
+>
+> ⚠️ **A fase vai até a tela.** O dono do produto foi explícito: "tem que ser pela tela". A T505 da
+> Fase 5 foi puxada para cá (T310) com o que ela exige do servidor (T309), porque uma troca que só
+> existe por `curl` não está entregue. O aviso ao motorista que perdeu a viagem (T602) continua na
+> Fase 6 — ele não bloqueia esta entrega, mas está nomeado no § "O que sobe na frente" do `plan.md`.
+
+- [x] **T301** 🧠 `opus` — Teste de contrato do corte novo: troca permitida em `awaiting_crew`,
+      `draft` e `route_planned`; recusada de `separating` em diante com `TRIP_SEPARATION_STARTED`;
+      `TRIP_CREW_ALREADY_DEFINED` não é mais lançada por ninguém. Inclui a tabela da D3-ter: troca só
+      de motorista em `route_planned` devolve `unchanged` (rota de pé), e par completado de novo sem
+      trocar caminhão restaura `route_planned`. (RF4, D2, D3-ter)
+- [x] **T302** 🧠 `opus` — Implementação do T301 em `trip-state.policy.ts`: `vehicleChanged` na
+      variante `defineCrew`, `resolveNextCrewStatus`, bloqueio novo, e remoção de
+      `tripCrewAlreadyDefined` com seu último uso. (RF4, D2, D3-ter)
+- [x] **T307** 🧠 `opus` — Caso de uso e repositório passam `vehicleChanged` (comparando o veículo
+      pedido com o gravado, sob o lock). Teste de **integração**: viagem `route_planned`, troca o
+      motorista, e no banco o status continua `route_planned`, `planned_route` e `planned_toll`
+      intactos, `trip_drivers` com o motorista novo e sem o antigo. (RF4, RF5, D3-ter)
+- [x] **T308** `sonnet` — Teste de integração do lado motorista para esta troca: a viagem passa a vir
+      em `GET /me/trips/current` para o motorista novo e deixa de vir para o antigo, sem nenhuma
+      mudança de código — o recorte já é por `trip_drivers`. Prova o efeito no PWA. (RF8)
+- [x] **T309** 🧠 `opus` — `allowed-actions` passa a **oferecer** `defineCrew`, porque a tela é
+      servida pelo servidor (D6) e não por `if` de status no frontend. ⚠️ Para esta ação, `unchanged`
+      também é "pode": trocar a tripulação de uma `draft` não muda o status e continua permitido — o
+      filtro atual só aceita `applied`. Teste de contrato: oferecida em `awaiting_crew`, `draft` e
+      `route_planned`; ausente de `separating` em diante, em `cancelled` e em `completed`; ausente
+      para quem não tem `trips.manage`. (RF6, D6)
+- [x] **T310** `sonnet` — **A tela.** Trocar motorista e veículo no detalhe da viagem, consumindo
+      `PATCH /trips/:id/crew` e oferecida por `allowed-actions`. Era a T505 da Fase 5, puxada para cá
+      por pedido do dono do produto em 2026-09-27: "tem que ser pela tela" — entregar a troca só por
+      API não é entregar a troca. Inclui o estado de erro do 409 da separação, filtrado por código
+      (`getApiErrorCode()`), nunca por texto de mensagem. (RF4, RF6, CREW-02)
+- [ ] **T311** `sonnet` — Revisão de design e usabilidade da tela da T310, com print. A regra da casa
+      é que UI fecha com print, e esta sobe para produção antes do resto da spec. (web.md §15)
+
+## Fase 3B — Trocar o veículo, e a rota que morre inteira
+
+> 🤖 Modelo: `opus` na fase inteira
+>
+> Depende da 3A (o corte e o `vehicleChanged` vêm de lá). É a metade caríssima: sete colunas zeradas,
+> replanejamento e carga a reconferir.
+
+- [x] **T303** 🧠 `opus` — Conferência campo a campo do congelador contra a lista da D3. **Feita**:
+      resultado na D3-bis e na D3-ter do `spec.md` — a lista encolheu de doze colunas para sete, o ETA
+      saiu, e nada que o congelador escreve ficou fora. (D3)
+- [x] **T304** 🧠 `opus` — Teste de integração da regressão: trocar o **veículo** de uma viagem
+      `route_planned` devolve `draft`, zera as sete colunas de `trips`, **preserva** as três de ETA
+      (D3-bis), e a leitura passa a devolver pedágio ausente em vez do antigo. Trocar pelo **mesmo**
+      veículo não apaga nada e não regride. (RF5, D3, D3-bis)
+- [x] **T305** 🧠 `opus` — Implementação do T304, na mesma transação de `updateCrew`, reaproveitando
+      `writePlannedRoute` com `route: null, toll: null` em vez de um `update` à mão — ⚠️ passando a
+      transação adiante, não abrindo uma segunda (ver `plan.md`). (RF5, D3)
+- [x] **T306** `sonnet` — Teste de ponta a ponta do ciclo: planejar rota → trocar veículo →
+      replanejar pela rota da 178 → o pedágio corresponde aos eixos do veículo novo. (RF5, D3)
+
+## Fase 4 — Gaps explícitos onde não há veículo
+
+> 🤖 Modelo: `sonnet` (T401 é 🧠 — ler valoração inteira antes)
+>
+> Herdada da Fase 3 pendente da 216, que agora tem usuário real: a RF1 cria viagem sem veículo.
+
+- [x] **T401** 🧠 `opus` — Reler `trip-valuation.query.ts` e `read-trip-valuation.use-case.ts`
+      inteiros (aviso da 216: o pedágio depende de veículo lido tardiamente). Desenhar o gap
+      (`noVehicle`, no molde do `noTripDriver` existente) e escrever o teste que prova: viagem sem
+      veículo devolve gap nomeado em custo de veículo e em pedágio, nunca lança.
+- [x] **T402** `sonnet` — Implementação do T401.
+- [x] **T403** `sonnet` — Teste + implementação: cargo-placement devolve `unavailable`
+      (`cargo-layout-availability.policy.ts`, `canRequestCargoLayout` já filtra por baú) quando a
+      viagem não tem veículo, em vez de erro.
+- [ ] **T404** `sonnet` — Teste de contrato de D4: trocar para veículo de baú menor faz nascer planta
+      nova (outro `input_hash`), a antiga fica como histórico, as notas que não couberam aparecem em
+      `trip_document_reviews`, e a troca responde 200. (D4)
+
+## Fase 5 — Frontend do painel
+
+> 🤖 Modelo: `sonnet` (T501 é ⚙️ `haiku`)
+
+- [x] **T501** ⚙️ `haiku` — `trip.types.ts`: `driverName`/`vehicleId` e campos relacionados viram
+      opcionais. Mecânico, sem decisão de UI. (T017 da 216)
+- [x] **T502** `sonnet` — Telas listadas no `plan.md` da 216 (`TripTable`, `TripDetail`,
+      `TripProposalRow`, `TripHeaderActions`, `FieldDeliveryWizard(Header)`, `TripRouteAssemblyDialog`,
+      `TripOccurrenceTable`, `TripReviewEntry`, `FieldOccurrenceDialog`) exibem "a definir" em vez de
+      vazio quando não há motorista/veículo. (RF7, T018 da 216)
+- [x] **T503** `sonnet` — `validateQuickCreate` devolve problemas por caminho: o rascunho não exige
+      motorista nem veículo, o clique único continua exigindo. Teste de contrato dos dois caminhos.
+      (RF1, D5)
+- [x] **T504** `sonnet` — Botão "Salvar rascunho" no diálogo de criação, chamando
+      `runQuickCreateTrip` sem o passo de planejar rota (parâmetro, não função copiada). Teste de
+      contrato provando a ordem das requisições e a ausência do `plan-route`. (RF1, D5)
+- [x] **T505** — **movida para a Fase 3A como T310** (pedido do dono do produto: a troca urgente tem
+      de sair pela tela, não por API). Fica aqui o rastro para quem for ler a Fase 5 isolada.
+- [x] **T506** `sonnet` — Selo de tripulação pendente na listagem de viagens `awaiting_crew`.
+      (RF7, T020 da 216)
+
+## Fase 6 — PWA do motorista
+
+> 🤖 Modelo: `sonnet` (T603 é ⚙️ `haiku`)
+
+- [x] **T601** `sonnet` — Teste de contrato do serviço que compara o snapshot local com a resposta
+      nova de `GET /me/trips/current`: viagem que estava no snapshot, não veio na resposta e não está
+      concluída/cancelada → estado "não é mais sua". Viagem concluída → nada de aviso (é o caso
+      normal). (RF8, D6)
+- [x] **T602** `sonnet` — Aviso na tela do `frontend-driver`, no molde de
+      `DriverForeignPendingNotice`, consumindo o T601. Um texto só serve para reatribuição e para
+      viagem devolvida a `draft`. (RF8, D6)
+- [x] **T603** ⚙️ `haiku` — `rejectionCauseLabel.service.ts` ganha texto de produto para
+      `TRIP_NOT_OF_DRIVER` e `TRIP_STOP_NOT_REACHABLE`. Teste de contrato provando que nenhum dos
+      dois cai no fallback do código cru. (RF8, D7)
+- [ ] **T604** `sonnet` — Teste de integração do lado motorista: motorista removido da tripulação
+      recebe 403/404 nas rotas `/me/*` conforme o caminho, e a viagem sai de
+      `GET /me/trips/current`. Prova também que viagem devolvida a `draft` sai da lista, porque
+      `draft` não está em `CURRENT_DRIVER_TRIP_STATUSES`. (RF8, D6)
+
+## Fase 7 — Fechamento
+
+> 🤖 Modelo: `opus`
+
+- [ ] **T701** `sonnet` — Revisão de design e usabilidade das telas novas (botão de rascunho, tela de
+      tripulação, selo, aviso do motorista), fechando com print de cada uma.
+- [ ] **T702** 🧠 `opus` — Revisão final: `make check` + `make migration-test` verdes; os dois
+      comandos de teste da API rodados separadamente (contrato **e** `test:integration` com
+      `--env-file=../../.env.test`, porque um não cobre o outro); contratos de regressão da 081, 148,
+      153, 178, MDF-e, valoração e cargo-placement passando; `evidence.md` consolidado com o modelo
+      usado em cada task.
+
+## Prompt de execução
+
+```text
+/oh-my-claudecode:autopilot Execute a spec specs/217-o-rascunho-da-viagem-e-a-troca-de-tripulacao/
+(leia spec.md, plan.md e tasks.md antes de começar). Uma task por vez, na ordem do tasks.md.
+Modelos: Fase 1 → executor model=sonnet (T101 e T103 🧠 → opus) · Fase 2 → executor model=sonnet ·
+Fase 3 inteira → opus · Fase 4 → executor model=sonnet (T401 🧠 → opus) · Fase 5 → executor
+model=sonnet (T501 model=haiku) · Fase 6 → executor model=sonnet (T603 model=haiku) ·
+T701 → designer · T702 → opus (ou code-reviewer model=opus).
+Cada task fecha com typecheck + testes + commit isolado, evidência em evidence.md. Teste novo entra
+na lista explícita do package.json da app, senão não roda.
+Pare e pergunte antes de: deploy, migration destrutiva, e antes de implementar a T305 se a
+conferência da T303 achar campo congelado fora da lista de D3.
+```

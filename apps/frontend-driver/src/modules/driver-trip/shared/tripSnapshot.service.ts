@@ -16,6 +16,11 @@ export const TRIP_SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 /** Viagem encerrada não se entrega mais — snapshot só com elas não tem o que mostrar sem rede. */
 const CONCLUDED_TRIP_STATUSES: ReadonlySet<string> = new Set(['completed', 'cancelled'])
 
+/** RF8/D6: viagem concluída ou cancelada some da lista pelo caminho normal, sem aviso nenhum. */
+export function isConcludedTripStatus(status: string): boolean {
+  return CONCLUDED_TRIP_STATUSES.has(status)
+}
+
 export type StoredTripSnapshot = Readonly<{
   savedAt: string
   snapshot: DriverTripSnapshot
@@ -53,7 +58,7 @@ export function isStoredTripSnapshot(value: unknown): value is StoredTripSnapsho
 
 /** Lista vazia conta como concluída: resposta sem viagem apaga o snapshot (plan D5). */
 export function hasOnlyConcludedTrips(snapshot: DriverTripSnapshot): boolean {
-  return snapshot.trips.every((trip) => CONCLUDED_TRIP_STATUSES.has(trip.status))
+  return snapshot.trips.every((trip) => isConcludedTripStatus(trip.status))
 }
 
 export function isTripSnapshotUsable(input: {

@@ -165,13 +165,29 @@ describe('o aceite da multi-veículo contra Postgres (spec 058 P2)', () => {
 
       for (const trip of accepted.trips) {
         const [row] = await database.db
-          .select({ status: trips.status, vehicleId: trips.vehicleId })
+          .select({
+            plannedRoute: trips.plannedRoute,
+            plannedToll: trips.plannedToll,
+            status: trips.status,
+            vehicleId: trips.vehicleId,
+          })
           .from(trips)
           .where(and(eq(trips.companyId, world.companyId), eq(trips.id, trip.tripId)))
 
-        /** A viagem sai do aceite em `route_planned` — é o que a spec promete ao operador (RF-5). */
-        expect(row?.status).toBe('route_planned')
+        /**
+         * Spec 217 D10: o grupo sugerido **sem motorista** (081 RF-5 o mantém legítimo) sai do
+         * aceite em `awaiting_crew`, não mais em `route_planned` — e por isso sem rota e sem pedágio
+         * congelados. O trabalho do rascunho fica todo lá (veículo, notas, ordem das paradas, horas
+         * do solver) e o operador planeja a rota depois de definir quem dirige.
+         *
+         * ⚠️ O que este teste prende é o aceite **não estourar**: antes da D10 ele chamava
+         * `planRoute` numa viagem `awaiting_crew` e tomava 409 `TRIP_CREW_NOT_DEFINED`, derrubando o
+         * lote inteiro.
+         */
+        expect(row?.status).toBe('awaiting_crew')
         expect(row?.vehicleId).toBe(trip.vehicleId)
+        expect(row?.plannedRoute).toBeNull()
+        expect(row?.plannedToll).toBeNull()
 
         const linked = await database.db
           .select({ id: tripDocuments.id })
@@ -529,7 +545,7 @@ beforeAll(async () => {
   } finally {
     await admin.close({ timeout: 0 })
   }
-})
+}, 60_000)
 
 afterAll(async () => {
   if (databaseUrl === undefined || shared === undefined) return

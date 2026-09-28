@@ -354,6 +354,18 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       { driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE },
       { driverId: null, vehicleId: SECOND_VEHICLE },
     ])
+
+    /**
+     * Spec 217 D10: **só o grupo com motorista é roteirizado.** O sem motorista nasce
+     * `awaiting_crew`, e `awaiting_crew` recusa `planRoute` — chamar o planejamento nele responderia
+     * 409 `TRIP_CREW_NOT_DEFINED` e derrubaria o aceite do lote inteiro, que foi o defeito que a T203
+     * revelou em seis integrações.
+     *
+     * ⚠️ Esta asserção é o par da de cima: a viagem existe (`calls.trip` com dois) **e** o
+     * planejamento não foi chamado para a que não tem quem dirija (`calls.plan` com um).
+     */
+    expect(fixture.calls.plan).toHaveLength(1)
+    expect(fixture.calls.plan).toMatchObject([{ tripId: 'trip-1' }])
   })
 
   /** Publicar antes de a linha existir abriria a janela em que o worker busca o que não foi gravado. */
@@ -397,7 +409,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [FIRST_DOCUMENT],
           documentIdsByAddressKey: new Map(),
-          driverId: null,
+          driverId: FIRST_DRIVER,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
           vehicleId: FIRST_VEHICLE,
@@ -405,7 +417,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [SECOND_DOCUMENT],
           documentIdsByAddressKey: new Map(),
-          driverId: null,
+          driverId: FIRST_DRIVER,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|200'],
           vehicleId: SECOND_VEHICLE,
@@ -418,7 +430,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     expect(accepted.trips).toEqual([
       {
         documentCount: 1,
-        driverId: null,
+        driverId: FIRST_DRIVER,
         estimatedFinishAt: null,
         stopCount: 1,
         tripId: 'trip-1',
@@ -426,7 +438,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       },
       {
         documentCount: 1,
-        driverId: null,
+        driverId: FIRST_DRIVER,
         estimatedFinishAt: null,
         stopCount: 1,
         tripId: 'trip-2',
@@ -456,7 +468,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     const GROUP = {
       documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
       documentIdsByAddressKey: new Map(),
-      driverId: null,
+      driverId: FIRST_DRIVER,
       estimatedArrivalByAddressKey: new Map(),
       orderedAddressKeys: ['chave-1'],
       vehicleId: FIRST_VEHICLE,
@@ -756,7 +768,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [FIRST_DOCUMENT],
           documentIdsByAddressKey: new Map(),
-          driverId: null,
+          driverId: FIRST_DRIVER,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
           vehicleId: FIRST_VEHICLE,
@@ -764,7 +776,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [SECOND_DOCUMENT],
           documentIdsByAddressKey: new Map(),
-          driverId: null,
+          driverId: FIRST_DRIVER,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|200'],
           vehicleId: SECOND_VEHICLE,
@@ -852,7 +864,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [FIRST_DOCUMENT],
           documentIdsByAddressKey: new Map(),
-          driverId: null,
+          driverId: FIRST_DRIVER,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
           vehicleId: FIRST_VEHICLE,
@@ -860,7 +872,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [SECOND_DOCUMENT],
           documentIdsByAddressKey: new Map(),
-          driverId: null,
+          driverId: FIRST_DRIVER,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|200'],
           vehicleId: SECOND_VEHICLE,
@@ -892,7 +904,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
           {
             documentIds: [FIRST_DOCUMENT],
             documentIdsByAddressKey: new Map(),
-            driverId: null,
+            driverId: FIRST_DRIVER,
             estimatedArrivalByAddressKey: new Map([
               [A, '2026-09-10T11:00:00.000Z'],
               [B, '2026-09-10T11:30:00.000Z'],
@@ -904,7 +916,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
           {
             documentIds: [SECOND_DOCUMENT],
             documentIdsByAddressKey: new Map(),
-            driverId: null,
+            driverId: FIRST_DRIVER,
             estimatedArrivalByAddressKey: new Map([[OTHER_TRUCK, '2026-09-10T11:00:00.000Z']]),
             orderedAddressKeys: [OTHER_TRUCK],
             vehicleId: SECOND_VEHICLE,
@@ -985,7 +997,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
               [B, ['nota-b']],
               [C, ['nota-c']],
             ]),
-            driverId: null,
+            driverId: FIRST_DRIVER,
             estimatedArrivalByAddressKey: new Map([[A, '2026-09-10T11:00:00.000Z']]),
             orderedAddressKeys: [A, B, C],
             vehicleId: FIRST_VEHICLE,
@@ -993,7 +1005,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
           {
             documentIds: ['nota-outro'],
             documentIdsByAddressKey: new Map([[OTHER_TRUCK, ['nota-outro']]]),
-            driverId: null,
+            driverId: FIRST_DRIVER,
             estimatedArrivalByAddressKey: new Map([[OTHER_TRUCK, '2026-09-10T11:00:00.000Z']]),
             orderedAddressKeys: [OTHER_TRUCK],
             vehicleId: SECOND_VEHICLE,
@@ -1154,7 +1166,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
           {
             documentIds: [FIRST_DOCUMENT],
             documentIdsByAddressKey: new Map(),
-            driverId: null,
+            driverId: FIRST_DRIVER,
             estimatedArrivalByAddressKey: new Map(),
             orderedAddressKeys: ['3543402|14020000|100'],
             vehicleId: FIRST_VEHICLE,
@@ -1162,7 +1174,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
           {
             documentIds: [SECOND_DOCUMENT],
             documentIdsByAddressKey: new Map(),
-            driverId: null,
+            driverId: FIRST_DRIVER,
             estimatedArrivalByAddressKey: new Map(),
             orderedAddressKeys: ['3543402|14020000|200'],
             vehicleId: SECOND_VEHICLE,

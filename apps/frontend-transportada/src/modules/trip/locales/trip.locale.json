@@ -407,6 +407,27 @@
     "vehiclePlaceholder": "Selecione o veículo",
     "vehicleSearch": "Buscar por placa, marca ou modelo"
   },
+  "crewDialog": {
+    "drivers": "Motoristas",
+    "driversClearAll": "Retirar todos",
+    "driversEmpty": "Cadastre um motorista ativo na frota antes de trocar a tripulação.",
+    "driversNoMatch": "Nenhum motorista encontrado",
+    "driversPlaceholder": "Escolher motoristas",
+    "driversRemove": "Retirar este motorista",
+    "driversSearch": "Buscar por nome",
+    "driversSummary": "{{count}} motorista escolhido",
+    "driversSummary_other": "{{count}} motoristas escolhidos",
+    "error": {
+      "generic": "Não foi possível trocar a tripulação agora. Tente de novo.",
+      "separationStarted": "A separação da carga já começou: esta viagem não aceita mais troca de motorista ou veículo."
+    },
+    "subtitle": "A troca substitui a tripulação e o veículo inteiros — não é possível somar.",
+    "submit": "Confirmar troca",
+    "title": "Trocar motorista e veículo",
+    "vehicle": "Veículo",
+    "vehiclePlaceholder": "Selecione o veículo",
+    "vehicleSearch": "Buscar por placa, marca ou modelo"
+  },
   "dateRange": {
     "clear": "Limpar período",
     "nextMonth": "Próximo mês",
@@ -1039,6 +1060,7 @@
     "stagedCount": "{{count}} nota entra na viagem.",
     "stagedCount_other": "{{count}} notas entram na viagem.",
     "submit": "Criar viagem",
+    "submitDraft": "Salvar rascunho",
     "title": "Nova viagem",
     "weightEstimated": "estimado",
     "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
@@ -1174,6 +1196,7 @@
       "title": "Critério da rota"
     },
     "geometryUnavailable": "Não foi possível traçar a estrada agora. A linha reta entre as paradas continua abaixo.",
+    "invalidatedNotice": "O roteiro desta viagem não está montado. Se você trocou o veículo, o roteiro e o pedágio calculados para o caminhão anterior foram descartados. Clique em «$t(stateActions.planRoute)» para montar o roteiro e calcular o pedágio.",
     "latitude": "Latitude",
     "loadingGeometry": "Traçando a estrada entre as paradas…",
     "longitude": "Longitude",
@@ -1333,6 +1356,7 @@
     "batchSeparate": "Separar {{count}} nota",
     "batchSeparate_other": "Separar {{count}} notas",
     "cancel": "Cancelar viagem",
+    "defineCrew": "Trocar motorista/veículo",
     "dispatch": "Despachar",
     "dispatchConfirmTitle": "Despachar a viagem",
     "dispatchUnderstood": "Entendi",
@@ -1364,6 +1388,7 @@
     "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega."
   },
   "status": {
+    "awaiting_crew": "Aguardando tripulação",
     "cancelled": "Cancelada",
     "completed": "Concluída",
     "dispatched": "Despachada",
@@ -1441,6 +1466,7 @@
     "tollUnknown": "tarifa não conhecida"
   },
   "title": "Viagens",
+  "toDefine": "A definir",
   "tripsTitle": "Viagens",
   "valuation": {
     "cost": "Custo previsto",
@@ -1465,6 +1491,7 @@
       "NO_PLANNED_DISTANCE": "roteiro ainda não calculado — o combustível entra depois",
       "NO_PLANNED_DURATION": "duração do roteiro desconhecida — informe quantas diárias a viagem paga",
       "NO_TRIP_DRIVER": "viagem sem condutor — não há a quem pagar a diária",
+      "NO_VEHICLE": "viagem sem veículo — escolha o caminhão para a conta fechar",
       "SALARIED_CREW_MEMBER": "há motorista assalariado — custo do período, não da viagem",
       "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
       "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
