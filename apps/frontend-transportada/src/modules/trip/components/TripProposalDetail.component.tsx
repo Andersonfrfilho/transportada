@@ -31,7 +31,6 @@ import type { RouteChoice } from '../shared/routeGeometry.service'
 import { TRIP_MANAGE_PERMISSION } from '../shared/trip.constant'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
-import type { RouteChoice } from '../shared/routeGeometry.service'
 import { TripReviewQueue } from './TripReviewQueue.component'
 import { TripValuationPreview } from './TripValuationPreview.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
@@ -72,7 +71,6 @@ type TripProposalDetailProps = Readonly<{
   }>
   /** D7: a rota escolhida **deste** veículo — nunca a de outro na mesma proposta. */
   routeChoice: RouteChoice
-  onRouteChoiceChange: (routeChoice: RouteChoice) => void
   valuation: null | SuggestionVehicleValuation
   vehicle: FleetVehicleDetail | undefined
   view: ProposalVehicleView
@@ -104,7 +102,6 @@ export function TripProposalDetail({
   preferredRouteChoice,
   releaseUnplaced,
   routeChoice,
-  onRouteChoiceChange,
   valuation,
   vehicle,
   view,

@@ -313,7 +313,6 @@ export function useTripRouteAssembly(
       setDraftOrderByVehicle(new Map())
       setStopMoves(new Map())
       setDraftStopMoves(new Map())
-      setRouteChoiceByVehicle(new Map())
     },
   })
 
@@ -539,8 +538,6 @@ export function useTripRouteAssembly(
     pendingRemovals,
     orderByVehicle,
     routeChoiceByVehicle,
-    setVehicleRouteChoice: (vehicleId: string, routeChoice: RouteChoice) =>
-      setRouteChoiceByVehicle((current) => new Map([...current, [vehicleId, routeChoice]])),
     draftOrderByVehicle,
     displayStops,
     /** Caminhões com movimento em rascunho: eles pausam as três medições até alguém salvar. */
@@ -650,7 +647,6 @@ export function useTripRouteAssembly(
     resumeSuggestion: () => {
       if (pendingSuggestionId !== null) proposeMutation.mutate(pendingSuggestionId)
     },
-    routeChoiceByVehicle,
     bindings,
     availableDocuments: documentsQuery.data ?? [],
     documentsQuery,

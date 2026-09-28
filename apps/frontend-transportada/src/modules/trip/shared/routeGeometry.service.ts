@@ -143,17 +143,15 @@ export type RouteCostGap = (typeof ROUTE_COST_GAPS)[number]
 export const ROUTE_CHOICE_CRITERIA = ['cheapest', 'fastest', 'no_toll', 'alternative'] as const
 export type RouteChoiceCriterion = (typeof ROUTE_CHOICE_CRITERIA)[number]
 
-/** A rota que o operador viu: a assinatura a identifica, o critério é o plano B (spec 153 D3). */
+/**
+ * A rota que o operador viu: a assinatura a identifica, o critério é o plano B (spec 153 D3). É
+ * também o que `onRouteChoiceChange` manda ao sair do componente (spec 153 T402) — a mesma forma
+ * que a viagem grava ao regravar a rota escolhida por `plan-route`.
+ */
 export type RouteChoice = Readonly<{
   criterion: RouteChoiceCriterion
   signature: null | string
 }>
-
-/**
- * O que `onRouteChoiceChange` manda ao sair do componente (spec 153 T402) — a mesma forma que a
- * viagem grava ao regravar a rota escolhida por `plan-route`.
- */
-export type RouteChoice = Readonly<{ criterion: RouteChoiceCriterion; signature: null | string }>
 
 /** D1: a mais barata é o default — quem nunca tocou o seletor aceitou esta opção (spec 153 T404). */
 export const DEFAULT_ROUTE_CHOICE: RouteChoice = { criterion: 'cheapest', signature: null }

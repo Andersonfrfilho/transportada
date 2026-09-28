@@ -324,7 +324,13 @@ describe('TripProposalDetail: recebe e repassa a escolha do próprio veículo (s
   test('a prop de escolha e o callback de troca existem, tipados por RouteChoice', () => {
     expect(source).toInclude("import type { RouteChoice } from '../shared/routeGeometry.service'")
     expect(source).toInclude('routeChoice: RouteChoice')
-    expect(source).toInclude('onRouteChoiceChange: (routeChoice: RouteChoice) => void')
+    /**
+     * Reconciliação com `assembly-route-choice.contract.ts` (staging): o callback repassado ao mapa
+     * (`TripAssemblyMap.onRouteChoiceChange`) aceita `RouteChoice | undefined` — a rota some enquanto
+     * a estrada ainda está sendo medida (spec 153 D2, revisão pós-fusão). Um `onRouteChoiceChange`
+     * que só aceitasse `RouteChoice` não passaria nesse repasse.
+     */
+    expect(source).toInclude('onRouteChoiceChange: (choice: RouteChoice | undefined) => void')
   })
 
   test('repassa a escolha e o callback ao mapa da montagem', () => {

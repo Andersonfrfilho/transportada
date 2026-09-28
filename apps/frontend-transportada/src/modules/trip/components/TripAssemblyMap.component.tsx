@@ -477,10 +477,17 @@ export function TripAssemblyMap({
   /**
    * ⚠️ O callback fica numa referência, fora das dependências: quem hospeda o mapa costuma passar
    * uma função nova a cada render, e com ela o efeito publicaria a cada render.
+   *
+   * ⚠️ Nome distinto de `onRouteChoiceChangeRef` (acima): esta segunda publicação é a via
+   * `resolveAssemblyRouteChoice`/`isRouteChoiceSettled`, testada por
+   * `assembly-route-choice.contract.ts`; a primeira é a via `resolveRouteChoiceEmission`, testada
+   * por `assembly-route-selector.contract.ts`/`route-choice-switch.contract.ts`. Duas revisões da
+   * spec 153 resolveram o mesmo problema (publicar a escolha ao pai) por caminhos diferentes antes
+   * de convergirem no reconcile; unificar as duas é dívida registrada, não desta task.
    */
-  const onRouteChoiceChangeRef = useRef(onRouteChoiceChange)
+  const assemblyRouteChoiceChangeRef = useRef(onRouteChoiceChange)
   useEffect(() => {
-    onRouteChoiceChangeRef.current = onRouteChoiceChange
+    assemblyRouteChoiceChangeRef.current = onRouteChoiceChange
   }, [onRouteChoiceChange])
   /**
    * ⚠️ Enquanto a estrada é medida (rascunho ou resposta a caminho) nada é publicado: `undefined`
@@ -493,7 +500,7 @@ export function TripAssemblyMap({
   })
   useEffect(() => {
     if (!isChoiceSettled) return
-    onRouteChoiceChangeRef.current?.(stableRouteChoice)
+    assemblyRouteChoiceChangeRef.current?.(stableRouteChoice)
   }, [isChoiceSettled, stableRouteChoice])
 
   /** Enquanto a sonda não responde, as telhas tentam — trocar de desenho depois pisca menos que antes. */
