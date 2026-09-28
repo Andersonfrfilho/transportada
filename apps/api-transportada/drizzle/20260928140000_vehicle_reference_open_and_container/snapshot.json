@@ -1,6 +1,6 @@
 {
   "dialect": "postgres",
-  "id": "6146ddd1-e7f8-4416-aec1-aa640ec5b2a9",
+  "id": "8c4f033d-4e16-4184-a51a-d92eca79cce0",
   "prevIds": [
     "aa049417-709f-4434-b62d-07126ecfe27f"
   ],
@@ -111,6 +111,12 @@
     {
       "isRlsEnabled": false,
       "name": "company_contacts",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "company_crew_settings",
       "entityType": "tables",
       "schema": "public"
     },
@@ -423,6 +429,12 @@
     {
       "isRlsEnabled": false,
       "name": "digital_certificates",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "driver_assignment_feedback",
       "entityType": "tables",
       "schema": "public"
     },
@@ -920,6 +932,12 @@
     },
     {
       "isRlsEnabled": false,
+      "name": "route_suggestion_vehicle_helpers",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
       "name": "route_suggestion_vehicles",
       "entityType": "tables",
       "schema": "public"
@@ -987,6 +1005,12 @@
     {
       "isRlsEnabled": false,
       "name": "trip_document_occurrence_attachments",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "trip_document_occurrence_corrections",
       "entityType": "tables",
       "schema": "public"
     },
@@ -4184,6 +4208,58 @@
       "entityType": "columns",
       "schema": "public",
       "table": "company_contacts"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_crew_settings"
+    },
+    {
+      "type": "numeric(19,4)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "helper_daily_rate",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_crew_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_crew_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_crew_settings"
     },
     {
       "type": "uuid",
@@ -12126,6 +12202,123 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "suggestion_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "vehicle_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recommended_driver_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "chosen_driver_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "energy_tariff_references"
     },
     {
@@ -13125,6 +13318,32 @@
       "generated": null,
       "identity": null,
       "name": "daily_allowance_amount",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "fleet_drivers"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "can_act_as_helper",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "fleet_drivers"
+    },
+    {
+      "type": "numeric(19,4)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "helper_daily_rate",
       "entityType": "columns",
       "schema": "public",
       "table": "fleet_drivers"
@@ -26036,6 +26255,84 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "suggestion_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "vehicle_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "driver_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "route_suggestion_vehicles"
     },
     {
@@ -26086,6 +26383,19 @@
       "generated": null,
       "identity": null,
       "name": "driver_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "route_suggestion_vehicles"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "driver_source",
       "entityType": "columns",
       "schema": "public",
       "table": "route_suggestion_vehicles"
@@ -28090,6 +28400,84 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "occurrence_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "previous_items",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "corrected_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "trip_document_occurrence_products"
     },
     {
@@ -28335,6 +28723,45 @@
       "generated": null,
       "identity": null,
       "name": "attachment_object_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cancelled_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cancelled_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cancellation_reason",
       "entityType": "columns",
       "schema": "public",
       "table": "trip_document_occurrences"
@@ -28855,6 +29282,19 @@
       "generated": null,
       "identity": null,
       "name": "position",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_drivers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'driver'",
+      "generated": null,
+      "identity": null,
+      "name": "role",
       "entityType": "columns",
       "schema": "public",
       "table": "trip_drivers"
@@ -31403,6 +31843,32 @@
       "generated": null,
       "identity": null,
       "name": "close_reason",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_journey_seconds",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_journey_includes_return",
       "entityType": "columns",
       "schema": "public",
       "table": "trips"
@@ -34790,6 +35256,41 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "vehicle_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "driver_assignment_feedback_company_vehicle_created_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "user_id",
           "isExpression": false,
           "asc": true,
@@ -37632,6 +38133,41 @@
           "opclass": null
         },
         {
+          "value": "occurrence_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_document_occurrence_corrections_company_occurrence_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
           "value": "on_behalf_of_driver_id",
           "isExpression": false,
           "asc": true,
@@ -39578,6 +40114,23 @@
       "table": "company_contacts"
     },
     {
+      "nameExplicit": false,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "company_crew_settings_company_id_companies_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "company_crew_settings"
+    },
+    {
       "nameExplicit": true,
       "columns": [
         "company_id"
@@ -41412,6 +41965,118 @@
       "entityType": "fks",
       "schema": "public",
       "table": "digital_certificates"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "driver_assignment_feedback_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "suggestion_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "route_suggestions",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "driver_assignment_feedback_suggestion_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "vehicle_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fleet_vehicles",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "driver_assignment_feedback_vehicle_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "recommended_driver_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fleet_drivers",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "driver_assignment_feedback_recommended_driver_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "chosen_driver_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fleet_drivers",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "driver_assignment_feedback_chosen_driver_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "actor_user_id",
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "user_id",
+        "company_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "driver_assignment_feedback_actor_membership_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
     },
     {
       "nameExplicit": false,
@@ -44762,6 +45427,63 @@
     {
       "nameExplicit": true,
       "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "route_suggestion_vehicle_helpers_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "suggestion_id",
+        "vehicle_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "route_suggestion_vehicles",
+      "columnsTo": [
+        "company_id",
+        "suggestion_id",
+        "vehicle_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "route_suggestion_vehicle_helpers_vehicle_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "driver_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fleet_drivers",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "route_suggestion_vehicle_helpers_driver_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
         "company_id",
         "suggestion_id"
       ],
@@ -45287,6 +46009,61 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_corrections_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "occurrence_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trip_document_occurrences",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_corrections_company_occurrence_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "corrected_by_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "company_id",
+        "user_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrence_corrections_company_corrected_by_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "trip_document_occurrence_products_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -45381,6 +46158,25 @@
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_document_occurrences_company_object_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "cancelled_by_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "company_id",
+        "user_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_document_occurrences_company_cancelled_by_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "trip_document_occurrences"
@@ -47098,6 +47894,16 @@
         "company_id"
       ],
       "nameExplicit": false,
+      "name": "company_crew_settings_pkey",
+      "schema": "public",
+      "table": "company_crew_settings",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "company_id"
+      ],
+      "nameExplicit": false,
       "name": "company_delivery_proof_settings_pkey",
       "schema": "public",
       "table": "company_delivery_proof_settings",
@@ -47571,6 +48377,16 @@
       "name": "digital_certificates_pkey",
       "schema": "public",
       "table": "digital_certificates",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "driver_assignment_feedback_pkey",
+      "schema": "public",
+      "table": "driver_assignment_feedback",
       "entityType": "pks"
     },
     {
@@ -48338,6 +49154,16 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "route_suggestion_vehicle_helpers_pkey",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "route_suggestion_vehicles_pkey",
       "schema": "public",
       "table": "route_suggestion_vehicles",
@@ -48441,6 +49267,16 @@
       "name": "trip_document_occurrence_attachments_pkey",
       "schema": "public",
       "table": "trip_document_occurrence_attachments",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "trip_document_occurrence_corrections_pkey",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections",
       "entityType": "pks"
     },
     {
@@ -49764,6 +50600,19 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "digital_certificates"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "suggestion_id",
+        "vehicle_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "driver_assignment_feedback_company_suggestion_vehicle_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
     },
     {
       "nameExplicit": true,
@@ -51194,6 +52043,19 @@
     {
       "nameExplicit": true,
       "columns": [
+        "company_id",
+        "suggestion_id",
+        "driver_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "route_suggestion_vehicle_helpers_suggestion_driver_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "route_suggestion_vehicle_helpers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
         "suggestion_id",
         "driver_id"
       ],
@@ -51223,6 +52085,19 @@
       ],
       "nullsNotDistinct": false,
       "name": "route_suggestion_vehicles_suggestion_position_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "route_suggestion_vehicles"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "suggestion_id",
+        "vehicle_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "route_suggestion_vehicles_company_suggestion_vehicle_unique",
       "entityType": "uniques",
       "schema": "public",
       "table": "route_suggestion_vehicles"
@@ -51384,6 +52259,18 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "trip_document_occurrence_attachments"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "trip_document_occurrence_corrections_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "trip_document_occurrence_corrections"
     },
     {
       "nameExplicit": true,
@@ -52275,6 +53162,13 @@
       "entityType": "checks",
       "schema": "public",
       "table": "company_contacts"
+    },
+    {
+      "value": "\"helper_daily_rate\" is null or \"helper_daily_rate\" >= 0",
+      "name": "company_crew_settings_helper_daily_rate_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_crew_settings"
     },
     {
       "value": "\"receiver_name\" in ('required', 'optional', 'off')",
@@ -53866,6 +54760,13 @@
       "table": "digital_certificates"
     },
     {
+      "value": "\"recommended_driver_id\" is not null or \"chosen_driver_id\" is not null",
+      "name": "driver_assignment_feedback_driver_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "driver_assignment_feedback"
+    },
+    {
       "value": "length(\"distributor_code\") > 0 and \"distributor_code\" = upper(\"distributor_code\") and \"distributor_tax_id\" ~ '^[A-Z0-9]{12}[0-9]{2}$'",
       "name": "energy_tariff_references_distributor_check",
       "entityType": "checks",
@@ -54204,6 +55105,13 @@
     {
       "value": "\"status\" in ('active', 'inactive')",
       "name": "fleet_drivers_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "fleet_drivers"
+    },
+    {
+      "value": "\"helper_daily_rate\" is null or \"helper_daily_rate\" >= 0",
+      "name": "fleet_drivers_helper_daily_rate_check",
       "entityType": "checks",
       "schema": "public",
       "table": "fleet_drivers"
@@ -56680,6 +57588,13 @@
       "table": "route_suggestion_vehicles"
     },
     {
+      "value": "\"driver_source\" is null or (\"driver_id\" is not null and \"driver_source\" in ('link', 'recommended', 'manual'))",
+      "name": "route_suggestion_vehicles_driver_source_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "route_suggestion_vehicles"
+    },
+    {
       "value": "\"status\" in ('queued', 'running', 'ready', 'accepted', 'rejected', 'failed', 'stale')",
       "name": "route_suggestions_status_check",
       "entityType": "checks",
@@ -57093,6 +58008,13 @@
       "table": "trip_document_occurrences"
     },
     {
+      "value": "(\"cancelled_at\" is null) = (\"cancelled_by_user_id\" is null)\n        and (\"cancelled_at\" is null) = (\"cancellation_reason\" is null)",
+      "name": "trip_document_occurrences_cancellation_presence_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_document_occurrences"
+    },
+    {
       "value": "\"status\" in ('pending', 'moved', 'swapped_in', 'relinked')",
       "name": "trip_document_reviews_status_check",
       "entityType": "checks",
@@ -57177,6 +58099,20 @@
       "table": "trip_drivers"
     },
     {
+      "value": "\"role\" in ('driver', 'helper')",
+      "name": "trip_drivers_role_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_drivers"
+    },
+    {
+      "value": "\"position\" <> 1 or \"role\" = 'driver'",
+      "name": "trip_drivers_lead_role_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_drivers"
+    },
+    {
       "value": "length(\"idempotency_key\") > 0",
       "name": "trip_field_reports_key_check",
       "entityType": "checks",
@@ -57205,7 +58141,7 @@
       "table": "trip_field_reports"
     },
     {
-      "value": "\"kind\" in ('driver', 'fuel', 'other_per_kilometer', 'delivery_charges', 'toll', 'manual', 'icms', 'pis_cofins')",
+      "value": "\"kind\" in ('driver', 'fuel', 'other_per_kilometer', 'delivery_charges', 'toll', 'manual', 'helper', 'icms', 'pis_cofins')",
       "name": "trip_financial_parcels_kind_check",
       "entityType": "checks",
       "schema": "public",
@@ -57725,6 +58661,20 @@
     {
       "value": "\"daily_allowance_days\" is null or \"daily_allowance_days\" >= 1",
       "name": "trips_daily_allowance_days_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "value": "(\"planned_journey_seconds\" is null) = (\"planned_journey_includes_return\" is null)",
+      "name": "trips_planned_journey_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trips"
+    },
+    {
+      "value": "\"planned_journey_seconds\" is null or \"planned_journey_seconds\" >= 0",
+      "name": "trips_planned_journey_seconds_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trips"

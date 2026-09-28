@@ -352,7 +352,8 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
 
     test('leaves every other action untouched, requiresTrailer absent or not', () => {
       for (const action of Object.values(TRIP_ACTION)) {
-        if (action === TRIP_ACTION.dispatch) continue
+        // defineCrew exige crew/vehicleChanged (spec 217 D1) — fora do que requiresTrailer decide.
+        if (action === TRIP_ACTION.dispatch || action === TRIP_ACTION.defineCrew) continue
         const without = checkTripTransition({ action, hasRoute: true, tripStatus: 'draft' })
         const withTrue = checkTripTransition({
           action,

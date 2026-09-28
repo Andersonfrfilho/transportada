@@ -1186,6 +1186,7 @@ describe('a troca de tripulação some/aparece na tela do motorista, sem código
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         await freezeRoutePlannedTrip(database.db, created.id)
@@ -1276,6 +1277,7 @@ describe('a troca de tripulação some/aparece na tela do motorista, sem código
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         await freezeRoutePlannedTrip(database.db, created.id)

@@ -973,7 +973,7 @@ export function TripDetail({
         layout={trip.cargoLayout}
         layoutView={workspace.cargoLayoutView}
         occupancy={trip.occupancy}
-        vehicleId={trip.vehicleId}
+        vehicleId={trip.vehicleId ?? ''}
         reviewQueue={
           <TripReviewQueue
             canManage={canManage}

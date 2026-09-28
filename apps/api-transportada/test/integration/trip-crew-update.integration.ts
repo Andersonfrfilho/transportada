@@ -131,6 +131,7 @@ async function createAwaitingCrewTrip(
     channel: TRIP_FIELD_CHANNELS.backoffice,
     companyId: fleet.companyId,
     crew: [],
+    trailerVehicleId: null,
     vehicleId: null,
   })
   await database.update(trips).set({ status: 'awaiting_crew' }).where(eq(trips.id, created.id))
@@ -217,6 +218,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
 
@@ -312,6 +314,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         await database.db
@@ -711,6 +714,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         expect(created.status).toBe('draft')

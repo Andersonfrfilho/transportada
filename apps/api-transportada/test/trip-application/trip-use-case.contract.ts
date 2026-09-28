@@ -372,6 +372,7 @@ describe('trip use case contract', () => {
           channel: 'backoffice',
           companyId: COMPANY_ID,
           crew: [],
+          trailerVehicleId: null,
           vehicleId: null,
         },
       ])

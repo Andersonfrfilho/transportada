@@ -579,6 +579,7 @@ describe('trip repository integration', () => {
             role: 'helper',
           },
         ],
+        trailerVehicleId: null,
         vehicleId,
       })
 

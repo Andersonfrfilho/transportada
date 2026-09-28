@@ -389,6 +389,7 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
     await withDisposableDatabase(async (database) => {
       const companyId = crypto.randomUUID()
       const userId = crypto.randomUUID()
+      const driverId = crypto.randomUUID()
       const tractorId = crypto.randomUUID()
       const trailerId = crypto.randomUUID()
       const truckId = crypto.randomUUID()
@@ -427,6 +428,12 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           vehicleType: 'truck',
         },
       ])
+      await database.db.insert(fleetDrivers).values({
+        companyId,
+        id: driverId,
+        name: 'Motorista 147 T18',
+        taxId: '44444444444',
+      })
 
       const tripRepository = new DrizzleTripRepository(database.db)
       const routeRepository = new DrizzleTripRouteRepository(database.db)
@@ -435,7 +442,15 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
         actorUserId: userId,
         channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId,
-        crew: [],
+        crew: [
+          {
+            driverId,
+            driverName: 'Motorista 147 T18',
+            driverTaxId: '44444444444',
+            position: 1,
+            role: 'driver',
+          },
+        ],
         trailerVehicleId: null,
         vehicleId: tractorId,
       })
@@ -485,7 +500,15 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
         actorUserId: userId,
         channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId,
-        crew: [],
+        crew: [
+          {
+            driverId,
+            driverName: 'Motorista 147 T18',
+            driverTaxId: '44444444444',
+            position: 1,
+            role: 'driver',
+          },
+        ],
         trailerVehicleId: null,
         vehicleId: truckId,
       })
@@ -533,6 +556,7 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
       await withDisposableDatabase(async (database) => {
         const companyId = crypto.randomUUID()
         const userId = crypto.randomUUID()
+        const driverId = crypto.randomUUID()
         const tractorId = crypto.randomUUID()
         const trailerId = crypto.randomUUID()
 
@@ -562,6 +586,12 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
             vehicleType: '',
           },
         ])
+        await database.db.insert(fleetDrivers).values({
+          companyId,
+          id: driverId,
+          name: 'Motorista 147 T18',
+          taxId: '55555555555',
+        })
 
         const tripRepository = new DrizzleTripRepository(database.db)
         const routeRepository = new DrizzleTripRouteRepository(database.db)
@@ -570,7 +600,15 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
-          crew: [],
+          crew: [
+            {
+              driverId,
+              driverName: 'Motorista 147 T18',
+              driverTaxId: '55555555555',
+              position: 1,
+              role: 'driver',
+            },
+          ],
           trailerVehicleId: trailerId,
           vehicleId: tractorId,
         })
