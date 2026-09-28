@@ -281,6 +281,10 @@
     "notice_other": "{{count}} pending items from another account on this phone. They are not sent with your account.",
     "warning": "Discarding deletes these pending items from the phone for good: whoever recorded them will not be able to send them."
   },
+  "reassignedTrip": {
+    "dismiss": "Got it",
+    "notice": "This trip is no longer yours — it was reassigned to another driver or sent back to the office's planning. Contact the office if you need more detail."
+  },
   "serviceWorkerUpdate": {
     "apply": "Update",
     "available": "New version available.",
