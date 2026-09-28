@@ -107,7 +107,7 @@ describeDatabase('o pedido de correção não atravessa empresa (spec 150 T102)'
     contractorA = await insertContractor({ companyId: companyA, taxId: SHARED_TAX_ID })
     contractorB = await insertContractor({ companyId: companyB, taxId: SHARED_TAX_ID })
     await insertContractor({ companyId: companyB, taxId: ONLY_IN_B_TAX_ID })
-  })
+  }, 60_000)
 
   afterAll(async () => {
     try {

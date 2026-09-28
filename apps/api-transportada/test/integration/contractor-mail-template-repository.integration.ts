@@ -93,7 +93,7 @@ describeDatabase('modelos de e-mail por empresa (spec 150 T402)', () => {
         sql`insert into companies (id, status) values (${companyId}, 'active')`,
       )
     }
-  })
+  }, 60_000)
 
   afterAll(async () => {
     try {

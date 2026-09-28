@@ -545,7 +545,7 @@ beforeAll(async () => {
   } finally {
     await admin.close({ timeout: 0 })
   }
-})
+}, 60_000)
 
 afterAll(async () => {
   if (databaseUrl === undefined || shared === undefined) return
