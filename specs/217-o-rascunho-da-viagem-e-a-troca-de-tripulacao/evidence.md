@@ -476,3 +476,58 @@ O teste da T504 prova a **ordem exata** das requisições do rascunho
 
 Decisão de apresentação que ficou para a revisão de design (já estava aberta no `plan.md`): o selo diz
 "Aguardando tripulação", genérico, sem nomear "sem motorista" / "sem veículo" quando falta só um.
+
+## Fase 6 — o motorista deixa de perder a viagem em silêncio (`sonnet`, três commits)
+
+- `8508b1ec8` — T601: `hasReassignedTrip`, o serviço puro que detecta a ausência.
+- `6f30b0ff4` — T602: o aviso na tela do `frontend-driver`.
+- `2025813b7` — T603: a fila offline traduz os dois códigos da saída da tripulação.
+
+**O desenho evitou inventar contrato.** O aviso sai da **ausência**: viagem que estava no snapshot
+local, não veio na resposta nova e não está `completed`/`cancelled`. Nenhum campo novo no servidor —
+seria uma segunda verdade sobre o mesmo fato (D6). E um texto só cobre os dois casos, porque para o
+motorista eles são o mesmo: reatribuição, e viagem devolvida a `draft` pela troca de veículo (que sai
+de `CURRENT_DRIVER_TRIP_STATUSES` junto).
+
+O T601 reaproveitou `isConcludedTripStatus`, extraída de `hasOnlyConcludedTrips` em vez de duplicar o
+conjunto de status concluídos — duas listas de "o que é viagem encerrada" divergiriam.
+
+```
+$ cd apps/frontend-driver && bun run test      # conferido por mim
+ 727 pass / 0 fail / 3 arquivos
+```
+
+### ⚠️ Onde essa prova é forte e onde é fraca
+
+**Forte no T601:** seis casos de comportamento sobre a função de detecção, cobrindo reatribuição,
+viagem devolvida a `draft`, `completed`, `cancelled`, "nada sumiu" e snapshot vazio. É onde a lógica
+mora, e está testada de verdade.
+
+**Fraca no T602:** o teste do aviso é **estrutural** — `readFileSync` do componente, do hook e da
+página, com `toContain` sobre trechos de código (`"t('reassignedTrip.notice')"`,
+`onClick={onDismiss}`). Ele prende a fiação, não o comportamento: passaria com a tela quebrada, desde
+que os trechos existissem. Não é invenção do executor — é o padrão que a app já usa
+(`unverified-pending.contract.ts`), porque o `frontend-driver` não tem infraestrutura de render de
+componente. Registro para que ninguém leia "727 pass" como "o aviso aparece": **quem valida essa parte
+é a revisão de design com o app de pé**, e ela está pendente junto com a T311.
+
+## O gargalo que atrasou tudo, e como saiu: Postgres nativo no lugar do Docker
+
+O daemon do Docker desta máquina ficou sem resposta (`docker ps` estourando 120 s, `docker restart`
+sem efeito), depois de o Postgres de teste esgotar os slots de conexão com a corrida das 135 suítes
+numa máquina com load 14. Foi isso que fez a T307 ser publicada sem prova local e reprovar na CI.
+
+A saída não era esperar: um Postgres 18.4 **nativo** subiu num cluster descartável dentro do
+scratchpad, com `max_connections=200` e `fsync=off`, e o mesmo arquivo que dava **8 falhas de conexão**
+passou **8 de 8 em 12,66 s**. O `withDisposableDatabase` dos testes cria o próprio banco e roda as
+migrations, então bastava um servidor vazio e `DRIZZLE_TEST_DATABASE_URL` apontando para ele.
+
+Duas pedras, as duas com mensagem enganosa — anotadas porque custaram tentativas:
+
+1. `não foi possível criar soquete de domínio Unix ... é muito longo`: o caminho do scratchpad passa
+   dos 103 bytes do socket. Conserto: `-c unix_socket_directories=` vazio e conexão por TCP.
+2. `FATAL: postmaster became multithreaded during startup`, que o `pg_ctl` reporta só como "não pode
+   iniciar o servidor". O log dá a dica: exportar `LC_ALL`.
+
+⚠️ **Não substitui a CI**: é Postgres 18 local contra o da CI, e SQLSTATE de constraint pode divergir
+entre versões — asserção de código de erro do banco continua precisando do veredito remoto.
