@@ -398,3 +398,37 @@ $ bun --env-file=../../.env.test test test/routing-application.contract.test.ts
 `toll booth catalog repository (spec 154)` estourando **60 segundos cada** — timeout de conexão, não
 comparação errada — e as outras cinco eram os contratos da 058/153 corrigidos acima, que agora passam.
 Frontend: 5559 + 54 testes verdes na entrega da T310.
+
+## A CI reprovou a primeira publicação, e achou três defeitos reais (run 36368379469)
+
+O push para staging levou 16 commits; `gate / integration-api (4)` falhou, com isso `gate / integration`
+caiu e **os três deploys foram pulados — nada chegou a staging de verdade.** Os outros dezesseis jobs
+passaram, incluindo `quality` das quatro apps e os outros três shards de integração.
+
+As três falhas estavam todas no arquivo que o banco local não me deixou rodar
+(`test/integration/trip-crew-update.integration.ts`). Nenhuma era ambiente:
+
+**1. O meu seed era inválido — `23514`, `trips_planned_route_check`.** A constraint é a 153 D4 em
+forma de banco: `planned_route`, `planned_distance_meters`, `planned_return_distance_meters` e
+`planned_duration_seconds` são nulos **juntos** ou preenchidos **juntos** com o carimbo. Eu congelei
+uma rota de mentira sem o retorno, e o banco recusou. O seed passou a congelar a rota inteira, como o
+congelador de verdade faz — e o teste ganhou a asserção do retorno junto.
+
+**2. Eu assertava a recusa pela mensagem, não pelo código.**
+`.rejects.toThrow('TRIP_SEPARATION_STARTED')` recebeu `"The warehouse already started separating this
+trip..."`: `TripStateTransitionNotAllowedError` carrega o motivo em `reason` e o texto humano em
+`message`. Virou `.rejects.toMatchObject({ reason: 'TRIP_SEPARATION_STARTED' })`. Assertar mensagem
+prende o teste à redação, que muda sem o comportamento mudar.
+
+**3. Um teste da 216 no mesmo arquivo afirmava a recusa em `route_planned`** — o comportamento que a
+D2 inverteu de propósito. Virou o oposto e ficou mais útil: trocar o **veículo** de uma viagem
+roteirizada devolve a viagem para `draft` e grava o veículo novo. É a base da Fase 3B, com a limpeza
+das sete colunas ainda por vir na T305.
+
+**A lição, registrada porque custou uma reprovação:** eu publiquei sabendo que não tinha rodado aquele
+arquivo, e escrevi isso no `evidence.md` — mas segui em frente. O gate remoto fez o papel dele e nada
+inválido entrou em staging. Ainda assim, três defeitos que um `bun test` de um arquivo pegaria em
+segundos viajaram até a CI. **Banco de teste indisponível não é motivo para publicar: é motivo para
+conseguir um banco.**
+
+Depois dos consertos: `typecheck` limpo, `lint` limpo nos arquivos da API, `prettier --check` limpo.

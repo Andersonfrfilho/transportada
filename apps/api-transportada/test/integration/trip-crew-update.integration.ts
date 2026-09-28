@@ -21,7 +21,6 @@ import {
 import { trips, tripDrivers } from '../../src/database/trip.schema.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { resolveCrewStatus } from '../../src/trips/domain/trip-state.policy.js'
-import { TripStateTransitionNotAllowedError } from '../../src/trips/domain/trip.error.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 
 const databaseUrl =
@@ -217,11 +216,19 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
 
         const frozenRoute = { criterion: 'cheapest', legs: [], points: [], signature: 'abc' }
         const frozenToll = { total: '12.34' }
+        /**
+         * ⚠️ `trips_planned_route_check` é a 153 D4 em forma de banco: `planned_route`,
+         * `planned_distance_meters`, `planned_return_distance_meters` e `planned_duration_seconds`
+         * são nulos **juntos** ou preenchidos **juntos** com o carimbo. Deixar o retorno de fora
+         * derrubou este teste na CI com `23514` — o seed tem de congelar a rota inteira, como o
+         * congelador de verdade faz.
+         */
         await database.db
           .update(trips)
           .set({
             plannedDistanceMeters: 42_000,
             plannedDurationSeconds: 3_600,
+            plannedReturnDistanceMeters: 8_000,
             plannedRoute: frozenRoute,
             plannedRouteFrozenAt: new Date(),
             plannedToll: frozenToll,
@@ -258,6 +265,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
         const [routeRow] = await database.db
           .select({
             plannedDistanceMeters: trips.plannedDistanceMeters,
+            plannedReturnDistanceMeters: trips.plannedReturnDistanceMeters,
             plannedRoute: trips.plannedRoute,
             plannedRouteFrozenAt: trips.plannedRouteFrozenAt,
             plannedToll: trips.plannedToll,
@@ -268,6 +276,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
         expect(routeRow?.plannedRoute).toEqual(frozenRoute)
         expect(routeRow?.plannedToll).toEqual(frozenToll)
         expect(routeRow?.plannedDistanceMeters).toBe(42_000)
+        expect(routeRow?.plannedReturnDistanceMeters).toBe(8_000)
         expect(routeRow?.plannedRouteFrozenAt).not.toBeNull()
         expect(routeRow?.plannedTollFrozenAt).not.toBeNull()
       })
@@ -318,7 +327,12 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
             tripId: created.id,
             vehicleId: fleet.firstVehicleId,
           }),
-        ).rejects.toThrow('TRIP_SEPARATION_STARTED')
+          /**
+           * ⚠️ Pelo **código**, nunca pela mensagem: `TripStateTransitionNotAllowedError` carrega o
+           * motivo em `reason` e põe o texto humano em `message`. Assertar a mensagem quebrou na CI e
+           * prenderia o teste à redação, que muda sem o comportamento mudar.
+           */
+        ).rejects.toMatchObject({ reason: 'TRIP_SEPARATION_STARTED' })
 
         const state = await readCrewState(database.db, {
           companyId: fleet.companyId,
@@ -389,8 +403,14 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
     DISPOSABLE_DATABASE_TIMEOUT_MS,
   )
 
+  /**
+   * Spec 217 D2/D3: este teste **afirmava a recusa** em `route_planned` (216) e virou o oposto — a
+   * troca é permitida lá, e trocar o veículo devolve a viagem para `draft`, porque o roteiro
+   * congelado descrevia o caminhão antigo. A limpeza das sete colunas é a T305 (Fase 3B); aqui se
+   * prende a transição e a gravação do veículo novo.
+   */
   testWithPostgres(
-    'recusa a troca depois que o roteiro já foi planejado',
+    'trocar o veículo de uma viagem roteirizada devolve a viagem para draft',
     async () => {
       await withDisposableDatabase(async ({ db }) => {
         const fleet = await seedCompanyFleet(db)
@@ -412,29 +432,28 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
         })
         await db.update(trips).set({ status: 'route_planned' }).where(eq(trips.id, created.id))
 
-        await expect(
-          repository.updateCrew({
-            actorUserId: fleet.userId,
-            channel: TRIP_FIELD_CHANNELS.backoffice,
-            companyId: fleet.companyId,
-            crew: [
-              {
-                driverId: fleet.secondDriverId,
-                driverName: 'Segundo Motorista',
-                driverTaxId: '22222222222',
-                position: 1,
-              },
-            ],
-            tripId: created.id,
-            vehicleId: fleet.secondVehicleId,
-          }),
-        ).rejects.toThrow(TripStateTransitionNotAllowedError)
+        await repository.updateCrew({
+          actorUserId: fleet.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: fleet.companyId,
+          crew: [
+            {
+              driverId: fleet.secondDriverId,
+              driverName: 'Segundo Motorista',
+              driverTaxId: '22222222222',
+              position: 1,
+            },
+          ],
+          tripId: created.id,
+          vehicleId: fleet.secondVehicleId,
+        })
 
         const [tripRow] = await db
-          .select({ vehicleId: trips.vehicleId })
+          .select({ status: trips.status, vehicleId: trips.vehicleId })
           .from(trips)
           .where(eq(trips.id, created.id))
-        expect(tripRow?.vehicleId).toBe(fleet.firstVehicleId)
+        expect(tripRow?.vehicleId).toBe(fleet.secondVehicleId)
+        expect(tripRow?.status).toBe('draft')
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,
