@@ -146,3 +146,30 @@ $ bun --env-file=../../.env.test test test/trip-allowed-actions.contract.test.ts
 `awaiting_crew` de `checkTripTransition` (a que a 216 instalou), a asserção quebra —
 `expect(awaitingCrew.trip).not.toContain('planRoute')` recebe `+1`, `22 pass / 1 fail`. Fonte
 restaurada e `git status src/` limpo antes do commit.
+
+## T201 — Teste de contrato: a criação aceita par incompleto (`sonnet`)
+
+Dois níveis, porque a fixture HTTP genérica (`createTripHttpFixture`) devolve um `TRIP_DETAIL`
+enlatado — o encanamento (schema) é provado ali, e a derivação real do status (par → status) só é
+provada onde o caso de uso de verdade roda:
+
+- `test/trip-http/create.contract.ts`: novos testes provam que `POST /trips` aceita `driverIds: []`
+  e `vehicleId` ausente (sozinhos e juntos), com `201` e repassando exatamente o corpo ao caso de uso
+  — nenhuma regressão do par completo. O teste antigo `'refuses an empty crew...'` (400 para
+  `driverIds: []`) foi **substituído**, porque RF2 revoga exatamente essa trava; a metade que ainda
+  vale (campo desconhecido → 400) ficou em `'rejects an unknown field'`.
+- `test/trip-application/trip-use-case.contract.ts`: novo `describe` (`creates a trip deriving the
+status from the crew composition`) exercita `TripUseCase.create` de verdade contra um repositório
+  falso, cobrindo os quatro cenários do spec.md (linha 195-207): nenhum dos dois → `awaiting_crew`;
+  só motorista → `awaiting_crew`; só veículo → `awaiting_crew`; os dois → `draft` (sem regressão). Um
+  quinto caso prova que `vehicleId` **informado e não encontrado** continua `TripVehicleNotFoundError`
+  — só a ausência do campo é "sem veículo ainda".
+
+**Vermelho registrado antes do T202** (o teste da aplicação nem chegava a rodar — o próprio tipo
+recusava `vehicleId: undefined` em `CreateTripInput`, que ainda era `string` obrigatório):
+
+```
+$ bun run typecheck
+test/trip-application/trip-use-case.contract.ts(...): Argument of type '{ vehicleId: undefined; ... }'
+  is not assignable to parameter of type 'CreateTripInput'.
+```

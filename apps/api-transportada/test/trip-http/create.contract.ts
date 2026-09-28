@@ -35,21 +35,7 @@ describe('trip create http contract', () => {
     ])
   })
 
-  // spec.md linha 66: mínimo 1 condutor — a fronteira HTTP recusa antes de chegar ao domínio
-  test('refuses an empty crew and any unknown field', async () => {
-    const emptyCrewFixture = await createTripHttpFixture()
-    const emptyCrewResponse = await emptyCrewFixture.handle(
-      jsonRequest({
-        body: { ...CREATE_TRIP_BODY, driverIds: [] },
-        method: 'POST',
-        path: TRIPS_PATH,
-      }),
-    )
-
-    expect(emptyCrewResponse.status).toBe(400)
-    expect((await responseApiError(emptyCrewResponse)).code).toBe('INVALID_REQUEST')
-    expect(emptyCrewFixture.createTripCalls).toEqual([])
-
+  test('rejects an unknown field', async () => {
     const smuggledFixture = await createTripHttpFixture()
     const smuggledResponse = await smuggledFixture.handle(
       jsonRequest({
@@ -61,6 +47,74 @@ describe('trip create http contract', () => {
 
     expect(smuggledResponse.status).toBe(400)
     expect(smuggledFixture.createTripCalls).toEqual([])
+  })
+
+  /**
+   * Spec 217 T201 (RF2): a criação sem tripulação deixou de ser 400 na fronteira HTTP — a viagem
+   * nasce `awaiting_crew` (RF3/D1), provado a fundo (par → status) em
+   * `test/trip-application/trip-use-case.contract.ts`. Aqui a prova é a do encanamento: o schema
+   * aceita `driverIds: []` e `vehicleId` ausente, e repassa exatamente isso ao caso de uso — sem
+   * regressão do par completo, que continua obrigatório a virar `draft`.
+   */
+  test('accepts driverIds vazio e vehicleId ausente', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ body: { driverIds: [] }, method: 'POST', path: TRIPS_PATH }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createTripCalls).toEqual([
+      { context: COMPANY_CONTEXT, driverIds: [], vehicleId: undefined },
+    ])
+  })
+
+  test('accepts só motorista, sem veículo', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ body: { driverIds: [DRIVER_ID] }, method: 'POST', path: TRIPS_PATH }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createTripCalls).toEqual([
+      { context: COMPANY_CONTEXT, driverIds: [DRIVER_ID], vehicleId: undefined },
+    ])
+  })
+
+  test('accepts só veículo, sem motorista', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { driverIds: [], vehicleId: VEHICLE_ID },
+        method: 'POST',
+        path: TRIPS_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createTripCalls).toEqual([
+      { context: COMPANY_CONTEXT, driverIds: [], vehicleId: VEHICLE_ID },
+    ])
+  })
+
+  /** Sem regressão (RF2): com os dois, o corpo continua igual ao de antes da 217. */
+  test('accepts os dois, igual ao comportamento de antes da 217', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ body: CREATE_TRIP_BODY, method: 'POST', path: TRIPS_PATH }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createTripCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        driverIds: [DRIVER_ID, SECOND_DRIVER_ID],
+        vehicleId: VEHICLE_ID,
+      },
+    ])
   })
 
   test('refuses a crew over the maximum of ten drivers', async () => {
