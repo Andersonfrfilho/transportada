@@ -64,6 +64,7 @@ import {
   TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS,
   TRIP_DOCUMENT_FREIGHT_SOURCES,
   TRIP_DOCUMENT_KEYS,
+  TRIP_CREW_ROLES,
   TRIP_DRIVER_KEYS,
   TRIP_DRIVER_OPTIONAL_KEYS,
   TRIP_ERROR,
@@ -308,7 +309,8 @@ function isDriverLine(value: unknown): value is TripDriverLine {
     isString(value.driverName) &&
     /** Spec 156 D11: `null` para quem lê a viagem sem `fleet.read` — o nome continua. */
     isNullableString(value.driverTaxId) &&
-    isUnsignedInteger(value.position)
+    isUnsignedInteger(value.position) &&
+    (value.role === undefined || isOneOf(value.role, TRIP_CREW_ROLES))
   )
 }
 

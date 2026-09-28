@@ -180,8 +180,17 @@ export const TRIP_KEYS = [
 
 export const TRIP_DRIVER_KEYS = ['driverId', 'driverName', 'driverTaxId', 'position'] as const
 
-/** Spec 078 D2: o contato nasce opcional — API anterior serve o motorista sem ele. */
-export const TRIP_DRIVER_OPTIONAL_KEYS = ['driverEmail', 'driverPhone'] as const
+/**
+ * Spec 078 D2: o contato nasce opcional — API anterior serve o motorista sem ele.
+ * `role` (spec 149/ADR-0065, papel na tripulação) chegou hoje sem entrar nesta lista, e toda
+ * viagem virava `invalid()` na criação — 201 no servidor, "Não foi possível criar a viagem" na
+ * tela (28/09/2026, staging).
+ */
+export const TRIP_DRIVER_OPTIONAL_KEYS = ['driverEmail', 'driverPhone', 'role'] as const
+
+/** Cópia por valor de `TRIP_CREW_ROLES` — fonte: `api-transportada/src/shared/trip-crew-role.constant.ts`. */
+export const TRIP_CREW_ROLES = ['driver', 'helper'] as const
+export type TripCrewRole = (typeof TRIP_CREW_ROLES)[number]
 
 export const TRIP_DOCUMENT_KEYS = [
   'createdAt',

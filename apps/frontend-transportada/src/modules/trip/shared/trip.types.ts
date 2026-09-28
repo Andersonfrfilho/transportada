@@ -7,7 +7,7 @@ import type {
 } from '@/modules/routing/shared/suggestionLeftover.service'
 
 import type { OccurrenceAttachmentMode } from './occurrence.constant'
-import type { OccurrenceQuantityUnit } from './trip.constant'
+import type { OccurrenceQuantityUnit, TripCrewRole } from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
@@ -58,6 +58,11 @@ export type TripDriverLine = Readonly<{
   driverTaxId: string | null
   position: number
   driverPhone?: string | null
+  /**
+   * Spec 149 / ADR-0065: motorista ou ajudante — só `driver` entra no MDF-e. Campo novo, nasce
+   * opcional (spec 078 D2): API antiga não manda; frente nova precisa aceitar a ausência.
+   */
+  role?: TripCrewRole
 }>
 
 /** A origem do número de receita: realizado, previsto pela parametrização, ou sem regra cadastrada. */
