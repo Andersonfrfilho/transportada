@@ -2,16 +2,20 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { TripDetail } from '../shared/trip.types'
+import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
 import {
   resolveCrewDialogErrorKey,
   type CrewDialogErrorKey,
 } from '../shared/tripCrewDialog.service'
+import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
 
 export type TripCrewDialogInput = Readonly<{
   isOpen: boolean
   onSubmit: (
     input: Readonly<{ driverIds: readonly string[]; vehicleId: string }>,
   ) => Promise<unknown>
+  selectableDriverIds: readonly string[]
+  selectableVehicleIds: readonly string[]
   trip: TripDetail
 }>
 
@@ -37,13 +41,49 @@ export function useTripCrewDialog(input: TripCrewDialogInput) {
   const tripRef = useRef(input.trip)
   tripRef.current = input.trip
 
+  /**
+   * A chave da seleção de motoristas para a qual `vehicleId` já está sincronizado — reabrir o
+   * diálogo com o par atual da viagem conta como sincronizado; só uma seleção **diferente** dessa
+   * chave pode disparar a troca de veículo abaixo.
+   */
+  const boundDriverIdsKeyRef = useRef('')
+
   useEffect(() => {
     if (!input.isOpen) return
-    setDriverIds(tripRef.current.drivers.map((driver) => driver.driverId))
+    const openDriverIds = tripRef.current.drivers.map((driver) => driver.driverId)
+    setDriverIds(openDriverIds)
     /** Spec 217 (RF1): viagem `awaiting_crew` ainda sem veículo — reabre sem escolha, não com `null`. */
     setVehicleId(tripRef.current.vehicleId ?? '')
     setErrorKey(undefined)
+    boundDriverIdsKeyRef.current = openDriverIds.join('|')
   }, [input.isOpen, input.trip.id])
+
+  const bindings = useDriverVehicleBindings({
+    enabled: input.isOpen,
+    selectableDriverIds: input.selectableDriverIds,
+    selectedDriverIds: driverIds,
+  })
+  const [suggestedVehicleId] = resolveBoundVehicleIds({
+    bindings,
+    selectableVehicleIds: input.selectableVehicleIds,
+    selectedDriverIds: driverIds,
+  })
+
+  /**
+   * "A troca substitui a tripulação e o veículo inteiros" (`crewDialog.subtitle`): trocar o(s)
+   * motorista(s) por um agregado com veículo próprio só troca o veículo junto quando o vínculo é
+   * inequívoco (`resolveBoundVehicleIds`) — motorista sem veículo vinculado, ou com mais de um, não
+   * decide pelo operador. A chave já sincronizada evita pisar numa escolha manual feita para a
+   * mesma seleção de motoristas quando o vínculo chega depois (consulta em voo).
+   */
+  useEffect(() => {
+    if (!input.isOpen) return
+    const key = driverIds.join('|')
+    if (key === boundDriverIdsKeyRef.current) return
+    if (suggestedVehicleId === undefined) return
+    boundDriverIdsKeyRef.current = key
+    setVehicleId(suggestedVehicleId)
+  }, [driverIds, input.isOpen, suggestedVehicleId])
 
   async function submit(): Promise<boolean> {
     setErrorKey(undefined)
