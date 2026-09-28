@@ -290,6 +290,10 @@
     "notice_other": "{{count}} pendências de outra conta neste celular. Elas não são enviadas com a sua conta.",
     "warning": "Descartar apaga essas pendências do celular para sempre: quem as registrou não vai conseguir enviá-las."
   },
+  "reassignedTrip": {
+    "dismiss": "Entendi",
+    "notice": "Esta viagem não está mais com você — ela foi repassada a outro motorista ou voltou para o planejamento do escritório. Fale com o escritório se precisar de mais detalhes."
+  },
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
     "available": "Nova versão disponível.",

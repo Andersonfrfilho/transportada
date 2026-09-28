@@ -9,6 +9,7 @@ import { captureRegistry, persistWhileOpen } from '../shared/captureRegistry.ser
 import type {
   DriverFieldReport,
   DriverReportedLocation,
+  DriverTrip,
   DriverTripSnapshot,
   ProofPunctuality,
 } from '../shared/driverTrip.types'
@@ -61,6 +62,7 @@ import {
 } from '../shared/queueOwner.service'
 import { fitStopOccurrenceReports, withoutPhotos } from '../shared/stopOccurrencePhoto.service'
 import { resolveTripDataSavedAt, resolveTripViewStatus } from '../shared/tripQueryStatus.service'
+import { hasReassignedTrip } from '../shared/tripReassignment.service'
 import { saveTripSnapshot } from '../shared/tripSnapshot.service'
 import {
   confirmUnverifiedPending,
@@ -161,6 +163,10 @@ export type DriverTripController = Readonly<{
   discardOwnPending: () => Promise<void>
   /** Itens da fila de outra conta neste aparelho: nunca enviados com o token desta. */
   foreignPendingCount: number
+  /** RF8/D6: `true` quando uma viagem deixou de ser do motorista — reatribuição ou volta a draft. */
+  hasReassignedTripNotice: boolean
+  /** O motorista dispensou o aviso de reatribuição. */
+  dismissReassignedTripNotice: () => void
   /** `true` até a primeira leitura do IndexedDB voltar — é o que segura o esqueleto da tela. */
   isQueueLoading: boolean
   isSyncing: boolean
@@ -239,6 +245,10 @@ export function useDriverTrip(
   >(new Map())
   const [sentReportKeys, setSentReportKeys] = useState<ReadonlySet<string>>(new Set())
   const [pendingTotal, setPendingTotal] = useState(0)
+  /** RF8/D6: fica `true` até o motorista dispensar — mesmo se a viagem seguinte também sumir. */
+  const [isTripReassignedNoticeVisible, setIsTripReassignedNoticeVisible] = useState(false)
+  const previousTripsRef = useRef<readonly DriverTrip[]>([])
+  const previousDataUpdatedAtRef = useRef<number | undefined>(undefined)
   /** Plan D5: o temporizador da drenagem só corre enquanto isto for maior que zero. */
   const drainableCountRef = useRef(0)
   /** O `sync` do temporizador (`onQueueSync`): a fila que ganha pendência liga o relógio na hora. */
@@ -305,6 +315,22 @@ export function useDriverTrip(
      */
     staleTime: CURRENT_TRIP_REFETCH_MS,
   })
+
+  /**
+   * RF8/D6: a cada leitura nova, compara com a anterior — viagem que estava lá, não veio agora e
+   * não terminou deixou de ser do motorista. Comparação feita no render (guardada por
+   * `dataUpdatedAt`, para não repetir a cada re-render), sem `useEffect`.
+   */
+  const currentTrips = currentTrip.data?.trips ?? []
+  if (currentTrip.dataUpdatedAt !== previousDataUpdatedAtRef.current) {
+    const reassigned = hasReassignedTrip({
+      currentTrips,
+      previousTrips: previousTripsRef.current,
+    })
+    previousTripsRef.current = currentTrips
+    previousDataUpdatedAtRef.current = currentTrip.dataUpdatedAt
+    if (reassigned) setIsTripReassignedNoticeVisible(true)
+  }
 
   /** O `run` do agendador aponta para a mutação do render corrente. */
   const runDrainRef = useRef<(only: string | undefined) => void>(() => undefined)
@@ -797,6 +823,10 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  function dismissReassignedTripNotice(): void {
+    setIsTripReassignedNoticeVisible(false)
+  }
+
   const loadedView = queueView ?? []
 
   return {
@@ -807,7 +837,9 @@ export function useDriverTrip(
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
     discardUnverifiedPending: discardUnverified,
+    dismissReassignedTripNotice,
     foreignPendingCount,
+    hasReassignedTripNotice: isTripReassignedNoticeVisible,
     isQueueLoading: queueView === undefined,
     isSyncing: drain.isPending,
     dataSavedAt: resolveTripDataSavedAt({

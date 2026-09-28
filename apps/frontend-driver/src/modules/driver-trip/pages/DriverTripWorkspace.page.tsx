@@ -16,6 +16,7 @@ import { DriverProofOutcomeNotice } from '../components/DriverProofOutcomeNotice
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
+import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
 import { DriverUnverifiedPendingNotice } from '../components/DriverUnverifiedPendingNotice.component'
 import { useDriverSession } from '../hooks/useDriverSession.hook'
@@ -642,6 +643,11 @@ export function DriverTripWorkspacePage() {
             count={driverTrip.foreignPendingCount}
             onDiscard={() => void driverTrip.discardForeignPending()}
           />
+        ) : null}
+
+        {/* Spec 217 (RF8, D6): a viagem que estava aqui e sumiu — reatribuição ou volta a draft */}
+        {driverTrip.hasReassignedTripNotice ? (
+          <DriverTripReassignedNotice onDismiss={driverTrip.dismissReassignedTripNotice} />
         ) : null}
 
         {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
