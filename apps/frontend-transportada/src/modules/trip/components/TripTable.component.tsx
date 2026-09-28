@@ -46,6 +46,8 @@ type TripTableProps = Readonly<{
 function statusClassName(status: TripStatus): string {
   if (status === 'completed') return `${styles.statusBadge} ${styles.statusReady}`
   if (status === 'cancelled') return `${styles.statusBadge} ${styles.statusCancelled}`
+  /** Spec 217 (RF7, T506): o selo de tripulação pendente. */
+  if (status === 'awaiting_crew') return `${styles.statusBadge} ${styles.statusPending}`
 
   return `${styles.statusBadge}`
 }

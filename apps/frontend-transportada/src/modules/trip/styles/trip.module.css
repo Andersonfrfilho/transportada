@@ -298,6 +298,15 @@
   color: var(--color-copper);
 }
 
+/**
+ * Spec 217 (RF7, T506): o selo de tripulação pendente — mesma linguagem de atenção da cancelada
+ * (âmbar), porque `awaiting_crew` também não é erro, é um estado que pede uma ação do operador.
+ */
+.statusPending {
+  border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+}
+
 /* Nota cancelada/denegada avisa sem bloquear: a viagem continua e o MDF-e segue emissível. */
 /** O aviso que acompanha um número de origem fraca — cobre, como a marca de estimativa. */
 .warning {

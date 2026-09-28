@@ -1386,6 +1386,7 @@
     "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega."
   },
   "status": {
+    "awaiting_crew": "Aguardando tripulação",
     "cancelled": "Cancelada",
     "completed": "Concluída",
     "dispatched": "Despachada",
