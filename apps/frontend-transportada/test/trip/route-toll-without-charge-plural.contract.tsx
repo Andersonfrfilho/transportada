@@ -55,7 +55,12 @@ function renderWithUnknownBooths(unknownCount: number): string {
     total: '24.6800',
   }
   return renderToStaticMarkup(
-    <RouteTollSummary canAdjustTollBooth={false} isNoTollRoute={false} toll={toll} />,
+    <RouteTollSummary
+      canAdjustTollBooth={false}
+      canReadFinancials={true}
+      isNoTollRoute={false}
+      toll={toll}
+    />,
   )
 }
 
@@ -106,7 +111,12 @@ describe('plural de "praças" no total do resumo e na opção de rota (spec 154 
       total: '24.6800',
     }
     return renderToStaticMarkup(
-      <RouteTollSummary canAdjustTollBooth={false} isNoTollRoute={false} toll={toll} />,
+      <RouteTollSummary
+        canAdjustTollBooth={false}
+        canReadFinancials={true}
+        isNoTollRoute={false}
+        toll={toll}
+      />,
     )
   }
 

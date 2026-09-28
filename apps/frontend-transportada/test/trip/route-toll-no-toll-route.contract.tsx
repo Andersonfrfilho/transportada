@@ -36,6 +36,7 @@ function render(input: {
   return renderToStaticMarkup(
     <RouteTollSummary
       canAdjustTollBooth={false}
+      canReadFinancials={true}
       isNoTollRoute={input.isNoTollRoute}
       toll={buildToll(input.catalogStatus ?? 'current')}
     />,
