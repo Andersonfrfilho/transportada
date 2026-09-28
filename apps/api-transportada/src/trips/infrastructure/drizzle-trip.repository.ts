@@ -53,6 +53,7 @@ import {
   TRIP_DISPATCHED_STATUSES,
   checkTripAcceptsLinkage,
   checkTripTransition,
+  resolveCrewStatus,
 } from '../domain/trip-state.policy.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { TRIP_CLOSE_SETTLED_SEPARATION_STATUSES } from '../domain/trip-close.policy.js'
@@ -368,6 +369,14 @@ export class DrizzleTripRepository implements TripRepositoryPort {
 
   public async create(input: CreateTripRecord): Promise<TripDetail> {
     return this.database.transaction(async (transaction) => {
+      /**
+       * Spec 217 D1: a mesma função que decide a troca (`updateCrew`) decide o nascimento — uma
+       * função, duas leitoras, nenhuma chance de discordarem.
+       */
+      const status = resolveCrewStatus({
+        hasDriver: input.crew.length > 0,
+        hasVehicle: input.vehicleId !== null,
+      })
       const [created] = await transaction
         .insert(trips)
         .values({
@@ -375,6 +384,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           ...(input.dailyAllowanceDays === undefined
             ? {}
             : { dailyAllowanceDays: input.dailyAllowanceDays }),
+          status,
           vehicleId: input.vehicleId,
         })
         .returning({ id: trips.id })
@@ -382,14 +392,14 @@ export class DrizzleTripRepository implements TripRepositoryPort {
 
       /**
        * Spec 171 RF1: mesmo caminho das demais transições — grava na mesma transação do `INSERT
-       * trips`, direto em `trip_status_events`. `draft` é o `default` da coluna `trips.status`
-       * (spec 158 T3 nunca escreveu a criação; agora escreve).
+       * trips`, direto em `trip_status_events`. Spec 217 D1: o status gravado é o derivado do par,
+       * não mais `draft` fixo (o `default` da coluna só cobre quem nunca passa por aqui).
        */
       await recordTripCreation(transaction, {
         actorUserId: input.actorUserId,
         channel: input.channel,
         companyId: input.companyId,
-        status: 'draft',
+        status,
         tripId: created.id,
       })
 

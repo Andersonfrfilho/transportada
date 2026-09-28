@@ -6,10 +6,12 @@ import { z } from 'zod'
 import { ROUTE_CHOICE_CRITERIA } from '../domain/route-choice.policy.js'
 
 /**
- * spec.md linha 66 exige "mínimo 1" condutor na criação — T006 não impôs a regra no domínio/
- * aplicação (aceitava `driverIds: []`). Fechado aqui, na fronteira HTTP, espelhando o mesmo teto
- * de `MAX_DRIVERS_PER_MANIFEST` em `mdfe-manifest-request.schema.ts` e `MAX_DRIVERS_PER_TRIP` do
- * schema de banco (`database/trip.schema.ts`).
+ * Espelha o mesmo teto de `MAX_DRIVERS_PER_MANIFEST` em `mdfe-manifest-request.schema.ts` e
+ * `MAX_DRIVERS_PER_TRIP` do schema de banco (`database/trip.schema.ts`).
+ *
+ * ⚠️ Spec 217 (RF2/RF3, D1): a criação **deixou de exigir mínimo 1** — a viagem pode nascer sem
+ * tripulação (`awaiting_crew`); quem decide o status é `resolveCrewStatus` a partir do par
+ * motorista+veículo, nunca este schema.
  */
 const MAX_TRIP_DRIVERS = 10
 
@@ -31,8 +33,10 @@ export const createTripSchema = z
      * (`suggestAllowanceDays`), nunca este schema. Por isso nada de `.default()` aqui.
      */
     dailyAllowanceDays: z.number().int().min(1).optional(),
-    driverIds: z.array(z.uuid()).min(1).max(MAX_TRIP_DRIVERS),
-    vehicleId: z.uuid(),
+    /** Spec 217 RF2: ausente ou vazio nasce viagem `awaiting_crew` — não é mais 400. */
+    driverIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
+    /** Spec 217 RF2: ausência é "sem veículo ainda", nunca `TripVehicleNotFoundError`. */
+    vehicleId: z.uuid().optional(),
   })
   .strict()
 
