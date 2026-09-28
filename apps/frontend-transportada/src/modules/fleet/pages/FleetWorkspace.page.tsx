@@ -198,8 +198,15 @@ export function FleetWorkspacePage() {
     driverFilters,
     permissions,
   })
+  /**
+   * Só busca com a aba Motoristas aberta — é a única que usa. Sem essa guarda, o fetch dispara em
+   * toda visita a `/fleet`, e uma navegação rápida para outra tela aborta a chamada; o smoke
+   * (`api.failures()`) reprova qualquer requisição não resolvida, mesmo sem erro de servidor
+   * (run `36463364641`, 28/09/2026).
+   */
   const driverVehiclePairs = useDriverVehiclePairs({
     ...(companyId === undefined ? {} : { companyId }),
+    enabled: activeTab === 'drivers',
     permissions,
   })
   const vehiclesByDriverId = buildDriverVehicleSummaries({
