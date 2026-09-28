@@ -80,7 +80,7 @@
 - [x] **T302** 🧠 `opus` — Implementação do T301 em `trip-state.policy.ts`: `vehicleChanged` na
       variante `defineCrew`, `resolveNextCrewStatus`, bloqueio novo, e remoção de
       `tripCrewAlreadyDefined` com seu último uso. (RF4, D2, D3-ter)
-- [ ] **T307** 🧠 `opus` — Caso de uso e repositório passam `vehicleChanged` (comparando o veículo
+- [x] **T307** 🧠 `opus` — Caso de uso e repositório passam `vehicleChanged` (comparando o veículo
       pedido com o gravado, sob o lock). Teste de **integração**: viagem `route_planned`, troca o
       motorista, e no banco o status continua `route_planned`, `planned_route` e `planned_toll`
       intactos, `trip_drivers` com o motorista novo e sem o antigo. (RF4, RF5, D3-ter)
@@ -164,14 +164,14 @@
 
 > 🤖 Modelo: `sonnet` (T603 é ⚙️ `haiku`)
 
-- [ ] **T601** `sonnet` — Teste de contrato do serviço que compara o snapshot local com a resposta
+- [x] **T601** `sonnet` — Teste de contrato do serviço que compara o snapshot local com a resposta
       nova de `GET /me/trips/current`: viagem que estava no snapshot, não veio na resposta e não está
       concluída/cancelada → estado "não é mais sua". Viagem concluída → nada de aviso (é o caso
       normal). (RF8, D6)
-- [ ] **T602** `sonnet` — Aviso na tela do `frontend-driver`, no molde de
+- [x] **T602** `sonnet` — Aviso na tela do `frontend-driver`, no molde de
       `DriverForeignPendingNotice`, consumindo o T601. Um texto só serve para reatribuição e para
       viagem devolvida a `draft`. (RF8, D6)
-- [ ] **T603** ⚙️ `haiku` — `rejectionCauseLabel.service.ts` ganha texto de produto para
+- [x] **T603** ⚙️ `haiku` — `rejectionCauseLabel.service.ts` ganha texto de produto para
       `TRIP_NOT_OF_DRIVER` e `TRIP_STOP_NOT_REACHABLE`. Teste de contrato provando que nenhum dos
       dois cai no fallback do código cru. (RF8, D7)
 - [ ] **T604** `sonnet` — Teste de integração do lado motorista: motorista removido da tripulação
