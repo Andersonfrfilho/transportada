@@ -975,7 +975,19 @@ test('a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem 
   const api = await mockTripWorkspaceApi({
     mode: 'all-authorized',
     page,
-    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+    /**
+     * T402 (39154cb38, 28/09/2026): `canReadFinancials` chegou ao resumo de pedágio — sem
+     * `trip.financials` o valor em dinheiro some do DOM por desenho (D10), e a linha "Pedágio:
+     * R$ ..." nunca aparece. Faltou nesta lista quando o gate entrou.
+     */
+    permissions: [
+      'fleet.read',
+      'fleet.manage',
+      'mdfe.read',
+      'mdfe.manage',
+      'trip.financials',
+      'trip.manage',
+    ],
   })
   await registerTripQuickCreateTollApi({ page, routeGeometry: TOLL_SINGLE_ROUTE_GEOMETRY })
   await loginAsLocalUser(page)
@@ -1037,7 +1049,16 @@ test('a montagem de viagem oferece duas rotas, e a sem pedágio calculado não v
   const api = await mockTripWorkspaceApi({
     mode: 'all-authorized',
     page,
-    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+    /** T402 (39154cb38, 28/09/2026): mesmo motivo do teste acima — `trip.financials` faltando
+     * escondia a linha de pedágio em dinheiro (D10). */
+    permissions: [
+      'fleet.read',
+      'fleet.manage',
+      'mdfe.read',
+      'mdfe.manage',
+      'trip.financials',
+      'trip.manage',
+    ],
   })
   await registerTripQuickCreateTollApi({ page, routeGeometry: TOLL_ROUTE_CHOICE_GEOMETRY })
   await loginAsLocalUser(page)
