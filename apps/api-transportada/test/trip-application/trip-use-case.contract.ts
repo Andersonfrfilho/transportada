@@ -12,10 +12,12 @@ import type {
   TripRepositoryPort,
 } from '../../src/trips/application/trip.port.js'
 import type { PlanTripRouteTollFreezer } from '../../src/trips/application/plan-trip-route.use-case.js'
+import { resolveCrewStatus } from '../../src/trips/domain/trip-state.policy.js'
 import {
   TripCloseReasonRequiredError,
   TripDocumentAlreadyLinkedError,
   TripStateTransitionNotAllowedError,
+  TripVehicleNotFoundError,
 } from '../../src/trips/domain/trip.error.js'
 import type {
   TripDriverCandidate,
@@ -141,6 +143,11 @@ function createFixture(params: FixtureParams = {}) {
           driverEmail: '',
           driverPhone: '',
         })),
+        /** Spec 217 D1: mesma função da troca decide o status de nascimento — sem regra paralela. */
+        status: resolveCrewStatus({
+          hasDriver: input.crew.length > 0,
+          hasVehicle: input.vehicleId !== null,
+        }),
         vehicleId: input.vehicleId,
       })
     },
@@ -276,6 +283,88 @@ describe('trip use case contract', () => {
 
     expect(fixture.createCalls[0]).toMatchObject({ dailyAllowanceDays: 2 })
     expect(fixture.createCalls[1]).not.toHaveProperty('dailyAllowanceDays')
+  })
+
+  /**
+   * Spec 217 T201 (RF2/RF3, D1): a criação passa a aceitar par incompleto, e o status nasce do par —
+   * mesma função (`resolveCrewStatus`) que decide a troca (T101/T102). Os quatro cenários de aceite
+   * do spec.md: nenhum dos dois, só motorista, só veículo, os dois.
+   */
+  describe('creates a trip deriving the status from the crew composition (spec 217 RF2/RF3/D1)', () => {
+    test('without driver and without vehicle: awaiting_crew, and never throws TripVehicleNotFoundError', async () => {
+      const fixture = createFixture()
+      const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+      const trip = await useCase.create({ context: CONTEXT, driverIds: [], vehicleId: undefined })
+
+      expect(trip.status).toBe('awaiting_crew')
+      expect(trip.vehicleId).toBeNull()
+      expect(fixture.createCalls).toEqual([
+        {
+          actorUserId: USER_ID,
+          channel: 'backoffice',
+          companyId: COMPANY_ID,
+          crew: [],
+          vehicleId: null,
+        },
+      ])
+    })
+
+    test('only driver, without vehicle: awaiting_crew', async () => {
+      const fixture = createFixture()
+      const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+      const trip = await useCase.create({
+        context: CONTEXT,
+        driverIds: [FIRST_DRIVER_ID],
+        vehicleId: undefined,
+      })
+
+      expect(trip.status).toBe('awaiting_crew')
+      expect(trip.vehicleId).toBeNull()
+    })
+
+    test('only vehicle, without driver: awaiting_crew', async () => {
+      const fixture = createFixture()
+      const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+      const trip = await useCase.create({ context: CONTEXT, driverIds: [], vehicleId: VEHICLE_ID })
+
+      expect(trip.status).toBe('awaiting_crew')
+      expect(trip.vehicleId).toBe(VEHICLE_ID)
+    })
+
+    /** Sem regressão: o par completo continua nascendo `draft`, como antes da 217. */
+    test('driver and vehicle: draft, same as before the spec', async () => {
+      const fixture = createFixture()
+      const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+      const trip = await useCase.create({
+        context: CONTEXT,
+        driverIds: [FIRST_DRIVER_ID],
+        vehicleId: VEHICLE_ID,
+      })
+
+      expect(trip.status).toBe('draft')
+      expect(trip.vehicleId).toBe(VEHICLE_ID)
+    })
+
+    /**
+     * Um `vehicleId` informado e não encontrado continua erro — só a **ausência** do campo é "sem
+     * veículo ainda" (spec 217, `resolveTripVehicleForCreation`).
+     */
+    test('an informed but unresolved vehicleId still refuses, never silently becomes awaiting_crew', async () => {
+      const fixture = createFixture({ vehicle: null })
+      const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+      const refusal = await useCase
+        .create({ context: CONTEXT, driverIds: [], vehicleId: VEHICLE_ID })
+        .then(() => null)
+        .catch((error: unknown) => error)
+
+      expect(refusal).toBeInstanceOf(TripVehicleNotFoundError)
+      expect(fixture.createCalls).toEqual([])
+    })
   })
 
   test('links a document by nfe document id, xor freight calculation id', async () => {
