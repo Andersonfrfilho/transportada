@@ -346,11 +346,13 @@ jobs:
   # campo sem forma fácil de saber por quê. Por isso ele espera `deploy-api`, com o mesmo `always()`
   # e a mesma conferência de `result` do frontend.
   #
-  # Code M8 (spec 189 T9.2): produção nunca filtra (`changes` acima), então este job dispararia em
-  # **todo** push a `main` que toque `apps/frontend-driver` — e o serviço `driver` ainda não existe
-  # na Railway de produção (T6.9, pendente). `railway-deploy.sh` bateria num serviço inexistente e
-  # reprovaria o deploy inteiro por causa de uma app que produção ainda não tem. A guarda de ambiente
-  # some daqui assim que a T6.9 marcar o domínio e o serviço de produção como prontos.
+  # Code M8 (spec 189 T9.2): a guarda `needs.target.outputs.environment != 'production'` existiu
+  # enquanto o serviço `driver` não existia na Railway de produção — sem ela, `railway-deploy.sh`
+  # bateria num serviço inexistente e reprovaria o deploy inteiro. A T6.9 criou o serviço e o
+  # domínio de produção (`railway config apply` + `railway domain`, 28/09/2026, DNS confirmado por
+  # `dig`), e a guarda saiu: publicar o bundle em produção não expõe nada por si só — só quem
+  # acessa `motorista.fernandes-transportadora.com.br` direto encontra o app; o tráfego real só
+  # chega lá quando o painel ligar `VITE_DRIVER_APP_URL` (T6.10, ainda pendente).
   deploy-driver:
     needs: [target, changes, gate, deploy-api]
     if: >-
@@ -360,7 +362,6 @@ jobs:
       && needs.deploy-api.result != 'failure'
       && needs.deploy-api.result != 'cancelled'
       && needs.changes.outputs.driver == 'true'
-      && needs.target.outputs.environment != 'production'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ needs.target.outputs.environment }}
