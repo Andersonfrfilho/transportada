@@ -110,12 +110,15 @@ veículo específico, e trocar o baú debaixo dele é pior que recusar.
 ### D3 — A rota morre inteira numa escrita, e o operador replaneja
 
 Trocar o veículo em `route_planned` **não recalcula a rota na mesma transação**. A viagem volta para
-`draft` e os campos congelados a partir do veículo antigo são zerados na mesma escrita:
-`planned_route`, `planned_toll`, `planned_toll_frozen_at`, `planned_distance_meters`,
-`planned_return_distance_meters`, `planned_duration_seconds`, `planned_route_frozen_at`,
-`eta_departure_at`, `estimated_arrival_frozen_at`, e por parada `estimated_arrival_at`,
-`distance_from_previous_meters`, `duration_from_previous_seconds`. Aí o botão "Planejar rota" reaparece
-(consequência de D1) e o operador usa o caminho da 178, que já existe e já é testado.
+`draft` e os campos congelados a partir do veículo antigo são zerados na mesma escrita — **sete
+colunas, todas de `trips`**: `planned_route`, `planned_route_frozen_at`, `planned_toll`,
+`planned_toll_frozen_at`, `planned_distance_meters`, `planned_return_distance_meters`,
+`planned_duration_seconds`. Aí o botão "Planejar rota" reaparece (consequência de D1) e o operador usa
+o caminho da 178, que já existe e já é testado.
+
+Essas sete são exatamente o que `writePlannedRoute` escreve (conferido campo a campo na T303,
+`drizzle-trip-planned-route.repository.ts:84`) — a limpeza é o congelamento pelo avesso, e por isso
+reaproveita a mesma escrita, que já sabe gravar tudo nulo quando não há rota.
 
 **A alternativa recusada** foi trocar e replanejar numa transação só. Ela parece mais gentil com o
 operador e é pior de três formas: escreve um segundo caminho de congelamento de pedágio ao lado do
@@ -128,6 +131,38 @@ velho não fica por aí esperando ser lido.
 apagado e o status não regride — a troca é idempotente. Mesma coisa para troca só de motorista: a
 rota não depende do motorista hoje (097 D1/D3/D4, com D6 decidido e não implementado), então ela
 fica de pé e a viagem permanece `route_planned`.
+
+### D3-bis — A hora prevista de chegada **não** é apagada (corrigido pela T303)
+
+Decisão do dono do produto em 2026-09-27, depois de a T303 conferir o código: a hora que vale é a
+ancorada na **partida real do motorista**, e o sistema já faz isso. No clique de quem sai, o ETA de
+cada parada desloca o tanto que a saída atrasou (spec 109 D2, `shiftEstimatedArrivals`), e em cada
+chegada real as paradas pendentes deslocam de novo pelo atraso (`report-stop-arrival.use-case.ts:96`).
+A hora gravada no planejamento é o ponto de partida que o despacho corrige, não uma previsão final.
+
+Por isso a troca **preserva** `trips.eta_departure_at`, `trips.estimated_arrival_frozen_at` e
+`trip_stops.estimated_arrival_at`. Três razões, em ordem de gravidade:
+
+1. **Zerar desliga a correção, não só a previsão.** `eta_departure_at` é a âncora do deslocamento;
+   com ela nula, `resolveEtaShiftMilliseconds` não desloca nada ("âncora inventada erraria mais que
+   não deslocar", `eta-anchor.policy.ts`). A viagem não ficaria sem hora: ficaria com hora que nunca
+   mais se corrige.
+2. **Hora apagada não volta.** O deslocamento **soma** um delta à hora existente e filtra por
+   `isNotNull` — parada com ETA nulo fica fora por construção.
+3. **O replanejamento não a reescreveria.** `writeEstimatedArrivals` tem um único chamador,
+   `trip-composer.adapter.ts` (o aceite de sugestão de rota). O `POST /trips/:id/plan-route` nunca
+   escreve ETA, então apagar seria perda definitiva, e o portal do contratante passaria a mostrar
+   vazio onde havia uma hora.
+
+O que a troca deixa desatualizado é a duração por perna do veículo antigo embutida nessas horas — e é
+o menor dos males: a tela já mostra de quando a previsão é (`estimated_arrival_frozen_at`, spec 107
+D3), e o despacho a re-ancora na saída real.
+
+⚠️ **`trip_stops.distance_from_previous_meters` e `duration_from_previous_seconds` ficam fora da
+limpeza porque ninguém as escreve.** A T303 conferiu: no módulo de viagens não existe um único
+gravador delas; os que existem são das colunas homônimas de `route_suggestion_stops`, que é outra
+tabela. Zerá-las seria fingir que alguém as congela. Ficam como estão, e quem for usá-las um dia
+precisa entrar nesta lista.
 
 ### D4 — A carga que não cabe no veículo novo entra na fila de revisão, e nunca bloqueia
 
@@ -203,9 +238,10 @@ O push fica registrado como decisão consciente de não fazer agora.
 6. **Troca de motorista em `route_planned`.** A viagem continua `route_planned`, a rota e o pedágio
    ficam de pé, o motorista novo passa a ver a viagem no PWA e o antigo recebe o aviso de que ela não
    é mais dele.
-7. **Troca de veículo em `route_planned`.** A viagem volta para `draft`, os campos congelados da rota
-   ficam nulos, a viagem sai do PWA de todos, e "Planejar rota" reaparece no painel. Depois do
-   replanejamento, o pedágio corresponde aos eixos do veículo novo.
+7. **Troca de veículo em `route_planned`.** A viagem volta para `draft`, as sete colunas de rota e
+   pedágio ficam nulas, **as horas previstas de chegada continuam lá** (D3-bis), a viagem sai do PWA
+   de todos, e "Planejar rota" reaparece no painel. Depois do replanejamento, o pedágio corresponde
+   aos eixos do veículo novo.
 8. **Troca de veículo pelo mesmo veículo.** Nada é apagado, o status não regride, a resposta é 200.
 9. **Troca depois da separação.** Em `separating`, a troca é recusada com 409
    `TRIP_SEPARATION_STARTED`.

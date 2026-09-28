@@ -56,14 +56,20 @@ despachável — por isso é task 🧠. Regras:
 - Troca só de motorista em `route_planned`: `unchanged`, rota de pé.
 - A limpeza dos campos congelados acontece **na mesma transação** de `updateCrew`, junto do
   `delete`/`insert` de `trip_drivers` e do `update` de `trips` que já existem ali. Uma escrita.
-- As colunas por parada (`trip_stops.estimated_arrival_at`, `distance_from_previous_meters`,
-  `duration_from_previous_seconds`) entram no mesmo `update`, filtradas por `companyId + tripId`.
+- **Nenhuma coluna de `trip_stops` entra na limpeza** (D3-bis): as horas previstas de chegada são
+  preservadas, e as duas métricas por parada não são escritas por ninguém.
 
-⚠️ **Ler `plan-trip-route.use-case.ts` e `freezeTripPlannedRoute` inteiros antes de escrever a
-limpeza.** A lista de colunas desta spec foi levantada do schema, não do congelador; se o congelador
-gravar algo que não está na lista, a limpeza deixa número velho para trás — exatamente o defeito que
-D3 existe para evitar. A verificação é mecânica: todo campo que `freezeTripPlannedRoute` escreve tem
-de aparecer na limpeza.
+✅ **Conferência da T303 feita (resultado na D3-bis do `spec.md`).** `writePlannedRoute`
+(`drizzle-trip-planned-route.repository.ts:84`) escreve sete colunas de `trips` e nada mais;
+`writeEstimatedArrivals` escreve as três de ETA, e tem um único chamador, que é o aceite de sugestão —
+não o `plan-route`. `markRoutePlanned` escreve só `status` e `updatedAt`. Portanto: a limpeza é as sete
+de rota/pedágio, o ETA fica de fora, e nada que o congelador escreve ficou fora da lista.
+
+A escrita de limpeza deve **reaproveitar `writePlannedRoute`** com `route: null, toll: null` em vez de
+um `update` escrito à mão — ela já sabe gravar as sete colunas nulas, e duplicar a lista de colunas
+seria criar o segundo lugar que um dia discorda do primeiro. ⚠️ Ela vive em outro repositório
+(`drizzle-trip-planned-route.repository.ts`) e hoje não participa da transação de `updateCrew`:
+a T305 precisa passar a transação adiante, não abrir uma segunda.
 
 ### O bloqueio novo
 
