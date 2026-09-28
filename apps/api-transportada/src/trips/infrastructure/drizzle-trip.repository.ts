@@ -55,6 +55,7 @@ import {
   checkTripTransition,
   resolveCrewStatus,
 } from '../domain/trip-state.policy.js'
+import { DrizzleTripPlannedRouteRepository } from './drizzle-trip-planned-route.repository.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
 import { TRIP_CLOSE_SETTLED_SEPARATION_STATUSES } from '../domain/trip-close.policy.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
@@ -318,12 +319,13 @@ export class DrizzleTripRepository implements TripRepositoryPort {
        * uso é o que torna a decisão correta sob concorrência: a checagem prévia é UX, esta é a que
        * grava.
        */
+      const vehicleChanged = input.vehicleId !== tripRow.vehicleId
       const transition = checkTripTransition({
         action: TRIP_ACTION.defineCrew,
         crew: { hasDriver: input.crew.length > 0, hasVehicle: input.vehicleId !== null },
         hasRoute: tripRow.plannedRouteFrozenAt !== null,
         tripStatus: tripRow.status,
-        vehicleChanged: input.vehicleId !== tripRow.vehicleId,
+        vehicleChanged,
       })
       if (transition.outcome === 'blocked') {
         throw new TripStateTransitionNotAllowedError(transition.reason)
@@ -364,6 +366,23 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           fromStatus: tripRow.status,
           onBehalfOfDriverId: null,
           toStatus: transition.nextStatus,
+          tripId: input.tripId,
+        })
+      }
+
+      /**
+       * Spec 217 D3: **a rota morre inteira, na mesma escrita da troca.** Só quando o veículo mudou de
+       * verdade — o traçado e o pedágio foram congelados a partir dos eixos e da classe do caminhão
+       * antigo, e o operador replaneja pelo caminho da 178. Trocar só o motorista não mexe em nada
+       * disso (097 D1/D3/D4), e trocar pelo mesmo veículo é idempotente.
+       *
+       * ⚠️ `clearPlannedRoute` recebe **esta** transação, não abre outra: a troca e a limpeza são uma
+       * escrita só, ou existe a janela em que a viagem tem tripulação nova e pedágio velho.
+       * ⚠️ O ETA fica de fora por decisão (D3-bis) — ver o comentário de `clearPlannedRoute`.
+       */
+      if (vehicleChanged) {
+        await DrizzleTripPlannedRouteRepository.clearPlannedRoute(transaction, {
+          companyId: input.companyId,
           tripId: input.tripId,
         })
       }

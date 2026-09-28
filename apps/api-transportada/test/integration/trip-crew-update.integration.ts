@@ -21,6 +21,7 @@ import {
 import { trips, tripDrivers } from '../../src/database/trip.schema.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { resolveCrewStatus } from '../../src/trips/domain/trip-state.policy.js'
+import { DrizzleTripPlannedRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-planned-route.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 
 const databaseUrl =
@@ -88,6 +89,8 @@ async function seedCompanyFleet(database: TestDatabase['db']): Promise<{
   await database.insert(fleetVehicles).values([
     {
       companyId,
+      /** Spec 217 T306: eixos distintos entre os dois veículos — é o que faz o pedágio diferir. */
+      axleCount: 6,
       id: firstVehicleId,
       plate: 'ABC1D23',
       role: 'traction',
@@ -96,6 +99,7 @@ async function seedCompanyFleet(database: TestDatabase['db']): Promise<{
     },
     {
       companyId,
+      axleCount: 2,
       id: secondVehicleId,
       plate: 'XYZ9E88',
       role: 'traction',
@@ -430,7 +434,27 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
           ],
           vehicleId: fleet.firstVehicleId,
         })
-        await db.update(trips).set({ status: 'route_planned' }).where(eq(trips.id, created.id))
+        /**
+         * Spec 217 T304: a rota nasce inteira (as sete colunas de `trips_planned_route_check`) e o ETA
+         * vem carimbado — é a única forma de o teste distinguir o que a troca **mata** do que ela
+         * **preserva** (D3 contra D3-bis). Viagem sem ETA gravado provaria só metade.
+         */
+        const frozenAt = new Date()
+        await db
+          .update(trips)
+          .set({
+            estimatedArrivalFrozenAt: frozenAt,
+            etaDepartureAt: frozenAt,
+            plannedDistanceMeters: 42_000,
+            plannedDurationSeconds: 3_600,
+            plannedReturnDistanceMeters: 8_000,
+            plannedRoute: { criterion: 'cheapest', legs: [], points: [], signature: 'abc' },
+            plannedRouteFrozenAt: frozenAt,
+            plannedToll: { total: '12.34' },
+            plannedTollFrozenAt: frozenAt,
+            status: 'route_planned',
+          })
+          .where(eq(trips.id, created.id))
 
         await repository.updateCrew({
           actorUserId: fleet.userId,
@@ -454,6 +478,57 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
           .where(eq(trips.id, created.id))
         expect(tripRow?.vehicleId).toBe(fleet.secondVehicleId)
         expect(tripRow?.status).toBe('draft')
+
+        /**
+         * Spec 217 D3: **as sete colunas de rota e pedágio morrem juntas**, na mesma escrita da
+         * troca. O número velho foi congelado com os eixos do caminhão antigo, e deixá-lo por aí é o
+         * defeito que esta decisão existe para evitar — a valoração o leria como se valesse.
+         */
+        const [routeRow] = await db
+          .select({
+            estimatedArrivalFrozenAt: trips.estimatedArrivalFrozenAt,
+            etaDepartureAt: trips.etaDepartureAt,
+            plannedDistanceMeters: trips.plannedDistanceMeters,
+            plannedDurationSeconds: trips.plannedDurationSeconds,
+            plannedReturnDistanceMeters: trips.plannedReturnDistanceMeters,
+            plannedRoute: trips.plannedRoute,
+            plannedRouteFrozenAt: trips.plannedRouteFrozenAt,
+            plannedToll: trips.plannedToll,
+            plannedTollFrozenAt: trips.plannedTollFrozenAt,
+          })
+          .from(trips)
+          .where(eq(trips.id, created.id))
+        expect(routeRow?.plannedRoute).toBeNull()
+        expect(routeRow?.plannedRouteFrozenAt).toBeNull()
+        expect(routeRow?.plannedToll).toBeNull()
+        expect(routeRow?.plannedTollFrozenAt).toBeNull()
+        expect(routeRow?.plannedDistanceMeters).toBeNull()
+        expect(routeRow?.plannedReturnDistanceMeters).toBeNull()
+        expect(routeRow?.plannedDurationSeconds).toBeNull()
+
+        /**
+         * Spec 217 D3-bis: **o ETA sobrevive.** A hora que vale é a ancorada na partida real do
+         * motorista, e zerar `eta_departure_at` desligaria o deslocamento do despacho em silêncio —
+         * a viagem não ficaria sem previsão, ficaria com previsão que nunca mais se corrige.
+         */
+        expect(routeRow?.etaDepartureAt).not.toBeNull()
+        expect(routeRow?.estimatedArrivalFrozenAt).not.toBeNull()
+
+        /**
+         * Spec 217 T306: a metade do ciclo que se prova **sem** o roteirizador. Zerar o pedágio velho
+         * só vale se o replanejamento usar os eixos do caminhão **novo** — e é `readVehicleContext`
+         * que os entrega ao congelador. Seis eixos antes, dois depois: se a troca não tivesse
+         * atualizado `trips.vehicle_id`, esta leitura devolveria os seis e o pedágio recongelaria
+         * errado, com a rota parecendo nova.
+         *
+         * O ciclo completo (replanejar de fato e comparar o valor do pedágio) depende do OSRM e fica
+         * para o teste de ponta a ponta com roteirizador dublado.
+         */
+        const vehicleContext = await new DrizzleTripPlannedRouteRepository(db).readVehicleContext({
+          companyId: fleet.companyId,
+          tripId: created.id,
+        })
+        expect(vehicleContext?.axles).toEqual({ count: 2, source: 'declared' })
       })
     },
     DISPOSABLE_DATABASE_TIMEOUT_MS,

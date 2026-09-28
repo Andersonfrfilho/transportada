@@ -594,3 +594,47 @@ rótulos, falha.
 **Lição para a próxima lacuna:** quem cria uma em `trip-valuation.policy.ts` tem de rodar a suíte do
 painel também. O isolamento entre executores evita conflito de arquivo e **cega para guardas
 cruzados** — foi eu quem escreveu o isolamento, então o buraco é meu, não do executor.
+
+## Fase 3B — a rota morre inteira na troca de veículo (🧠 `opus`)
+
+**T304, vermelho antes:** o teste passou a nascer com a rota congelada inteira e o ETA carimbado — sem
+isso ele provaria só metade, porque não haveria como distinguir o que a troca mata do que ela preserva.
+Falhou com as sete colunas intactas depois da troca de veículo, como esperado.
+
+**T305, a implementação, com a lista de colunas em um lugar só.** `plannedRouteColumns({route, toll})`
+foi extraída como função única, e `writePlannedRoute` passou a delegar a ela. `clearPlannedRoute` é o
+congelamento pelo avesso e usa a **mesma** função — duplicar a lista criaria o segundo lugar que um dia
+discorda do primeiro, e a forma desse defeito é a pior possível: **pedágio velho sobrevivendo a uma
+troca de caminhão, lido como se valesse.**
+
+`clearPlannedRoute` recebe a transação de `updateCrew` em vez de abrir outra, como o `plan.md` exigia:
+troca e limpeza são uma escrita só, ou existe a janela em que a viagem tem tripulação nova e pedágio
+velho. E ela **não toca em ETA**, por D3-bis.
+
+Dispara **só quando o veículo mudou de verdade** (`input.vehicleId !== tripRow.vehicleId`, comparado
+sob o lock): trocar só o motorista não mexe na rota, e trocar pelo mesmo veículo é idempotente.
+
+**T306, o que dá para provar sem o roteirizador.** Zerar o pedágio velho só vale se o replanejamento
+usar os eixos do caminhão **novo**, e quem os entrega ao congelador é `readVehicleContext`. Os dois
+veículos do seed ganharam contagem de eixos distinta (6 e 2), e o teste prende que depois da troca a
+leitura devolve **2**: se `trips.vehicle_id` não tivesse sido atualizado, ela devolveria 6 e o pedágio
+recongelaria errado com a rota parecendo nova. O ciclo completo — replanejar de fato e comparar o valor
+— depende do OSRM e fica para um teste de ponta a ponta com roteirizador dublado; está dito no
+comentário do teste, não escondido.
+
+```
+$ DRIZZLE_TEST_DATABASE_URL=... bun test ./test/integration/trip-crew-update.integration.ts
+ 8 pass / 0 fail / 49 expect() calls
+$ bun test --timeout 120000                # contrato da API inteiro
+ 7968 pass / 32 skip / 0 fail
+$ bun run lint && bun run format:check     # raiz, limpos
+```
+
+⚠️ **Sobre os 32 pulados:** nove deles são os testes de pedágio que exigem banco. Sem `--env-file`
+(que aponta para o Docker morto) eles **pulam** em vez de falhar — e pular não é passar. Quem os roda
+é a CI, com banco dedicado.
+
+⚠️ Achado de passagem, não corrigido porque não é defeito hoje: `readVehicleContext` também usa
+`innerJoin` no veículo, então devolveria `null` para viagem sem veículo. Está protegido pela máquina de
+estados — congelar rota exige `draft`, e `draft` exige tripulação completa (D1) — mas se algum dia o
+congelamento for chamado de outro lugar, este é o próximo `innerJoin` a cair, no mesmo molde da Fase 4.
