@@ -795,6 +795,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
 
       const multiVehicle: MultiVehicleSuggestionRepository = {
         create: async () => suggestion({ status: 'queued' }),
+        findIneligibleHelperIds: async () => [],
         findUnavailableDocumentIds: async () => [],
         findUnavailableDriverIds: async () => [],
         findUnavailableVehicleIds: async () => [],
