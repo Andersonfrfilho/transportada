@@ -353,6 +353,40 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
       .where(and(eq(tripCargoLayouts.companyId, seeded.companyId)))
     expect(rows).toEqual([])
   })
+
+  /**
+   * Spec 217 Fase 4 (T403): **viagem sem veículo é `unavailable`, não erro.** A RF1 publicou a
+   * criação de viagem sem veículo, e o detalhe dela monta a entrada da planta como monta a de
+   * qualquer outra. Nenhuma linha de produção nasceu para isto: `loadTripOccupancy` já trata
+   * `vehicleId === null` como veículo não encontrado (spec 216), devolvendo baú e capacidade nulos, e
+   * `canRequestCargoLayout` já recusa por falta de baú. Este caso é o que **prende** a combinação —
+   * sem ele, trocar aquele `null` por um erro passaria pelos dois arquivos sem ninguém notar.
+   */
+  test('without a vehicle at all: unavailable, no error, nothing queued', async () => {
+    const seeded = await seedTrip(database, { measured: false, withoutVehicle: true })
+
+    const eager = (await readCargoLayoutInputParams(
+      database.db,
+      seeded,
+    )) as BuildCargoLayoutInputParams
+    expect(eager.bedDimensions).toBeNull()
+    expect(eager.capacityM3).toBeNull()
+
+    const detail = await new DrizzleTripRepository(database.db).findById(seeded)
+    expect(detail?.cargoLayoutState).toEqual({
+      computedAt: null,
+      errorCode: null,
+      stale: false,
+      status: 'unavailable',
+      truncated: false,
+    })
+    expect(detail?.pendingCargoLayoutInput).toBeUndefined()
+    const rows = await database.db
+      .select({ id: tripCargoLayouts.id })
+      .from(tripCargoLayouts)
+      .where(and(eq(tripCargoLayouts.companyId, seeded.companyId)))
+    expect(rows).toEqual([])
+  })
 })
 
 async function requestLazily(
@@ -396,6 +430,8 @@ async function seedTrip(
     readonly bodyType?: '02' | '05'
     readonly driverSecuresCargo?: boolean
     readonly measured: boolean
+    /** Spec 217 RF1: o rascunho salvo sem caminhão escolhido — `trips.vehicle_id` nulo. */
+    readonly withoutVehicle?: boolean
   },
 ): Promise<SeededTrip> {
   const companyId = crypto.randomUUID()
@@ -409,24 +445,32 @@ async function seedTrip(
   await database.db
     .insert(userCompanyMemberships)
     .values({ companyId, id: crypto.randomUUID(), status: 'active', userId })
-  await database.db.insert(fleetVehicles).values({
+  if (params.withoutVehicle !== true) {
+    await database.db.insert(fleetVehicles).values({
+      companyId,
+      id: vehicleId,
+      plate: 'ABC1D23',
+      role: 'traction',
+      state: 'SP',
+      ...(params.bodyType === undefined ? {} : { bodyType: params.bodyType }),
+      ...(params.measured
+        ? {
+            capacityM3: '48.000',
+            cargoHeightM: '2.500',
+            cargoLengthM: '8.000',
+            cargoWidthM: '2.400',
+            vehicleType: 'three_quarter',
+          }
+        : { vehicleType: 'tractor_unit' }),
+    })
+  }
+  await database.db.insert(trips).values({
     companyId,
-    id: vehicleId,
-    plate: 'ABC1D23',
-    role: 'traction',
-    state: 'SP',
-    ...(params.bodyType === undefined ? {} : { bodyType: params.bodyType }),
-    ...(params.measured
-      ? {
-          capacityM3: '48.000',
-          cargoHeightM: '2.500',
-          cargoLengthM: '8.000',
-          cargoWidthM: '2.400',
-          vehicleType: 'three_quarter',
-        }
-      : { vehicleType: 'tractor_unit' }),
+    id: tripId,
+    ...(params.withoutVehicle === true
+      ? { status: 'awaiting_crew' as const }
+      : { status: 'draft' as const, vehicleId }),
   })
-  await database.db.insert(trips).values({ companyId, id: tripId, status: 'draft', vehicleId })
   await database.db.insert(fleetDrivers).values({
     companyId,
     id: driverId,
