@@ -1008,6 +1008,7 @@
     "vehiclesSummary_other": "{{count}} vehicles chosen"
   },
   "routeMap": {
+    "invalidatedNotice": "This trip's route is not assembled — changing the vehicle invalidates the route and toll calculated for the previous truck. Click «$t(stateActions.planRoute)» to assemble the route and recalculate the toll.",
     "criterion": {
       "alternative": "Route chosen manually by the operator.",
       "cheapest": "Criterion: cheapest (fuel + toll).",
