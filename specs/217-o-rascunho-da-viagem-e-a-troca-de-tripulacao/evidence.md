@@ -432,3 +432,47 @@ segundos viajaram até a CI. **Banco de teste indisponível não é motivo para 
 conseguir um banco.**
 
 Depois dos consertos: `typecheck` limpo, `lint` limpo nos arquivos da API, `prettier --check` limpo.
+
+## Fase 5 — o rascunho na criação, e a tela que para de mentir (`sonnet`, quatro commits)
+
+- `581a8963d` — T501/T502: a viagem sem tripulação vira representável e as telas mostram "a definir".
+- `c1f3741b2` — T506: selo de tripulação pendente na listagem.
+- `bd86fe3ed` — T503: `validateQuickCreate` distingue rascunho de clique único.
+- `fb5d8e517` — T504: botão "Salvar rascunho" ao lado do botão atual (D5).
+
+**O typecheck virou a lista de trabalho da T502**, a mesma técnica que funcionou na T302 do servidor:
+`Trip.vehicleId` passou a `null | string` e o compilador apontou sozinho cada leitura que o tratava
+como string incondicional — `TripTable`, `TripDetail`, `useTripCrewDialog`, a ordenação da coluna em
+`tripTable.service.ts` e o validador de resposta HTTP. Nada de caçar à mão.
+
+**Sete telas da lista do `plan.md` foram revisadas e deliberadamente não tocadas**, com motivo por tela, em vez de mudança cosmética: `TripProposalRow` e `TripReviewEntry` já têm texto próprio para
+ausência (`proposal.withoutDriver`, `moveTargetNoDriver`); `TripHeaderActions` não imprime veículo nem
+motorista; `FieldDeliveryWizard(Header)` e `FieldOccurrenceDialog` só são alcançáveis com tripulação
+completa (fluxo pós-despacho); `TripRouteAssemblyDialog` delega a `TripProposalRow`; e em
+`TripOccurrenceTable` o `driverName` é de **quem registrou a ocorrência**, não da tripulação atual —
+trocá-lo por "a definir" ali seria mentira de outro tipo. Registro isso porque a lista da spec estava
+mais larga que o defeito, e encolher com justificativa é melhor que tocar sete arquivos para nada.
+
+**Uma distinção que o T502 preservou e que eu poderia ter perdido:** em `TripTable`, veículo `null` é
+"a definir", mas veículo **presente e fora do cache local da frota** continua mostrando o identificador
+cru. São dois estados diferentes — "ninguém escolheu" e "escolheu e eu não sei o nome" — e um texto só
+para os dois esconderia o segundo.
+
+**T504 reaproveitou a função existente** em vez de copiá-la: `runQuickCreateTrip` ganhou
+`planRoute?: boolean`, e ausente continua planejando (compatível com o clique único, que segue
+existindo). O `vehicleId` passou a ser **omitido** do corpo quando o operador não escolheu, em vez de
+string vazia — é o que o servidor precisa para aceitar a criação sem veículo (RF2).
+
+```
+$ cd apps/frontend-transportada && bun run test     # conferido por mim, não pelo relatório
+ 5571 pass / 0 fail / 30 arquivos
+ 54 pass / 0 fail / 1 arquivo (suíte com DOM)
+$ bun run typecheck                                 # limpo
+```
+
+O teste da T504 prova a **ordem exata** das requisições do rascunho
+(`POST /trips → documents/batch → GET /trips/:id → PATCH stops/order`) e a **ausência** de
+`POST .../plan-route`, que é o ponto inteiro do botão.
+
+Decisão de apresentação que ficou para a revisão de design (já estava aberta no `plan.md`): o selo diz
+"Aguardando tripulação", genérico, sem nomear "sem motorista" / "sem veículo" quando falta só um.
