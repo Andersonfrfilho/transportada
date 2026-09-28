@@ -9,6 +9,9 @@ import { TRIP_ERROR } from './trip.constant'
 export const TRIP_ALLOWED_ACTIONS = [
   'cancel',
   'confirmLoad',
+  /** Spec 217 (D6, T309): trocar motorista/veículo — servida em `awaiting_crew`, `draft` e
+   * `route_planned`, nunca por `if` de status no cliente. */
+  'defineCrew',
   'dispatch',
   'planRoute',
   'startRoute',

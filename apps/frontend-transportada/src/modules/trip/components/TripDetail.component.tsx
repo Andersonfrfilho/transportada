@@ -49,6 +49,7 @@ import {
   resolveDefaultOnBehalfDriverId,
   selectFieldReturnableDocumentIds,
 } from '../shared/tripFieldActions.service'
+import { buildChangeTripCrewInput } from '../shared/tripCrewDialog.service'
 import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
@@ -68,7 +69,7 @@ import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
-import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import type { FleetDriverListItem, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 
 import { describeTripVehicle } from '../shared/vehicleSummary.service'
@@ -88,6 +89,8 @@ import styles from '../styles/trip.module.css'
 type TripDetailProps = Readonly<{
   /** RF7 (spec 154): sem `settings.manage` o extrato de pedágio não oferece o ajuste da praça. */
   canAdjustTollBooth: boolean
+  /** Spec 217 T310: a frota da empresa, para o diálogo "Trocar motorista/veículo" escolher entre. */
+  drivers: readonly FleetDriverListItem[]
   linkForm: TripDocumentLinkFormController
   /** A frota da empresa: é dela que sai a identificação do veículo, no lugar do UUID. */
   vehicles: readonly FleetVehicleDetail[]
@@ -238,7 +241,13 @@ export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
   )
 }
 
-export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }: TripDetailProps) {
+export function TripDetail({
+  canAdjustTollBooth,
+  drivers,
+  linkForm,
+  vehicles,
+  workspace,
+}: TripDetailProps) {
   const { t } = useTranslation('trip')
   const { t: tFleet } = useTranslation('fleet')
   const trip = workspace.trip
@@ -666,13 +675,21 @@ export function TripDetail({ canAdjustTollBooth, linkForm, vehicles, workspace }
           canManage={canManage}
           canReportOnBehalf={workspace.controller.canReportOnBehalf}
           capabilities={workspace.fieldActionCapabilities}
+          crewDrivers={drivers}
+          crewVehicles={vehicles}
           fiscalReadiness={workspace.fiscalReadiness}
           isCancelPending={workspace.cancelMutation.isPending}
+          isChangingCrew={workspace.changeCrewMutation.isPending}
           isDispatchPending={workspace.dispatchMutation.isPending}
           isFiscalReadinessPanelVisible={canReadFleetDetails}
           isPlanRoutePending={workspace.planRouteMutation.isPending}
           isStartRoutePending={workspace.startFieldTripMutation.isPending}
           onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
+          onChangeCrew={(input) =>
+            workspace.changeCrewMutation.mutateAsync(
+              buildChangeTripCrewInput({ ...input, tripId: trip.id }),
+            )
+          }
           onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
           onOpenOccurrenceDocument={(documentId) =>
             workspace.setOpenSeparationOccurrenceDocumentId(documentId)

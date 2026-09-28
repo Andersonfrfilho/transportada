@@ -407,6 +407,27 @@
     "vehiclePlaceholder": "Selecione o veículo",
     "vehicleSearch": "Buscar por placa, marca ou modelo"
   },
+  "crewDialog": {
+    "drivers": "Motoristas",
+    "driversClearAll": "Retirar todos",
+    "driversEmpty": "Cadastre um motorista ativo na frota antes de trocar a tripulação.",
+    "driversNoMatch": "Nenhum motorista encontrado",
+    "driversPlaceholder": "Escolher motoristas",
+    "driversRemove": "Retirar este motorista",
+    "driversSearch": "Buscar por nome",
+    "driversSummary": "{{count}} motorista escolhido",
+    "driversSummary_other": "{{count}} motoristas escolhidos",
+    "error": {
+      "generic": "Não foi possível trocar a tripulação agora. Tente de novo.",
+      "separationStarted": "A separação da carga já começou: esta viagem não aceita mais troca de motorista ou veículo."
+    },
+    "subtitle": "A troca substitui a tripulação e o veículo inteiros — não é possível somar.",
+    "submit": "Confirmar troca",
+    "title": "Trocar motorista e veículo",
+    "vehicle": "Veículo",
+    "vehiclePlaceholder": "Selecione o veículo",
+    "vehicleSearch": "Buscar por placa, marca ou modelo"
+  },
   "dateRange": {
     "clear": "Limpar período",
     "nextMonth": "Próximo mês",
@@ -1333,6 +1354,7 @@
     "batchSeparate": "Separar {{count}} nota",
     "batchSeparate_other": "Separar {{count}} notas",
     "cancel": "Cancelar viagem",
+    "defineCrew": "Trocar motorista/veículo",
     "dispatch": "Despachar",
     "dispatchConfirmTitle": "Despachar a viagem",
     "dispatchUnderstood": "Entendi",

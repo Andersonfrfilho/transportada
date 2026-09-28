@@ -843,6 +843,16 @@ export type CreateTripBody = Readonly<{
   vehicleId: string
 }>
 
+/**
+ * Spec 217 (RF4/RF6, D2/D3): `PATCH /trips/:id/crew`. Os dois campos são opcionais e cada um
+ * substitui a tripulação/veículo inteiros — nunca soma. Ausente é "não mexe nisto".
+ */
+export type ChangeTripCrewInput = Readonly<{
+  driverIds?: readonly string[]
+  tripId: string
+  vehicleId?: string
+}>
+
 export type LinkTripDocumentBody = Readonly<{
   freightCalculationId: null | string
   nfeDocumentId: null | string
