@@ -66,6 +66,11 @@
 > e imediata. E é a metade leve da troca: motorista não entra no cálculo da rota nem do pedágio
 > (097 D1/D3/D4), então não há coluna para zerar, replanejamento nem carga a reconferir. Fecha sozinha
 > e pode ir a staging sem a Fase 3B.
+>
+> ⚠️ **A fase vai até a tela.** O dono do produto foi explícito: "tem que ser pela tela". A T505 da
+> Fase 5 foi puxada para cá (T310) com o que ela exige do servidor (T309), porque uma troca que só
+> existe por `curl` não está entregue. O aviso ao motorista que perdeu a viagem (T602) continua na
+> Fase 6 — ele não bloqueia esta entrega, mas está nomeado no § "O que sobe na frente" do `plan.md`.
 
 - [x] **T301** 🧠 `opus` — Teste de contrato do corte novo: troca permitida em `awaiting_crew`,
       `draft` e `route_planned`; recusada de `separating` em diante com `TRIP_SEPARATION_STARTED`;
@@ -82,6 +87,19 @@
 - [ ] **T308** `sonnet` — Teste de integração do lado motorista para esta troca: a viagem passa a vir
       em `GET /me/trips/current` para o motorista novo e deixa de vir para o antigo, sem nenhuma
       mudança de código — o recorte já é por `trip_drivers`. Prova o efeito no PWA. (RF8)
+- [ ] **T309** 🧠 `opus` — `allowed-actions` passa a **oferecer** `defineCrew`, porque a tela é
+      servida pelo servidor (D6) e não por `if` de status no frontend. ⚠️ Para esta ação, `unchanged`
+      também é "pode": trocar a tripulação de uma `draft` não muda o status e continua permitido — o
+      filtro atual só aceita `applied`. Teste de contrato: oferecida em `awaiting_crew`, `draft` e
+      `route_planned`; ausente de `separating` em diante, em `cancelled` e em `completed`; ausente
+      para quem não tem `trips.manage`. (RF6, D6)
+- [ ] **T310** `sonnet` — **A tela.** Trocar motorista e veículo no detalhe da viagem, consumindo
+      `PATCH /trips/:id/crew` e oferecida por `allowed-actions`. Era a T505 da Fase 5, puxada para cá
+      por pedido do dono do produto em 2026-09-27: "tem que ser pela tela" — entregar a troca só por
+      API não é entregar a troca. Inclui o estado de erro do 409 da separação, filtrado por código
+      (`getApiErrorCode()`), nunca por texto de mensagem. (RF4, RF6, CREW-02)
+- [ ] **T311** `sonnet` — Revisão de design e usabilidade da tela da T310, com print. A regra da casa
+      é que UI fecha com print, e esta sobe para produção antes do resto da spec. (web.md §15)
 
 ## Fase 3B — Trocar o veículo, e a rota que morre inteira
 
@@ -137,8 +155,8 @@
 - [ ] **T504** `sonnet` — Botão "Salvar rascunho" no diálogo de criação, chamando
       `runQuickCreateTrip` sem o passo de planejar rota (parâmetro, não função copiada). Teste de
       contrato provando a ordem das requisições e a ausência do `plan-route`. (RF1, D5)
-- [ ] **T505** `sonnet` — Tela de definir/trocar motorista e veículo no detalhe, consumindo
-      `PATCH /trips/:id/crew`, oferecida conforme `allowed-actions`. (T019 da 216)
+- [x] **T505** — **movida para a Fase 3A como T310** (pedido do dono do produto: a troca urgente tem
+      de sair pela tela, não por API). Fica aqui o rastro para quem for ler a Fase 5 isolada.
 - [ ] **T506** `sonnet` — Selo de tripulação pendente na listagem de viagens `awaiting_crew`.
       (RF7, T020 da 216)
 
