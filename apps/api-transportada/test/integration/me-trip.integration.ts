@@ -1527,6 +1527,106 @@ describe('a troca de tripulação some/aparece na tela do motorista, sem código
 })
 
 /**
+ * Spec 217 T604 (D6/D7) — a outra metade do que a T308 já prova. A T308 provou que a viagem
+ * **some** de `GET /me/trips/current` quando o motorista sai da tripulação; falta o erro que ele
+ * recebe se tentar agir nela mesmo assim. Apurado antes de escrever este teste:
+ *
+ * - `POST /me/trips/current/dispatch` é a única rota `/me/*` que recebe `tripId` — o recorte é
+ *   `isTripOfDriver` (`drizzle-current-driver-trip.repository.ts`), e a recusa é 403
+ *   `TRIP_NOT_OF_DRIVER` (`dispatch-driver-trip.use-case.ts`).
+ * - As demais rotas `/me/*` recebem `stopId`/`documentId`, e o recorte é por `EXISTS` em
+ *   `trip_drivers` dentro de `fieldTripTargetCondition` (`field-trip-target.query.ts`): o alvo
+ *   simplesmente "some" da consulta, e o caso de uso lança `TripStopNotReachableError` — 404
+ *   `TRIP_STOP_NOT_REACHABLE`. A chegada na parada (`reportStopArrival`) é o caso escolhido aqui.
+ *
+ * ⚠️ **`DriverNotOnTripError` (422) não é o erro destas rotas** — é do fluxo de "baixa em nome do
+ * motorista" pelo escritório (spec 156/ADR-0067, `trip.report-on-behalf`), que resolve o motorista
+ * pelo corpo da requisição. Aqui o motorista é resolvido pelo próprio vínculo autenticado, e por
+ * isso o erro é outro.
+ */
+describe('os códigos de erro do motorista removido da tripulação (spec 217 T604)', () => {
+  testWithPostgres(
+    'motorista removido: 403 no despacho por tripId, 404 na chegada da parada',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedPlannedTrip(database)
+        const tripRepository = new DrizzleTripRepository(database.db)
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const routeRepository = new DrizzleTripRouteRepository(database.db)
+        const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(database.db, 'test-bucket')
+
+        const [tripRow] = await database.db
+          .select({ vehicleId: trips.vehicleId })
+          .from(trips)
+          .where(eq(trips.id, world.tripId))
+
+        // D6: a troca de tripulação — o motorista sai, o veículo continua o mesmo.
+        await tripRepository.updateCrew({
+          actorUserId: world.userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId: world.companyId,
+          crew: [],
+          tripId: world.tripId,
+          vehicleId: tripRow?.vehicleId ?? null,
+        })
+
+        // A metade que a T308 já prova: a viagem some da lista dele.
+        const opened = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: NOW,
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+        expect(opened.trips).toEqual([])
+
+        // A metade que falta: 403 TRIP_NOT_OF_DRIVER na única rota /me/* que recebe tripId.
+        const dispatchAttempt = dispatchDriverTrip({
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          dispatch: (input) =>
+            dispatchTrip({
+              actorUserId: input.actorUserId,
+              channel: TRIP_FIELD_CHANNELS.driverApp,
+              companyId: world.companyId,
+              repository: routeRepository,
+              tripId: input.tripId,
+            }),
+          driverId: world.driverId,
+          linkage: reads,
+          tripId: world.tripId,
+        })
+        await expect(dispatchAttempt).rejects.toMatchObject({
+          code: 'TRIP_NOT_OF_DRIVER',
+          status: 403,
+        })
+        /**
+         * A recusa é pelo vínculo (`isTripOfDriver`), antes de qualquer transição — a viagem regride
+         * a `awaiting_crew` por causa da D1 (par sem motorista), não por causa da tentativa.
+         */
+        expect(await readTripStatus(database, world.tripId)).toBe('awaiting_crew')
+
+        // 404 TRIP_STOP_NOT_REACHABLE numa rota de alvo — a chegada na parada.
+        const arrivalAttempt = reportStopArrival({
+          actorUserId: world.userId,
+          companyId: world.companyId,
+          driverId: world.driverId,
+          idempotencyKey: 'chegada-t604',
+          location: null,
+          now: NOW,
+          stopId: world.stopIds[0] ?? '',
+          unitOfWork,
+        })
+        await expect(arrivalAttempt).rejects.toMatchObject({
+          code: 'TRIP_STOP_NOT_REACHABLE',
+          status: 404,
+        })
+      })
+    },
+  )
+})
+
+/**
  * Spec 205: o "Registrar entrega depois" contra Postgres — o fato no evento e no comprovante, a foto
  * obrigatória `late`, a nota com a penalidade que já existe, a linha do tempo, a leitura do
  * comprovante e o replay que não reclassifica. Contrato com dublê passa com a coluna esquecida; este
