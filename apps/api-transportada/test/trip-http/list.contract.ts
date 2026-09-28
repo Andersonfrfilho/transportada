@@ -99,11 +99,13 @@ describe('GET /trips', () => {
   })
 
   /**
-   * T707 (H3, achado anterior à 153): a listagem mandava `documentsTotal`/`revenueTotal` para
-   * qualquer papel com `fleet.read` — a redação da RF9 cobriu route-geometry, valuation-preview,
-   * NF-e e o detalhe, mas esqueceu esta rota, a primeira leitura de viagem de todas.
+   * T707 (H3, achado anterior à 153) tirava só `documentsTotal`/`revenueTotal` de dentro de
+   * `amounts`, mantendo `revenueSource` visível. `2f252a5b2` (staging, um dia depois) apertou a
+   * regra para o mesmo molde da spec 153 D10: o campo **inteiro** some sem `trip.financials`, não só
+   * o valor — `revenueSource` sozinho já entrega que a viagem tem receita calculada. Ver
+   * `list-money-redaction.contract.ts`, que é a prova dedicada desta versão da regra.
    */
-  test('cuts documentsTotal and revenueTotal without trip.financials', async () => {
+  test('cuts amounts without trip.financials', async () => {
     const fixture = await createTripHttpFixture({
       listTripsResult: TRIP_PAGE_WITH_AMOUNTS,
       permissions: READ_ONLY_PERMISSIONS,
@@ -114,11 +116,7 @@ describe('GET /trips', () => {
 
     expect(response.status).toBe(200)
     const [trip] = body.data
-    const amounts = trip?.amounts as Record<string, unknown>
-    expect(Object.hasOwn(amounts, 'documentsTotal')).toBe(false)
-    expect(Object.hasOwn(amounts, 'revenueTotal')).toBe(false)
-    // Nem tudo é dinheiro: a origem do número continua — é o que explica o número, não o número.
-    expect(amounts.revenueSource).toBe('measured')
+    expect(Object.hasOwn(trip ?? {}, 'amounts')).toBe(false)
   })
 
   test('answers with documentsTotal and revenueTotal when the caller has trip.financials', async () => {

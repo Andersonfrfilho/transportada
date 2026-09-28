@@ -65,7 +65,10 @@ import {
   redactRouteGeometryMoney,
   type FieldPolicy,
 } from '../../shared/monetary-redaction.service.js'
-import { TRIP_AMOUNTS_MONEY_FIELDS } from '../application/read-trip-revenue-totals.use-case.js'
+import {
+  TRIP_AMOUNTS_MONEY_FIELDS,
+  type TripAmounts,
+} from '../application/read-trip-revenue-totals.use-case.js'
 
 const CARGO_LAYOUT_REQUEST_FAILED_MESSAGE = 'trip.cargo_layout.request_failed'
 import {
@@ -696,13 +699,21 @@ export function createTripRoutes(
     defineRoute<Omit<ListTripsInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const page = await dependencies.listTrips.execute({ context: context.scope, ...input })
-        /** Spec 156 L6: receita e soma das notas são `trip.financials`, como no detalhe. */
+        /**
+         * Spec 156 L6: sem `trip.financials`, `amounts` sai do objeto **inteiro** — a listagem é a
+         * primeira leitura de viagem que qualquer papel com `fleet.read` enxerga, e um `amounts`
+         * parcial (só `revenueSource`, por exemplo) ainda revela que a viagem tem receita calculada.
+         */
         const canReadFinancials = context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission)
+        const data = page.items.map((trip) =>
+          redactMoneyFields({
+            canReadFinancials,
+            fields: ['amounts'],
+            record: serializeTrip({ canReadFinancials, trip }),
+          }),
+        )
         return jsonResponse({
-          body: {
-            data: page.items.map((trip) => serializeTrip({ canReadFinancials, trip })),
-            page: { nextCursor: page.nextCursor },
-          },
+          body: { data, page: { nextCursor: page.nextCursor } },
           status: 200,
         })
       },
@@ -1935,10 +1946,30 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
   })
 }
 
+/**
+ * Spec 156 L6: `amounts` some do objeto **inteiro** sem `trip.financials` (`omitAmountsFromTrip`
+ * abaixo) — cortar só `documentsTotal`/`revenueTotal` de dentro dele, como este tipo faz, ainda deixa
+ * `revenueSource` visível a quem não devia nem saber que a viagem tem receita calculada.
+ */
+type SerializedTrip = Readonly<{
+  amounts: null | Omit<TripAmounts, 'documentsTotal' | 'revenueTotal'> | TripAmounts
+  companyId: Trip['companyId']
+  createdAt: Trip['createdAt']
+  driverNames: Trip['driverNames']
+  estimatedArrivalFrozenAt: Trip['estimatedArrivalFrozenAt']
+  estimatedFinishAt: Trip['estimatedFinishAt']
+  id: Trip['id']
+  requiresMdfe: Trip['requiresMdfe']
+  requiresMdfeReason: Trip['requiresMdfeReason']
+  status: Trip['status']
+  updatedAt: Trip['updatedAt']
+  vehicleId: Trip['vehicleId']
+}>
+
 function serializeTrip(input: {
   readonly canReadFinancials: boolean
   readonly trip: Trip
-}): object {
+}): SerializedTrip {
   const trip = input.trip
   return {
     /**
@@ -2082,10 +2113,15 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
     contact: TripDocumentDetail['contact']
     cteAuthorized: TripDocumentDetail['cteAuthorized']
     fiscalStatus: TripDocumentDetail['fiscalStatus']
+    freightAmount: TripDocumentDetail['freightAmount']
+    freightRuleName: TripDocumentDetail['freightRuleName']
+    freightSource: TripDocumentDetail['freightSource']
+    leavesBehindOnDispatch: TripDocumentDetail['leavesBehindOnDispatch']
     nfeIssuedAt: TripDocumentDetail['nfeIssuedAt']
     nfeNumber: TripDocumentDetail['nfeNumber']
     nfeSeries: TripDocumentDetail['nfeSeries']
     nfeTotalValue: TripDocumentDetail['nfeTotalValue']
+    openOccurrenceCase: TripDocumentDetail['openOccurrenceCase']
   }>
 
 /**
@@ -2101,14 +2137,19 @@ const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   deliveredAt: 'safe',
   destinationOrigin: 'safe',
   fiscalStatus: 'safe',
+  freightAmount: 'money',
   freightCalculationId: 'safe',
+  freightRuleName: 'safe',
+  freightSource: 'safe',
   id: 'safe',
+  leavesBehindOnDispatch: 'safe',
   loadedAt: 'safe',
   nfeDocumentId: 'safe',
   nfeIssuedAt: 'safe',
   nfeNumber: 'safe',
   nfeSeries: 'safe',
   nfeTotalValue: 'money',
+  openOccurrenceCase: 'safe',
   releasedAt: 'safe',
   returnedAt: 'safe',
   returnReason: 'safe',
