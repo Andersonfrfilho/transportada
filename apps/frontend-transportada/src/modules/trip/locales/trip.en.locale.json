@@ -1264,6 +1264,7 @@
     "tollUnknown": "tariff unknown"
   },
   "title": "Trips",
+  "toDefine": "To be defined",
   "tripsTitle": "Trips",
   "valuation": {
     "cost": "Expected cost",

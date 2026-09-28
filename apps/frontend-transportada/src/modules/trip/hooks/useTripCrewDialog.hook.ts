@@ -40,7 +40,8 @@ export function useTripCrewDialog(input: TripCrewDialogInput) {
   useEffect(() => {
     if (!input.isOpen) return
     setDriverIds(tripRef.current.drivers.map((driver) => driver.driverId))
-    setVehicleId(tripRef.current.vehicleId)
+    /** Spec 217 (RF1): viagem `awaiting_crew` ainda sem veículo — reabre sem escolha, não com `null`. */
+    setVehicleId(tripRef.current.vehicleId ?? '')
     setErrorKey(undefined)
   }, [input.isOpen, input.trip.id])
 
