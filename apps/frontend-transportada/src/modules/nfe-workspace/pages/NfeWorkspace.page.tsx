@@ -506,23 +506,6 @@ export function NfeWorkspacePage() {
                       <>
                         {canManageSettings ? (
                           <div className={settingsStyles.settingsDeck}>
-                            <CargoWeightPanel
-                              defaultVolumeWeight={
-                                cargoSettings.query.data?.defaultVolumeWeight ?? null
-                              }
-                              disabled={cargoSettings.saveMutation.isPending}
-                              loading={cargoSettings.query.isLoading}
-                              onSave={(weight) => cargoSettings.saveMutation.mutate(weight)}
-                            />
-                            <CargoVolumeFactorPanel
-                              canManage={canManageSettings}
-                              current={cargoVolume.current}
-                              factors={cargoVolume.factors}
-                              loading={cargoVolume.isLoading}
-                              onClear={() => cargoVolume.clear.mutate()}
-                              onSave={(volume) => cargoVolume.save.mutate(volume)}
-                              saving={cargoVolume.save.isPending}
-                            />
                             <ScheduledDistributionPanel
                               disabled={scheduledDistribution.toggleMutation.isPending}
                               loading={scheduledDistribution.query.isLoading}
@@ -682,6 +665,23 @@ export function NfeWorkspacePage() {
                   <>
                     {canManageSettings && (
                       <div className={settingsStyles.settingsDeck}>
+                        <CargoWeightPanel
+                          defaultVolumeWeight={
+                            cargoSettings.query.data?.defaultVolumeWeight ?? null
+                          }
+                          disabled={cargoSettings.saveMutation.isPending}
+                          loading={cargoSettings.query.isLoading}
+                          onSave={(weight) => cargoSettings.saveMutation.mutate(weight)}
+                        />
+                        <CargoVolumeFactorPanel
+                          canManage={canManageSettings}
+                          current={cargoVolume.current}
+                          factors={cargoVolume.factors}
+                          loading={cargoVolume.isLoading}
+                          onClear={() => cargoVolume.clear.mutate()}
+                          onSave={(volume) => cargoVolume.save.mutate(volume)}
+                          saving={cargoVolume.save.isPending}
+                        />
                         <CameraMeasurementSettingsPanel
                           disabled={cargoSettings.cameraMeasurementMutation.isPending}
                           enabled={cargoSettings.query.data?.cameraMeasurementEnabled}

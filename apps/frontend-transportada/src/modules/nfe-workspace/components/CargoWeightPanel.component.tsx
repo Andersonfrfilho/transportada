@@ -49,7 +49,7 @@ export function CargoWeightPanel({
 
   return (
     <section className={styles.settingsPanel}>
-      <h3>{t('cargoWeightTitle')}</h3>
+      <h2>{t('cargoWeightTitle')}</h2>
       <p className={styles.fieldHint}>{t('cargoWeightHelp')}</p>
       <p className={defaultVolumeWeight === null ? styles.fieldHint : styles.formStatusSuccess}>
         {defaultVolumeWeight === null

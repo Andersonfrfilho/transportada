@@ -61,11 +61,11 @@ export function CargoVolumeFactorPanel({
   const invalid = typed.trim().length > 0 && decimal === null
 
   return (
-    <section aria-labelledby="cargo-volume-title" className={styles.panel}>
-      <h3 id="cargo-volume-title">{t('cargoVolumeTitle')}</h3>
-      <p className={styles.hint}>{t('cargoVolumeHint')}</p>
+    <section aria-labelledby="cargo-volume-title" className={styles.settingsPanel}>
+      <h2 id="cargo-volume-title">{t('cargoVolumeTitle')}</h2>
+      <p className={styles.fieldHint}>{t('cargoVolumeHint')}</p>
 
-      <label className={styles.field} htmlFor="cargo-volume-factor">
+      <label htmlFor="cargo-volume-factor">
         {t('cargoVolumeLabel')}
         <input
           aria-describedby={invalid ? 'cargo-volume-error' : undefined}
@@ -78,19 +78,21 @@ export function CargoVolumeFactorPanel({
         />
       </label>
       {invalid ? (
-        <p className={styles.hint} id="cargo-volume-error" role="alert">
+        <p className={styles.fieldHint} id="cargo-volume-error" role="alert">
           {t('cargoVolumeInvalid')}
         </p>
       ) : null}
 
       {factors.length > 1 ? (
-        <p className={styles.hint}>{t('cargoVolumeSpeciesCount', { count: factors.length })}</p>
+        <p className={styles.fieldHint}>
+          {t('cargoVolumeSpeciesCount', { count: factors.length })}
+        </p>
       ) : (
-        <p className={styles.hint}>{t('cargoVolumeDefaultSpecies')}</p>
+        <p className={styles.fieldHint}>{t('cargoVolumeDefaultSpecies')}</p>
       )}
 
       {canManage ? (
-        <div className={styles.actions}>
+        <div className={styles.actionRow}>
           <Button
             disabled={decimal === null || saving}
             onClick={() => {
@@ -108,7 +110,7 @@ export function CargoVolumeFactorPanel({
           )}
         </div>
       ) : (
-        <p className={styles.hint}>{t('cargoVolumeReadOnly')}</p>
+        <p className={styles.fieldHint}>{t('cargoVolumeReadOnly')}</p>
       )}
     </section>
   )
