@@ -37,7 +37,7 @@
 .intro {
   max-width: 44rem;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -198,7 +198,7 @@
 
 .secondaryCell {
   display: block;
-  color: color-mix(in srgb, var(--color-slate) 80%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.75rem;
 }
 
@@ -262,7 +262,7 @@
 
 .hint {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -300,7 +300,7 @@
   margin: 0;
   padding: var(--space-4);
   border: 1px dashed color-mix(in srgb, var(--color-slate) 24%, transparent);
-  color: color-mix(in srgb, var(--color-slate) 85%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.85rem;
 }
 

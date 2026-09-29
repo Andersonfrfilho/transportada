@@ -40,7 +40,7 @@
 .intro {
   max-width: 46rem;
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -140,14 +140,14 @@
 
 .counter {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
 
 .hint {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -426,7 +426,7 @@ button.occurrenceCaseBadge {
 
 .summaryLine {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 92%, white 8%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
@@ -1116,7 +1116,7 @@ button.occurrenceCaseBadge {
 .stopCounter {
   flex-shrink: 0;
   margin-left: auto;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
@@ -1355,7 +1355,7 @@ button.occurrenceCaseBadge {
   gap: var(--space-1);
   padding: var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 20%, transparent);
-  color: color-mix(in srgb, var(--color-slate) 80%, transparent);
+  color: var(--color-slate-muted);
 }
 
 .processStage[data-reached='true'] {
@@ -1470,7 +1470,7 @@ button.occurrenceCaseBadge {
   gap: var(--space-3);
   margin: 0;
   padding: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.75rem;
   list-style: none;
 }
@@ -2660,7 +2660,7 @@ button.occurrenceCaseBadge {
 }
 
 .cargoMeasureLabel {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2680,7 +2680,7 @@ button.occurrenceCaseBadge {
 }
 
 .cargoMeasureDetail {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.85rem;
 }
 
@@ -3142,7 +3142,7 @@ button.occurrenceCaseBadge {
 }
 
 .leftoversSecondWave {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   margin: 0;
 }
 
@@ -3153,7 +3153,7 @@ button.occurrenceCaseBadge {
 }
 
 .leftoversDetail dt {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
 }
 
 .leftoversDetail dd {
@@ -3255,7 +3255,7 @@ button.occurrenceCaseBadge {
   display: inline-flex;
   gap: var(--space-1);
   align-items: center;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -3335,7 +3335,7 @@ button.occurrenceCaseBadge {
 }
 
 .proposalMetricNote {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.72rem;
 }
 

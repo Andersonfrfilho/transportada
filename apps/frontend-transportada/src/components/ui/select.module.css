@@ -85,12 +85,12 @@
 /* O detalhe da opção escolhida, ao lado do rótulo: o gatilho tem uma linha só. */
 .triggerDescription {
   flex: 0 1 auto;
-  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.75rem;
 }
 
 .placeholder {
-  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  color: var(--color-slate-muted);
 }
 
 .chevron {
@@ -172,7 +172,7 @@
 .empty {
   margin: 0;
   padding: var(--space-3);
-  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.85rem;
 }
 
@@ -197,7 +197,7 @@
 
 .description {
   overflow: hidden;
-  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.75rem;
   font-weight: 400;
   text-overflow: ellipsis;

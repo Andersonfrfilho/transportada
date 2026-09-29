@@ -69,6 +69,6 @@
 .empty {
   margin: 0;
   padding: var(--space-3);
-  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.85rem;
 }

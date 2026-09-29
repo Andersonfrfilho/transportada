@@ -183,7 +183,7 @@
 /* A derivação: por que aquele número é aquele número. */
 .ledgerDetail {
   margin: 0 0 var(--space-1);
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.74rem;
   line-height: 1.45;
 }

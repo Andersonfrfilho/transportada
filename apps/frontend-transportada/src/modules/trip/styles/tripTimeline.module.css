@@ -81,7 +81,7 @@
 }
 
 .dayCount {
-  color: color-mix(in srgb, var(--color-slate) 75%, transparent);
+  color: var(--color-slate-muted);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: none;
@@ -290,7 +290,7 @@
  * Mesmo tom aqui, para as duas leituras da frase de autoria (spec 158) baterem.
  */
 .itemAuthorship {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
 }
 
 /**

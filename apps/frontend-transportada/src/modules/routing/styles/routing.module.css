@@ -340,7 +340,7 @@
 }
 
 .vehicleValuationParcel dd {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   text-align: right;
 }
 
@@ -383,7 +383,7 @@
 }
 
 .reportTotals dt {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
 }
 
 .reportTotals dd {

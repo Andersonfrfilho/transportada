@@ -37,7 +37,7 @@
 .intro {
   width: min(44rem, 100%);
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
   line-height: 1.55;
 }
@@ -57,7 +57,7 @@
 
 .placeholder {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
+  color: var(--color-slate-muted);
   font-size: 0.95rem;
 }
 
@@ -434,14 +434,14 @@
 
 .counter {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.78rem;
 }
 
 .hint {
   margin: 0;
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-size: 0.8rem;
 }
 
@@ -477,7 +477,7 @@
 }
 
 .selectionTotals dt {
-  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  color: var(--color-slate-muted);
   font-family: var(--font-utility);
   font-size: 0.7rem;
   text-transform: uppercase;
