@@ -116,7 +116,10 @@ export async function readSettingsResolution(
   return {
     deliveryProof,
     occurrenceTypes: occurrenceTypes.map((type) => ({
-      ...type,
+      attachmentMode: type.attachmentMode,
+      flow: type.flow,
+      id: type.id,
+      name: type.name,
       stage: TRIP_OCCURRENCE_STAGE.delivery,
     })),
   }

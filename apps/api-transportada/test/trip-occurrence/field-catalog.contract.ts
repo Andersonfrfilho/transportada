@@ -45,6 +45,7 @@ describe('o catálogo do motorista informa se o tipo exige comprovante (spec 179
         flow: 'document',
         id: '00000000-0000-4000-8000-0000000000e1',
         name: 'Cliente ausente',
+        stopKind: null,
       },
     ])
   })
@@ -66,6 +67,7 @@ describe('o catálogo do motorista informa se o tipo exige comprovante (spec 179
         flow: 'document',
         id: '00000000-0000-4000-8000-0000000000e1',
         name: 'Cliente ausente',
+        stopKind: null,
       },
     ])
   })
@@ -98,6 +100,7 @@ describe('a resolução de 3 camadas do attachmentMode (spec 218 RF-B2, T9)', ()
         flow: 'document',
         id: '00000000-0000-4000-8000-0000000000e1',
         name: 'Cliente ausente',
+        stopKind: null,
       },
     ])
   })

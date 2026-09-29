@@ -80,7 +80,13 @@ function buildDependencies() {
   const registered: unknown[] = []
   const dependencies: TripFieldOfficeOccurrenceDependencies = {
     listFieldOccurrenceTypes: async () => [
-      { attachmentMode: 'off', flow: 'document', id: TYPE_ID, name: 'Cliente ausente' },
+      {
+        attachmentMode: 'off',
+        flow: 'document',
+        id: TYPE_ID,
+        name: 'Cliente ausente',
+        stopKind: null,
+      },
     ],
     registerOccurrences: async (input) => {
       registered.push(input)
@@ -152,7 +158,15 @@ describe('as rotas da ocorrência do escritório (spec 156 T7.3)', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      data: [{ attachmentMode: 'off', flow: 'document', id: TYPE_ID, name: 'Cliente ausente' }],
+      data: [
+        {
+          attachmentMode: 'off',
+          flow: 'document',
+          id: TYPE_ID,
+          name: 'Cliente ausente',
+          stopKind: null,
+        },
+      ],
     })
   })
 

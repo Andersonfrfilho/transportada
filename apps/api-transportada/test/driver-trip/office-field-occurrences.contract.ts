@@ -578,7 +578,13 @@ describe('os tipos de ocorrência do escritório (L2)', () => {
     })
 
     expect(types).toEqual([
-      { attachmentMode: 'off', flow: 'document', id: TYPE_ID, name: 'Cliente ausente' },
+      {
+        attachmentMode: 'off',
+        flow: 'document',
+        id: TYPE_ID,
+        name: 'Cliente ausente',
+        stopKind: null,
+      },
     ])
   })
 })

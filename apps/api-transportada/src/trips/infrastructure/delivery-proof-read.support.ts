@@ -640,6 +640,8 @@ export async function findOccurrenceType(
       emailsContractor: companyOccurrenceTypes.emailsContractor,
       /** Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. */
       flow: companyOccurrenceTypes.flow,
+      /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
+      stopKind: companyOccurrenceTypes.stopKind,
       id: companyOccurrenceTypes.id,
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
@@ -776,6 +778,7 @@ export async function listOccurrenceTypes(
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
       stage: companyOccurrenceTypes.stage,
+      stopKind: companyOccurrenceTypes.stopKind,
     })
     .from(companyOccurrenceTypes)
     .where(eq(companyOccurrenceTypes.companyId, input.companyId))
@@ -861,7 +864,12 @@ export async function saveOccurrenceType(
     input.occurrenceTypeId === null
       ? await queryable
           .insert(companyOccurrenceTypes)
-          .values({ ...values, ...attachmentModeChange, ...leavesDocumentBehindChange })
+          .values({
+            ...values,
+            ...attachmentModeChange,
+            ...leavesDocumentBehindChange,
+            ...(input.flow === 'stop' ? { stopKind: 'other' as const } : {}),
+          })
           .returning()
       : await queryable
           .update(companyOccurrenceTypes)
@@ -869,6 +877,10 @@ export async function saveOccurrenceType(
             ...values,
             ...attachmentModeChange,
             ...leavesDocumentBehindChange,
+            /** Spec 218 D2: virou tipo de parada sem valor? vale como `other`; o que já tinha, fica. */
+            ...(input.flow === 'stop'
+              ? { stopKind: sql`coalesce(${companyOccurrenceTypes.stopKind}, 'other')` }
+              : {}),
             updatedAt: sql`now()`,
           })
           .where(
@@ -896,6 +908,7 @@ export async function saveOccurrenceType(
     notifies: saved.notifies,
     redeliveryPolicy: saved.redeliveryPolicy,
     stage: saved.stage,
+    stopKind: saved.stopKind,
   }
 }
 

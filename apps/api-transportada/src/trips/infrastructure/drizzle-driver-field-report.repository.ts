@@ -42,6 +42,7 @@ import {
   DRIVER_PROOF_KINDS,
   RETURNED_DOCUMENT_STATUS,
 } from '../domain/delivery-event.constant.js'
+import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import {
@@ -1037,6 +1038,25 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return record ?? null
   }
 
+  public async findStopOccurrenceType(
+    input: Parameters<DriverFieldReportTransactionPort['findStopOccurrenceType']>[0],
+  ) {
+    const [type] = await this.transaction
+      .select({ stopKind: companyOccurrenceTypes.stopKind })
+      .from(companyOccurrenceTypes)
+      .where(
+        and(
+          eq(companyOccurrenceTypes.companyId, input.companyId),
+          eq(companyOccurrenceTypes.id, input.occurrenceTypeId),
+          eq(companyOccurrenceTypes.flow, OCCURRENCE_TYPE_FLOWS.stop),
+          eq(companyOccurrenceTypes.active, true),
+        ),
+      )
+      .limit(1)
+
+    return type ?? null
+  }
+
   public async recordOccurrence(
     input: Parameters<DriverFieldReportTransactionPort['recordOccurrence']>[0],
   ) {
@@ -1049,6 +1069,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         companyId: input.companyId,
         description: input.description,
         kind: input.kind,
+        occurrenceTypeId: input.occurrenceTypeId,
         onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
         reportedDistanceMeters: input.distanceMeters,
         stopId: input.stopId,

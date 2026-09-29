@@ -349,6 +349,14 @@ export type DriverFieldReportTransactionPort = {
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<{ readonly channel: TripFieldChannel; readonly objectId: string } | null>
+  /**
+   * Spec 218 D2: o tipo do catálogo que a ocorrência de parada escolheu — só se for desta empresa,
+   * `flow: stop` e ativo; qualquer outro caso é `null`.
+   */
+  findStopOccurrenceType(input: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }): Promise<{ readonly stopKind: TripStopOccurrenceKind | null } | null>
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
@@ -359,6 +367,8 @@ export type DriverFieldReportTransactionPort = {
     readonly distanceMeters: number | null
     readonly documentId: string | null
     readonly kind: TripStopOccurrenceKind
+    /** Spec 218 D2: o tipo do catálogo; `null` no corpo antigo, que só manda `kind`. */
+    readonly occurrenceTypeId: string | null
     readonly stopId: string
   }): Promise<{ readonly id: string }>
   findEventById(input: {

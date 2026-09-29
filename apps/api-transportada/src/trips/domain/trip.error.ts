@@ -565,6 +565,20 @@ export class OccurrenceTypeNotFieldError extends ApiError {
 }
 
 /**
+ * Spec 218 D2: a ocorrência de parada escolheu um tipo que não é de parada ativo desta empresa —
+ * tipo de nota, aposentado, ou de outra empresa respondem igual.
+ */
+export class OccurrenceTypeNotStopError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NOT_STOP',
+      message: 'The occurrence type is not an active stop occurrence type.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 157 RF4: a rota do galpão (`trip.manage`) grava só tipo de separação. Com tipo de rua, o
  * `separator` — que tem `trip.manage` e não tem `trip.report` — registraria o que nunca viu.
  */

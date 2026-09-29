@@ -14,7 +14,6 @@ import {
   type DamdfeRenderResult,
   type MdfeDocumentDownload,
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
-import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import type { FieldOccurrenceType } from '../application/list-field-occurrence-types.use-case.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
@@ -29,7 +28,10 @@ import type { ReportDocumentOutcomeResult } from '../application/report-document
 import type { ReportStopArrivalResult } from '../application/report-stop-arrival.use-case.js'
 import type { ReportStopDepartureResult } from '../application/report-stop-departure.use-case.js'
 import type { CancelStopDepartureResult } from '../application/cancel-stop-departure.use-case.js'
-import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
+import type {
+  ReportStopOccurrenceResult,
+  StopOccurrenceReference,
+} from '../application/report-stop-occurrence.use-case.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
 import {
@@ -44,6 +46,7 @@ import {
   parseFieldReportRequest,
   parseIdempotencyKey,
   parseStopOccurrenceRequest,
+  type StopOccurrenceRequest,
 } from './me-trip.schema.js'
 
 /** ADR-0058: os dois toques que começam a viagem. Sem id — o servidor resolve pelo vínculo. */
@@ -162,17 +165,17 @@ export type MeTripDependencies = {
     input: DriverDocumentOutcomeInput,
   ) => Promise<ReportDocumentOutcomeResult>
   readonly reportOccurrence: (
-    input: DriverContextInput & {
-      /** Spec 209 RF2: o upload confirmado da foto — `null` é a ocorrência sem foto. */
-      readonly attachmentObjectId: string | null
-      readonly description: string
-      /** ADR-0057 §3: `null` é não aferida — e ela é aceita, não recusada. */
-      readonly distanceMeters: number | null
-      readonly documentId: string | null
-      readonly idempotencyKey: string
-      readonly kind: TripStopOccurrenceKind
-      readonly stopId: string
-    },
+    input: DriverContextInput &
+      StopOccurrenceReference & {
+        /** Spec 209 RF2: o upload confirmado da foto — `null` é a ocorrência sem foto. */
+        readonly attachmentObjectId: string | null
+        readonly description: string
+        /** ADR-0057 §3: `null` é não aferida — e ela é aceita, não recusada. */
+        readonly distanceMeters: number | null
+        readonly documentId: string | null
+        readonly idempotencyKey: string
+        readonly stopId: string
+      },
   ) => Promise<ReportStopOccurrenceResult>
   readonly reportReturn: (
     input: DriverDocumentOutcomeInput & { readonly reason: DriverReturnReason },
@@ -746,28 +749,16 @@ export function createMeTripRoutes(
       pathname: OCCURRENCE_TYPES_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{
-      readonly attachmentObjectId: string | null
-      readonly description: string
-      readonly distanceMeters: number | null
-      readonly documentId: string | null
-      readonly idempotencyKey: string
-      readonly kind: TripStopOccurrenceKind
-      readonly stopId: string
-    }>({
+    defineRoute<
+      StopOccurrenceRequest & { readonly idempotencyKey: string; readonly stopId: string }
+    >({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const result = await dependencies.reportOccurrence({
+          ...input,
           actorUserId: context.scope.userId,
-          attachmentObjectId: input.attachmentObjectId,
           companyId: context.scope.companyId,
-          description: input.description,
-          distanceMeters: input.distanceMeters,
-          documentId: input.documentId,
           driverId,
-          idempotencyKey: input.idempotencyKey,
-          kind: input.kind,
-          stopId: input.stopId,
         })
 
         return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
@@ -776,12 +767,8 @@ export function createMeTripRoutes(
       async parse({ pathParameters, request }) {
         const body = await parseStopOccurrenceRequest(request)
         return {
-          attachmentObjectId: body.attachmentObjectId,
-          description: body.description,
-          distanceMeters: body.distanceMeters ?? null,
-          documentId: body.documentId,
+          ...body,
           idempotencyKey: parseIdempotencyKey(request),
-          kind: body.kind,
           stopId: parseUuidPathIdentifier(pathParameters.stopId ?? ''),
         }
       },

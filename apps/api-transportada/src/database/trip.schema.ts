@@ -2233,6 +2233,12 @@ export const companyOccurrenceTypes = pgTable(
      * antes desta spec é implicitamente "de nota", nunca foi usado em `trip_stop_occurrences`.
      */
     flow: text().notNull().$type<OccurrenceTypeFlow>().default(OCCURRENCE_TYPE_FLOWS.document),
+    /**
+     * Spec 218 D2: qual dos 5 valores fixos de parada este tipo representa — a sugestão de cobrança
+     * da 060 e o template do aviso ainda decidem por ele. Nulo em tipo de nota; o cadastro grava
+     * `other` quando um tipo passa a `flow: stop` sem valor. Nunca derivado do nome (renomeável).
+     */
+    stopKind: text('stop_kind').$type<TripStopOccurrenceKind>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2264,6 +2270,10 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_flow_check',
       sql`${table.flow} in (${raw(inList(Object.values(OCCURRENCE_TYPE_FLOWS)))})`,
+    ),
+    check(
+      'company_occurrence_types_stop_kind_check',
+      sql`${table.stopKind} in (${raw(inList(TRIP_STOP_OCCURRENCE_KINDS))})`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],

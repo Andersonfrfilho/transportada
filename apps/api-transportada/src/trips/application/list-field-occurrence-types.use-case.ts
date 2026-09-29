@@ -17,6 +17,8 @@ import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.p
 import { resolveOccurrenceAttachmentModeForRecipient } from '../domain/occurrence-attachment-overrides.policy.js'
 import type { OccurrenceAttachmentOverridesLookup } from '../domain/occurrence-attachment-overrides.policy.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
+import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
 
 export type FieldOccurrenceType = {
   /**
@@ -37,6 +39,12 @@ export type FieldOccurrenceType = {
   readonly flow: OccurrenceTypeFlow
   readonly id: string
   readonly name: string
+  /**
+   * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — a prévia do aviso no app
+   * lê este campo. Nulo em tipo de nota; tipo de parada sem valor sai `other`, o mesmo que o
+   * registro grava.
+   */
+  readonly stopKind: TripStopOccurrenceKind | null
 }
 
 export type FieldOccurrenceTypesPort = {
@@ -98,6 +106,7 @@ export async function listFieldOccurrenceTypes(
       flow: type.flow ?? 'document',
       id: type.id,
       name: type.name,
+      stopKind: resolveFieldStopKind(type),
     }))
   }
 
@@ -130,6 +139,7 @@ export async function listFieldOccurrenceTypes(
       flow: type.flow ?? 'document',
       id: type.id,
       name: type.name,
+      stopKind: resolveFieldStopKind(type),
     }
   })
 }
@@ -151,4 +161,8 @@ function groupOverridesByType<TOverride extends OccurrenceTypeOverride>(
     byType.set(override.occurrenceTypeId, byKey)
   }
   return byType
+}
+
+function resolveFieldStopKind(type: OccurrenceTypeRecord): TripStopOccurrenceKind | null {
+  return type.flow === 'stop' ? resolveStopOccurrenceKind(type.stopKind ?? null) : null
 }

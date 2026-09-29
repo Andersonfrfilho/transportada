@@ -8,7 +8,7 @@ import type {
   OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../../shared/trip-occurrence.constant.js'
-import type { RedeliveryPolicy } from '../../database/trip.schema.js'
+import type { RedeliveryPolicy, TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import type { OccurrenceAttachmentView } from './occurrence-attachment.service.js'
@@ -148,6 +148,11 @@ export type OccurrenceTypeRecord = {
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
   readonly stage: TripOccurrenceStage
+  /**
+   * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — nulo em tipo de nota.
+   * Opcional só para os dublês de teste que ainda não conhecem o campo.
+   */
+  readonly stopKind?: TripStopOccurrenceKind | null
 }
 
 export type TripOccurrencePort = {
