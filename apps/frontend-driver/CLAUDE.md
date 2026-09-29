@@ -216,15 +216,29 @@ miniatura (`usePhotoPreviewUrl`), "anexada" e "Refazer". `test/driver-trip/proof
 
 **A foto do "Deu problema" é da ocorrência de parada, nunca canhoto** (spec 209). Antes ela ia por
 `attachProof` para a primeira nota aberta da parada: virava canhoto, entrava na pontualidade e pesava
-na nota do motorista (e, em nota não entregue, ficava recusada na fila). Hoje o formulário
-(`DriverStopOccurrenceForm.component.tsx` + `useStopOccurrenceForm.hook.ts`) aceita **uma** foto,
-reduzida por `reduceOccurrencePhotoToJpeg` até 512 KiB, com o mesmo par "Tirar foto"/"Anexar". A fila
-recebe dois itens (`stopOccurrencePhoto.service.ts`): a `occurrence`, que sobe sozinha e nunca espera
-a foto, e atrás dela o `stopOccurrencePhoto`, cujo `send` sobe por
+na nota do motorista (e, em nota não entregue, ficava recusada na fila). O formulário aceita **uma**
+foto, reduzida por `reduceOccurrencePhotoToJpeg` até 512 KiB, com o mesmo par "Tirar foto"/"Anexar". A
+fila recebe dois itens (`stopOccurrencePhoto.service.ts`): a `occurrence`, que sobe sozinha e nunca
+espera a foto, e atrás dela o `stopOccurrencePhoto`, cujo `send` sobe por
 `/me/trips/current/stops/:stopId/occurrence-uploads` (+ `confirm`) e reenvia a ocorrência com a
 chave dela e `attachmentObjectId` — a API completa o anexo uma vez. Fila cheia derruba a foto, nunca o
-relato (`reportStopOccurrence` → `photo-dropped`, aviso `occurrencePhotoDropped`).
+relato (`reportStopOccurrence` → `photo-dropped`, aviso `occurrencePhotoDropped`) — **exceto** quando
+o tipo pede foto `required`: aí o toque inteiro vai por `reportAllOrNothing` e volta `size-limit`.
 `test/driver-trip/stop-occurrence-photo.contract.ts`.
+
+**Um botão só de ocorrência, por nota e sempre visível** (spec 218 RF-A5, D1–D4). "Registrar
+ocorrência" (nota, só depois do "Cheguei", sem foto) e "Deu problema" (parada, `kind` fixo) viraram
+"Ocorrência" em cada nota, antes e depois do "Cheguei" e também na nota já resolvida
+(`DriverOccurrenceRegistrationForm.component.tsx` + `useOccurrenceRegistrationForm.hook.ts` +
+`occurrenceRegistration.service.ts`). A lista é a de `GET /me/trips/current/occurrence-types`, com
+tipos de nota e de parada juntos, cada um dizendo o que pede de foto (`attachmentMode`). Com
+`required`, "Registrar" só habilita com a foto capturada no aparelho — o gate reaproveita
+`listMissingProofFields` com um plano de campo único, nunca a captura do canhoto (`ProofCaptureFields`
+levaria a foto ao comprovante). Quem escolhe a rota é o `flow` do tipo: `stop` → fila da parada com
+`occurrenceTypeId` (o item antigo da fila, com `occurrenceKind`, ainda sai com `kind`); `document`
+sem foto → `registerDocumentOccurrence` direto; `document` com foto → o item `documentOccurrence` da
+spec 179. A prévia do aviso sai do `stopKind` do tipo. "Não entreguei" oferece só tipos de nota.
+`test/driver-trip/occurrence-registration*.contract.ts`.
 
 ## Cópia por valor: o que veio de onde
 

@@ -7,17 +7,16 @@ import { Button } from '@/components/ui/button'
 import { FilePickerButton } from '@/components/ui/file-picker-button'
 import { Icon, type IconName } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
-import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { Tooltip } from '@/components/ui/tooltip'
 
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
-import { DriverStopOccurrenceForm } from './DriverStopOccurrenceForm.component'
+import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
 import { ProofCrop } from './ProofCrop.component'
 import { ProofImageLightbox } from './ProofImageLightbox.component'
 import { SignaturePad } from './SignaturePad.component'
 import { useCameraCaptureFieldRef } from '../hooks/useCameraCaptureFieldRef.hook'
 import { useCaptureRegistration } from '../hooks/useCaptureRegistration.hook'
-import type { StopOccurrenceDraft } from '../hooks/useStopOccurrenceForm.hook'
 import { usePhotoPreviewUrl } from '../hooks/usePhotoPreviewUrl.hook'
 import { useTransientNotice } from '../hooks/useTransientNotice.hook'
 import { describeDeliveryWindow } from '../shared/deliveryWindow.service'
@@ -50,6 +49,7 @@ import {
 } from '../shared/eventQueueView.service'
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
+import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceRegistration.service'
 import {
   applyRecipientShortcut,
   buildReceiverFields,
@@ -187,9 +187,12 @@ type DriverStopCardProps = Readonly<{
   /** `Promise<boolean>`: sucesso acende a linha e o aviso transitório no cartão, nunca à cega. */
   onDocumentOccurrence: (input: {
     documentId: string
+    note: string
     occurrenceTypeId: string
     productCode: string
   }) => Promise<boolean>
+  /** Spec 218 D3: ocorrência de nota com foto — o item `documentOccurrence` da fila. */
+  onQueuedDocumentOccurrence: OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']
   occurrenceTypes: DriverOccurrenceTypesState
   onProof: (input: DriverProofAttachment) => Promise<boolean>
   /** Spec 203: campo do recebedor preenchido depois do anexo já estar na fila — atualiza o mesmo item. */
@@ -198,8 +201,8 @@ type DriverStopCardProps = Readonly<{
   onRemoveProof?: (documentId: string) => void
   /** Spec 218: "Cancelar" o gate — o canhoto colhido para aquela nota não espera mais a entrega. */
   onDiscardProofAwaitingDelivery: (documentId: string) => void
-  /** Spec 209: a foto é da ocorrência, e vai junto dela — nunca pelo comprovante de uma nota. */
-  onOccurrence: (input: StopOccurrenceDraft & { stopId: string }) => void
+  /** Spec 209 + 218 D2: a ocorrência de parada, com o tipo do catálogo e a foto dela. */
+  onStopOccurrence: OccurrenceRegistrationHandlers['reportStopOccurrence']
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
   onNotDelivered: (input: {
     documentId: string
@@ -245,11 +248,12 @@ export function DriverStopCard({
   occurrenceTypes,
   onDocumentOccurrence,
   onNotDelivered,
-  onOccurrence,
   onProof,
+  onQueuedDocumentOccurrence,
   onProofFieldsUpdate,
   onRemoveProof,
   onRetryOccurrenceTypes,
+  onStopOccurrence,
   onToggle,
   queueView,
   returnActivityByDocumentId,
@@ -257,7 +261,6 @@ export function DriverStopCard({
   stopOccurrenceActivity,
 }: DriverStopCardProps) {
   const { t } = useTranslation('driverTrip')
-  const [openOccurrence, setOpenOccurrence] = useState(false)
   const [isConfirmingCancelDeparture, setIsConfirmingCancelDeparture] = useState(false)
   /** Pedido do usuário (25/09): quem registra vê — um aviso que some sozinho, perto do que ele tocou. */
   const { announce, notice } = useTransientNotice()
@@ -309,18 +312,29 @@ export function DriverStopCard({
     setIsConfirmingLateRegistration(false)
   }
 
-  function handleDocumentOccurrence(input: {
-    documentId: string
-    occurrenceTypeId: string
-    productCode: string
-  }): void {
-    void onDocumentOccurrence(input).then((success) => {
-      if (!success) return
-      setDocumentOccurrenceRecordedAtByDocumentId((current) =>
-        new Map(current).set(input.documentId, new Date().toISOString()),
-      )
+  /**
+   * Spec 218 (RF-A5): as três rotas do botão único. Cada uma avisa perto da nota tocada — a de
+   * parada também, porque é dali que o motorista registrou (D4).
+   */
+  const occurrenceHandlers: OccurrenceRegistrationHandlers = {
+    enqueueDocumentOccurrence: (input) => {
+      onQueuedDocumentOccurrence(input)
       announce(input.documentId, t('activity.toast.documentOccurrence'))
-    })
+    },
+    registerDocumentOccurrence: (input) => {
+      /* ⚠️ Vazio é a nota inteira: a nota do motorista ainda não carrega os produtos. */
+      void onDocumentOccurrence({ ...input, productCode: '' }).then((success) => {
+        if (!success) return
+        setDocumentOccurrenceRecordedAtByDocumentId((current) =>
+          new Map(current).set(input.documentId, new Date().toISOString()),
+        )
+        announce(input.documentId, t('activity.toast.documentOccurrence'))
+      })
+    },
+    reportStopOccurrence: (input) => {
+      onStopOccurrence(input)
+      announce(stop.id, t('activity.toast.occurrence'))
+    },
   }
 
   return (
@@ -459,16 +473,6 @@ export function DriverStopCard({
               {t('depart.start')}
             </Button>
           )}
-          {isFieldWorkBlocked ? null : (
-            <Button
-              onClick={() => setOpenOccurrence((open) => !open)}
-              type="button"
-              variant="ghost"
-            >
-              <Icon name="alert" />
-              {t('occurrence')}
-            </Button>
-          )}
         </div>
 
         {/*
@@ -550,17 +554,6 @@ export function DriverStopCard({
           />
         )}
 
-        {openOccurrence ? (
-          <DriverStopOccurrenceForm
-            stop={stop}
-            onSubmit={(draft) => {
-              onOccurrence({ ...draft, stopId: stop.id })
-              announce(stop.id, t('activity.toast.occurrence'))
-              setOpenOccurrence(false)
-            }}
-          />
-        ) : null}
-
         <ul className={styles.documentList}>
           {stop.documents.map((document) => (
             <DocumentRow
@@ -577,8 +570,8 @@ export function DriverStopCard({
               onAnnounce={(message) => announce(document.id, message)}
               onDeliver={onDeliver}
               onDiscardProofAwaitingDelivery={onDiscardProofAwaitingDelivery}
+              occurrenceHandlers={occurrenceHandlers}
               occurrenceTypes={occurrenceTypes}
-              onDocumentOccurrence={handleDocumentOccurrence}
               onNotDelivered={onNotDelivered}
               onProof={onProof}
               {...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate })}
@@ -586,7 +579,7 @@ export function DriverStopCard({
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
               queueView={queueView}
               returnActivity={returnActivityByDocumentId.get(document.id)}
-              stopProofSettings={stop.deliveryProof}
+              stop={stop}
             />
           ))}
         </ul>
@@ -650,12 +643,8 @@ type DocumentRowProps = Readonly<{
   onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
   /** Spec 218: "Cancelar" o gate — o canhoto colhido para esta nota não espera mais a entrega. */
   onDiscardProofAwaitingDelivery: (documentId: string) => void
-  /** Spec 079: o que aconteceu **sem** a carga voltar. O tipo vem do cadastro da empresa. */
-  onDocumentOccurrence: (input: {
-    documentId: string
-    occurrenceTypeId: string
-    productCode: string
-  }) => void
+  /** Spec 218 (RF-A5): as três rotas do botão único de ocorrência — o `flow` do tipo escolhe. */
+  occurrenceHandlers: OccurrenceRegistrationHandlers
   occurrenceTypes: DriverOccurrenceTypesState
   onNotDelivered: (input: {
     documentId: string
@@ -671,7 +660,8 @@ type DocumentRowProps = Readonly<{
   queueView: readonly EventQueueItemView[]
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", mesmo retorno de fila da entrega. */
   returnActivity: DocumentReturnActivityView | undefined
-  stopProofSettings: DriverDeliveryProofSettings | null
+  /** A configuração de comprovante antiga (da parada) e o destino da ocorrência de parada. */
+  stop: DriverTripStop
 }>
 
 function DocumentRow({
@@ -682,11 +672,11 @@ function DocumentRow({
   isFieldWorkBlocked,
   isLateRegistration,
   notDeliveredStatus,
+  occurrenceHandlers,
   occurrenceTypes,
   onAnnounce,
   onDeliver,
   onDiscardProofAwaitingDelivery,
-  onDocumentOccurrence,
   onNotDelivered,
   onProof,
   onProofFieldsUpdate,
@@ -694,19 +684,13 @@ function DocumentRow({
   onRetryOccurrenceTypes,
   queueView,
   returnActivity,
-  stopProofSettings,
+  stop,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
-  const [openOccurrence, setOpenDocumentOccurrence] = useState(false)
+  const [openOccurrence, setOpenOccurrence] = useState(false)
   const [openDeliveryGate, setOpenDeliveryGate] = useState(false)
-  /** O botão "Tentar de novo" some ao ser tocado; o foco fica no painel, não cai no `body`. */
-  const occurrencePanelRef = useRef<HTMLFieldSetElement>(null)
-
-  function handleRetryOccurrenceTypes(): void {
-    onRetryOccurrenceTypes()
-    occurrencePanelRef.current?.focus()
-  }
+  const stopProofSettings = stop.deliveryProof
   /** Spec 082 (revisão): a configuração é do **documento** — a da parada é só o shape antigo. */
   const proofSettings = document.deliveryProof ?? stopProofSettings
   /** Spec 218 (RF-A1): o servidor já resolveu as camadas — aqui só se lê o plano pronto. */
@@ -724,6 +708,18 @@ function DocumentRow({
       </li>
     )
   }
+
+  /** Spec 218 (D4): o formulário do botão único — o mesmo na nota em aberto e na já resolvida. */
+  const occurrenceForm = openOccurrence ? (
+    <DriverOccurrenceRegistrationForm
+      document={document}
+      handlers={occurrenceHandlers}
+      occurrenceTypes={occurrenceTypes}
+      onClose={() => setOpenOccurrence(false)}
+      onRetryOccurrenceTypes={onRetryOccurrenceTypes}
+      stop={stop}
+    />
+  ) : null
 
   if (isDocumentSettled(document)) {
     return (
@@ -743,6 +739,13 @@ function DocumentRow({
             })}
           />
         )}
+        <div className={styles.actions}>
+          <DocumentOccurrenceButton
+            isOpen={openOccurrence}
+            onToggle={() => setOpenOccurrence((open) => !open)}
+          />
+        </div>
+        {occurrenceForm}
         {/*
          * O canhoto anexa depois: a entrega já está confirmada, e o arquivo não a desfaz — por
          * isso nunca trava atrás de "Cheguei" (nota já entregue, foto pendente de verdade).
@@ -827,12 +830,13 @@ function DocumentRow({
       ) : null}
       {/*
        * Pedido do usuário (25/09): "Cheguei" libera a entrega — sem chegada (e sem "Registrar
-       * entrega depois" confirmado), Entreguei/Não entreguei/Registrar ocorrência nem entram no
-       * DOM. Nada de desabilitado e cinza: o aviso ocupa o lugar delas.
+       * entrega depois" confirmado), Entreguei e Não entreguei nem entram no DOM. Nada de
+       * desabilitado e cinza: o aviso ocupa o lugar delas. Spec 218 (D4): "Ocorrência" fica fora
+       * disso — doca fechada se relata antes de chegar.
        */}
-      {canActOnDocuments ? (
-        <>
-          <div className={styles.actions}>
+      <div className={styles.actions}>
+        {canActOnDocuments ? (
+          <>
             {/*
              * Spec 218 (P1/P2): sem obrigatório, o toque entrega na hora, como sempre. Com
              * obrigatório, ele abre a captura aqui mesmo — quem entrega é o "Confirmar entrega".
@@ -849,20 +853,15 @@ function DocumentRow({
               <Icon name="close" />
               {t('return')}
             </Button>
-            {/*
-             * ⚠️ Isto **não** é devolver, e o texto do painel diz isso: aqui a carga fica com o
-             * cliente. Os tipos oferecidos são só os que a devolução não sabe dizer — ver
-             * `driverDocumentOccurrenceTypes`.
-             */}
-            <Button
-              onClick={() => setOpenDocumentOccurrence((open) => !open)}
-              type="button"
-              variant="ghost"
-            >
-              <Icon name="alert" />
-              {t('documentOccurrence')}
-            </Button>
-          </div>
+          </>
+        ) : null}
+        <DocumentOccurrenceButton
+          isOpen={openOccurrence}
+          onToggle={() => setOpenOccurrence((open) => !open)}
+        />
+      </div>
+      {canActOnDocuments ? (
+        <>
           {requiresProof && openDeliveryGate ? (
             <PreDeliveryProofGate
               captureProps={{
@@ -885,56 +884,6 @@ function DocumentRow({
                 setOpenDeliveryGate(false)
               }}
             />
-          ) : null}
-          {openOccurrence ? (
-            <fieldset className={styles.occurrenceForm} ref={occurrencePanelRef} tabIndex={-1}>
-              <legend>{t('documentOccurrence')}</legend>
-              <p>{t('documentOccurrenceHint')}</p>
-              {occurrenceTypes.status === 'failed' ? (
-                <div>
-                  <p className={styles.proofFieldError} role="alert">
-                    {t('documentOccurrenceTypesFailed')}
-                  </p>
-                  <Button onClick={handleRetryOccurrenceTypes} type="button" variant="ghost">
-                    <Icon name="refresh" />
-                    {t('documentOccurrenceTypesRetry')}
-                  </Button>
-                </div>
-              ) : occurrenceTypes.status === 'loading' ? (
-                <SkeletonGroup
-                  className={styles.occurrenceChips}
-                  label={t('documentOccurrenceTypesLoading')}
-                >
-                  <Skeleton height="var(--control-height)" width="40%" />
-                  <Skeleton height="var(--control-height)" width="55%" />
-                </SkeletonGroup>
-              ) : occurrenceTypes.types.length === 0 ? (
-                <p className={styles.stopMeta}>{t('documentOccurrenceTypesEmpty')}</p>
-              ) : (
-                occurrenceTypes.types.map((occurrenceType) => (
-                  <Button
-                    key={occurrenceType.id}
-                    onClick={() => {
-                      onDocumentOccurrence({
-                        documentId: document.id,
-                        occurrenceTypeId: occurrenceType.id,
-                        /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber
-                           listá-lo — a nota do motorista ainda não carrega os produtos. */
-                        productCode: '',
-                      })
-                      setOpenDocumentOccurrence(false)
-                    }}
-                    // O retorno (linha + aviso transitório) chega pelo `.then` de
-                    // `onDocumentOccurrence`, acima — nunca em silêncio, mesmo essa sendo uma
-                    // chamada direta (sem fila offline).
-                    type="button"
-                    variant="ghost"
-                  >
-                    {occurrenceType.name}
-                  </Button>
-                ))
-              )}
-            </fieldset>
           ) : null}
           {/*
            * Spec 179, ajuste do usuário de 25/09: "Não entreguei" é a ocorrência com foto **e** a
@@ -963,7 +912,30 @@ function DocumentRow({
       ) : (
         <p className={styles.stopMeta}>{t('arrivalRequired')}</p>
       )}
+      {occurrenceForm}
     </li>
+  )
+}
+
+type DocumentOccurrenceButtonProps = Readonly<{
+  isOpen: boolean
+  onToggle: () => void
+}>
+
+/**
+ * Spec 218 (D4): o botão único de ocorrência da nota — rótulo curto, ícone e dica (pedido do
+ * usuário), para não pesar a linha ao lado de Entreguei/Não entreguei.
+ */
+function DocumentOccurrenceButton({ isOpen, onToggle }: DocumentOccurrenceButtonProps) {
+  const { t } = useTranslation('driverTrip')
+
+  return (
+    <Tooltip label={t('occurrenceRegistration.openHint')}>
+      <Button aria-expanded={isOpen} onClick={onToggle} type="button" variant="ghost">
+        <Icon name="alert" />
+        {t('occurrenceRegistration.open')}
+      </Button>
+    </Tooltip>
   )
 }
 

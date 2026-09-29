@@ -396,6 +396,21 @@
   min-height: 2.75rem;
 }
 
+/*
+ * Spec 218 (RF-A5): o nome do tipo e, embaixo, o que ele pede de foto. A cor herda do chip — no
+ * selecionado (fundo cheio) a segunda linha continua legível, nunca cinza sobre cobre.
+ */
+.occurrenceChipLabel {
+  display: grid;
+  justify-items: start;
+  text-align: start;
+}
+
+.occurrenceChipMode {
+  font-size: var(--field-font-size-compact);
+  font-weight: 400;
+}
+
 /* A prévia do aviso: painel destacado, com a chave do template pequena e monoespaçada. */
 .occurrencePreview {
   border: 1px solid var(--color-slate);

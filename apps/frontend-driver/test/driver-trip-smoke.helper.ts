@@ -17,6 +17,12 @@ export const DRIVER_STOP_ID = '00000000-0000-4000-8000-000000000101'
 /** Spec 179: o caminho do dublê do bucket, na origem da API. */
 const OBJECT_STORAGE_PATH = '/__object-storage/'
 export const DRIVER_DOCUMENT_ID = '00000000-0000-4000-8000-000000000102'
+/** Spec 218: os tipos do catálogo que o smoke oferece, além do "Cliente ausente" de sempre. */
+export const SMOKE_OCCURRENCE_TYPE_IDS = {
+  dockClosed: '00000000-0000-4000-8000-0000000000e3',
+  damagedCargo: '00000000-0000-4000-8000-0000000000e2',
+  unexpectedCharge: '00000000-0000-4000-8000-0000000000e4',
+} as const
 /** Chave sintética de 44 dígitos — nenhuma nota real entra em fixture. */
 export const DRIVER_ACCESS_KEY = '35260712345678000195550010009001231000000017'
 
@@ -176,8 +182,36 @@ export async function mockDriverTripApi(
       await fulfillJson(route, { error: { code: 'INTERNAL' } }, 500)
       return
     }
+    /**
+     * Spec 218 (D1): a lista única — tipos de nota e de parada juntos, cada um com o que pede de
+     * foto. "Cliente ausente" fica como sempre foi (sem flow, a cópia antiga), para o "Não
+     * entreguei" continuar medindo o mesmo que antes.
+     */
     await fulfillJson(route, {
-      data: [{ id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' }],
+      data: [
+        { id: '00000000-0000-4000-8000-0000000000e1', name: 'Cliente ausente' },
+        {
+          attachmentMode: 'required',
+          flow: 'document',
+          id: SMOKE_OCCURRENCE_TYPE_IDS.damagedCargo,
+          name: 'Avaria na carga',
+          stopKind: null,
+        },
+        {
+          attachmentMode: 'optional',
+          flow: 'stop',
+          id: SMOKE_OCCURRENCE_TYPE_IDS.dockClosed,
+          name: 'Doca interditada',
+          stopKind: 'dock_closed',
+        },
+        {
+          attachmentMode: 'required',
+          flow: 'stop',
+          id: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
+          name: 'Cobrança inesperada',
+          stopKind: 'unexpected_charge',
+        },
+      ],
     })
   })
 

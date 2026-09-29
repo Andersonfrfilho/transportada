@@ -1,9 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type {
-  DriverFieldReport,
-  DriverOccurrenceKind,
-  DriverOccurrencePhoto,
-} from './driverTrip.types'
+import type { DriverFieldReport, DriverOccurrencePhoto } from './driverTrip.types'
 import { sumReportPhotoBytes } from './offlineQueue.service'
 
 /**
@@ -14,7 +10,8 @@ import { sumReportPhotoBytes } from './offlineQueue.service'
 export function buildStopOccurrenceReports(input: {
   readonly createKey: () => string
   readonly description: string
-  readonly kind: DriverOccurrenceKind
+  /** Spec 218 D2: o tipo do catálogo — o servidor tira dele o valor fixo que ainda decide o aviso. */
+  readonly occurrenceTypeId: string
   readonly photo: DriverOccurrencePhoto | undefined
   readonly stopId: string
 }): readonly DriverFieldReport[] {
@@ -24,7 +21,7 @@ export function buildStopOccurrenceReports(input: {
     documentId: null,
     idempotencyKey: input.createKey(),
     kind: 'occurrence',
-    occurrenceKind: input.kind,
+    occurrenceTypeId: input.occurrenceTypeId,
     stopId: input.stopId,
   } as const
   if (input.photo === undefined) return [occurrence]
@@ -37,7 +34,7 @@ export function buildStopOccurrenceReports(input: {
       idempotencyKey: input.createKey(),
       kind: 'stopOccurrencePhoto',
       occurrenceKey: occurrence.idempotencyKey,
-      occurrenceKind: occurrence.occurrenceKind,
+      occurrenceTypeId: occurrence.occurrenceTypeId,
       photo: input.photo,
       stopId: occurrence.stopId,
     },

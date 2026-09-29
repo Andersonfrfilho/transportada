@@ -19,6 +19,7 @@ import {
   DRIVER_ACCESS_KEY,
   DRIVER_STOP_ID,
   mockDriverTripApi,
+  SMOKE_OCCURRENCE_TYPE_IDS,
   type DriverTripApiMock,
 } from './driver-trip-smoke.helper'
 
@@ -169,15 +170,24 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
   await assertNoHorizontalOverflow(page)
 })
 
+/**
+ * Spec 218 (D1, D4): um botão só, por nota, que existe antes do "Cheguei" — doca fechada se relata
+ * de fora. A lista traz tipos de nota e de parada juntos, cada um dizendo o que pede de foto.
+ */
 test('o motorista vê os tipos de ocorrência de rua da empresa', async ({ page }) => {
   await openTrip(page)
 
-  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
-  await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+  await expect(page.getByRole('button', { name: 'Cheguei' })).toBeVisible()
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
 
-  await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
+  const types = page.getByRole('radiogroup', { name: 'Qual ocorrência?' })
+  await expect(types.getByRole('radio', { name: /Cliente ausente/u })).toBeVisible()
+  await expect(types.getByRole('radio', { name: /Doca interditada.*Foto opcional/u })).toBeVisible()
+  await expect(
+    types.getByRole('radio', { name: /Cobrança inesperada.*Foto obrigatória/u }),
+  ).toBeVisible()
   await assertNoHorizontalOverflow(page)
+  expect(await listSmallTouchTargets(page)).toEqual([])
 })
 
 test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ page }) => {
@@ -193,15 +203,14 @@ test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ p
   await loginAsLocalUser(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
 
-  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
   await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
 
   await expect(
     page.getByText('Não foi possível carregar os tipos de ocorrência agora.'),
   ).toBeVisible()
   // A falha na lista de tipos não trava o resto da parada.
-  for (const name of ['Entreguei', 'Não entreguei', 'Deu problema']) {
+  for (const name of ['Entreguei', 'Não entreguei', 'Ocorrência']) {
     const action = page.getByRole('button', { exact: true, name })
     await expect(action.first()).toBeVisible()
     await expect(action.first()).toBeEnabled()
@@ -209,7 +218,7 @@ test('sem a lista de tipos, o motorista vê o aviso e tenta de novo', async ({ p
 
   api.setOccurrenceTypesFailing(false)
   await page.getByRole('button', { name: 'Tentar de novo' }).click()
-  await expect(page.getByRole('button', { name: 'Cliente ausente' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: /Cliente ausente/u })).toBeVisible()
 
   await assertNoHorizontalOverflow(page)
 })
@@ -232,9 +241,7 @@ test('sem tipo de rua cadastrado, o motorista vê o aviso de lista vazia', async
   await loginAsLocalUser(page)
   await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
 
-  // Pedido do usuário (25/09): "Registrar ocorrência" da nota só existe depois de "Cheguei".
-  await page.getByRole('button', { name: 'Cheguei' }).click()
-  await page.getByRole('button', { name: 'Registrar ocorrência' }).first().click()
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
 
   await expect(
     page.getByText('Nenhum tipo de ocorrência de rua cadastrado. Fale com o escritório.'),
@@ -922,26 +929,33 @@ test('Não entreguei: ocorrência com foto sobe direto ao storage, depois a devo
 })
 
 /**
- * Spec 209: a foto do "Deu problema" é da ocorrência de parada. A ocorrência sobe primeiro, sem
- * esperar a foto; a foto sobe pela rota da parada e completa a ocorrência pela chave dela. Nada vai
- * ao comprovante de nota nenhuma — era assim que ela virava canhoto e pesava na nota do motorista.
+ * Spec 209 + 218 (P5, D2): a foto da ocorrência de parada é da ocorrência, nunca canhoto. Com o tipo
+ * `required`, "Registrar" só habilita depois da foto tirada — sem esperar upload. A ocorrência sobe
+ * com o tipo do catálogo; a foto sobe pela rota da parada e completa a ocorrência pela chave dela.
  */
-test('Deu problema com foto: a foto é da ocorrência, e nunca vira canhoto', async ({ page }) => {
+test('ocorrência de parada com foto obrigatória: habilita ao capturar, e nunca vira canhoto', async ({
+  page,
+}) => {
   const api = await openTrip(page)
 
-  await page.getByRole('button', { exact: true, name: 'Deu problema' }).click()
-  const kinds = page.getByRole('radiogroup', { name: 'Deu problema' })
-  await kinds.getByRole('radio', { name: 'Doca interditada' }).click()
-  const form = kinds.locator('..')
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  const types = page.getByRole('radiogroup', { name: 'Qual ocorrência?' })
+  await types.getByRole('radio', { name: /Cobrança inesperada/u }).click()
+  const form = page.getByRole('group', { name: 'Registrar ocorrência' })
+  const register = form.getByRole('button', { exact: true, name: 'Registrar' })
+  await expect(register).toBeDisabled()
+  await expect(form.getByText('Para registrar, falta: a foto.')).toBeVisible()
+
   const chooser = page.waitForEvent('filechooser')
   await form.getByRole('button', { name: /^Tirar foto/u }).click()
   expect(await (await chooser).element().getAttribute('capture')).toBe('environment')
   await (await chooser).setFiles(SMOKE_PHOTO)
   await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
-  await expect(form.getByRole('button', { exact: true, name: 'Refazer' })).toBeVisible()
+  await expect(register).toBeEnabled()
+  expect(api.storageUploads()).toEqual([])
   await assertNoHorizontalOverflow(page)
   expect(await listSmallTouchTargets(page)).toEqual([])
-  await form.getByRole('button', { exact: true, name: 'Registrar' }).click()
+  await register.click()
 
   await expect(page.getByText(/Ocorrência registrada às .* · enviada/u)).toBeVisible()
   await expect.poll(() => api.reports().length).toBe(4)
@@ -955,14 +969,50 @@ test('Deu problema com foto: a foto é da ocorrência, e nunca vira canhoto', as
   expect(api.storageUploads()).toHaveLength(1)
   expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
   const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[2]?.path ?? '')
-  expect(api.reports()[0]?.body).toEqual({ description: '', documentId: null, kind: 'dock_closed' })
+  expect(api.reports()[0]?.body).toEqual({
+    description: '',
+    documentId: null,
+    occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
+  })
   expect(api.reports()[3]?.body).toEqual({
     attachmentObjectId: confirmedId?.[1],
     description: '',
     documentId: null,
-    kind: 'dock_closed',
+    occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
   })
   expect(api.reports()[3]?.idempotencyKey).toBe(api.reports()[0]?.idempotencyKey)
+})
+
+/** Spec 218 D3: tipo de nota com foto vai pelo item da 179 — a foto sobe antes do registro. */
+test('ocorrência de nota com foto: a foto sobe antes, e o registro leva o anexo', async ({
+  page,
+}) => {
+  const api = await openTrip(page)
+
+  await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
+  await page
+    .getByRole('radiogroup', { name: 'Qual ocorrência?' })
+    .getByRole('radio', { name: /Avaria na carga/u })
+    .click()
+  const form = page.getByRole('group', { name: 'Registrar ocorrência' })
+  const chooser = page.waitForEvent('filechooser')
+  await form.getByRole('button', { name: /^Tirar foto/u }).click()
+  await (await chooser).setFiles(SMOKE_PHOTO)
+  await expect(form.getByText('Foto da ocorrência anexada')).toBeVisible()
+  await form.getByRole('button', { exact: true, name: 'Registrar' }).click()
+
+  await expect(page.getByText('Ocorrência com foto enviada.')).toBeVisible()
+  const paths = api.reports().map((report) => report.path.replace(/[0-9a-f-]{36}/gu, ':id'))
+  expect(paths).toEqual([
+    '/me/trips/current/documents/:id/occurrence-uploads',
+    '/me/trips/current/documents/:id/occurrence-uploads/:id/confirm',
+    '/me/trips/current/documents/:id/occurrences',
+  ])
+  const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[1]?.path ?? '')
+  expect(api.reports()[2]?.body).toMatchObject({
+    attachmentObjectId: confirmedId?.[1],
+    occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.damagedCargo,
+  })
 })
 
 test('Não entreguei sem sinal: foto e ocorrência na fila, e "enviado" só depois de subir', async ({

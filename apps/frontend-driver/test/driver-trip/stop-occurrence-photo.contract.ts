@@ -19,6 +19,8 @@ import {
  */
 const API = 'https://api.test'
 const STOP_ID = '00000000-0000-4000-8000-0000000000b1'
+/** Spec 218 D2: o tipo do catálogo ("Doca interditada", `flow: stop`) no lugar do kind fixo. */
+const OCCURRENCE_TYPE_ID = '00000000-0000-4000-8000-0000000000c1'
 const UPLOAD_ID = '00000000-0000-4000-8000-0000000000a1'
 const UPLOAD_URL = 'https://storage.test/bucket/objeto?X-Amz-Signature=assinatura'
 const PHOTO_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])
@@ -35,7 +37,7 @@ function buildReports(photo: typeof PHOTO | undefined) {
   return buildStopOccurrenceReports({
     createKey: nextKey,
     description: 'Doca fechada até as 14h',
-    kind: 'dock_closed',
+    occurrenceTypeId: OCCURRENCE_TYPE_ID,
     photo,
     stopId: STOP_ID,
   })
@@ -77,7 +79,7 @@ describe('os itens do "Deu problema" na fila (spec 209 D2)', () => {
         documentId: null,
         idempotencyKey: 'chave-1',
         kind: 'occurrence',
-        occurrenceKind: 'dock_closed',
+        occurrenceTypeId: OCCURRENCE_TYPE_ID,
         stopId: STOP_ID,
       },
     ])
@@ -93,7 +95,7 @@ describe('os itens do "Deu problema" na fila (spec 209 D2)', () => {
       idempotencyKey: 'chave-2',
       kind: 'stopOccurrencePhoto',
       occurrenceKey: 'chave-1',
-      occurrenceKind: 'dock_closed',
+      occurrenceTypeId: OCCURRENCE_TYPE_ID,
       photo: PHOTO,
       stopId: STOP_ID,
     })
@@ -147,7 +149,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
     expect(await seen[0]?.json()).toEqual({
       description: 'Doca fechada até as 14h',
       documentId: null,
-      kind: 'dock_closed',
+      occurrenceTypeId: OCCURRENCE_TYPE_ID,
     })
   })
 
@@ -169,7 +171,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
       attachmentObjectId: UPLOAD_ID,
       description: 'Doca fechada até as 14h',
       documentId: null,
-      kind: 'dock_closed',
+      occurrenceTypeId: OCCURRENCE_TYPE_ID,
     })
   })
 
@@ -216,13 +218,16 @@ describe('a tela do "Deu problema" (spec 209 RF4)', () => {
   )
   const form = readFileSync(
     new URL(
-      '../../src/modules/driver-trip/components/DriverStopOccurrenceForm.component.tsx',
+      '../../src/modules/driver-trip/components/DriverOccurrenceRegistrationForm.component.tsx',
       import.meta.url,
     ),
     'utf8',
   )
   const formHook = readFileSync(
-    new URL('../../src/modules/driver-trip/hooks/useStopOccurrenceForm.hook.ts', import.meta.url),
+    new URL(
+      '../../src/modules/driver-trip/hooks/useOccurrenceRegistrationForm.hook.ts',
+      import.meta.url,
+    ),
     'utf8',
   )
   const page = readFileSync(

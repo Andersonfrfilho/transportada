@@ -45,15 +45,6 @@ export function isAwaitingDispatch(trip: DriverTrip): boolean {
   return trip.status === 'route_planned'
 }
 
-/**
- * A nota que a prévia do aviso do "Deu problema" cita: a primeira ainda em aberto, senão a primeira
- * da lista. ⚠️ Spec 209: a foto da ocorrência **não** vai mais para o comprovante desta nota — ela
- * virava canhoto e pesava na pontualidade. A foto é da ocorrência de parada.
- */
-export function findOccurrencePhotoDocument(stop: DriverTripStop): DriverTripDocument | undefined {
-  return stop.documents.find((document) => !isDocumentSettled(document)) ?? stop.documents[0]
-}
-
 export function countPendingDocuments(stop: DriverTripStop): number {
   return stop.documents.filter((document) => !isDocumentSettled(document)).length
 }

@@ -24,7 +24,6 @@ import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { useLocationSharing } from '../hooks/useLocationSharing.hook'
 import { useSelectedDriverTrip } from '../hooks/useSelectedDriverTrip.hook'
 import { useStopExpansion } from '../hooks/useStopExpansion.hook'
-import type { StopOccurrenceDraft } from '../hooks/useStopOccurrenceForm.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
@@ -42,6 +41,7 @@ import {
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
+  DriverFieldReport,
   DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
@@ -53,6 +53,7 @@ import {
   type NotDeliveredDraft,
   type NotDeliveredStatus,
 } from '../shared/notDelivered.service'
+import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceRegistration.service'
 import {
   readCachedOccurrenceTypes,
   resolveOccurrenceTypesStorage,
@@ -512,23 +513,54 @@ export function DriverTripWorkspacePage() {
    * Spec 209: a ocorrência e, atrás dela, a foto — a foto é da ocorrência e nunca vira canhoto de
    * nota. A linha "ocorrência registrada" do cartão lê a chave da ocorrência, não a da foto.
    */
-  function reportStopOccurrence(input: StopOccurrenceDraft & { stopId: string }): void {
+  async function reportStopOccurrence(
+    input: Parameters<OccurrenceRegistrationHandlers['reportStopOccurrence']>[0],
+  ): Promise<void> {
     const reports = buildStopOccurrenceReports({
       createKey: createIdempotencyKey,
       description: input.description,
-      kind: input.kind,
+      occurrenceTypeId: input.occurrenceTypeId,
       photo: input.photo,
       stopId: input.stopId,
     })
     const occurrenceKey = reports[0]?.idempotencyKey ?? ''
+    setOccurrencePhotoDropped(false)
+    setAttachmentLimit(undefined)
+    /** Spec 218: foto obrigatória nunca é derrubada — sem espaço, o toque inteiro volta, e a tela diz. */
+    const outcome = input.isPhotoRequired
+      ? await driverTrip.reportAllOrNothing(reports)
+      : await driverTrip.reportStopOccurrence(reports)
+    if (outcome === 'count-limit') setEventLimitReached(true)
+    if (outcome === 'size-limit') setAttachmentLimit('size-limit')
+    if (outcome === 'photo-dropped') setOccurrencePhotoDropped(true)
+    if (outcome !== 'queued' && outcome !== 'photo-dropped') return
     setStopOccurrenceKeyByStopId((current) =>
       new Map(current).set(input.stopId, { at: new Date().toISOString(), key: occurrenceKey }),
     )
-    setOccurrencePhotoDropped(false)
-    void driverTrip.reportStopOccurrence(reports).then((outcome) => {
-      if (outcome === 'count-limit') setEventLimitReached(true)
-      if (outcome === 'photo-dropped') setOccurrencePhotoDropped(true)
-    })
+  }
+
+  /** Spec 218 D3: a ocorrência de nota com foto — o item da 179, que sobe a foto antes do registro. */
+  async function reportDocumentOccurrenceWithPhoto(
+    input: Parameters<OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']>[0],
+  ): Promise<void> {
+    setAttachmentLimit(undefined)
+    const report: DriverFieldReport = {
+      documentId: input.documentId,
+      idempotencyKey: createIdempotencyKey(),
+      kind: 'documentOccurrence',
+      note: input.note,
+      occurrenceTypeId: input.occurrenceTypeId,
+      occurrenceTypeName: input.occurrenceTypeName,
+      photo: input.photo,
+      productCode: '',
+    }
+    const outcome = await driverTrip.reportAllOrNothing([report])
+    if (outcome === 'count-limit') setEventLimitReached(true)
+    if (outcome === 'size-limit') setAttachmentLimit('size-limit')
+    if (outcome !== 'queued') return
+    setNotDeliveredKeyByDocumentId((current) =>
+      new Map(current).set(input.documentId, report.idempotencyKey),
+    )
   }
 
   /** Sucesso → refetch: é o snapshot novo que abre as ações de campo. */
@@ -803,6 +835,7 @@ export function DriverTripWorkspacePage() {
                   onToggle={() => stopExpansion.toggle(stop.id)}
                   onDocumentOccurrence={(input: {
                     documentId: string
+                    note: string
                     occurrenceTypeId: string
                     productCode: string
                   }) =>
@@ -814,7 +847,10 @@ export function DriverTripWorkspacePage() {
                         return false
                       })
                   }
-                  onOccurrence={reportStopOccurrence}
+                  onQueuedDocumentOccurrence={(input) =>
+                    void reportDocumentOccurrenceWithPhoto(input)
+                  }
+                  onStopOccurrence={(input) => void reportStopOccurrence(input)}
                   notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
                   onNotDelivered={(input) => void reportNotDelivered(input)}
                 />

@@ -117,18 +117,7 @@
     "outcomeFor": "{{recipient}} · Nota {{number}}/{{series}}"
   },
   "proofPendingWarning": "Tirar de novo não melhora: vale a pior foto. Foto enviada muito depois conta como atrasada, mesmo que o relógio do aparelho mostre outra hora.",
-  "occurrence": "Deu problema",
   "occurrenceDescription": "O que aconteceu (opcional)",
-  "occurrenceKind": {
-    "address_not_found": "Endereço não localizado",
-    "appointment_required": "Exigiram agendamento",
-    "customer_closed": "Cliente fechado",
-    "damaged_goods": "Mercadoria avariada",
-    "dock_closed": "Doca interditada",
-    "long_wait": "Espera longa",
-    "other": "Outro",
-    "unexpected_charge": "Cobrança inesperada"
-  },
   "occurrencePhoto": "Foto da ocorrência (local ou carga)",
   "choosePhoto": "Tirar foto",
   "occurrencePreview": {
@@ -275,7 +264,6 @@
   "title": "Minha viagem",
   "tripCompleted": "Viagem concluída. Bom trabalho.",
   "vehicle": "Veículo {{plate}}",
-  "documentOccurrence": "Registrar ocorrência",
   "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",
   "documentOccurrenceFailed": "Não deu para registrar a ocorrência. A nota continua como estava — toque de novo.",
   "documentOccurrenceProduct": "Item",
@@ -425,5 +413,18 @@
       "occurrence": "Ocorrência registrada",
       "returned": "Devolução registrada"
     }
+  },
+  "occurrenceRegistration": {
+    "attachment": {
+      "off": "Sem foto",
+      "optional": "Foto opcional",
+      "required": "Foto obrigatória"
+    },
+    "cancel": "Cancelar",
+    "legend": "Qual ocorrência?",
+    "missingLead": "Para registrar, falta: {{fields}}.",
+    "open": "Ocorrência",
+    "openHint": "Registrar um problema desta nota ou da parada",
+    "title": "Registrar ocorrência"
   }
 }

@@ -202,6 +202,12 @@ export type DriverTripController = Readonly<{
   report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
   /** Spec 179: os itens do mesmo toque ("Não entreguei"), todos ou nenhum. */
   reportNotDelivered: (reports: readonly DriverFieldReport[]) => Promise<DriverNotDeliveredOutcome>
+  /**
+   * Spec 218: itens de um toque, todos ou nenhum, com a foto contando no teto — o mesmo caminho do
+   * "Não entreguei". A ocorrência com foto obrigatória vai por aqui: fila cheia recusa o toque
+   * inteiro, nunca registra sem a foto que o tipo exige.
+   */
+  reportAllOrNothing: (reports: readonly DriverFieldReport[]) => Promise<DriverNotDeliveredOutcome>
   /** Spec 209: o "Deu problema" — a ocorrência sempre entra; a foto, se couber. */
   reportStopOccurrence: (
     reports: readonly DriverFieldReport[],
@@ -885,6 +891,7 @@ export function useDriverTrip(
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
+    reportAllOrNothing: reportNotDelivered,
     reportNotDelivered,
     reportStopOccurrence,
     reportWithLocation,

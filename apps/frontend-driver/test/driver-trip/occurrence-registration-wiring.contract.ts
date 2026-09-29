@@ -40,22 +40,24 @@ describe('um botão só, por nota e sempre visível (D4)', () => {
     expect(source(CARD_PATH)).toInclude('<DriverOccurrenceRegistrationForm')
   })
 
-  /** Nota entregue também ganha o botão — cobrança inesperada acontece depois da entrega. */
-  it('o botão fica fora do "Cheguei": na nota em aberto e na nota já resolvida', () => {
+  /**
+   * Nota entregue também ganha o botão — cobrança inesperada acontece depois da entrega. Que ele
+   * aparece antes do "Cheguei" quem prova é o smoke (`driver-app.smoke.spec.ts`), na tela.
+   */
+  it('o botão está na nota em aberto e na nota já resolvida', () => {
     const card = source(CARD_PATH)
-    const start = card.indexOf('{canActOnDocuments ? (')
-    const end = card.indexOf("t('arrivalRequired')")
-    expect(start).toBeGreaterThan(-1)
-    expect(end).toBeGreaterThan(start)
-    expect(card.slice(start, end)).not.toInclude('DocumentOccurrenceEntry')
-    expect(card.match(/<DocumentOccurrenceEntry/gu)?.length).toBe(2)
+    expect(card.match(/<DocumentOccurrenceButton/gu)?.length).toBe(2)
+    const settledStart = card.indexOf('if (isDocumentSettled(document)) {')
+    const settledEnd = card.indexOf('return (', card.indexOf('return (', settledStart) + 1)
+    expect(card.slice(settledStart, settledEnd)).toInclude('<DocumentOccurrenceButton')
   })
 
   it('rótulo curto, com ícone e dica — pedido do usuário', () => {
     expect(driverTrip.occurrenceRegistration.open).toBe('Ocorrência')
     expect(driverTripEnglish.occurrenceRegistration.open).toBe('Occurrence')
     const card = source(CARD_PATH)
-    expect(card).toInclude("title={t('occurrenceRegistration.openHint')}")
+    /** A dica do design system, não o `title` nativo, que demora e some sob o dedo. */
+    expect(card).toInclude("<Tooltip label={t('occurrenceRegistration.openHint')}>")
     expect(card).toInclude("{t('occurrenceRegistration.open')}")
   })
 })
@@ -80,11 +82,13 @@ describe('o formulário único', () => {
     expect(form.match(/useCameraCaptureFieldRef\(\)/gu)?.length).toBe(2)
   })
 
+  /** web.md §4: estado e submit no hook; o componente só renderiza o que ele expõe. */
   it('o gate e a rota vêm do serviço, que reaproveita a regra do comprovante', () => {
-    const form = source(FORM_PATH)
-    expect(form).toInclude('canRegisterOccurrence(')
-    expect(form).toInclude('listMissingOccurrenceFields(')
-    expect(form).toInclude('dispatchOccurrenceRegistration(')
+    const hook = source(HOOK_PATH)
+    expect(hook).toInclude('canRegisterOccurrence(')
+    expect(hook).toInclude('listMissingOccurrenceFields(')
+    expect(hook).toInclude('dispatchOccurrenceRegistration(')
+    expect(source(FORM_PATH)).toInclude('disabled={!form.canRegister}')
     const service = source(SERVICE_PATH)
     expect(service).toInclude('listMissingProofFields')
     expect(service).toInclude('resolveProofFormPlan')
@@ -92,9 +96,9 @@ describe('o formulário único', () => {
 
   /** A prévia do aviso é da parada: só o tipo de parada tem o stopKind que escolhe o template. */
   it('a prévia do aviso sai do stopKind do tipo, nunca do nome', () => {
-    const form = source(FORM_PATH)
-    expect(form).toInclude('renderOccurrenceNoticePreview')
-    expect(form).toInclude('stopKind')
+    const hook = source(HOOK_PATH)
+    expect(hook).toInclude('renderOccurrenceNoticePreview')
+    expect(hook).toInclude('stopKind')
   })
 
   it('a foto é reduzida no aparelho, e o formulário aberto segura a atualização', () => {

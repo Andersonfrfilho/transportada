@@ -7,12 +7,16 @@ import {
 } from '@/modules/shared/KeycloakAuthProvider.provider'
 
 import {
+  DRIVER_OCCURRENCE_FLOWS,
+  DRIVER_OCCURRENCE_KINDS,
   PROOF_PUNCTUALITY_VALUES,
   type DriverFieldReport,
+  type DriverOccurrenceKind,
   type DriverOccurrenceType,
   type DriverOccurrenceTypesResult,
   type DriverTripSnapshot,
   type ProofPunctuality,
+  type StopOccurrenceReportReference,
 } from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 import { LATE_REGISTRATION_FIELD_ENABLED } from './lateRegistration.constant'
@@ -146,6 +150,8 @@ export type DriverTripClient = Readonly<{
    */
   registerDocumentOccurrence: (input: {
     documentId: string
+    /** Spec 218: o que o motorista escreveu no formulário único; ausente é vazio. */
+    note?: string
     occurrenceTypeId: string
     productCode: string
   }) => Promise<void>
@@ -242,9 +248,21 @@ export function reportBody(report: JsonFieldReport): string {
       return JSON.stringify({
         description: report.description,
         documentId: report.documentId,
-        kind: report.occurrenceKind,
+        ...stopOccurrenceReference(report),
       })
   }
+}
+
+/**
+ * Spec 218 D2: o tipo do catálogo quando o item o tem; o item gravado antes da troca sai com o
+ * valor fixo — a API aceita os dois, nunca os dois juntos.
+ */
+function stopOccurrenceReference(
+  report: StopOccurrenceReportReference,
+): Readonly<{ kind: DriverOccurrenceKind } | { occurrenceTypeId: string }> {
+  return report.occurrenceTypeId === undefined
+    ? { kind: report.occurrenceKind }
+    : { occurrenceTypeId: report.occurrenceTypeId }
 }
 
 export function createDriverTripClient(dependencies: ClientDependencies): DriverTripClient {
@@ -291,7 +309,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
     async registerDocumentOccurrence(input) {
       await request({
         body: JSON.stringify({
-          note: '',
+          note: input.note ?? '',
           occurrenceTypeId: input.occurrenceTypeId,
           productCode: input.productCode,
         }),
@@ -449,7 +467,7 @@ async function sendStopOccurrencePhoto(input: {
       attachmentObjectId,
       description: report.description,
       documentId: report.documentId,
-      kind: report.occurrenceKind,
+      ...stopOccurrenceReference(report),
     }),
     dependencies,
     idempotencyKey: report.occurrenceKey,
@@ -751,13 +769,29 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as {
     readonly attachmentMode?: unknown
+    readonly flow?: unknown
     readonly id?: unknown
     readonly name?: unknown
+    readonly stopKind?: unknown
   }
   const hasKnownMode =
     candidate.attachmentMode === undefined ||
     (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(candidate.attachmentMode)
-  return typeof candidate.id === 'string' && typeof candidate.name === 'string' && hasKnownMode
+  /** Spec 218: ausentes são a cópia guardada antes da spec; presentes, só no vocabulário. */
+  const hasKnownFlow =
+    candidate.flow === undefined ||
+    (DRIVER_OCCURRENCE_FLOWS as readonly unknown[]).includes(candidate.flow)
+  const hasKnownStopKind =
+    candidate.stopKind === undefined ||
+    candidate.stopKind === null ||
+    (DRIVER_OCCURRENCE_KINDS as readonly unknown[]).includes(candidate.stopKind)
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    hasKnownMode &&
+    hasKnownFlow &&
+    hasKnownStopKind
+  )
 }
 
 /** ⚠️ Cópia por valor de `DELIVERY_PROOF_FIELD_MODES` — o vocabulário de `attachmentMode` (spec 179 RF1). */

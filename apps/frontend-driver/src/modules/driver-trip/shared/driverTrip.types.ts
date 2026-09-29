@@ -187,6 +187,14 @@ export type DriverReportedLocation = Readonly<{
 }>
 
 /**
+ * Spec 218 D2: a ocorrência de parada vai com o tipo do catálogo (`occurrenceTypeId`). O item
+ * gravado na fila antes da troca guarda só o valor fixo (`occurrenceKind`) — e sai com ele.
+ */
+export type StopOccurrenceReportReference =
+  | Readonly<{ occurrenceKind: DriverOccurrenceKind; occurrenceTypeId?: undefined }>
+  | Readonly<{ occurrenceKind?: undefined; occurrenceTypeId: string }>
+
+/**
  * O que o aparelho enfileira. Cada item carrega a **chave gerada no cliente**: é ela que o servidor
  * usa para não duplicar quando a fila drena (ADR-0045 §5).
  */
@@ -234,14 +242,14 @@ export type DriverFieldReport =
       location: DriverReportedLocation | null
       reason: DriverReturnReason
     }>
-  | Readonly<{
+  | (Readonly<{
       description: string
       documentId: string | null
       idempotencyKey: string
       kind: 'occurrence'
-      occurrenceKind: DriverOccurrenceKind
       stopId: string
-    }>
+    }> &
+      StopOccurrenceReportReference)
   /**
    * Spec 179 (T303): a ocorrência da nota com a foto junto. O `send` sobe a foto por URL assinada,
    * confirma e só então faz o `POST` com `attachmentObjectId` — a API recusa tipo `required` sem
@@ -265,16 +273,16 @@ export type DriverFieldReport =
    * com a chave **dela** (`occurrenceKey`) e o `attachmentObjectId`: a API completa o anexo uma vez.
    * O corpo repete o da ocorrência porque o reenvio, se a ocorrência nunca chegou, a cria com a foto.
    */
-  | Readonly<{
+  | (Readonly<{
       description: string
       documentId: string | null
       idempotencyKey: string
       kind: 'stopOccurrencePhoto'
       occurrenceKey: string
-      occurrenceKind: DriverOccurrenceKind
       photo: DriverOccurrencePhoto
       stopId: string
-    }>
+    }> &
+      StopOccurrenceReportReference)
   /**
    * Spec 193 D7: quem recebeu, chegado depois do anexo — anexo já enviado, ou editado durante o
    * envio (comparação no `sent`). Vira `PATCH .../documents/:documentId/proof/receiver`, idempotente
@@ -307,9 +315,20 @@ export type DriverOccurrenceType = Readonly<{
    * devolve — ausente, a tela não antecipa a observação obrigatória, e quem decide é o servidor.
    */
   attachmentMode?: ProofFieldRequirement
+  /**
+   * Spec 218 (D1): para qual das duas rotas o registro vai — nota (`document`) ou parada (`stop`).
+   * Ausente é a cópia guardada antes da spec, quando todo tipo era de nota.
+   */
+  flow?: DriverOccurrenceFlow
   id: string
   name: string
+  /** Spec 218 D2: qual dos valores fixos o tipo de parada representa — escolhe a prévia do aviso. */
+  stopKind?: DriverOccurrenceKind | null
 }>
+
+/** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
+export const DRIVER_OCCURRENCE_FLOWS = ['document', 'stop'] as const
+export type DriverOccurrenceFlow = (typeof DRIVER_OCCURRENCE_FLOWS)[number]
 
 /**
  * Spec 157 (RF5): falha de rede/servidor e lista vazia de verdade são fatos diferentes — a
