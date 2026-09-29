@@ -56,6 +56,8 @@ import {
   maskReceiverDocument,
   resolveProofFormPlan,
   type ProofFieldKey,
+  type ProofFormPlan,
+  type ProofFormValues,
 } from '../shared/proofFormPlan.service'
 import { RECEIVED_BY_DETAIL_MAX_LENGTH, RECEIVED_BY_OPTIONS } from '../shared/receivedBy.constant'
 import { isSignatureCaptureSupported } from '../shared/signatureCapture.service'
@@ -993,8 +995,83 @@ export type DeliveryProofSectionProps = Readonly<{
  *
  * Spec 159 (T9): exportado para ser reaproveitado pela tela "Fotos pendentes" — o mesmo formulário,
  * a mesma validação, sem uma segunda implementação divergindo calada.
+ *
+ * Spec 218 (RF-A2): a captura em si mora em `ProofCaptureFields`, a mesma que o gate de antes da
+ * entrega monta — aqui só entra o que é do depois: "Concluir", que nunca trava (spec 203/207).
  */
-export function DeliveryProofSection({
+export function DeliveryProofSection(props: DeliveryProofSectionProps) {
+  const { t } = useTranslation('driverTrip')
+  /** Spec 207: "Concluir" — estado só da tela, por nota; nunca `localStorage` (derivado seria melhor,
+   * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
+  const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
+
+  /**
+   * Pedido do usuário (25/09, spec 207): "Concluir" nunca trava (spec 203) — com pendência
+   * obrigatória, pede confirmação nomeando o que falta; a foto/assinatura já guardada não é
+   * descartada em nenhum dos dois caminhos. Antes de fechar, garante que edições digitadas e ainda
+   * não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
+   */
+  function handleComplete(capture: ProofCaptureState): void {
+    capture.pushLateFieldUpdate()
+    const pending = listAllPendingFields({ plan: capture.plan, values: capture.values })
+    if (pending.length > 0) {
+      const fieldsText = pending.map((field) => t(`proofFields.missing.${field}`)).join(', ')
+      if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
+    }
+    setConcludedAt(new Date().toISOString())
+  }
+
+  return (
+    <ProofCaptureFields
+      {...props}
+      renderFooter={(capture) => (
+        <div className={styles.actions}>
+          <Button onClick={() => handleComplete(capture)} type="button">
+            <Icon name="check" />
+            {t('proofFields.complete')}
+          </Button>
+        </div>
+      )}
+      summary={
+        concludedAt === undefined ? undefined : (
+          <>
+            <ActivityStatusLine
+              status="sent"
+              text={t('proofFields.completedAt', { time: formatActivityTime(concludedAt) })}
+            />
+            <Button onClick={() => setConcludedAt(undefined)} type="button" variant="ghost">
+              <Icon name="pen" />
+              {t('proofFields.edit')}
+            </Button>
+          </>
+        )
+      }
+    />
+  )
+}
+
+/** O que o rodapé de quem monta a captura precisa ler dela — nada além disso sai do componente. */
+type ProofCaptureState = Readonly<{
+  plan: ProofFormPlan
+  /** Envia o que foi digitado e ainda não saiu pelo `onBlur` (fila ou PATCH). */
+  pushLateFieldUpdate: () => void
+  values: ProofFormValues & Readonly<{ receivedBy: string; receivedByDetail: string }>
+}>
+
+type ProofCaptureFieldsProps = DeliveryProofSectionProps &
+  Readonly<{
+    /** Quem monta decide o fim do formulário: "Concluir" depois da entrega, "Confirmar" antes. */
+    renderFooter: (capture: ProofCaptureState) => ReactNode
+    /** Presente, ocupa o lugar dos campos — o estado da captura continua montado por baixo. */
+    summary?: ReactNode
+  }>
+
+/**
+ * Spec 218 (RF-A2): o miolo do comprovante — botões de captura, miniaturas e campos de quem
+ * recebeu —, sem nenhuma ideia de "concluído" ou de "entregue". O mesmo código antes e depois da
+ * entrega: os dois formulários são iguais por construção, não por disciplina.
+ */
+function ProofCaptureFields({
   documentId,
   lateRegistration,
   onProof,
@@ -1004,7 +1081,9 @@ export function DeliveryProofSection({
   queueView = [],
   recipientDisplayName,
   recipientIsCompany,
-}: DeliveryProofSectionProps) {
+  renderFooter,
+  summary,
+}: ProofCaptureFieldsProps) {
   const { t } = useTranslation('driverTrip')
   const plan = resolveProofFormPlan(proofSettings)
   const [receiverName, setReceiverName] = useState('')
@@ -1025,9 +1104,6 @@ export function DeliveryProofSection({
    */
   const [attachedKey, setAttachedKey] = useState<{ photo?: string; signature?: string }>({})
   const [openImageKind, setOpenImageKind] = useState<'photo' | 'signature' | undefined>(undefined)
-  /** Spec 207: "Concluir" — estado só da tela, por nota; nunca `localStorage` (derivado seria melhor,
-   * mas o momento em que o motorista concluiu não vem de nenhum outro dado). */
-  const [concludedAt, setConcludedAt] = useState<string | undefined>(undefined)
   /** Spec 207: enquanto o anexo está aqui, "Remover" é seguro — enviado, só "Substituir". */
   const isProofQueued = queueView.some(
     (item) => item.kind === 'proof' && item.documentId === documentId,
@@ -1150,32 +1226,6 @@ export function DeliveryProofSection({
   }
 
   /**
-   * Pedido do usuário (25/09, spec 207): "Concluir" nunca trava (spec 203) — com pendência
-   * obrigatória, pede confirmação nomeando o que falta; a foto/assinatura já guardada não é
-   * descartada em nenhum dos dois caminhos. Antes de fechar, garante que edições digitadas e ainda
-   * não confirmadas (`onBlur`) cheguem pelo caminho que já existe (fila ou PATCH).
-   */
-  function handleComplete(): void {
-    pushLateFieldUpdate()
-    const pending = listAllPendingFields({
-      plan,
-      values: {
-        hasPhoto: attached.photo,
-        hasSignature: attached.signature,
-        receivedBy,
-        receivedByDetail,
-        receiverDocument,
-        receiverName,
-      },
-    })
-    if (pending.length > 0) {
-      const fieldsText = pending.map((field) => t(`proofFields.missing.${field}`)).join(', ')
-      if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
-    }
-    setConcludedAt(new Date().toISOString())
-  }
-
-  /**
    * Spec 193 D14: escolher "Próprio destinatário" preenche o nome com `recipientDisplayName`. Para
    * destinatário PJ, o nome fica selecionado com o foco no campo — o motorista digita o nome de
    * quem assinou por cima; para PF, o nome só entra.
@@ -1253,7 +1303,7 @@ export function DeliveryProofSection({
 
   return (
     <div className={styles.proofSection}>
-      {concludedAt === undefined ? (
+      {summary === undefined ? (
         <>
           {/*
            * Pedido do usuário (25/09): três botões iguais — "Tirar foto" abre a câmera na hora,
@@ -1433,24 +1483,21 @@ export function DeliveryProofSection({
             ) : null}
           </label>
 
-          <div className={styles.actions}>
-            <Button onClick={handleComplete} type="button">
-              <Icon name="check" />
-              {t('proofFields.complete')}
-            </Button>
-          </div>
+          {renderFooter({
+            plan,
+            pushLateFieldUpdate: () => pushLateFieldUpdate(),
+            values: {
+              hasPhoto: attached.photo,
+              hasSignature: attached.signature,
+              receivedBy,
+              receivedByDetail,
+              receiverDocument,
+              receiverName,
+            },
+          })}
         </>
       ) : (
-        <>
-          <ActivityStatusLine
-            status="sent"
-            text={t('proofFields.completedAt', { time: formatActivityTime(concludedAt) })}
-          />
-          <Button onClick={() => setConcludedAt(undefined)} type="button" variant="ghost">
-            <Icon name="pen" />
-            {t('proofFields.edit')}
-          </Button>
-        </>
+        summary
       )}
 
       {openImageKind !== undefined && previewByKind[openImageKind].previewUrl !== undefined ? (
