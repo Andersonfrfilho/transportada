@@ -4,6 +4,12 @@
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
 export type DriverTripDocument = Readonly<{
   accessKey: string
+  /**
+   * Spec 219 RF2: `contractors.id` do emitente desta nota — o app manda em
+   * `GET .../occurrence-types?contractorId=` para resolver a exceção de ocorrência por
+   * contratante (spec 218 P3). Ausente (API anterior) ou `null` é "sem contratante resolvido".
+   */
+  contractorId?: string | null
   deliveredAt: string | null
   /**
    * Spec 082 (revisão): a configuração do comprovante é do **documento** — a exceção muda nota a
@@ -32,6 +38,11 @@ export type DriverTripDocument = Readonly<{
    */
   recipientIsCompany: boolean
   recipientName: string
+  /**
+   * Spec 219 RF2: o CNPJ/CPF do destinatário desta nota — o outro parâmetro de
+   * `GET .../occurrence-types?recipientTaxId=` (spec 218 P4, o destinatário vence o contratante).
+   */
+  recipientTaxId?: string | null
   returnReason: string | null
   separationStatus: string
   series: string

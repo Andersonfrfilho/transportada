@@ -28,6 +28,26 @@ export function resolveOccurrenceAttachmentMode(type: DriverOccurrenceType): Pro
 }
 
 /**
+ * Spec 219 (RF4): sobrescreve o `attachmentMode` da lista geral com o que o servidor resolveu para
+ * esta nota (contratante/destinatário, spec 218 RF-B2) — nunca decide precedência aqui, só aplica
+ * o valor já resolvido, tipo a tipo. `resolvedByTypeId` ausente (sem contratante/destinatário para
+ * resolver, ou a busca por nota falhou/ainda não voltou) devolve a lista geral intacta — P3/P4.
+ * Tipo que a resposta por nota não trouxe mantém o `attachmentMode` geral, nunca some da lista.
+ */
+export function mergeResolvedOccurrenceAttachmentModes(input: {
+  readonly resolvedByTypeId: ReadonlyMap<string, ProofFieldRequirement> | undefined
+  readonly types: readonly DriverOccurrenceType[]
+}): readonly DriverOccurrenceType[] {
+  const { resolvedByTypeId } = input
+  if (resolvedByTypeId === undefined) return input.types
+
+  return input.types.map((type) => {
+    const attachmentMode = resolvedByTypeId.get(type.id)
+    return attachmentMode === undefined ? type : { ...type, attachmentMode }
+  })
+}
+
+/**
  * O mesmo veredito do comprovante (`listMissingProofFields`), com um plano de um campo só: a foto,
  * no `attachmentMode` do tipo. A regra de "obrigatório falta" é uma só no app.
  */

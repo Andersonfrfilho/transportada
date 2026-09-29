@@ -12,6 +12,7 @@ import {
   canRegisterOccurrence,
   dispatchOccurrenceRegistration,
   listMissingOccurrenceFields,
+  mergeResolvedOccurrenceAttachmentModes,
   resolveOccurrenceAttachmentMode,
   type OccurrenceRegistrationHandlers,
 } from '../../src/modules/driver-trip/shared/occurrenceRegistration.service'
@@ -76,6 +77,49 @@ describe('a lista única traz os dois fluxos, cada tipo com o seu attachmentMode
     })
   })
 
+  /**
+   * Spec 219 RF3: `contractorId`/`recipientTaxId`, quando o chamador os tem, viram query string —
+   * a rota já os aceita (spec 218 T9), o cliente só passa a mandar.
+   */
+  it('manda contractorId e recipientTaxId na query string quando informados', async () => {
+    const seen: string[] = []
+    const client = createDriverTripClient({
+      apiUrl: 'https://api.test',
+      fetch: (input) => {
+        seen.push((input as Request).url)
+        return Promise.resolve(Response.json({ data: [] }))
+      },
+      getAccessToken: () => Promise.resolve('token-de-mentira'),
+    })
+
+    await client.listOccurrenceTypes({
+      contractorId: '00000000-0000-4000-8000-0000000000c1',
+      recipientTaxId: '11222333000181',
+    })
+
+    const url = new URL(seen[0] ?? '')
+    expect(url.pathname).toBe('/me/trips/current/occurrence-types')
+    expect(url.searchParams.get('contractorId')).toBe('00000000-0000-4000-8000-0000000000c1')
+    expect(url.searchParams.get('recipientTaxId')).toBe('11222333000181')
+  })
+
+  it('sem contractorId nem recipientTaxId, a query string sai vazia — o comportamento de hoje', async () => {
+    const seen: string[] = []
+    const client = createDriverTripClient({
+      apiUrl: 'https://api.test',
+      fetch: (input) => {
+        seen.push((input as Request).url)
+        return Promise.resolve(Response.json({ data: [] }))
+      },
+      getAccessToken: () => Promise.resolve('token-de-mentira'),
+    })
+
+    await client.listOccurrenceTypes()
+    await client.listOccurrenceTypes({ contractorId: null, recipientTaxId: null })
+
+    for (const url of seen) expect(new URL(url).search).toBe('')
+  })
+
   it('cada tipo diz se pede foto — ausente (API anterior) é "sem foto"', () => {
     expect(resolveOccurrenceAttachmentMode(DOCUMENT_REQUIRED)).toBe('required')
     expect(resolveOccurrenceAttachmentMode(STOP_OPTIONAL)).toBe('optional')
@@ -97,6 +141,36 @@ describe('a lista única traz os dois fluxos, cada tipo com o seu attachmentMode
     })
 
     expect(types?.map((type) => type.id)).toEqual([DOCUMENT_REQUIRED.id, DOCUMENT_OFF.id])
+  })
+})
+
+describe('a exceção por contratante/destinatário sobrescreve o attachmentMode (spec 219 RF4)', () => {
+  it('sem resolução por nota, a lista geral sai intacta (P3, offline/sem contratante)', () => {
+    expect(
+      mergeResolvedOccurrenceAttachmentModes({
+        resolvedByTypeId: undefined,
+        types: [DOCUMENT_REQUIRED, STOP_OPTIONAL],
+      }),
+    ).toEqual([DOCUMENT_REQUIRED, STOP_OPTIONAL])
+  })
+
+  it('com resolução por nota, o attachmentMode do tipo casado é o da resposta por nota', () => {
+    const result = mergeResolvedOccurrenceAttachmentModes({
+      resolvedByTypeId: new Map([[DOCUMENT_OFF.id, 'required']]),
+      types: [DOCUMENT_OFF, STOP_OPTIONAL],
+    })
+
+    expect(result).toEqual([{ ...DOCUMENT_OFF, attachmentMode: 'required' }, STOP_OPTIONAL])
+  })
+
+  it('tipo ausente na resposta por nota mantém o attachmentMode geral — nunca some da lista', () => {
+    const result = mergeResolvedOccurrenceAttachmentModes({
+      resolvedByTypeId: new Map([[DOCUMENT_OFF.id, 'required']]),
+      types: [DOCUMENT_OFF, STOP_OPTIONAL],
+    })
+
+    expect(result.map((type) => type.id)).toEqual([DOCUMENT_OFF.id, STOP_OPTIONAL.id])
+    expect(result.find((type) => type.id === STOP_OPTIONAL.id)?.attachmentMode).toBe('optional')
   })
 })
 

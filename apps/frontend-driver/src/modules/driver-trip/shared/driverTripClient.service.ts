@@ -160,8 +160,13 @@ export type DriverTripClient = Readonly<{
    *
    * ⚠️ **Nunca lança.** Falha de rede, recusa do servidor ou corpo inválido viram `{ status:
    * 'failed' }` — quem chama decide o aviso, e entregar/devolver não dependem disto (spec 157 RF5).
+   *
+   * Spec 219 RF3: `contractorId`/`recipientTaxId`, quando informados, resolvem o `attachmentMode`
+   * em 3 camadas para aquela nota (spec 218 RF-B2/T9) — ausentes, é a lista geral de sempre.
    */
-  listOccurrenceTypes: () => Promise<DriverOccurrenceTypesResult>
+  listOccurrenceTypes: (
+    subject?: Readonly<{ contractorId?: string | null; recipientTaxId?: string | null }>,
+  ) => Promise<DriverOccurrenceTypesResult>
   /**
    * O DAMDFE vem como **bytes**, não como URL: numa barreira o motorista abre o papel, e uma URL
    * assinada de cinco minutos que expirou no bolso não abre nada.
@@ -254,6 +259,22 @@ export function reportBody(report: JsonFieldReport): string {
 }
 
 /**
+ * Spec 219 RF3: a mesma query string que `trip-field-office-occurrence.routes.ts` já aceita
+ * (spec 218 T9) — vazia quando não há nenhum dos dois, exatamente a rota de hoje.
+ */
+function occurrenceTypesQuery(
+  subject: Readonly<{ contractorId?: string | null; recipientTaxId?: string | null }> | undefined,
+): string {
+  const params = new URLSearchParams()
+  if (subject?.contractorId != null) params.set('contractorId', subject.contractorId)
+  if (subject?.recipientTaxId != null && subject.recipientTaxId.length > 0) {
+    params.set('recipientTaxId', subject.recipientTaxId)
+  }
+  const query = params.toString()
+  return query.length === 0 ? '' : `?${query}`
+}
+
+/**
  * Spec 218 D2: o tipo do catálogo quando o item o tem; o item gravado antes da troca sai com o
  * valor fixo — a API aceita os dois, nunca os dois juntos.
  */
@@ -320,7 +341,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrences`,
       })
     },
-    async listOccurrenceTypes() {
+    async listOccurrenceTypes(subject) {
       /**
        * ⚠️ Falha vira **estado**, nunca exceção: rede fora do ar, recusa do servidor e corpo
        * inválido contam a mesma história para quem chama — "não sabemos os tipos agora" —, e é a
@@ -331,7 +352,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         const body = await request({
           dependencies,
           method: 'GET',
-          path: `${CURRENT_TRIP_PATH}/occurrence-types`,
+          path: `${CURRENT_TRIP_PATH}/occurrence-types${occurrenceTypesQuery(subject)}`,
           signal: AbortSignal.timeout(OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS),
         })
         const data = (body as { readonly data?: unknown }).data

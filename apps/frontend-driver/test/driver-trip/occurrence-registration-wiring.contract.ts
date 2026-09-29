@@ -107,6 +107,21 @@ describe('o formulário único', () => {
     expect(hook).toInclude('isOccurrencePhotoWithinLimit')
     expect(hook).toInclude("useCaptureRegistration('occurrence-dialog', true)")
   })
+
+  /**
+   * Spec 219 (RF4): a exceção de contratante/destinatário chega ao motorista pedindo a resolução
+   * por nota — nunca reimplementando a precedência (a mescla é a função pura de RF4, importada, não
+   * escrita de novo aqui).
+   */
+  it('busca a resolução por nota com os campos do documento, e usa a função pura de mescla', () => {
+    const hook = source(HOOK_PATH)
+    expect(hook).toInclude('getDriverTripClient()')
+    expect(hook).toInclude('.listOccurrenceTypes({')
+    expect(hook).toInclude('params.document.contractorId')
+    expect(hook).toInclude('params.document.recipientTaxId')
+    expect(hook).toInclude('mergeResolvedOccurrenceAttachmentModes(')
+    expect(hook).not.toInclude('resolveOccurrenceAttachmentModeForRecipient')
+  })
 })
 
 describe('a página liga as três rotas', () => {

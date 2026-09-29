@@ -912,6 +912,9 @@ function toDriverDocument(
 
   return {
     accessKey: row.accessKey ?? '',
+    // Spec 219 RF1: os dois campos que faltavam para o app pedir a exceção de ocorrência por
+    // nota (spec 218 RF-B2/T9) — já lidos por esta mesma consulta para resolver `deliveryProof`.
+    contractorId: row.contractorId,
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
     deliveryProof,
     grossWeight: row.volumes?.grossWeight ?? '0',
@@ -931,6 +934,7 @@ function toDriverDocument(
     }),
     recipientIsCompany: resolveRecipientIsCompany(row.recipientTaxId ?? ''),
     recipientName: row.recipientName ?? '',
+    recipientTaxId: row.recipientTaxId,
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,
     series: row.series ?? '',

@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useCaptureRegistration } from './useCaptureRegistration.hook'
 import { usePhotoPreviewUrl } from './usePhotoPreviewUrl.hook'
@@ -9,7 +9,9 @@ import type {
   DriverOccurrenceTypesState,
   DriverTripDocument,
   DriverTripStop,
+  ProofFieldRequirement,
 } from '../shared/driverTrip.types'
+import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { isOccurrencePhotoWithinLimit } from '../shared/notDelivered.service'
 import {
   renderOccurrenceNoticePreview,
@@ -19,6 +21,7 @@ import {
   canRegisterOccurrence,
   dispatchOccurrenceRegistration,
   listMissingOccurrenceFields,
+  mergeResolvedOccurrenceAttachmentModes,
   resolveOccurrenceAttachmentMode,
   resolveOccurrenceFlow,
   type OccurrenceRegistrationHandlers,
@@ -91,11 +94,44 @@ export function useOccurrenceRegistrationForm(
   const [photo, setPhoto] = useState<DriverOccurrencePhoto | undefined>(undefined)
   const [photoState, setPhotoState] = useState<OccurrencePhotoState>('idle')
   const photoPreview = usePhotoPreviewUrl()
+  const [resolvedByTypeId, setResolvedByTypeId] = useState<
+    ReadonlyMap<string, ProofFieldRequirement> | undefined
+  >(undefined)
 
   /** Plan D2 da 189: aberto é captura — navegar no meio do relato perdia o que já foi digitado. */
   useCaptureRegistration('occurrence-dialog', true)
 
-  const types = params.occurrenceTypes.status === 'loaded' ? params.occurrenceTypes.types : []
+  /**
+   * Spec 219 (RF4): busca, uma vez por abertura, o `attachmentMode` resolvido para ESTA nota
+   * (contratante/destinatário, spec 218 RF-B2) — só quando há o que resolver contra (P3). Nunca
+   * bloqueia a tela: a lista geral já habilita o formulário, e o overlay chega depois, se chegar
+   * (falha vira "sem overlay", P4 — nunca um estado de erro visível aqui).
+   */
+  useEffect(() => {
+    const contractorId = params.document.contractorId ?? null
+    const recipientTaxId = params.document.recipientTaxId ?? null
+    const hasResolutionSubject =
+      contractorId !== null || (recipientTaxId !== null && recipientTaxId.length > 0)
+    if (!hasResolutionSubject) return
+
+    let cancelled = false
+    void getDriverTripClient()
+      .listOccurrenceTypes({ contractorId, recipientTaxId })
+      .then((result) => {
+        if (cancelled || result.status !== 'loaded') return
+        setResolvedByTypeId(
+          new Map(result.types.map((type) => [type.id, resolveOccurrenceAttachmentMode(type)])),
+        )
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [params.document.contractorId, params.document.recipientTaxId])
+
+  const types = mergeResolvedOccurrenceAttachmentModes({
+    resolvedByTypeId,
+    types: params.occurrenceTypes.status === 'loaded' ? params.occurrenceTypes.types : [],
+  })
   const selectedType = types.find((type) => type.id === occurrenceTypeId)
   const rendersPhoto =
     selectedType !== undefined && resolveOccurrenceAttachmentMode(selectedType) !== 'off'

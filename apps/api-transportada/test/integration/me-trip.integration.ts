@@ -611,6 +611,13 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         expect(overriddenDocument?.deliveryProof.photo).toBe('required')
         expect(plainDocument?.deliveryProof.photo).toBe('optional')
 
+        // Spec 219 RF1: o snapshot expõe o contratante/destinatário resolvidos — é o que falta
+        // para o app pedir a exceção de OCORRÊNCIA por nota (spec 218 P3/P4, limite registrado na
+        // evidência da 218). O mesmo `contractorId` que resolveu `deliveryProof.photo = 'required'`
+        // acima tem que aparecer no documento; a nota irmã, sem contratante, sai `null`.
+        expect(overriddenDocument?.contractorId).toBe(contractorId)
+        expect(plainDocument?.contractorId).toBeNull()
+
         // P4: exceção de destinatário, quando presente, vence a de contratante na mesma nota.
         const recipientTaxId = '11222333000181'
         await database.db.insert(deliveryClients).values({
@@ -628,6 +635,10 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
           (entry) => entry.id === world.documentIds[0],
         )
         expect(withBothOverrides?.deliveryProof.photo).toBe('off')
+        // Spec 219 RF1: o `recipientTaxId` do documento é o que o app vai mandar para
+        // `/occurrence-types` — tem que ser o CNPJ do destinatário, não o do contratante.
+        expect(withBothOverrides?.contractorId).toBe(contractorId)
+        expect(withBothOverrides?.recipientTaxId).toBe(recipientTaxId)
       })
     },
   )

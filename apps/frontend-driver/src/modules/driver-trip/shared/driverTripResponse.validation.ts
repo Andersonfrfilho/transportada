@@ -74,6 +74,9 @@ function toDocument(value: unknown): DriverTripDocument {
    */
   return {
     accessKey: readOptionalText(value.accessKey),
+    // Spec 219 RF2: ausente (snapshot antigo em cache) vira `null` — "sem contratante resolvido",
+    // o mesmo estado que a nota sem contratante já tem hoje.
+    contractorId: readNullableString(value.contractorId),
     deliveredAt: readNullableString(value.deliveredAt),
     /** Shape novo: o comprovante vem no documento. Ausente (shape antigo) vira `null` — a parada responde. */
     deliveryProof: toDeliveryProof(value.deliveryProof),
@@ -84,6 +87,7 @@ function toDocument(value: unknown): DriverTripDocument {
     recipientDisplayName: readOptionalText(value.recipientDisplayName),
     recipientIsCompany: readRecipientIsCompany(value.recipientIsCompany),
     recipientName: readOptionalText(value.recipientName),
+    recipientTaxId: readNullableString(value.recipientTaxId),
     returnReason: readNullableString(value.returnReason),
     separationStatus: readString(value.separationStatus),
     series: readOptionalText(value.series),
