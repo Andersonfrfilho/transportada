@@ -173,6 +173,23 @@ export async function releaseAttachmentsAwaitingDelivery(input: {
 }
 
 /**
+ * Spec 218: a entrega que o canhoto esperava não vai acontecer — o gate foi cancelado, ou a nota
+ * voltou ("Não entreguei"). O anexo sai da fila na hora, em vez de esperar o descarte de 7 dias. O
+ * que já foi solto para o grupo de uma entrega não é mais da espera, e fica.
+ */
+export async function discardAttachmentsAwaitingDelivery(input: {
+  readonly attachmentStore: AttachmentStore
+  readonly documentId: string
+}): Promise<number> {
+  const awaitingKey = awaitingDeliveryAttachmentKey(input.documentId)
+  const awaiting = await input.attachmentStore.read(awaitingKey)
+  if (awaiting.length === 0) return 0
+
+  await input.attachmentStore.remove(awaitingKey)
+  return awaiting.length
+}
+
+/**
  * Spec 159 (T11, item 6): a foto entra no IndexedDB **antes** de esperar o GPS — só assim ela
  * nunca se perde se o motorista fechar o app durante a leitura de posição (até 8 s). A posição
  * chega depois, por esta função, atualizando o mesmo item pela `attachmentKey`.

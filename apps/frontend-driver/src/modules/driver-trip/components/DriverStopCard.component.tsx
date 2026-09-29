@@ -196,6 +196,8 @@ type DriverStopCardProps = Readonly<{
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
   onRemoveProof?: (documentId: string) => void
+  /** Spec 218: "Cancelar" o gate — o canhoto colhido para aquela nota não espera mais a entrega. */
+  onDiscardProofAwaitingDelivery: (documentId: string) => void
   /** Spec 209: a foto é da ocorrência, e vai junto dela — nunca pelo comprovante de uma nota. */
   onOccurrence: (input: StopOccurrenceDraft & { stopId: string }) => void
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
@@ -237,6 +239,7 @@ export function DriverStopCard({
   onCancelDeparture,
   onDeliver,
   onDepart,
+  onDiscardProofAwaitingDelivery,
   onFocusStop,
   onHeaderRef,
   occurrenceTypes,
@@ -573,6 +576,7 @@ export function DriverStopCard({
               notDeliveredStatus={notDeliveredStatusByDocumentId.get(document.id)}
               onAnnounce={(message) => announce(document.id, message)}
               onDeliver={onDeliver}
+              onDiscardProofAwaitingDelivery={onDiscardProofAwaitingDelivery}
               occurrenceTypes={occurrenceTypes}
               onDocumentOccurrence={handleDocumentOccurrence}
               onNotDelivered={onNotDelivered}
@@ -644,6 +648,8 @@ type DocumentRowProps = Readonly<{
   /** O aviso transitório do cartão inteiro — um por parada, anunciado pela nota que agiu. */
   onAnnounce: (message: string) => void
   onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
+  /** Spec 218: "Cancelar" o gate — o canhoto colhido para esta nota não espera mais a entrega. */
+  onDiscardProofAwaitingDelivery: (documentId: string) => void
   /** Spec 079: o que aconteceu **sem** a carga voltar. O tipo vem do cadastro da empresa. */
   onDocumentOccurrence: (input: {
     documentId: string
@@ -679,6 +685,7 @@ function DocumentRow({
   occurrenceTypes,
   onAnnounce,
   onDeliver,
+  onDiscardProofAwaitingDelivery,
   onDocumentOccurrence,
   onNotDelivered,
   onProof,
@@ -869,7 +876,10 @@ function DocumentRow({
                 recipientDisplayName: document.recipientDisplayName,
                 recipientIsCompany: document.recipientIsCompany,
               }}
-              onCancel={() => setOpenDeliveryGate(false)}
+              onCancel={() => {
+                onDiscardProofAwaitingDelivery(document.id)
+                setOpenDeliveryGate(false)
+              }}
               onConfirm={() => {
                 confirmDelivery()
                 setOpenDeliveryGate(false)
@@ -943,6 +953,8 @@ function DocumentRow({
                 })
                 onAnnounce(t('activity.toast.returned'))
                 setOpenReturn(false)
+                /* Spec 218: a nota volta — o gate aberto dela fecha, e a fila descarta a foto dele. */
+                setOpenDeliveryGate(false)
               }}
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
             />

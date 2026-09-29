@@ -323,6 +323,11 @@ export function DriverTripWorkspacePage() {
     void driverTrip.removeProof(attachmentKey)
   }
 
+  /** Spec 218: "Cancelar" o gate — o canhoto daquela nota não espera mais uma entrega que não vem. */
+  function handleDiscardProofAwaitingDelivery(documentId: string): void {
+    void driverTrip.discardProofAwaitingDelivery(documentId)
+  }
+
   if (isPendingProofsOpen) {
     return (
       <div className={styles.moduleShell}>
@@ -787,6 +792,7 @@ export function DriverTripWorkspacePage() {
                   onCancelDeparture={cancelStopDeparture}
                   onDeliver={deliverDocument}
                   onDepart={departStop}
+                  onDiscardProofAwaitingDelivery={handleDiscardProofAwaitingDelivery}
                   onFocusStop={focusStop}
                   onHeaderRef={registerStopHeaderRef}
                   onProof={handleProof}

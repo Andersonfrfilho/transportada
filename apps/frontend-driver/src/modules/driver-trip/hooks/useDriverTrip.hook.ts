@@ -27,6 +27,7 @@ import {
   drainQueueWithAttachments,
   enqueueAttachment,
   releaseAttachmentsAwaitingDelivery,
+  discardAttachmentsAwaitingDelivery,
   removeQueuedAttachmentByKey,
   type AttachmentSendOutcome,
   type AttachmentStore,
@@ -156,6 +157,8 @@ export type DriverTripController = Readonly<{
    * "Substituir".
    */
   removeProof: (attachmentKey: string) => Promise<void>
+  /** Spec 218: o gate foi cancelado — o canhoto que esperava a entrega daquela nota sai da fila. */
+  discardProofAwaitingDelivery: (documentId: string) => Promise<void>
   /** "Confirmar em lote": tira a marca do que foi feito sem rede e drena. */
   confirmUnverifiedPending: () => Promise<void>
   /** Descarta o que foi feito sem rede — o item e o dado saem do aparelho. */
@@ -603,9 +606,16 @@ export function useDriverTrip(
         subHash: session.subHash,
       })
       if (!result.accepted) return result.reason
+      const returned = reports.find((report) => report.kind === 'return')
+      /* Spec 218: a nota voltou — o canhoto colhido no gate para ela não tem mais entrega a esperar. */
+      if (returned !== undefined && returned.kind === 'return') {
+        await discardAttachmentsAwaitingDelivery({
+          attachmentStore,
+          documentId: returned.documentId,
+        })
+      }
       await refreshQueueView()
 
-      const returned = reports.find((report) => report.kind === 'return')
       const location = returned === undefined ? null : await readCurrentLocation()
       if (returned !== undefined && location !== null) {
         await store.update((items) =>
@@ -812,6 +822,11 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  async function discardProofAwaitingDelivery(documentId: string): Promise<void> {
+    await discardAttachmentsAwaitingDelivery({ attachmentStore, documentId })
+    await refreshQueueView()
+  }
+
   async function discardForeign(): Promise<void> {
     await discardForeignPending({ attachmentStore, ownerSubHash: session.subHash, store })
     await refreshQueueView()
@@ -845,6 +860,7 @@ export function useDriverTrip(
     attachProof,
     updateProofFields,
     removeProof,
+    discardProofAwaitingDelivery,
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
