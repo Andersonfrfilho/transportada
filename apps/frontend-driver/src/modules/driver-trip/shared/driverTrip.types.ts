@@ -6,9 +6,13 @@ export type DriverTripDocument = Readonly<{
   accessKey: string
   deliveredAt: string | null
   /**
-   * Spec 082 (revisão): a configuração do comprovante é do **documento** — a exceção por CNPJ do
-   * destinatário muda nota a nota. `null` quando o snapshot ainda não traz o campo — o app cai no
-   * `deliveryProof` da parada e, na ausência dos dois, no padrão.
+   * Spec 082 (revisão): a configuração do comprovante é do **documento** — a exceção muda nota a
+   * nota. `null` quando o snapshot ainda não traz o campo — o app cai no `deliveryProof` da parada
+   * (o shape antigo, não uma camada de exceção) e, na ausência dos dois, no padrão.
+   *
+   * Spec 218 (RF-C3): chega **já resolvida** pelo servidor em três camadas (geral → contratante →
+   * destinatário, a mais específica vencendo) a cada `GET /me/trips/current`. O app só lê: nenhuma
+   * regra de precedência mora aqui.
    */
   deliveryProof: DriverDeliveryProofSettings | null
   grossWeight: string

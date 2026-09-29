@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
@@ -102,5 +102,25 @@ describe('os textos do gate (spec 218)', () => {
       expect(locale.deliveryGate.missingLead).toInclude('{{fields}}')
     }
     expect(driverTrip.deliveryGate.confirm).toBe('Confirmar entrega')
+  })
+})
+
+/**
+ * Spec 218 (T19, RF-C3): o comprovante chega resolvido em três camadas no snapshot — a precedência
+ * (geral → contratante → destinatário) é do servidor. Nenhum arquivo do app a reimplementa.
+ */
+describe('o app só lê o comprovante resolvido (spec 218 T19)', () => {
+  it('nenhum arquivo de src/ fala de exceção por contratante ou destinatário', () => {
+    const sourceRoot = new URL('../../src/', import.meta.url)
+    const files = readdirSync(sourceRoot, { recursive: true })
+      .map(String)
+      .filter((path) => /\.(ts|tsx)$/u.test(path))
+    expect(files.length).toBeGreaterThan(0)
+    const offenders = files.filter((path) =>
+      /contractorOverride|recipientOverride|resolveWithOverrides|overridesByContractor/u.test(
+        readFileSync(new URL(path, sourceRoot), 'utf8'),
+      ),
+    )
+    expect(offenders).toEqual([])
   })
 })
