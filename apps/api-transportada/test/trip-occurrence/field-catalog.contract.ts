@@ -42,6 +42,7 @@ describe('o catálogo do motorista informa se o tipo exige comprovante (spec 179
     expect(types).toEqual([
       {
         attachmentMode: 'required',
+        flow: 'document',
         id: '00000000-0000-4000-8000-0000000000e1',
         name: 'Cliente ausente',
       },
@@ -62,9 +63,105 @@ describe('o catálogo do motorista informa se o tipo exige comprovante (spec 179
     expect(types).toEqual([
       {
         attachmentMode: 'off',
+        flow: 'document',
         id: '00000000-0000-4000-8000-0000000000e1',
         name: 'Cliente ausente',
       },
     ])
+  })
+})
+
+/**
+ * Spec 218 RF-B2/T9: sem `contractorId`/`recipientTaxId` (ou sem a `overrides` port), a resolução
+ * fica em 1 camada — regressão zero, byte a byte igual ao teste acima. Com eles, resolve as 3
+ * camadas usando `listOverridesForTypes`, uma consulta em lote, nunca uma por tipo.
+ */
+describe('a resolução de 3 camadas do attachmentMode (spec 218 RF-B2, T9)', () => {
+  test('sem contractorId/recipientTaxId: nenhuma mudança visível (regressão zero)', async () => {
+    const types = await listFieldOccurrenceTypes({
+      companyId: COMPANY,
+      overrides: {
+        async listOverridesForTypes() {
+          throw new Error('NÃO DEVERIA CONSULTAR SEM CONTEXTO')
+        },
+      },
+      repository: {
+        async listOccurrenceTypes() {
+          return [tipo({ attachmentMode: 'optional' })]
+        },
+      },
+    })
+
+    expect(types).toEqual([
+      {
+        attachmentMode: 'optional',
+        flow: 'document',
+        id: '00000000-0000-4000-8000-0000000000e1',
+        name: 'Cliente ausente',
+      },
+    ])
+  })
+
+  test('com contractorId: o override do contratante vence o attachmentMode do tipo', async () => {
+    const types = await listFieldOccurrenceTypes({
+      companyId: COMPANY,
+      contractorId: 'contractor-alfa',
+      overrides: {
+        async listOverridesForTypes() {
+          return {
+            contractorOverrides: [
+              {
+                attachmentMode: 'required',
+                contractorId: 'contractor-alfa',
+                occurrenceTypeId: '00000000-0000-4000-8000-0000000000e1',
+              },
+            ],
+            recipientOverrides: [],
+          }
+        },
+      },
+      repository: {
+        async listOccurrenceTypes() {
+          return [tipo({ attachmentMode: 'optional' })]
+        },
+      },
+    })
+
+    expect(types[0]?.attachmentMode).toBe('required')
+  })
+
+  test('destinatário vence contratante quando os dois têm exceção (P4)', async () => {
+    const types = await listFieldOccurrenceTypes({
+      companyId: COMPANY,
+      contractorId: 'contractor-alfa',
+      overrides: {
+        async listOverridesForTypes() {
+          return {
+            contractorOverrides: [
+              {
+                attachmentMode: 'off',
+                contractorId: 'contractor-alfa',
+                occurrenceTypeId: '00000000-0000-4000-8000-0000000000e1',
+              },
+            ],
+            recipientOverrides: [
+              {
+                attachmentMode: 'required',
+                occurrenceTypeId: '00000000-0000-4000-8000-0000000000e1',
+                taxId: 'mercado-central',
+              },
+            ],
+          }
+        },
+      },
+      recipientTaxId: 'mercado-central',
+      repository: {
+        async listOccurrenceTypes() {
+          return [tipo({ attachmentMode: 'optional' })]
+        },
+      },
+    })
+
+    expect(types[0]?.attachmentMode).toBe('required')
   })
 })

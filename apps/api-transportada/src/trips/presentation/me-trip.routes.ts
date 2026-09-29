@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { defineRoute } from '../../http/router.service.js'
-import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import { parseUuidFilter, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import {
   FIELD_TRIP_STEP,
   type FieldTripStep,
@@ -133,9 +133,15 @@ export type MeTripDependencies = {
     readonly companyId: string
     readonly membershipId: string
   }) => Promise<FindCurrentDriverTripResult>
-  /** Só `id` e `name` dos tipos ativos de etapa `delivery` — a projeção da L2 da spec 156. */
+  /**
+   * Só `id`/`name`/`flow` e o `attachmentMode` efetivo dos tipos ativos de etapa `delivery` — a
+   * projeção da L2 da spec 156. Spec 218 RF-B2: `contractorId`/`recipientTaxId` são opcionais —
+   * ausentes, a resolução fica em 1 camada (comportamento de hoje).
+   */
   readonly listFieldOccurrenceTypes: (input: {
     readonly companyId: string
+    readonly contractorId?: string | null
+    readonly recipientTaxId?: string | null
   }) => Promise<readonly FieldOccurrenceType[]>
   readonly reportArrival: (
     input: DriverActionInput & { readonly stopId: string },
@@ -718,17 +724,25 @@ export function createMeTripRoutes(
       pathname: STOP_OCCURRENCE_UPLOAD_CONFIRM_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<undefined>({
-      async handle({ context }): Promise<Response> {
+    defineRoute<{ readonly contractorId: string | null; readonly recipientTaxId: string | null }>({
+      async handle({ context, input }): Promise<Response> {
         await resolveDriver(context.scope)
         const types = await dependencies.listFieldOccurrenceTypes({
           companyId: context.scope.companyId,
+          contractorId: input.contractorId,
+          recipientTaxId: input.recipientTaxId,
         })
 
         return jsonResponse({ body: { data: types }, status: 200 })
       },
       method: 'GET',
-      parse: () => undefined,
+      parse: ({ request }) => {
+        const url = new URL(request.url)
+        return {
+          contractorId: parseUuidFilter(url.searchParams.get('contractorId')) ?? null,
+          recipientTaxId: url.searchParams.get('recipientTaxId'),
+        }
+      },
       pathname: OCCURRENCE_TYPES_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),

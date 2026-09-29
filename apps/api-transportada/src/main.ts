@@ -3501,6 +3501,12 @@ function createApplicationRoutes({
       listFieldOccurrenceTypes: (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
+          contractorId: input.contractorId ?? null,
+          overrides: {
+            listOverridesForTypes: (query) =>
+              occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+          },
+          recipientTaxId: input.recipientTaxId ?? null,
           repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
         }),
       findCurrentTrip: (input) =>
@@ -3620,6 +3626,12 @@ function createApplicationRoutes({
       listFieldOccurrenceTypes: (input) =>
         listFieldOccurrenceTypes({
           companyId: input.companyId,
+          contractorId: input.contractorId ?? null,
+          overrides: {
+            listOverridesForTypes: (query) =>
+              occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+          },
+          recipientTaxId: input.recipientTaxId ?? null,
           repository: { listOccurrenceTypes: (query) => listOccurrenceTypes(database, query) },
         }),
       /** Spec 156 T7b, D9: a mesma foto para as N notas — um `stored_objects` só, no molde do canhoto. */
