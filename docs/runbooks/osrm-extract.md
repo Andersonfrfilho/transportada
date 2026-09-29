@@ -280,14 +280,45 @@ objeto vai para `osm-extracts/<dataset>/<AAAA-MM-DD>/<dataset>.osm.pbf`, ao lado
 reescrever a chave trocaria o mapa por baixo de uma data que o `toll_booth_extracts` já declara
 descrita.
 
-Cole a URL impressa em `OSRM_PBF_URL` **e** em `MAP_PBF_URL`, no painel, e reconstrua com
-`make map-refresh CONFIRM=1`, que recusa se as duas divergirem.
+A URL impressa vai para `OSRM_PBF_URL` **e** para `MAP_PBF_URL`, e depois `make map-refresh
+CONFIRM=1` reconstrói os dois — recusando se as duas divergirem. Pela CLI, sem a URL passar por
+janela de navegador:
+
+```bash
+printf '%s' "$url" | railway variable set -p "$PROJECT_ID" -e staging \
+  --service osrm --stdin --skip-deploys OSRM_PBF_URL
+printf '%s' "$url" | railway variable set -p "$PROJECT_ID" -e staging \
+  --service map-tiles --stdin --skip-deploys MAP_PBF_URL
+```
+
+`--stdin` existe porque valor em `argv` aparece no `ps` de quem estiver na máquina; `--skip-deploys`
+porque quem reconstrói é o `map-refresh`, depois das duas escritas — sem ele a primeira já dispara um
+build com a segunda variável ainda velha.
 
 ⚠️ **O que vence é a assinatura, não o extrato.** O bucket do Railway não serve objeto público, e o
 teto da URL pré-assinada é 90 dias. Passado o prazo o build volta a dar 404 — mas a correção é
 `make map-mirror` sem `SOURCE`, que re-assina o mesmo objeto. **A data não muda, então o extrato de
 pedágio (`toll-booths/osm/<dataset>/<data>/`) continua válido.** Era exatamente isso que um 404 do
 Geofabrik custava antes: obrigava a bumpar a data, e a data arrastava o pedágio junto.
+
+### A CLI do Railway erra o diagnóstico de três formas
+
+As três foram medidas em 29/09/2026 rodando os alvos acima de verdade. Nenhuma dá erro que aponte
+para a causa, e é por isso que estão escritas aqui — quem tropeçar de novo vai procurar no lugar
+errado, como já aconteceu.
+
+- **Worktree não herda o link da árvore principal.** `railway variables` de dentro de
+  `../transportada-wt/<nome>` não sabe qual projeto é, e o alvo lia isso como "a variável não está no
+  painel" — diagnóstico errado sobre uma variável que está lá. Ou `railway link`, ou
+  `make map-refresh PROJECT_ID=<id> ENVIRONMENT=staging`.
+- **`RAILWAY_ENV` no ambiente quebra a autenticação.** A CLI troca para modo token e responde
+  `Unauthorized. Please login`, **mesmo com `-e staging` correto na linha**, sem dizer que a culpa é
+  do ambiente. `make` exporta variável de linha de comando para a receita, então os overrides do
+  Makefile se chamam `PROJECT_ID` e `ENVIRONMENT`: um `RAILWAY_ENV=staging` ali derrubaria o alvo
+  inteiro. Medido isolando variável por variável — `RAILWAY_PROJECT` é inofensiva, `RAILWAY_ENV` não.
+- **`--json` escreve o mesmo documento no stdout e no stderr.** Capturar com `2>&1` devolve os dois
+  JSON colados, o `jq` recusa o que recebeu, e de novo o alvo conclui "não está no painel". Capture
+  só o stdout.
 
 Duas armadilhas que só aparecem no deploy:
 

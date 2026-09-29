@@ -68,6 +68,33 @@ describe('o extrato do OSM que alimenta mapa e rota (ADR-0044 §2 e §6)', () =>
     expect(MIRROR).toMatch(/já existe.*--presign-only/u)
   })
 
+  /**
+   * ⚠️ **`make` exporta variável de linha de comando para o ambiente da receita.** Medido em
+   * 29/09/2026: com `RAILWAY_ENV` no ambiente, o CLI troca para modo token e responde
+   * `Unauthorized. Please login` — mesmo com `-e staging` correto na linha, e sem dizer que a culpa
+   * é do ambiente. O nome do override é o defeito; por isso ele fica fora do prefixo `RAILWAY_`.
+   */
+  test('o override de escopo fica fora do namespace que o CLI lê', () => {
+    expect(MAKEFILE).toContain('$(if $(PROJECT_ID),-p $(PROJECT_ID))')
+    expect(MAKEFILE).toContain('$(if $(ENVIRONMENT), -e $(ENVIRONMENT))')
+    const alvo = MAKEFILE.slice(MAKEFILE.indexOf('map-refresh:'))
+    expect(alvo).not.toMatch(/\$\(RAILWAY_(ENV|PROJECT)\)/u)
+  })
+
+  /**
+   * ⚠️ **O `railway ... --json` escreve o mesmo JSON no stdout e no stderr.** Capturar com `2>&1`
+   * devolve o documento duas vezes coladas, o `jq` recusa, e o alvo conclui "não está definida no
+   * painel" sobre uma variável que está lá. É um diagnóstico errado apontando para o lugar errado —
+   * o mesmo defeito de forma que o `staging-refresh` tinha.
+   */
+  test('o alvo lê o json sem colar o stderr nele', () => {
+    const alvo = MAKEFILE.slice(MAKEFILE.indexOf('map-refresh:'))
+    /** Só as leituras que alimentam o `jq`; o descarte do diagnóstico pode juntar os dois fluxos. */
+    const leituras = alvo.match(/railway variables[^\n]*--json[^\n]*\|\s*jq/gu) ?? []
+    expect(leituras.length).toBeGreaterThan(0)
+    for (const leitura of leituras) expect(leitura).not.toContain('2>&1')
+  })
+
   /** Reconstruir um sozinho é o defeito; o alvo existe para não haver caminho curto para ele. */
   test('o alvo reconstrói os dois, e não faz nada sem confirmação', () => {
     const alvo = MAKEFILE.slice(MAKEFILE.indexOf('map-refresh:'))
