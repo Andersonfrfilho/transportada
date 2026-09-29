@@ -47,10 +47,17 @@
 - [x] **T10** Exceção de comprovante por contratante no painel. Commits `cf00f3f43`, `6215a4135`
       (fix de tradução).
 - [x] **T11** Campo `flow` + seção "Exceções" no catálogo de ocorrência. Commit `729d918eb`.
-- [ ] **T12** Revisão de design — **não feita com print real**. A infra Docker compartilhada estava
-      ocupada por outra sessão no momento da execução; toda peça nova reaproveita literalmente o
-      mesmo primitivo/classe do elemento vizinho (400 testes de `design-system.contract.test.ts`
-      verdes), mas ninguém olhou a tela de verdade. Pendência registrada em `evidence.md`.
+- [x] **T12** Revisão de design feita com print real (bancada isolada — Postgres, Keycloak e API
+      dedicados, sem tocar na infra compartilhada), 375px e desktop, claro e escuro. Achado: o
+      placeholder do seletor "Contratante" ("Buscar contratante por nome ou CNPJ", 36 caracteres)
+      estourava a largura do campo em 375px e truncava para "Buscar contratante por nome ou C…" —
+      o texto some no meio da palavra. Corrigido para "Buscar por nome ou CNPJ" (mais curto que o
+      padrão já usado em `delivery-clients`/`extra-charges`, e sem repetir "contratante", que já é o
+      rótulo do campo), nas 4 chaves de locale (pt-BR/en) que o spec 218 introduziu:
+      `trip.locale.json` (`deliveryProofSettings.contractorOverrides.contractorPlaceholder`) e
+      `companySettings.locale.json` (`occurrenceTypeCatalog.exceptions.contractorPlaceholder` e
+      `settingsResolution.contractorPlaceholder`, mais os pares `.en.locale.json`). Resto da tela —
+      espaçamento, cor, borda dos `Select`/botões — bate com os elementos vizinhos já revisados.
 
 ## Fase 3b — Painel: tela de verificação (RF-E)
 
@@ -59,7 +66,10 @@
 
 - [x] **T13** Rota `GET /company-settings/settings-resolution`, 4 combinações. Commit `8e8b46023`.
 - [x] **T14** Tela "Verificar configuração efetiva". Commit `3dc4747d8`.
-- [ ] **T15** Revisão de design — mesma pendência de T12 (infra ocupada), não simulada.
+- [x] **T15** Revisão de design feita com print real, 375px e desktop, claro e escuro (mesma
+      bancada de T12; o placeholder do seletor "Contratante" desta tela usa a mesma chave de
+      locale, já corrigida em T12). Layout consistente com o resto do painel — rótulo/valor em
+      linha, `Select`/input com borda e contraste iguais aos campos vizinhos.
 
 ## Fase 4 — App do motorista: extração + gate de entrega (RF-A1–A4)
 
@@ -127,8 +137,6 @@
 
 ## Pendências fora desta spec (registradas, não bloqueantes)
 
-- Revisão de design real (print olhado por alguém) de T12/T15 — a mecânica (reuso de primitivo) foi
-  verificada, a aparência final não.
 - Exceção de ocorrência por contratante/destinatário não chega ao app do motorista (P3) — o
   snapshot não traz `contractorId`/`recipientTaxId` da nota. Precisa de mudança no snapshot numa
   spec futura.

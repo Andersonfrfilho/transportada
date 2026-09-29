@@ -396,7 +396,7 @@
     },
     "contractorOverrides": {
       "contractor": "Contractor",
-      "contractorPlaceholder": "Search contractor by name or tax id",
+      "contractorPlaceholder": "Search by name or tax id",
       "empty": "No exceptions by contractor registered.",
       "hint": "An exception keyed by the contractor (shipper/document issuer) replaces the general configuration entirely; a recipient exception, when it also applies to the same document, wins over this one.",
       "title": "Exceptions by contractor"
