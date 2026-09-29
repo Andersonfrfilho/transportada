@@ -9,7 +9,10 @@
  * viagem, ele alcançaria qualquer viagem. Aqui não há id de viagem no caminho: o escopo é a viagem
  * ativa dele, e quem o garante é a consulta, não a permissão.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import {
+  OCCURRENCE_TYPE_FLOWS,
+  TRIP_OCCURRENCE_STAGE,
+} from '../../shared/trip-occurrence.constant.js'
 import {
   TripDocumentNotReachableError,
   TripOccurrenceAttachmentRequiredError,
@@ -90,13 +93,16 @@ export async function registerDriverOccurrence(
   })
 
   /**
-   * ⚠️ Tipo de galpão, tipo aposentado, tipo de outra empresa e nota fora da viagem dele respondem
-   * **igual**: inalcançável. Distinguir os quatro diria a quem tenta qual barreira encontrou.
+   * ⚠️ Tipo de galpão, tipo aposentado, tipo de outra empresa, tipo de parada (`flow: stop` — a
+   * lista que a tela oferece aqui já filtra por `flow: document`, mas a API não confia só nisso,
+   * spec 218 evidence.md "Limites que ficam") e nota fora da viagem dele respondem **igual**:
+   * inalcançável. Distinguir os cinco diria a quem tenta qual barreira encontrou.
    */
   if (
     occurrenceType === null ||
     !occurrenceType.active ||
-    occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.delivery
+    occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.delivery ||
+    (occurrenceType.flow ?? OCCURRENCE_TYPE_FLOWS.document) !== OCCURRENCE_TYPE_FLOWS.document
   ) {
     throw new TripDocumentNotReachableError()
   }

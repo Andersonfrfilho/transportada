@@ -31,6 +31,8 @@ function readPort(
     readonly active?: boolean
     /** Spec 179 T203: ausente é `undefined`, o mesmo "sem a coluna" que uma leitura legada devolve. */
     readonly attachmentMode?: 'off' | 'optional' | 'required'
+    /** Spec 218 D1: ausente é `undefined`, o mesmo "sem a coluna" — tratado como `document`. */
+    readonly flow?: 'document' | 'stop'
     readonly reachable?: boolean
     readonly stage?: 'delivery' | 'separation'
     readonly typeFound?: boolean
@@ -53,6 +55,7 @@ function readPort(
         emailBody: '',
         emailSubject: '',
         emailTemplateKey: null,
+        ...(overrides.flow === undefined ? {} : { flow: overrides.flow }),
         id: TIPO,
         name: 'Recusa parcial',
         notifies: false,
@@ -128,6 +131,17 @@ describe('o motorista registra ocorrência pelo celular (spec 079)', () => {
   /** O motorista não separou a carga: tipo de galpão não é dele, mesmo cadastrado e ativo. */
   test('tipo de galpão é inalcançável', async () => {
     expect(await registrar({ stage: 'separation' }).result.catch((e: unknown) => e)).toBeInstanceOf(
+      TripDocumentNotReachableError,
+    )
+  })
+
+  /**
+   * Spec 218 (evidence.md, "Limites que ficam"): o app nunca manda um tipo `flow: stop` aqui — a
+   * lista que ele mostra já filtra por `flow: document` —, mas a API não confiava só nisso antes
+   * desta correção: um cliente malformado registraria um tipo de parada como se fosse de nota.
+   */
+  test('tipo de parada (flow: stop) é inalcançável', async () => {
+    expect(await registrar({ flow: 'stop' }).result.catch((e: unknown) => e)).toBeInstanceOf(
       TripDocumentNotReachableError,
     )
   })
