@@ -159,6 +159,7 @@ function toReconciliationEntry(value: unknown): ReconciliationEntry {
       ? value.differences.map(readText).map(toRealmOwnedField)
       : [],
     matchedBy: toReconciliationMatch(value.matchedBy),
+    realmDisabled: value.realmDisabled === true,
     status: toReconciliationStatus(value.status),
     ...(local === undefined
       ? {}

@@ -105,6 +105,8 @@ export type ReconciliationEntry = Readonly<{
     userId: string
   }>
   matchedBy: ReconciliationMatch
+  /** Vínculo confirmado, casado dos dois lados, e a conta está travada no Keycloak. */
+  realmDisabled: boolean
   realm?: Readonly<{ email: string; enabled: boolean; subject: string; username: string }>
   status: ReconciliationStatus
 }>

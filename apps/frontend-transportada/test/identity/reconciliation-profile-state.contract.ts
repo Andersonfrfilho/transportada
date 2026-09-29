@@ -44,3 +44,19 @@ describe('o quarto estado chega à tela', () => {
     expect(result.items[0]?.status).toBe('missing-locally')
   })
 })
+
+describe('conta desabilitada no provedor chega à tela', () => {
+  test('`realmDisabled: true` atravessa a leitura', () => {
+    const payload = payloadOf('linked')
+    payload.data.items[0] = { ...payload.data.items[0], realmDisabled: true } as never
+
+    expect(toCompanyUsersReconciliation(payload).items[0]?.realmDisabled).toBe(true)
+  })
+
+  /** Resposta de API antiga não pode virar erro de formato — ausente é "não está travado". */
+  test('campo ausente cai em `false`, não em erro', () => {
+    const result = toCompanyUsersReconciliation(payloadOf('linked'))
+
+    expect(result.items[0]?.realmDisabled).toBe(false)
+  })
+})

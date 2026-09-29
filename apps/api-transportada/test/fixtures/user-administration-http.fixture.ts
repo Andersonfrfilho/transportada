@@ -166,6 +166,7 @@ export const RECONCILIATION_RESULT = {
       },
       differences: [],
       matchedBy: 'subject',
+      realmDisabled: false,
       status: 'linked',
     },
   ],

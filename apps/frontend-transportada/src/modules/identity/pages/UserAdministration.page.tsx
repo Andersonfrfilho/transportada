@@ -64,8 +64,10 @@ export function UserAdministrationPage() {
         isLoading={screen.reconciliation.isLoading}
         isFillingProfiles={screen.reconciliation.fillProfilesMutation.isPending}
         isOpen={screen.isReconciliationOpen}
+        isReactivating={screen.reconciliation.reactivateMutation.isPending}
         isSynchronizing={screen.reconciliation.synchronizeMutation.isPending}
         onFillProfiles={(userIds) => screen.reconciliation.fillProfilesMutation.mutate(userIds)}
+        onReactivate={(userIds) => screen.reconciliation.reactivateMutation.mutate(userIds)}
         onRefresh={screen.refreshReconciliation}
         onSynchronize={(targets) => screen.reconciliation.synchronizeMutation.mutate(targets)}
         onToggle={screen.toggleReconciliation}

@@ -24,6 +24,7 @@ type CompanyUserReconciliationPanelProps = Readonly<{
   onRefresh: () => void
   onAdoptRealmFields: (userIds: readonly string[]) => void
   onFillProfiles: (userIds: readonly string[]) => void
+  onReactivate: (userIds: readonly string[]) => void
   onSynchronize: (
     targets: Readonly<{ subjects: readonly string[]; userIds: readonly string[] }>,
   ) => void
@@ -32,6 +33,7 @@ type CompanyUserReconciliationPanelProps = Readonly<{
   fillOutcome?: ProfileFillOutcome | undefined
   isAdopting?: boolean
   isFillingProfiles?: boolean
+  isReactivating?: boolean
   isSynchronizing?: boolean
   syncOutcome?: IdentitySyncOutcome | undefined
   errorCode?: string
@@ -59,8 +61,10 @@ export function CompanyUserReconciliationPanel({
   isFillingProfiles = false,
   isLoading,
   isOpen,
+  isReactivating = false,
   isSynchronizing = false,
   onFillProfiles,
+  onReactivate,
   onRefresh,
   onSynchronize,
   onToggle,
@@ -74,6 +78,12 @@ export function CompanyUserReconciliationPanel({
    * sobre o que o operador queria saber.
    */
   const outOfSync = entries.filter((entry) => entry.differences.length > 0)
+  /**
+   * A conta trancada no Keycloak é a quarta forma de "existir dos dois lados e mentir": tudo bate
+   * — nome, login, vínculo — e a pessoa não entra. É o caso da Andréia: "Completo" nesta mesma tela,
+   * `enabled: false` no provedor.
+   */
+  const disabled = entries.filter((entry) => entry.realmDisabled)
 
   return (
     <section className={styles.panel}>
@@ -104,7 +114,7 @@ export function CompanyUserReconciliationPanel({
       ) : (
         <>
           <p className={styles.intro}>
-            {divergent === 0 && outOfSync.length === 0
+            {divergent === 0 && outOfSync.length === 0 && disabled.length === 0
               ? t('users.sync.allLinked')
               : [
                   missingSomewhere.length === 0
@@ -116,6 +126,9 @@ export function CompanyUserReconciliationPanel({
                   outOfSync.length === 0
                     ? ''
                     : t('users.sync.outOfSyncCount', { count: outOfSync.length }),
+                  disabled.length === 0
+                    ? ''
+                    : t('users.sync.disabledCount', { count: disabled.length }),
                 ]
                   .filter((sentence) => sentence !== '')
                   .join(' ')}
@@ -128,7 +141,8 @@ export function CompanyUserReconciliationPanel({
            */}
           {missingSomewhere.length === 0 &&
           withoutProfile.length === 0 &&
-          outOfSync.length === 0 ? null : (
+          outOfSync.length === 0 &&
+          disabled.length === 0 ? null : (
             <div className={styles.panelActions}>
               {outOfSync.length === 0 ? null : (
                 <Button
@@ -141,6 +155,17 @@ export function CompanyUserReconciliationPanel({
                 >
                   <Icon name="download" />
                   {t('users.sync.adoptAll', { count: outOfSync.length })}
+                </Button>
+              )}
+              {disabled.length === 0 ? null : (
+                <Button
+                  disabled={isReactivating}
+                  onClick={() => onReactivate(disabled.map((entry) => entry.local?.userId ?? ''))}
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="power" />
+                  {t('users.sync.reactivateAll', { count: disabled.length })}
                 </Button>
               )}
               {withoutProfile.length === 0 ? null : (
@@ -197,7 +222,7 @@ export function CompanyUserReconciliationPanel({
                     <td>
                       <span
                         className={`${styles.badge ?? ''} ${
-                          entry.differences.length > 0
+                          entry.differences.length > 0 || entry.realmDisabled
                             ? (styles.statusSuspended ?? '')
                             : (styles[STATUS_CLASS[entry.status]] ?? '')
                         }`}
@@ -208,7 +233,9 @@ export function CompanyUserReconciliationPanel({
                                 .map((field) => t(`users.sync.field.${field}`))
                                 .join(', '),
                             })
-                          : t(`users.sync.status.${entry.status}`)}
+                          : entry.realmDisabled
+                            ? t('users.sync.status.disabled')
+                            : t(`users.sync.status.${entry.status}`)}
                       </span>
                     </td>
                     <td>
@@ -222,6 +249,17 @@ export function CompanyUserReconciliationPanel({
                         >
                           <Icon name="download" />
                           {t('users.sync.adopt')}
+                        </Button>
+                      ) : entry.realmDisabled ? (
+                        <Button
+                          disabled={isReactivating}
+                          onClick={() => onReactivate([entry.local?.userId ?? ''])}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Icon name="power" />
+                          {t('users.sync.reactivate')}
                         </Button>
                       ) : entry.status === 'linked' ? null : entry.status === 'profile-missing' ? (
                         <Button

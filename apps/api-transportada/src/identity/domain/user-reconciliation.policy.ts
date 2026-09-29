@@ -167,3 +167,20 @@ export function diffRealmOwnedFields(input: {
 
   return differences
 }
+
+/**
+ * A conta existe dos dois lados, é a mesma pessoa — e o provedor a trava. Nasce da mesma falha que
+ * fez a Andréia aparecer "Ativa" no painel com `enabled: false` no Keycloak: nenhuma tela olhava
+ * esse campo, e a única forma de descobrir era consultar o provedor direto.
+ *
+ * Mesma cautela de `diffRealmOwnedFields`: só vale para vínculo **confirmado** (`subject` gravado).
+ * Reativar a conta errada por causa de um casamento por e-mail ou documento — um palpite do
+ * algoritmo — destrancaria o acesso de outra pessoa.
+ */
+export function isRealmAccountDisabled(input: {
+  readonly local: LocalIdentityRecord
+  readonly realm: RealmIdentityRecord
+}): boolean {
+  if (input.local.subject === undefined) return false
+  return !input.realm.enabled
+}
