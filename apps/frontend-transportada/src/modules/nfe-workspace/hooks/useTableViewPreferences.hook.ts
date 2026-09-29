@@ -1,12 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   parseTableViewPreferences,
   serializeTableViewPreferences,
 } from '../shared/viewPreferences.serialization'
-import type { ViewPreferencesClient } from '../shared/viewPreferencesClient.service'
+import type {
+  ViewPreferencesClient,
+  ViewPreferencesRecord,
+} from '../shared/viewPreferencesClient.service'
 import type {
   TableViewPreferences,
   TableViewPreferencesController,
@@ -54,6 +57,7 @@ export function useTableViewPreferences(
   const { client, viewKey } = input
   const enabled = input.enabled ?? true
   const initial = useState<TableViewPreferences>(() => readCache(viewKey))[0]
+  const queryClient = useQueryClient()
 
   const query = useQuery({
     enabled,
@@ -71,9 +75,23 @@ export function useTableViewPreferences(
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pendingRef = useRef<TableViewPreferences | undefined>(undefined)
 
+  /**
+   * ⚠️ A aba de Notas desmonta inteira quando o operador troca de aba, e o que ela sabe dos filtros
+   * morre junto. O que sobrevive é este cache — e ele precisa ser atualizado **na hora**, não só
+   * quando o debounce vencer.
+   *
+   * São dois caches, e os dois enganavam na volta: o `localStorage`, que semeia a tabela, já era
+   * escrito na hora; a consulta do react-query, que hidrata a tabela logo depois, ficava com a
+   * resposta antiga por `staleTime` de 30s e sobrescrevia o filtro recém-editado com o de antes.
+   * Por isso o `setQueryData` aqui: quem hidrata passa a ler o que o operador acabou de fazer.
+   */
   const onChange = useCallback(
     (preferences: TableViewPreferences) => {
       writeCache(viewKey, preferences)
+      queryClient.setQueryData<ViewPreferencesRecord>([QUERY_KEY, viewKey], {
+        preferences: serializeTableViewPreferences(preferences),
+        updatedAt: new Date().toISOString(),
+      })
       pendingRef.current = preferences
       if (timerRef.current !== undefined) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
@@ -81,7 +99,28 @@ export function useTableViewPreferences(
         if (next !== undefined) mutate(next)
       }, SAVE_DEBOUNCE_MS)
     },
-    [mutate, viewKey],
+    [mutate, queryClient, viewKey],
+  )
+
+  /**
+   * Desmontar com o debounce pendente perdia a gravação: trocar de aba menos de 800ms depois de
+   * mexer num filtro nunca chegava ao servidor. O `mutate` não serve na limpeza — o observador da
+   * mutação morre com o componente —, então a gravação sai pelo cliente direto.
+   */
+  const clientRef = useRef(client)
+  clientRef.current = client
+  useEffect(
+    () => () => {
+      if (timerRef.current === undefined) return
+      clearTimeout(timerRef.current)
+      timerRef.current = undefined
+      const next = pendingRef.current
+      if (next === undefined) return
+      void clientRef.current
+        .save({ preferences: serializeTableViewPreferences(next), viewKey })
+        .catch(() => undefined)
+    },
+    [viewKey],
   )
 
   const remote = useMemo<TableViewPreferences | null>(() => {
