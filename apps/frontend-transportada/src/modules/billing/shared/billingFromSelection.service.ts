@@ -25,10 +25,12 @@ export type BillingBlockGroup = Readonly<{
   reason: string
 }>
 
+/** O id acompanha o número porque a tela oferece o PDF logo depois de emitir, sem buscar de volta. */
 export type BillingGroupOutcome = Readonly<{
   cteCount: number
   customerDocument: string
   errorCode?: string
+  invoiceId?: string
   invoiceNumber?: number
 }>
 
@@ -97,6 +99,7 @@ async function submitBillingGroup(
     return {
       cteCount: input.group.cteCount,
       customerDocument: input.group.customerDocument,
+      invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
     }
   } catch (caught: unknown) {

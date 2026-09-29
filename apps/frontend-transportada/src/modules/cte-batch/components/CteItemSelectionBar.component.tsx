@@ -60,7 +60,7 @@ export function CteItemSelectionBar({ table }: CteItemSelectionBarProps) {
           type="button"
           variant="secondary"
         >
-          <Icon name="export" />
+          <Icon name={table.isExporting ? 'spinner' : 'download'} />
           {table.isExporting
             ? t('cteItems.export.pending')
             : t('cteItems.exportSelection', { count: table.selection.count })}

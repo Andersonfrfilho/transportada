@@ -16,7 +16,7 @@ import {
   type BillingInvoiceEdit,
   type BillingInvoiceSummary,
 } from '../shared/billingClient.service'
-import { createBillingDocumentDownloadController } from '../shared/billingDocumentDownload.service'
+import { createBillingDocumentWindowDownload } from '../shared/billingDocumentDownload.service'
 import {
   BILLING_DOCUMENTS_QUERY_KEY,
   BILLING_INVOICE_LIST_QUERY_KEY,
@@ -41,12 +41,7 @@ export type BillingController = Readonly<{
   updateInvoice: (input: BillingInvoiceEdit) => Promise<BillingInvoiceSummary>
 }>
 
-const documentDownload = createBillingDocumentDownloadController({
-  openUrl: (url) => {
-    if (typeof window === 'undefined') return
-    window.open(url, '_blank', 'noopener,noreferrer')
-  },
-})
+const documentDownload = createBillingDocumentWindowDownload()
 
 function createIdempotencyKey(): string {
   return crypto.randomUUID()

@@ -48,20 +48,39 @@ export function CteBillingDialog({ dialog }: CteBillingDialogProps) {
 
   function renderOutcome(outcome: BillingGroupOutcome, index: number) {
     const isIssued = outcome.invoiceNumber !== undefined
+    const invoiceId = outcome.invoiceId
+    const documentState =
+      invoiceId === undefined ? null : dialog.resolveInvoiceDocumentState(invoiceId)
     return (
       <li
-        className={isIssued ? styles.billingOutcomeIssued : styles.billingOutcomeFailed}
+        className={`${styles.billingOutcome} ${isIssued ? styles.billingOutcomeIssued : styles.billingOutcomeFailed}`}
         key={outcomeKey(outcome, index)}
       >
-        {isIssued
-          ? t('billing.outcomeIssued', {
-              customer: outcome.customerDocument,
-              number: outcome.invoiceNumber,
-            })
-          : t('billing.outcomeFailed', {
-              code: outcome.errorCode,
-              customer: outcome.customerDocument,
-            })}
+        <span>
+          {isIssued
+            ? t('billing.outcomeIssued', {
+                customer: outcome.customerDocument,
+                number: outcome.invoiceNumber,
+              })
+            : t('billing.outcomeFailed', {
+                code: outcome.errorCode,
+                customer: outcome.customerDocument,
+              })}
+        </span>
+        {invoiceId === undefined || documentState === null ? null : (
+          <Button
+            disabled={documentState.isDisabled}
+            onClick={() => dialog.downloadInvoice(invoiceId)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Icon name={documentState.isPending ? 'spinner' : 'download'} />
+            {documentState.isPending
+              ? t('billing.downloadingInvoice')
+              : t('billing.downloadInvoice')}
+          </Button>
+        )}
       </li>
     )
   }
@@ -223,6 +242,11 @@ export function CteBillingDialog({ dialog }: CteBillingDialogProps) {
             <ul aria-live="polite" className={styles.billingList}>
               {dialog.outcomes.map(renderOutcome)}
             </ul>
+            {dialog.documentErrorCode === null ? null : (
+              <p className={styles.hint} role="alert">
+                {t('billing.documentError', { code: dialog.documentErrorCode })}
+              </p>
+            )}
           </section>
         ) : null}
 

@@ -76,6 +76,7 @@ type BillingGroupOutcome = Readonly<{
   cteCount: number
   customerDocument: string
   errorCode?: string
+  invoiceId?: string
   invoiceNumber?: number
 }>
 
@@ -220,9 +221,23 @@ describe('billing from cte selection contract', () => {
     ])
     expect(calls.every((call) => call.dueDate === DUE_DATE)).toBeTrue()
     expect(new Set(calls.map((call) => call.idempotencyKey)).size).toBe(2)
+    /**
+     * O id vem junto do número porque o modal oferece o PDF logo depois de emitir: sem ele a tela
+     * teria só o número impresso e precisaria procurar a fatura de volta para pedir o documento.
+     */
     expect(outcomes).toEqual([
-      { cteCount: 1, customerDocument: CUSTOMER_ALFA.document, invoiceNumber: 1 },
-      { cteCount: 1, customerDocument: CUSTOMER_BETA.document, invoiceNumber: 2 },
+      {
+        cteCount: 1,
+        customerDocument: CUSTOMER_ALFA.document,
+        invoiceId: BILLING_ISSUED_INVOICE.id,
+        invoiceNumber: 1,
+      },
+      {
+        cteCount: 1,
+        customerDocument: CUSTOMER_BETA.document,
+        invoiceId: BILLING_ISSUED_INVOICE.id,
+        invoiceNumber: 2,
+      },
     ])
   })
 
@@ -242,7 +257,12 @@ describe('billing from cte selection contract', () => {
     })
 
     expect(outcomes).toEqual([
-      { cteCount: 1, customerDocument: CUSTOMER_ALFA.document, invoiceNumber: 17 },
+      {
+        cteCount: 1,
+        customerDocument: CUSTOMER_ALFA.document,
+        invoiceId: BILLING_ISSUED_INVOICE.id,
+        invoiceNumber: 17,
+      },
       {
         cteCount: 1,
         customerDocument: CUSTOMER_BETA.document,
