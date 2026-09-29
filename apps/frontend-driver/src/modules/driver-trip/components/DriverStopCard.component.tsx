@@ -188,7 +188,7 @@ type DriverStopCardProps = Readonly<{
     productCode: string
   }) => Promise<boolean>
   occurrenceTypes: DriverOccurrenceTypesState
-  onProof: (input: DriverProofAttachment) => void
+  onProof: (input: DriverProofAttachment) => Promise<boolean>
   /** Spec 203: campo do recebedor preenchido depois do anexo já estar na fila — atualiza o mesmo item. */
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
@@ -653,7 +653,7 @@ type DocumentRowProps = Readonly<{
     draft: NotDeliveredDraft
     lateRegistration: boolean
   }) => void
-  onProof: (input: DriverProofAttachment) => void
+  onProof: (input: DriverProofAttachment) => Promise<boolean>
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
   onRemoveProof?: (documentId: string) => void
@@ -1075,7 +1075,8 @@ export type DeliveryProofSectionProps = Readonly<{
   documentId: string
   /** Pedido do usuário (25/09): carimba o anexo com a mesma marca do deliver/return da parada. */
   lateRegistration?: boolean
-  onProof: (input: DriverProofAttachment) => void
+  /** Spec 218: `false` quando a fila recusou (teto da spec 203) — a captura não marca "anexada". */
+  onProof: (input: DriverProofAttachment) => Promise<boolean>
   onProofFieldsUpdate?: (input: DriverProofFieldsUpdate) => void
   /** Spec 207: "Remover" a foto/assinatura do canhoto — só cabe com o anexo ainda na fila. */
   onRemoveProof?: (documentId: string) => void
@@ -1204,6 +1205,8 @@ function ProofCaptureFields({
    */
   const [attachedKey, setAttachedKey] = useState<{ photo?: string; signature?: string }>({})
   const [openImageKind, setOpenImageKind] = useState<'photo' | 'signature' | undefined>(undefined)
+  /** Spec 218: o kind que a fila recusou por último (teto cheio) — nunca aparece como anexado. */
+  const [refusedKind, setRefusedKind] = useState<'photo' | 'signature' | undefined>(undefined)
   /** Spec 207: enquanto o anexo está aqui, "Remover" é seguro — enviado, só "Substituir". */
   const isProofQueued = queueView.some(
     (item) => item.kind === 'proof' && item.documentId === documentId,
@@ -1278,24 +1281,33 @@ function ProofCaptureFields({
    * Spec 203 (o attach nunca descarta a foto): a foto é a prova nº 1 do usuário — entra na fila
    * incondicionalmente, **antes** de qualquer veredito de campo. Campo obrigatório vazio vira aviso
    * visível (`missing`), nunca motivo para jogar fora o que o motorista já fotografou.
+   *
+   * Spec 218: "anexada" só depois do aceite da fila — com o teto cheio (spec 203), a fila recusa, e o
+   * formulário diz isso em vez de mostrar uma foto que não está guardada em lugar nenhum.
    */
   function attach(kind: 'photo' | 'signature', file: File): void {
-    const next = { ...attached, [kind]: true }
-    setAttached(next)
     /* Spec 207: gerada aqui — é a chave que "Remover" vai pedir de volta, por item, nunca por nota. */
     const attachmentKey = crypto.randomUUID()
-    setAttachedKey((current) => ({ ...current, [kind]: attachmentKey }))
-    /* Spec 211: cada kind tem a própria miniatura — anexar um nunca troca a do outro. */
-    previewByKind[kind].showPhoto(file)
-    onProof({
+    setRefusedKind(undefined)
+    void onProof({
       attachmentKey,
       documentId,
       file,
       kind,
       ...(lateRegistration === true ? { lateRegistration: true } : {}),
       ...currentFields(),
+    }).then((isAccepted) => {
+      if (!isAccepted) {
+        setRefusedKind(kind)
+      } else {
+        const next = { ...attached, [kind]: true }
+        setAttached((current) => ({ ...current, [kind]: true }))
+        setAttachedKey((current) => ({ ...current, [kind]: attachmentKey }))
+        /* Spec 211: cada kind tem a própria miniatura — anexar um nunca troca a do outro. */
+        previewByKind[kind].showPhoto(file)
+        blockedByFields(next)
+      }
     })
-    blockedByFields(next)
   }
 
   /** Spec 203/193: o campo chega depois do anexo — alcança o mesmo item na fila, se ele ainda estiver lá. */
@@ -1463,6 +1475,11 @@ function ProofCaptureFields({
                   {t('proofFields.pendingField')}
                 </span>
               ) : null}
+              {refusedKind === undefined ? null : (
+                <span className={styles.proofFieldError} role="status">
+                  {t(`proofCapture.refused.${refusedKind}`)}
+                </span>
+              )}
             </div>
           ) : null}
 

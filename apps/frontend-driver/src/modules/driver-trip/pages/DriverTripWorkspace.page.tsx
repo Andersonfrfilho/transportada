@@ -286,19 +286,22 @@ export function DriverTripWorkspacePage() {
     )
   }
 
-  function handleProof(input: DriverProofAttachment): void {
+  /** Spec 218: devolve ao formulário se o anexo entrou na fila — recusado, ele não marca "anexada". */
+  async function handleProof(input: DriverProofAttachment): Promise<boolean> {
     setAttachmentLimit(undefined)
     /* Guardado no toque: depois do envio a nota sai de `pendingProofs` e o nome some junto. */
     const label = findProofDocumentLabel({ documentId: input.documentId, snapshot })
     if (label !== undefined) {
       setProofLabelByDocumentId((current) => new Map(current).set(input.documentId, label))
     }
-    void driverTrip
-      .attachProof(input)
-      .then((outcome) => {
-        if (outcome === 'count-limit' || outcome === 'size-limit') setAttachmentLimit(outcome)
-      })
-      .catch(() => setProofFailed(true))
+    try {
+      const outcome = await driverTrip.attachProof(input)
+      if (outcome === 'count-limit' || outcome === 'size-limit') setAttachmentLimit(outcome)
+      return outcome === 'queued'
+    } catch {
+      setProofFailed(true)
+      return false
+    }
   }
 
   /**

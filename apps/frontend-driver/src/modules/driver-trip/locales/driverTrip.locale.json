@@ -178,7 +178,11 @@
     "close": "Fechar",
     "remove": "Remover",
     "confirmRemove": "Remover a foto do canhoto?",
-    "replaceHint": "A foto enviada só pode ser substituída."
+    "replaceHint": "A foto enviada só pode ser substituída.",
+    "refused": {
+      "photo": "Fila cheia: não deu para salvar a foto agora. Envie as pendências e tire de novo.",
+      "signature": "Fila cheia: não deu para salvar a assinatura agora. Envie as pendências e colha de novo."
+    }
   },
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
   "proofFields": {

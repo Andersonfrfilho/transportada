@@ -170,7 +170,11 @@
     "close": "Close",
     "remove": "Remove",
     "confirmRemove": "Remove the receipt photo?",
-    "replaceHint": "A photo that was already sent can only be replaced."
+    "replaceHint": "A photo that was already sent can only be replaced.",
+    "refused": {
+      "photo": "The queue is full: the photo could not be saved right now. Send what is pending and take it again.",
+      "signature": "The queue is full: the signature could not be saved right now. Send what is pending and collect it again."
+    }
   },
   "proofFailed": "The file could not be attached. The delivery is still recorded.",
   "proofFields": {
