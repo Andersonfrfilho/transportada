@@ -23,6 +23,7 @@ export const SETTINGS_PANELS = [
   'cameraMeasurement',
   'entryKindCatalog',
   'quickReplies',
+  'settingsResolution',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -57,6 +58,7 @@ export type SettingsDataSource =
   | 'occurrenceTypeCatalog'
   | 'quickReplies'
   | 'scheduledDistribution'
+  | 'settingsResolution'
   | 'tollBoothCharges'
 
 export type SettingsDataScope = Readonly<Record<SettingsDataSource, boolean>>
@@ -151,6 +153,16 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
    */
   quickReplies: { module: 'company-settings', source: 'quickReplies', tab: 'quickReplies' },
   /**
+   * Spec 218 RF-E1/RF-E2: a tela de verificação — mesma família do catálogo e do lançamento
+   * (cadastro/consulta da empresa), aba própria porque a busca é livre (contratante e/ou
+   * destinatário), não uma configuração para editar.
+   */
+  settingsResolution: {
+    module: 'company-settings',
+    source: 'settingsResolution',
+    tab: 'settingsResolution',
+  },
+  /**
    * Spec 068 — os contatos e as redes moram na aba Site: é o mesmo cadastro público que a landing
    * publica, e é onde o operador já está quando pensa em "o que aparece para quem me procura". O
    * rodapé do e-mail do sistema lê a mesma lista.
@@ -225,6 +237,7 @@ export function resolveSettingsDataScope(
     occurrenceTypeCatalog: sources.has('occurrenceTypeCatalog'),
     quickReplies: sources.has('quickReplies'),
     scheduledDistribution: sources.has('scheduledDistribution'),
+    settingsResolution: sources.has('settingsResolution'),
     tollBoothCharges: sources.has('tollBoothCharges'),
   }
 }
@@ -238,6 +251,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'occurrenceTypes',
   'entryKinds',
   'quickReplies',
+  'settingsResolution',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

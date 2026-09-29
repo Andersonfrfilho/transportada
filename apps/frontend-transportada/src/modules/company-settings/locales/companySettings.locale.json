@@ -9,7 +9,8 @@
     "driverAllowance": "Diária do motorista",
     "occurrenceTypes": "Tipos de ocorrência",
     "entryKinds": "Espécies de lançamento",
-    "quickReplies": "Respostas rápidas"
+    "quickReplies": "Respostas rápidas",
+    "settingsResolution": "Verificar configuração"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -324,6 +325,33 @@
       "remove": "Remover",
       "emptyContractor": "Nenhuma exceção por contratante cadastrada.",
       "emptyRecipient": "Nenhuma exceção por destinatário cadastrada."
+    }
+  },
+  "settingsResolution": {
+    "title": "Verificar configuração efetiva",
+    "hint": "Escolha um contratante e/ou um destinatário para ver o comprovante e a exigência de foto de ocorrência que valem para essa combinação — a mesma conta que o app do motorista faria.",
+    "contractor": "Contratante",
+    "contractorPlaceholder": "Buscar contratante por nome ou CNPJ",
+    "contractorSelected": "Contratante escolhido: {{contractor}}",
+    "recipientTaxId": "CNPJ ou CPF do destinatário",
+    "recipientSelected": "Destinatário escolhido: {{recipient}}",
+    "generalHint": "Sem contratante nem destinatário escolhido, mostra a configuração geral (sem exceção).",
+    "loading": "Carregando a configuração efetiva…",
+    "error": "Não foi possível carregar a configuração efetiva.",
+    "deliveryProofTitle": "Comprovante de entrega",
+    "occurrenceTypesTitle": "Tipos de ocorrência",
+    "occurrenceTypesEmpty": "Nenhum tipo de ocorrência de rua cadastrado.",
+    "fields": {
+      "photo": "Foto",
+      "receivedBy": "Quem recebeu",
+      "receiverDocument": "Documento do recebedor",
+      "receiverName": "Nome do recebedor",
+      "signature": "Assinatura"
+    },
+    "modes": {
+      "off": "Desligado",
+      "optional": "Opcional",
+      "required": "Obrigatório"
     }
   }
 }

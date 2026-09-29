@@ -112,6 +112,11 @@ import type {
   OccurrenceType,
   OccurrenceTypeFlow,
 } from './occurrence.constant'
+import {
+  isSettingsResolutionView,
+  SETTINGS_RESOLUTION_PATH,
+  type SettingsResolutionView,
+} from './settingsResolution.service'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
@@ -263,6 +268,13 @@ export type TripClient = Readonly<{
    * (`web.md` §1).
    */
   listContractors: () => Promise<readonly ContractorSummary[]>
+  /**
+   * Spec 218 RF-E1/T14: a tela de verificação — pelo menos um dos dois, resolvido no servidor
+   * (RF-D1). Nenhuma precedência é recalculada aqui.
+   */
+  readSettingsResolution: (
+    input: Readonly<{ contractorId: null | string; recipientTaxId: null | string }>,
+  ) => Promise<SettingsResolutionView>
   /** Spec 218 RF-B3: as duas exceções do `attachmentMode` de um tipo, por contratante/destinatário. */
   listOccurrenceAttachmentOverrides: (
     input: Readonly<{ occurrenceTypeId: string }>,
@@ -936,6 +948,20 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${CONTRACTORS_PATH}?limit=100`,
       })
       return contractorSummariesFromApi(response)
+    },
+    async readSettingsResolution(input) {
+      const search = new URLSearchParams()
+      if (input.contractorId !== null) search.set('contractorId', input.contractorId)
+      if (input.recipientTaxId !== null) search.set('recipientTaxId', input.recipientTaxId)
+
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${SETTINGS_RESOLUTION_PATH}?${search.toString()}`,
+      })
+      const data = readEnvelopeData(response)
+      if (!isSettingsResolutionView(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data
     },
     async readDeliveryProofSettings() {
       const response = await authorizedRequest({
