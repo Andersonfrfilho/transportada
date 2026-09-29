@@ -241,6 +241,9 @@
   "filters": {
     "search": "Search",
     "searchEmpty": "No results",
+    "clearSelection": "Clear selection",
+    "removeSelection": "Remove selection",
+    "selectedSummary": "{{count}} selected",
     "cteIssuedPending": "Without issued CT-e",
     "cteIssuedIssued": "With issued CT-e",
     "fiscalLink": "Fiscal link",

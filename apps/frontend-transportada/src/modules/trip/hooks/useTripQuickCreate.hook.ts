@@ -41,11 +41,15 @@ import { getTripClient } from './useTripWorkspace.hook'
 
 export type TripQuickCreateController = ReturnType<typeof useTripQuickCreate>
 
+const NO_INITIAL_DOCUMENT_IDS: readonly string[] = []
+
 export function useTripQuickCreate(
   input: Readonly<{
     companyId?: string
     /** Empresa e usuário do rascunho da montagem (ver `useTripAssemblyDraftLifecycle`). */
     draftScope?: TripAssemblyDraftScope | undefined
+    /** Notas que a seleção da tela de NF-e mandou montar: abrem o diálogo já com a fila preenchida. */
+    initialDocumentIds?: readonly string[]
     onCreated: (trip: TripDetail) => void
     permissions: readonly string[]
     selectableDriverIds: readonly string[]
@@ -53,7 +57,9 @@ export function useTripQuickCreate(
   }>,
 ) {
   const queryClient = useQueryClient()
-  const [isOpen, setIsOpen] = useState(false)
+  const initialDocumentIds = input.initialDocumentIds ?? NO_INITIAL_DOCUMENT_IDS
+  /** Quem chegou da seleção de notas não precisa clicar de novo no botão que ele acabou de clicar. */
+  const [isOpen, setIsOpen] = useState(initialDocumentIds.length > 0)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [queue, setQueue] = useState<TripQuickCreateQueue>(EMPTY_QUICK_CREATE_QUEUE)
   const [driverIds, setDriverIds] = useState<readonly string[]>([])
@@ -109,6 +115,22 @@ export function useTripQuickCreate(
     queueRef.current = next
     setQueue(next)
   }
+
+  /**
+   * A fila só aceita nota carregada, e a lista chega depois do primeiro render: o enfileiramento
+   * espera a busca voltar. Uma vez só — quem tirar uma nota da fila não a vê voltar no render
+   * seguinte.
+   */
+  const hasStagedInitialRef = useRef(false)
+  useEffect(() => {
+    if (hasStagedInitialRef.current || initialDocumentIds.length === 0) return
+    const documents = (documentsQuery.data ?? []).filter((document) =>
+      initialDocumentIds.includes(document.id),
+    )
+    if (documents.length === 0) return
+    hasStagedInitialRef.current = true
+    updateQueue(stageQuickCreateDocuments({ documents, queue: queueRef.current }))
+  }, [documentsQuery.data, initialDocumentIds])
 
   async function lookupAccessKey(accessKey: string): Promise<void> {
     try {

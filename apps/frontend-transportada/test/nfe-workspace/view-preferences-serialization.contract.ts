@@ -23,8 +23,9 @@ function fullPreferences(overrides: Partial<TableViewPreferences> = {}): TableVi
     amountValue: '2500',
     dateFrom: '2026-01-01',
     numberFrom: '100',
+    multi: { ...EMPTY_FILTERS.multi, emitterName: ['Alfa', 'Gama'] },
     select: { ...EMPTY_FILTERS.select, recipientState: 'PR', status: 'authorized' },
-    text: { ...EMPTY_FILTERS.text, emitterName: 'Alfa' },
+    text: { ...EMPTY_FILTERS.text, emitterAddress: 'Rua das Cargas' },
   }
   const savedAdvancedFilter: AdvancedFilterModel = {
     connector: 'or',
@@ -131,6 +132,27 @@ describe('nfe workspace view preferences serialization contract', () => {
     })
 
     expect(restored.filters).toEqual(EMPTY_FILTERS)
+  })
+
+  test('the emitter choices survive the round trip, and junk in the list is dropped', () => {
+    const restored = parseTableViewPreferences({
+      filters: { multi: { emitterName: ['Alfa', 42, '', 'Gama'], emitterTaxId: 'nope' } },
+    })
+
+    expect(restored.filters.multi).toEqual({
+      emitterName: ['Alfa', 'Gama'],
+      emitterTaxId: [],
+    })
+  })
+
+  /** Visão gravada antes do select de emitente guardava texto livre: sem nome exato, ela volta sem o filtro. */
+  test('a view saved before the emitter select comes back with no emitter filter', () => {
+    const restored = parseTableViewPreferences({
+      filters: { text: { emitterName: 'Alfa', recipientName: 'Beta' } },
+    })
+
+    expect(restored.filters.multi).toEqual(EMPTY_FILTERS.multi)
+    expect(restored.filters.text.recipientName).toBe('Beta')
   })
 
   test('an out-of-range page size falls back to the default', () => {

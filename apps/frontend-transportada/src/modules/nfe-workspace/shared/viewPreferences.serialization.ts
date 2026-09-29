@@ -6,6 +6,7 @@ import {
   DEFAULT_PAGE_SIZE,
   DEFAULT_SORT,
   EMPTY_FILTERS,
+  MULTI_FILTER_FIELDS,
   OPERATORS_BY_TYPE,
   PAGE_SIZE_OPTIONS,
   sanitizeColumnOrder,
@@ -24,6 +25,7 @@ import type {
   FilterCondition,
   FilterGroup,
   GroupConnector,
+  MultiFilterField,
   SelectFilterField,
   SortColumn,
   SortState,
@@ -56,6 +58,18 @@ function parseStringRecord<TKey extends string>(
   return result
 }
 
+function parseMultiFilters(raw: unknown): Record<MultiFilterField, readonly string[]> {
+  const source = isRecord(raw) ? raw : {}
+  const result = {} as Record<MultiFilterField, readonly string[]>
+  for (const field of MULTI_FILTER_FIELDS) {
+    const stored = source[field]
+    result[field] = Array.isArray(stored)
+      ? stored.filter((value): value is string => typeof value === 'string' && value.length > 0)
+      : EMPTY_FILTERS.multi[field]
+  }
+  return result
+}
+
 function parseSelectFilters(raw: unknown): Record<SelectFilterField, string> {
   const source = isRecord(raw) ? raw : {}
   const result = {} as Record<SelectFilterField, string>
@@ -83,6 +97,8 @@ function parseFilters(raw: unknown): DocumentFilters {
     amountValue: parseString(raw.amountValue),
     dateFrom: parseString(raw.dateFrom),
     dateTo: parseString(raw.dateTo),
+    // Visão antiga guardava o emitente como texto livre; não há como convertê-la num nome exato, então ela volta sem o filtro
+    multi: parseMultiFilters(raw.multi),
     numberFrom: parseString(raw.numberFrom),
     numberTo: parseString(raw.numberTo),
     select: { ...select, cteIssued },
@@ -175,6 +191,9 @@ function serializeFilters(filters: DocumentFilters): Record<string, unknown> {
     amountValue: filters.amountValue,
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
+    multi: Object.fromEntries(
+      MULTI_FILTER_FIELDS.map((field) => [field, [...filters.multi[field]]]),
+    ),
     numberFrom: filters.numberFrom,
     numberTo: filters.numberTo,
     select: { ...filters.select },

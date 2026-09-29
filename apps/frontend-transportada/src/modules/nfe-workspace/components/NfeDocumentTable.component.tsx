@@ -41,7 +41,8 @@ import styles from '../styles/nfeWorkspace.module.css'
 import { NfeDocumentFilterPanel } from './NfeDocumentFilterPanel.component'
 import { MultiVehicleSuggestionAction } from '@/modules/routing/components/MultiVehicleSuggestionAction.component'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
-import { navigateToTrip } from '@/modules/trip/shared/tripRoute.service'
+import { TRIP_MANAGE_PERMISSION } from '@/modules/trip/shared/trip.constant'
+import { navigateToTrip, navigateToTripCreation } from '@/modules/trip/shared/tripRoute.service'
 
 import { CopyButton } from '@/components/ui/copy-button'
 import { CteEmissionDialog } from './CteEmissionDialog.component'
@@ -175,6 +176,7 @@ export function NfeDocumentTable({
     ...(companyId === undefined ? {} : { companyId }),
   })
 
+  const canManageTrips = permissions.includes(TRIP_MANAGE_PERMISSION)
   const visibleColumns = table.columnOrder.filter((column) => table.isColumnVisible(column))
   const columnSpan = visibleColumns.length + 2
 
@@ -223,6 +225,13 @@ export function NfeDocumentTable({
 
   function handleBulkDownload(): void {
     for (const item of table.visibleSelected()) onDownloadXml(item)
+  }
+
+  function handleCreateTrip(): void {
+    navigateToTripCreation({
+      documentIds: [...table.selectedIds],
+      navigator: createBrowserWorkspaceNavigator(),
+    })
   }
 
   function copyableCell(column: ColumnKey, display: string, className?: string) {
@@ -525,6 +534,16 @@ export function NfeDocumentTable({
               }
               permissions={permissions}
             />
+            {/*
+              Sugerir distribui a seleção entre veículos; criar leva as mesmas notas direto para a
+              montagem de uma viagem só, para quem já sabe em que caminhão elas vão.
+            */}
+            {canManageTrips && (
+              <button className={styles.labelActionActive} onClick={handleCreateTrip} type="button">
+                <Icon name="add" />
+                {t('documents.createTrip')}
+              </button>
+            )}
             <NfseEmissionAction
               className={styles.labelActionActive}
               {...(companyId === undefined ? {} : { companyId })}

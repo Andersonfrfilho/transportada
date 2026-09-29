@@ -15,11 +15,10 @@ import type { NfeDocumentListItem } from '../shared/nfeWorkspaceClient.service'
 
 export type DocumentStatus = NfeDocumentListItem['status']
 
-export type TextFilterField =
-  | 'emitterAddress'
-  | 'emitterName'
-  | 'recipientAddress'
-  | 'recipientName'
+export type TextFilterField = 'emitterAddress' | 'recipientAddress' | 'recipientName'
+
+/** Emitente é escolha, não digitação: quem filtra quer três transportadoras nomeadas, não um `contains`. */
+export type MultiFilterField = 'emitterName' | 'emitterTaxId'
 
 export type SelectFilterField =
   | 'cteIssued'
@@ -32,6 +31,7 @@ export type SelectFilterField =
 export type AmountOperator = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'neq'
 
 export type FilterKey =
+  | MultiFilterField
   | SelectFilterField
   | TextFilterField
   | 'amount'
@@ -127,6 +127,7 @@ export type DocumentFilters = Readonly<{
   amountValue: string
   dateFrom: string
   dateTo: string
+  multi: Readonly<Record<MultiFilterField, readonly string[]>>
   numberFrom: string
   numberTo: string
   select: Readonly<Record<SelectFilterField, string>>
@@ -136,11 +137,12 @@ export type DocumentFilters = Readonly<{
 }>
 
 export const TEXT_FILTER_FIELDS: readonly TextFilterField[] = [
-  'emitterName',
   'emitterAddress',
   'recipientName',
   'recipientAddress',
 ]
+
+export const MULTI_FILTER_FIELDS: readonly MultiFilterField[] = ['emitterName', 'emitterTaxId']
 
 export const AMOUNT_OPERATORS: readonly AmountOperator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte']
 
@@ -236,9 +238,13 @@ export const SORT_COLUMNS: readonly SortColumn[] = [
 
 const EMPTY_TEXT: Record<TextFilterField, string> = {
   emitterAddress: '',
-  emitterName: '',
   recipientAddress: '',
   recipientName: '',
+}
+
+const EMPTY_MULTI: Record<MultiFilterField, readonly string[]> = {
+  emitterName: [],
+  emitterTaxId: [],
 }
 
 /** Antigo padrão do filtro; o `unlinkedOnly` assumiu o papel de abrir só as notas ainda sem documento fiscal. */
@@ -264,6 +270,7 @@ export const EMPTY_FILTERS: DocumentFilters = {
   amountValue: '',
   dateFrom: '',
   dateTo: '',
+  multi: EMPTY_MULTI,
   numberFrom: '',
   numberTo: '',
   select: EMPTY_SELECT,
@@ -334,6 +341,8 @@ export type UseNfeDocumentTableResult = Readonly<{
   clearSelection: () => void
   columnOrder: readonly ColumnKey[]
   editSavedAdvancedFilter: () => void
+  /** Emitentes vistos nas notas carregadas, para o filtro de seleção múltipla. */
+  emitterOptions: Readonly<Record<MultiFilterField, readonly string[]>>
   filters: DocumentFilters
   hasActiveFilters: boolean
   isColumnVisible: (column: ColumnKey) => boolean
@@ -367,11 +376,14 @@ export type UseNfeDocumentTableResult = Readonly<{
   setPageSize: (size: number) => void
   setRootConnector: (connector: GroupConnector) => void
   setSearchTerm: (value: string) => void
+  setMultiFilter: (field: MultiFilterField, values: readonly string[]) => void
   setSelectFilter: (field: SelectFilterField, value: string) => void
   setTextFilter: (field: TextFilterField, value: string) => void
   someSelected: boolean
   sort: SortState
   stateOptions: Readonly<Record<'emitterState' | 'recipientState', readonly string[]>>
+  /** Sugestão para os campos de texto: o operador escolhe o que já veio nas notas ou digita o seu. */
+  textOptions: Readonly<Record<TextFilterField, readonly string[]>>
   toggleColumn: (column: ColumnKey) => void
   toggleRow: (id: string) => void
   toggleSelectAll: () => void
@@ -454,8 +466,20 @@ function matchesSelect(
   return document[field] === value
 }
 
+function matchesMulti(
+  document: NfeDocumentListItem,
+  field: MultiFilterField,
+  values: readonly string[],
+): boolean {
+  if (values.length === 0) return true
+  return values.includes(document[field] ?? '')
+}
+
 function documentMatchesFilters(document: NfeDocumentListItem, filters: DocumentFilters): boolean {
   if (filters.unlinkedOnly && isDocumentLinked(document)) return false
+  for (const field of MULTI_FILTER_FIELDS) {
+    if (!matchesMulti(document, field, filters.multi[field])) return false
+  }
   for (const field of TEXT_FILTER_FIELDS) {
     if (!matchesText(document[field] ?? '', filters.text[field])) return false
   }
@@ -491,6 +515,7 @@ export function documentMatchesSearch(document: NfeDocumentListItem, term: strin
 
 export function hasAnyActiveFilter(filters: DocumentFilters): boolean {
   const textActive = TEXT_FILTER_FIELDS.some((field) => filters.text[field].trim().length > 0)
+  const multiActive = MULTI_FILTER_FIELDS.some((field) => filters.multi[field].length > 0)
   const selectActive = (Object.keys(filters.select) as SelectFilterField[]).some(
     (field) => filters.select[field] !== EMPTY_FILTERS.select[field],
   )
@@ -501,7 +526,7 @@ export function hasAnyActiveFilter(filters: DocumentFilters): boolean {
     filters.dateFrom.length > 0 ||
     filters.dateTo.length > 0
   const unlinkedOnlyActive = filters.unlinkedOnly !== EMPTY_FILTERS.unlinkedOnly
-  return textActive || selectActive || rangeActive || unlinkedOnlyActive
+  return textActive || multiActive || selectActive || rangeActive || unlinkedOnlyActive
 }
 
 /**
@@ -940,10 +965,27 @@ export function useNfeDocumentTable({
     [documents],
   )
 
+  const emitterOptions = useMemo(
+    () => ({
+      emitterName: distinctSorted(documents.map((document) => document.emitterName)),
+      emitterTaxId: distinctSorted(documents.map((document) => document.emitterTaxId)),
+    }),
+    [documents],
+  )
+
   const stateOptions = useMemo(
     () => ({
       emitterState: distinctSorted(documents.map((document) => document.emitterState)),
       recipientState: distinctSorted(documents.map((document) => document.recipientState)),
+    }),
+    [documents],
+  )
+
+  const textOptions = useMemo(
+    () => ({
+      emitterAddress: distinctSorted(documents.map((document) => document.emitterAddress)),
+      recipientAddress: distinctSorted(documents.map((document) => document.recipientAddress)),
+      recipientName: distinctSorted(documents.map((document) => document.recipientName)),
     }),
     [documents],
   )
@@ -1008,6 +1050,11 @@ export function useNfeDocumentTable({
     setPageState(0)
   }
 
+  function setMultiFilter(field: MultiFilterField, values: readonly string[]): void {
+    setFilters((current) => ({ ...current, multi: { ...current.multi, [field]: [...values] } }))
+    setPageState(0)
+  }
+
   function setSelectFilter(field: SelectFilterField, value: string): void {
     // Pedir as notas com CT-e com o vínculo escondido devolveria sempre a tabela vazia
     const releasesLinked = field === 'cteIssued' && value === CTE_ISSUED_DONE
@@ -1055,6 +1102,9 @@ export function useNfeDocumentTable({
       if (key === 'amount') return { ...current, amountValue: '' }
       if (key === 'dateRange') return { ...current, dateFrom: '', dateTo: '' }
       if (key === 'unlinkedOnly') return { ...current, unlinkedOnly: EMPTY_FILTERS.unlinkedOnly }
+      if (key in current.multi) {
+        return { ...current, multi: { ...current.multi, [key as MultiFilterField]: [] } }
+      }
       if (key in current.select) {
         const field = key as SelectFilterField
         return { ...current, select: { ...current.select, [field]: EMPTY_FILTERS.select[field] } }
@@ -1265,6 +1315,7 @@ export function useNfeDocumentTable({
     clearSelection,
     columnOrder,
     editSavedAdvancedFilter,
+    emitterOptions,
     filters,
     hasActiveFilters,
     isColumnVisible,
@@ -1291,6 +1342,7 @@ export function useNfeDocumentTable({
     setDateRange,
     setGroupConnector,
     setMode,
+    setMultiFilter,
     setNumberFrom,
     setNumberTo,
     setPage,
@@ -1303,6 +1355,7 @@ export function useNfeDocumentTable({
     someSelected,
     sort,
     stateOptions,
+    textOptions,
     toggleColumn,
     toggleRow,
     allFilteredSelected,

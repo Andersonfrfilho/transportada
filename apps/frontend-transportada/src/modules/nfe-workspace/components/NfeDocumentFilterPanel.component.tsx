@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
+import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { formatTaxId } from '@/modules/shared/taxId.service'
 
 import {
   AMOUNT_OPERATORS,
@@ -23,6 +26,15 @@ const STATUS_VALUES: readonly DocumentStatus[] = ['authorized', 'cancelled', 'de
 
 function toOptions(values: readonly string[]): readonly SelectOption[] {
   return values.map((value) => ({ label: value, value }))
+}
+
+function toTaxIdOptions(values: readonly string[]): readonly MultiSelectOption[] {
+  return values.map((value) => ({ label: formatTaxId(value), value }))
+}
+
+/** A lista só conhece as notas já carregadas; o que for digitado continua valendo como `contém`. */
+function toTypedOption(query: string): SearchableSelectOption {
+  return { label: query, value: query }
 }
 
 /** Cópia fiel da tabela: a extração tinha inventado outra chave, e o rótulo cru vazava para a tela. */
@@ -63,6 +75,14 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
     recipientState: toOptions(table.stateOptions.recipientState),
     status: statusOptions,
   } as const
+
+  /** O primitivo de busca não tem botão de limpar: voltar a "todos" é escolher a primeira opção. */
+  function toTextOptions(values: readonly string[]): readonly SearchableSelectOption[] {
+    return [
+      { label: t('filters.all'), value: '' },
+      ...values.map((value) => ({ label: value, value })),
+    ]
+  }
 
   return (
     <div className={styles.filterPanel}>
@@ -123,6 +143,7 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             <Select
               ariaLabel={t('documents.fields.cteIssued')}
               clearable
+              compact
               onChange={(value) => table.setSelectFilter('cteIssued', value)}
               options={cteIssuedOptions}
               placeholder={t('filters.all')}
@@ -189,33 +210,60 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             </div>
           </div>
 
-          <label className={styles.filterField}>
+          <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{t('documents.fields.emitterName')}</span>
-            <input
-              className={styles.filterInput}
-              onChange={(event) => table.setTextFilter('emitterName', event.target.value)}
-              placeholder={t('documents.fields.emitterName')}
-              type="text"
-              value={table.filters.text.emitterName}
+            <MultiSelect
+              ariaLabel={t('documents.fields.emitterName')}
+              clearAllLabel={t('filters.clearSelection')}
+              compact
+              emptyLabel={t('filters.searchEmpty')}
+              onChange={(values) => table.setMultiFilter('emitterName', values)}
+              options={toOptions(table.emitterOptions.emitterName)}
+              placeholder={t('filters.all')}
+              removeLabel={t('filters.removeSelection')}
+              searchPlaceholder={t('filters.search')}
+              summaryLabel={(count) => t('filters.selectedSummary', { count })}
+              values={table.filters.multi.emitterName}
             />
-          </label>
+          </div>
 
-          <label className={styles.filterField}>
+          <div className={styles.filterField}>
+            <span className={styles.filterFieldLabel}>{t('documents.fields.emitterTaxId')}</span>
+            <MultiSelect
+              ariaLabel={t('documents.fields.emitterTaxId')}
+              clearAllLabel={t('filters.clearSelection')}
+              compact
+              emptyLabel={t('filters.searchEmpty')}
+              onChange={(values) => table.setMultiFilter('emitterTaxId', values)}
+              options={toTaxIdOptions(table.emitterOptions.emitterTaxId)}
+              placeholder={t('filters.all')}
+              removeLabel={t('filters.removeSelection')}
+              searchPlaceholder={t('filters.search')}
+              summaryLabel={(count) => t('filters.selectedSummary', { count })}
+              values={table.filters.multi.emitterTaxId}
+            />
+          </div>
+
+          <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{t('documents.fields.emitterAddress')}</span>
-            <input
-              className={styles.filterInput}
-              onChange={(event) => table.setTextFilter('emitterAddress', event.target.value)}
-              placeholder={t('documents.fields.emitterAddress')}
-              type="text"
+            <SearchableSelect
+              ariaLabel={t('documents.fields.emitterAddress')}
+              emptyLabel={t('filters.searchEmpty')}
+              onChange={(value) => table.setTextFilter('emitterAddress', value)}
+              options={toTextOptions(table.textOptions.emitterAddress)}
+              placeholder={t('filters.all')}
+              resolveCustomOption={toTypedOption}
+              searchPlaceholder={t('filters.search')}
               value={table.filters.text.emitterAddress}
             />
-          </label>
+          </div>
 
           <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{t('documents.fields.emitterCity')}</span>
             <Select
               ariaLabel={t('documents.fields.emitterCity')}
               clearable
+              compact
               emptyLabel={t('filters.searchEmpty')}
               onChange={(value) => table.setSelectFilter('emitterCity', value)}
               options={toOptions(table.cityOptions.emitterCity)}
@@ -230,6 +278,7 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             <Select
               ariaLabel={t('documents.fields.emitterState')}
               clearable
+              compact
               emptyLabel={t('filters.searchEmpty')}
               onChange={(value) => table.setSelectFilter('emitterState', value)}
               options={toOptions(table.stateOptions.emitterState)}
@@ -239,35 +288,42 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             />
           </div>
 
-          <label className={styles.filterField}>
+          <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{t('documents.fields.recipientName')}</span>
-            <input
-              className={styles.filterInput}
-              onChange={(event) => table.setTextFilter('recipientName', event.target.value)}
-              placeholder={t('documents.fields.recipientName')}
-              type="text"
+            <SearchableSelect
+              ariaLabel={t('documents.fields.recipientName')}
+              emptyLabel={t('filters.searchEmpty')}
+              onChange={(value) => table.setTextFilter('recipientName', value)}
+              options={toTextOptions(table.textOptions.recipientName)}
+              placeholder={t('filters.all')}
+              resolveCustomOption={toTypedOption}
+              searchPlaceholder={t('filters.search')}
               value={table.filters.text.recipientName}
             />
-          </label>
+          </div>
 
-          <label className={styles.filterField}>
+          <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>
               {t('documents.fields.recipientAddress')}
             </span>
-            <input
-              className={styles.filterInput}
-              onChange={(event) => table.setTextFilter('recipientAddress', event.target.value)}
-              placeholder={t('documents.fields.recipientAddress')}
-              type="text"
+            <SearchableSelect
+              ariaLabel={t('documents.fields.recipientAddress')}
+              emptyLabel={t('filters.searchEmpty')}
+              onChange={(value) => table.setTextFilter('recipientAddress', value)}
+              options={toTextOptions(table.textOptions.recipientAddress)}
+              placeholder={t('filters.all')}
+              resolveCustomOption={toTypedOption}
+              searchPlaceholder={t('filters.search')}
               value={table.filters.text.recipientAddress}
             />
-          </label>
+          </div>
 
           <div className={styles.filterField}>
             <span className={styles.filterFieldLabel}>{t('documents.fields.recipientCity')}</span>
             <Select
               ariaLabel={t('documents.fields.recipientCity')}
               clearable
+              compact
               emptyLabel={t('filters.searchEmpty')}
               onChange={(value) => table.setSelectFilter('recipientCity', value)}
               options={toOptions(table.cityOptions.recipientCity)}
@@ -282,6 +338,7 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             <Select
               ariaLabel={t('documents.fields.recipientState')}
               clearable
+              compact
               emptyLabel={t('filters.searchEmpty')}
               onChange={(value) => table.setSelectFilter('recipientState', value)}
               options={toOptions(table.stateOptions.recipientState)}
@@ -296,6 +353,7 @@ export function NfeDocumentFilterPanel({ table }: NfeDocumentFilterPanelProps) {
             <Select
               ariaLabel={t('documents.fields.status')}
               clearable
+              compact
               onChange={(value) => table.setSelectFilter('status', value)}
               options={statusOptions}
               placeholder={t('filters.all')}

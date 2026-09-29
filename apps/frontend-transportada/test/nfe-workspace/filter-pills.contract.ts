@@ -37,18 +37,39 @@ describe('nfe document filter pills contract', () => {
       buildFilters({
         text: {
           emitterAddress: 'Rua das Cargas',
-          emitterName: 'Transportes Alfa',
           recipientAddress: '   ',
           recipientName: 'Comércio Beta',
         },
       }),
     )
 
-    expect(keys(pills)).toEqual(['emitterName', 'emitterAddress', 'recipientName'])
+    expect(keys(pills)).toEqual(['emitterAddress', 'recipientName'])
+    expect(pills[0]).toEqual({
+      key: 'emitterAddress',
+      labelKey: 'documents.fields.emitterAddress',
+      value: 'Rua das Cargas',
+    })
+  })
+
+  test('collapses every chosen emitter into one pill, and stays silent on the empty choice', () => {
+    expect(describe_(buildFilters({ multi: { ...EMPTY_FILTERS.multi, emitterName: [] } }))).toEqual(
+      [],
+    )
+
+    const pills = describe_(
+      buildFilters({
+        multi: {
+          emitterName: ['Transportes Alfa', 'Transportes Gama'],
+          emitterTaxId: ['12345678000199'],
+        },
+      }),
+    )
+
+    expect(keys(pills)).toEqual(['emitterName', 'emitterTaxId'])
     expect(pills[0]).toEqual({
       key: 'emitterName',
       labelKey: 'documents.fields.emitterName',
-      value: 'Transportes Alfa',
+      value: 'Transportes Alfa, Transportes Gama',
     })
   })
 
