@@ -91,3 +91,27 @@ O overlay por nota busca a resposta ao abrir o formulário — sem cache entre a
 mesmo diálogo refaz a chamada). Aceitável: um diálogo por vez, mesmo padrão de hoje para o
 `attachProof`/upload de ocorrência, que também não cacheiam. Se o padrão de uso mostrar reabertura
 frequente do mesmo diálogo, cache por `(contractorId, recipientTaxId)` fica para spec futura.
+
+## Substituída (29/09/2026)
+
+A abordagem desta spec (T1–T9) foi **substituída** por uma sessão paralela que fechou o mesmo
+limite registrado pela 218 ("o snapshot não trazia `contractorId`/`recipientTaxId` para o app pedir
+a exceção por nota") de outro jeito — resolvendo tudo no servidor e embutindo o resultado já pronto
+em `DriverTripDocument.occurrenceTypes`, no mesmo espírito de `deliveryProof`, em vez de expor os
+dois identificadores crus no snapshot e mandar `recipientTaxId` (CPF/CNPJ do destinatário) como
+query string numa chamada à parte.
+
+**Por quê:** `security.md` §3 proíbe dado pessoal em URL/query string. `GET
+.../occurrence-types?recipientTaxId=` (T2/T4 desta spec) violava essa regra diretamente — o CPF/CNPJ
+do destinatário ia na URL, visível em log de acesso e em qualquer camada intermediária que registre
+URLs. A troca resolve o mesmo requisito (P1–P4 acima, todos continuam valendo) sem esse vazamento,
+e sem o round-trip extra por abertura de diálogo que o "Limite registrado" acima descreve — o
+resultado já chega pronto no mesmo `GET /me/trips/current` que traz o resto da viagem, funciona
+offline (o snapshot já é cacheado) e não builda estado a mais no cliente.
+
+`contractorId`/`recipientTaxId` saíram de `DriverTripDocument` (as duas apps) e da rota
+`GET .../occurrence-types`, que voltou a não aceitar parâmetro nenhum — o comportamento de antes
+desta spec. `mergeResolvedOccurrenceAttachmentModes` saiu de `occurrenceRegistration.service.ts`;
+`resolveOccurrenceTypesForDocument` (mesmo arquivo) faz o trabalho equivalente a partir do
+`occurrenceTypes` já resolvido. Ver o histórico de commits de `claude/fervent-sutherland-937527`
+para o código da substituição.

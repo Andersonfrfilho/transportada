@@ -1,5 +1,11 @@
 # Tasks
 
+> ⚠️ **Substituída em 29/09/2026** — ver "Substituída" no `evidence.md`. A abordagem T1–T9 (expor
+> `contractorId`/`recipientTaxId` no snapshot e mandar `recipientTaxId` como query string) violava
+> `security.md` §3 (dado pessoal em URL). Trocada por resolução no servidor, embutida em
+> `DriverTripDocument.occurrenceTypes`. Tasks abaixo ficam como registro histórico do que foi feito
+> e depois revertido/substituído — não refletem o código atual.
+
 > 🤖 Modelo: `sonnet` (execução mecânica sobre uma resolução que a spec 218 já provou — sem task 🧠)
 
 - [x] T1 Backend, contrato antes: estender o teste de integração da 218
