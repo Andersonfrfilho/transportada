@@ -89,3 +89,100 @@ D1 e RF-B5, `plan.md` "Backend — RF-B5".
   inventar texto) — confirmar em `driverTrip.locale.json` na Fase 2.
 - Confirmar se o `PUT`/criação de `company_occurrence_types` é a mesma rota (upsert) ou duas
   diferentes, antes de decidir se `flow` é obrigatório só na criação.
+
+## Fase 4 (T16–T20) — app do motorista, 29/09/2026
+
+### T16 — extração de `ProofCaptureFields` (refatoração pura)
+
+`DeliveryProofSection` (`DriverStopCard.component.tsx`, que estava na linha 997 como o plano dizia)
+virou `DeliveryProofSection` (estado `concludedAt`, `handleComplete`, botão "Concluir") +
+`ProofCaptureFields` (toda a captura: botões, miniaturas, campos, recorte, assinatura, lightbox),
+com dois pontos de extensão: `renderFooter(capture)` e `summary` (ocupa o lugar dos campos com o
+estado montado por baixo — é o "Comprovante concluído às HH:MM"/"Editar"). O código ficou **no mesmo
+arquivo** de propósito: ~15 contratos leem `DriverStopCard.component.tsx` como texto e fatiam por
+`export function DeliveryProofSection(` até o fim do arquivo; mover para outro arquivo quebraria os
+contratos sem mudar comportamento.
+
+Gate, antes × depois da extração (`bun test` dos três entrypoints, relatório junit comparado por
+nome de teste): **762 pass / 0 fail / 1523 expects × 762 pass / 0 fail / 1523 expects, mesma lista
+de 762 nomes** (`diff` vazio). Lint, typecheck e build verdes. Commit `227b8b83b`.
+
+### T17 — contratos antes, vistos falhar
+
+`test/driver-trip/pre-delivery-proof-gate.contract.ts` (comportamento) e
+`test/driver-trip/pre-delivery-proof-gate-wiring.contract.ts` (ligação no cartão, fila, textos),
+registrados em `test/driver-trip.contract.test.ts`. Vistos falhar: o primeiro não carregava
+(`Export named 'awaitingDeliveryAttachmentKey' not found`), o segundo 0 pass / 9 fail. Casos: nada
+`required` (padrão, tudo opcional/off, e `receivedBy` sozinho em `required` — nunca bloqueia) mantém
+o "Entreguei" de sempre; cada campo que bloqueia em `required` abre o gate; "Confirmar entrega" só
+habilita com `listMissingProofFields` vazia; lançamento tardio sem exceção (a decisão só recebe o
+plano); **nota em aberto** — viagem `dispatched` e `in_transit`, nota `loaded`, `photo: required`
+vindo do snapshot liga o gate, e a mesma nota lida antes e depois da configuração existir muda de
+comportamento na leitura seguinte. Commit `57056ce5d`.
+
+### T18 — o gate
+
+- `requiresProofBeforeDelivery(plan)` (`proofFormPlan.service.ts`): `listMissingProofFields` do
+  formulário vazio não vazia. `DocumentRow` decide com
+  `requiresProofBeforeDelivery(resolveProofFormPlan(proofSettings))`: sem obrigatório, "Entreguei"
+  entrega no primeiro toque (regressão zero); com obrigatório, o toque abre `PreDeliveryProofGate`
+  ali mesmo (P1) — a mesma `ProofCaptureFields` + "Confirmar entrega" (desabilitado, com "Para
+  confirmar, falta: …" em `role="status"`) + "Cancelar". Entregar é um caminho só
+  (`confirmDelivery`), usado pelo toque direto e pelo gate.
+- **Divergência do plano (RF-A3):** o plano supunha que enfileirar o anexo na hora "preserva a mesma
+  ordem de fila". Não preserva: sem `deliver` na fila, o anexo entrava em `document:<id>`, que drena
+  sozinho 3 s depois da foto (`PROOF_AUTO_DRAIN_GRACE_MS`), e a API recusa canhoto de nota sem
+  entrega registrada (`attachDeliveryProof` → `findDeliveryEventId` nulo →
+  `TRIP_DOCUMENT_NOT_REACHABLE`) — o canhoto ficaria recusado na fila, e a drenagem automática pula
+  recusado. Correção: o anexo do gate (`awaitingDelivery: true`) entra na chave
+  `awaiting-delivery:<id>`, que nenhuma drenagem leva (nem o envio manual) e que conta como pendente
+  sem ligar o relógio de 30 s; quando o `deliver` entra na fila (`reportWithLocation`),
+  `releaseAttachmentsAwaitingDelivery` passa o grupo para a chave do evento — "evento primeiro", como
+  qualquer anexo. A foto continua no IndexedDB desde o toque (spec 203).
+- `.deliveryGate` sem quadro de `fieldset`: com `fieldset` (`min-inline-size: min-content` + borda e
+  recuo) a página medida ia a 388 px em 375 — o smoke `canhoto:` reprovou por isso antes da correção.
+- Gates: `bun run check` (lint + typecheck + 789 testes + build) verde; `bun run smoke` verde —
+  service worker 2/2, app 24/24, incluindo o novo "comprovante obrigatório: Confirmar entrega só com
+  a foto, e o canhoto sobe depois da entrega" (desabilitado sem foto; 4 s depois da foto nenhum
+  `/proof` saiu; depois do confirmar, `/deliver` antes de `/proof`; sem rolagem horizontal; alvos ≥
+  44 px). Rodado local, Playwright na origem sintética 53112. Commit `5dbf1761c`.
+
+### T19 — o app só lê
+
+Nenhum arquivo de `src/` reimplementa a precedência — o único `??` é `document.deliveryProof ??
+stopProofSettings` (documento → parada, o shape antigo da spec 082, não uma camada de exceção). O
+comentário de `DriverTripDocument.deliveryProof` diz agora que o valor chega resolvido em três
+camadas; contrato novo reprova qualquer `contractorOverride`/`recipientOverride`/
+`resolveWithOverrides` em `src/` (provado por mutação). O `attachmentMode` de ocorrência só resolve
+por nota quando o app mandar `contractorId`/`recipientTaxId` (T9) — isso é da Fase 4b. Commit
+`da4be2632`.
+
+### T20 — revisão de design (web.md §15)
+
+Prints em 375 px (Playwright, mesmo mock do smoke, foto obrigatória, assinatura opcional):
+`prints/t20-antes-da-entrega-vazio-375.png`, `prints/t20-antes-da-entrega-anexada-375.png` e
+`prints/t20-depois-da-entrega-anexada-375.png`. Antes e depois, a captura tem a mesma geometria
+medida (item da nota de 33 a 356 px nos dois; controles de 46 a 343 px) — o mesmo componente. O
+gate acrescenta só o título "Comprovante da entrega", uma linha de orientação e, no lugar de
+"Concluir", "Confirmar entrega" (desabilitado em cobre esmaecido) + "Cancelar", com o aviso do que
+falta em cobre, o mesmo tom do "Não entreguei".
+
+Achado anterior a esta spec, não corrigido aqui: com a foto anexada, a linha miniatura + "Foto do
+canhoto anexada" + "Ver"/"Remover" tem min-content de ~297 px, maior que o conteúdo do cartão da
+parada em 375 px (283 px). O item da nota cresce 14 px para dentro do recuo do cartão — nos dois
+formulários, antes e depois da entrega, igual. Não chega a rolar a página (o smoke confere), mas em
+aparelho de 320 px chegaria.
+
+### Pendências e limites conhecidos
+
+- Fila cheia com o gate ativo (casos extremos do `spec.md`): o aviso de fila cheia que já existe
+  (`DriverProofOutcomeNotice`, `count-limit`/`size-limit`) aparece, mas o gate marca a foto como
+  anexada mesmo recusada — `onProof` não devolve o resultado ao formulário. Travar de verdade exige
+  mudar a assinatura de `onProof` (hoje `void`), fora do escopo de T16–T20.
+- Depois do "Confirmar entrega", quando o snapshot confirma a entrega, a nota passa ao ramo
+  "entregue" com uma `DeliveryProofSection` nova (estado vazio: "Tirar foto \*" de novo), embora o
+  canhoto esteja na fila atrás da entrega. É o mesmo comportamento de hoje depois de recarregar a
+  página, só que agora visível logo depois do toque.
+- Foto colhida no gate e "Cancelar"/"Não entreguei" em seguida: o anexo fica esperando na fila (não
+  sobe como canhoto de nota não entregue) até o prazo de 7 dias de `discardStaleAttachments`.
+- Legado `/minha-viagem` (`frontend-transportada`) sem o gate — Fase 5 (T24).

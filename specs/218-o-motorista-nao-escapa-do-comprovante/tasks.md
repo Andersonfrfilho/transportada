@@ -92,18 +92,18 @@
 > alto; validar a extração (T16) sozinha, com os testes de hoje verdes, antes de somar qualquer
 > comportamento novo.
 
-- [ ] **T16** 🧠 Extrair `ProofCaptureFields` de `DeliveryProofSection`
+- [x] **T16** 🧠 Extrair `ProofCaptureFields` de `DeliveryProofSection`
       (`DriverStopCard.component.tsx`) — refatoração pura, sem mudar comportamento. Gate: `test`/`check`
       da app do motorista **idêntico** ao de antes da extração (nenhum contrato muda de verde para
       vermelho nem o contrário).
-- [ ] **T17** Contratos antes, vistos falhar (RF-A, os 3 casos do `spec.md`: nada obrigatório /
+- [x] **T17** Contratos antes, vistos falhar (RF-A, os 3 casos do `spec.md`: nada obrigatório /
       obrigatório trava / lançamento tardio também trava).
-- [ ] **T18** `PreDeliveryProofGate` + `DocumentRow` decidindo entre botão de sempre e o gate, a
+- [x] **T18** `PreDeliveryProofGate` + `DocumentRow` decidindo entre botão de sempre e o gate, a
       partir de `resolveProofFormPlan`/`listMissingProofFields` já existentes. Gate: `check` da app +
       `smoke` (porta 53112/53200, os specs de `driver-app.smoke.spec.ts`).
-- [ ] **T19** Snapshot do motorista carrega os campos já resolvidos em 3 camadas (depende de T4/T9) —
+- [x] **T19** Snapshot do motorista carrega os campos já resolvidos em 3 camadas (depende de T4/T9) —
       conferir que nenhuma lógica de precedência foi duplicada no app.
-- [ ] **T20** Revisão de design do formulário de captura pré-entrega: print em 375 px, comparado com
+- [x] **T20** Revisão de design do formulário de captura pré-entrega: print em 375 px, comparado com
       a versão pós-entrega (mesmo componente, os dois têm de ser visualmente idênticos por construção).
 
 ## Fase 4b — App do motorista: botão único de ocorrência (RF-A5, D1, RF-B5)
