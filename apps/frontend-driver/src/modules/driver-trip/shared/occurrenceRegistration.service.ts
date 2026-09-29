@@ -3,6 +3,7 @@ import type {
   DriverOccurrenceFlow,
   DriverOccurrencePhoto,
   DriverOccurrenceType,
+  DriverTripDocument,
   ProofFieldRequirement,
 } from './driverTrip.types'
 import {
@@ -28,23 +29,27 @@ export function resolveOccurrenceAttachmentMode(type: DriverOccurrenceType): Pro
 }
 
 /**
- * Spec 219 (RF4): sobrescreve o `attachmentMode` da lista geral com o que o servidor resolveu para
- * esta nota (contratante/destinatário, spec 218 RF-B2) — nunca decide precedência aqui, só aplica
- * o valor já resolvido, tipo a tipo. `resolvedByTypeId` ausente (sem contratante/destinatário para
- * resolver, ou a busca por nota falhou/ainda não voltou) devolve a lista geral intacta — P3/P4.
- * Tipo que a resposta por nota não trouxe mantém o `attachmentMode` geral, nunca some da lista.
+ * Spec 218 RF-B2 (follow-up, substitui a spec 219): a lista final para o formulário do botão
+ * único — os tipos de nota já resolvidos para **este** documento (contratante/destinatário do
+ * emitente), mais os de parada da viagem inteira, que não têm um contratante/destinatário só para
+ * resolver contra e continuam sem exceção. `document.occurrenceTypes === null` é cache antigo ou
+ * falha na resolução do servidor — cai na lista da viagem inteira sem exceção, o comportamento de
+ * antes da spec 218.
+ *
+ * ⚠️ A spec 219 resolvia isso mandando `contractorId`/`recipientTaxId` (CPF/CNPJ do destinatário)
+ * como query string numa chamada à parte — violava security.md §3 ("nunca dado pessoal em URL").
+ * Esta função lê o resultado já resolvido no servidor, embutido no snapshot; nenhum identificador
+ * cru sai do aparelho.
  */
-export function mergeResolvedOccurrenceAttachmentModes(input: {
-  readonly resolvedByTypeId: ReadonlyMap<string, ProofFieldRequirement> | undefined
-  readonly types: readonly DriverOccurrenceType[]
+export function resolveOccurrenceTypesForDocument(input: {
+  readonly document: DriverTripDocument
+  readonly tripWideTypes: readonly DriverOccurrenceType[]
 }): readonly DriverOccurrenceType[] {
-  const { resolvedByTypeId } = input
-  if (resolvedByTypeId === undefined) return input.types
-
-  return input.types.map((type) => {
-    const attachmentMode = resolvedByTypeId.get(type.id)
-    return attachmentMode === undefined ? type : { ...type, attachmentMode }
-  })
+  if (input.document.occurrenceTypes === null) return input.tripWideTypes
+  return [
+    ...input.document.occurrenceTypes,
+    ...input.tripWideTypes.filter((type) => resolveOccurrenceFlow(type) === 'stop'),
+  ]
 }
 
 /**

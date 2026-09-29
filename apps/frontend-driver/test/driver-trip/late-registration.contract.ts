@@ -21,6 +21,7 @@ function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripD
     grossWeight: '10.000',
     id: 'document-1',
     number: '1001',
+    occurrenceTypes: null,
     proofPending: false,
     recipientDisplayName: 'Destinatário',
     recipientIsCompany: false,

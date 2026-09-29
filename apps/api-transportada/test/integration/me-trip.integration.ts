@@ -37,6 +37,8 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import {
+  companyOccurrenceTypeContractorOverrides,
+  companyOccurrenceTypes,
   tripDeliveryProofs,
   tripDispatchSnapshots,
   tripDocuments,
@@ -611,13 +613,6 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         expect(overriddenDocument?.deliveryProof.photo).toBe('required')
         expect(plainDocument?.deliveryProof.photo).toBe('optional')
 
-        // Spec 219 RF1: o snapshot expõe o contratante/destinatário resolvidos — é o que falta
-        // para o app pedir a exceção de OCORRÊNCIA por nota (spec 218 P3/P4, limite registrado na
-        // evidência da 218). O mesmo `contractorId` que resolveu `deliveryProof.photo = 'required'`
-        // acima tem que aparecer no documento; a nota irmã, sem contratante, sai `null`.
-        expect(overriddenDocument?.contractorId).toBe(contractorId)
-        expect(plainDocument?.contractorId).toBeNull()
-
         // P4: exceção de destinatário, quando presente, vence a de contratante na mesma nota.
         const recipientTaxId = '11222333000181'
         await database.db.insert(deliveryClients).values({
@@ -635,10 +630,102 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
           (entry) => entry.id === world.documentIds[0],
         )
         expect(withBothOverrides?.deliveryProof.photo).toBe('off')
-        // Spec 219 RF1: o `recipientTaxId` do documento é o que o app vai mandar para
-        // `/occurrence-types` — tem que ser o CNPJ do destinatário, não o do contratante.
-        expect(withBothOverrides?.contractorId).toBe(contractorId)
-        expect(withBothOverrides?.recipientTaxId).toBe(recipientTaxId)
+      })
+    },
+  )
+
+  /**
+   * Spec 218 RF-B2 (follow-up): o `attachmentMode` do tipo de ocorrência de nota também resolve em
+   * 3 camadas por documento, igual ao comprovante acima — e o tipo de parada (`flow: 'stop'`) não
+   * entra na lista, porque não tem um contratante/destinatário único para resolver contra.
+   */
+  testWithPostgres(
+    'o override de contratante muda o attachmentMode do tipo de ocorrência da nota (spec 218 follow-up)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+
+        const documentOccurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          active: true,
+          attachmentMode: 'optional',
+          companyId: world.companyId,
+          flow: 'document',
+          id: documentOccurrenceTypeId,
+          name: 'Avaria parcial',
+          notifies: false,
+          redeliveryPolicy: 'allowed',
+          stage: 'delivery',
+        })
+        const stopOccurrenceTypeId = crypto.randomUUID()
+        await database.db.insert(companyOccurrenceTypes).values({
+          active: true,
+          attachmentMode: 'optional',
+          companyId: world.companyId,
+          flow: 'stop',
+          id: stopOccurrenceTypeId,
+          name: 'Endereço não encontrado',
+          notifies: false,
+          redeliveryPolicy: 'allowed',
+          stage: 'delivery',
+        })
+
+        const emitterTaxId = '22333444000155'
+        const contractorId = crypto.randomUUID()
+        await database.db.insert(nfeParticipants).values({
+          companyId: world.companyId,
+          documentId: world.nfeDocumentIds[0] ?? '',
+          id: crypto.randomUUID(),
+          legalName: 'Distribuidora Alfa',
+          role: 'emitter',
+          taxId: emitterTaxId,
+        })
+        await database.db
+          .insert(contractors)
+          .values({ companyId: world.companyId, id: contractorId, taxId: emitterTaxId })
+        await database.db.insert(companyOccurrenceTypeContractorOverrides).values({
+          attachmentMode: 'required',
+          companyId: world.companyId,
+          contractorId,
+          occurrenceTypeId: documentOccurrenceTypeId,
+        })
+
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const snapshot = await findCurrentDriverTrip({
+          companyId: world.companyId,
+          membershipId: world.membershipId,
+          now: NOW,
+          repository: reads,
+          scores: new DrizzleDriverScoreRepository(database.db),
+        })
+
+        const overriddenDocument = snapshot.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        const plainDocument = snapshot.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[1],
+        )
+
+        // A nota do contratante Alfa resolve `required`; a nota irmã, sem contratante, segue a
+        // geral do tipo (`optional`) — e nenhum dos dois traz o tipo de parada na lista.
+        expect(overriddenDocument?.occurrenceTypes).toEqual([
+          {
+            attachmentMode: 'required',
+            flow: 'document',
+            id: documentOccurrenceTypeId,
+            name: 'Avaria parcial',
+            stopKind: null,
+          },
+        ])
+        expect(plainDocument?.occurrenceTypes).toEqual([
+          {
+            attachmentMode: 'optional',
+            flow: 'document',
+            id: documentOccurrenceTypeId,
+            name: 'Avaria parcial',
+            stopKind: null,
+          },
+        ])
       })
     },
   )

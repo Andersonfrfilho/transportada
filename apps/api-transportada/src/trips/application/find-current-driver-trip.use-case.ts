@@ -21,17 +21,10 @@
  */
 import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+import type { FieldOccurrenceType } from './list-field-occurrence-types.use-case.js'
 
 export type DriverTripDocument = {
   readonly accessKey: string
-  /**
-   * Spec 219 RF1: `contractors.id` resolvido do emitente da nota (ADR-0048 §1) — o mesmo valor já
-   * usado para resolver `deliveryProof` abaixo. Opcional para não quebrar fixture de teste antiga
-   * que constrói o documento à mão; ausente equivale a `null` (sem contratante resolvido). É o que
-   * o app manda para `GET .../occurrence-types?contractorId=` (spec 218 RF-B2/T9), fechando o
-   * limite que a 218 registrou (o snapshot não trazia o dado para pedir a exceção por nota).
-   */
-  readonly contractorId?: string | null
   readonly deliveredAt: string | null
   /**
    * Spec 082 (revisão de ADR-0057 §2): os campos do comprovante **resolvidos** para esta nota —
@@ -43,6 +36,14 @@ export type DriverTripDocument = {
   readonly grossWeight: string
   readonly id: string
   readonly number: string
+  /**
+   * Spec 218 RF-B2 (follow-up): os tipos de ocorrência de nota (`flow: 'document'`), já resolvidos
+   * em 3 camadas para **este** documento — mesma regra de `deliveryProof` acima. Os de parada
+   * (`flow: 'stop'`) não têm contratante/destinatário únicos e continuam vindo pela rota de
+   * catálogo (`GET .../occurrence-types`), sem exceção. `null` quando a resolução falhou nesta
+   * chamada (infra indisponível) — o app cai na lista geral, sem exceção, em vez de travar.
+   */
+  readonly occurrenceTypes: readonly FieldOccurrenceType[] | null
   /**
    * ADR-0070 §1, spec 159 RF1/RF2: entregue, foto obrigatória (`deliveryProof.photo = 'required'`)
    * e nenhuma foto anexada ao evento de entrega. A entrega nunca é recusada por isso — só avisa.
@@ -61,12 +62,6 @@ export type DriverTripDocument = {
   readonly recipientIsCompany: boolean
   /** Nome de quem recebe. É o mínimo para entregar — e nada além disso vem junto. */
   readonly recipientName: string
-  /**
-   * Spec 219 RF1: o CNPJ/CPF do destinatário **desta nota** — o outro lado do par que o app manda
-   * a `GET .../occurrence-types?recipientTaxId=`. Opcional pelo mesmo motivo de `contractorId`;
-   * ausente/`null` é "sem destinatário resolvido", igual à leitura que `deliveryProof` já faz.
-   */
-  readonly recipientTaxId?: string | null
   readonly returnReason: string | null
   readonly separationStatus: string
   readonly series: string

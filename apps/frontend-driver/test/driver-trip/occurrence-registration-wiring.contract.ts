@@ -109,18 +109,19 @@ describe('o formulário único', () => {
   })
 
   /**
-   * Spec 219 (RF4): a exceção de contratante/destinatário chega ao motorista pedindo a resolução
-   * por nota — nunca reimplementando a precedência (a mescla é a função pura de RF4, importada, não
-   * escrita de novo aqui).
+   * Spec 218 RF-B2 (follow-up): a exceção de contratante/destinatário chega ao motorista já
+   * resolvida no snapshot (`document.occurrenceTypes`) — nunca reimplementando a precedência aqui,
+   * nem pedindo CPF/CNPJ do destinatário numa chamada à parte (security.md §3 proíbe dado pessoal
+   * em URL). A mescla com os tipos de parada é a função pura, importada, não escrita de novo aqui.
    */
-  it('busca a resolução por nota com os campos do documento, e usa a função pura de mescla', () => {
+  it('lê occurrenceTypes do documento e usa a função pura de mescla, sem mandar contractorId/recipientTaxId', () => {
     const hook = source(HOOK_PATH)
-    expect(hook).toInclude('getDriverTripClient()')
-    expect(hook).toInclude('.listOccurrenceTypes({')
-    expect(hook).toInclude('params.document.contractorId')
-    expect(hook).toInclude('params.document.recipientTaxId')
-    expect(hook).toInclude('mergeResolvedOccurrenceAttachmentModes(')
-    expect(hook).not.toInclude('resolveOccurrenceAttachmentModeForRecipient')
+    expect(hook).toInclude('resolveOccurrenceTypesForDocument(')
+    expect(hook).toInclude('document: params.document')
+    expect(hook).not.toInclude('getDriverTripClient()')
+    expect(hook).not.toInclude('params.document.contractorId')
+    expect(hook).not.toInclude('params.document.recipientTaxId')
+    expect(hook).not.toInclude('mergeResolvedOccurrenceAttachmentModes(')
   })
 })
 

@@ -86,11 +86,33 @@ export type ListFieldOccurrenceTypesParams = {
   readonly repository: FieldOccurrenceTypesPort
 }
 
-export async function listFieldOccurrenceTypes(
-  params: ListFieldOccurrenceTypesParams,
-): Promise<readonly FieldOccurrenceType[]> {
-  const types = await params.repository.listOccurrenceTypes({ companyId: params.companyId })
-  const fieldTypes = types.filter(
+export type ResolveFieldOccurrenceTypesParams = {
+  readonly contractorId?: string | null
+  readonly overrides?: {
+    readonly contractorOverrides: readonly {
+      readonly attachmentMode: DeliveryProofFieldMode
+      readonly contractorId: string
+      readonly occurrenceTypeId: string
+    }[]
+    readonly recipientOverrides: readonly {
+      readonly attachmentMode: DeliveryProofFieldMode
+      readonly occurrenceTypeId: string
+      readonly taxId: string
+    }[]
+  }
+  readonly recipientTaxId?: string | null
+  readonly types: readonly OccurrenceTypeRecord[]
+}
+
+/**
+ * Spec 218 RF-C3 (follow-up, snapshot do motorista): a parte pura de `listFieldOccurrenceTypes` —
+ * filtra, resolve e devolve, sem tocar em banco. Extraída para quem já carregou tipos/exceções uma
+ * vez (o snapshot resolve N notas da viagem com essa carga única, em vez de uma consulta por nota).
+ */
+export function resolveFieldOccurrenceTypes(
+  params: ResolveFieldOccurrenceTypesParams,
+): readonly FieldOccurrenceType[] {
+  const fieldTypes = params.types.filter(
     (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery,
   )
 
@@ -98,9 +120,8 @@ export async function listFieldOccurrenceTypes(
   const recipientTaxId = params.recipientTaxId ?? null
   const hasResolutionSubject =
     contractorId !== null || (recipientTaxId !== null && recipientTaxId.length > 0)
-  const overridesPort = params.overrides
 
-  if (!hasResolutionSubject || overridesPort === undefined) {
+  if (!hasResolutionSubject || params.overrides === undefined) {
     return fieldTypes.map((type) => ({
       attachmentMode: type.attachmentMode ?? 'off',
       flow: type.flow ?? 'document',
@@ -110,16 +131,12 @@ export async function listFieldOccurrenceTypes(
     }))
   }
 
-  const { contractorOverrides, recipientOverrides } = await overridesPort.listOverridesForTypes({
-    companyId: params.companyId,
-    occurrenceTypeIds: fieldTypes.map((type) => type.id),
-  })
   const overridesByContractorIdByType = groupOverridesByType(
-    contractorOverrides,
+    params.overrides.contractorOverrides,
     (override) => override.contractorId,
   )
   const overridesByTaxIdByType = groupOverridesByType(
-    recipientOverrides,
+    params.overrides.recipientOverrides,
     (override) => override.taxId,
   )
 
@@ -142,6 +159,30 @@ export async function listFieldOccurrenceTypes(
       stopKind: resolveFieldStopKind(type),
     }
   })
+}
+
+export async function listFieldOccurrenceTypes(
+  params: ListFieldOccurrenceTypesParams,
+): Promise<readonly FieldOccurrenceType[]> {
+  const types = await params.repository.listOccurrenceTypes({ companyId: params.companyId })
+  const contractorId = params.contractorId ?? null
+  const recipientTaxId = params.recipientTaxId ?? null
+  const hasResolutionSubject =
+    contractorId !== null || (recipientTaxId !== null && recipientTaxId.length > 0)
+  const overridesPort = params.overrides
+
+  if (!hasResolutionSubject || overridesPort === undefined) {
+    return resolveFieldOccurrenceTypes({ contractorId, recipientTaxId, types })
+  }
+
+  const overrides = await overridesPort.listOverridesForTypes({
+    companyId: params.companyId,
+    occurrenceTypeIds: types
+      .filter((type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery)
+      .map((type) => type.id),
+  })
+
+  return resolveFieldOccurrenceTypes({ contractorId, overrides, recipientTaxId, types })
 }
 
 type OccurrenceTypeOverride = {

@@ -215,6 +215,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
                   grossWeight: '0',
                   id: 'document-1',
                   number: '1',
+                  occurrenceTypes: [],
                   proofPending: true,
                   recipientDisplayName: 'Destinatario 1',
                   recipientIsCompany: false,

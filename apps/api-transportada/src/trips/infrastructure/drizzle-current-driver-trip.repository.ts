@@ -36,10 +36,23 @@ import type {
   DriverTripDocument,
   DriverTripStop,
 } from '../application/find-current-driver-trip.use-case.js'
+import { resolveFieldOccurrenceTypes } from '../application/list-field-occurrence-types.use-case.js'
+import type { OccurrenceTypeRecord } from '../application/register-trip-occurrence.use-case.js'
 import {
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
+import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
+import {
+  DrizzleOccurrenceAttachmentOverridesRepository,
+  type OccurrenceTypeOverridesByType,
+} from './drizzle-occurrence-attachment-overrides.repository.js'
+import { listOccurrenceTypes } from './delivery-proof-read.support.js'
+
+type FieldOccurrenceTypesLookup = {
+  readonly overrides: OccurrenceTypeOverridesByType
+  readonly types: readonly OccurrenceTypeRecord[]
+}
 import {
   resolveRecipientDisplayName,
   resolveRecipientIsCompany,
@@ -251,14 +264,28 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     if (tripRows.length === 0) return []
 
     const tripIds = tripRows.map((row) => row.id)
-    const [stopRows, documentRows, manifestsByTrip, schedulesByStop, proofSettings] =
-      await Promise.all([
-        this.listStops({ companyId: input.companyId, tripIds }),
-        this.listDocuments({ companyId: input.companyId, tripIds }),
-        this.listManifests({ companyId: input.companyId, tripIds }),
-        this.listSchedules({ companyId: input.companyId, tripIds }),
-        this.readProofSettings({ companyId: input.companyId }),
-      ])
+    const [
+      stopRows,
+      documentRows,
+      manifestsByTrip,
+      schedulesByStop,
+      proofSettings,
+      occurrenceTypes,
+    ] = await Promise.all([
+      this.listStops({ companyId: input.companyId, tripIds }),
+      this.listDocuments({ companyId: input.companyId, tripIds }),
+      this.listManifests({ companyId: input.companyId, tripIds }),
+      this.listSchedules({ companyId: input.companyId, tripIds }),
+      this.readProofSettings({ companyId: input.companyId }),
+      /**
+       * Spec 218 RF-B2 (follow-up): isolado do `Promise.all` de propósito. `occurrenceTypes` é
+       * refinamento (a exceção por contratante/destinatário do tipo de ocorrência) sobre um
+       * snapshot que já funciona sem ele — se esta consulta falhar, `toDriverDocument` cai para
+       * `null` (o app usa a lista geral, sem exceção) em vez de derrubar viagem, documento e
+       * comprovante, que são o caminho crítico do motorista.
+       */
+      this.readFieldOccurrenceTypes({ companyId: input.companyId }).catch(() => null),
+    ])
 
     /**
      * Volume é 1..N por nota: somar no banco, numa consulta só, evita trazer cem linhas para contar
@@ -292,7 +319,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,
       stops: (stopsByTrip.get(trip.id) ?? []).map((stop) =>
-        toDriverStop(stop, documentsByStop, schedulesByStop, proofSettings),
+        toDriverStop(stop, documentsByStop, schedulesByStop, proofSettings, occurrenceTypes),
       ),
       vehiclePlate: trip.plate,
     }))
@@ -684,6 +711,25 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
+   * Spec 218 RF-B2 (follow-up): mesma filosofia de `readProofSettings` acima — uma carga só do
+   * catálogo e das duas tabelas de exceção, para `toDriverDocument` resolver `occurrenceTypes` por
+   * nota sem uma consulta por documento.
+   */
+  private async readFieldOccurrenceTypes(input: {
+    readonly companyId: string
+  }): Promise<FieldOccurrenceTypesLookup> {
+    const types = await listOccurrenceTypes(this.database, { companyId: input.companyId })
+    const deliveryTypeIds = types
+      .filter((type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery)
+      .map((type) => type.id)
+    const overrides = await new DrizzleOccurrenceAttachmentOverridesRepository(
+      this.database,
+    ).listOverridesForTypes({ companyId: input.companyId, occurrenceTypeIds: deliveryTypeIds })
+
+    return { overrides, types }
+  }
+
+  /**
    * ADR-0070 §1, spec 159 RF1/RF2: se o **último** evento `delivered` da nota tem foto (`kind =
    * 'photo'`). `selectDistinctOn` pega só o mais recente por nota — uma nota pode, em tese, ser
    * entregue mais de uma vez ao longo do tempo (correção), e é sempre a última que conta.
@@ -873,6 +919,7 @@ function toDriverStop(
   documentsByStop: Map<string | null, DocumentRow[]>,
   schedulesByStop: Map<string, DriverStopSchedule>,
   proofSettings: ProofSettingsLookup,
+  occurrenceTypes: FieldOccurrenceTypesLookup | null,
 ): DriverTripStop {
   return {
     arrivedAt: stop.arrivedAt?.toISOString() ?? null,
@@ -880,7 +927,7 @@ function toDriverStop(
     deliveryWindowEnd: stop.deliveryWindowEnd?.toISOString() ?? null,
     deliveryWindowStart: stop.deliveryWindowStart?.toISOString() ?? null,
     documents: (documentsByStop.get(stop.id) ?? []).map((row) =>
-      toDriverDocument(row, proofSettings),
+      toDriverDocument(row, proofSettings, occurrenceTypes),
     ),
     enRouteSince: stop.enRouteSince?.toISOString() ?? null,
     enRouteTappedAt: stop.enRouteTappedAt?.toISOString() ?? null,
@@ -900,6 +947,7 @@ function toDriverStop(
 function toDriverDocument(
   row: DocumentRow,
   proofSettings: ProofSettingsLookup,
+  occurrenceTypes: FieldOccurrenceTypesLookup | null,
 ): DriverTripDocument {
   // Spec 082 (revisão) / spec 218 (RF-C3): resolvido pelo CNPJ do destinatário e pelo contratante
   // (emitente) DESTE documento — a mesma regra da escrita do comprovante, via
@@ -909,17 +957,29 @@ function toDriverDocument(
     lookup: proofSettings,
     recipientTaxId: row.recipientTaxId ?? '',
   })
+  // Spec 218 RF-B2 (follow-up): mesma resolução de 3 camadas, agora para o `attachmentMode` dos
+  // tipos de ocorrência de nota. Os de parada (`flow: 'stop'`) ficam fora — sem contratante nem
+  // destinatário únicos, continuam pela rota de catálogo sem exceção. `null` quando a carga de
+  // `readFieldOccurrenceTypes` falhou — o app cai na lista geral, sem exceção (ver comentário no
+  // `Promise.all` de `findCurrentDriverTrip`).
+  const documentOccurrenceTypes =
+    occurrenceTypes === null
+      ? null
+      : resolveFieldOccurrenceTypes({
+          contractorId: row.contractorId,
+          overrides: occurrenceTypes.overrides,
+          recipientTaxId: row.recipientTaxId ?? '',
+          types: occurrenceTypes.types,
+        }).filter((type) => type.flow === 'document')
 
   return {
     accessKey: row.accessKey ?? '',
-    // Spec 219 RF1: os dois campos que faltavam para o app pedir a exceção de ocorrência por
-    // nota (spec 218 RF-B2/T9) — já lidos por esta mesma consulta para resolver `deliveryProof`.
-    contractorId: row.contractorId,
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
     deliveryProof,
     grossWeight: row.volumes?.grossWeight ?? '0',
     id: row.id,
     number: row.number ?? '',
+    occurrenceTypes: documentOccurrenceTypes,
     /**
      * ADR-0070 §1, spec 159 RF1/RF2: entregue, foto obrigatória resolvida, e sem foto no último
      * evento `delivered`. Nunca bloqueia — só avisa que a foto ainda não chegou.
@@ -934,7 +994,6 @@ function toDriverDocument(
     }),
     recipientIsCompany: resolveRecipientIsCompany(row.recipientTaxId ?? ''),
     recipientName: row.recipientName ?? '',
-    recipientTaxId: row.recipientTaxId,
     returnReason: row.returnReason,
     separationStatus: row.separationStatus,
     series: row.series ?? '',

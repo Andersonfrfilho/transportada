@@ -4,12 +4,6 @@
 /** ⚠️ Cópia por valor do que a API devolve em `/me/trips/current` — o bundle não carrega código de lá. */
 export type DriverTripDocument = Readonly<{
   accessKey: string
-  /**
-   * Spec 219 RF2: `contractors.id` do emitente desta nota — o app manda em
-   * `GET .../occurrence-types?contractorId=` para resolver a exceção de ocorrência por
-   * contratante (spec 218 P3). Ausente (API anterior) ou `null` é "sem contratante resolvido".
-   */
-  contractorId?: string | null
   deliveredAt: string | null
   /**
    * Spec 082 (revisão): a configuração do comprovante é do **documento** — a exceção muda nota a
@@ -24,6 +18,13 @@ export type DriverTripDocument = Readonly<{
   grossWeight: string
   id: string
   number: string
+  /**
+   * Spec 218 RF-B2 (follow-up): os tipos de ocorrência de nota (`flow: 'document'`), já resolvidos
+   * em 3 camadas para **este** documento — mesma regra de `deliveryProof` acima. `null` quando o
+   * snapshot ainda não traz o campo (cache antigo) ou a resolução falhou no servidor: a tela cai na
+   * lista geral da viagem (sem exceção), o mesmo espírito de `deliveryProof` acima.
+   */
+  occurrenceTypes: readonly DriverOccurrenceType[] | null
   /** Spec 159 RF1/RF2: foto obrigatória (`deliveryProof.photo === 'required'`) que ainda não chegou. */
   proofPending: boolean
   /**
@@ -38,11 +39,6 @@ export type DriverTripDocument = Readonly<{
    */
   recipientIsCompany: boolean
   recipientName: string
-  /**
-   * Spec 219 RF2: o CNPJ/CPF do destinatário desta nota — o outro parâmetro de
-   * `GET .../occurrence-types?recipientTaxId=` (spec 218 P4, o destinatário vence o contratante).
-   */
-  recipientTaxId?: string | null
   returnReason: string | null
   separationStatus: string
   series: string
@@ -61,7 +57,8 @@ export type DriverStopSchedule = Readonly<{
 }>
 
 /** Spec 082 D4: o painel decide o que o comprovante colhe — por empresa, com exceção por CNPJ. */
-export type ProofFieldRequirement = 'off' | 'optional' | 'required'
+export const PROOF_FIELD_REQUIREMENTS = ['off', 'optional', 'required'] as const
+export type ProofFieldRequirement = (typeof PROOF_FIELD_REQUIREMENTS)[number]
 
 export type DriverDeliveryProofSettings = Readonly<{
   photo: ProofFieldRequirement
@@ -340,6 +337,41 @@ export type DriverOccurrenceType = Readonly<{
 /** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
 export const DRIVER_OCCURRENCE_FLOWS = ['document', 'stop'] as const
 export type DriverOccurrenceFlow = (typeof DRIVER_OCCURRENCE_FLOWS)[number]
+
+/**
+ * O guard mora aqui (não em `driverTripClient.service.ts` ou `driverTripResponse.validation.ts`)
+ * porque os dois o usam e um importa do outro (`toDriverTripSnapshot`) — um terceiro lugar sem
+ * lógica de negócio evita o ciclo. Spec 218 (follow-up): também valida a lista embutida por
+ * documento (`DriverTripDocument.occurrenceTypes`), não só a resposta da rota de catálogo.
+ */
+export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as {
+    readonly attachmentMode?: unknown
+    readonly flow?: unknown
+    readonly id?: unknown
+    readonly name?: unknown
+    readonly stopKind?: unknown
+  }
+  const hasKnownMode =
+    candidate.attachmentMode === undefined ||
+    (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(candidate.attachmentMode)
+  /** Spec 218: ausentes são a cópia guardada antes da spec; presentes, só no vocabulário. */
+  const hasKnownFlow =
+    candidate.flow === undefined ||
+    (DRIVER_OCCURRENCE_FLOWS as readonly unknown[]).includes(candidate.flow)
+  const hasKnownStopKind =
+    candidate.stopKind === undefined ||
+    candidate.stopKind === null ||
+    (DRIVER_OCCURRENCE_KINDS as readonly unknown[]).includes(candidate.stopKind)
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    hasKnownMode &&
+    hasKnownFlow &&
+    hasKnownStopKind
+  )
+}
 
 /**
  * Spec 157 (RF5): falha de rede/servidor e lista vazia de verdade são fatos diferentes — a

@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { DriverOccurrenceType, DriverOccurrenceTypesResult } from './driverTrip.types'
-import { isDriverOccurrenceType } from './driverTripClient.service'
+import {
+  isDriverOccurrenceType,
+  type DriverOccurrenceType,
+  type DriverOccurrenceTypesResult,
+} from './driverTrip.types'
 
 /**
  * Spec 179 P3: sem sinal, "Não entreguei" continua pedindo o tipo e a foto — e a app aberta sem

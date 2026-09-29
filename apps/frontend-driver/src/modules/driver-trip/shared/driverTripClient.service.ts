@@ -7,12 +7,10 @@ import {
 } from '@/modules/shared/KeycloakAuthProvider.provider'
 
 import {
-  DRIVER_OCCURRENCE_FLOWS,
-  DRIVER_OCCURRENCE_KINDS,
+  isDriverOccurrenceType,
   PROOF_PUNCTUALITY_VALUES,
   type DriverFieldReport,
   type DriverOccurrenceKind,
-  type DriverOccurrenceType,
   type DriverOccurrenceTypesResult,
   type DriverTripSnapshot,
   type ProofPunctuality,
@@ -161,12 +159,12 @@ export type DriverTripClient = Readonly<{
    * ⚠️ **Nunca lança.** Falha de rede, recusa do servidor ou corpo inválido viram `{ status:
    * 'failed' }` — quem chama decide o aviso, e entregar/devolver não dependem disto (spec 157 RF5).
    *
-   * Spec 219 RF3: `contractorId`/`recipientTaxId`, quando informados, resolvem o `attachmentMode`
-   * em 3 camadas para aquela nota (spec 218 RF-B2/T9) — ausentes, é a lista geral de sempre.
+   * Spec 218 RF-B2 (follow-up): a exceção por contratante/destinatário já chega resolvida em
+   * `DriverTripDocument.occurrenceTypes`, embutida no snapshot — esta rota continua servindo só a
+   * lista geral da empresa (os tipos de parada, sem contratante/destinatário único para resolver
+   * contra). Nunca manda CPF/CNPJ como parâmetro: security.md §3 proíbe dado pessoal em URL.
    */
-  listOccurrenceTypes: (
-    subject?: Readonly<{ contractorId?: string | null; recipientTaxId?: string | null }>,
-  ) => Promise<DriverOccurrenceTypesResult>
+  listOccurrenceTypes: () => Promise<DriverOccurrenceTypesResult>
   /**
    * O DAMDFE vem como **bytes**, não como URL: numa barreira o motorista abre o papel, e uma URL
    * assinada de cinco minutos que expirou no bolso não abre nada.
@@ -259,22 +257,6 @@ export function reportBody(report: JsonFieldReport): string {
 }
 
 /**
- * Spec 219 RF3: a mesma query string que `trip-field-office-occurrence.routes.ts` já aceita
- * (spec 218 T9) — vazia quando não há nenhum dos dois, exatamente a rota de hoje.
- */
-function occurrenceTypesQuery(
-  subject: Readonly<{ contractorId?: string | null; recipientTaxId?: string | null }> | undefined,
-): string {
-  const params = new URLSearchParams()
-  if (subject?.contractorId != null) params.set('contractorId', subject.contractorId)
-  if (subject?.recipientTaxId != null && subject.recipientTaxId.length > 0) {
-    params.set('recipientTaxId', subject.recipientTaxId)
-  }
-  const query = params.toString()
-  return query.length === 0 ? '' : `?${query}`
-}
-
-/**
  * Spec 218 D2: o tipo do catálogo quando o item o tem; o item gravado antes da troca sai com o
  * valor fixo — a API aceita os dois, nunca os dois juntos.
  */
@@ -341,7 +323,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrences`,
       })
     },
-    async listOccurrenceTypes(subject) {
+    async listOccurrenceTypes() {
       /**
        * ⚠️ Falha vira **estado**, nunca exceção: rede fora do ar, recusa do servidor e corpo
        * inválido contam a mesma história para quem chama — "não sabemos os tipos agora" —, e é a
@@ -352,7 +334,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         const body = await request({
           dependencies,
           method: 'GET',
-          path: `${CURRENT_TRIP_PATH}/occurrence-types${occurrenceTypesQuery(subject)}`,
+          path: `${CURRENT_TRIP_PATH}/occurrence-types`,
           signal: AbortSignal.timeout(OCCURRENCE_TYPES_TIMEOUT_MILLISECONDS),
         })
         const data = (body as { readonly data?: unknown }).data
@@ -785,35 +767,3 @@ function readErrorDetails(payload: unknown): readonly DriverTripErrorDetail[] | 
   )
   return details.length > 0 ? details : undefined
 }
-
-export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenceType {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as {
-    readonly attachmentMode?: unknown
-    readonly flow?: unknown
-    readonly id?: unknown
-    readonly name?: unknown
-    readonly stopKind?: unknown
-  }
-  const hasKnownMode =
-    candidate.attachmentMode === undefined ||
-    (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(candidate.attachmentMode)
-  /** Spec 218: ausentes são a cópia guardada antes da spec; presentes, só no vocabulário. */
-  const hasKnownFlow =
-    candidate.flow === undefined ||
-    (DRIVER_OCCURRENCE_FLOWS as readonly unknown[]).includes(candidate.flow)
-  const hasKnownStopKind =
-    candidate.stopKind === undefined ||
-    candidate.stopKind === null ||
-    (DRIVER_OCCURRENCE_KINDS as readonly unknown[]).includes(candidate.stopKind)
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.name === 'string' &&
-    hasKnownMode &&
-    hasKnownFlow &&
-    hasKnownStopKind
-  )
-}
-
-/** ⚠️ Cópia por valor de `DELIVERY_PROOF_FIELD_MODES` — o vocabulário de `attachmentMode` (spec 179 RF1). */
-const PROOF_FIELD_REQUIREMENTS = ['off', 'optional', 'required'] as const

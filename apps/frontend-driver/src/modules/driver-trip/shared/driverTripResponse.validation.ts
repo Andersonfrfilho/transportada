@@ -1,15 +1,17 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTripResponse.validation.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type {
-  DriverDeliveryProofSettings,
-  DriverStopSchedule,
-  DriverTrip,
-  DriverTripDocument,
-  DriverTripManifest,
-  DriverTripSnapshot,
-  DriverTripStop,
-  PendingProofDocument,
-  ProofFieldRequirement,
+import {
+  isDriverOccurrenceType,
+  type DriverDeliveryProofSettings,
+  type DriverOccurrenceType,
+  type DriverStopSchedule,
+  type DriverTrip,
+  type DriverTripDocument,
+  type DriverTripManifest,
+  type DriverTripSnapshot,
+  type DriverTripStop,
+  type PendingProofDocument,
+  type ProofFieldRequirement,
 } from './driverTrip.types'
 import { DEFAULT_PROOF_SETTINGS } from './proofFormPlan.service'
 
@@ -64,6 +66,16 @@ function readRecipientIsCompany(value: unknown): boolean {
   return value === true
 }
 
+/**
+ * Spec 218 RF-B2 (follow-up): `null` quando o campo não é um array — snapshot antigo em cache, ou a
+ * resolução falhou no servidor (`readFieldOccurrenceTypes` isolado do `Promise.all` na API). Item
+ * malformado da lista some, o mesmo espírito de `toPendingProofs` — nunca derruba o documento inteiro.
+ */
+function readDocumentOccurrenceTypes(value: unknown): readonly DriverOccurrenceType[] | null {
+  if (!Array.isArray(value)) return null
+  return value.filter(isDriverOccurrenceType)
+}
+
 function toDocument(value: unknown): DriverTripDocument {
   if (!isRecord(value)) throw new DriverTripResponseError()
 
@@ -74,20 +86,17 @@ function toDocument(value: unknown): DriverTripDocument {
    */
   return {
     accessKey: readOptionalText(value.accessKey),
-    // Spec 219 RF2: ausente (snapshot antigo em cache) vira `null` — "sem contratante resolvido",
-    // o mesmo estado que a nota sem contratante já tem hoje.
-    contractorId: readNullableString(value.contractorId),
     deliveredAt: readNullableString(value.deliveredAt),
     /** Shape novo: o comprovante vem no documento. Ausente (shape antigo) vira `null` — a parada responde. */
     deliveryProof: toDeliveryProof(value.deliveryProof),
     grossWeight: readOptionalText(value.grossWeight),
     id: readString(value.id),
     number: readOptionalText(value.number),
+    occurrenceTypes: readDocumentOccurrenceTypes(value.occurrenceTypes),
     proofPending: readProofPending(value.proofPending),
     recipientDisplayName: readOptionalText(value.recipientDisplayName),
     recipientIsCompany: readRecipientIsCompany(value.recipientIsCompany),
     recipientName: readOptionalText(value.recipientName),
-    recipientTaxId: readNullableString(value.recipientTaxId),
     returnReason: readNullableString(value.returnReason),
     separationStatus: readString(value.separationStatus),
     series: readOptionalText(value.series),
