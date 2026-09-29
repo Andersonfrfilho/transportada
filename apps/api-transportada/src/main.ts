@@ -3344,8 +3344,12 @@ function createApplicationRoutes({
       }),
     }),
     ...createDeliveryProofSettingsRoutes({
+      listContractorOverrides: (input) =>
+        deliveryProofSettingsRepository.listContractorOverrides(input),
       listOverrides: (input) => deliveryProofSettingsRepository.listOverrides(input),
       readSettings: (input) => deliveryProofSettingsRepository.readSettings(input),
+      replaceContractorOverrides: (input) =>
+        deliveryProofSettingsRepository.replaceContractorOverrides(input),
       replaceOverrides: (input) => deliveryProofSettingsRepository.replaceOverrides(input),
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
     }),

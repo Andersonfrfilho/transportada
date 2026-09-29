@@ -35,6 +35,9 @@ export const API_COMPANY_SETTINGS_CARGO_CAMERA_MEASUREMENT_PATH =
 export const API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH = '/company-settings/delivery-proof'
 export const API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH =
   '/company-settings/delivery-proof/overrides'
+/** Spec 218 RF-C1/RF-C4: a mesma exceção, agora também por contratante (embarcador/emitente). */
+export const API_COMPANY_SETTINGS_DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH =
+  '/company-settings/delivery-proof-contractor-overrides'
 /** Spec 075: o fator de cubagem por espécie, irmão do peso padrão. */
 export const API_COMPANY_SETTINGS_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 export const API_COMPANY_SETTINGS_CONTACTS_PATH = '/company-settings/contacts'

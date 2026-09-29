@@ -5,6 +5,7 @@ import {
   DELIVERY_PROOF_FIELD_MODES,
   type DeliveryProofFieldMode,
 } from '../../database/company-delivery-proof-settings.schema.js'
+import { resolveWithOverrides } from '../../shared/resolve-with-overrides.policy.js'
 
 export { DELIVERY_PROOF_FIELD_MODES }
 export type { DeliveryProofFieldMode }
@@ -89,45 +90,72 @@ export const DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS: CompanyDeliveryProofSettin
   canhotoOcrEnabled: DEFAULT_CANHOTO_OCR_ENABLED,
 }
 
+/**
+ * Spec 218 RF-C3: três camadas — a exceção do destinatário vence a do contratante, que vence a
+ * geral, que vence a fábrica. `contractorOverride` é opcional: os dois call sites que ainda não
+ * sabem resolver contratante (nota do motorista/escrita do comprovante fora do escopo da 218)
+ * seguem chamando com `contractorOverride: null` e o comportamento de duas camadas é preservado.
+ */
 export type ResolveDeliveryProofSettingsParams = {
   readonly general: DeliveryProofFieldSettings | null
-  readonly override: DeliveryProofFieldSettings | null
+  readonly contractorOverride: DeliveryProofFieldSettings | null
+  readonly recipientOverride: DeliveryProofFieldSettings | null
 }
 
 /**
- * A exceção por CNPJ do destinatário vence a geral **por inteiro** — meia-exceção obrigaria o
- * operador a raciocinar campo a campo sobre duas telas. Sem linha nenhuma vale a fábrica.
+ * A exceção mais específica vence a geral **por inteiro** — meia-exceção obrigaria o operador a
+ * raciocinar campo a campo sobre três telas. Sem linha nenhuma vale a fábrica.
  */
 export function resolveDeliveryProofSettings(
   params: ResolveDeliveryProofSettingsParams,
 ): DeliveryProofFieldSettings {
-  return params.override ?? params.general ?? DEFAULT_DELIVERY_PROOF_SETTINGS
+  return resolveWithOverrides({
+    contractorOverride: params.contractorOverride,
+    fallback: DEFAULT_DELIVERY_PROOF_SETTINGS,
+    general: params.general,
+    recipientOverride: params.recipientOverride,
+  })
 }
 
 export type ProofSettingsLookup = {
   readonly general: DeliveryProofFieldSettings | null
   readonly overridesByTaxId: ReadonlyMap<string, DeliveryProofFieldSettings>
+  /** Spec 218 RF-C3: a exceção por contratante (embarcador/emitente), chaveada por `contractors.id`. */
+  readonly overridesByContractorId?: ReadonlyMap<string, DeliveryProofFieldSettings>
 }
 
 export type ResolveProofSettingsForRecipientParams = {
   readonly lookup: ProofSettingsLookup
   readonly recipientTaxId: string
+  /** Spec 218: ausente (chamador de duas camadas) é "sem contratante resolvido" — cai na geral. */
+  readonly contractorId?: string | null
 }
 
 /**
- * Spec 082 (revisão): a exceção casa pelo CNPJ do destinatário **do documento**, nunca da parada —
- * a parada agrupa por endereço e pode ter mais de um destinatário. Esta é a regra única dos dois
- * caminhos: o snapshot do motorista e a escrita do comprovante leem daqui, senão divergem calados.
+ * Spec 082 (revisão): a exceção do destinatário casa pelo CNPJ **do documento**, nunca da parada —
+ * a parada agrupa por endereço e pode ter mais de um destinatário. Spec 218: a exceção do
+ * contratante casa pelo `contractors.id` resolvido do emitente da mesma nota, e o destinatário
+ * vence quando as duas se aplicam (P4 do spec.md). Esta é a regra única dos caminhos que já
+ * resolvem contratante e dos que ainda não resolvem — os dois leem daqui, senão divergem calados.
  */
 export function resolveProofSettingsForRecipient(
   params: ResolveProofSettingsForRecipientParams,
 ): DeliveryProofFieldSettings {
-  const override =
+  const recipientOverride =
     params.recipientTaxId.length === 0
       ? null
       : (params.lookup.overridesByTaxId.get(params.recipientTaxId) ?? null)
+  const contractorId = params.contractorId ?? null
+  const contractorOverride =
+    contractorId === null
+      ? null
+      : (params.lookup.overridesByContractorId?.get(contractorId) ?? null)
 
-  return resolveDeliveryProofSettings({ general: params.lookup.general, override })
+  return resolveDeliveryProofSettings({
+    contractorOverride,
+    general: params.lookup.general,
+    recipientOverride,
+  })
 }
 
 /**

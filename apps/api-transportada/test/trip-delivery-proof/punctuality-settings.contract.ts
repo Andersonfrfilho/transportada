@@ -51,8 +51,10 @@ async function rejection(body: unknown): Promise<ApiError> {
 function fakeDependencies(initial: CompanyDeliveryProofSettings | null) {
   let stored = initial
   const dependencies: DeliveryProofSettingsDependencies = {
+    listContractorOverrides: async () => [],
     listOverrides: async () => [],
     readSettings: async () => stored ?? DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS,
+    replaceContractorOverrides: async () => {},
     replaceOverrides: async () => {},
     saveSettings: async ({ settings }) => {
       stored = { ...(stored ?? DEFAULT_COMPANY_DELIVERY_PROOF_SETTINGS), ...settings }

@@ -31,6 +31,18 @@ export const deliveryProofOverridesSchema = z
   })
   .strict()
 
+/**
+ * Spec 218 RF-C1/RF-C4: o par irmão, por contratante — mesma forma, `contractorId` (referência a
+ * `contractors`) no lugar do CNPJ livre.
+ */
+export const deliveryProofContractorOverridesSchema = z
+  .object({
+    overrides: z
+      .array(deliveryProofSettingsSchema.extend({ contractorId: z.uuid() }).strict())
+      .max(200),
+  })
+  .strict()
+
 /** ADR-0070 §7, spec 159 RF7: as faixas do painel — fora delas é `400 invalidRequest`. */
 export const deliveryProofPunctualitySettingsSchema = z
   .object({
@@ -62,4 +74,7 @@ export const companyDeliveryProofSettingsSchema = z
 
 export type DeliveryProofSettingsBody = z.infer<typeof deliveryProofSettingsSchema>
 export type DeliveryProofOverridesBody = z.infer<typeof deliveryProofOverridesSchema>
+export type DeliveryProofContractorOverridesBody = z.infer<
+  typeof deliveryProofContractorOverridesSchema
+>
 export type CompanyDeliveryProofSettingsBody = z.infer<typeof companyDeliveryProofSettingsSchema>

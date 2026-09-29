@@ -7,6 +7,7 @@
 import { defineRoute } from '../../http/router.service.js'
 import { parseBody } from '../../http/request-parsing.service.js'
 import {
+  API_COMPANY_SETTINGS_DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
   API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH,
   API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH,
   JSON_CONTENT_TYPE,
@@ -19,24 +20,35 @@ import type {
   DeliveryProofSettingsInput,
 } from '../domain/delivery-proof-settings.policy.js'
 import type {
+  DeliveryProofSettingsContractorOverride,
+  DeliveryProofSettingsContractorOverrideInput,
   DeliveryProofSettingsOverride,
   DeliveryProofSettingsOverrideInput,
 } from '../infrastructure/drizzle-delivery-proof-settings.repository.js'
 import {
   companyDeliveryProofSettingsSchema,
+  deliveryProofContractorOverridesSchema,
   deliveryProofOverridesSchema,
+  type DeliveryProofContractorOverridesBody,
   type DeliveryProofOverridesBody,
 } from './delivery-proof-settings.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 
 export type DeliveryProofSettingsDependencies = {
+  readonly listContractorOverrides: (input: {
+    readonly companyId: string
+  }) => Promise<readonly DeliveryProofSettingsContractorOverride[]>
   readonly listOverrides: (input: {
     readonly companyId: string
   }) => Promise<readonly DeliveryProofSettingsOverride[]>
   readonly readSettings: (input: {
     readonly companyId: string
   }) => Promise<CompanyDeliveryProofSettings>
+  readonly replaceContractorOverrides: (input: {
+    readonly companyId: string
+    readonly overrides: readonly DeliveryProofSettingsContractorOverrideInput[]
+  }) => Promise<void>
   readonly replaceOverrides: (input: {
     readonly companyId: string
     readonly overrides: readonly DeliveryProofSettingsOverrideInput[]
@@ -88,6 +100,14 @@ function mergeSettings(
 function toOverrideInput(
   override: DeliveryProofOverridesBody['overrides'][number],
 ): DeliveryProofSettingsOverrideInput {
+  const { receivedBy, ...rest } = override
+  return receivedBy === undefined ? rest : { ...rest, receivedBy }
+}
+
+/** Spec 218: o mesmo tratamento de `receivedBy`, para o corpo por contratante. */
+function toContractorOverrideInput(
+  override: DeliveryProofContractorOverridesBody['overrides'][number],
+): DeliveryProofSettingsContractorOverrideInput {
   const { receivedBy, ...rest } = override
   return receivedBy === undefined ? rest : { ...rest, receivedBy }
 }
@@ -156,6 +176,34 @@ export function createDeliveryProofSettingsRoutes(
       method: 'PUT',
       parse: ({ request }) => parseBody(deliveryProofOverridesSchema, request),
       pathname: API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const overrides = await dependencies.listContractorOverrides({
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ overrides })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: API_COMPANY_SETTINGS_DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<DeliveryProofContractorOverridesBody>({
+      async handle({ context, input }): Promise<Response> {
+        await dependencies.replaceContractorOverrides({
+          companyId: context.scope.companyId,
+          overrides: input.overrides.map(toContractorOverrideInput),
+        })
+        const overrides = await dependencies.listContractorOverrides({
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ overrides })
+      },
+      method: 'PUT',
+      parse: ({ request }) => parseBody(deliveryProofContractorOverridesSchema, request),
+      pathname: API_COMPANY_SETTINGS_DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
   ]

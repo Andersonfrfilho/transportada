@@ -61,8 +61,10 @@ function buildDependencies(stored: CompanyDeliveryProofSettings): {
   const saved: DeliveryProofSettingsInput[] = []
   return {
     dependencies: {
+      listContractorOverrides: NOT_CALLED,
       listOverrides: NOT_CALLED,
       readSettings: async () => stored,
+      replaceContractorOverrides: NOT_CALLED,
       replaceOverrides: NOT_CALLED,
       saveSettings: async (input) => {
         saved.push(input.settings)
