@@ -1,9 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
+import { OCCURRENCE_TYPE_FLOWS, TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
 import type {
   OccurrenceItemQuantityUnit,
+  OccurrenceTypeFlow,
   TripOccurrenceStage,
 } from '../shared/trip-occurrence.constant.js'
 import { TRIP_CREW_ROLES, type TripCrewRole } from '../shared/trip-crew-role.constant.js'
@@ -32,6 +33,7 @@ import {
   type DeliveryProofFieldMode,
 } from './company-delivery-proof-settings.schema.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
+import { contractors, deliveryClients } from './delivery-client.schema.js'
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { freightCalculations } from './freight.schema.js'
 import { nfeDocuments } from './nfe.schema.js'
@@ -1278,7 +1280,18 @@ export const tripStopOccurrences = pgTable(
     companyId: uuid('company_id').notNull(),
     stopId: uuid('stop_id').notNull(),
     tripDocumentId: uuid('trip_document_id'),
+    /**
+     * ⚠️ **Permanece como registro histórico** (spec 218 RF-B5) mesmo depois de `occurrenceTypeId`
+     * existir — é o valor que a migration usou para o backfill, e nada além dele lê `kind` hoje.
+     */
     kind: text().notNull().$type<TripStopOccurrenceKind>(),
+    /**
+     * Spec 218 RF-B5: o tipo do catálogo (`flow: 'stop'`) que corresponde a este `kind` — nulo só
+     * quando o backfill da migration não achou o tipo correspondente na empresa (não deveria
+     * acontecer, a migration semeia os cinco para toda empresa). A leitura histórica cai para
+     * `kind` quando `occurrence_type_id` for nulo, nunca falha.
+     */
+    occurrenceTypeId: uuid('occurrence_type_id'),
     /** Curta de propósito: é relato de campo digitado com uma mão, não formulário. */
     description: text().notNull().default(''),
     /**
@@ -1335,6 +1348,14 @@ export const tripStopOccurrences = pgTable(
       columns: [table.companyId, table.attachmentObjectId],
       foreignColumns: [storedObjects.companyId, storedObjects.id],
       name: 'trip_stop_occurrences_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** Spec 218 RF-B5: nulável — dado gravado antes da migration converge pelo backfill. */
+    foreignKey({
+      columns: [table.companyId, table.occurrenceTypeId],
+      foreignColumns: [companyOccurrenceTypes.companyId, companyOccurrenceTypes.id],
+      name: 'trip_stop_occurrences_company_occurrence_type_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -2206,6 +2227,12 @@ export const companyOccurrenceTypes = pgTable(
      * (`save-occurrence-type.use-case.ts`).
      */
     leavesDocumentBehind: boolean('leaves_document_behind').notNull().default(false),
+    /**
+     * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta — `document`
+     * (nota, sem fila) ou `stop` (parada, fila offline). Padrão `'document'`: todo tipo cadastrado
+     * antes desta spec é implicitamente "de nota", nunca foi usado em `trip_stop_occurrences`.
+     */
+    flow: text().notNull().$type<OccurrenceTypeFlow>().default(OCCURRENCE_TYPE_FLOWS.document),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2234,7 +2261,117 @@ export const companyOccurrenceTypes = pgTable(
       'company_occurrence_types_leaves_document_behind_check',
       sql`${table.stage} = 'separation' or not ${table.leavesDocumentBehind}`,
     ),
+    check(
+      'company_occurrence_types_flow_check',
+      sql`${table.flow} in (${raw(inList(Object.values(OCCURRENCE_TYPE_FLOWS)))})`,
+    ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
+  ],
+)
+
+/**
+ * Spec 218 RF-B1: a exceção do `attachmentMode` de um tipo de ocorrência, por contratante
+ * (embarcador/emitente) — mesma forma de `deliveryProofSettingContractorOverrides`. A FK para o
+ * tipo é `cascade`: a exceção não sobrevive ao tipo que ela ajusta.
+ */
+export const companyOccurrenceTypeContractorOverrides = pgTable(
+  'company_occurrence_type_contractor_overrides',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceTypeId: uuid('occurrence_type_id').notNull(),
+    contractorId: uuid('contractor_id').notNull(),
+    attachmentMode: varchar('attachment_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default('optional'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_type_contractor_overrides_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceTypeId],
+      foreignColumns: [companyOccurrenceTypes.companyId, companyOccurrenceTypes.id],
+      name: 'company_occurrence_type_contractor_overrides_company_id_occurrence_type_id_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.contractorId],
+      foreignColumns: [contractors.companyId, contractors.id],
+      name: 'company_occurrence_type_contractor_overrides_company_id_contractor_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_occurrence_type_contractor_overrides_type_contractor_unique').on(
+      table.companyId,
+      table.occurrenceTypeId,
+      table.contractorId,
+    ),
+    check(
+      'company_occurrence_type_contractor_overrides_attachment_mode_check',
+      sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+  ],
+)
+
+/**
+ * Spec 218 RF-B1: a mesma exceção, por destinatário — chave canônica `tax_id`, no mesmo corte de
+ * `deliveryProofSettingOverrides`. Sem backfill: granularidade nova, não existe dado anterior.
+ */
+export const companyOccurrenceTypeRecipientOverrides = pgTable(
+  'company_occurrence_type_recipient_overrides',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceTypeId: uuid('occurrence_type_id').notNull(),
+    /** Forma canônica, sem máscara e em caixa alta — o mesmo corte de `delivery_clients`. */
+    taxId: text('tax_id').notNull(),
+    attachmentMode: varchar('attachment_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default('optional'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_type_recipient_overrides_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceTypeId],
+      foreignColumns: [companyOccurrenceTypes.companyId, companyOccurrenceTypes.id],
+      name: 'company_occurrence_type_recipient_overrides_company_id_occurrence_type_id_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.taxId],
+      foreignColumns: [deliveryClients.companyId, deliveryClients.taxId],
+      name: 'company_occurrence_type_recipient_overrides_company_id_tax_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_occurrence_type_recipient_overrides_type_tax_id_unique').on(
+      table.companyId,
+      table.occurrenceTypeId,
+      table.taxId,
+    ),
+    check(
+      'company_occurrence_type_recipient_overrides_attachment_mode_check',
+      sql`${table.attachmentMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
   ],
 )
 
