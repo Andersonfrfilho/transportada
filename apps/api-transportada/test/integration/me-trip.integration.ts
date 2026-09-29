@@ -16,9 +16,15 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
+import {
+  companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
+  deliveryProofSettingOverrides,
+} from '../../src/database/company-delivery-proof-settings.schema.js'
 import {
   companies,
+  contractors,
+  deliveryClients,
   fleetDrivers,
   fleetVehicles,
   geocodedAddresses,
@@ -87,6 +93,9 @@ type World = {
   readonly documentIds: readonly string[]
   readonly driverId: string
   readonly membershipId: string
+  /** Spec 218 RF-C3: o id de `nfe_documents`, na mesma ordem de `documentIds` — o override por
+   *  contratante casa pelo emitente da NF-e, não pela linha do romaneio (`tripDocuments.id`). */
+  readonly nfeDocumentIds: readonly string[]
   readonly stopIds: readonly string[]
   readonly tripId: string
   readonly userId: string
@@ -545,6 +554,80 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
 
         expect(atDelivery.punctuality).toBe(PROOF_PUNCTUALITY.onTime)
         expect(atStopPin.punctuality).toBe(PROOF_PUNCTUALITY.away)
+      })
+    },
+  )
+
+  /**
+   * Spec 218 RF-C3, P3/P4: o comprovante efetivo resolve em 3 camadas — geral, contratante
+   * (emitente da nota) e destinatário, com o destinatário vencendo quando os dois se aplicam.
+   * Contra Postgres de verdade porque a junção nova (emitente → `contractors`) é SQL próprio.
+   */
+  testWithPostgres(
+    'o override de contratante muda o comprovante efetivo, e o destinatário o vence (spec 218)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDispatchedTrip(database)
+        await database.db
+          .insert(companyDeliveryProofSettings)
+          .values({ companyId: world.companyId, photo: 'optional' })
+
+        const emitterTaxId = '22333444000155'
+        const contractorId = crypto.randomUUID()
+        await database.db.insert(nfeParticipants).values({
+          companyId: world.companyId,
+          documentId: world.nfeDocumentIds[0] ?? '',
+          id: crypto.randomUUID(),
+          legalName: 'Distribuidora Alfa',
+          role: 'emitter',
+          taxId: emitterTaxId,
+        })
+        await database.db
+          .insert(contractors)
+          .values({ companyId: world.companyId, id: contractorId, taxId: emitterTaxId })
+        await database.db
+          .insert(deliveryProofSettingContractorOverrides)
+          .values({ companyId: world.companyId, contractorId, photo: 'required' })
+
+        const reads = new DrizzleCurrentDriverTripRepository(database.db)
+        const readSnapshot = () =>
+          findCurrentDriverTrip({
+            companyId: world.companyId,
+            membershipId: world.membershipId,
+            now: NOW,
+            repository: reads,
+            scores: new DrizzleDriverScoreRepository(database.db),
+          })
+
+        const beforeRecipientOverride = await readSnapshot()
+        const overriddenDocument = beforeRecipientOverride.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        const plainDocument = beforeRecipientOverride.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[1],
+        )
+        // A nota do contratante Alfa (P3) resolve `required`; a nota irmã, sem emitente
+        // cadastrado como contratante, segue a geral (`optional`).
+        expect(overriddenDocument?.deliveryProof.photo).toBe('required')
+        expect(plainDocument?.deliveryProof.photo).toBe('optional')
+
+        // P4: exceção de destinatário, quando presente, vence a de contratante na mesma nota.
+        const recipientTaxId = '11222333000181'
+        await database.db.insert(deliveryClients).values({
+          companyId: world.companyId,
+          displayName: 'Mercado Central',
+          status: 'active',
+          taxId: recipientTaxId,
+        })
+        await database.db
+          .insert(deliveryProofSettingOverrides)
+          .values({ companyId: world.companyId, photo: 'off', taxId: recipientTaxId })
+
+        const afterRecipientOverride = await readSnapshot()
+        const withBothOverrides = afterRecipientOverride.trips[0]?.stops[0]?.documents.find(
+          (entry) => entry.id === world.documentIds[0],
+        )
+        expect(withBothOverrides?.deliveryProof.photo).toBe('off')
       })
     },
   )
@@ -1717,6 +1800,7 @@ async function seedDispatchedTrip(
   ])
 
   const documentIds: string[] = []
+  const nfeDocumentIds: string[] = []
   for (const [index, stopId] of [stopIds[0], stopIds[0], stopIds[1]].entries()) {
     const nfeDocumentId = await seedNfeDocument(database, {
       companyId,
@@ -1735,9 +1819,10 @@ async function seedDispatchedTrip(
       tripId,
     })
     documentIds.push(tripDocumentId)
+    nfeDocumentIds.push(nfeDocumentId)
   }
 
-  return { companyId, documentIds, driverId, membershipId, stopIds, tripId, userId }
+  return { companyId, documentIds, driverId, membershipId, nfeDocumentIds, stopIds, tripId, userId }
 }
 
 async function seedNfeDocument(

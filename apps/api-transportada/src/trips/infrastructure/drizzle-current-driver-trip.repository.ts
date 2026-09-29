@@ -2,10 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { and, asc, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import {
   companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
@@ -20,7 +22,7 @@ import {
   tripStops,
   trips,
 } from '../../database/trip.schema.js'
-import { tripStopSchedules } from '../../database/delivery-client.schema.js'
+import { contractors, tripStopSchedules } from '../../database/delivery-client.schema.js'
 import { mdfeFiscalDocuments, mdfeManifests } from '../../database/mdfe.schema.js'
 import { DRIVER_SCORE_WINDOW_DAYS } from '../../fleet/domain/driver-score.policy.js'
 import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
@@ -75,6 +77,10 @@ const CURRENT_DRIVER_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES]
 
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = RECIPIENT_PARTICIPANT_ROLE
+/** Spec 218 RF-C3: o emitente da nota é o contratante (ADR-0048 §1) — resolvido para a exceção. */
+const EMITTER_ROLE = 'emitter'
+/** O emitente entra pela segunda vez em `nfeParticipants`: sem alias, a junção casaria com o destinatário. */
+const emitterParticipants = alias(nfeParticipants, 'emitter_participants')
 
 /** Encerrado ainda se apresenta; cancelado, não. Mesma regra da consulta do documento. */
 const PRINTABLE_DOCUMENT_STATUSES = ['authorized', 'closed'] as const
@@ -326,6 +332,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         return []
 
       const deliveryProof = resolveProofSettingsForRecipient({
+        contractorId: row.contractorId,
         lookup: proofSettings,
         recipientTaxId: row.recipientTaxId ?? '',
       })
@@ -400,6 +407,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         actorUserId: tripStopEvents.actorUserId,
         capturedAt: tripStopEvents.capturedAt,
         channel: tripStopEvents.channel,
+        contractorId: contractors.id,
         documentNumber: nfeDocuments.number,
         documentSeries: nfeDocuments.series,
         hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
@@ -438,6 +446,21 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           eq(nfeParticipants.companyId, tripDocuments.companyId),
           eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
           eq(nfeParticipants.role, RECIPIENT_ROLE),
+        ),
+      )
+      .leftJoin(
+        emitterParticipants,
+        and(
+          eq(emitterParticipants.companyId, tripDocuments.companyId),
+          eq(emitterParticipants.documentId, tripDocuments.nfeDocumentId),
+          eq(emitterParticipants.role, EMITTER_ROLE),
+        ),
+      )
+      .leftJoin(
+        contractors,
+        and(
+          eq(contractors.companyId, emitterParticipants.companyId),
+          eq(contractors.taxId, emitterParticipants.taxId),
         ),
       )
       .leftJoin(
@@ -594,7 +617,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   private async readProofSettings(input: {
     readonly companyId: string
   }): Promise<ProofSettingsLookup> {
-    const [generalRows, overrideRows] = await Promise.all([
+    const [generalRows, overrideRows, contractorOverrideRows] = await Promise.all([
       this.database
         .select({
           photo: companyDeliveryProofSettings.photo,
@@ -617,10 +640,34 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         })
         .from(deliveryProofSettingOverrides)
         .where(eq(deliveryProofSettingOverrides.companyId, input.companyId)),
+      // Spec 218 RF-C3: a mesma exceção, agora também por contratante.
+      this.database
+        .select({
+          contractorId: deliveryProofSettingContractorOverrides.contractorId,
+          photo: deliveryProofSettingContractorOverrides.photo,
+          receivedBy: deliveryProofSettingContractorOverrides.receivedBy,
+          receiverDocument: deliveryProofSettingContractorOverrides.receiverDocument,
+          receiverName: deliveryProofSettingContractorOverrides.receiverName,
+          signature: deliveryProofSettingContractorOverrides.signature,
+        })
+        .from(deliveryProofSettingContractorOverrides)
+        .where(eq(deliveryProofSettingContractorOverrides.companyId, input.companyId)),
     ])
 
     return {
       general: generalRows[0] ?? null,
+      overridesByContractorId: new Map(
+        contractorOverrideRows.map((row) => [
+          row.contractorId,
+          {
+            photo: row.photo,
+            receivedBy: row.receivedBy,
+            receiverDocument: row.receiverDocument,
+            receiverName: row.receiverName,
+            signature: row.signature,
+          },
+        ]),
+      ),
       overridesByTaxId: new Map(
         overrideRows.map((row) => [
           row.taxId,
@@ -723,6 +770,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       this.database
         .select({
           accessKey: nfeDocuments.accessKey,
+          contractorId: contractors.id,
           deliveredAt: tripDocuments.deliveredAt,
           id: tripDocuments.id,
           nfeDocumentId: tripDocuments.nfeDocumentId,
@@ -750,6 +798,21 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
             eq(nfeParticipants.companyId, tripDocuments.companyId),
             eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
             eq(nfeParticipants.role, RECIPIENT_ROLE),
+          ),
+        )
+        .leftJoin(
+          emitterParticipants,
+          and(
+            eq(emitterParticipants.companyId, tripDocuments.companyId),
+            eq(emitterParticipants.documentId, tripDocuments.nfeDocumentId),
+            eq(emitterParticipants.role, EMITTER_ROLE),
+          ),
+        )
+        .leftJoin(
+          contractors,
+          and(
+            eq(contractors.companyId, emitterParticipants.companyId),
+            eq(contractors.taxId, emitterParticipants.taxId),
           ),
         )
         .where(
@@ -788,6 +851,8 @@ type VolumeTotals = { readonly grossWeight: string; readonly quantity: string }
 
 type DocumentRow = {
   readonly accessKey: string | null
+  /** Spec 218 RF-C3: `contractors.id` resolvido do emitente da nota — `null` sem contratante achado. */
+  readonly contractorId: string | null
   readonly deliveredAt: Date | null
   readonly hasDeliveryPhoto: boolean
   readonly id: string
@@ -836,9 +901,11 @@ function toDriverDocument(
   row: DocumentRow,
   proofSettings: ProofSettingsLookup,
 ): DriverTripDocument {
-  // Spec 082 (revisão): resolvido pelo CNPJ do destinatário DESTE documento — a mesma regra da
-  // escrita do comprovante, via `resolveProofSettingsForRecipient`.
+  // Spec 082 (revisão) / spec 218 (RF-C3): resolvido pelo CNPJ do destinatário e pelo contratante
+  // (emitente) DESTE documento — a mesma regra da escrita do comprovante, via
+  // `resolveProofSettingsForRecipient`. Destinatário vence contratante quando os dois se aplicam.
   const deliveryProof = resolveProofSettingsForRecipient({
+    contractorId: row.contractorId,
     lookup: proofSettings,
     recipientTaxId: row.recipientTaxId ?? '',
   })
