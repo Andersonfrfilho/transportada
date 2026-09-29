@@ -44,7 +44,10 @@ import {
   isProofPendingWarningDue,
 } from '../shared/driverTripView.service'
 import type { StartRouteBlock } from '../shared/enRouteStop.service'
-import type { EventQueueItemView } from '../shared/eventQueueView.service'
+import {
+  resolveQueuedProofAttachments,
+  type EventQueueItemView,
+} from '../shared/eventQueueView.service'
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
 import {
@@ -1195,15 +1198,26 @@ function ProofCaptureFields({
   const [missing, setMissing] = useState<readonly ProofFieldKey[]>([])
   const [openSignature, setOpenSignature] = useState(false)
   const [cropFile, setCropFile] = useState<File | null>(null)
+  /**
+   * Spec 218: a captura nasce do que a fila já guarda para a nota — o canhoto colhido no gate
+   * continua "anexado" quando a nota passa a entregue e esta seção remonta. Lida uma vez: o anexo que
+   * sobe depois sai da fila, e a tela não volta a "Tirar foto" por isso.
+   */
+  const [queuedAtMount] = useState(() => resolveQueuedProofAttachments({ documentId, queueView }))
   const [attached, setAttached] = useState<{ photo: boolean; signature: boolean }>({
-    photo: false,
-    signature: false,
+    photo: queuedAtMount.photo !== undefined,
+    signature: queuedAtMount.signature !== undefined,
   })
   /**
    * Spec 211 (defeito 26/09): foto do canhoto e assinatura são anexos distintos, com miniatura,
    * chave e "Remover" próprios — os dois cabem juntos, e um nunca pisa no lugar do outro.
    */
-  const [attachedKey, setAttachedKey] = useState<{ photo?: string; signature?: string }>({})
+  const [attachedKey, setAttachedKey] = useState<{ photo?: string; signature?: string }>({
+    ...(queuedAtMount.photo === undefined ? {} : { photo: queuedAtMount.photo.attachmentKey }),
+    ...(queuedAtMount.signature === undefined
+      ? {}
+      : { signature: queuedAtMount.signature.attachmentKey }),
+  })
   const [openImageKind, setOpenImageKind] = useState<'photo' | 'signature' | undefined>(undefined)
   /** Spec 218: o kind que a fila recusou por último (teto cheio) — nunca aparece como anexado. */
   const [refusedKind, setRefusedKind] = useState<'photo' | 'signature' | undefined>(undefined)
@@ -1216,8 +1230,8 @@ function ProofCaptureFields({
   const cameraFieldRef = useCameraCaptureFieldRef()
   const galleryFieldRef = useCameraCaptureFieldRef()
   /** Spec 211: uma miniatura por kind — cada anexo revoga só a própria URL `blob:` ao trocar. */
-  const photoPreview = usePhotoPreviewUrl()
-  const signaturePreview = usePhotoPreviewUrl()
+  const photoPreview = usePhotoPreviewUrl(queuedAtMount.photo?.blob)
+  const signaturePreview = usePhotoPreviewUrl(queuedAtMount.signature?.blob)
   const previewByKind = { photo: photoPreview, signature: signaturePreview }
   const nameInputRef = useRef<HTMLInputElement>(null)
   /** Spec 193 D14: PJ recebe o nome selecionado, com foco — o motorista digita por cima. */

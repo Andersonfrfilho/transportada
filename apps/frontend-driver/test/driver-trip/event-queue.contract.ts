@@ -110,6 +110,21 @@ describe('a tela de eventos pendentes (D7)', () => {
         documentId: 'document-1',
         idempotencyKey: 'chave-1',
         kind: 'deliver',
+        /* Spec 218: os anexos do grupo — é deles que a captura nasce "anexada" depois do remonte. */
+        proofAttachments: [
+          {
+            attachmentKey: 'anexo-1',
+            blob: expect.any(Blob) as Blob,
+            documentId: 'document-1',
+            kind: 'photo',
+          },
+          {
+            attachmentKey: 'anexo-2',
+            blob: expect.any(Blob) as Blob,
+            documentId: 'document-1',
+            kind: 'photo',
+          },
+        ],
         queuedAt: NOW,
         status: { state: 'queued' },
       },
@@ -164,6 +179,15 @@ describe('a tela de eventos pendentes (D7)', () => {
         documentId: 'document-1',
         idempotencyKey: 'chave-1',
         kind: 'proof',
+        /* Spec 218: os anexos do grupo — é deles que a captura nasce "anexada" depois do remonte. */
+        proofAttachments: [
+          {
+            attachmentKey: 'anexo-1',
+            blob: expect.any(Blob) as Blob,
+            documentId: 'document-1',
+            kind: 'photo',
+          },
+        ],
         queuedAt: NOW,
         status: { cause: '413 PROOF_FILE_TOO_LARGE', state: 'rejected' },
       },
@@ -172,6 +196,15 @@ describe('a tela de eventos pendentes (D7)', () => {
         documentId: 'document-1',
         idempotencyKey: 'chave-2',
         kind: 'proof',
+        /* Spec 218: os anexos do grupo — é deles que a captura nasce "anexada" depois do remonte. */
+        proofAttachments: [
+          {
+            attachmentKey: 'anexo-2',
+            blob: expect.any(Blob) as Blob,
+            documentId: 'document-1',
+            kind: 'photo',
+          },
+        ],
         queuedAt: NOW,
         status: { state: 'queued' },
       },

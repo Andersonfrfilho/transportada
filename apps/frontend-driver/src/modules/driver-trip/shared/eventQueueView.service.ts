@@ -1,7 +1,7 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/eventQueueView.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverFieldReport, DriverTripStop } from './driverTrip.types'
-import type { AttachmentGroupEntries } from './offlineAttachments.service'
+import type { AttachmentGroupEntries, QueuedAttachment } from './offlineAttachments.service'
 import type { DriverTripErrorDetail, QueuedReport } from './offlineQueue.service'
 import { resolveRejectionCauseCode } from './rejectionCauseLabel.service'
 
@@ -24,6 +24,14 @@ export type EventQueueItemStatus =
   /** Spec 189 T9.2: gravado sem rede, esperando o dono confirmar ("Confirmar em lote"). */
   | Readonly<{ state: 'unverified' }>
 
+/** Spec 218: o anexo do canhoto que o grupo guarda — o que a captura precisa para nascer "anexada". */
+export type QueuedProofAttachmentView = Readonly<{
+  attachmentKey: string
+  blob: Blob
+  documentId: string
+  kind: QueuedAttachment['kind']
+}>
+
 export type EventQueueItemView = Readonly<{
   attachmentCount: number
   /**
@@ -42,6 +50,8 @@ export type EventQueueItemView = Readonly<{
   idempotencyKey: string
   /** `proof` é o grupo de anexos cujo evento já subiu — só os arquivos ainda aguardam. */
   kind: DriverFieldReport['kind'] | 'proof'
+  /** Spec 218: os anexos do grupo (espera, evento ou órfão), só quando há algum. */
+  proofAttachments?: readonly QueuedProofAttachmentView[]
   queuedAt: string
   /**
    * Pedido do usuário (25/09), spec 082: em `arrive` — é o que "Cheguei" libera. Spec 206: também em
@@ -50,6 +60,20 @@ export type EventQueueItemView = Readonly<{
   stopId?: string
   status: EventQueueItemStatus
 }>
+
+function toProofAttachments(
+  group: readonly QueuedAttachment[],
+): Pick<EventQueueItemView, 'proofAttachments'> {
+  if (group.length === 0) return {}
+  return {
+    proofAttachments: group.map(({ attachmentKey, blob, documentId, kind }) => ({
+      attachmentKey,
+      blob,
+      documentId,
+      kind,
+    })),
+  }
+}
 
 function toStatus(item: QueuedReport): EventQueueItemStatus {
   if (item.rejectionCause !== undefined) {
@@ -91,6 +115,7 @@ export function buildEventQueueView(input: {
         : {}),
       idempotencyKey: item.report.idempotencyKey,
       kind: item.report.kind,
+      ...toProofAttachments(group),
       queuedAt: item.createdAt,
       ...(report.kind === 'arrive' || report.kind === 'depart' || report.kind === 'cancelDeparture'
         ? { stopId: report.stopId }
@@ -112,6 +137,7 @@ export function buildEventQueueView(input: {
         ...(group[0]?.documentId === undefined ? {} : { documentId: group[0].documentId }),
         idempotencyKey: eventKey,
         kind: 'proof',
+        ...toProofAttachments(group),
         queuedAt: group[0]?.capturedAt ?? '',
         status:
           cause !== undefined
@@ -123,6 +149,31 @@ export function buildEventQueueView(input: {
     })
 
   return [...eventViews, ...orphanViews]
+}
+
+export type QueuedProofAttachments = Readonly<{
+  photo?: QueuedProofAttachmentView
+  signature?: QueuedProofAttachmentView
+}>
+
+/**
+ * Spec 218: o que a fila ainda guarda do canhoto de uma nota, por kind — o último de cada vence
+ * (um "Refazer" enfileira outro). Qualquer grupo serve: a espera do gate, o do evento de entrega ou
+ * o órfão de uma entrega que já subiu. É daqui que a captura nasce "anexada" depois do remonte.
+ */
+export function resolveQueuedProofAttachments(input: {
+  readonly documentId: string
+  readonly queueView: readonly EventQueueItemView[]
+}): QueuedProofAttachments {
+  const ofDocument = input.queueView
+    .flatMap((item) => item.proofAttachments ?? [])
+    .filter((attachment) => attachment.documentId === input.documentId)
+  const photo = ofDocument.findLast((attachment) => attachment.kind === 'photo')
+  const signature = ofDocument.findLast((attachment) => attachment.kind === 'signature')
+  return {
+    ...(photo === undefined ? {} : { photo }),
+    ...(signature === undefined ? {} : { signature }),
+  }
 }
 
 /**
