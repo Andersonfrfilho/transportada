@@ -763,6 +763,13 @@
   color: var(--color-alert);
 }
 
+/** As mensagens de `role="alert"` da tela do motorista — mesma cor de alerta do campo de prova. */
+.alert {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.82rem;
+}
+
 .signaturePad {
   background: var(--color-graphite);
   border: 1px solid var(--color-slate);

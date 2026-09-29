@@ -78,7 +78,7 @@ export function TripArrivalDialog({
           />
         </label>
         {error === undefined ? null : (
-          <p className={styles.notice} role="alert">
+          <p className={styles.alert} role="alert">
             {t(
               `feedback.${error === 'ARRIVED_AT_IN_FUTURE' ? 'arrivedAtInFuture' : 'arrivedAtBeforeDispatch'}`,
             )}
