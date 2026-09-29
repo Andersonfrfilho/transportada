@@ -374,6 +374,16 @@
   gap: var(--space-2);
 }
 
+/*
+ * Spec 218: sem o quadro de `fieldset` (que nasce com `min-inline-size: min-content` e borda +
+ * recuo: medido, levava a página a 388 px em 375) — a captura fica com a mesma largura da seção de
+ * depois da entrega, por construção.
+ */
+.deliveryGate {
+  display: grid;
+  gap: var(--space-2);
+}
+
 /* Spec 082 D8: motivo por chips — alvo de 44px, canto reto, um selecionado por vez. */
 .occurrenceChips {
   display: flex;

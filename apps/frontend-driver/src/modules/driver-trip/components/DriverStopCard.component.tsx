@@ -54,6 +54,7 @@ import {
   listMissingProofFields,
   listPendingReceiverFields,
   maskReceiverDocument,
+  requiresProofBeforeDelivery,
   resolveProofFormPlan,
   type ProofFieldKey,
   type ProofFormPlan,
@@ -119,6 +120,8 @@ export type DriverProofAttachment = Readonly<{
    * "Remover" alcançar só este item, nunca todo anexo desta nota (spec 211 traz mais de um).
    */
   attachmentKey?: string
+  /** Spec 218 (RF-A3): colhido no gate, antes da entrega — a fila o segura até ela entrar. */
+  awaitingDelivery?: true
   documentId: string
   file: File
   kind: 'photo' | 'signature'
@@ -686,6 +689,7 @@ function DocumentRow({
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
   const [openOccurrence, setOpenDocumentOccurrence] = useState(false)
+  const [openDeliveryGate, setOpenDeliveryGate] = useState(false)
   /** O botão "Tentar de novo" some ao ser tocado; o foco fica no painel, não cai no `body`. */
   const occurrencePanelRef = useRef<HTMLFieldSetElement>(null)
 
@@ -695,6 +699,13 @@ function DocumentRow({
   }
   /** Spec 082 (revisão): a configuração é do **documento** — a da parada é só o shape antigo. */
   const proofSettings = document.deliveryProof ?? stopProofSettings
+  /** Spec 218 (RF-A1): o servidor já resolveu as camadas — aqui só se lê o plano pronto. */
+  const requiresProof = requiresProofBeforeDelivery(resolveProofFormPlan(proofSettings))
+
+  function confirmDelivery(): void {
+    onAnnounce(t('activity.toast.delivered'))
+    onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
+  }
 
   if (isFieldWorkBlocked) {
     return (
@@ -812,11 +823,13 @@ function DocumentRow({
       {canActOnDocuments ? (
         <>
           <div className={styles.actions}>
+            {/*
+             * Spec 218 (P1/P2): sem obrigatório, o toque entrega na hora, como sempre. Com
+             * obrigatório, ele abre a captura aqui mesmo — quem entrega é o "Confirmar entrega".
+             */}
             <Button
-              onClick={() => {
-                onAnnounce(t('activity.toast.delivered'))
-                onDeliver({ documentId: document.id, lateRegistration: isLateRegistration })
-              }}
+              aria-expanded={requiresProof ? openDeliveryGate : undefined}
+              onClick={requiresProof ? () => setOpenDeliveryGate((open) => !open) : confirmDelivery}
               type="button"
             >
               <Icon name="check" />
@@ -840,6 +853,26 @@ function DocumentRow({
               {t('documentOccurrence')}
             </Button>
           </div>
+          {requiresProof && openDeliveryGate ? (
+            <PreDeliveryProofGate
+              captureProps={{
+                documentId: document.id,
+                ...(isLateRegistration ? { lateRegistration: true } : {}),
+                onProof,
+                ...(onProofFieldsUpdate === undefined ? {} : { onProofFieldsUpdate }),
+                ...(onRemoveProof === undefined ? {} : { onRemoveProof }),
+                proofSettings,
+                queueView,
+                recipientDisplayName: document.recipientDisplayName,
+                recipientIsCompany: document.recipientIsCompany,
+              }}
+              onCancel={() => setOpenDeliveryGate(false)}
+              onConfirm={() => {
+                confirmDelivery()
+                setOpenDeliveryGate(false)
+              }}
+            />
+          ) : null}
           {openOccurrence ? (
             <fieldset className={styles.occurrenceForm} ref={occurrencePanelRef} tabIndex={-1}>
               <legend>{t('documentOccurrence')}</legend>
@@ -916,6 +949,73 @@ function DocumentRow({
         <p className={styles.stopMeta}>{t('arrivalRequired')}</p>
       )}
     </li>
+  )
+}
+
+type PreDeliveryProofGateProps = Readonly<{
+  captureProps: DeliveryProofSectionProps
+  onCancel: () => void
+  onConfirm: () => void
+}>
+
+/**
+ * Spec 218 (RF-A1/RF-A2, P1): a captura de antes da entrega — o mesmo `ProofCaptureFields` de
+ * depois — e "Confirmar entrega", desabilitado enquanto faltar obrigatório. Cada anexo entra na
+ * fila na hora (spec 203), marcado para esperar a entrega: o gate atrasa só o `deliver`.
+ */
+function PreDeliveryProofGate({ captureProps, onCancel, onConfirm }: PreDeliveryProofGateProps) {
+  const { t } = useTranslation('driverTrip')
+  const titleId = useId()
+  const missingId = useId()
+  const { onProof } = captureProps
+
+  /* Sem quadro de `fieldset`: é a mesma seção de depois da entrega, só que antes — mesma largura. */
+  return (
+    <div aria-labelledby={titleId} className={styles.deliveryGate} role="group">
+      <p className={styles.proofCaptureTitle} id={titleId}>
+        {t('deliveryGate.title')}
+      </p>
+      <p className={styles.stopMeta}>{t('deliveryGate.lead')}</p>
+      <ProofCaptureFields
+        {...captureProps}
+        onProof={(input) => onProof({ ...input, awaitingDelivery: true })}
+        renderFooter={(capture) => {
+          const missingFields = listMissingProofFields({
+            plan: capture.plan,
+            values: capture.values,
+          })
+          const fieldsText = missingFields
+            .map((field) => t(`proofFields.missing.${field}`))
+            .join(', ')
+          return (
+            <>
+              {missingFields.length > 0 ? (
+                <p className={styles.notDeliveredMissing} id={missingId} role="status">
+                  {t('deliveryGate.missingLead', { fields: fieldsText })}
+                </p>
+              ) : null}
+              <div className={styles.actions}>
+                <Button
+                  aria-describedby={missingFields.length > 0 ? missingId : undefined}
+                  disabled={missingFields.length > 0}
+                  onClick={() => {
+                    capture.pushLateFieldUpdate()
+                    onConfirm()
+                  }}
+                  type="button"
+                >
+                  <Icon name="check" />
+                  {t('deliveryGate.confirm')}
+                </Button>
+                <Button onClick={onCancel} type="button" variant="ghost">
+                  {t('deliveryGate.cancel')}
+                </Button>
+              </div>
+            </>
+          )
+        }}
+      />
+    </div>
   )
 }
 

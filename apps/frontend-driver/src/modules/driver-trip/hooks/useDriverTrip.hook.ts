@@ -26,6 +26,7 @@ import {
   discardStaleAttachments,
   drainQueueWithAttachments,
   enqueueAttachment,
+  releaseAttachmentsAwaitingDelivery,
   removeQueuedAttachmentByKey,
   type AttachmentSendOutcome,
   type AttachmentStore,
@@ -104,6 +105,8 @@ const TRIP_SNAPSHOT_STORE = createIndexedDbTripSnapshotStore()
 export type DriverProofInput = Readonly<{
   /** Spec 207: gerada na tela — é o que "Remover" (por item, nunca por nota) precisa depois. */
   attachmentKey?: string
+  /** Spec 218 (RF-A3): colhido antes da entrega — espera o "Confirmar entrega" para drenar. */
+  awaitingDelivery?: true
   documentId: string
   file: File
   kind: 'photo' | 'signature'
@@ -552,6 +555,14 @@ export function useDriverTrip(
         subHash: session.subHash,
       })
       if (!result.accepted) return result.reason
+      /* Spec 218 (RF-A3): o canhoto colhido no gate passa para trás desta entrega — evento primeiro. */
+      if (fieldReport.kind === 'deliver') {
+        await releaseAttachmentsAwaitingDelivery({
+          attachmentStore,
+          documentId: fieldReport.documentId,
+          eventKey: fieldReport.idempotencyKey,
+        })
+      }
       await refreshQueueView()
 
       const location = await readCurrentLocation()
@@ -686,6 +697,7 @@ export function useDriverTrip(
     const result = await enqueueAttachment({
       attachment,
       attachmentStore,
+      awaitingDelivery: input.awaitingDelivery === true,
       isUnverified: !session.canSync,
       store,
     })

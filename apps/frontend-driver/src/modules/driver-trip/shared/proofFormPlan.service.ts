@@ -95,6 +95,22 @@ export function listMissingProofFields(input: {
   return missing
 }
 
+const EMPTY_PROOF_FORM_VALUES: ProofFormValues = {
+  hasPhoto: false,
+  hasSignature: false,
+  receiverDocument: '',
+  receiverName: '',
+}
+
+/**
+ * Spec 218 (RF-A1): "Entreguei" espera o comprovante só quando o formulário vazio já teria o que
+ * acusar — os mesmos campos de `listMissingProofFields`; `receivedBy` nunca bloqueia (spec 193 R2).
+ * Só o plano entra: o lançamento tardio (RF-A4) não tem exceção.
+ */
+export function requiresProofBeforeDelivery(plan: ProofFormPlan): boolean {
+  return listMissingProofFields({ plan, values: EMPTY_PROOF_FORM_VALUES }).length > 0
+}
+
 /**
  * Spec 207 (pedido do usuário, 25/09): quem recebeu pode assinar com CPF, CNPJ (representante de
  * pessoa jurídica) ou RG — e o RG varia de formato por estado (comprimento, com ou sem letra do

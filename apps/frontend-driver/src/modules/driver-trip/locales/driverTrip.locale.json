@@ -345,6 +345,13 @@
     "send": "Enviar",
     "warning": "Descartar apaga esses registros do celular para sempre, junto com as fotos e assinaturas das mesmas entregas — nada deles chega ao escritório."
   },
+  "deliveryGate": {
+    "title": "Comprovante da entrega",
+    "lead": "Esta entrega pede comprovante. Preencha o que tem * e confirme.",
+    "confirm": "Confirmar entrega",
+    "cancel": "Cancelar",
+    "missingLead": "Para confirmar, falta: {{fields}}."
+  },
   "notDelivered": {
     "occurrenceTypeLegend": "Qual ocorrência registrar?",
     "photoLabel": "Foto da ocorrência",

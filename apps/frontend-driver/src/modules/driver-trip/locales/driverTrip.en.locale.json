@@ -336,6 +336,13 @@
     "send": "Send",
     "warning": "Discarding erases these records from the phone for good, together with the photos and signatures of the same deliveries — none of it reaches the office."
   },
+  "deliveryGate": {
+    "title": "Delivery proof",
+    "lead": "This delivery needs proof. Fill in what has * and confirm.",
+    "confirm": "Confirm delivery",
+    "cancel": "Cancel",
+    "missingLead": "To confirm, add: {{fields}}."
+  },
   "notDelivered": {
     "occurrenceTypeLegend": "Which occurrence to record?",
     "photoLabel": "Occurrence photo",

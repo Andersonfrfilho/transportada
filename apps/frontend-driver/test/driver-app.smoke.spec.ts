@@ -808,6 +808,60 @@ test('canhoto: Tirar foto, Anexar e Colher assinatura, do mesmo tamanho, e a fot
 })
 
 /**
+ * Spec 218 (P1, RF-A3): com a foto obrigatória, "Entreguei" abre a captura ali mesmo; "Confirmar
+ * entrega" só habilita com a foto, e o canhoto sobe **depois** da entrega — a API recusa canhoto de
+ * nota sem entrega registrada, então ele nunca pode sair antes dela.
+ */
+test('comprovante obrigatório: Confirmar entrega só com a foto, e o canhoto sobe depois da entrega', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.mobile)
+  await grantLocation(page)
+  const api = await mockDriverTripApi({
+    page,
+    scenario: {
+      settlesDeliveries: true,
+      stopDeliveryProof: {
+        photo: 'required',
+        receiverDocument: 'off',
+        receiverName: 'off',
+        signature: 'optional',
+      },
+    },
+  })
+  await loginAsLocalUser(page)
+  await page.getByRole('button', { name: 'Cheguei' }).click()
+  await page.getByRole('button', { exact: true, name: 'Entreguei' }).click()
+
+  const confirm = page.getByRole('button', { exact: true, name: 'Confirmar entrega' })
+  await expect(confirm).toBeDisabled()
+  await expect(page.getByText('Para confirmar, falta: a foto.')).toBeVisible()
+  expect(api.reports().some((report) => report.path.endsWith('/deliver'))).toBe(false)
+
+  const cameraChooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: /^Tirar foto/u }).click()
+  await (await cameraChooser).setFiles(SMOKE_PHOTO)
+  await page.getByRole('button', { name: 'Usar sem recorte' }).click()
+  await expect(confirm).toBeEnabled()
+  // Passa da folga de 3 s da drenagem do canhoto: sem a entrega, a foto não sai do aparelho.
+  await page.waitForTimeout(4_000)
+  expect(api.reports().some((report) => report.path.endsWith('/proof'))).toBe(false)
+  await assertNoHorizontalOverflow(page)
+  expect(await listSmallTouchTargets(page)).toEqual([])
+
+  await confirm.click()
+  await expect
+    .poll(() => api.reports().some((report) => report.path.endsWith('/proof')), {
+      timeout: 20_000,
+    })
+    .toBe(true)
+  const paths = api.reports().map((report) => report.path)
+  expect(paths.findIndex((path) => path.endsWith('/deliver'))).toBeLessThan(
+    paths.findIndex((path) => path.endsWith('/proof')),
+  )
+})
+
+/**
  * Spec 179 (T302/T303), pedido do usuário de 25/09: "Não entreguei" registra a ocorrência com foto
  * e a devolução. Preenche motivo, tipo e foto pela câmera; o confirmar só habilita completo.
  */
