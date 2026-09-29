@@ -8,6 +8,7 @@ import type {
   DriverStopReference,
   FieldReportClaim,
 } from '../../src/trips/application/driver-field-report.port.js'
+import type { TripStopOccurrenceKind } from '../../src/database/trip.schema.js'
 import type { TripFieldChannel } from '../../src/trips/domain/trip-field-channel.constant.js'
 import type { TripOccurrence } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 
@@ -30,6 +31,13 @@ export type FieldReportState = {
   /** Spec 159 T11: `documentId:kind` → o último evento gravado daquela nota e tipo. */
   readonly latestEvents: Map<string, { readonly id: string }>
   readonly occurrences: Map<string, { readonly id: string }>
+  /** Spec 218 D2: o `occurrence_type_id` de cada ocorrência de parada gravada, na ordem. */
+  readonly recordedOccurrenceTypeIds: (string | null)[]
+  /**
+   * Spec 218 D2: `companyId:occurrenceTypeId` → o `stop_kind` do tipo. Só entra o que a consulta real
+   * devolve — tipo da empresa, `flow: stop` e ativo; o resto é ausente.
+   */
+  readonly stopOccurrenceTypes: Map<string, { readonly stopKind: TripStopOccurrenceKind | null }>
   readonly proofsByAttachmentKey: Map<string, string>
   /** ADR-0070 §1, spec 159 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
   readonly proofsByEventKind: Set<string>
@@ -70,6 +78,8 @@ export function createFieldReportState(
     eventLateRegistrations: new Map(),
     latestEvents: new Map(),
     occurrences: new Map(),
+    recordedOccurrenceTypeIds: [],
+    stopOccurrenceTypes: new Map(),
     proofsByAttachmentKey: new Map(),
     proofsByEventKind: new Set(),
     proofDetailsByEventKind: new Map(),
@@ -240,8 +250,11 @@ export function createFieldReportUnitOfWork(
     },
     findLatestEventForDocument: async (input) =>
       state.latestEvents.get(`${input.documentId}:${input.kind}`) ?? null,
+    findStopOccurrenceType: async (input) =>
+      state.stopOccurrenceTypes.get(`${input.companyId}:${input.occurrenceTypeId}`) ?? null,
     recordOccurrence: async (input) => {
       state.calls.push(`recordOccurrence:${input.kind}`)
+      state.recordedOccurrenceTypeIds.push(input.occurrenceTypeId)
       const occurrence = { id: nextIdentifier('occurrence') }
       state.occurrences.set(occurrence.id, occurrence)
       return occurrence

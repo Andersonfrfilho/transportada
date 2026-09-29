@@ -9,8 +9,12 @@ import { describe, expect, test } from 'bun:test'
 
 import { getTableConfig } from 'drizzle-orm/pg-core'
 
-import { companyOccurrenceTypes, tripStopOccurrences } from '../../src/database/database.schema.js'
-import { foreignKeys } from '../fiscal-schema/support.js'
+import {
+  companyOccurrenceTypes,
+  TRIP_STOP_OCCURRENCE_KINDS,
+  tripStopOccurrences,
+} from '../../src/database/database.schema.js'
+import { checkSqlByName, foreignKeys } from '../fiscal-schema/support.js'
 
 describe('vocabulário de ocorrência de parada migra para o catálogo (spec 218 RF-B5)', () => {
   test('todo tipo nasce com flow "document" por padrão', () => {
@@ -29,5 +33,20 @@ describe('vocabulário de ocorrência de parada migra para o catálogo (spec 218
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })
+  })
+
+  /**
+   * Spec 218 D2: o "qual dos 5" do tipo de parada — nulo em tipo de nota, e em tipo de parada criado
+   * pelo operador o cadastro grava `other`. Nunca derivado do nome, que o operador renomeia.
+   */
+  test('stop_kind é opcional e só aceita o vocabulário fixo de parada', () => {
+    const { columns } = getTableConfig(companyOccurrenceTypes)
+    const stopKind = columns.find((column) => column.name === 'stop_kind')
+
+    expect(stopKind?.notNull).toBe(false)
+    const checks = checkSqlByName(companyOccurrenceTypes)
+    for (const kind of TRIP_STOP_OCCURRENCE_KINDS) {
+      expect(checks.company_occurrence_types_stop_kind_check).toContain(`'${kind}'`)
+    }
   })
 })
