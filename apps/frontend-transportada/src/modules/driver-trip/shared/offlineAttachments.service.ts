@@ -76,6 +76,17 @@ export function documentAttachmentKey(documentId: string): string {
   return `document:${documentId}`
 }
 
+const AWAITING_DELIVERY_KEY_PREFIX = 'awaiting-delivery:'
+
+/**
+ * Spec 218 (RF-A3): o painel antigo nunca cria canhoto antes da entrega (o gate é só da app nova) —
+ * esta função existe só para a definição de `countPending` continuar igual, byte a byte, à da app
+ * do motorista (contrato de paridade). Aqui, sempre `false` na prática.
+ */
+export function isAwaitingDeliveryKey(eventKey: string): boolean {
+  return eventKey.startsWith(AWAITING_DELIVERY_KEY_PREFIX)
+}
+
 /**
  * O anexo procura primeiro o evento de entrega **ainda na fila** daquela nota — "evento primeiro",
  * como antes. Spec 159: quando a entrega já saiu da fila (já foi aceita, ou é anexo em lote de uma
