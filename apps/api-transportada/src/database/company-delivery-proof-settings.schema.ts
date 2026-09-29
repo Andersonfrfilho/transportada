@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies } from './identity.schema.js'
+import { contractors, deliveryClients } from './delivery-client.schema.js'
 import { inList } from './schema-check.constant.js'
 
 /**
@@ -162,6 +163,17 @@ export const deliveryProofSettingOverrides = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /**
+     * Spec 218 RF-C2: FK de verdade, composta com o tenant — antes era só `CHECK` de formato. A
+     * migration faz backfill de `delivery_clients` para todo override "órfão" antes de criar isto.
+     */
+    foreignKey({
+      columns: [table.companyId, table.taxId],
+      foreignColumns: [deliveryClients.companyId, deliveryClients.taxId],
+      name: 'delivery_proof_setting_overrides_company_id_tax_id_delivery_clients_company_id_tax_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     unique('delivery_proof_setting_overrides_company_tax_id_unique').on(
       table.companyId,
       table.taxId,
@@ -185,6 +197,73 @@ export const deliveryProofSettingOverrides = pgTable(
     check('delivery_proof_setting_overrides_photo_check', sql`${table.photo} in (${MODE_LIST()})`),
     check(
       'delivery_proof_setting_overrides_received_by_check',
+      sql`${table.receivedBy} in (${MODE_LIST()})`,
+    ),
+  ],
+)
+
+/**
+ * Spec 218 RF-C1: a exceção por contratante (embarcador/emitente) — mesma forma da exceção por
+ * destinatário acima, trocando `tax_id` livre por `contractor_id` com FK composta para
+ * `contractors`. Sem backfill: todo contratante já nasce cadastrado pela nota (ADR-0048).
+ */
+export const deliveryProofSettingContractorOverrides = pgTable(
+  'delivery_proof_setting_contractor_overrides',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    contractorId: uuid('contractor_id').notNull(),
+    receiverName: text('receiver_name')
+      .notNull()
+      .default('optional')
+      .$type<DeliveryProofFieldMode>(),
+    receiverDocument: text('receiver_document')
+      .notNull()
+      .default('off')
+      .$type<DeliveryProofFieldMode>(),
+    signature: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    photo: text().notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    receivedBy: text('received_by').notNull().default('optional').$type<DeliveryProofFieldMode>(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'delivery_proof_setting_contractor_overrides_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.contractorId],
+      foreignColumns: [contractors.companyId, contractors.id],
+      name: 'delivery_proof_setting_contractor_overrides_company_id_contractor_id_contractors_company_id_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('delivery_proof_setting_contractor_overrides_company_contractor_unique').on(
+      table.companyId,
+      table.contractorId,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_receiver_name_check',
+      sql`${table.receiverName} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_receiver_document_check',
+      sql`${table.receiverDocument} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_signature_check',
+      sql`${table.signature} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_photo_check',
+      sql`${table.photo} in (${MODE_LIST()})`,
+    ),
+    check(
+      'delivery_proof_setting_contractor_overrides_received_by_check',
       sql`${table.receivedBy} in (${MODE_LIST()})`,
     ),
   ],

@@ -6,6 +6,7 @@ import { runDatabaseMigrations } from '../../src/database/database-migration.ser
 import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
+import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
 import { assertDeliveryProofReceivedBy } from './delivery-proof-received-by.assertion.js'
 import { assertDriverAllowanceRollbackRefusesRecordedMoney } from './driver-allowance-rollback.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
@@ -135,6 +136,13 @@ describe('Drizzle migration integration', () => {
           driverId: fleetFixture.driverId,
           tripId: rollbackProbeTripId,
           userId: identityFixture.userId,
+        })
+
+        await assertDeliveryProofContractorOverridesBackfill({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
         })
 
         await assertStopDepartureRollback({

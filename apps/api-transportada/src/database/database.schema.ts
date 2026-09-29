@@ -116,6 +116,7 @@ import { companyDistributionSettings } from './company-distribution-settings.sch
 import { companyCrewSettings } from './company-crew-settings.schema.js'
 import {
   companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
 } from './company-delivery-proof-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
@@ -263,6 +264,7 @@ export const databaseSchema = {
   companyDistributionSettings,
   companyDriverAllowanceSettings,
   companyCrewSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
   companyEnergySettings,
   companyFiscalProfiles,
