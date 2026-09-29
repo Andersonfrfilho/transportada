@@ -27,16 +27,23 @@ export function parseDeliveredAt(value: string): Date {
   return parsed
 }
 
-const occurrenceSchema = z
-  .object({
-    description: z.string().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).optional(),
-    /** ADR-0057 §3: `null`/ausente é não aferida, e ela é aceita — distância nunca é porteiro. */
-    distanceMeters: z.int().min(0).nullish(),
-    documentId: z.uuid().nullish(),
-    driverId: z.uuid().optional(),
-    kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS),
-  })
-  .strict()
+const occurrenceBodySchema = z.object({
+  description: z.string().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).optional(),
+  /** ADR-0057 §3: `null`/ausente é não aferida, e ela é aceita — distância nunca é porteiro. */
+  distanceMeters: z.int().min(0).nullish(),
+  documentId: z.uuid().nullish(),
+  driverId: z.uuid().optional(),
+})
+
+/**
+ * Spec 218 D2: o mesmo par que a rota do motorista aceita — o tipo do catálogo (`flow: stop`, o
+ * kind sai do `stop_kind` dele), ou o corpo antigo, só com o valor fixo. Sem isso, o escritório
+ * nunca grava `occurrence_type_id`, e a sugestão de cobrança/aviso caem sempre no `kind` cru.
+ */
+const occurrenceSchema = z.union([
+  occurrenceBodySchema.extend({ occurrenceTypeId: z.uuid() }).strict(),
+  occurrenceBodySchema.extend({ kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS) }).strict(),
+])
 
 const arrivalSchema = z
   .object({
@@ -68,22 +75,33 @@ export async function parseOfficeDriverSelection(
   return { driverId: body.driverId }
 }
 
-export async function parseOfficeStopOccurrenceRequest(request: Request): Promise<{
+export type OfficeStopOccurrenceRequest = {
   readonly description: string
   readonly distanceMeters: number | null
   readonly documentId: string | null
   readonly driverId: string | undefined
-  readonly kind: (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
-}> {
-  const body = await parseBody(occurrenceSchema, request)
+} & (
+  | {
+      readonly kind: (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
+      readonly occurrenceTypeId?: undefined
+    }
+  | { readonly kind?: undefined; readonly occurrenceTypeId: string }
+)
 
-  return {
+export async function parseOfficeStopOccurrenceRequest(
+  request: Request,
+): Promise<OfficeStopOccurrenceRequest> {
+  const body = await parseBody(occurrenceSchema, request)
+  const common = {
     description: body.description ?? '',
     distanceMeters: body.distanceMeters ?? null,
     documentId: body.documentId ?? null,
     driverId: body.driverId,
-    kind: body.kind,
   }
+
+  return 'occurrenceTypeId' in body
+    ? { ...common, occurrenceTypeId: body.occurrenceTypeId }
+    : { ...common, kind: body.kind }
 }
 
 const officeReturnSchema = z
