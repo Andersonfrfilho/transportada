@@ -175,14 +175,50 @@ aparelho de 320 px chegaria.
 
 ### Pendências e limites conhecidos
 
-- Fila cheia com o gate ativo (casos extremos do `spec.md`): o aviso de fila cheia que já existe
-  (`DriverProofOutcomeNotice`, `count-limit`/`size-limit`) aparece, mas o gate marca a foto como
-  anexada mesmo recusada — `onProof` não devolve o resultado ao formulário. Travar de verdade exige
-  mudar a assinatura de `onProof` (hoje `void`), fora do escopo de T16–T20.
-- Depois do "Confirmar entrega", quando o snapshot confirma a entrega, a nota passa ao ramo
-  "entregue" com uma `DeliveryProofSection` nova (estado vazio: "Tirar foto \*" de novo), embora o
-  canhoto esteja na fila atrás da entrega. É o mesmo comportamento de hoje depois de recarregar a
-  página, só que agora visível logo depois do toque.
-- Foto colhida no gate e "Cancelar"/"Não entreguei" em seguida: o anexo fica esperando na fila (não
-  sobe como canhoto de nota não entregue) até o prazo de 7 dias de `discardStaleAttachments`.
 - Legado `/minha-viagem` (`frontend-transportada`) sem o gate — Fase 5 (T24).
+- Depois que o canhoto **sobe** (sai da fila) antes de o snapshot confirmar a entrega — o caso
+  comum com rede —, a seção de depois da entrega ainda nasce vazia: a correção abaixo lê a fila, e
+  a fila já não tem o anexo. O servidor tem (`proofPending` cai para `false`), mas a tela não mostra
+  "anexada" sem o arquivo local. Mesmo comportamento de antes depois de recarregar a página.
+- Fechar o gate tocando "Entreguei" de novo (o botão alterna) não descarta a foto: é "volto depois",
+  e reabrir o gate mostra a foto anexada (lida da fila). Se o motorista nunca voltar nem devolver a
+  nota, o anexo segue esperando até o descarte de 7 dias.
+- O aviso novo de fila cheia (abaixo) reusa o mesmo primitivo do "Preencha este campo"
+  (`proofFieldError`, `role="status"`), sem print próprio: forçar o teto de 30 itens / 50 MB no
+  Playwright pede um arnês que o smoke não tem.
+
+### Resolvido depois da Fase 4 (29/09/2026)
+
+As três lacunas acima, cada uma com contrato visto falhar antes e commit próprio. Base antes de
+começar: `bun run check` 790 pass / 0 fail / 1601 expects (+ `dist` 6/6).
+
+1. **Fila cheia marcava a foto como anexada** (`3ba6c6762`). `onProof` passa a devolver
+   `Promise<boolean>` (se o anexo entrou na fila); `handleProof` da página devolve
+   `outcome === 'queued'`, e `false` também na falha. `attach()` só marca anexada, grava a chave e
+   mostra a miniatura depois do aceite; recusado, mostra no formulário "Fila cheia: não deu para
+   salvar a foto agora…" (`proofCapture.refused.photo`/`.signature`, pt-BR e en). Com isso o gate
+   não habilita "Confirmar entrega" sem canhoto na fila. Contrato
+   `test/driver-trip/proof-queue-refused.contract.ts` (0/5 antes; 795 pass depois).
+2. **A seção de depois da entrega nascia vazia com o canhoto na fila** (`013ca9350`).
+   `EventQueueItemView` leva `proofAttachments` (chave, kind, arquivo) de cada grupo, e
+   `resolveQueuedProofAttachments` devolve o último anexo por kind de uma nota — no grupo de espera,
+   no da entrega enfileirada ou no órfão. `ProofCaptureFields` lê isso uma vez, ao montar
+   (`useState` preguiçoso): anexada, chave e miniatura (`usePhotoPreviewUrl(initialBlob)`) nascem
+   dali. Lida uma vez de propósito — o anexo que sobe sai da fila, e a tela não volta a "Tirar
+   foto" por isso. Contrato `test/driver-trip/proof-queued-at-mount.contract.ts` (não carregava
+   antes: `resolveQueuedProofAttachments` inexistente). Duas asserções antigas mudaram de forma, sem
+   mudar o que guardam: `event-queue.contract.ts` (as duas visões com anexo ganham
+   `proofAttachments`) e `proof-two-attachments.contract.ts` (as duas `usePhotoPreviewUrl(` e o
+   `attachedKey` por kind agora nascem da fila). 801 pass.
+3. **Cancelar o gate ou "Não entreguei" deixava a foto órfã** (`65791ed98`).
+   `discardAttachmentsAwaitingDelivery` apaga só `awaiting-delivery:<id>` daquela nota — o que já
+   foi solto para o grupo da entrega fica. "Cancelar" do gate chama o descarte
+   (`discardProofAwaitingDelivery` do hook); a devolução aceita na fila descarta a espera da nota
+   devolvida dentro de `reportNotDelivered` (recusada pela fila, a foto fica — a entrega ainda pode
+   acontecer); confirmar "Não entreguei" também fecha o gate aberto da mesma nota. Contrato
+   `test/driver-trip/proof-awaiting-delivery-discard.contract.ts` (não carregava antes). 808 pass.
+
+Gates no fim: `bun run check` (lint + typecheck + 808 testes / 1671 expects + build + `dist` 6/6)
+verde; `bun run smoke` verde — service worker 2/2, app 24/24, incluindo "comprovante obrigatório:
+Confirmar entrega só com a foto, e o canhoto sobe depois da entrega". Rodado local, Playwright na
+origem sintética 53112.
