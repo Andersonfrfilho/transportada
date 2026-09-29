@@ -365,7 +365,12 @@ caixa de "O que aconteceu" não ocupa a largura toda do formulário; é o mesmo 
 - A exceção de ocorrência por contratante/destinatário (P3) não chega ao app: o snapshot não traz
   `contractorId`/`recipientTaxId` da nota, e o app lê o `attachmentMode` geral do tipo (registrado
   acima, fora desta spec).
-- A rota de ocorrência **de nota** (`POST .../documents/:id/occurrences`) não recusa um tipo de
-  `flow: stop` — o app nunca manda, mas o servidor não barra.
-- A rota do escritório em nome do motorista segue por `kind`; ocorrência de parada registrada pelo
-  escritório grava sem `occurrence_type_id`.
+- ~~A rota de ocorrência **de nota** (`POST .../documents/:id/occurrences`) não recusa um tipo de
+  `flow: stop` — o app nunca manda, mas o servidor não barra.~~ **Fechado** (29/09/2026):
+  `registerDriverOccurrence` agora recusa `flow: stop` com o mesmo `TripDocumentNotReachableError`
+  das outras barreiras — `test/trip-occurrence/driver.contract.ts`.
+- ~~A rota do escritório em nome do motorista segue por `kind`; ocorrência de parada registrada pelo
+  escritório grava sem `occurrence_type_id`.~~ **Fechado** (29/09/2026): `trip-field-office.schema.ts`
+  passou a aceitar o mesmo par `kind`/`occurrenceTypeId` de `me-trip.schema.ts`, e
+  `trip-field-office-trip.routes.ts` repassa ao `reportStopOccurrence` (que já sabia gravar
+  `occurrence_type_id` desde D2) — `test/trip-occurrence/office-stop-occurrence-type.contract.ts`.
