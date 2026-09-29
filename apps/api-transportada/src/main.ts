@@ -534,6 +534,8 @@ import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proo
 import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
 import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/drizzle-delivery-proof-settings.repository'
 import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery-proof-settings.routes'
+import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
+import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
 import type { DriverFieldReportTransactionPort } from './trips/application/driver-field-report.port.js'
@@ -3359,6 +3361,28 @@ function createApplicationRoutes({
         deliveryProofSettingsRepository.replaceContractorOverrides(input),
       replaceOverrides: (input) => deliveryProofSettingsRepository.replaceOverrides(input),
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
+    }),
+    /** Spec 218 RF-E1: composição pura — os mesmos repositórios das rotas acima, sem escrita. */
+    ...createSettingsResolutionRoutes({
+      readSettingsResolution: (input) =>
+        readSettingsResolution({
+          ...input,
+          port: {
+            deliveryProof: {
+              listContractorOverrides: (query) =>
+                deliveryProofSettingsRepository.listContractorOverrides(query),
+              listOverrides: (query) => deliveryProofSettingsRepository.listOverrides(query),
+              readSettings: (query) => deliveryProofSettingsRepository.readSettings(query),
+            },
+            occurrenceTypeOverrides: {
+              listOverridesForTypes: (query) =>
+                occurrenceAttachmentOverridesRepository.listOverridesForTypes(query),
+            },
+            occurrenceTypes: {
+              listOccurrenceTypes: (query) => listOccurrenceTypes(database, query),
+            },
+          },
+        }),
     }),
     ...createTripFieldDeliverySettingsRoutes({
       readCanhotoOcrEnabled: (input) =>

@@ -38,6 +38,11 @@ export const API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH =
 /** Spec 218 RF-C1/RF-C4: a mesma exceção, agora também por contratante (embarcador/emitente). */
 export const API_COMPANY_SETTINGS_DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH =
   '/company-settings/delivery-proof-contractor-overrides'
+/**
+ * Spec 218 RF-E1: a tela de verificação — comprovante e ocorrência efetivos para uma combinação de
+ * contratante/destinatário, sem simular uma nota de verdade. `GET` só, `settings.manage`.
+ */
+export const API_COMPANY_SETTINGS_SETTINGS_RESOLUTION_PATH = '/company-settings/settings-resolution'
 /** Spec 075: o fator de cubagem por espécie, irmão do peso padrão. */
 export const API_COMPANY_SETTINGS_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 export const API_COMPANY_SETTINGS_CONTACTS_PATH = '/company-settings/contacts'
