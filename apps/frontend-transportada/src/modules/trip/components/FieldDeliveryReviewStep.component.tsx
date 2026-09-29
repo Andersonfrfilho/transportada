@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 
+import { ProofCrop } from '../../driver-trip/components/ProofCrop.component'
 import {
   canAddFieldDeliveryCargoPhoto,
   FIELD_DELIVERY_CARGO_PHOTO_LIMIT,
@@ -86,7 +87,14 @@ export function FieldDeliveryReviewStep({
   const [deliveredAt, setDeliveredAt] = useState(() => toDatetimeLocalValue(new Date()))
   const [receiverName, setReceiverName] = useState('')
   const [receiverDocument, setReceiverDocument] = useState('')
-  const imageUrl = useMemo(() => URL.createObjectURL(capture.imageBlob), [capture.imageBlob])
+  /**
+   * O recorte troca só o que fica gravado — a identificação (código de barras/OCR) já rodou sobre
+   * a foto original em `captureFieldDeliveryPhoto`, e recortar depois não refaz aquela leitura.
+   */
+  const [isCropping, setIsCropping] = useState(false)
+  const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null)
+  const imageBlob = croppedImageBlob ?? capture.imageBlob
+  const imageUrl = useMemo(() => URL.createObjectURL(imageBlob), [imageBlob])
 
   useEffect(() => () => URL.revokeObjectURL(imageUrl), [imageUrl])
 
@@ -180,7 +188,7 @@ export function FieldDeliveryReviewStep({
       cargoImageBlobs: cargoPhotos.map((photo) => photo.imageBlob),
       deliveredAt: deliveredAtIso,
       documentId: targetDocumentId,
-      imageBlob: capture.imageBlob,
+      imageBlob,
       ...driverIdInput,
       ...receiverNameInput,
       ...receiverDocumentInput,
@@ -210,6 +218,21 @@ export function FieldDeliveryReviewStep({
         className={styles.reviewPreview}
         src={imageUrl}
       />
+      <Button onClick={() => setIsCropping(true)} size="sm" type="button" variant="secondary">
+        <Icon name="image" />
+        {t('fieldDelivery.cropPhoto')}
+      </Button>
+
+      {isCropping ? (
+        <ProofCrop
+          file={new File([imageBlob], 'canhoto.jpg', { type: 'image/jpeg' })}
+          onCancel={() => setIsCropping(false)}
+          onConfirm={(file) => {
+            setCroppedImageBlob(file)
+            setIsCropping(false)
+          }}
+        />
+      ) : null}
 
       <p className={styles.notice} role="status">
         {t(`fieldDelivery.identification.${resolveFieldDeliveryIdentificationMessage(capture)}`)}

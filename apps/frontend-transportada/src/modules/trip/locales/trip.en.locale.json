@@ -1127,6 +1127,7 @@
     "closeSendingMessage": "Sending is still in progress — leaving now does not cancel documents already sent.",
     "closeTitle": "Leave the assistant?",
     "confirm": "Confirm",
+    "cropPhoto": "Crop photo",
     "deliveredAtError": {
       "DELIVERED_AT_BEFORE_DISPATCH": "\"Delivered at\" cannot be before the trip's dispatch.",
       "DELIVERED_AT_IN_FUTURE": "\"Delivered at\" cannot be in the future."

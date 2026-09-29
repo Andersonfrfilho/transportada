@@ -1323,6 +1323,7 @@
     "closeSendingMessage": "O envio ainda está em andamento — sair agora não cancela as notas já enviadas.",
     "closeTitle": "Sair do assistente?",
     "confirm": "Confirmar",
+    "cropPhoto": "Recortar foto",
     "deliveredAtError": {
       "DELIVERED_AT_BEFORE_DISPATCH": "\"Entregue em\" não pode ser antes do despacho da viagem.",
       "DELIVERED_AT_IN_FUTURE": "\"Entregue em\" não pode ser no futuro."
