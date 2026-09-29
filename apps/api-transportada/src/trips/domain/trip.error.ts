@@ -250,6 +250,17 @@ export class TripDocumentNotFoundError extends ApiError {
   }
 }
 
+/** Spec 218 RF-B3: o `:occurrenceTypeId` da rota de exceções não existe nesta empresa. */
+export class OccurrenceTypeNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_NOT_FOUND',
+      message: 'Occurrence type was not found',
+      status: 404,
+    })
+  }
+}
+
 /** Nota/frete já vivo em outra viagem (spec 027 § Dúvidas) — mesmo desenho do plate-taken de fleet. */
 export class TripDocumentAlreadyLinkedError extends ApiError {
   public constructor() {

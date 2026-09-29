@@ -11,7 +11,10 @@ import {
 } from '../domain/trip.error.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
-import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceTypeFlow,
+  TripOccurrenceStage,
+} from '../../shared/trip-occurrence.constant.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 
 /** O catálogo de templates da empresa, visto pelo único predicado que este cadastro precisa. */
@@ -37,6 +40,12 @@ export type SaveOccurrenceTypeValues = {
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
+  /**
+   * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Obrigatório na
+   * criação (a fronteira já recusa `occurrenceTypeId: null` sem `flow`, ver `occurrence.schema.ts`);
+   * ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
+   */
+  readonly flow?: OccurrenceTypeFlow | undefined
   /**
    * Spec 185 (RF6, ADR-0074 §4): só tipo de separação pode "deixar a nota para trás" —
    * `saveOccurrenceTypeWithTemplate` recusa `true` com `stage !== 'separation'` antes de gravar.

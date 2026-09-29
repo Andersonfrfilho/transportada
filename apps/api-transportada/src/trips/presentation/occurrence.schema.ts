@@ -6,6 +6,9 @@ import { z } from 'zod'
 import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
+import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
+import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
 import { unknownTemplatePlaceholders } from '../domain/occurrence-template.policy.js'
 import {
@@ -322,17 +325,65 @@ const occurrenceTypeSchema = z
      * conferida contra o catálogo da empresa na gravação, e assunto/corpo acima são ignorados.
      */
     emailTemplateKey: z.string().trim().min(1).max(120).nullable().default(null),
+    /**
+     * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. **Obrigatório
+     * na criação** (`occurrenceTypeId: null`) — um tipo novo sem `flow` não sabe em qual botão do
+     * motorista aparecer. Na edição, ausente é "não mexa", como `attachmentMode`: o UPDATE
+     * sobrescreve o registro inteiro, e o editor do painel ainda não manda este campo.
+     */
+    flow: z.enum(OCCURRENCE_TYPE_FLOWS).optional(),
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),
     stage: z.enum(['delivery', 'separation']),
   })
   .strict()
+  .superRefine((data, ctx) => {
+    if (data.occurrenceTypeId === null && data.flow === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'FLOW_REQUIRED_ON_CREATE', path: ['flow'] })
+    }
+  })
 
 export async function parseOccurrenceTypeRequest(
   request: Request,
 ): Promise<z.infer<typeof occurrenceTypeSchema>> {
   return parseBody(occurrenceTypeSchema, request)
+}
+
+/**
+ * Spec 218 RF-B3: o corpo do `PUT` de exceções por tipo — substituição total das duas listas,
+ * mesmo padrão de `deliveryProofOverridesSchema`/`deliveryProofContractorOverridesSchema`.
+ */
+const attachmentOverrideModeSchema = z.enum(DELIVERY_PROOF_FIELD_MODES)
+
+export const occurrenceAttachmentOverridesSchema = z
+  .object({
+    contractorOverrides: z
+      .array(
+        z
+          .object({ attachmentMode: attachmentOverrideModeSchema, contractorId: z.string().uuid() })
+          .strict(),
+      )
+      .max(200),
+    recipientOverrides: z
+      .array(
+        z
+          .object({
+            attachmentMode: attachmentOverrideModeSchema,
+            taxId: buildTaxIdSchema(TAX_ID_PATTERN),
+          })
+          .strict(),
+      )
+      .max(200),
+  })
+  .strict()
+
+export type OccurrenceAttachmentOverridesBody = z.infer<typeof occurrenceAttachmentOverridesSchema>
+
+export async function parseOccurrenceAttachmentOverridesRequest(
+  request: Request,
+): Promise<OccurrenceAttachmentOverridesBody> {
+  return parseBody(occurrenceAttachmentOverridesSchema, request)
 }
 
 /**

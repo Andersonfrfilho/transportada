@@ -39,7 +39,10 @@ import type {
   TripOccurrence,
   TripOccurrenceAuthorship,
 } from '../application/register-trip-occurrence.use-case.js'
-import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceTypeFlow,
+  TripOccurrenceStage,
+} from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
@@ -635,6 +638,8 @@ export async function findOccurrenceType(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      /** Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. */
+      flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
       /** Spec 185 (revisão, RF2): só a ocorrência que deixa a nota para trás tenta o despacho. */
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
@@ -765,6 +770,7 @@ export async function listOccurrenceTypes(
       emailSubject: companyOccurrenceTypes.emailSubject,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
       leavesDocumentBehind: companyOccurrenceTypes.leavesDocumentBehind,
       name: companyOccurrenceTypes.name,
@@ -792,6 +798,11 @@ export async function saveOccurrenceType(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    /**
+     * Spec 218 (D1, RF-B5): obrigatório na criação (a fronteira já recusa a ausência com
+     * `occurrenceTypeId: null`); ausente na edição é "não mexa", mesmo motivo de `attachmentMode`.
+     */
+    readonly flow?: OccurrenceTypeFlow | undefined
     /**
      * Spec 185 (RF6, ADR-0074 §4): ausente é `false` — o padrão da coluna. Opcional pelo mesmo
      * motivo de `attachmentMode` acima: o UPDATE sobrescreve o registro inteiro e o editor do
@@ -833,6 +844,7 @@ export async function saveOccurrenceType(
   const attachmentModeChange = {
     ...(input.attachmentMode === undefined ? {} : { attachmentMode: input.attachmentMode }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+    ...(input.flow === undefined ? {} : { flow: input.flow }),
   }
   /**
    * Tipo que não é de separação grava sempre `false`: mudar o estágio de um tipo marcado, sem mandar
@@ -877,6 +889,7 @@ export async function saveOccurrenceType(
     emailSubject: saved.emailSubject,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
+    flow: saved.flow,
     id: saved.id,
     leavesDocumentBehind: saved.leavesDocumentBehind,
     name: saved.name,

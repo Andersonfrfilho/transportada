@@ -15,6 +15,7 @@ function baseBody(): Record<string, unknown> {
     emailBody: '',
     emailSubject: '',
     emailTemplateKey: null,
+    flow: 'document',
     name: 'Item faltante',
     notifies: false,
     occurrenceTypeId: null,

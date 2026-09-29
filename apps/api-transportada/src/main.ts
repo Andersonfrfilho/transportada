@@ -285,6 +285,11 @@ import {
 } from './trips/domain/occurrence-correction.policy.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import {
+  readOccurrenceAttachmentOverrides,
+  replaceOccurrenceAttachmentOverrides,
+} from './trips/application/occurrence-attachment-overrides.use-case.js'
+import { DrizzleOccurrenceAttachmentOverridesRepository } from './trips/infrastructure/drizzle-occurrence-attachment-overrides.repository.js'
+import {
   createListTripOccurrenceFeedUseCase,
   createReadTripOccurrenceAttachmentsUseCase,
 } from './trips/application/trip-occurrence-feed.use-case.js'
@@ -2145,6 +2150,8 @@ function createApplicationRoutes({
     resolveStorageBucket(environment),
   )
   const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
+  const occurrenceAttachmentOverridesRepository =
+    new DrizzleOccurrenceAttachmentOverridesRepository(database)
   const tripPlannedRouteRepository = new DrizzleTripPlannedRouteRepository(database)
   /**
    * Spec 153 T201 (substitui a spec 090 T11): congela a rota inteira — traçado, métricas e
@@ -3652,6 +3659,44 @@ function createApplicationRoutes({
       listOccurrenceTypes: {
         execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
       },
+      readOccurrenceAttachmentOverrides: {
+        execute: (input) =>
+          readOccurrenceAttachmentOverrides({
+            companyId: input.context.companyId,
+            occurrenceTypeId: input.occurrenceTypeId,
+            port: {
+              findOccurrenceType: (query) => findOccurrenceType(database, query),
+              listContractorOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.listContractorOverrides(query),
+              listRecipientOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.listRecipientOverrides(query),
+              replaceContractorOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.replaceContractorOverrides(query),
+              replaceRecipientOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.replaceRecipientOverrides(query),
+            },
+          }),
+      },
+      replaceOccurrenceAttachmentOverrides: {
+        execute: (input) =>
+          replaceOccurrenceAttachmentOverrides({
+            companyId: input.context.companyId,
+            contractorOverrides: input.contractorOverrides,
+            occurrenceTypeId: input.occurrenceTypeId,
+            port: {
+              findOccurrenceType: (query) => findOccurrenceType(database, query),
+              listContractorOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.listContractorOverrides(query),
+              listRecipientOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.listRecipientOverrides(query),
+              replaceContractorOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.replaceContractorOverrides(query),
+              replaceRecipientOverrides: (query) =>
+                occurrenceAttachmentOverridesRepository.replaceRecipientOverrides(query),
+            },
+            recipientOverrides: input.recipientOverrides,
+          }),
+      },
       saveOccurrenceType: {
         execute: (input) =>
           saveOccurrenceTypeWithTemplate({
@@ -3679,6 +3724,7 @@ function createApplicationRoutes({
               emailSubject: input.emailSubject,
               emailsContractor: input.emailsContractor,
               emailTemplateKey: input.emailTemplateKey,
+              flow: input.flow,
               leavesDocumentBehind: input.leavesDocumentBehind,
               name: input.name,
               notifies: input.notifies,

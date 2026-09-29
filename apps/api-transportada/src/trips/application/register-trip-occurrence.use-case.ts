@@ -4,7 +4,10 @@
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
 import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
-import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type {
+  OccurrenceTypeFlow,
+  TripOccurrenceStage,
+} from '../../shared/trip-occurrence.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
@@ -121,6 +124,12 @@ export type OccurrenceTypeRecord = {
   readonly emailSubject: string
   /** A chave do template do módulo de notificações; nula é o legado (assunto/corpo próprios). */
   readonly emailTemplateKey: null | string
+  /**
+   * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. Ausente é tratado
+   * como `'document'` — existe como opcional só para os dublês de teste que ainda não conhecem o
+   * campo; a implementação real (`findOccurrenceType`/`listOccurrenceTypes`) sempre grava.
+   */
+  readonly flow?: OccurrenceTypeFlow
   readonly id: string
   /**
    * Spec 185 (RF6, ADR-0074 §4): "a viagem segue sem a nota", só para tipo de separação. Ausente é

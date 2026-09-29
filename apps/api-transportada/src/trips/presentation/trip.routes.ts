@@ -3,6 +3,7 @@
  */
 import type { ClientIpResolver } from '../../http/client-ip.service.js'
 import { defineRoute } from '../../http/router.service.js'
+import type { OccurrenceTypeFlow } from '../../shared/trip-occurrence.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
@@ -16,9 +17,12 @@ import {
   parseAttachOccurrencePhotoRequest,
   parseCancelOccurrenceRequest,
   parseCorrectOccurrenceItemsRequest,
+  parseOccurrenceAttachmentOverridesRequest,
   parseOccurrenceTypeRequest,
   parseRegisterOccurrenceMultipartRequest,
 } from './occurrence.schema.js'
+import type { OccurrenceAttachmentOverridesBody } from './occurrence.schema.js'
+import type { OccurrenceAttachmentOverridesResult } from '../application/occurrence-attachment-overrides.use-case.js'
 import type { CorrectedOccurrenceView } from '../application/occurrence-correction.port.js'
 import { parseIdempotencyKey } from './me-trip.schema.js'
 import { parseTripOccurrenceFeedList } from './trip-occurrence-feed.schema.js'
@@ -172,6 +176,11 @@ const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
  * não tem, o mesmo erro que a correção de endereço evita (ADR-0044 §3).
  */
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
+/**
+ * Spec 218 RF-B3: a exceção do `attachmentMode` deste tipo, por contratante e por destinatário —
+ * mesmo padrão de `deliveryProofOverridesSchema`, substituição total, nunca PATCH incremental.
+ */
+const OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_PATH = `${OCCURRENCE_TYPES_PATH}/:occurrenceTypeId/attachment-overrides`
 
 type RegisterOccurrenceRouteInput = {
   readonly attachment: {
@@ -277,6 +286,11 @@ type SaveOccurrenceTypeInput = {
   readonly emailsContractor?: boolean | undefined
   readonly emailSubject: string
   readonly emailTemplateKey: null | string
+  /**
+   * Spec 218 (D1, RF-B5): obrigatório na criação, ausente na edição é "não mexa" — ver
+   * `occurrence.schema.ts` (`FLOW_REQUIRED_ON_CREATE`) e `save-occurrence-type.use-case.ts`.
+   */
+  readonly flow?: OccurrenceTypeFlow | undefined
   /**
    * Spec 185 (RF6): "a viagem segue sem a nota". Ausente é "não mexa" — ver
    * `save-occurrence-type.use-case.ts`.
@@ -498,6 +512,16 @@ type Dependencies = {
   }
   readonly saveOccurrenceType: {
     execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
+  }
+  readonly readOccurrenceAttachmentOverrides: {
+    execute(
+      input: TenantInput<{ readonly occurrenceTypeId: string }>,
+    ): Promise<OccurrenceAttachmentOverridesResult>
+  }
+  readonly replaceOccurrenceAttachmentOverrides: {
+    execute(
+      input: TenantInput<{ readonly occurrenceTypeId: string } & OccurrenceAttachmentOverridesBody>,
+    ): Promise<OccurrenceAttachmentOverridesResult>
   }
   readonly listTripOccurrences: {
     execute(
@@ -1716,6 +1740,40 @@ export function createTripRoutes(
         return parseOccurrenceTypeRequest(request)
       },
       pathname: OCCURRENCE_TYPES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly occurrenceTypeId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const overrides = await dependencies.readOccurrenceAttachmentOverrides.execute({
+          context: context.scope,
+          occurrenceTypeId: input.occurrenceTypeId,
+        })
+        return jsonResponse({ body: { data: overrides }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        occurrenceTypeId: parseUuidPathIdentifier(pathParameters.occurrenceTypeId ?? ''),
+      }),
+      pathname: OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly occurrenceTypeId: string } & OccurrenceAttachmentOverridesBody>({
+      async handle({ context, input }): Promise<Response> {
+        const overrides = await dependencies.replaceOccurrenceAttachmentOverrides.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: overrides }, status: 200 })
+      },
+      method: 'PUT',
+      async parse({ pathParameters, request }) {
+        const body = await parseOccurrenceAttachmentOverridesRequest(request)
+        return {
+          occurrenceTypeId: parseUuidPathIdentifier(pathParameters.occurrenceTypeId ?? ''),
+          ...body,
+        }
+      },
+      pathname: OCCURRENCE_TYPE_ATTACHMENT_OVERRIDES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<Omit<BatchStatusInput, 'context'>>({
