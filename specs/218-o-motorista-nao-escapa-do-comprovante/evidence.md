@@ -222,3 +222,34 @@ Gates no fim: `bun run check` (lint + typecheck + 808 testes / 1671 expects + bu
 verde; `bun run smoke` verde — service worker 2/2, app 24/24, incluindo "comprovante obrigatório:
 Confirmar entrega só com a foto, e o canhoto sobe depois da entrega". Rodado local, Playwright na
 origem sintética 53112.
+
+## Fase 4b — decisões de produto, resolvidas em conversa (29/09/2026)
+
+A execução da Fase 4b parou antes de escrever código, achou 3 lacunas reais entre spec/plan e o
+código (a Fase 2 não fechou a escrita de `occurrenceTypeId` na rota de parada; `ProofCaptureFields`
+não serve para foto de ocorrência; ocorrência de nota com foto não cabe na chamada direta), e uma
+pergunta de onde o botão único mora. As decisões (D2, D3, D4 do `spec.md`, seção "Decisões"):
+
+- **D2** — `company_occurrence_types` ganha `stop_kind` (nullable, só em `flow: stop`); a rota de
+  parada aceita `occurrenceTypeId`, deriva `kind`/`stop_kind` da coluna do tipo, nunca do nome.
+- **D3** — Ocorrência de nota sem foto: chamada direta de sempre. Com foto: item `documentOccurrence`
+  da fila (o mesmo do "Não entreguei", spec 179) — nunca upload dentro da chamada direta.
+- **D4** — Botão por nota, sempre visível (não mais escondido atrás do "Cheguei", e não mais um
+  painel único por parada). Rótulo curto "Ocorrência", ícone + tooltip. Tipo `flow: stop` escolhido
+  ali registra a ocorrência da **parada** (não da nota onde o toque aconteceu); tipo
+  `flow: document` registra na nota escolhida.
+
+Limite registrado pela execução, sem decisão pendente (é trabalho futuro, não bloqueio): o snapshot
+do motorista não traz `contractorId`/`recipientTaxId` da nota, então a exceção de ocorrência por
+contratante/destinatário (História P3 do `spec.md`) não chega ao app nesta spec — só o
+`attachmentMode` geral do tipo. Requer mudança no snapshot (`GET /me/trips/current`) numa spec
+futura.
+
+Fase 4b retomada com estas decisões — ver o registro dela mais abaixo quando terminar.
+
+## Fase 5 — dispensada por decisão do usuário (29/09/2026)
+
+`VITE_DRIVER_APP_URL` já está ligada em produção; o legado `/minha-viagem`
+(`apps/frontend-transportada/src/modules/driver-trip/`) não serve mais nenhum motorista. O usuário
+confirmou: "pelo menos após essa correção vamos apenas utilizar o app novo". A Fase 5 do `tasks.md`
+não roda — nenhuma réplica por cópia de valor no painel antigo.

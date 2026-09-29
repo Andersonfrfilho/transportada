@@ -115,8 +115,46 @@
   - **Por que a fila continua assimétrica:** ocorrência por nota (079/164) nunca teve fila offline
     — é chamada direta, síncrona, e abre tratativa (`trip_occurrence_cases`) que o escritório
     trabalha depois. Trocá-la para fila offline é mudança de arquitetura maior, fora do pedido
-    desta conversa; o gate de RF-A5 exige a foto **antes do clique**, então funciona igual nas duas
-    rotas sem precisar decidir isso agora.
+    desta conversa. ⚠️ **Correção (achado na Fase 4b, 29/09/2026):** a frase original aqui dizia que
+    isso "funciona igual nas duas rotas sem precisar decidir agora" — não funciona. A chamada direta
+    de ocorrência de nota não tem upload nenhum, e a API recusa tipo `required` sem anexo (spec 179
+    T203). Ver D3 abaixo para a correção.
+
+- **D2 — `stop_kind` no catálogo, para o registro de parada continuar sabendo "qual dos 5" (achado
+  e decidido na Fase 4b, 29/09/2026).** A Fase 2 (RF-B5) só cobriu a **leitura**: os 5 tipos fixos
+  viraram linhas do catálogo, com `attachmentMode` e `flow: stop`. Mas a **escrita** ficou pela
+  metade — a rota de ocorrência de parada (`POST` em `me-trip.schema.ts`) continua `.strict()` só
+  com `kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS)`, e três lugares do backend ainda decidem por
+  `kind`, não por tipo: a sugestão de cobrança da spec 060 (`kind === 'unexpected_charge'`), o
+  template do aviso ao contratante (`stop-occurrence-notifier.gateway.ts`), e a prévia do aviso no
+  app. Resolução: `company_occurrence_types` ganha uma coluna nova `stop_kind` (nullable, só
+  preenchida em tipos `flow: stop`) — a migration de RF-B5 (ou uma migration nova, aditiva, logo
+  depois dela) grava o `kind` original em cada um dos 5 tipos semeados; tipo `flow: stop` que o
+  operador criar depois do cadastro nasce com `stop_kind: 'other'`. A rota passa a aceitar
+  `occurrenceTypeId` (conferindo tenant + `flow: stop` + ativo), grava `occurrence_type_id` na linha
+  nova, e deriva `kind`/`stop_kind` da coluna — nunca do nome do tipo (nome pode ser renomeado pelo
+  operador; `stop_kind` não muda com o rename, evitando o mesmo defeito silencioso que o catálogo já
+  sofreu antes — ver `api-transportada/CLAUDE.md`, "o catálogo de tipos de ocorrência nasce vazio").
+
+- **D3 — Ocorrência de nota com foto usa o item de fila que já existe (achado e decidido na Fase
+  4b).** `flow: document` **sem** foto: continua a chamada direta de hoje (`registerDocumentOccurrence`),
+  sem mudança. `flow: document` **com** foto (`attachmentMode !== 'off'`): usa o item
+  `documentOccurrence` da fila offline, o mesmo que "Não entreguei" (spec 179) já usa — upload da
+  foto e só depois o `POST`, funcionando sem rede. Rejeitado: subir o upload dentro da própria
+  chamada direta, porque isso passaria a exigir rede na hora do toque, contrariando a filosofia
+  offline-first do resto do app.
+
+- **D4 — O botão único mora em cada nota, sempre visível (decidido com o usuário, substituindo a
+  proposta original "um por parada").** Cada nota (documento) ganha um botão sempre visível —
+  **não** mais escondido atrás do "Cheguei" como o "Registrar ocorrência" de hoje. Rótulo curto
+  ("Ocorrência", não "Registrar ocorrência") com ícone e `tooltip`, para não pesar a linha da nota.
+  Escolher um tipo `flow: stop` ali registra a ocorrência **da parada** (não da nota específica onde
+  o motorista tocou — o `flow` do tipo decide o destino, a nota é só de onde veio o toque); escolher
+  um tipo `flow: document` registra na nota escolhida. Isso substitui tanto o painel antigo
+  "Registrar ocorrência" (que só aparecia depois do "Cheguei") quanto o `DriverStopOccurrenceForm`
+  ("Deu problema", que aparecia antes do "Cheguei", por parada) — o botão novo, por nota e sempre
+  visível, cobre os dois casos de uso sem exigir chegada prévia, preservando o que já funcionava
+  hoje para ocorrência de parada (reportar doca fechada antes de chegar, por exemplo).
 
 ## Fora do escopo
 
@@ -174,7 +212,8 @@ para esta nota
 tirado a foto
 **Then** o botão de registrar fica desabilitado, com a foto marcada como pendente; assim que o
 motorista tira a foto (sem precisar de rede), o botão habilita e o registro segue pelo `flow` do
-tipo (fila offline com dois itens se `stop`; chamada direta se `document`) — o motorista não
+tipo: fila offline com dois itens se `stop` (`occurrenceTypeId`, D2); chamada direta se `document`
+sem foto, ou o item `documentOccurrence` da fila se `document` com foto (D3) — o motorista não
 escolhe a rota, só o tipo.
 
 ### P6 — Verificar antes de perguntar ao motorista
@@ -213,32 +252,53 @@ também exige.
 **RF-A5** (D1) Os dois caminhos de ocorrência do app do motorista viram um componente único de
 registro:
 
-- Lista **todos** os tipos de ocorrência da empresa (hoje divididos entre o painel "Registrar
-  ocorrência" por nota e o formulário "Deu problema" por parada, depois de RF-B5 unificados no
-  mesmo catálogo), cada um com o próprio `attachmentMode` efetivo visível.
-- Escolher um tipo mostra a captura de foto (`ProofCaptureFields`, RF-A2) sempre que
-  `attachmentMode !== 'off'`; com `required`, o botão de registrar só habilita depois da foto
-  capturada localmente (sem rede).
-- Ao confirmar, o registro sai pela rota que o campo `flow` do tipo escolhido manda: chamada direta
-  e sem fila para `flow: document` (spec 079/164), dois itens na fila offline para `flow: stop`
-  (spec 209) — o motorista nunca escolhe a rota, só o tipo.
+- Um botão por nota, sempre visível (D4) — não mais um painel único de parada. Rótulo curto
+  ("Ocorrência", ícone + tooltip). Lista **todos** os tipos de ocorrência da empresa (hoje divididos
+  entre o painel "Registrar ocorrência" por nota e o formulário "Deu problema" por parada, depois de
+  RF-B5 unificados no mesmo catálogo), cada um com o próprio `attachmentMode` efetivo visível.
+- Escolher um tipo mostra a captura de foto sempre que `attachmentMode !== 'off'` — **não** o
+  `ProofCaptureFields` do comprovante (RF-A2): esse componente sempre enfileira para
+  `/documents/:id/proof` e sempre mostra os campos de quem recebeu (spec 207), o que recriaria o
+  defeito que a spec 209 corrigiu (foto de ocorrência virando canhoto). Reaproveita, em vez disso, o
+  bloco de foto de ocorrência que já existe (`useStopOccurrenceForm`/`reduceOccurrencePhotoToJpeg`),
+  com um plano de campo único (`photo = attachmentMode`) e a mesma lógica de habilitar/desabilitar
+  (`listMissingProofFields`, sem reescrever). Com `required`, o botão de registrar só habilita depois
+  da foto capturada localmente (sem rede).
+- Ao confirmar, o registro sai pela rota que o campo `flow` do tipo escolhido manda (D2, D3): tipo
+  `flow: stop` → fila offline com `occurrenceTypeId` (nunca mais `kind` cru — ver RF-B5); tipo
+  `flow: document` sem foto → chamada direta de sempre; tipo `flow: document` com foto → o item
+  `documentOccurrence` da fila (o mesmo que "Não entreguei" já usa). O motorista nunca escolhe a
+  rota, só o tipo.
 
-**RF-B5** (D1) Migration do vocabulário de tipos de ocorrência de parada:
+**RF-B5** (D1, D2) Migration do vocabulário de tipos de ocorrência de parada:
 
 - `company_occurrence_types` ganha a coluna `flow` (`text`, `document | stop`, `not null default
 'document'`) — todo tipo existente é `document` por definição (nunca foi usado em `trip_stop_occurrences`
-  antes desta spec).
+  antes desta spec) — **e** a coluna `stop_kind` (`text`, nullable, só preenchida em tipos
+  `flow: stop` — ver D2), guardando qual dos 5 valores fixos originou o tipo, para o backend nunca
+  mais precisar decidir por nome (renomeável) o que a cobrança/notificação faz.
 - Migration insere, uma vez, 5 linhas novas por empresa em `company_occurrence_types` — uma por
   valor de `TRIP_STOP_OCCURRENCE_KINDS` (`unexpected_charge`, `long_wait`, `dock_closed`,
-  `appointment_required`, `other`), com `flow: 'stop'`, `attachmentMode: 'optional'` (mesmo
-  comportamento de hoje: foto sempre oferecida, nunca obrigatória, até o operador mudar), e o
-  `name` traduzido igual ao rótulo que o app já mostra hoje para cada `kind`.
+  `appointment_required`, `other`), com `flow: 'stop'`, `stop_kind` igual ao valor de origem,
+  `attachmentMode: 'optional'` (mesmo comportamento de hoje: foto sempre oferecida, nunca
+  obrigatória, até o operador mudar), e o `name` traduzido igual ao rótulo que o app já mostra hoje
+  para cada `kind`. Tipo `flow: stop` que o operador criar depois do cadastro nasce com
+  `stop_kind: 'other'`.
 - `trip_stop_occurrences` ganha `occurrence_type_id uuid` (FK para `company_occurrence_types.id`,
   nullable), backfilled por `(company_id, kind)` → a linha nova correspondente da mesma empresa. A
-  coluna `kind` **não é apagada** — continua como registro histórico de qual valor fixo gerou aquele
-  tipo, e nada além do backfill lê `kind` depois desta spec.
+  coluna `kind` **não é apagada** — continua como registro histórico. ⚠️ **Correção (achado na Fase
+  4b):** ao contrário do que esta spec dizia antes ("nada além do backfill lê `kind` depois desta
+  spec"), três pontos do backend ainda decidem por `kind` — a sugestão de cobrança (spec 060,
+  `kind === 'unexpected_charge'`), o template de notificação ao contratante, e a prévia do aviso no
+  app. Esses três passam a ler `stop_kind` da linha do catálogo (via `occurrence_type_id`), nunca
+  mais o `kind` cru da ocorrência — é `stop_kind`, não `kind`, que sobrevive a um rename do tipo.
+- A rota `POST` de ocorrência de parada (`me-trip.schema.ts`, hoje `.strict()` só com
+  `kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS)`) passa a aceitar `occurrenceTypeId` (conferindo tenant +
+  `flow: stop` + tipo ativo), grava `occurrence_type_id` na linha nova e deriva `kind`/`stop_kind` da
+  coluna do tipo — o app do motorista nunca mais manda `kind` livre.
 - `OccurrenceTypeCatalogPanel` ganha o campo `flow` no formulário de cada tipo (select de 2 opções,
-  ao lado de `attachmentMode`) — nenhuma tela nova.
+  ao lado de `attachmentMode`) — nenhuma tela nova. `stop_kind` não é editável pelo operador (é
+  interno, só a migration o preenche).
 
 **RF-B1** Nova granularidade de exceção para `company_occurrence_types.attachment_mode`:
 
