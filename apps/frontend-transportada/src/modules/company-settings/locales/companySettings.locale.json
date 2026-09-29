@@ -306,6 +306,24 @@
     "attachmentModeHint": "Vale para o registro do motorista na rua. Obrigatória: a ocorrência só sai com foto e observação.",
     "attachmentModeOff": "Sem foto",
     "attachmentModeOptional": "Foto opcional",
-    "attachmentModeRequired": "Foto obrigatória"
+    "attachmentModeRequired": "Foto obrigatória",
+    "flow": "Fluxo de registro",
+    "flowHint": "Qual botão do motorista este tipo alimenta: de nota (sem fila, abre tratativa) ou de parada (fila offline, nunca abre tratativa).",
+    "flowDocument": "De nota",
+    "flowStop": "De parada",
+    "exceptions": {
+      "title": "Exceções",
+      "show": "Ver exceções",
+      "hide": "Esconder exceções",
+      "contractorTitle": "Por contratante",
+      "recipientTitle": "Por destinatário",
+      "contractor": "Contratante",
+      "contractorPlaceholder": "Buscar contratante por nome ou CNPJ",
+      "recipientTaxId": "CNPJ ou CPF do destinatário",
+      "add": "Adicionar exceção",
+      "remove": "Remover",
+      "emptyContractor": "Nenhuma exceção por contratante cadastrada.",
+      "emptyRecipient": "Nenhuma exceção por destinatário cadastrada."
+    }
   }
 }

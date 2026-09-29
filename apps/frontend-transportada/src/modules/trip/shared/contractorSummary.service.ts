@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { hasExactKeys } from '@/modules/shared/objectKeys.service'
+
 import { isRecord, isString } from './tripGuards.validation'
 
 /**
@@ -17,12 +19,6 @@ const CONTRACTOR_SUMMARY_KEYS = [
   'status',
   'taxId',
 ] as const
-
-function hasExactKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
-  if (!isRecord(value)) return false
-  const objectKeys = Object.keys(value)
-  return objectKeys.length === keys.length && keys.every((key) => objectKeys.includes(key))
-}
 
 function isContractorSummary(value: unknown): value is ContractorSummary {
   if (!hasExactKeys(value, CONTRACTOR_SUMMARY_KEYS)) return false

@@ -306,6 +306,24 @@
     "attachmentModeHint": "Applies to the driver's record on the road. Required: the occurrence only goes with a photo and a note.",
     "attachmentModeOff": "No photo",
     "attachmentModeOptional": "Photo optional",
-    "attachmentModeRequired": "Photo required"
+    "attachmentModeRequired": "Photo required",
+    "flow": "Registration flow",
+    "flowHint": "Which driver button this type feeds: by document (no queue, opens a case) or by stop (offline queue, never opens a case).",
+    "flowDocument": "By document",
+    "flowStop": "By stop",
+    "exceptions": {
+      "title": "Exceptions",
+      "show": "Show exceptions",
+      "hide": "Hide exceptions",
+      "contractorTitle": "By contractor",
+      "recipientTitle": "By recipient",
+      "contractor": "Contractor",
+      "contractorPlaceholder": "Search contractor by name or tax id",
+      "recipientTaxId": "Recipient CNPJ or CPF",
+      "add": "Add exception",
+      "remove": "Remove",
+      "emptyContractor": "No exceptions by contractor registered.",
+      "emptyRecipient": "No exceptions by recipient registered."
+    }
   }
 }
