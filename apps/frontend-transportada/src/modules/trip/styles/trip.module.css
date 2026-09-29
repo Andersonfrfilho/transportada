@@ -228,7 +228,7 @@
 }
 
 .measureFieldReason {
-  color: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  color: var(--color-slate-muted);
   font-size: 0.82rem;
 }
 
@@ -265,6 +265,15 @@
   font-family: var(--font-utility);
   font-size: 0.72rem;
   text-transform: uppercase;
+}
+
+/* Na grade o identificador não é selo: a célula já tem o padding dela, e uma borda por linha pesa. */
+.tripIdCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
 }
 
 .tripIdBadge {
@@ -1592,6 +1601,14 @@ button.occurrenceCaseBadge {
   .progressTrack > span {
     transition: none;
   }
+}
+
+/* As fotos da carga são um bloco com título próprio, separado dos canhotos que vêm antes dele. */
+.cargoPhotosSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
 }
 
 /* O canhoto é foto de celular: cabe na largura e nunca empurra a tela para o lado (web.md §10). */
