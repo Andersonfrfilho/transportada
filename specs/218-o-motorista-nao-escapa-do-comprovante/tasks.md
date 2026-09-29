@@ -1,5 +1,8 @@
 # Tasks — Spec 218 (o motorista não escapa do comprovante)
 
+**Status: todas as fases fechadas (29/09/2026).** Fase 5 dispensada por decisão do usuário. Ver
+`evidence.md` para números de gate por fase e as divergências registradas.
+
 ## Fase 0 — Localização (concluída, ver `evidence.md`)
 
 > 🤖 Modelo: `sonnet`
@@ -15,76 +18,48 @@
 
 > 🤖 Modelo: `sonnet` (T2 é 🧠 — migration com backfill, validar antes de aplicar)
 
-- [ ] **T1** Contratos antes, vistos falhar:
-  - `resolve-with-overrides.policy` (RF-D1): as 4 combinações de presença (P4 do spec.md).
-  - `resolveDeliveryProofSettings` com 3 camadas.
-  - Rotas novas: CRUD feliz + 404 fora do tenant + `settings.manage`.
-- [ ] **T2** 🧠 Schema + migration:
-  - `deliveryProofSettingContractorOverrides` (tabela nova).
-  - FK `(company_id, tax_id) → delivery_clients` em `delivery_proof_setting_overrides`, com backfill
-    de `delivery_clients` para override órfão.
-  - `db:generate`, `db:check`, `make migration-test` com um banco que tenha override órfão de
-    propósito (fixture do teste de integração).
-  - Gate: `test/database-migration/schema-snapshot.contract.ts` + `make migration-test`.
-- [ ] **T3** `resolve-with-overrides.policy.ts` (RF-D1) + `resolveDeliveryProofSettings` estendido
-      (adicionar select de `emitterTaxId` em `drizzle-current-driver-trip.repository.ts:395-415`,
-      resolver via `findContractorByTaxId` — evidence.md T0.3) + repositório
-      (`listOverrides`/`replaceOverrides` para contratante) + rotas
-      `delivery-proof-contractor-overrides`.
-      Gates: contrato, integração, typecheck, lint.
-- [ ] **T4** Plugar RF-C3 nos dois call sites de `evidence.md` T0.1
-      (`drizzle-current-driver-trip.repository.ts:835-844` e `:328`).
-      Gate: contrato do snapshot do motorista (`GET /me/trips/current`) com override de contratante
-      aplicado.
+- [x] **T1** Contratos antes, vistos falhar. Commit `ab766e954`.
+- [x] **T2** 🧠 Schema + migration (`deliveryProofSettingContractorOverrides`, FK de destinatário
+      com backfill de `delivery_clients` órfão). Commit `69d2fda7d`.
+- [x] **T3** `resolve-with-overrides.policy.ts` + `resolveDeliveryProofSettings` de 3 camadas +
+      repositório + rotas de exceção por contratante. Commit `51ac7aea3`.
+- [x] **T4** Plugado nos dois call sites (`toDriverDocument`, `listPendingProofs`). Commit
+      `873394539`. Fixtures de outros arquivos quebradas pela FK nova, corrigidas em `3b5b10e7f` e
+      `086b7256e`.
 
 ## Fase 2 — Vocabulário de ocorrência (RF-B5) e exceções (RF-B, reaproveita RF-D1)
 
 > 🤖 Modelo: `sonnet` (T5 é 🧠 — migration mexe em dado gravado de viagens reais)
 
-- [ ] **T5** 🧠 RF-B5, contratos antes + schema/migration:
-  - Confirmar rótulo exato de cada `DRIVER_OCCURRENCE_KINDS` (`driverTrip.locale.json` ou
-    equivalente) antes de escrever o `INSERT` — não traduzir de cabeça.
-  - `company_occurrence_types` ganha `flow` (`document | stop`, default `document`).
-  - Migration insere 5 linhas por empresa (`flow: 'stop'`, `attachmentMode: 'optional'`, nomes
-    confirmados acima).
-  - `trip_stop_occurrences` ganha `occurrence_type_id` (FK, nullable), backfill por
-    `(company_id, kind)`, `kind` preservado.
-  - `make migration-test` com fixture de empresa que já tem `trip_stop_occurrences` gravada.
-- [ ] **T6** Contratos antes: `resolve-with-overrides.policy` para ocorrência com as 4 combinações
-      (reaproveitando o de T3 — não reescrever); as duas tabelas de override novas.
-- [ ] **T7** Schema + migration das tabelas de override: `companyOccurrenceTypeContractorOverrides`,
-      `companyOccurrenceTypeRecipientOverrides` (sem backfill — granularidade nova; roda **depois**
-      de T5, para os 5 tipos de `flow: stop` já poderem receber exceção). Gate: `make migration-test`.
-- [ ] **T8** Use case + rota `GET`/`PUT /company-settings/occurrence-types/:id/attachment-overrides` + campo `flow` no `PUT`/criação de tipo (`save-occurrence-type.use-case.ts`).
-      Gate: contrato, integração, typecheck, lint.
-- [ ] **T9** Plugar a resolução de 3 camadas em `list-field-occurrence-types.use-case.ts:35-47`
-      (evidence.md T0.2 — único ponto, cobre motorista e escritório de uma vez).
-      Gate: contrato do ponto que o app do motorista lê.
+- [x] **T5** 🧠 RF-B5: `flow` em `company_occurrence_types`, 5 linhas `flow: 'stop'` semeadas por
+      empresa, `trip_stop_occurrences.occurrence_type_id` com backfill. Commit `7d75bda73` (junto
+      com T7). ⚠️ Deixou a escrita pela metade — ver D2/Fase 4b abaixo, fechado depois.
+- [x] **T6** `resolve-with-overrides.policy` para ocorrência, 4 combinações. Commit `a48d295b6`.
+- [x] **T7** Tabelas de override (`companyOccurrenceTypeContractorOverrides`/`...RecipientOverrides`).
+      Commit `7d75bda73` (junto com T5).
+- [x] **T8** Rota `attachment-overrides` + campo `flow` no cadastro. Commit `39ca9f411`.
+- [x] **T9** Resolução de 3 camadas em `list-field-occurrence-types.use-case.ts`. Commit `c6e97ea2a`.
 
 ## Fase 3 — Painel: telas de configuração (RF-C4, RF-B4, RF-B5)
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T10** `TripDeliveryProofSettingsPanel`: rótulo "Por destinatário" na seção existente + seção
-      nova "Por contratante" (busca em `contractors`, mesmos 5 selects de modo). Gate: `test` do painel.
-- [ ] **T11** `OccurrenceTypeCatalogPanel`: campo `flow` no formulário de cada tipo (ao lado de
-      `attachmentMode`) + seção "Exceções" por tipo, colapsável, duas listas
-      (contratante/destinatário). Gate: `test` do painel.
-- [ ] **T12** Revisão de design das telas (web.md §15): print em 375 px e desktop, comparado com os
-      vizinhos (outros selects/listas do mesmo painel).
+- [x] **T10** Exceção de comprovante por contratante no painel. Commits `cf00f3f43`, `6215a4135`
+      (fix de tradução).
+- [x] **T11** Campo `flow` + seção "Exceções" no catálogo de ocorrência. Commit `729d918eb`.
+- [ ] **T12** Revisão de design — **não feita com print real**. A infra Docker compartilhada estava
+      ocupada por outra sessão no momento da execução; toda peça nova reaproveita literalmente o
+      mesmo primitivo/classe do elemento vizinho (400 testes de `design-system.contract.test.ts`
+      verdes), mas ninguém olhou a tela de verdade. Pendência registrada em `evidence.md`.
 
 ## Fase 3b — Painel: tela de verificação (RF-E)
 
 > 🤖 Modelo: `sonnet`. Depende de T3/T8 (lê os overrides que essas tasks gravam); não depende da
 > Fase 4.
 
-- [ ] **T13** Contrato antes: `GET /company-settings/settings-resolution` com as 4 combinações de
-      P4/P6 (nenhum override, só contratante, só destinatário, os dois).
-- [ ] **T14** Rota + composição pura (`resolveWithOverrides` de T6, sem reescrever a regra) +
-      tela/aba nova no painel (busca por contratante e por destinatário, tabela de resultado só
-      leitura). Gates: contrato, typecheck, lint, `test` do painel.
-- [ ] **T15** Revisão de design (web.md §15): print da tela de verificação com um resultado
-      preenchido (não a tela vazia).
+- [x] **T13** Rota `GET /company-settings/settings-resolution`, 4 combinações. Commit `8e8b46023`.
+- [x] **T14** Tela "Verificar configuração efetiva". Commit `3dc4747d8`.
+- [ ] **T15** Revisão de design — mesma pendência de T12 (infra ocupada), não simulada.
 
 ## Fase 4 — App do motorista: extração + gate de entrega (RF-A1–A4)
 
@@ -92,61 +67,77 @@
 > alto; validar a extração (T16) sozinha, com os testes de hoje verdes, antes de somar qualquer
 > comportamento novo.
 
-- [x] **T16** 🧠 Extrair `ProofCaptureFields` de `DeliveryProofSection`
-      (`DriverStopCard.component.tsx`) — refatoração pura, sem mudar comportamento. Gate: `test`/`check`
-      da app do motorista **idêntico** ao de antes da extração (nenhum contrato muda de verde para
-      vermelho nem o contrário).
-- [x] **T17** Contratos antes, vistos falhar (RF-A, os 3 casos do `spec.md`: nada obrigatório /
-      obrigatório trava / lançamento tardio também trava).
-- [x] **T18** `PreDeliveryProofGate` + `DocumentRow` decidindo entre botão de sempre e o gate, a
-      partir de `resolveProofFormPlan`/`listMissingProofFields` já existentes. Gate: `check` da app +
-      `smoke` (porta 53112/53200, os specs de `driver-app.smoke.spec.ts`).
-- [x] **T19** Snapshot do motorista carrega os campos já resolvidos em 3 camadas (depende de T4/T9) —
-      conferir que nenhuma lógica de precedência foi duplicada no app.
-- [x] **T20** Revisão de design do formulário de captura pré-entrega: print em 375 px, comparado com
-      a versão pós-entrega (mesmo componente, os dois têm de ser visualmente idênticos por construção).
+- [x] **T16** Extração de `ProofCaptureFields`. 762 pass/0 fail antes e depois, diff de nomes vazio.
+      Commit `227b8b83b`.
+- [x] **T17** Contratos do gate, vistos falhar (incluindo o caso "entrega em aberto" pedido pelo
+      usuário). Commit `57056ce5d`.
+- [x] **T18** `PreDeliveryProofGate` + fila `awaiting-delivery:<id>` (RF-A3 revisado — a API recusa
+      canhoto sem entrega registrada, então o anexo espera o "Confirmar entrega" antes de entrar na
+      drenagem). Commit `5dbf1761c`. Smoke real rodado (53112): 2/2 + 24/24.
+- [x] **T19** Confirmado: nenhuma lógica de precedência no app, só leitura do valor resolvido.
+      Commit `da4be2632`.
+- [x] **T20** Revisão de design — prints reais por Playwright em
+      `specs/218-o-motorista-nao-escapa-do-comprovante/prints/`. Commit `654842c86`.
+- [x] **Fase 4c (fora da numeração original, pedido do usuário)** — 3 lacunas do gate corrigidas:
+      fila cheia não marca foto como anexada (`3ba6c6762`), comprovante não some visualmente após a
+      entrega (`013ca9350`), foto órfã descartada ao cancelar/"Não entreguei" (`65791ed98`). 808
+      pass/0 fail no fim, smoke verde.
 
-## Fase 4b — App do motorista: botão único de ocorrência (RF-A5, D1, RF-B5)
+## Fase 4b — App do motorista: botão único de ocorrência (RF-A5, D1, D2, D3, D4, RF-B5)
 
-> 🤖 Modelo: `opus` 🧠. Depende de T5/T9 (o catálogo já precisa ter `flow` e os 5 tipos semeados) e
-> de T16 (`ProofCaptureFields` já extraído).
+> 🤖 Modelo: `opus` 🧠. Depende de T5/T9 (catálogo com `flow`) e T16 (`ProofCaptureFields`
+> extraído). Parou uma vez para decisão de produto (D2/D3/D4, ver `spec.md` e `evidence.md`) antes
+> de escrever código — não presumiu.
 
-- [x] **T21** Contratos antes, vistos falhar:
-  - lista única mostra tipos `flow: document` e `flow: stop` juntos, cada um com `attachmentMode`;
-  - tipo `required` sem foto não habilita "Registrar"; habilita ao capturar, sem esperar upload (P5
-    do spec.md);
-  - confirmar chama `handleDocumentOccurrence` (`flow: document`) ou `reportStopOccurrence`
-    (`flow: stop`, agora com `occurrenceTypeId` em vez de `kind`) — nunca os dois, nunca nenhum.
-- [x] **T22** `OccurrenceRegistrationPanel` (ou nome equivalente): substitui o painel inline de
-      `onDocumentOccurrence` (`DriverStopCard.component.tsx:832-889`) e
-      `DriverStopOccurrenceForm.component.tsx`/`useStopOccurrenceForm.hook.ts` por um componente só,
-      reaproveitando `ProofCaptureFields` (T16), lendo a lista única de `GET
-/me/trips/current/occurrence-types` e roteando por `flow`. Gate: `check` da app + `smoke`.
-      ⚠️ Feito como `DriverOccurrenceRegistrationForm` sem `ProofCaptureFields` (captura do
-      canhoto — ver `evidence.md` Fase 4b), com a rota de parada do backend fechada antes (D2).
-      Commits `a6092990b`, `e0a73b41b`, `83449e0d9`, `8b705e800`.
-- [x] **T23** Revisão de design do componente único: print em 375 px mostrando um tipo `required`
-      (com a captura de foto) e um tipo `off`/`optional` (sem ela), lado a lado na mesma lista.
+- [x] **T-D2** (backend, achado nesta fase, fora da numeração original) `stop_kind` em
+      `company_occurrence_types`, rota de parada aceita `occurrenceTypeId`, deriva `kind` da coluna
+      em vez do nome do tipo. Commits `a6092990b` (contrato), `e0a73b41b` (implementação).
+- [x] **T21** Contratos do botão único, vistos falhar (0 pass/11 fail). Commit `83449e0d9`.
+- [x] **T22** `DriverOccurrenceRegistrationForm` + `useOccurrenceRegistrationForm` +
+      `occurrenceRegistration.service.ts` — substitui os dois pontos de entrada antigos por um botão
+      "Ocorrência" por nota, sempre visível (D4); reaproveita o bloco de foto de ocorrência que já
+      existia, não `ProofCaptureFields` (evitaria o defeito que a spec 209 corrigiu); roteia por
+      `flow` (D2 pra parada, D3 pra nota com/sem foto). Commit `8b705e800`. `check` verde (832
+      testes) + smoke verde (25/25, dois casos novos).
+- [x] **T23** Revisão de design — prints reais por Playwright (375px, claro e escuro), commit
+      `6e4f660eb`. Achado: caixa "O que aconteceu" não ocupa a largura toda em 375px (defeito
+      pré-existente do antigo "Deu problema", não corrigido).
 
-## Fase 5 — Legado `/minha-viagem` (mesma correção, RF-A e RF-A5)
+## Fase 5 — Legado `/minha-viagem` — **dispensada**
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T24** Confirmar com o usuário, antes de tocar em código, se `VITE_DRIVER_APP_URL` já está
-      ligada em produção no momento da execução — se sim, esta fase é dispensável (o legado já não serve
-      ninguém) e vira nota no `evidence.md`, não código.
-- [ ] **T25** Se ainda necessário: mesma extração/gate/unificação por cópia de valor
-      (`apps/frontend-transportada/src/modules/driver-trip/`). Gate: `test` do painel.
+- [x] **T24** Usuário confirmou: `VITE_DRIVER_APP_URL` já ligada em produção, legado não serve mais
+      ninguém ("pelo menos após essa correção vamos apenas utilizar o app novo", 29/09/2026).
+- [x] **T25** Dispensada por T24. ⚠️ **Mas o contrato de paridade byte-a-byte entre o painel e a
+      app nova (`pending-queue.contract.ts`) continua no `check` do painel independente de a UI ser
+      usada** — a Fase 4/4c mudou `countPending` na app nova e quebrou essa paridade. Corrigido à
+      parte (fora da numeração de fase, achado só na verificação consolidada final): `isAwaitingDeliveryKey`
+      copiado por valor para o painel (sempre `false` na prática lá), commit `d1aab4c9e`.
 
 ## Fase 6 — Evidência final
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T26** `evidence.md`: números de cada gate (contrato/integração/migration/smoke), as duas
-      decisões de rollback documentadas (linhas de `delivery_clients` e de `company_occurrence_types`
-      dos backfills não são desfeitas), e o resultado de T24.
+- [x] **T26** `evidence.md` completo com os achados de todas as fases. Verificação consolidada final
+      rodada depois de todas as fases fecharem: `db:check` limpo, `make migration-test` 112/0,
+      `format:check` limpo na raiz, `bun run check` verde nos três apps (API 8262/8263 pass — 1 flake
+      de carga em `deploy.contract.test.ts`, não relacionado, confirmado 199/199 isolado; app do
+      motorista 832/0; painel 5732/0 depois da correção de paridade).
 
-## Prompt de execução
+## Pendências fora desta spec (registradas, não bloqueantes)
+
+- Revisão de design real (print olhado por alguém) de T12/T15 — a mecânica (reuso de primitivo) foi
+  verificada, a aparência final não.
+- Exceção de ocorrência por contratante/destinatário não chega ao app do motorista (P3) — o
+  snapshot não traz `contractorId`/`recipientTaxId` da nota. Precisa de mudança no snapshot numa
+  spec futura.
+- A rota de ocorrência de nota não recusa um tipo `flow: stop` enviado por engano — o app nunca
+  manda isso, mas o servidor não tem essa validação de defesa em profundidade.
+- A rota do escritório (em nome do motorista) para ocorrência de parada ainda manda só `kind`, sem
+  `occurrence_type_id` — paridade motorista/escritório incompleta.
+
+## Prompt de execução (histórico — já executado)
 
 ```text
 /oh-my-claudecode:autopilot Execute a spec specs/218-o-motorista-nao-escapa-do-comprovante/ (leia
