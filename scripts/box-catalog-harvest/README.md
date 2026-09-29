@@ -31,9 +31,11 @@ produção ser maior que a cota diária.
 
 Componentes:
 
-- `cosmos-capture.user.js` — userscript (Tampermonkey) que lê o DOM da página aberta e posta o
-  resultado no servidor local. Não contorna desafio (`if (document.title.includes('Just a moment'))
-return`).
+- `cosmos-capture.user.js` — userscript (Tampermonkey, versão atual **1.8.1**) que lê o DOM da
+  página aberta e posta o resultado no servidor local. Não contorna desafio
+  (`if (document.title.includes('Just a moment')) return`). O Tampermonkey mantém a **sua própria
+  cópia**: editar o arquivo aqui não troca o que roda no navegador — é preciso colar a versão nova
+  no editor do Tampermonkey.
 - `assisted-capture-server.ts` — `Bun.serve` local com token (`~/.config/transportada/capture-token`,
   `0600`), entrega `/next`, recebe `/capture` (valida `unitGtin`, `status`, `pageUrl`).
 - `harvest-queue.ts` — fila de GTINs pendentes (produção, `READ ONLY`), derivação GTIN-14 → GTIN-13
@@ -44,9 +46,12 @@ return`).
 O painel mostra **Buscar GTIN** e **Buscar ficha logística** (abrem o Google numa aba nova) e
 **Pular (Alt+N)**. Achou a medida em qualquer site (fabricante, distribuidor, PDF aberto no Chrome):
 **selecione o texto** e aperte **Alt+C**. Vale `47,4 x 24,7 x 24,0 cm` ou Comprimento/Largura/Altura.
-A linha entra como `found_manual`, com `source` = domínio da página, e o painel oferece
-**Voltar para a fila (Alt+N)**. O userscript roda em todo site, mas só age no Alt+C/Alt+U e só envia
-o texto selecionado.
+Se a página aberta **cita o GTIN** do produto em espera, o userscript já procura as medidas perto da
+citação e mostra **Confirmar (Alt+C)** / **Não é isso** — nada é gravado sem a sua confirmação, e
+seleção de texto, quando existe, tem prioridade sobre o que foi detectado. Há também **Buscar PDF**
+(ficha técnica com o GTIN). A linha entra como `found_manual`, com `source` = domínio da página, e o
+painel oferece **Voltar para a fila (Alt+N)**. O userscript roda em todo site, mas só age no
+Alt+C/Alt+U e só envia o texto selecionado.
 
 **Só achou a medida do produto (a unidade na prateleira)?** Selecione o texto (ex.: `6 x 9 x 3 cm`,
 `85 g`) e aperte **Alt+U** (spec 163). A linha entra como `found_unit_manual`, com a medida em
@@ -59,12 +64,34 @@ clica ou avança sozinho.
 
 - `found` **não é medida validada**: o Cosmos grava cm no lugar de mm e kg no lugar de g com
   frequência (ver fixture da spec 160). A checagem de sanidade da 160 decide antes de qualquer
-  promoção.
+  promoção. Medição de set/2026 sobre 131 capturas: ~19% das páginas têm dimensão (25/131); das
+  encontradas, ~36% passam a sanidade de aresta e ~24% passam com conteúdo (unitNet) conhecido.
+  O que não passa entra na fila do conferente com hipótese gravada — não é perda, é o design da
+  RF06 da spec 160.
 - Status possíveis no JSONL: `found`, `no_dimensions`, `not_found` (e `carton_mismatch` registrado
   quando a página não corresponde à fila).
 
 Saída: `~/Library/Application Support/transportada/box-catalog-harvest.jsonl`.
 Log: saída do `Bun.serve` no terminal.
+
+## Bug do parser (v1.8.0) e recuperação
+
+O `toCellNumber` que usava `Number(cell)` sem limpar o sufixo de unidade devolvia `NaN` para
+`"250,0 cm"` → `edges: {}` → `status: no_dimensions` mesmo com dimensão na ficha. O **v1.8.1**
+limpa o sufixo antes de converter (verificado deterministicamente contra a `cartonRow` real: gera
+`edgeCount: 3`). Se uma leva foi capturada com o parser velho, as `rows` continuam no JSONL e
+`recover-captured-dims.ts` recomputa as arestas sem navegar:
+
+```bash
+bun scripts/box-catalog-harvest/recover-captured-dims.ts   # backup automático antes de reescrever
+```
+
+## Como conferir a versão que roda no navegador
+
+O Tampermonkey mantém cópia própria; o número de versão não aparece no payload. Confirme abrindo
+uma página de dimensão conhecida (ex.: `7899674039460`, 250×120×120 cm) e vendo no log do
+servidor se o report sai `edgeCount: 3`/`found` (1.8.1) ou `edgeCount: 0`/`no_dimensions` com
+dimensões na `cartonRow` (1.8.0).
 
 ## Importar o JSONL coletado (spec 162)
 
