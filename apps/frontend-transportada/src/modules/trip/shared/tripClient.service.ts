@@ -89,27 +89,38 @@ import type {
 import { parseTripAllowedActions, type TripAllowedActions } from './tripAllowedActions.validation'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
+  DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
   DELIVERY_PROOF_OVERRIDES_PATH,
   DELIVERY_PROOF_SETTINGS_PATH,
   FIELD_DELIVERY_SETTINGS_PATH,
   isCompanyDeliveryProofSettings,
+  isDeliveryProofSettingsContractorOverride,
   isDeliveryProofSettingsOverride,
   isFieldDeliverySettings,
   type CompanyDeliveryProofSettings,
   type DeliveryProofFieldSettings,
+  type DeliveryProofSettingsContractorOverride,
   type DeliveryProofSettingsOverride,
   type FieldDeliverySettings,
 } from './deliveryProofSettings.service'
+import { contractorSummariesFromApi, type ContractorSummary } from './contractorSummary.service'
 import type { RouteChoice, RouteGeometry } from './routeGeometry.service'
 import type {
   OccurrenceAttachmentMode,
+  OccurrenceAttachmentOverrides,
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
+  OccurrenceTypeFlow,
 } from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
+/** Spec 218 RF-B3: exceções do `attachmentMode` de um tipo, por contratante e por destinatário. */
+const occurrenceTypeAttachmentOverridesPath = (occurrenceTypeId: string): string =>
+  `${OCCURRENCE_TYPES_PATH}/${occurrenceTypeId}/attachment-overrides`
+/** Spec 218 T10/T11: o mesmo seletor de contratante do painel de contatos, sem importar o módulo. */
+const CONTRACTORS_PATH = '/contractors'
 import { createTripResponseAdapters } from './tripResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -239,6 +250,26 @@ export type TripClient = Readonly<{
   replaceDeliveryProofOverrides: (
     input: Readonly<{ overrides: readonly DeliveryProofSettingsOverride[] }>,
   ) => Promise<readonly DeliveryProofSettingsOverride[]>
+  /** Spec 218 RF-C1/RF-C4: o par irmão, por contratante. */
+  listDeliveryProofContractorOverrides: () => Promise<
+    readonly DeliveryProofSettingsContractorOverride[]
+  >
+  replaceDeliveryProofContractorOverrides: (
+    input: Readonly<{ overrides: readonly DeliveryProofSettingsContractorOverride[] }>,
+  ) => Promise<readonly DeliveryProofSettingsContractorOverride[]>
+  /**
+   * Spec 218 T10/T11/T14: `GET /contractors?limit=100` — mesmo seletor de
+   * `delivery-clients/shared/contractorContactsClient.service.ts`, aqui para não cruzar módulo
+   * (`web.md` §1).
+   */
+  listContractors: () => Promise<readonly ContractorSummary[]>
+  /** Spec 218 RF-B3: as duas exceções do `attachmentMode` de um tipo, por contratante/destinatário. */
+  listOccurrenceAttachmentOverrides: (
+    input: Readonly<{ occurrenceTypeId: string }>,
+  ) => Promise<OccurrenceAttachmentOverrides>
+  replaceOccurrenceAttachmentOverrides: (
+    input: OccurrenceAttachmentOverrides & Readonly<{ occurrenceTypeId: string }>,
+  ) => Promise<OccurrenceAttachmentOverrides>
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
@@ -247,6 +278,8 @@ export type TripClient = Readonly<{
       /** Spec 179 RF1: a exigência de comprovante — sempre enviada, como os outros campos do tipo. */
       attachmentMode: OccurrenceAttachmentMode
       emailTemplateKey: null | string
+      /** Spec 218 (D1, RF-B5): obrigatório na criação, `undefined` na edição é "não mexe". */
+      flow?: OccurrenceTypeFlow | undefined
       /** Spec 185 T6.1 (D2, RF6): só para tipos de separação — CHECK do banco recusa em `delivery`. */
       leavesDocumentBehind: boolean
       name: string
@@ -463,6 +496,58 @@ function readDeliveryProofOverrides(input: unknown): readonly DeliveryProofSetti
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
   return input.overrides
+}
+
+/** Spec 218 RF-C1/RF-C4: o par irmão da leitura acima, por contratante. */
+function readDeliveryProofContractorOverrides(
+  input: unknown,
+): readonly DeliveryProofSettingsContractorOverride[] {
+  if (!isRecord(input) || !Array.isArray(input.overrides)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  if (!input.overrides.every(isDeliveryProofSettingsContractorOverride)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return input.overrides
+}
+
+function isOccurrenceAttachmentMode(value: unknown): value is OccurrenceAttachmentMode {
+  return value === 'off' || value === 'optional' || value === 'required'
+}
+
+function isOccurrenceAttachmentContractorOverride(
+  value: unknown,
+): value is OccurrenceAttachmentOverrides['contractorOverrides'][number] {
+  return (
+    isRecord(value) &&
+    isOccurrenceAttachmentMode(value.attachmentMode) &&
+    isString(value.contractorId)
+  )
+}
+
+function isOccurrenceAttachmentRecipientOverride(
+  value: unknown,
+): value is OccurrenceAttachmentOverrides['recipientOverrides'][number] {
+  return (
+    isRecord(value) && isOccurrenceAttachmentMode(value.attachmentMode) && isString(value.taxId)
+  )
+}
+
+/** Spec 218 RF-B3: `{ contractorOverrides, recipientOverrides }`, mesmo molde do par de comprovante. */
+function readOccurrenceAttachmentOverrides(input: unknown): OccurrenceAttachmentOverrides {
+  if (
+    !isRecord(input) ||
+    !Array.isArray(input.contractorOverrides) ||
+    !Array.isArray(input.recipientOverrides) ||
+    !input.contractorOverrides.every(isOccurrenceAttachmentContractorOverride) ||
+    !input.recipientOverrides.every(isOccurrenceAttachmentRecipientOverride)
+  ) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return {
+    contractorOverrides: input.contractorOverrides,
+    recipientOverrides: input.recipientOverrides,
+  }
 }
 
 function readEnvelopeData(input: unknown): unknown {
@@ -808,6 +893,8 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           allowsMultipleItems: input.allowsMultipleItems,
           attachmentMode: input.attachmentMode,
           emailTemplateKey: input.emailTemplateKey,
+          /** Spec 218 (D1, RF-B5): ausente é "não mexe" — nunca manda `flow: undefined` no corpo. */
+          ...(input.flow === undefined ? {} : { flow: input.flow }),
           leavesDocumentBehind: input.leavesDocumentBehind,
           name: input.name,
           notifies: input.notifies,
@@ -820,6 +907,35 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: OCCURRENCE_TYPES_PATH,
       })
       return adapters.occurrenceTypeFromApi(readEnvelopeData(response))
+    },
+    async listOccurrenceAttachmentOverrides(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: occurrenceTypeAttachmentOverridesPath(input.occurrenceTypeId),
+      })
+      return readOccurrenceAttachmentOverrides(readEnvelopeData(response))
+    },
+    /** O corpo do `PUT` é o conjunto inteiro das duas listas — o que não veio sai. */
+    async replaceOccurrenceAttachmentOverrides(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          contractorOverrides: input.contractorOverrides,
+          recipientOverrides: input.recipientOverrides,
+        }),
+        dependencies,
+        method: 'PUT',
+        path: occurrenceTypeAttachmentOverridesPath(input.occurrenceTypeId),
+      })
+      return readOccurrenceAttachmentOverrides(readEnvelopeData(response))
+    },
+    async listContractors() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${CONTRACTORS_PATH}?limit=100`,
+      })
+      return contractorSummariesFromApi(response)
     },
     async readDeliveryProofSettings() {
       const response = await authorizedRequest({
@@ -915,6 +1031,32 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: DELIVERY_PROOF_OVERRIDES_PATH,
       })
       return readDeliveryProofOverrides(readEnvelopeData(response))
+    },
+    async listDeliveryProofContractorOverrides() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
+      })
+      return readDeliveryProofContractorOverrides(readEnvelopeData(response))
+    },
+    /** O corpo do `PUT` é o conjunto inteiro — o que não veio sai. */
+    async replaceDeliveryProofContractorOverrides(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          overrides: input.overrides.map((override) => ({
+            contractorId: override.contractorId,
+            photo: override.photo,
+            receiverDocument: override.receiverDocument,
+            receiverName: override.receiverName,
+            signature: override.signature,
+          })),
+        }),
+        dependencies,
+        method: 'PUT',
+        path: DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH,
+      })
+      return readDeliveryProofContractorOverrides(readEnvelopeData(response))
     },
     async readTripOccurrences(input) {
       const response = await authorizedRequest({

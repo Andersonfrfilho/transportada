@@ -1,6 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
-import { OCCURRENCE_ATTACHMENT_MODES, type OccurrenceType } from './occurrence.constant'
+import {
+  OCCURRENCE_ATTACHMENT_MODES,
+  OCCURRENCE_TYPE_FLOWS,
+  type OccurrenceType,
+} from './occurrence.constant'
 import { TRIP_FIELD_CHANNELS, TRIP_TIMELINE_KINDS } from './trip.types'
 import type {
   FieldOccurrenceType,
@@ -1605,11 +1609,12 @@ const OCCURRENCE_TYPE_REQUIRED_KEYS = [
  */
 type RawOccurrenceType = Omit<
   OccurrenceType,
-  'allowsMultipleItems' | 'attachmentMode' | 'leavesDocumentBehind' | 'redeliveryPolicy'
+  'allowsMultipleItems' | 'attachmentMode' | 'flow' | 'leavesDocumentBehind' | 'redeliveryPolicy'
 > &
   Readonly<{
     allowsMultipleItems?: unknown
     attachmentMode?: unknown
+    flow?: unknown
     leavesDocumentBehind?: unknown
     redeliveryPolicy?: unknown
   }>
@@ -1626,6 +1631,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         ...OCCURRENCE_TYPE_REQUIRED_KEYS,
         'allowsMultipleItems',
         'attachmentMode',
+        /** Spec 218 (RF-B5): mesma tolerância — ausente é API anterior ao campo, vira `document`. */
+        'flow',
         /** Spec 185 T6.1 (D2): mesma tolerância — ausente é API anterior ao campo. */
         'leavesDocumentBehind',
         'redeliveryPolicy',
@@ -1643,6 +1650,7 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
     (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
+    (value.flow === undefined || isOneOf(value.flow, OCCURRENCE_TYPE_FLOWS)) &&
     isString(value.id) &&
     (value.leavesDocumentBehind === undefined || isBoolean(value.leavesDocumentBehind)) &&
     isString(value.name) &&
@@ -1659,12 +1667,19 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
  * nasce `unset` (D1/RF1) — os mesmos padrões documentados em `occurrence.constant.ts`.
  * `leavesDocumentBehind` nasce `false` (spec 185 T6.1 D2), o mesmo padrão do banco. */
 function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
-  const { allowsMultipleItems, attachmentMode, leavesDocumentBehind, redeliveryPolicy, ...rest } =
-    raw
+  const {
+    allowsMultipleItems,
+    attachmentMode,
+    flow,
+    leavesDocumentBehind,
+    redeliveryPolicy,
+    ...rest
+  } = raw
   return {
     ...rest,
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',
+    flow: isOneOf(flow, OCCURRENCE_TYPE_FLOWS) ? flow : 'document',
     leavesDocumentBehind: isBoolean(leavesDocumentBehind) ? leavesDocumentBehind : false,
     redeliveryPolicy:
       redeliveryPolicy === 'allowed' ||

@@ -22,12 +22,15 @@ import { TripDeliveryProofSettingsPanel } from '../components/TripDeliveryProofS
 import { TripRouteAssemblyLeftovers } from '../components/TripRouteAssemblyLeftovers.component'
 import { TripRouteAssemblyDialog } from '../components/TripRouteAssemblyDialog.component'
 import {
+  useDeliveryProofContractorOverridesQuery,
   useDeliveryProofOverridesQuery,
   useDeliveryProofSettingsQuery,
+  useReplaceDeliveryProofContractorOverridesMutation,
   useReplaceDeliveryProofOverridesMutation,
   useSaveCanhotoOcrEnabledMutation,
   useSaveDeliveryProofSettingsMutation,
 } from '../queries/useDeliveryProofSettings.query'
+import { useContractorsQuery } from '../queries/useContractors.query'
 import { TripTable } from '../components/TripTable.component'
 import { useTripQuickCreate } from '../hooks/useTripQuickCreate.hook'
 import { TRIP_LIST_QUERY_KEY } from '../shared/trip.constant'
@@ -162,8 +165,17 @@ export function TripWorkspacePage() {
   const deliveryProofOverridesQuery = useDeliveryProofOverridesQuery({
     enabled: canManageSettings && settingsScope.deliveryProofSettings,
   })
+  /** Spec 218 RF-C1/RF-C4: a mesma condição de aba+permissão, para a exceção por contratante. */
+  const deliveryProofContractorOverridesQuery = useDeliveryProofContractorOverridesQuery({
+    enabled: canManageSettings && settingsScope.deliveryProofSettings,
+  })
+  const contractorsQuery = useContractorsQuery({
+    enabled: canManageSettings && settingsScope.deliveryProofSettings,
+  })
   const saveDeliveryProofSettingsMutation = useSaveDeliveryProofSettingsMutation()
   const replaceDeliveryProofOverridesMutation = useReplaceDeliveryProofOverridesMutation()
+  const replaceDeliveryProofContractorOverridesMutation =
+    useReplaceDeliveryProofContractorOverridesMutation()
   const saveCanhotoOcrEnabledMutation = useSaveCanhotoOcrEnabledMutation()
 
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
@@ -292,11 +304,17 @@ export function TripWorkspacePage() {
                   <TripDeliveryProofSettingsPanel
                     canManage={canManageSettings}
                     canhotoOcrEnabled={deliveryProofSettingsQuery.data?.canhotoOcrEnabled}
+                    contractorOverrides={deliveryProofContractorOverridesQuery.data ?? []}
+                    contractors={contractorsQuery.data ?? []}
                     isSaving={
                       saveDeliveryProofSettingsMutation.isPending ||
-                      replaceDeliveryProofOverridesMutation.isPending
+                      replaceDeliveryProofOverridesMutation.isPending ||
+                      replaceDeliveryProofContractorOverridesMutation.isPending
                     }
                     isTogglingCanhotoOcr={saveCanhotoOcrEnabledMutation.isPending}
+                    onReplaceContractorOverrides={(overrides) =>
+                      replaceDeliveryProofContractorOverridesMutation.mutate(overrides)
+                    }
                     onReplaceOverrides={(overrides) =>
                       replaceDeliveryProofOverridesMutation.mutate(overrides)
                     }
@@ -314,8 +332,10 @@ export function TripWorkspacePage() {
                     showError={
                       deliveryProofSettingsQuery.isError ||
                       deliveryProofOverridesQuery.isError ||
+                      deliveryProofContractorOverridesQuery.isError ||
                       saveDeliveryProofSettingsMutation.isError ||
                       replaceDeliveryProofOverridesMutation.isError ||
+                      replaceDeliveryProofContractorOverridesMutation.isError ||
                       saveCanhotoOcrEnabledMutation.isError
                     }
                   />

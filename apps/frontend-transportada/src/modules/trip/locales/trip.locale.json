@@ -500,6 +500,13 @@
       "optional": "Opcional",
       "required": "Obrigatório"
     },
+    "contractorOverrides": {
+      "contractor": "Contratante",
+      "contractorPlaceholder": "Buscar contratante por nome ou CNPJ",
+      "empty": "Nenhuma exceção por contratante cadastrada.",
+      "hint": "A exceção pelo contratante (embarcador/emitente da nota) vence a configuração geral por inteiro; a exceção por destinatário, quando existir para a mesma nota, vence esta.",
+      "title": "Exceções por contratante"
+    },
     "overrides": {
       "add": "Adicionar exceção",
       "empty": "Nenhuma exceção cadastrada.",

@@ -14,6 +14,7 @@ import {
   normalizeTaxId,
 } from '@/modules/shared/taxId.service'
 
+import { contractorLabel, type ContractorSummary } from '../shared/contractorSummary.service'
 import {
   DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
   DEFAULT_DELIVERY_PROOF_SETTINGS,
@@ -29,6 +30,7 @@ import {
   type DeliveryProofFieldMode,
   type DeliveryProofFieldSettings,
   type DeliveryProofPunctualityField,
+  type DeliveryProofSettingsContractorOverride,
   type DeliveryProofSettingsOverride,
 } from '../shared/deliveryProofSettings.service'
 import styles from '../styles/trip.module.css'
@@ -37,8 +39,14 @@ type TripDeliveryProofSettingsPanelProps = Readonly<{
   canManage: boolean
   /** Spec 156 T14, ADR-0069 §6: `undefined` enquanto carrega — o painel some por trás do skeleton. */
   canhotoOcrEnabled: boolean | undefined
+  /** Spec 218 T10: o mesmo seletor de contratante do painel de contatos, para a exceção nova. */
+  contractorOverrides: readonly DeliveryProofSettingsContractorOverride[]
+  contractors: readonly ContractorSummary[]
   isSaving: boolean
   isTogglingCanhotoOcr: boolean
+  onReplaceContractorOverrides: (
+    overrides: readonly DeliveryProofSettingsContractorOverride[],
+  ) => void
   onReplaceOverrides: (overrides: readonly DeliveryProofSettingsOverride[]) => void
   onSaveSettings: (settings: CompanyDeliveryProofSettings) => void
   /**
@@ -61,8 +69,11 @@ type TripDeliveryProofSettingsPanelProps = Readonly<{
 export function TripDeliveryProofSettingsPanel({
   canManage,
   canhotoOcrEnabled,
+  contractorOverrides,
+  contractors,
   isSaving,
   isTogglingCanhotoOcr,
+  onReplaceContractorOverrides,
   onReplaceOverrides,
   onSaveSettings,
   onToggleCanhotoOcr,
@@ -76,6 +87,11 @@ export function TripDeliveryProofSettingsPanel({
   const [draft, setDraft] = useState<Partial<DeliveryProofFieldSettings>>({})
   const [overrideTaxId, setOverrideTaxId] = useState('')
   const [overrideDraft, setOverrideDraft] = useState<Partial<DeliveryProofFieldSettings>>({})
+  /** Spec 218 T10: a exceção por contratante — mesmo par de estado da de destinatário, por id. */
+  const [overrideContractorId, setOverrideContractorId] = useState('')
+  const [contractorOverrideDraft, setContractorOverrideDraft] = useState<
+    Partial<DeliveryProofFieldSettings>
+  >({})
   /** RF7: os cinco parâmetros da nota — texto no campo, para deixar dígito parcial sem travar. */
   const [punctualityDraft, setPunctualityDraft] = useState<
     Partial<Record<DeliveryProofPunctualityField, string>>
@@ -137,6 +153,33 @@ export function TripDeliveryProofSettingsPanel({
 
   function handleRemoveOverride(taxId: string) {
     onReplaceOverrides(overrides.filter((override) => override.taxId !== taxId))
+  }
+
+  /** Spec 218 T10: mesmo formato de add/remove da exceção por destinatário, chaveado por id. */
+  const isContractorOverrideDuplicated = contractorOverrides.some(
+    (override) => override.contractorId === overrideContractorId,
+  )
+
+  function handleAddContractorOverride() {
+    if (overrideContractorId === '' || isContractorOverrideDuplicated) return
+    const override: DeliveryProofSettingsContractorOverride = {
+      ...mergeDeliveryProofSettings({ base: general, override: contractorOverrideDraft }),
+      contractorId: overrideContractorId,
+    }
+    onReplaceContractorOverrides([...contractorOverrides, override])
+    setOverrideContractorId('')
+    setContractorOverrideDraft({})
+  }
+
+  function handleRemoveContractorOverride(contractorId: string) {
+    onReplaceContractorOverrides(
+      contractorOverrides.filter((override) => override.contractorId !== contractorId),
+    )
+  }
+
+  function contractorLabelOf(contractorId: string): string {
+    const contractor = contractors.find((candidate) => candidate.id === contractorId)
+    return contractor === undefined ? contractorId : contractorLabel(contractor)
   }
 
   function renderModeSelect(input: {
@@ -326,6 +369,79 @@ export function TripDeliveryProofSettingsPanel({
           <Button
             disabled={isSaving || !isOverrideTaxIdComplete || isOverrideDuplicated}
             onClick={handleAddOverride}
+            size="sm"
+            type="button"
+          >
+            <Icon name="add" />
+            {t('deliveryProofSettings.overrides.add')}
+          </Button>
+        </div>
+      ) : null}
+
+      {/* Spec 218 RF-C1/RF-C4: a segunda exceção, pelo contratante (embarcador/emitente da nota). */}
+      <h3 className={styles.hint}>{t('deliveryProofSettings.contractorOverrides.title')}</h3>
+      <p className={styles.hint}>{t('deliveryProofSettings.contractorOverrides.hint')}</p>
+
+      {contractorOverrides.length === 0 ? (
+        <p className={styles.hint}>{t('deliveryProofSettings.contractorOverrides.empty')}</p>
+      ) : null}
+
+      {contractorOverrides.map((override) => (
+        <div className={styles.fieldGrid} key={override.contractorId}>
+          <span>{contractorLabelOf(override.contractorId)}</span>
+          {DELIVERY_PROOF_FIELDS.map((field) => (
+            <span className={styles.hint} key={field}>
+              {t(`deliveryProofSettings.fields.${field}`)}:{' '}
+              {t(`deliveryProofSettings.modes.${override[field]}`)}
+            </span>
+          ))}
+          {canManage ? (
+            <Button
+              disabled={isSaving}
+              onClick={() => handleRemoveContractorOverride(override.contractorId)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="trash" />
+              {t('deliveryProofSettings.overrides.remove')}
+            </Button>
+          ) : null}
+        </div>
+      ))}
+
+      {canManage ? (
+        <div className={styles.fieldGrid}>
+          <label>
+            <span className={styles.hint}>
+              {t('deliveryProofSettings.contractorOverrides.contractor')}
+            </span>
+            <Select
+              ariaLabel={t('deliveryProofSettings.contractorOverrides.contractor')}
+              disabled={isSaving}
+              onChange={setOverrideContractorId}
+              options={contractors.map((contractor) => ({
+                label: contractorLabel(contractor),
+                value: contractor.id,
+              }))}
+              placeholder={t('deliveryProofSettings.contractorOverrides.contractorPlaceholder')}
+              value={overrideContractorId}
+            />
+          </label>
+          {DELIVERY_PROOF_FIELDS.map((field) =>
+            renderModeSelect({
+              field,
+              onChange: (changed, mode) =>
+                setContractorOverrideDraft((current) => ({ ...current, [changed]: mode })),
+              value: mergeDeliveryProofSettings({
+                base: general,
+                override: contractorOverrideDraft,
+              })[field],
+            }),
+          )}
+          <Button
+            disabled={isSaving || overrideContractorId === '' || isContractorOverrideDuplicated}
+            onClick={handleAddContractorOverride}
             size="sm"
             type="button"
           >

@@ -4,6 +4,9 @@ import { isRecord, isString } from './tripGuards.validation'
 /** Spec 082 (ADR-0057): a configuração é da empresa — o app do campo lê o resolvido no snapshot. */
 export const DELIVERY_PROOF_SETTINGS_PATH = '/company-settings/delivery-proof'
 export const DELIVERY_PROOF_OVERRIDES_PATH = '/company-settings/delivery-proof/overrides'
+/** Spec 218 RF-C1/RF-C4: a mesma exceção, agora também por contratante (embarcador/emitente). */
+export const DELIVERY_PROOF_CONTRACTOR_OVERRIDES_PATH =
+  '/company-settings/delivery-proof-contractor-overrides'
 /**
  * Spec 156 T13, ADR-0069 §6: o escritório (`trip.report-on-behalf`) lê só o interruptor da leitura
  * do canhoto — a configuração inteira do comprovante é `settings.manage`.
@@ -29,6 +32,10 @@ export type DeliveryProofFieldSettings = Readonly<
 >
 
 export type DeliveryProofSettingsOverride = DeliveryProofFieldSettings & Readonly<{ taxId: string }>
+
+/** Spec 218 RF-C1/RF-C4: o par irmão, por contratante — mesma forma, `contractorId` no lugar do CNPJ. */
+export type DeliveryProofSettingsContractorOverride = DeliveryProofFieldSettings &
+  Readonly<{ contractorId: string }>
 
 /** ADR-0057 §4: sem linha gravada vale a fábrica — documento desligado, o resto oferecido. */
 export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
@@ -81,6 +88,12 @@ export function isDeliveryProofSettingsOverride(
   value: unknown,
 ): value is DeliveryProofSettingsOverride {
   return isRecord(value) && isString(value['taxId']) && isDeliveryProofFieldSettings(value)
+}
+
+export function isDeliveryProofSettingsContractorOverride(
+  value: unknown,
+): value is DeliveryProofSettingsContractorOverride {
+  return isRecord(value) && isString(value['contractorId']) && isDeliveryProofFieldSettings(value)
 }
 
 export function isFieldDeliverySettings(value: unknown): value is FieldDeliverySettings {
