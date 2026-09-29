@@ -111,18 +111,21 @@
 > 🤖 Modelo: `opus` 🧠. Depende de T5/T9 (o catálogo já precisa ter `flow` e os 5 tipos semeados) e
 > de T16 (`ProofCaptureFields` já extraído).
 
-- [ ] **T21** Contratos antes, vistos falhar:
+- [x] **T21** Contratos antes, vistos falhar:
   - lista única mostra tipos `flow: document` e `flow: stop` juntos, cada um com `attachmentMode`;
   - tipo `required` sem foto não habilita "Registrar"; habilita ao capturar, sem esperar upload (P5
     do spec.md);
   - confirmar chama `handleDocumentOccurrence` (`flow: document`) ou `reportStopOccurrence`
     (`flow: stop`, agora com `occurrenceTypeId` em vez de `kind`) — nunca os dois, nunca nenhum.
-- [ ] **T22** `OccurrenceRegistrationPanel` (ou nome equivalente): substitui o painel inline de
+- [x] **T22** `OccurrenceRegistrationPanel` (ou nome equivalente): substitui o painel inline de
       `onDocumentOccurrence` (`DriverStopCard.component.tsx:832-889`) e
       `DriverStopOccurrenceForm.component.tsx`/`useStopOccurrenceForm.hook.ts` por um componente só,
       reaproveitando `ProofCaptureFields` (T16), lendo a lista única de `GET
 /me/trips/current/occurrence-types` e roteando por `flow`. Gate: `check` da app + `smoke`.
-- [ ] **T23** Revisão de design do componente único: print em 375 px mostrando um tipo `required`
+      ⚠️ Feito como `DriverOccurrenceRegistrationForm` sem `ProofCaptureFields` (captura do
+      canhoto — ver `evidence.md` Fase 4b), com a rota de parada do backend fechada antes (D2).
+      Commits `a6092990b`, `e0a73b41b`, `83449e0d9`, `8b705e800`.
+- [x] **T23** Revisão de design do componente único: print em 375 px mostrando um tipo `required`
       (com a captura de foto) e um tipo `off`/`optional` (sem ela), lado a lado na mesma lista.
 
 ## Fase 5 — Legado `/minha-viagem` (mesma correção, RF-A e RF-A5)

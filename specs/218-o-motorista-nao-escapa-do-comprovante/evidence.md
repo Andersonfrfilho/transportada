@@ -253,3 +253,119 @@ Fase 4b retomada com estas decisões — ver o registro dela mais abaixo quando 
 (`apps/frontend-transportada/src/modules/driver-trip/`) não serve mais nenhum motorista. O usuário
 confirmou: "pelo menos após essa correção vamos apenas utilizar o app novo". A Fase 5 do `tasks.md`
 não roda — nenhuma réplica por cópia de valor no painel antigo.
+
+## Fase 4b (T21–T23) — botão único de ocorrência, 29/09/2026
+
+Base conferida antes de começar: os 5 tipos `flow: stop` existem por empresa (migration
+`20260929131715_occurrence_stop_flow`, stage `delivery`, `attachment_mode: optional`) e `GET
+/me/trips/current/occurrence-types` já devolvia `flow` (T9). App do motorista: 808 pass / 0 fail.
+
+### D2 no backend — `stop_kind` e `occurrenceTypeId` na rota de parada
+
+- **Contratos antes** (`a6092990b`), vistos falhar 7: `test/trip-occurrence/stop-occurrence-type.contract.ts`
+  (corpo com `occurrenceTypeId` ou `kind`, nunca os dois nem nenhum; o kind sai do `stop_kind`, e a
+  sugestão de cobrança e o aviso leem esse kind; tipo sem `stop_kind` vale `other`; tipo que não é de
+  parada ativo desta empresa é 422 `OCCURRENCE_TYPE_NOT_STOP` sem gravar nada; o corpo antigo com
+  `kind` grava sem tipo; o catálogo do motorista leva `stopKind`) e a coluna em
+  `test/trip-schema/occurrence-type-flow.contract.ts`.
+- **Implementação** (`e0a73b41b`): migration `20260929144801_occurrence_type_stop_kind` (coluna
+  nullable + CHECK no vocabulário fixo; backfill em três passos — o `kind` das ocorrências já
+  amarradas ao tipo, que sobrevive ao tipo renomeado; o rótulo semeado; `other` para o resto dos
+  tipos de parada; rollback só tira a coluna). `reportStopOccurrence` aceita `kind` **ou**
+  `occurrenceTypeId`; com o tipo, confere empresa + `flow: stop` + ativo
+  (`findStopOccurrenceType`), grava `occurrence_type_id` e usa o kind derivado para a sugestão de
+  cobrança (060) e o template do aviso. O cadastro grava `stop_kind: other` num tipo que vira de
+  parada sem valor (e preserva o que já tinha). `GET /me/trips/current/occurrence-types` expõe
+  `stopKind`; a tela de verificação (RF-E1) continua com o shape dela (mapeamento explícito).
+- **Não mudou:** a rota do escritório em nome do motorista (`trip-field-office`) segue mandando só
+  `kind` — grava sem `occurrence_type_id`, como antes. O corpo antigo com `kind` continua aceito na
+  rota do motorista, porque a fila do aparelho guarda itens de antes da troca.
+- **Gates:** contratos da API 8272 pass / 0 fail (23 skip, os de banco); `db:test` contra o Postgres
+  de teste (`make migration-test` equivalente, `.env.test`) 112 pass / 0 fail — inclui a asserção
+  nova `occurrence-stop-kind.assertion.ts` (tipo renomeado, tipo do operador, tipo de nota, nenhum
+  tipo de parada sem `stop_kind`); integração `stop-occurrence-photo` (+3 casos D2: grava tipo e
+  kind; tipo de outra empresa/de nota/aposentado recusado; cadastro grava `other` e preserva) e
+  vizinhas 60 pass / 0 fail; typecheck, lint e `db:check` verdes.
+
+### T21 — contratos antes, vistos falhar (`83449e0d9`)
+
+`test/driver-trip/occurrence-registration.contract.ts` (comportamento) e
+`test/driver-trip/occurrence-registration-wiring.contract.ts` (ligação). Vistos falhar: o entrypoint
+não carregava (`occurrenceRegistration.service` inexistente) e a ligação saiu 0 pass / 11 fail.
+Casos: a lista traz tipos de nota e de parada juntos, cada um com o `attachmentMode`; `required` sem
+foto não habilita "Registrar" e habilita ao capturar, sem nenhuma entrada de upload na decisão (P5);
+confirmar chama uma rota só, pelo `flow` (nota sem foto → chamada direta; nota com foto → item
+`documentOccurrence`; parada → fila da parada com `occurrenceTypeId`, sem a nota) — nunca duas,
+nunca nenhuma; o item antigo da fila com `occurrenceKind` continua saindo com `kind`; "Não entreguei"
+oferece só tipos de nota.
+
+Três asserções da ligação mudaram de forma na T22, sem mudar o que guardam: a dica passou de
+`title` para o `Tooltip` do design system (o `title` nativo demora e o próprio componente registra
+por quê); gate e rota passaram a ser lidos no hook (`web.md` §4, estado e submit no hook); e "fora
+do Cheguei" virou "presente nas duas ramificações da nota", com o antes-do-Cheguei provado no smoke.
+
+### T22 — o componente único (`8b705e800`)
+
+- `DriverOccurrenceRegistrationForm.component.tsx` + `useOccurrenceRegistrationForm.hook.ts` +
+  `shared/occurrenceRegistration.service.ts` substituem o painel inline de `onDocumentOccurrence` e
+  `DriverStopOccurrenceForm`/`useStopOccurrenceForm` (apagados). Botão "Ocorrência" (ícone `alert`,
+  `Tooltip` "Registrar um problema desta nota ou da parada") em cada nota: na nota em aberto, antes
+  e depois do "Cheguei", e na nota já resolvida (cobrança inesperada acontece depois da entrega). O
+  "Deu problema" da parada saiu do cartão.
+- **Divergência do plano (registrada com o coordenador antes de implementar):** `ProofCaptureFields`
+  **não** é reaproveitado — é a captura do canhoto (`attach()` vai sempre para a fila de comprovante,
+  e o campo "Documento de quem recebeu" aparece sempre); usá-lo recriaria o defeito que a spec 209
+  corrigiu. O formulário usa o bloco de foto de ocorrência que já existia
+  (`reduceOccurrencePhotoToJpeg`, "Tirar foto"/"Anexar") e o gate reaproveita
+  `listMissingProofFields`/`resolveProofFormPlan` com um plano de campo único (`photo =
+attachmentMode`).
+- Foto obrigatória de parada nunca é derrubada pela fila cheia: vai por `reportAllOrNothing` (o mesmo
+  caminho tudo-ou-nada do "Não entreguei"), e a tela mostra o aviso de teto de bytes. Opcional segue
+  a regra da 209 (fila cheia derruba a foto, nunca o relato).
+- A prévia do aviso da parada sai do `stopKind` do tipo e cita a nota tocada.
+  `findOccurrencePhotoDocument` saiu (sem uso) com os dois testes dele.
+- Chaves de locale mortas removidas (`occurrence`, `documentOccurrence`, `occurrenceKind`); chaves
+  novas em `occurrenceRegistration.*` (pt-BR e en).
+- **Gates:** `bun run check` (lint + typecheck + 832 testes + build + `dist` 6/6) verde; `bun run
+smoke` verde — service worker 2/2, app 25/25, incluindo os novos "ocorrência de parada com foto
+  obrigatória: habilita ao capturar, e nunca vira canhoto" (Registrar desabilitado com "Para
+  registrar, falta: a foto."; nenhum upload antes do toque; corpo com `occurrenceTypeId`) e
+  "ocorrência de nota com foto" (upload, confirm e só então o `POST` com `attachmentObjectId`). O
+  smoke do tipo lista agora abre "Ocorrência" **sem** tocar "Cheguei" — prova D4 na tela.
+
+### T23 — revisão de design (web.md §15)
+
+Prints em 375 px, Playwright com o mock do smoke (`test/spec-218-prints.smoke.spec.ts`, fora da CI,
+`animations: 'disabled'` e ponteiro fora do gatilho):
+
+- `prints/t23-obrigatoria-sem-foto-375-{light,dark}.png` — lista única com os 4 tipos ("Cliente
+  ausente · Sem foto", "Avaria na carga · Foto obrigatória", "Doca interditada · Foto opcional",
+  "Cobrança inesperada · Foto obrigatória"), o obrigatório escolhido: captura da foto visível,
+  "Tirar foto \*", "Para registrar, falta: a foto." em cobre e "Registrar" esmaecido — o mesmo par do
+  "Confirmar entrega" do gate (T20).
+- `prints/t23-obrigatoria-com-foto-375-{light,dark}.png` — miniatura + "Foto da ocorrência anexada",
+  "Refazer"/"Anexar", "Registrar" habilitado.
+- `prints/t23-sem-foto-375-{light,dark}.png` — tipo `off` escolhido na mesma lista: sem bloco de
+  foto, "Registrar" habilitado.
+- `prints/t23-nota-antes-do-cheguei-375-dark.png` e `prints/t23-nota-depois-do-cheguei-375-dark.png`
+  — "Ocorrência" sozinho antes do "Cheguei" e abaixo de "Entreguei"/"Não entreguei" depois, no mesmo
+  estilo `ghost` de "Não entreguei". Sem rolagem horizontal nos três cenários (medido).
+
+Achados da revisão: o primeiro print saiu com os chips "esmaecidos" — era a transição de cor do botão
+capturada no meio (o chip recém-desmarcado e o recém-marcado a meio caminho), não o estado final;
+com `animations: 'disabled'` o selecionado é cobre cheio com texto escuro legível. A app mantém o
+tema escuro também com `prefers-color-scheme: light` (os dois prints são iguais), mesmo
+comportamento do resto da app. Em 375 px os três botões da nota empilham, como já empilhavam antes
+("Registrar ocorrência" era o terceiro) — o rótulo curto não os põe lado a lado nessa largura. A
+caixa de "O que aconteceu" não ocupa a largura toda do formulário; é o mesmo `textarea` do antigo
+"Deu problema", não corrigido aqui.
+
+### Limites que ficam
+
+- A exceção de ocorrência por contratante/destinatário (P3) não chega ao app: o snapshot não traz
+  `contractorId`/`recipientTaxId` da nota, e o app lê o `attachmentMode` geral do tipo (registrado
+  acima, fora desta spec).
+- A rota de ocorrência **de nota** (`POST .../documents/:id/occurrences`) não recusa um tipo de
+  `flow: stop` — o app nunca manda, mas o servidor não barra.
+- A rota do escritório em nome do motorista segue por `kind`; ocorrência de parada registrada pelo
+  escritório grava sem `occurrence_type_id`.
