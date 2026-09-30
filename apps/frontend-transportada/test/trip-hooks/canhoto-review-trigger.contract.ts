@@ -170,4 +170,49 @@ describe('o disparo da conferência automática do canhoto (spec 220 T7.13)', ()
 
     expect(latest?.isAutomaticReviewUnavailable).toBe(false)
   })
+
+  it('desmontado o item, a leitura que chega depois não entrega mais veredito', async () => {
+    let settleReading: ((outcome: CanhotoReviewOutcome) => void) | undefined
+    await mount(
+      buildParams({
+        readCanhoto: (call) => {
+          readerCalls.push(call)
+          return new Promise<CanhotoReviewOutcome>((resolve) => {
+            settleReading = resolve
+          })
+        },
+      }),
+    )
+    expect(readerCalls).toHaveLength(1)
+
+    act(() => root?.unmount())
+    root = undefined
+    await act(async () => {
+      settleReading?.(OUTCOME)
+      await Promise.resolve()
+    })
+
+    expect(outcomes).toEqual([])
+  })
+
+  it('conferido por gente durante a leitura, o veredito que chega depois não sobrescreve', async () => {
+    let settleReading: ((outcome: CanhotoReviewOutcome) => void) | undefined
+    const readCanhoto = (call: ReaderCall): Promise<CanhotoReviewOutcome> => {
+      readerCalls.push(call)
+      return new Promise<CanhotoReviewOutcome>((resolve) => {
+        settleReading = resolve
+      })
+    }
+    await mount(buildParams({ readCanhoto }))
+
+    await render(
+      buildParams({ proof: { ...PENDING_PHOTO, canhotoReview: 'approved' }, readCanhoto }),
+    )
+    await act(async () => {
+      settleReading?.(OUTCOME)
+      await Promise.resolve()
+    })
+
+    expect(outcomes).toEqual([])
+  })
 })

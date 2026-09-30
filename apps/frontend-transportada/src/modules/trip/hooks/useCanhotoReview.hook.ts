@@ -40,7 +40,12 @@ export function useCanhotoReview(params: UseCanhotoReviewParams): UseCanhotoRevi
   const [unavailableProofId, setUnavailableProofId] = useState<string | undefined>(undefined)
   const startedProofIds = useRef<Set<string>>(new Set())
   const latestParams = useRef(params)
-  latestParams.current = params
+
+  // Escrever a ref em efeito, não em render: render descartado pelo modo concorrente não pode
+  // deixar para trás parâmetro que nunca entrou em tela.
+  useEffect(() => {
+    latestParams.current = params
+  })
 
   const isEligible =
     proof.kind === 'photo' &&
@@ -48,26 +53,33 @@ export function useCanhotoReview(params: UseCanhotoReviewParams): UseCanhotoRevi
     proof.canhotoReadSource === undefined
 
   useEffect(() => {
-    if (!isEligible || accessKey === undefined) return
-    if (startedProofIds.current.has(proof.id)) return
+    if (!isEligible || accessKey === undefined) return undefined
+    if (startedProofIds.current.has(proof.id)) return undefined
     startedProofIds.current.add(proof.id)
 
     const proofId = proof.id
+    let isListening = true
     const { cancel, expired } = waitForDeadline(latestParams.current.deadlineMs)
     const reading = latestParams.current.readCanhoto({ accessKey, proofId })
 
     async function settle(): Promise<void> {
       try {
         const outcome = await Promise.race([reading, expired])
+        if (!isListening) return
         if (outcome === DEADLINE_EXCEEDED) setUnavailableProofId(proofId)
         else latestParams.current.onRead(outcome)
       } catch {
-        setUnavailableProofId(proofId)
+        if (isListening) setUnavailableProofId(proofId)
       } finally {
         cancel()
       }
     }
     void settle()
+
+    return () => {
+      isListening = false
+      cancel()
+    }
   }, [accessKey, isEligible, proof.id])
 
   return { isAutomaticReviewUnavailable: unavailableProofId === proof.id }

@@ -2495,3 +2495,42 @@ hooks:   118 pass · 0 fail  →  127 pass · 0 fail
 suíte:   5881 pass · 0 fail (inalterada)
 EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
 ```
+
+#### O efeito sem limpeza, e a ref escrita em render (corrigido à parte)
+
+O hook nasceu sem função de limpeza no efeito da leitura. O cronômetro do prazo só era cancelado no
+`finally`, depois da corrida resolver — então fechar o item com uma leitura em voo deixava um
+`setTimeout` de 20 s vivo em produção e, quando ele estourasse, uma escrita de estado num componente
+que já não existe. O React 19 engole essa escrita em silêncio, e é justamente por isso que o defeito
+não aparecia em tela: o que ele produz é um veredito que chega atrasado e passa por cima do que a
+pessoa está olhando.
+
+A segunda: `latestParams.current = params` era escrita **durante o render**. Render descartado pelo
+modo concorrente pode deixar na ref um parâmetro que nunca entrou em tela, e a construção ainda
+contornava o `exhaustive-deps` em vez de satisfazê-lo. Passou para dentro de um `useEffect` sem
+dependências, que é o lugar sancionado.
+
+Vermelho medido antes de corrigir, com o hook como estava no `dbe8d5074`:
+
+```
+(fail) … > desmontado o item, a leitura que chega depois não entrega mais veredito
+(fail) … > conferido por gente durante a leitura, o veredito que chega depois não sobrescreve
+127 pass · 2 fail · EXIT_RED=1
+```
+
+⚠️ **O cancelamento do cronômetro em si não é observável neste arranjo.** Com a guarda `isListening`
+no lugar, o efeito de um cronômetro sobrevivente é nenhum — ele resolve, cai na guarda e morre. O que
+os dois casos provam é o que importa em tela: nada que chega depois da limpeza vira veredito. O
+`clearTimeout` fica como defesa contra o vazamento, não contra comportamento visível, e está dito
+aqui para ninguém tentar escrever a asserção que não existe. A primeira redação deste caso afirmava
+`isAutomaticReviewUnavailable === false` depois de desmontar — asserção vazia: desmontado, o Probe
+não rerenderiza, e o valor seria `false` com limpeza ou sem ela.
+
+O segundo caso é a corrida real do RF26: a leitura automática em voo e alguém conferindo à mão no
+meio dela. O veredito da máquina chegando depois **não** sobrescreve o da pessoa.
+
+```
+hooks:   127 pass · 0 fail  →  129 pass · 0 fail
+suíte:   5881 pass · 0 fail (inalterada)
+EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
+```
