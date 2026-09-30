@@ -11,11 +11,14 @@
 import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
+import { identityUserProfiles } from '../../src/database/identity-user-profile.schema.js'
+import { identityUsers, userCompanyMemberships } from '../../src/database/identity.schema.js'
 import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
 import { storedObjects } from '../../src/database/storage.schema.js'
 import { tripDeliveryProofs, tripStopEvents } from '../../src/database/trip.schema.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
+import { listDeliveryProofs } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleCanhotoReviewUnitOfWork } from '../../src/trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
@@ -180,7 +183,100 @@ async function seedReturnedEventWithCanhoto(
   return proofId
 }
 
+async function seedReviewer(
+  database: TestDatabase,
+  companyId: string,
+  membershipStatus: 'active' | 'disabled',
+): Promise<string> {
+  const userId = crypto.randomUUID()
+  await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+  await database.db.insert(identityUserProfiles).values({
+    contactAddress: `${userId}@example.com`,
+    contactChannel: 'email',
+    name: 'Ana Souza',
+    userId,
+    username: userId,
+  })
+  await database.db
+    .insert(userCompanyMemberships)
+    .values({ companyId, status: membershipStatus, userId })
+  return userId
+}
+
 describe('a conferência do canhoto contra o Postgres (spec 220 RF24)', () => {
+  testWithPostgres(
+    'a leitura do comprovante devolve o veredito e o nome de quem conferiu, sem multiplicar linhas',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+        const cargo = await attachProof(database, world, 'cargo')
+        const reviewerId = await seedReviewer(database, world.company.companyId, 'active')
+        await database.db
+          .update(tripDeliveryProofs)
+          .set({
+            canhotoReadNumber: READ_NUMBER,
+            canhotoReadSource: 'ocr',
+            canhotoReview: 'approved',
+            canhotoReviewAt: new Date('2026-09-19T10:00:00.000Z'),
+            canhotoReviewByUserId: reviewerId,
+            canhotoReviewOrigin: 'manual',
+          })
+          .where(eq(tripDeliveryProofs.id, proof.id))
+
+        const records = await listDeliveryProofs(database.db, {
+          companyId: world.company.companyId,
+          documentId: world.trip.documentId,
+          tripId: world.trip.tripId,
+        })
+
+        expect(records).toHaveLength(2)
+        expect(records.find((record) => record.id === proof.id)).toMatchObject({
+          canhotoReadNumber: READ_NUMBER,
+          canhotoReadSource: 'ocr',
+          canhotoReview: 'approved',
+          canhotoReviewAt: '2026-09-19T10:00:00.000Z',
+          canhotoReviewByName: 'Ana Souza',
+          canhotoReviewOrigin: 'manual',
+        })
+        expect(records.find((record) => record.id === cargo.id)).toMatchObject({
+          canhotoReview: 'not_applicable',
+          canhotoReviewByName: null,
+        })
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'quem conferiu e já não é membro ativo da empresa sai sem nome, e o veredito continua',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+        const reviewerId = await seedReviewer(database, world.company.companyId, 'disabled')
+        await database.db
+          .update(tripDeliveryProofs)
+          .set({
+            canhotoReview: 'approved',
+            canhotoReviewAt: new Date('2026-09-19T10:00:00.000Z'),
+            canhotoReviewByUserId: reviewerId,
+            canhotoReviewOrigin: 'manual',
+          })
+          .where(eq(tripDeliveryProofs.id, proof.id))
+
+        const [record] = await listDeliveryProofs(database.db, {
+          companyId: world.company.companyId,
+          documentId: world.trip.documentId,
+          tripId: world.trip.tripId,
+        })
+
+        expect(record).toMatchObject({ canhotoReview: 'approved', canhotoReviewByName: null })
+      })
+    },
+    120_000,
+  )
+
   testWithPostgres(
     'canhoto novo nasce pendente: o INSERT escreve o estado, não herda o default da coluna',
     async () => {

@@ -237,12 +237,12 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       `assertReadingIsConsistent` (`:148-158`) ganha a conferência que lhe falta: o número lido
       contra o número da nota. A trilha continua **só** para a decisão humana
       (`review-canhoto-proof.use-case.ts:74`) — leitura de máquina não é ação sensível
-- [ ] T7.3 Contrato de API: `GET .../proof` publica `canhotoReview`, `canhotoReviewOrigin`,
+- [x] T7.3 Contrato de API: `GET .../proof` publica `canhotoReview`, `canhotoReviewOrigin`,
       `canhotoReadSource`, `canhotoReadNumber`, `canhotoReadSeries`, `canhotoReviewReason`,
       `canhotoReviewNote`, `canhotoReviewAt` e o **nome** de quem conferiu. ⚠️ Nunca o
       `canhotoReviewByUserId` cru nem o `canhotoReadDocumentId` sem necessidade de tela.
       Comprovante antigo e `not_applicable` omitem o que não têm
-- [ ] T7.4 API: `DeliveryProofRecord` e `DeliveryProofView` (`read-delivery-proof.use-case.ts:16-84`)
+- [x] T7.4 API: `DeliveryProofRecord` e `DeliveryProofView` (`read-delivery-proof.use-case.ts:16-84`)
       passam a carregar os campos da T7.3. A junção do nome de quem conferiu entra na query que
       `listDeliveryProofs` já faz, sem consulta nova — o mesmo cuidado da T4.3b
 - [ ] T7.5 Painel **aceita** as chaves novas antes de a API servi-las:

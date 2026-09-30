@@ -9,11 +9,33 @@
  */
 import type {
   ReceivedBy,
+  TripDeliveryProofCanhotoReadSource,
+  TripDeliveryProofCanhotoReview,
+  TripDeliveryProofCanhotoReviewOrigin,
+  TripDeliveryProofCanhotoReviewReason,
   TripDeliveryProofKind,
   TripDeliveryProofPunctuality,
 } from '../../database/trip.schema.js'
 
-export type DeliveryProofRecord = {
+/**
+ * Spec 220 RF24 (T7.4): o veredito da conferência do canhoto. Todos ausentes ou `null` no
+ * comprovante antigo e em `not_applicable`. ⚠️ Nem o id de quem conferiu nem o documento de onde a
+ * leitura veio entram aqui — a tela só precisa do nome.
+ */
+export type CanhotoReviewRecord = {
+  readonly canhotoReadNumber?: string | null
+  readonly canhotoReadSeries?: string | null
+  readonly canhotoReadSource?: TripDeliveryProofCanhotoReadSource | null
+  readonly canhotoReview?: TripDeliveryProofCanhotoReview
+  readonly canhotoReviewAt?: string | null
+  /** Nome de quem conferiu; `null` no veredito automático e quando a pessoa já saiu da empresa. */
+  readonly canhotoReviewByName?: string | null
+  readonly canhotoReviewNote?: string | null
+  readonly canhotoReviewOrigin?: TripDeliveryProofCanhotoReviewOrigin | null
+  readonly canhotoReviewReason?: TripDeliveryProofCanhotoReviewReason | null
+}
+
+export type DeliveryProofRecord = CanhotoReviewRecord & {
   readonly bucket: string
   /** Spec 220 RF14: a hora do aparelho na foto; `null` quando o aparelho não a leu. */
   readonly capturedAt?: string | null
@@ -60,8 +82,21 @@ export type DeliveryProofDownloadPort = {
   }): Promise<{ readonly expiresAt: string; readonly url: string }>
 }
 
+/** Spec 220 RF24: cada chave ausente (nunca `null`) quando não há o que dizer. */
+export type CanhotoReviewView = {
+  readonly canhotoReadNumber?: string
+  readonly canhotoReadSeries?: string
+  readonly canhotoReadSource?: TripDeliveryProofCanhotoReadSource
+  readonly canhotoReview?: Exclude<TripDeliveryProofCanhotoReview, 'not_applicable'>
+  readonly canhotoReviewAt?: string
+  readonly canhotoReviewByName?: string
+  readonly canhotoReviewNote?: string
+  readonly canhotoReviewOrigin?: TripDeliveryProofCanhotoReviewOrigin
+  readonly canhotoReviewReason?: TripDeliveryProofCanhotoReviewReason
+}
+
 /** O que a rota publica. ⚠️ Sem `bucket` e sem `objectKey`: ver o comentário da função. */
-export type DeliveryProofView = {
+export type DeliveryProofView = CanhotoReviewView & {
   /** Spec 220 RF14: ausente (nunca `null`) quando o aparelho não leu a hora. */
   readonly capturedAt?: string
   readonly createdAt: string
@@ -143,6 +178,7 @@ export async function readDeliveryProofs({
         id: record.id,
         kind: record.kind,
         lateRegistration: record.lateRegistration,
+        ...buildCanhotoReviewView(record),
         ...(record.punctuality === undefined ? {} : { punctuality: record.punctuality }),
         receiverDocument: record.receiverDocumentMasked,
         receiverName: record.receiverName,
@@ -152,4 +188,21 @@ export async function readDeliveryProofs({
       }
     }),
   )
+}
+
+/** `not_applicable` é o estado de fábrica: a tela o lê como "sem veredito", então nada sobe. */
+function buildCanhotoReviewView(record: CanhotoReviewRecord): CanhotoReviewView {
+  if (record.canhotoReview === undefined || record.canhotoReview === 'not_applicable') return {}
+
+  return {
+    canhotoReview: record.canhotoReview,
+    ...(record.canhotoReadNumber ? { canhotoReadNumber: record.canhotoReadNumber } : {}),
+    ...(record.canhotoReadSeries ? { canhotoReadSeries: record.canhotoReadSeries } : {}),
+    ...(record.canhotoReadSource ? { canhotoReadSource: record.canhotoReadSource } : {}),
+    ...(record.canhotoReviewAt ? { canhotoReviewAt: record.canhotoReviewAt } : {}),
+    ...(record.canhotoReviewByName ? { canhotoReviewByName: record.canhotoReviewByName } : {}),
+    ...(record.canhotoReviewNote ? { canhotoReviewNote: record.canhotoReviewNote } : {}),
+    ...(record.canhotoReviewOrigin ? { canhotoReviewOrigin: record.canhotoReviewOrigin } : {}),
+    ...(record.canhotoReviewReason ? { canhotoReviewReason: record.canhotoReviewReason } : {}),
+  }
 }

@@ -19,7 +19,8 @@ const CANHOTO_REVIEW_MENTION = /canhotoReview|canhoto_review/u
 /**
  * Quem pode falar do veredito: o módulo que o escreve, a tabela que o guarda, o `main.ts`, que só
  * liga a rota, e a fila de fotos pendentes do motorista, que a RF29 manda reabrir na recusa — dar
- * trabalho de volta a quem tirou a foto não é barrar entrega, viagem, CT-e nem fatura.
+ * trabalho de volta a quem tirou a foto não é barrar entrega, viagem, CT-e nem fatura. E a leitura
+ * do comprovante (T7.3/T7.4), que só **publica** o veredito para a tela e não decide nada com ele.
  *
  * Arquivo novo nesta lista é decisão de projeto, não descuido — por isso ela é exata.
  */
@@ -27,9 +28,11 @@ const CONFERENCE_MODULE = [
   'database/trip.schema.ts',
   'main.ts',
   'trips/application/canhoto-review.port.ts',
+  'trips/application/read-delivery-proof.use-case.ts',
   'trips/domain/canhoto-review-decision.policy.ts',
   'trips/domain/canhoto-review.policy.ts',
   'trips/infrastructure/drizzle-canhoto-review.repository.ts',
+  'trips/infrastructure/delivery-proof-read.support.ts',
   'trips/infrastructure/drizzle-current-driver-trip.repository.ts',
   'trips/presentation/canhoto-review.routes.ts',
 ] as const

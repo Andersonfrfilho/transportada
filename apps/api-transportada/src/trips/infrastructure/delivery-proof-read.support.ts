@@ -69,6 +69,10 @@ const occurrenceActorMembership = alias(userCompanyMemberships, 'trip_occurrence
 const occurrenceActorProfile = alias(identityUserProfiles, 'trip_occurrence_actor_profile')
 const occurrenceOnBehalfDriver = alias(fleetDrivers, 'trip_occurrence_on_behalf_driver')
 
+/** Spec 220 T7.4: o nome de quem conferiu o canhoto, pela mesma janela — membership ativo da empresa. */
+const canhotoReviewerMembership = alias(userCompanyMemberships, 'trip_canhoto_reviewer_membership')
+const canhotoReviewerProfile = alias(identityUserProfiles, 'trip_canhoto_reviewer_profile')
+
 const deliveryProofThumbnails = alias(storedObjects, 'trip_delivery_proof_thumbnail')
 
 export async function listDeliveryProofs(
@@ -82,6 +86,15 @@ export async function listDeliveryProofs(
   const rows = await queryable
     .select({
       bucket: storedObjects.bucket,
+      canhotoReadNumber: tripDeliveryProofs.canhotoReadNumber,
+      canhotoReadSeries: tripDeliveryProofs.canhotoReadSeries,
+      canhotoReadSource: tripDeliveryProofs.canhotoReadSource,
+      canhotoReview: tripDeliveryProofs.canhotoReview,
+      canhotoReviewAt: tripDeliveryProofs.canhotoReviewAt,
+      canhotoReviewByName: canhotoReviewerProfile.name,
+      canhotoReviewNote: tripDeliveryProofs.canhotoReviewNote,
+      canhotoReviewOrigin: tripDeliveryProofs.canhotoReviewOrigin,
+      canhotoReviewReason: tripDeliveryProofs.canhotoReviewReason,
       capturedAt: tripDeliveryProofs.capturedAt,
       createdAt: tripDeliveryProofs.createdAt,
       eventLatitude: tripStopEvents.latitude,
@@ -132,6 +145,18 @@ export async function listDeliveryProofs(
         eq(deliveryProofThumbnails.id, tripDeliveryProofs.thumbnailObjectId),
       ),
     )
+    .leftJoin(
+      canhotoReviewerMembership,
+      and(
+        eq(canhotoReviewerMembership.companyId, tripDeliveryProofs.companyId),
+        eq(canhotoReviewerMembership.userId, tripDeliveryProofs.canhotoReviewByUserId),
+        eq(canhotoReviewerMembership.status, ACTIVE_MEMBERSHIP_STATUS),
+      ),
+    )
+    .leftJoin(
+      canhotoReviewerProfile,
+      eq(canhotoReviewerProfile.userId, canhotoReviewerMembership.userId),
+    )
     .where(
       and(
         eq(tripDeliveryProofs.companyId, input.companyId),
@@ -145,6 +170,15 @@ export async function listDeliveryProofs(
 
   return rows.map((row) => ({
     bucket: row.bucket,
+    canhotoReadNumber: row.canhotoReadNumber,
+    canhotoReadSeries: row.canhotoReadSeries,
+    canhotoReadSource: row.canhotoReadSource,
+    canhotoReview: row.canhotoReview,
+    canhotoReviewAt: row.canhotoReviewAt?.toISOString() ?? null,
+    canhotoReviewByName: row.canhotoReviewByName,
+    canhotoReviewNote: row.canhotoReviewNote,
+    canhotoReviewOrigin: row.canhotoReviewOrigin,
+    canhotoReviewReason: row.canhotoReviewReason,
     capturedAt: row.capturedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     distanceMeters: measureProofDistance(row),

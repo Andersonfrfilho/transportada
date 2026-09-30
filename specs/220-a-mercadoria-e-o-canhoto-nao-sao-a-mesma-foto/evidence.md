@@ -2070,3 +2070,51 @@ com dublê.
 Nenhum arquivo de teste **novo**: os três `test/canhoto-review/*.contract.ts` já repartem o assunto
 ("a decisão em si está em `decision.contract.ts`; a trilha, em `use-case.contract.ts`"), e um quarto
 duplicaria as ~70 linhas do roteador de mentira. Sem entrada nova no `package.json`, portanto.
+
+### T7.3 + T7.4 — O `GET .../proof` publica a conferência do canhoto
+
+**Contrato (T7.3), vermelho medido antes de existir código.** Suíte nova
+`test/trip-delivery-proof/canhoto-review-read.contract.ts`, importada por
+`test/trip-delivery-proof.contract.test.ts` (o entrypoint já está na lista do `package.json`).
+Cobre: veredito humano aprovado (nome e data), automático aprovado (sem nome, a chave some), `pending`
+com e sem leitura, `rejected` com motivo e nota, `not_applicable` (assinatura e foto da mercadoria),
+comprovante antigo sem nenhum campo, e que `canhotoReviewByUserId` e `canhotoReadDocumentId` nunca
+saem.
+
+```
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts   (antes)
+ 253 pass · 6 fail                                    → EXIT=1
+   └ 5 de publicação (veredito humano, automático, pendente com/sem leitura, recusado) e a afirmação
+     de que a query lê as colunas e junta o nome; os 3 de omissão passam vazios, como se espera
+$ (depois)
+ 259 pass · 0 fail                                    → EXIT=0
+```
+
+**Implementação (T7.4).** `DeliveryProofRecord` e `DeliveryProofView` ganham os campos;
+`canhotoReviewByName` vem de dois `leftJoin` na query que `listDeliveryProofs` já fazia (membership
+ativo da **mesma empresa** e perfil) — sem consulta nova, sem N+1, a mesma janela de
+`occurrenceActorMembership`. Convenção da view: chave **ausente**, nunca `null`.
+`canhotoReview: 'not_applicable'` também não sobe (a tela lê ausência como "sem veredito", T7.6).
+Quem conferiu e já não é membro ativo sai sem nome, com o veredito de pé.
+
+`test/canhoto-review/no-gate.contract.ts` (lista **exata** de quem fala do veredito) ganhou
+`read-delivery-proof.use-case.ts` e `delivery-proof-read.support.ts`: os dois só publicam o veredito,
+nenhum decide com ele, e os quatro portões da CA13 continuam afirmados sem olhá-lo.
+
+Integração contra o Postgres (2 testes novos em `delivery-proof-canhoto-review.integration.ts`):
+veredito + nome voltam de `listDeliveryProofs` sem multiplicar linhas (2 linhas para 2 comprovantes),
+e membership `disabled` devolve `canhotoReviewByName: null`.
+
+```
+$ bun --env-file=../../.env.test test --timeout 120000                (contrato inteiro)
+ 8450 pass · 23 skip · 0 fail                         → EXIT=0
+$ bun --env-file=../../.env.test run test:integration
+ 778 pass · 7 skip · 1 fail                           → EXIT=1
+   └ trip-occurrence-settlement.integration.ts: timeout de 5006 ms, sem relação com esta task
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/trip-occurrence-settlement.integration.ts
+ 7 pass · 0 fail                                      → EXIT=0   (sozinho)
+$ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivery-proof-canhoto-review.integration.ts
+ 8 pass · 0 fail                                      → EXIT=0
+$ bun run typecheck (apps/api-transportada)           → EXIT=0
+$ bun run lint                                        → EXIT=0
+```
