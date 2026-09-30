@@ -1473,3 +1473,127 @@ seguinte **reaplica** a migration em vez de pulá-la. Rollback que deixa a linha
 banco sem as colunas que o journal jura estarem lá, e nada avisa até a primeira escrita quebrar.
 
 `bun run typecheck` → EXIT=0.
+
+### T6.2 — Canhoto recapturado zera a conferência
+
+O contrato veio antes: `test/trip-delivery-proof/canhoto-review-reset.contract.ts` (novo, entrou no
+entrypoint `test/trip-delivery-proof.contract.test.ts`) e
+`test/integration/delivery-proof-canhoto-review.integration.ts` (novo, entrou na lista explícita do
+`package.json`). O vermelho foi o certo — comportamento faltando, não fixture faltando:
+
+```
+error: Cannot find module '../../src/trips/domain/canhoto-review.policy.js'
+```
+
+#### A condição que o plano pedia é código morto
+
+O `architect` prescreveu um `CASE` no `DO UPDATE SET`: mesmo `attachmentKey` preserva o veredito,
+`attachmentKey` diferente zera. **Medido: o mesmo `attachmentKey` nunca chega ao `ON CONFLICT`.** Os
+dois canais de captura desviam antes de qualquer INSERT:
+
+| Canal      | Arquivo                             | Linhas  | O que faz                                             |
+| ---------- | ----------------------------------- | ------- | ----------------------------------------------------- |
+| Motorista  | `attach-delivery-proof.use-case.ts` | 253–261 | `findProofIdByAttachmentKey` → devolve o id existente |
+| Escritório | `office-delivery-proof.service.ts`  | 137–145 | `findProofIdByAttachmentKeyWithinTransaction` → idem  |
+
+Toda escrita que alcança o `ON CONFLICT` é, portanto, **captura nova**. O zeramento é
+incondicional, e a condição do plano seria um ramo que nenhum caso de uso consegue exercitar. Um
+teste de integração dedicado prende essa medida: a repetição da mesma chave preserva o `rejected`
+porque **não escreve**, não porque o `CASE` decidiu.
+
+#### Os dois INSERT eram byte a byte iguais, menos uma coluna
+
+`drizzle-delivery-proof.repository.ts` (motorista) e `drizzle-driver-field-report.repository.ts`
+(escritório) tinham dois blocos `.values()` idênticos exceto `lateRegistration`. Essa duplicação é
+exatamente o mecanismo pelo qual o canhoto do escritório nasceria **sem veredito**: quem escreve o
+estado num lugar esquece no outro, e nada falha — o default `not_applicable` responde por ele e a
+fila de conferência fica vazia para sempre.
+
+Extraído `buildProofInsertValues(input)`, exportado do repositório do motorista e consumido pelo do
+escritório com `{ ...input, lateRegistration: false }` (o escritório nunca registra depois, spec 205
+D1 — antes ele omitia a coluna e caía no default `false`, o que é o mesmo valor).
+
+O zeramento entra em dois pontos, de uma fonte só (`src/trips/domain/canhoto-review.policy.ts`):
+`buildProofInsertValues` e o `base` de `buildProofUpsertSet`. **No `base`, nunca no ramo do
+envelope** — o caminho do motorista quase sempre chega com `receiverDocumentEnvelope === null`, e o
+zeramento pendurado no ramo do envelope não rodaria justamente para ele.
+
+⚠️ O `DO UPDATE SET` desta tabela é **denotativo**: coluna ausente do objeto não é tocada e o valor
+antigo sobrevive — escolha deliberada de `receiver_document_envelope` e `late_registration`. A
+conferência é a **primeira** coluna cujo padrão correto na recaptura é _apagar_, e por isso as dez
+entram juntas.
+
+#### Contrato
+
+```
+$ bun --env-file=../../.env.test test ./test/trip-delivery-proof.contract.test.ts --timeout 120000
+ 249 pass
+ 0 fail
+ 466 expect() calls
+```
+
+Uma das asserções é anti-vacuidade: `getTableColumns(tripDeliveryProofs)` filtrado por `canhoto`
+tem de bater exatamente com as chaves de `buildCanhotoReviewReset`. Coluna nova da família entra no
+zeramento ou o contrato cai.
+
+#### Integração
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/delivery-proof-canhoto-review.integration.ts
+ 4 pass
+ 0 fail
+ 8 expect() calls   [8.93s]
+```
+
+Os quatro: canhoto nasce `pending`; `cargo` e `signature` nascem `not_applicable`; recaptura volta a
+`pending` com as nove colunas nulas e **o mesmo `id`**; repetição da mesma chave não alcança o
+upsert e o `rejected` sobrevive.
+
+#### O teste não é vazio — provado por mutação
+
+Removida a linha `...buildCanhotoReviewReset(input.kind)` do `base` de `buildProofUpsertSet`:
+
+```
+ 249 pass  4 fail
+  (fail) canhoto recapturado zera a conferência: volta a pendente e não herda o recusado
+  (fail) a recaptura zera a conferência no ON CONFLICT > ... (3 contratos)
+```
+
+Restaurado do backup; `grep -c buildCanhotoReviewReset` volta a **3** ocorrências no arquivo
+(import + INSERT + `base`).
+
+#### Portões
+
+```
+$ bun run typecheck                                   → EXIT=0
+$ bun --env-file=../../.env.test test --timeout 120000
+ 8350 pass · 23 skip · 0 fail · 27045 expect()  [34s]  → EXIT=0
+$ bun --env-file=../../.env.test run test:integration
+ 774 pass · 7 skip · 1 fail · 4296 expect()
+ Ran 782 tests across 143 files. [1184.48s]            → EXIT=1
+$ bun run --cwd apps/api-transportada lint             → sem achados
+$ bunx prettier --check (7 arquivos tocados)           → limpo
+```
+
+#### A falha da suíte cheia é de relógio, não de canhoto
+
+```
+test/integration/trip-occurrence-correction.integration.ts:
+(fail) correção de itens da ocorrência (spec 167 T301/T309) >
+       grava o conjunto anterior e passa a valer o novo (CA02) [5019.30ms]
+  ^ this test timed out after 5000ms.
+```
+
+Estourou o prazo **padrão** do Bun por 19 ms, depois de 1184 s de suíte com dois servidores de
+desenvolvimento no ar. O arquivo sozinho:
+
+```
+$ bun --env-file=../../.env.test test ./test/integration/trip-occurrence-correction.integration.ts
+ 7 pass · 0 fail · 14 expect()  [14.45s]               → EXIT=0
+```
+
+Não toca comprovante, canhoto nem nenhuma coluna desta spec — é a spec 167, correção de itens de
+ocorrência. O defeito real é o teste não declarar prazo próprio e viver a 19 ms do teto: fica
+registrado aqui como pendência fora da 220, não como verde.
+
+`make migration-test` não se aplica: a T6.2 não mexe em schema — a migration é a T6.3, já fechada.

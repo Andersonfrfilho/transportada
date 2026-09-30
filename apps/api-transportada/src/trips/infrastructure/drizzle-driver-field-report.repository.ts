@@ -53,7 +53,7 @@ import {
   TRIP_DISPATCHED_STATUSES,
   TRIP_ON_ROAD_STATUSES,
 } from '../domain/trip-state.policy.js'
-import { buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
+import { buildProofInsertValues, buildProofUpsertSet } from './drizzle-delivery-proof.repository.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
@@ -881,28 +881,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
 
     const [proof] = await this.transaction
       .insert(tripDeliveryProofs)
-      .values({
-        accuracyMeters: input.accuracyMeters,
-        actorUserId: input.actorUserId,
-        attachmentKey: input.attachmentKey,
-        capturedAt: input.capturedAt,
-        channel: input.authorship.channel,
-        companyId: input.companyId,
-        id: input.id,
-        kind: input.kind,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        objectId: input.objectId,
-        onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
-        punctuality: input.punctuality,
-        receiverDocumentEnvelope: input.receiverDocumentEnvelope,
-        receiverDocumentMasked: input.receiverDocumentMasked,
-        receiverName: input.receiverName,
-        receivedBy: input.receivedBy,
-        receivedByDetail: input.receivedByDetail,
-        stopEventId: input.eventId,
-        thumbnailObjectId: input.thumbnail?.objectId ?? null,
-      })
+      .values(buildProofInsertValues({ ...input, lateRegistration: false }))
       .onConflictDoUpdate({
         /** Spec 205 D1: o escritório nunca registra depois — o `or` do upsert preserva o do motorista. */
         set: buildProofUpsertSet({ ...input, lateRegistration: false }),

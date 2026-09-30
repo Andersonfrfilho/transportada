@@ -161,8 +161,11 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
       Contagem de produção achada na `evidence.md` da spec 162 (21/09): **zero** objetos de
       `delivery_proof` em produção — o conjunto a preencher é vazio. **Decisão: nenhum retroativo**
       — e isso derruba a segunda metade da RF24, sem mudar linha nenhuma
-- [ ] T6.2 🧠 Contrato de integração: canhoto recapturado **zera** a conferência no `ON CONFLICT`
-      (não herda "recusado") — `test/integration/` + **`test:integration`**
+- [x] T6.2 🧠 Contrato de integração: canhoto recapturado **zera** a conferência no `ON CONFLICT`
+      (não herda "recusado") — `test/integration/` + **`test:integration`**.
+      ⚠️ A condição que o plano pedia (mesmo `attachmentKey` preserva) é **código morto**: os dois
+      canais devolvem o id gravado antes do INSERT, então toda escrita que alcança o `ON CONFLICT`
+      é captura nova. O zeramento é incondicional, de uma fonte só (`canhoto-review.policy.ts`)
 - [x] T6.3 🧠 Migration: estado de conferência + ator, instante, motivo, nota, número lido e origem
       da leitura — `make migration-test`.
       ⚠️ **Executada antes da T6.2, de propósito**: o Postgres da integração é construído a partir

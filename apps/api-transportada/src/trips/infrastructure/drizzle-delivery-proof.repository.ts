@@ -23,6 +23,7 @@ import {
   type TripDeliveryProofKind,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
+import { buildCanhotoReviewReset } from '../domain/canhoto-review.policy.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
 import { DeliveryProofEventVanishedError } from '../domain/delivery-proof-event.error.js'
@@ -334,29 +335,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
 
       const [proof] = await transaction
         .insert(tripDeliveryProofs)
-        .values({
-          accuracyMeters: input.accuracyMeters,
-          actorUserId: input.actorUserId,
-          attachmentKey: input.attachmentKey,
-          capturedAt: input.capturedAt,
-          channel: input.authorship.channel,
-          companyId: input.companyId,
-          id: input.id,
-          kind: input.kind,
-          lateRegistration: input.lateRegistration,
-          latitude: input.latitude,
-          longitude: input.longitude,
-          onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
-          objectId: input.objectId,
-          punctuality: input.punctuality,
-          receiverDocumentEnvelope: input.receiverDocumentEnvelope,
-          receiverDocumentMasked: input.receiverDocumentMasked,
-          receiverName: input.receiverName,
-          receivedBy: input.receivedBy,
-          receivedByDetail: input.receivedByDetail,
-          stopEventId: input.eventId,
-          thumbnailObjectId: input.thumbnail?.objectId ?? null,
-        })
+        .values(buildProofInsertValues(input))
         /**
          * Segundo envio do mesmo tipo é correção: a foto tremida vira a boa, sem duplicar linha.
          * O `id` novo entra junto — o AAD do envelope está amarrado a ele, e manter o id antigo
@@ -435,12 +414,46 @@ function toCoordinate(latitude: string | null, longitude: string | null): Coordi
 }
 
 /**
+ * A linha que os dois canais inserem. O escritório nunca registra depois (spec 205 D1) e passa
+ * `lateRegistration: false` — é a única diferença entre eles, e um construtor só a mantém assim.
+ * Duas cópias já bastariam para o canhoto do escritório nascer sem veredito (spec 220 RF24).
+ */
+export function buildProofInsertValues(input: SaveProofInput) {
+  return {
+    accuracyMeters: input.accuracyMeters,
+    actorUserId: input.actorUserId,
+    attachmentKey: input.attachmentKey,
+    capturedAt: input.capturedAt,
+    channel: input.authorship.channel,
+    companyId: input.companyId,
+    id: input.id,
+    kind: input.kind,
+    lateRegistration: input.lateRegistration,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    objectId: input.objectId,
+    onBehalfOfDriverId: input.authorship.onBehalfOfDriverId,
+    punctuality: input.punctuality,
+    receiverDocumentEnvelope: input.receiverDocumentEnvelope,
+    receiverDocumentMasked: input.receiverDocumentMasked,
+    receivedBy: input.receivedBy,
+    receivedByDetail: input.receivedByDetail,
+    receiverName: input.receiverName,
+    stopEventId: input.eventId,
+    thumbnailObjectId: input.thumbnail?.objectId ?? null,
+    ...buildCanhotoReviewReset(input.kind),
+  }
+}
+
+/**
  * Spec 082 (revisão, item 4): recaptura que chega sem `receiverDocument` preserva o envelope e a
  * máscara já gravados — as duas colunas só entram no set quando o novo envelope existe, para o
  * `onConflictDoUpdate` não anular um documento já selado. Exportada para o contrato de teste.
  */
 export function buildProofUpsertSet(input: SaveProofInput) {
   const base = {
+    /** Spec 220 RF24: o canhoto que chega é novo — o veredito guardado era da foto que saiu. */
+    ...buildCanhotoReviewReset(input.kind),
     accuracyMeters: input.accuracyMeters,
     actorUserId: input.actorUserId,
     attachmentKey: input.attachmentKey,
