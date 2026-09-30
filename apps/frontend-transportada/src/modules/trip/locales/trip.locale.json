@@ -458,6 +458,7 @@
   },
   "deliveryProof": {
     "canhotoReview": {
+      "alreadyResolved": "Outra pessoa já conferiu este canhoto. Atualizamos a tela com o veredito que valeu.",
       "approve": "Aprovar canhoto",
       "approvedAutomatic": "Conferido automaticamente",
       "approvedManual": "Aprovado por {{name}} em {{moment}}",

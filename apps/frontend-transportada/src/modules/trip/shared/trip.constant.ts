@@ -67,6 +67,14 @@ export const SLOW_LOAD_NOTICE_DELAY_MS = 4000
 export const TRIP_PAGE_SIZE = 25
 
 /** Detalhe e lista compartilham o prefixo: invalidar a viagem precisa refazer a tabela também. */
+export const CANHOTO_REVIEW_ALREADY_RESOLVED_CODE = 'CANHOTO_REVIEW_ALREADY_RESOLVED'
+export const CANHOTO_REVIEW_OUTCOME = {
+  ALREADY_RESOLVED: 'alreadyResolved',
+  APPLIED: 'applied',
+} as const
+export type CanhotoReviewOutcome =
+  (typeof CANHOTO_REVIEW_OUTCOME)[keyof typeof CANHOTO_REVIEW_OUTCOME]
+
 export const TRIP_QUERY_KEY = 'trips'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 

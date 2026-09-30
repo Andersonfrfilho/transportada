@@ -6,6 +6,7 @@ import type {
   CanhotoReviewProofInput,
   CanhotoReviewResult,
 } from '../shared/canhotoReviewResult.service'
+import { applyCanhotoReviewResult } from '../shared/canhotoReviewCache.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteChoice, RouteGeometry } from '../shared/routeGeometry.service'
 import type {
@@ -13,7 +14,7 @@ import type {
   OccurrenceRedeliveryPolicy,
   OccurrenceType,
 } from '../shared/occurrence.constant'
-import type { OccurrenceQuantityUnit } from '../shared/trip.constant'
+import type { CanhotoReviewOutcome, OccurrenceQuantityUnit } from '../shared/trip.constant'
 import type {
   RegisteredOccurrence,
   TripDocumentProduct,
@@ -47,6 +48,8 @@ import {
 } from '@/modules/shared/mutationInvalidation.service'
 
 import {
+  CANHOTO_REVIEW_ALREADY_RESOLVED_CODE,
+  CANHOTO_REVIEW_OUTCOME,
   canReadTrip,
   CTE_SUBMIT_PERMISSION,
   MDFE_MANAGE_PERMISSION,
@@ -712,6 +715,28 @@ export function useTripWorkspace(
   }
 
   /**
+   * Spec 220 T7.11: 200 (inclusive o `unchanged` do clique duplo) só escreve no cache. 409 não
+   * sobrescreve nada: refaz a consulta para o operador ver o veredito que venceu. Qualquer outro erro
+   * sobe — o diálogo de recusa traduz os códigos da nota.
+   */
+  async function reviewCanhoto(review: CanhotoReviewProofInput): Promise<CanhotoReviewOutcome> {
+    const proofsKey = [...tripKey, 'delivery-proofs', review.documentId] as const
+    try {
+      const result = await controller.canhotoReviewProof(review)
+      queryClient.setQueryData<DeliveryProof[]>(proofsKey, (proofs) =>
+        proofs === undefined ? proofs : applyCanhotoReviewResult(proofs, result),
+      )
+      return CANHOTO_REVIEW_OUTCOME.APPLIED
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== CANHOTO_REVIEW_ALREADY_RESOLVED_CODE) {
+        throw error
+      }
+      await queryClient.invalidateQueries({ queryKey: proofsKey })
+      return CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED
+    }
+  }
+
+  /**
    * ⚠️ Corrigir o ponto muda o **endereço**, não a viagem — mas a viagem lê a coordenada dele para
    * desenhar o mapa, então a chave da viagem é invalidada para o pino andar sem recarregar a página.
    */
@@ -969,6 +994,7 @@ export function useTripWorkspace(
     fieldReturnDocumentMutation,
     registerFieldOccurrencesMutation,
     resetFieldOccurrenceIdempotency,
+    reviewCanhoto,
     invalidateFieldDeliveryEffects,
     invalidateTrip: invalidate,
     reportStopArrivalMutation,

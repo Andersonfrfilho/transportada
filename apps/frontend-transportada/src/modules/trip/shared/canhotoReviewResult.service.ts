@@ -21,7 +21,7 @@ import type {
 } from './deliveryProof.service'
 import { isNullableString, isOneOf, isRecord } from './tripGuards.validation'
 
-const NOT_APPLICABLE = 'not_applicable'
+export const CANHOTO_REVIEW_NOT_APPLICABLE = 'not_applicable'
 
 export type CanhotoReviewAction =
   | Readonly<{ action: 'approve' }>
@@ -41,7 +41,7 @@ export type CanhotoReviewResult = Readonly<{
   canhotoReadNumber?: string
   canhotoReadSeries?: string
   canhotoReadSource?: DeliveryProofCanhotoReadSource
-  canhotoReview: DeliveryProofCanhotoReview | typeof NOT_APPLICABLE
+  canhotoReview: DeliveryProofCanhotoReview | typeof CANHOTO_REVIEW_NOT_APPLICABLE
   canhotoReviewAt?: string
   canhotoReviewNote?: string
   canhotoReviewOrigin?: DeliveryProofCanhotoReviewOrigin
@@ -68,7 +68,7 @@ export function canhotoReviewResultFromApi(input: unknown): CanhotoReviewResult 
     !isRecord(input) ||
     !(
       isOneOf(input.canhotoReview, DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS) ||
-      input.canhotoReview === NOT_APPLICABLE
+      input.canhotoReview === CANHOTO_REVIEW_NOT_APPLICABLE
     ) ||
     !isNullableString(input.canhotoReadNumber) ||
     !isNullableString(input.canhotoReadSeries) ||

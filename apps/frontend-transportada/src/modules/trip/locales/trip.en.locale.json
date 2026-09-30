@@ -352,6 +352,7 @@
   },
   "deliveryProof": {
     "canhotoReview": {
+      "alreadyResolved": "Someone else has already reviewed this receipt. The screen now shows the verdict that stood.",
       "approve": "Approve delivery receipt",
       "approvedAutomatic": "Checked automatically",
       "approvedManual": "Approved by {{name}} on {{moment}}",

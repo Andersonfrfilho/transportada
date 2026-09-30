@@ -58,6 +58,7 @@ export function createDeferred<TValue>(): Deferred<TValue> {
 export type FakeTripClient = Pick<
   TripClient,
   | 'attachOccurrencePhoto'
+  | 'canhotoReviewProof'
   | 'createMultiVehicleSuggestion'
   | 'readMultiVehicleProposal'
   | 'readMultiVehicleSuggestion'
@@ -68,6 +69,7 @@ export type FakeTripClient = Pick<
 export function createUnexpectedTripClient(): FakeTripClient {
   return {
     attachOccurrencePhoto: () => Promise.reject(new Error('UNEXPECTED_ATTACH_OCCURRENCE_PHOTO')),
+    canhotoReviewProof: () => Promise.reject(new Error('UNEXPECTED_CANHOTO_REVIEW_PROOF')),
     createMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_CREATE')),
     readMultiVehicleProposal: () => Promise.reject(new Error('UNEXPECTED_PROPOSAL_READ')),
     readMultiVehicleSuggestion: () => Promise.reject(new Error('UNEXPECTED_SUGGESTION_READ')),

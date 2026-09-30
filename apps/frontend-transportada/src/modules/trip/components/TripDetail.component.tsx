@@ -28,7 +28,11 @@ import {
   selectPendingCteDocumentIds,
   selectPendingNfseDocumentIds,
 } from '../shared/cteSelection.service'
-import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
+import {
+  CANHOTO_REVIEW_OUTCOME,
+  DATABASE_UNAVAILABLE_ERROR_CODE,
+  SLOW_LOAD_NOTICE_DELAY_MS,
+} from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey, resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import {
@@ -1412,6 +1416,8 @@ function TripDeliveryProofLoader({
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [rejectErrorCode, setRejectErrorCode] = useState<string | undefined>()
+  const [hasReviewConflict, setHasReviewConflict] = useState(false)
+  const { t } = useTranslation('trip')
   const document = documents.find((candidate) => candidate.id === documentId)
   if (document === undefined) return null
 
@@ -1419,12 +1425,14 @@ function TripDeliveryProofLoader({
     if (document === undefined) return
     setIsRejecting(true)
     setRejectErrorCode(undefined)
+    setHasReviewConflict(false)
     try {
-      await workspace.controller.canhotoReviewProof({
+      const outcome = await workspace.reviewCanhoto({
         documentId,
         review: { action: 'reject', ...submission },
         tripId: document.tripId,
       })
+      setHasReviewConflict(outcome === CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED)
       setIsRejectOpen(false)
     } catch (error) {
       setRejectErrorCode(error instanceof Error ? error.message : undefined)
@@ -1446,6 +1454,11 @@ function TripDeliveryProofLoader({
         }}
         {...(rejectErrorCode === undefined ? {} : { serverErrorCode: rejectErrorCode })}
       />
+      {hasReviewConflict ? (
+        <p className={styles.hint} role="alert">
+          {t('deliveryProof.canhotoReview.alreadyResolved')}
+        </p>
+      ) : null}
       <TripDeliveryProof
         documentId={documentId}
         occurrences={
@@ -1476,13 +1489,16 @@ function TripDeliveryProofLoader({
         reviewActions={{
           canReview: workspace.controller.canManageTrips,
           onApprove: () => {
-            // A resposta e o 409 ainda não têm tela; sem o catch a rejeição vira erro não tratado.
-            workspace.controller
-              .canhotoReviewProof({
+            setHasReviewConflict(false)
+            workspace
+              .reviewCanhoto({
                 documentId,
                 review: { action: 'approve' },
                 tripId: document.tripId,
               })
+              .then((outcome) =>
+                setHasReviewConflict(outcome === CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED),
+              )
               .catch(() => undefined)
           },
           onReject: () => {
