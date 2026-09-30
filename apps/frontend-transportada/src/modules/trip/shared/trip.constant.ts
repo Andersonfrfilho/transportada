@@ -533,7 +533,11 @@ export const DELIVERY_PROOF_KEYS = [
  * Spec 205 RF8: `lateRegistration` é o registro tardio, só como dado. `receiverDocument` (sempre a
  * máscara) já saía da API desde a spec 082 e a chave exata recusava a lista inteira por ele.
  */
-export const DELIVERY_PROOF_OPTIONAL_KEYS = ['lateRegistration', 'receiverDocument'] as const
+export const DELIVERY_PROOF_OPTIONAL_KEYS = [
+  'lateRegistration',
+  'receiverDocument',
+  'thumbnailUrl',
+] as const
 
 export const TRIP_CARGO_WEIGHT_KEYS = [
   'documentsWithoutWeight',

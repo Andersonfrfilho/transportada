@@ -317,6 +317,20 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         sizeBytes: BigInt(input.sizeBytes),
         status: 'final',
       })
+      if (input.thumbnail !== undefined) {
+        await transaction.insert(storedObjects).values({
+          bucket: this.bucket,
+          companyId: input.companyId,
+          id: input.thumbnail.objectId,
+          mimeType: input.thumbnail.mimeType,
+          objectKey: input.thumbnail.objectKey,
+          provider: 's3',
+          purpose: 'trip_delivery_proof_thumbnail',
+          sha256: input.thumbnail.sha256,
+          sizeBytes: BigInt(input.thumbnail.sizeBytes),
+          status: 'final',
+        })
+      }
 
       const [proof] = await transaction
         .insert(tripDeliveryProofs)
@@ -341,6 +355,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
           receivedBy: input.receivedBy,
           receivedByDetail: input.receivedByDetail,
           stopEventId: input.eventId,
+          thumbnailObjectId: input.thumbnail?.objectId ?? null,
         })
         /**
          * Segundo envio do mesmo tipo é correção: a foto tremida vira a boa, sem duplicar linha.
@@ -403,6 +418,14 @@ type SaveProofInput = {
   readonly receivedByDetail: string | null
   readonly sha256: string
   readonly sizeBytes: number
+  /** Spec 220 RF17: ausente é o comprovante sem miniatura (RF19); `retention_until` nulo, como o original. */
+  readonly thumbnail?: {
+    readonly mimeType: string
+    readonly objectId: string
+    readonly objectKey: string
+    readonly sha256: string
+    readonly sizeBytes: number
+  }
 }
 
 function toCoordinate(latitude: string | null, longitude: string | null): Coordinate | undefined {
@@ -433,6 +456,8 @@ export function buildProofUpsertSet(input: SaveProofInput) {
     receivedBy: input.receivedBy,
     receivedByDetail: input.receivedByDetail,
     receiverName: input.receiverName,
+    /** A miniatura velha é do original que saiu: recaptura sem miniatura a zera, nunca a mantém. */
+    thumbnailObjectId: input.thumbnail?.objectId ?? null,
   }
   /** O AAD do envelope preservado está amarrado ao `id` antigo — o id fica junto com ele. */
   if (input.receiverDocumentEnvelope === null) return base

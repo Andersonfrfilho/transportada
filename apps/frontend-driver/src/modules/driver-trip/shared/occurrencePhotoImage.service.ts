@@ -91,6 +91,7 @@ function encodeCanvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise
 export async function encodeImageToJpeg(input: {
   readonly image: HTMLImageElement
   readonly maxSide: number
+  readonly startQuality?: number
   readonly targetBytes: number
 }): Promise<Blob> {
   const size = computeOccurrencePhotoOriginalDimensions({
@@ -106,7 +107,7 @@ export async function encodeImageToJpeg(input: {
   context.drawImage(input.image, 0, 0, size.width, size.height)
 
   let smallest: Blob | undefined
-  for (const quality of buildOccurrencePhotoQualitySequence()) {
+  for (const quality of buildOccurrencePhotoQualitySequence(input.startQuality)) {
     const blob = await encodeCanvasToJpeg(canvas, quality)
     if (smallest === undefined || blob.size < smallest.size) smallest = blob
     if (blob.size <= input.targetBytes) break

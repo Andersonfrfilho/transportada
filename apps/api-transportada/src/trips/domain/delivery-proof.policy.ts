@@ -20,6 +20,9 @@ export const OFFICE_PROOF_MAX_BYTES = 960 * 1024
  */
 export const DELIVERY_PROOF_MAX_BYTES = OFFICE_PROOF_MAX_BYTES
 
+/** Spec 220 RF17 (spec 161 D12): o teto duro da miniatura gerada no cliente — 320 px cabem folgados. */
+export const DELIVERY_PROOF_THUMBNAIL_MAX_BYTES = 128 * 1024
+
 /** O que o celular produz: foto comprimida e o traço da assinatura. Nada de PDF nem de vídeo. */
 export const DELIVERY_PROOF_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export type DeliveryProofMimeType = (typeof DELIVERY_PROOF_MIME_TYPES)[number]

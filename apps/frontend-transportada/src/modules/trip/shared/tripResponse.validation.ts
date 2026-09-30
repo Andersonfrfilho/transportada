@@ -1237,6 +1237,7 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     (value.receiverDocument === undefined || isString(value.receiverDocument)) &&
+    (value.thumbnailUrl === undefined || isString(value.thumbnailUrl)) &&
     isString(value.receiverName)
   )
 }

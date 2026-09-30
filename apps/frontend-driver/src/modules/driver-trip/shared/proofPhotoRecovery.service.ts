@@ -36,6 +36,7 @@ async function runReduction(input: ReduceQueuedProofPhotoInput): Promise<void> {
             blob: replacement.blob,
             fileName: replacement.fileName,
             items,
+            ...(replacement.thumbnail === undefined ? {} : { thumbnail: replacement.thumbnail }),
           }),
   })
 }

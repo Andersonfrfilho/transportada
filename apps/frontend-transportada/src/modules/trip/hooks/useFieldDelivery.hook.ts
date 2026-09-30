@@ -22,6 +22,8 @@ export type UseFieldDeliveryInput = Readonly<{
   /** Spec 184 D5: sobe depois da baixa da nota, uma foto de carga por vez, nunca em paralelo. */
   attachFieldProof: (input: AttachFieldProofInput) => Promise<FieldReportIdResult>
   /** Chamada ao fim do lote inteiro (não a cada nota) — detalhe, allowed-actions, ocorrências. */
+  /** Spec 220 T3.4: miniatura do JPEG que vai subir; rejeitar ou devolver `undefined` só envia o original. */
+  buildThumbnail?: (original: Blob) => Promise<Blob | undefined>
   invalidate: () => Promise<void>
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
   tripId: string
@@ -120,6 +122,7 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
           kind: 'cargo',
           signal,
           tripId: input.tripId,
+          ...(await resolveThumbnail(imageBlob)),
           ...(draft.driverId === undefined ? {} : { driverId: draft.driverId }),
         })
         outcomes[photoIndex] = 'sent'
@@ -137,6 +140,11 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
       cargoPending: outcomes.filter((outcome) => outcome === 'pending').length,
       cargoRejected: outcomes.filter((outcome) => outcome === 'rejected').length,
     }
+  }
+
+  async function resolveThumbnail(original: Blob): Promise<Readonly<{ thumbnailBlob?: Blob }>> {
+    const thumbnailBlob = await input.buildThumbnail?.(original).catch(() => undefined)
+    return thumbnailBlob === undefined ? {} : { thumbnailBlob }
   }
 
   function buildDeliveredOutcome(
@@ -169,6 +177,7 @@ export function useFieldDelivery(input: UseFieldDeliveryInput): FieldDeliveryCon
         imageBlob: draft.imageBlob,
         signal,
         tripId: input.tripId,
+        ...(await resolveThumbnail(draft.imageBlob)),
         ...(draft.driverId === undefined ? {} : { driverId: draft.driverId }),
         ...(draft.receiverDocument === undefined
           ? {}

@@ -68,6 +68,8 @@ const occurrenceActorMembership = alias(userCompanyMemberships, 'trip_occurrence
 const occurrenceActorProfile = alias(identityUserProfiles, 'trip_occurrence_actor_profile')
 const occurrenceOnBehalfDriver = alias(fleetDrivers, 'trip_occurrence_on_behalf_driver')
 
+const deliveryProofThumbnails = alias(storedObjects, 'trip_delivery_proof_thumbnail')
+
 export async function listDeliveryProofs(
   queryable: TripQueryable,
   input: {
@@ -90,6 +92,9 @@ export async function listDeliveryProofs(
       receiverName: tripDeliveryProofs.receiverName,
       receivedBy: tripDeliveryProofs.receivedBy,
       receivedByDetail: tripDeliveryProofs.receivedByDetail,
+      thumbnailBucket: deliveryProofThumbnails.bucket,
+      thumbnailMimeType: deliveryProofThumbnails.mimeType,
+      thumbnailObjectKey: deliveryProofThumbnails.objectKey,
     })
     .from(tripDeliveryProofs)
     .innerJoin(
@@ -111,6 +116,13 @@ export async function listDeliveryProofs(
       and(
         eq(storedObjects.companyId, tripDeliveryProofs.companyId),
         eq(storedObjects.id, tripDeliveryProofs.objectId),
+      ),
+    )
+    .leftJoin(
+      deliveryProofThumbnails,
+      and(
+        eq(deliveryProofThumbnails.companyId, tripDeliveryProofs.companyId),
+        eq(deliveryProofThumbnails.id, tripDeliveryProofs.thumbnailObjectId),
       ),
     )
     .where(
@@ -136,6 +148,14 @@ export async function listDeliveryProofs(
     receiverName: row.receiverName,
     receivedBy: row.receivedBy,
     receivedByDetail: row.receivedByDetail,
+    thumbnail:
+      row.thumbnailBucket === null || row.thumbnailObjectKey === null
+        ? null
+        : {
+            bucket: row.thumbnailBucket,
+            mimeType: row.thumbnailMimeType ?? '',
+            objectKey: row.thumbnailObjectKey,
+          },
   }))
 }
 

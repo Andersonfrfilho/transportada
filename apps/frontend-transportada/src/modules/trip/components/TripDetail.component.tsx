@@ -11,6 +11,7 @@ import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { createFieldDeliveryThumbnail } from '../shared/fieldDeliveryImage.service'
 import { useFieldDelivery } from '../hooks/useFieldDelivery.hook'
 import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
@@ -322,6 +323,7 @@ export function TripDetail({
   /** Spec 156 T12: precisa vir antes dos `return` condicionais — hooks não podem ser condicionais. */
   const fieldDelivery = useFieldDelivery({
     attachFieldProof: workspace.controller.attachFieldProof,
+    buildThumbnail: createFieldDeliveryThumbnail,
     invalidate: workspace.invalidateFieldDeliveryEffects,
     reportFieldDelivery: workspace.controller.reportFieldDelivery,
     tripId: workspace.trip?.id ?? '',

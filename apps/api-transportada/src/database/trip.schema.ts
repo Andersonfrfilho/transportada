@@ -1561,6 +1561,8 @@ export const tripDeliveryProofs = pgTable(
     stopEventId: uuid('stop_event_id').notNull(),
     kind: text().notNull().$type<TripDeliveryProofKind>(),
     objectId: uuid('object_id').notNull(),
+    /** Spec 220 RF17: nulo no comprovante antigo e na foto cuja miniatura falhou no cliente. */
+    thumbnailObjectId: uuid('thumbnail_object_id'),
     /**
      * Nome de quem recebeu, na assinatura e no canhoto (`photo`) dos dois canais — nunca na foto da
      * carga. O escritório o carrega desde a ADR-0067 §5 (emenda 2026-09-18); a foto do motorista
@@ -1647,6 +1649,17 @@ export const tripDeliveryProofs = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.thumbnailObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_delivery_proofs_company_thumbnail_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** FK parcial: só a linha que tem miniatura, no molde do índice de `on_behalf_of_driver_id`. */
+    index('trip_delivery_proofs_company_thumbnail_idx')
+      .on(table.companyId, table.thumbnailObjectId)
+      .where(sql`${table.thumbnailObjectId} is not null`),
     foreignKey({
       columns: [table.companyId, table.onBehalfOfDriverId],
       foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],

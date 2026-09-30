@@ -461,6 +461,17 @@ rotina `trip.occurrence-attachment.purge` agora cobre o objeto órfão (sem linh
 `trip_document_occurrence_attachments`) — mas só depois que `retention_until` vence (cinco anos), não
 logo após a transação desfazer. `delivery-proofs/` continua sem varredura nenhuma.
 
+**Piorado em 30/09/2026 (spec 220, T3.2):** o comprovante ganhou miniatura
+(`trip_delivery_proof_thumbnail`), e cada recaptura passa a deixar **dois** objetos órfãos em vez de
+um. A miniatura nasce com `retention_until` nulo, igual ao original — decisão tomada com o usuário
+para manter a 220 no escopo dela, e não porque exista retenção. Pôr o purpose novo na lista de
+`trip.occurrence-attachment.purge` seria pior que não fazer nada: o gateway daquela rotina está
+amarrado a `trip_document_occurrence_attachments`, então ela não acharia a linha do comprovante,
+trataria a miniatura como órfã e apagaria os bytes dela deixando o original — a inversão exata do
+invariante da 161 RF22. Fechar isto exige rotina própria (`trip.delivery-proof.purge`) e, antes
+dela, uma decisão de prazo: guardar menos que o CT-e que a foto contesta destrói a prova antes do
+fim da discussão.
+
 **Origem:** revisão de código da spec 156 (T15). Registrado em 2026-09-18.
 
 ### 2026-09-18 — `GET /trips/field-delivery-settings` sem rate limit (spec 156 T13)

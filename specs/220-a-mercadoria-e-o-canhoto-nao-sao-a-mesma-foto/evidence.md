@@ -537,6 +537,297 @@ Commit isolado da Fase 2, 17 arquivos, nada de trabalho vizinho na árvore.
 
 ## Fase 3
 
+### T3.1
+
+Contrato em `apps/frontend-driver/test/driver-trip/proof-thumbnail.contract.ts` (importado no
+entrypoint `driver-trip.contract.test.ts`). Afirma, sobre `proofPhotoReduction.service.ts`:
+
+- a régua: lado maior 320 px, qualidade inicial 0,7, alvo 60 KiB, teto duro 128 KiB (RF17);
+- `buildProofPhotoWithThumbnail({ original, encodeThumbnail })` codifica uma vez, em 320 px, e
+  devolve `{ original, thumbnail }`;
+- miniatura de exatamente 128 KiB passa; 128 KiB + 1 byte é descartada e o original segue;
+- `encodeThumbnail` que rejeita não derruba nada: `{ original }` sem miniatura (RF19).
+
+O contrato acessa os símbolos por cast tipado do módulo (`ProofThumbnailApi`), porque ainda não
+existem e o `tsc --noEmit` precisa fechar em 0; a T3.3 troca o cast por `import` direto.
+
+```
+bunx tsc --noEmit                      EXIT=0
+bun run --cwd apps/frontend-driver test
+error: expect(received).toBe(expected)
+Expected: 320
+Received: undefined
+TypeError: buildProofPhotoWithThumbnail is not a function. (In 'buildProofPhotoWithThumbnail({ ... })',
+'buildProofPhotoWithThumbnail' is undefined)
+849 pass · 4 fail · 853 testes · 3 arquivos   (os 4 são exatamente os de proof-thumbnail)
+```
+
+Correção de rota: a T3.3 dizia "reusando o canvas de `occurrencePhotoImage.service.ts`". O canvas mora
+lá, mas a porta de entrada do comprovante é `proofPhotoReduction.service.ts`, onde a miniatura
+nasce; a linha da T3.3 no `tasks.md` passou a nomear os dois.
+
+### T3.2 — Migration aditiva da miniatura
+
+Pasta `apps/api-transportada/drizzle/20260930110332_delivery_proof_thumbnail/` (`migration.sql`,
+`rollback.sql`, `snapshot.json`; o snapshot vem do `db:generate`).
+
+- `trip_delivery_proofs.thumbnail_object_id uuid` sem default: só metadados, sem reescrita.
+- FK composta `(company_id, thumbnail_object_id)` para `stored_objects(company_id, id)`, `RESTRICT`
+  / `CASCADE` (`SET NULL` fica descartado: anularia `company_id`, `NOT NULL`); a coluna nula passa
+  porque FK composta é `MATCH SIMPLE`. Índice parcial `WHERE thumbnail_object_id is not null`.
+- `stored_objects_purpose_check` ampliado com `trip_delivery_proof_thumbnail`, em `DROP` / `ADD ...
+NOT VALID` / `VALIDATE` (molde da `20260925111600`).
+- Custo de lock, declarado no topo do `migration.sql`: o `ADD CONSTRAINT ... FOREIGN KEY` toma
+  `SHARE ROW EXCLUSIVE` em `trip_delivery_proofs` **e** em `stored_objects`, tabela compartilhada com
+  NF-e, CT-e, MDF-e e e-mail. A coluna é 100 % `NULL`, então a validação varre pouco; o precedente da
+  base (nenhuma migration usa `FOREIGN KEY ... NOT VALID`) foi mantido.
+- Decisão (a): a miniatura nasce com `retention_until` nulo, igual ao original. O purpose novo
+  **não** entra em `TRIP_OCCURRENCE_ATTACHMENT_STORAGE_PURPOSES` do worker: o gateway do purge da 161
+  está amarrado a `trip_document_occurrence_attachments` e apagaria a miniatura como órfã. Nenhuma
+  mexida no worker.
+- Gates literais que a task não citava e que foram atualizados: a lista de pastas em
+  `test/database-migration/static-migration.contract.ts` e o CHECK esperado em
+  `test/nfe-schema/storage.contract.ts`.
+
+Pendência nomeada para a T3.3/T3.6: `buildProofUpsertSet`
+(`drizzle-delivery-proof.repository.ts:419-445`) precisa carregar `thumbnailObjectId` no `set` da
+recaptura; sem isso a recaptura troca o original e mantém a miniatura velha.
+
+```
+bunx tsc --noEmit                                                     EXIT=0
+make migration-test                                                   EXIT=0  (112 pass · 0 fail)
+bun --env-file=../../.env.test test --timeout 120000 (apps/api-transportada)
+                                                                      EXIT=0  (8309 pass · 23 skip · 0 fail)
+```
+
+### T3.3 — Miniatura gerada no app do motorista e aceita pela API
+
+**Cliente (`apps/frontend-driver`).** `proofPhotoReduction.service.ts` ganha as quatro constantes da
+régua e `buildProofPhotoWithThumbnail({ original, encodeThumbnail })`, com o encoder injetado como
+`fitProofPhotoWithinCap`; `reduceProofPhotoToJpeg` reusa a mesma imagem já decodificada e o canvas de
+`encodeImageToJpeg` (que ganhou `startQuality` opcional, para a miniatura sair a 0,7). O canvas
+descarta o EXIF, GPS inclusive, então a miniatura herda a privacidade do original. A miniatura viaja
+em `QueuedAttachment.thumbnail`; `replaceAttachmentBlob` a grava junto do arquivo trocado e a
+descarta quando a troca vem sem uma nova. O envio (laço serial, intacto) a leva no campo multipart
+`thumbnail` de `attachProof`.
+
+Troca do cast por `import` nomeado: `proof-thumbnail.contract.ts` (T3.1) deixou de usar
+`ProofThumbnailApi` e importa os símbolos direto de `proofPhotoReduction.service`; o `tsc` agora o
+confere contra a implementação. Nenhum caso do contrato foi alterado.
+
+Divergência do briefing: além do RF19, `buildProofPhotoWithThumbnail` descarta a miniatura quando
+`original + miniatura` passa de 1000 KiB. O corpo inteiro da API para em 1 MiB (413 antes da rota) e
+o original chega a 960 KiB; sem a guarda, original no teto mais miniatura prenderia a foto na fila.
+O contrato da T3.1 (800 KiB + 128 KiB) continua verde. Teste: `proof-thumbnail-queue.contract.ts`.
+
+**API (`apps/api-transportada`).** `delivery-proof.schema.ts` aceita o campo `thumbnail` (ausente ou
+vazio = sem miniatura; texto no lugar do arquivo = 400). `attach-delivery-proof.use-case.ts` confere
+tipo e o teto de `DELIVERY_PROOF_THUMBNAIL_MAX_BYTES` (128 KiB) **antes** de tocar o bucket, guarda o
+segundo objeto e o passa a `saveProof`. `drizzle-delivery-proof.repository.ts` grava o `stored_objects`
+com `purpose: 'trip_delivery_proof_thumbnail'` e `retention_until` nulo, na mesma transação, e preenche
+`thumbnail_object_id`.
+
+Pendência da T3.2 fechada: `buildProofUpsertSet` carrega `thumbnailObjectId` no `set` da recaptura,
+e recaptura sem miniatura o **zera** (a antiga é do original que saiu). Contrato próprio:
+`test/trip-delivery-proof/proof-thumbnail.contract.ts`, importado em `trip-delivery-proof.contract.test.ts`.
+
+Falha literal do contrato da API, capturada antes de implementar (só a constante do teto existia):
+
+```
+(fail) o campo thumbnail do multipart do /proof > arquivo presente vira bytes e tipo
+(fail) o campo thumbnail do multipart do /proof > texto no lugar do arquivo é 400
+(fail) o caso de uso grava a miniatura ao lado do original > com miniatura, guarda o segundo objeto e o entrega ao repositório
+(fail) o caso de uso grava a miniatura ao lado do original > exatamente 128 KiB passa
+(fail) o caso de uso grava a miniatura ao lado do original > um byte acima de 128 KiB é recusado antes de tocar o bucket
+(fail) o caso de uso grava a miniatura ao lado do original > tipo que não é imagem aceita é recusado
+ (mais 2 de buildProofUpsertSet: toMatchObject com thumbnailObjectId)
+ 222 pass
+ 8 fail
+```
+
+Não toquei `test/integration/**`; a gravação do `stored_objects` da miniatura contra Postgres real
+fica para a T3.9 (`test:integration`).
+
+```
+apps/frontend-driver:  bunx tsc --noEmit                                  EXIT=0
+apps/frontend-driver:  bun run test                                       857 pass · 0 fail   (os 4 da T3.1 verdes)
+apps/frontend-driver:  bun run check                                      verde (6 pass · 0 fail no dist)
+apps/api-transportada: bunx tsc --noEmit                                  EXIT=0
+apps/api-transportada: bun --env-file=../../.env.test test --timeout 120000
+                                                                          EXIT=0  (8320 pass · 23 skip · 0 fail)
+eslint apps/api-transportada/src/trips + test/trip-delivery-proof         EXIT=0
+```
+
+### T3.4 — Miniatura no assistente do escritório; assinatura fica sem
+
+**Painel** (`apps/frontend-transportada`): `fieldDeliveryImage.service.ts` reimplementa a régua (320 px, qualidade 0,7, alvo 60 KiB, teto 128 KiB, orçamento de corpo 1000 KiB) em `buildFieldDeliveryImageWithThumbnail` (pura) e `createFieldDeliveryThumbnail` (canvas). A miniatura sai do JPEG final que sobe, no envio, dentro de `useFieldDelivery` (`buildThumbnail`, opcional), então cobre a foto do canhoto (recortada ou não) e as fotos de carga. `tripClient` anexa o campo `thumbnail` em `field-delivery` e `field-proof` só quando existe. Falha, teto estourado ou original + miniatura > 1000 KiB descartam a miniatura, e o original segue (RF19).
+
+**API**: as duas rotas do escritório aceitam `thumbnail` opcional (`readOfficeMultipartThumbnail`); tipo de imagem e teto de 128 KiB são validados antes do bucket (`assertImageAccepted`); `persistOfficeProof` grava um segundo `stored_objects` (`trip_delivery_proof_thumbnail`, `retention_until` nulo) e preenche `thumbnail_object_id`. Sem miniatura continua sendo o caso normal.
+
+**Assinatura — decisão: NÃO gera miniatura.** O PNG nasce em canvas 600x240 com `lineWidth` 3 (`SignaturePad.component.tsx`). Medido gerando PNGs 600x240 com traços de 3 a 100 curvas de 400 passos e espessura equivalente ou maior: 4,0 a 13,2 KiB (traço grosso e denso 13,2 KiB, maior valor medido). Já é ~4,5x menor que o alvo de miniatura (60 KiB); uma miniatura de 320 px de um PNG de ~13 KiB não pouparia bytes de leitura relevantes e só criaria um segundo objeto. Além disso, o escritório nunca coleta assinatura (ADR-0067 §5), então o canal do escritório não tem o que gerar; no app do motorista a assinatura segue sem miniatura, e RF20 (fallback para o original) cobre a leitura.
+
+**Divergências do briefing**: não há assinatura no fluxo do escritório; o repositório de lote de ocorrência guarda foto de ocorrência, não comprovante de entrega (fora de escopo); a cópia legada do painel do motorista (`/minha-viagem`) não foi alterada.
+
+**Falhas literais antes de implementar**
+
+- API: as suítes `office-proof-thumbnail.contract.ts` falhavam (rota ignorava `thumbnail`, `persistOfficeProof` gravava 1 objeto).
+- Painel `bun test test/trip.contract.test.ts`: `SyntaxError: Export named 'buildFieldDeliveryImageWithThumbnail' not found in module '.../fieldDeliveryImage.service.ts'`.
+- Painel `bun test --preload ./test/trip-hooks/dom.preload.ts ./test/trip-hooks.contract.test.ts`: `(fail) useFieldDelivery — fotos da carga (spec 184 D5) > a miniatura gerada por nota chega à baixa e à foto de carga (spec 220 T3.4)`.
+- `bunx tsc --noEmit` no painel: `TS2305: ... has no exported member 'buildFieldDeliveryImageWithThumbnail'`.
+
+**Comandos**
+
+- `cd apps/frontend-transportada && bunx tsc --noEmit` -> EXIT=0
+- `cd apps/frontend-transportada && bun run test` -> 5781 pass + 61 pass (hooks), 0 fail
+- `cd apps/api-transportada && bunx tsc --noEmit` -> EXIT=0
+- `cd apps/api-transportada && bun --env-file=../../.env.test test --timeout 120000` -> 8330 pass, 0 fail
+- `test/integration/**` não foi tocado; integração não rodada.
+
+### T3.5 — Contrato da leitura com miniatura (vermelho)
+
+Estendido `apps/api-transportada/test/trip-delivery-proof/read.contract.ts` (já importado por
+`trip-delivery-proof.contract.test.ts`, que está na lista do `package.json`); nenhum arquivo paralelo.
+Bloco `miniatura do comprovante (spec 220 RF20)`, seis casos:
+
+- com miniatura, `thumbnailUrl` vem ao lado de `downloadUrl`, sem `objectKey` nem `thumbnail` no corpo;
+- sem miniatura (comprovante antigo, assinatura, registro sem o campo) o campo é **omitido** (RF20 e
+  o precedente 161 D14: ausente, nunca `null`);
+- RNF01: dublê que conta chamadas ao assinador. Três comprovantes, dois com miniatura = exatamente 5
+  chamadas, todas em voo ao mesmo tempo (`maxInFlight === 5`), o que reprova original-depois-miniatura;
+- as duas URLs assinadas com `expiresInSeconds` 300, pelo gateway real com storage falso;
+- o cursor de listagem (`createListTripOccurrenceFeedUseCase`) não consulta localização de anexo
+  nem publica `thumbnailUrl`.
+
+Forma do registro que a T3.6 deve adotar: `DeliveryProofRecord.thumbnail: { bucket, mimeType, objectKey } | null`
+(mesma forma de `OccurrenceAttachmentLocation`); o contrato o injeta em objetos não frescos, sem cast.
+
+Falha literal, antes de implementar (`bun --env-file=../../.env.test test --timeout 120000`):
+
+```
+(fail) ... miniatura do comprovante (spec 220 RF20) > com miniatura, thumbnailUrl vem ao lado de downloadUrl, ambas assinadas
+(fail) ... miniatura do comprovante (spec 220 RF20) > o detalhe assina só o que existe, e tudo de uma vez
+(fail) ... miniatura do comprovante (spec 220 RF20) > as duas URLs valem 5 minutos
+ 8333 pass
+ 3 fail
+```
+
+Os três casos de omissão e de cursor passam desde já: são guardas de regressão. O cursor não tem
+como falhar hoje, porque o caso de uso de listagem nem recebe assinador; a asserção existe para
+quebrar no dia em que alguém injetar um. Sem cast, sem dívida para a T3.6. `bunx tsc --noEmit` EXIT=0.
+
+### T3.6 — `readDeliveryProofs` assina no mesmo lote (verde)
+
+- `read-delivery-proof.use-case.ts`: `DeliveryProofRecord.thumbnail?: { bucket, mimeType, objectKey } | null`
+  (opcional: o contrato injeta registros sem o campo, "anteriores à coluna") e `DeliveryProofView.thumbnailUrl?`,
+  omitido, nunca `null`. Por comprovante, original e miniatura são pedidos ao assinador na mesma
+  expressão de um `Promise.all`, dentro do `Promise.all` externo: as 5 chamadas do caso RNF01 partem
+  antes de qualquer `await` retornar (`maxInFlight === 5`). Sem `await` em laço.
+- `delivery-proof-read.support.ts`: alias `trip_delivery_proof_thumbnail` de `stored_objects` com
+  `leftJoin` por `company_id` **e** `id = thumbnail_object_id` (tenant em cada junção, como as demais).
+- Validade: o gateway já usa `DOWNLOAD_EXPIRES_IN_SECONDS = 300` para toda chamada; nada redeclarado.
+- **Decisão `Promise.all` vs `allSettled`**: `Promise.all`. Uma URL faltando quebra a tela do
+  comprovante; `allSettled` só esconderia o defeito.
+- `bunx tsc --noEmit` EXIT=0. `bun --env-file=../../.env.test test --timeout 120000`: 8336 pass, 23 skip,
+  0 fail (as 3 falhas da T3.5 verdes). Integração (`test:integration`) não rodada: é a T3.8.
+
+### T3.7 — `ProofImage` usa a miniatura, com queda para o original
+
+Contrato novo `apps/frontend-transportada/test/trip/delivery-proof-thumbnail.contract.ts`, importado por
+`test/trip.contract.test.ts` (já na lista do `package.json`). Quatro casos: com `thumbnailUrl` o `src`
+é a miniatura; sem ela é o original (comprovante antigo, assinatura); a URL de tela cheia é o
+original nos dois casos (RF22); a validação da resposta aceita e preserva `thumbnailUrl`.
+
+Falha literal, antes de implementar (`bun test test/trip.contract.test.ts`):
+
+```
+SyntaxError: Export named 'resolveDeliveryProofFullSizeUrl' not found in module '.../trip/shared/deliveryProof.service.ts'.
+ 0 pass
+ 1 fail
+```
+
+O vermelho é de import (as funções não existiam), que derruba a suíte inteira do entrypoint.
+
+O que mudou:
+
+- `deliveryProof.service.ts`: `DeliveryProof.thumbnailUrl?` e duas funções puras,
+  `resolveDeliveryProofImageSource` (`thumbnailUrl ?? downloadUrl`) e `resolveDeliveryProofFullSizeUrl`
+  (`downloadUrl`).
+- `TripDeliveryProof.component.tsx`: `ProofImage` usa `resolveDeliveryProofImageSource(proof)`.
+- ⚠️ **Sem a validação, a miniatura faria o comprovante sumir.** `isDeliveryProof` usa `hasKeys` com
+  lista fechada, e `deliveryProofsFromApi` descarta em silêncio o item inválido: com a API da T3.6
+  servindo `thumbnailUrl`, todo comprovante com miniatura sairia da tela, com 200 na rede e nada no
+  console. `thumbnailUrl` entrou em `DELIVERY_PROOF_OPTIONAL_KEYS` (`trip.constant.ts`) e em
+  `isDeliveryProof` (`tripResponse.validation.ts`), com `isString` quando presente.
+- `delivery-proof-panel.contract.ts`: a guarda "não guarda a URL assinada em estado próprio" olhava a
+  fonte por `proof.downloadUrl`; passou a olhar `resolveDeliveryProofImageSource(proof)`. A garantia
+  (a URL vem direto da consulta, sem `useState<string`) é a mesma.
+
+RF22: hoje `ProofImage` é um `<img>` sem clique, link ou `download`; não há caminho de tela cheia para
+contaminar. A regra ficou garantida onde a Fase 5 (T5.3) vai buscá-la: `resolveDeliveryProofFullSizeUrl`
+devolve sempre `downloadUrl`, com contrato nos dois casos. A galeria deve consumir essa função, não
+`resolveDeliveryProofImageSource`.
+
+`bunx tsc --noEmit` EXIT=0. `bun run test` da app (inclui `test:hooks`): 5785 pass, 0 fail
+(`trip.contract.test.ts`: 1915 pass, 0 fail; `test:hooks`: 61 pass, 0 fail). Lint: 0 erros.
+
+### T3.8 — A miniatura contra o Postgres de verdade
+
+`apps/api-transportada/test/integration/delivery-proof-thumbnail.integration.ts`, na lista explícita
+do `test:integration` do `package.json` (140 arquivos). Cenário montado pelos casos de uso reais
+(`reportDocumentDelivery`, `attachDeliveryProof`, `parseDeliveryProofUpload`) sobre as fixtures de
+`trip-field-office-database.fixture.ts` — sem `INSERT` bruto de domínio.
+
+Cinco casos, e os dois do meio são os que **nenhum dublê alcança**:
+
+1. Com miniatura: duas linhas em `stored_objects` (`delivery_proof` e `trip_delivery_proof_thumbnail`),
+   `trip_delivery_proofs.thumbnail_object_id` apontando para a segunda, e a leitura devolvendo as duas
+   URLs assinadas.
+2. Sem miniatura: o `leftJoin` **não derruba a linha** — `downloadUrl` presente e `thumbnailUrl`
+   ausente da chave (`'thumbnailUrl' in view === false`, não `null`). É o defeito clássico de trocar
+   `leftJoin` por `innerJoin`, invisível com dublê.
+3. Tenant: `listDeliveryProofs` com a empresa errada devolve `[]`; com a certa, devolve 1 com miniatura.
+4. **FK composta e `RESTRICT`, os dois em ação:** apontar o comprovante para a miniatura de outra
+   empresa é recusado pelo banco, e apagar o objeto em uso também — o vínculo continua de pé depois
+   das duas tentativas. Era a única prova possível de que a FK composta da T3.2 está escopada por
+   empresa, e não só por id.
+5. `retention_until` das duas linhas nasce `null`, fixando a decisão da T3.2 (dívida aberta em
+   `docs/SECURITY.md`, não comportamento desejável).
+
+Arquivo sozinho: `bun --env-file=../../.env.test test ./test/integration/delivery-proof-thumbnail.integration.ts`
+→ **5 pass · 0 fail · 19 expect · 10,42 s** · EXIT=0.
+
+⚠️ O caminho precisa do `./`: sem ele o Bun trata o argumento como filtro de nome, não casa com
+`.integration.ts` e responde `0 files` com EXIT=1 — verde nenhum, mas fácil de ler como "não quebrou".
+
+Suíte inteiro: `bun --env-file=../../.env.test run test:integration`
+→ **770 pass · 7 skip · 0 fail · 777 testes · 142 arquivos · 1081,12 s** · EXIT=0.
+Referência anterior (T2.4): 765 pass · 141 arquivos. A diferença é exatamente este arquivo.
+
+Nota de execução: o primeiro agente desta task ficou esperando um processo que já tinha morrido, e o
+suíte foi relançado à mão. Nenhum efeito sobre o resultado — só relógio perdido.
+
+### T3.9 — portão da Fase 3
+
+`make check` na raiz → **EXIT=0**. Contagens por app, todas com 0 fail:
+
+| App                     | Testes             |
+| ----------------------- | ------------------ |
+| `api-transportada`      | 8327               |
+| `worker-transportada`   | 1458               |
+| `cron-transportada`     | 101                |
+| `frontend-transportada` | 5785 + 61 de hooks |
+| `frontend-driver`       | 857                |
+| `frontend-client`       | 114 + 89 + 6       |
+
+Lint: 16 avisos, 0 erros — os 16 são `react-hooks/exhaustive-deps` que já existiam antes da spec.
+`bunx prettier --write` nos quatro arquivos da spec: nenhum mudou.
+
+`make migration-test` (T3.2) e `test:integration` (T3.8) já estão registrados acima; o `bun test` do
+`make check` **não** enxerga `test/integration/**`, por isso os dois contam separado.
+
+Commit da fase: `b506ba2d5` — 52 arquivos, 10 novos (a migration com `migration.sql`,
+`rollback.sql` e `snapshot.json`, mais sete arquivos de teste).
+
 ## Fase 4
 
 ## Fase 5

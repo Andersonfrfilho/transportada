@@ -51,7 +51,7 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
    */
   it('não guarda a URL assinada em estado próprio', () => {
     expect(source).not.toInclude('useState<string')
-    expect(source).toInclude('proof.downloadUrl')
+    expect(source).toInclude('resolveDeliveryProofImageSource(proof)')
   })
 
   /** Foto de canhoto não tem quem assine: o nome só aparece quando o serviço o resolveu. */

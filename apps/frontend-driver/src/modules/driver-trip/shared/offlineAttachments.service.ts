@@ -56,6 +56,8 @@ export type QueuedAttachment = Readonly<{
   rejectionCause?: string
   /** ADR-0075 §8: o dono do anexo, como em `QueuedReport.subHash`. */
   subHash?: string
+  /** Spec 220 RF17/RF19: a miniatura gerada com a redução; ausente sobe só o original. */
+  thumbnail?: Blob
 }>
 
 export type AttachmentGroupEntries = readonly (readonly [string, readonly QueuedAttachment[]])[]

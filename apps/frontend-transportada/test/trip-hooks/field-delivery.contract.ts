@@ -505,4 +505,62 @@ describe('useFieldDelivery — fotos da carga (spec 184 D5)', () => {
 
     rendered.unmount()
   })
+
+  test('a miniatura gerada por nota chega à baixa e à foto de carga (spec 220 T3.4)', async () => {
+    const reported: ReportFieldDeliveryInput[] = []
+    const attached: AttachFieldProofInput[] = []
+    const thumbnail = new Blob(['t'])
+
+    const rendered = await renderHook(() =>
+      useFieldDelivery({
+        attachFieldProof: (input) => {
+          attached.push(input)
+          return Promise.resolve({ id: 'proof-cargo' })
+        },
+        buildThumbnail: () => Promise.resolve(thumbnail),
+        invalidate: () => Promise.resolve(),
+        reportFieldDelivery: (input) => {
+          reported.push(input)
+          return Promise.resolve(settledResult())
+        },
+        tripId: 'trip-1',
+      }),
+    )
+
+    rendered.result().submit([draftWithCargo('doc-1', 1)])
+    await waitFor(() =>
+      expect(rendered.result().statusByDocumentId['doc-1']?.kind).toBe('delivered'),
+    )
+
+    expect(reported[0]?.thumbnailBlob).toBe(thumbnail)
+    expect(attached[0]?.thumbnailBlob).toBe(thumbnail)
+
+    rendered.unmount()
+  })
+
+  test('miniatura que falha nunca impede a baixa (RF19)', async () => {
+    const reported: ReportFieldDeliveryInput[] = []
+
+    const rendered = await renderHook(() =>
+      useFieldDelivery({
+        attachFieldProof: () => Promise.resolve({ id: 'proof-cargo' }),
+        buildThumbnail: () => Promise.reject(new Error('FIELD_DELIVERY_IMAGE_ENCODE_FAILED')),
+        invalidate: () => Promise.resolve(),
+        reportFieldDelivery: (input) => {
+          reported.push(input)
+          return Promise.resolve(settledResult())
+        },
+        tripId: 'trip-1',
+      }),
+    )
+
+    rendered.result().submit([draftFor('doc-1')])
+    await waitFor(() =>
+      expect(rendered.result().statusByDocumentId['doc-1']?.kind).toBe('delivered'),
+    )
+
+    expect('thumbnailBlob' in (reported[0] ?? {})).toBe(false)
+
+    rendered.unmount()
+  })
 })

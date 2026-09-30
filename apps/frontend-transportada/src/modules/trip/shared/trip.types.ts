@@ -979,6 +979,8 @@ export type ReportFieldDeliveryInput = TripFieldActionTarget &
     receiverName?: string
     /** A4a (spec 156 T15): fechar o assistente durante o envio cancela o lote em andamento. */
     signal?: AbortSignal
+    /** Spec 220 RF17: miniatura do canhoto; ausente é o caso normal (RF19). */
+    thumbnailBlob?: Blob
   }>
 
 /** O envelope de `field-delivery`: `alreadySettled` é 409 tratado como sucesso informativo (D3). */
@@ -1006,6 +1008,7 @@ export type AttachFieldProofInput = TripDocumentActionInput &
     imageBlob: Blob
     kind: FieldProofKind
     signal?: AbortSignal
+    thumbnailBlob?: Blob
   }>
 
 export type ReadTripAllowedActionsInput = Readonly<{

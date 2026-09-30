@@ -18,6 +18,7 @@ import {
 import {
   buildDeliveryProofObjectKey,
   DELIVERY_PROOF_MAX_BYTES,
+  DELIVERY_PROOF_THUMBNAIL_MAX_BYTES,
   isDeliveryProofMimeType,
 } from '../domain/delivery-proof.policy.js'
 import {
@@ -82,6 +83,8 @@ export type DeliveryProofUpload = {
   readonly receivedBy?: ReceivedByFields
   /** Nome de quem recebeu — na assinatura e, desde a spec 193 D4, também na foto do canhoto. */
   readonly receiverName: string
+  /** Spec 220 RF17/RF19: miniatura gerada no cliente; ausente é o caso normal, nunca condição do comprovante. */
+  readonly thumbnail?: { readonly bytes: Uint8Array; readonly mimeType: string }
 }
 
 export type DeliveryProofStoragePort = {
@@ -174,6 +177,14 @@ export type DeliveryProofPort = {
     readonly receivedByDetail: string | null
     readonly sha256: string
     readonly sizeBytes: number
+    /** Spec 220 RF17: o objeto da miniatura, gravado na mesma transação do original. */
+    readonly thumbnail?: {
+      readonly mimeType: string
+      readonly objectId: string
+      readonly objectKey: string
+      readonly sha256: string
+      readonly sizeBytes: number
+    }
   }): Promise<{ readonly id: string }>
 }
 
@@ -209,6 +220,7 @@ export async function attachDeliveryProof(
   if (!isDeliveryProofMimeType(input.upload.mimeType)) {
     throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
   }
+  assertThumbnailAccepted(input.upload.thumbnail)
 
   /**
    * ADR-0057: quem decide se o documento entra é a configuração resolvida, nunca o app. `off` com
@@ -287,6 +299,8 @@ export async function attachDeliveryProof(
     objectKey,
   })
 
+  const thumbnail = await storeThumbnail({ input, eventId })
+
   const proofId = input.newProofId()
   const receiverDocumentEnvelope =
     receiverDocument.length === 0
@@ -330,9 +344,51 @@ export async function attachDeliveryProof(
     receivedByDetail: receiver.receivedByDetail,
     sha256: stored.sha256,
     sizeBytes: input.upload.bytes.byteLength,
+    ...(thumbnail === undefined ? {} : { thumbnail }),
   })
 
   return { ...proof, punctuality }
+}
+
+function assertThumbnailAccepted(thumbnail: DeliveryProofUpload['thumbnail']): void {
+  if (thumbnail === undefined) return
+  if (thumbnail.bytes.byteLength > DELIVERY_PROOF_THUMBNAIL_MAX_BYTES) {
+    throw new TripDeliveryProofRejectedError('TOO_LARGE')
+  }
+  if (!isDeliveryProofMimeType(thumbnail.mimeType)) {
+    throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
+  }
+}
+
+async function storeThumbnail(params: {
+  readonly eventId: string
+  readonly input: AttachDeliveryProofInput
+}): Promise<Parameters<DeliveryProofPort['saveProof']>[0]['thumbnail']> {
+  const { input } = params
+  const { thumbnail } = input.upload
+  if (thumbnail === undefined) return undefined
+
+  const objectId = input.newObjectId()
+  const objectKey = buildDeliveryProofObjectKey({
+    companyId: input.companyId,
+    eventId: params.eventId,
+    objectId,
+  })
+  const stored = await input.storage.store({
+    bytes: thumbnail.bytes,
+    companyId: input.companyId,
+    mimeType: thumbnail.mimeType,
+    objectId,
+    objectKey,
+  })
+
+  return {
+    mimeType: thumbnail.mimeType,
+    objectId,
+    objectKey,
+    sha256: stored.sha256,
+    sizeBytes: thumbnail.bytes.byteLength,
+  }
 }
 
 /**

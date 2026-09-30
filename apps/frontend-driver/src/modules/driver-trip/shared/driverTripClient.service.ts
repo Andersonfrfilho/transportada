@@ -134,6 +134,8 @@ export type DriverTripClient = Readonly<{
     receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
+    /** Spec 220 RF17: a miniatura do comprovante — opcional, nunca condição para o anexo subir. */
+    thumbnail?: File
   }) => Promise<Readonly<{ id: string; punctuality: ProofPunctuality }>>
   /**
    * Spec 082 (revisão): o snapshot inclui viagem `route_planned`, e é o motorista quem inicia o
@@ -274,6 +276,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const form = new FormData()
       form.set('file', input.file)
       form.set('kind', input.kind)
+      if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
       if (input.receivedBy !== undefined) form.set('receivedBy', input.receivedBy)
       if (input.receivedByDetail !== undefined) form.set('receivedByDetail', input.receivedByDetail)

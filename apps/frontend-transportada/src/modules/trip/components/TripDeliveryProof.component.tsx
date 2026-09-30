@@ -8,7 +8,11 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
-import type { DeliveryProof, DeliveryProofView } from '../shared/deliveryProof.service'
+import {
+  resolveDeliveryProofImageSource,
+  type DeliveryProof,
+  type DeliveryProofView,
+} from '../shared/deliveryProof.service'
 import type { TripDocumentProduct } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
@@ -134,7 +138,12 @@ function formatMoment(value: string): string {
 
 function ProofImage({ alt, proof }: Readonly<{ alt: string; proof: DeliveryProof }>) {
   return (
-    <img alt={alt} className={styles.deliveryProofImage} loading="lazy" src={proof.downloadUrl} />
+    <img
+      alt={alt}
+      className={styles.deliveryProofImage}
+      loading="lazy"
+      src={resolveDeliveryProofImageSource(proof)}
+    />
   )
 }
 

@@ -99,6 +99,7 @@ const CURRENT_TRIP_REFETCH_MS = 30_000
  * nunca deixar a drenagem vencer a corrida contra o primeiro paint.
  */
 const PROOF_AUTO_DRAIN_GRACE_MS = 3_000
+const THUMBNAIL_FILE_NAME = 'thumbnail.jpg'
 
 /** O store não guarda estado — cada operação abre a base —, então um só serve a app inteira. */
 const TRIP_SNAPSHOT_STORE = createIndexedDbTripSnapshotStore()
@@ -392,6 +393,13 @@ export function useDriverTrip(
                 type: attachment.blob.type,
               }),
               kind: attachment.kind,
+              ...(attachment.thumbnail === undefined
+                ? {}
+                : {
+                    thumbnail: new File([attachment.thumbnail], THUMBNAIL_FILE_NAME, {
+                      type: attachment.thumbnail.type,
+                    }),
+                  }),
               ...(attachment.latitude === undefined ? {} : { latitude: attachment.latitude }),
               ...(attachment.longitude === undefined ? {} : { longitude: attachment.longitude }),
               ...(attachment.accuracyMeters === undefined

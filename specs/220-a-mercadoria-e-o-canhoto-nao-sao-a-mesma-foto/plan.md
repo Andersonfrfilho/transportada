@@ -98,7 +98,10 @@ instalação antiga, a alternativa é deixar tudo `not_applicable` e só marcar 
 data de corte; **decidir com o usuário na T6.1, com a contagem real em mãos**.
 
 Rollback: `DROP COLUMN` de cada coluna nova, na ordem inversa. O objeto da miniatura no bucket não
-é apagado pelo rollback — ele é órfão inofensivo, e a retenção de 5 anos já o alcança (161 RF3).
+é apagado pelo rollback — e **nada o alcança depois**. A retenção de cinco anos da 161 vale para
+`trip_occurrence_*`; `delivery_proof` nasce com `retention_until` nulo nos três canais e nenhuma
+rotina o varre (`docs/SECURITY.md`, achado aberto). A miniatura segue a mesma regra do original por
+decisão registrada na T3.2 — órfão que cresce, escrito em vez de escondido.
 
 `make migration-test` fecha cada fase que toca o banco.
 

@@ -714,6 +714,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const form = new FormData()
       form.set('deliveredAt', input.deliveredAt)
       form.set('file', input.imageBlob)
+      if (input.thumbnailBlob !== undefined) form.set('thumbnail', input.thumbnailBlob)
       if (input.driverId !== undefined) form.set('driverId', input.driverId)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
@@ -732,6 +733,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const form = new FormData()
       form.set('file', input.imageBlob)
       form.set('kind', input.kind)
+      if (input.thumbnailBlob !== undefined) form.set('thumbnail', input.thumbnailBlob)
       if (input.driverId !== undefined) form.set('driverId', input.driverId)
 
       const response = await authorizedRequest({

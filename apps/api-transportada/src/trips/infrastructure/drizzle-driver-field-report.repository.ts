@@ -864,6 +864,20 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       sizeBytes: BigInt(input.sizeBytes),
       status: 'final',
     })
+    if (input.thumbnail !== undefined) {
+      await this.transaction.insert(storedObjects).values({
+        bucket: this.bucket,
+        companyId: input.companyId,
+        id: input.thumbnail.objectId,
+        mimeType: input.thumbnail.mimeType,
+        objectKey: input.thumbnail.objectKey,
+        provider: 's3',
+        purpose: 'trip_delivery_proof_thumbnail',
+        sha256: input.thumbnail.sha256,
+        sizeBytes: BigInt(input.thumbnail.sizeBytes),
+        status: 'final',
+      })
+    }
 
     const [proof] = await this.transaction
       .insert(tripDeliveryProofs)
@@ -887,6 +901,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         receivedBy: input.receivedBy,
         receivedByDetail: input.receivedByDetail,
         stopEventId: input.eventId,
+        thumbnailObjectId: input.thumbnail?.objectId ?? null,
       })
       .onConflictDoUpdate({
         /** Spec 205 D1: o escritório nunca registra depois — o `or` do upsert preserva o do motorista. */

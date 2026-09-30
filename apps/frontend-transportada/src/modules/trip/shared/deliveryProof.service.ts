@@ -31,6 +31,8 @@ export type DeliveryProof = Readonly<{
   receivedByDetail?: null | string
   /** Nome de quem recebeu, na assinatura. **Nunca documento** — ADR-0045 §7. */
   receiverName: string
+  /** Spec 220 RF20: omitida (nunca `null`) em comprovante antigo, assinatura e falha de geração. */
+  thumbnailUrl?: string
 }>
 
 export type DeliveryProofDocument = Readonly<{
@@ -115,4 +117,14 @@ export function resolveDeliveryProofView(input: {
     state:
       photos.length + signatures.length === 0 ? 'delivered-without-proof' : 'delivered-with-proof',
   }
+}
+
+/** Spec 220 RF20: a miniatura quando existe; o original quando não — o caminho normal, não um erro. */
+export function resolveDeliveryProofImageSource(proof: DeliveryProof): string {
+  return proof.thumbnailUrl ?? proof.downloadUrl
+}
+
+/** Spec 220 RF22: a tela cheia e o download são sempre o original, nunca a miniatura ampliada. */
+export function resolveDeliveryProofFullSizeUrl(proof: DeliveryProof): string {
+  return proof.downloadUrl
 }

@@ -52,20 +52,27 @@ evidência em `evidence.md` e commit isolado.
 
 > 🤖 Modelo: `sonnet` (T3.2 é 🧠 — validar o purpose e a retenção com `opus` antes)
 
-- [ ] T3.1 Contrato: miniatura gerada no cliente sai ≤ 128 KiB, lado maior 320 px; falha na geração
+- [x] T3.1 Contrato: miniatura gerada no cliente sai ≤ 128 KiB, lado maior 320 px; falha na geração
       ainda produz o comprovante
-- [ ] T3.2 🧠 Migration: `thumbnail_object_id` nullable + purpose `trip_delivery_proof_thumbnail`,
-      na mesma retenção e no mesmo lote de expurgo do original (molde 161 RF3) — `make migration-test`
-- [ ] T3.3 Geração da miniatura no app do motorista antes de enfileirar, reusando o canvas de
-      `occurrencePhotoImage.service.ts`; campo `thumbnail` **opcional** no form
-- [ ] T3.4 Geração no assistente de baixa em campo do escritório e na assinatura
-- [ ] T3.5 [P] Contrato: `readDeliveryProofs` devolve `thumbnailUrl` quando há e omite quando não
+- [x] T3.2 🧠 Migration **puramente aditiva**: `thumbnail_object_id` nullable em
+      `trip_delivery_proofs` + FK composta `RESTRICT`/`CASCADE` + índice parcial, e o purpose
+      `trip_delivery_proof_thumbnail` ampliando o CHECK de `stored_objects` — `make migration-test`.
+      A miniatura nasce com `retention_until` **nulo**, igual ao original: decidido com o usuário em
+      30/09/2026 (opção **a**). Não existe lote de expurgo de `delivery_proof` — pôr o purpose novo
+      na lista da 161 faria aquela rotina tratar a miniatura como órfã e apagá-la deixando o
+      original. A dívida fica registrada em `docs/SECURITY.md`, não fechada aqui
+- [x] T3.3 Geração da miniatura no app do motorista antes de enfileirar: a porta de entrada é
+      `proofPhotoReduction.service.ts` (`buildProofPhotoWithThumbnail`, encoder injetado), que reusa o
+      canvas de `occurrencePhotoImage.service.ts` (`encodeImageToJpeg`); campo `thumbnail`
+      **opcional** no form
+- [x] T3.4 Geração no assistente de baixa em campo do escritório e na assinatura
+- [x] T3.5 [P] Contrato: `readDeliveryProofs` devolve `thumbnailUrl` quando há e omite quando não
       há; o cursor de listagem **não** gera URL assinada
-- [ ] T3.6 `read-delivery-proof.use-case.ts` monta a URL assinada no mesmo lote (RNF01)
-- [ ] T3.7 `ProofImage` passa a usar a miniatura, com queda para o original quando ausente
-- [ ] T3.8 Contrato de integração da URL assinada — `test/integration/*.integration.ts` +
+- [x] T3.6 `read-delivery-proof.use-case.ts` monta a URL assinada no mesmo lote (RNF01)
+- [x] T3.7 `ProofImage` passa a usar a miniatura, com queda para o original quando ausente
+- [x] T3.8 Contrato de integração da URL assinada — `test/integration/*.integration.ts` +
       **`test:integration`**
-- [ ] T3.9 `make check` + commit
+- [x] T3.9 `make check` + commit
 
 ## Fase 4 — O painel mostra o que colheu
 

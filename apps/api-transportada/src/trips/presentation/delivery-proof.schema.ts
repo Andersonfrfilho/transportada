@@ -16,6 +16,8 @@ import { normalizeReceivedBy } from './received-by.schema.js'
 
 const FILE_FIELD = 'file'
 const KIND_FIELD = 'kind'
+/** Spec 220 RF17: a miniatura gerada no cliente — opcional; o teto de bytes é conferido pelo caso de uso. */
+const THUMBNAIL_FIELD = 'thumbnail'
 const RECEIVER_FIELD = 'receiverName'
 /** Spec 193 D2: quem recebeu e o detalhe, lidos pela forma tolerante. */
 const RECEIVED_BY_FIELD = 'receivedBy'
@@ -143,6 +145,7 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
   }
 
   const location = parseProofLocation(form)
+  const thumbnail = await parseThumbnail(form)
 
   return {
     attachmentKey: typeof attachmentKey === 'string' ? attachmentKey : '',
@@ -159,7 +162,19 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
       receivedByDetail: form.get(RECEIVED_BY_DETAIL_FIELD),
     }),
     receiverName: typeof receiverName === 'string' ? receiverName : '',
+    ...(thumbnail === undefined ? {} : { thumbnail }),
   }
+}
+
+/** Ausente ou vazio é o comprovante sem miniatura; texto no lugar do arquivo é `400`. */
+async function parseThumbnail(
+  form: Awaited<ReturnType<Request['formData']>>,
+): Promise<DeliveryProofUpload['thumbnail']> {
+  const value = readOptionalField(form, THUMBNAIL_FIELD)
+  if (value === undefined) return undefined
+  if (!(value instanceof File)) throw new ApiError(HTTP_ERROR.invalidRequest)
+
+  return { bytes: new Uint8Array(await value.arrayBuffer()), mimeType: value.type }
 }
 
 /** O multipart só carrega texto: fora de `true`/`false` é `400`, nunca um booleano adivinhado. */
