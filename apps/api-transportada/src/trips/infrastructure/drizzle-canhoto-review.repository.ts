@@ -10,6 +10,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq } from 'drizzle-orm'
 
 import { auditLogs } from '../../database/database.schema.js'
+import { nfeDocuments } from '../../database/nfe.schema.js'
 import {
   TRIP_DELIVERY_PROOF_CANHOTO_KIND,
   tripDeliveryProofs,
@@ -70,7 +71,7 @@ async function lockCanhotoProof(
   },
 ): Promise<LockedCanhotoProof | null> {
   const [located] = await queryable
-    .select({ id: tripDeliveryProofs.id })
+    .select({ documentNumber: nfeDocuments.number, id: tripDeliveryProofs.id })
     .from(tripDeliveryProofs)
     .innerJoin(
       tripStopEvents,
@@ -84,6 +85,14 @@ async function lockCanhotoProof(
       and(
         eq(tripDocuments.companyId, tripDeliveryProofs.companyId),
         eq(tripDocuments.id, tripStopEvents.tripDocumentId),
+      ),
+    )
+    /** `leftJoin`: vínculo sem NF-e existe, e ele só significa "não há número contra o que conferir". */
+    .leftJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
       ),
     )
     .where(
@@ -112,7 +121,13 @@ async function lockCanhotoProof(
     .for('no key update')
     .limit(1)
 
-  return row === undefined ? null : { ...row, reviewOrigin: row.reviewOrigin ?? null }
+  return row === undefined
+    ? null
+    : {
+        ...row,
+        documentNumber: located.documentNumber ?? null,
+        reviewOrigin: row.reviewOrigin ?? null,
+      }
 }
 
 async function applyCanhotoReview(

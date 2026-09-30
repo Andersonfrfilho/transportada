@@ -7,6 +7,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { TripDeliveryProofCanhotoReadSource } from '../../src/database/trip.schema.js'
 import {
   resolveAutomaticCanhotoReview,
   resolveManualCanhotoReview,
@@ -24,6 +25,10 @@ import {
 
 const ACTOR_USER_ID = '00000000-0000-4000-8000-0000000000a1'
 const DOCUMENT_ID = '00000000-0000-4000-8000-0000000000d1'
+const OTHER_DOCUMENT_ID = '00000000-0000-4000-8000-0000000000d2'
+const DOCUMENT_NUMBER = '12345'
+const DOCUMENT_SERIES = '1'
+const OTHER_NUMBER = '67890'
 const REVIEWED_AT = new Date('2026-09-30T12:00:00.000Z')
 const LEGITIMATE_NOTE = 'canhoto rasgado no meio, assinatura cortada ao meio'
 
@@ -37,6 +42,36 @@ function approve(state: CanhotoReviewState) {
   return resolveManualCanhotoReview({
     actorUserId: ACTOR_USER_ID,
     command: { action: 'approve' },
+    reviewedAt: REVIEWED_AT,
+    state,
+  })
+}
+
+/**
+ * A leitura que casa por completo é o caso padrão; cada teste troca **um** eixo para provar que a
+ * derivação depende dele. `documentId` e `documentNumber` vêm do servidor, não do corpo.
+ */
+function automatic(
+  overrides: Readonly<{
+    documentNumber?: null | string
+    readDocumentId?: null | string
+    readNumber?: null | string
+    readSeries?: null | string
+    readSource?: TripDeliveryProofCanhotoReadSource | null
+    state: CanhotoReviewState
+  }>,
+) {
+  const { documentNumber, state, ...reading } = overrides
+  return resolveAutomaticCanhotoReview({
+    command: {
+      readDocumentId: DOCUMENT_ID,
+      readNumber: DOCUMENT_NUMBER,
+      readSeries: DOCUMENT_SERIES,
+      readSource: 'barcode',
+      ...reading,
+    },
+    documentId: DOCUMENT_ID,
+    documentNumber: documentNumber === undefined ? DOCUMENT_NUMBER : documentNumber,
     reviewedAt: REVIEWED_AT,
     state,
   })
@@ -158,35 +193,31 @@ describe('o motivo livre é guardado contra dado pessoal (RF28)', () => {
 })
 
 describe('o resultado automático nunca sobrescreve decisão humana (T6.6)', () => {
-  function automatic(state: CanhotoReviewState, review: 'approved' | 'pending' = 'approved') {
-    return resolveAutomaticCanhotoReview({
-      command: {
-        readDocumentId: DOCUMENT_ID,
-        readNumber: '000012345',
-        readSeries: '1',
-        readSource: review === 'approved' ? 'barcode' : 'ocr',
-        review,
-      },
-      reviewedAt: REVIEWED_AT,
-      state,
-    })
-  }
-
   test('sobre canhoto já aprovado à mão, nada muda — nem a leitura', () => {
-    expect(automatic(MANUALLY_APPROVED)).toEqual({ kind: 'unchanged' })
+    expect(automatic({ state: MANUALLY_APPROVED })).toEqual({ kind: 'unchanged' })
   })
 
   test('sobre canhoto já recusado à mão, nada muda', () => {
-    expect(automatic(MANUALLY_REJECTED)).toEqual({ kind: 'unchanged' })
+    expect(automatic({ state: MANUALLY_REJECTED })).toEqual({ kind: 'unchanged' })
   })
 
-  test('sobre pendente, o código de barras aprova e grava a leitura sem ator', () => {
-    expect(automatic(PENDING)).toEqual({
+  test('o que não se confere não recebe veredito automático', () => {
+    expect(() => automatic({ state: NOT_APPLICABLE })).toThrow(CanhotoNotReviewableError)
+  })
+})
+
+/**
+ * T7.1: o cliente entrega o que **leu**, e quem decide é o servidor. As três condições da RF26 —
+ * código de barras, a nota da rota e o número daquela nota — valem juntas ou não valem.
+ */
+describe('o veredito automático é derivado no servidor, nunca pedido pelo cliente (T7.1)', () => {
+  test('código de barras na nota da rota, com o número dela, aprova e grava a leitura sem ator', () => {
+    expect(automatic({ state: PENDING })).toEqual({
       kind: 'apply',
       update: {
         canhotoReadDocumentId: DOCUMENT_ID,
-        canhotoReadNumber: '000012345',
-        canhotoReadSeries: '1',
+        canhotoReadNumber: DOCUMENT_NUMBER,
+        canhotoReadSeries: DOCUMENT_SERIES,
         canhotoReadSource: 'barcode',
         canhotoReview: 'approved',
         canhotoReviewAt: REVIEWED_AT,
@@ -198,15 +229,14 @@ describe('o resultado automático nunca sobrescreve decisão humana (T6.6)', () 
     })
   })
 
-  test('sugestão do OCR fica pendente: sem origem e sem instante, como a CHECK exige', () => {
-    const decision = automatic(PENDING, 'pending')
-    expect(decision).toEqual({
+  test('número lido diferente do número da nota não aprova — a leitura fica como sugestão', () => {
+    expect(automatic({ readNumber: OTHER_NUMBER, state: PENDING })).toEqual({
       kind: 'apply',
       update: {
         canhotoReadDocumentId: DOCUMENT_ID,
-        canhotoReadNumber: '000012345',
-        canhotoReadSeries: '1',
-        canhotoReadSource: 'ocr',
+        canhotoReadNumber: OTHER_NUMBER,
+        canhotoReadSeries: DOCUMENT_SERIES,
+        canhotoReadSource: 'barcode',
         canhotoReview: 'pending',
         canhotoReviewAt: null,
         canhotoReviewByUserId: null,
@@ -217,78 +247,72 @@ describe('o resultado automático nunca sobrescreve decisão humana (T6.6)', () 
     })
   })
 
-  test('o que não se confere não recebe veredito automático', () => {
-    expect(() => automatic(NOT_APPLICABLE)).toThrow(CanhotoNotReviewableError)
+  test('leitura que aponta outra nota não aprova a nota da rota', () => {
+    const decision = automatic({ readDocumentId: OTHER_DOCUMENT_ID, state: PENDING })
+    expect(decision).toMatchObject({
+      kind: 'apply',
+      update: { canhotoReadDocumentId: OTHER_DOCUMENT_ID, canhotoReview: 'pending' },
+    })
+  })
+
+  test('RF26: OCR com a nota e o número certos continua pendente — OCR nunca aprova sozinho', () => {
+    expect(automatic({ readSource: 'ocr', state: PENDING })).toMatchObject({
+      kind: 'apply',
+      update: {
+        canhotoReadSource: 'ocr',
+        canhotoReview: 'pending',
+        canhotoReviewAt: null,
+        canhotoReviewOrigin: null,
+      },
+    })
+  })
+
+  test('nota sem número conhecido não aprova: não há contra o que conferir', () => {
+    expect(automatic({ documentNumber: null, state: PENDING })).toMatchObject({
+      kind: 'apply',
+      update: { canhotoReview: 'pending' },
+    })
+  })
+
+  test('máquina nunca recusa: nenhuma combinação de leitura produz `rejected`', () => {
+    const readings = [
+      {},
+      { readDocumentId: OTHER_DOCUMENT_ID },
+      { readNumber: OTHER_NUMBER },
+      { readSource: 'ocr' as const },
+      { documentNumber: null },
+      { readDocumentId: null, readNumber: null, readSeries: null, readSource: null },
+    ] as const
+    for (const reading of readings) {
+      const decision = automatic({ ...reading, state: PENDING })
+      expect(decision.kind === 'apply' && decision.update.canhotoReview).not.toBe('rejected')
+    }
   })
 })
 
 describe('o painel não pode pedir o que o banco recusaria', () => {
-  function attempt(command: {
-    readDocumentId: null | string
-    readNumber: null | string
-    readSeries: null | string
-    readSource: 'barcode' | 'ocr' | null
-    review: 'approved' | 'pending'
-  }) {
-    return () => resolveAutomaticCanhotoReview({ command, reviewedAt: REVIEWED_AT, state: PENDING })
-  }
-
-  test('RF26: aprovação automática sem código de barras é recusada', () => {
-    expect(
-      attempt({
-        readDocumentId: DOCUMENT_ID,
-        readNumber: '000012345',
-        readSeries: null,
-        readSource: 'ocr',
-        review: 'approved',
-      }),
-    ).toThrow(CanhotoAutomaticReviewInvalidError)
-  })
-
   test('número e origem da leitura andam juntos ou não andam', () => {
-    expect(
-      attempt({
-        readDocumentId: DOCUMENT_ID,
-        readNumber: null,
-        readSeries: null,
-        readSource: 'barcode',
-        review: 'approved',
-      }),
-    ).toThrow(CanhotoAutomaticReviewInvalidError)
-    expect(
-      attempt({
-        readDocumentId: DOCUMENT_ID,
-        readNumber: '000012345',
-        readSeries: null,
-        readSource: null,
-        review: 'pending',
-      }),
-    ).toThrow(CanhotoAutomaticReviewInvalidError)
+    expect(() => automatic({ readNumber: null, state: PENDING })).toThrow(
+      CanhotoAutomaticReviewInvalidError,
+    )
+    expect(() => automatic({ readSource: null, state: PENDING })).toThrow(
+      CanhotoAutomaticReviewInvalidError,
+    )
   })
 
   test('série sem número não existe', () => {
-    expect(
-      attempt({
-        readDocumentId: null,
-        readNumber: null,
-        readSeries: '1',
-        readSource: null,
-        review: 'pending',
-      }),
+    expect(() =>
+      automatic({ readDocumentId: null, readNumber: null, readSource: null, state: PENDING }),
     ).toThrow(CanhotoAutomaticReviewInvalidError)
   })
 
   test('leitura vazia é o estado legítimo de quem não leu nada', () => {
     expect(
-      resolveAutomaticCanhotoReview({
-        command: {
-          readDocumentId: null,
-          readNumber: null,
-          readSeries: null,
-          readSource: null,
-          review: 'pending',
-        },
-        reviewedAt: REVIEWED_AT,
+      automatic({
+        readDocumentId: null,
+        readNumber: null,
+        readSeries: null,
+        readSource: null,
         state: PENDING,
       }).kind,
     ).toBe('apply')

@@ -25,8 +25,15 @@ export type CanhotoReviewCommand =
   | ManualCanhotoReviewCommand
   | (Readonly<{ action: 'automatic' }> & AutomaticCanhotoReviewCommand)
 
-/** O estado que a trava devolve: o mínimo para decidir, e o id para escrever. */
-export type LockedCanhotoProof = CanhotoReviewState & { readonly id: string }
+/**
+ * O estado que a trava devolve: o mínimo para decidir, e o id para escrever. O `documentNumber` é
+ * o número da nota do comprovante — a régua contra a qual o servidor confere a leitura (T7.1), e a
+ * única que o cliente não pode forjar. `null` é a nota sem NF-e vinculada: não há o que conferir.
+ */
+export type LockedCanhotoProof = CanhotoReviewState & {
+  readonly documentNumber: null | string
+  readonly id: string
+}
 
 export type CanhotoReviewView = Readonly<{
   canhotoReadNumber: null | string

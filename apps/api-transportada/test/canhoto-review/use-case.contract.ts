@@ -24,7 +24,10 @@ const TRIP_ID = '00000000-0000-4000-8000-0000000000e1'
 const CLIENT_IP = '203.0.113.7'
 const CORRELATION_ID = 'canhoto-review-correlation'
 
+const DOCUMENT_NUMBER = '12345'
+
 const PENDING_PROOF: LockedCanhotoProof = {
+  documentNumber: DOCUMENT_NUMBER,
   id: PROOF_ID,
   review: 'pending',
   reviewOrigin: null,
@@ -126,7 +129,12 @@ describe('a trilha de auditoria da decisão humana (RF31)', () => {
   })
 
   test('repetir a mesma decisão não grava nada — nem escrita, nem trilha', async () => {
-    const fixture = createFixture({ id: PROOF_ID, review: 'approved', reviewOrigin: 'manual' })
+    const fixture = createFixture({
+      documentNumber: DOCUMENT_NUMBER,
+      id: PROOF_ID,
+      review: 'approved',
+      reviewOrigin: 'manual',
+    })
     await run(fixture, { action: 'approve' })
     expect(fixture.applied).toEqual([])
     expect(fixture.audits).toEqual([])
@@ -137,12 +145,57 @@ describe('a trilha de auditoria da decisão humana (RF31)', () => {
     await run(fixture, {
       action: 'automatic',
       readDocumentId: DOCUMENT_ID,
-      readNumber: '000012345',
+      readNumber: DOCUMENT_NUMBER,
       readSeries: '1',
       readSource: 'barcode',
-      review: 'approved',
     })
     expect(fixture.applied).toHaveLength(1)
     expect(fixture.audits).toEqual([])
+  })
+})
+
+/**
+ * T7.1: o veredito sai do servidor. A nota da rota e o número dela vêm da trava — o corpo carrega
+ * só o que a leitura viu.
+ */
+describe('o servidor deriva o veredito da leitura automática (T7.1)', () => {
+  function automatic(fixture: ReturnType<typeof createFixture>, readNumber: null | string) {
+    return run(fixture, {
+      action: 'automatic',
+      readDocumentId: DOCUMENT_ID,
+      readNumber,
+      readSeries: '1',
+      readSource: readNumber === null ? null : 'barcode',
+    })
+  }
+
+  test('o código de barras que casa com a nota travada aprova', async () => {
+    const fixture = createFixture()
+    await automatic(fixture, DOCUMENT_NUMBER)
+    expect(fixture.applied[0]).toMatchObject({
+      update: { canhotoReview: 'approved', canhotoReviewOrigin: 'automatic' },
+    })
+  })
+
+  test('o número que não casa com a nota travada fica pendente', async () => {
+    const fixture = createFixture()
+    await automatic(fixture, '67890')
+    expect(fixture.applied[0]).toMatchObject({
+      update: { canhotoReview: 'pending', canhotoReviewOrigin: null },
+    })
+  })
+
+  test('o comprovante decidido por pessoa não é sobrescrito pela leitura que chega depois', async () => {
+    for (const review of ['approved', 'rejected'] as const) {
+      const fixture = createFixture({
+        documentNumber: DOCUMENT_NUMBER,
+        id: PROOF_ID,
+        review,
+        reviewOrigin: 'manual',
+      })
+      await automatic(fixture, DOCUMENT_NUMBER)
+      expect(fixture.applied).toEqual([])
+      expect(fixture.audits).toEqual([])
+    }
   })
 })

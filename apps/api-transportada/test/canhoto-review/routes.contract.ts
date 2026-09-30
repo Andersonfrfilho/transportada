@@ -37,6 +37,16 @@ const CLIENT_IP = '203.0.113.7'
 const DOCUMENT_ID = '00000000-0000-4000-8000-00000000d001'
 const TRIP_ID = '00000000-0000-4000-8000-00000000d002'
 const REVIEW_PATH = `/trips/${TRIP_ID}/documents/${DOCUMENT_ID}/proof/review`
+const READ_NUMBER = '12345'
+const READ_SERIES = '1'
+
+const AUTOMATIC_READING = {
+  action: 'automatic',
+  readDocumentId: DOCUMENT_ID,
+  readNumber: READ_NUMBER,
+  readSeries: READ_SERIES,
+  readSource: 'barcode',
+} as const
 
 const VIEW = {
   canhotoReadNumber: '000012345',
@@ -170,6 +180,69 @@ describe('o corpo é conferido antes de chegar ao domínio', () => {
         reason: 'other',
       },
     })
+  })
+})
+
+/**
+ * T7.1: a leitura roda no navegador (RF25), então o navegador é o único chamador possível. O que
+ * ele pode dizer é o que **leu**; o veredito é do servidor, e o corpo que o traz é 400.
+ */
+describe('a leitura automática entra pela rota, e o veredito não sobe (T7.1)', () => {
+  test.each([
+    { extra: { review: 'approved' }, label: 'veredito no corpo' },
+    { extra: { review: 'pending' }, label: 'veredito pendente no corpo' },
+    { extra: { canhotoReviewOrigin: 'automatic' }, label: 'origem do veredito no corpo' },
+    { extra: { accessKey: '1'.repeat(44) }, label: 'chave de acesso de carona (RNF03)' },
+    { extra: { ocrText: 'NOTA FISCAL 12345' }, label: 'texto cru do OCR (RNF03)' },
+    {
+      extra: { readNumber: '1'.repeat(44) },
+      label: 'chave de acesso disfarçada de número lido (RNF03)',
+    },
+    { extra: { readSeries: '1'.repeat(44) }, label: 'chave de acesso disfarçada de série (RNF03)' },
+  ])('$label é 400 e não chega à porta', async ({ extra }) => {
+    const fixture = createFixture({})
+    expect((await patch(fixture, { ...AUTOMATIC_READING, ...extra })).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('sem a origem da leitura é 400 — número e origem andam juntos', async () => {
+    const fixture = createFixture({})
+    const withoutSource = {
+      action: 'automatic',
+      readDocumentId: DOCUMENT_ID,
+      readNumber: READ_NUMBER,
+      readSeries: READ_SERIES,
+    }
+    expect((await patch(fixture, withoutSource)).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('a leitura bem formada chega à porta exatamente como foi lida, e sem veredito', async () => {
+    const fixture = createFixture({})
+    expect((await patch(fixture, AUTOMATIC_READING)).status).toBe(200)
+    expect(fixture.calls[0]).toMatchObject({
+      command: {
+        action: 'automatic',
+        readDocumentId: DOCUMENT_ID,
+        readNumber: READ_NUMBER,
+        readSeries: READ_SERIES,
+        readSource: 'barcode',
+      },
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+    expect(JSON.stringify(fixture.calls[0])).not.toContain('review')
+  })
+
+  test('leitura vazia é legítima: a máquina tentou e não leu nada', async () => {
+    const fixture = createFixture({})
+    const response = await patch(fixture, {
+      action: 'automatic',
+      readDocumentId: null,
+      readNumber: null,
+      readSeries: null,
+      readSource: null,
+    })
+    expect(response.status).toBe(200)
   })
 })
 

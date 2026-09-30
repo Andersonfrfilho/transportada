@@ -226,14 +226,14 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
 único chamador possível. `resolveAutomaticCanhotoReview` (`canhoto-review-decision.policy.ts:169`)
 é código morto hoje. As T7.1 e T7.2 abrem a porta sem entregar RF26 ao cliente.
 
-- [ ] T7.1 🧠 Contrato: a rota aceita `action: 'automatic'` e o **cliente não manda o veredito**.
+- [x] T7.1 🧠 Contrato: a rota aceita `action: 'automatic'` e o **cliente não manda o veredito**.
       O corpo carrega só o que foi lido (`readSource`, `readNumber`, `readSeries`,
       `readDocumentId`); `review` no corpo é 400. O servidor deriva: `approved` só com
       `readSource === 'barcode'`, `readDocumentId` igual ao documento da rota e `readNumber` igual
       ao `nfe_number` daquela nota — todo o resto é `pending`. RF26 vira invariante do servidor,
       que é o que o comentário de `canhoto-review.routes.ts:24-27` queria e não tinha como ter,
       porque a leitura roda no navegador — `apps/api-transportada/test/canhoto-review/*.contract.ts`
-- [ ] T7.2 🧠 `REVIEW_BODY_SCHEMA` e `canhoto-review-decision.policy.ts` implementam a T7.1.
+- [x] T7.2 🧠 `REVIEW_BODY_SCHEMA` e `canhoto-review-decision.policy.ts` implementam a T7.1.
       `assertReadingIsConsistent` (`:148-158`) ganha a conferência que lhe falta: o número lido
       contra o número da nota. A trilha continua **só** para a decisão humana
       (`review-canhoto-proof.use-case.ts:74`) — leitura de máquina não é ação sensível

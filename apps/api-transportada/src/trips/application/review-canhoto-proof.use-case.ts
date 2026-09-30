@@ -57,7 +57,13 @@ export async function reviewCanhotoProof(
     const state = { review: proof.review, reviewOrigin: proof.reviewOrigin }
     const decision =
       command.action === 'automatic'
-        ? resolveAutomaticCanhotoReview({ command, reviewedAt, state })
+        ? resolveAutomaticCanhotoReview({
+            command,
+            documentId: input.documentId,
+            documentNumber: proof.documentNumber,
+            reviewedAt,
+            state,
+          })
         : resolveManualCanhotoReview({
             actorUserId: input.actorUserId,
             command,

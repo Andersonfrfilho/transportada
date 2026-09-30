@@ -1978,3 +1978,95 @@ arquivo para a próxima spec não repetir.
 
 O arquivo **não** entra na lista de testes do `package.json`: é spec de Playwright fora da CI, como
 `spec-159-prints`, `spec-179-prints` e `spec-218-prints`, nenhuma delas nomeada ali.
+
+---
+
+## T7.1 + T7.2 — a leitura sobe, o veredito não
+
+Duas tasks, um commit. O contrato veio antes, e um contrato que afirma o comportamento novo não pode
+ser comitado vermelho — mesma razão da T6.4/T6.5 e da T6.6–T6.8.
+
+### O que a T6.8 não tinha como fazer
+
+O comentário de `canhoto-review.routes.ts:24-27` dizia que aceitar `action: 'automatic'` pelo HTTP
+deixaria RF26 valendo "só por convenção". Estava certo sobre o risco e errado sobre a saída: RF25 põe
+a leitura **no navegador**, então não existe segundo chamador, e recusar a ação só mantinha
+`resolveAutomaticCanhotoReview` como código morto.
+
+A saída é outra: a rota abre, **e o cliente não manda o veredito**. O corpo `automatic` carrega só o
+que foi **lido** — `readSource`, `readNumber`, `readSeries`, `readDocumentId`. O veredito nasce no
+servidor. Um painel adulterado consegue no máximo mentir sobre o que leu, e mentira que não casa vira
+`pending`. RF26 deixou de ser convenção e virou invariante, medida por tipo e por teste.
+
+### As três condições valem juntas
+
+`resolveAutomaticVerdict` devolve `approved` só quando (1) `readSource === 'barcode'`, (2)
+`readDocumentId` é o documento **da rota** e (3) `readNumber` é o número **daquela** nota. A terceira
+é a que faltava: sem ela, "casou" era só a palavra do navegador.
+
+**Nunca `rejected`** — máquina não recusa. O que ela não confirma vira trabalho de gente (RF29). O
+contrato varre as combinações de origem × documento × número e exige que nenhuma produza `rejected`.
+
+`assertReadingIsConsistent` ficou com as duas CHECK de **forma** (número ↔ origem, série ⇒ número). A
+guarda antiga (`review === 'approved' && readSource !== 'barcode'` → erro) deixou de ser exprimível
+no instante em que o veredito parou de ser entrada: não há o que recusar quando não há o que mentir.
+
+### O número da nota não estava ao alcance
+
+Nem `trip_documents` nem `trip_delivery_proofs` guardam o número — ele é `nfe_documents.number`,
+alcançado pelo `trip_documents.nfe_document_id`, que é **anulável**. Entrou como `leftJoin` na
+consulta que o `lockCanhotoProof` já fazia para localizar o comprovante: nenhuma ida a mais ao banco,
+e `null` (vínculo sem NF-e) significa exatamente "não há contra o que conferir" — ou seja, `pending`.
+
+Por isso três arquivos além dos dois nomeados na T7.2 mudaram (`canhoto-review.port.ts`,
+`review-canhoto-proof.use-case.ts`, `drizzle-canhoto-review.repository.ts`): o servidor não confere
+contra o `nfe_number` sem que o repositório o entregue.
+
+Conferido no painel que a comparação é de string exata, e não fatia de chave: `buildBarcodeOutcome`
+(`canhotoReview.service.ts`) preenche `readNumber` com `document.nfeNumber`, o mesmo valor que a API
+serve para o documento da viagem.
+
+### RNF03: a chave de acesso tinha por onde subir
+
+Varredura não achou caminho para imagem, bytes, `ImageData` ou texto cru do OCR — o `.strict()`
+recusa toda chave extra, e dois testes afirmam isso em vez de deixá-lo implícito.
+
+Achou, porém, um buraco que o briefing mandava procurar: `readNumber: z.string().min(1)` aceitava 44
+caracteres. A chave embute CNPJ do emitente — CPF, quando é produtor rural — e só morreria no
+`INSERT` contra `canhoto_read_number varchar(9)`: **500 em vez de 400, com o dado já dentro**. O teto
+da coluna virou teto do schema (`max(9)` e `max(3)`), com dois testes de 400.
+
+### A trilha continua só da gente
+
+`review-canhoto-proof.use-case.ts:80` não mudou: leitura de máquina não é ação sensível e não escreve
+`audit_logs`. O contrato do caso de uso prova os dois lados — o automático não grava trilha, e a
+decisão humana continua gravando.
+
+Decisão humana anterior também não é sobrescrita: com `reviewOrigin === 'manual'`, o automático
+devolve `unchanged` e não toca em linha nem em trilha, `approved` ou `rejected`. Era o que a política
+já decidia; agora está afirmado.
+
+### Portões
+
+```
+$ bun --env-file=../../.env.test test ./test/canhoto-review.contract.test.ts   (antes da implementação)
+ 67 pass · 9 fail · 131 expect()                      → EXIT=1
+   └ recebido `canhotoReview: undefined` onde se esperava `'pending'` — `command.review` não existe mais
+$ bun --env-file=../../.env.test test ./test/canhoto-review.contract.test.ts   (depois)
+ 78 pass · 0 fail                                     → EXIT=0
+$ bun --env-file=../../.env.test test --timeout 120000   (suíte de contrato inteira da API)
+ 8441 pass · 23 skip · 0 fail · 27212 expect() · 192 arquivos [34.69s]  → EXIT=0
+$ bun --env-file=../../.env.test test ./test/integration/delivery-proof-canhoto-review.integration.ts
+ 6 pass · 0 fail · 22 expect() [14.25s]               → EXIT=0
+$ bun run typecheck (apps/api-transportada)           → EXIT=0
+$ bun run lint  → 0 erros; 16 avisos, todos pré-existentes e no painel
+$ bun run format:check                                → EXIT=0
+```
+
+A base era 8425; as duas tasks somaram 16 testes. Nenhum arquivo sob `test/integration/**` foi
+tocado, mas a integração do canhoto rodou assim mesmo — o `leftJoin` novo é SQL, e SQL não se prova
+com dublê.
+
+Nenhum arquivo de teste **novo**: os três `test/canhoto-review/*.contract.ts` já repartem o assunto
+("a decisão em si está em `decision.contract.ts`; a trilha, em `use-case.contract.ts`"), e um quarto
+duplicaria as ~70 linhas do roteador de mentira. Sem entrada nova no `package.json`, portanto.

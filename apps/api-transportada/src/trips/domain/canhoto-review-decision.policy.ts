@@ -44,12 +44,15 @@ export type ManualCanhotoReviewCommand =
       reason: TripDeliveryProofCanhotoReviewReason
     }>
 
+/**
+ * T7.1: só o que a leitura **viu**. O veredito não entra aqui porque quem o produz é este arquivo —
+ * a leitura roda no navegador (RF25), e aceitar o veredito dele devolveria a RF26 ao cliente.
+ */
 export type AutomaticCanhotoReviewCommand = Readonly<{
   readDocumentId: null | string
   readNumber: null | string
   readSeries: null | string
   readSource: TripDeliveryProofCanhotoReadSource | null
-  review: 'approved' | 'pending'
 }>
 
 type ManualReviewUpdate = {
@@ -144,17 +147,30 @@ export function resolveManualCanhotoReview(input: {
   }
 }
 
-/** As três CHECK de leitura: número e origem andam juntos, série pede número, RF26 pede barcode. */
+/** As duas CHECK de forma da leitura: número e origem andam juntos, e série pede número. */
 function assertReadingIsConsistent(command: AutomaticCanhotoReviewCommand): void {
   const hasNumber = command.readNumber !== null
   if (hasNumber !== (command.readSource !== null)) throw new CanhotoAutomaticReviewInvalidError()
   if (command.readSeries !== null && !hasNumber) throw new CanhotoAutomaticReviewInvalidError()
-  if (
-    command.review === 'approved' &&
-    command.readSource !== TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE
-  ) {
-    throw new CanhotoAutomaticReviewInvalidError()
-  }
+}
+
+/**
+ * RF26 como invariante do servidor (T7.1): as três condições da aprovação automática valem juntas
+ * ou não valem — código de barras, a nota da rota, e o número **daquela** nota. O `documentNumber`
+ * é a conferência que faltava: sem ela, "casou" seria só a palavra do navegador.
+ *
+ * Nunca `rejected`: máquina não recusa. O que ela não confirma vira trabalho de gente (RF29).
+ */
+function resolveAutomaticVerdict(input: {
+  readonly command: AutomaticCanhotoReviewCommand
+  readonly documentId: string
+  readonly documentNumber: null | string
+}): 'approved' | 'pending' {
+  const { command } = input
+  if (command.readSource !== TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE) return 'pending'
+  if (command.readDocumentId !== input.documentId) return 'pending'
+  if (input.documentNumber === null || command.readNumber !== input.documentNumber) return 'pending'
+  return 'approved'
 }
 
 /**
@@ -168,6 +184,8 @@ function assertReadingIsConsistent(command: AutomaticCanhotoReviewCommand): void
  */
 export function resolveAutomaticCanhotoReview(input: {
   readonly command: AutomaticCanhotoReviewCommand
+  readonly documentId: string
+  readonly documentNumber: null | string
   readonly reviewedAt: Date
   readonly state: CanhotoReviewState
 }): CanhotoReviewDecision<AutomaticReviewUpdate> {
@@ -178,7 +196,12 @@ export function resolveAutomaticCanhotoReview(input: {
   }
   assertReadingIsConsistent(command)
 
-  const isApproved = command.review === 'approved'
+  const review = resolveAutomaticVerdict({
+    command,
+    documentId: input.documentId,
+    documentNumber: input.documentNumber,
+  })
+  const isApproved = review === 'approved'
 
   return {
     kind: 'apply',
@@ -187,7 +210,7 @@ export function resolveAutomaticCanhotoReview(input: {
       canhotoReadNumber: command.readNumber,
       canhotoReadSeries: command.readSeries,
       canhotoReadSource: command.readSource,
-      canhotoReview: command.review,
+      canhotoReview: review,
       canhotoReviewAt: isApproved ? input.reviewedAt : null,
       canhotoReviewByUserId: null,
       canhotoReviewNote: null,
