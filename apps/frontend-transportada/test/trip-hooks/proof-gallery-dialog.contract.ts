@@ -212,21 +212,31 @@ describe('visualizador de comprovantes (spec 220 RF21)', () => {
 
   it('próxima e anterior trocam a imagem, e o botão da ponta fica desabilitado', async () => {
     await renderProofs(THREE_PROOFS)
-    await click(openButtonFor(RECEIPT_ALT))
+    await click(openButtonFor(SIGNATURE_ALT))
 
     expect(buttonByLabel(PREVIOUS_LABEL)?.disabled).toBe(true)
     expect(buttonByLabel(NEXT_LABEL)?.disabled).toBe(false)
 
     await click(buttonByLabel(NEXT_LABEL))
-    expect(dialogImage().getAttribute('src')).toBe('https://storage.test/original/cargo-1')
+    expect(dialogImage().getAttribute('src')).toBe('https://storage.test/original/receipt-1')
     expect(buttonByLabel(PREVIOUS_LABEL)?.disabled).toBe(false)
 
     await click(buttonByLabel(NEXT_LABEL))
-    expect(dialogImage().getAttribute('src')).toBe('https://storage.test/original/signature-1')
+    expect(dialogImage().getAttribute('src')).toBe('https://storage.test/original/cargo-1')
     expect(buttonByLabel(NEXT_LABEL)?.disabled).toBe(true)
 
     await click(buttonByLabel(PREVIOUS_LABEL))
-    expect(dialogImage().getAttribute('src')).toBe('https://storage.test/original/cargo-1')
+    expect(dialogImage().getAttribute('src')).toBe('https://storage.test/original/receipt-1')
+  })
+
+  it('abrir pela primeira miniatura da tela abre em 1 de N, com anterior desabilitado e próxima habilitada', async () => {
+    await renderProofs(THREE_PROOFS)
+    await click(openButtons()[0])
+
+    expect(dialog()?.querySelector('[aria-live="polite"]')?.textContent).toBe('1 de 3')
+    expect(dialogImage().getAttribute('src')).toBe('https://storage.test/original/signature-1')
+    expect(buttonByLabel(PREVIOUS_LABEL)?.disabled).toBe(true)
+    expect(buttonByLabel(NEXT_LABEL)?.disabled).toBe(false)
   })
 
   it('com uma imagem só, não há próxima, anterior nem contador', async () => {
@@ -243,7 +253,7 @@ describe('visualizador de comprovantes (spec 220 RF21)', () => {
     await renderProofs(THREE_PROOFS)
     await click(openButtonFor(RECEIPT_ALT))
 
-    expect(dialog()?.querySelector('[aria-live="polite"]')?.textContent).toBe('1 de 3')
+    expect(dialog()?.querySelector('[aria-live="polite"]')?.textContent).toBe('2 de 3')
   })
 
   it('popstate (o voltar do Android) fecha o diálogo em vez de sair da tela', async () => {
@@ -324,14 +334,14 @@ describe('visualizador de comprovantes (spec 220 RF21)', () => {
 
   it('o alt da imagem do diálogo distingue canhoto, mercadoria e assinatura', async () => {
     await renderProofs(THREE_PROOFS)
-    await click(openButtonFor(RECEIPT_ALT))
+    await click(openButtonFor(SIGNATURE_ALT))
+    expect(dialogImage().getAttribute('alt')).toBe(SIGNATURE_ALT)
+
+    await click(buttonByLabel(NEXT_LABEL))
     expect(dialogImage().getAttribute('alt')).toBe(RECEIPT_ALT)
 
     await click(buttonByLabel(NEXT_LABEL))
     expect(dialogImage().getAttribute('alt')).toBe(CARGO_ALT)
-
-    await click(buttonByLabel(NEXT_LABEL))
-    expect(dialogImage().getAttribute('alt')).toBe(SIGNATURE_ALT)
   })
 
   it('comprovante sem original não oferece botão para abrir', async () => {

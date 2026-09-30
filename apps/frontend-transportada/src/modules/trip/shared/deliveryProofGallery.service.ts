@@ -16,9 +16,9 @@ export type DeliveryProofGalleryNavigation = Readonly<{
   previousIndex: number
 }>
 
-/** Canhoto, mercadoria, assinatura — cada grupo na ordem em que a tela o mostra. */
+/** Assinatura, canhoto, mercadoria — a ordem dos grupos na tela, e em cada grupo a ordem em que a tela o mostra. */
 export function buildDeliveryProofGallery(view: DeliveryProofView): readonly DeliveryProof[] {
-  return [...view.photos, ...view.cargoPhotos, ...view.signatures].filter(
+  return [...view.signatures, ...view.photos, ...view.cargoPhotos].filter(
     (proof) => proof.downloadUrl !== '',
   )
 }
