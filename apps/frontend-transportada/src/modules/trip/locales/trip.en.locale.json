@@ -351,6 +351,21 @@
     "title": "Redirect delivery"
   },
   "deliveryProof": {
+    "canhotoReview": {
+      "approvedAutomatic": "Checked automatically",
+      "approvedManual": "Approved by {{name}} on {{moment}}",
+      "experimental": "Experimental",
+      "pendingBarcode": "Awaiting review: the barcode points to document {{number}}",
+      "pendingOcr": "Awaiting review: number read {{number}}",
+      "pendingUnread": "Awaiting review",
+      "reason": {
+        "illegible": "Illegible",
+        "missing_signature": "Missing signature",
+        "other": "Other reason",
+        "wrong_document": "Wrong document"
+      },
+      "rejected": "Delivery receipt rejected"
+    },
     "capturedAt": "Captured on {{moment}}",
     "cargoPhotoAlt": "Photo of the cargo delivered",
     "cargoPhotosTitle": "Cargo photos",

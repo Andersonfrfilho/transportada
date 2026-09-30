@@ -457,6 +457,21 @@
     "title": "Desviar entrega"
   },
   "deliveryProof": {
+    "canhotoReview": {
+      "approvedAutomatic": "Conferido automaticamente",
+      "approvedManual": "Aprovado por {{name}} em {{moment}}",
+      "experimental": "Experimental",
+      "pendingBarcode": "Aguardando conferência: o código de barras aponta a nota {{number}}",
+      "pendingOcr": "Aguardando conferência: número lido {{number}}",
+      "pendingUnread": "Aguardando conferência",
+      "reason": {
+        "illegible": "Ilegível",
+        "missing_signature": "Sem assinatura",
+        "other": "Outro motivo",
+        "wrong_document": "Nota errada"
+      },
+      "rejected": "Canhoto recusado"
+    },
     "capturedAt": "Capturada em {{moment}}",
     "cargoPhotoAlt": "Foto da mercadoria entregue",
     "cargoPhotosTitle": "Fotos da carga",
