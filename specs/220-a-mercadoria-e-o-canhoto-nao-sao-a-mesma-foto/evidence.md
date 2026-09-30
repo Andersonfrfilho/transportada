@@ -1358,3 +1358,118 @@ Consequência para a T6.7, anotada no `tasks.md`: a guarda **é escrita aqui**, 
 não dentro do módulo de viagens — para que a 162 a importe quando for implementada, em vez de
 nascer uma segunda. A instrução da task continua valendo no espírito (uma função só para as duas
 specs); o que mudou é quem escreve primeiro.
+
+### T6.3 — A migration do veredito (executada antes da T6.2, de propósito)
+
+**A ordem do `tasks.md` está invertida aqui, e a inversão é deliberada.** A T6.2 é um teste de
+integração, e o Postgres descartável da integração é construído **a partir das migrations**, não do
+schema TypeScript — `withDisposableDatabase` chama `runDatabaseMigrations`
+(`test/fixtures/trip-field-office-database.fixture.ts:528-530`). Escrever a T6.2 primeiro não daria
+o vermelho de TDD: daria `column "canhoto_review" does not exist`, que é a fixture faltando, não o
+comportamento faltando. Vermelho de TDD vem do comportamento que falta. A T6.3 não é "implementar a
+T6.2 antes da hora" — é montar a fixture dela, e nenhuma linha de aplicação lê ou escreve as colunas
+novas neste commit.
+
+#### O que entrou
+
+Dez colunas em `trip_delivery_proofs`, mais uma FK composta e dezesseis restrições:
+
+| Coluna                                           | Para quê                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| `canhoto_review`                                 | o veredito: `not_applicable` · `pending` · `approved` · `rejected` |
+| `canhoto_review_origin`                          | quem decidiu: `automatic` ou `manual`                              |
+| `canhoto_review_by_user_id`, `canhoto_review_at` | ator e instante da decisão humana                                  |
+| `canhoto_review_reason`, `canhoto_review_note`   | motivo da recusa e o texto livre do `other`                        |
+| `canhoto_read_number`, `canhoto_read_series`     | o número **impresso** na nota lida                                 |
+| `canhoto_read_source`                            | como foi lido: `barcode` ou `ocr`                                  |
+| `canhoto_read_document_id`                       | a nota da viagem que a leitura apontou                             |
+
+#### Três decisões que o tipo não conta, e por isso estão escritas no schema
+
+**1. `canhoto_read_number` é `varchar(9)`, e nunca a chave de acesso.** A chave da NF-e tem 44
+dígitos e as posições 7-20 são o CNPJ do emitente — e produtor rural pessoa física põe o **CPF**
+zerado à esquerda no mesmo campo. Guardar a chave aqui seria pôr documento de pessoa física numa
+coluna que o painel devolve na tela, além de duplicar o que `nfe_documents.access_key` já tem. O que
+se guarda é o número impresso mais a série, que `formatCanhotoOcrNumber` renderiza como `9000/1`; a
+ligação com a nota é a FK composta. O teste estático cobre isto (`expect(migrationSql).not
+.toContain('access_key')`), porque é o tipo de "conserto" que alguém faz de boa-fé mais tarde.
+
+**2. `canhoto_review_origin` e `canhoto_read_source` são dois eixos, não um.** Um diz _quem decidiu_
+(automático ou humano), o outro diz _como o número foi lido_ (código de barras ou OCR). Fundir os
+dois quebra dois CHECKs: o ator só existe quando a origem é `manual`, e a aprovação automática só
+existe quando a leitura veio de código de barras (RF26 — OCR nunca aprova sozinho).
+
+**3. O `default` descreve o passado, não o presente.** `not_applicable` é o valor de fábrica que
+cobre toda linha já existente (decisão da T6.1, com a medição de produção da spec 162 por trás). Um
+canhoto **novo** nasce `pending`, e isso vai escrito à mão no `INSERT` da T6.2 — primeira coluna
+desta tabela em que o `default` e o valor inserido divergem de propósito. Confiar no `default` para
+o caminho novo deixaria a conferência inerte: a fila nunca receberia ninguém.
+
+#### `is not distinct from`, não `=`
+
+Dois CHECKs comparam uma coluna anulável contra um literal. Com `=`, uma origem `NULL` faz a
+expressão valer `NULL`, e CHECK só reprova em `FALSE` — a linha incoerente passaria calada:
+
+```sql
+-- passaria com origem nula
+("canhoto_review_by_user_id" is not null) = ("canhoto_review_origin" = 'manual')
+-- o que entrou
+("canhoto_review_by_user_id" is not null) = ("canhoto_review_origin" is not distinct from 'manual')
+```
+
+Os CHECKs irmãos da tabela já usam a forma `(x is null) = (y is null)` pela mesma razão.
+
+#### Nenhuma restrição valida no comando que a cria
+
+`ADD CONSTRAINT` validando toma `ACCESS EXCLUSIVE` e varre a tabela inteira; `VALIDATE CONSTRAINT`
+depois toma só `SHARE UPDATE EXCLUSIVE`. São dezesseis restrições numa tabela que cresce a cada
+entrega — basta uma esquecida para o ganho virar zero, e a esquecida **não aparece em nenhum teste
+de banco**, porque o banco de teste está vazio e varrer o vazio é instantâneo. Só teste estático
+alcança. Precedente: `20260930110332_delivery_proof_thumbnail/migration.sql:9-10`.
+
+O teste novo em `static-migration.contract.ts` não confere as dezesseis à mão — extrai cada
+`ADD CONSTRAINT` do arquivo e cobra de todas as duas coisas, o `NOT VALID` e o `VALIDATE` pareado.
+Confirmado que ele reprova de verdade, tirando um `NOT VALID` de uma restrição:
+
+```
+$ bun --env-file=../../.env.test test test/database-migration.contract.test.ts
+- []
++   "trip_delivery_proofs_canhoto_review_check",
+(fail) versions the canhoto conference as an additive migration that never validates inline
+ 72 pass  1 fail
+```
+
+Restaurado o arquivo: **73 pass, 4 skip, 0 fail, 832 expect()**.
+
+#### `make migration-test`
+
+```
+$ make migration-test
+ 113 pass
+ 0 fail
+ 1630 expect() calls
+Ran 113 tests across 8 files. [54.16s]
+EXIT=0
+```
+
+⚠️ **O `db:test` não executa `rollback.sql` nenhum** — ele confere a _forma_ do arquivo (chave
+própria, `ROW_COUNT`, `BEGIN`/`COMMIT`) e aplica as migrations. É exatamente o buraco que custou
+dois deploys vermelhos em 02/09 (comentário em `static-migration.contract.ts:377`). Então o rollback
+foi executado à mão, num banco criado e destruído para isto:
+
+```
+$ createdb canhoto_rollback_probe && db:migrate      → EXIT=0
+   colunas canhoto_* = 10 · restrições canhoto = 16, validadas = 16
+$ psql -v ON_ERROR_STOP=1 -f rollback.sql
+   BEGIN · ALTER TABLE ×3 · DO · COMMIT
+   colunas restantes = 0 · restrições restantes = 0 · linha no journal = 0
+$ db:migrate                                          → EXIT=0
+   colunas = 10 · linha no journal = 1
+$ dropdb canhoto_rollback_probe
+```
+
+A terceira linha é a que importa: como o rollback apaga a própria linha do journal, o `db:migrate`
+seguinte **reaplica** a migration em vez de pulá-la. Rollback que deixa a linha para trás produz um
+banco sem as colunas que o journal jura estarem lá, e nada avisa até a primeira escrita quebrar.
+
+`bun run typecheck` → EXIT=0.

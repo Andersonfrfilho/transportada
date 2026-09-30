@@ -163,8 +163,11 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
       — e isso derruba a segunda metade da RF24, sem mudar linha nenhuma
 - [ ] T6.2 🧠 Contrato de integração: canhoto recapturado **zera** a conferência no `ON CONFLICT`
       (não herda "recusado") — `test/integration/` + **`test:integration`**
-- [ ] T6.3 🧠 Migration: estado de conferência + ator, instante, motivo, nota, número lido e origem
-      da leitura — `make migration-test`
+- [x] T6.3 🧠 Migration: estado de conferência + ator, instante, motivo, nota, número lido e origem
+      da leitura — `make migration-test`.
+      ⚠️ **Executada antes da T6.2, de propósito**: o Postgres da integração é construído a partir
+      das migrations, não do schema TS, então sem esta a T6.2 falharia por coluna inexistente —
+      fixture faltando, não comportamento faltando
 - [ ] T6.4 Contrato: `matched` por código de barras → `approved`; OCR com número certo →
       `pending` com sugestão; ilegível → `pending`; prazo estourado → `pending`
 - [ ] T6.5 `canhotoReview.service.ts` no painel — orquestra os serviços existentes (zxing →

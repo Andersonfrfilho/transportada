@@ -1505,7 +1505,54 @@ export const tripFieldReports = pgTable(
  */
 export const TRIP_DELIVERY_PROOF_KINDS = ['photo', 'signature', 'cargo'] as const
 export const TRIP_DELIVERY_PROOF_CARGO_KIND = 'cargo'
+/** Spec 220 RF24: o canhoto é o único tipo que recebe veredito — os CHECKs abaixo o repetem. */
+export const TRIP_DELIVERY_PROOF_CANHOTO_KIND = 'photo'
 export type TripDeliveryProofKind = (typeof TRIP_DELIVERY_PROOF_KINDS)[number]
+
+/**
+ * Spec 220 RF24: o estado da conferência do canhoto. `not_applicable` é o padrão de fábrica e
+ * cobre toda linha existente — decisão do usuário na T6.1, com a medição por trás: em 21/09 a
+ * produção não tinha **nenhum** objeto de `delivery_proof`, então o conjunto a preencher é vazio.
+ * É também o único estado possível em `signature` e `cargo`, que não se conferem.
+ */
+export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEWS = [
+  'not_applicable',
+  'pending',
+  'approved',
+  'rejected',
+] as const
+export type TripDeliveryProofCanhotoReview = (typeof TRIP_DELIVERY_PROOF_CANHOTO_REVIEWS)[number]
+
+/**
+ * Spec 220 RF26/RF27: **quem decidiu**, não como o número foi lido — o outro eixo é
+ * `TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES`. Fundir os dois quebra os CHECKs: aprovação
+ * `manual` tem ator e `automatic` não tem nenhum, e uma recusa (sempre manual) ainda pode
+ * carregar um número que o OCR leu.
+ */
+export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_ORIGINS = ['automatic', 'manual'] as const
+export type TripDeliveryProofCanhotoReviewOrigin =
+  (typeof TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_ORIGINS)[number]
+
+/** Spec 220 RF28: lista fechada; só `other` admite (e exige) o texto livre. */
+export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_REASONS = [
+  'illegible',
+  'wrong_document',
+  'missing_signature',
+  'other',
+] as const
+export type TripDeliveryProofCanhotoReviewReason =
+  (typeof TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_REASONS)[number]
+export const TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_OTHER_REASON = 'other'
+
+/**
+ * Spec 220 RF25/RF26: **como** o número foi lido. `manual` não entra: nesta spec ninguém digita
+ * número — o operador aprova ou recusa o que a leitura trouxe, e isso é `review_origin`.
+ */
+export const TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES = ['barcode', 'ocr'] as const
+export type TripDeliveryProofCanhotoReadSource =
+  (typeof TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES)[number]
+export const TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE = 'barcode'
+export const TRIP_DELIVERY_PROOF_CANHOTO_MANUAL_REVIEW_ORIGIN = 'manual'
 
 /**
  * ADR-0070 §2: os vereditos que uma foto de entrega pode receber. Duplicado do
@@ -1626,6 +1673,51 @@ export const tripDeliveryProofs = pgTable(
      * nunca o desfaz (`or` no upsert), como a pontualidade nunca melhora (spec 159 T11, D3b).
      */
     lateRegistration: boolean('late_registration').notNull().default(false),
+    /**
+     * Spec 220 RF24: o veredito da conferência do canhoto.
+     *
+     * ⚠️ **O default descreve o passado, não o presente.** Linha existente fica `not_applicable`
+     * (T6.1, sem backfill); canhoto **novo** nasce `pending`, escrito de propósito no INSERT. É a
+     * primeira coluna desta tabela em que o default e o valor de inserção divergem — confiar no
+     * default faria a conferência nascer inerte, sem nunca receber uma linha.
+     */
+    canhotoReview: varchar('canhoto_review', { length: 16 })
+      .notNull()
+      .default('not_applicable')
+      .$type<TripDeliveryProofCanhotoReview>(),
+    canhotoReviewOrigin: varchar('canhoto_review_origin', {
+      length: 16,
+    }).$type<TripDeliveryProofCanhotoReviewOrigin>(),
+    /**
+     * Sem FK, como `actor_user_id` logo acima: identidade mora no Keycloak, e esta tabela não tem
+     * nenhuma FK de usuário. Acrescentar a primeira aqui inventaria convenção.
+     */
+    canhotoReviewByUserId: uuid('canhoto_review_by_user_id'),
+    canhotoReviewAt: timestamp('canhoto_review_at', { withTimezone: true }),
+    canhotoReviewReason: varchar('canhoto_review_reason', {
+      length: 16,
+    }).$type<TripDeliveryProofCanhotoReviewReason>(),
+    canhotoReviewNote: varchar('canhoto_review_note', { length: 500 }),
+    /**
+     * Spec 220 RF26: o número **impresso** no canhoto (`9000`, série `1`) — nunca a chave de acesso
+     * de 44 posições.
+     *
+     * ⚠️ A chave embute o CNPJ do emitente nas posições 7–20, e emitente pessoa física (produtor
+     * rural) põe **CPF** zero-padded no mesmo campo: gravá-la aqui poria PII numa coluna que a tela
+     * renderiza e que alimenta trilha de auditoria. Fora isso ela já vive em `nfe_documents`. Quem
+     * for "consertar" estes 9 caracteres para 44 está desfazendo a decisão, não um descuido.
+     */
+    canhotoReadNumber: varchar('canhoto_read_number', { length: 9 }),
+    canhotoReadSeries: varchar('canhoto_read_series', { length: 3 }),
+    canhotoReadSource: varchar('canhoto_read_source', {
+      length: 16,
+    }).$type<TripDeliveryProofCanhotoReadSource>(),
+    /**
+     * A nota que a leitura apontou. Número e série **não** identificam — dois emitentes numeram
+     * cada um a sua série —, e é este identificador opaco que resolve o caso do canhoto de outra
+     * nota da mesma parada sem gravar a chave.
+     */
+    canhotoReadDocumentId: uuid('canhoto_read_document_id'),
   },
   (table) => [
     foreignKey({
@@ -1689,6 +1781,14 @@ export const tripDeliveryProofs = pgTable(
      * `ON CONFLICT` sobre estas colunas repete o predicado em `targetWhere`, ou o Postgres não acha
      * o árbitro e recusa a escrita.
      */
+    /** Spec 220: a nota que a leitura apontou nunca é de outra empresa. */
+    foreignKey({
+      columns: [table.companyId, table.canhotoReadDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_delivery_proofs_company_canhoto_read_document_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
     uniqueIndex('trip_delivery_proofs_company_event_kind_unique')
       .on(table.companyId, table.stopEventId, table.kind)
       .where(sql`${table.kind} <> ${raw(inList([TRIP_DELIVERY_PROOF_CARGO_KIND]))}`),
@@ -1750,6 +1850,81 @@ export const tripDeliveryProofs = pgTable(
     check(
       'trip_delivery_proofs_punctuality_check',
       sql`${table.punctuality} in (${raw(inList(TRIP_DELIVERY_PROOF_PUNCTUALITIES))})`,
+    ),
+    /**
+     * Spec 220 RF24–RF28. Estes CHECKs são a rede do `ON CONFLICT`: o `set` do upsert é
+     * **denotativo** — coluna ausente é coluna preservada —, e a conferência é a primeira cujo
+     * padrão certo na recaptura é apagar, não preservar. Esquecer uma na hora de zerar vira erro de
+     * escrita (23514) em vez de uma tela mostrando o motivo de uma foto que não existe mais.
+     *
+     * `is not distinct from` onde um dos lados é literal: `origem = 'manual'` com origem nula
+     * avalia para `NULL`, e CHECK só reprova em `FALSE` — a linha incoerente passaria.
+     */
+    check(
+      'trip_delivery_proofs_canhoto_review_check',
+      sql`${table.canhotoReview} in (${raw(inList(TRIP_DELIVERY_PROOF_CANHOTO_REVIEWS))})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_kind_check',
+      sql`${table.kind} = ${TRIP_DELIVERY_PROOF_CANHOTO_KIND} or ${table.canhotoReview} = 'not_applicable'`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_origin_check',
+      sql`${table.canhotoReviewOrigin} is null or ${table.canhotoReviewOrigin} in (${raw(inList(TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_ORIGINS))})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_resolved_check',
+      sql`(${table.canhotoReviewOrigin} is not null) = (${table.canhotoReview} in ('approved', 'rejected'))`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_at_check',
+      sql`(${table.canhotoReviewAt} is null) = (${table.canhotoReviewOrigin} is null)`,
+    ),
+    /** RF27: decisão manual tem ator; a automática não tem nenhum — é da máquina, não de alguém. */
+    check(
+      'trip_delivery_proofs_canhoto_review_actor_check',
+      sql`(${table.canhotoReviewByUserId} is not null) = (${table.canhotoReviewOrigin} is not distinct from ${TRIP_DELIVERY_PROOF_CANHOTO_MANUAL_REVIEW_ORIGIN})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_reason_check',
+      sql`(${table.canhotoReviewReason} is not null) = (${table.canhotoReview} = 'rejected')`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_reason_list_check',
+      sql`${table.canhotoReviewReason} is null or ${table.canhotoReviewReason} in (${raw(inList(TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_REASONS))})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_note_check',
+      sql`(${table.canhotoReviewNote} is not null) = (${table.canhotoReviewReason} is not distinct from ${TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_OTHER_REASON})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_review_note_length_check',
+      sql`${table.canhotoReviewNote} is null or length(${table.canhotoReviewNote}) between 20 and 500`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_read_source_check',
+      sql`${table.canhotoReadSource} is null or ${table.canhotoReadSource} in (${raw(inList(TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES))})`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_read_number_check',
+      sql`(${table.canhotoReadNumber} is null) = (${table.canhotoReadSource} is null)`,
+    ),
+    /** A série é opcional: o OCR lê número sem série, e `formatCanhotoOcrNumber` já trata o nulo. */
+    check(
+      'trip_delivery_proofs_canhoto_read_series_check',
+      sql`${table.canhotoReadSeries} is null or ${table.canhotoReadNumber} is not null`,
+    ),
+    check(
+      'trip_delivery_proofs_canhoto_read_kind_check',
+      sql`${table.kind} = ${TRIP_DELIVERY_PROOF_CANHOTO_KIND} or (${table.canhotoReadSource} is null and ${table.canhotoReadDocumentId} is null)`,
+    ),
+    /**
+     * RF26, a invariante central da fase: **OCR nunca aprova sozinho**. Só o código de barras
+     * aprova sem ninguém olhar; o OCR sugere e alguém decide.
+     */
+    check(
+      'trip_delivery_proofs_canhoto_auto_approval_check',
+      sql`${table.canhotoReview} <> 'approved' or ${table.canhotoReviewOrigin} <> 'automatic' or ${table.canhotoReadSource} = ${TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE}`,
     ),
   ],
 )
