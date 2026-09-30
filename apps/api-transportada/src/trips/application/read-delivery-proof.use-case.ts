@@ -190,7 +190,15 @@ export async function readDeliveryProofs({
   )
 }
 
-/** `not_applicable` é o estado de fábrica: a tela o lê como "sem veredito", então nada sobe. */
+/**
+ * `not_applicable` é o estado de fábrica: a tela o lê como "sem veredito", então nada sobe.
+ *
+ * ⚠️ **Publicar `not_applicable` daqui apaga o comprovante inteiro do painel.** A lista fechada de
+ * `isDeliveryProof` (T7.5) descarta o comprovante quando `canhotoReview` sai do vocabulário, e ela
+ * aceita só `pending`, `approved` e `rejected` — justamente porque esta função nunca manda o quarto.
+ * Quem quiser mandá-lo mexe primeiro em `DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS` no painel, senão a
+ * tela fica em branco sem erro nenhum, que é o sintoma mais caro que este arquivo consegue produzir.
+ */
 function buildCanhotoReviewView(record: CanhotoReviewRecord): CanhotoReviewView {
   if (record.canhotoReview === undefined || record.canhotoReview === 'not_applicable') return {}
 
