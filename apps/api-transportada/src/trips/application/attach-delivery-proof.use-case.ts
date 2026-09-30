@@ -31,8 +31,13 @@ import {
   TripDeliveryProofRejectedError,
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
+import { TripDeliveryProofCargoLimitError } from '../domain/trip-field-office.error.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
-import { PHOTO_PROOF_KIND } from '../domain/delivery-event.constant.js'
+import {
+  CARGO_PROOF_KIND,
+  PHOTO_PROOF_KIND,
+  TRIP_DELIVERY_PROOF_CARGO_LIMIT,
+} from '../domain/delivery-event.constant.js'
 import {
   applyReceivedBySettings,
   EMPTY_RECEIVED_BY,
@@ -134,6 +139,15 @@ export type DeliveryProofPort = {
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<ProofPunctuality | null>
+  /**
+   * Spec 184 D3 / spec 220 RF08: quantos comprovantes daquele evento+tipo já existem — o teto de
+   * cinco fotos da mercadoria vale para os dois canais.
+   */
+  countProofsForEvent(input: {
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<number>
   saveProof(input: {
     readonly accuracyMeters: string | null
     readonly actorUserId: string
@@ -235,15 +249,29 @@ export async function attachDeliveryProof(
   }
 
   const authorship = deriveFieldAuthorship(input)
-  const punctuality = mergeProofPunctuality({
-    next: await classifyUploadPunctuality({ authorship, eventId, input, settings }),
-    previous:
-      (await input.repository.findProofPunctuality({
-        companyId: input.companyId,
-        eventId,
-        kind: input.upload.kind,
-      })) ?? undefined,
-  })
+  const isCargo = input.upload.kind === CARGO_PROOF_KIND
+  if (isCargo) {
+    const cargoCount = await input.repository.countProofsForEvent({
+      companyId: input.companyId,
+      eventId,
+      kind: input.upload.kind,
+    })
+    if (cargoCount >= TRIP_DELIVERY_PROOF_CARGO_LIMIT) throw new TripDeliveryProofCargoLimitError()
+  }
+
+  const nextPunctuality = await classifyUploadPunctuality({ authorship, eventId, input, settings })
+  // Só o que substitui funde com o veredito anterior; `cargo` soma, cada foto guarda o seu.
+  const punctuality = isCargo
+    ? nextPunctuality
+    : mergeProofPunctuality({
+        next: nextPunctuality,
+        previous:
+          (await input.repository.findProofPunctuality({
+            companyId: input.companyId,
+            eventId,
+            kind: input.upload.kind,
+          })) ?? undefined,
+      })
 
   const objectId = input.newObjectId()
   const objectKey = buildDeliveryProofObjectKey({
@@ -308,9 +336,9 @@ export async function attachDeliveryProof(
 }
 
 /**
- * ADR-0070 §2-6, spec 159 RF4-RF6: só a foto do motorista entra na nota — a assinatura grava
- * `not_required` de propósito (RF4). Spec 159 T11 (ALTO 2): a foto do escritório (`field-proof`,
- * canal `office`) também — ela não classifica, e a fusão com a anterior
+ * ADR-0070 §2-6, spec 159 RF4-RF6, spec 220 RF10: a foto do canhoto e a da mercadoria do motorista
+ * entram na nota — a assinatura grava `not_required` de propósito (RF4). Spec 159 T11 (ALTO 2): o
+ * envio do escritório (`field-proof`, canal `office`) nunca classifica, e a fusão com a anterior
  * (`mergeProofPunctuality`) preserva o que a foto do motorista já tinha gravado: o canhoto do
  * escritório nem penaliza o motorista nem lava uma foto dele fora da regra.
  */
@@ -320,7 +348,8 @@ async function classifyUploadPunctuality(params: {
   readonly input: AttachDeliveryProofInput
   readonly settings: DeliveryProofFieldSettings
 }): Promise<ProofPunctuality> {
-  if (params.input.upload.kind !== PHOTO_PROOF_KIND) return PROOF_PUNCTUALITY.notRequired
+  const { kind } = params.input.upload
+  if (kind !== PHOTO_PROOF_KIND && kind !== CARGO_PROOF_KIND) return PROOF_PUNCTUALITY.notRequired
   if (params.authorship.channel === TRIP_FIELD_CHANNELS.office) return PROOF_PUNCTUALITY.notRequired
 
   return classifyPhotoPunctuality(params)
@@ -328,7 +357,8 @@ async function classifyUploadPunctuality(params: {
 
 /**
  * RF4-RF6: junta a configuração de pontualidade da empresa com o contexto do evento de entrega
- * (quando e onde aconteceu) e aplica `classifyProofPunctuality`. Só chamada para `kind = 'photo'`.
+ * (quando e onde aconteceu) e aplica `classifyProofPunctuality`. Só chamada para `kind = 'photo'` ou
+ * `'cargo'`; o modo vem da configuração do próprio tipo (`settings.photo` ou `settings.cargo`).
  *
  * Spec 205 D2: registro tardio no envio **ou** na entrega — a app pode esquecer o campo no segundo
  * toque, e a entrega já disse.
@@ -350,7 +380,7 @@ async function classifyPhotoPunctuality(params: {
     deliveryEventPosition: context.deliveryEventPosition,
     lateRegistration: input.upload.lateRegistration === true || context.lateRegistration === true,
     missingAfterHours: punctualitySettings.missingAfterHours,
-    photoMode: settings.photo,
+    photoMode: input.upload.kind === CARGO_PROOF_KIND ? settings.cargo : settings.photo,
     photoPosition: input.upload.position,
     proofRadiusMeters: punctualitySettings.proofRadiusMeters,
     proofWindowMinutes: punctualitySettings.proofWindowMinutes,

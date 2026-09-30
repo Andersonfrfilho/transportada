@@ -317,6 +317,7 @@ function buildProofWorld(input: {
       const punctuality = input.existingProofByKey?.[query.attachmentKey]
       return punctuality === undefined ? null : { id: 'proof-existing', punctuality }
     },
+    countProofsForEvent: async () => 0,
     findProofPunctuality: async () => null,
     resolveProofFieldSettings: async () => input.settings,
     resolveProofPunctualitySettings: async () => DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,

@@ -380,6 +380,161 @@ devolve a fábrica.
 
 ## Fase 2
 
+### T2.1 — Contrato do veredito da foto da mercadoria (vermelho)
+
+`describe` novo ao fim de `apps/api-transportada/test/trip-delivery-proof/punctuality.contract.ts`,
+já registrado na lista do `package.json` pelo entrypoint `test/trip-delivery-proof.contract.test.ts`
+— nenhum arquivo novo, nenhuma mudança em `src/`.
+
+⚠️ O `tasks.md` da T2.1 cita `test/trip/delivery-proof-punctuality.contract.ts`, que **não existe**.
+O arquivo real é `test/trip-delivery-proof/punctuality.contract.ts`.
+
+Os três casos chamam `attachDeliveryProof` com `kind: 'cargo'`, dublê local de `DeliveryProofPort`
+no molde de `late-registration.contract.ts`: entrega às 12:00, foto às 14:00, 800 m do ponto.
+
+```
+bun --env-file=../../.env.test test --timeout 120000 test/trip-delivery-proof.contract.test.ts
+211 pass · 1 fail · 376 expect()
+```
+
+| caso                                               | hoje      | motivo                                                       |
+| -------------------------------------------------- | --------- | ------------------------------------------------------------ |
+| `cargo: 'required'`, 800 m e 2 h → `late_and_away` | **falha** | `Expected: "late_and_away"` · `Received: "not_required"`     |
+| canal `office` → `not_required`                    | passa     | o portão fechado já devolve `not_required` para todo `cargo` |
+| `cargo: 'off'` → `not_required`                    | passa     | idem                                                         |
+
+Só o primeiro caso morde antes da T2.3, e morde pelo motivo certo: o portão de
+`attach-delivery-proof.use-case.ts:323` barra `cargo` antes de qualquer classificação. Os outros dois
+são guarda de regressão — passam a valer quando o portão abrir, garantindo que `office` (ADR-0070
+§2-6) e `cargo: 'off'` continuam fora do veredito.
+
+### T2.2 — Contrato dos vereditos independentes (vermelho)
+
+`describe` novo no mesmo arquivo: `cada foto da mercadoria guarda o próprio veredito (spec 220 RF10)`,
+com helper próprio `attachOnTimeProof` no molde do da T2.1.
+
+O que ele prende: a fusão de `attach-delivery-proof.use-case.ts:238` existe porque `photo` e
+`signature` **substituem** (índice único `company, stop_event, kind`, spec 159 T11). `cargo` **soma** —
+o índice parcial da spec 184 exclui `cargo` (`targetWhere` em
+`drizzle-delivery-proof.repository.ts:345`), e `findProofPunctuality` faz `limit(1)` **sem
+`order by`**, então a "anterior" é uma linha qualquer entre as cinco. Fundir contamina.
+
+Limiares lidos em `DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS`
+(`src/trips/domain/delivery-proof-settings.policy.ts:82`): raio de 300 m, janela de 60 min, folga de
+relógio de ±2 min em `resolveTimeReference`. Cenário: entrega às 12:00, foto na mesma posição,
+`capturedAt` 12:10 — 10 min de atraso contra uma janela de 60.
+
+```
+bun --env-file=../../.env.test test --timeout 120000 test/trip-delivery-proof.contract.test.ts
+212 pass · 3 fail
+```
+
+| caso                                                | hoje                                    |
+| --------------------------------------------------- | --------------------------------------- |
+| anterior `late_and_away`, foto em ordem → `on_time` | **falha** · `Received: "late_and_away"` |
+| anterior `late`, foto em ordem → `on_time`          | **falha** · `Received: "late"`          |
+| guarda: `photo` com anterior `late` continua `late` | passa                                   |
+
+O `Received` é o veredito **antigo**, não `not_required`: a fusão devolve o `previous` quando o
+`next` é `not_required`. Os dois casos falham por dois motivos somados — o portão fechado e a fusão.
+Abrir só o portão não os deixa verdes, e é isso que o contrato cobra.
+
+### T2.3 — O portão abre para `cargo` (verde)
+
+O `tasks.md` descreve a task como uma linha ("abre o portão em
+`attach-delivery-proof.use-case.ts:323`"). O reconhecimento antes de implementar achou mais três
+mudanças soldadas nela — sem qualquer uma, os contratos da T2.1/T2.2 não ficam verdes:
+
+| #   | mudança                                                          | onde                                | por quê                                       |
+| --- | ---------------------------------------------------------------- | ----------------------------------- | --------------------------------------------- |
+| a   | o portão do veredito aceita `cargo`                              | `attach-delivery-proof.use-case.ts` | T2.1                                          |
+| b   | `cargo` sai da fusão — cada foto guarda o seu                    | mesmo arquivo                       | T2.2                                          |
+| c   | um **segundo** portão recusava `cargo` com 400 antes do primeiro | `delivery-proof.schema.ts:128`      | a rota do motorista nunca chegava ao use case |
+| d   | o teto de cinco só existia no caminho do escritório              | use case + repositório              | RF08 diz "por entrega", não por canal         |
+
+O (c) é o que tornava a task maior do que parecia: `parseDeliveryProofUpload` validava o `kind`
+contra `DRIVER_PROOF_KINDS`, que não continha `cargo`. O JSDoc da spec 184 explicava a tranca —
+`cargo` ficou fora da rota do motorista "sem o teto de cinco e sem a deduplicação do escritório; um
+retry em laço gravaria sem fim". Destrancar **com** o teto (d) é o que fecha aquele motivo, não o
+que o ignora.
+
+`DRIVER_PROOF_KINDS` tinha dois consumidores com sentidos diferentes: o que o motorista **envia** e
+as linhas que carregam **quem recebeu** (spec 193 D7 — `cargo` nunca carrega recebedor). Alargar a
+constante no lugar faria o patch de recebedor tentar escrever em linha de carga. Foi partida em
+`DRIVER_UPLOAD_PROOF_KINDS` e `DRIVER_RECEIVER_PROOF_KINDS`, e o nome ambíguo apagado.
+
+```
+bun --env-file=../../.env.test test --timeout 120000
+8309 pass · 23 skip · 0 fail · 26892 expect() · 190 arquivos · 34,47 s   EXIT=0
+bunx tsc --noEmit                                                        EXIT=0
+git diff --stat                     17 arquivos · 406 inserções · 39 remoções
+```
+
+Antes da implementação, o contrato do teto falhava como devia: `Expected promise that rejects /
+Received promise that resolved` na sexta foto.
+
+Dois efeitos colaterais, os dois fora do roteiro e os dois registrados aqui por isso:
+
+- **Um sétimo dublê apareceu só no `tsc`** — `test/driver-trip/office-field-delivery.contract.ts`
+  tinha dois dublês de `DeliveryProofPort` que o levantamento não listou. O método novo entrou neles.
+- **`proof-location-parse.contract.ts` afirmava o contrário da decisão (c)**: havia um
+  `recusa cargo com 400`. O bloco foi reescrito para os três tipos aceitos + um desconhecido
+  recusado. Nenhuma outra asserção mudou.
+
+#### O teto do motorista é verificação, não trava — e fica assim
+
+A contagem do motorista (`countProofsForEvent` em `drizzle-delivery-proof.repository.ts`) é um
+`count(*)` solto; o `saveProof` abre a própria transação **depois**. O caminho do escritório resolve
+isso travando a linha do evento (`for('no key update')` sobre `trip_stop_events`, dentro da mesma
+transação da gravação) — mecanismo que a própria revisão da spec 184 registrou no JSDoc de
+`drizzle-driver-field-report.repository.ts:939`.
+
+Medido antes de decidir: **a fila offline do motorista drena em série** —
+`offlineAttachments.service.ts:496` é um `for` com `await input.sendAttachment(attachment)` dentro.
+A rajada de reenvio, que era o motivo de suspeitar da corrida, não corre contra si mesma. Sobra o
+caso de dois clientes distintos enviando carga para a mesma entrega no mesmo instante, exatamente
+com quatro fotos gravadas — e o resultado é uma sexta foto, não perda de dado.
+
+Cinco é guarda de produto ("cobre a avaria e o contexto sem transformar a baixa em álbum", spec 184
+D3), não invariante de segurança. A verificação antes do `storage.store` (use case, linha ~253)
+continua valendo por outro motivo além do teto: recusa **antes** de escrever o objeto no bucket.
+Fechar a janela custaria dar ao caminho do motorista uma fronteira de transação que ele não tem
+hoje — refatoração maior que a T2.3 e fora do `tasks.md`. Fica escrito em vez de fechado; quem
+precisar fechar, o molde é o do escritório, citado acima.
+
+#### Pendência de tela, fora da Fase 2
+
+O app do motorista não tem teto nenhum no cliente: o `DriverStopCard` deixa somar fotos sem limite.
+Com a T2.3 o servidor devolve 422 na sexta, então o motorista vê erro em vez de botão desabilitado.
+É polimento de tela — sugerido para a Fase 4 ou 5.
+
+### T2.4 — Portão de qualidade e commit (verde)
+
+O gate completo do monorepo, da raiz do worktree:
+
+```
+make check
+API      8300 pass ·  0 fail · 190 arquivos
+worker   1458 pass ·  0 fail ·  94 arquivos
+cron      101 pass ·  0 fail ·   8 arquivos
+frontend 5773 pass ·  0 fail ·  31 arquivos
+                                            EXIT=0
+```
+
+A primeira passada voltou **EXIT=2**, e não era código: o `format:check` da **raiz** cobre
+`specs/**/*.md` e reprovou o próprio `evidence.md` desta spec. `bunx prettier --write` no arquivo, e
+a segunda passada fechou em zero. O `check` de app é eslint — quem confia nele não vê essa reprovação.
+
+A integração da API rodou à parte, porque o diff mexe em `test/integration/delivery-proof-received-by.integration.ts`
+e a T2.3 mexeu no repositório — e `bun test` não enxerga `*.integration.ts`:
+
+```
+bun --env-file=../../.env.test run test:integration
+765 pass · 7 skip · 0 fail · 772 testes · 141 arquivos · 986,39 s   EXIT=0
+```
+
+Commit isolado da Fase 2, 17 arquivos, nada de trabalho vizinho na árvore.
+
 ## Fase 3
 
 ## Fase 4

@@ -23,12 +23,22 @@ export const OFFICE_PROOF_KINDS = [PHOTO_PROOF_KIND, CARGO_PROOF_KIND] as const
 export type OfficeProofKind = (typeof OFFICE_PROOF_KINDS)[number]
 export const SIGNATURE_PROOF_KIND = 'signature' satisfies TripDeliveryProofKind
 /**
- * Os `kind` que o app do motorista envia em `/me/.../proof`. Lista própria, e não a do banco: a do
- * banco ganhou `cargo` na spec 184, e validar contra ela abria a rota do motorista para foto de carga
- * sem o teto de cinco e sem a deduplicação do escritório — um retry em laço gravaria sem fim.
+ * Os `kind` que o app do motorista envia em `/me/.../proof`. Lista própria, e não a do banco, para
+ * a rota só aceitar o que o motorista de fato manda. Spec 220 RF08: `cargo` entra, com o teto de
+ * cinco por entrega cobrado no caso de uso.
  */
-export const DRIVER_PROOF_KINDS = [PHOTO_PROOF_KIND, SIGNATURE_PROOF_KIND] as const
-export type DriverProofKind = (typeof DRIVER_PROOF_KINDS)[number]
+export const DRIVER_UPLOAD_PROOF_KINDS = [
+  PHOTO_PROOF_KIND,
+  SIGNATURE_PROOF_KIND,
+  CARGO_PROOF_KIND,
+] as const
+export type DriverUploadProofKind = (typeof DRIVER_UPLOAD_PROOF_KINDS)[number]
+/**
+ * Spec 193 D7: as linhas do motorista que carregam quem recebeu (`receivedBy`/`receiverName`).
+ * Não é a lista do que ele envia: `cargo` nunca carrega nome nem recebedor.
+ */
+export const DRIVER_RECEIVER_PROOF_KINDS = [PHOTO_PROOF_KIND, SIGNATURE_PROOF_KIND] as const
+export type DriverReceiverProofKind = (typeof DRIVER_RECEIVER_PROOF_KINDS)[number]
 /**
  * Spec 184 D3: teto de partida — cobre a avaria sem virar álbum. Spec 220: subir daqui pede
  * migration, o CHECK de `cargo_minimum_count` repete o mesmo 5.

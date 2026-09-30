@@ -4,6 +4,16 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  attachDeliveryProof,
+  type DeliveryProofPort,
+} from '../../src/trips/application/attach-delivery-proof.use-case.js'
+import {
+  DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  DEFAULT_DELIVERY_PROOF_SETTINGS,
+  type DeliveryProofFieldSettings,
+} from '../../src/trips/domain/delivery-proof-settings.policy.js'
+import { TripDeliveryProofCargoLimitError } from '../../src/trips/domain/trip-field-office.error.js'
+import {
   classifyProofPunctuality,
   mergeProofPunctuality,
   type ProofPunctuality,
@@ -334,4 +344,229 @@ describe('substituição da foto fica com a pior pontualidade (spec 159 T11, D3b
       expect(mergeProofPunctuality({ next, previous })).toBe(expected)
     })
   }
+})
+
+/**
+ * Spec 220 RF10/RF12: a foto da mercadoria (`cargo`) passa pelo mesmo veredito da foto do
+ * motorista, guiada por `settings.cargo`; o canal `office` continua fora (ADR-0070 §2-6).
+ */
+describe('o veredito alcança a foto da mercadoria (spec 220 RF10, RF12)', () => {
+  const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
+  const DOCUMENT_ID = '00000000-0000-4000-8000-000000000004'
+  const EVENT_ID = '00000000-0000-4000-8000-000000000005'
+  const CARGO_DELIVERED_AT = new Date('2026-09-25T12:00:00.000Z')
+  const DELIVERY_POSITION = { latitude: '-23.550520', longitude: '-46.633308' }
+  const EIGHT_HUNDRED_METERS_AWAY = {
+    accuracyMeters: 10,
+    latitude: '-23.543320',
+    longitude: '-46.633308',
+  }
+
+  function attachCargo(input: {
+    readonly channel?: 'office'
+    readonly settings: Partial<DeliveryProofFieldSettings>
+  }) {
+    const repository: DeliveryProofPort = {
+      findDeliveryContext: async () => ({
+        deliveredAt: CARGO_DELIVERED_AT,
+        deliveryEventPosition: DELIVERY_POSITION,
+      }),
+      findDeliveryEventId: async () => EVENT_ID,
+      findProofIdByAttachmentKey: async () => null,
+      countProofsForEvent: async () => 0,
+      findProofPunctuality: async () => null,
+      resolveProofFieldSettings: async () => ({
+        ...DEFAULT_DELIVERY_PROOF_SETTINGS,
+        ...input.settings,
+      }),
+      resolveProofPunctualitySettings: async () => DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+      saveProof: async () => ({ id: 'proof-1' }),
+    }
+
+    return attachDeliveryProof({
+      actorUserId: '00000000-0000-4000-8000-000000000002',
+      companyId: COMPANY_ID,
+      documentId: DOCUMENT_ID,
+      driverId: '00000000-0000-4000-8000-000000000003',
+      ...(input.channel === undefined ? {} : { channel: input.channel }),
+      newObjectId: () => '00000000-0000-4000-8000-0000000000cc',
+      newProofId: () => 'proof-1',
+      now: new Date('2026-09-25T14:00:10.000Z'),
+      repository,
+      sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+      storage: { store: async () => ({ sha256: 'a'.repeat(64) }) },
+      upload: {
+        attachmentKey: '',
+        bytes: new Uint8Array(16),
+        capturedAt: new Date('2026-09-25T14:00:00.000Z'),
+        kind: 'cargo',
+        mimeType: 'image/jpeg',
+        position: EIGHT_HUNDRED_METERS_AWAY,
+        receiverDocument: '',
+        receiverName: '',
+      },
+    })
+  }
+
+  test('mercadoria obrigatória, 800 m longe e 2 h depois, é tardia e longe', async () => {
+    const proof = await attachCargo({ settings: { cargo: 'required' } })
+
+    expect(proof.punctuality).toBe('late_and_away')
+  })
+
+  test('mercadoria enviada pelo escritório não é classificada', async () => {
+    const proof = await attachCargo({ channel: 'office', settings: { cargo: 'required' } })
+
+    expect(proof.punctuality).toBe('not_required')
+  })
+
+  test('mercadoria desligada na configuração não é classificada', async () => {
+    const proof = await attachCargo({ settings: { cargo: 'off' } })
+
+    expect(proof.punctuality).toBe('not_required')
+  })
+})
+
+describe('cada foto da mercadoria guarda o próprio veredito (spec 220 RF10)', () => {
+  const DELIVERED_AT = new Date('2026-09-25T12:00:00.000Z')
+  const DELIVERY_POSITION = { latitude: '-23.550520', longitude: '-46.633308' }
+
+  function attachOnTimeProof(input: {
+    readonly kind: 'cargo' | 'photo'
+    readonly previous: 'late' | 'late_and_away'
+    readonly settings: Partial<DeliveryProofFieldSettings>
+  }) {
+    const repository: DeliveryProofPort = {
+      findDeliveryContext: async () => ({
+        deliveredAt: DELIVERED_AT,
+        deliveryEventPosition: DELIVERY_POSITION,
+      }),
+      findDeliveryEventId: async () => '00000000-0000-4000-8000-000000000005',
+      findProofIdByAttachmentKey: async () => null,
+      countProofsForEvent: async () => 0,
+      findProofPunctuality: async () => input.previous,
+      resolveProofFieldSettings: async () => ({
+        ...DEFAULT_DELIVERY_PROOF_SETTINGS,
+        ...input.settings,
+      }),
+      resolveProofPunctualitySettings: async () => DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+      saveProof: async () => ({ id: 'proof-1' }),
+    }
+
+    return attachDeliveryProof({
+      actorUserId: '00000000-0000-4000-8000-000000000002',
+      companyId: '00000000-0000-4000-8000-000000000001',
+      documentId: '00000000-0000-4000-8000-000000000004',
+      driverId: '00000000-0000-4000-8000-000000000003',
+      newObjectId: () => '00000000-0000-4000-8000-0000000000cc',
+      newProofId: () => 'proof-1',
+      now: new Date('2026-09-25T12:10:10.000Z'),
+      repository,
+      sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+      storage: { store: async () => ({ sha256: 'a'.repeat(64) }) },
+      upload: {
+        attachmentKey: '',
+        bytes: new Uint8Array(16),
+        capturedAt: new Date('2026-09-25T12:10:00.000Z'),
+        kind: input.kind,
+        mimeType: 'image/jpeg',
+        position: { accuracyMeters: 10, ...DELIVERY_POSITION },
+        receiverDocument: '',
+        receiverName: '',
+      },
+    })
+  }
+
+  test('a segunda foto da mercadoria, no lugar e na hora, não herda o tardia e longe da primeira', async () => {
+    const proof = await attachOnTimeProof({
+      kind: 'cargo',
+      previous: 'late_and_away',
+      settings: { cargo: 'required' },
+    })
+
+    expect(proof.punctuality).toBe('on_time')
+  })
+
+  test('a segunda foto da mercadoria, no lugar e na hora, não herda o tardia da primeira', async () => {
+    const proof = await attachOnTimeProof({
+      kind: 'cargo',
+      previous: 'late',
+      settings: { cargo: 'required' },
+    })
+
+    expect(proof.punctuality).toBe('on_time')
+  })
+
+  test('a foto que substitui a anterior continua herdando o veredito gravado', async () => {
+    const proof = await attachOnTimeProof({
+      kind: 'photo',
+      previous: 'late',
+      settings: { photo: 'required' },
+    })
+
+    expect(proof.punctuality).toBe('late')
+  })
+})
+
+describe('o teto de cinco fotos da mercadoria vale para o motorista (spec 220 RF08)', () => {
+  function attachWithCount(input: { readonly count: number; readonly kind: 'cargo' | 'photo' }) {
+    const repository: DeliveryProofPort = {
+      countProofsForEvent: async () => input.count,
+      findDeliveryContext: async () => ({
+        deliveredAt: new Date('2026-09-25T12:00:00.000Z'),
+        deliveryEventPosition: undefined,
+      }),
+      findDeliveryEventId: async () => '00000000-0000-4000-8000-000000000005',
+      findProofIdByAttachmentKey: async () => null,
+      findProofPunctuality: async () => null,
+      resolveProofFieldSettings: async () => DEFAULT_DELIVERY_PROOF_SETTINGS,
+      resolveProofPunctualitySettings: async () => DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+      saveProof: async () => ({ id: 'proof-1' }),
+    }
+
+    return attachDeliveryProof({
+      actorUserId: '00000000-0000-4000-8000-000000000002',
+      companyId: '00000000-0000-4000-8000-000000000001',
+      documentId: '00000000-0000-4000-8000-000000000004',
+      driverId: '00000000-0000-4000-8000-000000000003',
+      newObjectId: () => '00000000-0000-4000-8000-0000000000cc',
+      newProofId: () => 'proof-1',
+      now: new Date('2026-09-25T12:10:10.000Z'),
+      repository,
+      sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
+      storage: { store: async () => ({ sha256: 'a'.repeat(64) }) },
+      upload: {
+        attachmentKey: '',
+        bytes: new Uint8Array(16),
+        capturedAt: undefined,
+        kind: input.kind,
+        mimeType: 'image/jpeg',
+        position: undefined,
+        receiverDocument: '',
+        receiverName: '',
+      },
+    })
+  }
+
+  test('a quinta foto da mercadoria entra', async () => {
+    const proof = await attachWithCount({ count: 4, kind: 'cargo' })
+
+    expect(proof.id).toBe('proof-1')
+  })
+
+  test('a sexta foto da mercadoria é recusada com o teto', async () => {
+    const attempt = attachWithCount({ count: 5, kind: 'cargo' })
+
+    await expect(attempt).rejects.toBeInstanceOf(TripDeliveryProofCargoLimitError)
+    await expect(attempt).rejects.toMatchObject({
+      code: 'TRIP_DELIVERY_PROOF_CARGO_LIMIT',
+      status: 422,
+    })
+  })
+
+  test('a foto do canhoto não passa pela contagem: ela substitui', async () => {
+    const proof = await attachWithCount({ count: 99, kind: 'photo' })
+
+    expect(proof.id).toBe('proof-1')
+  })
 })

@@ -6,7 +6,10 @@ import { z } from 'zod'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
-import { DRIVER_PROOF_KINDS, type DriverProofKind } from '../domain/delivery-event.constant.js'
+import {
+  DRIVER_UPLOAD_PROOF_KINDS,
+  type DriverUploadProofKind,
+} from '../domain/delivery-event.constant.js'
 import type { ProofPosition } from '../domain/delivery-proof-punctuality.policy.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
 import { normalizeReceivedBy } from './received-by.schema.js'
@@ -105,8 +108,10 @@ function parseProofLocation(form: Awaited<ReturnType<Request['formData']>>): Pro
   return { capturedAt: capturedAt === undefined ? undefined : new Date(capturedAt), position }
 }
 
-function isProofKind(value: unknown): value is DriverProofKind {
-  return typeof value === 'string' && (DRIVER_PROOF_KINDS as readonly string[]).includes(value)
+function isProofKind(value: unknown): value is DriverUploadProofKind {
+  return (
+    typeof value === 'string' && (DRIVER_UPLOAD_PROOF_KINDS as readonly string[]).includes(value)
+  )
 }
 
 /**

@@ -39,7 +39,7 @@ import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
-  DRIVER_PROOF_KINDS,
+  DRIVER_RECEIVER_PROOF_KINDS,
   RETURNED_DOCUMENT_STATUS,
 } from '../domain/delivery-event.constant.js'
 import { OCCURRENCE_TYPE_FLOWS } from '../../shared/trip-occurrence.constant.js'
@@ -816,7 +816,7 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       eq(tripDeliveryProofs.companyId, input.companyId),
       eq(tripDeliveryProofs.stopEventId, input.eventId),
       eq(tripDeliveryProofs.channel, TRIP_FIELD_CHANNELS.driverApp),
-      inArray(tripDeliveryProofs.kind, [...DRIVER_PROOF_KINDS]),
+      inArray(tripDeliveryProofs.kind, [...DRIVER_RECEIVER_PROOF_KINDS]),
     )
     const rows = await this.transaction
       .select({

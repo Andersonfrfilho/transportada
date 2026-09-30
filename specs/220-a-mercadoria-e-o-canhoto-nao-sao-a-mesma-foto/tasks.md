@@ -37,12 +37,16 @@ evidência em `evidence.md` e commit isolado.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T2.1 Contrato: `cargo` a 800 m e 2 h atrasado → `late_and_away`; canal `office` →
-      `not_required`; `cargo: 'off'` → `not_required` — `test/trip/delivery-proof-punctuality.contract.ts`
-- [ ] T2.2 Contrato: duas fotos de `cargo` guardam vereditos independentes; a segunda não altera a
+- [x] T2.1 Contrato: `cargo` a 800 m e 2 h atrasado → `late_and_away`; canal `office` →
+      `not_required`; `cargo: 'off'` → `not_required` —
+      `test/trip-delivery-proof/punctuality.contract.ts` (o caminho antigo não existia)
+- [x] T2.2 Contrato: duas fotos de `cargo` guardam vereditos independentes; a segunda não altera a
       primeira (`mergeProofPunctuality` continua só para o que substitui)
-- [ ] T2.3 Abre o portão em `attach-delivery-proof.use-case.ts:323`, guiado por `settings.cargo`
-- [ ] T2.4 `make check` + commit
+- [x] T2.3 Abre o portão em `attach-delivery-proof.use-case.ts`, guiado por `settings.cargo` — e mais
+      três que vieram soldadas: `cargo` sai da fusão do veredito; o segundo portão
+      (`delivery-proof.schema.ts`) para de recusar `cargo` com 400; o teto de cinco passa a valer
+      também para o motorista (RF08 é "por entrega", não por canal)
+- [x] T2.4 `make check` + commit (mais `test:integration` da API, que o `bun test` não enxerga)
 
 ## Fase 3 — Miniatura dos três tipos
 

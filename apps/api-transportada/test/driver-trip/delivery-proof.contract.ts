@@ -69,6 +69,7 @@ function buildWorld(
     resolveProofPunctualitySettings: () =>
       Promise.resolve(DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS),
     /** O dublê guarda a última pontualidade por evento+tipo, como o upsert do banco. */
+    countProofsForEvent: async () => 0,
     findProofPunctuality: (query) =>
       Promise.resolve(
         saved.findLast((proof) => proof.eventId === query.eventId && proof.kind === query.kind)
