@@ -11,6 +11,9 @@ import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { CanhotoAutomaticReview, type CanhotoReadContext } from './CanhotoAutomaticReview.component'
+import type { CanhotoTripDocument } from '../shared/canhotoIdentification.service'
+import { hasCanhotoReviewSettled } from '../shared/canhotoReviewSession.service'
 import { createFieldDeliveryThumbnail } from '../shared/fieldDeliveryImage.service'
 import { useFieldDelivery } from '../hooks/useFieldDelivery.hook'
 import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
@@ -341,13 +344,15 @@ export function TripDetail({
    * abre o assistente do escritório — R8: erro nas duas (rota, permissão) vira `undefined`/lista
    * vazia no consumidor, nunca trava o passo.
    */
+  const needsCanhotoReadData =
+    fieldDeliveryDocumentIds !== null || workspace.openProofDocumentId !== null
   const canhotoOcrSettingsQuery = useFieldDeliverySettingsQuery({
-    enabled: workspace.controller.canReportOnBehalf && fieldDeliveryDocumentIds !== null,
+    enabled: workspace.controller.canReportOnBehalf && needsCanhotoReadData,
   })
   const fieldDeliveryDocumentsQuery = useFieldDeliveryDocumentsQuery({
     enabled:
       workspace.controller.canReportOnBehalf &&
-      fieldDeliveryDocumentIds !== null &&
+      needsCanhotoReadData &&
       workspace.trip !== undefined,
     tripId: workspace.trip?.id ?? '',
   })
@@ -451,6 +456,24 @@ export function TripDetail({
   const fiscalReadinessByDocumentId = new Map(
     (workspace.fiscalReadiness?.documents ?? []).map((entry) => [entry.tripDocumentId, entry]),
   )
+  /** Spec 220 T7.14: a mesma lista serve ao assistente de baixa e à leitura automática do canhoto. */
+  const canhotoTripDocuments: readonly CanhotoTripDocument[] = trip.documents.map((document) => {
+    /**
+     * Spec 156 T14, ADR-0069 §3: a chave inteira decide o casamento (fix `b1653f25`, T13) —
+     * `GET /trips/:id` não a traz (M1), então ela vem da rota estreita da T14. Sem resposta
+     * ainda (rota, permissão), a nota segue só por número/série, como sempre foi.
+     */
+    const ocrDocument = fieldDeliveryDocumentsQuery.data?.find(
+      (candidate) => candidate.id === document.id,
+    )
+    return {
+      id: document.id,
+      ...(ocrDocument?.accessKey == null ? {} : { accessKey: ocrDocument.accessKey }),
+      ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
+      ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
+      ...(ocrDocument?.releasedAt == null ? {} : { releasedAt: ocrDocument.releasedAt }),
+    }
+  })
   const documentActions = {
     canManage,
     canReportOnBehalf: workspace.controller.canReportOnBehalf,
@@ -487,6 +510,10 @@ export function TripDetail({
     openProofDocumentId: workspace.openProofDocumentId,
     renderProof: (documentId: string) => (
       <TripDeliveryProofLoader
+        canhotoReadContext={{
+          canhotoOcrEnabled: canhotoOcrSettingsQuery.data?.canhotoOcrEnabled ?? false,
+          tripDocuments: canhotoTripDocuments,
+        }}
         documentId={documentId}
         documents={trip.documents}
         workspace={workspace}
@@ -1167,23 +1194,7 @@ export function TripDetail({
             : fieldDeliveryDocumentIds.join(',')
         }
         onClose={() => setFieldDeliveryDocumentIds(null)}
-        tripDocuments={trip.documents.map((document) => {
-          /**
-           * Spec 156 T14, ADR-0069 §3: a chave inteira decide o casamento (fix `b1653f25`, T13) —
-           * `GET /trips/:id` não a traz (M1), então ela vem da rota estreita da T14. Sem resposta
-           * ainda (rota, permissão), a nota segue só por número/série, como sempre foi.
-           */
-          const ocrDocument = fieldDeliveryDocumentsQuery.data?.find(
-            (candidate) => candidate.id === document.id,
-          )
-          return {
-            id: document.id,
-            ...(ocrDocument?.accessKey == null ? {} : { accessKey: ocrDocument.accessKey }),
-            ...(document.nfeNumber === undefined ? {} : { nfeNumber: document.nfeNumber }),
-            ...(document.nfeSeries === undefined ? {} : { nfeSeries: document.nfeSeries }),
-            ...(ocrDocument?.releasedAt == null ? {} : { releasedAt: ocrDocument.releasedAt }),
-          }
-        })}
+        tripDocuments={canhotoTripDocuments}
       />
 
       {/*
@@ -1414,10 +1425,12 @@ function noticeForOutcome(outcome: CanhotoReviewOutcome): CanhotoReviewNotice | 
 }
 
 export function TripDeliveryProofLoader({
+  canhotoReadContext,
   documents,
   documentId,
   workspace,
 }: Readonly<{
+  canhotoReadContext?: CanhotoReadContext
   documentId: string
   documents: readonly TripDocumentDetail[]
   workspace: TripWorkspaceController
@@ -1470,8 +1483,25 @@ export function TripDeliveryProofLoader({
 
   if (workspace.deliveryProofsQuery.isLoading) return <Skeleton variant="text" width="60%" />
 
+  const canhotoAwaitingReview = workspace.deliveryProofsQuery.data?.find(
+    (proof) =>
+      proof.kind === 'photo' &&
+      proof.canhotoReview === 'pending' &&
+      proof.canhotoReadSource === undefined &&
+      !hasCanhotoReviewSettled(proof.id),
+  )
+
   return (
     <>
+      {canhotoReadContext === undefined || canhotoAwaitingReview === undefined ? null : (
+        <CanhotoAutomaticReview
+          context={canhotoReadContext}
+          documentId={documentId}
+          proof={canhotoAwaitingReview}
+          reviewCanhoto={workspace.reviewCanhoto}
+          tripId={document.tripId}
+        />
+      )}
       <CanhotoRejectDialog
         isOpen={isRejectOpen}
         isSubmitting={isRejecting}

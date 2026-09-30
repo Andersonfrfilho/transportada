@@ -303,7 +303,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       redispara em re-render, não redispara em comprovante que já tem leitura
       (`canhotoReadSource !== null`), espera a chave de acesso, e respeita os 20 s com relógio falso
       — `test/trip-hooks/canhoto-review-trigger.contract.ts`
-- [ ] T7.14 `useCanhotoReview.hook.ts` montado em `TripDeliveryProofLoader`
+- [x] T7.14 `useCanhotoReview.hook.ts` montado em `TripDeliveryProofLoader`
       (`TripDetail.component.tsx:1402`). Dispara **sozinho ao abrir o item**, não por botão: RF30 diz
       que isto é conferência e não portão, e um botão a transformaria em trabalho; e "o comprovante
       aparece primeiro, o veredito chega depois" (RNF02) descreve algo que chega, não algo que se

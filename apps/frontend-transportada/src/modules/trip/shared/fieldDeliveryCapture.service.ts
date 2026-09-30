@@ -38,7 +38,7 @@ export function shouldTriggerCaptureShortcut(target: EventTarget | null): boolea
  * desenha a fonte **uma vez só**, aqui, e tudo daqui em diante (luminância, JPEG, OCR) deriva desse
  * canvas estático — nunca de `source` de novo.
  */
-function drawFullResolutionCanvas(
+export function drawFullResolutionCanvas(
   source: CanvasImageSource,
   width: number,
   height: number,
@@ -53,7 +53,7 @@ function drawFullResolutionCanvas(
   return canvas
 }
 
-function captureLuminanceFrame(
+export function captureLuminanceFrame(
   frameCanvas: HTMLCanvasElement,
   width: number,
   height: number,

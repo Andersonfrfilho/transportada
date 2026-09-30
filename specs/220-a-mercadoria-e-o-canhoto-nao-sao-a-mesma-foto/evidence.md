@@ -2534,3 +2534,52 @@ hooks:   127 pass · 0 fail  →  129 pass · 0 fail
 suíte:   5881 pass · 0 fail (inalterada)
 EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
 ```
+
+### T7.14 — o hook montado no `TripDeliveryProofLoader`, com a fiação completa
+
+Contrato novo: `test/trip-hooks/canhoto-review-automatic.contract.ts` (seis casos, uma linha ao fim
+de `test/trip-hooks.contract.test.ts`). Prova que: `photo` + `pending` + sem leitura dispara sozinho,
+sem clique, buscando a URL **original** (a miniatura está no dublê e não é chamada); leitura
+existente, não-foto, já conferido e nota sem chave de acesso não disparam; o corpo entregue ao PATCH
+automático tem exatamente `action, readDocumentId, readNumber, readSeries, readSource` — sem `review`;
+fechar e reabrir o item não relê.
+
+Vermelho medido antes da implementação:
+
+```
+(fail) … > photo pendente e sem leitura dispara sozinho, com a imagem original e sem review no corpo
+(fail) … > fechar e reabrir o item não relê
+133 pass · 2 fail · EXIT_RED=1   (os outros quatro passavam vazios: nada disparava)
+```
+
+Decisões:
+
+- **`review` não sobe.** O `onRead` escolhe os quatro campos de leitura um a um
+  (`CanhotoAutomaticReview.component.tsx`), então o corpo não pode carregar `review` por
+  construção. `CanhotoReviewOutcome.review` continua no tipo, agora só como estado de sessão para a
+  T7.16 (a frase "não foi possível conferir automaticamente"). `CanhotoReviewAction` ganhou a
+  variante `automatic`, espelho do schema `.strict()` da rota.
+- **Escopo com T7.15/T7.17.** Entregue aqui a fiação inteira e sem stub: montagem; chave de acesso
+  vinda do `useFieldDeliveryDocumentsQuery` (o mesmo mapa do assistente, extraído para
+  `canhotoTripDocuments` e reusado, não duplicado); serviço `canhotoReviewRead.service.ts`
+  (`fetch` -> `blob` -> `createImageBitmap` -> canvas -> `getImageData`, sem `<img>`, sem
+  miniatura); `onRead` -> PATCH. Sobra para a T7.15: **medir** o CORS do bucket no GET e registrar
+  aqui, e as duas proibições como asserção própria (hoje a da miniatura é coberta; a do `<img>` só
+  pela construção). Sobra para a T7.17: o contrato da espera pela chave em si (hoje coberto por um
+  caso) e o que fazer quando a consulta falha ou o perfil não tem `trip.report-on-behalf`. ⚠️ A
+  consulta da chave e o interruptor do OCR ficaram habilitados também com um item de comprovante
+  aberto (antes só com o assistente), mas continuam sob `canReportOnBehalf`: quem só tem
+  `trip.manage` não obtém a chave, e a leitura automática simplesmente espera.
+- **Não relê ao reabrir.** O hook guarda os disparos em `useRef`, que morre ao desmontar; o item
+  fechado desmonta o carregador. Por isso `canhotoReviewSession.service.ts` guarda, por sessão, os
+  comprovantes cuja leitura chegou (marcado no `onRead`, não no disparo: fechar no meio da leitura
+  descarta o veredito, e reabrir deve ler de novo). Falha do PATCH é engolida com o comprovante
+  ainda `pending`: conferência, não portão.
+- `captureLuminanceFrame` e `drawFullResolutionCanvas` passaram a ser exportadas de
+  `fieldDeliveryCapture.service.ts` para não duplicar a redução de quadro.
+
+```
+hooks:   129 pass · 0 fail  →  135 pass · 0 fail
+suíte:   5881 pass · 0 fail (inalterada)
+EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
+```

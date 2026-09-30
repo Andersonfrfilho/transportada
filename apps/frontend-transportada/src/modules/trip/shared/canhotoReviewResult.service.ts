@@ -30,6 +30,13 @@ export type CanhotoReviewAction =
       note?: string
       reason: DeliveryProofCanhotoReviewReason
     }>
+  | Readonly<{
+      action: 'automatic'
+      readDocumentId: null | string
+      readNumber: null | string
+      readSeries: null | string
+      readSource: DeliveryProofCanhotoReadSource | null
+    }>
 
 export type CanhotoReviewProofInput = Readonly<{
   documentId: string
