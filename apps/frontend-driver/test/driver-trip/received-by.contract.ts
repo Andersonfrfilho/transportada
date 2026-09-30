@@ -90,6 +90,8 @@ describe('o snapshot traz quem recebeu e o nome do cliente (spec 193 D6, D14)', 
     })
 
     expect(document?.deliveryProof).toEqual({
+      cargo: DEFAULT_PROOF_SETTINGS.cargo,
+      cargoMinimumCount: DEFAULT_PROOF_SETTINGS.cargoMinimumCount,
       photo: DEFAULT_PROOF_SETTINGS.photo,
       receivedBy: 'optional',
       receiverDocument: 'required',

@@ -170,7 +170,17 @@
     "replaceHint": "A foto enviada só pode ser substituída.",
     "refused": {
       "photo": "Fila cheia: não deu para salvar a foto agora. Envie as pendências e tire de novo.",
-      "signature": "Fila cheia: não deu para salvar a assinatura agora. Envie as pendências e colha de novo."
+      "signature": "Fila cheia: não deu para salvar a assinatura agora. Envie as pendências e colha de novo.",
+      "cargo": "Fila cheia: não deu para salvar a foto da mercadoria agora. Envie as pendências e tire de novo."
+    },
+    "cargo": {
+      "title": "Mercadoria",
+      "count_one": "{{count}} de {{limit}} foto da mercadoria",
+      "count_other": "{{count}} de {{limit}} fotos da mercadoria",
+      "take": "Foto da mercadoria",
+      "limitReached": "Limite de fotos da mercadoria atingido.",
+      "pending_one": "Falta {{count}} foto da mercadoria.",
+      "pending_other": "Faltam {{count}} fotos da mercadoria."
     }
   },
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
@@ -207,7 +217,9 @@
       "receiverName": "o nome de quem recebeu",
       "receiverDocument": "o documento de quem recebeu",
       "receivedBy": "quem recebeu",
-      "receivedByDetail": "o detalhe de quem recebeu"
+      "receivedByDetail": "o detalhe de quem recebeu",
+      "cargo_one": "{{count}} foto da mercadoria",
+      "cargo_other": "{{count}} fotos da mercadoria"
     }
   },
   "signature": {

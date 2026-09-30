@@ -145,6 +145,12 @@ function readProofField(value: unknown, fallback: ProofFieldRequirement): ProofF
     : fallback
 }
 
+function readCargoMinimumCount(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+    ? value
+    : DEFAULT_PROOF_SETTINGS.cargoMinimumCount
+}
+
 /**
  * Spec 082 D4: configuração ausente (o corpo não é objeto) vira `null` — o app aplica o padrão em
  * vez de quebrar a tela. Spec 193 (revisão): com objeto presente, o fallback é **por campo** — um
@@ -153,6 +159,8 @@ function readProofField(value: unknown, fallback: ProofFieldRequirement): ProofF
 function toDeliveryProof(value: unknown): DriverDeliveryProofSettings | null {
   if (!isRecord(value)) return null
   return {
+    cargo: readProofField(value.cargo, DEFAULT_PROOF_SETTINGS.cargo),
+    cargoMinimumCount: readCargoMinimumCount(value.cargoMinimumCount),
     photo: readProofField(value.photo, DEFAULT_PROOF_SETTINGS.photo),
     receivedBy: readProofField(value.receivedBy, DEFAULT_PROOF_SETTINGS.receivedBy),
     receiverDocument: readProofField(

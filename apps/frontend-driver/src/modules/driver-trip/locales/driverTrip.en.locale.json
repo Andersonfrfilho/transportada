@@ -162,7 +162,17 @@
     "replaceHint": "A photo that was already sent can only be replaced.",
     "refused": {
       "photo": "The queue is full: the photo could not be saved right now. Send what is pending and take it again.",
-      "signature": "The queue is full: the signature could not be saved right now. Send what is pending and collect it again."
+      "signature": "The queue is full: the signature could not be saved right now. Send what is pending and collect it again.",
+      "cargo": "The queue is full: the cargo photo could not be saved right now. Send what is pending and take it again."
+    },
+    "cargo": {
+      "title": "Cargo",
+      "count_one": "{{count}} of {{limit}} cargo photo",
+      "count_other": "{{count}} of {{limit}} cargo photos",
+      "take": "Cargo photo",
+      "limitReached": "Cargo photo limit reached.",
+      "pending_one": "{{count}} cargo photo missing.",
+      "pending_other": "{{count}} cargo photos missing."
     }
   },
   "proofFailed": "The file could not be attached. The delivery is still recorded.",
@@ -199,7 +209,9 @@
       "receiverName": "the receiver's name",
       "receiverDocument": "the receiver's document",
       "receivedBy": "who received it",
-      "receivedByDetail": "the detail about who received it"
+      "receivedByDetail": "the detail about who received it",
+      "cargo_one": "{{count}} cargo photo",
+      "cargo_other": "{{count}} cargo photos"
     }
   },
   "queueHeader": {

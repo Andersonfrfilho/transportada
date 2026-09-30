@@ -61,6 +61,10 @@ export const PROOF_FIELD_REQUIREMENTS = ['off', 'optional', 'required'] as const
 export type ProofFieldRequirement = (typeof PROOF_FIELD_REQUIREMENTS)[number]
 
 export type DriverDeliveryProofSettings = Readonly<{
+  /** Spec 220: a foto da mercadoria, distinta do canhoto (`photo`). Ausente (API anterior) vale `off`. */
+  cargo: ProofFieldRequirement
+  /** Spec 220 RF06: lido só quando `cargo` é `required`. */
+  cargoMinimumCount: number
   photo: ProofFieldRequirement
   /** Spec 193 D6: quem recebeu, resolvido por nota. Ausente (API anterior) vale `optional`. */
   receivedBy: ProofFieldRequirement

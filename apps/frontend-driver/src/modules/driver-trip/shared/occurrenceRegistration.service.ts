@@ -61,6 +61,8 @@ export function listMissingOccurrenceFields(input: {
   readonly type: DriverOccurrenceType
 }): readonly ProofFieldKey[] {
   const plan = resolveProofFormPlan({
+    cargo: 'off',
+    cargoMinimumCount: 1,
     photo: resolveOccurrenceAttachmentMode(input.type),
     receivedBy: 'off',
     receiverDocument: 'off',
@@ -70,6 +72,7 @@ export function listMissingOccurrenceFields(input: {
   return listMissingProofFields({
     plan,
     values: {
+      cargoCount: 0,
       hasPhoto: input.hasPhoto,
       hasSignature: false,
       receiverDocument: '',

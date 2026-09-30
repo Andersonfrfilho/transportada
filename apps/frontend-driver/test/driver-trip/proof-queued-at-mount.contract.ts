@@ -128,7 +128,9 @@ describe('a captura nasce do que a fila guarda para a nota (spec 218)', () => {
     const queued = resolveQueuedProofAttachments({ documentId: 'document-1', queueView })
     expect(queued.photo?.attachmentKey).toBe('foto-nova')
     expect(queued.signature?.attachmentKey).toBe('assinatura-1')
-    expect(resolveQueuedProofAttachments({ documentId: 'document-3', queueView })).toEqual({})
+    expect(resolveQueuedProofAttachments({ documentId: 'document-3', queueView })).toEqual({
+      cargo: [],
+    })
   })
 })
 

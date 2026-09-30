@@ -22,10 +22,10 @@ export type ReducedProofPhoto = Readonly<{ blob: Blob; fileName: string }>
 /**
  * Pedido do usuário (26/09): toda foto sai leve do aparelho. O canhoto subia no tamanho da câmera
  * (3–5 MB) e a API recusa o corpo acima de 1 MiB — a foto ficava presa na fila como recusada. Só a
- * **foto** reduz: assinatura já é PNG pequeno, e PDF anexado não é imagem.
+ * **foto** (canhoto ou mercadoria) reduz: assinatura já é PNG pequeno, e PDF anexado não é imagem.
  */
 export function shouldReduceProofFile(input: { file: Blob; kind: string }): boolean {
-  return input.kind === 'photo' && input.file.type.startsWith('image/')
+  return (input.kind === 'photo' || input.kind === 'cargo') && input.file.type.startsWith('image/')
 }
 
 /** Pura: 2000, 1600, 1280, 1024… até o lado mínimo. */

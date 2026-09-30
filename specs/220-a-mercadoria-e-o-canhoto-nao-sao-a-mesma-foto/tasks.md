@@ -24,11 +24,11 @@ evidência em `evidence.md` e commit isolado.
 - [x] T1.4 [P] Contrato da cascata com `cargo` (geral → contratante → destinatário, por inteiro) —
       `apps/frontend-transportada/test/trip/delivery-proof-settings.contract.ts`
 - [x] T1.5 Cascata do painel resolve `cargo` — `src/modules/trip/shared/deliveryProofSettings.service.ts`
-- [ ] T1.6 Tela de configuração com dois campos de foto, rótulos e texto de apoio;
+- [x] T1.6 Tela de configuração com dois campos de foto, rótulos e texto de apoio;
       `canhotoOcrEnabled` amarrado ao do canhoto — componente + `trip.locale.json` (pt-BR **acentuado**)
-- [ ] T1.7 [P] Contrato: `proofFormPlan` com `cargo` (`rendersCargo`, faltantes) —
+- [x] T1.7 [P] Contrato: `proofFormPlan` com `cargo` (`rendersCargo`, faltantes) —
       `apps/frontend-driver/test/...`
-- [ ] T1.8 `proofFormPlan.service.ts` e o campo da foto da mercadoria no `DriverStopCard`
+- [x] T1.8 `proofFormPlan.service.ts` e o campo da foto da mercadoria no `DriverStopCard`
 - [ ] T1.9 Revisão de design (`web.md` §15): configuração comparada com os painéis vizinhos,
       contraste nos dois estados, **print ao usuário**
 - [ ] T1.10 `make check` + commit

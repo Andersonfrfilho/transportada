@@ -12,6 +12,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { DriverNotDeliveredStatus } from './DriverNotDeliveredStatus.component'
 import { DriverOccurrenceRegistrationForm } from './DriverOccurrenceRegistrationForm.component'
+import { ProofCargoField } from './ProofCargoField.component'
 import { ProofCrop } from './ProofCrop.component'
 import { ProofImageLightbox } from './ProofImageLightbox.component'
 import { SignaturePad } from './SignaturePad.component'
@@ -53,6 +54,7 @@ import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceRegistr
 import {
   applyRecipientShortcut,
   buildReceiverFields,
+  countMissingCargoPhotos,
   listAllPendingFields,
   listMissingProofFields,
   listPendingReceiverFields,
@@ -127,7 +129,7 @@ export type DriverProofAttachment = Readonly<{
   awaitingDelivery?: true
   documentId: string
   file: File
-  kind: 'photo' | 'signature'
+  kind: 'cargo' | 'photo' | 'signature'
   /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
   lateRegistration?: boolean
   /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */
@@ -971,8 +973,12 @@ function PreDeliveryProofGate({ captureProps, onCancel, onConfirm }: PreDelivery
             plan: capture.plan,
             values: capture.values,
           })
+          const cargoMissingCount = countMissingCargoPhotos({
+            plan: capture.plan,
+            values: capture.values,
+          })
           const fieldsText = missingFields
-            .map((field) => t(`proofFields.missing.${field}`))
+            .map((field) => t(`proofFields.missing.${field}`, { count: cargoMissingCount }))
             .join(', ')
           return (
             <>
@@ -1103,7 +1109,13 @@ export function DeliveryProofSection(props: DeliveryProofSectionProps) {
     capture.pushLateFieldUpdate()
     const pending = listAllPendingFields({ plan: capture.plan, values: capture.values })
     if (pending.length > 0) {
-      const fieldsText = pending.map((field) => t(`proofFields.missing.${field}`)).join(', ')
+      const cargoMissingCount = countMissingCargoPhotos({
+        plan: capture.plan,
+        values: capture.values,
+      })
+      const fieldsText = pending
+        .map((field) => t(`proofFields.missing.${field}`, { count: cargoMissingCount }))
+        .join(', ')
       if (!window.confirm(t('proofFields.completeMissing', { fields: fieldsText }))) return
     }
     setConcludedAt(new Date().toISOString())
@@ -1202,9 +1214,14 @@ function ProofCaptureFields({
       ? {}
       : { signature: queuedAtMount.signature.attachmentKey }),
   })
+  /** Spec 220: a mercadoria acumula — cada foto tem a própria chave, e a contagem é o tamanho da lista. */
+  const [cargoKeys, setCargoKeys] = useState<readonly string[]>(() =>
+    queuedAtMount.cargo.map((attachment) => attachment.attachmentKey),
+  )
   const [openImageKind, setOpenImageKind] = useState<'photo' | 'signature' | undefined>(undefined)
   /** Spec 218: o kind que a fila recusou por último (teto cheio) — nunca aparece como anexado. */
   const [refusedKind, setRefusedKind] = useState<'photo' | 'signature' | undefined>(undefined)
+  const [isCargoRefused, setIsCargoRefused] = useState(false)
   /** Spec 207: enquanto o anexo está aqui, "Remover" é seguro — enviado, só "Substituir". */
   const isProofQueued = queueView.some(
     (item) => item.kind === 'proof' && item.documentId === documentId,
@@ -1261,10 +1278,15 @@ function ProofCaptureFields({
    * e foto obrigatórias, não só os campos de texto. Spec 203: nunca bloqueia mais o anexo — só
    * alimenta o aviso não-intrusivo (`role="status"`) de que falta completar o comprovante.
    */
-  function blockedByFields(next: { photo: boolean; signature: boolean }): boolean {
+  function blockedByFields(next: {
+    cargoCount: number
+    photo: boolean
+    signature: boolean
+  }): boolean {
     const failures = listMissingProofFields({
       plan,
       values: {
+        cargoCount: next.cargoCount,
         hasPhoto: next.photo,
         hasSignature: next.signature,
         receiverDocument,
@@ -1298,13 +1320,37 @@ function ProofCaptureFields({
       if (!isAccepted) {
         setRefusedKind(kind)
       } else {
-        const next = { ...attached, [kind]: true }
+        const next = { ...attached, [kind]: true, cargoCount: cargoKeys.length }
         setAttached((current) => ({ ...current, [kind]: true }))
         setAttachedKey((current) => ({ ...current, [kind]: attachmentKey }))
         /* Spec 211: cada kind tem a própria miniatura — anexar um nunca troca a do outro. */
         previewByKind[kind].showPhoto(file)
         blockedByFields(next)
       }
+    })
+  }
+
+  /**
+   * Spec 220 RF09: a foto da mercadoria entra na fila **sempre** — abaixo do mínimo é pendência de
+   * confirmação, nunca recusa do anexo. Sem nome nem documento: a mercadoria não é o comprovante de
+   * quem recebeu.
+   */
+  function attachCargo(file: File): void {
+    const attachmentKey = crypto.randomUUID()
+    setIsCargoRefused(false)
+    void onProof({
+      attachmentKey,
+      documentId,
+      file,
+      kind: 'cargo',
+      ...(lateRegistration === true ? { lateRegistration: true } : {}),
+    }).then((isAccepted) => {
+      if (!isAccepted) {
+        setIsCargoRefused(true)
+        return
+      }
+      setCargoKeys((current) => [...current, attachmentKey])
+      blockedByFields({ ...attached, cargoCount: cargoKeys.length + 1 })
     })
   }
 
@@ -1366,6 +1412,16 @@ function ProofCaptureFields({
     plan,
     values: { receivedBy, receivedByDetail },
   })
+
+  const currentValues = {
+    cargoCount: cargoKeys.length,
+    hasPhoto: attached.photo,
+    hasSignature: attached.signature,
+    receivedBy,
+    receivedByDetail,
+    receiverDocument,
+    receiverName,
+  }
 
   /** Spec 207: "Refazer" enquanto o anexo pode ser trocado sem custo; enviado, é "Substituir". */
   const retakeLabel = isProofQueued ? t('proofCapture.retake') : t('proofCapture.replace')
@@ -1479,6 +1535,20 @@ function ProofCaptureFields({
                 </span>
               )}
             </div>
+          ) : null}
+
+          {plan.rendersCargo ? (
+            <ProofCargoField
+              attachedCount={cargoKeys.length}
+              isRefused={isCargoRefused}
+              isRequired={plan.fields.cargo === 'required'}
+              missingCount={
+                missing.includes('cargo')
+                  ? countMissingCargoPhotos({ plan, values: currentValues })
+                  : 0
+              }
+              onSelect={attachCargo}
+            />
           ) : null}
 
           {/*
@@ -1601,14 +1671,7 @@ function ProofCaptureFields({
           {renderFooter({
             plan,
             pushLateFieldUpdate: () => pushLateFieldUpdate(),
-            values: {
-              hasPhoto: attached.photo,
-              hasSignature: attached.signature,
-              receivedBy,
-              receivedByDetail,
-              receiverDocument,
-              receiverName,
-            },
+            values: currentValues,
           })}
         </>
       ) : (

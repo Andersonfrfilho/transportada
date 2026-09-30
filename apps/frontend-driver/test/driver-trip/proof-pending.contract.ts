@@ -133,6 +133,8 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
       isProofPendingWarningDue({
         document: buildDocument({ deliveryProof: null, separationStatus: 'pending' }),
         stopProofSettings: {
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: 'required',
           receivedBy: 'optional',
           receiverDocument: 'off',
@@ -148,6 +150,8 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
       isProofPendingWarningDue({
         document: buildDocument(),
         stopProofSettings: {
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: 'optional',
           receivedBy: 'optional',
           receiverDocument: 'off',
@@ -163,6 +167,8 @@ describe('o aviso da foto obrigatória antes de entregar (RF12)', () => {
       isProofPendingWarningDue({
         document: buildDocument({ separationStatus: 'delivered' }),
         stopProofSettings: {
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: 'required',
           receivedBy: 'optional',
           receiverDocument: 'off',
@@ -243,6 +249,8 @@ describe('a resposta do snapshot com pendingProofs na raiz (T11)', () => {
       {
         deliveredAt: '2026-09-18T12:00:00.000Z',
         deliveryProof: {
+          cargo: 'off',
+          cargoMinimumCount: 1,
           photo: 'required',
           receivedBy: 'optional',
           receiverDocument: 'off',

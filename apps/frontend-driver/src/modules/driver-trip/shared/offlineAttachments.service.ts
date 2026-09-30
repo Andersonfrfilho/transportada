@@ -30,7 +30,7 @@ export type QueuedAttachment = Readonly<{
   fileName: string
   /** Spec 189 T9.2 ("Confirmar em lote"): capturado sem sessão — só sobe depois da confirmação. */
   isUnverified?: true
-  kind: 'photo' | 'signature'
+  kind: 'cargo' | 'photo' | 'signature'
   /** Pedido do usuário (25/09): mesma marca do `deliver`/`return` desta parada, atrás do mesmo interruptor. */
   lateRegistration?: boolean
   /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — dado pessoal, nunca em log. */

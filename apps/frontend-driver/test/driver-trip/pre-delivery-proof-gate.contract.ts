@@ -103,7 +103,13 @@ describe('quando a entrega espera o comprovante (spec 218 RF-A1)', () => {
  */
 describe('"Confirmar entrega" habilita só com os obrigatórios completos (spec 218 P1)', () => {
   const plan = resolveProofFormPlan(settings({ photo: 'required' }))
-  const empty = { hasPhoto: false, hasSignature: false, receiverDocument: '', receiverName: '' }
+  const empty = {
+    cargoCount: 0,
+    hasPhoto: false,
+    hasSignature: false,
+    receiverDocument: '',
+    receiverName: '',
+  }
 
   it('sem a foto, falta a foto — o botão fica desabilitado', () => {
     expect(listMissingProofFields({ plan, values: empty })).toEqual(['photo'])

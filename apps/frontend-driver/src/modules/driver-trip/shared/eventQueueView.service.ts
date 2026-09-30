@@ -152,6 +152,8 @@ export function buildEventQueueView(input: {
 }
 
 export type QueuedProofAttachments = Readonly<{
+  /** Spec 220: a mercadoria acumula — todas as fotos da nota que a fila ainda guarda, não só a última. */
+  cargo: readonly QueuedProofAttachmentView[]
   photo?: QueuedProofAttachmentView
   signature?: QueuedProofAttachmentView
 }>
@@ -171,6 +173,7 @@ export function resolveQueuedProofAttachments(input: {
   const photo = ofDocument.findLast((attachment) => attachment.kind === 'photo')
   const signature = ofDocument.findLast((attachment) => attachment.kind === 'signature')
   return {
+    cargo: ofDocument.filter((attachment) => attachment.kind === 'cargo'),
     ...(photo === undefined ? {} : { photo }),
     ...(signature === undefined ? {} : { signature }),
   }

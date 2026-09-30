@@ -124,7 +124,7 @@ export type DriverTripClient = Readonly<{
     capturedAt?: string
     documentId: string
     file: File
-    kind: 'photo' | 'signature'
+    kind: 'cargo' | 'photo' | 'signature'
     /** Pedido do usuário (25/09): mesma marca do `deliver`/`return`, atrás do mesmo interruptor. */
     lateRegistration?: boolean
     latitude?: number

@@ -110,7 +110,7 @@ export type DriverProofInput = Readonly<{
   awaitingDelivery?: true
   documentId: string
   file: File
-  kind: 'photo' | 'signature'
+  kind: 'cargo' | 'photo' | 'signature'
   /** Pedido do usuário (25/09): "Registrar entrega depois" — atrás de `LATE_REGISTRATION_FIELD_ENABLED`. */
   lateRegistration?: boolean
   /** Spec 193 D1: quem recebeu, em relação ao destinatário, e o detalhe curto. */

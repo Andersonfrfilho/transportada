@@ -208,6 +208,131 @@ $ bun run lint         → ✖ 16 problems (0 errors, 16 warnings)
 
 Os 16 avisos são os mesmos pré-existentes da T1.3 (`react-hooks/exhaustive-deps` fora desta fase).
 
+### T1.7 — Contrato do `proofFormPlan` com `cargo` (vermelho)
+
+Suíte nova `apps/frontend-driver/test/driver-trip/proof-cargo-plan.contract.ts`, ligada por `import`
+ao entrypoint `test/driver-trip.contract.test.ts` — que já está na lista explícita do `package.json`,
+então o `package.json` não mudou.
+
+Quatro `describe`: o que `rendersCargo` renderiza em cada modo e que canhoto e mercadoria não se
+influenciam; o mínimo contando só em `required`; a pendência contada (mínimo 3 com duas fotos → falta
+1, e o confirmar segue bloqueado); e o gate de `requiresProofBeforeDelivery`. A forma cobrada é
+`settings.cargo` + `settings.cargoMinimumCount`, `plan.rendersCargo`, `values.cargoCount`, a chave
+`'cargo'` em `listMissingProofFields` e o export novo `countMissingCargoPhotos`.
+
+```
+$ bunx tsc --noEmit                            → EXIT=0
+$ bun test ./test/driver-trip.contract.test.ts
+ 732 pass
+ 11 fail
+```
+
+O vermelho é **por asserção, não por compilação**: o export ausente é lido por um `typeof` que espera
+`'function'`, então a falha diz o que falta em vez de estourar um `TypeError` ao chamar `undefined`.
+Os campos que ainda não existem nos tipos reais são vistos por tipos locais e um `as`, andaimes que a
+T1.8 remove — enquanto eles estiverem lá, o contrato não checa tipo de verdade.
+
+Dois testes passam hoje vacuamente (`'sem configuração no snapshot…'` e o `not.toContain('cargo')` do
+teste do canhoto), porque `cargo` ainda não existe. Só passam a valer depois da T1.8.
+
+Um nome de teste foi corrigido na revisão: prometia que o canhoto é "1 e só 1" e nenhuma asserção
+cobrava isso — não há campo de mínimo do canhoto contra o que asserir. O nome passou a dizer o que o
+teste de fato verifica, que é a independência entre os dois campos.
+
+O teto de 5 (RF08) fica de fora deste contrato de propósito: ele é recusado na fronteira da API e na
+tela de configuração, não no plano do motorista.
+
+### ⚠️ As duas cópias de `proofFormPlan.service.ts` já divergiram
+
+Medido antes da T1.8, e é o que decide o alcance dela:
+
+|                                                                            | painel (`frontend-transportada`) | motorista (`frontend-driver`) |
+| -------------------------------------------------------------------------- | -------------------------------- | ----------------------------- |
+| linhas                                                                     | 89                               | 241                           |
+| `receivedBy` (spec 193)                                                    | não tem                          | tem                           |
+| `requiresProofBeforeDelivery` (gate da spec 218)                           | não tem                          | tem                           |
+| `listPendingReceiverFields`, `buildReceiverFields`, `listAllPendingFields` | não tem                          | tem                           |
+
+A do painel é a **origem** — o cabeçalho `Cópia por valor de … (ADR-0075 §7)` vive na do motorista, que
+é a cópia. Desde a separação, a cópia andou duas specs à frente da origem e nada acusou: o
+`copy-by-value-header.contract.ts` confere **só a linha do cabeçalho, nunca a paridade de conteúdo**.
+
+Decisão desta spec: **`cargo` entra só na cópia do motorista.** O módulo `driver-trip` do painel é o
+caminho legado servido enquanto `VITE_DRIVER_APP_URL` está desligado, e a spec 189 Fase 10 o remove
+sob aprovação humana. Levar `cargo` para lá seria trabalho num módulo marcado para deleção, e seria
+incoerente acrescentar o campo da spec 220 a um arquivo que não tem os das specs 193 e 218. O texto da
+T1.8 fala em `proofFormPlan.service.ts` no singular, o que é consistente com isso.
+
+O que essa decisão deixa em aberto, dito por extenso para não virar surpresa: transportadora que ligue
+a foto da mercadoria enquanto seus motoristas ainda estão no caminho legado configura um campo que
+aquele caminho não coleta nem cobra. **Não é regressão** — `cargo` nasce `off`, nada que funcionava
+deixa de funcionar — e é a mesma postura que `receivedBy` já tem desde a spec 193. Some quando o
+módulo legado sair.
+
+### T1.6 — A tela de configuração passa a mostrar duas fotos
+
+`bun test ./test/trip.contract.test.ts` em `apps/frontend-transportada`: **1903 pass, 0 fail**
+(1899 antes, com os 4 novos vermelhos). `bunx tsc --noEmit` EXIT=0, `format:check` e `lint` limpos
+(16 avisos, todos pré-existentes).
+
+O painel deixou de iterar `DELIVERY_PROOF_FIELDS` e passou a iterar `PANEL_MODE_FIELDS`, que é
+`[...DELIVERY_PROOF_FIELDS, 'cargo']`. A lista de exibição precisa ser outra porque
+`DELIVERY_PROOF_FIELDS` também alimenta o `SettingsResolutionPanel`, que ainda não mostra a foto da
+mercadoria — e o contrato antigo fixa essa lista em quatro campos. São quatro pontos de iteração no
+componente (linhas 308, 331, 441, 512); o de 331 exclui `photo` e `cargo`, que ganham seção própria.
+
+O bloco do `canhotoOcrEnabled` virou `renderCanhotoOcrSection()` e passou a ser chamado **dentro** da
+seção "Foto do canhoto" (RF04). O contrato ancora a ordem na chamada `{renderCanhotoOcrSection()}`, e
+não na chave de locale do título do interruptor: a chave está dentro da função extraída, e o que
+determina a ordem de render é o ponto de chamada.
+
+O mínimo da mercadoria é um `Select` de 1 a 5, gerado de
+`DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE`, e **some** fora de `required` em vez de aparecer
+desabilitado (RF06). Sem campo numérico digitável, não há caminho de interface que passe do teto
+(RF08) — o contrato cobra a ausência de `type="number"` nesse campo.
+
+⚠️ **Um nome de teste prometia mais do que a asserção cobrava.** O teste nasceu
+`'as cinco listas de modos passam pela lista de exibição, com cargo'`; são quatro pontos, e o corpo
+não conta nada — ele confere ausência de `DELIVERY_PROOF_FIELDS.map` e presença de
+`PANEL_MODE_FIELDS`. Como `PANEL_MODE_FIELDS` não é exportado, a asserção não tem como olhar a
+composição da lista de fora; o que dá para cobrar é exatamente o que o corpo cobra. Renomeado para
+`'nenhuma lista de modos sai de DELIVERY_PROOF_FIELDS: todas passam pela do painel'` — terceiro caso
+desta spec em que o nome descrevia uma asserção que não existia.
+
+### T1.7 / T1.8 — O plano do comprovante conhece a foto da mercadoria
+
+`bun test ./test/driver-trip.contract.test.ts` em `apps/frontend-driver`: **743 pass, 0 fail**
+(11 vermelhos na T1.7). `bunx tsc --noEmit` EXIT=0; `prettier --check` e `eslint` limpos.
+
+`countMissingCargoPhotos({ plan, values })` devolve `max(0, mínimo − cargoCount)` e 0 fora de
+`required` (RF06); `listMissingProofFields` inclui `'cargo'` quando esse número é maior que zero
+(RF09); `requiresProofBeforeDelivery` passa a considerar `cargo: 'required'` (spec 218 RF-A1).
+`ProofFieldKey` deixou de ser `keyof` puro — sem o `Exclude`, `'cargoMinimumCount'` viraria chave de
+pendência.
+
+**Sentinela:** tirado o `Math.max(0, …)`, a suíte foi a **742 pass / 1 fail**
+(`'mais fotos que o mínimo nunca produz falta negativa'`), e voltou a 743/0 com o clamp restaurado.
+O contrato morde.
+
+`attachCargo` envia `kind: 'cargo'` e a foto entra na fila mesmo abaixo do mínimo — é **pendência de
+confirmação, não recusa de anexo** (RF09). O teto de 5 (`PROOF_CARGO_PHOTO_LIMIT`, cópia por valor de
+`TRIP_DELIVERY_PROOF_CARGO_LIMIT`) é aplicado escondendo os botões quando a lista enche.
+
+Uma asserção de contrato existente mudou de valor: em `proof-queued-at-mount.contract.ts`, nota sem
+nada na fila passou de `toEqual({})` para `toEqual({ cargo: [] })`, porque a mercadoria acumula e a
+lista existe sempre. O teste continua cobrando o mesmo — "nota alheia não entra" —, e deixar `cargo`
+opcional para preservar o `{}` literal só empurraria um `?? []` para cada consumidor. As outras
+cinco fixtures ganharam apenas campos novos; `git diff -U0` não mostra nenhuma asserção removida.
+
+⚠️ **A ressalva do executor sobre o snapshot não se confirmou.** O relatório da T1.8 disse que a API
+não emite `cargo` nem `cargoMinimumCount` no snapshot do motorista, e que isso viraria item novo no
+`tasks.md` — mas o próprio relatório avisava que isso não tinha sido verificado do lado da API.
+Verificado: `drizzle-current-driver-trip.repository.ts` seleciona e monta os dois campos nas três
+camadas da cascata (linhas 650-651, 663-664, 678-679, 696-697, 710-711), e
+`me-trip.routes.ts:253` repassa `stops` inteiro sem escolher campo. O `DeliveryProofFieldSettings`
+da API carrega `cargo` desde a T1.3, então o compilador já cobrava isso. **Não há lacuna e não há
+task nova.** Registrado porque um item inventado no `tasks.md` custa tanto quanto um item que falta.
+
 ## Fase 2
 
 ## Fase 3
