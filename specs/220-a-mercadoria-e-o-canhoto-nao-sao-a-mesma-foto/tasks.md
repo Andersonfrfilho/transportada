@@ -29,9 +29,9 @@ evidência em `evidence.md` e commit isolado.
 - [x] T1.7 [P] Contrato: `proofFormPlan` com `cargo` (`rendersCargo`, faltantes) —
       `apps/frontend-driver/test/...`
 - [x] T1.8 `proofFormPlan.service.ts` e o campo da foto da mercadoria no `DriverStopCard`
-- [ ] T1.9 Revisão de design (`web.md` §15): configuração comparada com os painéis vizinhos,
+- [x] T1.9 Revisão de design (`web.md` §15): configuração comparada com os painéis vizinhos,
       contraste nos dois estados, **print ao usuário**
-- [ ] T1.10 `make check` + commit
+- [x] T1.10 `make check` + commit
 
 ## Fase 2 — O veredito alcança a foto da mercadoria
 

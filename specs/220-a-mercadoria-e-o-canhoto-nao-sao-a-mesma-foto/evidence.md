@@ -333,6 +333,51 @@ camadas da cascata (linhas 650-651, 663-664, 678-679, 696-697, 710-711), e
 da API carrega `cargo` desde a T1.3, então o compilador já cobrava isso. **Não há lacuna e não há
 task nova.** Registrado porque um item inventado no `tasks.md` custa tanto quanto um item que falta.
 
+### T1.9 — Revisão de design da configuração (`web.md` §15)
+
+Revisão feita contra a própria página, `http://localhost:53112/trips` → aba **Comprovante**, com API e
+painel servidos do worktree e a migration da T1.2 já aplicada no Postgres local.
+
+**Os dois campos existem e estão na ordem da RF04.** Árvore de acessibilidade do bloco geral:
+`Foto do canhoto` → `Ligar a leitura do canhoto` → `Foto da mercadoria`. O interruptor do OCR está
+**dentro** do cartão do canhoto, não entre os dois campos. As três tabelas (geral, exceção por
+destinatário, exceção por contratante) trazem os cinco modos: 16 gatilhos `aria-haspopup="listbox"`
+na página, `Foto da mercadoria` em cada um dos três blocos.
+
+**O mínimo só aparece em `required`, e é escolha, não digitação.** Com `cargo: 'off'` (a fábrica)
+não há campo de mínimo na página. Trocado para `Obrigatório`, nasce
+`Mínimo de fotos da mercadoria`, com as opções exatamente `1 2 3 4 5` —
+`DELIVERY_PROOF_CARGO_MINIMUM_COUNT_RANGE` na tela, sem `input type="number"` capaz de passar do teto
+de 5 (spec 184 D3).
+
+**Comparado com o campo vizinho, é o mesmo campo.** Medido no DOM, os blocos do canhoto e da
+mercadoria são idênticos em token: rótulo `12.8px/400`, valor `14.4px/400`, mesma cor, mesma largura
+(1164 px) e mesma altura (70 px). Nenhum estouro horizontal (`scrollWidth === clientWidth`).
+
+**Contraste nos dois estados** (razão WCAG calculada da cor computada sobre o fundo efetivo):
+
+| tema   | elemento                                         | cor                  | fundo             | razão     |
+| ------ | ------------------------------------------------ | -------------------- | ----------------- | --------- |
+| claro  | rótulo `Mínimo de fotos da mercadoria` (12.8 px) | `rgb(85, 101, 110)`  | `#fbf9f5`         | **5,7:1** |
+| claro  | valor do gatilho (14.4 px)                       | `rgb(29, 43, 51)`    | `#f2efe9`         | ≫ 7:1     |
+| escuro | rótulo e texto de apoio (12.8 px)                | `rgb(154, 172, 181)` | `rgb(28, 43, 51)` | **6,2:1** |
+| escuro | valor do gatilho (14.4 px)                       | `rgb(240, 242, 238)` | `rgb(16, 34, 44)` | ≫ 7:1     |
+
+O piso do texto pequeno é 4,5:1 — passa nos dois temas, com folga. O rótulo e o texto de apoio
+compartilham o mesmo token no tema escuro, igual aos campos vizinhos: não é regressão desta spec.
+
+⚠️ **O `<Select>` do design system não abre por clique sintético ingênuo.** É componente próprio
+(`src/components/ui/select.tsx`), não Radix e não `<select>` nativo: `onClick` no `<button>`,
+`onKeyDown` na raiz, lista em portal. Cinco tentativas falharam antes de acertar — clique por `ref`,
+clique por coordenada, `PointerEvent` sintético, foco + Enter. O que funciona é `element.click()`
+**relendo o elemento do DOM na mesma chamada** e esperando o re-render antes de reconsultar
+`aria-expanded`; a leitura em chamada separada pegava referência velha. Fica registrado para as
+revisões de design das Fases 4 e 5, que mexem nos mesmos controles.
+
+Rascunho deixado sem gravar: o painel tem botão `Salvar configuração`, e a revisão não precisava do
+`PUT` — o caminho de escrita já está coberto pelos contratos da T1.1 à T1.3. Recarregar a página
+devolve a fábrica.
+
 ## Fase 2
 
 ## Fase 3
