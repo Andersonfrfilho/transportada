@@ -1904,3 +1904,77 @@ called here"). É por isso que o `package.json` nomeia os três entrypoints — 
 
 A suíte nova (`test/driver-trip/canhoto-recapture.contract.ts`) entra pelo barril
 `test/driver-trip.contract.test.ts`, já nomeado no `package.json`.
+
+## T6.11 — revisão de design e print
+
+### Qual tela a Fase 6 mexeu
+
+Uma só. A conferência do canhoto (T6.1–T6.8) é API; o painel ganhou
+`src/modules/trip/shared/canhotoReview.service.ts` e **nenhum componente** — a varredura por
+`canhotoReview|canhotoRejection|CanhotoReview` em `apps/frontend-transportada/src/` devolve esse
+arquivo e mais nada. A tela que mudou é a **"Fotos pendentes" do app do motorista**, que na T6.9
+passou a mostrar por que a nota voltou.
+
+### O print
+
+`apps/frontend-driver/test/spec-220-prints.smoke.spec.ts`, no padrão das specs 159/179/218: fora do
+`testMatch` da CI, roda por `PLAYWRIGHT_TEST_MATCH` e grava ao lado da spec.
+
+```bash
+cd apps/frontend-driver
+set -a; . ../../.env; set +a
+PLAYWRIGHT_DRIVER_PORT=53112 VITE_DRIVER_APP_URL=http://localhost:53112 \
+  VITE_SMOKE_AUTH_BYPASS=true PLAYWRIGHT_TEST_MATCH=spec-220-prints.smoke.spec.ts \
+  bunx playwright test
+# 1 passed (6.5s)
+```
+
+⚠️ **A porta não é livre.** O realm só registra `redirect_uri` para 53200 e 53112
+(`realm/transportada-local-realm.json:58`). Numa porta fora dessas o Keycloak devolve a página de
+erro em vez do formulário, e o teste morre nos 30 s esperando `#login-identifier` — foi o que
+aconteceu com 53210 na primeira tentativa. Aqui a 53200 estava ocupada por outro worktree, então a
+rodada usou a 53112 (o `vite` do painel foi parado para liberá-la).
+
+Três cenários na mesma lista, porque o aviso só cumpre a RF29 se saltar **ao lado** de quem não
+voltou por recusa:
+
+| PNG                                   | O que prova                                                     |
+| ------------------------------------- | --------------------------------------------------------------- |
+| `t611-recusa-da-lista-375.png`        | motivo da lista fechada (`illegible`), texto vindo do app       |
+| `t611-recusa-com-texto-livre-375.png` | `other` com o texto da conferência — o pior caso de comprimento |
+| `t611-lista-completa-375.png`         | as três notas juntas: duas com aviso, uma sem                   |
+
+### Um tema só, medido
+
+A primeira versão do arquivo repetia o laço `['light','dark']` da spec 218 e gravou seis PNGs. Os
+seis saíram em **três pares de MD5 idêntico**: esta app fixa `color-scheme: dark` em
+`src/styles/index.css:9` e não tem `prefers-color-scheme` em lugar nenhum, então `emulateMedia` não
+muda um pixel. O laço saiu; o print da 218 fica como está, mas o motivo está escrito no cabeçalho do
+arquivo para a próxima spec não repetir.
+
+### O que a revisão olhou, e o que mediu
+
+- **Hierarquia**: borda vermelha à esquerda, ícone `alert`, título em negrito e o motivo embaixo, em
+  peso normal. O bloco vem **antes** do formulário de captura — o motorista lê por que voltou antes
+  de ver o botão de tirar foto de novo.
+- **Contraste**: o fundo é `color-mix(in srgb, var(--color-alert) 18%, transparent)` sobre o cartão —
+  cor que não se lê da folha de estilo. Medido na tela, compondo as camadas translúcidas até o
+  primeiro fundo opaco: **14,18:1**, contra o mínimo de 4,5:1 da AA. O portão morde: com o limiar em
+  20, `Expected: >= 20 / Received: 14.182770751730793`, 1 failed.
+- **Transbordo horizontal**: `scrollWidth - innerWidth <= 0` em 375 px, com o nome de cliente longo
+  ("Distribuidora Boa Vista Alimentos") e o texto livre de 76 caracteres.
+- **Alvos de toque**: a anotação lista seis `INPUT 1x1` — são os `input[type=file]` escondidos atrás
+  dos botões "Tirar foto"/"Anexar", os mesmos que a 159 já anotava. Nenhum botão visível abaixo de
+  44 px.
+
+### Portões
+
+| Comando (em `apps/frontend-driver`)                  | Resultado                |
+| ---------------------------------------------------- | ------------------------ |
+| `bunx playwright test` (com `PLAYWRIGHT_TEST_MATCH`) | 1 passed · 3 PNGs        |
+| `bun run typecheck`                                  | EXIT=0                   |
+| `bun run lint`                                       | EXIT=0                   |
+| `bunx prettier --write` no arquivo novo              | aplicado antes do commit |
+
+O arquivo **não** entra na lista de testes do `package.json`: é spec de Playwright fora da CI, como
+`spec-159-prints`, `spec-179-prints` e `spec-218-prints`, nenhuma delas nomeada ali.

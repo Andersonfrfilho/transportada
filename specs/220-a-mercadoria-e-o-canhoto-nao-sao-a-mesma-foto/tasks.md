@@ -199,8 +199,16 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
       não recebeu: o `driver-trip` dele é o caminho de transição da ADR-0075, já atrás desde a 193
 - [x] T6.10 Contrato: **nenhum veredito** impede confirmar entrega, despachar viagem, emitir CT-e
       ou faturar (CA13)
-- [ ] T6.11 Revisão de design + **print ao usuário**
-- [ ] T6.12 `make check` + commit
+- [x] T6.11 Revisão de design + **print ao usuário**
+      A Fase 6 mexeu em uma tela só: "Fotos pendentes" do app do motorista (o painel só ganhou
+      serviço, sem UI). Print por `test/spec-220-prints.smoke.spec.ts`, fora da CI. Um tema só, e
+      medido: a app fixa `color-scheme: dark` e não tem `prefers-color-scheme` — os seis PNGs da
+      primeira versão saíram em três pares de MD5 idêntico. Contraste do aviso medido na tela
+      (composição do `color-mix` sobre o cartão): 14,18:1, e o portão morde (limiar em 20 reprova)
+- [x] T6.12 `make check` + commit
+      `MAKE_CHECK_EXIT=0`, dez suítes com `0 fail`. ⚠️ A notificação de saída do harness mente com
+      `make check` em segundo plano: o `echo` final do subshell é que responde 0 — o veredito está
+      na linha `MAKE_CHECK_EXIT=` do log, e a primeira execução tinha reprovado em `format:check`
 
 ---
 
