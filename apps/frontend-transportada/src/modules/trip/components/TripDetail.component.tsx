@@ -1413,7 +1413,7 @@ function noticeForOutcome(outcome: CanhotoReviewOutcome): CanhotoReviewNotice | 
     : undefined
 }
 
-function TripDeliveryProofLoader({
+export function TripDeliveryProofLoader({
   documents,
   documentId,
   workspace,

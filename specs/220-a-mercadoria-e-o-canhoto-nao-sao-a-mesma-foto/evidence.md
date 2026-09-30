@@ -2433,3 +2433,34 @@ $ bun run lint        → EXIT=0
 $ bun run test        → 5881 pass · 0 fail (e 110 · 0 nos hooks) · EXIT=0
 $ bun run format:check (raiz) → EXIT=0
 ```
+
+### T7.12 — O painel do canhoto ligado ao carregador: aprovar, recusar, 409 e falha
+
+O arquivo `canhoto-review-panel.contract.ts` já existia (T7.8/T7.9) e já cobre o selo por veredito nos
+quatro estados e os botões ausentes sem `trip.manage`, no nível do `ProofReview`. Não foi reescrito:
+a integração nasceu em `test/trip-hooks/canhoto-review-loader.contract.ts`, com uma linha de import
+no fim de `trip-hooks.contract.test.ts`. O dublê do workspace é um objeto mínimo com só o que o
+`TripDeliveryProofLoader` lê; o refetch do 409 é do hook e segue provado em
+`canhoto-review-outcome.contract.ts` (T7.11).
+
+VERMELHO medido antes do código: com o arquivo novo na lista, `bun run test:hooks` →
+`SyntaxError: Export named 'TripDeliveryProofLoader' not found` · 0 pass · 1 fail · EXIT=1. A única
+mudança de produção é `export` na função, sem alteração de comportamento. Os oito casos passaram de
+primeira depois disso, porque o comportamento já existia — não houve vermelho de comportamento.
+
+O que cada caso protege:
+
+- aprovar chama `reviewCanhoto` com documento, viagem e `{ action: 'approve' }`; o 200 não deixa aviso
+- o 409 vira o parágrafo `role="alert"` com o texto de `alreadyResolved`
+- qualquer outra falha da aprovação vira o aviso `failed` (o buraco do commit `34cc5bf1a`)
+- a segunda tentativa limpa o aviso da primeira
+- sem `trip.manage` o carregador não oferece aprovar nem recusar
+- recusar abre o diálogo com o foco dentro, e confirmar envia `{ action: 'reject', reason }`
+- Esc fecha o diálogo sem chamar `reviewCanhoto`
+- o 400 da recusa mantém o diálogo aberto com a mensagem e não levanta o aviso do painel
+
+```
+hooks:   110 pass · 0 fail  →  118 pass · 0 fail
+suíte:   5881 pass · 0 fail (inalterada)
+EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
+```

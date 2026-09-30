@@ -293,7 +293,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       409: a tela **não insiste e não sobrescreve** — diz que outra pessoa já conferiu e refaz
       `deliveryProofsQuery`, para o operador ver o veredito que venceu. O caminho de volta de um
       veredito errado é a recaptura, por decisão da Fase 6 (`:111`)
-- [ ] T7.12 Contrato DOM: `TripDeliveryProof` montado — selo por veredito nos quatro estados, botões
+- [x] T7.12 Contrato DOM: `TripDeliveryProof` montado — selo por veredito nos quatro estados, botões
       ausentes sem `trip.manage`, o diálogo de recusa (foco preso, Esc, campo livre só com `outro`),
       409 virando aviso mais refetch — `test/trip-hooks/canhoto-review-panel.contract.ts` +
       `bun run test:hooks`. ⚠️ Os hooks deste arquivo vivem **dentro** do `describe`: o `afterEach`
