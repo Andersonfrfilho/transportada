@@ -2464,3 +2464,34 @@ hooks:   110 pass · 0 fail  →  118 pass · 0 fail
 suíte:   5881 pass · 0 fail (inalterada)
 EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
 ```
+
+### T7.13 — `useCanhotoReview`: quando a conferência automática dispara e quando desiste
+
+O hook não existia; a task criou `src/modules/trip/hooks/useCanhotoReview.hook.ts` e o contrato
+`test/trip-hooks/canhoto-review-trigger.contract.ts` (uma linha no fim de `trip-hooks.contract.test.ts`).
+Leitor (`readCanhoto`), prazo (`deadlineMs`) e entrega do veredito (`onRead`) entram pelo parâmetro.
+
+VERMELHO medido antes do hook: `bun run test:hooks` → `error: Cannot find module
+'../../src/modules/trip/hooks/useCanhotoReview.hook'` · 0 pass · 1 fail · EXIT=1. É vermelho de import
+(legítimo só para o primeiro); não houve segundo vermelho de asserção, porque o hook nasceu já
+satisfazendo os nove casos.
+
+Casos: dispara uma vez e entrega o veredito · não redispara em re-render · dispara de novo para outro
+comprovante · não dispara com `canhotoReadSource` preenchido · não dispara se `kind !== 'photo'` ou já
+conferido · espera a chave e dispara uma vez ao chegar · estouro do prazo deixa pendente e sinaliza ·
+leitor que rejeita sinaliza sem derrubar · leitura no prazo não sinaliza. Os quatro últimos de
+"honestidade" e o de outro comprovante são meus, além dos cinco da task.
+
+Relógio falso: não foi tentado o fake timer do Bun; o "relógio falso" da redação virou **prazo
+injetado** (`deadlineMs = 10` e leitor que nunca resolve), observável em milissegundos sem depender
+do suporte limitado do Bun.
+
+`review` não sobe: o hook só entrega o `CanhotoReviewOutcome` a `onRead`; o corpo do PATCH automático é
+montado na T7.14 (comentário de uma linha no tipo do hook). O sinal `isAutomaticReviewUnavailable` é de
+sessão, sem quinto valor de `canhotoReadSource`.
+
+```
+hooks:   118 pass · 0 fail  →  127 pass · 0 fail
+suíte:   5881 pass · 0 fail (inalterada)
+EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
+```

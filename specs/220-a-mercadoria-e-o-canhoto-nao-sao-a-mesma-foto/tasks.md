@@ -299,7 +299,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       `bun run test:hooks`. ⚠️ Os hooks deste arquivo vivem **dentro** do `describe`: o `afterEach`
       global de `field-delivery-focus.contract.ts` limpa o `document.body` de todo teste do processo
       (T5.5)
-- [ ] T7.13 Contrato DOM: `useCanhotoReview.hook.ts` — dispara **uma vez** por comprovante, não
+- [x] T7.13 Contrato DOM: `useCanhotoReview.hook.ts` — dispara **uma vez** por comprovante, não
       redispara em re-render, não redispara em comprovante que já tem leitura
       (`canhotoReadSource !== null`), espera a chave de acesso, e respeita os 20 s com relógio falso
       — `test/trip-hooks/canhoto-review-trigger.contract.ts`
