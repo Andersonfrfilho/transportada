@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -9,11 +9,18 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import styles from '../styles/driverTrip.module.css'
 
+const HISTORY_MARKER_KEY = 'proofImageLightbox'
+
 type ProofImageLightboxProps = Readonly<{
   alt: string
   onClose: () => void
   src: string
 }>
+
+function hasHistoryMarker(): boolean {
+  const state: unknown = window.history.state
+  return typeof state === 'object' && state !== null && HISTORY_MARKER_KEY in state
+}
 
 /**
  * Pedido do usuário (25/09, spec 207): "cadê opção de abrir imagem" — a miniatura do canhoto (foto
@@ -25,29 +32,44 @@ export function ProofImageLightbox({ alt, onClose, src }: ProofImageLightboxProp
   const { t } = useTranslation('driverTrip')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
 
+  // O efeito do histórico é por montagem; `onClose` muda de identidade a cada render do cartão.
+  const onCloseRef = useRef(onClose)
+  const pendingUndoRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
   /**
    * O botão voltar do Android dispara `popstate`, nunca um evento de UI — sem isto ele saía da app
    * inteira. Uma entrada de histórico "reserva" o gesto: o toque explícito (Esc, fora, "Fechar")
    * também a desfaz, para não sobrar uma entrada morta que peça um segundo "voltar" depois.
+   *
+   * Desfazer na limpeza do efeito, porém, não serve: sob `StrictMode` o React monta, limpa e monta
+   * de novo, e o `popstate` do `back()` chega depois da remontagem — fechando o diálogo no mesmo
+   * toque que o abriu. Medido na página do painel (spec 220), sobre esta mesma cópia. O desfazer
+   * espera uma tarefa, e a remontagem o cancela; só a saída de verdade chega a executá-lo.
    */
   useEffect(() => {
-    window.history.pushState({ proofImageLightbox: true }, '')
+    if (pendingUndoRef.current === undefined) {
+      window.history.pushState({ [HISTORY_MARKER_KEY]: true }, '')
+    } else {
+      clearTimeout(pendingUndoRef.current)
+      pendingUndoRef.current = undefined
+    }
 
     function handlePopState(): void {
-      onClose()
+      onCloseRef.current()
     }
 
     window.addEventListener('popstate', handlePopState)
     return () => {
       window.removeEventListener('popstate', handlePopState)
-      if (
-        (window.history.state as { proofImageLightbox?: boolean } | null)?.proofImageLightbox ===
-        true
-      ) {
-        window.history.back()
-      }
+      pendingUndoRef.current = setTimeout(() => {
+        pendingUndoRef.current = undefined
+        if (hasHistoryMarker()) window.history.back()
+      })
     }
-  }, [onClose])
+  }, [])
 
   return (
     <div

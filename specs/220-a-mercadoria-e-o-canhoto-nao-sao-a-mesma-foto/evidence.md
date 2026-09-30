@@ -1241,6 +1241,35 @@ porque o comando terminava em `echo EXIT=$?`, e o `echo` é quem definiu o códi
 notificação disse "exit code 0" sobre um `make` que havia falhado. Quem lê o resultado lê a linha
 `EXIT=` dentro do log, nunca o status do shell que o produziu.
 
-Commit isolado da fase fecha T5.1–T5.8.
+Commit isolado da fase fecha T5.1–T5.8 — `0eb747b11`.
+
+### Achado fora de escopo — o mesmo defeito no app do motorista
+
+`ProofImageLightbox.component.tsx` do `frontend-driver` é cópia por valor do diálogo do painel, e
+carregava o defeito idêntico ao que a T5.4 corrigiu aqui: efeito do histórico com dependência
+`[onClose]` e `history.back()` síncrono na limpeza. Sob `StrictMode`, o `popstate` chega depois da
+remontagem e fecha o diálogo no mesmo toque que o abriu.
+
+É da spec 189, não da 220. **Decisão do usuário: corrigir agora, em commit à parte.** Mesma forma da
+correção do painel — `onCloseRef`, desfazer adiado por uma tarefa e cancelado pela remontagem, e a
+chave do marcador extraída para constante, já que passou a aparecer duas vezes.
+
+⚠️ **O contrato aqui é de forma, não de comportamento, e a diferença importa.** O `frontend-driver`
+não monta React em teste: não tem `@happy-dom/global-registrator` nem preload de DOM, e seus 752
+contratos são asserções sobre texto-fonte ou função pura. Montar React nesta app seria infraestrutura
+nova — dependência, preload e script — para um teste só, e não é o que o usuário pediu. A prova
+comportamental existe: vive na suíte montada do painel, sobre código idêntico.
+
+O caminho até a asserção certa teve dois erros meus, ambos corrigidos por medição e não por
+suposição:
+
+1. `not.toContain('}, [onClose])')` reprovava a própria correção, porque o efeito **legítimo** que
+   sincroniza a ref também termina assim.
+2. Recortar o efeito até `'return ('` recortava no `return () => {` da limpeza — `return () =>`
+   começa com `return (`. A âncora passou a ser `'\n  return ('`, o `return` do JSX, com indentação.
+
+Vermelho antes de verde, verificado **contra o código antigo de verdade** (`git stash` do
+componente, sem a correção): 751 passam, 1 falha. Com a correção de volta: **752 passam, 0 falham**,
+`typecheck` limpo e `eslint` sem aviso.
 
 ## Fase 6
