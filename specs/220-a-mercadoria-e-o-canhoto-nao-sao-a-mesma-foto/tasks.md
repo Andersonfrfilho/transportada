@@ -119,15 +119,38 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T5.1 Contrato: ordem da galeria (canhoto → mercadoria → assinatura, na ordem da tela); uma
-      imagem só não oferece os botões; as pontas param
-- [ ] T5.2 `ProofGalleryDialog` — molde do `ProofImageLightbox` do app do motorista (foco preso,
-      Esc, `popstate` do Android) sobre `useModalDialog` do painel, com anterior/próxima
-- [ ] T5.3 Miniatura clicável; a tela cheia usa o **original**, nunca a miniatura ampliada
-- [ ] T5.4 `deliveryProof.open` (`trip.locale.json:466`) ganha consumidor — ou sai
-- [ ] T5.5 Teste montado em `test/trip-hooks/*.contract.ts` + `bun run test:hooks`
-- [ ] T5.6 Revisão de design em 375 px, 768 px e 1280 px (fullscreen em mobile) + **print**
-- [ ] T5.7 `make check` + commit
+- [x] T5.1 Contrato: ordem da galeria (canhoto → mercadoria → assinatura, na ordem da tela); uma
+      imagem só não oferece os botões; as pontas param — a decisão vive em função pura
+      (`deliveryProofGallery.service.ts`) porque o teste desta app não tem DOM
+- [x] T5.2 `ProofGalleryDialog` — molde do `ProofImageLightbox` do app do motorista (foco preso,
+      Esc, `popstate` do Android) sobre `useModalDialog` do painel, com anterior/próxima — um defeito
+      corrigido na revisão: o `alt` genérico perdia a distinção canhoto ≠ mercadoria e voltou a sair
+      por tipo
+- [x] T5.3 Miniatura clicável; a tela cheia usa o **original**, nunca a miniatura ampliada — um
+      defeito corrigido na revisão: a task nascera com um `type` cuja única razão de existir era
+      escapar do contrato que proíbe guardar a URL assinada em estado
+- [x] T5.4 `deliveryProof.open` (`trip.locale.json:475`) ganha consumidor — é o `aria-label` do botão
+      da miniatura, então a chave ficou, não saiu
+- [x] T5.5 Teste montado em `test/trip-hooks/*.contract.ts` + `bun run test:hooks` — onze testes com o
+      `TripDeliveryProof` real montado: foco preso, Esc, `popstate` e a distinção dos três `alt`
+      deixam de ser promessa do código e viram prova. ⚠️ Os hooks deste arquivo vivem **dentro** do
+      `describe`: o `afterEach` global de `field-delivery-focus.contract.ts` limpa o `document.body`
+      de todo teste do processo, e o portal morre com `removeChild` se a limpeza vier antes
+- [x] T5.8 Marcador de carregamento na miniatura e na galeria, reusando `Skeleton`/`SkeletonGroup`
+      do design system. Sete contratos em `test/trip-hooks/proof-image-skeleton.contract.ts`, escritos
+      antes da implementação. O marcador sai quando a imagem **resolve** — carregando ou falhando —,
+      porque marcador que gira para sempre mente mais do que o buraco branco que veio substituir;
+      comprovante sem fonte não ganha marcador, e a galeria guarda o **id** resolvido para o aviso
+      voltar ao trocar de comprovante. Na mesma task, `TripDeliveryProof.component.tsx` voltou para
+      baixo do teto de 200 linhas com a extração do `ProofImage` para arquivo próprio
+- [x] T5.6 Revisão de design em 375 px, 768 px e 1280 px (fullscreen em mobile) + **print**.
+      ⚠️ Parcial, com os limites escritos no `evidence.md`: as três larguras reais não foram medidas
+      (a janela não redimensiona neste ambiente), a imagem do comprovante devolve 503 pelo MinIO
+      local e o print saiu em branco. O que a página **confirmou**: a distinção canhoto/mercadoria na
+      árvore de acessibilidade e os três marcadores aparecendo e saindo, um por comprovante
+- [x] T5.7 `make check` + commit. O portão reprovou na primeira passada por `format:check` sobre o
+      próprio `evidence.md` — o `check` da app é eslint, e só o `format:check` da raiz pega isso.
+      Verde na segunda: `EXIT=0`, sem nenhuma marca de erro no log
 
 ## Fase 6 — O canhoto ganha veredito
 

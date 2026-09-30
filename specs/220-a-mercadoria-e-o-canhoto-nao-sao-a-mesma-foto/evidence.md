@@ -963,4 +963,284 @@ da T3.4: o teste de integração da T3.8 já prova a gravação e a leitura cont
 
 ## Fase 5
 
+### T5.1 — a ordem e a navegação da galeria, provadas antes do diálogo
+
+O teste desta app roda em `bun test` puro, **sem DOM**. Provar "as pontas param" e "com uma imagem só
+não há botão" dentro do componente exigiria montagem, que aqui só existe em `test/trip-hooks/` (T5.5).
+A decisão saiu então para função pura, e o diálogo passa a apenas obedecê-la — o que é a razão de a
+regra ser testável cedo, e não um contorno da falta de DOM.
+
+`src/modules/trip/shared/deliveryProofGallery.service.ts`:
+
+- `buildDeliveryProofGallery(view)` — concatena `photos` (canhoto) → `cargoPhotos` (mercadoria) →
+  `signatures`, cada grupo na ordem em que a tela o mostra, e **descarta o comprovante sem imagem**
+  (`downloadUrl !== ''`). O filtro é seguro por tipo: `tripResponse.validation.ts:1231` valida
+  `isString(value.downloadUrl)`, então o campo é string obrigatória, não opcional.
+- `resolveDeliveryProofGalleryStartIndex({ gallery, proofId })` — o índice da imagem clicada, 0 quando
+  não acha.
+- `resolveDeliveryProofGalleryNavigation({ count, currentIndex })` — `{ canGoNext, canGoPrevious,
+hasNavigation, nextIndex, previousIndex }`. **Não dá a volta**: na primeira, `previousIndex` é a
+  própria; na última, `nextIndex` é a própria.
+
+Contrato em `test/trip/delivery-proof-gallery.contract.ts`, importado por `test/trip.contract.test.ts`
+(a lista de teste desta app é explícita — arquivo fora dela não roda). Sete asserções, uma por regra
+nomeada na task.
+
+- **Vermelho antes**: `Cannot find module '../../src/modules/trip/shared/deliveryProofGallery.service'`.
+- **Verde depois**: a suíte de viagem (`test/trip.contract.test.ts`) — **1938 passando, 0 falhando**
+  (eram 1931 antes; os 7 novos são exatamente estes).
+- `bun run typecheck` na raiz: limpo nas 7 apps.
+
+⚠️ **Não meça esta app com `bun test` puro.** A descoberta padrão do Bun varre também
+`test/trip-hooks/` (que só passa por `bun run test:hooks`) e os arquivos do Playwright (runner
+próprio): dá 28 falhas e 20 erros de `Playwright Test did not expect …` que não são defeito nenhum.
+O comando é `bun run test`, cuja lista de arquivos é explícita no `package.json` — mesmo defeito de
+forma que o aviso do `CLAUDE.md` já registra para a API, com outro par de comandos.
+
+### T5.2 — o visualizador em tela cheia
+
+`src/modules/trip/components/ProofGalleryDialog.component.tsx`, copiado do
+`ProofImageLightbox` do app do motorista (**copiado, não importado** — nenhuma app importa
+código-fonte de outra) sobre o `useModalDialog` do painel:
+
+- Foco preso, Esc e devolução de foco vêm do `useModalDialog`; o diálogo não reescreve nenhum deles.
+- O botão voltar do Android dispara `popstate`, que fecharia a tela inteira: uma entrada de histórico
+  reservada (`{ proofGalleryDialog: true }`, lida com type guard, sem `as`) absorve o gesto, e a
+  limpeza só desempilha se a marca ainda estiver lá.
+- Anterior e próxima saem de `resolveDeliveryProofGalleryNavigation` — o diálogo **obedece** a função
+  da T5.1 em vez de recalcular ponta, e o botão da ponta fica `disabled`. Com uma imagem só,
+  `hasNavigation` esconde setas e contador. As setas ← e → do teclado respeitam os mesmos limites.
+- A imagem é sempre `proof.downloadUrl`, o original.
+- `z-index: 80` é o maior da app (o seguinte é 70), então a galeria fica acima de qualquer overlay.
+- Contraste do contador medido com o mesmo helper da Fase 4: `--color-fog` sobre o fundo composto
+  (`asphalt` a 92 %) dá **14,48:1** no escuro e **12,66:1** no claro, contra o piso de 4,5.
+
+**Um defeito corrigido na revisão**: o diálogo nascera com um `alt` genérico próprio
+(`galleryImageAlt` = "Comprovante {{position}} de {{count}}"), que joga fora exatamente a distinção
+canhoto ≠ mercadoria que é a razão desta spec existir — e o painel já tinha `photoAlt`,
+`cargoPhotoAlt` e `signatureAlt` por tipo. O `alt` passou a sair de `ALT_KEY_BY_KIND[proof.kind]`
+(`satisfies Record<DeliveryProofKind, string>`, então tipo novo de comprovante quebra o typecheck em
+vez de cair num rótulo errado) e a chave inventada saiu dos dois locales. Posição e total continuam
+no contador, que é onde essa informação serve.
+
+Chaves novas em `deliveryProof`, nas duas línguas: `galleryClose`, `galleryCounter`, `galleryLabel`,
+`galleryNext`, `galleryPrevious`.
+
+- `bun run typecheck` (raiz): limpo nas 7 apps. `bun run lint` (raiz): `EXIT=0`.
+- `bun run test` em `apps/frontend-transportada`: **5811 passando / 0 falhando** nos contratos (31
+  arquivos) e **61 passando / 0 falhando** nos hooks.
+
+### T5.3 e T5.4 — a miniatura abre o original, e a chave órfã ganha dono
+
+A miniatura virou **`<button type="button">` de verdade** (não `div` com `onClick`, não
+`role="button"`): alcançável por teclado, com `:focus-visible` visível, e `aria-label` =
+`t('deliveryProof.open')` — a chave "Abrir em tamanho real" / "Open in full size" que existia nos dois
+locales **sem nenhum consumidor**. É a T5.4 inteira: a chave ficou porque ganhou o dono certo.
+
+- A galeria sai de `buildDeliveryProofGallery(view)` e o índice de
+  `resolveDeliveryProofGalleryStartIndex` — a tela não remonta lista nem procura índice à mão.
+- Comprovante sem imagem não vira botão (`canOpen`): ele não está na galeria, então um botão que o
+  "abrisse" abriria outra coisa.
+- A tela cheia usa `proof.downloadUrl`. `resolveDeliveryProofImageSource` é só da miniatura e não
+  chega ao diálogo, porque o diálogo não recebe fonte de imagem nenhuma.
+- `TripDeliveryProofDetail` saiu para arquivo próprio: o componente estava em 247 linhas e esta task
+  o aumentaria. Ficou em 206 — **ainda 6 acima do teto de 200**, e o que falta é separar `ProofImage`,
+  que é código anterior a esta spec.
+
+**Um defeito corrigido na revisão.** O contrato `delivery-proof-panel.contract.ts` guarda uma regra
+real: a URL assinada expira em cinco minutos, então não pode ser copiada para dentro de um `useState`
+— tela que a guarda e reusa mostra imagem quebrada sem dizer por quê. A guarda estava escrita como
+`expect(source).not.toInclude('useState<string')`, e a task nasceu com um `type OpenProofId = string
+| null` cuja **única razão de existir era escapar desse texto**. O comportamento estava certo (o que
+entra no estado é o `id`, não a URL), mas um contrato que se contorna com um `type` não guarda nada,
+e o próximo a guardar a URL sob outro apelido passaria igual.
+
+O apelido saiu (`useState<string | null>`) e a guarda passou a mirar a URL em vez do tipo `string`:
+
+```ts
+const HELD_URL_IN_STATE = /useState\b[^\n]*[Uu]rl/
+const URL_INTO_SETTER = /set[A-Z]\w*\([^)]*downloadUrl/
+```
+
+A redação anterior errava dos dois lados — reprovava estado legítimo de `string` e deixava passar a
+URL sob apelido. Um teste novo planta as três formas de esconder a URL no estado e exige que a guarda
+morda cada uma, além de exigir que ela **não** morda o estado legítimo do id.
+
+`delivery-proof-disclosure.contract.ts` também mudou, e não foi afrouxamento: ele lê fonte como
+texto, e a extração levou as duas expansões para outro arquivo. As asserções são as mesmas; só o que
+ele lê passou a acompanhar o código que se mudou.
+
+- `bun run typecheck` (raiz): `EXIT=0`. `bun run lint` (raiz): `EXIT=0`.
+- `bun run test` em `apps/frontend-transportada`: **5812 passando / 0 falhando** nos contratos e
+  **61 passando / 0 falhando** nos hooks. O contrato a mais é o da guarda plantada.
+
+### T5.5 — O diálogo deixa de ser promessa do código e vira prova
+
+Até aqui, foco preso, Esc e `popstate` estavam **escritos** no `ProofGalleryDialog` e conferidos por
+contrato de texto — que prova que a linha existe, não que ela funciona. `test/trip-hooks/proof-gallery-dialog.contract.ts`
+monta o `TripDeliveryProof` de verdade, com um canhoto, uma foto de mercadoria e uma assinatura, e
+consulta a tela por `aria-label` e `role` — nunca por classe de CSS, que muda sem que nada quebre.
+
+Onze testes:
+
+| #   | O que prova                                                                         |
+| --- | ----------------------------------------------------------------------------------- |
+| 1   | clicar na miniatura abre o diálogo com o **original**, não com a fonte da miniatura |
+| 2   | o diálogo é irmão do container em `document.body`, com `role` e `aria-modal`        |
+| 3   | Esc fecha                                                                           |
+| 4   | o foco vai para dentro do diálogo ao abrir                                          |
+| 5   | próxima e anterior trocam a imagem, e o botão da ponta fica `disabled`              |
+| 6   | com uma imagem só, não há próxima, anterior nem contador                            |
+| 7   | o contador anuncia a posição quando há mais de uma                                  |
+| 8   | `popstate` (o voltar do Android) fecha o diálogo em vez de sair da tela             |
+| 9   | abrir empilha uma entrada de histórico, fechar a desempilha                         |
+| 10  | o `alt` do diálogo distingue canhoto, mercadoria e assinatura                       |
+| 11  | comprovante sem original não oferece botão para abrir                               |
+
+O primeiro é o que a T5.3 prometia e nenhum contrato de texto conseguia cobrar: a fixture dá ao
+canhoto uma miniatura em `https://storage.test/thumb/receipt-1` **diferente** do original em
+`https://storage.test/original/receipt-1`, e o teste exige que a tela cheia mostre o segundo e
+`not.toContain('thumb')`. Miniatura ampliada e original só se distinguem quando as duas URLs diferem.
+
+**Dois limites, ditos na cara.** O `history.back` é dublê contado dentro do `describe` — o teste 9
+prova que o componente **chama** o desempilhamento uma vez, não que o `history.back()` do navegador
+faça o que se espera dele. E os hooks deste arquivo ficam **dentro** do `describe`, não no topo: o
+`field-delivery-focus.contract.ts` vizinho tem um `afterEach` de topo que zera o `document.body` de
+todo teste do processo, e o portal do diálogo morre com `removeChild` se essa limpeza vier antes da
+desmontagem do React. Quem escrever o próximo teste de portal nesta suíte bate nisso.
+
+- `bun run test:hooks` em `apps/frontend-transportada`: **72 passando / 0 falhando**, 264 `expect()`
+  (eram 61). `bun run test`: **5812 passando / 0 falhando**, inalterado — nenhum código de produção
+  foi tocado nesta task.
+- A suíte imprime 124 avisos `not wrapped in act` do React. Medido com e sem o arquivo novo (stash do
+  `trip-hooks.contract.test.ts`): **124 dos dois lados** — são anteriores a esta spec, e os onze
+  testes novos não acrescentam nenhum.
+
+### T5.8 — A imagem avisa que está a caminho
+
+Task acrescentada a pedido do usuário no meio da fase ("precisa dos skeletons tbm"). A imagem do
+comprovante vem por URL assinada, sobre a rede do galpão: entre o render e o pixel havia um buraco
+branco do tamanho da miniatura, e nada dizia que algo estava a caminho.
+
+Contrato antes da implementação, em `test/trip-hooks/proof-image-skeleton.contract.ts`, sete testes,
+vermelho nas asserções das linhas 123, 152 e 174 antes de qualquer código de produção:
+
+| #   | o que o teste cobra                                                                                               |
+| --- | ----------------------------------------------------------------------------------------------------------------- |
+| 1   | a miniatura nasce com marcador **e com a imagem junto** — sem `<img>` no DOM desde o início, o `load` nunca chega |
+| 2   | o marcador sai quando a imagem carrega                                                                            |
+| 3   | imagem que **falha** também tira o marcador — nada fica girando para sempre                                       |
+| 4   | três comprovantes, três marcadores; um que chega não apaga o aviso dos outros                                     |
+| 5   | comprovante sem imagem nenhuma (`downloadUrl` vazio) não ganha marcador                                           |
+| 6   | a galeria em tamanho real avisa enquanto o **original** não chega                                                 |
+| 7   | avançar na galeria traz o marcador de volta para o comprovante seguinte                                           |
+
+O 3 é a decisão de projeto que o teste trava: um marcador que gira para sempre mente mais do que o
+buraco branco que veio substituir. O 5 apareceu por causa do 3 — foi o teste vermelho que revelou o
+caso do comprovante sem fonte, cujo marcador esperaria um evento que nunca chega. O 7 é por que o
+diálogo guarda o **id** do comprovante resolvido, e não um booleano.
+
+Reuso do `Skeleton`/`SkeletonGroup` do design system, com `role="status"`, `aria-busy` e o ramo de
+`prefers-reduced-motion` que ele já tinha — nada de um terceiro jeito de dizer "carregando". As
+asserções são de comportamento (`role="status"` + rótulo), nunca de classe de CSS module: classe não
+sobrevive ao ambiente de teste e cobraria a forma em vez do efeito.
+
+**Três medições que mudaram o código, em vez de virarem palpite:**
+
+1. O `happy-dom` devolve `HTMLImageElement.complete === true` **mesmo antes de existir `src`**
+   (medido: `{"antesDoSrc":{"complete":true,"naturalWidth":0}}`). A guarda de "imagem já em cache"
+   que eu havia escrito era quebrada no teste e errada em princípio — pela especificação do HTML,
+   `complete` é verdadeiro para imagem de `src` vazio. Ela saiu dos dois componentes: em CSR o React
+   liga o `onLoad` no mesmo commit em que define o `src`, e o evento chega depois.
+2. `TS18048` no diálogo: o TypeScript não leva o estreitamento de `const` para dentro de `function`
+   declarada (leva para arrow). Resolvido com `const currentProofId = proof.id` antes da declaração.
+3. `TripDeliveryProof.component.tsx` passou de 205 linhas — acima do teto de 200. A extração do
+   `ProofImage` para arquivo próprio resolveu as duas coisas de uma vez.
+
+**Uma guarda foi reforçada, não afrouxada.** Ao mover a miniatura para arquivo próprio, quebrou o
+`delivery-proof-panel.contract.ts:70`, que exigia `resolveDeliveryProofImageSource(proof)` dentro do
+painel. A correção não foi relaxar a asserção: a guarda passou a ler a **união** dos três arquivos
+onde a URL assinada agora vive (painel, `ProofImage`, `ProofGalleryDialog`) — e o diálogo, criado na
+T5.4, nunca estivera coberto por ela até aqui.
+
+- `bun run typecheck`: limpo. `bun run test`: **5812 passando / 0 falhando**.
+- `bun run test:hooks`: **81 passando / 0 falhando** (74 antes, 7 novos).
+- `bun run format:check` (raiz) e `bun run lint`: saída 0. Os 16 avisos do lint são todos de arquivos
+  anteriores a esta task; nenhum nos novos.
+
+### T5.6 — Revisão de design contra a página real (`web.md` §15)
+
+Feita na página de verdade (`localhost:53112`, viagem `fe7f0dbd`), com um `MutationObserver`
+instalado **antes** de abrir a aba "Comprovante" — o marcador é estado transitório e some antes de
+qualquer leitura feita depois.
+
+**O que a página confirmou:**
+
+- A distinção que a spec inteira existe para fazer está na tela e na árvore de acessibilidade: um
+  `Foto do comprovante de entrega` e dois `Foto da mercadoria entregue`, sob a seção própria
+  "Fotos da carga", dentro de "Comprovante da entrega".
+- **Três marcadores aparecem, um por comprovante**, e todos saem. Medido três vezes seguidas, com o
+  contador do observador zerado antes de cada abertura: `observados: 3`, `marcadoresRestantes: 0`.
+- Eles saíram pelo `onError` — e é justamente o teste 3 exercitado na página real: a imagem falhou e
+  **nada ficou girando**. O caminho de falha, que costuma ser o que ninguém vê antes de produção,
+  foi o que este ambiente entregou de graça.
+- Tema: `data-theme` alterna `light`/`dark` pelo controle do app. A classe `dark` que fica no
+  `<html>` nos dois estados é **inerte** — nenhuma regra CSS do app a usa (`grep` em `src/**/*.css`
+  sem ocorrência) e o app só escreve `data-theme`. Isso encerra a dúvida levantada na Fase 1: a
+  medição de contraste feita pelo controle do próprio app continua valendo (11,93:1 e 11,55:1 no
+  escuro; 12,79:1 e 11,45:1 no claro — ambos passam AA).
+
+**O que não foi possível medir, dito na cara:**
+
+- **Os 375/768/1280 px reais.** O `resize_window` relata sucesso e o `innerWidth` continua 1512;
+  popup dimensionado por `window.open` é bloqueado. A janela medida foi 1512×776. O comportamento
+  responsivo desta fase não tem prova visual.
+- **A imagem do comprovante não renderiza neste ambiente local.** Todo `GetObject` assinado no MinIO
+  volta **503** para o navegador, enquanto o mesmo MinIO responde 200 em `/minio/health/{live,ready,
+cluster}` pelo shell, sem erro no log e sem reinício em dois dias. A URL não estava expirada
+  (assinada 35 s antes, validade 300 s). A página é PWA e está sob um service worker de
+  desenvolvimento (`dev-sw.js`, `devOptions.enabled`), que é o suspeito: nenhuma das três regras de
+  `runtimeCaching` do `vite.config.ts` casa com a URL do MinIO, e `navigateFallback` só vale para
+  navegação — então **em produção o service worker não interceptaria essa imagem**. Não consegui
+  isolar: ao desregistrar o SW e recarregar, ele se re-registra e reassume a página no mesmo load.
+  Fica como pendência de ambiente, fora do escopo da 220, e **não** como defeito conhecido de
+  produção.
+- **O print saiu em branco.** O painel estava medido e enquadrado (729 px de altura, topo em 90 px,
+  tema claro coerente), e a captura devolveu só a cor de fundo. Terceira anomalia de renderização
+  deste navegador na mesma sessão, depois das `data:` URI e do 503. Parei a investigação aqui em vez
+  de insistir: o arquivo capturado é `screenshot-1790778262382-5.jpg`.
+
+**Correção de uma conclusão minha anterior.** Eu havia afirmado que este navegador não alcançava
+imagem nenhuma. Está errado: a medição seguinte mostrou duas imagens da própria aplicação carregadas
+(`naturalWidth` 150 e 96, zero quebradas). O que falha é especificamente o objeto assinado do MinIO,
+pelo caminho descrito acima.
+
+### T5.7 — O portão da fase
+
+`make check` na raiz do worktree, duas passadas.
+
+**A primeira reprovou**, e vale registrar em quê: `format:check` sobre o próprio `evidence.md` deste
+diretório. Nenhum dos gates que eu já havia rodado pegaria isso — o `check` de cada app é eslint
+sobre `src` e `test`, e o prettier só existe na raiz, varrendo o repositório inteiro, `specs/`
+incluído. Documento de evidência é código para efeito de formatação. `bunx prettier --write` no
+arquivo e nada mais.
+
+**A segunda passou**: `EXIT=0`, e uma varredura por `error:`, `FAIL` e `Error 1` no log de 1416
+linhas devolve zero ocorrências.
+
+| Etapa          | Resultado                              |
+| -------------- | -------------------------------------- |
+| `format:check` | 0                                      |
+| `lint`         | 0 (16 avisos, todos preexistentes)     |
+| `typecheck`    | 0                                      |
+| `test`         | 5812 contratos + 81 de hooks, 0 falhas |
+| `build`        | 0                                      |
+
+⚠️ **O código de saída do shell de fundo não é o do portão.** Na primeira passada o shell devolveu 0
+porque o comando terminava em `echo EXIT=$?`, e o `echo` é quem definiu o código do shell — a
+notificação disse "exit code 0" sobre um `make` que havia falhado. Quem lê o resultado lê a linha
+`EXIT=` dentro do log, nunca o status do shell que o produziu.
+
+Commit isolado da fase fecha T5.1–T5.8.
+
 ## Fase 6

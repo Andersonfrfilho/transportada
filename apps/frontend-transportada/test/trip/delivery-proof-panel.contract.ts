@@ -22,6 +22,22 @@ const DETAIL = new URL(
   import.meta.url,
 )
 const ROW = new URL('../../src/modules/trip/components/TripStopList.component.tsx', import.meta.url)
+/**
+ * A spec 220 tirou a miniatura do painel para arquivo próprio (T5.8) e abriu a galeria (T5.4). A
+ * URL assinada passou a ser tocada nos três — e uma guarda que só lê o painel deixaria de ver
+ * justamente os arquivos onde a URL agora vive.
+ */
+const PROOF_IMAGE = new URL(
+  '../../src/modules/trip/components/ProofImage.component.tsx',
+  import.meta.url,
+)
+const GALLERY = new URL(
+  '../../src/modules/trip/components/ProofGalleryDialog.component.tsx',
+  import.meta.url,
+)
+
+const HELD_URL_IN_STATE = /useState\b[^\n]*[Uu]rl/
+const URL_INTO_SETTER = /set[A-Z]\w*\([^)]*downloadUrl/
 
 /**
  * Spec 079 T006 e T025 — são a mesma tela: "ver anexos da entrega" é abrir o comprovante. Contrato
@@ -54,10 +70,31 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
   /**
    * ⚠️ A URL do comprovante **expira**. Uma tela que a guarda em estado e a reusa depois mostra
    * imagem quebrada sem dizer por quê; o componente a consome direto do que a consulta trouxe.
+   *
+   * A guarda mira a URL, não o tipo `string`. A redação anterior (`not.toInclude('useState<string')`)
+   * errava dos dois lados: reprovava estado legítimo de `string` — o id do comprovante aberto, na
+   * spec 220 — e **deixava passar** a URL guardada sob qualquer apelido de tipo. Foi o que
+   * aconteceu: a T5.3 nasceu com um `type OpenProofId = string | null` cuja única razão de existir
+   * era escapar do texto. Contrato que se contorna com um `type` não guarda nada.
    */
   it('não guarda a URL assinada em estado próprio', () => {
-    expect(source).not.toInclude('useState<string')
-    expect(source).toInclude('resolveDeliveryProofImageSource(proof)')
+    const ondeAUrlVive = [COMPONENT, PROOF_IMAGE, GALLERY]
+      .map((file) => readFileSync(file, 'utf8'))
+      .join('\n')
+
+    expect(ondeAUrlVive).not.toMatch(HELD_URL_IN_STATE)
+    expect(ondeAUrlVive).not.toMatch(URL_INTO_SETTER)
+    expect(ondeAUrlVive).toInclude('resolveDeliveryProofImageSource(proof)')
+  })
+
+  /** Guarda que não morde não guarda: as três formas de esconder a URL no estado são plantadas aqui. */
+  it('a guarda acusa a URL plantada no estado, com ou sem apelido de tipo', () => {
+    expect('const [url, setUrl] = useState<string>(proof.downloadUrl)').toMatch(HELD_URL_IN_STATE)
+    expect('const [source, setSource] = useState<ProofUrl>(null)').toMatch(HELD_URL_IN_STATE)
+    expect('setOpenProofSource(proof.downloadUrl)').toMatch(URL_INTO_SETTER)
+    expect('const [openProofId, setOpenProofId] = useState<string | null>(null)').not.toMatch(
+      HELD_URL_IN_STATE,
+    )
   })
 
   /** Foto de canhoto não tem quem assine: o nome só aparece quando o serviço o resolveu. */
