@@ -42,22 +42,22 @@ let container: HTMLDivElement | undefined
 let submissions: CanhotoRejectSubmission[] = []
 let closeCalls = 0
 
-async function renderDialog(serverErrorCode?: string): Promise<void> {
-  // O happy-dom mede tudo como zero, e o Select fecha a lista quando o gatilho está fora da janela.
-  Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
-    configurable: true,
-    value: () => VISIBLE_ANCHOR_RECT,
-  })
-  submissions = []
-  closeCalls = 0
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
+type DialogOverrides = Readonly<{
+  isOpen?: boolean
+  isSubmitting?: boolean
+  serverErrorCode?: string
+}>
+
+async function renderWith({
+  isOpen = true,
+  isSubmitting = false,
+  serverErrorCode,
+}: DialogOverrides = {}): Promise<void> {
   await act(async () => {
     root?.render(
       createElement(CanhotoRejectDialog, {
-        isOpen: true,
-        isSubmitting: false,
+        isOpen,
+        isSubmitting,
         onClose: () => {
           closeCalls += 1
         },
@@ -69,6 +69,20 @@ async function renderDialog(serverErrorCode?: string): Promise<void> {
     )
     await Promise.resolve()
   })
+}
+
+async function renderDialog(serverErrorCode?: string): Promise<void> {
+  // O happy-dom mede tudo como zero, e o Select fecha a lista quando o gatilho está fora da janela.
+  Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => VISIBLE_ANCHOR_RECT,
+  })
+  submissions = []
+  closeCalls = 0
+  container = document.createElement('div')
+  document.body.append(container)
+  root = createRoot(container)
+  await renderWith(serverErrorCode === undefined ? {} : { serverErrorCode })
 }
 
 function dialog(): HTMLElement | null {
@@ -204,6 +218,30 @@ describe('CanhotoRejectDialog (spec 220 T7.10)', () => {
   ])('o 400 %s do servidor vira mensagem', async (code, expected) => {
     await renderDialog(code)
     expect(alertText()).toContain(expected)
+  })
+
+  it('reabrir não traz de volta o motivo, a nota nem o erro da vez anterior', async () => {
+    await renderDialog()
+    await chooseReason(OTHER_OPTION)
+    await typeNote(SYNTHETIC_EMAIL_NOTE)
+    await click(buttonByText(SUBMIT_LABEL))
+    expect(alertText()).toContain('dado pessoal')
+
+    await renderWith({ isOpen: false })
+    expect(dialog()).toBe(null)
+    await renderWith()
+
+    expect(noteField()).toBe(null)
+    expect(alertText()).toBe('')
+    await click(buttonByText(SUBMIT_LABEL))
+    expect(submissions).toEqual([{ reason: 'illegible' }])
+  })
+
+  it('enquanto o envio está em curso, confirmar não aceita um segundo clique', async () => {
+    await renderDialog()
+    await renderWith({ isSubmitting: true })
+
+    expect(buttonByText(SUBMIT_LABEL).disabled).toBe(true)
   })
 
   it('Esc fecha o diálogo', async () => {
