@@ -193,7 +193,7 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
       Fechada junto com a T6.6 e a T6.7, num commit só: contrato antes da implementação em todas as
       três, e árvore comitada vermelha quebraria o portão de quem vem depois
 - [ ] T6.9 Canhoto recusado vira pendência de recaptura para o motorista, com o motivo visível
-- [ ] T6.10 Contrato: **nenhum veredito** impede confirmar entrega, despachar viagem, emitir CT-e
+- [x] T6.10 Contrato: **nenhum veredito** impede confirmar entrega, despachar viagem, emitir CT-e
       ou faturar (CA13)
 - [ ] T6.11 Revisão de design + **print ao usuário**
 - [ ] T6.12 `make check` + commit

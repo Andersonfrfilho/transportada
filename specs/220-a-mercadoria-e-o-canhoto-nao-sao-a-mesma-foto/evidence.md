@@ -1774,3 +1774,42 @@ $ bun run format                                      → EXIT=0
 Nenhuma task tocou `test/integration/**` nem schema: sem o segundo comando da API e sem
 `make migration-test`. As duas entradas novas (`canhoto-review`, `personal-data`) entraram na lista
 explícita do `package.json` — sem isso o teste existe e não roda.
+
+---
+
+## T6.10 — o veredito não é portão
+
+CA13 diz o que **não** pode acontecer, e isso não se prova exercitando o caminho feliz: um portão
+novo compila, passa em todo teste de entrega e só aparece no dia em que a operação trava por causa
+de uma foto torta. A prova é estrutural, no formato da varredura da spec 082
+(`receiver-document-logging.contract.ts`): se nenhum caminho de decisão **lê** a coluna, nenhum
+caminho de decisão pode barrar por ela.
+
+`test/canhoto-review/no-gate.contract.ts` varre `src/**` inteiro (não só `src/trips/`, porque
+faturar mora em `src/billing/`) e exige que a lista de arquivos que mencionam `canhotoReview` seja
+**exatamente** o módulo de conferência mais o schema e o `main.ts`, que só liga a rota. Igualdade,
+não inclusão: arquivo novo falando do veredito vira decisão de projeto explícita, não descuido.
+
+Por cima disso, os nove portões da CA13 são nomeados um a um e testados individualmente — faturar,
+lote de CT-e, prontidão fiscal, manifesto, os três despachos e os dois caminhos da baixa de entrega.
+Nomeá-los faz o teste falhar quando um deles é renomeado, em vez de calar.
+
+### O teste não é vazio
+
+```
+mutação: `// canhotoReview` no fim de dispatch-trip.use-case.ts  → 2 fail
+         (o portão nomeado + a igualdade da varredura)
+```
+
+Restaurado do backup; 11 pass · 0 fail.
+
+### Portões
+
+```
+$ bun --env-file=../../.env.test test ./test/canhoto-review.contract.test.ts
+ 51 pass · 0 fail · 86 expect()                       → EXIT=0
+$ bun run typecheck (apps/api-transportada)           → EXIT=0
+```
+
+A suíte nova entra pelo entrypoint `canhoto-review.contract.test.ts`, já registrado no
+`package.json` na task anterior.
