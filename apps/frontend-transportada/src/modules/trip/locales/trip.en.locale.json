@@ -367,6 +367,22 @@
         "wrong_document": "Wrong document"
       },
       "reject": "Reject delivery receipt",
+      "rejectDialog": {
+        "cancel": "Cancel",
+        "counter": "{{length}} / {{maximum}}",
+        "error": {
+          "lengthRange": "The description must have between {{minimum}} and {{maximum}} characters.",
+          "notAllowed": "Only the \"Other reason\" option accepts a description.",
+          "personalData": "The description seems to contain personal data (email, CPF, CNPJ, phone or postal code). Remove it before sending.",
+          "requestFailed": "Could not reject the delivery receipt. Try again.",
+          "required": "The reason description is required.",
+          "tooLong": "Use at most {{maximum}} characters.",
+          "tooShort": "Write at least {{minimum}} characters."
+        },
+        "noteLabel": "Describe the reason",
+        "reasonLabel": "Rejection reason",
+        "title": "Reject delivery receipt"
+      },
       "rejected": "Delivery receipt rejected"
     },
     "capturedAt": "Captured on {{moment}}",

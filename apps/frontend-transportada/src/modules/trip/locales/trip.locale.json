@@ -473,6 +473,22 @@
         "wrong_document": "Nota errada"
       },
       "reject": "Recusar canhoto",
+      "rejectDialog": {
+        "cancel": "Cancelar",
+        "counter": "{{length}} / {{maximum}}",
+        "error": {
+          "lengthRange": "A descrição deve ter entre {{minimum}} e {{maximum}} caracteres.",
+          "notAllowed": "Só o motivo \"Outro motivo\" aceita descrição.",
+          "personalData": "A descrição parece conter dado pessoal (e-mail, CPF, CNPJ, telefone ou CEP). Remova-o antes de enviar.",
+          "requestFailed": "Não foi possível recusar o canhoto. Tente novamente.",
+          "required": "A descrição do motivo é obrigatória.",
+          "tooLong": "Use no máximo {{maximum}} caracteres.",
+          "tooShort": "Escreva ao menos {{minimum}} caracteres."
+        },
+        "noteLabel": "Descreva o motivo",
+        "reasonLabel": "Motivo da recusa",
+        "title": "Recusar canhoto"
+      },
       "rejected": "Canhoto recusado"
     },
     "capturedAt": "Capturada em {{moment}}",

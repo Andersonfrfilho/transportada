@@ -68,6 +68,7 @@ import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
 import { TripCloseDialog } from './TripCloseDialog.component'
+import { CanhotoRejectDialog, type CanhotoRejectSubmission } from './CanhotoRejectDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
@@ -1408,57 +1409,92 @@ function TripDeliveryProofLoader({
   documents: readonly TripDocumentDetail[]
   workspace: TripWorkspaceController
 }>) {
+  const [isRejectOpen, setIsRejectOpen] = useState(false)
+  const [isRejecting, setIsRejecting] = useState(false)
+  const [rejectErrorCode, setRejectErrorCode] = useState<string | undefined>()
   const document = documents.find((candidate) => candidate.id === documentId)
   if (document === undefined) return null
+
+  async function handleRejectSubmit(submission: CanhotoRejectSubmission) {
+    if (document === undefined) return
+    setIsRejecting(true)
+    setRejectErrorCode(undefined)
+    try {
+      await workspace.controller.canhotoReviewProof({
+        documentId,
+        review: { action: 'reject', ...submission },
+        tripId: document.tripId,
+      })
+      setIsRejectOpen(false)
+    } catch (error) {
+      setRejectErrorCode(error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsRejecting(false)
+    }
+  }
 
   if (workspace.deliveryProofsQuery.isLoading) return <Skeleton variant="text" width="60%" />
 
   return (
-    <TripDeliveryProof
-      documentId={documentId}
-      occurrences={
-        <TripOccurrences
-          canRegister={workspace.controller.canManageTrips}
-          email={workspace.lastOccurrenceEmail}
-          isRegistering={workspace.isSendingOccurrencePhotos}
-          occurrences={workspace.occurrencesQuery.data ?? []}
-          onRegister={(occurrence) =>
-            workspace.sendSeparationOccurrencePhotos({
-              documentId,
-              note: occurrence.note,
-              occurrenceTypeId: occurrence.occurrenceTypeId,
-              photos: occurrence.photos,
-              productCodes: occurrence.productCodes,
-              productQuantities: occurrence.productQuantities,
-              productQuantityUnits: occurrence.productQuantityUnits,
-              tripId: document.tripId,
-            })
-          }
-          onReset={workspace.resetSeparationOccurrencePhotoSend}
-          photoSendState={workspace.occurrencePhotoSendState}
-          products={workspace.documentProductsQuery.data ?? []}
-          types={workspace.occurrenceTypesQuery.data ?? []}
-        />
-      }
-      products={workspace.documentProductsQuery.data ?? []}
-      reviewActions={{
-        canReview: workspace.controller.canManageTrips,
-        onApprove: () => {
-          // A resposta e o 409 ainda não têm tela; sem o catch a rejeição vira erro não tratado.
-          workspace.controller
-            .canhotoReviewProof({
-              documentId,
-              review: { action: 'approve' },
-              tripId: document.tripId,
-            })
-            .catch(() => undefined)
-        },
-        onReject: () => undefined,
-      }}
-      view={resolveDeliveryProofView({
-        document,
-        proofs: workspace.deliveryProofsQuery.data ?? [],
-      })}
-    />
+    <>
+      <CanhotoRejectDialog
+        isOpen={isRejectOpen}
+        isSubmitting={isRejecting}
+        onClose={() => setIsRejectOpen(false)}
+        onSubmit={(submission) => {
+          void handleRejectSubmit(submission)
+        }}
+        {...(rejectErrorCode === undefined ? {} : { serverErrorCode: rejectErrorCode })}
+      />
+      <TripDeliveryProof
+        documentId={documentId}
+        occurrences={
+          <TripOccurrences
+            canRegister={workspace.controller.canManageTrips}
+            email={workspace.lastOccurrenceEmail}
+            isRegistering={workspace.isSendingOccurrencePhotos}
+            occurrences={workspace.occurrencesQuery.data ?? []}
+            onRegister={(occurrence) =>
+              workspace.sendSeparationOccurrencePhotos({
+                documentId,
+                note: occurrence.note,
+                occurrenceTypeId: occurrence.occurrenceTypeId,
+                photos: occurrence.photos,
+                productCodes: occurrence.productCodes,
+                productQuantities: occurrence.productQuantities,
+                productQuantityUnits: occurrence.productQuantityUnits,
+                tripId: document.tripId,
+              })
+            }
+            onReset={workspace.resetSeparationOccurrencePhotoSend}
+            photoSendState={workspace.occurrencePhotoSendState}
+            products={workspace.documentProductsQuery.data ?? []}
+            types={workspace.occurrenceTypesQuery.data ?? []}
+          />
+        }
+        products={workspace.documentProductsQuery.data ?? []}
+        reviewActions={{
+          canReview: workspace.controller.canManageTrips,
+          onApprove: () => {
+            // A resposta e o 409 ainda não têm tela; sem o catch a rejeição vira erro não tratado.
+            workspace.controller
+              .canhotoReviewProof({
+                documentId,
+                review: { action: 'approve' },
+                tripId: document.tripId,
+              })
+              .catch(() => undefined)
+          },
+          onReject: () => {
+            setRejectErrorCode(undefined)
+            setIsRejectOpen(true)
+          },
+        }}
+        view={resolveDeliveryProofView({
+          document,
+          proofs: workspace.deliveryProofsQuery.data ?? [],
+        })}
+      />
+    </>
   )
 }
