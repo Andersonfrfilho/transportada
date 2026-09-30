@@ -10,6 +10,10 @@
  * O serviço é puro porque o teste desta app não tem DOM: o comportamento se prova na função.
  */
 import type {
+  DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS,
   DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
   DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
 } from './trip.constant'
@@ -21,7 +25,29 @@ export type DeliveryProofReceivedBy = (typeof DELIVERY_PROOF_RECEIVED_BY_OPTIONS
 
 export type DeliveryProofPunctuality = (typeof DELIVERY_PROOF_PUNCTUALITY_OPTIONS)[number]
 
+export type DeliveryProofCanhotoReview = (typeof DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS)[number]
+
+export type DeliveryProofCanhotoReviewOrigin =
+  (typeof DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS)[number]
+
+export type DeliveryProofCanhotoReadSource =
+  (typeof DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS)[number]
+
+export type DeliveryProofCanhotoReviewReason =
+  (typeof DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)[number]
+
 export type DeliveryProof = Readonly<{
+  /** Spec 220 RF24: todas as `canhoto*` ausentes (nunca `null`) quando não há o que dizer. */
+  canhotoReadNumber?: string
+  canhotoReadSeries?: string
+  canhotoReadSource?: DeliveryProofCanhotoReadSource
+  canhotoReview?: DeliveryProofCanhotoReview
+  canhotoReviewAt?: string
+  /** Nome de quem conferiu; nunca o id. Ausente no veredito automático. */
+  canhotoReviewByName?: string
+  canhotoReviewNote?: string
+  canhotoReviewOrigin?: DeliveryProofCanhotoReviewOrigin
+  canhotoReviewReason?: DeliveryProofCanhotoReviewReason
   /** Spec 220 RF14: hora da captura. Ausente em comprovante antigo. */
   capturedAt?: string
   /** Spec 220 RF15: distância ao ponto, em metros; ausente sem posição. Nunca a coordenada. */

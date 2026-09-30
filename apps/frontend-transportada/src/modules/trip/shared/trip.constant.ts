@@ -534,6 +534,15 @@ export const DELIVERY_PROOF_KEYS = [
  * máscara) já saía da API desde a spec 082 e a chave exata recusava a lista inteira por ele.
  */
 export const DELIVERY_PROOF_OPTIONAL_KEYS = [
+  'canhotoReadNumber',
+  'canhotoReadSeries',
+  'canhotoReadSource',
+  'canhotoReview',
+  'canhotoReviewAt',
+  'canhotoReviewByName',
+  'canhotoReviewNote',
+  'canhotoReviewOrigin',
+  'canhotoReviewReason',
   'capturedAt',
   'distanceMeters',
   'lateRegistration',
@@ -552,6 +561,21 @@ export const DELIVERY_PROOF_PUNCTUALITY_OPTIONS = [
   'away',
   'late_and_away',
   'not_required',
+] as const
+
+/**
+ * Spec 220 RF24: vocabulário da conferência do canhoto. ⚠️ `canhotoReview` não aceita
+ * `not_applicable`: a API omite o bloco inteiro nesse estado, e aceitá-lo aqui esconderia um
+ * servidor fora do contrato.
+ */
+export const DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS = ['pending', 'approved', 'rejected'] as const
+export const DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS = ['automatic', 'manual'] as const
+export const DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS = ['barcode', 'ocr'] as const
+export const DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS = [
+  'illegible',
+  'wrong_document',
+  'missing_signature',
+  'other',
 ] as const
 
 export const TRIP_CARGO_WEIGHT_KEYS = [

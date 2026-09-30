@@ -2118,3 +2118,28 @@ $ bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delive
 $ bun run typecheck (apps/api-transportada)           → EXIT=0
 $ bun run lint                                        → EXIT=0
 ```
+
+### T7.5 — o painel aceita as chaves da conferência do canhoto
+
+`DELIVERY_PROOF_OPTIONAL_KEYS` ganhou as nove chaves `canhoto*` e `isDeliveryProof` segue a
+convenção uniforme: campo opcional com tipo errado ou fora do vocabulário descarta o comprovante
+inteiro. Vocabulário fechado em `trip.constant.ts` (conferido contra `trip.schema.ts` da API);
+`canhotoReview` **não** aceita `not_applicable` (a API omite o bloco nesse estado).
+`canhotoReviewByUserId` e `canhotoReadDocumentId` não existem no painel — chegando, descartam o
+comprovante (testado). Teste novo `test/trip/delivery-proof-canhoto-review.contract.ts`, importado
+em `test/trip.contract.test.ts`.
+
+```
+VERMELHO (teste antes do código)
+$ bun test ./test/trip.contract.test.ts
+ 1975 pass · 3 fail → EXIT=1
+   (fail) veredito humano completo atravessa inteiro
+   (fail) veredito automático, sem nome de quem conferiu, atravessa
+   (fail) pending com leitura por ocr e pending sem leitura nenhuma atravessam
+VERDE
+$ bun test ./test/trip.contract.test.ts   1978 pass · 0 fail → EXIT=0
+$ bun run test (apps/frontend-transportada)  → EXIT=0
+$ bun run typecheck (apps/frontend-transportada)  → EXIT=0
+$ bun run lint (raiz)  → EXIT=0
+$ bun run format:check (raiz)  → EXIT=0
+```

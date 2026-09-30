@@ -59,6 +59,10 @@ import {
   DELIVERY_PROOF_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS,
+  DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS,
   DELIVERY_PROOF_OPTIONAL_KEYS,
   DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
   TRIP_DOCUMENT_PRODUCT_KEYS,
@@ -1242,6 +1246,19 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     (value.capturedAt === undefined || isString(value.capturedAt)) &&
+    (value.canhotoReadNumber === undefined || isString(value.canhotoReadNumber)) &&
+    (value.canhotoReadSeries === undefined || isString(value.canhotoReadSeries)) &&
+    (value.canhotoReadSource === undefined ||
+      isOneOf(value.canhotoReadSource, DELIVERY_PROOF_CANHOTO_READ_SOURCE_OPTIONS)) &&
+    (value.canhotoReview === undefined ||
+      isOneOf(value.canhotoReview, DELIVERY_PROOF_CANHOTO_REVIEW_OPTIONS)) &&
+    (value.canhotoReviewAt === undefined || isString(value.canhotoReviewAt)) &&
+    (value.canhotoReviewByName === undefined || isString(value.canhotoReviewByName)) &&
+    (value.canhotoReviewNote === undefined || isString(value.canhotoReviewNote)) &&
+    (value.canhotoReviewOrigin === undefined ||
+      isOneOf(value.canhotoReviewOrigin, DELIVERY_PROOF_CANHOTO_REVIEW_ORIGIN_OPTIONS)) &&
+    (value.canhotoReviewReason === undefined ||
+      isOneOf(value.canhotoReviewReason, DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)) &&
     (value.distanceMeters === undefined || isNonNegativeFiniteNumber(value.distanceMeters)) &&
     (value.punctuality === undefined ||
       isOneOf(value.punctuality, DELIVERY_PROOF_PUNCTUALITY_OPTIONS)) &&

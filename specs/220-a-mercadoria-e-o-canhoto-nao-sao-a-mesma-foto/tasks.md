@@ -245,7 +245,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
 - [x] T7.4 API: `DeliveryProofRecord` e `DeliveryProofView` (`read-delivery-proof.use-case.ts:16-84`)
       passam a carregar os campos da T7.3. A junção do nome de quem conferiu entra na query que
       `listDeliveryProofs` já faz, sem consulta nova — o mesmo cuidado da T4.3b
-- [ ] T7.5 Painel **aceita** as chaves novas antes de a API servi-las:
+- [x] T7.5 Painel **aceita** as chaves novas antes de a API servi-las:
       `DELIVERY_PROOF_OPTIONAL_KEYS` e o guarda de `tripResponse.validation.ts:1221`, mais o tipo
       `DeliveryProof` de `deliveryProof.service.ts:24`. A lista é fechada e descarta em silêncio —
       defeito que a T3.7 pegou uma vez e a T4.3c teve de corrigir depois
