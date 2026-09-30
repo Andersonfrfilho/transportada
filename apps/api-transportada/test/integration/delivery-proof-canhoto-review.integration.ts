@@ -9,12 +9,14 @@
  * verdade mostra isso. Os CHECKs da migration também só falham aqui.
  */
 import { describe, expect } from 'bun:test'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { companyDeliveryProofSettings } from '../../src/database/company-delivery-proof-settings.schema.js'
-import { tripDeliveryProofs } from '../../src/database/trip.schema.js'
+import { storedObjects } from '../../src/database/storage.schema.js'
+import { tripDeliveryProofs, tripStopEvents } from '../../src/database/trip.schema.js'
 import { attachDeliveryProof } from '../../src/trips/application/attach-delivery-proof.use-case.js'
 import { reportDocumentDelivery } from '../../src/trips/application/report-document-delivery.use-case.js'
+import { DrizzleCanhotoReviewUnitOfWork } from '../../src/trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { parseDeliveryProofUpload } from '../../src/trips/presentation/delivery-proof.schema.js'
@@ -137,6 +139,47 @@ async function rejectByHand(database: TestDatabase, proofId: string): Promise<vo
     .where(eq(tripDeliveryProofs.id, proofId))
 }
 
+/** Um evento `returned` da mesma nota, já com um canhoto `photo` — o que o painel listaria ao lado do da entrega. */
+async function seedReturnedEventWithCanhoto(
+  database: TestDatabase,
+  world: DriverWorld,
+): Promise<string> {
+  const eventId = crypto.randomUUID()
+  const objectId = crypto.randomUUID()
+  const proofId = crypto.randomUUID()
+  await database.db.insert(tripStopEvents).values({
+    actorUserId: world.driver.actorUserId,
+    companyId: world.company.companyId,
+    createdAt: new Date('2099-01-01T00:00:00.000Z'),
+    id: eventId,
+    kind: 'returned',
+    stopId: world.trip.stopId,
+    tripDocumentId: world.trip.documentId,
+  })
+  await database.db.insert(storedObjects).values({
+    bucket: TEST_BUCKET,
+    companyId: world.company.companyId,
+    id: objectId,
+    mimeType: 'image/jpeg',
+    objectKey: `returned/${objectId}`,
+    provider: 's3',
+    purpose: 'delivery_proof',
+    sha256: 'f'.repeat(64),
+    sizeBytes: BigInt(JPEG_BYTES.byteLength),
+    status: 'final',
+  })
+  await database.db.insert(tripDeliveryProofs).values({
+    actorUserId: world.driver.actorUserId,
+    canhotoReview: 'pending',
+    companyId: world.company.companyId,
+    id: proofId,
+    kind: CANHOTO_KIND,
+    objectId,
+    stopEventId: eventId,
+  })
+  return proofId
+}
+
 describe('a conferência do canhoto contra o Postgres (spec 220 RF24)', () => {
   testWithPostgres(
     'canhoto novo nasce pendente: o INSERT escreve o estado, não herda o default da coluna',
@@ -231,6 +274,63 @@ describe('a conferência do canhoto contra o Postgres (spec 220 RF24)', () => {
 
         expect(retry.id).toBe(first.id)
         expect((await readReview(database, first.id))?.canhotoReview).toBe('rejected')
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'com dois eventos na mesma nota, a trava cai sempre no canhoto da entrega — nunca no da devolução',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const returnedProofId = await seedReturnedEventWithCanhoto(database, world)
+        const delivered = await attachProof(database, world, CANHOTO_KIND)
+        const unitOfWork = new DrizzleCanhotoReviewUnitOfWork(database.db)
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const locked = await unitOfWork.execute((transaction) =>
+            transaction.lockCanhotoProof({
+              companyId: world.company.companyId,
+              documentId: world.trip.documentId,
+              tripId: world.trip.tripId,
+            }),
+          )
+          expect(locked?.id).toBe(delivered.id)
+          expect(locked?.id).not.toBe(returnedProofId)
+        }
+        const untouched = await database.db
+          .select({ id: tripDeliveryProofs.id })
+          .from(tripDeliveryProofs)
+          .where(and(eq(tripDeliveryProofs.id, returnedProofId)))
+        expect(untouched).toHaveLength(1)
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'duas fotos de mercadoria em paralelo com quatro gravadas: só uma entra, o teto de cinco vale',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        for (let saved = 0; saved < 4; saved += 1) await attachProof(database, world, 'cargo')
+
+        const outcomes = await Promise.allSettled([
+          attachProof(database, world, 'cargo'),
+          attachProof(database, world, 'cargo'),
+        ])
+
+        const rows = await database.db
+          .select({ id: tripDeliveryProofs.id })
+          .from(tripDeliveryProofs)
+          .where(eq(tripDeliveryProofs.kind, 'cargo'))
+        expect(rows).toHaveLength(5)
+        expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+        const rejected = outcomes.find((outcome) => outcome.status === 'rejected')
+        expect((rejected as PromiseRejectedResult).reason).toMatchObject({
+          code: 'TRIP_DELIVERY_PROOF_CARGO_LIMIT',
+        })
       })
     },
     120_000,

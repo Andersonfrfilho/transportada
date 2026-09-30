@@ -26,6 +26,7 @@ import type { DeliveryProofPort } from '../application/attach-delivery-proof.use
 import { buildCanhotoReviewReset } from '../domain/canhoto-review.policy.js'
 import type { FieldAuthorship, FieldTripTarget } from '../application/field-trip-target.types.js'
 import type { ProofPunctuality } from '../domain/delivery-proof-punctuality.policy.js'
+import { TripDeliveryProofCargoLimitError } from '../domain/trip-field-office.error.js'
 import { DeliveryProofEventVanishedError } from '../domain/delivery-proof-event.error.js'
 import {
   DELIVERED_EVENT_KIND,
@@ -39,6 +40,7 @@ import {
 } from '../domain/delivery-proof-settings.policy.js'
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
+import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -306,6 +308,8 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   /** O objeto e o vínculo entram na mesma transação: byte no bucket sem dono é lixo que ninguém acha. */
   public async saveProof(input: SaveProofInput): Promise<{ readonly id: string }> {
     return this.database.transaction(async (transaction) => {
+      const { cargoLimit } = input
+      if (cargoLimit !== undefined) await assertCargoRoom(transaction, { ...input, cargoLimit })
       await transaction.insert(storedObjects).values({
         bucket: this.bucket,
         companyId: input.companyId,
@@ -367,7 +371,35 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   }
 }
 
+/**
+ * Contar e inserir em READ COMMITTED deixa dois envios simultâneos lerem a mesma contagem; a trava
+ * na linha do evento (mesma do canal do escritório) faz o segundo esperar e contar a foto do primeiro.
+ */
+async function assertCargoRoom(
+  transaction: TripQueryable,
+  input: Pick<SaveProofInput, 'companyId' | 'eventId' | 'kind'> & { readonly cargoLimit: number },
+): Promise<void> {
+  await transaction
+    .select({ id: tripStopEvents.id })
+    .from(tripStopEvents)
+    .where(and(eq(tripStopEvents.companyId, input.companyId), eq(tripStopEvents.id, input.eventId)))
+    .for('no key update')
+  const [record] = await transaction
+    .select({ total: sql<number>`count(*)::int` })
+    .from(tripDeliveryProofs)
+    .where(
+      and(
+        eq(tripDeliveryProofs.companyId, input.companyId),
+        eq(tripDeliveryProofs.stopEventId, input.eventId),
+        eq(tripDeliveryProofs.kind, input.kind),
+      ),
+    )
+  if ((record?.total ?? 0) >= input.cargoLimit) throw new TripDeliveryProofCargoLimitError()
+}
+
 type SaveProofInput = {
+  /** Foto da mercadoria: o teto conferido dentro da transação, depois da trava do evento. */
+  readonly cargoLimit?: number
   /** ADR-0070 §4: precisão declarada pelo aparelho, já em texto decimal (coluna `numeric`). */
   readonly accuracyMeters: string | null
   readonly actorUserId: string

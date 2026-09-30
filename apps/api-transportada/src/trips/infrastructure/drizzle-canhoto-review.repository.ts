@@ -7,7 +7,7 @@
  * gravariam um veredito por cima do outro sem que nada falhasse.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 
 import { auditLogs } from '../../database/database.schema.js'
 import {
@@ -23,6 +23,7 @@ import type {
   CanhotoReviewView,
   LockedCanhotoProof,
 } from '../application/canhoto-review.port.js'
+import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -90,9 +91,11 @@ async function lockCanhotoProof(
         eq(tripDeliveryProofs.companyId, input.companyId),
         eq(tripDeliveryProofs.kind, TRIP_DELIVERY_PROOF_CANHOTO_KIND),
         eq(tripStopEvents.tripDocumentId, input.documentId),
+        eq(tripStopEvents.kind, DELIVERED_EVENT_KIND),
         eq(tripDocuments.tripId, input.tripId),
       ),
     )
+    .orderBy(desc(tripStopEvents.createdAt), desc(tripDeliveryProofs.id))
     .limit(1)
   if (located === undefined) return null
 

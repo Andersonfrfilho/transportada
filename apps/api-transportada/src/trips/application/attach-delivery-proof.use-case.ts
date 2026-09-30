@@ -156,6 +156,8 @@ export type DeliveryProofPort = {
     readonly actorUserId: string
     readonly attachmentKey: string
     readonly authorship: FieldAuthorship
+    /** Foto da mercadoria: a contagem contra este teto roda na transação que grava, sob trava do evento. */
+    readonly cargoLimit?: number
     readonly capturedAt: Date | null
     readonly companyId: string
     readonly eventId: string
@@ -262,6 +264,7 @@ export async function attachDeliveryProof(
 
   const authorship = deriveFieldAuthorship(input)
   const isCargo = input.upload.kind === CARGO_PROOF_KIND
+  // Só evita subir o objeto ao bucket à toa; o teto de verdade é conferido dentro do `saveProof`.
   if (isCargo) {
     const cargoCount = await input.repository.countProofsForEvent({
       companyId: input.companyId,
@@ -325,6 +328,7 @@ export async function attachDeliveryProof(
     actorUserId: input.actorUserId,
     attachmentKey: input.upload.attachmentKey,
     authorship,
+    ...(isCargo ? { cargoLimit: TRIP_DELIVERY_PROOF_CARGO_LIMIT } : {}),
     capturedAt: input.upload.capturedAt ?? null,
     companyId: input.companyId,
     eventId,
