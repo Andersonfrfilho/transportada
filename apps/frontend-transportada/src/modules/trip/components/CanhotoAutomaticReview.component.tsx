@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useEffect, useRef } from 'react'
+
 import { useCanhotoReview } from '../hooks/useCanhotoReview.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
 import type { CanhotoTripDocument } from '../shared/canhotoIdentification.service'
@@ -18,6 +20,7 @@ export type CanhotoReadContext = Readonly<{
 type CanhotoAutomaticReviewProps = Readonly<{
   context: CanhotoReadContext
   documentId: string
+  onUnavailable: () => void
   proof: DeliveryProof
   reviewCanhoto: TripWorkspaceController['reviewCanhoto']
   tripId: string
@@ -27,6 +30,7 @@ type CanhotoAutomaticReviewProps = Readonly<{
 export function CanhotoAutomaticReview({
   context,
   documentId,
+  onUnavailable,
   proof,
   reviewCanhoto,
   tripId,
@@ -50,11 +54,12 @@ export function CanhotoAutomaticReview({
         tripId,
       })
     } catch {
-      // O veredito automático é conferência, não portão: falhou, o comprovante segue pendente para gente.
+      // Conferência automática é sugestão, não portão: o comprovante segue pending para gente.
+      onUnavailable()
     }
   }
 
-  useCanhotoReview({
+  const { isAutomaticReviewUnavailable } = useCanhotoReview({
     accessKey: accessKey ?? undefined,
     deadlineMs: CANHOTO_REVIEW_TIMEOUT_MS,
     onRead: (outcome) => {
@@ -69,6 +74,14 @@ export function CanhotoAutomaticReview({
         tripDocuments: context.tripDocuments,
       }),
   })
+
+  const latestOnUnavailable = useRef(onUnavailable)
+  useEffect(() => {
+    latestOnUnavailable.current = onUnavailable
+  })
+  useEffect(() => {
+    if (isAutomaticReviewUnavailable) latestOnUnavailable.current()
+  }, [isAutomaticReviewUnavailable])
 
   return null
 }

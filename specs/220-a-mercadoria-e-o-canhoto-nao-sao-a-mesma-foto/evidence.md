@@ -2654,3 +2654,70 @@ hooks:   135 pass · 0 fail  →  137 pass · 0 fail
 suíte:   5881 pass · 0 fail (inalterada)
 EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
 ```
+
+### T7.16 — O prazo de 20 s cobre tudo, e a frase quando estoura
+
+O prazo **total** já estava certo no limite do hook (`useCanhotoReview` corre busca da imagem +
+decodificação + OCR contra `deadlineMs`, que `CanhotoAutomaticReview` fecha em
+`CANHOTO_REVIEW_TIMEOUT_MS`). O que faltava era a tela dizer algo: o componente descartava
+`isAutomaticReviewUnavailable` e tinha um `catch {}` vazio no PATCH automático.
+
+**Novo:** `test/trip-hooks/canhoto-review-unavailable.contract.ts` (4 casos), registrado com uma
+linha no entrypoint `test/trip-hooks.contract.test.ts`. O prazo de 20 s é encurtado trocando só o
+`setTimeout` de 20 000 ms por 5 ms dentro do `describe`, restaurado no `afterEach`.
+
+**Mudou:** `CANHOTO_REVIEW_NOTICE.AUTOMATIC_UNAVAILABLE` (`trip.constant.ts`); a chave
+`deliveryProof.canhotoReview.automaticUnavailable` em pt-BR e en-US; `CanhotoAutomaticReview` ganhou
+`onUnavailable` (chamado em `useEffect` quando o sinal do hook vira `true`, e no `catch` do PATCH);
+`TripDeliveryProofLoader` liga isso a `setReviewNotice`. A frase usa `styles.hint` (não `alert`) e
+não diz que nada trava: é aviso, não bloqueio (RF30).
+
+#### Vermelho e verde
+
+```
+vermelho (contrato pronto, implementação ausente): 138 pass · 3 fail
+  - estourado o prazo, a frase aparece e nenhum PATCH é enviado
+  - o PATCH automático que falha produz a mesma frase
+  - a frase é de sessão: remontando o item ela não volta sozinha
+  (o quarto, "dentro do prazo não mostra a frase", passa nos dois lados — é o guarda de regressão)
+verde: hooks 137 pass · 0 fail  →  141 pass · 0 fail; suíte 5881 pass · 0 fail (inalterada)
+  (a 1a rodada de implementação ficou em 140/1: o `catch` do PATCH já tinha um comentário e ainda
+  não chamava `onUnavailable`; o caso "PATCH falho" pegou)
+EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_FORMAT=0 · EXIT_TEST=0
+```
+
+#### Perda consciente 1: a frase é só de sessão
+
+Não é persistida. O banco não distingue "estourou" de "nunca leu": os dois são
+`canhotoReadSource === null`. Inventar um quinto valor contradiria a lista fechada de quatro da
+RF24. Depois do F5 a tela volta a dizer "aguardando conferência". O PATCH que falha cai na mesma
+frase de propósito: conferência automática é sugestão, não portão, e o comprovante segue `pending`
+para gente.
+
+#### O que o terceiro caso prova, e o que não prova
+
+O caso "a frase é de sessão" remonta o item e verifica que a frase não volta sozinha. Isso prova que
+o aviso não sobrevive à remontagem — é o proxy observável da frase não ser persistida, não a prova
+direta de que o banco nada guardou (essa está na ausência de coluna, RF24). Registrado para ninguém
+ler o nome do caso como uma garantia maior do que a asserção.
+
+⚠️ Um efeito colateral que vale saber: no estouro do prazo o `markCanhotoReviewSettled` **não** é
+chamado, então reabrir o item **relê** a imagem. É deliberado (o estouro pode ter sido rede lenta),
+mas significa que a frase pode reaparecer numa segunda tentativa que estoure de novo.
+
+#### Perda consciente 2: o prazo externo não devolve a CPU
+
+Medido lendo o código: quando os 20 s externos estouram, o trabalho interno **continua**. Não há
+`AbortController` em `useCanhotoReview.hook.ts`, em `canhotoReview.service.ts` nem no `fetch` da
+leitura. O que segue vivo:
+
+- o `recognizeCanhotoWords` (`canhotoOcrEngine.service.ts`) com o seu próprio `CANHOTO_OCR_TIMEOUT_MS`
+  de 15 s, que só então encerra o WebWorker do tesseract (`terminateWorker`); a corrida externa não
+  o encerra;
+- o `raceAgainstTimeout(..., CANHOTO_REVIEW_TIMEOUT_MS)` de `canhotoReview.service.ts:140-143`, que
+  limpa o próprio timer no `finally`, mas não cancela a leitura que envolve;
+- o `fetch` da imagem e a carga do worker, que não têm teto próprio.
+
+A corrida externa garante o **veredito** em 20 s; não garante a CPU de volta. É perda consciente:
+abortar exigiria plumbing de `AbortSignal` do hook até o worker, que a spec não pediu. Nenhum
+número de CPU/tempo foi medido aqui.

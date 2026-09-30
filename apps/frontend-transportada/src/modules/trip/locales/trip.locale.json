@@ -463,6 +463,7 @@
       "approvedAutomatic": "Conferido automaticamente",
       "approvedManual": "Aprovado por {{name}} em {{moment}}",
       "approvedManualUnknown": "Aprovado manualmente em {{moment}}",
+      "automaticUnavailable": "Não foi possível conferir automaticamente. Confira este canhoto.",
       "experimental": "Experimental",
       "failed": "Não foi possível registrar a conferência. Tente de novo.",
       "pendingBarcode": "Aguardando conferência: o código de barras aponta a nota {{number}}",

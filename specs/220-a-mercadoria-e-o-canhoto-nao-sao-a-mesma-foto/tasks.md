@@ -331,7 +331,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       cheia. O `connect-src` já carrega a origem do bucket
       (`contentSecurityPolicy.service.ts:113-124`, spec 183 T702b) — **medir** que o bucket responde
       CORS no GET e registrar em `evidence.md`
-- [ ] T7.16 O prazo de 20 s cobre **tudo**. Hoje `CANHOTO_REVIEW_TIMEOUT_MS`
+- [x] T7.16 O prazo de 20 s cobre **tudo**. Hoje `CANHOTO_REVIEW_TIMEOUT_MS`
       (`canhotoReview.service.ts:28`) só envolve a perna do OCR (`:140`) e não conta a busca da
       imagem nem a decodificação; e `canhotoOcrEngine` ainda tem os seus próprios 15 s
       (`CANHOTO_OCR_TIMEOUT_MS`, `:53`). RNF02 diz "prazo **total** de 20 s". Estourou: fica

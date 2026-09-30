@@ -1481,6 +1481,10 @@ export function TripDeliveryProofLoader({
     }
   }
 
+  function handleAutomaticUnavailable() {
+    setReviewNotice(CANHOTO_REVIEW_NOTICE.AUTOMATIC_UNAVAILABLE)
+  }
+
   if (workspace.deliveryProofsQuery.isLoading) return <Skeleton variant="text" width="60%" />
 
   const canhotoAwaitingReview = workspace.deliveryProofsQuery.data?.find(
@@ -1497,6 +1501,7 @@ export function TripDeliveryProofLoader({
         <CanhotoAutomaticReview
           context={canhotoReadContext}
           documentId={documentId}
+          onUnavailable={handleAutomaticUnavailable}
           proof={canhotoAwaitingReview}
           reviewCanhoto={workspace.reviewCanhoto}
           tripId={document.tripId}

@@ -77,6 +77,7 @@ export type CanhotoReviewOutcome =
 /** O aviso do painel é o sufixo da chave em `deliveryProof.canhotoReview`. */
 export const CANHOTO_REVIEW_NOTICE = {
   ALREADY_RESOLVED: CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED,
+  AUTOMATIC_UNAVAILABLE: 'automaticUnavailable',
   FAILED: 'failed',
 } as const
 export type CanhotoReviewNotice = (typeof CANHOTO_REVIEW_NOTICE)[keyof typeof CANHOTO_REVIEW_NOTICE]

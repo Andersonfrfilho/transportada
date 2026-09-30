@@ -357,6 +357,7 @@
       "approvedAutomatic": "Checked automatically",
       "approvedManual": "Approved by {{name}} on {{moment}}",
       "approvedManualUnknown": "Approved manually on {{moment}}",
+      "automaticUnavailable": "Automatic check was not possible. Please review this receipt.",
       "experimental": "Experimental",
       "failed": "The review could not be recorded. Try again.",
       "pendingBarcode": "Awaiting review: the barcode points to document {{number}}",
