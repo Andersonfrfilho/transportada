@@ -358,6 +358,7 @@
       "approvedManual": "Approved by {{name}} on {{moment}}",
       "approvedManualUnknown": "Approved manually on {{moment}}",
       "experimental": "Experimental",
+      "failed": "The review could not be recorded. Try again.",
       "pendingBarcode": "Awaiting review: the barcode points to document {{number}}",
       "pendingOcr": "Awaiting review: number read {{number}}",
       "pendingUnread": "Awaiting review",

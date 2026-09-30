@@ -464,6 +464,7 @@
       "approvedManual": "Aprovado por {{name}} em {{moment}}",
       "approvedManualUnknown": "Aprovado manualmente em {{moment}}",
       "experimental": "Experimental",
+      "failed": "Não foi possível registrar a conferência. Tente de novo.",
       "pendingBarcode": "Aguardando conferência: o código de barras aponta a nota {{number}}",
       "pendingOcr": "Aguardando conferência: número lido {{number}}",
       "pendingUnread": "Aguardando conferência",

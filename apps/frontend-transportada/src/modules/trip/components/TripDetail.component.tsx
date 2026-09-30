@@ -29,7 +29,10 @@ import {
   selectPendingNfseDocumentIds,
 } from '../shared/cteSelection.service'
 import {
+  CANHOTO_REVIEW_NOTICE,
   CANHOTO_REVIEW_OUTCOME,
+  type CanhotoReviewNotice,
+  type CanhotoReviewOutcome,
   DATABASE_UNAVAILABLE_ERROR_CODE,
   SLOW_LOAD_NOTICE_DELAY_MS,
 } from '../shared/trip.constant'
@@ -1404,6 +1407,12 @@ function SeparationOccurrenceDialogLoader({
  * próprio: o que a consulta trouxe é o que a tela mostra, e reabrir o painel busca de novo — a URL
  * expira em cinco minutos, e uma cópia guardada viraria imagem quebrada sem explicação.
  */
+function noticeForOutcome(outcome: CanhotoReviewOutcome): CanhotoReviewNotice | undefined {
+  return outcome === CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED
+    ? CANHOTO_REVIEW_NOTICE.ALREADY_RESOLVED
+    : undefined
+}
+
 function TripDeliveryProofLoader({
   documents,
   documentId,
@@ -1416,7 +1425,7 @@ function TripDeliveryProofLoader({
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [rejectErrorCode, setRejectErrorCode] = useState<string | undefined>()
-  const [hasReviewConflict, setHasReviewConflict] = useState(false)
+  const [reviewNotice, setReviewNotice] = useState<CanhotoReviewNotice | undefined>()
   const { t } = useTranslation('trip')
   const document = documents.find((candidate) => candidate.id === documentId)
   if (document === undefined) return null
@@ -1425,19 +1434,37 @@ function TripDeliveryProofLoader({
     if (document === undefined) return
     setIsRejecting(true)
     setRejectErrorCode(undefined)
-    setHasReviewConflict(false)
+    setReviewNotice(undefined)
     try {
       const outcome = await workspace.reviewCanhoto({
         documentId,
         review: { action: 'reject', ...submission },
         tripId: document.tripId,
       })
-      setHasReviewConflict(outcome === CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED)
+      setReviewNotice(noticeForOutcome(outcome))
       setIsRejectOpen(false)
     } catch (error) {
       setRejectErrorCode(error instanceof Error ? error.message : undefined)
     } finally {
       setIsRejecting(false)
+    }
+  }
+
+  async function handleApprove() {
+    if (document === undefined) return
+    setReviewNotice(undefined)
+    try {
+      setReviewNotice(
+        noticeForOutcome(
+          await workspace.reviewCanhoto({
+            documentId,
+            review: { action: 'approve' },
+            tripId: document.tripId,
+          }),
+        ),
+      )
+    } catch {
+      setReviewNotice(CANHOTO_REVIEW_NOTICE.FAILED)
     }
   }
 
@@ -1454,11 +1481,14 @@ function TripDeliveryProofLoader({
         }}
         {...(rejectErrorCode === undefined ? {} : { serverErrorCode: rejectErrorCode })}
       />
-      {hasReviewConflict ? (
-        <p className={styles.hint} role="alert">
-          {t('deliveryProof.canhotoReview.alreadyResolved')}
+      {reviewNotice === undefined ? null : (
+        <p
+          className={reviewNotice === CANHOTO_REVIEW_NOTICE.FAILED ? styles.alert : styles.hint}
+          role="alert"
+        >
+          {t(`deliveryProof.canhotoReview.${reviewNotice}`)}
         </p>
-      ) : null}
+      )}
       <TripDeliveryProof
         documentId={documentId}
         occurrences={
@@ -1489,17 +1519,7 @@ function TripDeliveryProofLoader({
         reviewActions={{
           canReview: workspace.controller.canManageTrips,
           onApprove: () => {
-            setHasReviewConflict(false)
-            workspace
-              .reviewCanhoto({
-                documentId,
-                review: { action: 'approve' },
-                tripId: document.tripId,
-              })
-              .then((outcome) =>
-                setHasReviewConflict(outcome === CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED),
-              )
-              .catch(() => undefined)
+            void handleApprove()
           },
           onReject: () => {
             setRejectErrorCode(undefined)

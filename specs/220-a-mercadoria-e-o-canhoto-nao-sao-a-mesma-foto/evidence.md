@@ -2408,3 +2408,28 @@ $ bun run typecheck (apps/frontend-transportada) → EXIT=0
 $ bun run lint (apps/frontend-transportada)      → EXIT=0
 $ bun run format:check (raiz)                    → EXIT=0
 ```
+
+#### O erro que a aprovação engolia (corrigido à parte)
+
+Na revisão da T7.11 apareceu um buraco real: `onApprove` terminava em `.catch(() => undefined)`. Um
+500, um 403 ou a conexão caindo no "Aprovar canhoto" deixavam o operador **sem sinal nenhum** — o selo
+simplesmente continuava "Aguardando conferência", igual a quem nunca clicou. A recusa mostra o erro do
+servidor no diálogo; a aprovação engolia tudo que não fosse 409. O botão nasceu nesta spec (T7.9), então
+foi esta spec que criou a falha invisível.
+
+`hasReviewConflict` (booleano) virou `reviewNotice`, que guarda o sufixo da chave de tradução:
+`alreadyResolved` para o 409 e `failed` para o resto, com `deliveryProof.canhotoReview.failed` nos dois
+locales e `styles.alert` no lugar de `styles.hint` quando é falha. O `.then/.catch` virou
+`handleApprove` com `async/await`, no mesmo molde do `handleRejectSubmit`.
+
+⚠️ O caso de DOM deste aviso nasce na **T7.12**, que é quem monta o painel: aqui não existe ainda o
+arnês para montar o `TripDeliveryProofLoader`. A correção foi ao código antes do teste por ser defeito
+de botão que esta spec introduziu, e a T7.12 cobre os dois avisos.
+
+```
+VERDE (apps/frontend-transportada, gate-approve.log)
+$ bun run typecheck   → EXIT=0
+$ bun run lint        → EXIT=0
+$ bun run test        → 5881 pass · 0 fail (e 110 · 0 nos hooks) · EXIT=0
+$ bun run format:check (raiz) → EXIT=0
+```

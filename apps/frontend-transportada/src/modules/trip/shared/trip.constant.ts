@@ -66,7 +66,6 @@ export const SLOW_LOAD_NOTICE_DELAY_MS = 4000
 
 export const TRIP_PAGE_SIZE = 25
 
-/** Detalhe e lista compartilham o prefixo: invalidar a viagem precisa refazer a tabela também. */
 export const CANHOTO_REVIEW_ALREADY_RESOLVED_CODE = 'CANHOTO_REVIEW_ALREADY_RESOLVED'
 export const CANHOTO_REVIEW_OUTCOME = {
   ALREADY_RESOLVED: 'alreadyResolved',
@@ -75,6 +74,14 @@ export const CANHOTO_REVIEW_OUTCOME = {
 export type CanhotoReviewOutcome =
   (typeof CANHOTO_REVIEW_OUTCOME)[keyof typeof CANHOTO_REVIEW_OUTCOME]
 
+/** O aviso do painel é o sufixo da chave em `deliveryProof.canhotoReview`. */
+export const CANHOTO_REVIEW_NOTICE = {
+  ALREADY_RESOLVED: CANHOTO_REVIEW_OUTCOME.ALREADY_RESOLVED,
+  FAILED: 'failed',
+} as const
+export type CanhotoReviewNotice = (typeof CANHOTO_REVIEW_NOTICE)[keyof typeof CANHOTO_REVIEW_NOTICE]
+
+/** Detalhe e lista compartilham o prefixo: invalidar a viagem precisa refazer a tabela também. */
 export const TRIP_QUERY_KEY = 'trips'
 export const TRIP_LIST_QUERY_KEY = [TRIP_QUERY_KEY, 'list'] as const
 
