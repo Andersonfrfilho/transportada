@@ -272,14 +272,15 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       o mesmo caminho de `TripDetail.component.tsx:387,1370,1421`. Nunca reler `permissions` no
       componente. `canhotoReviewProof` novo em `tripClient.service.ts`, no molde de
       `readDeliveryProofs` (`:1159`)
-- [ ] T7.10 `CanhotoRejectDialog.component.tsx` — molde de `TripReturnReasonDialog.component.tsx`
+- [x] T7.10 `CanhotoRejectDialog.component.tsx` — molde de `TripReturnReasonDialog.component.tsx`
       (`useModalDialog` + `createPortal` + `Select` sobre lista fechada + o `useEffect` de `:47-49`
       que zera a cada abertura). O texto livre aparece **só** com `outro`, com contador de 20 a 500 e
       o aviso de dado pessoal **antes do envio** (T7.7): quinhentos caracteres digitados não voltam
       ao dono com um 400 na cara. A tela **também** traduz o 400 do servidor
       (`CANHOTO_REVIEW_NOTE_PERSONAL_DATA`, `CANHOTO_REVIEW_NOTE_LENGTH`,
-      `CANHOTO_REVIEW_NOTE_REQUIRED`) — a guarda do servidor é a autoridade e a do cliente vai
-      envelhecer. ⚠️ **A T7.7 não tem o `REQUIRED`**: `validateCanhotoReviewNote('')` devolve
+      `CANHOTO_REVIEW_NOTE_REQUIRED` e `CANHOTO_REVIEW_NOTE_NOT_ALLOWED`, os **quatro** que
+      `canhoto-review.error.ts:43-84` declara — este texto dizia três, e código sem tradução aparece
+      cru para o operador) — a guarda do servidor é a autoridade e a do cliente vai envelhecer. ⚠️ **A T7.7 não tem o `REQUIRED`**: `validateCanhotoReviewNote('')` devolve
       `tooShort`, porque o servidor também mede tamanho antes de exigir presença. Campo vazio
       dizendo "mínimo de 20 caracteres" está correto e é pior de ler que "obrigatório" — se o
       diálogo quiser a segunda mensagem, ela nasce aqui, não na validação. ⚠️ **A T7.9 deixou o

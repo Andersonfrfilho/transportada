@@ -2318,3 +2318,56 @@ $ bun run typecheck (apps/frontend-transportada) → EXIT=0
 $ bun run lint (apps/frontend-transportada)      → EXIT=0
 $ bun run format:check (raiz)  → EXIT=0
 ```
+
+### T7.10 — a recusa pede motivo, e o texto livre só existe em "outro" (2de3aad1a)
+
+`CanhotoRejectDialog.component.tsx` no molde dos doze diálogos de viagem: `useModalDialog` +
+`createPortal(document.body)`, as classes `mdfeGate*` do `trip.module.css` e o `t('mdfeGate.close')`
+que `TripReturnReasonDialog`, `TripCrewDialog`, `FieldOccurrenceDialog` e os outros nove já usam —
+não é empréstimo de outra feature, é o rótulo compartilhado de fechar do módulo.
+
+O `onReject` que a T7.9 deixou em `() => undefined` (`TripDetail.component.tsx:1441`) agora abre o
+diálogo, e `handleRejectSubmit` chama `canhotoReviewProof({ action: 'reject', ...submission })`. O
+`.catch(() => undefined)` do aprovar continua de pé, à espera da T7.11 — é lá que as duas formas de
+view se encontram.
+
+**O campo livre nasce fechado.** `DEFAULT_REASON` é
+`DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS[0]`, que é `illegible`, não `other`: quem abre o
+diálogo vê a lista fechada, e o `textarea` só aparece ao escolher "Outro motivo".
+
+**Os quatro códigos do servidor viram mensagem.** `CANHOTO_REJECT_SERVER_ERROR_KEY` traduz
+`CANHOTO_REVIEW_NOTE_LENGTH`, `_NOT_ALLOWED`, `_PERSONAL_DATA` e `_REQUIRED`; qualquer outro código
+cai em `requestFailed`. O código chega mesmo em `error.message` porque `requestError`
+(`tripClient.service.ts:419-430`) faz `new Error(code)` com o `payload.error.code` lido por
+`readErrorCode` (`:440-445`). ⚠️ A mensagem de `personalData` é texto fixo e nomeia categorias
+(e-mail, CPF, CNPJ, telefone, CEP) — o `details[0].message` do servidor carrega a _categoria_
+encontrada e o valor digitado nunca volta para a tela nem para log.
+
+**A mensagem de campo vazio nasceu aqui, como o `tasks.md` previu.** `validateCanhotoReviewNote('')`
+devolve `tooShort` ("mínimo de 20 caracteres"), que está correto e é pior de ler; `resolveNoteError`
+mede `note.trim().length === 0` antes de delegar e devolve `required`.
+
+#### Dois casos acrescentados na minha revisão
+
+Escritos **depois** do código, não em TDD: são cobertura de dois comportamentos que o arquivo
+afirmava e nenhum caso exercia.
+
+- `reabrir não traz de volta o motivo, a nota nem o erro da vez anterior` — o `useEffect` de reset
+  tem um comentário dizendo que nada sobrevive ao fechamento; sem caso, uma nota com dado pessoal
+  digitada e abandonada podia reaparecer na recusa seguinte. O caso digita, erra, fecha, reabre e
+  confirma que volta ao padrão `illegible` sem campo livre e sem alerta.
+- `enquanto o envio está em curso, confirmar não aceita um segundo clique` — `disabled={isSubmitting}`
+  é a única barreira contra o clique duplo, e ninguém a media. O caso afirma o atributo; o clique em
+  botão desabilitado não entra no teste, para não gravar comportamento do happy-dom no lugar do
+  comportamento do navegador.
+
+```
+VERMELHO medido pelo agente antes da implementação  → 1 fail, 1 error, EXIT=1 (módulo inexistente)
+
+VERDE (sobre 2de3aad1a + os dois casos)
+$ bun run test (apps/frontend-transportada)      → 0 fail
+$ bun run test:hooks                             → 107 pass · 0 fail (era 105)
+$ bun run typecheck (apps/frontend-transportada) → EXIT=0
+$ bun run lint (apps/frontend-transportada)      → EXIT=0
+$ bun run format:check (raiz)                    → EXIT=0
+```
