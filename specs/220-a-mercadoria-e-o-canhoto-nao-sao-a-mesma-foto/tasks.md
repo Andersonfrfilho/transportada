@@ -267,7 +267,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       `ProofReadings`. Selo por veredito com `Badge` do design system. ⚠️ Conferir o contraste AA no
       tema claro antes de escolher a variante — a T4.6 achou o selo semântico reprovando, e o
       conserto (`3a6e036e7`) valia para outras cinco telas
-- [ ] T7.9 Aprovar e recusar. Os botões só aparecem com `trip.manage`, por
+- [x] T7.9 Aprovar e recusar. Os botões só aparecem com `trip.manage`, por
       `workspace.controller.canManageTrips` (`useTripWorkspace.hook.ts:237,251`) descido como prop —
       o mesmo caminho de `TripDetail.component.tsx:387,1370,1421`. Nunca reler `permissions` no
       componente. `canhotoReviewProof` novo em `tripClient.service.ts`, no molde de
@@ -282,7 +282,10 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       envelhecer. ⚠️ **A T7.7 não tem o `REQUIRED`**: `validateCanhotoReviewNote('')` devolve
       `tooShort`, porque o servidor também mede tamanho antes de exigir presença. Campo vazio
       dizendo "mínimo de 20 caracteres" está correto e é pior de ler que "obrigatório" — se o
-      diálogo quiser a segunda mensagem, ela nasce aqui, não na validação
+      diálogo quiser a segunda mensagem, ela nasce aqui, não na validação. ⚠️ **A T7.9 deixou o
+      `onReject` pendurado** em `() => undefined` no `TripDeliveryProofLoader`
+      (`TripDetail.component.tsx:1441`): o botão de recusar já está no DOM e não faz nada até esta
+      task ligá-lo
 - [ ] T7.11 O que a tela faz com 200 e com 409. `unchanged`
       (`canhoto-review-decision.policy.ts:128`) volta 200 com a mesma view: é o clique duplo e a
       repetição, aceita em silêncio, só escreve no cache. `CANHOTO_REVIEW_ALREADY_RESOLVED` volta

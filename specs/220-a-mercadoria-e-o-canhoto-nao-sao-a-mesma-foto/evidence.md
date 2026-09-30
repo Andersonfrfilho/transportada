@@ -2269,3 +2269,52 @@ $ bun run typecheck (apps/frontend-transportada) → EXIT=0
 $ bun run lint (raiz)          → EXIT=0
 $ bun run format:check (raiz)  → EXIT=0
 ```
+
+### T7.9 — o escritório aprova pelo item da nota (`014b343c2`)
+
+`canhotoReviewProof` novo em `tripClient.service.ts:1171`, no molde de `readDeliveryProofs`:
+`PATCH /trips/:tripId/documents/:documentId/proof/review`, corpo `input.review` tal como a rota o
+declara (`canhoto-review.routes.ts:55-63`), **sem `Idempotency-Key`** — a rota já é idempotente por
+desenho, e `unchanged` devolve 200 com a mesma view (T7.11).
+
+⚠️ **A view do PATCH não é a view do GET, e confundi-las apaga o comprovante da tela.** A
+`CanhotoReviewView` de `canhoto-review.port.ts:38-47` tem as oito chaves **obrigatórias**, usa `null`
+para ausente, pode trazer `not_applicable` e não traz o nome de quem conferiu; o `DeliveryProof` do
+painel usa **chave ausente** e rejeita `not_applicable`. Escrever o corpo do PATCH direto no cache de
+`deliveryProofsQuery` faria `isDeliveryProof` (T7.5) descartar o comprovante inteiro **em silêncio** —
+o sintoma que a T3.7 já pagou uma vez. Por isso a resposta ganhou tipo próprio,
+`canhotoReviewResult.service.ts`, cujo adaptador converte `null` → chave ausente, mantém
+`not_applicable` no seu próprio vocabulário, recusa qualquer veredito fora dele com
+`TRIP_RESPONSE_INVALID` e **não toca no cache**. Quem casa as duas formas é a T7.11.
+
+A permissão desce por prop (`CanhotoReviewActions`), de `workspace.controller.canManageTrips`
+(`useTripWorkspace.hook.ts:237`) por `TripDeliveryProof` → `ProofImage` → `ProofReview`; nenhum
+componente relê `permissions`. Sem `trip.manage` os botões **não existem no DOM** — não é `disabled`
+— e o controller ainda recusa com `TRIP_FORBIDDEN` antes de qualquer `fetch`, porque esconder na UI
+não é autorização (`security.md` §8). Botão só com veredito `pending`: aprovado e recusado são
+finais, e o caminho de volta é a recaptura (decisão da Fase 6).
+
+Achado do executor: `action-icons.contract.ts` reprova qualquer `<Button>` de viagem sem `<Icon>` —
+daí o `check` e o `close`.
+
+**Duas pontas soltas de propósito, ligadas nas duas tasks seguintes**: `onApprove` engole a rejeição
+com `.catch(() => undefined)` (a tela de 200/409 é da T7.11) e `onReject` é `() => undefined` no
+`TripDeliveryProofLoader` (o diálogo é da T7.10). A segunda ficou anotada no texto da T7.10, porque
+botão que já está no DOM e não faz nada não se lembra sozinho.
+
+#### Três casos acrescentados na minha revisão da T7.9
+
+O contrato do executor cobria o caminho feliz e a permissão, e deixava de fora três ramos que o
+código tem: `not_applicable` aceito, veredito fora do vocabulário virando `TRIP_RESPONSE_INVALID`, e
+o veredito já resolvido não oferecendo botão mesmo com `trip.manage`. Não são teste-antes-do-código
+— são cobertura de ramo escrita depois, e estão marcados como tal aqui para não se passarem por
+outra coisa.
+
+```
+VERDE (sobre o estado commitado, 014b343c2 + os três casos)
+$ bun run test (apps/frontend-transportada)      → EXIT=0   └ 5878 pass · 0 fail (era 5877)
+$ bun run test:hooks                             → EXIT=0   └ 94 pass · 0 fail (era 93)
+$ bun run typecheck (apps/frontend-transportada) → EXIT=0
+$ bun run lint (apps/frontend-transportada)      → EXIT=0
+$ bun run format:check (raiz)  → EXIT=0
+```
