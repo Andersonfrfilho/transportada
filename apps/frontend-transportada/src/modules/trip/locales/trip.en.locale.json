@@ -399,6 +399,7 @@
     "galleryLabel": "Delivery proofs",
     "galleryNext": "Next proof",
     "galleryPrevious": "Previous proof",
+    "imageLoading": "Loading the proof image",
     "lateRegistration": "Registered afterwards",
     "notDelivered": "This document has not been delivered yet.",
     "occurrencesCollapse": "Collapse occurrences",

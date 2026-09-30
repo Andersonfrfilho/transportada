@@ -347,7 +347,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       perna do código de barras degrada para número/série e `matched` nunca acontece — que é a única
       porta de aprovação automática da RF26. A montagem do `CanhotoReviewTripDocument` reusa o `map`
       de `:1162-1177`, não escreve outro
-- [ ] T7.18 Rótulos em `trip.locale.json` **e** `trip.en.locale.json`, acentuados no pt-BR, e a
+- [x] T7.18 Rótulos em `trip.locale.json` **e** `trip.en.locale.json`, acentuados no pt-BR, e a
       correção do que a revisão achou: `deliveryProof.imageLoading` existe no pt-BR
       (`trip.locale.json:471`) e **falta** no inglês (entre `galleryPrevious:364` e
       `lateRegistration:365`). ⚠️ Nada nos textos pode sugerir que o veredito trava entrega, viagem,

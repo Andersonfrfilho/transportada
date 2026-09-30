@@ -2764,3 +2764,41 @@ grande, 145 pass / 0 fail em `test:hooks`).
 **O que este contrato não prova:** que a rota estreita responde a chave em produção, e que o perfil
 do operador do escritório a recebe. Isso é comportamento de API e de perfil, e continua onde a spec
 156 o deixou. Aqui prova-se só o lado do painel: sem chave, ele espera, calado, sem travar o passo.
+
+### T7.18 — Os rótulos nos dois idiomas
+
+**O defeito medido:** de todas as chaves `deliveryProof.*`, exatamente uma faltava no inglês —
+`imageLoading`. Rótulo ausente não quebra nada: o i18next cai no pt-BR e a tela fica bilíngue em
+silêncio. Foi assim que ele passou pela revisão da T5.x. Agora é asserção.
+
+Contrato novo: `test/trip/canhoto-review-labels.contract.ts`, cinco casos sobre os dois arquivos de
+locale:
+
+| caso                 | o que prova                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| paridade de chaves   | nada existe num idioma só, nos dois sentidos                                                       |
+| nenhum texto vazio   | `""` passa no `find` e some na tela                                                                |
+| interpolações iguais | `{{name}}`/`{{moment}}` presentes nos dois — tradução que perde o token vira texto truncado        |
+| RF30                 | nenhum texto de `canhotoReview.*`, em nenhum idioma, usa bloque/trava/impede/inválid/block/prevent |
+| pt-BR acentuado      | `conferencia`, `automatico`, `codigo`, `numero`, `nao` como palavra inteira                        |
+
+**Vermelho medido:** `2012 pass / 1 fail` — "toda chave do comprovante existe nos dois idiomas",
+listando `deliveryProof.imageLoading`. Verde depois do rótulo inglês: `2013 pass / 0 fail`.
+
+**Um falso positivo corrigido no próprio contrato, antes do verde.** A primeira redação do caso de
+acentuação usava `includes`, e "Conferido automaticamente" contém "automatica" — dois rótulos certos
+reprovavam. A borda de palavra (`\b`) é obrigatória, e está comentada no arquivo: "automaticamente"
+está certo e não pode cair junto com "automatica".
+
+**Escopo declarado:** só `deliveryProof.*`. O módulo `trip` inteiro tem **182** chaves que existem
+só no pt-BR e **7** só no inglês — dívida antiga, de outras specs (`assemblyMap`, `routeMap`,
+`occurrence`, `cargoLayout`, `occupancy`). Alargar a asserção reprovaria o gate por trabalho que a
+220 não fez. Fica registrado aqui como achado, não como tarefa desta spec.
+
+**Revisão de texto contra a RF30, os dois idiomas:** "Aguardando conferência" / "Awaiting review",
+"Canhoto recusado" / "Delivery receipt rejected", "Não foi possível conferir automaticamente" /
+"Automatic check was not possible". Nenhum fala em bloqueio, e o contrato passa a impedir que
+alguém introduza um.
+
+**Gates:** `EXIT_TSC=0` · `EXIT_LINT=0` · `EXIT_FMT=0` · `EXIT_TEST=0` (5886 pass / 0 fail na suíte
+grande — 5881 + 5 novos —, 145 pass / 0 fail em `test:hooks`).
