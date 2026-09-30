@@ -307,7 +307,13 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       ainda apagaria a sugestão que o operador está olhando. ⚠️ `useEffect` é o certo **aqui**, e a
       razão é a regra, não a exceção: a leitura é sincronização com sistema externo — busca na rede
       ao bucket, decodificação zxing, WebWorker do tesseract, temporizador de 20 s e um PATCH. Não é
-      transformação de dado
+      transformação de dado.
+      ⚠️ **`CanhotoReviewOutcome` ainda carrega `review`** (`canhotoReview.service.ts:34,74,87`), e
+      depois da T7.2 a rota é `.strict()`: mandar `review` no corpo do `automatic` é **400**, não
+      campo ignorado. O `review` do cliente deixa de ir para a rede — ou vira estado só de sessão
+      (a frase "não foi possível conferir automaticamente" da T7.16), ou sai do tipo. Quem esquecer
+      isso vê 100% das leituras automáticas falharem com 400, e o sintoma é "tudo pendente" —
+      indistinguível do bug que a Fase 7 veio consertar
 - [ ] T7.15 A imagem para a leitura: `fetch(downloadUrl)` → `blob` → `createImageBitmap` → canvas →
       `getImageData`, no molde de `fieldDeliveryCapture.service.ts:56-74`. ⚠️ **Nunca** reusar o
       `<img>` de `ProofImage.component.tsx:49-56`: ele não tem `crossOrigin`, e o canvas que o
