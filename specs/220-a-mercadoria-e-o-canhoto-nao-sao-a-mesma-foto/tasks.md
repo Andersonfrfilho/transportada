@@ -321,7 +321,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       (a frase "não foi possível conferir automaticamente" da T7.16), ou sai do tipo. Quem esquecer
       isso vê 100% das leituras automáticas falharem com 400, e o sintoma é "tudo pendente" —
       indistinguível do bug que a Fase 7 veio consertar
-- [ ] T7.15 A imagem para a leitura: `fetch(downloadUrl)` → `blob` → `createImageBitmap` → canvas →
+- [x] T7.15 A imagem para a leitura: `fetch(downloadUrl)` → `blob` → `createImageBitmap` → canvas →
       `getImageData`, no molde de `fieldDeliveryCapture.service.ts:56-74`. ⚠️ **Nunca** reusar o
       `<img>` de `ProofImage.component.tsx:49-56`: ele não tem `crossOrigin`, e o canvas que o
       desenhar fica contaminado — `getImageData` lança `SecurityError`, o `catch` genérico de

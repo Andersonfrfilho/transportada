@@ -2583,3 +2583,74 @@ hooks:   129 pass · 0 fail  →  135 pass · 0 fail
 suíte:   5881 pass · 0 fail (inalterada)
 EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
 ```
+
+### T7.15 — A imagem para a leitura: por onde os bytes entram
+
+A tubulação em si (`fetch(downloadUrl)` → `blob` → `createImageBitmap` → canvas próprio →
+`getImageData`) já entrou junto com a T7.14, em `canhotoReviewRead.service.ts` — as duas tasks são
+uma peça só no código. O que faltava, e é o que esta task fecha, são as duas garantias: a medição do
+CORS e a asserção direta da proibição do `<img>`.
+
+**Novo:** `test/trip-hooks/canhoto-review-read.contract.ts` (2 casos), registrado com uma linha no
+entrypoint `test/trip-hooks.contract.test.ts`.
+
+#### A proibição do `<img>` deixou de ser sustentada só pela construção
+
+Era a armadilha mais cara da fase e a mais silenciosa: `<img>` sem `crossOrigin` contamina o canvas,
+o `getImageData` lança `SecurityError`, o `catch` genérico de `decodeBarcodeFrame`
+(`barcodeDecoder.service.ts:27-33`) engole a exceção, e 100% dos canhotos viram "ilegível" — sem
+erro em log, sem sintoma distinguível de canhoto realmente ruim. Uma proibição que falha calada
+precisa de asserção, não de comentário.
+
+O contrato dobra `globalThis.Image` **e** `document.createElement('img')` com contadores; a asserção
+é `imageConstructions === 0` mais `fetchedUrls === [ORIGINAL_URL]` — que é, de quebra, a prova de
+que a miniatura não entra.
+
+**Vermelho medido** com uma mutação de rascunho (`new Image(); probe.src = downloadUrl` antes do
+`fetch`, o caminho exato que alguém tomaria ao "reusar o `<img>` que já está na tela"):
+
+```
+(fail) … os bytes entram por fetch da URL original, nunca por um `<img>`
+136 pass · 1 fail · EXIT_RED=1
+```
+
+Serviço restaurado com `git checkout --` antes de seguir; o segundo caso (`503` → o erro sobe em vez
+de virar leitura vazia) garante que imagem que não vem não vira "ilegível".
+
+#### O CORS do bucket, medido
+
+Contra o MinIO local (`transportada-local-minio-1`, saudável), bucket `transportada-local` — a
+variável é `STORAGE_BUCKET`, não `OBJECT_STORAGE_BUCKET`:
+
+```
+GET  http://127.0.0.1:59000/transportada-local/probe-cors.jpg
+     Origin: http://localhost:53000
+  → 403 (objeto exige assinatura — o que importa aqui são os cabeçalhos)
+    access-control-allow-origin: http://localhost:53000
+    access-control-allow-credentials: true
+    vary: Origin
+
+OPTIONS mesma URL, Access-Control-Request-Method: GET
+  → 204
+    access-control-allow-methods: GET
+    access-control-allow-origin: http://localhost:53000
+```
+
+O preflight passa e a origem é refletida: o `fetch` do serviço tem CORS pelo bucket, e o `connect-src`
+da CSP tem a origem dele (`contentSecurityPolicy.service.ts:113-123`).
+
+⚠️ **Honestidade sobre o alcance**: isto prova a pilha local e o padrão do MinIO, **não** a política
+do bucket de produção. O bucket produtivo pode ter policy própria de CORS, e a medição equivalente
+precisa ser refeita lá antes de dar a leitura automática por garantida em produção.
+
+⚠️ **O JSDoc de `contentSecurityPolicy.service.ts:72-74` está errado** e desmente o próprio código
+duas vezes: diz que `objectStorageUrl` entra "**só** em `img-src`", enquanto `:113` alimenta com ela
+o `connectSource` (`:114-123`) e o `mediaSource` (`:128`). Quem lesse só o comentário concluiria que
+o `fetch` ao bucket está bloqueado e desviaria de um obstáculo que não existe. Anotado para a
+varredura de fim de fase — o comentário é que está velho, não o código.
+
+```
+hooks:   135 pass · 0 fail  →  137 pass · 0 fail
+suíte:   5881 pass · 0 fail (inalterada)
+EXIT_TYPECHECK=0 · EXIT_LINT=0 · EXIT_TEST=0 · EXIT_FORMAT=0
+```
