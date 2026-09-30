@@ -171,10 +171,16 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
       ⚠️ **Executada antes da T6.2, de propósito**: o Postgres da integração é construído a partir
       das migrations, não do schema TS, então sem esta a T6.2 falharia por coluna inexistente —
       fixture faltando, não comportamento faltando
-- [ ] T6.4 Contrato: `matched` por código de barras → `approved`; OCR com número certo →
-      `pending` com sugestão; ilegível → `pending`; prazo estourado → `pending`
-- [ ] T6.5 `canhotoReview.service.ts` no painel — orquestra os serviços existentes (zxing →
-      tesseract sob `canhotoOcrEnabled`), fora do caminho de render, prazo de 20 s
+- [x] T6.4 Contrato: `matched` por código de barras → `approved`; OCR com número certo →
+      `pending` com sugestão; ilegível → `pending`; prazo estourado → `pending`.
+      Três casos a mais do que o enunciado pedia, todos alcançáveis: nota casada **sem número
+      impresso** não aprova (o banco recusaria origem sem número), `otherSelected` e
+      `onTripNotSelected` ficam pendentes **com** a leitura, e as CHECK do banco viram asserção
+      sobre todos os vereditos possíveis
+- [x] T6.5 `canhotoReview.service.ts` no painel — orquestra os serviços existentes (zxing →
+      tesseract sob `canhotoOcrEnabled`), fora do caminho de render, prazo de 20 s.
+      Fechada junto com a T6.4: um commit com o vermelho registrado na `evidence.md`, porque árvore
+      vermelha commitada quebra o portão de todo mundo
 - [ ] T6.6 Contrato: aprovação manual exige `trip.manage`, grava ator e instante, gera trilha; o
       resultado automático **nunca** sobrescreve decisão humana
 - [ ] T6.7 Contrato: recusa exige motivo; texto livre com CPF, CNPJ, telefone, e-mail ou CEP é

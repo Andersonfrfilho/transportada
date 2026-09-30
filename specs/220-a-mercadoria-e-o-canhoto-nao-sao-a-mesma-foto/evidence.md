@@ -1597,3 +1597,94 @@ ocorrência. O defeito real é o teste não declarar prazo próprio e viver a 19
 registrado aqui como pendência fora da 220, não como verde.
 
 `make migration-test` não se aplica: a T6.2 não mexe em schema — a migration é a T6.3, já fechada.
+
+### T6.4 + T6.5 — O veredito automático do canhoto
+
+Contrato antes: `test/trip/canhoto-review.contract.ts` (novo, registrado no entrypoint
+`test/trip.contract.test.ts` — o `package.json` do painel já lista o entrypoint, então nenhum
+arquivo novo entra na lista). O vermelho foi comportamento faltando, não fixture:
+
+```
+error: Cannot find module '@/modules/trip/shared/canhotoReview.service'
+       from '.../test/trip/canhoto-review.contract.ts'
+```
+
+As duas tasks fecharam no mesmo commit: o vermelho fica aqui, não na árvore — commit vermelho
+quebra o portão de quem vier depois.
+
+#### As CHECK do banco viraram asserção do painel
+
+A matriz de `trip.schema.ts:1863-1928` diz o que o Postgres aceita. Três delas o painel podia
+violar, e a descoberta seria um 500 em produção:
+
+| CHECK                     | Regra                                       | Teste                        |
+| ------------------------- | ------------------------------------------- | ---------------------------- |
+| `..._read_number_check`   | `read_number` e `read_source` juntos ou nem | varre **todos** os vereditos |
+| `..._read_series_check`   | série só com número                         | varre todos os vereditos     |
+| `..._auto_approval_check` | `approved` exige `read_source = 'barcode'`  | varre todos os vereditos     |
+
+Os testes não checam um caso: montam a lista dos nove vereditos que a função consegue produzir e
+passam a invariante em cima de todos. Ramo novo entra na lista ou a asserção não o cobre — mas
+ramo novo que viole a CHECK cai, porque a lista é construída pelos mesmos `resolve`.
+
+#### O caso que o enunciado não previa e o banco impõe
+
+Uma nota casada **pela chave** pode não ter número impresso (`nfeNumber === null`): o casamento por
+`accessKey` não exige número. Aprovar ali gravaria `read_source = 'barcode'` com `read_number`
+nulo — exatamente o que a `..._read_number_check` recusa. Então a nota sem número **não aprova**:
+cai em pendente sem leitura. O estado é alcançável, não impossível, e tem teste próprio.
+
+#### O OCR nunca aprova (RF26)
+
+Só `matched` por código de barras devolve `approved`. `otherSelected` e `onTripNotSelected` ficam
+pendentes **carregando a leitura** — a tela precisa mostrar qual nota o canhoto aponta (tabela de
+casos de borda da `spec.md`). `notOnTrip` não carrega leitura: não há nota da viagem a apontar.
+
+#### O prazo é um veredito, não um erro (RNF02)
+
+`CANHOTO_REVIEW_TIMEOUT_MS = 20_000`, e o estouro entra na matriz como `CANHOTO_REVIEW_TIMED_OUT`
+— o mesmo desenho do `OCR_TIMEOUT` do motor, **reusado** em vez de um segundo utilitário de prazo
+(`raceAgainstTimeout` já existia em `canhotoOcrEngine.service.ts`).
+
+⚠️ O prazo de 20 s **não é exercitado por espera real** — seria um teste de 20 s. O que os testes
+prendem é a constante, o ramo do estouro na função pura, e a orquestração com o reconhecedor
+injetado. A espera real fica coberta pelo utilitário, que já tem contrato próprio.
+
+#### A orquestração tem contrato porque tem ramos
+
+`reviewCanhoto` lê o código de barras primeiro e **só acorda o OCR quando ele não leu** — um
+contrato conta as chamadas do reconhecedor e exige zero quando o código de barras decidiu. Os
+outros três: OCR desligado não chama nada; palavras reconhecidas viram sugestão `ocr`; reconhecedor
+que devolve `undefined` não inventa leitura.
+
+#### O tipo da lista de notas estava errado e o teste pegou
+
+`reviewCanhoto` recebia `readonly CanhotoOcrTripDocument[]` — tipo que **não carrega
+`accessKey`**. Com ele, o caminho do código de barras jamais casaria uma nota, e o painel nunca
+aprovaria canhoto nenhum. Corrigido para `CanhotoReviewTripDocument`, que é o tipo do OCR mais a
+chave; os dois leitores leem a mesma lista.
+
+#### Os testes não são vazios — provado por três mutações
+
+```
+1. OCR passa a devolver 'approved'          → 3 fail (2 casos + a CHECK de aprovação automática)
+2. nota sem número passa a aprovar          → 2 fail (o caso + a CHECK de número/origem)
+3. OCR roda mesmo com o código já lido      → 1 fail (a contagem de chamadas do reconhecedor)
+```
+
+Restaurado do backup depois de cada uma; `grep -c` volta ao valor original em todas.
+
+#### Portões
+
+```
+$ bun test ./test/trip.contract.test.ts
+ 1959 pass · 0 fail · 19871 expect()  [1.09s]        → EXIT=0
+$ bun run typecheck (apps/frontend-transportada)      → EXIT=0
+$ bun run test (suíte inteira do painel)
+ 5832 pass · 0 fail  +  81 pass · 0 fail              → EXIT=0
+$ bun run lint  → 0 erros; 16 avisos, todos pré-existentes e em outros arquivos
+$ bunx prettier --check (3 arquivos tocados)          → limpo
+```
+
+Nenhum comando da API: a task é só do painel, não toca `test/integration/**` nem schema — sem
+`make migration-test` e sem os dois comandos da API.
