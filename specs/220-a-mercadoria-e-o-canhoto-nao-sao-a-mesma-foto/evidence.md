@@ -2208,3 +2208,64 @@ $ bun run typecheck (apps/frontend-transportada)  → EXIT=0
 $ bun run lint (raiz)        → EXIT=0
 $ bun run format:check (raiz)  → EXIT=0
 ```
+
+### T7.8 — o veredito aparece no item da nota
+
+`ProofReview.component.tsx` entra em `ProofImage.component.tsx:80`, logo depois de `ProofReadings`.
+Ele não decide nada: a tradução veredito → tela é da `presentCanhotoReview` (T7.6), e aqui só se
+escolhe o texto e o selo. Sem veredito o componente devolve `null` — assinatura, foto da mercadoria
+e comprovante antigo não ganham selo nenhum.
+
+Variante por veredito, das **cinco** que o design system tem: `success` na aprovação (automática e
+humana), `info` nos três estados de espera, `warning` na recusa. O mapa é
+`satisfies Record<CanhotoReviewMessageKey, BadgeProps['variant']>`, então veredito novo sem selo
+reprova no typecheck em vez de renderizar errado. O selo **Experimental** (`secondary`) só aparece
+com `pendingOcr`, e a nota só com `rejected` de motivo `other`.
+
+⚠️ **A ⚠️ da task já estava coberta, e por isso não custou nada.** O contraste AA das cinco
+variantes é medido pelo contrato automático `test/design-system/badge-contrast.contract.ts`
+(`3a6e036e7`), que compõe o fundo translúcido sobre página e diálogo nos dois temas. Nenhuma
+variante nova foi criada — criar uma exigiria token por tema mais entrada naquele contrato.
+
+⚠️ **O design system não tem variante de perigo**, então "canhoto recusado" divide o `warning` com
+os avisos de atraso e de distância do `ProofReadings`, no mesmo bloco de selos. Distinguir a recusa
+é mudança de design system, não desta fase — fica registrado aqui para quem decidir.
+
+```
+VERMELHO (teste antes do código)
+$ bun run test:hooks
+ EXIT=1  └ Cannot find module '.../ProofReview.component'
+VERDE
+$ bun run test:hooks                          90 pass · 0 fail → EXIT=0
+$ bun run test (apps/frontend-transportada)                   → EXIT=0
+$ bun run typecheck (apps/frontend-transportada)              → EXIT=0
+$ bun run lint (raiz)          → EXIT=0
+$ bun run format:check (raiz)  → EXIT=0
+```
+
+#### Defeito achado na revisão da T7.8, consertado em commit à parte (`7a483f2d6`)
+
+A frase da aprovação manual saía com buraco no meio — `Aprovado por  em 30/09/2026, 12:00` —
+sempre que quem conferiu **já saiu da empresa**. Não é hipótese: `CanhotoReviewRecord`
+(`read-delivery-proof.use-case.ts:31-32`) diz que `canhotoReviewByName` vem `null` exatamente
+nesse caso, e a T7.8 só testava a aprovação com nome.
+
+O conserto é uma chave de mensagem a mais, `approvedManualUnknown` ("Aprovado manualmente em
+{{moment}}" / "Approved manually on {{moment}}"), escolhida quando o nome falta. **Nenhum fallback
+para momento ausente**: `canhoto-review-decision.policy.ts:141` grava `canhotoReviewAt` no mesmo
+`update` que grava o veredito humano, então numa aprovação manual o momento não falta — tratar esse
+estado seria tratar o impossível. De quebra, `approvedManual` deixou de ter o espalhamento
+condicional e agora **sempre** carrega `reviewerName`, que é o que o nome da chave promete.
+
+```
+VERMELHO (teste antes do código, os dois níveis)
+$ bun test ./test/trip.contract.test.ts   EXIT=1  └ esperava approvedManualUnknown, veio approvedManual
+$ bun run test:hooks                      EXIT=1  └ renderizou "Aprovado por  em 30/09/2026, 12:00"
+VERDE
+$ bun test ./test/trip.contract.test.ts  → EXIT=0
+$ bun run test:hooks                     → EXIT=0
+$ bun run test (apps/frontend-transportada)      → EXIT=0
+$ bun run typecheck (apps/frontend-transportada) → EXIT=0
+$ bun run lint (raiz)          → EXIT=0
+$ bun run format:check (raiz)  → EXIT=0
+```

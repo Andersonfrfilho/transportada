@@ -263,7 +263,7 @@ exclui `action: 'automatic'` de propósito, mas RF25 põe a leitura no navegador
       de 20 e 500. ⚠️ É cópia, e cópia diverge: não existe `packages/` neste repo (CLAUDE.md) e a
       regra mora na API. O teste carrega os mesmos casos do contrato do servidor, para a divergência
       reprovar um teste em vez de reprovar um usuário
-- [ ] T7.8 `ProofReview.component.tsx`, chamado por `ProofImage.component.tsx:80` logo depois de
+- [x] T7.8 `ProofReview.component.tsx`, chamado por `ProofImage.component.tsx:80` logo depois de
       `ProofReadings`. Selo por veredito com `Badge` do design system. ⚠️ Conferir o contraste AA no
       tema claro antes de escolher a variante — a T4.6 achou o selo semântico reprovando, e o
       conserto (`3a6e036e7`) valia para outras cinco telas
