@@ -272,6 +272,7 @@ import {
 } from './trips/domain/occurrence-attachment.policy.js'
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { correctOccurrenceItems } from './trips/application/correct-occurrence-items.use-case.js'
+import { reviewCanhotoProof } from './trips/application/review-canhoto-proof.use-case.js'
 import { cancelOccurrence } from './trips/application/cancel-occurrence.use-case.js'
 import {
   DrizzleOccurrenceCorrectionUnitOfWork,
@@ -403,6 +404,7 @@ import {
   resolveCargoLayoutLeaseMs,
 } from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
+import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
@@ -492,6 +494,7 @@ import { createReimburseOccurrenceSettlementUseCase } from './trips/application/
 import { createFindOccurrenceSettlementUseCase } from './trips/application/find-occurrence-settlement.use-case.js'
 import { DrizzleOccurrenceSettlementRepository } from './trips/infrastructure/drizzle-occurrence-settlement.repository.js'
 import { DrizzleOccurrenceSettlementChargeRepository } from './trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
+import { DrizzleCanhotoReviewUnitOfWork } from './trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { DrizzleTripRevenueRepository } from './trips/infrastructure/drizzle-trip-revenue.repository.js'
@@ -2187,6 +2190,8 @@ function createApplicationRoutes({
         tripId: input.tripId,
       }),
   }
+  /** Spec 220 T6.8: a conferência do canhoto escreve veredito e trilha na mesma transação. */
+  const canhotoReviewUnitOfWork = new DrizzleCanhotoReviewUnitOfWork(database)
   /** RF12/D6: a fila de revisão (`move`/`swap`, spec 148) recalcula com o mesmo congelador (T206). */
   const tripDocumentReviewRepository = new DrizzleTripDocumentReviewRepository(
     database,
@@ -3047,6 +3052,13 @@ function createApplicationRoutes({
     }),
     /** Spec 148 T7: a fila de revisão das notas que não couberam. */
     ...createTripDocumentReviewRoutes({ reviews: tripDocumentReviewRepository }),
+    /** Spec 220 RF27: conferir o canhoto — aprovar ou recusar com motivo, sob `trip.manage`. */
+    ...createCanhotoReviewRoutes({
+      canhotoReview: {
+        review: (input) => reviewCanhotoProof({ ...input, unitOfWork: canhotoReviewUnitOfWork }),
+      },
+      resolveClientIp,
+    }),
     /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
     ...createTripOccurrenceDetailRoutes({
       readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({

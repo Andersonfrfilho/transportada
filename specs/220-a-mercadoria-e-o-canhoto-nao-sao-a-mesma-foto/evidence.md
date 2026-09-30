@@ -1688,3 +1688,89 @@ $ bunx prettier --check (3 arquivos tocados)          → limpo
 
 Nenhum comando da API: a task é só do painel, não toca `test/integration/**` nem schema — sem
 `make migration-test` e sem os dois comandos da API.
+
+---
+
+## T6.6 + T6.7 + T6.8 — a conferência do canhoto vira rota, caso de uso e trilha
+
+Três tasks, um commit. Contrato antes da implementação nas três; árvore comitada vermelha quebraria
+o portão de quem vem depois, como já aconteceu na T6.4/T6.5.
+
+### O que a rota aceita — e o que ela recusa por construção
+
+`PATCH /trips/:id/documents/:documentId/proof/review`, sob `trip.manage`, aceita **só**
+`approve` e `reject`. O veredito automático (`action: 'automatic'`) existe como forma de comando na
+porta, para o caminho interno da leitura, e **fica de fora da união discriminada do Zod**: aceitar
+uma aprovação automática vinda do painel deixaria RF26 ("OCR nunca aprova sozinho") valendo por
+convenção em vez de por tipo. `companyId`, autor e IP vêm do contexto autenticado — `companyId` no
+corpo é 400.
+
+### Onde mora a regra
+
+Toda a validação (motivo × nota, 20–500 caracteres, dado pessoal, coerência da leitura) está na
+política de domínio, não no Zod. Dois motivos: é o espelho das CHECK de `trip_delivery_proofs`, que
+precisam de um lugar só, e o caminho automático não passa por HTTP — regra em `parse` não o
+alcançaria.
+
+`canhoto-review-decision.policy.ts` é arquivo novo, separado do `canhoto-review.policy.ts`
+existente: aquele trata do **conjunto de colunas** (valor inicial, reset no `ON CONFLICT`), este de
+**decidir um veredito**. Juntos passariam de 200 linhas.
+
+### A guarda de dado pessoal nasceu em `src/shared/`
+
+`src/shared/personal-data.policy.ts`, fora do módulo de viagens, para a spec 162 reusar quando for
+implementada (a guarda dela nunca existiu — conferido por três buscas independentes: só
+`monetary-redaction.service.ts` para dinheiro e um `\d{11}` sem relação em
+`aggregate-document-ocr.policy.ts`).
+
+Devolve a **categoria**, nunca o valor: a mensagem de erro não pode vazar o dado que ela recusou.
+Duas fronteiras deliberadas, documentadas no arquivo:
+
+- **8 dígitos soltos não são CEP.** Colidem com número de nota e com valor sem separador. CEP só é
+  reconhecido pontuado (`\b\d{5}-\d{3}\b`).
+- **11 dígitos crus casam CPF primeiro.** É CPF ou celular — dado pessoal nos dois casos, e a
+  categoria só existe para a mensagem.
+
+### Duas consultas para travar, de propósito
+
+`lockCanhotoProof` localiza o canhoto pela junção (`trip_delivery_proofs` → `trip_stop_events` →
+`trip_documents`, filtrando empresa, documento e **viagem**) e só então trava a linha do
+comprovante com `FOR NO KEY UPDATE` por `(companyId, id)`. Travar na junção contenderia com a FK
+composta que outra escrita pega com `FOR KEY SHARE` — o padrão que o `CLAUDE.md` da app recusa.
+
+A viagem entra no `where`, não só na assinatura: sem ela, uma nota de outra viagem da mesma empresa
+devolveria o canhoto dela. `null` vira **404, nunca 403**.
+
+### A trilha leva o motivo, nunca o texto
+
+`audit_logs` não tem coluna de IP — ele viaja em `metadata`, como `insertTripFieldOfficeAudit` já
+faz. A entrada da porta é plana; a persistência monta o `metadata`. **O texto livre não entra**
+(RF31): só o motivo da lista fechada. O contrato prova por asserção sobre o JSON inteiro da entrada.
+
+Repetir a mesma decisão não escreve nada — nem linha, nem trilha. Trocar decisão humana por outra é 409.
+
+### Os testes não são vazios — provado por três mutações
+
+```
+1. automático passa por cima da mão        → 2 fail
+2. guarda de dado pessoal desligada        → 1 fail
+3. OCR pode aprovar sozinho (RF26)         → 1 fail
+```
+
+Restaurado do backup depois de cada uma; 21 pass · 0 fail em todas as restaurações.
+
+### Portões
+
+```
+$ bun --env-file=../../.env.test test ./test/canhoto-review.contract.test.ts ./test/personal-data.contract.test.ts
+ 50 pass · 0 fail · 92 expect()                       → EXIT=0
+$ bun --env-file=../../.env.test test --timeout 120000   (suíte de contrato inteira da API)
+ 8400 pass · 23 skip · 0 fail · 27137 expect() · 192 arquivos [40.13s]  → EXIT=0
+$ bun run typecheck (apps/api-transportada)           → EXIT=0
+$ bun run lint  → 0 erros; 16 avisos, todos pré-existentes e no painel
+$ bun run format                                      → EXIT=0
+```
+
+Nenhuma task tocou `test/integration/**` nem schema: sem o segundo comando da API e sem
+`make migration-test`. As duas entradas novas (`canhoto-review`, `personal-data`) entraram na lista
+explícita do `package.json` — sem isso o teste existe e não roda.

@@ -181,15 +181,17 @@ só não virou task. As T4.3a–T4.3c são a correção, abertas em 30/09/2026.
       tesseract sob `canhotoOcrEnabled`), fora do caminho de render, prazo de 20 s.
       Fechada junto com a T6.4: um commit com o vermelho registrado na `evidence.md`, porque árvore
       vermelha commitada quebra o portão de todo mundo
-- [ ] T6.6 Contrato: aprovação manual exige `trip.manage`, grava ator e instante, gera trilha; o
+- [x] T6.6 Contrato: aprovação manual exige `trip.manage`, grava ator e instante, gera trilha; o
       resultado automático **nunca** sobrescreve decisão humana
-- [ ] T6.7 Contrato: recusa exige motivo; texto livre com CPF, CNPJ, telefone, e-mail ou CEP é
+- [x] T6.7 Contrato: recusa exige motivo; texto livre com CPF, CNPJ, telefone, e-mail ou CEP é
       recusado (**reusar** a guarda da spec 162, não escrever outra).
       ⚠️ **A guarda não existe**: a spec 162 (`162-limpeza-do-armazenamento`) parou no portão de
       decisão da T0 e não foi implementada — de `src/storage/` só existem o gateway e o repositório,
       sem rota de expurgo e sem validação de motivo. Escrever a guarda aqui, em `src/shared/`, de
       forma que a 162 a reuse quando for implementada — não dentro do módulo de viagens
-- [ ] T6.8 `PATCH .../proof/review` + caso de uso, com verificação por objeto (tenant) e trilha
+- [x] T6.8 `PATCH .../proof/review` + caso de uso, com verificação por objeto (tenant) e trilha
+      Fechada junto com a T6.6 e a T6.7, num commit só: contrato antes da implementação em todas as
+      três, e árvore comitada vermelha quebraria o portão de quem vem depois
 - [ ] T6.9 Canhoto recusado vira pendência de recaptura para o motorista, com o motivo visível
 - [ ] T6.10 Contrato: **nenhum veredito** impede confirmar entrega, despachar viagem, emitir CT-e
       ou faturar (CA13)
