@@ -81,6 +81,20 @@ describe('o veredito do canhoto aparece no item da nota (spec 220 T7.8)', () => 
     expect(text).toContain(`Aprovado por ${REVIEWER_NAME}`)
   })
 
+  it('approvedManualUnknown: sem o nome, a frase não deixa buraco', async () => {
+    const text = await renderReview(
+      makeProof({
+        canhotoReview: 'approved',
+        canhotoReviewAt: '2026-09-30T12:00:00Z',
+        canhotoReviewOrigin: 'manual',
+      }),
+    )
+
+    expect(text).toContain('Aprovado manualmente em ')
+    expect(text).not.toContain('Aprovado por')
+    expect(text).not.toMatch(/ {2}/)
+  })
+
   it('pendingBarcode: mostra a nota que o código de barras aponta, sem Experimental', async () => {
     const text = await renderReview(
       makeProof({

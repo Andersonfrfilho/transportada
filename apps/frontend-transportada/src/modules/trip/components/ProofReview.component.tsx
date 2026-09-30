@@ -23,6 +23,7 @@ import { formatMoment } from './ProofReadings.component'
 const REVIEW_BADGE_VARIANT = {
   approvedAutomatic: 'success',
   approvedManual: 'success',
+  approvedManualUnknown: 'success',
   pendingBarcode: 'info',
   pendingOcr: 'info',
   pendingUnread: 'info',

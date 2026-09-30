@@ -10,6 +10,7 @@ import { formatCanhotoOcrNumber } from '@/modules/trip/shared/fieldDeliveryRevie
 export type CanhotoReviewMessageKey =
   | 'approvedAutomatic'
   | 'approvedManual'
+  | 'approvedManualUnknown'
   | 'pendingBarcode'
   | 'pendingOcr'
   | 'pendingUnread'
@@ -41,11 +42,16 @@ function presentApproved(proof: DeliveryProof): CanhotoReviewPresentation {
   if (proof.canhotoReviewOrigin !== 'manual') {
     return { isExperimental: false, messageKey: 'approvedAutomatic' }
   }
+  const reviewedAt =
+    proof.canhotoReviewAt === undefined ? {} : { reviewedAt: proof.canhotoReviewAt }
+  if (proof.canhotoReviewByName === undefined) {
+    return { isExperimental: false, messageKey: 'approvedManualUnknown', ...reviewedAt }
+  }
   return {
     isExperimental: false,
     messageKey: 'approvedManual',
-    ...(proof.canhotoReviewByName === undefined ? {} : { reviewerName: proof.canhotoReviewByName }),
-    ...(proof.canhotoReviewAt === undefined ? {} : { reviewedAt: proof.canhotoReviewAt }),
+    reviewerName: proof.canhotoReviewByName,
+    ...reviewedAt,
   }
 }
 

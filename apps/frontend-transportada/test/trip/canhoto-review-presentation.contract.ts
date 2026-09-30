@@ -48,6 +48,20 @@ describe('presentCanhotoReview (spec 220 T7.6)', () => {
     })
   })
 
+  it('aprovado por pessoa que já saiu da empresa usa a chave sem nome, ainda com a data', () => {
+    const presentation = presentCanhotoReview({
+      ...BASE_PROOF,
+      canhotoReview: 'approved',
+      canhotoReviewAt: '2026-09-25T13:00:00.000Z',
+      canhotoReviewOrigin: 'manual',
+    })
+    expect(presentation).toEqual({
+      isExperimental: false,
+      messageKey: 'approvedManualUnknown',
+      reviewedAt: '2026-09-25T13:00:00.000Z',
+    })
+  })
+
   it('pendente com OCR mostra o número lido e o selo Experimental', () => {
     const presentation = presentCanhotoReview({
       ...BASE_PROOF,

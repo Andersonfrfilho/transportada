@@ -354,6 +354,7 @@
     "canhotoReview": {
       "approvedAutomatic": "Checked automatically",
       "approvedManual": "Approved by {{name}} on {{moment}}",
+      "approvedManualUnknown": "Approved manually on {{moment}}",
       "experimental": "Experimental",
       "pendingBarcode": "Awaiting review: the barcode points to document {{number}}",
       "pendingOcr": "Awaiting review: number read {{number}}",

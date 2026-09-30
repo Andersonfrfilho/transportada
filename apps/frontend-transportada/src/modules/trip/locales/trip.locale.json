@@ -460,6 +460,7 @@
     "canhotoReview": {
       "approvedAutomatic": "Conferido automaticamente",
       "approvedManual": "Aprovado por {{name}} em {{moment}}",
+      "approvedManualUnknown": "Aprovado manualmente em {{moment}}",
       "experimental": "Experimental",
       "pendingBarcode": "Aguardando conferência: o código de barras aponta a nota {{number}}",
       "pendingOcr": "Aguardando conferência: número lido {{number}}",
