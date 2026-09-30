@@ -20,6 +20,7 @@ import {
 import styles from '../styles/trip.module.css'
 
 import { ProofReadings } from './ProofReadings.component'
+import { ProofReview } from './ProofReview.component'
 
 type ProofImageProps = Readonly<{
   alt: string
@@ -78,6 +79,7 @@ export function ProofImage({ alt, onOpen, proof }: ProofImageProps) {
         )}
       </div>
       <ProofReadings proof={proof} />
+      <ProofReview proof={proof} />
     </>
   )
 }
